@@ -12,6 +12,8 @@ import type {
   FanoutConfig,
   HealthStatus,
   MaintenanceResult,
+  MeshcomodConfig,
+  MeshcomodConfigUpdate,
   Message,
   MessagesAroundResponse,
   RawPacket,
@@ -99,6 +101,12 @@ export const api = {
     fetchJson<RadioConfig>('/radio/config', {
       method: 'PATCH',
       body: JSON.stringify(config),
+    }),
+  getMeshcomodConfig: () => fetchJson<MeshcomodConfig>('/radio/meshcomod'),
+  updateMeshcomodConfig: (update: MeshcomodConfigUpdate) =>
+    fetchJson<MeshcomodConfig>('/radio/meshcomod', {
+      method: 'PATCH',
+      body: JSON.stringify(update),
     }),
   getPrivateKey: () => fetchJson<{ private_key: string }>('/radio/private-key'),
   setPrivateKey: (privateKey: string) =>

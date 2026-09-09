@@ -36,6 +36,20 @@ export interface RadioConfigUpdate {
   telemetry_mode_env?: number;
 }
 
+export interface MeshcomodConfig {
+  cad_supported: boolean;
+  cad_enabled: boolean | null;
+  gps_supported: boolean;
+  gps_enabled: boolean | null;
+  gps_interval: number | null;
+}
+
+export interface MeshcomodConfigUpdate {
+  cad_enabled?: boolean;
+  gps_enabled?: boolean;
+  gps_interval?: number;
+}
+
 export type RadioDiscoveryTarget = 'repeaters' | 'sensors' | 'all';
 
 export interface RadioDiscoveryResult {
@@ -115,6 +129,7 @@ export interface HealthStatus {
     firmware_version: string | null;
     max_contacts: number | null;
     max_channels: number | null;
+    is_meshcomod: boolean;
   } | null;
   radio_stats?: RadioStatsSnapshot | null;
   database_size_mb: number;

@@ -106,6 +106,7 @@ class TestHealthFanoutStatus:
             "firmware_version": "1.2.3",
             "max_contacts": 350,
             "max_channels": 64,
+            "is_meshcomod": False,
         }
 
     @pytest.mark.asyncio
