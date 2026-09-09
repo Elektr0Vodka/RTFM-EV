@@ -12,6 +12,7 @@ import type { HealthStatus, RadioConfig } from '../types';
 import { api } from '../api';
 import { toast } from './ui/sonner';
 import { handleKeyboardActivate } from '../utils/a11y';
+import { useT } from '../i18n';
 import { applyTheme, getEffectiveTheme, THEME_CHANGE_EVENT } from '../utils/theme';
 import {
   BATTERY_DISPLAY_CHANGE_EVENT,
@@ -44,6 +45,7 @@ export function StatusBar({
   onSettingsClick,
   onMenuClick,
 }: StatusBarProps) {
+  const t = useT();
   const [showBatteryPercent, setShowBatteryPercent] = useState(getShowBatteryPercent);
   const [showBatteryVoltage, setShowBatteryVoltage] = useState(getShowBatteryVoltage);
 
@@ -66,12 +68,12 @@ export function StatusBar({
       pct >= 40 ? 'text-status-connected' : pct >= 15 ? 'text-warning' : 'text-destructive';
     const label =
       showBatteryPercent && showBatteryVoltage
-        ? `${pct}% (${batteryMv}mV)`
+        ? t('status_battery_percent_and_mv', { pct, mv: batteryMv })
         : showBatteryPercent
-          ? `${pct}%`
-          : `${batteryMv}mV`;
+          ? t('status_battery_percent', { pct })
+          : t('status_battery_mv', { mv: batteryMv });
     return { pct, Icon, color, label, mv: batteryMv };
-  }, [batteryMv, showBatteryPercent, showBatteryVoltage]);
+  }, [batteryMv, showBatteryPercent, showBatteryVoltage, t]);
 
   const radioState =
     health?.radio_state ??
@@ -83,14 +85,14 @@ export function StatusBar({
   const connected = health?.radio_connected ?? false;
   const statusLabel =
     radioState === 'paused'
-      ? 'Radio Paused'
+      ? t('status_radio_paused')
       : radioState === 'connecting'
-        ? 'Radio Connecting'
+        ? t('status_radio_connecting')
         : radioState === 'initializing'
-          ? 'Radio Initializing'
+          ? t('status_radio_initializing')
           : connected
-            ? 'Radio OK'
-            : 'Radio Disconnected';
+            ? t('status_radio_ok')
+            : t('status_radio_disconnected');
   const [reconnecting, setReconnecting] = useState(false);
   // Track the *effective* theme (follow-os is resolved to original/light) so the
   // toggle icon and action match what the user currently sees rendered.
@@ -165,11 +167,11 @@ export function StatusBar({
     try {
       const result = await api.reconnectRadio();
       if (result.connected) {
-        toast.success('Reconnected', { description: result.message });
+        toast.success(t('toast_reconnected'), { description: result.message });
       }
     } catch (err) {
-      toast.error('Reconnection failed', {
-        description: err instanceof Error ? err.message : 'Check radio connection and power',
+      toast.error(t('toast_reconnection_failed'), {
+        description: err instanceof Error ? err.message : t('toast_check_radio_connection'),
       });
     } finally {
       setReconnecting(false);
@@ -189,7 +191,7 @@ export function StatusBar({
         <button
           onClick={onMenuClick}
           className="md:hidden p-0.5 bg-transparent border-none text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-          aria-label="Open menu"
+          aria-label={t('a11y_open_menu')}
         >
           <Menu className="h-4 w-4" />
         </button>
@@ -230,9 +232,12 @@ export function StatusBar({
       {connected && batteryInfo && (
         <div
           className={cn('flex items-center gap-1', batteryInfo.color)}
-          title={`Battery: ${batteryInfo.pct}% (${(batteryInfo.mv / 1000).toFixed(2)}V)`}
+          title={t('status_battery_title', {
+            pct: batteryInfo.pct,
+            voltage: (batteryInfo.mv / 1000).toFixed(2),
+          })}
           role="status"
-          aria-label={`Battery ${batteryInfo.pct} percent`}
+          aria-label={t('a11y_battery_percent', { pct: batteryInfo.pct })}
         >
           <batteryInfo.Icon className="h-4 w-4" aria-hidden="true" />
           <span className="hidden sm:inline text-[0.6875rem]">{batteryInfo.label}</span>
@@ -241,7 +246,7 @@ export function StatusBar({
 
       {config && (
         <div className="hidden lg:flex items-center gap-2 text-muted-foreground">
-          <span className="text-foreground font-medium">{config.name || 'Unnamed'}</span>
+          <span className="text-foreground font-medium">{config.name || t('common_unnamed')}</span>
           <span
             className="font-mono text-[0.6875rem] text-muted-foreground cursor-pointer hover:text-primary transition-colors"
             role="button"
@@ -249,10 +254,10 @@ export function StatusBar({
             onKeyDown={handleKeyboardActivate}
             onClick={() => {
               navigator.clipboard.writeText(config.public_key);
-              toast.success('Public key copied!');
+              toast.success(t('toast_public_key_copied'));
             }}
-            title="Click to copy public key"
-            aria-label="Copy public key"
+            title={t('a11y_click_to_copy_public_key')}
+            aria-label={t('a11y_copy_public_key')}
           >
             {config.public_key.toLowerCase()}
           </span>
@@ -265,7 +270,11 @@ export function StatusBar({
           disabled={reconnecting}
           className="px-3 py-1 bg-warning/10 border border-warning/20 text-warning rounded-md text-xs cursor-pointer hover:bg-warning/15 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          {reconnecting ? 'Reconnecting...' : radioState === 'paused' ? 'Connect' : 'Reconnect'}
+          {reconnecting
+            ? t('status_reconnecting')
+            : radioState === 'paused'
+              ? t('common_connect')
+              : t('common_reconnect')}
         </button>
       )}
       <button
@@ -277,13 +286,21 @@ export function StatusBar({
             : 'bg-secondary border border-border text-muted-foreground hover:bg-accent hover:text-foreground'
         )}
       >
-        {settingsMode ? 'Back to Chat' : 'Settings'}
+        {settingsMode ? t('nav_back_to_chat') : t('nav_settings_heading')}
       </button>
       <button
         onClick={handleThemeToggle}
         className="p-0.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
-        title={currentTheme === 'light' ? 'Switch to classic theme' : 'Switch to light theme'}
-        aria-label={currentTheme === 'light' ? 'Switch to classic theme' : 'Switch to light theme'}
+        title={
+          currentTheme === 'light'
+            ? t('a11y_switch_to_classic_theme')
+            : t('a11y_switch_to_light_theme')
+        }
+        aria-label={
+          currentTheme === 'light'
+            ? t('a11y_switch_to_classic_theme')
+            : t('a11y_switch_to_light_theme')
+        }
       >
         {currentTheme === 'light' ? (
           <Moon className="h-4 w-4" aria-hidden="true" />
