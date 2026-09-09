@@ -1,4 +1,14 @@
 {
   "_meta": { "locale": "en", "name": "English", "source": "rtfm-ev" },
-  "settings_language": "Language"
+  "settings_language": "Language",
+  "a11y_settings_nav": "Settings",
+  "a11y_back_to_conversations": "Back to conversations",
+  "a11y_navigation": "Navigation",
+  "a11y_sidebar_navigation": "Sidebar navigation",
+  "nav_settings_heading": "Settings",
+  "nav_back_to_chat": "Back to Chat",
+  "nav_skip_to_content": "Skip to content",
+  "common_loading_search": "Loading search...",
+  "common_loading_settings": "Loading settings...",
+  "common_loading_channel_finder": "Loading channel finder..."
 }

@@ -1,4 +1,14 @@
 {
-  "_meta": { "locale": "de", "name": "Deutsch", "derived_from": "kiekr-i18n (CC-BY 4.0)" },
-  "settings_language": "Sprache"
+  "_meta": { "locale": "de", "name": "Deutsch", "derived_from": "kiekr-i18n (CC-BY 4.0)", "review": "machine-drafted, needs native review" },
+  "settings_language": "Sprache",
+  "a11y_settings_nav": "Einstellungen",
+  "a11y_back_to_conversations": "Zurück zu den Unterhaltungen",
+  "a11y_navigation": "Navigation",
+  "a11y_sidebar_navigation": "Seitenleisten-Navigation",
+  "nav_settings_heading": "Einstellungen",
+  "nav_back_to_chat": "Zurück zum Chat",
+  "nav_skip_to_content": "Zum Inhalt springen",
+  "common_loading_search": "Suche wird geladen...",
+  "common_loading_settings": "Einstellungen werden geladen...",
+  "common_loading_channel_finder": "Kanalfinder wird geladen..."
 }

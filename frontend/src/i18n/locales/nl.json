@@ -1,4 +1,14 @@
 {
-  "_meta": { "locale": "nl", "name": "Nederlands", "derived_from": "kiekr-i18n (CC-BY 4.0)" },
-  "settings_language": "Taal"
+  "_meta": { "locale": "nl", "name": "Nederlands", "derived_from": "kiekr-i18n (CC-BY 4.0)", "review": "machine-drafted, needs native review" },
+  "settings_language": "Taal",
+  "a11y_settings_nav": "Instellingen",
+  "a11y_back_to_conversations": "Terug naar gesprekken",
+  "a11y_navigation": "Navigatie",
+  "a11y_sidebar_navigation": "Zijbalknavigatie",
+  "nav_settings_heading": "Instellingen",
+  "nav_back_to_chat": "Terug naar chat",
+  "nav_skip_to_content": "Naar inhoud springen",
+  "common_loading_search": "Zoeken laden...",
+  "common_loading_settings": "Instellingen laden...",
+  "common_loading_channel_finder": "Kanaalzoeker laden..."
 }
