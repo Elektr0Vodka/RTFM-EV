@@ -73,13 +73,27 @@ const TILE_LAYERS: readonly TileLayerPreset[] = [
     maxZoom: 19,
   },
   {
-    id: 'dark',
-    label: 'Dark (CARTO)',
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    // Keyless raster dark basemap, matching the raster options used by the
+    // DutchMeshCore Observers map. Replaces the former CARTO dark_all layer,
+    // whose basemaps.cartocdn.com endpoint now requires an API key.
+    id: 'darkgray',
+    label: 'Dark Gray (Esri)',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
     attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
-    background: '#0d0d0d',
-    maxZoom: 19,
+      'Tiles &copy; <a href="https://www.esri.com/">Esri</a> &mdash; Esri, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, and the GIS user community',
+    background: '#2b2b2b',
+    // Esri's Dark Gray Canvas publishes tiles to ~z16 over the Netherlands;
+    // past that it returns a placeholder, so cap here and let Leaflet stop.
+    maxZoom: 16,
+  },
+  {
+    id: 'lightgray',
+    label: 'Light Gray (Esri)',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    attribution:
+      'Tiles &copy; <a href="https://www.esri.com/">Esri</a> &mdash; Esri, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, and the GIS user community',
+    background: '#d6d6d6',
+    maxZoom: 16,
   },
   {
     id: 'topographic',
@@ -89,6 +103,16 @@ const TILE_LAYERS: readonly TileLayerPreset[] = [
       'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)',
     background: '#a3b3bc',
     maxZoom: 17,
+  },
+  {
+    id: 'natgeo',
+    label: 'NatGeo (Esri)',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}',
+    attribution:
+      'Tiles &copy; <a href="https://www.esri.com/">Esri</a> &mdash; National Geographic, Esri, Garmin, HERE, UNEP-WCMC, USGS, NASA, ESA, METI, NRCAN, GEBCO, NOAA, iPC',
+    background: '#aac6df',
+    // NatGeo only covers the Netherlands to ~z12; z13+ is the placeholder tile.
+    maxZoom: 12,
   },
   {
     id: 'satellite',
@@ -112,10 +136,13 @@ const LEGACY_DARK_MAP_STORAGE_KEY = 'remoteterm-dark-map';
 function getSavedLayerId(): string {
   try {
     const stored = localStorage.getItem(MAP_LAYER_STORAGE_KEY);
+    // The former CARTO layer had id 'dark'; migrate a saved selection to the
+    // replacement Esri dark basemap so users keep a dark map after the swap.
+    if (stored === 'dark') return 'darkgray';
     if (stored && TILE_LAYERS.some((l) => l.id === stored)) return stored;
     // Legacy migration: boolean dark-map flag predates multi-layer support.
     const legacyDark = localStorage.getItem(LEGACY_DARK_MAP_STORAGE_KEY) === 'true';
-    return legacyDark ? 'dark' : 'light';
+    return legacyDark ? 'darkgray' : 'light';
   } catch {
     return 'light';
   }
