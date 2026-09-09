@@ -44,6 +44,12 @@ const TYPE_LABELS: Record<string, string> = {
 const DEFAULT_COMMUNITY_PACKET_TOPIC_TEMPLATE = 'meshcore/{IATA}/{PUBLIC_KEY}/packets';
 const DEFAULT_COMMUNITY_BROKER_HOST = 'mqtt-us-v1.letsmesh.net';
 const DEFAULT_COMMUNITY_BROKER_HOST_EU = 'mqtt-eu-v1.letsmesh.net';
+const DEFAULT_DMC1_BROKER_HOST = 'collector1.dutchmeshcore.nl';
+const DEFAULT_DMC2_BROKER_HOST = 'collector2.dutchmeshcore.nl';
+const DEFAULT_MESHCORE_ANALYZER_EU_BROKER_HOST = 'mqtt.meshcore-analyzer.eu';
+// Dutch MeshCore collectors serve the WebSocket endpoint under /mqtt (from the
+// MeshCore observer preset URLs wss://collectorN.dutchmeshcore.nl:443/mqtt).
+const DEFAULT_DMC_WEBSOCKET_PATH = '/mqtt';
 const DEFAULT_COMMUNITY_BROKER_PORT = 443;
 const DEFAULT_COMMUNITY_TRANSPORT = 'websockets';
 const DEFAULT_COMMUNITY_AUTH_MODE = 'token';
@@ -135,6 +141,9 @@ type DraftType =
   | 'mqtt_community_meshrank'
   | 'mqtt_community_letsmesh_us'
   | 'mqtt_community_letsmesh_eu'
+  | 'mqtt_community_dmc1'
+  | 'mqtt_community_dmc2'
+  | 'mqtt_community_meshcore_analyzer_eu'
   | 'webhook'
   | 'apprise'
   | 'sqs'
@@ -269,6 +278,59 @@ const CREATE_INTEGRATION_DEFINITIONS: readonly CreateIntegrationDefinition[] = [
       config: createCommunityConfigDefaults({
         broker_host: DEFAULT_COMMUNITY_BROKER_HOST_EU,
         token_audience: DEFAULT_COMMUNITY_BROKER_HOST_EU,
+      }),
+      scope: { messages: 'none', raw_packets: 'all' },
+    },
+  },
+  {
+    value: 'mqtt_community_dmc1',
+    savedType: 'mqtt_community',
+    label: 'DMC-1',
+    section: 'Community Sharing',
+    description:
+      'A community MQTT config preconfigured for the Dutch MeshCore collector 1 endpoint, requiring only your email and IATA region code. A subset of the primary Community MQTT/meshcoretomqtt configuration; you are free to edit all configuration after creation.',
+    defaultName: 'DMC-1',
+    nameMode: 'fixed',
+    defaults: {
+      config: createCommunityConfigDefaults({
+        broker_host: DEFAULT_DMC1_BROKER_HOST,
+        token_audience: DEFAULT_DMC1_BROKER_HOST,
+        websocket_path: DEFAULT_DMC_WEBSOCKET_PATH,
+      }),
+      scope: { messages: 'none', raw_packets: 'all' },
+    },
+  },
+  {
+    value: 'mqtt_community_dmc2',
+    savedType: 'mqtt_community',
+    label: 'DMC-2',
+    section: 'Community Sharing',
+    description:
+      'A community MQTT config preconfigured for the Dutch MeshCore collector 2 endpoint, requiring only your email and IATA region code. A subset of the primary Community MQTT/meshcoretomqtt configuration; you are free to edit all configuration after creation.',
+    defaultName: 'DMC-2',
+    nameMode: 'fixed',
+    defaults: {
+      config: createCommunityConfigDefaults({
+        broker_host: DEFAULT_DMC2_BROKER_HOST,
+        token_audience: DEFAULT_DMC2_BROKER_HOST,
+        websocket_path: DEFAULT_DMC_WEBSOCKET_PATH,
+      }),
+      scope: { messages: 'none', raw_packets: 'all' },
+    },
+  },
+  {
+    value: 'mqtt_community_meshcore_analyzer_eu',
+    savedType: 'mqtt_community',
+    label: 'MeshCore Analyzer (EU)',
+    section: 'Community Sharing',
+    description:
+      'A community MQTT config preconfigured for the MeshCore Analyzer EU endpoint (mqtt.meshcore-analyzer.eu), requiring only your email and IATA region code. A subset of the primary Community MQTT/meshcoretomqtt configuration; you are free to edit all configuration after creation.',
+    defaultName: 'MeshCore Analyzer (EU)',
+    nameMode: 'fixed',
+    defaults: {
+      config: createCommunityConfigDefaults({
+        broker_host: DEFAULT_MESHCORE_ANALYZER_EU_BROKER_HOST,
+        token_audience: DEFAULT_MESHCORE_ANALYZER_EU_BROKER_HOST,
       }),
       scope: { messages: 'none', raw_packets: 'all' },
     },
@@ -501,6 +563,37 @@ function normalizeDraftConfig(draftType: DraftType, config: Record<string, unkno
       use_tls: true,
       tls_verify: true,
       token_audience: brokerHost,
+      topic_template: (config.topic_template as string) || DEFAULT_COMMUNITY_PACKET_TOPIC_TEMPLATE,
+      username: '',
+      password: '',
+    });
+  }
+
+  if (
+    draftType === 'mqtt_community_dmc1' ||
+    draftType === 'mqtt_community_dmc2' ||
+    draftType === 'mqtt_community_meshcore_analyzer_eu'
+  ) {
+    const brokerHost =
+      draftType === 'mqtt_community_dmc1'
+        ? DEFAULT_DMC1_BROKER_HOST
+        : draftType === 'mqtt_community_dmc2'
+          ? DEFAULT_DMC2_BROKER_HOST
+          : DEFAULT_MESHCORE_ANALYZER_EU_BROKER_HOST;
+    // DMC collectors serve WebSockets under /mqtt; the Analyzer EU broker is at the
+    // root, so it uses the backend's default path.
+    const websocketPath =
+      draftType === 'mqtt_community_meshcore_analyzer_eu' ? '/' : DEFAULT_DMC_WEBSOCKET_PATH;
+    return normalizeIntegrationConfigForSave('mqtt_community', {
+      ...config,
+      broker_host: brokerHost,
+      broker_port: DEFAULT_COMMUNITY_BROKER_PORT,
+      transport: DEFAULT_COMMUNITY_TRANSPORT,
+      auth_mode: DEFAULT_COMMUNITY_AUTH_MODE,
+      use_tls: true,
+      tls_verify: true,
+      token_audience: brokerHost,
+      websocket_path: websocketPath,
       topic_template: (config.topic_template as string) || DEFAULT_COMMUNITY_PACKET_TOPIC_TEMPLATE,
       username: '',
       password: '',
@@ -1765,8 +1858,8 @@ function LetsMeshConfigEditor({
   return (
     <div className="space-y-3">
       <p className="text-[0.8125rem] text-muted-foreground">
-        Pre-filled LetsMesh setup. This saves as a regular Community MQTT integration once created,
-        but only asks for the values LetsMesh expects from you.
+        Pre-filled setup. This saves as a regular Community MQTT integration once created, but only
+        asks for the values the broker expects from you.
       </p>
 
       <div className="rounded-md border border-input bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
@@ -3294,6 +3387,30 @@ export function SettingsFanoutSection({
             config={editConfig}
             onChange={setEditConfig}
             brokerHost={DEFAULT_COMMUNITY_BROKER_HOST_EU}
+          />
+        )}
+
+        {detailType === 'mqtt_community_dmc1' && (
+          <LetsMeshConfigEditor
+            config={editConfig}
+            onChange={setEditConfig}
+            brokerHost={DEFAULT_DMC1_BROKER_HOST}
+          />
+        )}
+
+        {detailType === 'mqtt_community_dmc2' && (
+          <LetsMeshConfigEditor
+            config={editConfig}
+            onChange={setEditConfig}
+            brokerHost={DEFAULT_DMC2_BROKER_HOST}
+          />
+        )}
+
+        {detailType === 'mqtt_community_meshcore_analyzer_eu' && (
+          <LetsMeshConfigEditor
+            config={editConfig}
+            onChange={setEditConfig}
+            brokerHost={DEFAULT_MESHCORE_ANALYZER_EU_BROKER_HOST}
           />
         )}
 

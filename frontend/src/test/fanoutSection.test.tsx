@@ -136,7 +136,7 @@ describe('SettingsFanoutSection', () => {
     const optionButtons = within(dialog)
       .getAllByRole('button')
       .filter((button) => button.hasAttribute('aria-pressed'));
-    expect(optionButtons).toHaveLength(11);
+    expect(optionButtons).toHaveLength(14);
     expect(within(dialog).getByRole('button', { name: 'Close' })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Create' })).toBeInTheDocument();
     expect(
@@ -150,6 +150,17 @@ describe('SettingsFanoutSection', () => {
     ).toBeInTheDocument();
     expect(
       within(dialog).getByRole('button', { name: startsWithAccessibleName('LetsMesh (EU)') })
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole('button', { name: startsWithAccessibleName('DMC-1') })
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole('button', { name: startsWithAccessibleName('DMC-2') })
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole('button', {
+        name: startsWithAccessibleName('MeshCore Analyzer (EU)'),
+      })
     ).toBeInTheDocument();
     expect(
       within(dialog).getByRole('button', {
@@ -1350,6 +1361,199 @@ describe('SettingsFanoutSection', () => {
           iata: 'AMS',
           email: 'user@example.com',
           token_audience: 'mqtt-eu-v1.letsmesh.net',
+          topic_template: 'meshcore/{IATA}/{PUBLIC_KEY}/packets',
+        },
+        scope: { messages: 'none', raw_packets: 'all' },
+        enabled: true,
+      })
+    );
+  });
+
+  it('DMC-1 preset saves the collector1 broker defaults with the /mqtt websocket path', async () => {
+    const createdConfig: FanoutConfig = {
+      id: 'comm-dmc1',
+      type: 'mqtt_community',
+      name: 'DMC-1',
+      enabled: true,
+      config: {
+        broker_host: 'collector1.dutchmeshcore.nl',
+        broker_port: 443,
+        transport: 'websockets',
+        use_tls: true,
+        tls_verify: true,
+        auth_mode: 'token',
+        username: '',
+        password: '',
+        iata: 'AMS',
+        email: 'user@example.com',
+        token_audience: 'collector1.dutchmeshcore.nl',
+        websocket_path: '/mqtt',
+        topic_template: 'meshcore/{IATA}/{PUBLIC_KEY}/packets',
+      },
+      scope: { messages: 'none', raw_packets: 'all' },
+      sort_order: 0,
+      created_at: 2000,
+    };
+    mockedApi.createFanoutConfig.mockResolvedValue(createdConfig);
+    mockedApi.getFanoutConfigs.mockResolvedValueOnce([]).mockResolvedValueOnce([createdConfig]);
+
+    renderSection();
+    await openCreateIntegrationDialog();
+    selectCreateIntegration('DMC-1');
+    confirmCreateIntegration();
+    await waitFor(() => expect(screen.getByText('← Back to list')).toBeInTheDocument());
+
+    expect(screen.getByLabelText('Name')).toHaveValue('DMC-1');
+    expect(screen.queryByLabelText('Authentication')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Packet Topic Template')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'user@example.com' } });
+    fireEvent.change(screen.getByLabelText('Region Code (IATA)'), { target: { value: 'ams' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save as Enabled' }));
+
+    await waitFor(() =>
+      expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith({
+        type: 'mqtt_community',
+        name: 'DMC-1',
+        config: {
+          broker_host: 'collector1.dutchmeshcore.nl',
+          broker_port: 443,
+          transport: 'websockets',
+          use_tls: true,
+          tls_verify: true,
+          auth_mode: 'token',
+          username: '',
+          password: '',
+          iata: 'AMS',
+          email: 'user@example.com',
+          token_audience: 'collector1.dutchmeshcore.nl',
+          websocket_path: '/mqtt',
+          topic_template: 'meshcore/{IATA}/{PUBLIC_KEY}/packets',
+        },
+        scope: { messages: 'none', raw_packets: 'all' },
+        enabled: true,
+      })
+    );
+  });
+
+  it('DMC-2 preset saves the collector2 broker defaults with the /mqtt websocket path', async () => {
+    const createdConfig: FanoutConfig = {
+      id: 'comm-dmc2',
+      type: 'mqtt_community',
+      name: 'DMC-2',
+      enabled: true,
+      config: {
+        broker_host: 'collector2.dutchmeshcore.nl',
+        broker_port: 443,
+        transport: 'websockets',
+        use_tls: true,
+        tls_verify: true,
+        auth_mode: 'token',
+        username: '',
+        password: '',
+        iata: 'AMS',
+        email: 'user@example.com',
+        token_audience: 'collector2.dutchmeshcore.nl',
+        websocket_path: '/mqtt',
+        topic_template: 'meshcore/{IATA}/{PUBLIC_KEY}/packets',
+      },
+      scope: { messages: 'none', raw_packets: 'all' },
+      sort_order: 0,
+      created_at: 2000,
+    };
+    mockedApi.createFanoutConfig.mockResolvedValue(createdConfig);
+    mockedApi.getFanoutConfigs.mockResolvedValueOnce([]).mockResolvedValueOnce([createdConfig]);
+
+    renderSection();
+    await openCreateIntegrationDialog();
+    selectCreateIntegration('DMC-2');
+    confirmCreateIntegration();
+    await waitFor(() => expect(screen.getByText('← Back to list')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'user@example.com' } });
+    fireEvent.change(screen.getByLabelText('Region Code (IATA)'), { target: { value: 'ams' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save as Enabled' }));
+
+    await waitFor(() =>
+      expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith({
+        type: 'mqtt_community',
+        name: 'DMC-2',
+        config: {
+          broker_host: 'collector2.dutchmeshcore.nl',
+          broker_port: 443,
+          transport: 'websockets',
+          use_tls: true,
+          tls_verify: true,
+          auth_mode: 'token',
+          username: '',
+          password: '',
+          iata: 'AMS',
+          email: 'user@example.com',
+          token_audience: 'collector2.dutchmeshcore.nl',
+          websocket_path: '/mqtt',
+          topic_template: 'meshcore/{IATA}/{PUBLIC_KEY}/packets',
+        },
+        scope: { messages: 'none', raw_packets: 'all' },
+        enabled: true,
+      })
+    );
+  });
+
+  it('MeshCore Analyzer (EU) preset saves the analyzer broker defaults at the root path', async () => {
+    const createdConfig: FanoutConfig = {
+      id: 'comm-analyzer-eu',
+      type: 'mqtt_community',
+      name: 'MeshCore Analyzer (EU)',
+      enabled: true,
+      config: {
+        broker_host: 'mqtt.meshcore-analyzer.eu',
+        broker_port: 443,
+        transport: 'websockets',
+        use_tls: true,
+        tls_verify: true,
+        auth_mode: 'token',
+        username: '',
+        password: '',
+        iata: 'AMS',
+        email: 'user@example.com',
+        token_audience: 'mqtt.meshcore-analyzer.eu',
+        websocket_path: '/',
+        topic_template: 'meshcore/{IATA}/{PUBLIC_KEY}/packets',
+      },
+      scope: { messages: 'none', raw_packets: 'all' },
+      sort_order: 0,
+      created_at: 2000,
+    };
+    mockedApi.createFanoutConfig.mockResolvedValue(createdConfig);
+    mockedApi.getFanoutConfigs.mockResolvedValueOnce([]).mockResolvedValueOnce([createdConfig]);
+
+    renderSection();
+    await openCreateIntegrationDialog();
+    selectCreateIntegration('MeshCore Analyzer (EU)');
+    confirmCreateIntegration();
+    await waitFor(() => expect(screen.getByText('← Back to list')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'user@example.com' } });
+    fireEvent.change(screen.getByLabelText('Region Code (IATA)'), { target: { value: 'ams' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save as Enabled' }));
+
+    await waitFor(() =>
+      expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith({
+        type: 'mqtt_community',
+        name: 'MeshCore Analyzer (EU)',
+        config: {
+          broker_host: 'mqtt.meshcore-analyzer.eu',
+          broker_port: 443,
+          transport: 'websockets',
+          use_tls: true,
+          tls_verify: true,
+          auth_mode: 'token',
+          username: '',
+          password: '',
+          iata: 'AMS',
+          email: 'user@example.com',
+          token_audience: 'mqtt.meshcore-analyzer.eu',
+          websocket_path: '/',
           topic_template: 'meshcore/{IATA}/{PUBLIC_KEY}/packets',
         },
         scope: { messages: 'none', raw_packets: 'all' },
