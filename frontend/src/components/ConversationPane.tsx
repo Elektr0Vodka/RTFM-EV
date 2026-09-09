@@ -67,6 +67,10 @@ interface ConversationPaneProps {
     channelKey: string,
     pathHashModeOverride: number | null
   ) => Promise<void>;
+  cadCapable?: boolean;
+  cadSupported?: boolean;
+  cadEnabled?: boolean | null;
+  onToggleCad?: () => void;
   onSelectConversation: (conversation: Conversation) => void;
   onOpenContactInfo: (publicKey: string, fromChannel?: boolean) => void;
   onOpenChannelInfo: (channelKey: string) => void;
@@ -147,6 +151,10 @@ export function ConversationPane({
   onDeleteChannel,
   onSetChannelFloodScopeOverride,
   onSetChannelPathHashModeOverride,
+  cadCapable,
+  cadSupported,
+  cadEnabled,
+  onToggleCad,
   onSelectConversation,
   onOpenContactInfo,
   onOpenChannelInfo,
@@ -306,6 +314,10 @@ export function ConversationPane({
         onToggleMute={onToggleMute}
         onSetChannelFloodScopeOverride={onSetChannelFloodScopeOverride}
         onSetChannelPathHashModeOverride={onSetChannelPathHashModeOverride}
+        cadCapable={cadCapable}
+        cadSupported={cadSupported}
+        cadEnabled={cadEnabled}
+        onToggleCad={onToggleCad}
         onDeleteChannel={onDeleteChannel}
         onDeleteContact={onDeleteContact}
         onOpenContactInfo={onOpenContactInfo}
