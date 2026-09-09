@@ -1353,7 +1353,7 @@ export function MessageList({
                         (msg.acked > 0 ? (
                           msg.paths && msg.paths.length > 0 ? (
                             <span
-                              className="text-muted-foreground cursor-pointer hover:text-primary"
+                              className="msg-ack text-muted-foreground cursor-pointer hover:text-primary"
                               role="button"
                               tabIndex={0}
                               onKeyDown={handleKeyboardActivate}
@@ -1371,7 +1371,7 @@ export function MessageList({
                               aria-label={`Acknowledged, ${msg.acked} echo${msg.acked !== 1 ? 's' : ''} — view paths`}
                             >{` ✓${msg.acked > 1 ? msg.acked : ''}`}</span>
                           ) : (
-                            <span className="text-muted-foreground">{` ✓${msg.acked > 1 ? msg.acked : ''}`}</span>
+                            <span className="msg-ack text-muted-foreground">{` ✓${msg.acked > 1 ? msg.acked : ''}`}</span>
                           )
                         ) : onResendChannelMessage && msg.type === 'CHAN' ? (
                           <span
@@ -1396,7 +1396,7 @@ export function MessageList({
                             ?
                           </span>
                         ) : (
-                          <span className="text-muted-foreground" title="No repeats heard yet">
+                          <span className="msg-ack-pending text-muted-foreground" title="No repeats heard yet">
                             {' '}
                             ?
                           </span>
