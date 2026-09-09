@@ -86,6 +86,15 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      keyframes: {
+        ticker: {
+          "0%": { transform: "translateX(0)" },
+          "100%": { transform: "translateX(-100%)" },
+        },
+      },
+      animation: {
+        ticker: "ticker 30s linear infinite",
+      },
     },
   },
   plugins: [require("tailwindcss-animate")],

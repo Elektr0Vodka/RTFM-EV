@@ -26,6 +26,7 @@ import { PathHopWidthProvider } from './contexts/PathHopWidthContext';
 import { RichPayloadProvider } from './contexts/RichPayloadContext';
 import { usePush } from './contexts/PushSubscriptionContext';
 import { messageContainsMention } from './utils/messageParser';
+import { buildMentionEvent, type MentionEvent } from './components/MentionTicker';
 import { getStateKey } from './utils/conversationState';
 import type { BulkCreateHashtagChannelsResult, Channel, Conversation, Message } from './types';
 import { CONTACT_TYPE_REPEATER, CONTACT_TYPE_ROOM } from './types';
@@ -211,6 +212,28 @@ export function App() {
   useEffect(() => {
     channelsRef.current = channels;
   }, [channels]);
+
+  // ── Mention ticker ─────────────────────────────────────────────────────────
+  // Pending @mentions surfaced by the WS callback for channels not being viewed.
+  const MENTION_EXPIRE_MS = 10 * 60 * 1_000;
+  const [pendingMentions, setPendingMentions] = useState<MentionEvent[]>([]);
+  const handleChannelMention = useCallback(
+    (msg: Message) => {
+      const ch = channelsRef.current.find((c) => c.key === msg.conversation_key);
+      const chName = ch ? `#${ch.name}` : msg.conversation_key.slice(0, 8).toUpperCase();
+      const event = buildMentionEvent(msg, chName);
+      const now = Date.now();
+      setPendingMentions((prev) => {
+        // Deduplicate by messageId and drop entries older than the expiry window.
+        const filtered = prev.filter((m) => m.key !== event.key && now - m.at < MENTION_EXPIRE_MS);
+        return [...filtered, event];
+      });
+    },
+    [MENTION_EXPIRE_MS]
+  );
+  const handleDismissMention = useCallback((key: number) => {
+    setPendingMentions((prev) => prev.filter((m) => m.key !== key));
+  }, []);
 
   const handleToggleFavorite = useCallback(
     async (type: 'channel' | 'contact', id: string) => {
@@ -416,6 +439,7 @@ export function App() {
     removeConversationMessages,
     receiveMessageAck,
     notifyIncomingMessage,
+    onChannelMention: handleChannelMention,
   });
   const handleVisibilityPolicyChanged = useCallback(() => {
     clearConversationMessages();
@@ -801,6 +825,18 @@ export function App() {
             bulkAddChannelResultModalProps={bulkAddChannelResultModalProps}
             contactInfoPaneProps={contactInfoPaneProps}
             channelInfoPaneProps={channelInfoPaneProps}
+            showMentionTicker={appSettings?.show_mention_ticker ?? true}
+            mentionTickerEvents={pendingMentions}
+            onNavigateMentionToMessage={(channelKey, messageId) => {
+              const ch = channelsRef.current.find((c) => c.key === channelKey);
+              handleNavigateToMessage({
+                id: messageId,
+                type: 'CHAN',
+                conversation_key: channelKey,
+                conversation_name: ch ? `#${ch.name}` : channelKey,
+              });
+            }}
+            onDismissMention={handleDismissMention}
             onRepeaterAutoLogin={handleRepeaterAutoLogin}
           />
           <ChannelImportExportModal

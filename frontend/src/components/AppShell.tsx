@@ -16,6 +16,7 @@ import { NewMessageModal } from './NewMessageModal';
 import { BulkAddChannelResultModal } from './BulkAddChannelResultModal';
 import { ContactInfoPane } from './ContactInfoPane';
 import { ChannelInfoPane } from './ChannelInfoPane';
+import { MentionTicker, type MentionEvent } from './MentionTicker';
 import { CommandPalette } from './CommandPalette';
 import { SecurityWarningModal } from './SecurityWarningModal';
 import { Toaster } from './ui/sonner';
@@ -80,6 +81,10 @@ interface AppShellProps {
   bulkAddChannelResultModalProps: BulkAddChannelResultModalProps;
   contactInfoPaneProps: ContactInfoPaneProps;
   channelInfoPaneProps: ChannelInfoPaneProps;
+  showMentionTicker?: boolean;
+  mentionTickerEvents?: MentionEvent[];
+  onNavigateMentionToMessage?: (channelKey: string, messageId: number) => void;
+  onDismissMention?: (key: number) => void;
   onRepeaterAutoLogin: (publicKey: string, displayName: string) => void;
 }
 
@@ -110,6 +115,10 @@ export function AppShell({
   bulkAddChannelResultModalProps,
   contactInfoPaneProps,
   channelInfoPaneProps,
+  showMentionTicker = true,
+  mentionTickerEvents = [],
+  onNavigateMentionToMessage,
+  onDismissMention,
   onRepeaterAutoLogin,
 }: AppShellProps) {
   const swipeHandlers = useSwipeable({
@@ -273,6 +282,12 @@ export function AppShell({
         </Sheet>
 
         <main id="main-content" className="flex-1 flex flex-col bg-background min-w-0">
+          <MentionTicker
+            enabled={showMentionTicker}
+            mentions={mentionTickerEvents}
+            onNavigateToMessage={onNavigateMentionToMessage ?? (() => {})}
+            onDismiss={onDismissMention}
+          />
           <div
             className={cn(
               'flex-1 flex flex-col min-h-0',
