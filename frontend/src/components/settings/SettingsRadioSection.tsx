@@ -6,6 +6,7 @@ import { Button } from '../ui/button';
 import { Separator } from '../ui/separator';
 import { toast } from '../ui/sonner';
 import { Checkbox } from '../ui/checkbox';
+import { MeshcomodSettings } from './MeshcomodSettings';
 import {
   Dialog,
   DialogContent,
@@ -1468,6 +1469,8 @@ export function SettingsRadioSection({
             </div>
           )}
         </div>
+
+        <MeshcomodSettings health={health} />
       </div>
 
       {/* ── Private Key Import Warning ── */}

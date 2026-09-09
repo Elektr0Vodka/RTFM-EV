@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.repository import RawPacketRepository
+from app.services.meshcomod import is_meshcomod
 from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.radio_stats import get_latest_radio_stats
 from app.version_info import get_app_build_info
@@ -19,6 +20,7 @@ class RadioDeviceInfoResponse(BaseModel):
     firmware_version: str | None = None
     max_contacts: int | None = None
     max_channels: int | None = None
+    is_meshcomod: bool = False
 
 
 class AppInfoResponse(BaseModel):
@@ -146,6 +148,10 @@ async def build_health_data(radio_connected: bool, connection_info: str | None) 
             ),
             "max_contacts": getattr(radio_manager, "max_contacts", None),
             "max_channels": getattr(radio_manager, "max_channels", None),
+            "is_meshcomod": is_meshcomod(
+                getattr(radio_manager, "firmware_ver_code", None),
+                getattr(radio_manager, "firmware_version", None),
+            ),
         }
 
     # Local radio stats from the 60s background sampler

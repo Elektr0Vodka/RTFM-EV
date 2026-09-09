@@ -287,6 +287,7 @@ describe('SettingsModal', () => {
           firmware_version: '1.2.3',
           max_contacts: 350,
           max_channels: 64,
+          is_meshcomod: false,
         },
       },
     });

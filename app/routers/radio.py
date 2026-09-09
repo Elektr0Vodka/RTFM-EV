@@ -33,6 +33,11 @@ from app.services.contact_reconciliation import (
     promote_prefix_contacts_for_contact,
     reconcile_contact_messages,
 )
+from app.services.meshcomod import (
+    apply_meshcomod_update,
+    is_meshcomod,
+    read_meshcomod_settings,
+)
 from app.services.radio_commands import (
     KeystoreRefreshError,
     PathHashModeUnsupportedError,
@@ -149,6 +154,20 @@ class RadioConfigUpdate(BaseModel):
     telemetry_mode_env: int | None = Field(
         default=None, ge=0, le=2, description="Environment sensor sharing mode"
     )
+
+
+class MeshcomodConfigResponse(BaseModel):
+    cad_supported: bool = False
+    cad_enabled: bool | None = None
+    gps_supported: bool = False
+    gps_enabled: bool | None = None
+    gps_interval: int | None = None
+
+
+class MeshcomodConfigUpdate(BaseModel):
+    cad_enabled: bool | None = None
+    gps_enabled: bool | None = None
+    gps_interval: int | None = Field(default=None, ge=0, le=86400)
 
 
 class PrivateKeyUpdate(BaseModel):
@@ -412,6 +431,41 @@ async def update_radio_config(update: RadioConfigUpdate) -> RadioConfigResponse:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     return await get_radio_config()
+
+
+def _require_meshcomod() -> None:
+    if not is_meshcomod(radio_manager.firmware_ver_code, radio_manager.firmware_version):
+        raise HTTPException(
+            status_code=404, detail="Connected radio is not meshcomod DMC/DMC-EV firmware"
+        )
+
+
+@router.get("/meshcomod", response_model=MeshcomodConfigResponse)
+async def get_meshcomod_config() -> MeshcomodConfigResponse:
+    """Read meshcomod-specific settings (CAD, GPS) from the connected radio."""
+    radio_manager.require_connected()
+    _require_meshcomod()
+    async with radio_manager.radio_operation("get_meshcomod_config") as mc:
+        data = await read_meshcomod_settings(mc)
+    return MeshcomodConfigResponse(**data)
+
+
+@router.patch("/meshcomod", response_model=MeshcomodConfigResponse)
+async def update_meshcomod_config(update: MeshcomodConfigUpdate) -> MeshcomodConfigResponse:
+    """Update meshcomod-specific settings. Only provided fields are applied."""
+    radio_manager.require_connected()
+    _require_meshcomod()
+    async with radio_manager.radio_operation("update_meshcomod_config") as mc:
+        try:
+            await apply_meshcomod_update(
+                mc,
+                cad_enabled=update.cad_enabled,
+                gps_enabled=update.gps_enabled,
+                gps_interval=update.gps_interval,
+            )
+        except RadioCommandRejectedError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return await get_meshcomod_config()
 
 
 @router.get("/private-key")
