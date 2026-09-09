@@ -45,7 +45,9 @@ function readSaved(): Locale {
 const I18nContext = createContext<I18nValue>({
   locale: DEFAULT_LOCALE,
   setLocale: () => {},
-  t: (key) => key,
+  // Outside a provider (e.g. in isolated component tests), still resolve to the
+  // English catalog rather than echoing the raw key, so text stays readable.
+  t: (key, params) => translate(CATALOGS, DEFAULT_LOCALE, key, params),
 });
 
 export function I18nProvider({ children }: { children: ReactNode }) {
