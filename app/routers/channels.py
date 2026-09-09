@@ -1,7 +1,9 @@
 import logging
+from datetime import UTC, datetime
 from hashlib import sha256
+from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Response, status
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel, Field
 
 from app.channel_constants import (
@@ -72,6 +74,15 @@ class ChannelPathHashModeOverrideRequest(BaseModel):
         le=2,
         description="Path hash mode override (0=1-byte, 1=2-byte, 2=3-byte, null = use radio default)",
     )
+
+
+class ChannelImportResponse(BaseModel):
+    imported_channels: list[Channel]
+    duplicate_count: int
+    invalid_lines: list[str]
+    decrypt_started: bool = False
+    decrypt_total_packets: int = 0
+    message: str
 
 
 def _derive_channel_identity(
@@ -400,6 +411,150 @@ async def set_channel_path_hash_mode_override(
 
     broadcast_event("channel", refreshed.model_dump())
     return refreshed
+
+
+@router.get("/export")
+async def export_channels(
+    mode: str = "all",
+    keys: str | None = None,
+) -> Response:
+    """Export channels as a plain-text file in the format: #name - key.
+
+    mode=all       exports every channel.
+    mode=selected  requires a comma-separated ``keys`` parameter.
+    """
+    channels = await ChannelRepository.get_all()
+
+    if mode == "selected" and keys:
+        selected = {k.strip().upper() for k in keys.split(",") if k.strip()}
+        channels = [c for c in channels if c.key.upper() in selected]
+
+    date_str = datetime.now(UTC).strftime("%Y-%m-%d")
+    lines: list[str] = [
+        f"# MeshCore Channel Export - {date_str}",
+        "# Format: #channel-name - 32-char-hex-key",
+        "# Import this file in Remote Terminal for MeshCore via Channels -> Import",
+        "",
+    ]
+    for c in channels:
+        name = c.name if c.name.startswith("#") else f"#{c.name}"
+        lines.append(f"{name} - {c.key.lower()}")
+
+    content = "\n".join(lines) + "\n"
+    filename = f"meshcore_channels_{date_str}.txt"
+    return Response(
+        content=content,
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/import", response_model=ChannelImportResponse)
+async def import_channels(
+    background_tasks: BackgroundTasks,
+    response: Response,
+    file: Annotated[UploadFile, File()],
+    try_historical: bool = False,
+) -> ChannelImportResponse:
+    """Import channels from a plain-text file (one '#name - key' per line).
+
+    Skips lines that are comments (#-only), blank, or malformed.
+    Skips channels whose key already exists in the database.
+    Optionally triggers a background historical-packet decrypt sweep for the
+    newly imported channels.
+    """
+    raw = await file.read()
+    try:
+        content = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        content = raw.decode("latin-1", errors="replace")
+
+    imported_channels: list[Channel] = []
+    duplicate_count = 0
+    invalid_lines: list[str] = []
+    decrypt_targets: list[tuple[bytes, str, str]] = []
+
+    for line in content.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        # Split name from key on the LAST ' - ' so channel names may themselves
+        # contain ' - '. A valid entry ends in a 32-char hex key; anything else
+        # that starts with '#' is a comment (this is what lets an exported file,
+        # whose header comments contain ' - ', re-import cleanly).
+        name_part, sep, key_candidate = stripped.rpartition(" - ")
+        key_part = key_candidate.strip().lower()
+        try:
+            key_bytes = bytes.fromhex(key_part) if sep and len(key_part) == 32 else None
+        except ValueError:
+            key_bytes = None
+
+        if key_bytes is None:
+            if not stripped.startswith("#"):
+                invalid_lines.append(stripped)
+            continue
+
+        name_part = name_part.strip()
+        key_hex = key_bytes.hex().upper()
+        channel_name = name_part if name_part.startswith("#") else f"#{name_part}"
+
+        existing = await ChannelRepository.get_by_key(key_hex)
+        if existing is not None:
+            duplicate_count += 1
+            continue
+
+        # Imported channels are treated as hashtag channels.
+        await ChannelRepository.upsert(
+            key=key_hex,
+            name=channel_name,
+            is_hashtag=True,
+            on_radio=False,
+        )
+        stored = await ChannelRepository.get_by_key(key_hex)
+        if stored is None:
+            invalid_lines.append(stripped)
+            continue
+
+        imported_channels.append(stored)
+        decrypt_targets.append((key_bytes, key_hex, channel_name))
+        _broadcast_channel_update(stored)
+        logger.info("Imported channel %s (%s)", channel_name, key_hex)
+
+    decrypt_started = False
+    decrypt_total_packets = 0
+    if try_historical and decrypt_targets:
+        decrypt_total_packets = await RawPacketRepository.get_undecrypted_count()
+        if decrypt_total_packets > 0:
+            background_tasks.add_task(
+                _run_historical_channel_decryption_for_channels, decrypt_targets
+            )
+            decrypt_started = True
+            response.status_code = status.HTTP_202_ACCEPTED
+
+    n = len(imported_channels)
+    if n == 0:
+        msg = "No new channels were added"
+        if duplicate_count:
+            msg += f" ({duplicate_count} already present)"
+    else:
+        msg = f"Imported {n} channel{'s' if n != 1 else ''}"
+        if duplicate_count:
+            msg += f", skipped {duplicate_count} duplicate{'s' if duplicate_count != 1 else ''}"
+        if decrypt_started:
+            msg += (
+                f"; decrypting {decrypt_total_packets} historical packet"
+                f"{'s' if decrypt_total_packets != 1 else ''} in background"
+            )
+
+    return ChannelImportResponse(
+        imported_channels=imported_channels,
+        duplicate_count=duplicate_count,
+        invalid_lines=invalid_lines,
+        decrypt_started=decrypt_started,
+        decrypt_total_packets=decrypt_total_packets,
+        message=msg,
+    )
 
 
 @router.delete("/{key}")

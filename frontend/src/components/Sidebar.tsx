@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bell,
   BellOff,
+  ArrowDownUp,
   Cable,
   ChartNetwork,
   CheckCheck,
@@ -161,6 +162,7 @@ interface SidebarProps {
   crackerRunning: boolean;
   onToggleCracker: () => void;
   onMarkAllRead: () => void;
+  onOpenChannelImportExport?: () => void;
   isConversationNotificationsEnabled?: (type: 'channel' | 'contact', id: string) => boolean;
   blockedKeys?: string[];
   blockedNames?: string[];
@@ -189,6 +191,7 @@ export function Sidebar({
   crackerRunning,
   onToggleCracker,
   onMarkAllRead,
+  onOpenChannelImportExport,
   isConversationNotificationsEnabled,
   blockedKeys = [],
   blockedNames = [],
@@ -836,7 +839,8 @@ export function Sidebar({
     onToggle: () => void,
     sortSection: SidebarSortableSection | null = null,
     unreadCount = 0,
-    highlightUnread = false
+    highlightUnread = false,
+    action: React.ReactNode = null
   ) => {
     const effectiveCollapsed = isSearching ? false : collapsed;
     const sectionSortOrder = sortSection ? sectionSortOrders[sortSection] : null;
@@ -861,8 +865,9 @@ export function Sidebar({
           )}
           <span>{title}</span>
         </button>
-        {(sortSection || unreadCount > 0) && (
+        {(sortSection || unreadCount > 0 || action) && (
           <div className="ml-auto flex items-center gap-1.5">
+            {action}
             {sortSection && sectionSortOrder && (
               <button
                 className="bg-transparent text-muted-foreground/60 px-1 py-0.5 text-[0.625rem] rounded hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring whitespace-nowrap"
@@ -990,7 +995,20 @@ export function Sidebar({
               () => setChannelsCollapsed((prev) => !prev),
               'channels',
               channelsUnreadCount,
-              channelsHasMention
+              channelsHasMention,
+              onOpenChannelImportExport ? (
+                <button
+                  className="bg-transparent text-muted-foreground/60 p-0.5 rounded hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenChannelImportExport();
+                  }}
+                  aria-label="Import or export channels"
+                  title="Import / export channels"
+                >
+                  <ArrowDownUp className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              ) : null
             )}
             {(isSearching || !channelsCollapsed) &&
               channelRows.map((row) => renderConversationRow(row))}

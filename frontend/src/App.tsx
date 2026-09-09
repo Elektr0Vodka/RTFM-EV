@@ -19,6 +19,7 @@ import {
 } from './hooks';
 import { toast } from './components/ui/sonner';
 import { AppShell } from './components/AppShell';
+import { ChannelImportExportModal } from './components/ChannelImportExportModal';
 import type { MessageInputHandle } from './components/MessageInput';
 import { DistanceUnitProvider } from './contexts/DistanceUnitContext';
 import { PathHopWidthProvider } from './contexts/PathHopWidthContext';
@@ -83,6 +84,7 @@ export function App() {
   const [bulkAddResult, setBulkAddResult] = useState<BulkCreateHashtagChannelsResult | null>(null);
   const [repeaterAutoLoginKey, setRepeaterAutoLoginKey] = useState<string | null>(null);
   const [visibilityVersion, setVisibilityVersion] = useState(0);
+  const [showChannelImportExport, setShowChannelImportExport] = useState(false);
   const {
     notificationsSupported,
     notificationsPermission,
@@ -546,6 +548,7 @@ export function App() {
     onMarkAllRead: () => {
       void markAllRead();
     },
+    onOpenChannelImportExport: () => setShowChannelImportExport(true),
     isConversationNotificationsEnabled,
     blockedKeys: appSettings?.blocked_keys ?? [],
     blockedNames: appSettings?.blocked_names ?? [],
@@ -799,6 +802,15 @@ export function App() {
             contactInfoPaneProps={contactInfoPaneProps}
             channelInfoPaneProps={channelInfoPaneProps}
             onRepeaterAutoLogin={handleRepeaterAutoLogin}
+          />
+          <ChannelImportExportModal
+            open={showChannelImportExport}
+            onClose={() => setShowChannelImportExport(false)}
+            channels={channels}
+            crackerFoundChannels={[]}
+            onChannelsImported={() => {
+              api.getChannels().then(setChannels).catch(console.error);
+            }}
           />
         </PathHopWidthProvider>
       </RichPayloadProvider>
