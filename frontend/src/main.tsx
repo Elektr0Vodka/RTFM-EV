@@ -7,6 +7,7 @@ import './styles.css';
 import { getSavedTheme, applyTheme, initFollowOSListener } from './utils/theme';
 import { applyFontScale, getSavedFontScale } from './utils/fontScale';
 import { PushSubscriptionProvider } from './contexts/PushSubscriptionContext';
+import { I18nProvider } from './i18n';
 
 // Apply saved theme before first render
 applyTheme(getSavedTheme());
@@ -16,9 +17,11 @@ applyFontScale(getSavedFontScale());
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <PushSubscriptionProvider>
-      <App />
-    </PushSubscriptionProvider>
+    <I18nProvider>
+      <PushSubscriptionProvider>
+        <App />
+      </PushSubscriptionProvider>
+    </I18nProvider>
   </StrictMode>
 );
 
