@@ -272,6 +272,15 @@ export interface BulkCreateHashtagChannelsResult {
   message: string;
 }
 
+export interface ChannelImportResult {
+  imported_channels: Channel[];
+  duplicate_count: number;
+  invalid_lines: string[];
+  decrypt_started: boolean;
+  decrypt_total_packets: number;
+  message: string;
+}
+
 export interface PathHashWidthStats {
   total_packets: number;
   single_byte: number;
