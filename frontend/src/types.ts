@@ -393,6 +393,7 @@ export interface AppSettings {
   auto_resend_channel: boolean;
   telemetry_interval_hours: number;
   telemetry_routed_hourly: boolean;
+  show_mention_ticker: boolean;
 }
 
 export interface AppSettingsUpdate {
@@ -407,6 +408,7 @@ export interface AppSettingsUpdate {
   discovery_blocked_types?: number[];
   telemetry_interval_hours?: number;
   telemetry_routed_hourly?: boolean;
+  show_mention_ticker?: boolean;
 }
 
 export interface TelemetrySchedule {

@@ -304,6 +304,103 @@ describe('useRealtimeAppState', () => {
     });
   });
 
+  const incomingChan: Message = {
+    id: 42,
+    type: 'CHAN',
+    conversation_key: publicChannel.key,
+    text: 'hey @me look at this',
+    sender_timestamp: 1700000000,
+    received_at: 1700000001,
+    paths: null,
+    txt_type: 0,
+    signature: null,
+    sender_key: 'cc'.repeat(32),
+    outgoing: false,
+    acked: 0,
+    sender_name: 'Carol',
+  };
+
+  it('fires onChannelMention for a new non-active channel mention', () => {
+    const onChannelMention = vi.fn();
+    const { args } = createRealtimeArgs({
+      checkMention: vi.fn(() => true),
+      observeMessage: vi.fn(() => ({ added: true, activeConversation: false })),
+      onChannelMention,
+    });
+
+    const { result } = renderHook(() => useRealtimeAppState(args));
+    act(() => {
+      result.current.onMessage?.(incomingChan);
+    });
+
+    expect(onChannelMention).toHaveBeenCalledWith(incomingChan);
+  });
+
+  it('does not fire onChannelMention when the channel is the active conversation', () => {
+    const onChannelMention = vi.fn();
+    const { args } = createRealtimeArgs({
+      checkMention: vi.fn(() => true),
+      observeMessage: vi.fn(() => ({ added: true, activeConversation: true })),
+      onChannelMention,
+    });
+
+    const { result } = renderHook(() => useRealtimeAppState(args));
+    act(() => {
+      result.current.onMessage?.(incomingChan);
+    });
+
+    expect(onChannelMention).not.toHaveBeenCalled();
+  });
+
+  it('does not fire onChannelMention for a muted channel', () => {
+    const onChannelMention = vi.fn();
+    const { args } = createRealtimeArgs({
+      channelsRef: { current: [{ ...publicChannel, muted: true }] },
+      checkMention: vi.fn(() => true),
+      observeMessage: vi.fn(() => ({ added: true, activeConversation: false })),
+      onChannelMention,
+    });
+
+    const { result } = renderHook(() => useRealtimeAppState(args));
+    act(() => {
+      result.current.onMessage?.(incomingChan);
+    });
+
+    expect(onChannelMention).not.toHaveBeenCalled();
+  });
+
+  it('does not fire onChannelMention when the message does not mention the user', () => {
+    const onChannelMention = vi.fn();
+    const { args } = createRealtimeArgs({
+      checkMention: vi.fn(() => false),
+      observeMessage: vi.fn(() => ({ added: true, activeConversation: false })),
+      onChannelMention,
+    });
+
+    const { result } = renderHook(() => useRealtimeAppState(args));
+    act(() => {
+      result.current.onMessage?.(incomingChan);
+    });
+
+    expect(onChannelMention).not.toHaveBeenCalled();
+  });
+
+  it('does not fire onChannelMention for the user\'s own outgoing message', () => {
+    const onChannelMention = vi.fn();
+    const { args } = createRealtimeArgs({
+      checkMention: vi.fn(() => true),
+      observeMessage: vi.fn(() => ({ added: true, activeConversation: false })),
+      onChannelMention,
+    });
+
+    const { result } = renderHook(() => useRealtimeAppState(args));
+    act(() => {
+      result.current.onMessage?.({ ...incomingChan, outgoing: true });
+    });
+
+    expect(onChannelMention).not.toHaveBeenCalled();
+  });
+
   it('appends raw packets using observation identity dedup', () => {
     const { args } = createRealtimeArgs();
     const packet = rawPacketFixture;

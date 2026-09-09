@@ -57,6 +57,9 @@ interface UseRealtimeAppStateArgs {
     packetId?: number | null
   ) => void;
   notifyIncomingMessage?: (msg: Message) => void;
+  /** Fired for a new incoming channel message that @mentions the user while
+   *  they are not viewing that channel — drives the mention ticker. */
+  onChannelMention?: (msg: Message) => void;
   /** Buffer cap override. Defaults to the store's own cap; tests use it to force eviction. */
   maxRawPackets?: number;
 }
@@ -106,6 +109,7 @@ export function useRealtimeAppState({
   removeConversationMessages,
   receiveMessageAck,
   notifyIncomingMessage,
+  onChannelMention,
   maxRawPackets = MAX_RAW_PACKETS,
 }: UseRealtimeAppStateArgs): UseWebSocketOptions {
   const mergeChannelIntoList = useCallback(
@@ -210,6 +214,20 @@ export function useRealtimeAppState({
         if (!msg.outgoing && isNewMessage && !isMutedChannel) {
           notifyIncomingMessage?.(msg);
         }
+
+        // Surface the mention ticker only for a new channel message that
+        // @mentions the user while they are not viewing that channel. Muted
+        // channels are excluded — muting means "don't surface this channel".
+        if (
+          msg.type === 'CHAN' &&
+          !msg.outgoing &&
+          isNewMessage &&
+          !isForActiveConversation &&
+          !isMutedChannel &&
+          checkMention(msg.text)
+        ) {
+          onChannelMention?.(msg);
+        }
       },
       onContact: (contact: Contact) => {
         setContacts((prev) => mergeContactIntoList(prev, contact));
@@ -297,6 +315,7 @@ export function useRealtimeAppState({
       setContacts,
       setHealth,
       notifyIncomingMessage,
+      onChannelMention,
     ]
   );
 }

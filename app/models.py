@@ -1054,6 +1054,13 @@ class AppSettings(BaseModel):
             "are automatically byte-perfect resent once (within the 30-second dedup window)"
         ),
     )
+    show_mention_ticker: bool = Field(
+        default=True,
+        description=(
+            "Show the scrolling mention ticker in the top bar when the user is "
+            "@mentioned in a channel they are not currently viewing"
+        ),
+    )
 
 
 class BusyChannel(BaseModel):

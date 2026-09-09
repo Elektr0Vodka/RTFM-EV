@@ -1185,6 +1185,25 @@ export function SettingsRadioSection({
             </p>
           </div>
         </div>
+
+        <div className="flex items-start gap-3 rounded-md border border-border/60 p-3">
+          <Checkbox
+            id="show-mention-ticker"
+            checked={appSettings.show_mention_ticker}
+            onCheckedChange={(checked) =>
+              onSaveAppSettings({ show_mention_ticker: checked === true })
+            }
+            className="mt-0.5"
+          />
+          <div className="space-y-1">
+            <Label htmlFor="show-mention-ticker">Show Mention Ticker</Label>
+            <p className="text-[0.8125rem] text-muted-foreground">
+              When enabled, a scrolling ticker appears at the top of the message area whenever your
+              name is @mentioned in a channel you are not currently viewing. Clicking a mention jumps
+              to that message without marking the channel as read.
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="space-y-2">

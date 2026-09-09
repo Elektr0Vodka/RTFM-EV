@@ -57,6 +57,20 @@ class TestUpdateSettings:
         assert result.max_radio_contacts == 200  # default
 
     @pytest.mark.asyncio
+    async def test_show_mention_ticker_defaults_enabled(self, test_db):
+        result = await update_settings(AppSettingsUpdate())
+        assert result.show_mention_ticker is True
+
+    @pytest.mark.asyncio
+    async def test_show_mention_ticker_round_trip(self, test_db):
+        """show_mention_ticker should be saved and retrieved correctly."""
+        result = await update_settings(AppSettingsUpdate(show_mention_ticker=False))
+        assert result.show_mention_ticker is False
+
+        fresh = await AppSettingsRepository.get()
+        assert fresh.show_mention_ticker is False
+
+    @pytest.mark.asyncio
     async def test_flood_scope_round_trip(self, test_db):
         """Flood scope should be saved and retrieved correctly."""
         result = await update_settings(AppSettingsUpdate(flood_scope="MyRegion"))
