@@ -76,7 +76,12 @@
     --overlay: 0 0% 0%;
 
     /* Typography */
-    --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    /* 'Twemoji Country Flags' (loaded by the polyfill in main.tsx, restricted
+       to the flag unicode-range) renders regional-indicator flag emoji on
+       Windows/Chromium, which otherwise show as bare two-letter codes. It has
+       no glyphs for other text, so the rest of the stack is unaffected. */
+    --font-sans:
+      'Twemoji Country Flags', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     --font-mono:
       ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
 
