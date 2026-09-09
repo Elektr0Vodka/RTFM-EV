@@ -17,6 +17,7 @@ import {
   setReopenLastConversationEnabled,
 } from '../../utils/lastViewedConversation';
 import { ThemeSelector } from './ThemeSelector';
+import { LanguageSelector } from './LanguageSelector';
 import { getLocalLabel, setLocalLabel, type LocalLabel } from '../../utils/localLabel';
 import {
   DISTANCE_UNIT_LABELS,
@@ -285,6 +286,13 @@ export function SettingsLocalSection({
       <p className="text-[0.8125rem] text-muted-foreground">
         These settings apply only to this device/browser.
       </p>
+
+      <div className="space-y-1">
+        <h3 className="text-base font-semibold tracking-tight">Language</h3>
+        <LanguageSelector />
+      </div>
+
+      <Separator />
 
       <div className="space-y-1">
         <h3 className="text-base font-semibold tracking-tight">Color Scheme</h3>
