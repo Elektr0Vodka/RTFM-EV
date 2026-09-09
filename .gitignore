@@ -24,7 +24,8 @@ remoteterm-prebuilt-frontend-v*.zip
 references/
 
 # ancillary LLM files
-.claude/
+.claude/*
+!.claude/settings.json
 .codex
 
 # local Docker compose files

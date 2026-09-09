@@ -1,0 +1,20 @@
+{
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git *)",
+            "command": "grep -qiE 'co-authored-by:.*claude|generated with.*claude code' && printf '%s' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Team rule (CLAUDE.md): no tool attribution in commits or PR bodies on this repo. Remove the attribution trailer from the command and run it again, do not work around this hook.\"}}' || true"
+          }
+        ]
+      }
+    ]
+  }
+}
