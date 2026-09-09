@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
 import { api } from '../../api';
-import type { HealthStatus, MeshcomodConfig, MeshcomodConfigUpdate } from '../../types';
+import type { HealthStatus, MeshcomodConfigUpdate } from '../../types';
+import { useMeshcomodConfig, broadcastMeshcomodConfig } from '../../hooks/useMeshcomodConfig';
 import { Checkbox } from '../ui/checkbox';
 import { Label } from '../ui/label';
 import { Separator } from '../ui/separator';
@@ -11,27 +11,16 @@ interface Props {
 
 export function MeshcomodSettings({ health }: Props) {
   const isMeshcomod = health?.radio_device_info?.is_meshcomod ?? false;
-  const [cfg, setCfg] = useState<MeshcomodConfig | null>(null);
-
-  useEffect(() => {
-    if (!isMeshcomod) return;
-    let cancelled = false;
-    api
-      .getMeshcomodConfig()
-      .then((data) => {
-        if (!cancelled) setCfg(data);
-      })
-      .catch((err) => console.error('Failed to load meshcomod config:', err));
-    return () => {
-      cancelled = true;
-    };
-  }, [isMeshcomod]);
+  const { config: cfg, setCad } = useMeshcomodConfig(isMeshcomod);
 
   if (!isMeshcomod) return null;
 
+  // CAD writes go through the shared hook. GPS writes go straight through the API
+  // and are re-read so the shared cache reflects them for every consumer too.
   const save = async (update: MeshcomodConfigUpdate) => {
-    const next = await api.updateMeshcomodConfig(update);
-    setCfg(next);
+    await api.updateMeshcomodConfig(update);
+    const next = await api.getMeshcomodConfig();
+    broadcastMeshcomodConfig(next);
   };
 
   return (
@@ -45,7 +34,7 @@ export function MeshcomodSettings({ health }: Props) {
           className="mt-0.5"
           disabled={!cfg?.cad_supported}
           checked={cfg?.cad_enabled === true}
-          onCheckedChange={(checked) => save({ cad_enabled: checked === true })}
+          onCheckedChange={(checked) => setCad(checked === true)}
         />
         <div>
           <Label htmlFor="meshcomod-cad-enabled">CAD (Channel Activity Detection)</Label>

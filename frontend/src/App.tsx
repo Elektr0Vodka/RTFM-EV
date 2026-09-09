@@ -16,6 +16,7 @@ import {
   useBrowserNotifications,
   useFaviconBadge,
   useUnreadTitle,
+  useMeshcomodConfig,
 } from './hooks';
 import { toast } from './components/ui/sonner';
 import { AppShell } from './components/AppShell';
@@ -151,6 +152,19 @@ export function App() {
     handleDiscoverRegions,
     handleHealthRefresh,
   } = useRadioControl();
+
+  // Meshcomod (DMC-EV) CAD state, shared with the Settings panel via a cached hook.
+  const isMeshcomod = health?.radio_device_info?.is_meshcomod ?? false;
+  const { cadSupported, cadEnabled, toggleCad } = useMeshcomodConfig(isMeshcomod);
+  const handleToggleCad = useCallback(async () => {
+    const next = cadEnabled === true ? false : true;
+    try {
+      await toggleCad();
+      toast.success(next ? 'CAD enabled' : 'CAD disabled');
+    } catch {
+      toast.error('Failed to toggle CAD');
+    }
+  }, [cadEnabled, toggleCad]);
 
   const {
     appSettings,
@@ -586,6 +600,10 @@ export function App() {
     channels,
     config,
     health,
+    cadCapable: isMeshcomod,
+    cadSupported,
+    cadEnabled,
+    onToggleCad: handleToggleCad,
     messages: sortedMessages,
     preSorted: activeContactIsRoom,
     messagesLoading,

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MeshcomodSettings } from '../components/settings/MeshcomodSettings';
 import { api } from '../api';
+import { __resetMeshcomodConfigCache } from '../hooks/useMeshcomodConfig';
 import type { HealthStatus } from '../types';
 
 function health(is_meshcomod: boolean): HealthStatus {
@@ -25,6 +26,7 @@ function health(is_meshcomod: boolean): HealthStatus {
 
 beforeEach(() => {
   vi.restoreAllMocks();
+  __resetMeshcomodConfigCache();
 });
 
 describe('MeshcomodSettings', () => {

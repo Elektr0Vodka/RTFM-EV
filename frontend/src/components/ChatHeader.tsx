@@ -35,6 +35,10 @@ interface ChatHeaderProps {
   onToggleMute?: (key: string) => void;
   onSetChannelFloodScopeOverride?: (key: string, floodScopeOverride: string) => void;
   onSetChannelPathHashModeOverride?: (key: string, pathHashModeOverride: number | null) => void;
+  cadCapable?: boolean;
+  cadSupported?: boolean;
+  cadEnabled?: boolean | null;
+  onToggleCad?: () => void;
   onDeleteChannel: (key: string) => void;
   onDeleteContact: (publicKey: string) => void;
   onOpenContactInfo?: (publicKey: string) => void;
@@ -61,6 +65,10 @@ export function ChatHeader({
   onToggleMute,
   onSetChannelFloodScopeOverride,
   onSetChannelPathHashModeOverride,
+  cadCapable,
+  cadSupported,
+  cadEnabled,
+  onToggleCad,
   onDeleteChannel,
   onDeleteContact,
   onOpenContactInfo,
@@ -465,6 +473,31 @@ export function ChatHeader({
               className={`h-4 w-4 ${activePathHashModeOverride != null ? 'text-status-connected' : 'text-muted-foreground'}`}
               aria-hidden="true"
             />
+          </button>
+        )}
+        {conversation.type === 'channel' && cadCapable && cadSupported && onToggleCad && (
+          <button
+            type="button"
+            onClick={() => onToggleCad()}
+            aria-pressed={cadEnabled === null || cadEnabled === undefined ? undefined : cadEnabled}
+            aria-label="Toggle channel activity detection"
+            title={
+              cadEnabled === null || cadEnabled === undefined
+                ? 'CAD state unknown — click to enable channel activity detection'
+                : cadEnabled
+                  ? 'CAD on — scans for channel activity before transmit; click to disable'
+                  : 'CAD off — click to enable channel activity detection'
+            }
+            className={cn(
+              'flex shrink-0 items-center rounded px-1.5 py-1 text-[0.6875rem] font-semibold tracking-wide transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              cadEnabled === true
+                ? 'text-status-connected'
+                : cadEnabled === false
+                  ? 'text-muted-foreground hover:text-foreground'
+                  : 'text-muted-foreground/50 hover:text-muted-foreground'
+            )}
+          >
+            CAD
           </button>
         )}
         {(conversation.type === 'channel' || conversation.type === 'contact') && (
