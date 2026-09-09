@@ -223,6 +223,7 @@ export function AppShell({
 
   return (
     <div className="flex flex-col h-full" {...swipeHandlers}>
+      <div className="page-stripe" aria-hidden="true" />
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-2 focus:bg-primary focus:text-primary-foreground"

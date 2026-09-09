@@ -91,6 +91,12 @@ export const THEMES: Theme[] = [
     swatches: ['#008080', '#C0C0C0', '#000080', '#DFDFDF', '#FFDE59', '#000000'],
     metaThemeColor: '#008080',
   },
+  {
+    id: 'darkdutch',
+    name: 'DarkDutch',
+    swatches: ['#060709', '#12151b', '#1976e8', '#1b1f27', '#df2020', '#3ecf8e'],
+    metaThemeColor: '#060709',
+  },
 ];
 
 const THEME_KEY = 'remoteterm-theme';

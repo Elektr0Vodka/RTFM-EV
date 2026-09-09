@@ -1062,3 +1062,127 @@
 [data-theme='monochrome'] ::-webkit-scrollbar-thumb:hover {
   background: hsl(0 0% 8%);
 }
+
+/* ── DarkDutch ("Dutch Glass") ─────────────────────────────── */
+:root[data-theme='darkdutch'] {
+  --background: 220 20% 3%;
+  --foreground: 218 33% 94%;
+  --card: 224 14% 8%;
+  --card-foreground: 218 33% 94%;
+  --popover: 224 14% 9%;
+  --popover-foreground: 218 33% 94%;
+  --primary: 213 82% 50%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 224 12% 15%;
+  --secondary-foreground: 218 19% 82%;
+  --muted: 224 12% 13%;
+  --muted-foreground: 218 19% 77%;
+  --accent: 224 11% 18%;
+  --accent-foreground: 218 33% 94%;
+  --destructive: 0 75% 50%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 220 10% 20%;
+  --input: 220 10% 20%;
+  --ring: 213 82% 50%;
+  --radius: 0.5rem;
+  --msg-outgoing: 213 40% 12%;
+  --msg-incoming: 224 12% 11%;
+  --status-connected: 153 60% 53%;
+  --status-disconnected: 214 9% 46%;
+  --warning: 44 90% 61%;
+  --warning-foreground: 44 90% 10%;
+  --success: 153 60% 53%;
+  --success-foreground: 153 60% 8%;
+  --info: 213 82% 55%;
+  --info-foreground: 0 0% 100%;
+  --region-override: 270 80% 74%;
+  --favorite: 44 90% 61%;
+  --console: 153 60% 58%;
+  --console-command: 153 65% 70%;
+  --console-bg: 220 25% 2%;
+  --toast-error: 0 40% 12%;
+  --toast-error-foreground: 0 100% 78%;
+  --toast-error-border: 0 35% 24%;
+  --code-editor-bg: 224 14% 6%;
+  --font-sans: 'IBM Plex Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Consolas, 'Fira Mono', monospace;
+  --scrollbar: 220 12% 18%;
+  --scrollbar-hover: 213 40% 28%;
+  --overlay: 220 30% 2%;
+}
+
+/* DarkDutch: tricolour top stripe (base is display:none in index.css) */
+[data-theme='darkdutch'] .page-stripe {
+  display: block;
+  height: 4px;
+  flex: 0 0 4px;
+  background: linear-gradient(90deg, #df2020, #f4f4f5 50%, #1976e8);
+}
+
+/* DarkDutch: glow background (scanline intentionally omitted) */
+[data-theme='darkdutch'] body {
+  background:
+    radial-gradient(circle at 18% 18%, hsl(0 75% 50% / 0.15), transparent 28%),
+    radial-gradient(circle at 82% 28%, hsl(213 82% 50% / 0.14), transparent 30%),
+    linear-gradient(180deg, #090b10 0%, #06070a 48%, #030304 100%);
+  background-attachment: fixed;
+}
+
+/* DarkDutch: glass surfaces */
+[data-theme='darkdutch'] .bg-card,
+[data-theme='darkdutch'] .bg-popover {
+  background:
+    linear-gradient(135deg, hsl(0 0% 100% / 0.07), transparent 34%),
+    linear-gradient(180deg, hsl(222 13% 10% / 0.94), hsl(220 20% 4% / 0.95));
+}
+
+/* DarkDutch: glass topbar */
+[data-theme='darkdutch'] .app-statusbar {
+  background: hsl(220 30% 2% / 0.88);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid hsl(0 0% 100% / 0.14);
+  box-shadow:
+    0 1px 0 hsl(0 0% 100% / 0.03),
+    0 8px 24px hsl(0 0% 0% / 0.35);
+}
+
+/* DarkDutch: glass conversation header + tricolour chevron */
+[data-theme='darkdutch'] .conversation-header {
+  background: hsl(220 30% 2% / 0.72);
+  backdrop-filter: blur(12px);
+}
+[data-theme='darkdutch'] .conversation-header::before {
+  content: '';
+  align-self: center;
+  width: 10px;
+  height: 15px;
+  margin-right: 8px;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  background: linear-gradient(180deg, #df2020, #f4f4f5 50%, #1976e8);
+}
+
+/* DarkDutch: Aldrich display type on brand + section/conversation headers only */
+[data-theme='darkdutch'] .app-statusbar h1,
+[data-theme='darkdutch'] .conversation-header h2,
+[data-theme='darkdutch'] .dd-section-label {
+  font-family: 'Aldrich', 'Segoe UI', system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* DarkDutch: tricolour left-borders on message bubbles */
+[data-theme='darkdutch'] .bg-msg-outgoing {
+  border-left: 2px solid hsl(213 82% 50% / 0.6);
+}
+[data-theme='darkdutch'] .bg-msg-incoming {
+  border-left: 2px solid hsl(0 75% 50% / 0.35);
+}
+
+/* DarkDutch: semantic message delivery indicators */
+[data-theme='darkdutch'] .msg-ack {
+  color: hsl(153 60% 53%);
+  text-shadow: 0 0 6px hsl(153 60% 53% / 0.4);
+}
+[data-theme='darkdutch'] .msg-ack-pending {
+  color: hsl(44 90% 61%);
+}
