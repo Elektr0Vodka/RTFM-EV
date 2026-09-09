@@ -17,6 +17,7 @@ dependencies = [
     "apprise>=1.9.8",
     "boto3>=1.38.0",
     "pywebpush>=0.14.0",
+    "python-multipart>=0.0.9",
 ]
 
 [tool.pytest.ini_options]
