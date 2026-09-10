@@ -425,6 +425,44 @@ class AppSettingsRepository:
             )
         return current
 
+    @staticmethod
+    async def get_radio_presets() -> "RadioPresetsStore | None":
+        """Return the last synced radio-preset list, or None if never synced.
+
+        Internal-only column, not exposed via the AppSettings model. An empty
+        or unparseable value is treated as "never synced".
+        """
+        from app.models import RadioPresetsStore
+
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT radio_presets FROM app_settings WHERE id = 1"
+            ) as cursor:
+                row = await cursor.fetchone()
+        if not row or not row["radio_presets"]:
+            return None
+        try:
+            return RadioPresetsStore.model_validate_json(row["radio_presets"])
+        except (ValueError, TypeError, KeyError):
+            logger.warning("Failed to parse stored radio_presets, treating as unset")
+            return None
+
+    @staticmethod
+    async def set_radio_presets(store: "RadioPresetsStore") -> "RadioPresetsStore":
+        """Replace the persisted radio-preset list with ``store``."""
+        async with db.tx() as conn:
+            await conn.execute(
+                "UPDATE app_settings SET radio_presets = ? WHERE id = 1",
+                (store.model_dump_json(),),
+            )
+        return store
+
+    @staticmethod
+    async def clear_radio_presets() -> None:
+        """Clear the persisted radio-preset list (reset to built-in)."""
+        async with db.tx() as conn:
+            await conn.execute("UPDATE app_settings SET radio_presets = '' WHERE id = 1")
+
 
 class StatisticsRepository:
     @staticmethod

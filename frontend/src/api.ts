@@ -22,6 +22,7 @@ import type {
   RadioConfig,
   RadioConfigUpdate,
   RadioDiscoveryResponse,
+  RadioPresetsStore,
   RadioRegionDiscoveryResponse,
   RadioTraceHopRequest,
   RadioTraceResponse,
@@ -102,6 +103,16 @@ export const api = {
     fetchJson<RadioConfig>('/radio/config', {
       method: 'PATCH',
       body: JSON.stringify(config),
+    }),
+  // Radio region presets (official MeshCore presets API sync)
+  getRadioPresets: () => fetchJson<RadioPresetsStore>('/radio/presets'),
+  syncRadioPresets: () =>
+    fetchJson<RadioPresetsStore>('/radio/presets/sync', {
+      method: 'POST',
+    }),
+  resetRadioPresets: () =>
+    fetchJson<RadioPresetsStore>('/radio/presets', {
+      method: 'DELETE',
     }),
   getMeshcomodConfig: () => fetchJson<MeshcomodConfig>('/radio/meshcomod'),
   updateMeshcomodConfig: (update: MeshcomodConfigUpdate) =>
