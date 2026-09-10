@@ -16,6 +16,7 @@ import { formatTime } from '../utils/messageParser';
 import { getMapFocusHash } from '../utils/urlHash';
 import { useDistanceUnit } from '../contexts/DistanceUnitContext';
 import type { DistanceUnit } from '../utils/distanceUnits';
+import { useT, type TFn } from '../i18n';
 
 const PathRouteMap = lazy(() =>
   import('./PathRouteMap').then((m) => ({ default: m.PathRouteMap }))
@@ -50,6 +51,7 @@ export function PathModal({
   onResend,
   onAnalyzePacket,
 }: PathModalProps) {
+  const t = useT();
   const { distanceUnit } = useDistanceUnit();
   const [mapModalIndex, setMapModalIndex] = useState<number | null>(null);
   const hasResendActions = isOutgoingChan && messageId !== undefined && onResend;
@@ -71,24 +73,22 @@ export function PathModal({
       <DialogContent className="max-w-md max-h-[80dvh] flex flex-col">
         <DialogHeader>
           <DialogTitle>
-            {hasPaths
-              ? `Message Path${!hasSinglePath ? `s (${paths.length})` : ''}`
-              : 'Message Status'}
+            {hasPaths ? t('path_modal_title', { count: paths.length }) : t('path_modal_title_status')}
           </DialogTitle>
           <DialogDescription>
             {!hasPaths ? (
-              <>No echoes heard yet. Echoes appear when repeaters re-broadcast your message.</>
+              <>{t('path_modal_no_echoes')}</>
             ) : hasSinglePath ? (
               <>
-                This shows <em>one route</em> that this message traveled through the mesh network.
-                Repeater identities are inferred from locally known advert and path data, so some
-                hops may be missing or misidentified when that data is incomplete.
+                {t('path_modal_single_route_prefix')}
+                <em>{t('path_modal_single_route_emphasis')}</em>
+                {t('path_modal_single_route_suffix')}
               </>
             ) : (
               <>
-                This message was received via <strong>{paths.length} different routes</strong>.
-                Repeater identities are inferred from locally known advert and path data, so some
-                hops may be missing or misidentified when that data is incomplete.
+                {t('path_modal_multi_route_prefix')}
+                <strong>{t('path_modal_multi_route_count', { count: paths.length })}</strong>
+                {t('path_modal_multi_route_suffix')}
               </>
             )}
           </DialogDescription>
@@ -98,7 +98,7 @@ export function PathModal({
           <div className="flex-1 overflow-y-auto py-2 space-y-4">
             {showAnalyzePacket ? (
               <Button type="button" variant="outline" className="w-full" onClick={onAnalyzePacket}>
-                Analyze Packet
+                {t('chat_analyze_packet_title')}
               </Button>
             ) : null}
 
@@ -106,17 +106,19 @@ export function PathModal({
             <div className="text-sm space-y-1">
               {paths.map((p, index) => {
                 const hops = parsePathHops(p.path, p.path_len);
-                const rawPath = hops.length > 0 ? hops.join('->') : 'direct';
+                const rawPath = hops.length > 0 ? hops.join('->') : t('contact_direct');
                 const hasSignal = p.rssi != null || p.snr != null;
                 return (
                   <div key={index}>
                     <div>
-                      <span className="text-foreground/70 font-semibold">Path {index + 1}:</span>{' '}
+                      <span className="text-foreground/70 font-semibold">
+                        {t('path_modal_path_number', { n: index + 1 })}:
+                      </span>{' '}
                       <span className="font-mono text-muted-foreground">{rawPath}</span>
                     </div>
                     {hasSignal && (
                       <div className="text-[0.6875rem] text-muted-foreground ml-4">
-                        Last hop (as heard by you):{' '}
+                        {t('path_modal_last_hop_label')}{' '}
                         {p.rssi != null && <span>{p.rssi} dBm RSSI</span>}
                         {p.rssi != null && p.snr != null && <span> · </span>}
                         {p.snr != null && <span>{p.snr.toFixed(1)} dB SNR</span>}
@@ -138,7 +140,9 @@ export function PathModal({
                 resolvedPaths[0].resolved.receiver.lon
               ) && (
                 <div className="text-sm pb-2 border-b border-border">
-                  <span className="text-muted-foreground">Straight-line distance: </span>
+                  <span className="text-muted-foreground">
+                    {t('path_modal_straight_line_distance')}{' '}
+                  </span>
                   <span className="font-medium">
                     {formatDistance(
                       calculateDistance(
@@ -158,9 +162,11 @@ export function PathModal({
                 <div className="flex items-center justify-between mb-2 pb-1 border-b border-border">
                   {!hasSinglePath ? (
                     <div className="text-sm text-foreground/70 font-semibold">
-                      Path {index + 1}{' '}
+                      {t('path_modal_path_number', { n: index + 1 })}{' '}
                       <span className="font-normal text-muted-foreground">
-                        — received {formatTime(pathData.received_at)}
+                        {t('path_modal_received_at_suffix', {
+                          time: formatTime(pathData.received_at),
+                        })}
                       </span>
                     </div>
                   ) : (
@@ -170,13 +176,14 @@ export function PathModal({
                     onClick={() => setMapModalIndex(index)}
                     className="text-xs text-primary hover:underline cursor-pointer shrink-0 ml-2"
                   >
-                    Map route
+                    {t('path_modal_map_route_button')}
                   </button>
                 </div>
                 <PathVisualization
                   resolved={pathData.resolved}
                   senderInfo={senderInfo}
                   distanceUnit={distanceUnit}
+                  t={t}
                 />
               </div>
             ))}
@@ -190,12 +197,10 @@ export function PathModal({
                 <DialogHeader>
                   <DialogTitle>
                     {mapModalIndex !== null && !hasSinglePath
-                      ? `Path ${mapModalIndex + 1} Route Map`
-                      : 'Route Map'}
+                      ? t('path_modal_route_map_title_numbered', { n: mapModalIndex + 1 })
+                      : t('path_modal_route_map_title')}
                   </DialogTitle>
-                  <DialogDescription>
-                    Map of known node locations along this message route.
-                  </DialogDescription>
+                  <DialogDescription>{t('path_modal_route_map_dialog_description')}</DialogDescription>
                 </DialogHeader>
                 {mapModalIndex !== null && (
                   <Suspense
@@ -231,9 +236,9 @@ export function PathModal({
                   }}
                 >
                   <span className="flex flex-col items-center leading-tight">
-                    <span>↻ Resend</span>
+                    <span>↻ {t('path_modal_resend_button')}</span>
                     <span className="text-[0.625rem] font-normal opacity-80">
-                      Only repeated by new repeaters
+                      {t('path_modal_resend_hint')}
                     </span>
                   </span>
                 </Button>
@@ -247,16 +252,16 @@ export function PathModal({
                 }}
               >
                 <span className="flex flex-col items-center leading-tight">
-                  <span>↻ Resend as new</span>
+                  <span>↻ {t('path_modal_resend_as_new_button')}</span>
                   <span className="text-[0.625rem] font-normal opacity-80">
-                    Will appear as duplicate to receivers
+                    {t('path_modal_resend_as_new_hint')}
                   </span>
                 </span>
               </Button>
             </div>
           )}
           <Button variant="secondary" className="h-auto py-2" onClick={onClose}>
-            Close
+            {t('common_close')}
           </Button>
         </div>
       </DialogContent>
@@ -268,9 +273,10 @@ interface PathVisualizationProps {
   resolved: ResolvedPath;
   senderInfo: SenderInfo;
   distanceUnit: DistanceUnit;
+  t: TFn;
 }
 
-function PathVisualization({ resolved, senderInfo, distanceUnit }: PathVisualizationProps) {
+function PathVisualization({ resolved, senderInfo, distanceUnit, t }: PathVisualizationProps) {
   // Track previous location for each hop to calculate distances
   // Returns null if previous hop was ambiguous or has invalid location
   const getPrevLocation = (hopIndex: number): { lat: number | null; lon: number | null } | null => {
@@ -301,7 +307,7 @@ function PathVisualization({ resolved, senderInfo, distanceUnit }: PathVisualiza
     <div className="space-y-0">
       {/* Sender */}
       <PathNode
-        label="Sender"
+        label={t('path_modal_sender_label')}
         name={resolved.sender.name}
         prefix={resolved.sender.prefix}
         distance={null}
@@ -310,6 +316,7 @@ function PathVisualization({ resolved, senderInfo, distanceUnit }: PathVisualiza
         lat={resolved.sender.lat}
         lon={resolved.sender.lon}
         publicKey={senderInfo.publicKeyOrPrefix}
+        t={t}
       />
 
       {/* Hops */}
@@ -320,12 +327,13 @@ function PathVisualization({ resolved, senderInfo, distanceUnit }: PathVisualiza
           hopNumber={index + 1}
           prevLocation={getPrevLocation(index)}
           distanceUnit={distanceUnit}
+          t={t}
         />
       ))}
 
       {/* Receiver */}
       <PathNode
-        label="Receiver (me)"
+        label={t('path_modal_receiver_label')}
         name={resolved.receiver.name}
         prefix={resolved.receiver.prefix}
         distance={calculateReceiverDistance(resolved)}
@@ -334,13 +342,14 @@ function PathVisualization({ resolved, senderInfo, distanceUnit }: PathVisualiza
         lat={resolved.receiver.lat}
         lon={resolved.receiver.lon}
         publicKey={resolved.receiver.publicKey ?? undefined}
+        t={t}
       />
 
       {/* Total distance */}
       {resolved.totalDistances && resolved.totalDistances.length > 0 && (
         <div className="pt-3 mt-3 border-t border-border">
           <span className="text-sm text-muted-foreground">
-            Presumed unambiguous distance covered:{' '}
+            {t('path_modal_presumed_distance')}{' '}
           </span>
           <span className="text-sm font-medium">
             {resolved.hasGaps ? '>' : ''}
@@ -365,6 +374,7 @@ interface PathNodeProps {
   lon?: number | null;
   /** Public key for map focus link (required if lat/lon provided) */
   publicKey?: string;
+  t: TFn;
 }
 
 function PathNode({
@@ -378,6 +388,7 @@ function PathNode({
   lat,
   lon,
   publicKey,
+  t,
 }: PathNodeProps) {
   const hasLocation = isValidLocation(lat ?? null, lon ?? null) && publicKey;
 
@@ -403,7 +414,7 @@ function PathNode({
               - {formatDistance(distance, distanceUnit)}
             </span>
           )}
-          {hasLocation && <CoordinateLink lat={lat!} lon={lon!} publicKey={publicKey!} />}
+          {hasLocation && <CoordinateLink lat={lat!} lon={lon!} publicKey={publicKey!} t={t} />}
         </div>
       </div>
     </div>
@@ -415,11 +426,12 @@ interface HopNodeProps {
   hopNumber: number;
   prevLocation: { lat: number | null; lon: number | null } | null;
   distanceUnit: DistanceUnit;
+  t: TFn;
 }
 
 const AMBIGUOUS_MATCH_PREVIEW_LIMIT = 3;
 
-function HopNode({ hop, hopNumber, prevLocation, distanceUnit }: HopNodeProps) {
+function HopNode({ hop, hopNumber, prevLocation, distanceUnit, t }: HopNodeProps) {
   const isAmbiguous = hop.matches.length > 1;
   const isUnknown = hop.matches.length === 0;
   const [expanded, setExpanded] = useState(false);
@@ -452,13 +464,17 @@ function HopNode({ hop, hopNumber, prevLocation, distanceUnit }: HopNodeProps) {
       {/* Content */}
       <div className="pb-3 flex-1 min-w-0">
         <div className="text-sm font-semibold">
-          <span className="text-foreground/80">Hop {hopNumber}:</span>{' '}
+          <span className="text-foreground/80">{t('path_modal_hop_label', { n: hopNumber })}:</span>{' '}
           <span className="text-primary font-mono">{hop.prefix}</span>
-          {isAmbiguous && <span className="text-warning ml-1 font-normal">(ambiguous)</span>}
+          {isAmbiguous && (
+            <span className="text-warning ml-1 font-normal">
+              ({t('path_modal_ambiguous_suffix')})
+            </span>
+          )}
         </div>
 
         {isUnknown ? (
-          <div className="font-medium text-muted-foreground">&lt;UNKNOWN&gt;</div>
+          <div className="font-medium text-muted-foreground">{t('path_modal_unknown_node')}</div>
         ) : isAmbiguous ? (
           <div>
             {(expanded ? hop.matches : hop.matches.slice(0, AMBIGUOUS_MATCH_PREVIEW_LIMIT)).map(
@@ -478,6 +494,7 @@ function HopNode({ hop, hopNumber, prevLocation, distanceUnit }: HopNodeProps) {
                         lat={contact.lat!}
                         lon={contact.lon!}
                         publicKey={contact.public_key}
+                        t={t}
                       />
                     )}
                   </div>
@@ -490,7 +507,9 @@ function HopNode({ hop, hopNumber, prevLocation, distanceUnit }: HopNodeProps) {
                 className="text-xs text-primary hover:underline cursor-pointer"
                 onClick={() => setExpanded(true)}
               >
-                (and {hop.matches.length - AMBIGUOUS_MATCH_PREVIEW_LIMIT} more)
+                {t('path_modal_and_more', {
+                  count: hop.matches.length - AMBIGUOUS_MATCH_PREVIEW_LIMIT,
+                })}
               </button>
             )}
           </div>
@@ -507,6 +526,7 @@ function HopNode({ hop, hopNumber, prevLocation, distanceUnit }: HopNodeProps) {
                 lat={hop.matches[0].lat!}
                 lon={hop.matches[0].lon!}
                 publicKey={hop.matches[0].public_key}
+                t={t}
               />
             )}
           </div>
@@ -519,7 +539,17 @@ function HopNode({ hop, hopNumber, prevLocation, distanceUnit }: HopNodeProps) {
 /**
  * Render clickable coordinates that open the map focused on the contact
  */
-function CoordinateLink({ lat, lon, publicKey }: { lat: number; lon: number; publicKey: string }) {
+function CoordinateLink({
+  lat,
+  lon,
+  publicKey,
+  t,
+}: {
+  lat: number;
+  lon: number;
+  publicKey: string;
+  t: TFn;
+}) {
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -540,7 +570,7 @@ function CoordinateLink({ lat, lon, publicKey }: { lat: number; lon: number; pub
         }
       }}
       onClick={handleClick}
-      title="View on map"
+      title={t('contact_view_on_map')}
     >
       ({lat.toFixed(4)}, {lon.toFixed(4)})
     </span>
