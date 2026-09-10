@@ -301,13 +301,16 @@ async def process_raw_packet(
     ts = timestamp or int(time.time())
     observation_id = next(_raw_observation_counter)
 
-    packet_id, is_new_packet = await RawPacketRepository.create(raw_bytes, ts)
-    raw_hex = raw_bytes.hex()
-
-    # Parse packet to get type
+    # Parse packet FIRST so the payload type is known before the row is stored,
+    # letting the signal metadata (rssi/snr/payload_type) persist on raw_packets.
     packet_info = parse_packet(raw_bytes)
     payload_type = packet_info.payload_type if packet_info else None
     payload_type_name = payload_type.name if payload_type else "Unknown"
+
+    packet_id, is_new_packet = await RawPacketRepository.create(
+        raw_bytes, ts, rssi=rssi, snr=snr, payload_type=payload_type_name
+    )
+    raw_hex = raw_bytes.hex()
 
     if packet_info is None and len(raw_bytes) > 2:
         logger.warning(
@@ -390,7 +393,7 @@ async def process_raw_packet(
     elif payload_type == PayloadType.ADVERT:
         # Process all advert arrivals (even payload-hash duplicates) so the
         # advert-history table retains recent path observations.
-        await _process_advertisement(raw_bytes, ts, packet_info)
+        await _process_advertisement(raw_bytes, ts, packet_info, rssi=rssi, snr=snr)
 
     elif payload_type == PayloadType.TEXT_MESSAGE:
         # Try to decrypt direct messages using stored private key and known contacts
@@ -528,6 +531,8 @@ async def _process_advertisement(
     raw_bytes: bytes,
     timestamp: int,
     packet_info: PacketInfo | None = None,
+    rssi: int | None = None,
+    snr: float | None = None,
 ) -> None:
     """
     Process an advertisement packet.
@@ -619,6 +624,8 @@ async def _process_advertisement(
         timestamp=timestamp,
         max_paths=10,
         hop_count=new_path_len,
+        rssi=rssi,
+        snr=snr,
     )
     promoted_keys = await promote_prefix_contacts_for_contact(
         public_key=advert.public_key,

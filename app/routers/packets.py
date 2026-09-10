@@ -142,6 +142,418 @@ async def backfill_regions() -> dict:
     return await backfill_message_regions(known_regions)
 
 
+# NOTE: literal-path GET routes (/recent, /timeseries, /historical-stats,
+# /undecrypted/count) MUST be declared before the "/{packet_id}" route below,
+# or FastAPI matches them as a packet_id and returns 422.
+
+
+@router.get("/recent")
+async def get_recent_packets(
+    limit: int = 500,
+    after_ts: int | None = None,
+    before_ts: int | None = None,
+) -> list[dict]:
+    """Return recent raw packets, oldest-first, in the raw_packet broadcast shape.
+
+    Lets the frontend seed the packet feed on mount / after reconnect without
+    losing history.
+
+    - limit: max packets to return (1-5000, default 500)
+    - after_ts / before_ts: optional inclusive Unix-second bounds on timestamp
+    """
+    limit = min(max(1, limit), 5000)
+
+    conditions: list[str] = []
+    params: list[int] = []
+    if after_ts is not None:
+        conditions.append("timestamp >= ?")
+        params.append(after_ts)
+    if before_ts is not None:
+        conditions.append("timestamp <= ?")
+        params.append(before_ts)
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    query = f"""
+        SELECT id, timestamp, data, message_id, rssi, snr, payload_type
+        FROM raw_packets
+        {where}
+        ORDER BY id DESC
+        LIMIT ?
+    """
+
+    async with db.readonly() as conn:
+        async with conn.execute(query, (*params, limit)) as cursor:
+            rows = await cursor.fetchall()
+
+    # Reverse so oldest-first for natural append order on the frontend.
+    packets = []
+    for row in reversed(list(rows)):
+        packets.append(
+            {
+                "id": row["id"],
+                # observation_id is not meaningful for historical rows — use id.
+                "observation_id": row["id"],
+                "timestamp": row["timestamp"],
+                "data": bytes(row["data"]).hex(),
+                "payload_type": row["payload_type"] or "Unknown",
+                "snr": row["snr"],
+                "rssi": row["rssi"],
+                "decrypted": row["message_id"] is not None,
+                "decrypted_info": None,
+            }
+        )
+
+    return packets
+
+
+class TimeseriesBin(BaseModel):
+    start_ts: int
+    packet_count: int
+    byte_count: int
+    avg_rssi: float | None = None
+    avg_snr: float | None = None
+    type_counts: dict[str, int] = Field(default_factory=dict)
+
+
+class TimeseriesResponse(BaseModel):
+    bins: list[TimeseriesBin]
+    total_packets: int
+    total_bytes: int
+    start_ts: int
+    end_ts: int
+    bin_seconds: int
+    has_signal_data: bool
+    has_type_data: bool
+
+
+@router.get("/timeseries", response_model=TimeseriesResponse)
+async def get_packet_timeseries(
+    start_ts: int,
+    end_ts: int,
+    bin_count: int = 40,
+) -> TimeseriesResponse:
+    """Return time-binned packet counts, byte totals, signal averages, and type
+    breakdowns from raw_packets, for historical chart ranges.
+
+    - start_ts / end_ts: Unix-second bounds (half-open ``[start_ts, end_ts)``)
+    - bin_count: number of bars (1-200, default 40)
+    """
+    if end_ts <= start_ts:
+        raise HTTPException(status_code=400, detail="end_ts must be greater than start_ts")
+    if bin_count < 1 or bin_count > 200:
+        raise HTTPException(status_code=400, detail="bin_count must be 1-200")
+
+    bin_seconds = max(1, (end_ts - start_ts) // bin_count)
+
+    async with db.readonly() as conn:
+        # Group by bin AND payload_type to get type breakdown + signal averages.
+        async with conn.execute(
+            """
+            SELECT
+                (:start_ts + (timestamp - :start_ts) / :bin_seconds * :bin_seconds) AS bin_start,
+                payload_type,
+                COUNT(*) AS packet_count,
+                SUM(LENGTH(data)) AS byte_count,
+                AVG(rssi) AS avg_rssi,
+                AVG(snr) AS avg_snr
+            FROM raw_packets
+            WHERE timestamp >= :start_ts AND timestamp < :end_ts
+            GROUP BY bin_start, payload_type
+            ORDER BY bin_start
+            """,
+            {"start_ts": start_ts, "end_ts": end_ts, "bin_seconds": bin_seconds},
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+    # Aggregate rows into bins (multiple rows per bin when grouped by payload_type).
+    bin_map: dict[int, dict] = {}
+    for row in rows:
+        t = int(row["bin_start"])
+        ptype = row["payload_type"]
+        count = int(row["packet_count"])
+        nbytes = int(row["byte_count"]) if row["byte_count"] else 0
+        avg_rssi = float(row["avg_rssi"]) if row["avg_rssi"] is not None else None
+        avg_snr = float(row["avg_snr"]) if row["avg_snr"] is not None else None
+
+        b = bin_map.setdefault(
+            t,
+            {
+                "packet_count": 0,
+                "byte_count": 0,
+                "rssi_sum": 0.0,
+                "rssi_count": 0,
+                "snr_sum": 0.0,
+                "snr_count": 0,
+                "type_counts": {},
+            },
+        )
+        b["packet_count"] += count
+        b["byte_count"] += nbytes
+        if avg_rssi is not None:
+            b["rssi_sum"] += avg_rssi * count
+            b["rssi_count"] += count
+        if avg_snr is not None:
+            b["snr_sum"] += avg_snr * count
+            b["snr_count"] += count
+        if ptype:
+            b["type_counts"][ptype] = b["type_counts"].get(ptype, 0) + count
+
+    bins: list[TimeseriesBin] = []
+    total_packets = 0
+    total_bytes = 0
+    has_signal_data = False
+    has_type_data = False
+
+    for i in range(bin_count):
+        t = start_ts + i * bin_seconds
+        b = bin_map.get(t)
+        if b is None:
+            bins.append(TimeseriesBin(start_ts=t, packet_count=0, byte_count=0))
+            continue
+
+        avg_rssi_out = b["rssi_sum"] / b["rssi_count"] if b["rssi_count"] else None
+        avg_snr_out = b["snr_sum"] / b["snr_count"] if b["snr_count"] else None
+        if avg_rssi_out is not None or avg_snr_out is not None:
+            has_signal_data = True
+        if b["type_counts"]:
+            has_type_data = True
+
+        bins.append(
+            TimeseriesBin(
+                start_ts=t,
+                packet_count=b["packet_count"],
+                byte_count=b["byte_count"],
+                avg_rssi=avg_rssi_out,
+                avg_snr=avg_snr_out,
+                type_counts=b["type_counts"],
+            )
+        )
+        total_packets += b["packet_count"]
+        total_bytes += b["byte_count"]
+
+    return TimeseriesResponse(
+        bins=bins,
+        total_packets=total_packets,
+        total_bytes=total_bytes,
+        start_ts=start_ts,
+        end_ts=end_ts,
+        bin_seconds=bin_seconds,
+        has_signal_data=has_signal_data,
+        has_type_data=has_type_data,
+    )
+
+
+class HistoricalNeighbor(BaseModel):
+    public_key: str
+    name: str | None
+    heard_count: int
+    first_seen: int | None
+    last_seen: int | None
+    lat: float | None
+    lon: float | None
+    min_path_len: int | None
+    best_rssi: float | None = None
+
+
+class HistoricalBusiestChannel(BaseModel):
+    channel_key: str
+    channel_name: str | None
+    message_count: int
+
+
+class HistoricalStatsResponse(BaseModel):
+    start_ts: int
+    end_ts: int
+    total_packets: int
+    total_bytes: int
+    packets_per_minute: float
+    avg_rssi: float | None
+    avg_snr: float | None
+    best_rssi: float | None
+    type_counts: dict[str, int]
+    has_signal_data: bool
+    has_type_data: bool
+    neighbors_by_count: list[HistoricalNeighbor]
+    neighbors_by_signal: list[HistoricalNeighbor]
+    busiest_channels: list[HistoricalBusiestChannel] = Field(default_factory=list)
+
+
+@router.get("/historical-stats", response_model=HistoricalStatsResponse)
+async def get_historical_stats(start_ts: int, end_ts: int) -> HistoricalStatsResponse:
+    """Return DB-computed aggregate stats for a time window (My Node history).
+
+    Packet/byte totals and rate, signal averages, payload-type breakdown, top
+    neighbors (by heard count and by best signal, from contact_advert_paths),
+    and the busiest channels in the window.
+    """
+    if end_ts <= start_ts:
+        raise HTTPException(status_code=400, detail="end_ts must be greater than start_ts")
+
+    duration_seconds = max(end_ts - start_ts, 1)
+
+    async with db.readonly() as conn:
+        async with conn.execute(
+            """
+            SELECT COUNT(*) AS total_packets, SUM(LENGTH(data)) AS total_bytes
+            FROM raw_packets
+            WHERE timestamp >= ? AND timestamp < ?
+            """,
+            (start_ts, end_ts),
+        ) as cur:
+            row = await cur.fetchone()
+            total_packets = int((row["total_packets"] if row else None) or 0)
+            total_bytes = int((row["total_bytes"] if row else None) or 0)
+
+        packets_per_minute = total_packets / max(duration_seconds / 60, 1 / 60)
+
+        avg_rssi: float | None = None
+        avg_snr: float | None = None
+        best_rssi: float | None = None
+        type_counts: dict[str, int] = {}
+        has_signal_data = False
+        has_type_data = False
+
+        async with conn.execute(
+            """
+            SELECT AVG(rssi) AS avg_rssi, AVG(snr) AS avg_snr, MAX(rssi) AS best_rssi
+            FROM raw_packets
+            WHERE timestamp >= ? AND timestamp < ? AND rssi IS NOT NULL
+            """,
+            (start_ts, end_ts),
+        ) as cur:
+            row = await cur.fetchone()
+            if row is not None and row["avg_rssi"] is not None:
+                avg_rssi = float(row["avg_rssi"])
+                avg_snr = float(row["avg_snr"]) if row["avg_snr"] is not None else None
+                best_rssi = float(row["best_rssi"])
+                has_signal_data = True
+
+        async with conn.execute(
+            """
+            SELECT payload_type, COUNT(*) AS cnt
+            FROM raw_packets
+            WHERE timestamp >= ? AND timestamp < ? AND payload_type IS NOT NULL
+            GROUP BY payload_type
+            ORDER BY cnt DESC
+            """,
+            (start_ts, end_ts),
+        ) as cur:
+            rows = await cur.fetchall()
+            if rows:
+                type_counts = {row["payload_type"]: int(row["cnt"]) for row in rows}
+                has_type_data = True
+
+        # Top neighbors by total heard count (advert paths seen in the window).
+        async with conn.execute(
+            """
+            SELECT
+                c.public_key, c.name, c.last_seen, c.lat, c.lon,
+                COALESCE(SUM(cap.heard_count), 0) AS heard_count,
+                MIN(cap.first_seen) AS first_seen,
+                MIN(cap.path_len) AS min_path_len,
+                MAX(cap.best_rssi) AS best_rssi
+            FROM contacts c
+            LEFT JOIN contact_advert_paths cap ON cap.public_key = c.public_key
+                AND cap.last_seen >= ? AND cap.last_seen < ?
+            WHERE c.last_seen >= ? AND c.last_seen < ?
+            GROUP BY c.public_key
+            HAVING heard_count > 0
+            ORDER BY heard_count DESC
+            LIMIT 50
+            """,
+            (start_ts, end_ts, start_ts, end_ts),
+        ) as cur:
+            rows = await cur.fetchall()
+            neighbors_by_count = [
+                HistoricalNeighbor(
+                    public_key=row["public_key"],
+                    name=row["name"],
+                    heard_count=int(row["heard_count"]),
+                    first_seen=row["first_seen"],
+                    last_seen=row["last_seen"],
+                    lat=row["lat"],
+                    lon=row["lon"],
+                    min_path_len=row["min_path_len"],
+                    best_rssi=float(row["best_rssi"]) if row["best_rssi"] is not None else None,
+                )
+                for row in rows
+            ]
+
+        # Top neighbors by best stored advert-path signal.
+        async with conn.execute(
+            """
+            SELECT
+                c.public_key, c.name, c.last_seen, c.lat, c.lon,
+                COALESCE(SUM(cap.heard_count), 0) AS heard_count,
+                MAX(cap.best_rssi) AS best_rssi
+            FROM contacts c
+            JOIN contact_advert_paths cap ON cap.public_key = c.public_key
+                AND cap.last_seen >= ? AND cap.last_seen < ?
+                AND cap.best_rssi IS NOT NULL
+            WHERE c.last_seen >= ? AND c.last_seen < ?
+            GROUP BY c.public_key
+            HAVING heard_count > 0
+            ORDER BY best_rssi DESC
+            LIMIT 20
+            """,
+            (start_ts, end_ts, start_ts, end_ts),
+        ) as cur:
+            rows = await cur.fetchall()
+            neighbors_by_signal = [
+                HistoricalNeighbor(
+                    public_key=row["public_key"],
+                    name=row["name"],
+                    heard_count=int(row["heard_count"]),
+                    first_seen=None,
+                    last_seen=row["last_seen"],
+                    lat=row["lat"],
+                    lon=row["lon"],
+                    min_path_len=None,
+                    best_rssi=float(row["best_rssi"]) if row["best_rssi"] is not None else None,
+                )
+                for row in rows
+            ]
+
+        async with conn.execute(
+            """
+            SELECT m.conversation_key, ch.name AS channel_name, COUNT(*) AS message_count
+            FROM messages m
+            LEFT JOIN channels ch ON ch.key = m.conversation_key
+            WHERE m.type = 'CHAN' AND m.received_at >= ? AND m.received_at < ?
+            GROUP BY m.conversation_key
+            ORDER BY message_count DESC
+            LIMIT 10
+            """,
+            (start_ts, end_ts),
+        ) as cur:
+            rows = await cur.fetchall()
+            busiest_channels = [
+                HistoricalBusiestChannel(
+                    channel_key=row["conversation_key"],
+                    channel_name=row["channel_name"],
+                    message_count=int(row["message_count"]),
+                )
+                for row in rows
+            ]
+
+    return HistoricalStatsResponse(
+        start_ts=start_ts,
+        end_ts=end_ts,
+        total_packets=total_packets,
+        total_bytes=total_bytes,
+        packets_per_minute=packets_per_minute,
+        avg_rssi=avg_rssi,
+        avg_snr=avg_snr,
+        best_rssi=best_rssi,
+        type_counts=type_counts,
+        has_signal_data=has_signal_data,
+        has_type_data=has_type_data,
+        neighbors_by_count=neighbors_by_count,
+        neighbors_by_signal=neighbors_by_signal,
+        busiest_channels=busiest_channels,
+    )
+
+
 @router.get("/{packet_id}", response_model=RawPacketDetail)
 async def get_raw_packet(packet_id: int) -> RawPacketDetail:
     """Fetch one stored raw packet by row ID for on-demand inspection."""
