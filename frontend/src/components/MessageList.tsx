@@ -1064,7 +1064,10 @@ export function MessageList({
       if (senderName || msg.sender_key) {
         return {
           name: senderName || msg.sender_key || t('common_unknown'),
-          publicKeyOrPrefix: msg.sender_key || msg.conversation_key || '',
+          // For CHAN, conversation_key is the shared channel key, not the
+          // sender's key. Falling back to it would render an identical prefix
+          // for every sender in the channel, so leave the key unknown instead.
+          publicKeyOrPrefix: msg.sender_key || '',
           lat: null,
           lon: null,
           pathHashMode: null,
@@ -1086,10 +1089,11 @@ export function MessageList({
         };
       }
     }
-    // Fallback: unknown sender
+    // Fallback: unknown sender. conversation_key is the sender's key for PRIV
+    // but the shared channel key for CHAN, so never use it for channel messages.
     return {
       name: parsedSender || t('common_unknown'),
-      publicKeyOrPrefix: msg.conversation_key || '',
+      publicKeyOrPrefix: msg.type === 'CHAN' ? '' : msg.conversation_key || '',
       lat: null,
       lon: null,
       pathHashMode: null,

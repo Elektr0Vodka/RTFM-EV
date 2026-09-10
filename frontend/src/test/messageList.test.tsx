@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -146,6 +146,60 @@ describe('MessageList channel sender rendering', () => {
 
     expect(screen.getByText('(d)')).toBeInTheDocument();
     expect(screen.getByTitle('View message path')).toBeInTheDocument();
+  });
+
+  it('does not display the channel key as the sender key in the path modal', async () => {
+    const user = userEvent.setup();
+    render(
+      <MessageList
+        messages={[
+          createMessage({
+            // Distinctive channel key so its prefix cannot collide with hop prefixes.
+            conversation_key: 'DEADBEEF00112233445566778899AABB',
+            sender_name: 'Alice',
+            sender_key: null,
+            paths: [{ path: 'AABBCCDD', path_len: 2, received_at: 1700000001 }],
+          }),
+        ]}
+        contacts={[]}
+        loading={false}
+      />
+    );
+
+    await user.click(screen.getByTitle('View message path'));
+
+    const dialog = await screen.findByRole('dialog');
+    // The sender has no resolvable public key, so the sender prefix must be the
+    // unknown marker — never the channel key (which is shared by every sender in
+    // the channel and would otherwise show identically for all of them).
+    expect(within(dialog).getByText('Alice')).toBeInTheDocument();
+    expect(within(dialog).queryByText('DEAD')).not.toBeInTheDocument();
+  });
+
+  it('does not display the channel key for an unnamed channel sender in the path modal', async () => {
+    const user = userEvent.setup();
+    render(
+      <MessageList
+        messages={[
+          createMessage({
+            conversation_key: 'DEADBEEF00112233445566778899AABB',
+            // No stored sender name and no parseable "Name: message" prefix, so
+            // the sender is fully unknown and hits the final fallback branch.
+            text: 'garbled payload with no sender prefix',
+            sender_name: null,
+            sender_key: null,
+            paths: [{ path: 'AABBCCDD', path_len: 2, received_at: 1700000001 }],
+          }),
+        ]}
+        contacts={[]}
+        loading={false}
+      />
+    );
+
+    await user.click(screen.getByTitle('View message path'));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).queryByText('DEAD')).not.toBeInTheDocument();
   });
 
   it('prefers stored sender_name for channel messages even when text is not sender-prefixed', () => {
