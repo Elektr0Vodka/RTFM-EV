@@ -40,6 +40,10 @@ export function SettingsDatabaseSection({
   const [draftName, setDraftName] = useState('');
   const [draftNodeUrl, setDraftNodeUrl] = useState('');
   const [draftPacketUrl, setDraftPacketUrl] = useState('');
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editNodeUrl, setEditNodeUrl] = useState('');
+  const [editPacketUrl, setEditPacketUrl] = useState('');
 
   const saveChainRef = useRef<Promise<void>>(Promise.resolve());
 
@@ -47,6 +51,7 @@ export function SettingsDatabaseSection({
     setAutoDecryptOnAdvert(appSettings.auto_decrypt_dm_on_advert);
     setSyncUrl(appSettings.registry_sync_url ?? '');
     setAnalyzerSites(appSettings.analyzer_sites ?? []);
+    setEditingIndex(null);
   }, [appSettings]);
 
   const handleCleanup = async () => {
@@ -117,33 +122,57 @@ export function SettingsDatabaseSection({
     void persistAppSettings({ analyzer_sites: next }, () => setAnalyzerSites(prev));
   };
 
-  const handleAddAnalyzerSite = () => {
-    const name = draftName.trim();
-    const nodeUrl = draftNodeUrl.trim();
-    const packetUrl = draftPacketUrl.trim();
+  const buildValidatedSite = (
+    rawName: string,
+    rawNodeUrl: string,
+    rawPacketUrl: string
+  ): AnalyzerSite | null => {
+    const name = rawName.trim();
+    const nodeUrl = rawNodeUrl.trim();
+    const packetUrl = rawPacketUrl.trim();
     if (!name) {
       toast.error('Analyzer site needs a name');
-      return;
+      return null;
     }
     if (!isValidNodeTemplate(nodeUrl)) {
       toast.error('Node URL must be an http(s) URL containing {pubkey}');
-      return;
+      return null;
     }
     if (packetUrl && !isValidPacketTemplate(packetUrl)) {
       toast.error('Packet URL must be an http(s) URL containing {hash}');
-      return;
+      return null;
     }
-    persistAnalyzerSites([
-      ...analyzerSites,
-      { name, node_url_template: nodeUrl, packet_url_template: packetUrl || null },
-    ]);
+    return { name, node_url_template: nodeUrl, packet_url_template: packetUrl || null };
+  };
+
+  const handleAddAnalyzerSite = () => {
+    const site = buildValidatedSite(draftName, draftNodeUrl, draftPacketUrl);
+    if (!site) return;
+    persistAnalyzerSites([...analyzerSites, site]);
     setDraftName('');
     setDraftNodeUrl('');
     setDraftPacketUrl('');
   };
 
   const handleRemoveAnalyzerSite = (index: number) => {
+    if (editingIndex === index) setEditingIndex(null);
     persistAnalyzerSites(analyzerSites.filter((_, i) => i !== index));
+  };
+
+  const handleStartEditAnalyzerSite = (index: number) => {
+    const site = analyzerSites[index];
+    if (!site) return;
+    setEditingIndex(index);
+    setEditName(site.name);
+    setEditNodeUrl(site.node_url_template);
+    setEditPacketUrl(site.packet_url_template ?? '');
+  };
+
+  const handleSaveEditAnalyzerSite = (index: number) => {
+    const site = buildValidatedSite(editName, editNodeUrl, editPacketUrl);
+    if (!site) return;
+    persistAnalyzerSites(analyzerSites.map((existing, i) => (i === index ? site : existing)));
+    setEditingIndex(null);
   };
 
   return (
@@ -305,33 +334,97 @@ export function SettingsDatabaseSection({
 
         {analyzerSites.length > 0 ? (
           <ul className="space-y-2">
-            {analyzerSites.map((site, index) => (
-              <li
-                key={`${site.name}-${index}`}
-                className="rounded-md border border-border p-2.5 flex items-start justify-between gap-3"
-              >
-                <div className="min-w-0 space-y-0.5">
-                  <div className="text-sm font-medium">{site.name}</div>
-                  <div className="text-xs font-mono text-muted-foreground break-all">
-                    {site.node_url_template}
-                  </div>
-                  {site.packet_url_template && (
-                    <div className="text-xs font-mono text-muted-foreground break-all">
-                      {site.packet_url_template}
-                    </div>
-                  )}
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-destructive/50 text-destructive hover:bg-destructive/10 shrink-0"
-                  onClick={() => handleRemoveAnalyzerSite(index)}
-                  aria-label={`Remove analyzer site ${site.name}`}
+            {analyzerSites.map((site, index) =>
+              editingIndex === index ? (
+                <li
+                  key={`${site.name}-${index}`}
+                  className="rounded-md border border-border p-2.5 space-y-2"
                 >
-                  Remove
-                </Button>
-              </li>
-            ))}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Name</Label>
+                    <Input
+                      aria-label={`Edit name for ${site.name}`}
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Node URL template</Label>
+                    <Input
+                      aria-label={`Edit node URL for ${site.name}`}
+                      value={editNodeUrl}
+                      onChange={(e) => setEditNodeUrl(e.target.value)}
+                      className="font-mono text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">
+                      Packet URL template (optional)
+                    </Label>
+                    <Input
+                      aria-label={`Edit packet URL for ${site.name}`}
+                      value={editPacketUrl}
+                      onChange={(e) => setEditPacketUrl(e.target.value)}
+                      className="font-mono text-xs"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSaveEditAnalyzerSite(index)}
+                      aria-label={`Save analyzer site ${site.name}`}
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEditingIndex(null)}
+                      aria-label={`Cancel editing analyzer site ${site.name}`}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </li>
+              ) : (
+                <li
+                  key={`${site.name}-${index}`}
+                  className="rounded-md border border-border p-2.5 flex items-start justify-between gap-3"
+                >
+                  <div className="min-w-0 space-y-0.5">
+                    <div className="text-sm font-medium">{site.name}</div>
+                    <div className="text-xs font-mono text-muted-foreground break-all">
+                      {site.node_url_template}
+                    </div>
+                    {site.packet_url_template && (
+                      <div className="text-xs font-mono text-muted-foreground break-all">
+                        {site.packet_url_template}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleStartEditAnalyzerSite(index)}
+                      aria-label={`Edit analyzer site ${site.name}`}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-destructive/50 text-destructive hover:bg-destructive/10"
+                      onClick={() => handleRemoveAnalyzerSite(index)}
+                      aria-label={`Remove analyzer site ${site.name}`}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                </li>
+              )
+            )}
           </ul>
         ) : (
           <p className="text-[0.8125rem] text-muted-foreground italic">

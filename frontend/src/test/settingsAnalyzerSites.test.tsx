@@ -101,6 +101,89 @@ describe('SettingsDatabaseSection analyzer sites editor', () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
+  it('edits a configured analyzer site inline and persists the change', async () => {
+    const { onSave } = renderSection(
+      makeSettings({
+        analyzer_sites: [
+          {
+            name: 'cornmeister',
+            node_url_template: 'https://cornmeister.nl/#node?id={pubkey}',
+            packet_url_template: null,
+          },
+        ],
+      })
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit analyzer site cornmeister' }));
+    fireEvent.change(screen.getByLabelText('Edit name for cornmeister'), {
+      target: { value: 'cornmeister-nl' },
+    });
+    fireEvent.change(screen.getByLabelText('Edit node URL for cornmeister'), {
+      target: { value: 'https://cornmeister.nl/#node?id={pubkey}&tab=details' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save analyzer site cornmeister' }));
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({
+        analyzer_sites: [
+          {
+            name: 'cornmeister-nl',
+            node_url_template: 'https://cornmeister.nl/#node?id={pubkey}&tab=details',
+            packet_url_template: null,
+          },
+        ],
+      })
+    );
+    expect(screen.getByText('cornmeister-nl')).toBeInTheDocument();
+  });
+
+  it('rejects an inline edit whose node template drops the {pubkey} placeholder', () => {
+    const { onSave } = renderSection(
+      makeSettings({
+        analyzer_sites: [
+          {
+            name: 'cornmeister',
+            node_url_template: 'https://cornmeister.nl/#node?id={pubkey}',
+            packet_url_template: null,
+          },
+        ],
+      })
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit analyzer site cornmeister' }));
+    fireEvent.change(screen.getByLabelText('Edit node URL for cornmeister'), {
+      target: { value: 'https://cornmeister.nl/#node' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save analyzer site cornmeister' }));
+
+    expect(toastError).toHaveBeenCalled();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('cancels an inline edit without persisting', () => {
+    const { onSave } = renderSection(
+      makeSettings({
+        analyzer_sites: [
+          {
+            name: 'cornmeister',
+            node_url_template: 'https://cornmeister.nl/#node?id={pubkey}',
+            packet_url_template: null,
+          },
+        ],
+      })
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit analyzer site cornmeister' }));
+    fireEvent.change(screen.getByLabelText('Edit name for cornmeister'), {
+      target: { value: 'changed' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel editing analyzer site cornmeister' }));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByText('cornmeister')).toBeInTheDocument();
+    expect(screen.queryByText('changed')).not.toBeInTheDocument();
+  });
+
   it('removes a configured analyzer site', async () => {
     const { onSave } = renderSection(
       makeSettings({
