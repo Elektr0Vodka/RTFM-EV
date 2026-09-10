@@ -1163,11 +1163,16 @@
 }
 /* Chevron sits on the title (h2), not the header grid: as a grid item it took a
    column and pushed the name into the right column. On the h2 it hugs the name
-   ("right behind the triangle") and the header keeps its [name | actions] layout. */
+   ("right behind the triangle") and the header keeps its [name | actions] layout.
+   The title is a flex button, so lay the h2 out as a flex row too, or the chevron
+   breaks onto its own line above the name. The channel key stacks below (ChatHeader). */
+[data-theme='darkdutch'] .conversation-header h2 {
+  display: flex;
+  align-items: center;
+}
 [data-theme='darkdutch'] .conversation-header h2::before {
   content: '';
-  display: inline-block;
-  vertical-align: -2px;
+  flex: 0 0 auto;
   width: 10px;
   height: 15px;
   margin-right: 8px;
