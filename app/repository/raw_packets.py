@@ -13,7 +13,13 @@ UNDECRYPTED_PACKET_BATCH_SIZE = 500
 
 class RawPacketRepository:
     @staticmethod
-    async def create(data: bytes, timestamp: int | None = None) -> tuple[int, bool]:
+    async def create(
+        data: bytes,
+        timestamp: int | None = None,
+        rssi: int | None = None,
+        snr: float | None = None,
+        payload_type: str | None = None,
+    ) -> tuple[int, bool]:
         """
         Create a raw packet with payload-based deduplication.
 
@@ -22,7 +28,9 @@ class RawPacketRepository:
         - is_new=False: Duplicate payload detected, packet_id is the existing row ID
 
         Deduplication is based on the SHA-256 hash of the packet payload
-        (excluding routing/path information).
+        (excluding routing/path information). Signal metadata (``rssi``/``snr``/
+        ``payload_type``) is persisted for the stored observation; on a duplicate
+        payload the existing row is left unchanged.
         """
         ts = timestamp if timestamp is not None else int(time.time())
 
@@ -36,8 +44,10 @@ class RawPacketRepository:
 
         async with db.tx() as conn:
             async with conn.execute(
-                "INSERT OR IGNORE INTO raw_packets (timestamp, data, payload_hash) VALUES (?, ?, ?)",
-                (ts, data, payload_hash),
+                "INSERT OR IGNORE INTO raw_packets "
+                "(timestamp, data, payload_hash, rssi, snr, payload_type) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (ts, data, payload_hash, rssi, snr, payload_type),
             ) as cursor:
                 rowcount = cursor.rowcount
                 lastrowid = cursor.lastrowid

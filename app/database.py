@@ -73,6 +73,9 @@ CREATE TABLE IF NOT EXISTS raw_packets (
     data BLOB NOT NULL,
     message_id INTEGER,
     payload_hash BLOB,
+    rssi INTEGER,
+    snr REAL,
+    payload_type TEXT,
     FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE SET NULL
 );
 
@@ -84,6 +87,8 @@ CREATE TABLE IF NOT EXISTS contact_advert_paths (
     first_seen INTEGER NOT NULL,
     last_seen INTEGER NOT NULL,
     heard_count INTEGER NOT NULL DEFAULT 1,
+    best_rssi REAL,
+    best_snr REAL,
     UNIQUE(public_key, path_hex, path_len),
     FOREIGN KEY (public_key) REFERENCES contacts(public_key) ON DELETE CASCADE
 );
