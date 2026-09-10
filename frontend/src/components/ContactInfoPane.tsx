@@ -1,5 +1,5 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, Ban, ChevronDown, ChevronRight, Search, Star } from 'lucide-react';
+import { Activity, Ban, ChevronDown, ChevronRight, ExternalLink, Search, Star } from 'lucide-react';
 import {
   AreaChart,
   Area,
@@ -32,6 +32,7 @@ import {
   parsePathHops,
 } from '../utils/pathUtils';
 import { isPublicChannelKey } from '../utils/publicChannel';
+import { buildNodeLookupUrl } from '../utils/analyzerLink';
 import { getMapFocusHash } from '../utils/urlHash';
 import { handleKeyboardActivate } from '../utils/a11y';
 import { ContactAvatar } from './ContactAvatar';
@@ -42,6 +43,7 @@ import { useDistanceUnit } from '../contexts/DistanceUnitContext';
 import { useEntranceSettled } from '../hooks/useEntranceSettled';
 import { CONTACT_TYPE_REPEATER } from '../types';
 import type {
+  AnalyzerSite,
   Contact,
   ContactActiveRoom,
   ContactAnalytics,
@@ -84,6 +86,7 @@ interface ContactInfoPaneProps {
   onToggleBlockedName?: (name: string) => void;
   trackedTelemetryContacts?: string[];
   onToggleTrackedTelemetryContact?: (publicKey: string) => Promise<void>;
+  analyzerSites?: AnalyzerSite[];
 }
 
 export function ContactInfoPane({
@@ -102,6 +105,7 @@ export function ContactInfoPane({
   onToggleBlockedName,
   trackedTelemetryContacts = [],
   onToggleTrackedTelemetryContact,
+  analyzerSites = [],
 }: ContactInfoPaneProps) {
   const { distanceUnit } = useDistanceUnit();
   const isNameOnly = contactKey?.startsWith('name:') ?? false;
@@ -511,6 +515,34 @@ export function ContactInfoPane({
                   <Search className="h-4.5 w-4.5 text-muted-foreground" aria-hidden="true" />
                   <span>Search user&apos;s messages by key</span>
                 </button>
+              </div>
+            )}
+
+            {/* Look up on external analyzer(s). Hidden for prefix-only contacts
+                (no full pubkey to look up) and when no sites are configured.
+                Opens a third-party site in a new tab; see the privacy note in the
+                analyzer-sites settings editor. */}
+            {!isPrefixOnlyResolvedContact && analyzerSites.length > 0 && (
+              <div className="px-5 py-3 border-b border-border space-y-2">
+                {analyzerSites.map((site) => {
+                  const url = buildNodeLookupUrl(site, contact.public_key);
+                  if (!url) return null;
+                  return (
+                    <button
+                      key={site.name}
+                      type="button"
+                      className="text-sm flex items-center gap-2 hover:text-primary transition-colors"
+                      onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+                      title={`Opens ${site.name} in a new tab and sends this node's public key to that external site`}
+                    >
+                      <ExternalLink
+                        className="h-4.5 w-4.5 text-muted-foreground"
+                        aria-hidden="true"
+                      />
+                      <span>Look up on {site.name}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
 

@@ -322,4 +322,27 @@ describe('NewMessageModal form reset', () => {
       expect(screen.queryByText(/Messages will stream in/)).toBeNull();
     });
   });
+
+  describe('new-contact prefill', () => {
+    it('prefills the contact tab from an add-contact request', async () => {
+      const pubkey = 'ab'.repeat(32);
+      renderModal(true, {
+        prefillRequest: {
+          tab: 'new-contact',
+          publicKey: pubkey,
+          name: 'Analyzer Node',
+          nonce: 1,
+        },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByRole('tab', { name: 'Contact' })).toHaveAttribute(
+          'data-state',
+          'active'
+        );
+      });
+      expect(screen.getByLabelText('Public Key')).toHaveValue(pubkey);
+      expect(screen.getByLabelText('Name')).toHaveValue('Analyzer Node');
+    });
+  });
 });

@@ -128,6 +128,59 @@ describe('ContactInfoPane', () => {
     });
   });
 
+  it('shows a "Look up on analyzer" action for a full-key contact and opens the site', async () => {
+    const contact = createContact();
+    getContactAnalytics.mockResolvedValue(createAnalytics(contact));
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+    render(
+      <ContactInfoPane
+        {...baseProps}
+        contactKey={contact.public_key}
+        analyzerSites={[
+          { name: 'mc-radar', node_url_template: 'https://mc-radar.woodwar.com/node/{pubkey}' },
+        ]}
+      />
+    );
+
+    const button = await screen.findByText('Look up on mc-radar');
+    button.click();
+    expect(openSpy).toHaveBeenCalledWith(
+      `https://mc-radar.woodwar.com/node/${contact.public_key}`,
+      '_blank',
+      'noopener,noreferrer'
+    );
+    openSpy.mockRestore();
+  });
+
+  it('hides the analyzer lookup for a prefix-only contact', async () => {
+    const contact = createContact({ public_key: 'aa'.repeat(6) }); // 12 hex = prefix only
+    getContactAnalytics.mockResolvedValue(createAnalytics(contact));
+
+    render(
+      <ContactInfoPane
+        {...baseProps}
+        contactKey={contact.public_key}
+        analyzerSites={[
+          { name: 'mc-radar', node_url_template: 'https://mc-radar.woodwar.com/node/{pubkey}' },
+        ]}
+      />
+    );
+
+    await screen.findByText(contact.public_key);
+    expect(screen.queryByText('Look up on mc-radar')).not.toBeInTheDocument();
+  });
+
+  it('hides the analyzer lookup when no sites are configured', async () => {
+    const contact = createContact();
+    getContactAnalytics.mockResolvedValue(createAnalytics(contact));
+
+    render(<ContactInfoPane {...baseProps} contactKey={contact.public_key} />);
+
+    await screen.findByText(contact.public_key);
+    expect(screen.queryByText(/Look up on/)).not.toBeInTheDocument();
+  });
+
   it('does not show hop width for flood-routed contacts', async () => {
     const contact = createContact({ direct_path_len: -1, direct_path_hash_mode: -1 });
     getContactAnalytics.mockResolvedValue(createAnalytics(contact));

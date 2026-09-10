@@ -6,7 +6,7 @@ from typing import Any
 import aiosqlite
 
 from app.database import db
-from app.models import AppSettings
+from app.models import AnalyzerSite, AppSettings
 from app.path_utils import bucket_path_hash_widths, bucket_region_scope, parse_packet_envelope
 from app.telemetry_interval import DEFAULT_TELEMETRY_INTERVAL_HOURS
 
@@ -44,7 +44,7 @@ class AppSettingsRepository:
                    tracked_telemetry_repeaters, tracked_telemetry_contacts,
                    auto_resend_channel,
                    telemetry_interval_hours, telemetry_routed_hourly,
-                   show_mention_ticker, registry_sync_url
+                   show_mention_ticker, registry_sync_url, analyzer_sites
             FROM app_settings WHERE id = 1
             """
         ) as cursor:
@@ -151,6 +151,19 @@ class AppSettingsRepository:
         except (KeyError, TypeError):
             registry_sync_url = ""
 
+        # Parse analyzer_sites JSON (migration adds the column with default='[]').
+        # Malformed or non-conforming entries are dropped rather than failing the
+        # whole settings load.
+        analyzer_sites: list[AnalyzerSite] = []
+        try:
+            raw_sites = row["analyzer_sites"]
+            if raw_sites:
+                analyzer_sites = [
+                    AnalyzerSite.model_validate(item) for item in json.loads(raw_sites)
+                ]
+        except (json.JSONDecodeError, TypeError, KeyError, ValueError):
+            analyzer_sites = []
+
         return AppSettings(
             max_radio_contacts=row["max_radio_contacts"],
             auto_decrypt_dm_on_advert=bool(row["auto_decrypt_dm_on_advert"]),
@@ -169,6 +182,7 @@ class AppSettingsRepository:
             telemetry_routed_hourly=telemetry_routed_hourly,
             show_mention_ticker=show_mention_ticker,
             registry_sync_url=registry_sync_url,
+            analyzer_sites=analyzer_sites,
         )
 
     @staticmethod
@@ -192,6 +206,7 @@ class AppSettingsRepository:
         telemetry_routed_hourly: bool | None = None,
         show_mention_ticker: bool | None = None,
         registry_sync_url: str | None = None,
+        analyzer_sites: list[AnalyzerSite] | None = None,
     ) -> None:
         """Apply field updates using an already-acquired connection.
 
@@ -269,6 +284,10 @@ class AppSettingsRepository:
             updates.append("registry_sync_url = ?")
             params.append(registry_sync_url)
 
+        if analyzer_sites is not None:
+            updates.append("analyzer_sites = ?")
+            params.append(json.dumps([site.model_dump() for site in analyzer_sites]))
+
         if updates:
             query = f"UPDATE app_settings SET {', '.join(updates)} WHERE id = 1"
             async with conn.execute(query, params):
@@ -302,6 +321,7 @@ class AppSettingsRepository:
         telemetry_routed_hourly: bool | None = None,
         show_mention_ticker: bool | None = None,
         registry_sync_url: str | None = None,
+        analyzer_sites: list[AnalyzerSite] | None = None,
     ) -> AppSettings:
         """Update app settings. Only provided fields are updated."""
         async with db.tx() as conn:
@@ -324,6 +344,7 @@ class AppSettingsRepository:
                 telemetry_routed_hourly=telemetry_routed_hourly,
                 show_mention_ticker=show_mention_ticker,
                 registry_sync_url=registry_sync_url,
+                analyzer_sites=analyzer_sites,
             )
             return await AppSettingsRepository._get_in_conn(conn)
 

@@ -6,7 +6,7 @@ import pytest
 from fastapi import HTTPException
 from meshcore import EventType
 
-from app.models import CONTACT_TYPE_REPEATER, AppSettings, ContactUpsert
+from app.models import CONTACT_TYPE_REPEATER, AnalyzerSite, AppSettings, ContactUpsert
 from app.repository import AppSettingsRepository, ContactRepository
 from app.routers.settings import (
     AppSettingsUpdate,
@@ -83,6 +83,90 @@ class TestUpdateSettings:
 
         fresh = await AppSettingsRepository.get()
         assert fresh.registry_sync_url == url
+
+    @pytest.mark.asyncio
+    async def test_analyzer_sites_defaults_empty(self, test_db):
+        result = await update_settings(AppSettingsUpdate())
+        assert result.analyzer_sites == []
+
+    @pytest.mark.asyncio
+    async def test_analyzer_sites_round_trip(self, test_db):
+        sites = [
+            AnalyzerSite(
+                name="mc-radar",
+                node_url_template="https://mc-radar.woodwar.com/node/{pubkey}",
+            )
+        ]
+        result = await update_settings(AppSettingsUpdate(analyzer_sites=sites))
+        assert len(result.analyzer_sites) == 1
+        assert result.analyzer_sites[0].name == "mc-radar"
+        assert result.analyzer_sites[0].node_url_template.endswith("/node/{pubkey}")
+        assert result.analyzer_sites[0].packet_url_template is None
+
+        fresh = await AppSettingsRepository.get()
+        assert fresh.analyzer_sites == result.analyzer_sites
+
+    @pytest.mark.asyncio
+    async def test_analyzer_sites_packet_template_round_trip(self, test_db):
+        sites = [
+            AnalyzerSite(
+                name="cornmeister",
+                node_url_template="https://cornmeister.nl/#node?id={pubkey}",
+                packet_url_template="https://cornmeister.nl/#packets?hash={hash}",
+            )
+        ]
+        result = await update_settings(AppSettingsUpdate(analyzer_sites=sites))
+        assert result.analyzer_sites[0].packet_url_template == (
+            "https://cornmeister.nl/#packets?hash={hash}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_analyzer_sites_name_and_template_stripped(self, test_db):
+        sites = [
+            AnalyzerSite(
+                name="  mc-radar  ",
+                node_url_template="  https://mc-radar.woodwar.com/node/{pubkey}  ",
+            )
+        ]
+        result = await update_settings(AppSettingsUpdate(analyzer_sites=sites))
+        assert result.analyzer_sites[0].name == "mc-radar"
+        assert result.analyzer_sites[0].node_url_template == (
+            "https://mc-radar.woodwar.com/node/{pubkey}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_analyzer_sites_rejects_missing_pubkey_placeholder(self, test_db):
+        sites = [AnalyzerSite(name="bad", node_url_template="https://example.com/node")]
+        with pytest.raises(HTTPException) as exc:
+            await update_settings(AppSettingsUpdate(analyzer_sites=sites))
+        assert exc.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_analyzer_sites_rejects_non_http_template(self, test_db):
+        sites = [AnalyzerSite(name="bad", node_url_template="javascript:alert('{pubkey}')")]
+        with pytest.raises(HTTPException) as exc:
+            await update_settings(AppSettingsUpdate(analyzer_sites=sites))
+        assert exc.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_analyzer_sites_rejects_empty_name(self, test_db):
+        sites = [AnalyzerSite(name="   ", node_url_template="https://example.com/{pubkey}")]
+        with pytest.raises(HTTPException) as exc:
+            await update_settings(AppSettingsUpdate(analyzer_sites=sites))
+        assert exc.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_analyzer_sites_rejects_bad_packet_template(self, test_db):
+        sites = [
+            AnalyzerSite(
+                name="ok",
+                node_url_template="https://example.com/{pubkey}",
+                packet_url_template="https://example.com/packet-no-placeholder",
+            )
+        ]
+        with pytest.raises(HTTPException) as exc:
+            await update_settings(AppSettingsUpdate(analyzer_sites=sites))
+        assert exc.value.status_code == 400
 
     @pytest.mark.asyncio
     async def test_flood_scope_round_trip(self, test_db):

@@ -431,6 +431,15 @@ export interface RawPacket {
   region?: string | null;
 }
 
+/** A user-configured external analyzer site for client-side node/packet lookups. */
+export interface AnalyzerSite {
+  name: string;
+  /** URL template with a {pubkey} placeholder. */
+  node_url_template: string;
+  /** Optional URL template with a {hash} placeholder for packet lookups. */
+  packet_url_template?: string | null;
+}
+
 export interface AppSettings {
   max_radio_contacts: number;
   auto_decrypt_dm_on_advert: boolean;
@@ -449,6 +458,7 @@ export interface AppSettings {
   telemetry_routed_hourly: boolean;
   show_mention_ticker: boolean;
   registry_sync_url: string;
+  analyzer_sites: AnalyzerSite[];
 }
 
 export interface AppSettingsUpdate {
@@ -465,6 +475,7 @@ export interface AppSettingsUpdate {
   telemetry_routed_hourly?: boolean;
   show_mention_ticker?: boolean;
   registry_sync_url?: string;
+  analyzer_sites?: AnalyzerSite[];
 }
 
 export interface TelemetrySchedule {
