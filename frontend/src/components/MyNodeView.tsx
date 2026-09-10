@@ -21,8 +21,19 @@ import { api } from '../api';
 import { buildRawPacketStatsSnapshot } from '../utils/rawPacketStats';
 import { useRawPackets, useRawPacketStatsSession } from '../stores/rawPacketStore';
 import { getContactDisplayName } from '../utils/pubkey';
-import { findContactsByPrefix } from '../utils/pathUtils';
 import { cn } from '@/lib/utils';
+
+// MeshCore node types (contact.type): label with the mesh vocabulary.
+const NODE_TYPE_LABELS: Record<number, string> = {
+  1: 'Companion',
+  2: 'Repeater',
+  3: 'Room Server',
+  4: 'Sensor',
+};
+
+function nodeTypeLabel(type: number | null | undefined): string {
+  return (type != null && NODE_TYPE_LABELS[type]) || 'Unknown';
+}
 
 // ─── Props ─────────────────────────────────────────────────────────────────
 
@@ -1474,64 +1485,40 @@ export default function MyNodeView({ contacts }: Props) {
     [rawPacketStatsSession, nowSec]
   );
 
-  // Last RF hop before us — either direct source (0-hop) or last path token
+  // Direct (0-hop) neighbours only: nodes heard with no relay in the path.
+  // Flood / relayed observations (pathTokenCount > 0) are excluded so this
+  // reflects genuine direct RF neighbours, not inferred last-hop relayers.
   const lastHopNeighborMap = useMemo(() => {
     const map = new Map<
       string,
-      { label: string; count: number; bestRssi: number | null; lastSeen: number }
+      { label: string; count: number; bestRssi: number | null; lastSeen: number; type: number }
     >();
     for (const o of rawPacketStatsSession.observations) {
-      let key: string;
-      let label: string;
-      if (o.pathTokenCount === 0 || !o.pathSignature) {
-        if (!o.sourceKey) continue;
-        key = o.sourceKey;
-        const contact = contacts.find((c) =>
-          c.public_key.toLowerCase().startsWith(o.sourceKey!.toLowerCase().replace('hash1:', ''))
-        );
-        label = contact
-          ? getContactDisplayName(contact.name, contact.public_key, contact.last_advert)
-          : (o.sourceLabel ?? o.sourceKey.slice(0, 12));
-      } else {
-        const tokens = o.pathSignature.split('>');
-        const lastToken = tokens[tokens.length - 1];
-        if (!lastToken) continue;
-        const matches = findContactsByPrefix(lastToken, contacts, false);
-        const best =
-          matches.length >= 1
-            ? matches.length > 1 && config?.lat != null && config?.lon != null
-              ? [...matches].sort((a, b) => {
-                  const dA =
-                    a.lat != null && a.lon != null
-                      ? Math.hypot(a.lat - config.lat!, a.lon - config.lon!)
-                      : Infinity;
-                  const dB =
-                    b.lat != null && b.lon != null
-                      ? Math.hypot(b.lat - config.lat!, b.lon - config.lon!)
-                      : Infinity;
-                  return dA - dB;
-                })[0]
-              : matches[0]
-            : null;
-        key = best ? best.public_key : `hop:${lastToken}`;
-        label = best
-          ? (matches.length > 1 ? '~' : '') +
-            getContactDisplayName(best.name, best.public_key, best.last_advert)
-          : lastToken;
-      }
+      if (o.pathTokenCount !== 0) continue; // skip flood/relayed arrivals
+      if (!o.sourceKey) continue;
+      const key = o.sourceKey;
+      const contact = contacts.find((c) =>
+        c.public_key.toLowerCase().startsWith(o.sourceKey!.toLowerCase().replace('hash1:', ''))
+      );
+      const label = contact
+        ? getContactDisplayName(contact.name, contact.public_key, contact.last_advert)
+        : (o.sourceLabel ?? o.sourceKey.slice(0, 12));
+      const type = contact?.type ?? 0;
+
       const existing = map.get(key);
       if (!existing) {
-        map.set(key, { label, count: 1, bestRssi: o.rssi, lastSeen: o.timestamp });
+        map.set(key, { label, count: 1, bestRssi: o.rssi, lastSeen: o.timestamp, type });
       } else {
         existing.count++;
         existing.lastSeen = Math.max(existing.lastSeen, o.timestamp);
         if (o.rssi != null && (existing.bestRssi == null || o.rssi > existing.bestRssi))
           existing.bestRssi = o.rssi;
         existing.label = label;
+        existing.type = type;
       }
     }
     return map;
-  }, [rawPacketStatsSession.observations, contacts, config]);
+  }, [rawPacketStatsSession.observations, contacts]);
 
   const resolvedMostActive = useMemo(
     () =>
@@ -2197,7 +2184,7 @@ export default function MyNodeView({ contacts }: Props) {
                                   {n.label}
                                 </div>
                                 <div className="text-[10px] text-muted-foreground">
-                                  {n.count.toLocaleString()} packets
+                                  {n.count.toLocaleString()} packets · {nodeTypeLabel(n.type)}
                                 </div>
                               </div>
                               <span className="flex-shrink-0 text-xs text-muted-foreground">
@@ -2221,6 +2208,9 @@ export default function MyNodeView({ contacts }: Props) {
                         <div className="space-y-1.5">
                           {historicalStats.neighbors_by_count.slice(0, 10).map((n) => {
                             const displayName = n.name || n.public_key.slice(0, 12);
+                            const nType = contacts.find(
+                              (c) => c.public_key === n.public_key
+                            )?.type;
                             return (
                               <div
                                 key={n.public_key}
@@ -2231,10 +2221,7 @@ export default function MyNodeView({ contacts }: Props) {
                                     {displayName}
                                   </div>
                                   <div className="text-[10px] text-muted-foreground">
-                                    {n.heard_count.toLocaleString()} adverts
-                                    {n.min_path_len != null
-                                      ? ` · ${n.min_path_len === 0 ? 'direct' : `${n.min_path_len} hop`}`
-                                      : ''}
+                                    {n.heard_count.toLocaleString()} adverts · {nodeTypeLabel(nType)}
                                   </div>
                                 </div>
                                 <span className="flex-shrink-0 text-xs text-muted-foreground">
@@ -2282,7 +2269,7 @@ export default function MyNodeView({ contacts }: Props) {
                                   {n.label}
                                 </div>
                                 <div className="text-[10px] text-muted-foreground">
-                                  {relTime(n.lastSeen)}
+                                  {relTime(n.lastSeen)} · {nodeTypeLabel(n.type)}
                                 </div>
                               </div>
                               <span className="flex-shrink-0 text-xs font-medium text-foreground">
@@ -2306,6 +2293,9 @@ export default function MyNodeView({ contacts }: Props) {
                         <div className="space-y-1.5">
                           {historicalStats.neighbors_by_signal.slice(0, 10).map((n) => {
                             const displayName = n.name || n.public_key.slice(0, 12);
+                            const nType = contacts.find(
+                              (c) => c.public_key === n.public_key
+                            )?.type;
                             return (
                               <div
                                 key={n.public_key}
@@ -2316,7 +2306,7 @@ export default function MyNodeView({ contacts }: Props) {
                                     {displayName}
                                   </div>
                                   <div className="text-[10px] text-muted-foreground">
-                                    {relTime(n.last_seen)}
+                                    {relTime(n.last_seen)} · {nodeTypeLabel(nType)}
                                   </div>
                                 </div>
                                 <span className="flex-shrink-0 text-xs font-medium text-foreground">
