@@ -90,3 +90,14 @@ export const TILE_LAYERS: readonly TileLayerPreset[] = [
     maxZoom: 18,
   },
 ] as const;
+
+// Keyless raster basemaps used by the auto-theming mini maps (route map,
+// neighbors map, contact map). These follow the app theme rather than a user
+// picker: dark themes get the Esri Dark Gray basemap, light themes get OSM.
+const DARK_RASTER_TILE = TILE_LAYERS.find((l) => l.id === 'darkgray')!;
+const LIGHT_RASTER_TILE = TILE_LAYERS.find((l) => l.id === 'light')!;
+
+/** Returns the raster basemap preset matching the current theme brightness. */
+export function themeRasterTile(dark: boolean): TileLayerPreset {
+  return dark ? DARK_RASTER_TILE : LIGHT_RASTER_TILE;
+}

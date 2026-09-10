@@ -42,6 +42,8 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { toast } from './ui/sonner';
 import { useDistanceUnit } from '../contexts/DistanceUnitContext';
 import { useEntranceSettled } from '../hooks/useEntranceSettled';
+import { useIsDarkTheme } from '../hooks';
+import { themeRasterTile } from '../utils/mapTiles';
 import { CONTACT_TYPE_REPEATER } from '../types';
 import type {
   AnalyzerSite,
@@ -1090,6 +1092,8 @@ function ContactTelemetrySection({
   const [mapExpanded, setMapExpanded] = useState(false);
   const [chartExpanded, setChartExpanded] = useState(false);
   const [toggling, setToggling] = useState(false);
+  const dark = useIsDarkTheme();
+  const tile = themeRasterTile(dark);
 
   // Latest telemetry snapshot from history
   const latestEntry =
@@ -1234,12 +1238,15 @@ function ContactTelemetrySection({
                       <MapContainer
                         center={[gpsValue!.latitude, gpsValue!.longitude]}
                         zoom={13}
+                        maxZoom={tile.maxZoom}
                         className="h-full w-full"
-                        style={{ background: '#1a1a2e' }}
+                        style={{ background: tile.background }}
                       >
                         <TileLayer
-                          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                          key={tile.id}
+                          attribution={tile.attribution}
+                          url={tile.url}
+                          maxZoom={tile.maxZoom}
                         />
                         <CircleMarker
                           center={[gpsValue!.latitude, gpsValue!.longitude]}

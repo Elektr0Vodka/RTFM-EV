@@ -1,15 +1,20 @@
 import { useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Tooltip, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Polyline, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { isValidLocation } from '../utils/pathUtils';
 import type { ResolvedPath, SenderInfo } from '../utils/pathUtils';
+import { themeRasterTile } from '../utils/mapTiles';
+import { useIsDarkTheme } from '../hooks';
 import { useT } from '../i18n';
 
 interface PathRouteMapProps {
   resolved: ResolvedPath;
   senderInfo: SenderInfo;
+  /** Fixed map height in px. Ignored when `fill` is set. */
   height?: number;
+  /** When true, the map fills its parent's height instead of using `height`. */
+  fill?: boolean;
 }
 
 // Colors for hop markers (indexed by hop number - 1)
@@ -66,6 +71,38 @@ function collectPoints(resolved: ResolvedPath): [number, number][] {
   return pts;
 }
 
+/**
+ * Ordered list of route points for the connecting line: sender, then one
+ * representative (first located) contact per hop, then receiver. Hops with no
+ * located contact are skipped so the line still spans the gap.
+ */
+function collectRouteLine(resolved: ResolvedPath): [number, number][] {
+  const line: [number, number][] = [];
+  if (isValidLocation(resolved.sender.lat, resolved.sender.lon)) {
+    line.push([resolved.sender.lat!, resolved.sender.lon!]);
+  }
+  for (const hop of resolved.hops) {
+    const m = hop.matches.find((x) => isValidLocation(x.lat, x.lon));
+    if (m) line.push([m.lat!, m.lon!]);
+  }
+  if (isValidLocation(resolved.receiver.lat, resolved.receiver.lon)) {
+    line.push([resolved.receiver.lat!, resolved.receiver.lon!]);
+  }
+  return line;
+}
+
+/** Watches the map container for size changes and tells Leaflet to re-tile. */
+function InvalidateOnResize() {
+  const map = useMap();
+  useEffect(() => {
+    const container = map.getContainer();
+    const ro = new ResizeObserver(() => map.invalidateSize());
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [map]);
+  return null;
+}
+
 /** Fit map bounds once on mount, then let the user pan/zoom freely */
 function RouteMapBounds({ points }: { points: [number, number][] }) {
   const map = useMap();
@@ -84,9 +121,18 @@ function RouteMapBounds({ points }: { points: [number, number][] }) {
   return null;
 }
 
-export function PathRouteMap({ resolved, senderInfo, height = 220 }: PathRouteMapProps) {
+export function PathRouteMap({
+  resolved,
+  senderInfo,
+  height = 220,
+  fill = false,
+}: PathRouteMapProps) {
   const t = useT();
+  const dark = useIsDarkTheme();
+  const tile = themeRasterTile(dark);
+  const lineColor = dark ? '#e2e8f0' : '#1e293b';
   const points = collectPoints(resolved);
+  const routeLine = collectRouteLine(resolved);
   const hasAnyGps = points.length > 0;
 
   // Check if some nodes are missing GPS
@@ -115,24 +161,46 @@ export function PathRouteMap({ resolved, senderInfo, height = 220 }: PathRouteMa
   const center: [number, number] = points[0];
 
   return (
-    <div>
+    <div className={fill ? 'flex flex-col h-full min-h-0' : undefined}>
       <div
-        className="rounded border border-border overflow-hidden"
+        className={
+          fill
+            ? 'rounded border border-border overflow-hidden flex-1 min-h-0'
+            : 'rounded border border-border overflow-hidden'
+        }
         role="img"
         aria-label={t('path_map_aria_label')}
-        style={{ height }}
+        style={fill ? undefined : { height }}
       >
         <MapContainer
           center={center}
           zoom={10}
+          maxZoom={tile.maxZoom}
           className="h-full w-full"
-          style={{ background: '#1a1a2e' }}
+          style={{ background: tile.background }}
         >
+          <InvalidateOnResize />
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            key={tile.id}
+            attribution={tile.attribution}
+            url={tile.url}
+            maxZoom={tile.maxZoom}
           />
           <RouteMapBounds points={points} />
+
+          {/* Connecting line along the route (drawn under the markers) */}
+          {routeLine.length >= 2 && (
+            <Polyline
+              positions={routeLine}
+              pathOptions={{
+                color: lineColor,
+                weight: 3,
+                opacity: 0.85,
+                lineCap: 'round',
+                lineJoin: 'round',
+              }}
+            />
+          )}
 
           {/* Sender marker */}
           {isValidLocation(resolved.sender.lat, resolved.sender.lon) && (
@@ -183,7 +251,9 @@ export function PathRouteMap({ resolved, senderInfo, height = 220 }: PathRouteMa
         </MapContainer>
       </div>
       {someMissingGps && (
-        <p className="text-xs text-muted-foreground mt-1">{t('path_map_missing_gps_note')}</p>
+        <p className="text-xs text-muted-foreground mt-1 shrink-0">
+          {t('path_map_missing_gps_note')}
+        </p>
       )}
     </div>
   );

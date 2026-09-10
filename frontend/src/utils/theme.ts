@@ -126,6 +126,24 @@ export function getEffectiveTheme(): string {
   return saved === FOLLOW_OS_THEME_ID ? resolveFollowOS() : saved;
 }
 
+/**
+ * Returns true when the currently rendered theme is dark.
+ *
+ * Reads the computed `--background` CSS variable (an HSL triplet like
+ * `224 14% 8%`) and inspects its lightness. This works for every theme, not
+ * just the OS-follow light/original pair, because it reflects what is actually
+ * painted rather than mapping a fixed list of theme ids. Defaults to dark
+ * (the app's "original" theme) when the value cannot be read.
+ */
+export function isDarkTheme(): boolean {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return true;
+  const bg = getComputedStyle(document.documentElement).getPropertyValue('--background').trim();
+  const parts = bg.split(/\s+/);
+  const lightness = parts.length >= 3 ? parseFloat(parts[2]) : NaN;
+  if (Number.isNaN(lightness)) return true;
+  return lightness < 50;
+}
+
 export function applyTheme(themeId: string): void {
   try {
     localStorage.setItem(THEME_KEY, themeId);
