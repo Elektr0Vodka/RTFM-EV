@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useRef, useState, useMemo, type MouseEvent } from 'react';
 import { api } from './api';
+import { MAX_RAW_PACKETS, seedRawPacketStore } from './stores/rawPacketStore';
 import { takePrefetchOrFetch } from './prefetch';
 import { useWebSocket } from './useWebSocket';
 import {
@@ -802,6 +803,13 @@ export function App() {
     fetchConfig();
     fetchAppSettings();
     fetchUndecryptedCount();
+
+    // Seed the raw packet feed from the DB so recent history is present on load
+    // (and after a full reload), not just packets observed live over the WS.
+    api
+      .getRecentPackets({ limit: MAX_RAW_PACKETS })
+      .then((data) => seedRawPacketStore({ packets: Array.isArray(data) ? data : [] }))
+      .catch(console.error);
 
     // Fetch contacts and channels via REST (parallel, faster than WS serial push)
     takePrefetchOrFetch('channels', api.getChannels).then(setChannels).catch(console.error);

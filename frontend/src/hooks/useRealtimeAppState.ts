@@ -11,7 +11,12 @@ import { toast } from '../components/ui/sonner';
 import { getStateKey } from '../utils/conversationState';
 import { mergeContactIntoList } from '../utils/contactMerge';
 import { getContactDisplayName } from '../utils/pubkey';
-import { clearRawPackets, MAX_RAW_PACKETS, recordRawPacket } from '../stores/rawPacketStore';
+import {
+  clearRawPackets,
+  MAX_RAW_PACKETS,
+  recordRawPacket,
+  seedRawPacketStore,
+} from '../stores/rawPacketStore';
 import { emitStatusDotPulse } from '../utils/statusDotPulse';
 import type {
   Channel,
@@ -181,7 +186,12 @@ export function useRealtimeAppState({
         });
       },
       onReconnect: () => {
-        clearRawPackets();
+        // Re-seed the packet feed from the DB so history survives reconnects
+        // instead of being wiped. Falls back to clearing if the fetch fails.
+        api
+          .getRecentPackets({ limit: maxRawPackets })
+          .then((data) => seedRawPacketStore({ packets: Array.isArray(data) ? data : [] }))
+          .catch(() => clearRawPackets());
         reconcileOnReconnect();
         refreshUnreads();
         api.getChannels().then(setChannels).catch(console.error);
