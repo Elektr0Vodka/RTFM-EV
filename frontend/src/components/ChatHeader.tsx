@@ -3,6 +3,7 @@ import {
   Bell,
   BellOff,
   ChevronsLeftRight,
+  ExternalLink,
   Globe2,
   Info,
   MapPin,
@@ -19,12 +20,20 @@ import { handleKeyboardActivate } from '../utils/a11y';
 import { isPublicChannelKey } from '../utils/publicChannel';
 import { stripRegionScopePrefix, floodScopeOverrideLabel } from '../utils/regionScope';
 import { isPrefixOnlyContact } from '../utils/pubkey';
+import { buildNodeLookupUrl } from '../utils/analyzerLink';
 import { isValidLocation } from '../utils/pathUtils';
 import { LocationPickerModal } from './LocationPickerModal';
 import { cn } from '../lib/utils';
 import { ContactAvatar } from './ContactAvatar';
 import { ContactStatusInfo } from './ContactStatusInfo';
-import type { Channel, Contact, Conversation, PathDiscoveryResponse, RadioConfig } from '../types';
+import type {
+  AnalyzerSite,
+  Channel,
+  Contact,
+  Conversation,
+  PathDiscoveryResponse,
+  RadioConfig,
+} from '../types';
 import { CONTACT_TYPE_ROOM } from '../types';
 
 interface ChatHeaderProps {
@@ -32,6 +41,7 @@ interface ChatHeaderProps {
   contacts: Contact[];
   channels: Channel[];
   config: RadioConfig | null;
+  analyzerSites?: AnalyzerSite[];
   notificationsSupported: boolean;
   notificationsEnabled: boolean;
   notificationsPermission: NotificationPermission | 'unsupported';
@@ -63,6 +73,7 @@ export function ChatHeader({
   contacts,
   channels,
   config,
+  analyzerSites = [],
   notificationsSupported,
   notificationsEnabled,
   notificationsPermission,
@@ -219,7 +230,12 @@ export function ChatHeader({
   };
 
   const insertContactLocation = () => {
-    if (!onInsertLocation || !activeContact || activeContact.lat == null || activeContact.lon == null)
+    if (
+      !onInsertLocation ||
+      !activeContact ||
+      activeContact.lat == null ||
+      activeContact.lon == null
+    )
       return;
     onInsertLocation(activeContact.lat, activeContact.lon, contactLabel);
     setLocationMenuOpen(false);
@@ -401,6 +417,30 @@ export function ChatHeader({
             disabled={activeContactIsPrefixOnly}
           >
             <DirectTraceIcon className="h-4 w-4 text-muted-foreground" />
+          </button>
+        )}
+        {conversation.type === 'contact' && activeContact && analyzerSites.length > 0 && (
+          <button
+            className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={() => {
+              if (analyzerSites.length === 1) {
+                const url = buildNodeLookupUrl(analyzerSites[0], activeContact.public_key);
+                if (url) window.open(url, '_blank', 'noopener,noreferrer');
+              } else {
+                onOpenContactInfo?.(activeContact.public_key);
+              }
+            }}
+            title={
+              activeContactIsPrefixOnly
+                ? 'Analyzer lookup unavailable until the full contact key is known'
+                : analyzerSites.length === 1
+                  ? `Look up on ${analyzerSites[0].name}. Opens an external site and sends this node's public key to it`
+                  : 'Look up on analyzer. Choose a site from the contact info pane'
+            }
+            aria-label="Look up on analyzer"
+            disabled={activeContactIsPrefixOnly}
+          >
+            <ExternalLink className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           </button>
         )}
         {(notificationsSupported ||

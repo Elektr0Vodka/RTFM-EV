@@ -7,6 +7,7 @@ import { RawPacketFeedView } from './RawPacketFeedView';
 import { RoomServerPanel } from './RoomServerPanel';
 import { TracePane } from './TracePane';
 import type {
+  AnalyzerSite,
   Channel,
   Contact,
   Conversation,
@@ -43,6 +44,7 @@ interface ConversationPaneProps {
   channels: Channel[];
   config: RadioConfig | null;
   health: HealthStatus | null;
+  analyzerSites?: AnalyzerSite[];
   notificationsSupported: boolean;
   notificationsEnabled: boolean;
   notificationsPermission: NotificationPermission | 'unsupported';
@@ -135,6 +137,7 @@ export function ConversationPane({
   channels,
   config,
   health,
+  analyzerSites = [],
   notificationsSupported,
   notificationsEnabled,
   notificationsPermission,
@@ -262,7 +265,9 @@ export function ConversationPane({
   }
 
   if (activeConversation.type === 'raw') {
-    return <RawPacketFeedView contacts={contacts} channels={channels} />;
+    return (
+      <RawPacketFeedView contacts={contacts} channels={channels} analyzerSites={analyzerSites} />
+    );
   }
 
   if (activeConversation.type === 'search') {
@@ -344,6 +349,7 @@ export function ConversationPane({
         contacts={contacts}
         channels={channels}
         config={config}
+        analyzerSites={analyzerSites}
         notificationsSupported={notificationsSupported}
         notificationsEnabled={notificationsEnabled}
         notificationsPermission={notificationsPermission}
