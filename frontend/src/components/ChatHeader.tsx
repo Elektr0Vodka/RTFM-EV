@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bell, BellOff, ChevronsLeftRight, Globe2, Info, Route, Star, Trash2 } from 'lucide-react';
+import {
+  Bell,
+  BellOff,
+  ChevronsLeftRight,
+  Globe2,
+  Info,
+  MapPin,
+  Route,
+  Star,
+  Trash2,
+} from 'lucide-react';
 import { toast } from './ui/sonner';
 import { DirectTraceIcon } from './DirectTraceIcon';
 import { ContactPathDiscoveryModal } from './ContactPathDiscoveryModal';
@@ -10,6 +20,8 @@ import { useT } from '../i18n';
 import { isPublicChannelKey } from '../utils/publicChannel';
 import { stripRegionScopePrefix, floodScopeOverrideLabel } from '../utils/regionScope';
 import { isPrefixOnlyContact } from '../utils/pubkey';
+import { isValidLocation } from '../utils/pathUtils';
+import { LocationPickerModal } from './LocationPickerModal';
 import { cn } from '../lib/utils';
 import { ContactAvatar } from './ContactAvatar';
 import { ContactStatusInfo } from './ContactStatusInfo';
@@ -36,10 +48,15 @@ interface ChatHeaderProps {
   onToggleMute?: (key: string) => void;
   onSetChannelFloodScopeOverride?: (key: string, floodScopeOverride: string) => void;
   onSetChannelPathHashModeOverride?: (key: string, pathHashModeOverride: number | null) => void;
+  cadCapable?: boolean;
+  cadSupported?: boolean;
+  cadEnabled?: boolean | null;
+  onToggleCad?: () => void;
   onDeleteChannel: (key: string) => void;
   onDeleteContact: (publicKey: string) => void;
   onOpenContactInfo?: (publicKey: string) => void;
   onOpenChannelInfo?: (channelKey: string) => void;
+  onInsertLocation?: (lat: number, lon: number, label: string) => void;
 }
 
 export function ChatHeader({
@@ -62,10 +79,15 @@ export function ChatHeader({
   onToggleMute,
   onSetChannelFloodScopeOverride,
   onSetChannelPathHashModeOverride,
+  cadCapable,
+  cadSupported,
+  cadEnabled,
+  onToggleCad,
   onDeleteChannel,
   onDeleteContact,
   onOpenContactInfo,
   onOpenChannelInfo,
+  onInsertLocation,
 }: ChatHeaderProps) {
   const t = useT();
   const [showKey, setShowKey] = useState(false);
@@ -74,6 +96,10 @@ export function ChatHeader({
   const [pathHashModeOverrideOpen, setPathHashModeOverrideOpen] = useState(false);
   const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
   const notifDropdownRef = useRef<HTMLDivElement>(null);
+  const [locationMenuOpen, setLocationMenuOpen] = useState(false);
+  const [gettingLocation, setGettingLocation] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const locationMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setShowKey(false);
@@ -81,7 +107,21 @@ export function ChatHeader({
     setChannelOverrideOpen(false);
     setPathHashModeOverrideOpen(false);
     setNotifDropdownOpen(false);
+    setLocationMenuOpen(false);
+    setPickerOpen(false);
   }, [conversation.id]);
+
+  // Close location menu on outside click
+  useEffect(() => {
+    if (!locationMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (locationMenuRef.current && !locationMenuRef.current.contains(e.target as Node)) {
+        setLocationMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [locationMenuOpen]);
 
   // Close notification dropdown on outside click
   useEffect(() => {
@@ -159,6 +199,52 @@ export function ChatHeader({
     if (conversation.type === 'channel' && onOpenChannelInfo) {
       onOpenChannelInfo(conversation.id);
     }
+  };
+
+  const radioLocationAvailable = isValidLocation(config?.lat ?? null, config?.lon ?? null);
+  const contactLocationAvailable =
+    conversation.type === 'contact' &&
+    isValidLocation(activeContact?.lat ?? null, activeContact?.lon ?? null);
+  const radioLabel = config?.name ?? '';
+  const contactLabel = activeContact?.name ?? conversation.name;
+  // Initial center for the picker: this contact, else radio, else a neutral world view.
+  const pickerCenter: [number, number] = contactLocationAvailable
+    ? [activeContact!.lat!, activeContact!.lon!]
+    : radioLocationAvailable
+      ? [config!.lat, config!.lon]
+      : [20, 0];
+
+  const insertRadioLocation = () => {
+    if (!onInsertLocation || !config) return;
+    onInsertLocation(config.lat, config.lon, radioLabel);
+    setLocationMenuOpen(false);
+  };
+
+  const insertContactLocation = () => {
+    if (!onInsertLocation || !activeContact || activeContact.lat == null || activeContact.lon == null)
+      return;
+    onInsertLocation(activeContact.lat, activeContact.lon, contactLabel);
+    setLocationMenuOpen(false);
+  };
+
+  const insertGpsLocation = () => {
+    if (!onInsertLocation || !('geolocation' in navigator)) {
+      toast.error('Geolocation is not available');
+      return;
+    }
+    setGettingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setGettingLocation(false);
+        setLocationMenuOpen(false);
+        onInsertLocation(position.coords.latitude, position.coords.longitude, radioLabel);
+      },
+      (err) => {
+        setGettingLocation(false);
+        toast.error('Failed to get location', { description: err.message });
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   return (
@@ -470,6 +556,85 @@ export function ChatHeader({
             />
           </button>
         )}
+        {conversation.type === 'channel' && cadCapable && cadSupported && onToggleCad && (
+          <button
+            type="button"
+            onClick={() => onToggleCad()}
+            aria-pressed={cadEnabled === null || cadEnabled === undefined ? undefined : cadEnabled}
+            aria-label="Toggle channel activity detection"
+            title={
+              cadEnabled === null || cadEnabled === undefined
+                ? 'CAD state unknown — click to enable channel activity detection'
+                : cadEnabled
+                  ? 'CAD on — scans for channel activity before transmit; click to disable'
+                  : 'CAD off — click to enable channel activity detection'
+            }
+            className={cn(
+              'flex shrink-0 items-center rounded px-1.5 py-1 text-[0.6875rem] font-semibold tracking-wide transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              cadEnabled === true
+                ? 'text-status-connected'
+                : cadEnabled === false
+                  ? 'text-muted-foreground hover:text-foreground'
+                  : 'text-muted-foreground/50 hover:text-muted-foreground'
+            )}
+          >
+            CAD
+          </button>
+        )}
+        {(conversation.type === 'channel' || conversation.type === 'contact') &&
+          onInsertLocation && (
+            <div className="relative" ref={locationMenuRef}>
+              <button
+                className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => setLocationMenuOpen((v) => !v)}
+                title="Share location"
+                aria-label="Share location"
+                aria-expanded={locationMenuOpen}
+              >
+                <MapPin className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              </button>
+              {locationMenuOpen && (
+                <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-md border border-border bg-popover p-1 shadow-lg">
+                  {radioLocationAvailable && (
+                    <button
+                      type="button"
+                      className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={insertRadioLocation}
+                    >
+                      My radio location
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                    onClick={insertGpsLocation}
+                    disabled={gettingLocation}
+                  >
+                    {gettingLocation ? 'Locating…' : 'My current GPS'}
+                  </button>
+                  {contactLocationAvailable && (
+                    <button
+                      type="button"
+                      className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={insertContactLocation}
+                    >
+                      This node&apos;s location
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={() => {
+                      setLocationMenuOpen(false);
+                      setPickerOpen(true);
+                    }}
+                  >
+                    Pick on map…
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         {(conversation.type === 'channel' || conversation.type === 'contact') && (
           <button
             className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -530,6 +695,19 @@ export function ChatHeader({
           currentOverride={activePathHashModeOverride}
           radioDefault={config?.path_hash_mode ?? 0}
           onSetOverride={(value) => onSetChannelPathHashModeOverride(conversation.id, value)}
+        />
+      )}
+      {onInsertLocation && (
+        <LocationPickerModal
+          open={pickerOpen}
+          onClose={() => setPickerOpen(false)}
+          onConfirm={(lat, lon, label) => {
+            setPickerOpen(false);
+            onInsertLocation(lat, lon, label);
+          }}
+          contacts={contacts}
+          initialCenter={pickerCenter}
+          initialLabel={contactLocationAvailable ? contactLabel : ''}
         />
       )}
     </header>

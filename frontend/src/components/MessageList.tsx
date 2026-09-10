@@ -20,7 +20,10 @@ import {
   parseGif,
   parseReaction,
   splitReplyMention,
+  parseMarker,
+  type ParsedMarker,
 } from '../utils/meshcoreOpenPayloads';
+import { MapPin } from 'lucide-react';
 import { useRichPayloads } from '../contexts/RichPayloadContext';
 import { usePathHopWidth } from '../contexts/PathHopWidthContext';
 import { formatHopCounts, formatPathHopWidths, type SenderInfo } from '../utils/pathUtils';
@@ -50,6 +53,7 @@ interface MessageListProps {
   onLoadOlder?: () => void;
   onResendChannelMessage?: (messageId: number, newTimestamp?: boolean) => void;
   onChannelReferenceClick?: (channelName: string) => void;
+  onCoordinateClick?: (lat: number, lon: number, label: string) => void;
   radioName?: string;
   config?: RadioConfig | null;
   onOpenContactInfo?: (publicKey: string, fromChannel?: boolean) => void;
@@ -101,8 +105,46 @@ function ReactionPayload({ emoji }: { emoji: string }) {
   );
 }
 
+// Renders a MeshCore Open location marker (m:<lat>,<lon>|<label>|poi) as a
+// clickable card. Clicking opens the built-in map centered on the point.
+function MarkerMessage({
+  marker,
+  onCoordinateClick,
+}: {
+  marker: ParsedMarker;
+  onCoordinateClick?: (lat: number, lon: number, label: string) => void;
+}) {
+  const coords = `${marker.lat.toFixed(6)}, ${marker.lon.toFixed(6)}`;
+  const inner = (
+    <>
+      <MapPin className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+      <span className="flex flex-col text-left">
+        {marker.label && <span className="font-medium leading-tight">{marker.label}</span>}
+        <span className="font-mono text-xs text-muted-foreground">{coords}</span>
+      </span>
+    </>
+  );
+  if (!onCoordinateClick) {
+    return <span className="inline-flex items-center gap-1.5">{inner}</span>;
+  }
+  return (
+    <button
+      type="button"
+      className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/50 px-2 py-1 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      onClick={() => onCoordinateClick(marker.lat, marker.lon, marker.label)}
+      title="Show on map"
+      aria-label={`Show on map: ${marker.label || coords}`}
+    >
+      {inner}
+    </button>
+  );
+}
+
 // Render a bare payload body (no reply prefix) into its rich node, or null.
-function renderPayloadBody(body: string): ReactNode | null {
+function renderPayloadBody(
+  body: string,
+  onCoordinateClick?: (lat: number, lon: number, label: string) => void
+): ReactNode | null {
   const gifId = parseGif(body);
   if (gifId) {
     return <GifPayload gifId={gifId} rawText={body} />;
@@ -110,6 +152,10 @@ function renderPayloadBody(body: string): ReactNode | null {
   const reaction = parseReaction(body);
   if (reaction) {
     return <ReactionPayload emoji={reaction.emoji} />;
+  }
+  const marker = parseMarker(body);
+  if (marker) {
+    return <MarkerMessage marker={marker} onCoordinateClick={onCoordinateClick} />;
   }
   return null;
 }
@@ -122,14 +168,15 @@ function renderPayloadBody(body: string): ReactNode | null {
 function renderMeshcoreOpenPayload(
   content: string,
   radioName?: string,
-  onChannelReferenceClick?: (channelName: string) => void
+  onChannelReferenceClick?: (channelName: string) => void,
+  onCoordinateClick?: (lat: number, lon: number, label: string) => void
 ): ReactNode | null {
-  const whole = renderPayloadBody(content);
+  const whole = renderPayloadBody(content, onCoordinateClick);
   if (whole) return whole;
 
   const split = splitReplyMention(content);
   if (split) {
-    const body = renderPayloadBody(split.body);
+    const body = renderPayloadBody(split.body, onCoordinateClick);
     if (body) {
       // Preserve the reply mention (rendered as a normal @[Name] mention) so the
       // GIF/reaction still reads as a reply to that person.
@@ -407,6 +454,7 @@ export function MessageList({
   onLoadOlder,
   onResendChannelMessage,
   onChannelReferenceClick,
+  onCoordinateClick,
   radioName,
   config,
   onOpenContactInfo,
@@ -1328,7 +1376,12 @@ export function MessageList({
                     )}
                     <div className="break-words whitespace-pre-wrap">
                       {(renderRichPayloads &&
-                        renderMeshcoreOpenPayload(content, radioName, onChannelReferenceClick)) ||
+                        renderMeshcoreOpenPayload(
+                          content,
+                          radioName,
+                          onChannelReferenceClick,
+                          onCoordinateClick
+                        )) ||
                         content.split('\n').map((line, i, arr) => (
                           <span key={i}>
                             {renderTextWithMentions(line, radioName, onChannelReferenceClick)}
@@ -1365,7 +1418,7 @@ export function MessageList({
                         (msg.acked > 0 ? (
                           msg.paths && msg.paths.length > 0 ? (
                             <span
-                              className="text-muted-foreground cursor-pointer hover:text-primary"
+                              className="msg-ack text-muted-foreground cursor-pointer hover:text-primary"
                               role="button"
                               tabIndex={0}
                               onKeyDown={handleKeyboardActivate}
@@ -1383,7 +1436,7 @@ export function MessageList({
                               aria-label={t('a11y_acknowledged_echoes', { count: msg.acked })}
                             >{` ✓${msg.acked > 1 ? msg.acked : ''}`}</span>
                           ) : (
-                            <span className="text-muted-foreground">{` ✓${msg.acked > 1 ? msg.acked : ''}`}</span>
+                            <span className="msg-ack text-muted-foreground">{` ✓${msg.acked > 1 ? msg.acked : ''}`}</span>
                           )
                         ) : onResendChannelMessage && msg.type === 'CHAN' ? (
                           <span
@@ -1408,7 +1461,7 @@ export function MessageList({
                             ?
                           </span>
                         ) : (
-                          <span className="text-muted-foreground" title={t('chat_no_repeats_heard_yet')}>
+                          <span className="msg-ack-pending text-muted-foreground" title={t('chat_no_repeats_heard_yet')}>
                             {' '}
                             ?
                           </span>

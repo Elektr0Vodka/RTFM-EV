@@ -28,6 +28,8 @@ import type {
   RadioConfigUpdate,
   RadioDiscoveryResponse,
   RadioDiscoveryTarget,
+  RadioPresetEntry,
+  RadioPresetsStore,
   RadioRegionDiscoveryResponse,
   RadioStatsSnapshot,
 } from '../../types';
@@ -272,13 +274,70 @@ export function SettingsRadioSection({
     setMaxRadioContacts(String(appSettings.max_radio_contacts));
   }, [appSettings]);
 
+  // The preset dropdown is driven by this list: the built-in RADIO_PRESETS by
+  // default, or the list last synced from the official MeshCore presets API.
+  const [presetList, setPresetList] = useState<RadioPresetEntry[]>(RADIO_PRESETS);
+  const [presetSyncedAt, setPresetSyncedAt] = useState<number | null>(null);
+  const [presetInfo, setPresetInfo] = useState('');
+  const [presetSyncing, setPresetSyncing] = useState(false);
+  const [presetError, setPresetError] = useState<string | null>(null);
+
+  const applyPresetStore = (store: RadioPresetsStore) => {
+    if (store.synced_at !== null && store.entries.length > 0) {
+      setPresetList(store.entries);
+      setPresetSyncedAt(store.synced_at);
+      setPresetInfo(store.info_message);
+    } else {
+      // Never synced (or reset): fall back to the bundled built-in presets.
+      setPresetList(RADIO_PRESETS);
+      setPresetSyncedAt(null);
+      setPresetInfo('');
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getRadioPresets()
+      .then((store) => {
+        if (!cancelled) applyPresetStore(store);
+      })
+      .catch(() => {
+        // Keep the built-in list if the backend is unreachable.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleSyncPresets = async () => {
+    setPresetSyncing(true);
+    setPresetError(null);
+    try {
+      applyPresetStore(await api.syncRadioPresets());
+    } catch (err) {
+      setPresetError(err instanceof Error ? err.message : 'Could not sync presets');
+    } finally {
+      setPresetSyncing(false);
+    }
+  };
+
+  const handleResetPresets = async () => {
+    setPresetError(null);
+    try {
+      applyPresetStore(await api.resetRadioPresets());
+    } catch (err) {
+      setPresetError(err instanceof Error ? err.message : 'Could not reset presets');
+    }
+  };
+
   const currentPreset = useMemo(() => {
     const freqNum = parseFloat(freq);
     const bwNum = parseFloat(bw);
     const sfNum = parseInt(sf, 10);
     const crNum = parseInt(cr, 10);
 
-    for (const preset of RADIO_PRESETS) {
+    for (const preset of presetList) {
       if (
         preset.freq === freqNum &&
         preset.bw === bwNum &&
@@ -289,11 +348,11 @@ export function SettingsRadioSection({
       }
     }
     return 'custom';
-  }, [freq, bw, sf, cr]);
+  }, [freq, bw, sf, cr, presetList]);
 
   const handlePresetChange = (presetName: string) => {
     if (presetName === 'custom') return;
-    const preset = RADIO_PRESETS.find((p) => p.name === presetName);
+    const preset = presetList.find((p) => p.name === presetName);
     if (preset) {
       setFreq(String(preset.freq));
       setBw(String(preset.bw));
@@ -906,7 +965,33 @@ export function SettingsRadioSection({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="preset">{t('settings_radio_preset_label')}</Label>
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor="preset">{t('settings_radio_preset_label')}</Label>
+          <div className="flex items-center gap-2">
+            {presetSyncedAt !== null && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleResetPresets}
+                disabled={presetSyncing}
+              >
+                {t('settings_radio_preset_reset_builtin')}
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleSyncPresets}
+              disabled={presetSyncing}
+            >
+              {presetSyncing
+                ? t('settings_radio_preset_syncing')
+                : t('settings_radio_preset_sync')}
+            </Button>
+          </div>
+        </div>
         <select
           id="preset"
           value={currentPreset}
@@ -914,12 +999,24 @@ export function SettingsRadioSection({
           className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
         >
           <option value="custom">{t('settings_radio_preset_custom')}</option>
-          {RADIO_PRESETS.map((preset) => (
+          {presetList.map((preset) => (
             <option key={preset.name} value={preset.name}>
               {preset.name}
             </option>
           ))}
         </select>
+        {presetError && (
+          <p className="text-sm text-destructive" role="alert">
+            {presetError}
+          </p>
+        )}
+        {presetSyncedAt !== null && (
+          <p className="text-xs text-muted-foreground">
+            {presetInfo ? `${presetInfo} ` : ''}
+            {presetList.length} preset{presetList.length === 1 ? '' : 's'} synced from the official
+            API on {new Date(presetSyncedAt * 1000).toLocaleString()}.
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -1229,6 +1326,25 @@ export function SettingsRadioSection({
             <Label htmlFor="auto-resend-channel">{t('settings_radio_auto_resend_label')}</Label>
             <p className="text-[0.8125rem] text-muted-foreground">
               {t('settings_radio_auto_resend_desc')}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-3 rounded-md border border-border/60 p-3">
+          <Checkbox
+            id="show-mention-ticker"
+            checked={appSettings.show_mention_ticker}
+            onCheckedChange={(checked) =>
+              onSaveAppSettings({ show_mention_ticker: checked === true })
+            }
+            className="mt-0.5"
+          />
+          <div className="space-y-1">
+            <Label htmlFor="show-mention-ticker">Show Mention Ticker</Label>
+            <p className="text-[0.8125rem] text-muted-foreground">
+              When enabled, a scrolling ticker appears at the top of the message area whenever your
+              name is @mentioned in a channel you are not currently viewing. Clicking a mention jumps
+              to that message without marking the channel as read.
             </p>
           </div>
         </div>

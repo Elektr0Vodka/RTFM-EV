@@ -11,7 +11,12 @@ import { toast } from '../components/ui/sonner';
 import { getStateKey } from '../utils/conversationState';
 import { mergeContactIntoList } from '../utils/contactMerge';
 import { getContactDisplayName } from '../utils/pubkey';
-import { clearRawPackets, MAX_RAW_PACKETS, recordRawPacket } from '../stores/rawPacketStore';
+import {
+  clearRawPackets,
+  MAX_RAW_PACKETS,
+  recordRawPacket,
+  seedRawPacketStore,
+} from '../stores/rawPacketStore';
 import { emitStatusDotPulse } from '../utils/statusDotPulse';
 import type {
   Channel,
@@ -57,6 +62,9 @@ interface UseRealtimeAppStateArgs {
     packetId?: number | null
   ) => void;
   notifyIncomingMessage?: (msg: Message) => void;
+  /** Fired for a new incoming channel message that @mentions the user while
+   *  they are not viewing that channel — drives the mention ticker. */
+  onChannelMention?: (msg: Message) => void;
   /** Buffer cap override. Defaults to the store's own cap; tests use it to force eviction. */
   maxRawPackets?: number;
 }
@@ -106,6 +114,7 @@ export function useRealtimeAppState({
   removeConversationMessages,
   receiveMessageAck,
   notifyIncomingMessage,
+  onChannelMention,
   maxRawPackets = MAX_RAW_PACKETS,
 }: UseRealtimeAppStateArgs): UseWebSocketOptions {
   const mergeChannelIntoList = useCallback(
@@ -177,7 +186,12 @@ export function useRealtimeAppState({
         });
       },
       onReconnect: () => {
-        clearRawPackets();
+        // Re-seed the packet feed from the DB so history survives reconnects
+        // instead of being wiped. Falls back to clearing if the fetch fails.
+        api
+          .getRecentPackets({ limit: maxRawPackets })
+          .then((data) => seedRawPacketStore({ packets: Array.isArray(data) ? data : [] }))
+          .catch(() => clearRawPackets());
         reconcileOnReconnect();
         refreshUnreads();
         api.getChannels().then(setChannels).catch(console.error);
@@ -209,6 +223,20 @@ export function useRealtimeAppState({
 
         if (!msg.outgoing && isNewMessage && !isMutedChannel) {
           notifyIncomingMessage?.(msg);
+        }
+
+        // Surface the mention ticker only for a new channel message that
+        // @mentions the user while they are not viewing that channel. Muted
+        // channels are excluded — muting means "don't surface this channel".
+        if (
+          msg.type === 'CHAN' &&
+          !msg.outgoing &&
+          isNewMessage &&
+          !isForActiveConversation &&
+          !isMutedChannel &&
+          checkMention(msg.text)
+        ) {
+          onChannelMention?.(msg);
         }
       },
       onContact: (contact: Contact) => {
@@ -297,6 +325,7 @@ export function useRealtimeAppState({
       setContacts,
       setHealth,
       notifyIncomingMessage,
+      onChannelMention,
     ]
   );
 }

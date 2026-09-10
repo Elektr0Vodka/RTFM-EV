@@ -114,6 +114,8 @@ beforeEach(() => {
     auto_resend_channel: false,
     telemetry_interval_hours: 8,
     telemetry_routed_hourly: false,
+    show_mention_ticker: true,
+    registry_sync_url: '',
   });
   mockedApi.getRadioConfig.mockResolvedValue({
     public_key: 'aa'.repeat(32),
@@ -1168,6 +1170,8 @@ describe('SettingsFanoutSection', () => {
       auto_resend_channel: false,
       telemetry_interval_hours: 8,
       telemetry_routed_hourly: false,
+      show_mention_ticker: true,
+    registry_sync_url: '',
     });
 
     renderSection();

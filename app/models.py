@@ -948,6 +948,40 @@ class RadioRegionDiscoveryResponse(BaseModel):
     )
 
 
+class RadioPresetEntry(BaseModel):
+    """One LoRa region preset in RTFM-EV's native numeric shape.
+
+    Mirrors the fields the radio settings ``Preset`` dropdown applies. The
+    official api.meshcore.nz payload delivers these as strings; the sync
+    service parses them into numbers before they reach this model.
+    """
+
+    name: str = Field(description="Human-readable preset name shown in the dropdown")
+    freq: float = Field(description="Frequency in MHz")
+    bw: float = Field(description="Bandwidth in kHz")
+    sf: int = Field(description="Spreading factor")
+    cr: int = Field(description="Coding rate denominator (the 5..8 in 4/N)")
+
+
+class RadioPresetsStore(BaseModel):
+    """The persisted, synced preset list served to the frontend.
+
+    ``synced_at`` is ``None`` until the operator runs a sync; the frontend
+    treats that as "never synced" and keeps its built-in list.
+    """
+
+    entries: list[RadioPresetEntry] = Field(
+        default_factory=list, description="Synced official presets"
+    )
+    info_message: str = Field(
+        default="", description="Free-text note from the upstream config, if any"
+    )
+    synced_at: int | None = Field(
+        default=None, description="Unix seconds of the last successful sync, or None"
+    )
+    source_url: str = Field(default="", description="Upstream URL the presets came from")
+
+
 class UnreadCounts(BaseModel):
     """Aggregated unread counts, mention flags, and last message times for all conversations."""
 
@@ -1053,6 +1087,17 @@ class AppSettings(BaseModel):
             "When enabled, outgoing channel messages that receive no echo within 2 seconds "
             "are automatically byte-perfect resent once (within the 30-second dedup window)"
         ),
+    )
+    show_mention_ticker: bool = Field(
+        default=True,
+        description=(
+            "Show the scrolling mention ticker in the top bar when the user is "
+            "@mentioned in a channel they are not currently viewing"
+        ),
+    )
+    registry_sync_url: str = Field(
+        default="",
+        description="URL of a remote {name: key} JSON channel list to sync into the registry",
     )
 
 

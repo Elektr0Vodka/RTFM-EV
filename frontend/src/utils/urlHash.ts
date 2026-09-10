@@ -4,13 +4,23 @@ import { getContactDisplayName } from './pubkey';
 import type { SettingsSection } from '../components/settings/settingsConstants';
 
 interface ParsedHashConversation {
-  type: 'channel' | 'contact' | 'raw' | 'map' | 'visualizer' | 'search' | 'trace';
+  type:
+    | 'channel'
+    | 'contact'
+    | 'raw'
+    | 'map'
+    | 'visualizer'
+    | 'search'
+    | 'trace'
+    | 'channel-registry';
   /** Conversation identity token (channel key or contact public key, or legacy name token) */
   name: string;
   /** Optional human-readable label segment (ignored for identity resolution) */
   label?: string;
   /** For map view: public key prefix to focus on */
   mapFocusKey?: string;
+  /** For map view: an arbitrary point to focus on */
+  mapFocusLatLon?: [number, number];
 }
 
 const SETTINGS_SECTIONS: SettingsSection[] = [
@@ -47,6 +57,22 @@ export function parseHashConversation(): ParsedHashConversation | null {
 
   if (hash === 'trace') {
     return { type: 'trace', name: 'trace' };
+  }
+
+  if (hash === 'channel-registry') {
+    return { type: 'channel-registry', name: 'channel-registry' };
+  }
+
+  // Check for map focused on an arbitrary point: #map/at/<lat>,<lon>
+  if (hash.startsWith('map/at/')) {
+    const coords = hash.slice('map/at/'.length);
+    const [latRaw, lonRaw] = coords.split(',');
+    const lat = Number.parseFloat(latRaw);
+    const lon = Number.parseFloat(lonRaw);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      return { type: 'map', name: 'map', mapFocusLatLon: [lat, lon] };
+    }
+    return { type: 'map', name: 'map' };
   }
 
   // Check for map with focus: #map/focus/{pubkey_prefix}
@@ -151,10 +177,17 @@ export function getMapFocusHash(publicKeyPrefix: string): string {
 export function getConversationHash(conv: Conversation | null): string {
   if (!conv) return '';
   if (conv.type === 'raw') return '#raw';
-  if (conv.type === 'map') return '#map';
+  if (conv.type === 'map') {
+    if (conv.mapFocusLatLon) {
+      const [lat, lon] = conv.mapFocusLatLon;
+      return `#map/at/${lat},${lon}`;
+    }
+    return '#map';
+  }
   if (conv.type === 'visualizer') return '#visualizer';
   if (conv.type === 'search') return '#search';
   if (conv.type === 'trace') return '#trace';
+  if (conv.type === 'channel-registry') return '#channel-registry';
 
   // Use immutable IDs for identity, append readable label for UX.
   if (conv.type === 'channel') {

@@ -16,6 +16,7 @@ import { NewMessageModal } from './NewMessageModal';
 import { BulkAddChannelResultModal } from './BulkAddChannelResultModal';
 import { ContactInfoPane } from './ContactInfoPane';
 import { ChannelInfoPane } from './ChannelInfoPane';
+import { MentionTicker, type MentionEvent } from './MentionTicker';
 import { CommandPalette } from './CommandPalette';
 import { SecurityWarningModal } from './SecurityWarningModal';
 import { Toaster } from './ui/sonner';
@@ -81,6 +82,10 @@ interface AppShellProps {
   bulkAddChannelResultModalProps: BulkAddChannelResultModalProps;
   contactInfoPaneProps: ContactInfoPaneProps;
   channelInfoPaneProps: ChannelInfoPaneProps;
+  showMentionTicker?: boolean;
+  mentionTickerEvents?: MentionEvent[];
+  onNavigateMentionToMessage?: (channelKey: string, messageId: number) => void;
+  onDismissMention?: (key: number) => void;
   onRepeaterAutoLogin: (publicKey: string, displayName: string) => void;
 }
 
@@ -111,6 +116,10 @@ export function AppShell({
   bulkAddChannelResultModalProps,
   contactInfoPaneProps,
   channelInfoPaneProps,
+  showMentionTicker = true,
+  mentionTickerEvents = [],
+  onNavigateMentionToMessage,
+  onDismissMention,
   onRepeaterAutoLogin,
 }: AppShellProps) {
   const t = useT();
@@ -225,6 +234,7 @@ export function AppShell({
 
   return (
     <div className="flex flex-col h-full" {...swipeHandlers}>
+      <div className="page-stripe" aria-hidden="true" />
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-2 focus:bg-primary focus:text-primary-foreground"
@@ -275,6 +285,12 @@ export function AppShell({
         </Sheet>
 
         <main id="main-content" className="flex-1 flex flex-col bg-background min-w-0">
+          <MentionTicker
+            enabled={showMentionTicker}
+            mentions={mentionTickerEvents}
+            onNavigateToMessage={onNavigateMentionToMessage ?? (() => {})}
+            onDismiss={onDismissMention}
+          />
           <div
             className={cn(
               'flex-1 flex flex-col min-h-0',

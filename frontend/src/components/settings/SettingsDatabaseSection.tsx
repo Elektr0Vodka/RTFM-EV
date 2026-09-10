@@ -27,11 +27,13 @@ export function SettingsDatabaseSection({
   const [cleaning, setCleaning] = useState(false);
   const [purgingDecryptedRaw, setPurgingDecryptedRaw] = useState(false);
   const [autoDecryptOnAdvert, setAutoDecryptOnAdvert] = useState(false);
+  const [syncUrl, setSyncUrl] = useState('');
 
   const saveChainRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     setAutoDecryptOnAdvert(appSettings.auto_decrypt_dm_on_advert);
+    setSyncUrl(appSettings.registry_sync_url ?? '');
   }, [appSettings]);
 
   const handleCleanup = async () => {
@@ -203,6 +205,37 @@ export function SettingsDatabaseSection({
         <p className="text-[0.8125rem] text-muted-foreground">
           {t('settings_db_auto_decrypt_desc')}
         </p>
+      </div>
+
+      <Separator />
+
+      {/* Channel Registry */}
+      <div className="space-y-3">
+        <h3 className="text-base font-semibold tracking-tight">Channel Registry</h3>
+        <div className="space-y-1.5">
+          <Label htmlFor="registry-sync-url" className="text-sm font-medium">
+            Channel list sync URL
+          </Label>
+          <Input
+            id="registry-sync-url"
+            type="url"
+            value={syncUrl}
+            placeholder="https://example.com/channels.json"
+            onChange={(e) => setSyncUrl(e.target.value)}
+            onBlur={() => {
+              const trimmed = syncUrl.trim();
+              setSyncUrl(trimmed);
+              void persistAppSettings({ registry_sync_url: trimmed }, () =>
+                setSyncUrl(appSettings.registry_sync_url ?? '')
+              );
+            }}
+            className="font-mono text-xs"
+          />
+          <p className="text-[0.8125rem] text-muted-foreground">
+            URL of a remote JSON channel list (<code className="text-xs">{`{"#name": "key"}`}</code>{' '}
+            format). The server fetches this when you click Sync in the Channel Registry.
+          </p>
+        </div>
       </div>
     </div>
   );

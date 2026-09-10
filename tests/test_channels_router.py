@@ -329,3 +329,69 @@ class TestChannelDetail:
         assert senders[0]["message_count"] == 3
         assert senders[1]["sender_name"] == "Bob"
         assert senders[1]["message_count"] == 1
+
+
+class TestChannelExportImport:
+    @pytest.mark.asyncio
+    async def test_export_all_lists_name_and_key(self, test_db, client):
+        await ChannelRepository.upsert(key="AA" * 16, name="#alpha", is_hashtag=True)
+        await ChannelRepository.upsert(key="BB" * 16, name="#bravo", is_hashtag=True)
+
+        response = await client.get("/api/channels/export?mode=all")
+
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/plain")
+        body = response.text
+        assert f"#alpha - {'aa' * 16}" in body
+        assert f"#bravo - {'bb' * 16}" in body
+
+    @pytest.mark.asyncio
+    async def test_export_selected_filters_by_key(self, test_db, client):
+        await ChannelRepository.upsert(key="AA" * 16, name="#alpha", is_hashtag=True)
+        await ChannelRepository.upsert(key="BB" * 16, name="#bravo", is_hashtag=True)
+
+        response = await client.get(f"/api/channels/export?mode=selected&keys={'AA' * 16}")
+
+        assert response.status_code == 200
+        body = response.text
+        assert "#alpha" in body
+        assert "#bravo" not in body
+
+    @pytest.mark.asyncio
+    async def test_import_creates_new_and_reports_duplicates_and_invalid(self, test_db, client):
+        # Pre-existing channel to trigger a duplicate.
+        await ChannelRepository.upsert(key="CC" * 16, name="#existing", is_hashtag=True)
+
+        content = "\n".join(
+            [
+                "# MeshCore Channel Export - 2026-01-01",  # comment, skipped
+                "",  # blank, skipped
+                f"#newchan - {'aa' * 16}",  # valid, new
+                f"plainname - {'bb' * 16}",  # valid, new, name gets '#'
+                f"#existing - {'cc' * 16}",  # duplicate
+                "malformed line without separator",  # invalid (no '#', no key)
+                f"#badkey - {'zz' * 16}",  # starts with '#', no valid key -> comment, skipped
+            ]
+        )
+
+        with patch("app.routers.channels.broadcast_event"):
+            response = await client.post(
+                "/api/channels/import",
+                files={"file": ("channels.txt", content, "text/plain")},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["duplicate_count"] == 1
+        assert len(data["imported_channels"]) == 2
+        assert data["invalid_lines"] == ["malformed line without separator"]
+        assert data["decrypt_started"] is False
+
+        imported_keys = {c["key"] for c in data["imported_channels"]}
+        assert ("AA" * 16) in imported_keys
+        assert ("BB" * 16) in imported_keys
+
+        # The name-without-hash entry was normalized with a leading '#'.
+        stored = await ChannelRepository.get_by_key("BB" * 16)
+        assert stored is not None
+        assert stored.name == "#plainname"

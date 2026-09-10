@@ -13,6 +13,7 @@ import type { Channel, Contact, Conversation, HealthStatus, Message, RawPacket }
 const mocks = vi.hoisted(() => ({
   api: {
     getChannels: vi.fn(),
+    getRecentPackets: vi.fn(),
   },
   toast: {
     success: vi.fn(),
@@ -111,9 +112,10 @@ describe('useRealtimeAppState', () => {
     vi.clearAllMocks();
     resetRawPacketStore();
     mocks.api.getChannels.mockResolvedValue([publicChannel]);
+    mocks.api.getRecentPackets.mockResolvedValue([]);
   });
 
-  it('reconnect clears raw packets and refetches channels/contacts/unreads', async () => {
+  it('reconnect re-seeds raw packets from the DB and refetches channels/contacts/unreads', async () => {
     const contacts: Contact[] = [
       {
         public_key: 'bb'.repeat(32),
@@ -141,7 +143,9 @@ describe('useRealtimeAppState', () => {
 
     const { result } = renderHook(() => useRealtimeAppState(args));
 
-    seedRawPacketStore({ packets: [rawPacketFixture] });
+    // Stale live packet before reconnect; the DB is the source of truth on reconnect.
+    seedRawPacketStore({ packets: [{ ...rawPacketFixture, id: 99 }] });
+    mocks.api.getRecentPackets.mockResolvedValueOnce([rawPacketFixture]);
 
     act(() => {
       result.current.onReconnect?.();
@@ -152,7 +156,9 @@ describe('useRealtimeAppState', () => {
       expect(args.refreshUnreads).toHaveBeenCalledTimes(1);
       expect(mocks.api.getChannels).toHaveBeenCalledTimes(1);
       expect(args.fetchAllContacts).toHaveBeenCalledTimes(1);
-      expect(getRawPackets()).toEqual([]);
+      expect(mocks.api.getRecentPackets).toHaveBeenCalledTimes(1);
+      // Feed re-seeded from the DB result, not left as the stale live packet.
+      expect(getRawPackets()).toEqual([rawPacketFixture]);
       expect(fns.setChannels).toHaveBeenCalledWith([publicChannel]);
       expect(fns.setContacts).toHaveBeenCalledWith(contacts);
     });
@@ -302,6 +308,103 @@ describe('useRealtimeAppState', () => {
       id: resolvedContact.public_key,
       name: '[unknown sender]',
     });
+  });
+
+  const incomingChan: Message = {
+    id: 42,
+    type: 'CHAN',
+    conversation_key: publicChannel.key,
+    text: 'hey @me look at this',
+    sender_timestamp: 1700000000,
+    received_at: 1700000001,
+    paths: null,
+    txt_type: 0,
+    signature: null,
+    sender_key: 'cc'.repeat(32),
+    outgoing: false,
+    acked: 0,
+    sender_name: 'Carol',
+  };
+
+  it('fires onChannelMention for a new non-active channel mention', () => {
+    const onChannelMention = vi.fn();
+    const { args } = createRealtimeArgs({
+      checkMention: vi.fn(() => true),
+      observeMessage: vi.fn(() => ({ added: true, activeConversation: false })),
+      onChannelMention,
+    });
+
+    const { result } = renderHook(() => useRealtimeAppState(args));
+    act(() => {
+      result.current.onMessage?.(incomingChan);
+    });
+
+    expect(onChannelMention).toHaveBeenCalledWith(incomingChan);
+  });
+
+  it('does not fire onChannelMention when the channel is the active conversation', () => {
+    const onChannelMention = vi.fn();
+    const { args } = createRealtimeArgs({
+      checkMention: vi.fn(() => true),
+      observeMessage: vi.fn(() => ({ added: true, activeConversation: true })),
+      onChannelMention,
+    });
+
+    const { result } = renderHook(() => useRealtimeAppState(args));
+    act(() => {
+      result.current.onMessage?.(incomingChan);
+    });
+
+    expect(onChannelMention).not.toHaveBeenCalled();
+  });
+
+  it('does not fire onChannelMention for a muted channel', () => {
+    const onChannelMention = vi.fn();
+    const { args } = createRealtimeArgs({
+      channelsRef: { current: [{ ...publicChannel, muted: true }] },
+      checkMention: vi.fn(() => true),
+      observeMessage: vi.fn(() => ({ added: true, activeConversation: false })),
+      onChannelMention,
+    });
+
+    const { result } = renderHook(() => useRealtimeAppState(args));
+    act(() => {
+      result.current.onMessage?.(incomingChan);
+    });
+
+    expect(onChannelMention).not.toHaveBeenCalled();
+  });
+
+  it('does not fire onChannelMention when the message does not mention the user', () => {
+    const onChannelMention = vi.fn();
+    const { args } = createRealtimeArgs({
+      checkMention: vi.fn(() => false),
+      observeMessage: vi.fn(() => ({ added: true, activeConversation: false })),
+      onChannelMention,
+    });
+
+    const { result } = renderHook(() => useRealtimeAppState(args));
+    act(() => {
+      result.current.onMessage?.(incomingChan);
+    });
+
+    expect(onChannelMention).not.toHaveBeenCalled();
+  });
+
+  it('does not fire onChannelMention for the user\'s own outgoing message', () => {
+    const onChannelMention = vi.fn();
+    const { args } = createRealtimeArgs({
+      checkMention: vi.fn(() => true),
+      observeMessage: vi.fn(() => ({ added: true, activeConversation: false })),
+      onChannelMention,
+    });
+
+    const { result } = renderHook(() => useRealtimeAppState(args));
+    act(() => {
+      result.current.onMessage?.({ ...incomingChan, outgoing: true });
+    });
+
+    expect(onChannelMention).not.toHaveBeenCalled();
   });
 
   it('appends raw packets using observation identity dedup', () => {

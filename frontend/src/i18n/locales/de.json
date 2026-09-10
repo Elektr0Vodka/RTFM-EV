@@ -980,5 +980,8 @@
   "settings_fanout_search_scope_contacts_placeholder": {
     "one": "{count} Kontakt durchsuchen...",
     "other": "{count} Kontakte durchsuchen..."
-  }
+  },
+  "settings_radio_preset_reset_builtin": "Auf integrierte zurücksetzen",
+  "settings_radio_preset_syncing": "Synchronisierung…",
+  "settings_radio_preset_sync": "Von offiziellen Presets synchronisieren"
 }

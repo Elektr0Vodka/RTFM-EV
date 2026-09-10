@@ -12,6 +12,7 @@ Connect your radio over Serial, TCP, or BLE, and then you can:
 * Search for hashtag channel names for channels you don't have keys for yet
 * Forward packets, messages, and automatic repeater telemetry to MQTT, Home Assistant, LetsMesh, MeshRank, SQS, Apprise, etc.
 * Use the more recent 1.14+ firmwares which support multibyte pathing
+* Auto-detect [meshcomod (DMC-EV)](https://github.com/Elektr0Vodka/meshcomod) firmware and expose its extra device settings (CAD, GPS)
 * Visualize the mesh as a map or node set, view repeater stats, and more!
 
 For advanced setup and troubleshooting see [README_ADVANCED.md](README_ADVANCED.md). If you plan to contribute, read [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -239,6 +240,15 @@ uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 > If you forget, the app will start normally but MQTT connections will fail and you'll see a toast in the UI with this same guidance.
 
 If you enable Basic Auth, protect the app with HTTPS. HTTP Basic credentials are not safe on plain HTTP. Also note that the app's permissive CORS policy is a deliberate trusted-network tradeoff, so cross-origin browser JavaScript is not a reliable way to use that Basic Auth gate.
+
+## Meshcomod (DMC-EV) firmware
+
+RemoteTerm supports the [meshcomod](https://github.com/Elektr0Vodka/meshcomod) fork (DMC / DMC-EV), a multi-transport companion firmware for Heltec and Seeed LoRa devices. When a connected radio is detected as running meshcomod, an extra **Meshcomod (DMC-EV)** panel appears under **Settings -> Radio** with controls the stock firmware does not expose:
+
+- **CAD (Channel Activity Detection):** scan for channel activity before each transmit and defer if the channel is busy. Requires CAD-capable meshcomod firmware.
+- **GPS:** enable the on-board GPS receiver and set its reporting interval (0 to 86400 seconds).
+
+The panel is hidden entirely on non-meshcomod devices, and each control disables itself if the specific firmware build does not advertise support. No configuration is needed: detection is automatic from the radio's device info.
 
 ## Where To Go Next
 

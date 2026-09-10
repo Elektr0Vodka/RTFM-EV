@@ -185,7 +185,7 @@ export function StatusBar({
   };
 
   return (
-    <header className="flex items-center gap-3 px-4 py-2.5 bg-card border-b border-border text-xs">
+    <header className="app-statusbar flex items-center gap-3 px-4 py-2.5 bg-card border-b border-border text-xs">
       {/* Mobile menu button - only visible on small screens */}
       {onMenuClick && (
         <button

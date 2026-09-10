@@ -36,6 +36,22 @@ export interface RadioConfigUpdate {
   telemetry_mode_env?: number;
 }
 
+export interface RadioPresetEntry {
+  name: string;
+  freq: number;
+  bw: number;
+  sf: number;
+  cr: number;
+}
+
+export interface RadioPresetsStore {
+  entries: RadioPresetEntry[];
+  info_message: string;
+  /** Unix seconds of the last successful sync, or null if never synced. */
+  synced_at: number | null;
+  source_url: string;
+}
+
 export interface MeshcomodConfig {
   cad_supported: boolean;
   cad_enabled: boolean | null;
@@ -287,6 +303,15 @@ export interface BulkCreateHashtagChannelsResult {
   message: string;
 }
 
+export interface ChannelImportResult {
+  imported_channels: Channel[];
+  duplicate_count: number;
+  invalid_lines: string[];
+  decrypt_started: boolean;
+  decrypt_total_packets: number;
+  message: string;
+}
+
 export interface PathHashWidthStats {
   total_packets: number;
   single_byte: number;
@@ -357,7 +382,15 @@ export interface ResendChannelMessageResponse {
   message?: Message;
 }
 
-type ConversationType = 'contact' | 'channel' | 'raw' | 'map' | 'visualizer' | 'search' | 'trace';
+type ConversationType =
+  | 'contact'
+  | 'channel'
+  | 'raw'
+  | 'map'
+  | 'visualizer'
+  | 'search'
+  | 'trace'
+  | 'channel-registry';
 
 export interface Conversation {
   type: ConversationType;
@@ -366,6 +399,10 @@ export interface Conversation {
   name: string;
   /** For map view: public key prefix to focus on */
   mapFocusKey?: string;
+  /** For map view: an arbitrary point to focus on */
+  mapFocusLatLon?: [number, number];
+  /** For map view: label to show on the focused point's popup */
+  mapFocusLabel?: string;
 }
 
 export interface RawPacket {
@@ -408,6 +445,8 @@ export interface AppSettings {
   auto_resend_channel: boolean;
   telemetry_interval_hours: number;
   telemetry_routed_hourly: boolean;
+  show_mention_ticker: boolean;
+  registry_sync_url: string;
 }
 
 export interface AppSettingsUpdate {
@@ -422,6 +461,8 @@ export interface AppSettingsUpdate {
   discovery_blocked_types?: number[];
   telemetry_interval_hours?: number;
   telemetry_routed_hourly?: boolean;
+  show_mention_ticker?: boolean;
+  registry_sync_url?: string;
 }
 
 export interface TelemetrySchedule {
@@ -684,6 +725,19 @@ export interface NoiseFloorHistoryStats {
   latest_noise_floor_dbm: number | null;
   latest_timestamp: number | null;
   samples: NoiseFloorSample[];
+}
+
+export interface BatterySample {
+  timestamp: number;
+  battery_mv: number;
+}
+
+export interface BatteryHistoryStats {
+  sample_interval_seconds: number;
+  coverage_seconds: number;
+  latest_battery_mv: number | null;
+  latest_timestamp: number | null;
+  samples: BatterySample[];
 }
 
 interface PacketsPerHourBucket {

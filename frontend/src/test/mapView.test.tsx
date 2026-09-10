@@ -133,6 +133,12 @@ describe('MapView', () => {
     expect(screen.getByText('Static')).toBeInTheDocument();
   });
 
+  it('renders a highlight marker popup for a focused point', () => {
+    render(<MapView contacts={[]} focusedLatLon={[52.123456, 4.123456]} focusedLabel="Home" />);
+    expect(screen.getByText('Home')).toBeInTheDocument();
+    expect(screen.getByText(/52\.123456, 4\.123456/)).toBeInTheDocument();
+  });
+
   it('keeps the relative cutoff stable across re-renders that do not advance the clock', () => {
     vi.useFakeTimers();
     try {

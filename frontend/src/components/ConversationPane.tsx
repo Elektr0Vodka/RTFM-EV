@@ -32,6 +32,7 @@ const MapView = lazy(() => import('./MapView').then((m) => ({ default: m.MapView
 const VisualizerView = lazy(() =>
   import('./VisualizerView').then((m) => ({ default: m.VisualizerView }))
 );
+const ChannelRegistryView = lazy(() => import('./ChannelRegistryView'));
 
 interface ConversationPaneProps {
   activeConversation: Conversation | null;
@@ -68,11 +69,17 @@ interface ConversationPaneProps {
     channelKey: string,
     pathHashModeOverride: number | null
   ) => Promise<void>;
+  cadCapable?: boolean;
+  cadSupported?: boolean;
+  cadEnabled?: boolean | null;
+  onToggleCad?: () => void;
   onSelectConversation: (conversation: Conversation) => void;
   onOpenContactInfo: (publicKey: string, fromChannel?: boolean) => void;
   onOpenChannelInfo: (channelKey: string) => void;
   onSenderClick: (sender: string) => void;
   onChannelReferenceClick?: (channelName: string) => void;
+  onInsertLocation?: (lat: number, lon: number, label: string) => void;
+  onCoordinateClick?: (lat: number, lon: number, label: string) => void;
   onLoadOlder: () => Promise<void>;
   onResendChannelMessage: (messageId: number, newTimestamp?: boolean) => Promise<void>;
   onTargetReached: () => void;
@@ -146,11 +153,17 @@ export function ConversationPane({
   onDeleteChannel,
   onSetChannelFloodScopeOverride,
   onSetChannelPathHashModeOverride,
+  cadCapable,
+  cadSupported,
+  cadEnabled,
+  onToggleCad,
   onSelectConversation,
   onOpenContactInfo,
   onOpenChannelInfo,
   onSenderClick,
   onChannelReferenceClick,
+  onInsertLocation,
+  onCoordinateClick,
   onLoadOlder,
   onResendChannelMessage,
   onTargetReached,
@@ -213,6 +226,8 @@ export function ConversationPane({
             <MapView
               contacts={contacts}
               focusedKey={activeConversation.mapFocusKey}
+              focusedLatLon={activeConversation.mapFocusLatLon}
+              focusedLabel={activeConversation.mapFocusLabel}
               config={config}
               blockedKeys={blockedKeys}
               blockedNames={blockedNames}
@@ -252,6 +267,14 @@ export function ConversationPane({
 
   if (activeConversation.type === 'trace') {
     return <TracePane contacts={contacts} config={config} onRunTracePath={onRunTracePath} />;
+  }
+
+  if (activeConversation.type === 'channel-registry') {
+    return (
+      <Suspense fallback={<LoadingPane label="Loading channel registry..." />}>
+        <ChannelRegistryView channels={channels} />
+      </Suspense>
+    );
   }
 
   if (activeContactIsRepeater) {
@@ -306,10 +329,15 @@ export function ConversationPane({
         onToggleMute={onToggleMute}
         onSetChannelFloodScopeOverride={onSetChannelFloodScopeOverride}
         onSetChannelPathHashModeOverride={onSetChannelPathHashModeOverride}
+        cadCapable={cadCapable}
+        cadSupported={cadSupported}
+        cadEnabled={cadEnabled}
+        onToggleCad={onToggleCad}
         onDeleteChannel={onDeleteChannel}
         onDeleteContact={onDeleteContact}
         onOpenContactInfo={onOpenContactInfo}
         onOpenChannelInfo={onOpenChannelInfo}
+        onInsertLocation={onInsertLocation}
       />
       {activeConversation.type === 'contact' && isPrefixOnlyActiveContact && (
         <ContactResolutionBanner variant="prefix-only" />
@@ -342,6 +370,7 @@ export function ConversationPane({
           }
           onSenderClick={activeConversation.type === 'channel' ? onSenderClick : undefined}
           onChannelReferenceClick={onChannelReferenceClick}
+          onCoordinateClick={onCoordinateClick}
           onLoadOlder={onLoadOlder}
           onResendChannelMessage={
             activeConversation.type === 'channel' ? onResendChannelMessage : undefined

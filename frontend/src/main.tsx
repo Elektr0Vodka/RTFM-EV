@@ -1,5 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { polyfillCountryFlagEmojis } from 'country-flag-emoji-polyfill';
 import { App } from './App';
 import './index.css';
 import './themes.css';
@@ -8,6 +9,11 @@ import { getSavedTheme, applyTheme, initFollowOSListener } from './utils/theme';
 import { applyFontScale, getSavedFontScale } from './utils/fontScale';
 import { PushSubscriptionProvider } from './contexts/PushSubscriptionContext';
 import { I18nProvider } from './i18n';
+
+// Inject the bundled Twemoji flag font on browsers that support color emoji but
+// not regional-indicator flags (Windows/Chromium). No-op on macOS/Linux/Firefox.
+// Served locally from public/fonts, so it stays offline with no CDN dependency.
+polyfillCountryFlagEmojis('Twemoji Country Flags', './fonts/TwemojiCountryFlags.woff2');
 
 // Apply saved theme before first render
 applyTheme(getSavedTheme());

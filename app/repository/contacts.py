@@ -756,9 +756,16 @@ class ContactAdvertPathRepository:
         timestamp: int,
         max_paths: int = 10,
         hop_count: int | None = None,
+        rssi: int | None = None,
+        snr: float | None = None,
     ) -> None:
         """
         Upsert a unique advert path observation for a contact and prune to N most recent.
+
+        ``best_rssi``/``best_snr`` retain the strongest signal ever observed on
+        the path. On a repeat observation each is the NULL-safe maximum of the
+        stored value and the new one, so a signal-less observation never wipes a
+        previously recorded best.
         """
         if max_paths < 1:
             max_paths = 1
@@ -771,13 +778,22 @@ class ContactAdvertPathRepository:
             async with conn.execute(
                 """
                 INSERT INTO contact_advert_paths
-                    (public_key, path_hex, path_len, first_seen, last_seen, heard_count)
-                VALUES (?, ?, ?, ?, ?, 1)
+                    (public_key, path_hex, path_len, first_seen, last_seen, heard_count,
+                     best_rssi, best_snr)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?)
                 ON CONFLICT(public_key, path_hex, path_len) DO UPDATE SET
                     last_seen = MAX(contact_advert_paths.last_seen, excluded.last_seen),
-                    heard_count = contact_advert_paths.heard_count + 1
+                    heard_count = contact_advert_paths.heard_count + 1,
+                    best_rssi = MAX(
+                        COALESCE(contact_advert_paths.best_rssi, excluded.best_rssi),
+                        COALESCE(excluded.best_rssi, contact_advert_paths.best_rssi)
+                    ),
+                    best_snr = MAX(
+                        COALESCE(contact_advert_paths.best_snr, excluded.best_snr),
+                        COALESCE(excluded.best_snr, contact_advert_paths.best_snr)
+                    )
                 """,
-                (normalized_key, normalized_path, path_len, timestamp, timestamp),
+                (normalized_key, normalized_path, path_len, timestamp, timestamp, rssi, snr),
             ):
                 pass
 

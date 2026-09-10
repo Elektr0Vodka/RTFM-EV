@@ -24,6 +24,7 @@ import {
 } from '../utils/visualizerUtils';
 import { getRawPacketObservationKey } from '../utils/rawPacketIdentity';
 import { useRawPackets } from '../stores/rawPacketStore';
+import { TILE_LAYERS, MAP_MIN_ZOOM, MAP_MAX_ZOOM } from '../utils/mapTiles';
 import { cn } from '@/lib/utils';
 
 interface MapViewProps {
@@ -36,75 +37,11 @@ interface MapViewProps {
   /** When provided, the contact name in each popup becomes a clickable link
    *  that opens the conversation for that contact (DM, repeater, or room). */
   onSelectContact?: (contact: Contact) => void;
+  /** When set, center the map here and drop a temporary highlight marker. */
+  focusedLatLon?: [number, number];
+  /** Label shown in the highlight marker popup. */
+  focusedLabel?: string;
 }
-
-// --- Tile layer presets ---
-// Every provider here is free and works without an API key. Attribution strings
-// follow each provider's requirements; do not remove them. If you add a new
-// provider, verify its terms of service (especially for Esri / Google-style
-// satellite tiles) before committing.
-interface TileLayerPreset {
-  id: string;
-  label: string;
-  url: string;
-  attribution: string;
-  background: string;
-  /** Highest zoom the provider publishes tiles at. When the layer is active,
-   *  the map's zoom ceiling is tightened to this value via
-   *  `MaxZoomByActiveLayer` so the user cannot zoom into a grey void. */
-  maxZoom?: number;
-}
-
-// Global zoom bounds for the MapContainer itself. These are pinned to the
-// container so Leaflet's internal tile-range math never has to guess when
-// layers swap in/out via LayersControl. Without this, an initial-mount race
-// between MapContainer layout and LayersControl.BaseLayer addition has been
-// observed to throw "Attempted to load an infinite number of tiles".
-const MAP_MIN_ZOOM = 2;
-const MAP_MAX_ZOOM = 19;
-
-const TILE_LAYERS: readonly TileLayerPreset[] = [
-  {
-    id: 'light',
-    label: 'Light (OpenStreetMap)',
-    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    background: '#1a1a2e',
-    maxZoom: 19,
-  },
-  {
-    id: 'dark',
-    label: 'Dark (CARTO)',
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
-    background: '#0d0d0d',
-    maxZoom: 19,
-  },
-  {
-    id: 'topographic',
-    label: 'Topographic (OpenTopoMap)',
-    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-    attribution:
-      'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)',
-    background: '#a3b3bc',
-    maxZoom: 17,
-  },
-  {
-    id: 'satellite',
-    label: 'Satellite (Esri)',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    attribution:
-      'Tiles &copy; <a href="https://www.esri.com/">Esri</a> &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
-    background: '#1a1f2e',
-    // Esri's tile service advertises LODs up to 23 and returns HTTP 200 for
-    // every tile request, but the underlying imagery is only high-resolution
-    // up to ~18 in most developed areas and shallower in rural regions. We
-    // cap at 18 rather than 19 so users don't zoom into visibly-empty or
-    // severely-upscaled tiles. Remote regions may still be sparse at 18.
-    maxZoom: 18,
-  },
-] as const;
 
 const MAP_LAYER_STORAGE_KEY = 'remoteterm-map-layer';
 const LEGACY_DARK_MAP_STORAGE_KEY = 'remoteterm-dark-map';
@@ -112,10 +49,13 @@ const LEGACY_DARK_MAP_STORAGE_KEY = 'remoteterm-dark-map';
 function getSavedLayerId(): string {
   try {
     const stored = localStorage.getItem(MAP_LAYER_STORAGE_KEY);
+    // The former CARTO layer had id 'dark'; migrate a saved selection to the
+    // replacement Esri dark basemap so users keep a dark map after the swap.
+    if (stored === 'dark') return 'darkgray';
     if (stored && TILE_LAYERS.some((l) => l.id === stored)) return stored;
     // Legacy migration: boolean dark-map flag predates multi-layer support.
     const legacyDark = localStorage.getItem(LEGACY_DARK_MAP_STORAGE_KEY) === 'true';
-    return legacyDark ? 'dark' : 'light';
+    return legacyDark ? 'darkgray' : 'light';
   } catch {
     return 'light';
   }
@@ -317,14 +257,22 @@ interface MapParticle {
 function MapBoundsHandler({
   contacts,
   focusedContact,
+  focusedLatLon,
 }: {
   contacts: Contact[];
   focusedContact: Contact | null;
+  focusedLatLon?: [number, number];
 }) {
   const map = useMap();
   const [hasInitialized, setHasInitialized] = useState(false);
 
   useEffect(() => {
+    if (focusedLatLon) {
+      map.setView(focusedLatLon, 15);
+      setHasInitialized(true);
+      return;
+    }
+
     if (focusedContact && focusedContact.lat != null && focusedContact.lon != null) {
       map.setView([focusedContact.lat, focusedContact.lon], 12);
       setHasInitialized(true);
@@ -367,7 +315,7 @@ function MapBoundsHandler({
     } else {
       fitToContacts();
     }
-  }, [map, contacts, hasInitialized, focusedContact]);
+  }, [map, contacts, hasInitialized, focusedContact, focusedLatLon]);
 
   return null;
 }
@@ -545,6 +493,8 @@ export function MapView({
   blockedKeys,
   blockedNames,
   onSelectContact,
+  focusedLatLon,
+  focusedLabel,
 }: MapViewProps) {
   const rawPackets = useRawPackets();
   const [sinceId, setSinceId] = useState<MapSinceId>(getSavedSinceId);
@@ -1113,7 +1063,11 @@ export function MapView({
           </LayersControl>
           <LayerChangeWatcher onChange={handleLayerChange} />
           <MaxZoomByActiveLayer maxZoom={activeLayer.maxZoom ?? MAP_MAX_ZOOM} />
-          <MapBoundsHandler contacts={mappableContacts} focusedContact={focusedContact} />
+          <MapBoundsHandler
+            contacts={mappableContacts}
+            focusedContact={focusedContact}
+            focusedLatLon={focusedLatLon}
+          />
 
           {/* Faint route lines for active packet paths */}
           {showPackets &&
@@ -1183,6 +1137,28 @@ export function MapView({
               </Fragment>
             );
           })}
+
+          {focusedLatLon && (
+            <CircleMarker
+              center={focusedLatLon}
+              radius={10}
+              pathOptions={{
+                color: '#ef4444',
+                fillColor: '#ef4444',
+                fillOpacity: 0.5,
+                weight: 3,
+              }}
+            >
+              <Popup>
+                <div className="text-sm">
+                  <div className="font-medium">{focusedLabel || 'Shared location'}</div>
+                  <div className="text-xs text-gray-400 mt-1 font-mono">
+                    {focusedLatLon[0].toFixed(6)}, {focusedLatLon[1].toFixed(6)}
+                  </div>
+                </div>
+              </Popup>
+            </CircleMarker>
+          )}
 
           {showPackets && <ParticleOverlay particles={particles} />}
         </MapContainer>

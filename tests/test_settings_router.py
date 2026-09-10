@@ -57,6 +57,34 @@ class TestUpdateSettings:
         assert result.max_radio_contacts == 200  # default
 
     @pytest.mark.asyncio
+    async def test_show_mention_ticker_defaults_enabled(self, test_db):
+        result = await update_settings(AppSettingsUpdate())
+        assert result.show_mention_ticker is True
+
+    @pytest.mark.asyncio
+    async def test_show_mention_ticker_round_trip(self, test_db):
+        """show_mention_ticker should be saved and retrieved correctly."""
+        result = await update_settings(AppSettingsUpdate(show_mention_ticker=False))
+        assert result.show_mention_ticker is False
+
+        fresh = await AppSettingsRepository.get()
+        assert fresh.show_mention_ticker is False
+
+    @pytest.mark.asyncio
+    async def test_registry_sync_url_defaults_empty(self, test_db):
+        result = await update_settings(AppSettingsUpdate())
+        assert result.registry_sync_url == ""
+
+    @pytest.mark.asyncio
+    async def test_registry_sync_url_round_trip(self, test_db):
+        url = "https://example.com/channels.json"
+        result = await update_settings(AppSettingsUpdate(registry_sync_url=url))
+        assert result.registry_sync_url == url
+
+        fresh = await AppSettingsRepository.get()
+        assert fresh.registry_sync_url == url
+
+    @pytest.mark.asyncio
     async def test_flood_scope_round_trip(self, test_db):
         """Flood scope should be saved and retrieved correctly."""
         result = await update_settings(AppSettingsUpdate(flood_scope="MyRegion"))

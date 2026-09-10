@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useRef, useState, useMemo, type MouseEvent } from 'react';
 import { api } from './api';
+import { MAX_RAW_PACKETS, seedRawPacketStore } from './stores/rawPacketStore';
 import { takePrefetchOrFetch } from './prefetch';
 import { useWebSocket } from './useWebSocket';
 import {
@@ -16,15 +17,18 @@ import {
   useBrowserNotifications,
   useFaviconBadge,
   useUnreadTitle,
+  useMeshcomodConfig,
 } from './hooks';
 import { toast } from './components/ui/sonner';
 import { AppShell } from './components/AppShell';
+import { ChannelImportExportModal } from './components/ChannelImportExportModal';
 import type { MessageInputHandle } from './components/MessageInput';
 import { DistanceUnitProvider } from './contexts/DistanceUnitContext';
 import { PathHopWidthProvider } from './contexts/PathHopWidthContext';
 import { RichPayloadProvider } from './contexts/RichPayloadContext';
 import { usePush } from './contexts/PushSubscriptionContext';
 import { messageContainsMention } from './utils/messageParser';
+import { buildMentionEvent, type MentionEvent } from './components/MentionTicker';
 import { getStateKey } from './utils/conversationState';
 import type { BulkCreateHashtagChannelsResult, Channel, Conversation, Message } from './types';
 import { CONTACT_TYPE_REPEATER, CONTACT_TYPE_ROOM } from './types';
@@ -83,6 +87,7 @@ export function App() {
   const [bulkAddResult, setBulkAddResult] = useState<BulkCreateHashtagChannelsResult | null>(null);
   const [repeaterAutoLoginKey, setRepeaterAutoLoginKey] = useState<string | null>(null);
   const [visibilityVersion, setVisibilityVersion] = useState(0);
+  const [showChannelImportExport, setShowChannelImportExport] = useState(false);
   const {
     notificationsSupported,
     notificationsPermission,
@@ -149,6 +154,19 @@ export function App() {
     handleHealthRefresh,
   } = useRadioControl();
 
+  // Meshcomod (DMC-EV) CAD state, shared with the Settings panel via a cached hook.
+  const isMeshcomod = health?.radio_device_info?.is_meshcomod ?? false;
+  const { cadSupported, cadEnabled, toggleCad } = useMeshcomodConfig(isMeshcomod);
+  const handleToggleCad = useCallback(async () => {
+    const next = cadEnabled === true ? false : true;
+    try {
+      await toggleCad();
+      toast.success(next ? 'CAD enabled' : 'CAD disabled');
+    } catch {
+      toast.error('Failed to toggle CAD');
+    }
+  }, [cadEnabled, toggleCad]);
+
   const {
     appSettings,
     fetchAppSettings,
@@ -209,6 +227,28 @@ export function App() {
   useEffect(() => {
     channelsRef.current = channels;
   }, [channels]);
+
+  // ── Mention ticker ─────────────────────────────────────────────────────────
+  // Pending @mentions surfaced by the WS callback for channels not being viewed.
+  const MENTION_EXPIRE_MS = 10 * 60 * 1_000;
+  const [pendingMentions, setPendingMentions] = useState<MentionEvent[]>([]);
+  const handleChannelMention = useCallback(
+    (msg: Message) => {
+      const ch = channelsRef.current.find((c) => c.key === msg.conversation_key);
+      const chName = ch ? `#${ch.name}` : msg.conversation_key.slice(0, 8).toUpperCase();
+      const event = buildMentionEvent(msg, chName);
+      const now = Date.now();
+      setPendingMentions((prev) => {
+        // Deduplicate by messageId and drop entries older than the expiry window.
+        const filtered = prev.filter((m) => m.key !== event.key && now - m.at < MENTION_EXPIRE_MS);
+        return [...filtered, event];
+      });
+    },
+    [MENTION_EXPIRE_MS]
+  );
+  const handleDismissMention = useCallback((key: number) => {
+    setPendingMentions((prev) => prev.filter((m) => m.key !== key));
+  }, []);
 
   const handleToggleFavorite = useCallback(
     async (type: 'channel' | 'contact', id: string) => {
@@ -414,6 +454,7 @@ export function App() {
     removeConversationMessages,
     receiveMessageAck,
     notifyIncomingMessage,
+    onChannelMention: handleChannelMention,
   });
   const handleVisibilityPolicyChanged = useCallback(() => {
     clearConversationMessages();
@@ -443,6 +484,7 @@ export function App() {
     handleSetChannelFloodScopeOverride,
     handleSetChannelPathHashModeOverride,
     handleSenderClick,
+    handleInsertLocation,
     handleTrace,
     handlePathDiscovery,
   } = useConversationActions({
@@ -500,6 +542,19 @@ export function App() {
     setBulkAddResult(null);
   }, []);
 
+  const handleCoordinateClick = useCallback(
+    (lat: number, lon: number, label: string) => {
+      setActiveConversation({
+        type: 'map',
+        id: 'map',
+        name: 'Node Map',
+        mapFocusLatLon: [lat, lon],
+        ...(label && { mapFocusLabel: label }),
+      });
+    },
+    [setActiveConversation]
+  );
+
   const handleChannelReferenceClick = useCallback(
     (channelName: string) => {
       const existingChannel = channels.find((channel) => channel.name === channelName);
@@ -546,6 +601,7 @@ export function App() {
     onMarkAllRead: () => {
       void markAllRead();
     },
+    onOpenChannelImportExport: () => setShowChannelImportExport(true),
     isConversationNotificationsEnabled,
     blockedKeys: appSettings?.blocked_keys ?? [],
     blockedNames: appSettings?.blocked_names ?? [],
@@ -559,6 +615,10 @@ export function App() {
     channels,
     config,
     health,
+    cadCapable: isMeshcomod,
+    cadSupported,
+    cadEnabled,
+    onToggleCad: handleToggleCad,
     messages: sortedMessages,
     preSorted: activeContactIsRoom,
     messagesLoading,
@@ -592,6 +652,8 @@ export function App() {
     onOpenChannelInfo: handleOpenChannelInfo,
     onSenderClick: handleSenderClick,
     onChannelReferenceClick: handleChannelReferenceClick,
+    onInsertLocation: handleInsertLocation,
+    onCoordinateClick: handleCoordinateClick,
     onLoadOlder: fetchOlderMessages,
     onResendChannelMessage: handleResendChannelMessage,
     onTargetReached: () => setTargetMessageId(null),
@@ -742,6 +804,13 @@ export function App() {
     fetchAppSettings();
     fetchUndecryptedCount();
 
+    // Seed the raw packet feed from the DB so recent history is present on load
+    // (and after a full reload), not just packets observed live over the WS.
+    api
+      .getRecentPackets({ limit: MAX_RAW_PACKETS })
+      .then((data) => seedRawPacketStore({ packets: Array.isArray(data) ? data : [] }))
+      .catch(console.error);
+
     // Fetch contacts and channels via REST (parallel, faster than WS serial push)
     takePrefetchOrFetch('channels', api.getChannels).then(setChannels).catch(console.error);
     fetchAllContacts()
@@ -798,7 +867,28 @@ export function App() {
             bulkAddChannelResultModalProps={bulkAddChannelResultModalProps}
             contactInfoPaneProps={contactInfoPaneProps}
             channelInfoPaneProps={channelInfoPaneProps}
+            showMentionTicker={appSettings?.show_mention_ticker ?? true}
+            mentionTickerEvents={pendingMentions}
+            onNavigateMentionToMessage={(channelKey, messageId) => {
+              const ch = channelsRef.current.find((c) => c.key === channelKey);
+              handleNavigateToMessage({
+                id: messageId,
+                type: 'CHAN',
+                conversation_key: channelKey,
+                conversation_name: ch ? `#${ch.name}` : channelKey,
+              });
+            }}
+            onDismissMention={handleDismissMention}
             onRepeaterAutoLogin={handleRepeaterAutoLogin}
+          />
+          <ChannelImportExportModal
+            open={showChannelImportExport}
+            onClose={() => setShowChannelImportExport(false)}
+            channels={channels}
+            crackerFoundChannels={[]}
+            onChannelsImported={() => {
+              api.getChannels().then(setChannels).catch(console.error);
+            }}
           />
         </PathHopWidthProvider>
       </RichPayloadProvider>

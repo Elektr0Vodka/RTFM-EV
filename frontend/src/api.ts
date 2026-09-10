@@ -2,6 +2,7 @@ import type {
   AppSettings,
   AppSettingsUpdate,
   BulkCreateHashtagChannelsResult,
+  ChannelImportResult,
   Channel,
   ChannelDetail,
   CommandResponse,
@@ -21,6 +22,7 @@ import type {
   RadioConfig,
   RadioConfigUpdate,
   RadioDiscoveryResponse,
+  RadioPresetsStore,
   RadioRegionDiscoveryResponse,
   RadioTraceHopRequest,
   RadioTraceResponse,
@@ -42,6 +44,9 @@ import type {
   TelemetrySchedule,
   TrackedTelemetryContactsResponse,
   TrackedTelemetryResponse,
+  BatteryHistoryStats,
+  BatterySample,
+  NoiseFloorSample,
   StatisticsResponse,
   TraceResponse,
   UnreadCounts,
@@ -101,6 +106,16 @@ export const api = {
     fetchJson<RadioConfig>('/radio/config', {
       method: 'PATCH',
       body: JSON.stringify(config),
+    }),
+  // Radio region presets (official MeshCore presets API sync)
+  getRadioPresets: () => fetchJson<RadioPresetsStore>('/radio/presets'),
+  syncRadioPresets: () =>
+    fetchJson<RadioPresetsStore>('/radio/presets/sync', {
+      method: 'POST',
+    }),
+  resetRadioPresets: () =>
+    fetchJson<RadioPresetsStore>('/radio/presets', {
+      method: 'DELETE',
     }),
   getMeshcomodConfig: () => fetchJson<MeshcomodConfig>('/radio/meshcomod'),
   updateMeshcomodConfig: (update: MeshcomodConfigUpdate) =>
@@ -217,6 +232,28 @@ export const api = {
     }),
   deleteChannel: (key: string) =>
     fetchJson<{ status: string }>(`/channels/${key}`, { method: 'DELETE' }),
+  importChannels: async (file: File, tryHistorical: boolean): Promise<ChannelImportResult> => {
+    const form = new FormData();
+    form.append('file', file);
+    // Use fetch directly so the browser sets the multipart/form-data
+    // Content-Type (with boundary) rather than fetchJson's application/json.
+    const res = await fetch(`${API_BASE}/channels/import?try_historical=${tryHistorical}`, {
+      method: 'POST',
+      body: form,
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = text || res.statusText;
+      try {
+        const j = JSON.parse(text);
+        if (j.detail) msg = j.detail;
+      } catch {
+        /* raw text */
+      }
+      throw new Error(msg);
+    }
+    return res.json() as Promise<ChannelImportResult>;
+  },
   getChannelDetail: (key: string) => fetchJson<ChannelDetail>(`/channels/${key}/detail`),
   markChannelRead: (key: string) =>
     fetchJson<{ status: string; key: string }>(`/channels/${key}/mark-read`, {
@@ -294,6 +331,14 @@ export const api = {
     ),
 
   // Packets
+  getRecentPackets: (params?: { afterTs?: number; beforeTs?: number; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.afterTs !== undefined) qs.set('after_ts', String(params.afterTs));
+    if (params?.beforeTs !== undefined) qs.set('before_ts', String(params.beforeTs));
+    if (params?.limit !== undefined) qs.set('limit', String(params.limit));
+    const query = qs.toString();
+    return fetchJson<RawPacket[]>(`/packets/recent${query ? `?${query}` : ''}`);
+  },
   getPacket: (packetId: number) => fetchJson<RawPacket>(`/packets/${packetId}`),
   getUndecryptedPacketCount: () => fetchJson<{ count: number }>('/packets/undecrypted/count'),
   decryptHistoricalPackets: (params: {
@@ -324,6 +369,10 @@ export const api = {
     fetchJson<{ status: string; timestamp: number }>('/read-state/mark-all-read', {
       method: 'POST',
     }),
+
+  // Channel Registry
+  syncRegistry: () =>
+    fetchJson<{ channels: { name: string; key: string }[] }>('/registry/sync'),
 
   // App Settings
   getSettings: () => fetchJson<AppSettings>('/settings'),
@@ -418,6 +467,11 @@ export const api = {
 
   // Statistics
   getStatistics: () => fetchJson<StatisticsResponse>('/statistics'),
+  getNoiseFloorHistory: (startTs: number, endTs: number) =>
+    fetchJson<NoiseFloorSample[]>(`/statistics/noise-floor?start_ts=${startTs}&end_ts=${endTs}`),
+  getBatteryHistory: () => fetchJson<BatteryHistoryStats>('/statistics/battery'),
+  getBatteryRange: (startTs: number, endTs: number) =>
+    fetchJson<BatterySample[]>(`/statistics/battery/range?start_ts=${startTs}&end_ts=${endTs}`),
 
   // Granular repeater endpoints
   repeaterLogin: (publicKey: string, password: string) =>

@@ -43,7 +43,8 @@ class AppSettingsRepository:
                    blocked_keys, blocked_names, discovery_blocked_types,
                    tracked_telemetry_repeaters, tracked_telemetry_contacts,
                    auto_resend_channel,
-                   telemetry_interval_hours, telemetry_routed_hourly
+                   telemetry_interval_hours, telemetry_routed_hourly,
+                   show_mention_ticker, registry_sync_url
             FROM app_settings WHERE id = 1
             """
         ) as cursor:
@@ -138,6 +139,18 @@ class AppSettingsRepository:
         except (KeyError, TypeError):
             telemetry_routed_hourly = False
 
+        # Parse show_mention_ticker boolean (migration adds it with default=1)
+        try:
+            show_mention_ticker = bool(row["show_mention_ticker"])
+        except (KeyError, TypeError):
+            show_mention_ticker = True
+
+        # Parse registry_sync_url (migration adds the column with default='')
+        try:
+            registry_sync_url = row["registry_sync_url"] or ""
+        except (KeyError, TypeError):
+            registry_sync_url = ""
+
         return AppSettings(
             max_radio_contacts=row["max_radio_contacts"],
             auto_decrypt_dm_on_advert=bool(row["auto_decrypt_dm_on_advert"]),
@@ -154,6 +167,8 @@ class AppSettingsRepository:
             auto_resend_channel=auto_resend_channel,
             telemetry_interval_hours=telemetry_interval_hours,
             telemetry_routed_hourly=telemetry_routed_hourly,
+            show_mention_ticker=show_mention_ticker,
+            registry_sync_url=registry_sync_url,
         )
 
     @staticmethod
@@ -175,6 +190,8 @@ class AppSettingsRepository:
         auto_resend_channel: bool | None = None,
         telemetry_interval_hours: int | None = None,
         telemetry_routed_hourly: bool | None = None,
+        show_mention_ticker: bool | None = None,
+        registry_sync_url: str | None = None,
     ) -> None:
         """Apply field updates using an already-acquired connection.
 
@@ -244,6 +261,14 @@ class AppSettingsRepository:
             updates.append("telemetry_routed_hourly = ?")
             params.append(1 if telemetry_routed_hourly else 0)
 
+        if show_mention_ticker is not None:
+            updates.append("show_mention_ticker = ?")
+            params.append(1 if show_mention_ticker else 0)
+
+        if registry_sync_url is not None:
+            updates.append("registry_sync_url = ?")
+            params.append(registry_sync_url)
+
         if updates:
             query = f"UPDATE app_settings SET {', '.join(updates)} WHERE id = 1"
             async with conn.execute(query, params):
@@ -275,6 +300,8 @@ class AppSettingsRepository:
         auto_resend_channel: bool | None = None,
         telemetry_interval_hours: int | None = None,
         telemetry_routed_hourly: bool | None = None,
+        show_mention_ticker: bool | None = None,
+        registry_sync_url: str | None = None,
     ) -> AppSettings:
         """Update app settings. Only provided fields are updated."""
         async with db.tx() as conn:
@@ -295,6 +322,8 @@ class AppSettingsRepository:
                 auto_resend_channel=auto_resend_channel,
                 telemetry_interval_hours=telemetry_interval_hours,
                 telemetry_routed_hourly=telemetry_routed_hourly,
+                show_mention_ticker=show_mention_ticker,
+                registry_sync_url=registry_sync_url,
             )
             return await AppSettingsRepository._get_in_conn(conn)
 
@@ -409,6 +438,44 @@ class AppSettingsRepository:
                 (json.dumps(current),),
             )
         return current
+
+    @staticmethod
+    async def get_radio_presets() -> "RadioPresetsStore | None":
+        """Return the last synced radio-preset list, or None if never synced.
+
+        Internal-only column, not exposed via the AppSettings model. An empty
+        or unparseable value is treated as "never synced".
+        """
+        from app.models import RadioPresetsStore
+
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT radio_presets FROM app_settings WHERE id = 1"
+            ) as cursor:
+                row = await cursor.fetchone()
+        if not row or not row["radio_presets"]:
+            return None
+        try:
+            return RadioPresetsStore.model_validate_json(row["radio_presets"])
+        except (ValueError, TypeError, KeyError):
+            logger.warning("Failed to parse stored radio_presets, treating as unset")
+            return None
+
+    @staticmethod
+    async def set_radio_presets(store: "RadioPresetsStore") -> "RadioPresetsStore":
+        """Replace the persisted radio-preset list with ``store``."""
+        async with db.tx() as conn:
+            await conn.execute(
+                "UPDATE app_settings SET radio_presets = ? WHERE id = 1",
+                (store.model_dump_json(),),
+            )
+        return store
+
+    @staticmethod
+    async def clear_radio_presets() -> None:
+        """Clear the persisted radio-preset list (reset to built-in)."""
+        async with db.tx() as conn:
+            await conn.execute("UPDATE app_settings SET radio_presets = '' WHERE id = 1")
 
 
 class StatisticsRepository:

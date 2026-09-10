@@ -88,6 +88,17 @@ class AppSettingsUpdate(BaseModel):
             "path are polled every hour instead of on the normal scheduled interval."
         ),
     )
+    show_mention_ticker: bool | None = Field(
+        default=None,
+        description=(
+            "Show the scrolling mention ticker in the top bar when the user is "
+            "@mentioned in a channel they are not currently viewing."
+        ),
+    )
+    registry_sync_url: str | None = Field(
+        default=None,
+        description="URL of a remote {name: key} JSON channel list to sync into the registry",
+    )
 
 
 class BlockKeyRequest(BaseModel):
@@ -270,6 +281,14 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
     if update.telemetry_routed_hourly is not None:
         logger.info("Updating telemetry_routed_hourly to %s", update.telemetry_routed_hourly)
         kwargs["telemetry_routed_hourly"] = update.telemetry_routed_hourly
+
+    # Mention ticker
+    if update.show_mention_ticker is not None:
+        kwargs["show_mention_ticker"] = update.show_mention_ticker
+
+    # Channel registry sync URL
+    if update.registry_sync_url is not None:
+        kwargs["registry_sync_url"] = update.registry_sync_url
 
     # Flood scope
     flood_scope_changed = False
