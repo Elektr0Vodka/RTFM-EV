@@ -446,6 +446,30 @@ class TestRepeaterCommandRoute:
         mc.start_auto_message_fetching.assert_awaited_once()
 
     @pytest.mark.asyncio
+    async def test_send_cmd_receives_typed_destination(self, test_db):
+        # Regression: meshcore 2.3.9.1's send_cmd derives the CLI text subtype
+        # from dst["type"], so a bare pubkey string raises
+        # "TypeError: string indices must be integers" and the /command endpoint
+        # 500s. The destination must be a mapping carrying the contact's type.
+        mc = _mock_mc()
+        await _insert_contact(KEY_A, name="Repeater", contact_type=2)
+        mc.commands.send_cmd = AsyncMock(return_value=_radio_result(EventType.OK))
+        mc.commands.get_msg = AsyncMock(return_value=_radio_result(EventType.NO_MORE_MSGS))
+
+        with (
+            patch("app.routers.repeaters.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch(_MONOTONIC, side_effect=[0.0, 5.0, 25.0]),
+            patch("app.routers.server_control.asyncio.sleep", new_callable=AsyncMock),
+        ):
+            await send_repeater_command(KEY_A, CommandRequest(command="ver"))
+
+        dst = mc.commands.send_cmd.await_args.args[0]
+        assert isinstance(dst, dict), f"send_cmd destination must carry a type, got {type(dst)}"
+        assert dst["type"] == 2
+        assert dst["public_key"] == KEY_A
+
+    @pytest.mark.asyncio
     async def test_success_returns_command_response_text_and_sender_timestamp(self, test_db):
         mc = _mock_mc()
         await _insert_contact(KEY_A, name="Repeater", contact_type=2)
