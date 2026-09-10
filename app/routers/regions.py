@@ -16,28 +16,30 @@ class RegionSyncResponse(BaseModel):
 
 
 def _extract_region_names(payload: object) -> list[str]:
-    """Map an analyzer regions payload to a deduplicated list of region names.
+    """Map an analyzer regions payload to a deduplicated list of region codes.
 
     Expects the analyzer's ``/api/regions/scopes`` shape: a bare JSON array of
-    ``{"code": str, "name": str}`` objects. Each entry becomes its ``name`` when
-    non-empty, else its ``code`` (mirroring the analyzer's own display fallback,
-    ``s.name || s.code``), since ``known_regions`` matches by the name text used
-    to derive the transport code. The wildcard ``*`` sentinel and blanks are
-    dropped and the result is deduplicated case-insensitively via the same
-    helper used by the live ``discover-regions`` sweep, so all region write
-    paths stay consistent.
+    ``{"code": str, "name": str}`` objects. Each entry becomes its ``code``
+    (e.g. ``nl-nh``); the ``name`` field is a human display label only and is
+    ignored. This is deliberate: a scoped packet's transport code is derived
+    from the region *code* (``SHA256("#" + code)``, meshcore-go
+    ``region.go:54`` fed the code by the analyzer at
+    ``internal/regions/regions.go:137``), and ``known_regions`` is scanned by
+    recomputing that same hash (``app/region_resolver.py``). Storing a display
+    name like ``Noord-Holland`` would never match any transport code, so only
+    the code is usable here. The wildcard ``*`` sentinel and blanks are dropped
+    and the result is deduplicated case-insensitively via the same helper used
+    by the live ``discover-regions`` sweep, so all region write paths stay
+    consistent.
     """
-    names: list[str] = []
+    codes: list[str] = []
     for entry in payload:
         if not isinstance(entry, dict):
             continue
-        name = entry.get("name")
         code = entry.get("code")
-        if isinstance(name, str) and name.strip():
-            names.append(name)
-        elif isinstance(code, str):
-            names.append(code)
-    return _dedupe_region_names(names)
+        if isinstance(code, str):
+            codes.append(code)
+    return _dedupe_region_names(codes)
 
 
 @router.get("/sync", response_model=RegionSyncResponse)
@@ -46,7 +48,8 @@ async def sync_regions() -> RegionSyncResponse:
 
     The remote JSON must be a bare array of ``{"code": ..., "name": ...}``
     objects, e.g. ``https://meshcore-analyzer.eu/api/regions/scopes``. Returns
-    the deduplicated region names ready to merge into ``known_regions``.
+    the deduplicated region *codes* ready to merge into ``known_regions``; the
+    display ``name`` field is ignored (see ``_extract_region_names``).
 
     Returns 400 if no sync URL is configured, 502 if the remote cannot be
     reached or returns unexpected data.

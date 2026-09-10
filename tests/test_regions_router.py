@@ -48,14 +48,16 @@ class TestRegionSync:
         assert resp.status_code == 400
 
     @pytest.mark.asyncio
-    async def test_maps_name_with_code_fallback_and_dedupes(self, test_db, client):
+    async def test_maps_codes_only_and_dedupes(self, test_db, client):
+        # The display ``name`` is ignored: a scoped packet's transport code is
+        # derived from the region *code*, so only the code can resolve.
         await AppSettingsRepository.update(
             region_sync_url="https://meshcore-analyzer.eu/api/regions/scopes"
         )
         fake = _FakeResponse(
             payload=[
                 {"code": "nl-dr", "name": "Drenthe"},
-                {"code": "nl", "name": ""},  # falls back to code
+                {"code": "nl", "name": ""},
                 {"code": "nl-dr", "name": "drenthe"},  # case-insensitive dup, dropped
                 {"code": "*", "name": ""},  # wildcard sentinel, dropped
                 {"code": "de-bw", "name": "Baden-Wurttemberg"},
@@ -64,22 +66,23 @@ class TestRegionSync:
         with _patch_client(response=fake):
             resp = await client.get("/api/regions/sync")
         assert resp.status_code == 200
-        assert resp.json()["regions"] == ["Drenthe", "nl", "Baden-Wurttemberg"]
+        assert resp.json()["regions"] == ["nl-dr", "nl", "de-bw"]
 
     @pytest.mark.asyncio
-    async def test_ignores_non_object_and_non_string_entries(self, test_db, client):
+    async def test_ignores_non_object_and_entries_without_string_code(self, test_db, client):
         await AppSettingsRepository.update(region_sync_url="https://example.com/regions.json")
         fake = _FakeResponse(
             payload=[
                 "not-an-object",
-                {"code": 123, "name": None},  # neither usable
-                {"name": "Utrecht"},  # code missing, name used
+                {"code": 123, "name": None},  # non-string code, dropped
+                {"name": "Utrecht"},  # code missing, dropped (name is not usable)
+                {"code": "nl-ut", "name": "Utrecht"},
             ]
         )
         with _patch_client(response=fake):
             resp = await client.get("/api/regions/sync")
         assert resp.status_code == 200
-        assert resp.json()["regions"] == ["Utrecht"]
+        assert resp.json()["regions"] == ["nl-ut"]
 
     @pytest.mark.asyncio
     async def test_502_when_payload_not_array(self, test_db, client):
