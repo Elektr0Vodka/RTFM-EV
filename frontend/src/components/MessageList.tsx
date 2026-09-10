@@ -32,6 +32,7 @@ import { toast } from './ui/sonner';
 import { handleKeyboardActivate } from '../utils/a11y';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { cn } from '@/lib/utils';
+import { useT } from '../i18n';
 
 interface MessageListProps {
   messages: Message[];
@@ -63,6 +64,7 @@ interface MessageListProps {
 
 // Renders a MeshCore Open GIF payload, falling back to the raw text on load error.
 function GifPayload({ gifId, rawText }: { gifId: string; rawText: string }) {
+  const t = useT();
   const [failed, setFailed] = useState(false);
   if (failed) {
     return <>{rawText}</>;
@@ -74,11 +76,11 @@ function GifPayload({ gifId, rawText }: { gifId: string; rawText: string }) {
       target="_blank"
       rel="noopener noreferrer"
       className="inline-block"
-      title="Open GIF on Giphy"
+      title={t('chat_open_gif_on_giphy')}
     >
       <img
         src={url}
-        alt="GIF"
+        alt={t('chat_gif_alt')}
         loading="lazy"
         onError={() => setFailed(true)}
         className="max-w-[240px] max-h-[240px] rounded-md"
@@ -90,10 +92,11 @@ function GifPayload({ gifId, rawText }: { gifId: string; rawText: string }) {
 // Renders a MeshCore Open reaction generically (emoji + "reacted"); the target
 // message is not resolved (see issue #291).
 function ReactionPayload({ emoji }: { emoji: string }) {
+  const t = useT();
   return (
     <span className="inline-flex items-center gap-1.5">
       <span className="text-xl leading-none">{emoji}</span>
-      <span className="text-xs text-muted-foreground italic">reacted</span>
+      <span className="text-xs text-muted-foreground italic">{t('chat_reacted')}</span>
     </span>
   );
 }
@@ -322,6 +325,7 @@ interface HopCountBadgeProps {
 }
 
 function HopCountBadge({ paths, onClick, variant }: HopCountBadgeProps) {
+  const t = useT();
   const { showPathHopWidth } = usePathHopWidth();
   const hopInfo = formatHopCounts(paths);
   const widthLabel = showPathHopWidth ? formatPathHopWidths(paths) : null;
@@ -342,8 +346,16 @@ function HopCountBadge({ paths, onClick, variant }: HopCountBadgeProps) {
         e.stopPropagation();
         onClick();
       }}
-      title={widthLabel ? `View message path (${widthLabel} per hop)` : 'View message path'}
-      aria-label={`${hopInfo.display}${widthLabel ? `, ${widthLabel} per hop` : ''}, view path`}
+      title={
+        widthLabel
+          ? t('chat_view_message_path_per_hop', { width: widthLabel })
+          : t('chat_view_message_path')
+      }
+      aria-label={
+        widthLabel
+          ? t('a11y_hop_count_view_path_with_width', { display: hopInfo.display, width: widthLabel })
+          : t('a11y_hop_count_view_path', { display: hopInfo.display })
+      }
     >
       {label}
     </span>
@@ -352,10 +364,11 @@ function HopCountBadge({ paths, onClick, variant }: HopCountBadgeProps) {
 
 // Region scope badge for messages that arrived via a transport-routed (region-scoped) packet.
 function RegionBadge({ region }: { region: string }) {
+  const t = useT();
   return (
     <span
       className="ml-1.5 align-middle text-[0.625rem] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground"
-      title={`Regional scope: ${region}`}
+      title={t('a11y_regional_scope', { region })}
     >
       {region}
     </span>
@@ -363,9 +376,6 @@ function RegionBadge({ region }: { region: string }) {
 }
 
 const RESEND_WINDOW_SECONDS = 30;
-const CORRUPT_SENDER_LABEL = '<No name -- corrupt packet?>';
-const ANALYZE_PACKET_NOTICE =
-  'This analyzer shows one stored full packet copy only. When multiple receives have identical payloads, the backend deduplicates them to a single stored packet and appends any additional receive paths onto the message path history instead of storing multiple full packet copies.';
 
 function hasUnexpectedControlChars(text: string): boolean {
   for (const char of text) {
@@ -408,6 +418,9 @@ export function MessageList({
   onJumpToBottom,
   preSorted = false,
 }: MessageListProps) {
+  const t = useT();
+  const CORRUPT_SENDER_LABEL = t('chat_corrupt_sender_label');
+  const ANALYZE_PACKET_NOTICE = t('chat_analyze_packet_notice');
   const { renderRichPayloads } = useRichPayloads();
   const listRef = useRef<HTMLDivElement>(null);
   const prevMessagesLengthRef = useRef<number>(0);
@@ -476,8 +489,7 @@ export function MessageList({
     if (message.packet_id == null) {
       setPacketInspectorSource({
         kind: 'unavailable',
-        message:
-          'No archival raw packet is available for this message, so packet analysis cannot be shown.',
+        message: t('chat_no_archival_packet'),
       });
       return;
     }
@@ -488,26 +500,26 @@ export function MessageList({
       return;
     }
 
-    setPacketInspectorSource({ kind: 'loading', message: 'Loading packet analysis...' });
+    setPacketInspectorSource({ kind: 'loading', message: t('chat_loading_packet_analysis') });
 
     try {
       const packet = await api.getPacket(message.packet_id);
       packetCacheRef.current.set(message.packet_id, packet);
       setPacketInspectorSource({ kind: 'packet', packet });
     } catch (error) {
-      const description = error instanceof Error ? error.message : 'Unknown error';
+      const description = error instanceof Error ? error.message : t('error_unknown');
       const isMissing = error instanceof Error && /not found/i.test(error.message);
       if (!isMissing) {
-        toast.error('Failed to load raw packet', { description });
+        toast.error(t('toast_failed_load_raw_packet'), { description });
       }
       setPacketInspectorSource({
         kind: 'unavailable',
         message: isMissing
-          ? 'The archival raw packet for this message is no longer available. It may have been purged from Settings > Database, so only the stored message and merged route history remain.'
-          : `Could not load the archival raw packet for this message: ${description}`,
+          ? t('chat_archival_packet_purged')
+          : t('chat_could_not_load_archival_packet', { description }),
       });
     }
-  }, []);
+  }, [t]);
 
   // Sort messages by received_at ascending (oldest first)
   // Note: Deduplication is handled by useConversationMessages.observeMessage()
@@ -903,13 +915,13 @@ export function MessageList({
   // Sender info for outgoing messages (used by path modal on own messages)
   const selfSenderInfo = useMemo<SenderInfo>(
     () => ({
-      name: config?.name || 'Unknown',
+      name: config?.name || t('common_unknown'),
       publicKeyOrPrefix: config?.public_key || '',
       lat: config?.lat ?? null,
       lon: config?.lon ?? null,
       pathHashMode: config?.path_hash_mode ?? null,
     }),
-    [config?.name, config?.public_key, config?.lat, config?.lon, config?.path_hash_mode]
+    [config?.name, config?.public_key, config?.lat, config?.lon, config?.path_hash_mode, t]
   );
 
   // Derive live so the byte-perfect button disables if the 30s window expires while modal is open
@@ -964,7 +976,7 @@ export function MessageList({
         };
       }
       return {
-        name: msg.sender_name || msg.sender_key || 'Unknown',
+        name: msg.sender_name || msg.sender_key || t('common_unknown'),
         publicKeyOrPrefix: msg.sender_key || '',
         lat: null,
         lon: null,
@@ -999,7 +1011,7 @@ export function MessageList({
       }
       if (senderName || msg.sender_key) {
         return {
-          name: senderName || msg.sender_key || 'Unknown',
+          name: senderName || msg.sender_key || t('common_unknown'),
           publicKeyOrPrefix: msg.sender_key || msg.conversation_key || '',
           lat: null,
           lon: null,
@@ -1024,7 +1036,7 @@ export function MessageList({
     }
     // Fallback: unknown sender
     return {
-      name: parsedSender || 'Unknown',
+      name: parsedSender || t('common_unknown'),
       publicKeyOrPrefix: msg.conversation_key || '',
       lat: null,
       lon: null,
@@ -1035,7 +1047,7 @@ export function MessageList({
   if (loading) {
     return (
       <div className="flex-1 overflow-y-auto p-5 text-center text-muted-foreground" role="status">
-        Loading messages...
+        {t('common_loading_messages')}
       </div>
     );
   }
@@ -1043,7 +1055,7 @@ export function MessageList({
   if (messages.length === 0) {
     return (
       <div className="flex-1 overflow-y-auto p-5 text-center text-muted-foreground">
-        No messages yet
+        {t('chat_no_messages_yet')}
       </div>
     );
   }
@@ -1076,12 +1088,12 @@ export function MessageList({
       >
         {loadingOlder && (
           <div className="text-center py-2 text-muted-foreground text-sm" role="status">
-            Loading older messages...
+            {t('chat_loading_older_messages')}
           </div>
         )}
         {!loadingOlder && hasOlderMessages && (
           <div className="text-center py-2 text-muted-foreground text-xs">
-            Scroll up for older messages
+            {t('chat_scroll_up_older')}
           </div>
         )}
         <div
@@ -1114,19 +1126,19 @@ export function MessageList({
               msg.type === 'CHAN' && channelSenderName ? getContactByName(channelSenderName) : null;
             const isCorruptChannelMessage = isCorruptUnnamedChannelMessage(msg, sender);
             const displaySender = msg.outgoing
-              ? 'You'
+              ? t('common_you')
               : directSenderName ||
                 (isRoomServer && msg.sender_key ? msg.sender_key.slice(0, 8) : null) ||
                 contact?.name ||
                 channelSenderName ||
                 (isCorruptChannelMessage
                   ? CORRUPT_SENDER_LABEL
-                  : msg.conversation_key?.slice(0, 8) || 'Unknown');
+                  : msg.conversation_key?.slice(0, 8) || t('common_unknown'));
 
             const canClickSender =
               !msg.outgoing &&
               onSenderClick &&
-              displaySender !== 'Unknown' &&
+              displaySender !== t('common_unknown') &&
               displaySender !== CORRUPT_SENDER_LABEL;
 
             // Determine if we should show avatar (first message in a chunk from same sender)
@@ -1175,7 +1187,7 @@ export function MessageList({
               } else {
                 // Channel message: use stored sender identity first, then parsed/fallback display name
                 avatarName =
-                  channelSenderName || (displaySender !== 'Unknown' ? displaySender : null);
+                  channelSenderName || (displaySender !== t('common_unknown') ? displaySender : null);
                 avatarKey =
                   msg.sender_key ||
                   channelSenderContact?.public_key ||
@@ -1183,9 +1195,9 @@ export function MessageList({
               }
             }
             const avatarActionLabel =
-              avatarName && avatarName !== 'Unknown'
-                ? `View info for ${avatarName}`
-                : `View info for ${avatarKey.slice(0, 12)}`;
+              avatarName && avatarName !== t('common_unknown')
+                ? t('a11y_view_info_for', { name: avatarName })
+                : t('a11y_view_info_for', { name: avatarKey.slice(0, 12) });
 
             return (
               // Absolutely positioned so the scroll container keeps a stable total height
@@ -1211,7 +1223,7 @@ export function MessageList({
                     >
                       <span className="h-px flex-1 bg-border" />
                       <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1">
-                        Unread messages
+                        {t('chat_unread_messages_divider')}
                       </span>
                       <span className="h-px flex-1 bg-border" />
                     </button>
@@ -1222,7 +1234,7 @@ export function MessageList({
                     >
                       <span className="h-px flex-1 bg-border" />
                       <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1">
-                        Unread messages
+                        {t('chat_unread_messages_divider')}
                       </span>
                       <span className="h-px flex-1 bg-border" />
                     </div>
@@ -1287,7 +1299,7 @@ export function MessageList({
                             tabIndex={0}
                             onKeyDown={handleKeyboardActivate}
                             onClick={() => onSenderClick(displaySender)}
-                            title={`Mention ${displaySender}`}
+                            title={t('a11y_mention_sender', { name: displaySender })}
                           >
                             {displaySender}
                           </span>
@@ -1367,8 +1379,8 @@ export function MessageList({
                                   isOutgoingChan: msg.type === 'CHAN' && !!onResendChannelMessage,
                                 });
                               }}
-                              title="View echo paths"
-                              aria-label={`Acknowledged, ${msg.acked} echo${msg.acked !== 1 ? 's' : ''} — view paths`}
+                              title={t('chat_view_echo_paths')}
+                              aria-label={t('a11y_acknowledged_echoes', { count: msg.acked })}
                             >{` ✓${msg.acked > 1 ? msg.acked : ''}`}</span>
                           ) : (
                             <span className="text-muted-foreground">{` ✓${msg.acked > 1 ? msg.acked : ''}`}</span>
@@ -1389,14 +1401,14 @@ export function MessageList({
                                 isOutgoingChan: true,
                               });
                             }}
-                            title="Message status"
-                            aria-label="No echoes yet — view message status"
+                            title={t('chat_message_status')}
+                            aria-label={t('a11y_no_echoes_view_status')}
                           >
                             {' '}
                             ?
                           </span>
                         ) : (
-                          <span className="text-muted-foreground" title="No repeats heard yet">
+                          <span className="text-muted-foreground" title={t('chat_no_repeats_heard_yet')}>
                             {' '}
                             ?
                           </span>
@@ -1410,12 +1422,12 @@ export function MessageList({
         </div>
         {loadingNewer && (
           <div className="text-center py-2 text-muted-foreground text-sm" role="status">
-            Loading newer messages...
+            {t('chat_loading_newer_messages')}
           </div>
         )}
         {!loadingNewer && hasNewerMessages && (
           <div className="text-center py-2 text-muted-foreground text-xs">
-            Scroll down for newer messages
+            {t('chat_scroll_down_newer')}
           </div>
         )}
       </div>
@@ -1443,7 +1455,7 @@ export function MessageList({
               }}
               className="h-full px-3 text-sm font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              Jump to unread
+              {t('chat_jump_to_unread')}
             </button>
             <button
               type="button"
@@ -1452,8 +1464,8 @@ export function MessageList({
                 setShowJumpToUnread(false);
               }}
               className="flex h-full w-9 items-center justify-center border-l border-border text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label="Dismiss jump to unread"
-              title="Dismiss jump to unread"
+              aria-label={t('a11y_dismiss_jump_to_unread')}
+              title={t('a11y_dismiss_jump_to_unread')}
             >
               ×
             </button>
@@ -1464,8 +1476,8 @@ export function MessageList({
         <button
           onClick={scrollToBottom}
           className="absolute bottom-4 right-4 w-9 h-9 rounded-full bg-card hover:bg-accent border border-border flex items-center justify-center shadow-lg transition-all hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          title="Scroll to bottom"
-          aria-label="Scroll to bottom"
+          title={t('a11y_scroll_to_bottom')}
+          aria-label={t('a11y_scroll_to_bottom')}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -1521,8 +1533,8 @@ export function MessageList({
           }}
           channels={channels}
           source={packetInspectorSource}
-          title="Analyze Packet"
-          description="On-demand raw packet analysis for a message-backed archival packet."
+          title={t('chat_analyze_packet_title')}
+          description={t('chat_analyze_packet_description')}
           notice={ANALYZE_PACKET_NOTICE}
           signalOverride={packetSignalOverrideRef.current}
         />
