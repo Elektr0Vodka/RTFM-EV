@@ -250,7 +250,10 @@ export function ChatHeader({
   return (
     <header
       className={cn(
-        'conversation-header grid items-start gap-x-2 gap-y-0.5 border-b border-border px-4 py-2.5',
+        // `relative` makes the header the positioning context for the mobile
+        // dropdowns below, so they span the viewport instead of overflowing off
+        // a button anchor. No z-index here, so it creates no stacking context.
+        'conversation-header relative grid items-start gap-x-2 gap-y-0.5 border-b border-border px-4 py-2.5',
         conversation.type === 'contact' && activeContact
           ? 'grid-cols-[minmax(0,1fr)_auto] min-[1100px]:grid-cols-[minmax(0,1fr)_auto_auto]'
           : 'grid-cols-[minmax(0,1fr)_auto]'
@@ -411,7 +414,7 @@ export function ChatHeader({
           pushSupported ||
           (conversation.type === 'channel' && onToggleMute)) &&
           !activeContactIsRoomServer && (
-            <div className="relative" ref={notifDropdownRef}>
+            <div className="sm:relative" ref={notifDropdownRef}>
               <button
                 className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => setNotifDropdownOpen((v) => !v)}
@@ -437,7 +440,7 @@ export function ChatHeader({
                 )}
               </button>
               {notifDropdownOpen && (
-                <div className="absolute right-[-4.5rem] sm:right-0 top-full z-50 mt-1 w-[calc(100vw-2rem)] sm:w-72 max-w-72 rounded-md border border-border bg-popover p-3 shadow-lg space-y-3">
+                <div className="absolute left-2 right-2 top-full z-50 mt-1 sm:left-auto sm:right-0 sm:w-72 rounded-md border border-border bg-popover p-3 shadow-lg space-y-3">
                   {notificationsSupported && (
                     <label className="flex items-start gap-2.5 cursor-pointer group">
                       <input
@@ -583,7 +586,7 @@ export function ChatHeader({
         )}
         {(conversation.type === 'channel' || conversation.type === 'contact') &&
           onInsertLocation && (
-            <div className="relative" ref={locationMenuRef}>
+            <div className="sm:relative" ref={locationMenuRef}>
               <button
                 className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => setLocationMenuOpen((v) => !v)}
@@ -594,7 +597,7 @@ export function ChatHeader({
                 <MapPin className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
               </button>
               {locationMenuOpen && (
-                <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-md border border-border bg-popover p-1 shadow-lg">
+                <div className="absolute left-2 right-2 top-full z-50 mt-1 sm:left-auto sm:right-0 sm:w-56 rounded-md border border-border bg-popover p-1 shadow-lg">
                   {radioLocationAvailable && (
                     <button
                       type="button"
