@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { ExternalLink } from 'lucide-react';
 import { ChannelCrypto, PayloadType } from '@michaelhart/meshcore-decoder';
 
-import type { Channel, RawPacket } from '../types';
+import type { AnalyzerSite, Channel, RawPacket } from '../types';
 import { cn } from '@/lib/utils';
+import { buildNodeLookupUrl } from '../utils/analyzerLink';
 import {
   createDecoderOptions,
   inspectRawPacketWithOptions,
@@ -49,6 +51,7 @@ interface RawPacketInspectorDialogProps {
   description: string;
   notice?: ReactNode;
   signalOverride?: SignalOverride;
+  analyzerSites?: AnalyzerSite[];
   /** Portal target; see `DialogContent`. Needed when a host pane uses `requestFullscreen()`. */
   container?: HTMLElement | null;
 }
@@ -57,6 +60,7 @@ interface RawPacketInspectionPanelProps {
   packet: RawPacket;
   signalOverride?: SignalOverride;
   channels: Channel[];
+  analyzerSites?: AnalyzerSite[];
 }
 
 interface FieldPaletteEntry {
@@ -592,7 +596,9 @@ export function RawPacketInspectionPanel({
   packet,
   channels,
   signalOverride,
+  analyzerSites = [],
 }: RawPacketInspectionPanelProps) {
+  const senderKey = packet.decrypted_info?.contact_key ?? null;
   const decoderOptions = useMemo(() => createDecoderOptions(channels), [channels]);
   const groupTextCandidates = useMemo(
     () => buildGroupTextResolutionCandidates(channels),
@@ -649,6 +655,28 @@ export function RawPacketInspectionPanel({
                   {packetContext.secondary}
                 </div>
               ) : null}
+            </div>
+          ) : null}
+          {/* Look up the packet's sender on a configured external analyzer.
+              Only available when the packet resolved to a full sender pubkey. */}
+          {senderKey && analyzerSites.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {analyzerSites.map((site) => {
+                const url = buildNodeLookupUrl(site, senderKey);
+                if (!url) return null;
+                return (
+                  <button
+                    key={site.name}
+                    type="button"
+                    className="inline-flex items-center gap-1 rounded border border-border/60 px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-primary"
+                    onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+                    title={`Look up the sender on ${site.name}. Opens an external site and sends the sender's public key to it`}
+                  >
+                    <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                    Look up sender on {site.name}
+                  </button>
+                );
+              })}
             </div>
           ) : null}
         </section>
@@ -770,6 +798,7 @@ export function RawPacketInspectorDialog({
   description,
   notice,
   signalOverride,
+  analyzerSites = [],
   container,
 }: RawPacketInspectorDialogProps) {
   const [packetInput, setPacketInput] = useState('');
@@ -800,6 +829,7 @@ export function RawPacketInspectorDialog({
         packet={source.packet}
         channels={channels}
         signalOverride={signalOverride}
+        analyzerSites={analyzerSites}
       />
     );
   } else if (source.kind === 'paste') {
@@ -824,7 +854,11 @@ export function RawPacketInspectorDialog({
           </div>
         </div>
         {analyzedPacket ? (
-          <RawPacketInspectionPanel packet={analyzedPacket} channels={channels} />
+          <RawPacketInspectionPanel
+            packet={analyzedPacket}
+            channels={channels}
+            analyzerSites={analyzerSites}
+          />
         ) : (
           <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
             Paste a packet above to inspect it.

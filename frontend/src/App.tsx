@@ -615,6 +615,7 @@ export function App() {
     channels,
     config,
     health,
+    analyzerSites: appSettings?.analyzer_sites ?? [],
     cadCapable: isMeshcomod,
     cadSupported,
     cadEnabled,

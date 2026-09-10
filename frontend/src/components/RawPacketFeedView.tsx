@@ -16,7 +16,7 @@ import { MeshCoreDecoder, Utils } from '@michaelhart/meshcore-decoder';
 import { RawPacketList } from './RawPacketList';
 import { RawPacketInspectorDialog } from './RawPacketDetailModal';
 import { Button } from './ui/button';
-import type { Channel, Contact, RawPacket } from '../types';
+import type { AnalyzerSite, Channel, Contact, RawPacket } from '../types';
 import {
   KNOWN_PAYLOAD_TYPES,
   RAW_PACKET_STATS_WINDOWS,
@@ -200,6 +200,7 @@ function FeedFilterControls({
 interface RawPacketFeedViewProps {
   contacts: Contact[];
   channels: Channel[];
+  analyzerSites?: AnalyzerSite[];
 }
 
 const TOOLTIP_STYLE = {
@@ -587,7 +588,11 @@ function TimelineChart({
   );
 }
 
-export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps) {
+export function RawPacketFeedView({
+  contacts,
+  channels,
+  analyzerSites = [],
+}: RawPacketFeedViewProps) {
   const packets = useRawPackets();
   const rawPacketStatsSession = useRawPacketStatsSession();
   const [statsOpen, setStatsOpen] = useState(() =>
@@ -951,6 +956,7 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
         open={selectedPacket !== null}
         onOpenChange={(isOpen) => !isOpen && setSelectedPacket(null)}
         channels={channels}
+        analyzerSites={analyzerSites}
         source={
           selectedPacket
             ? { kind: 'packet', packet: selectedPacket }
@@ -964,6 +970,7 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
         open={analyzeModalOpen}
         onOpenChange={setAnalyzeModalOpen}
         channels={channels}
+        analyzerSites={analyzerSites}
         source={{ kind: 'paste' }}
         title="Analyze Packet"
         description="Paste and inspect a raw packet hex string."
