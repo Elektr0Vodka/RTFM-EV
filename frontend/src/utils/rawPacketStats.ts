@@ -28,6 +28,21 @@ export const KNOWN_PAYLOAD_TYPES = [
   'Unknown',
 ] as const;
 
+/**
+ * Hop-byte-width buckets, shared by the stats "Hop Byte Width" chart and the
+ * raw-feed hop-width filter so the two cannot drift. `No path` is 0-hop/direct
+ * traffic that carries no hop identifiers to classify (distinct from `1 byte`),
+ * and `Unknown width` covers path-bearing packets whose width cannot be derived.
+ */
+export const HOP_BYTE_WIDTH_BUCKETS = [
+  'No path',
+  '1 byte / hop',
+  '2 bytes / hop',
+  '3 bytes / hop',
+  'Unknown width',
+] as const;
+export type HopByteWidthBucket = (typeof HOP_BYTE_WIDTH_BUCKETS)[number];
+
 const KNOWN_ROUTE_TYPES = [
   'Flood',
   'Direct',
@@ -251,19 +266,59 @@ export function summarizeRawPacketForStats(packet: RawPacket): RawPacketStatsObs
   }
 }
 
-function inferHopByteWidth(packet: RawPacketStatsObservation): number | null {
-  if (packet.pathTokenCount <= 0) {
+function inferHopByteWidthCore(
+  pathTokenCount: number,
+  hopByteWidth: number | null | undefined,
+  pathSignature: string | null
+): number | null {
+  if (pathTokenCount <= 0) {
     return null;
   }
-  if (packet.hopByteWidth && packet.hopByteWidth > 0) {
-    return packet.hopByteWidth;
+  if (hopByteWidth && hopByteWidth > 0) {
+    return hopByteWidth;
   }
-  const firstToken = packet.pathSignature?.split('>')[0] ?? null;
+  const firstToken = pathSignature?.split('>')[0] ?? null;
   if (!firstToken || firstToken.length % 2 !== 0) {
     return null;
   }
   const inferred = firstToken.length / 2;
   return inferred >= 1 && inferred <= 3 ? inferred : null;
+}
+
+/**
+ * Bucket a packet by hop-byte width from its already-derived path stats.
+ * Single source of truth for both the stats chart and the raw-feed filter.
+ */
+export function classifyHopByteWidth(
+  pathTokenCount: number,
+  hopByteWidth: number | null | undefined,
+  pathSignature: string | null
+): HopByteWidthBucket {
+  if (pathTokenCount <= 0) {
+    return 'No path';
+  }
+  const width = inferHopByteWidthCore(pathTokenCount, hopByteWidth, pathSignature);
+  if (width === 1) return '1 byte / hop';
+  if (width === 2) return '2 bytes / hop';
+  if (width === 3) return '3 bytes / hop';
+  return 'Unknown width';
+}
+
+/**
+ * Bucket a decoded packet by hop-byte width, deriving path stats the same way
+ * `summarizeRawPacketForStats` does. Invalid/undecodable packets carry no path,
+ * so they classify as `No path`.
+ */
+export function classifyDecodedHopByteWidth(
+  decoded: ReturnType<typeof MeshCoreDecoder.decode>
+): HopByteWidthBucket {
+  const pathTokens = decoded.isValid ? getPathTokens(decoded) : [];
+  const count = pathTokens.length;
+  return classifyHopByteWidth(
+    count,
+    count > 0 ? (decoded.pathHashSize ?? 1) : null,
+    count > 0 ? pathTokens.join('>') : null
+  );
 }
 
 function share(count: number, total: number): number {
@@ -386,18 +441,12 @@ export function buildRawPacketStatsSnapshot(
     const hopProfileBucket = getHopProfileBucket(packet.pathTokenCount);
     hopCounts.set(hopProfileBucket, (hopCounts.get(hopProfileBucket) ?? 0) + 1);
 
-    const hopByteWidth = inferHopByteWidth(packet);
-    if (packet.pathTokenCount <= 0) {
-      hopByteWidthCounts.set('No path', (hopByteWidthCounts.get('No path') ?? 0) + 1);
-    } else if (hopByteWidth === 1) {
-      hopByteWidthCounts.set('1 byte / hop', (hopByteWidthCounts.get('1 byte / hop') ?? 0) + 1);
-    } else if (hopByteWidth === 2) {
-      hopByteWidthCounts.set('2 bytes / hop', (hopByteWidthCounts.get('2 bytes / hop') ?? 0) + 1);
-    } else if (hopByteWidth === 3) {
-      hopByteWidthCounts.set('3 bytes / hop', (hopByteWidthCounts.get('3 bytes / hop') ?? 0) + 1);
-    } else {
-      hopByteWidthCounts.set('Unknown width', (hopByteWidthCounts.get('Unknown width') ?? 0) + 1);
-    }
+    const hopBucket = classifyHopByteWidth(
+      packet.pathTokenCount,
+      packet.hopByteWidth,
+      packet.pathSignature
+    );
+    hopByteWidthCounts.set(hopBucket, (hopByteWidthCounts.get(hopBucket) ?? 0) + 1);
 
     if (packet.sourceKey && packet.sourceLabel) {
       const existing = neighborMap.get(packet.sourceKey);
