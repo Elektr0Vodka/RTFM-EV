@@ -36,6 +36,22 @@ export interface RadioConfigUpdate {
   telemetry_mode_env?: number;
 }
 
+export interface RadioPresetEntry {
+  name: string;
+  freq: number;
+  bw: number;
+  sf: number;
+  cr: number;
+}
+
+export interface RadioPresetsStore {
+  entries: RadioPresetEntry[];
+  info_message: string;
+  /** Unix seconds of the last successful sync, or null if never synced. */
+  synced_at: number | null;
+  source_url: string;
+}
+
 export interface MeshcomodConfig {
   cad_supported: boolean;
   cad_enabled: boolean | null;
