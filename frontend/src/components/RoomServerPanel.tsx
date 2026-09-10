@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { api } from '../api';
 import { toast } from './ui/sonner';
@@ -124,8 +124,14 @@ export function resetRoomCacheForTests() {
 
 export function RoomServerPanel({ contact, onAuthenticatedChange }: RoomServerPanelProps) {
   const t = useT();
-  const { password, setPassword, rememberPassword, setRememberPassword, persistAfterLogin } =
-    useRememberedServerPassword('room', contact.public_key);
+  const {
+    password,
+    storedPassword,
+    setPassword,
+    rememberPassword,
+    setRememberPassword,
+    persistAfterLogin,
+  } = useRememberedServerPassword('room', contact.public_key);
 
   const cached = useMemo(() => getCachedRoom(contact.public_key), [contact.public_key]);
 
@@ -252,6 +258,16 @@ export function RoomServerPanel({ contact, onAuthenticatedChange }: RoomServerPa
     persistAfterLogin('');
   }, [performLogin, persistAfterLogin]);
 
+  // Log in once on open when we already know the password, so reopening a room
+  // pulls the backlog without a manual click. The ref guard is deliberate: a
+  // failed login must never retry, because every login is scarce mesh traffic.
+  const autoLoginFiredRef = useRef(false);
+  useEffect(() => {
+    if (autoLoginFiredRef.current || authenticated || loginLoading || !storedPassword) return;
+    autoLoginFiredRef.current = true;
+    void handleLogin(storedPassword);
+  }, [storedPassword, authenticated, loginLoading, handleLogin]);
+
   const handleConsoleCommand = useCallback(
     async (command: string) => {
       setConsoleLoading(true);
@@ -367,14 +383,26 @@ export function RoomServerPanel({ contact, onAuthenticatedChange }: RoomServerPa
           ) : (
             <div />
           )}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setAdvancedOpen((prev) => !prev)}
-          >
-            {advancedOpen ? t('room_hide_tools') : t('room_show_tools')}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={loginLoading}
+              title={t('room_sync_now_title')}
+              onClick={() => performLogin(password, password.trim() ? 'password' : 'blank')}
+            >
+              {loginLoading ? t('room_syncing') : t('room_sync_now')}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setAdvancedOpen((prev) => !prev)}
+            >
+              {advancedOpen ? t('room_hide_tools') : t('room_show_tools')}
+            </Button>
+          </div>
         </div>
       </div>
       <Sheet open={advancedOpen} onOpenChange={setAdvancedOpen}>

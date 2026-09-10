@@ -27,15 +27,23 @@ function loadStoredPassword(kind: ServerLoginKind, publicKey: string): StoredPas
   }
 }
 
+export function resetRememberedServerPasswordsForTests() {
+  inMemoryPasswords.clear();
+}
+
 export function useRememberedServerPassword(kind: ServerLoginKind, publicKey: string) {
   const storageKey = useMemo(() => getStorageKey(kind, publicKey), [kind, publicKey]);
   const [password, setPassword] = useState('');
   const [rememberPassword, setRememberPassword] = useState(false);
+  // Mirrors what was loaded from storage. Unlike `password` it never changes as
+  // the user types, so callers can key one-shot effects (auto-login) off it.
+  const [storedPassword, setStoredPassword] = useState('');
 
   useEffect(() => {
     const stored = loadStoredPassword(kind, publicKey);
     if (stored) {
       setPassword(stored.password);
+      setStoredPassword(stored.password);
       setRememberPassword(true);
       return;
     }
@@ -43,11 +51,13 @@ export function useRememberedServerPassword(kind: ServerLoginKind, publicKey: st
     const inMemoryStored = inMemoryPasswords.get(storageKey);
     if (inMemoryStored) {
       setPassword(inMemoryStored.password);
+      setStoredPassword(inMemoryStored.password);
       setRememberPassword(false);
       return;
     }
 
     setPassword('');
+    setStoredPassword('');
     setRememberPassword(false);
   }, [kind, publicKey, storageKey]);
 
@@ -81,6 +91,7 @@ export function useRememberedServerPassword(kind: ServerLoginKind, publicKey: st
 
   return {
     password,
+    storedPassword,
     setPassword,
     rememberPassword,
     setRememberPassword,
