@@ -455,6 +455,7 @@ async def get_historical_stats(start_ts: int, end_ts: int) -> HistoricalStatsRes
             FROM contacts c
             LEFT JOIN contact_advert_paths cap ON cap.public_key = c.public_key
                 AND cap.last_seen >= ? AND cap.last_seen < ?
+                AND cap.path_len = 0
             WHERE c.last_seen >= ? AND c.last_seen < ?
             GROUP BY c.public_key
             HAVING heard_count > 0
@@ -490,6 +491,7 @@ async def get_historical_stats(start_ts: int, end_ts: int) -> HistoricalStatsRes
             JOIN contact_advert_paths cap ON cap.public_key = c.public_key
                 AND cap.last_seen >= ? AND cap.last_seen < ?
                 AND cap.best_rssi IS NOT NULL
+                AND cap.path_len = 0
             WHERE c.last_seen >= ? AND c.last_seen < ?
             GROUP BY c.public_key
             HAVING heard_count > 0
