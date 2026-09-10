@@ -393,7 +393,9 @@ async def process_raw_packet(
     elif payload_type == PayloadType.ADVERT:
         # Process all advert arrivals (even payload-hash duplicates) so the
         # advert-history table retains recent path observations.
-        await _process_advertisement(raw_bytes, ts, packet_info, rssi=rssi, snr=snr)
+        await _process_advertisement(
+            raw_bytes, ts, packet_info, rssi=rssi, snr=snr, is_new_packet=is_new_packet
+        )
 
     elif payload_type == PayloadType.TEXT_MESSAGE:
         # Try to decrypt direct messages using stored private key and known contacts
@@ -533,6 +535,7 @@ async def _process_advertisement(
     packet_info: PacketInfo | None = None,
     rssi: int | None = None,
     snr: float | None = None,
+    is_new_packet: bool = True,
 ) -> None:
     """
     Process an advertisement packet.
@@ -626,6 +629,7 @@ async def _process_advertisement(
         hop_count=new_path_len,
         rssi=rssi,
         snr=snr,
+        is_new_packet=is_new_packet,
     )
     promoted_keys = await promote_prefix_contacts_for_contact(
         public_key=advert.public_key,

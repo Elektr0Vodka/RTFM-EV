@@ -7,7 +7,17 @@ import { toast } from '../ui/sonner';
 import { api } from '../../api';
 import { formatTime } from '../../utils/messageParser';
 import { useT } from '../../i18n';
-import type { AppSettings, AppSettingsUpdate, HealthStatus } from '../../types';
+import type { AnalyzerSite, AppSettings, AppSettingsUpdate, HealthStatus } from '../../types';
+
+function isValidNodeTemplate(template: string): boolean {
+  const t = template.trim();
+  return /^https?:\/\//i.test(t) && t.includes('{pubkey}');
+}
+
+function isValidPacketTemplate(template: string): boolean {
+  const t = template.trim();
+  return /^https?:\/\//i.test(t) && t.includes('{hash}');
+}
 
 export function SettingsDatabaseSection({
   appSettings,
@@ -28,12 +38,17 @@ export function SettingsDatabaseSection({
   const [purgingDecryptedRaw, setPurgingDecryptedRaw] = useState(false);
   const [autoDecryptOnAdvert, setAutoDecryptOnAdvert] = useState(false);
   const [syncUrl, setSyncUrl] = useState('');
+  const [analyzerSites, setAnalyzerSites] = useState<AnalyzerSite[]>([]);
+  const [draftName, setDraftName] = useState('');
+  const [draftNodeUrl, setDraftNodeUrl] = useState('');
+  const [draftPacketUrl, setDraftPacketUrl] = useState('');
 
   const saveChainRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     setAutoDecryptOnAdvert(appSettings.auto_decrypt_dm_on_advert);
     setSyncUrl(appSettings.registry_sync_url ?? '');
+    setAnalyzerSites(appSettings.analyzer_sites ?? []);
   }, [appSettings]);
 
   const handleCleanup = async () => {
@@ -96,6 +111,41 @@ export function SettingsDatabaseSection({
     });
     saveChainRef.current = chained;
     return chained;
+  };
+
+  const persistAnalyzerSites = (next: AnalyzerSite[]) => {
+    const prev = analyzerSites;
+    setAnalyzerSites(next);
+    void persistAppSettings({ analyzer_sites: next }, () => setAnalyzerSites(prev));
+  };
+
+  const handleAddAnalyzerSite = () => {
+    const name = draftName.trim();
+    const nodeUrl = draftNodeUrl.trim();
+    const packetUrl = draftPacketUrl.trim();
+    if (!name) {
+      toast.error('Analyzer site needs a name');
+      return;
+    }
+    if (!isValidNodeTemplate(nodeUrl)) {
+      toast.error('Node URL must be an http(s) URL containing {pubkey}');
+      return;
+    }
+    if (packetUrl && !isValidPacketTemplate(packetUrl)) {
+      toast.error('Packet URL must be an http(s) URL containing {hash}');
+      return;
+    }
+    persistAnalyzerSites([
+      ...analyzerSites,
+      { name, node_url_template: nodeUrl, packet_url_template: packetUrl || null },
+    ]);
+    setDraftName('');
+    setDraftNodeUrl('');
+    setDraftPacketUrl('');
+  };
+
+  const handleRemoveAnalyzerSite = (index: number) => {
+    persistAnalyzerSites(analyzerSites.filter((_, i) => i !== index));
   };
 
   return (
@@ -236,6 +286,99 @@ export function SettingsDatabaseSection({
             <code className="text-xs">{`{"#name": "key"}`}</code>{' '}
             {t('settings_db_registry_url_hint_suffix')}
           </p>
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* External Analyzers */}
+      <div className="space-y-3">
+        <h3 className="text-base font-semibold tracking-tight">External Analyzers</h3>
+        <p className="text-[0.8125rem] text-muted-foreground">
+          Sites you can open from a contact&apos;s info pane to look up a node. Use{' '}
+          <code className="text-xs">{'{pubkey}'}</code> in the node URL (and{' '}
+          <code className="text-xs">{'{hash}'}</code> in an optional packet URL) as the placeholder.
+        </p>
+        <p className="text-[0.8125rem] text-warning">
+          Privacy: opening a lookup sends the node&apos;s public key to that third-party site in the
+          URL, which it can log. Nothing is sent until you click a lookup.
+        </p>
+
+        {analyzerSites.length > 0 ? (
+          <ul className="space-y-2">
+            {analyzerSites.map((site, index) => (
+              <li
+                key={`${site.name}-${index}`}
+                className="rounded-md border border-border p-2.5 flex items-start justify-between gap-3"
+              >
+                <div className="min-w-0 space-y-0.5">
+                  <div className="text-sm font-medium">{site.name}</div>
+                  <div className="text-xs font-mono text-muted-foreground break-all">
+                    {site.node_url_template}
+                  </div>
+                  {site.packet_url_template && (
+                    <div className="text-xs font-mono text-muted-foreground break-all">
+                      {site.packet_url_template}
+                    </div>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-destructive/50 text-destructive hover:bg-destructive/10 shrink-0"
+                  onClick={() => handleRemoveAnalyzerSite(index)}
+                  aria-label={`Remove analyzer site ${site.name}`}
+                >
+                  Remove
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-[0.8125rem] text-muted-foreground italic">
+            No analyzer sites configured.
+          </p>
+        )}
+
+        <div className="rounded-md border border-border p-3 space-y-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="analyzer-name" className="text-xs text-muted-foreground">
+              Name
+            </Label>
+            <Input
+              id="analyzer-name"
+              value={draftName}
+              placeholder="mc-radar"
+              onChange={(e) => setDraftName(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="analyzer-node-url" className="text-xs text-muted-foreground">
+              Node URL template
+            </Label>
+            <Input
+              id="analyzer-node-url"
+              value={draftNodeUrl}
+              placeholder="https://mc-radar.woodwar.com/node/{pubkey}"
+              onChange={(e) => setDraftNodeUrl(e.target.value)}
+              className="font-mono text-xs"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="analyzer-packet-url" className="text-xs text-muted-foreground">
+              Packet URL template (optional)
+            </Label>
+            <Input
+              id="analyzer-packet-url"
+              value={draftPacketUrl}
+              placeholder="https://example.com/#packets?hash={hash}"
+              onChange={(e) => setDraftPacketUrl(e.target.value)}
+              className="font-mono text-xs"
+            />
+          </div>
+          <Button variant="outline" onClick={handleAddAnalyzerSite} className="w-full">
+            Add analyzer site
+          </Button>
         </div>
       </div>
     </div>

@@ -1006,6 +1006,29 @@ class UnreadCounts(BaseModel):
     )
 
 
+class AnalyzerSite(BaseModel):
+    """A user-configured external MeshCore analyzer site for node/packet lookup.
+
+    Client-side deep-link only: RTFM-EV never fetches these URLs server-side.
+    The frontend substitutes the placeholder and opens the result in a new tab.
+    """
+
+    name: str = Field(description="Display name, e.g. 'mc-radar'")
+    node_url_template: str = Field(
+        description=(
+            "URL template with a {pubkey} placeholder, e.g. "
+            "'https://mc-radar.woodwar.com/node/{pubkey}'"
+        )
+    )
+    packet_url_template: str | None = Field(
+        default=None,
+        description=(
+            "Optional URL template with a {hash} placeholder for packet lookups. "
+            "Best-effort: not every analyzer's packet hash matches RTFM-EV's raw-packet id."
+        ),
+    )
+
+
 class AppSettings(BaseModel):
     """Application settings stored in the database."""
 
@@ -1098,6 +1121,13 @@ class AppSettings(BaseModel):
     registry_sync_url: str = Field(
         default="",
         description="URL of a remote {name: key} JSON channel list to sync into the registry",
+    )
+    analyzer_sites: list[AnalyzerSite] = Field(
+        default_factory=list,
+        description=(
+            "User-configured external analyzer sites for client-side node/packet "
+            "deep-link lookups (name + URL templates). Empty by default."
+        ),
     )
 
 

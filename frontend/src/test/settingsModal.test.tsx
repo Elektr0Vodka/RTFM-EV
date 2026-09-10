@@ -79,6 +79,7 @@ const baseSettings: AppSettings = {
   telemetry_routed_hourly: false,
   show_mention_ticker: true,
   registry_sync_url: '',
+  analyzer_sites: [],
 };
 
 function renderModal(overrides?: {
@@ -1203,9 +1204,7 @@ describe('SettingsModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sync from official presets' }));
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/Could not reach the official presets API/)
-      ).toBeInTheDocument();
+      expect(screen.getByText(/Could not reach the official presets API/)).toBeInTheDocument();
     });
     // The built-in list is untouched.
     expect(screen.getByRole('option', { name: 'USA/Canada' })).toBeInTheDocument();

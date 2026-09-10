@@ -28,11 +28,19 @@ interface NewMessageModalProps {
   open: boolean;
   undecryptedCount: number;
   showBulkAddChannelTab?: boolean;
-  prefillRequest?: {
-    tab: 'hashtag';
-    hashtagName: string;
-    nonce: number;
-  } | null;
+  prefillRequest?:
+    | {
+        tab: 'hashtag';
+        hashtagName: string;
+        nonce: number;
+      }
+    | {
+        tab: 'new-contact';
+        publicKey: string;
+        name: string;
+        nonce: number;
+      }
+    | null;
   onClose: () => void;
   onCreateContact: (
     name: string,
@@ -144,17 +152,24 @@ export function NewMessageModal({
 
     if (prefillRequest) {
       setTab(prefillRequest.tab);
-      setName(prefillRequest.hashtagName);
-      setContactKey('');
       setChannelKey('');
       setBulkChannelText('');
       setTryHistorical(false);
       setPermitExtended(false);
       setError('');
       setLoading(false);
-      requestAnimationFrame(() => {
-        hashtagInputRef.current?.focus();
-      });
+      if (prefillRequest.tab === 'hashtag') {
+        setName(prefillRequest.hashtagName);
+        setContactKey('');
+        requestAnimationFrame(() => {
+          hashtagInputRef.current?.focus();
+        });
+      } else {
+        // new-contact prefill (e.g. "add contact from analyzer")
+        setName(prefillRequest.name);
+        setContactKey(prefillRequest.publicKey);
+        setContactType(1);
+      }
       return;
     }
 

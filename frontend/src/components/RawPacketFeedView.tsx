@@ -18,9 +18,12 @@ import { RawPacketInspectorDialog } from './RawPacketDetailModal';
 import { Button } from './ui/button';
 import type { Channel, Contact, RawPacket } from '../types';
 import {
+  HOP_BYTE_WIDTH_BUCKETS,
   KNOWN_PAYLOAD_TYPES,
   RAW_PACKET_STATS_WINDOWS,
   buildRawPacketStatsSnapshot,
+  classifyDecodedHopByteWidth,
+  type HopByteWidthBucket,
   type NeighborStat,
   type PacketTimelineBin,
   type RankedPacketStat,
@@ -57,17 +60,24 @@ function colorForIndex(index: number, colorMap?: Map<string, string>, name?: str
 const KNOWN_PAYLOAD_TYPE_SET = new Set<string>(KNOWN_PAYLOAD_TYPES);
 const PAYLOAD_TYPE_COLOR_MAP = buildColorMap(KNOWN_PAYLOAD_TYPES);
 
-function getPacketTypeName(
+/**
+ * Classify a packet for the feed filters in a single decode pass: its payload
+ * type and its hop-byte-width bucket. Sharing one decode avoids a second pass
+ * per packet on a buffer that can update several times a second.
+ */
+function summarizePacketForFeed(
   packet: RawPacket,
   decoderOptions?: ReturnType<typeof createDecoderOptions>
-): string {
+): { payloadType: string; hopWidth: HopByteWidthBucket } {
   try {
     const decoded = MeshCoreDecoder.decode(packet.data, decoderOptions);
-    if (!decoded.isValid) return 'Unknown';
-    const name = Utils.getPayloadTypeName(decoded.payloadType);
-    return KNOWN_PAYLOAD_TYPE_SET.has(name) ? name : 'Unknown';
+    const name = decoded.isValid ? Utils.getPayloadTypeName(decoded.payloadType) : 'Unknown';
+    return {
+      payloadType: KNOWN_PAYLOAD_TYPE_SET.has(name) ? name : 'Unknown',
+      hopWidth: classifyDecodedHopByteWidth(decoded),
+    };
   } catch {
-    return 'Unknown';
+    return { payloadType: 'Unknown', hopWidth: 'No path' };
   }
 }
 
@@ -95,6 +105,11 @@ interface FeedFilterControlsProps {
   onToggleAll: () => void;
   onToggleType: (type: string) => void;
   onOnly: (type: string) => void;
+  allHopWidthsEnabled: boolean;
+  enabledHopWidths: Set<string>;
+  onToggleAllHopWidths: () => void;
+  onToggleHopWidth: (bucket: string) => void;
+  onOnlyHopWidth: (bucket: string) => void;
   autoScroll: boolean;
   onAutoScrollChange: (checked: boolean) => void;
   hexFilter: string;
@@ -118,6 +133,11 @@ function FeedFilterControls({
   onToggleAll,
   onToggleType,
   onOnly,
+  allHopWidthsEnabled,
+  enabledHopWidths,
+  onToggleAllHopWidths,
+  onToggleHopWidth,
+  onOnlyHopWidth,
   autoScroll,
   onAutoScrollChange,
   hexFilter,
@@ -183,6 +203,38 @@ function FeedFilterControls({
             onClick={() => onOnly(type)}
           >
             {t('packet_filter_only_button')}
+          </button>
+        </span>
+      ))}
+      <span aria-hidden="true" className="text-muted-foreground/40">
+        |
+      </span>
+      <label className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer">
+        <input
+          type="checkbox"
+          checked={allHopWidthsEnabled}
+          onChange={onToggleAllHopWidths}
+          className="rounded"
+        />
+        All widths
+      </label>
+      {HOP_BYTE_WIDTH_BUCKETS.map((bucket) => (
+        <span key={bucket} className="inline-flex items-center gap-1 text-xs">
+          <label className="flex items-center gap-1 text-foreground cursor-pointer">
+            <input
+              type="checkbox"
+              checked={enabledHopWidths.has(bucket)}
+              onChange={() => onToggleHopWidth(bucket)}
+              className="rounded"
+            />
+            {bucket}
+          </label>
+          <button
+            type="button"
+            className="text-[0.625rem] text-muted-foreground hover:text-primary transition-colors"
+            onClick={() => onOnlyHopWidth(bucket)}
+          >
+            (only)
           </button>
         </span>
       ))}
@@ -633,6 +685,10 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
   const [analyzeModalOpen, setAnalyzeModalOpen] = useState(false);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [enabledTypes, setEnabledTypes] = useState<Set<string>>(() => new Set(KNOWN_PAYLOAD_TYPES));
+  // Hop-byte-width filter buckets; session-only, matching the sibling filters.
+  const [enabledHopWidths, setEnabledHopWidths] = useState<Set<string>>(
+    () => new Set(HOP_BYTE_WIDTH_BUCKETS)
+  );
   // Autoscroll defaults on; intentionally not persisted across refreshes.
   const [autoScroll, setAutoScroll] = useState(true);
   // Raw-hex substring filter over the in-memory feed buffer (session-only).
@@ -644,12 +700,13 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
     () =>
       packets.map((packet) => ({
         packet,
-        payloadType: getPacketTypeName(packet, decoderOptions),
+        ...summarizePacketForFeed(packet, decoderOptions),
       })),
     [packets, decoderOptions]
   );
 
   const allTypesEnabled = enabledTypes.size === KNOWN_PAYLOAD_TYPES.length;
+  const allHopWidthsEnabled = enabledHopWidths.size === HOP_BYTE_WIDTH_BUCKETS.length;
 
   const { query: hexQuery, invalid: hexInvalid } = useMemo(
     () => normalizeHexQuery(hexFilter),
@@ -660,15 +717,25 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
     // A non-hex query matches nothing; the input surfaces a hint instead.
     if (hexInvalid) return [];
     // Fast path: no filters active.
-    if (allTypesEnabled && hexQuery === '') return packets;
+    if (allTypesEnabled && allHopWidthsEnabled && hexQuery === '') return packets;
     return packetsWithTypes
       .filter(
-        ({ packet, payloadType }) =>
+        ({ packet, payloadType, hopWidth }) =>
           (allTypesEnabled || enabledTypes.has(payloadType)) &&
+          (allHopWidthsEnabled || enabledHopWidths.has(hopWidth)) &&
           (hexQuery === '' || packet.data.toLowerCase().includes(hexQuery))
       )
       .map(({ packet }) => packet);
-  }, [packetsWithTypes, enabledTypes, packets, allTypesEnabled, hexQuery, hexInvalid]);
+  }, [
+    packetsWithTypes,
+    enabledTypes,
+    enabledHopWidths,
+    packets,
+    allTypesEnabled,
+    allHopWidthsEnabled,
+    hexQuery,
+    hexInvalid,
+  ]);
 
   const handleToggleAll = () => {
     setEnabledTypes(allTypesEnabled ? new Set() : new Set(KNOWN_PAYLOAD_TYPES));
@@ -688,6 +755,26 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
 
   const handleOnly = (type: string) => {
     setEnabledTypes(new Set([type]));
+  };
+
+  const handleToggleAllHopWidths = () => {
+    setEnabledHopWidths(allHopWidthsEnabled ? new Set() : new Set(HOP_BYTE_WIDTH_BUCKETS));
+  };
+
+  const handleToggleHopWidth = (bucket: string) => {
+    setEnabledHopWidths((prev) => {
+      const next = new Set(prev);
+      if (next.has(bucket)) {
+        next.delete(bucket);
+      } else {
+        next.add(bucket);
+      }
+      return next;
+    });
+  };
+
+  const handleOnlyHopWidth = (bucket: string) => {
+    setEnabledHopWidths(new Set([bucket]));
   };
 
   useEffect(() => {
@@ -792,6 +879,11 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
             onToggleAll={handleToggleAll}
             onToggleType={handleToggleType}
             onOnly={handleOnly}
+            allHopWidthsEnabled={allHopWidthsEnabled}
+            enabledHopWidths={enabledHopWidths}
+            onToggleAllHopWidths={handleToggleAllHopWidths}
+            onToggleHopWidth={handleToggleHopWidth}
+            onOnlyHopWidth={handleOnlyHopWidth}
             autoScroll={autoScroll}
             onAutoScrollChange={setAutoScroll}
             hexFilter={hexFilter}
@@ -809,6 +901,11 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
           onToggleAll={handleToggleAll}
           onToggleType={handleToggleType}
           onOnly={handleOnly}
+          allHopWidthsEnabled={allHopWidthsEnabled}
+          enabledHopWidths={enabledHopWidths}
+          onToggleAllHopWidths={handleToggleAllHopWidths}
+          onToggleHopWidth={handleToggleHopWidth}
+          onOnlyHopWidth={handleOnlyHopWidth}
           autoScroll={autoScroll}
           onAutoScrollChange={setAutoScroll}
           hexFilter={hexFilter}
