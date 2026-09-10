@@ -1347,6 +1347,30 @@ const MUNICIPALITIES: DutchGeoEntry[] = [
 
 export const DUTCH_GEO: DutchGeoEntry[] = [...PROVINCES, ...VEILIGHEIDSREGIOS, ...MUNICIPALITIES];
 
+/**
+ * Every distinct flood-scope name in the dataset (``nl``, ``nl-ov``, ``nl-ov-ens``, …),
+ * deduplicated case-insensitively and preserving first-seen order.
+ *
+ * These are the region names DMC nodes scope their sends with. Feeding them into
+ * the server's ``known_regions`` lets the backend resolve a message's transport
+ * code back to a scope offline, without an analyzer sync — verified against live
+ * traffic, which floods at the national ``nl`` scope.
+ */
+export function allDutchScopes(): string[] {
+  const seen = new Set<string>();
+  const scopes: string[] = [];
+  for (const entry of DUTCH_GEO) {
+    for (const scope of entry.scopes) {
+      const key = scope.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        scopes.push(scope);
+      }
+    }
+  }
+  return scopes;
+}
+
 // ---------------------------------------------------------------------------
 // Matching helper
 // ---------------------------------------------------------------------------

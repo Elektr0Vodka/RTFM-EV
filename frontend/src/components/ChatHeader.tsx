@@ -312,44 +312,6 @@ export function ChatHeader({
                   </span>
                 )}
               </h2>
-              {isPrivateChannel && !showKey ? (
-                <button
-                  className="min-w-0 flex-shrink text-[0.6875rem] font-mono text-muted-foreground transition-colors hover:text-primary"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowKey(true);
-                  }}
-                  title={t('a11y_reveal_channel_key')}
-                >
-                  {t('chat_show_key')}
-                </button>
-              ) : (
-                <span
-                  className="min-w-0 flex-1 truncate font-mono text-[0.6875rem] text-muted-foreground transition-colors hover:text-primary"
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={handleKeyboardActivate}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigator.clipboard.writeText(conversation.id);
-                    toast.success(
-                      conversation.type === 'channel'
-                        ? t('toast_channel_key_copied')
-                        : t('toast_contact_key_copied')
-                    );
-                  }}
-                  title={t('a11y_click_to_copy')}
-                  aria-label={
-                    conversation.type === 'channel'
-                      ? t('a11y_copy_channel_key')
-                      : t('a11y_copy_contact_key')
-                  }
-                >
-                  {conversation.type === 'channel'
-                    ? conversation.id.toLowerCase()
-                    : conversation.id}
-                </span>
-              )}
             </span>
             {conversation.type === 'channel' && activeFloodScopeBadge && (
               <button
@@ -368,6 +330,43 @@ export function ChatHeader({
               </button>
             )}
           </span>
+          {/* Key on its own row, below the name (see darkdutch chevron in themes.css). */}
+          {isPrivateChannel && !showKey ? (
+            <button
+              className="min-w-0 max-w-full self-start truncate text-left text-[0.6875rem] font-mono text-muted-foreground transition-colors hover:text-primary"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowKey(true);
+              }}
+              title={t('a11y_reveal_channel_key')}
+            >
+              {t('chat_show_key')}
+            </button>
+          ) : (
+            <span
+              className="min-w-0 max-w-full self-start truncate font-mono text-[0.6875rem] text-muted-foreground transition-colors hover:text-primary"
+              role="button"
+              tabIndex={0}
+              onKeyDown={handleKeyboardActivate}
+              onClick={(e) => {
+                e.stopPropagation();
+                navigator.clipboard.writeText(conversation.id);
+                toast.success(
+                  conversation.type === 'channel'
+                    ? t('toast_channel_key_copied')
+                    : t('toast_contact_key_copied')
+                );
+              }}
+              title={t('a11y_click_to_copy')}
+              aria-label={
+                conversation.type === 'channel'
+                  ? t('a11y_copy_channel_key')
+                  : t('a11y_copy_contact_key')
+              }
+            >
+              {conversation.type === 'channel' ? conversation.id.toLowerCase() : conversation.id}
+            </span>
+          )}
         </span>
       </span>
       {conversation.type === 'contact' && activeContact && (

@@ -19,6 +19,7 @@ import {
 import { api } from '../../api';
 import { RADIO_PRESETS } from '../../utils/radioPresets';
 import { stripRegionScopePrefix } from '../../utils/regionScope';
+import { allDutchScopes } from '../../lib/dutchGeo';
 import type {
   AppSettings,
   AppSettingsUpdate,
@@ -606,6 +607,40 @@ export function SettingsRadioSection({
     }
     setKnownRegions([...existing, ...additions].join('\n'));
     toast.success(t('settings_radio_toast_regions_added', { count: additions.length }));
+  };
+
+  const [dutchSeeding, setDutchSeeding] = useState(false);
+
+  // One-click offline seed: merge the bundled Dutch flood-scope names into
+  // known_regions, persist immediately (so ingest resolves new packets), then
+  // backfill stored messages so their region pills fill in too. Verified: this
+  // network's transport codes resolve to the national "nl" scope.
+  const handleSeedDutchScopes = async () => {
+    setDutchSeeding(true);
+    try {
+      const existing = knownRegions
+        .split(/[\n,]/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const seen = new Set(existing.map((s) => s.toLowerCase()));
+      const additions = allDutchScopes().filter((s) => !seen.has(s.toLowerCase()));
+      const merged = [...existing, ...additions];
+      setKnownRegions(merged.join('\n'));
+      await onSaveAppSettings({ known_regions: merged });
+      const result = await api.backfillRegions();
+      toast.success(
+        t('settings_radio_toast_dutch_scopes_seeded', {
+          added: additions.length,
+          named: result.named,
+        })
+      );
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : t('settings_radio_toast_dutch_scopes_failed')
+      );
+    } finally {
+      setDutchSeeding(false);
+    }
   };
 
   const handleSaveRegionSyncUrl = async () => {
@@ -1526,6 +1561,28 @@ export function SettingsRadioSection({
             {t('settings_radio_region_sync_desc_prefix')}{' '}
             <code className="text-xs">{'{code, name}'}</code>{' '}
             {t('settings_radio_region_sync_desc_suffix')}
+          </p>
+        </div>
+
+        <div className="space-y-2 rounded-md border border-input bg-muted/20 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
+              {t('settings_radio_dutch_scopes_label')}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleSeedDutchScopes}
+              disabled={dutchSeeding}
+            >
+              {dutchSeeding
+                ? t('settings_radio_dutch_scopes_button_loading')
+                : t('settings_radio_dutch_scopes_button')}
+            </Button>
+          </div>
+          <p className="text-[0.8125rem] text-muted-foreground">
+            {t('settings_radio_dutch_scopes_desc')}
           </p>
         </div>
       </div>

@@ -389,6 +389,12 @@ export const api = {
   // Region sync (analyzer regions endpoint -> known_regions)
   syncRegions: () => fetchJson<{ regions: string[] }>('/regions/sync'),
 
+  // Re-resolve region scope for stored channel messages against known_regions.
+  backfillRegions: () =>
+    fetchJson<{ scanned: number; scoped: number; named: number }>('/packets/region-backfill', {
+      method: 'POST',
+    }),
+
   // Wordlist sync (candidate channel names -> channel finder wordlist)
   syncWordlist: () => fetchJson<{ words: string[] }>('/registry/wordlist-sync'),
 
