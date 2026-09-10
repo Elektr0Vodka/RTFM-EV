@@ -17,7 +17,13 @@
  * Reaction support here is intentionally "generic display only": we decode the
  * emoji from <index> and show it, but we do NOT resolve <hash> back to the
  * target message (that requires porting Dart's String.hashCode). See issue #291.
+ *
+ * A third payload, the location marker `m:<lat>,<lon>|<label>|<flags>`, is
+ * ported at the bottom of this file (see meshcore-open lib/screens/map_screen.dart
+ * _formatMarkerMessage / parseMarkerText).
  */
+
+import { isValidLocation } from './pathUtils';
 
 // --- Emoji table (order must match meshcore-open exactly for index compat) ---
 
@@ -136,4 +142,47 @@ export function splitReplyMention(text: string): SplitReplyMention | null {
   const match = REPLY_MENTION_PREFIX.exec(text.trim());
   if (!match) return null;
   return { mention: match[1], body: match[2] };
+}
+
+// --- Location marker (m:<lat>,<lon>|<label>|<flags>) ---
+//
+// MeshCore Open shares a location as this plaintext payload (see meshcore-open
+// lib/screens/map_screen.dart _formatMarkerMessage / parseMarkerText). The flag
+// "poi" marks a shared point of interest. Coordinates use 6 decimals.
+
+// Anchored whole-body match (like parseGif/parseReaction). Both pipes required;
+// the label (group 3) cannot contain a pipe.
+const MARKER_PATTERN = /^m:(-?[0-9.]+),(-?[0-9.]+)\|([^|]*)\|(.*)$/;
+
+export interface ParsedMarker {
+  lat: number;
+  lon: number;
+  label: string;
+  flags: string;
+}
+
+/** Remove pipe characters (they delimit the payload) and trim. */
+export function sanitizeMarkerLabel(label: string): string {
+  return label.replace(/\|/g, '').trim();
+}
+
+/** Build a MeshCore Open location marker payload: `m:<lat>,<lon>|<label>|poi`. */
+export function buildMarkerPayload(lat: number, lon: number, label: string): string {
+  return `m:${lat.toFixed(6)},${lon.toFixed(6)}|${sanitizeMarkerLabel(label)}|poi`;
+}
+
+/**
+ * Parse a MeshCore Open location marker payload. Returns the coordinates, label,
+ * and flags, or null when the (trimmed) text is not a valid marker or the
+ * coordinates are out of range / unset (0,0).
+ */
+export function parseMarker(text: string): ParsedMarker | null {
+  const match = MARKER_PATTERN.exec(text.trim());
+  if (!match) return null;
+  const lat = Number.parseFloat(match[1]);
+  const lon = Number.parseFloat(match[2]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || !isValidLocation(lat, lon)) {
+    return null;
+  }
+  return { lat, lon, label: match[3].trim(), flags: match[4].trim() };
 }

@@ -483,6 +483,7 @@ export function App() {
     handleSetChannelFloodScopeOverride,
     handleSetChannelPathHashModeOverride,
     handleSenderClick,
+    handleInsertLocation,
     handleTrace,
     handlePathDiscovery,
   } = useConversationActions({
@@ -539,6 +540,19 @@ export function App() {
   const handleCloseBulkAddResults = useCallback(() => {
     setBulkAddResult(null);
   }, []);
+
+  const handleCoordinateClick = useCallback(
+    (lat: number, lon: number, label: string) => {
+      setActiveConversation({
+        type: 'map',
+        id: 'map',
+        name: 'Node Map',
+        mapFocusLatLon: [lat, lon],
+        ...(label && { mapFocusLabel: label }),
+      });
+    },
+    [setActiveConversation]
+  );
 
   const handleChannelReferenceClick = useCallback(
     (channelName: string) => {
@@ -637,6 +651,8 @@ export function App() {
     onOpenChannelInfo: handleOpenChannelInfo,
     onSenderClick: handleSenderClick,
     onChannelReferenceClick: handleChannelReferenceClick,
+    onInsertLocation: handleInsertLocation,
+    onCoordinateClick: handleCoordinateClick,
     onLoadOlder: fetchOlderMessages,
     onResendChannelMessage: handleResendChannelMessage,
     onTargetReached: () => setTargetMessageId(null),
