@@ -109,6 +109,13 @@ class AppSettingsUpdate(BaseModel):
         default=None,
         description="URL of a remote {name: key} JSON channel list to sync into the registry",
     )
+    region_sync_url: str | None = Field(
+        default=None,
+        description=(
+            "URL of a remote analyzer regions endpoint (bare JSON array of "
+            "{code, name} objects) to sync region names into known_regions"
+        ),
+    )
     analyzer_sites: list[AnalyzerSite] | None = Field(
         default=None,
         description=(
@@ -306,6 +313,10 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
     # Channel registry sync URL
     if update.registry_sync_url is not None:
         kwargs["registry_sync_url"] = update.registry_sync_url
+
+    # Region sync URL (analyzer regions endpoint)
+    if update.region_sync_url is not None:
+        kwargs["region_sync_url"] = update.region_sync_url
 
     # Analyzer sites (client-side deep-link lookup). Validate each template is an
     # http(s) URL carrying the required placeholder before persisting; reject the

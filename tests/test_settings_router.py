@@ -85,6 +85,20 @@ class TestUpdateSettings:
         assert fresh.registry_sync_url == url
 
     @pytest.mark.asyncio
+    async def test_region_sync_url_defaults_empty(self, test_db):
+        result = await update_settings(AppSettingsUpdate())
+        assert result.region_sync_url == ""
+
+    @pytest.mark.asyncio
+    async def test_region_sync_url_round_trip(self, test_db):
+        url = "https://meshcore-analyzer.eu/api/regions/scopes"
+        result = await update_settings(AppSettingsUpdate(region_sync_url=url))
+        assert result.region_sync_url == url
+
+        fresh = await AppSettingsRepository.get()
+        assert fresh.region_sync_url == url
+
+    @pytest.mark.asyncio
     async def test_analyzer_sites_defaults_empty(self, test_db):
         result = await update_settings(AppSettingsUpdate())
         assert result.analyzer_sites == []

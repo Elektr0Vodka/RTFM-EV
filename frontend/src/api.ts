@@ -374,6 +374,9 @@ export const api = {
   syncRegistry: () =>
     fetchJson<{ channels: { name: string; key: string }[] }>('/registry/sync'),
 
+  // Region sync (analyzer regions endpoint -> known_regions)
+  syncRegions: () => fetchJson<{ regions: string[] }>('/regions/sync'),
+
   // App Settings
   getSettings: () => fetchJson<AppSettings>('/settings'),
   updateSettings: (settings: AppSettingsUpdate) =>

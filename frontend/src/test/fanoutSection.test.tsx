@@ -116,6 +116,7 @@ beforeEach(() => {
     telemetry_routed_hourly: false,
     show_mention_ticker: true,
     registry_sync_url: '',
+    region_sync_url: '',
     analyzer_sites: [],
   });
   mockedApi.getRadioConfig.mockResolvedValue({
@@ -1173,6 +1174,7 @@ describe('SettingsFanoutSection', () => {
       telemetry_routed_hourly: false,
       show_mention_ticker: true,
       registry_sync_url: '',
+      region_sync_url: '',
       analyzer_sites: [],
     });
 

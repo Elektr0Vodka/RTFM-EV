@@ -5,6 +5,36 @@ Status: draft plan (local planning only, no code changes)
 Model: Sonnet
 State: Partial (extends shipped `known_regions` + shipped Channel Registry sync)
 
+## Implementation status (updated 2026-09-10)
+
+**SHIPPED** (single PR). Deviations from this draft, all deliberate:
+
+- **Migration is `_073_add_region_sync_url.py`**, not `_069` (section 4.1's
+  number was stale; `_072_add_analyzer_sites.py` was the highest on `origin/main`
+  at build time). Column shape is identical to `_068`.
+- **`region_sync_url` ships blank** (Risk 6.1a), mirroring `registry_sync_url`'s
+  default exactly. Documentation points operators at
+  `https://meshcore-analyzer.eu/api/regions/scopes` rather than hardcoding it as
+  a default third-party dependency (Risk 6.2).
+- **Primary path only.** `GET /api/regions/sync` (new `app/routers/regions.py`,
+  `/regions` prefix, Open Question 6.4) parses the analyzer's bare
+  `{code, name}` array, maps `name || code`, and dedupes via the reused
+  `_dedupe_region_names` helper. The `scopes[]`-flattening **fallback path
+  (section 4.2) is NOT implemented** — it is explicitly "kept only for a source
+  that does not expose a regions endpoint", a defensive nicety rather than the
+  resolved requirement, so it is deferred (smallest change). A `region_sync_url`
+  pointed at `/api/channels` returns channel records and 502s.
+- **Frontend**: sync-URL input + "Sync Regions" button in Settings > Radio next
+  to `known_regions` (section 4.3 / Risk 6.5). Sync stages names into the
+  textarea for review (mirrors `handleAddDiscoveredRegions`); the operator
+  persists via Save Messaging Settings, which is the single `PATCH /api/settings`
+  write path (so the region backfill fires once, on Save, not per sync).
+- **Not done (was never in scope for the code slice):** live-fetch verification
+  of `meshcore-analyzer.eu` endpoints (section 7 items 1-2, Risk 6.7) and the
+  `docs/sources-of-truth.md` entry for that host (Risk 6.2). The Risk 6.3
+  scan-cost concern (a bulk international list bloating `known_regions`) is
+  mitigated by the review-before-Save staging but not otherwise filtered.
+
 ## 1. Summary
 
 `known_regions` (an `app_settings` list used to decode incoming MeshCore

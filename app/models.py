@@ -1122,6 +1122,13 @@ class AppSettings(BaseModel):
         default="",
         description="URL of a remote {name: key} JSON channel list to sync into the registry",
     )
+    region_sync_url: str = Field(
+        default="",
+        description=(
+            "URL of a remote analyzer regions endpoint (bare JSON array of "
+            "{code, name} objects) to sync region names into known_regions"
+        ),
+    )
     analyzer_sites: list[AnalyzerSite] = Field(
         default_factory=list,
         description=(
