@@ -8,6 +8,7 @@ import {
   CheckCheck,
   ChevronDown,
   ChevronRight,
+  Gauge,
   Library,
   LockOpen,
   Logs,
@@ -239,7 +240,8 @@ export function Sidebar({
       | 'visualizer'
       | 'search'
       | 'trace'
-      | 'channel-registry',
+      | 'channel-registry'
+      | 'node',
     id: string
   ) => activeConversation?.type === type && activeConversation?.id === id;
 
@@ -760,6 +762,18 @@ export function Sidebar({
   const channelsHasMention = sectionHasMention(channelRows);
   const toolRows = !query
     ? [
+        renderSidebarActionRow({
+          key: 'tool-my-node',
+          active: isActive('node', 'node'),
+          icon: <Gauge className="h-4 w-4" />,
+          label: 'My Node',
+          onClick: () =>
+            handleSelectConversation({
+              type: 'node',
+              id: 'node',
+              name: 'My Node',
+            }),
+        }),
         renderSidebarActionRow({
           key: 'tool-raw',
           active: isActive('raw', 'raw'),

@@ -32,6 +32,7 @@ const VisualizerView = lazy(() =>
   import('./VisualizerView').then((m) => ({ default: m.VisualizerView }))
 );
 const ChannelRegistryView = lazy(() => import('./ChannelRegistryView'));
+const MyNodeView = lazy(() => import('./MyNodeView'));
 
 interface ConversationPaneProps {
   activeConversation: Conversation | null;
@@ -273,6 +274,14 @@ export function ConversationPane({
     return (
       <Suspense fallback={<LoadingPane label="Loading channel registry..." />}>
         <ChannelRegistryView channels={channels} />
+      </Suspense>
+    );
+  }
+
+  if (activeConversation.type === 'node') {
+    return (
+      <Suspense fallback={<LoadingPane label="Loading node analytics..." />}>
+        <MyNodeView contacts={contacts} />
       </Suspense>
     );
   }
