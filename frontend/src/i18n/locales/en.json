@@ -1185,6 +1185,7 @@
   "packet_hex_filter_invalid": "Enter hex only",
   "packet_filter_all_label": "All",
   "packet_filter_only_button": "(only)",
+  "packet_filter_all_widths_label": "All widths",
   "packet_autoscroll_label": "Autoscroll",
   "packet_collecting_stats_since": "Collecting stats since {timestamp}",
   "packet_show_filters_button": "Show Filters",

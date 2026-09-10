@@ -216,7 +216,7 @@ function FeedFilterControls({
           onChange={onToggleAllHopWidths}
           className="rounded"
         />
-        All widths
+        {t('packet_filter_all_widths_label')}
       </label>
       {HOP_BYTE_WIDTH_BUCKETS.map((bucket) => (
         <span key={bucket} className="inline-flex items-center gap-1 text-xs">
@@ -234,7 +234,7 @@ function FeedFilterControls({
             className="text-[0.625rem] text-muted-foreground hover:text-primary transition-colors"
             onClick={() => onOnlyHopWidth(bucket)}
           >
-            (only)
+            {t('packet_filter_only_button')}
           </button>
         </span>
       ))}

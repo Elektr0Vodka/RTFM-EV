@@ -1186,6 +1186,7 @@
   "packet_hex_filter_invalid": "Voer alleen hex in",
   "packet_filter_all_label": "Alle",
   "packet_filter_only_button": "(alleen)",
+  "packet_filter_all_widths_label": "Alle breedtes",
   "packet_autoscroll_label": "Automatisch scrollen",
   "packet_collecting_stats_since": "Statistieken verzamelen sinds {timestamp}",
   "packet_show_filters_button": "Filters tonen",
