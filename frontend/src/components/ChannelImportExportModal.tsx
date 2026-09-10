@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { Upload, Download, FileText, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import type { Channel, ChannelImportResult } from '../types';
 import { api } from '../api';
+import { useT } from '../i18n';
 import { toast } from './ui/sonner';
 import { Button } from './ui/button';
 import {
@@ -110,6 +111,7 @@ export function ChannelImportExportModal({
   crackerFoundChannels,
   onChannelsImported,
 }: ChannelImportExportModalProps) {
+  const t = useT();
   const [activeTab, setActiveTab] = useState<TabId>('export');
 
   // ── Export state ──────────────────────────────────────────────────────────
@@ -146,8 +148,8 @@ export function ChannelImportExportModal({
     } else if (exportMode === 'selected') {
       toExport = channels.filter((c) => selectedKeys.has(c.key));
       if (toExport.length === 0) {
-        toast.warning('No channels selected', {
-          description: 'Select at least one channel to export.',
+        toast.warning(t('channel_io_toast_no_channels_selected_title'), {
+          description: t('channel_io_toast_no_channels_selected_desc'),
         });
         return;
       }
@@ -166,8 +168,8 @@ export function ChannelImportExportModal({
         muted: false,
       }));
       if (toExport.length === 0) {
-        toast.warning('No channels found yet', {
-          description: 'Run the Room Finder to discover channels first.',
+        toast.warning(t('channel_io_no_channels_found_yet'), {
+          description: t('channel_io_toast_no_channels_found_desc'),
         });
         return;
       }
@@ -177,7 +179,7 @@ export function ChannelImportExportModal({
     const date = new Date().toISOString().slice(0, 10);
     const content = formatExportContent(toExport, suffix);
     triggerDownload(content, `meshcore_channels_${date}_${suffix}.txt`);
-    toast.success(`Exported ${toExport.length} channel${toExport.length !== 1 ? 's' : ''}`);
+    toast.success(t('channel_io_toast_exported', { count: toExport.length }));
   };
 
   // ── Import state ──────────────────────────────────────────────────────────
@@ -218,10 +220,10 @@ export function ChannelImportExportModal({
       const result = await api.importChannels(importFile, tryHistorical);
       setImportResult(result);
       onChannelsImported(result.imported_channels);
-      toast.success('Import complete', { description: result.message });
+      toast.success(t('channel_io_toast_import_complete_title'), { description: result.message });
     } catch (err) {
-      toast.error('Import failed', {
-        description: err instanceof Error ? err.message : 'Unknown error',
+      toast.error(t('channel_io_toast_import_failed_title'), {
+        description: err instanceof Error ? err.message : t('channel_io_unknown_error'),
       });
     } finally {
       setImporting(false);
@@ -243,10 +245,8 @@ export function ChannelImportExportModal({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-[560px] max-h-[85vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Channel Import / Export</DialogTitle>
-          <DialogDescription>
-            Export your channels as a shareable text file or import channels from one.
-          </DialogDescription>
+          <DialogTitle>{t('channel_io_title')}</DialogTitle>
+          <DialogDescription>{t('channel_io_description')}</DialogDescription>
         </DialogHeader>
 
         {/* Tab bar */}
@@ -265,12 +265,12 @@ export function ChannelImportExportModal({
               {tab === 'export' ? (
                 <span className="flex items-center gap-1.5">
                   <Download className="h-3.5 w-3.5" />
-                  Export
+                  {t('channel_export')}
                 </span>
               ) : (
                 <span className="flex items-center gap-1.5">
                   <Upload className="h-3.5 w-3.5" />
-                  Import
+                  {t('channel_import')}
                 </span>
               )}
             </button>
@@ -282,26 +282,26 @@ export function ChannelImportExportModal({
           {activeTab === 'export' && (
             <>
               <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">Choose which channels to include:</p>
+                <p className="text-sm text-muted-foreground">{t('channel_io_choose_channels')}</p>
                 <div className="space-y-1.5">
                   {[
                     {
                       id: 'all' as ExportMode,
-                      label: `All channels`,
-                      sub: `${channels.length} total`,
+                      label: t('channel_io_option_all_label'),
+                      sub: t('channel_io_option_all_sub', { count: channels.length }),
                     },
                     {
                       id: 'selected' as ExportMode,
-                      label: 'Selected channels',
-                      sub: `${selectedKeys.size} selected`,
+                      label: t('channel_io_option_selected_label'),
+                      sub: t('channel_io_option_selected_sub', { count: selectedKeys.size }),
                     },
                     {
                       id: 'finder' as ExportMode,
-                      label: 'Found by Room Finder (this session)',
+                      label: t('channel_io_option_finder_label'),
                       sub:
                         crackerFoundChannels.length === 0
-                          ? 'No channels found yet'
-                          : `${crackerFoundChannels.length} discovered`,
+                          ? t('channel_io_no_channels_found_yet')
+                          : t('channel_io_discovered_count', { count: crackerFoundChannels.length }),
                     },
                   ].map(({ id, label, sub }) => (
                     <label key={id} className="flex items-start gap-2.5 cursor-pointer group">
@@ -327,10 +327,12 @@ export function ChannelImportExportModal({
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground uppercase tracking-wide">
-                      Channels
+                      {t('channel_io_channels_label')}
                     </span>
                     <button onClick={toggleAll} className="text-xs text-primary hover:underline">
-                      {selectedKeys.size === channels.length ? 'Deselect all' : 'Select all'}
+                      {selectedKeys.size === channels.length
+                        ? t('channel_io_deselect_all')
+                        : t('channel_io_select_all')}
                     </button>
                   </div>
                   <div className="max-h-48 overflow-y-auto rounded-md border border-border/70 divide-y divide-border/40">
@@ -372,9 +374,10 @@ export function ChannelImportExportModal({
               )}
 
               <p className="text-xs text-muted-foreground">
-                Format:{' '}
-                <code className="font-mono bg-muted px-1 rounded">#channel-name - hex-key</code> —
-                one channel per line.
+                {t('channel_io_format_prefix')}{' '}
+                {/* eslint-disable-next-line i18next/no-literal-string */}
+                <code className="font-mono bg-muted px-1 rounded">#channel-name - hex-key</code>{' '}
+                {t('channel_io_format_suffix')}
               </p>
             </>
           )}
@@ -390,37 +393,37 @@ export function ChannelImportExportModal({
                       <CheckCircle2 className="h-4 w-4 text-success mx-auto mb-1" />
                       <div className="font-medium">{importResult.imported_channels.length}</div>
                       <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                        Imported
+                        {t('channel_io_result_imported')}
                       </div>
                     </div>
                     <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-center">
                       <AlertCircle className="h-4 w-4 text-muted-foreground mx-auto mb-1" />
                       <div className="font-medium">{importResult.duplicate_count}</div>
                       <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                        Already present
+                        {t('channel_io_result_already_present')}
                       </div>
                     </div>
                     <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-center">
                       <XCircle className="h-4 w-4 text-destructive mx-auto mb-1" />
                       <div className="font-medium">{importResult.invalid_lines.length}</div>
                       <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                        Invalid
+                        {t('channel_io_result_invalid')}
                       </div>
                     </div>
                   </div>
                   <p className="text-sm text-muted-foreground">{importResult.message}</p>
                   {importResult.decrypt_started && (
-                    <p className="text-xs text-success">
-                      Historical packet decryption started in background.
-                    </p>
+                    <p className="text-xs text-success">{t('channel_io_decrypt_started')}</p>
                   )}
                   {importResult.invalid_lines.length > 0 && (
                     <div className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
-                      Skipped invalid lines: {importResult.invalid_lines.join(', ')}
+                      {t('channel_io_skipped_invalid_lines', {
+                        lines: importResult.invalid_lines.join(', '),
+                      })}
                     </div>
                   )}
                   <Button variant="outline" size="sm" onClick={resetImport}>
-                    Import another file
+                    {t('channel_io_import_another_file')}
                   </Button>
                 </div>
               ) : (
@@ -432,15 +435,17 @@ export function ChannelImportExportModal({
                     onKeyDown={(e) => e.key === 'Enter' && fileInputRef.current?.click()}
                     role="button"
                     tabIndex={0}
-                    aria-label="Select channel file to import"
+                    aria-label={t('channel_io_select_file_aria')}
                   >
                     <FileText className="h-6 w-6 text-muted-foreground" />
                     <p className="text-sm text-muted-foreground text-center">
-                      {importFile ? importFile.name : 'Click to select a .txt file'}
+                      {importFile ? importFile.name : t('channel_io_click_to_select')}
                     </p>
                     {!importFile && (
                       <p className="text-xs text-muted-foreground/70 text-center">
-                        Format: <code className="font-mono">{'#name - hex-key'}</code> per line
+                        {t('channel_io_format_prefix')}{' '}
+                        <code className="font-mono">{'#name - hex-key'}</code>{' '}
+                        {t('channel_io_format_per_line')}
                       </p>
                     )}
                   </div>
@@ -459,19 +464,19 @@ export function ChannelImportExportModal({
                         <div className="rounded-md border border-border/70 bg-muted/30 px-2 py-1.5 text-center">
                           <div className="font-medium text-success">{newCount}</div>
                           <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                            New
+                            {t('channel_io_new_label')}
                           </div>
                         </div>
                         <div className="rounded-md border border-border/70 bg-muted/30 px-2 py-1.5 text-center">
                           <div className="font-medium text-muted-foreground">{dupCount}</div>
                           <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                            Already present
+                            {t('channel_io_result_already_present')}
                           </div>
                         </div>
                         <div className="rounded-md border border-border/70 bg-muted/30 px-2 py-1.5 text-center">
                           <div className="font-medium text-destructive">{invalidLines.length}</div>
                           <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                            Invalid
+                            {t('channel_io_result_invalid')}
                           </div>
                         </div>
                       </div>
@@ -480,7 +485,7 @@ export function ChannelImportExportModal({
                       {newCount > 0 && (
                         <div className="space-y-1">
                           <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                            Channels to add ({newCount})
+                            {t('channel_io_channels_to_add', { count: newCount })}
                           </p>
                           <div className="max-h-36 overflow-y-auto rounded-md border border-border/70 divide-y divide-border/40">
                             {parsedLines
@@ -508,10 +513,9 @@ export function ChannelImportExportModal({
                           className="mt-0.5 rounded"
                         />
                         <div>
-                          <span>Decrypt stored packets with imported keys</span>
+                          <span>{t('channel_io_decrypt_checkbox_label')}</span>
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            Runs a background sweep to recover messages already received but not yet
-                            decrypted.
+                            {t('channel_io_decrypt_checkbox_helper')}
                           </p>
                         </div>
                       </label>
@@ -527,24 +531,24 @@ export function ChannelImportExportModal({
           {activeTab === 'export' ? (
             <>
               <Button variant="outline" onClick={onClose}>
-                Cancel
+                {t('common_cancel')}
               </Button>
               <Button onClick={handleExport}>
                 <Download className="h-4 w-4 mr-1.5" />
-                Export
+                {t('channel_export')}
               </Button>
             </>
           ) : importResult ? (
-            <Button onClick={onClose}>Close</Button>
+            <Button onClick={onClose}>{t('common_close')}</Button>
           ) : (
             <>
               <Button variant="outline" onClick={onClose}>
-                Cancel
+                {t('common_cancel')}
               </Button>
               <Button onClick={handleImport} disabled={!importFile || newCount === 0 || importing}>
                 {importing
-                  ? 'Importing…'
-                  : `Import ${newCount} channel${newCount !== 1 ? 's' : ''}`}
+                  ? t('channel_io_importing')
+                  : t('channel_io_import_count', { count: newCount })}
               </Button>
             </>
           )}

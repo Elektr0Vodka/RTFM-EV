@@ -13,6 +13,7 @@ import { handleKeyboardActivate } from '../utils/a11y';
 import type { Contact } from '../types';
 import { useDistanceUnit } from '../contexts/DistanceUnitContext';
 import { ContactRoutingOverrideModal } from './ContactRoutingOverrideModal';
+import { useT } from '../i18n';
 
 interface ContactStatusInfoProps {
   contact: Contact;
@@ -25,13 +26,14 @@ interface ContactStatusInfoProps {
  * shared between ChatHeader and RepeaterDashboard.
  */
 export function ContactStatusInfo({ contact, ourLat, ourLon }: ContactStatusInfoProps) {
+  const t = useT();
   const { distanceUnit } = useDistanceUnit();
   const [routingModalOpen, setRoutingModalOpen] = useState(false);
   const parts: ReactNode[] = [];
   const effectiveRoute = getEffectiveContactRoute(contact);
 
   if (contact.last_seen) {
-    parts.push(`Last heard: ${formatTime(contact.last_seen)}`);
+    parts.push(t('contact_status_last_heard', { time: formatTime(contact.last_seen) }));
   }
 
   parts.push(
@@ -45,10 +47,15 @@ export function ContactStatusInfo({ contact, ourLat, ourLon }: ContactStatusInfo
         e.stopPropagation();
         setRoutingModalOpen(true);
       }}
-      title="Click to edit routing override"
+      title={t('contact_status_edit_routing_title')}
     >
       {formatRouteLabel(effectiveRoute.pathLen)}
-      {effectiveRoute.forced && <span className="text-destructive"> (forced)</span>}
+      {effectiveRoute.forced && (
+        <>
+          {' '}
+          <span className="text-destructive">{t('contact_forced_suffix')}</span>
+        </>
+      )}
     </span>
   );
 
@@ -72,7 +79,7 @@ export function ContactStatusInfo({ contact, ourLat, ourLon }: ContactStatusInfo
               getMapFocusHash(contact.public_key);
             window.open(url, '_blank');
           }}
-          title="View on map"
+          title={t('contact_view_on_map')}
         >
           {contact.lat!.toFixed(3)}, {contact.lon!.toFixed(3)}
         </span>

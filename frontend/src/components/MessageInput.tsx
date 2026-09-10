@@ -18,6 +18,7 @@ import {
   getTextReplaceMapJson,
   applyTextReplacements,
 } from '../utils/textReplace';
+import { useT } from '../i18n';
 
 // MeshCore message size limits (empirically determined from LoRa packet constraints)
 // Direct delivery allows ~156 bytes; multi-hop requires buffer for path growth.
@@ -57,6 +58,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   { onSend, disabled, placeholder, conversationType, senderName },
   ref
 ) {
+  const t = useT();
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -117,16 +119,16 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     if (!limits) return { limitState: 'normal', warningMessage: null };
 
     if (textByteLen >= limits.hardLimit) {
-      return { limitState: 'error', warningMessage: 'likely truncated by radio' };
+      return { limitState: 'error', warningMessage: t('chat_truncated_by_radio') };
     }
     if (textByteLen >= limits.dangerAt) {
-      return { limitState: 'danger', warningMessage: 'may impact multi-repeater hop delivery' };
+      return { limitState: 'danger', warningMessage: t('chat_may_impact_hop_delivery') };
     }
     if (textByteLen >= limits.warningAt) {
-      return { limitState: 'warning', warningMessage: 'may impact multi-repeater hop delivery' };
+      return { limitState: 'warning', warningMessage: t('chat_may_impact_hop_delivery') };
     }
     return { limitState: 'normal', warningMessage: null };
-  }, [textByteLen, limits]);
+  }, [textByteLen, limits, t]);
 
   const remaining = limits ? limits.hardLimit - textByteLen : 0;
 
@@ -142,12 +144,13 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
         setText('');
       } catch (err) {
         console.error('Failed to send message:', err);
-        const description = err instanceof Error ? err.message : 'Check radio connection';
+        const description = err instanceof Error ? err.message : t('error_check_radio_connection');
         const isRadioNoResponse =
           err instanceof Error && err.message.toLowerCase().includes(RADIO_NO_RESPONSE_SNIPPET);
-        toast.error(isRadioNoResponse ? 'Radio did not confirm send' : 'Failed to send message', {
-          description,
-        });
+        toast.error(
+          isRadioNoResponse ? t('toast_radio_no_confirm_send') : t('toast_failed_send_message'),
+          { description }
+        );
         return;
       } finally {
         setSending(false);
@@ -155,7 +158,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       // Refocus after React re-enables the textarea
       setTimeout(() => textareaRef.current?.focus(), 0);
     },
-    [text, sending, disabled, onSend]
+    [text, sending, disabled, onSend, t]
   );
 
   const handleChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
@@ -211,7 +214,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
         <textarea
           ref={textareaRef}
           name="chat-message-input"
-          aria-label={placeholder || 'Type a message'}
+          aria-label={placeholder || t('a11y_type_message')}
           data-lpignore="true"
           data-1p-ignore="true"
           data-bwignore="true"
@@ -219,7 +222,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
           value={text}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          placeholder={placeholder || 'Type a message...'}
+          placeholder={placeholder || t('chat_placeholder_type_message')}
           disabled={disabled || sending}
           className={cn(
             'flex-1 min-w-0 resize-none overflow-y-auto',
@@ -234,7 +237,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
           disabled={disabled || sending || !canSubmit}
           className="flex-shrink-0"
         >
-          {sending ? 'Sending...' : 'Send'}
+          {sending ? t('common_sending') : t('common_send')}
         </Button>
       </div>
       {showCharCounter && (

@@ -3,6 +3,7 @@ import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { shouldAutoFocusInput } from '../utils/autoFocusInput';
+import { useT } from '../i18n';
 
 interface RepeaterLoginProps {
   repeaterName: string;
@@ -30,11 +31,17 @@ export function RepeaterLogin({
   onRememberPasswordChange,
   onLogin,
   onLoginAsGuest,
-  description = 'Log in to access repeater dashboard',
-  passwordPlaceholder = 'Repeater password...',
-  loginLabel = 'Login with Password',
-  guestLabel = 'Login as Guest / ACLs',
+  description,
+  passwordPlaceholder,
+  loginLabel,
+  guestLabel,
 }: RepeaterLoginProps) {
+  const t = useT();
+  const resolvedDescription = description ?? t('repeater_login_description');
+  const resolvedPasswordPlaceholder = passwordPlaceholder ?? t('repeater_password_placeholder');
+  const resolvedLoginLabel = loginLabel ?? t('repeater_login_with_password');
+  const resolvedGuestLabel = guestLabel ?? t('repeater_login_as_guest');
+
   const handleSubmit = useCallback(
     async (e: FormEvent) => {
       e.preventDefault();
@@ -49,7 +56,7 @@ export function RepeaterLogin({
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-1">
           <h2 className="text-lg font-semibold">{repeaterName}</h2>
-          <p className="text-sm text-muted-foreground">{description}</p>
+          <p className="text-sm text-muted-foreground">{resolvedDescription}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
@@ -62,8 +69,8 @@ export function RepeaterLogin({
             data-bwignore="true"
             value={password}
             onChange={(e) => onPasswordChange(e.target.value)}
-            placeholder={passwordPlaceholder}
-            aria-label="Repeater password"
+            placeholder={resolvedPasswordPlaceholder}
+            aria-label={t('repeater_password_aria')}
             disabled={loading}
             autoFocus={shouldAutoFocusInput()}
           />
@@ -78,15 +85,11 @@ export function RepeaterLogin({
               disabled={loading}
               onCheckedChange={(checked) => onRememberPasswordChange(checked === true)}
             />
-            <span>Remember password</span>
+            <span>{t('repeater_remember_password')}</span>
           </label>
 
           {rememberPassword && (
-            <p className="text-xs text-muted-foreground">
-              Passwords are stored unencrypted in local browser storage for this domain. It is
-              highly recommended to login via ACLs after your first successful login; saving the
-              password is not recommended.
-            </p>
+            <p className="text-xs text-muted-foreground">{t('repeater_remember_password_warning')}</p>
           )}
 
           {error && (
@@ -97,7 +100,7 @@ export function RepeaterLogin({
 
           <div className="flex flex-col gap-2">
             <Button type="submit" disabled={loading} className="w-full">
-              {loading ? 'Logging in...' : loginLabel}
+              {loading ? t('repeater_logging_in') : resolvedLoginLabel}
             </Button>
             <Button
               type="button"
@@ -106,7 +109,7 @@ export function RepeaterLogin({
               className="w-full"
               onClick={onLoginAsGuest}
             >
-              {guestLabel}
+              {resolvedGuestLabel}
             </Button>
           </div>
         </form>

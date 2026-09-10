@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { useT, type TFn } from '../../i18n';
 import type { LppSensor, PaneState } from '../../types';
 
 // --- Shared Icons ---
@@ -78,11 +79,12 @@ export function formatClockDrift(
 
 export function formatAdvertInterval(
   val: string | null,
+  t: TFn,
   unit: 'minutes' | 'hours' = 'hours'
 ): string {
   if (val == null) return '—';
   const trimmed = val.trim();
-  if (trimmed === '0') return '<disabled>';
+  if (trimmed === '0') return t('repeater_advert_disabled');
   if (unit === 'hours') return `${trimmed}h`;
   const mins = parseInt(trimmed, 10);
   if (isNaN(mins)) return trimmed;
@@ -91,18 +93,18 @@ export function formatAdvertInterval(
   return `${mins}m`;
 }
 
-function formatFetchedRelative(fetchedAt: number): string {
+function formatFetchedRelative(fetchedAt: number, t: TFn): string {
   const elapsedSeconds = Math.max(0, Math.floor((Date.now() - fetchedAt) / 1000));
 
-  if (elapsedSeconds < 60) return 'Just now';
+  if (elapsedSeconds < 60) return t('repeater_fetched_just_now');
 
   const elapsedMinutes = Math.floor(elapsedSeconds / 60);
   if (elapsedMinutes < 60) {
-    return `${elapsedMinutes} minute${elapsedMinutes === 1 ? '' : 's'} ago`;
+    return t('repeater_fetched_minutes_ago', { count: elapsedMinutes });
   }
 
   const elapsedHours = Math.floor(elapsedMinutes / 60);
-  return `${elapsedHours} hour${elapsedHours === 1 ? '' : 's'} ago`;
+  return t('repeater_fetched_hours_ago', { count: elapsedHours });
 }
 
 function formatFetchedTime(fetchedAt: number): string {
@@ -134,6 +136,7 @@ export function RepeaterPane({
   className?: string;
   contentClassName?: string;
 }) {
+  const t = useT();
   const fetchedAt = state.fetched_at ?? null;
 
   return (
@@ -147,7 +150,10 @@ export function RepeaterPane({
               className="text-[0.6875rem] text-muted-foreground"
               title={new Date(fetchedAt).toLocaleString()}
             >
-              Fetched {formatFetchedTime(fetchedAt)} ({formatFetchedRelative(fetchedAt)})
+              {t('repeater_fetched_at', {
+                time: formatFetchedTime(fetchedAt),
+                relative: formatFetchedRelative(fetchedAt, t),
+              })}
             </p>
           )}
         </div>
@@ -162,8 +168,8 @@ export function RepeaterPane({
                 ? 'text-muted-foreground'
                 : 'text-success hover:bg-accent hover:text-success'
             )}
-            title="Refresh"
-            aria-label={`Refresh ${title}`}
+            title={t('repeater_refresh')}
+            aria-label={t('repeater_refresh_title', { title })}
           >
             <RefreshIcon
               className={cn(
@@ -182,7 +188,9 @@ export function RepeaterPane({
       <div className={cn('p-3', contentClassName)}>
         {state.loading ? (
           <p className="text-sm text-muted-foreground italic">
-            Fetching{state.attempt > 1 ? ` (attempt ${state.attempt}/${3})` : ''}...
+            {state.attempt > 1
+              ? t('repeater_fetching_attempt', { attempt: state.attempt, total: 3 })
+              : t('repeater_fetching')}
           </p>
         ) : (
           children
@@ -193,7 +201,8 @@ export function RepeaterPane({
 }
 
 export function NotFetched() {
-  return <p className="text-sm text-muted-foreground italic">&lt;not fetched&gt;</p>;
+  const t = useT();
+  return <p className="text-sm text-muted-foreground italic">{t('repeater_not_fetched')}</p>;
 }
 
 export function KvRow({ label, value }: { label: string; value: ReactNode }) {

@@ -10,12 +10,15 @@ import {
   DialogTitle,
 } from './ui/dialog';
 import { Label } from './ui/label';
+import { useT, type TFn } from '../i18n';
 
-const PATH_HASH_MODE_LABELS: Record<number, string> = {
-  0: '1-byte',
-  1: '2-byte',
-  2: '3-byte',
-};
+function pathHashModeLabels(t: TFn): Record<number, string> {
+  return {
+    0: t('path_hash_override_1byte_label'),
+    1: t('path_hash_override_2byte_label'),
+    2: t('path_hash_override_3byte_label'),
+  };
+}
 
 interface ChannelPathHashModeOverrideModalProps {
   open: boolean;
@@ -34,6 +37,7 @@ export function ChannelPathHashModeOverrideModal({
   radioDefault,
   onSetOverride,
 }: ChannelPathHashModeOverrideModalProps) {
+  const t = useT();
   const [selected, setSelected] = useState<number | null>(null);
 
   useEffect(() => {
@@ -42,28 +46,29 @@ export function ChannelPathHashModeOverrideModal({
     }
   }, [currentOverride, open]);
 
-  const radioDefaultLabel = PATH_HASH_MODE_LABELS[radioDefault] ?? `${radioDefault}`;
+  const pathHashModeLabelMap = pathHashModeLabels(t);
+  const radioDefaultLabel = pathHashModeLabelMap[radioDefault] ?? `${radioDefault}`;
 
   const options: { value: number | null; label: string; description: string }[] = [
     {
       value: null,
-      label: `Radio default (${radioDefaultLabel})`,
-      description: 'Use the radio-wide path hash mode setting',
+      label: t('path_hash_override_radio_default_option_label', { label: radioDefaultLabel }),
+      description: t('path_hash_override_radio_default_option_desc'),
     },
     {
       value: 0,
-      label: '1-byte hop identifiers',
-      description: 'Least repeater disambiguation, up to 63 hops',
+      label: t('path_hash_override_1byte_option_label'),
+      description: t('path_hash_override_1byte_desc'),
     },
     {
       value: 1,
-      label: '2-byte hop identifiers',
-      description: 'Better repeater disambiguation, up to 32 hops',
+      label: t('path_hash_override_2byte_option_label'),
+      description: t('path_hash_override_2byte_desc'),
     },
     {
       value: 2,
-      label: '3-byte hop identifiers',
-      description: 'Best repeater disambiguation, up to 21 hops',
+      label: t('path_hash_override_3byte_option_label'),
+      description: t('path_hash_override_3byte_desc'),
     },
   ];
 
@@ -71,27 +76,24 @@ export function ChannelPathHashModeOverrideModal({
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>Path Hop Width Override</DialogTitle>
-          <DialogDescription>
-            Override the path hash mode for this channel. Wider hop identifiers improve repeater
-            disambiguation but extend send time and will prevent users on old (&lt;1.14) firmware
-            from receiving the message.
-          </DialogDescription>
+          <DialogTitle>{t('path_hash_override_title')}</DialogTitle>
+          <DialogDescription>{t('path_hash_override_description')}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="rounded-md border border-border bg-muted/20 p-3 text-sm">
             <div className="font-medium">{channelName}</div>
             <div className="mt-1 text-muted-foreground">
-              Current override:{' '}
+              {t('path_hash_override_current_label')}{' '}
               {currentOverride != null
-                ? (PATH_HASH_MODE_LABELS[currentOverride] ?? `mode ${currentOverride}`)
-                : `none (using radio default: ${radioDefaultLabel})`}
+                ? (pathHashModeLabelMap[currentOverride] ??
+                  t('path_hash_override_mode_fallback', { n: currentOverride }))
+                : t('path_hash_override_none_radio_default', { label: radioDefaultLabel })}
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label>Hop width for this channel</Label>
+            <Label>{t('path_hash_override_field_label')}</Label>
             <div className="space-y-1.5">
               {options.map((opt) => (
                 <button
@@ -122,8 +124,11 @@ export function ChannelPathHashModeOverrideModal({
             }}
           >
             {selected == null
-              ? `Use radio default for ${channelName}`
-              : `Use ${PATH_HASH_MODE_LABELS[selected]} hops for ${channelName}`}
+              ? t('path_hash_override_use_default_button', { channel: channelName })
+              : t('path_hash_override_use_selected_button', {
+                  label: pathHashModeLabelMap[selected],
+                  channel: channelName,
+                })}
           </Button>
         </DialogFooter>
       </DialogContent>

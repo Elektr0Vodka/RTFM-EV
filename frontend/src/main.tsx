@@ -8,6 +8,7 @@ import './styles.css';
 import { getSavedTheme, applyTheme, initFollowOSListener } from './utils/theme';
 import { applyFontScale, getSavedFontScale } from './utils/fontScale';
 import { PushSubscriptionProvider } from './contexts/PushSubscriptionContext';
+import { I18nProvider } from './i18n';
 
 // Inject the bundled Twemoji flag font on browsers that support color emoji but
 // not regional-indicator flags (Windows/Chromium). No-op on macOS/Linux/Firefox.
@@ -22,9 +23,11 @@ applyFontScale(getSavedFontScale());
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <PushSubscriptionProvider>
-      <App />
-    </PushSubscriptionProvider>
+    <I18nProvider>
+      <PushSubscriptionProvider>
+        <App />
+      </PushSubscriptionProvider>
+    </I18nProvider>
   </StrictMode>
 );
 

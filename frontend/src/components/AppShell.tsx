@@ -23,11 +23,12 @@ import { Toaster } from './ui/sonner';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './ui/sheet';
 import {
   SETTINGS_SECTION_ICONS,
-  SETTINGS_SECTION_LABELS,
   SETTINGS_SECTION_ORDER,
+  settingsSectionLabel,
   type SettingsSection,
 } from './settings/settingsConstants';
 import { getContrastTextColor, type LocalLabel } from '../utils/localLabel';
+import { useT } from '../i18n';
 import type { CrackerPanelProps } from './CrackerPanel';
 import type { SearchViewProps } from './SearchView';
 import type { SettingsModalProps } from './SettingsModal';
@@ -121,6 +122,7 @@ export function AppShell({
   onDismissMention,
   onRepeaterAutoLogin,
 }: AppShellProps) {
+  const t = useT();
   const swipeHandlers = useSwipeable({
     onSwipedRight: ({ initial }) => {
       if (initial[0] < 30 && !sidebarOpen && window.innerWidth < 768) {
@@ -180,20 +182,20 @@ export function AppShell({
   const settingsSidebarContent = (
     <nav
       className="sidebar w-60 h-full min-h-0 overflow-hidden bg-card border-r border-border flex flex-col"
-      aria-label="Settings"
+      aria-label={t('a11y_settings_nav')}
     >
       <div className="flex justify-between items-center px-3 py-2.5 border-b border-border">
         <h2 className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
-          Settings
+          {t('nav_settings_heading')}
         </h2>
         <button
           type="button"
           onClick={onCloseSettingsView}
           className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-status-connected/15 border border-status-connected/30 text-status-connected hover:bg-status-connected/25 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          title="Back to conversations"
-          aria-label="Back to conversations"
+          title={t('a11y_back_to_conversations')}
+          aria-label={t('a11y_back_to_conversations')}
         >
-          &larr; Back to Chat
+          &larr; {t('nav_back_to_chat')}
         </button>
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto py-1 [contain:layout_paint]">
@@ -215,7 +217,7 @@ export function AppShell({
             >
               <span className="flex items-center gap-2">
                 <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                <span>{SETTINGS_SECTION_LABELS[section]}</span>
+                <span>{settingsSectionLabel(section, t)}</span>
               </span>
             </button>
           );
@@ -237,7 +239,7 @@ export function AppShell({
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-2 focus:bg-primary focus:text-primary-foreground"
       >
-        Skip to content
+        {t('nav_skip_to_content')}
       </a>
       {localLabel.text && (
         <div
@@ -273,8 +275,8 @@ export function AppShell({
             }}
           >
             <SheetHeader className="sr-only">
-              <SheetTitle>Navigation</SheetTitle>
-              <SheetDescription>Sidebar navigation</SheetDescription>
+              <SheetTitle>{t('a11y_navigation')}</SheetTitle>
+              <SheetDescription>{t('a11y_sidebar_navigation')}</SheetDescription>
             </SheetHeader>
             <div className="flex-1 overflow-hidden" {...closeSwipeHandlers}>
               {activeSidebarContent}
@@ -310,7 +312,7 @@ export function AppShell({
               <Suspense
                 fallback={
                   <div className="flex-1 flex items-center justify-center text-muted-foreground">
-                    Loading search...
+                    {t('common_loading_search')}
                   </div>
                 }
               >
@@ -325,7 +327,7 @@ export function AppShell({
                 <Suspense
                   fallback={
                     <div className="flex-1 flex items-center justify-center p-8 text-muted-foreground">
-                      Loading settings...
+                      {t('common_loading_settings')}
                     </div>
                   }
                 >
@@ -355,7 +357,7 @@ export function AppShell({
           <Suspense
             fallback={
               <div className="flex items-center justify-center h-full text-muted-foreground">
-                Loading channel finder...
+                {t('common_loading_channel_finder')}
               </div>
             }
           >
