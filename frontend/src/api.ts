@@ -328,6 +328,14 @@ export const api = {
     ),
 
   // Packets
+  getRecentPackets: (params?: { afterTs?: number; beforeTs?: number; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.afterTs !== undefined) qs.set('after_ts', String(params.afterTs));
+    if (params?.beforeTs !== undefined) qs.set('before_ts', String(params.beforeTs));
+    if (params?.limit !== undefined) qs.set('limit', String(params.limit));
+    const query = qs.toString();
+    return fetchJson<RawPacket[]>(`/packets/recent${query ? `?${query}` : ''}`);
+  },
   getPacket: (packetId: number) => fetchJson<RawPacket>(`/packets/${packetId}`),
   getUndecryptedPacketCount: () => fetchJson<{ count: number }>('/packets/undecrypted/count'),
   decryptHistoricalPackets: (params: {

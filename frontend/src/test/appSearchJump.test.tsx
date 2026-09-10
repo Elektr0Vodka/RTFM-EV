@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
     getRadioConfig: vi.fn(),
     getSettings: vi.fn(),
     getUndecryptedPacketCount: vi.fn(),
+    getRecentPackets: vi.fn().mockResolvedValue([]),
     getChannels: vi.fn(),
     getContacts: vi.fn(),
   },
