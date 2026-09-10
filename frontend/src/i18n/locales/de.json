@@ -90,6 +90,8 @@
   "nav_mesh_visualizer": "Mesh-Visualisierung",
   "nav_message_search": "Nachrichtensuche",
   "nav_node_map": "Knotenkarte",
+  "nav_my_node": "Mein Knoten",
+  "nav_mesh_health": "Mesh-Zustand",
   "nav_packet_feed": "Paket-Feed",
   "nav_raw_packet_feed_name": "Roher Paket-Feed",
   "nav_repeaters_heading": "Repeater",

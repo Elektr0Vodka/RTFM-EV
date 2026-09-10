@@ -90,6 +90,8 @@
   "nav_mesh_visualizer": "Mesh-visualisatie",
   "nav_message_search": "Berichten zoeken",
   "nav_node_map": "Nodekaart",
+  "nav_my_node": "Mijn node",
+  "nav_mesh_health": "Meshgezondheid",
   "nav_packet_feed": "Pakketfeed",
   "nav_raw_packet_feed_name": "Ruwe pakketfeed",
   "nav_repeaters_heading": "Repeaters",

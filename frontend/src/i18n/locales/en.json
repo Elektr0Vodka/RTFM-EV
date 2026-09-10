@@ -89,6 +89,8 @@
   "nav_mesh_visualizer": "Mesh Visualizer",
   "nav_message_search": "Message Search",
   "nav_node_map": "Node Map",
+  "nav_my_node": "My Node",
+  "nav_mesh_health": "Mesh Health",
   "nav_packet_feed": "Packet Feed",
   "nav_raw_packet_feed_name": "Raw Packet Feed",
   "nav_repeaters_heading": "Repeaters",

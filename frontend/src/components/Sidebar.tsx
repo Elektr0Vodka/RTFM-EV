@@ -773,24 +773,24 @@ export function Sidebar({
           key: 'tool-my-node',
           active: isActive('node', 'node'),
           icon: <Gauge className="h-4 w-4" />,
-          label: 'My Node',
+          label: t('nav_my_node'),
           onClick: () =>
             handleSelectConversation({
               type: 'node',
               id: 'node',
-              name: 'My Node',
+              name: t('nav_my_node'),
             }),
         }),
         renderSidebarActionRow({
           key: 'tool-mesh-health',
           active: isActive('mesh-health', 'mesh-health'),
           icon: <Activity className="h-4 w-4" />,
-          label: 'Mesh Health',
+          label: t('nav_mesh_health'),
           onClick: () =>
             handleSelectConversation({
               type: 'mesh-health',
               id: 'mesh-health',
-              name: 'Mesh Health',
+              name: t('nav_mesh_health'),
             }),
         }),
         renderSidebarActionRow({
