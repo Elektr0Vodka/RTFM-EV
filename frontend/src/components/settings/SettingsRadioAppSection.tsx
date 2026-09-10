@@ -285,12 +285,17 @@ export function SettingsRadioAppSection({
                   {d ? (
                     <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[0.625rem] text-muted-foreground">
                       <span>{d.battery_volts?.toFixed(2)}V</span>
-                      <span>noise {d.noise_floor_dbm} dBm</span>
+                      <span>{t('settings_radioapp_noise_dbm', { value: d.noise_floor_dbm ?? '' })}</span>
                       <span>
-                        rx {d.packets_received != null ? d.packets_received.toLocaleString() : '?'}
+                        {t('settings_radioapp_rx_count', {
+                          value:
+                            d.packets_received != null ? d.packets_received.toLocaleString() : '?',
+                        })}
                       </span>
                       <span>
-                        tx {d.packets_sent != null ? d.packets_sent.toLocaleString() : '?'}
+                        {t('settings_radioapp_tx_count', {
+                          value: d.packets_sent != null ? d.packets_sent.toLocaleString() : '?',
+                        })}
                       </span>
                       {d.lpp_sensors?.map((s) => {
                         const display = lppDisplayUnit(s.type_name, s.value, distanceUnit);

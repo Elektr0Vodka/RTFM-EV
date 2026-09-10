@@ -1833,5 +1833,64 @@
   "location_picker_label_placeholder": "z. B. Treffpunkt",
   "location_picker_insert_button": "Einfügen",
   "contact_status_last_heard": "Zuletzt gehört: {time}",
-  "contact_status_edit_routing_title": "Klicken, um Routing-Override zu bearbeiten"
+  "contact_status_edit_routing_title": "Klicken, um Routing-Override zu bearbeiten",
+  "bulkdelete_confirm_deletion_title": "Löschung bestätigen",
+  "bulkdelete_select_description": "Wähle Kontakte zum Löschen aus. Der Nachrichtenverlauf bleibt erhalten und zugänglich, falls ein Kontakt erneut hinzugefügt wird, erscheint aber nicht mehr in der Seitenleiste.",
+  "bulkdelete_confirm_description": "Überprüfe die Kontakte, die endgültig gelöscht werden.",
+  "bulkdelete_filter_show_label": "Anzeigen",
+  "bulkdelete_type_clients": "Clients",
+  "bulkdelete_type_sensors": "Sensoren",
+  "bulkdelete_filter_created_after": "Erstellt nach",
+  "bulkdelete_filter_created_before": "Erstellt vor",
+  "bulkdelete_filter_last_heard_after": "Zuletzt gehört nach",
+  "bulkdelete_filter_last_heard_before": "Zuletzt gehört vor",
+  "bulkdelete_select_none_button": "Nichts auswählen",
+  "bulkdelete_contacts_shown": {
+    "one": "{count} Kontakt angezeigt",
+    "other": "{count} Kontakte angezeigt"
+  },
+  "bulkdelete_filtered_suffix": "(gefiltert)",
+  "bulkdelete_selected_count": "{count} ausgewählt",
+  "bulkdelete_no_contacts_match": "Keine Kontakte entsprechen den ausgewählten Filtern.",
+  "bulkdelete_col_key": "Schlüssel",
+  "bulkdelete_proceed_button": "Weiter zur Bestätigung ({count})",
+  "bulkdelete_back_button": "Zurück",
+  "bulkdelete_confirm_button": "Ich bestätige die endgültige, unwiderrufliche Löschung aller oben aufgeführten Knoten, insgesamt {summary}, mit Erstellungsdaten von {minDate} bis {maxDate}",
+  "bulkdelete_summary_contacts": {
+    "one": "{count} Kontakt",
+    "other": "{count} Kontakte"
+  },
+  "bulkdelete_summary_repeaters": {
+    "one": "{count} Repeater",
+    "other": "{count} Repeater"
+  },
+  "bulkdelete_summary_rooms": {
+    "one": "{count} Raum",
+    "other": "{count} Räume"
+  },
+  "bulkdelete_summary_sensors": {
+    "one": "{count} Sensor",
+    "other": "{count} Sensoren"
+  },
+  "bulkdelete_toast_deleted": {
+    "one": "{count} Kontakt gelöscht",
+    "other": "{count} Kontakte gelöscht"
+  },
+  "bulkdelete_toast_failed_title": "Massenlöschung fehlgeschlagen",
+  "settings_db_registry_heading": "Kanalregister",
+  "settings_db_registry_url_label": "Sync-URL für Kanalliste",
+  "settings_db_registry_url_hint_prefix": "URL einer externen JSON-Kanalliste (",
+  "settings_db_registry_url_hint_suffix": "Format). Der Server ruft dies ab, wenn du im Kanalregister auf Synchronisieren klickst.",
+  "settings_radio_show_mention_ticker_label": "Erwähnungsticker anzeigen",
+  "settings_radio_show_mention_ticker_desc": "Wenn aktiviert, erscheint ein Lauftext oben im Nachrichtenbereich, sobald dein Name in einem Kanal @erwähnt wird, den du gerade nicht ansiehst. Ein Klick auf die Erwähnung springt zu dieser Nachricht, ohne den Kanal als gelesen zu markieren.",
+  "settings_radio_presets_synced_count": {
+    "one": "{count} Preset am {date} von der offiziellen API synchronisiert.",
+    "other": "{count} Presets am {date} von der offiziellen API synchronisiert."
+  },
+  "chat_insert_my_radio_location": "Mein Funkgerätstandort",
+  "chat_insert_this_nodes_location": "Standort dieses Knotens",
+  "chat_pick_on_map": "Auf Karte auswählen…",
+  "settings_radioapp_noise_dbm": "Rauschen {value} dBm",
+  "settings_radioapp_rx_count": "rx {value}",
+  "settings_radioapp_tx_count": "tx {value}"
 }

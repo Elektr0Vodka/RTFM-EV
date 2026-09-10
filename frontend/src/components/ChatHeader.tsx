@@ -601,7 +601,7 @@ export function ChatHeader({
                       className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       onClick={insertRadioLocation}
                     >
-                      My radio location
+                      {t('chat_insert_my_radio_location')}
                     </button>
                   )}
                   <button
@@ -618,7 +618,7 @@ export function ChatHeader({
                       className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       onClick={insertContactLocation}
                     >
-                      This node&apos;s location
+                      {t('chat_insert_this_nodes_location')}
                     </button>
                   )}
                   <button
@@ -629,7 +629,7 @@ export function ChatHeader({
                       setPickerOpen(true);
                     }}
                   >
-                    Pick on map…
+                    {t('chat_pick_on_map')}
                   </button>
                 </div>
               )}

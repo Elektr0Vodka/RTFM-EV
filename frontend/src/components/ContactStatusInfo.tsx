@@ -50,7 +50,12 @@ export function ContactStatusInfo({ contact, ourLat, ourLon }: ContactStatusInfo
       title={t('contact_status_edit_routing_title')}
     >
       {formatRouteLabel(effectiveRoute.pathLen)}
-      {effectiveRoute.forced && <span className="text-destructive"> (forced)</span>}
+      {effectiveRoute.forced && (
+        <>
+          {' '}
+          <span className="text-destructive">{t('contact_forced_suffix')}</span>
+        </>
+      )}
     </span>
   );
 

@@ -1833,5 +1833,64 @@
   "location_picker_label_placeholder": "bijv. Ontmoetingspunt",
   "location_picker_insert_button": "Invoegen",
   "contact_status_last_heard": "Laatst gehoord: {time}",
-  "contact_status_edit_routing_title": "Klik om routing-override te bewerken"
+  "contact_status_edit_routing_title": "Klik om routing-override te bewerken",
+  "bulkdelete_confirm_deletion_title": "Verwijdering Bevestigen",
+  "bulkdelete_select_description": "Selecteer contacten om te verwijderen. Berichtgeschiedenis blijft bewaard en toegankelijk als een contact opnieuw wordt toegevoegd, maar verschijnt niet meer in de zijbalk.",
+  "bulkdelete_confirm_description": "Controleer de contacten die permanent worden verwijderd.",
+  "bulkdelete_filter_show_label": "Tonen",
+  "bulkdelete_type_clients": "Clients",
+  "bulkdelete_type_sensors": "Sensoren",
+  "bulkdelete_filter_created_after": "Aangemaakt na",
+  "bulkdelete_filter_created_before": "Aangemaakt voor",
+  "bulkdelete_filter_last_heard_after": "Laatst gehoord na",
+  "bulkdelete_filter_last_heard_before": "Laatst gehoord voor",
+  "bulkdelete_select_none_button": "Selectie opheffen",
+  "bulkdelete_contacts_shown": {
+    "one": "{count} contact getoond",
+    "other": "{count} contacten getoond"
+  },
+  "bulkdelete_filtered_suffix": "(gefilterd)",
+  "bulkdelete_selected_count": "{count} geselecteerd",
+  "bulkdelete_no_contacts_match": "Geen contacten komen overeen met de geselecteerde filters.",
+  "bulkdelete_col_key": "Sleutel",
+  "bulkdelete_proceed_button": "Doorgaan naar bevestiging ({count})",
+  "bulkdelete_back_button": "Terug",
+  "bulkdelete_confirm_button": "Ik bevestig de permanente, onherroepelijke verwijdering van alle hierboven genoemde nodes, in totaal {summary}, met aanmaakdatums van {minDate} tot {maxDate}",
+  "bulkdelete_summary_contacts": {
+    "one": "{count} contact",
+    "other": "{count} contacten"
+  },
+  "bulkdelete_summary_repeaters": {
+    "one": "{count} repeater",
+    "other": "{count} repeaters"
+  },
+  "bulkdelete_summary_rooms": {
+    "one": "{count} kamer",
+    "other": "{count} kamers"
+  },
+  "bulkdelete_summary_sensors": {
+    "one": "{count} sensor",
+    "other": "{count} sensoren"
+  },
+  "bulkdelete_toast_deleted": {
+    "one": "{count} contact verwijderd",
+    "other": "{count} contacten verwijderd"
+  },
+  "bulkdelete_toast_failed_title": "Bulkverwijdering mislukt",
+  "settings_db_registry_heading": "Kanaalregister",
+  "settings_db_registry_url_label": "Sync-URL voor kanaallijst",
+  "settings_db_registry_url_hint_prefix": "URL van een externe JSON-kanaallijst (",
+  "settings_db_registry_url_hint_suffix": "formaat). De server haalt dit op wanneer je op Synchroniseren klikt in het Kanaalregister.",
+  "settings_radio_show_mention_ticker_label": "Vermeldingsticker Tonen",
+  "settings_radio_show_mention_ticker_desc": "Indien ingeschakeld verschijnt er een lopende ticker boven aan het berichtengebied wanneer je naam wordt @vermeld in een kanaal dat je momenteel niet bekijkt. Klikken op een vermelding springt naar dat bericht zonder het kanaal als gelezen te markeren.",
+  "settings_radio_presets_synced_count": {
+    "one": "{count} preset gesynchroniseerd vanaf de officiële API op {date}.",
+    "other": "{count} presets gesynchroniseerd vanaf de officiële API op {date}."
+  },
+  "chat_insert_my_radio_location": "Mijn radiolocatie",
+  "chat_insert_this_nodes_location": "Locatie van deze node",
+  "chat_pick_on_map": "Kies op kaart…",
+  "settings_radioapp_noise_dbm": "ruis {value} dBm",
+  "settings_radioapp_rx_count": "rx {value}",
+  "settings_radioapp_tx_count": "tx {value}"
 }

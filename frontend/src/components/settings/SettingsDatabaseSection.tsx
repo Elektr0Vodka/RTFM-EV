@@ -211,10 +211,10 @@ export function SettingsDatabaseSection({
 
       {/* Channel Registry */}
       <div className="space-y-3">
-        <h3 className="text-base font-semibold tracking-tight">Channel Registry</h3>
+        <h3 className="text-base font-semibold tracking-tight">{t('settings_db_registry_heading')}</h3>
         <div className="space-y-1.5">
           <Label htmlFor="registry-sync-url" className="text-sm font-medium">
-            Channel list sync URL
+            {t('settings_db_registry_url_label')}
           </Label>
           <Input
             id="registry-sync-url"
@@ -232,8 +232,9 @@ export function SettingsDatabaseSection({
             className="font-mono text-xs"
           />
           <p className="text-[0.8125rem] text-muted-foreground">
-            URL of a remote JSON channel list (<code className="text-xs">{`{"#name": "key"}`}</code>{' '}
-            format). The server fetches this when you click Sync in the Channel Registry.
+            {t('settings_db_registry_url_hint_prefix')}
+            <code className="text-xs">{`{"#name": "key"}`}</code>{' '}
+            {t('settings_db_registry_url_hint_suffix')}
           </p>
         </div>
       </div>

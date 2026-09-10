@@ -1832,5 +1832,64 @@
   "location_picker_label_placeholder": "e.g. Meetup point",
   "location_picker_insert_button": "Insert",
   "contact_status_last_heard": "Last heard: {time}",
-  "contact_status_edit_routing_title": "Click to edit routing override"
+  "contact_status_edit_routing_title": "Click to edit routing override",
+  "bulkdelete_confirm_deletion_title": "Confirm Deletion",
+  "bulkdelete_select_description": "Select contacts to delete. Message history will be preserved and accessible if a contact is re-added, but will no longer appear in the sidebar.",
+  "bulkdelete_confirm_description": "Review the contacts that will be permanently deleted.",
+  "bulkdelete_filter_show_label": "Show",
+  "bulkdelete_type_clients": "Clients",
+  "bulkdelete_type_sensors": "Sensors",
+  "bulkdelete_filter_created_after": "Created after",
+  "bulkdelete_filter_created_before": "Created before",
+  "bulkdelete_filter_last_heard_after": "Last heard after",
+  "bulkdelete_filter_last_heard_before": "Last heard before",
+  "bulkdelete_select_none_button": "Select none",
+  "bulkdelete_contacts_shown": {
+    "one": "{count} contact shown",
+    "other": "{count} contacts shown"
+  },
+  "bulkdelete_filtered_suffix": "(filtered)",
+  "bulkdelete_selected_count": "{count} selected",
+  "bulkdelete_no_contacts_match": "No contacts match the selected filters.",
+  "bulkdelete_col_key": "Key",
+  "bulkdelete_proceed_button": "Proceed to confirmation ({count})",
+  "bulkdelete_back_button": "Back",
+  "bulkdelete_confirm_button": "I confirm permanent, irrevocable deletion of all listed nodes above, totalling {summary}, spanning creation dates from {minDate} to {maxDate}",
+  "bulkdelete_summary_contacts": {
+    "one": "{count} contact",
+    "other": "{count} contacts"
+  },
+  "bulkdelete_summary_repeaters": {
+    "one": "{count} repeater",
+    "other": "{count} repeaters"
+  },
+  "bulkdelete_summary_rooms": {
+    "one": "{count} room",
+    "other": "{count} rooms"
+  },
+  "bulkdelete_summary_sensors": {
+    "one": "{count} sensor",
+    "other": "{count} sensors"
+  },
+  "bulkdelete_toast_deleted": {
+    "one": "Deleted {count} contact",
+    "other": "Deleted {count} contacts"
+  },
+  "bulkdelete_toast_failed_title": "Bulk delete failed",
+  "settings_db_registry_heading": "Channel Registry",
+  "settings_db_registry_url_label": "Channel list sync URL",
+  "settings_db_registry_url_hint_prefix": "URL of a remote JSON channel list (",
+  "settings_db_registry_url_hint_suffix": "format). The server fetches this when you click Sync in the Channel Registry.",
+  "settings_radio_show_mention_ticker_label": "Show Mention Ticker",
+  "settings_radio_show_mention_ticker_desc": "When enabled, a scrolling ticker appears at the top of the message area whenever your name is @mentioned in a channel you are not currently viewing. Clicking a mention jumps to that message without marking the channel as read.",
+  "settings_radio_presets_synced_count": {
+    "one": "{count} preset synced from the official API on {date}.",
+    "other": "{count} presets synced from the official API on {date}."
+  },
+  "chat_insert_my_radio_location": "My radio location",
+  "chat_insert_this_nodes_location": "This node's location",
+  "chat_pick_on_map": "Pick on map…",
+  "settings_radioapp_noise_dbm": "noise {value} dBm",
+  "settings_radioapp_rx_count": "rx {value}",
+  "settings_radioapp_tx_count": "tx {value}"
 }

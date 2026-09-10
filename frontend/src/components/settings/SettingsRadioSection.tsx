@@ -1013,8 +1013,10 @@ export function SettingsRadioSection({
         {presetSyncedAt !== null && (
           <p className="text-xs text-muted-foreground">
             {presetInfo ? `${presetInfo} ` : ''}
-            {presetList.length} preset{presetList.length === 1 ? '' : 's'} synced from the official
-            API on {new Date(presetSyncedAt * 1000).toLocaleString()}.
+            {t('settings_radio_presets_synced_count', {
+              count: presetList.length,
+              date: new Date(presetSyncedAt * 1000).toLocaleString(),
+            })}
           </p>
         )}
       </div>
@@ -1340,11 +1342,9 @@ export function SettingsRadioSection({
             className="mt-0.5"
           />
           <div className="space-y-1">
-            <Label htmlFor="show-mention-ticker">Show Mention Ticker</Label>
+            <Label htmlFor="show-mention-ticker">{t('settings_radio_show_mention_ticker_label')}</Label>
             <p className="text-[0.8125rem] text-muted-foreground">
-              When enabled, a scrolling ticker appears at the top of the message area whenever your
-              name is @mentioned in a channel you are not currently viewing. Clicking a mention jumps
-              to that message without marking the channel as read.
+              {t('settings_radio_show_mention_ticker_desc')}
             </p>
           </div>
         </div>
