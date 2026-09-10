@@ -274,3 +274,53 @@ def test_module_on_raw_skips_when_disconnected(monkeypatch):
     )
     asyncio.run(mod.on_raw({"data": DIRECT_PACKET_HEX}))
     assert published == []
+
+
+# ── Router validation + registration ───────────────────────────────────
+
+
+def test_validator_requires_iata():
+    import pytest
+    from fastapi import HTTPException
+
+    from app.routers import fanout as fanout_router
+
+    with pytest.raises(HTTPException):
+        fanout_router._validate_dmc_observer_config({"broker_host": "h"})
+
+
+def test_validator_requires_broker_host():
+    import pytest
+    from fastapi import HTTPException
+
+    from app.routers import fanout as fanout_router
+
+    with pytest.raises(HTTPException):
+        fanout_router._validate_dmc_observer_config({"iata": "AMS"})
+
+
+def test_validator_clamps_interval_and_normalizes():
+    from app.routers import fanout as fanout_router
+
+    cfg = {"iata": "ams", "broker_host": "h", "status_interval_ms": 50}
+    fanout_router._validate_dmc_observer_config(cfg)
+    assert cfg["iata"] == "AMS"
+    assert cfg["status_interval_ms"] == 300000
+    assert cfg["publish_status"] is True
+    assert cfg["publish_raw"] is False
+
+
+def test_enforce_scope_dmc_observer():
+    from app.routers import fanout as fanout_router
+
+    assert fanout_router._enforce_scope("mqtt_dmc_observer", {}) == {
+        "messages": "none",
+        "raw_packets": "all",
+    }
+
+
+def test_manager_registers_dmc_observer_type():
+    from app.fanout import manager
+
+    manager._register_module_types()
+    assert manager._MODULE_TYPES.get("mqtt_dmc_observer") is dmc.DmcObserverModule

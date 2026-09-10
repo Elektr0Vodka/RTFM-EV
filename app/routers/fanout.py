@@ -19,6 +19,7 @@ router = APIRouter(prefix="/fanout", tags=["fanout"])
 _VALID_TYPES = {
     "mqtt_private",
     "mqtt_community",
+    "mqtt_dmc_observer",
     "mqtt_ha",
     "bot",
     "webhook",
@@ -95,6 +96,8 @@ def _validate_and_normalize_config(config_type: str, config: dict) -> dict:
         _validate_mqtt_private_config(normalized)
     elif config_type == "mqtt_community":
         _validate_mqtt_community_config(normalized)
+    elif config_type == "mqtt_dmc_observer":
+        _validate_dmc_observer_config(normalized)
     elif config_type == "bot":
         _validate_bot_config(normalized)
     elif config_type == "webhook":
@@ -177,6 +180,60 @@ def _validate_mqtt_community_config(config: dict) -> None:
         topic_template = _DEFAULT_COMMUNITY_MQTT_TOPIC_TEMPLATE
 
     config["topic_template"] = _normalize_community_topic_template(topic_template)
+
+
+def _validate_dmc_observer_config(config: dict) -> None:
+    """Validate mqtt_dmc_observer config blob. Normalizes IATA + interval + toggles."""
+    broker_host = str(config.get("broker_host", "")).strip()
+    if not broker_host:
+        raise HTTPException(status_code=400, detail="broker_host is required for mqtt_dmc_observer")
+    config["broker_host"] = broker_host
+
+    port = config.get("broker_port", 443)
+    if not isinstance(port, int) or port < 1 or port > 65535:
+        raise HTTPException(status_code=400, detail="broker_port must be between 1 and 65535")
+    config["broker_port"] = port
+
+    transport = str(config.get("transport", "websockets")).strip().lower()
+    if transport not in _ALLOWED_COMMUNITY_MQTT_TRANSPORTS:
+        raise HTTPException(status_code=400, detail="transport must be 'websockets' or 'tcp'")
+    config["transport"] = transport
+    config["use_tls"] = bool(config.get("use_tls", True))
+    config["tls_verify"] = bool(config.get("tls_verify", True))
+
+    auth_mode = str(config.get("auth_mode", "token")).strip().lower()
+    if auth_mode not in _ALLOWED_COMMUNITY_MQTT_AUTH_MODES:
+        raise HTTPException(
+            status_code=400, detail="auth_mode must be 'token', 'password', or 'none'"
+        )
+    config["auth_mode"] = auth_mode
+    username = str(config.get("username", "")).strip()
+    password = str(config.get("password", "")).strip()
+    if auth_mode == "password" and (not username or not password):
+        raise HTTPException(
+            status_code=400,
+            detail="username and password are required when auth_mode is 'password'",
+        )
+    config["username"] = username
+    config["password"] = password
+    config["token_audience"] = str(config.get("token_audience", "")).strip()
+
+    iata = config.get("iata", "").upper().strip()
+    if not iata or not _IATA_RE.fullmatch(iata):
+        raise HTTPException(
+            status_code=400,
+            detail="IATA code is required and must be exactly 3 uppercase alphabetic characters",
+        )
+    config["iata"] = iata
+
+    config["publish_status"] = bool(config.get("publish_status", True))
+    config["publish_packets"] = bool(config.get("publish_packets", True))
+    config["publish_raw"] = bool(config.get("publish_raw", False))
+
+    interval = config.get("status_interval_ms", 300000)
+    if not isinstance(interval, int) or interval < 1000 or interval > 3600000:
+        interval = 300000
+    config["status_interval_ms"] = interval
 
 
 def _validate_bot_config(config: dict) -> None:
@@ -363,6 +420,8 @@ def _validate_mqtt_ha_config(config: dict) -> None:
 def _enforce_scope(config_type: str, scope: dict) -> dict:
     """Enforce type-specific scope constraints. Returns normalized scope."""
     if config_type == "mqtt_community":
+        return {"messages": "none", "raw_packets": "all"}
+    if config_type == "mqtt_dmc_observer":
         return {"messages": "none", "raw_packets": "all"}
     if config_type == "map_upload":
         return {"messages": "none", "raw_packets": "all"}
