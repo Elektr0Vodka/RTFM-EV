@@ -22,17 +22,19 @@ import { buildRawPacketStatsSnapshot } from '../utils/rawPacketStats';
 import { useRawPackets, useRawPacketStatsSession } from '../stores/rawPacketStore';
 import { getContactDisplayName } from '../utils/pubkey';
 import { cn } from '@/lib/utils';
+import { useT, type TFn } from '../i18n';
 
-// MeshCore node types (contact.type): label with the mesh vocabulary.
-const NODE_TYPE_LABELS: Record<number, string> = {
-  1: 'Companion',
-  2: 'Repeater',
-  3: 'Room Server',
-  4: 'Sensor',
+// MeshCore node types (contact.type): translation key per mesh vocabulary label.
+const NODE_TYPE_KEYS: Record<number, string> = {
+  1: 'node_type_companion',
+  2: 'common_repeater',
+  3: 'common_room_server',
+  4: 'common_sensor',
 };
 
-function nodeTypeLabel(type: number | null | undefined): string {
-  return (type != null && NODE_TYPE_LABELS[type]) || 'Unknown';
+function nodeTypeLabel(type: number | null | undefined, t: TFn): string {
+  const key = type != null ? NODE_TYPE_KEYS[type] : undefined;
+  return key ? t(key) : t('common_unknown');
 }
 
 // ─── Props ─────────────────────────────────────────────────────────────────
@@ -112,17 +114,17 @@ interface Bin {
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-function relTime(unixSec: number | null | undefined): string {
-  if (unixSec == null) return 'Never';
+function relTime(unixSec: number | null | undefined, t: TFn): string {
+  if (unixSec == null) return t('node_time_never');
   const d = Date.now() - unixSec * 1000;
-  if (d < 0) return 'just now';
+  if (d < 0) return t('channel_registry_just_now');
   const s = Math.floor(d / 1000);
-  if (s < 60) return `${s}s ago`;
+  if (s < 60) return t('node_time_seconds_ago', { count: s });
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
+  if (m < 60) return t('channel_registry_minutes_ago', { count: m });
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+  if (h < 24) return t('channel_registry_hours_ago', { count: h });
+  return t('channel_registry_days_ago', { count: Math.floor(h / 24) });
 }
 
 function fmtTime(ms: number, windowSeconds: number): string {
@@ -168,30 +170,48 @@ function buildLiveBins(packets: RawPacket[], windowMs: number): Bin[] {
   return bins;
 }
 
-function fmtWindowLabel(windowKey: string, customStart: string, customEnd: string): string {
+// Compact time-window abbreviations are treated as locale-invariant unit
+// shorthand (matching e.g. map_preset_7d / map_lt_1h elsewhere), so the same
+// key text is used across en/nl/de; only the "Custom" preset is real prose.
+const WINDOW_LABEL_KEYS: Record<string, string> = {
+  '20m': 'node_window_20m',
+  '1h': 'node_window_1h',
+  '6h': 'node_window_6h',
+  '1d': 'node_window_1d',
+  '7d': 'node_window_7d',
+  '30d': 'node_window_30d',
+  '1y': 'node_window_1y',
+  custom: 'settings_radio_preset_custom',
+};
+
+function windowLabel(key: string, t: TFn): string {
+  const labelKey = WINDOW_LABEL_KEYS[key];
+  return labelKey ? t(labelKey) : key;
+}
+
+function fmtWindowLabel(windowKey: string, customStart: string, customEnd: string, t: TFn): string {
   if (windowKey !== 'custom') {
-    const w = TIME_WINDOWS.find((w) => w.key === windowKey);
-    return w ? `Last ${w.label}` : 'Last 20m';
+    return t('node_window_last', { label: windowLabel(windowKey, t) });
   }
   if (customStart && customEnd) {
     const s = new Date(customStart).toLocaleDateString([], { month: 'short', day: 'numeric' });
     const e = new Date(customEnd).toLocaleDateString([], { month: 'short', day: 'numeric' });
     return `${s} – ${e}`;
   }
-  return 'Custom range';
+  return t('node_window_custom_range');
 }
 
 function fmtPct(rate: number): string {
   return `${Math.round(rate * 100)}%`;
 }
-function fmtRssi(v: number | null): string {
-  return v == null ? '—' : `${Math.round(v)} dBm`;
+function fmtRssi(v: number | null, t: TFn): string {
+  return v == null ? '—' : t('node_value_dbm', { value: Math.round(v) });
 }
 
-function fmtBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+function fmtBytes(bytes: number, t: TFn): string {
+  if (bytes < 1024) return t('node_value_bytes_compact', { value: bytes });
+  if (bytes < 1024 * 1024) return t('node_value_kb_compact', { value: (bytes / 1024).toFixed(1) });
+  return t('node_value_mb_compact', { value: (bytes / (1024 * 1024)).toFixed(2) });
 }
 
 // ─── Packet type colours ────────────────────────────────────────────────────
@@ -417,6 +437,7 @@ function LineChart({
   id,
   tooltipLabel,
   windowSeconds,
+  t,
 }: {
   bins: Bin[];
   valueKey: 'snr' | 'rssi';
@@ -425,6 +446,7 @@ function LineChart({
   id: string;
   tooltipLabel?: string;
   windowSeconds: number;
+  t: TFn;
 }) {
   const [hov, setHov] = useState<number | null>(null);
   const values = bins.map((b): number | null =>
@@ -447,7 +469,7 @@ function LineChart({
           fontSize="9"
           fill="hsl(var(--muted-foreground))"
         >
-          No data yet
+          {t('node_chart_no_data')}
         </text>
         {[0, Math.floor(values.length / 2), values.length - 1].map((i) => (
           <text
@@ -629,7 +651,15 @@ function LineChart({
 
 // ─── StackedBarChart ────────────────────────────────────────────────────────
 
-function StackedBarChart({ bins, windowSeconds }: { bins: Bin[]; windowSeconds: number }) {
+function StackedBarChart({
+  bins,
+  windowSeconds,
+  t,
+}: {
+  bins: Bin[];
+  windowSeconds: number;
+  t: TFn;
+}) {
   const [hov, setHov] = useState<number | null>(null);
   const allTypes = [...new Set(bins.flatMap((b) => Object.keys(b.types)))];
   const maxTotal = Math.max(...bins.map((b) => b.packets), 1);
@@ -681,19 +711,19 @@ function StackedBarChart({ bins, windowSeconds }: { bins: Bin[]; windowSeconds: 
       {bins.map((bin, i) => {
         const x = PAD_L + i * gap + (gap - barW) / 2;
         let yOff = INNER_H;
-        return allTypes.map((t) => {
-          const count = bin.types[t] ?? 0;
+        return allTypes.map((pt) => {
+          const count = bin.types[pt] ?? 0;
           if (!count) return null;
           const h = (count / maxTotal) * INNER_H;
           yOff -= h;
           return (
             <rect
-              key={t}
+              key={pt}
               x={x.toFixed(1)}
               y={yOff.toFixed(1)}
               width={barW.toFixed(1)}
               height={h.toFixed(1)}
-              fill={typeColor(t)}
+              fill={typeColor(pt)}
               fillOpacity={hov === i ? 1 : 0.85}
               rx="0.5"
             />
@@ -732,11 +762,14 @@ function StackedBarChart({ bins, windowSeconds }: { bins: Bin[]; windowSeconds: 
             fontWeight="600"
             fill="hsl(var(--popover-foreground))"
           >
-            {hovBin.packets} pkts · {fmtTime(hovBin.time, windowSeconds)}
+            {t('node_pkts_time_suffix', {
+              count: hovBin.packets,
+              time: fmtTime(hovBin.time, windowSeconds),
+            })}
           </text>
-          {Object.entries(hovBin.types).map(([t, c], ti) => (
-            <text key={t} textAnchor="middle" y={`${17 + ti * 9}`} fontSize="7" fill={typeColor(t)}>
-              {t}: {c}
+          {Object.entries(hovBin.types).map(([pt, c], ti) => (
+            <text key={pt} textAnchor="middle" y={`${17 + ti * 9}`} fontSize="7" fill={typeColor(pt)}>
+              {pt}: {c}
             </text>
           ))}
         </g>
@@ -762,9 +795,11 @@ function StackedBarChart({ bins, windowSeconds }: { bins: Bin[]; windowSeconds: 
 function NoiseFloorLineChart({
   samples,
   windowSeconds,
+  t,
 }: {
   samples: NoiseFloorSample[];
   windowSeconds: number;
+  t: TFn;
 }) {
   const [hov, setHov] = useState<number | null>(null);
   if (samples.length < 2)
@@ -778,7 +813,7 @@ function NoiseFloorLineChart({
           fontSize="9"
           fill="hsl(var(--muted-foreground))"
         >
-          {samples.length === 0 ? 'No data yet' : 'Need more samples'}
+          {samples.length === 0 ? t('node_chart_no_data') : t('node_chart_need_more_samples')}
         </text>
       </svg>
     );
@@ -907,10 +942,13 @@ function NoiseFloorLineChart({
             fontWeight="600"
             fill="hsl(var(--popover-foreground))"
           >
-            {tipVal} dBm
+            {t('node_value_dbm', { value: tipVal })}
           </text>
           <text textAnchor="middle" fontSize="6.5" fill="hsl(var(--muted-foreground))" dy="-12">
-            NF · {fmtTime(timestamps[hov], windowSeconds)}
+            {t('node_tooltip_time_suffix', {
+              label: t('node_tooltip_noise_floor'),
+              time: fmtTime(timestamps[hov], windowSeconds),
+            })}
           </text>
         </g>
       )}
@@ -955,9 +993,11 @@ function NoiseFloorLineChart({
 function BatteryLineChart({
   samples,
   windowSeconds,
+  t,
 }: {
   samples: BatterySample[];
   windowSeconds: number;
+  t: TFn;
 }) {
   const [hov, setHov] = useState<number | null>(null);
   if (samples.length < 2)
@@ -971,7 +1011,7 @@ function BatteryLineChart({
           fontSize="9"
           fill="hsl(var(--muted-foreground))"
         >
-          {samples.length === 0 ? 'No data yet' : 'Need more samples'}
+          {samples.length === 0 ? t('node_chart_no_data') : t('node_chart_need_more_samples')}
         </text>
       </svg>
     );
@@ -1050,7 +1090,7 @@ function BatteryLineChart({
           fontSize="7"
           fill="hsl(var(--muted-foreground))"
         >
-          {(v / 1000).toFixed(2)}V
+          {t('node_value_v_compact', { value: (v / 1000).toFixed(2) })}
         </text>
       ))}
 
@@ -1112,10 +1152,16 @@ function BatteryLineChart({
             fontWeight="600"
             fill="hsl(var(--popover-foreground))"
           >
-            {(tipVal / 1000).toFixed(2)}V · {mvToPercent(tipVal)}%
+            {t('node_battery_voltage_percent', {
+              voltage: (tipVal / 1000).toFixed(2),
+              percent: mvToPercent(tipVal),
+            })}
           </text>
           <text textAnchor="middle" fontSize="6.5" fill="hsl(var(--muted-foreground))" dy="-12">
-            BAT · {fmtTime(timestamps[hov], windowSeconds)}
+            {t('node_tooltip_time_suffix', {
+              label: t('node_tooltip_battery'),
+              time: fmtTime(timestamps[hov], windowSeconds),
+            })}
           </text>
         </g>
       )}
@@ -1255,6 +1301,7 @@ function HBarSection({
 // ─── Main ──────────────────────────────────────────────────────────────────
 
 export default function MyNodeView({ contacts }: Props) {
+  const t = useT();
   const rawPackets = useRawPackets();
   const rawPacketStatsSession = useRawPacketStatsSession();
   const [config, setConfig] = useState<RadioConfig | null>(null);
@@ -1470,9 +1517,9 @@ export default function MyNodeView({ contacts }: Props) {
       pktRate: (totalPkts / windowSeconds).toFixed(2),
       byteRate: (totalBytes / windowSeconds).toFixed(1),
       avgBytes: totalPkts > 0 ? (totalBytes / totalPkts).toFixed(1) : '0',
-      windowLabel: fmtWindowLabel(selectedWindow.key, customStart, customEnd),
+      windowLabel: fmtWindowLabel(selectedWindow.key, customStart, customEnd, t),
     };
-  }, [activeBins, windowSeconds, selectedWindow.key, customStart, customEnd]);
+  }, [activeBins, windowSeconds, selectedWindow.key, customStart, customEnd, t]);
 
   const typesInWindow = useMemo(
     () => [...new Set(activeBins.flatMap((b) => Object.keys(b.types)))],
@@ -1558,16 +1605,18 @@ export default function MyNodeView({ contacts }: Props) {
           />
         </svg>
         <div>
-          <p className="font-medium text-foreground">{disc ? 'Radio not connected' : error}</p>
+          <p className="font-medium text-foreground">
+            {disc ? t('settings_radio_not_connected') : error}
+          </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {disc ? 'Connect your radio and try again.' : 'Could not load node data.'}
+            {disc ? t('node_error_connect_radio') : t('node_error_could_not_load')}
           </p>
         </div>
         <button
           onClick={() => void load()}
           className="rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition hover:bg-accent"
         >
-          Retry
+          {t('node_retry')}
         </button>
       </div>
     );
@@ -1592,15 +1641,17 @@ export default function MyNodeView({ contacts }: Props) {
               d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"
             />
           </svg>
-          <span className="text-sm font-semibold text-foreground">My Node</span>
+          <span className="text-sm font-semibold text-foreground">{t('node_page_title')}</span>
           {config && (
-            <span className="text-sm text-muted-foreground">— {config.name || 'Unnamed'}</span>
+            <span className="text-sm text-muted-foreground">
+              — {config.name || t('common_unnamed')}
+            </span>
           )}
         </div>
         <button
           onClick={() => void load()}
           disabled={loading}
-          title="Refresh"
+          title={t('repeater_refresh')}
           className="rounded border border-border bg-card p-1.5 text-muted-foreground transition hover:bg-accent hover:text-foreground disabled:opacity-40"
         >
           <svg
@@ -1662,14 +1713,14 @@ export default function MyNodeView({ contacts }: Props) {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <h1 className="text-base font-semibold text-foreground">
-                      {config.name || 'Unnamed Node'}
+                      {config.name || t('node_unnamed_node')}
                     </h1>
                     <span className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 text-xs font-medium text-primary">
                       <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                      Connected
+                      {t('settings_radio_status_connected')}
                     </span>
                     <span className="inline-block rounded border border-border bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                      This device
+                      {t('node_this_device')}
                     </span>
                   </div>
                   <p className="mt-0.5 select-all break-all font-mono text-[10px] text-muted-foreground">
@@ -1677,11 +1728,17 @@ export default function MyNodeView({ contacts }: Props) {
                   </p>
                   <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-muted-foreground">
                     <span className="font-mono">
-                      {config.radio.freq} MHz / SF{config.radio.sf} / BW{config.radio.bw} / CR
-                      {config.radio.cr}
+                      {t('node_radio_summary', {
+                        freq: config.radio.freq,
+                        sf: config.radio.sf,
+                        bw: config.radio.bw,
+                        cr: config.radio.cr,
+                      })}
                     </span>
                     {health?.radio_device_info?.firmware_version && (
-                      <span>fw {health.radio_device_info.firmware_version}</span>
+                      <span>
+                        {t('node_firmware_prefix', { version: health.radio_device_info.firmware_version })}
+                      </span>
                     )}
                     {config.lat != null && config.lon != null && (
                       <a
@@ -1702,25 +1759,34 @@ export default function MyNodeView({ contacts }: Props) {
             <div className="rounded-lg border border-border bg-card overflow-hidden">
               <div className="border-b border-border px-3 py-2 space-y-2">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-                  <span className="text-sm font-semibold text-foreground">Live Activity</span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {t('node_live_activity_heading')}
+                  </span>
                   <span className="hidden text-xs text-muted-foreground sm:block">
                     <span className="font-medium text-foreground">{liveStats.windowLabel}:</span>{' '}
-                    {liveStats.packets} packets · {liveStats.bytes.toLocaleString()} bytes ·{' '}
-                    {liveStats.pktRate} pkt/s · {liveStats.byteRate} bytes/s · {liveStats.avgBytes}{' '}
-                    bytes/pkt avg
+                    {t('node_live_activity_summary', {
+                      packets: liveStats.packets,
+                      bytes: liveStats.bytes.toLocaleString(),
+                      pktRate: liveStats.pktRate,
+                      byteRate: liveStats.byteRate,
+                      avgBytes: liveStats.avgBytes,
+                    })}
                   </span>
                   <span className="text-xs text-muted-foreground sm:hidden">
-                    {liveStats.packets} pkts · {liveStats.bytes.toLocaleString()} B
+                    {t('node_live_activity_summary_compact', {
+                      packets: liveStats.packets,
+                      bytes: liveStats.bytes.toLocaleString(),
+                    })}
                   </span>
                   {historicalLoading && (
                     <span className="text-[10px] text-muted-foreground animate-pulse">
-                      Loading…
+                      {t('node_loading')}
                     </span>
                   )}
                 </div>
                 {historicalError && !historicalBins && (
                   <p className="text-[10px] text-destructive">
-                    Could not load historical data — {historicalError}
+                    {t('node_historical_load_error', { error: historicalError })}
                   </p>
                 )}
                 {/* Time window buttons */}
@@ -1735,20 +1801,20 @@ export default function MyNodeView({ contacts }: Props) {
                       }}
                       className={`rounded px-2 py-0.5 text-xs transition ${selectedWindow.key === w.key ? 'bg-primary text-primary-foreground font-medium' : 'border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground'}`}
                     >
-                      {w.label}
+                      {windowLabel(w.key, t)}
                     </button>
                   ))}
                 </div>
                 {showCustomPicker && (
                   <div className="flex flex-wrap items-center gap-2 pt-1">
-                    <span className="text-xs text-muted-foreground">From</span>
+                    <span className="text-xs text-muted-foreground">{t('node_custom_from')}</span>
                     <input
                       type="datetime-local"
                       value={customStart}
                       onChange={(e) => setCustomStart(e.target.value)}
                       className="rounded border border-input bg-background px-2 py-0.5 text-xs text-foreground"
                     />
-                    <span className="text-xs text-muted-foreground">to</span>
+                    <span className="text-xs text-muted-foreground">{t('node_custom_to')}</span>
                     <input
                       type="datetime-local"
                       value={customEnd}
@@ -1764,7 +1830,7 @@ export default function MyNodeView({ contacts }: Props) {
                         }}
                         className="rounded border border-border bg-background px-2 py-0.5 text-xs text-foreground hover:bg-accent transition"
                       >
-                        Apply
+                        {t('node_apply')}
                       </button>
                     )}
                   </div>
@@ -1772,112 +1838,125 @@ export default function MyNodeView({ contacts }: Props) {
               </div>
 
               <div className="grid grid-cols-2 gap-2 p-2 md:grid-cols-3">
-                <ChartCard title="Bytes Received" stat={`${liveStats.bytes.toLocaleString()} B`}>
+                <ChartCard
+                  title={t('node_chart_bytes_received')}
+                  stat={t('node_value_bytes_compact', { value: liveStats.bytes.toLocaleString() })}
+                >
                   <BarChart
                     bins={activeBins}
                     valueKey="bytes"
                     color="hsl(var(--primary))"
-                    formatY={(v) => (v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v))}
+                    formatY={(v) =>
+                      v >= 1000 ? t('node_value_k_compact', { value: (v / 1000).toFixed(0) }) : String(v)
+                    }
                     id="grad-bytes"
-                    tooltipLabel="bytes"
+                    tooltipLabel={t('node_tooltip_bytes')}
                     windowSeconds={windowSeconds}
                   />
                 </ChartCard>
-                <ChartCard title="Packets Received" stat={String(liveStats.packets)}>
+                <ChartCard title={t('settings_radio_stat_packets_received')} stat={String(liveStats.packets)}>
                   <BarChart
                     bins={activeBins}
                     valueKey="packets"
                     color="hsl(var(--info))"
                     id="grad-pkts"
-                    tooltipLabel="pkts"
+                    tooltipLabel={t('node_tooltip_packets')}
                     windowSeconds={windowSeconds}
                   />
                 </ChartCard>
-                <ChartCard title="Packets by Type">
-                  <StackedBarChart bins={activeBins} windowSeconds={windowSeconds} />
+                <ChartCard title={t('node_chart_packets_by_type')}>
+                  <StackedBarChart bins={activeBins} windowSeconds={windowSeconds} t={t} />
                   {typesInWindow.length > 0 ? (
                     <div className="mt-1 flex flex-wrap gap-2 px-1">
-                      {typesInWindow.map((t) => (
+                      {typesInWindow.map((pt) => (
                         <span
-                          key={t}
+                          key={pt}
                           className="flex items-center gap-1 text-[9px] text-muted-foreground"
                         >
                           <span
                             className="h-1.5 w-1.5 rounded-full flex-shrink-0"
-                            style={{ background: typeColor(t) }}
+                            style={{ background: typeColor(pt) }}
                           />
-                          {t}
+                          {pt}
                         </span>
                       ))}
                     </div>
                   ) : !selectedWindow.useLive ? (
                     <p className="px-1 text-[9px] text-muted-foreground italic">
-                      Type breakdown only in live session
+                      {t('node_type_breakdown_live_only')}
                     </p>
                   ) : null}
                 </ChartCard>
                 <ChartCard
-                  title="SNR (Signal-to-Noise Ratio)"
+                  title={t('node_chart_snr_title')}
                   stat={(() => {
                     const v = mean(activeBins.flatMap((b) => b.snrs));
-                    return v != null ? `${v.toFixed(1)} dB avg` : undefined;
+                    return v != null ? t('node_stat_db_avg', { value: v.toFixed(1) }) : undefined;
                   })()}
                 >
                   <LineChart
                     bins={activeBins}
                     valueKey="snr"
                     color="hsl(var(--warning))"
-                    formatY={(v) => `${v}dB`}
+                    formatY={(v) => t('node_value_db_compact', { value: v })}
                     id="line-snr"
-                    tooltipLabel="SNR"
+                    tooltipLabel={t('trace_snr_label')}
                     windowSeconds={windowSeconds}
+                    t={t}
                   />
                 </ChartCard>
                 <ChartCard
-                  title="RSSI (Signal Strength)"
+                  title={t('node_chart_rssi_title')}
                   stat={(() => {
                     const v = mean(activeBins.flatMap((b) => b.rssis));
-                    return v != null ? `${v.toFixed(0)} dBm avg` : undefined;
+                    return v != null ? t('node_stat_dbm_avg', { value: v.toFixed(0) }) : undefined;
                   })()}
                 >
                   <LineChart
                     bins={activeBins}
                     valueKey="rssi"
                     color="hsl(var(--destructive))"
-                    formatY={(v) => `${v}dBm`}
+                    formatY={(v) => t('node_value_dbm_compact', { value: v })}
                     id="line-rssi"
-                    tooltipLabel="RSSI"
+                    tooltipLabel={t('node_tooltip_rssi')}
                     windowSeconds={windowSeconds}
+                    t={t}
                   />
                 </ChartCard>
                 {noiseFloorSupported !== false && (
                   <ChartCard
-                    title="Noise Floor"
+                    title={t('settings_radio_stat_noise_floor')}
                     stat={
                       noiseFloorSamples.length > 0
-                        ? `${noiseFloorSamples[noiseFloorSamples.length - 1].noise_floor_dbm} dBm`
+                        ? t('node_value_dbm', {
+                            value: noiseFloorSamples[noiseFloorSamples.length - 1].noise_floor_dbm,
+                          })
                         : undefined
                     }
                   >
                     <NoiseFloorLineChart
                       samples={noiseFloorSamples}
                       windowSeconds={windowSeconds}
+                      t={t}
                     />
                   </ChartCard>
                 )}
                 {batterySamples.length > 0 && (
                   <ChartCard
-                    title="Battery"
+                    title={t('settings_radio_stat_battery')}
                     stat={
                       batterySamples.length > 0
                         ? (() => {
                             const mv = batterySamples[batterySamples.length - 1].battery_mv;
-                            return `${(mv / 1000).toFixed(2)}V · ${mvToPercent(mv)}%`;
+                            return t('node_battery_voltage_percent', {
+                              voltage: (mv / 1000).toFixed(2),
+                              percent: mvToPercent(mv),
+                            });
                           })()
                         : undefined
                     }
                   >
-                    <BatteryLineChart samples={batterySamples} windowSeconds={windowSeconds} />
+                    <BatteryLineChart samples={batterySamples} windowSeconds={windowSeconds} t={t} />
                   </ChartCard>
                 )}
               </div>
@@ -1885,9 +1964,8 @@ export default function MyNodeView({ contacts }: Props) {
               {!selectedWindow.useLive && (
                 <p className="px-3 pb-2 text-[10px] text-muted-foreground">
                   {' '}
-                  Historical data from database{' '}
-                  {!selectedWindow.useLive &&
-                    ' · Signal and type data available for packets captured after the latest update'}
+                  {t('node_historical_data_note')}{' '}
+                  {!selectedWindow.useLive && t('node_historical_signal_note')}
                 </p>
               )}
             </div>
@@ -1900,10 +1978,12 @@ export default function MyNodeView({ contacts }: Props) {
               <div className="rounded-lg border border-border bg-card overflow-hidden">
                 <div className="border-b border-border px-3 py-2 flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-foreground">Stats</span>
+                    <span className="text-sm font-semibold text-foreground">
+                      {t('node_stats_heading')}
+                    </span>
                     {statsSource === 'db' && historicalStatsLoading && (
                       <span className="text-[10px] text-muted-foreground animate-pulse">
-                        Loading…
+                        {t('node_loading')}
                       </span>
                     )}
                     {statsSource === 'db' && historicalStatsError && (
@@ -1920,7 +2000,7 @@ export default function MyNodeView({ contacts }: Props) {
                           : 'bg-background text-muted-foreground hover:bg-accent/50'
                       )}
                     >
-                      Session
+                      {t('packet_window_session')}
                     </button>
                     <button
                       onClick={() => setStatsSource('db')}
@@ -1935,7 +2015,7 @@ export default function MyNodeView({ contacts }: Props) {
                           'opacity-40 cursor-not-allowed'
                       )}
                     >
-                      DB — {liveStats.windowLabel}
+                      {t('node_stats_db_tab', { window: liveStats.windowLabel })}
                     </button>
                   </div>
                 </div>
@@ -1945,39 +2025,46 @@ export default function MyNodeView({ contacts }: Props) {
                   (sessionSnapshot.packetCount > 0 ? (
                     <div className="grid grid-cols-2 gap-2 p-3 md:grid-cols-4">
                       <StatTile
-                        label="Packets / min"
+                        label={t('packet_stat_packets_per_min')}
                         value={sessionSnapshot.packetsPerMinute.toFixed(1)}
-                        sub={`${sessionSnapshot.packetCount.toLocaleString()} total`}
+                        sub={t('node_total_suffix', {
+                          count: sessionSnapshot.packetCount.toLocaleString(),
+                        })}
                       />
                       <StatTile
-                        label="Decrypt Rate"
+                        label={t('packet_stat_decrypt_rate')}
                         value={fmtPct(sessionSnapshot.decryptRate)}
                         sub={`${sessionSnapshot.decryptedCount.toLocaleString()} / ${sessionSnapshot.packetCount.toLocaleString()}`}
                       />
                       <StatTile
-                        label="Unique Sources"
+                        label={t('packet_stat_unique_sources')}
                         value={sessionSnapshot.uniqueSources}
-                        sub="distinct senders"
+                        sub={t('node_distinct_senders')}
                       />
                       <StatTile
-                        label="Distinct Paths"
+                        label={t('node_distinct_paths')}
                         value={sessionSnapshot.distinctPaths}
-                        sub={`${fmtPct(sessionSnapshot.pathBearingRate)} path-bearing`}
+                        sub={t('node_path_bearing_pct', {
+                          percent: fmtPct(sessionSnapshot.pathBearingRate),
+                        })}
                       />
-                      <StatTile label="Best RSSI" value={fmtRssi(sessionSnapshot.bestRssi)} />
                       <StatTile
-                        label="Median RSSI"
-                        value={fmtRssi(sessionSnapshot.medianRssi)}
+                        label={t('node_best_rssi')}
+                        value={fmtRssi(sessionSnapshot.bestRssi, t)}
+                      />
+                      <StatTile
+                        label={t('packet_stat_median_rssi')}
+                        value={fmtRssi(sessionSnapshot.medianRssi, t)}
                         sub={
                           sessionSnapshot.averageRssi != null
-                            ? `avg ${fmtRssi(sessionSnapshot.averageRssi)}`
+                            ? t('node_avg_prefix', { value: fmtRssi(sessionSnapshot.averageRssi, t) })
                             : undefined
                         }
                       />
                     </div>
                   ) : (
                     <p className="p-4 text-center text-xs italic text-muted-foreground">
-                      No session data yet
+                      {t('node_no_session_data')}
                     </p>
                   ))}
 
@@ -1986,21 +2073,25 @@ export default function MyNodeView({ contacts }: Props) {
                   <div className="p-3 space-y-3">
                     <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
                       <StatTile
-                        label="Packets"
+                        label={t('repeater_packets_label')}
                         value={historicalStats.total_packets.toLocaleString()}
-                        sub={`${historicalStats.packets_per_minute.toFixed(2)} /min`}
+                        sub={t('node_per_min_suffix', {
+                          value: historicalStats.packets_per_minute.toFixed(2),
+                        })}
                       />
                       <StatTile
-                        label="Bytes"
-                        value={fmtBytes(historicalStats.total_bytes)}
-                        sub={historicalStats.total_bytes.toLocaleString() + ' B'}
+                        label={t('node_bytes_label')}
+                        value={fmtBytes(historicalStats.total_bytes, t)}
+                        sub={t('node_value_bytes_compact', {
+                          value: historicalStats.total_bytes.toLocaleString(),
+                        })}
                       />
                       <StatTile
-                        label="Best RSSI"
-                        value={fmtRssi(historicalStats.best_rssi)}
+                        label={t('node_best_rssi')}
+                        value={fmtRssi(historicalStats.best_rssi, t)}
                         sub={
                           historicalStats.avg_rssi != null
-                            ? `avg ${fmtRssi(historicalStats.avg_rssi)}`
+                            ? t('node_avg_prefix', { value: fmtRssi(historicalStats.avg_rssi, t) })
                             : undefined
                         }
                       />
@@ -2008,9 +2099,9 @@ export default function MyNodeView({ contacts }: Props) {
                       {sessionSnapshot.packetCount > 0 && (
                         <>
                           <StatTile
-                            label="Decrypt Rate"
+                            label={t('packet_stat_decrypt_rate')}
                             value={fmtPct(sessionSnapshot.decryptRate)}
-                            sub="this session"
+                            sub={t('node_this_session')}
                           />
                           <StatTile
                             label="Unique Sources"
@@ -2028,7 +2119,7 @@ export default function MyNodeView({ contacts }: Props) {
 
                     {historicalStats.has_type_data && (
                       <HBarSection
-                        title="Packet Types"
+                        title={t('packet_types_title')}
                         items={Object.entries(historicalStats.type_counts)
                           .sort((a, b) => b[1] - a[1])
                           .map(([label, count]) => ({
@@ -2046,7 +2137,7 @@ export default function MyNodeView({ contacts }: Props) {
                     {historicalStats.busiest_channels &&
                       historicalStats.busiest_channels.length > 0 && (
                         <div>
-                          <SectionTitle>Busiest Channels</SectionTitle>
+                          <SectionTitle>{t('node_busiest_channels')}</SectionTitle>
                           <div className="space-y-1">
                             {historicalStats.busiest_channels.map((ch) => {
                               const maxCount = historicalStats.busiest_channels![0].message_count;
@@ -2063,7 +2154,10 @@ export default function MyNodeView({ contacts }: Props) {
                                     />
                                   </div>
                                   <span className="w-14 flex-shrink-0 text-right tabular-nums text-[10px] text-muted-foreground">
-                                    {ch.message_count.toLocaleString()} msgs
+                                    {t('common_msg_count', {
+                                      count: ch.message_count,
+                                      n: ch.message_count.toLocaleString(),
+                                    })}
                                   </span>
                                 </div>
                               );
@@ -2076,7 +2170,7 @@ export default function MyNodeView({ contacts }: Props) {
 
                 {statsSource === 'db' && !historicalStats && historicalStatsLoading && (
                   <p className="p-4 text-center text-xs text-muted-foreground animate-pulse">
-                    Loading DB stats…
+                    {t('node_loading_db_stats')}
                   </p>
                 )}
                 {statsSource === 'db' &&
@@ -2084,7 +2178,7 @@ export default function MyNodeView({ contacts }: Props) {
                   !historicalStatsLoading &&
                   !historicalStatsError && (
                     <p className="p-4 text-center text-xs italic text-muted-foreground">
-                      No DB stats for this window
+                      {t('node_no_db_stats')}
                     </p>
                   )}
               </div>
@@ -2094,20 +2188,24 @@ export default function MyNodeView({ contacts }: Props) {
             {sessionSnapshot.packetCount > 0 && (
               <div className="rounded-lg border border-border bg-card overflow-hidden">
                 <div className="border-b border-border px-3 py-2 flex items-center justify-between">
-                  <span className="text-sm font-semibold text-foreground">Session Breakdown</span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {t('node_session_breakdown_heading')}
+                  </span>
                   <span className="text-[10px] text-muted-foreground">
-                    {sessionSnapshot.packetCount.toLocaleString()} packets ·{' '}
-                    {relTime(Math.floor(rawPacketStatsSession.sessionStartedAt / 1000))}
+                    {t('node_session_packets_suffix', {
+                      count: sessionSnapshot.packetCount.toLocaleString(),
+                      time: relTime(Math.floor(rawPacketStatsSession.sessionStartedAt / 1000), t),
+                    })}
                   </span>
                 </div>
                 <div className="grid grid-cols-1 gap-4 p-3 md:grid-cols-2">
                   <HBarSection
-                    title="Packet Types"
+                    title={t('packet_types_title')}
                     items={sessionSnapshot.payloadBreakdown}
                     colorFn={typeColor}
                   />
                   <HBarSection
-                    title="Route Mix"
+                    title={t('packet_route_mix_title')}
                     items={sessionSnapshot.routeBreakdown}
                     colorFn={(label) => {
                       if (label.includes('Flood')) return 'hsl(var(--primary))';
@@ -2117,7 +2215,7 @@ export default function MyNodeView({ contacts }: Props) {
                     }}
                   />
                   <HBarSection
-                    title="Hop Profile"
+                    title={t('packet_hop_profile_title')}
                     items={sessionSnapshot.hopProfile}
                     colorFn={(label) => {
                       if (label === '0') return 'hsl(var(--success))';
@@ -2128,7 +2226,7 @@ export default function MyNodeView({ contacts }: Props) {
                     }}
                   />
                   <HBarSection
-                    title="Signal Distribution"
+                    title={t('packet_signal_distribution_title')}
                     items={sessionSnapshot.rssiBuckets}
                     colorFn={(label) => {
                       if (label.includes('Strong')) return 'hsl(var(--success))';
@@ -2137,7 +2235,7 @@ export default function MyNodeView({ contacts }: Props) {
                     }}
                   />
                   <HBarSection
-                    title="Hop Byte Width"
+                    title={t('packet_hop_byte_width_title')}
                     items={sessionSnapshot.hopByteWidthProfile}
                     colorFn={(label) => {
                       if (label.includes('1 byte')) return 'hsl(var(--primary))';
@@ -2156,21 +2254,21 @@ export default function MyNodeView({ contacts }: Props) {
               <div className="rounded-lg border border-border bg-card overflow-hidden">
                 <div className="border-b border-border px-3 py-2 flex items-center justify-between gap-2">
                   <span className="text-sm font-semibold text-foreground">
-                    Neighbors — Most Active
+                    {t('node_neighbors_most_active')}
                   </span>
                   <span className="text-[10px] text-muted-foreground">
-                    {selectedWindow.useLive ? 'Live session' : liveStats.windowLabel}
+                    {selectedWindow.useLive ? t('node_live_session_label') : liveStats.windowLabel}
                   </span>
                 </div>
                 <div className="p-3">
                   {selectedWindow.useLive ? (
                     <>
                       <p className="mb-2 text-[11px] text-muted-foreground">
-                        Nodes heard directly (0-hop) this session, by packet count.
+                        {t('node_direct_neighbors_count_desc')}
                       </p>
                       {resolvedMostActive.length === 0 ? (
                         <p className="py-3 text-center text-xs italic text-muted-foreground">
-                          No direct neighbors heard yet
+                          {t('node_no_direct_neighbors')}
                         </p>
                       ) : (
                         <div className="space-y-1.5">
@@ -2184,11 +2282,14 @@ export default function MyNodeView({ contacts }: Props) {
                                   {n.label}
                                 </div>
                                 <div className="text-[10px] text-muted-foreground">
-                                  {n.count.toLocaleString()} packets · {nodeTypeLabel(n.type)}
+                                  {t('node_neighbor_packets_type_suffix', {
+                                    count: n.count.toLocaleString(),
+                                    type: nodeTypeLabel(n.type, t),
+                                  })}
                                 </div>
                               </div>
                               <span className="flex-shrink-0 text-xs text-muted-foreground">
-                                {fmtRssi(n.bestRssi)}
+                                {fmtRssi(n.bestRssi, t)}
                               </span>
                             </div>
                           ))}
@@ -2198,11 +2299,13 @@ export default function MyNodeView({ contacts }: Props) {
                   ) : (
                     <>
                       <p className="mb-2 text-[11px] text-muted-foreground">
-                        Nodes heard via advertisements in window, by count.
+                        {t('node_advert_count_desc')}
                       </p>
                       {!historicalStats || historicalStats.neighbors_by_count.length === 0 ? (
                         <p className="py-3 text-center text-xs italic text-muted-foreground">
-                          {historicalStatsLoading ? 'Loading…' : 'No neighbor data for this window'}
+                          {historicalStatsLoading
+                            ? t('node_loading')
+                            : t('node_no_neighbor_data_window')}
                         </p>
                       ) : (
                         <div className="space-y-1.5">
@@ -2221,11 +2324,14 @@ export default function MyNodeView({ contacts }: Props) {
                                     {displayName}
                                   </div>
                                   <div className="text-[10px] text-muted-foreground">
-                                    {n.heard_count.toLocaleString()} adverts · {nodeTypeLabel(nType)}
+                                    {t('node_neighbor_adverts_type_suffix', {
+                                      count: n.heard_count.toLocaleString(),
+                                      type: nodeTypeLabel(nType, t),
+                                    })}
                                   </div>
                                 </div>
                                 <span className="flex-shrink-0 text-xs text-muted-foreground">
-                                  {fmtRssi(n.best_rssi ?? null)}
+                                  {fmtRssi(n.best_rssi ?? null, t)}
                                 </span>
                               </div>
                             );
@@ -2241,21 +2347,21 @@ export default function MyNodeView({ contacts }: Props) {
               <div className="rounded-lg border border-border bg-card overflow-hidden">
                 <div className="border-b border-border px-3 py-2 flex items-center justify-between gap-2">
                   <span className="text-sm font-semibold text-foreground">
-                    Neighbors — Strongest Signal
+                    {t('node_neighbors_strongest_signal')}
                   </span>
                   <span className="text-[10px] text-muted-foreground">
-                    {selectedWindow.useLive ? 'Live session' : liveStats.windowLabel}
+                    {selectedWindow.useLive ? t('node_live_session_label') : liveStats.windowLabel}
                   </span>
                 </div>
                 <div className="p-3">
                   {selectedWindow.useLive ? (
                     <>
                       <p className="mb-2 text-[11px] text-muted-foreground">
-                        Nodes heard directly (0-hop) this session, by best RSSI.
+                        {t('node_direct_neighbors_rssi_desc')}
                       </p>
                       {resolvedStrongest.length === 0 ? (
                         <p className="py-3 text-center text-xs italic text-muted-foreground">
-                          No direct neighbors with RSSI data yet
+                          {t('node_no_direct_neighbors_rssi')}
                         </p>
                       ) : (
                         <div className="space-y-1.5">
@@ -2269,11 +2375,14 @@ export default function MyNodeView({ contacts }: Props) {
                                   {n.label}
                                 </div>
                                 <div className="text-[10px] text-muted-foreground">
-                                  {relTime(n.lastSeen)} · {nodeTypeLabel(n.type)}
+                                  {t('node_neighbor_relseen_type_suffix', {
+                                    time: relTime(n.lastSeen, t),
+                                    type: nodeTypeLabel(n.type, t),
+                                  })}
                                 </div>
                               </div>
                               <span className="flex-shrink-0 text-xs font-medium text-foreground">
-                                {fmtRssi(n.bestRssi)}
+                                {fmtRssi(n.bestRssi, t)}
                               </span>
                             </div>
                           ))}
@@ -2283,11 +2392,13 @@ export default function MyNodeView({ contacts }: Props) {
                   ) : (
                     <>
                       <p className="mb-2 text-[11px] text-muted-foreground">
-                        Nodes with strongest advert signal in window.
+                        {t('node_strongest_advert_desc')}
                       </p>
                       {!historicalStats || historicalStats.neighbors_by_signal.length === 0 ? (
                         <p className="py-3 text-center text-xs italic text-muted-foreground">
-                          {historicalStatsLoading ? 'Loading…' : 'No signal data for this window'}
+                          {historicalStatsLoading
+                            ? t('node_loading')
+                            : t('node_no_signal_data_window')}
                         </p>
                       ) : (
                         <div className="space-y-1.5">
@@ -2306,11 +2417,14 @@ export default function MyNodeView({ contacts }: Props) {
                                     {displayName}
                                   </div>
                                   <div className="text-[10px] text-muted-foreground">
-                                    {relTime(n.last_seen)} · {nodeTypeLabel(nType)}
+                                    {t('node_neighbor_relseen_type_suffix', {
+                                      time: relTime(n.last_seen, t),
+                                      type: nodeTypeLabel(nType, t),
+                                    })}
                                   </div>
                                 </div>
                                 <span className="flex-shrink-0 text-xs font-medium text-foreground">
-                                  {fmtRssi(n.best_rssi ?? null)}
+                                  {fmtRssi(n.best_rssi ?? null, t)}
                                 </span>
                               </div>
                             );
@@ -2326,42 +2440,67 @@ export default function MyNodeView({ contacts }: Props) {
             {/* ── Details ── */}
             <div className="rounded-lg border border-border bg-card overflow-hidden">
               <div className="border-b border-border px-3 py-2">
-                <span className="text-sm font-semibold text-foreground">Details</span>
+                <span className="text-sm font-semibold text-foreground">
+                  {t('node_details_heading')}
+                </span>
               </div>
               <div className="p-3">
-                <KV label="ID" value={config.public_key} mono />
-                <KV label="Frequency" value={`${config.radio.freq} MHz`} />
-                <KV label="Bandwidth" value={`${config.radio.bw} kHz`} />
-                <KV label="Spreading Factor" value={`SF${config.radio.sf}`} />
-                <KV label="Coding Rate" value={`CR${config.radio.cr}`} />
+                <KV label={t('node_detail_id')} value={config.public_key} mono />
                 <KV
-                  label="TX Power"
-                  value={`${config.tx_power} dBm (max ${config.max_tx_power} dBm)`}
+                  label={t('node_detail_frequency')}
+                  value={t('node_value_mhz', { value: config.radio.freq })}
                 />
                 <KV
-                  label="Path Hash Mode"
+                  label={t('node_detail_bandwidth')}
+                  value={t('node_value_khz', { value: config.radio.bw })}
+                />
+                <KV
+                  label={t('settings_radio_spreading_factor_label')}
+                  value={t('node_value_sf', { value: config.radio.sf })}
+                />
+                <KV
+                  label={t('settings_radio_coding_rate_label')}
+                  value={t('node_value_cr', { value: config.radio.cr })}
+                />
+                <KV
+                  label={t('repeater_tx_power_label')}
+                  value={t('node_tx_power_value', {
+                    power: config.tx_power,
+                    max: config.max_tx_power,
+                  })}
+                />
+                <KV
+                  label={t('settings_radio_path_hash_mode_label')}
                   value={
                     config.path_hash_mode === 0
-                      ? '1-byte'
+                      ? t('settings_statistics_path_hash_1byte')
                       : config.path_hash_mode === 1
-                        ? '2-byte'
-                        : '3-byte'
+                        ? t('settings_statistics_path_hash_2byte')
+                        : t('settings_statistics_path_hash_3byte')
                   }
                 />
                 {config.lat != null && config.lon != null && (
                   <KV
-                    label="Location"
+                    label={t('contact_location')}
                     value={`${config.lat.toFixed(5)}, ${config.lon.toFixed(5)}`}
                   />
                 )}
                 {health?.radio_device_info?.model && (
-                  <KV label="Model" value={health.radio_device_info.model} />
+                  <KV label={t('node_detail_model')} value={health.radio_device_info.model} />
                 )}
                 {health?.radio_device_info?.firmware_version && (
-                  <KV label="Firmware" value={health.radio_device_info.firmware_version} mono />
+                  <KV
+                    label={t('repeater_firmware_label')}
+                    value={health.radio_device_info.firmware_version}
+                    mono
+                  />
                 )}
                 {health?.connection_info && (
-                  <KV label="Connection" value={health.connection_info} mono />
+                  <KV
+                    label={t('settings_radio_connection_heading')}
+                    value={health.connection_info}
+                    mono
+                  />
                 )}
               </div>
             </div>
@@ -2370,45 +2509,67 @@ export default function MyNodeView({ contacts }: Props) {
               <>
                 <div className="rounded-lg border border-border bg-card overflow-hidden">
                   <div className="border-b border-border px-3 py-2">
-                    <span className="text-sm font-semibold text-foreground">Network Totals</span>
+                    <span className="text-sm font-semibold text-foreground">
+                      {t('node_network_totals_heading')}
+                    </span>
                   </div>
                   <div className="p-3">
-                    <KV label="Total Packets" value={stats.total_packets.toLocaleString()} />
                     <KV
-                      label="Decrypted"
-                      value={`${stats.decrypted_packets.toLocaleString()} (${stats.total_packets > 0 ? Math.round((stats.decrypted_packets / stats.total_packets) * 100) : 0}%)`}
+                      label={t('node_total_packets_label')}
+                      value={stats.total_packets.toLocaleString()}
                     />
-                    <KV label="Undecrypted" value={stats.undecrypted_packets.toLocaleString()} />
-                    <KV label="Direct Messages" value={stats.total_dms.toLocaleString()} />
                     <KV
-                      label="Channel Messages"
+                      label={t('settings_statistics_decrypted_label')}
+                      value={t('node_count_percent', {
+                        count: stats.decrypted_packets.toLocaleString(),
+                        percent:
+                          stats.total_packets > 0
+                            ? Math.round((stats.decrypted_packets / stats.total_packets) * 100)
+                            : 0,
+                      })}
+                    />
+                    <KV
+                      label={t('settings_statistics_undecrypted_label')}
+                      value={stats.undecrypted_packets.toLocaleString()}
+                    />
+                    <KV
+                      label={t('contact_direct_messages')}
+                      value={stats.total_dms.toLocaleString()}
+                    />
+                    <KV
+                      label={t('contact_channel_messages')}
                       value={stats.total_channel_messages.toLocaleString()}
                     />
-                    <KV label="Sent" value={stats.total_outgoing.toLocaleString()} />
-                    <KV label="Contacts" value={stats.contact_count} />
-                    <KV label="Repeaters" value={stats.repeater_count} />
-                    <KV label="Channels" value={stats.channel_count} />
+                    <KV label={t('repeater_series_sent')} value={stats.total_outgoing.toLocaleString()} />
+                    <KV label={t('settings_statistics_contacts_label')} value={stats.contact_count} />
+                    <KV
+                      label={t('settings_statistics_repeaters_label')}
+                      value={stats.repeater_count}
+                    />
+                    <KV label={t('settings_statistics_channels_label')} value={stats.channel_count} />
                   </div>
                 </div>
 
                 <div className="rounded-lg border border-border bg-card overflow-hidden">
                   <div className="border-b border-border px-3 py-2">
-                    <span className="text-sm font-semibold text-foreground">Nodes Heard</span>
+                    <span className="text-sm font-semibold text-foreground">
+                      {t('node_nodes_heard_heading')}
+                    </span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 p-3">
                     {[
                       {
-                        label: 'Last Hour',
+                        label: t('channel_last_hour'),
                         c: stats.contacts_heard.last_hour,
                         r: stats.repeaters_heard.last_hour,
                       },
                       {
-                        label: 'Last 24h',
+                        label: t('common_last_24h'),
                         c: stats.contacts_heard.last_24_hours,
                         r: stats.repeaters_heard.last_24_hours,
                       },
                       {
-                        label: 'Last 7d',
+                        label: t('channel_last_7d'),
                         c: stats.contacts_heard.last_week,
                         r: stats.repeaters_heard.last_week,
                       },
@@ -2422,7 +2583,7 @@ export default function MyNodeView({ contacts }: Props) {
                           {c + r}
                         </div>
                         <div className="text-[9px] text-muted-foreground">
-                          {r} repeater{r !== 1 ? 's' : ''}
+                          {t('bulkdelete_summary_repeaters', { count: r })}
                         </div>
                       </div>
                     ))}
@@ -2433,7 +2594,7 @@ export default function MyNodeView({ contacts }: Props) {
                   <div className="rounded-lg border border-border bg-card overflow-hidden">
                     <div className="border-b border-border px-3 py-2">
                       <span className="text-sm font-semibold text-foreground">
-                        Busiest Channels (last 24h)
+                        {t('node_busiest_channels_24h')}
                       </span>
                     </div>
                     <div className="p-3 space-y-1">
@@ -2452,7 +2613,10 @@ export default function MyNodeView({ contacts }: Props) {
                               />
                             </div>
                             <span className="w-14 flex-shrink-0 text-right tabular-nums text-[10px] text-muted-foreground">
-                              {ch.message_count.toLocaleString()} msgs
+                              {t('common_msg_count', {
+                                count: ch.message_count,
+                                n: ch.message_count.toLocaleString(),
+                              })}
                             </span>
                           </div>
                         );
@@ -2464,21 +2628,30 @@ export default function MyNodeView({ contacts }: Props) {
                   <div className="rounded-lg border border-border bg-card overflow-hidden">
                     <div className="border-b border-border px-3 py-2">
                       <span className="text-sm font-semibold text-foreground">
-                        Path Hash Width (last 24h)
+                        {t('node_path_hash_width_24h_heading')}
                       </span>
                     </div>
                     <div className="p-3">
                       <KV
-                        label="1-byte hops"
-                        value={`${stats.path_hash_width_24h!.single_byte_pct.toFixed(1)}% · ${stats.path_hash_width_24h!.single_byte.toLocaleString()} pkts`}
+                        label={t('path_discovery_hop_width_1byte')}
+                        value={t('node_hop_pct_pkts', {
+                          percent: stats.path_hash_width_24h!.single_byte_pct.toFixed(1),
+                          count: stats.path_hash_width_24h!.single_byte.toLocaleString(),
+                        })}
                       />
                       <KV
-                        label="2-byte hops"
-                        value={`${stats.path_hash_width_24h!.double_byte_pct.toFixed(1)}% · ${stats.path_hash_width_24h!.double_byte.toLocaleString()} pkts`}
+                        label={t('path_discovery_hop_width_2byte')}
+                        value={t('node_hop_pct_pkts', {
+                          percent: stats.path_hash_width_24h!.double_byte_pct.toFixed(1),
+                          count: stats.path_hash_width_24h!.double_byte.toLocaleString(),
+                        })}
                       />
                       <KV
-                        label="3-byte hops"
-                        value={`${stats.path_hash_width_24h!.triple_byte_pct.toFixed(1)}% · ${stats.path_hash_width_24h!.triple_byte.toLocaleString()} pkts`}
+                        label={t('path_discovery_hop_width_3byte')}
+                        value={t('node_hop_pct_pkts', {
+                          percent: stats.path_hash_width_24h!.triple_byte_pct.toFixed(1),
+                          count: stats.path_hash_width_24h!.triple_byte.toLocaleString(),
+                        })}
                       />
                     </div>
                   </div>
@@ -2487,7 +2660,9 @@ export default function MyNodeView({ contacts }: Props) {
             )}
 
             <p className="pb-2 text-center text-[10px] text-muted-foreground">
-              Refreshed {relTime(Math.floor(loadedAt.current / 1000))}
+              {t('node_refreshed_suffix', {
+                time: relTime(Math.floor(loadedAt.current / 1000), t),
+              })}
             </p>
           </>
         )}

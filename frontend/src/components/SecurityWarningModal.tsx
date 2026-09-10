@@ -7,6 +7,7 @@ import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { toast } from './ui/sonner';
+import { useT } from '../i18n';
 
 const STORAGE_KEY = 'meshcore_security_warning_acknowledged';
 
@@ -37,6 +38,7 @@ interface SecurityWarningModalProps {
 }
 
 export function SecurityWarningModal({ health }: SecurityWarningModalProps) {
+  const t = useT();
   const [acknowledged, setAcknowledged] = useState(readAcknowledgedState);
   const [confirmedRisk, setConfirmedRisk] = useState(false);
   const [disablingBots, setDisablingBots] = useState(false);
@@ -78,35 +80,25 @@ export function SecurityWarningModal({ health }: SecurityWarningModalProps) {
             <div className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-destructive/30 bg-destructive/10 text-destructive">
               <AlertTriangle className="h-5 w-5" aria-hidden="true" />
             </div>
-            <DialogTitle className="leading-tight">
-              Unprotected bot execution is enabled
-            </DialogTitle>
+            <DialogTitle className="leading-tight">{t('security_title')}</DialogTitle>
           </div>
         </DialogHeader>
 
         <hr className="border-border" />
 
         <div className="space-y-3 break-words text-sm leading-6 text-muted-foreground">
-          <DialogDescription>
-            Bots are not disabled, and app-wide Basic Auth is not configured.
-          </DialogDescription>
-          <p>
-            Without one of those protections, or another access-control layer in front of
-            RemoteTerm, anyone on your local network who can reach this app can run Python code on
-            the computer hosting this instance via the bot system.
-          </p>
+          <DialogDescription>{t('security_description')}</DialogDescription>
+          <p>{t('security_body_risk')}</p>
           <p className="font-semibold text-foreground">
-            This is only safe on protected or isolated networks with appropriate access control. If
-            your network is untrusted or later compromised, this setup may expose the host system to
-            arbitrary code execution.
+            {t('security_body_safe_networks_only')}
           </p>
           <p>
-            To reduce that risk, run the server with environment variables to either disable bots
-            with{' '}
+            {t('security_body_reduce_risk_prefix')}{' '}
+            {/* eslint-disable-next-line i18next/no-literal-string */}
             <code className="break-all rounded bg-muted px-1 py-0.5 text-foreground">
               MESHCORE_DISABLE_BOTS=true
             </code>{' '}
-            or enable the built-in login with{' '}
+            {t('security_body_reduce_risk_or_enable')}{' '}
             <code className="break-all rounded bg-muted px-1 py-0.5 text-foreground">
               MESHCORE_BASIC_AUTH_USERNAME
             </code>{' '}
@@ -114,14 +106,9 @@ export function SecurityWarningModal({ health }: SecurityWarningModalProps) {
             <code className="break-all rounded bg-muted px-1 py-0.5 text-foreground">
               MESHCORE_BASIC_AUTH_PASSWORD
             </code>
-            . Another external auth or access-control system is also acceptable.
+            {t('security_body_reduce_risk_suffix')}
           </p>
-          <p>
-            If you just want a temporary safety measure while you learn the system, you can use the
-            button below to disable bots until the server restarts. That is only a temporary guard;
-            permanent protection through Basic Auth or env-based bot disablement is still
-            encouraged.
-          </p>
+          <p>{t('security_body_temporary_measure')}</p>
         </div>
 
         <div className="space-y-2">
@@ -134,9 +121,9 @@ export function SecurityWarningModal({ health }: SecurityWarningModalProps) {
               try {
                 await api.disableBotsUntilRestart();
                 setBotsDisabledLocally(true);
-                toast.success('Bots disabled until restart');
+                toast.success(t('toast_bots_disabled_until_restart'));
               } catch (err) {
-                toast.error('Failed to disable bots', {
+                toast.error(t('toast_failed_disable_bots'), {
                   description: err instanceof Error ? err.message : undefined,
                 });
               } finally {
@@ -144,7 +131,7 @@ export function SecurityWarningModal({ health }: SecurityWarningModalProps) {
               }
             }}
           >
-            {disablingBots ? 'Disabling Bots...' : 'Disable Bots Until Server Restart'}
+            {disablingBots ? t('security_disabling_bots') : t('security_disable_bots_button')}
           </Button>
         </div>
 
@@ -153,12 +140,11 @@ export function SecurityWarningModal({ health }: SecurityWarningModalProps) {
             <Checkbox
               checked={confirmedRisk}
               onCheckedChange={(checked) => setConfirmedRisk(checked === true)}
-              aria-label="Acknowledge bot security risk"
+              aria-label={t('security_acknowledge_aria')}
               className="mt-0.5"
             />
             <span className="text-sm leading-6 text-foreground">
-              I understand that continuing with my existing security setup may put me at risk on
-              untrusted networks or if my home network is compromised.
+              {t('security_acknowledge_text')}
             </span>
           </label>
 
@@ -172,7 +158,7 @@ export function SecurityWarningModal({ health }: SecurityWarningModalProps) {
               setAcknowledged(true);
             }}
           >
-            Do Not Warn Me On This Device Again
+            {t('security_do_not_warn_again')}
           </Button>
         </div>
       </DialogContent>

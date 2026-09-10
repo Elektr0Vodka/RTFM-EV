@@ -23,6 +23,7 @@ import {
   buildServerLoginAttemptFromResponse,
   type ServerLoginAttemptState,
 } from '../utils/serverLoginState';
+import { useT } from '../i18n';
 
 interface RoomServerPanelProps {
   contact: Contact;
@@ -122,6 +123,7 @@ export function resetRoomCacheForTests() {
 }
 
 export function RoomServerPanel({ contact, onAuthenticatedChange }: RoomServerPanelProps) {
+  const t = useT();
   const { password, setPassword, rememberPassword, setRememberPassword, persistAfterLogin } =
     useRememberedServerPassword('room', contact.public_key);
 
@@ -197,12 +199,12 @@ export function RoomServerPanel({ contact, onAuthenticatedChange }: RoomServerPa
           [pane]: {
             ...prev[pane],
             loading: false,
-            error: err instanceof Error ? err.message : 'Unknown error',
+            error: err instanceof Error ? err.message : t('error_unknown'),
           },
         }));
       }
     },
-    []
+    [t]
   );
 
   const performLogin = useCallback(
@@ -216,27 +218,25 @@ export function RoomServerPanel({ contact, onAuthenticatedChange }: RoomServerPa
         setLastLoginAttempt(buildServerLoginAttemptFromResponse(method, result, 'room server'));
         setAuthenticated(true);
         if (result.authenticated) {
-          toast.success('Login confirmed by the room server.');
+          toast.success(t('room_login_confirmed_toast'));
         } else {
-          toast.warning("Couldn't confirm room login", {
-            description:
-              result.message ??
-              'No confirmation came back from the room server. You can still open tools and try again.',
+          toast.warning(t('room_login_unconfirmed_toast_title'), {
+            description: result.message ?? t('room_login_unconfirmed_toast_default_desc'),
           });
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
+        const message = err instanceof Error ? err.message : t('error_unknown');
         setLastLoginAttempt(buildServerLoginAttemptFromError(method, message, 'room server'));
         setAuthenticated(true);
         setLoginError(message);
-        toast.error('Room login request failed', {
-          description: `${message}. You can still open tools and retry the login from here.`,
+        toast.error(t('room_login_failed_toast_title'), {
+          description: t('room_login_failed_toast_desc', { message }),
         });
       } finally {
         setLoginLoading(false);
       }
     },
-    [contact.public_key, loginLoading]
+    [contact.public_key, loginLoading, t]
   );
 
   const handleLogin = useCallback(
@@ -272,12 +272,12 @@ export function RoomServerPanel({ contact, onAuthenticatedChange }: RoomServerPa
           },
         ]);
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
+        const message = err instanceof Error ? err.message : t('error_unknown');
         setConsoleHistory((prev) => [
           ...prev,
           {
             command,
-            response: `(error) ${message}`,
+            response: t('repeater_console_error_response', { message }),
             timestamp: Date.now(),
             outgoing: false,
           },
@@ -286,7 +286,7 @@ export function RoomServerPanel({ contact, onAuthenticatedChange }: RoomServerPa
         setConsoleLoading(false);
       }
     },
-    [contact.public_key]
+    [contact.public_key, t]
   );
 
   const panelTitle = useMemo(() => contact.name || contact.public_key.slice(0, 12), [contact]);
@@ -298,16 +298,16 @@ export function RoomServerPanel({ contact, onAuthenticatedChange }: RoomServerPa
       <div className="flex-1 overflow-y-auto p-4">
         <div className="mx-auto flex w-full max-w-sm flex-col gap-4">
           <div className="rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
-            Room server access is experimental and in public alpha. Please report any issues on{' '}
+            {t('room_experimental_notice_before_link')}{' '}
             <a
               href="https://github.com/jkingsman/Remote-Terminal-for-MeshCore/issues"
               target="_blank"
               rel="noreferrer"
               className="font-medium underline underline-offset-2 hover:text-warning/80"
             >
-              GitHub
+              {t('room_experimental_notice_link_label')}
             </a>
-            .
+            {t('room_experimental_notice_after_link')}
           </div>
           <RepeaterLogin
             repeaterName={panelTitle}
@@ -319,9 +319,9 @@ export function RoomServerPanel({ contact, onAuthenticatedChange }: RoomServerPa
             onRememberPasswordChange={setRememberPassword}
             onLogin={handleLogin}
             onLoginAsGuest={handleLoginAsGuest}
-            description="Log in with the room password or use ACL/guest access to enter this room server"
-            passwordPlaceholder="Room server password..."
-            guestLabel="Login with Existing Access / Guest"
+            description={t('room_login_description')}
+            passwordPlaceholder={t('room_password_placeholder')}
+            guestLabel={t('room_login_guest_label')}
           />
         </div>
       </div>
@@ -338,7 +338,7 @@ export function RoomServerPanel({ contact, onAuthenticatedChange }: RoomServerPa
             canRetryPassword={password.trim().length > 0}
             onRetryPassword={() => handleLogin(password)}
             onRetryBlank={handleLoginAsGuest}
-            blankRetryLabel="Retry Existing-Access Login"
+            blankRetryLabel={t('repeater_retry_existing_access_login')}
             showRetryActions={false}
           />
         ) : null}
@@ -352,7 +352,7 @@ export function RoomServerPanel({ contact, onAuthenticatedChange }: RoomServerPa
                 onClick={() => void handleLogin(password)}
                 disabled={loginLoading || password.trim().length === 0}
               >
-                Retry Password Login
+                {t('repeater_retry_password_login')}
               </Button>
               <Button
                 type="button"
@@ -361,7 +361,7 @@ export function RoomServerPanel({ contact, onAuthenticatedChange }: RoomServerPa
                 onClick={handleLoginAsGuest}
                 disabled={loginLoading}
               >
-                Retry Existing-Access Login
+                {t('repeater_retry_existing_access_login')}
               </Button>
             </div>
           ) : (
@@ -373,22 +373,20 @@ export function RoomServerPanel({ contact, onAuthenticatedChange }: RoomServerPa
             size="sm"
             onClick={() => setAdvancedOpen((prev) => !prev)}
           >
-            {advancedOpen ? 'Hide Tools' : 'Show Tools'}
+            {advancedOpen ? t('room_hide_tools') : t('room_show_tools')}
           </Button>
         </div>
       </div>
       <Sheet open={advancedOpen} onOpenChange={setAdvancedOpen}>
         <SheetContent side="right" className="w-full sm:max-w-4xl p-0 flex flex-col">
           <SheetHeader className="sr-only">
-            <SheetTitle>Room Server Tools</SheetTitle>
-            <SheetDescription>
-              Room server telemetry, ACL tools, sensor data, and CLI console
-            </SheetDescription>
+            <SheetTitle>{t('room_tools_title')}</SheetTitle>
+            <SheetDescription>{t('room_tools_description')}</SheetDescription>
           </SheetHeader>
           <div className="border-b border-border px-4 py-3 pr-14">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                <h2 className="truncate text-base font-semibold">Room Server Tools</h2>
+                <h2 className="truncate text-base font-semibold">{t('room_tools_title')}</h2>
                 <p className="text-sm text-muted-foreground">{panelTitle}</p>
               </div>
             </div>

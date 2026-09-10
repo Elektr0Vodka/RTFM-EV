@@ -8,6 +8,7 @@ import {
   SlidersHorizontal,
   type LucideIcon,
 } from 'lucide-react';
+import type { TFn } from '../../i18n';
 
 export type SettingsSection =
   | 'radio'
@@ -28,15 +29,19 @@ export const SETTINGS_SECTION_ORDER: SettingsSection[] = [
   'about',
 ];
 
-export const SETTINGS_SECTION_LABELS: Record<SettingsSection, string> = {
-  radio: 'Radio',
-  local: 'Local Configuration',
-  'radio-app': 'Radio-App Management',
-  database: 'Database',
-  fanout: 'MQTT & Automation',
-  statistics: 'Statistics',
-  about: 'About',
+const SETTINGS_SECTION_LABEL_KEYS: Record<SettingsSection, string> = {
+  radio: 'settings_section_radio',
+  local: 'settings_section_local',
+  'radio-app': 'settings_section_radio_app',
+  database: 'settings_section_database',
+  fanout: 'settings_section_fanout',
+  statistics: 'settings_section_statistics',
+  about: 'settings_section_about',
 };
+
+export function settingsSectionLabel(section: SettingsSection, t: TFn): string {
+  return t(SETTINGS_SECTION_LABEL_KEYS[section]);
+}
 
 export const SETTINGS_SECTION_ICONS: Record<SettingsSection, LucideIcon> = {
   radio: RadioTower,

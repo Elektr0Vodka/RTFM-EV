@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Button } from '../ui/button';
+import { useT } from '../../i18n';
 
 export function ActionsPane({
   onSendZeroHopAdvert,
@@ -14,6 +15,7 @@ export function ActionsPane({
   onReboot: () => void;
   consoleLoading: boolean;
 }) {
+  const t = useT();
   const [confirmReboot, setConfirmReboot] = useState(false);
 
   const handleReboot = useCallback(() => {
@@ -35,11 +37,11 @@ export function ActionsPane({
   return (
     <div className="border border-border rounded-lg overflow-hidden">
       <div className="px-3 py-2 bg-muted/50 border-b border-border">
-        <h3 className="text-sm font-medium">Actions</h3>
+        <h3 className="text-sm font-medium">{t('repeater_actions_title')}</h3>
       </div>
       <div className="p-3 flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={onSendZeroHopAdvert} disabled={consoleLoading}>
-          Zero Hop Advert
+          {t('repeater_zero_hop_advert')}
         </Button>
         <Button
           variant="destructive"
@@ -47,10 +49,10 @@ export function ActionsPane({
           onClick={onSendFloodAdvert}
           disabled={consoleLoading}
         >
-          Flood Advert
+          {t('repeater_flood_advert')}
         </Button>
         <Button variant="outline" size="sm" onClick={onSyncClock} disabled={consoleLoading}>
-          Sync Clock
+          {t('repeater_sync_clock')}
         </Button>
         <Button
           variant={confirmReboot ? 'destructive' : 'outline'}
@@ -58,7 +60,7 @@ export function ActionsPane({
           onClick={handleReboot}
           disabled={consoleLoading}
         >
-          {confirmReboot ? 'Confirm Reboot' : 'Reboot'}
+          {confirmReboot ? t('repeater_confirm_reboot') : t('repeater_reboot')}
         </Button>
       </div>
     </div>

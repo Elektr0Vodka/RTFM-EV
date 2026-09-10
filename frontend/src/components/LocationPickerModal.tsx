@@ -5,6 +5,7 @@ import { TILE_LAYERS, MAP_MIN_ZOOM, MAP_MAX_ZOOM } from '../utils/mapTiles';
 import { isValidLocation } from '../utils/pathUtils';
 import { Button } from './ui/button';
 import type { Contact } from '../types';
+import { useT } from '../i18n';
 
 interface LocationPickerModalProps {
   open: boolean;
@@ -33,6 +34,7 @@ export function LocationPickerModal({
   initialCenter,
   initialLabel = '',
 }: LocationPickerModalProps) {
+  const t = useT();
   const [selected, setSelected] = useState<[number, number]>(initialCenter);
   const [label, setLabel] = useState(initialLabel);
 
@@ -50,13 +52,11 @@ export function LocationPickerModal({
       className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="Pick a location"
+      aria-label={t('location_picker_title')}
     >
       <div className="flex w-full max-w-lg flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-xl">
-        <h2 className="text-base font-semibold">Pick a location</h2>
-        <p className="text-xs text-muted-foreground">
-          Click the map to drop a pin, or click a node marker to use its location.
-        </p>
+        <h2 className="text-base font-semibold">{t('location_picker_title')}</h2>
+        <p className="text-xs text-muted-foreground">{t('location_picker_instructions')}</p>
         <div className="h-64 overflow-hidden rounded border border-border">
           <MapContainer
             center={initialCenter}
@@ -102,20 +102,22 @@ export function LocationPickerModal({
           {selected[0].toFixed(6)}, {selected[1].toFixed(6)}
         </div>
         <label className="flex flex-col gap-1 text-sm">
-          <span>Label (optional)</span>
+          <span>{t('location_picker_label_field')}</span>
           <input
             type="text"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             className="rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            placeholder="e.g. Meetup point"
+            placeholder={t('location_picker_label_placeholder')}
           />
         </label>
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={onClose}>
-            Cancel
+            {t('common_cancel')}
           </Button>
-          <Button onClick={() => onConfirm(selected[0], selected[1], label)}>Insert</Button>
+          <Button onClick={() => onConfirm(selected[0], selected[1], label)}>
+            {t('location_picker_insert_button')}
+          </Button>
         </div>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import type { HealthStatus } from '../../types';
 import { Separator } from '../ui/separator';
+import { useT } from '../../i18n';
 
 const GITHUB_URL = 'https://github.com/jkingsman/Remote-Terminal-for-MeshCore';
 
@@ -10,6 +11,7 @@ export function SettingsAboutSection({
   health?: HealthStatus | null;
   className?: string;
 }) {
+  const t = useT();
   const version = health?.app_info?.version ?? 'unknown';
   const commit = health?.app_info?.commit_hash;
 
@@ -18,7 +20,9 @@ export function SettingsAboutSection({
       <div className="space-y-6">
         {/* Version */}
         <div className="text-center space-y-1">
+          {/* eslint-disable-next-line i18next/no-literal-string */}
           <h3 className="text-lg font-semibold">RemoteTerm for MeshCore</h3>
+          {/* eslint-disable-next-line i18next/no-literal-string */}
           <div className="text-sm text-muted-foreground">
             v{version}
             {commit ? (
@@ -37,7 +41,8 @@ export function SettingsAboutSection({
         {/* Author & License */}
         <div className="text-sm text-center space-y-2">
           <p>
-            Made with love and open source by{' '}
+            {t('settings_about_made_by')}{' '}
+            {/* eslint-disable i18next/no-literal-string */}
             <a
               href="https://jacksbrain.com"
               target="_blank"
@@ -46,27 +51,28 @@ export function SettingsAboutSection({
             >
               Jack Kingsman
             </a>
+            {/* eslint-enable i18next/no-literal-string */}
           </p>
           <p>
-            Licensed under the{' '}
+            {t('settings_about_licensed_under')}{' '}
             <a
               href={`${GITHUB_URL}/blob/main/LICENSE.md`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary hover:underline"
             >
-              MIT License
+              {t('settings_about_mit_license')}
             </a>
           </p>
           <p>
-            This code is free, and ad-free, forever. If you love my work,{' '}
+            {t('settings_about_free_forever')}{' '}
             <a
               href="https://ko-fi.com/jackkingsman"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary hover:underline"
             >
-              buy me a coffee!
+              {t('settings_about_buy_coffee')}
             </a>
           </p>
         </div>
@@ -75,6 +81,7 @@ export function SettingsAboutSection({
 
         {/* Links */}
         <div className="flex justify-center gap-4 text-sm">
+          {/* eslint-disable i18next/no-literal-string */}
           <a
             href={GITHUB_URL}
             target="_blank"
@@ -83,13 +90,14 @@ export function SettingsAboutSection({
           >
             GitHub
           </a>
+          {/* eslint-enable i18next/no-literal-string */}
           <a
             href={`${GITHUB_URL}/issues`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary hover:underline"
           >
-            Report a Bug
+            {t('settings_about_report_bug')}
           </a>
           <a
             href={`${GITHUB_URL}/blob/main/CHANGELOG.md`}
@@ -97,7 +105,7 @@ export function SettingsAboutSection({
             rel="noopener noreferrer"
             className="text-primary hover:underline"
           >
-            Changelog
+            {t('settings_about_changelog')}
           </a>
         </div>
 
@@ -105,8 +113,9 @@ export function SettingsAboutSection({
 
         {/* Acknowledgements */}
         <div className="text-sm text-center text-muted-foreground space-y-2">
-          <p>With great appreciation to those who have made the tools upon which this is built:</p>
+          <p>{t('settings_about_acknowledgements')}</p>
           <p>
+            {/* eslint-disable i18next/no-literal-string */}
             <a
               href="https://github.com/meshcore-dev/MeshCore"
               target="_blank"
@@ -124,6 +133,7 @@ export function SettingsAboutSection({
             >
               meshcore_py
             </a>
+            {/* eslint-enable i18next/no-literal-string */}
           </p>
         </div>
 
@@ -136,7 +146,7 @@ export function SettingsAboutSection({
             rel="noopener noreferrer"
             className="text-xs text-muted-foreground hover:text-primary hover:underline"
           >
-            Open debug support snapshot
+            {t('settings_about_debug_snapshot')}
           </a>
         </div>
       </div>
