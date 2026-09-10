@@ -4,12 +4,14 @@ import type { HealthStatus, MeshcomodConfig, MeshcomodConfigUpdate } from '../..
 import { Checkbox } from '../ui/checkbox';
 import { Label } from '../ui/label';
 import { Separator } from '../ui/separator';
+import { useT } from '../../i18n';
 
 interface Props {
   health: HealthStatus | null;
 }
 
 export function MeshcomodSettings({ health }: Props) {
+  const t = useT();
   const isMeshcomod = health?.radio_device_info?.is_meshcomod ?? false;
   const [cfg, setCfg] = useState<MeshcomodConfig | null>(null);
 
@@ -37,7 +39,7 @@ export function MeshcomodSettings({ health }: Props) {
   return (
     <div className="space-y-4">
       <Separator />
-      <h3 className="text-base font-semibold tracking-tight">Meshcomod (DMC-EV)</h3>
+      <h3 className="text-base font-semibold tracking-tight">{t('settings_meshcomod_heading')}</h3>
 
       <div className="flex items-start gap-2">
         <Checkbox
@@ -48,11 +50,11 @@ export function MeshcomodSettings({ health }: Props) {
           onCheckedChange={(checked) => save({ cad_enabled: checked === true })}
         />
         <div>
-          <Label htmlFor="meshcomod-cad-enabled">CAD (Channel Activity Detection)</Label>
+          <Label htmlFor="meshcomod-cad-enabled">{t('settings_meshcomod_cad_label')}</Label>
           <p className="text-xs text-muted-foreground">
             {cfg?.cad_supported
-              ? 'Scan for channel activity before each transmit and defer if the channel is busy.'
-              : 'Requires CAD-capable meshcomod firmware.'}
+              ? t('settings_meshcomod_cad_supported_desc')
+              : t('settings_meshcomod_cad_unsupported_desc')}
           </p>
         </div>
       </div>
@@ -66,15 +68,15 @@ export function MeshcomodSettings({ health }: Props) {
           onCheckedChange={(checked) => save({ gps_enabled: checked === true })}
         />
         <div className="flex-1">
-          <Label htmlFor="meshcomod-gps-enabled">GPS</Label>
+          <Label htmlFor="meshcomod-gps-enabled">{t('settings_meshcomod_gps_label')}</Label>
           <p className="text-xs text-muted-foreground">
             {cfg?.gps_supported
-              ? 'Enable the on-board GPS receiver.'
-              : 'This firmware build has no GPS support.'}
+              ? t('settings_meshcomod_gps_supported_desc')
+              : t('settings_meshcomod_gps_unsupported_desc')}
           </p>
           {cfg?.gps_supported && cfg?.gps_enabled && (
             <div className="mt-2 flex items-center gap-2">
-              <Label htmlFor="meshcomod-gps-interval">Interval (seconds)</Label>
+              <Label htmlFor="meshcomod-gps-interval">{t('settings_meshcomod_gps_interval_label')}</Label>
               <input
                 id="meshcomod-gps-interval"
                 type="number"
