@@ -553,13 +553,13 @@ export function ContactInfoPane({
                       type="button"
                       className="text-sm flex items-center gap-2 hover:text-primary transition-colors"
                       onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
-                      title={`Opens ${site.name} in a new tab and sends this node's public key to that external site`}
+                      title={t('contact_analyzer_lookup_title', { name: site.name })}
                     >
                       <ExternalLink
                         className="h-4.5 w-4.5 text-muted-foreground"
                         aria-hidden="true"
                       />
-                      <span>Look up on {site.name}</span>
+                      <span>{t('contact_analyzer_lookup_label', { name: site.name })}</span>
                     </button>
                   );
                 })}

@@ -230,6 +230,8 @@
   },
   "contact_info_title": "Contactinfo",
   "contact_info_description": "Contactgegevens en acties",
+  "contact_analyzer_lookup_label": "Opzoeken op {name}",
+  "contact_analyzer_lookup_title": "Opent {name} in een nieuw tabblad en stuurt de publieke sleutel van deze node naar die externe site",
   "contact_name_only_advert_note": "We hebben geen advertentie ontvangen die aan deze naam is gekoppeld, dus we kunnen hun sleutel niet identificeren.",
   "contact_unblock_name": "Deze naam deblokkeren",
   "contact_block_name": "Deze naam blokkeren",

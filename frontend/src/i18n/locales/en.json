@@ -229,6 +229,8 @@
   },
   "contact_info_title": "Contact Info",
   "contact_info_description": "Contact details and actions",
+  "contact_analyzer_lookup_label": "Look up on {name}",
+  "contact_analyzer_lookup_title": "Opens {name} in a new tab and sends this node's public key to that external site",
   "contact_name_only_advert_note": "We have not heard an advertisement associated with this name, so we cannot identify their key.",
   "contact_unblock_name": "Unblock this name",
   "contact_block_name": "Block this name",

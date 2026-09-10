@@ -230,6 +230,8 @@
   },
   "contact_info_title": "Kontaktinfo",
   "contact_info_description": "Kontaktdetails und Aktionen",
+  "contact_analyzer_lookup_label": "Nachschlagen auf {name}",
+  "contact_analyzer_lookup_title": "Öffnet {name} in einem neuen Tab und sendet den öffentlichen Schlüssel dieses Knotens an diese externe Website",
   "contact_name_only_advert_note": "Wir haben keine Ankündigung zu diesem Namen empfangen, daher können wir den Schlüssel nicht identifizieren.",
   "contact_unblock_name": "Diesen Namen entsperren",
   "contact_block_name": "Diesen Namen blockieren",
