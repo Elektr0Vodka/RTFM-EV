@@ -2008,3 +2008,60 @@ class TestMapUploadIntegration:
             mock_msg.assert_not_called()
 
         await manager.stop_all()
+
+
+# DMC observer export: verify manager scope-routing + module dispatch + builders
+# without a live MQTT broker (the broker-connecting tests above cannot run on the
+# Windows ProactorEventLoop; this path exercises the wiring the same way).
+
+
+@pytest.mark.asyncio
+async def test_dmc_observer_dispatch_via_manager(monkeypatch):
+    from app.fanout import mqtt_dmc_observer as dmc
+
+    direct_packet_hex = "0a02aabbcc"  # route "D", payload_version 0
+    manager = FanoutManager()
+    module = dmc.DmcObserverModule("dmc1", {"iata": "AMS", "publish_raw": True}, name="dmc")
+    module._publisher.connected = True
+    published: list[str] = []
+
+    async def fake_publish(topic, payload, **kwargs):  # noqa: ANN001, ANN003
+        published.append(topic)
+
+    monkeypatch.setattr(module._publisher, "publish", fake_publish)
+    monkeypatch.setattr(dmc, "_get_pubkey_hex", lambda: "AABB")
+    monkeypatch.setattr(dmc, "_get_device_name", lambda: "Node")
+
+    manager._modules["dmc1"] = (module, {"messages": "none", "raw_packets": "all"})
+
+    await manager.broadcast_raw({"data": direct_packet_hex, "snr": 7.0, "rssi": -90})
+    assert "meshcore/AMS/AABB/packets" in published
+    assert "meshcore/AMS/AABB/raw" in published
+
+    # Decoded messages must not produce any DMC publish (on_message is a no-op).
+    before = len(published)
+    await manager.broadcast_message({"type": "PRIV", "text": "hi"})
+    assert len(published) == before
+
+
+@pytest.mark.asyncio
+async def test_dmc_observer_raw_off_by_default(monkeypatch):
+    from app.fanout import mqtt_dmc_observer as dmc
+
+    direct_packet_hex = "0a02aabbcc"
+    manager = FanoutManager()
+    module = dmc.DmcObserverModule("dmc2", {"iata": "AMS"}, name="dmc")  # raw defaults off
+    module._publisher.connected = True
+    published: list[str] = []
+
+    async def fake_publish(topic, payload, **kwargs):  # noqa: ANN001, ANN003
+        published.append(topic)
+
+    monkeypatch.setattr(module._publisher, "publish", fake_publish)
+    monkeypatch.setattr(dmc, "_get_pubkey_hex", lambda: "AABB")
+    monkeypatch.setattr(dmc, "_get_device_name", lambda: "Node")
+    manager._modules["dmc2"] = (module, {"messages": "none", "raw_packets": "all"})
+
+    await manager.broadcast_raw({"data": direct_packet_hex})
+    assert "meshcore/AMS/AABB/packets" in published
+    assert "meshcore/AMS/AABB/raw" not in published
