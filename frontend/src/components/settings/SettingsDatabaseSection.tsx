@@ -124,15 +124,15 @@ export function SettingsDatabaseSection({
     const nodeUrl = draftNodeUrl.trim();
     const packetUrl = draftPacketUrl.trim();
     if (!name) {
-      toast.error('Analyzer site needs a name');
+      toast.error(t('settings_db_analyzer_toast_no_name'));
       return;
     }
     if (!isValidNodeTemplate(nodeUrl)) {
-      toast.error('Node URL must be an http(s) URL containing {pubkey}');
+      toast.error(t('settings_db_analyzer_toast_bad_node_url'));
       return;
     }
     if (packetUrl && !isValidPacketTemplate(packetUrl)) {
-      toast.error('Packet URL must be an http(s) URL containing {hash}');
+      toast.error(t('settings_db_analyzer_toast_bad_packet_url'));
       return;
     }
     persistAnalyzerSites([
@@ -293,15 +293,16 @@ export function SettingsDatabaseSection({
 
       {/* External Analyzers */}
       <div className="space-y-3">
-        <h3 className="text-base font-semibold tracking-tight">External Analyzers</h3>
+        <h3 className="text-base font-semibold tracking-tight">
+          {t('settings_db_analyzer_heading')}
+        </h3>
         <p className="text-[0.8125rem] text-muted-foreground">
-          Sites you can open from a contact&apos;s info pane to look up a node. Use{' '}
-          <code className="text-xs">{'{pubkey}'}</code> in the node URL (and{' '}
-          <code className="text-xs">{'{hash}'}</code> in an optional packet URL) as the placeholder.
+          {t('settings_db_analyzer_desc_prefix')}{' '}
+          <code className="text-xs">{'{pubkey}'}</code> {t('settings_db_analyzer_desc_mid')}{' '}
+          <code className="text-xs">{'{hash}'}</code> {t('settings_db_analyzer_desc_suffix')}
         </p>
         <p className="text-[0.8125rem] text-warning">
-          Privacy: opening a lookup sends the node&apos;s public key to that third-party site in the
-          URL, which it can log. Nothing is sent until you click a lookup.
+          {t('settings_db_analyzer_privacy')}
         </p>
 
         {analyzerSites.length > 0 ? (
@@ -327,23 +328,23 @@ export function SettingsDatabaseSection({
                   size="sm"
                   className="border-destructive/50 text-destructive hover:bg-destructive/10 shrink-0"
                   onClick={() => handleRemoveAnalyzerSite(index)}
-                  aria-label={`Remove analyzer site ${site.name}`}
+                  aria-label={t('settings_db_analyzer_remove_aria', { name: site.name })}
                 >
-                  Remove
+                  {t('settings_db_analyzer_remove_button')}
                 </Button>
               </li>
             ))}
           </ul>
         ) : (
           <p className="text-[0.8125rem] text-muted-foreground italic">
-            No analyzer sites configured.
+            {t('settings_db_analyzer_empty')}
           </p>
         )}
 
         <div className="rounded-md border border-border p-3 space-y-2">
           <div className="space-y-1.5">
             <Label htmlFor="analyzer-name" className="text-xs text-muted-foreground">
-              Name
+              {t('common_name')}
             </Label>
             <Input
               id="analyzer-name"
@@ -354,7 +355,7 @@ export function SettingsDatabaseSection({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="analyzer-node-url" className="text-xs text-muted-foreground">
-              Node URL template
+              {t('settings_db_analyzer_node_url_label')}
             </Label>
             <Input
               id="analyzer-node-url"
@@ -366,7 +367,7 @@ export function SettingsDatabaseSection({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="analyzer-packet-url" className="text-xs text-muted-foreground">
-              Packet URL template (optional)
+              {t('settings_db_analyzer_packet_url_label')}
             </Label>
             <Input
               id="analyzer-packet-url"
@@ -377,7 +378,7 @@ export function SettingsDatabaseSection({
             />
           </div>
           <Button variant="outline" onClick={handleAddAnalyzerSite} className="w-full">
-            Add analyzer site
+            {t('settings_db_analyzer_add_button')}
           </Button>
         </div>
       </div>
