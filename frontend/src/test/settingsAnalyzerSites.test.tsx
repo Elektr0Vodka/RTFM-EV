@@ -31,6 +31,7 @@ function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings {
     show_mention_ticker: true,
     registry_sync_url: '',
     region_sync_url: '',
+    wordlist_sync_url: '',
     analyzer_sites: [],
     ...overrides,
   };

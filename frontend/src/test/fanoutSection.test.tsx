@@ -117,6 +117,7 @@ beforeEach(() => {
     show_mention_ticker: true,
     registry_sync_url: '',
     region_sync_url: '',
+    wordlist_sync_url: '',
     analyzer_sites: [],
   });
   mockedApi.getRadioConfig.mockResolvedValue({
@@ -1175,6 +1176,7 @@ describe('SettingsFanoutSection', () => {
       show_mention_ticker: true,
       registry_sync_url: '',
       region_sync_url: '',
+      wordlist_sync_url: '',
       analyzer_sites: [],
     });
 

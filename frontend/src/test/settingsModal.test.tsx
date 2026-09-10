@@ -80,6 +80,7 @@ const baseSettings: AppSettings = {
   show_mention_ticker: true,
   registry_sync_url: '',
   region_sync_url: '',
+  wordlist_sync_url: '',
   analyzer_sites: [],
 };
 
@@ -790,6 +791,33 @@ describe('SettingsModal', () => {
     await waitFor(() => {
       expect(runMaintenanceSpy).toHaveBeenCalledWith({ purgeLinkedRawPackets: true });
     });
+  });
+
+  it('syncs the channel-finder wordlist and reports the cached count', async () => {
+    const syncWordlist = vi
+      .spyOn(api, 'syncWordlist')
+      .mockResolvedValue({ words: ['amsterdam', 'saarland', 'wetter'] });
+    try {
+      localStorage.removeItem('meshcore-wordlist-sync-cache');
+    } catch {
+      // ignore
+    }
+    renderModal({
+      appSettings: { ...baseSettings, wordlist_sync_url: 'https://analyzer.test/wordlist.json' },
+    });
+    openDatabaseSection();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sync now' }));
+
+    await waitFor(() => expect(syncWordlist).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByText('3 synced words cached')).toBeInTheDocument());
+  });
+
+  it('disables the wordlist sync button when no URL is configured', () => {
+    renderModal({ appSettings: { ...baseSettings, wordlist_sync_url: '' } });
+    openDatabaseSection();
+
+    expect(screen.getByRole('button', { name: 'Sync now' })).toBeDisabled();
   });
 
   it('renders statistics section with fetched data', async () => {

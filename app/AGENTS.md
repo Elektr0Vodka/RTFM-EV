@@ -244,6 +244,7 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `POST /radio/discover` — short mesh discovery sweep for nearby repeaters/sensors
 - `POST /radio/discover-regions` — sweep nearby repeaters via the guest anon regions request; aggregates flood-allowed region names into a deduped union for merging into `known_regions` (direct-routed, so only in-range repeaters answer; optional `public_keys`, else recent repeaters)
 - `GET /regions/sync` — server-side fetch of the configured `region_sync_url` (an analyzer regions endpoint returning a bare `{code, name}` array); maps each entry to `name || code`, dedupes, drops the `*` wildcard, and returns `{regions: [...]}` for additive merge into `known_regions` (mirrors `GET /registry/sync`; 400 if unset, 502 on unreachable/non-array)
+- `GET /registry/wordlist-sync`: server-side fetch of the configured `wordlist_sync_url` (a JSON array of candidate channel-name strings); filters to strings, caps at 100k entries, and returns `{words: [...]}` for the browser channel finder to merge into its bundled wordlist (mirrors `GET /registry/sync`; 400 if unset, 502 on unreachable/non-array/oversized)
 - `POST /radio/trace` — send a multi-hop trace loop through known repeaters and back to the local radio
 - `POST /radio/disconnect`
 - `POST /radio/reboot`
@@ -395,6 +396,7 @@ Repository writes should prefer typed models such as `ContactUpsert` over ad hoc
 - `flood_scope`
 - `known_regions`
 - `region_sync_url` (URL of an analyzer regions endpoint whose `{code, name}` array `GET /regions/sync` normalises into region names for merging into `known_regions`)
+- `wordlist_sync_url` (URL of a JSON string-array of candidate channel names that `GET /registry/wordlist-sync` proxies for the browser channel finder's wordlist)
 - `blocked_keys`, `blocked_names`, `discovery_blocked_types`
 - `tracked_telemetry_repeaters`, `tracked_telemetry_contacts`
 - `auto_resend_channel`

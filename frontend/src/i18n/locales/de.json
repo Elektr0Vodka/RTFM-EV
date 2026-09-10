@@ -2084,6 +2084,21 @@
   "settings_db_registry_url_label": "Sync-URL für Kanalliste",
   "settings_db_registry_url_hint_prefix": "URL einer externen JSON-Kanalliste (",
   "settings_db_registry_url_hint_suffix": "Format). Der Server ruft dies ab, wenn du im Kanalregister auf Synchronisieren klickst.",
+  "settings_db_wordlist_heading": "Kanalfinder-Wortliste",
+  "settings_db_wordlist_sync_button": "Jetzt synchronisieren",
+  "settings_db_wordlist_syncing": "Wird synchronisiert...",
+  "settings_db_wordlist_url_label": "Wortlisten-Sync-URL",
+  "settings_db_wordlist_url_hint": "URL eines externen JSON-Arrays mit Kandidaten-Kanalnamen. Der Server ruft es ab und der Kanalfinder im Browser fügt die Namen beim nächsten Öffnen in seine Wortliste ein. Dabei wird eine Anfrage an diese Quelle gesendet.",
+  "settings_db_wordlist_cached_count": {
+    "one": "{count} synchronisiertes Wort im Cache",
+    "other": "{count} synchronisierte Wörter im Cache"
+  },
+  "settings_db_wordlist_toast_no_url": "Zuerst eine Wortlisten-Sync-URL festlegen",
+  "settings_db_wordlist_toast_synced": {
+    "one": "{count} Wort in den Kanalfinder synchronisiert",
+    "other": "{count} Wörter in den Kanalfinder synchronisiert"
+  },
+  "settings_db_wordlist_toast_failed": "Wortlistensynchronisation fehlgeschlagen",
   "settings_db_analyzer_heading": "Externe Analyzer",
   "settings_db_analyzer_desc_prefix": "Websites, die du aus dem Infobereich eines Kontakts öffnen kannst, um einen Knoten nachzuschlagen. Verwende",
   "settings_db_analyzer_desc_mid": "in der Knoten-URL (und",

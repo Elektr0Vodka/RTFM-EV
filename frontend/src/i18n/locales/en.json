@@ -2083,6 +2083,21 @@
   "settings_db_registry_url_label": "Channel list sync URL",
   "settings_db_registry_url_hint_prefix": "URL of a remote JSON channel list (",
   "settings_db_registry_url_hint_suffix": "format). The server fetches this when you click Sync in the Channel Registry.",
+  "settings_db_wordlist_heading": "Channel Finder Wordlist",
+  "settings_db_wordlist_sync_button": "Sync now",
+  "settings_db_wordlist_syncing": "Syncing...",
+  "settings_db_wordlist_url_label": "Wordlist sync URL",
+  "settings_db_wordlist_url_hint": "URL of a remote JSON array of candidate channel names. The server fetches it and the browser channel finder merges the names into its wordlist on next open. This sends a request to that source.",
+  "settings_db_wordlist_cached_count": {
+    "one": "{count} synced word cached",
+    "other": "{count} synced words cached"
+  },
+  "settings_db_wordlist_toast_no_url": "Set a wordlist sync URL first",
+  "settings_db_wordlist_toast_synced": {
+    "one": "Synced {count} word into the channel finder",
+    "other": "Synced {count} words into the channel finder"
+  },
+  "settings_db_wordlist_toast_failed": "Wordlist sync failed",
   "settings_db_analyzer_heading": "External Analyzers",
   "settings_db_analyzer_desc_prefix": "Sites you can open from a contact's info pane to look up a node. Use",
   "settings_db_analyzer_desc_mid": "in the node URL (and",

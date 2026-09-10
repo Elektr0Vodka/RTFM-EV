@@ -1129,6 +1129,13 @@ class AppSettings(BaseModel):
             "{code, name} objects) to sync region names into known_regions"
         ),
     )
+    wordlist_sync_url: str = Field(
+        default="",
+        description=(
+            "URL of a remote JSON array of candidate channel names to merge "
+            "into the browser channel finder's wordlist"
+        ),
+    )
     analyzer_sites: list[AnalyzerSite] = Field(
         default_factory=list,
         description=(

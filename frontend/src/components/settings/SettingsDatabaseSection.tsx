@@ -6,6 +6,7 @@ import { Separator } from '../ui/separator';
 import { toast } from '../ui/sonner';
 import { api } from '../../api';
 import { formatTime } from '../../utils/messageParser';
+import { loadSyncedWordlist, saveSyncedWordlist } from '../../lib/wordlistSync';
 import { useT } from '../../i18n';
 import type { AnalyzerSite, AppSettings, AppSettingsUpdate, HealthStatus } from '../../types';
 
@@ -38,6 +39,9 @@ export function SettingsDatabaseSection({
   const [purgingDecryptedRaw, setPurgingDecryptedRaw] = useState(false);
   const [autoDecryptOnAdvert, setAutoDecryptOnAdvert] = useState(false);
   const [syncUrl, setSyncUrl] = useState('');
+  const [wordlistSyncUrl, setWordlistSyncUrl] = useState('');
+  const [wordlistSyncing, setWordlistSyncing] = useState(false);
+  const [syncedWordCount, setSyncedWordCount] = useState(0);
   const [analyzerSites, setAnalyzerSites] = useState<AnalyzerSite[]>([]);
   const [draftName, setDraftName] = useState('');
   const [draftNodeUrl, setDraftNodeUrl] = useState('');
@@ -52,6 +56,8 @@ export function SettingsDatabaseSection({
   useEffect(() => {
     setAutoDecryptOnAdvert(appSettings.auto_decrypt_dm_on_advert);
     setSyncUrl(appSettings.registry_sync_url ?? '');
+    setWordlistSyncUrl(appSettings.wordlist_sync_url ?? '');
+    setSyncedWordCount(loadSyncedWordlist().length);
     setAnalyzerSites(appSettings.analyzer_sites ?? []);
     setEditingIndex(null);
   }, [appSettings]);
@@ -175,6 +181,26 @@ export function SettingsDatabaseSection({
     if (!site) return;
     persistAnalyzerSites(analyzerSites.map((existing, i) => (i === index ? site : existing)));
     setEditingIndex(null);
+  };
+
+  const handleSyncWordlist = async () => {
+    if (!wordlistSyncUrl.trim()) {
+      toast.error(t('settings_db_wordlist_toast_no_url'));
+      return;
+    }
+    setWordlistSyncing(true);
+    try {
+      // Replace-not-append: store the exact synced set so a shrunk/renamed
+      // upstream list does not leave stale candidates behind.
+      const { words } = await api.syncWordlist();
+      saveSyncedWordlist(words);
+      setSyncedWordCount(words.length);
+      toast.success(t('settings_db_wordlist_toast_synced', { count: words.length }));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('settings_db_wordlist_toast_failed'));
+    } finally {
+      setWordlistSyncing(false);
+    }
   };
 
   return (
@@ -314,6 +340,51 @@ export function SettingsDatabaseSection({
             {t('settings_db_registry_url_hint_prefix')}
             <code className="text-xs">{`{"#name": "key"}`}</code>{' '}
             {t('settings_db_registry_url_hint_suffix')}
+          </p>
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Channel Finder Wordlist */}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-base font-semibold tracking-tight">
+            {t('settings_db_wordlist_heading')}
+          </h3>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSyncWordlist}
+            disabled={wordlistSyncing || !wordlistSyncUrl.trim()}
+          >
+            {wordlistSyncing ? t('settings_db_wordlist_syncing') : t('settings_db_wordlist_sync_button')}
+          </Button>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="wordlist-sync-url" className="text-sm font-medium">
+            {t('settings_db_wordlist_url_label')}
+          </Label>
+          <Input
+            id="wordlist-sync-url"
+            type="url"
+            value={wordlistSyncUrl}
+            placeholder="https://example.com/wordlist.json"
+            onChange={(e) => setWordlistSyncUrl(e.target.value)}
+            onBlur={() => {
+              const trimmed = wordlistSyncUrl.trim();
+              setWordlistSyncUrl(trimmed);
+              void persistAppSettings({ wordlist_sync_url: trimmed }, () =>
+                setWordlistSyncUrl(appSettings.wordlist_sync_url ?? '')
+              );
+            }}
+            className="font-mono text-xs"
+          />
+          <p className="text-[0.8125rem] text-muted-foreground">
+            {t('settings_db_wordlist_url_hint')}
+          </p>
+          <p className="text-[0.8125rem] text-muted-foreground">
+            {t('settings_db_wordlist_cached_count', { count: syncedWordCount })}
           </p>
         </div>
       </div>
