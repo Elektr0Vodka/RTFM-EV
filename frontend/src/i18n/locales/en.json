@@ -1248,6 +1248,7 @@
   "repeater_console_input_placeholder": "CLI command...",
   "repeater_console_placeholder_text": "Type a CLI command below...",
   "repeater_console_title": "Console",
+  "repeater_console_cli_docs": "CLI docs",
   "repeater_csv_header_packets_received": "Packets Received",
   "repeater_csv_header_packets_received_delta": "Packets Received Delta",
   "repeater_csv_header_packets_sent": "Packets Sent",

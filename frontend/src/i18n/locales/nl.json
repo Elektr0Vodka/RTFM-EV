@@ -1249,6 +1249,7 @@
   "repeater_console_input_placeholder": "CLI-commando...",
   "repeater_console_placeholder_text": "Typ hieronder een CLI-commando...",
   "repeater_console_title": "Console",
+  "repeater_console_cli_docs": "CLI-documentatie",
   "repeater_csv_header_packets_received": "Ontvangen pakketten",
   "repeater_csv_header_packets_received_delta": "Ontvangen pakketten delta",
   "repeater_csv_header_packets_sent": "Verzonden pakketten",
