@@ -616,20 +616,20 @@ export function SettingsRadioSection({
       await onSaveAppSettings({ region_sync_url: trimmed });
     } catch (err) {
       setRegionSyncUrl(appSettings.region_sync_url ?? '');
-      toast.error(err instanceof Error ? err.message : 'Failed to save region sync URL');
+      toast.error(err instanceof Error ? err.message : t('settings_radio_toast_region_sync_url_save_failed'));
     }
   };
 
   const handleSyncRegions = async () => {
     if (!regionSyncUrl.trim()) {
-      toast.error('Set a region sync URL first');
+      toast.error(t('settings_radio_toast_region_sync_no_url'));
       return;
     }
     setRegionSyncing(true);
     try {
       const { regions } = await api.syncRegions();
       if (regions.length === 0) {
-        toast.info('Sync source returned no regions');
+        toast.info(t('settings_radio_toast_region_sync_empty'));
         return;
       }
       // Additive merge into the textarea (mirrors handleAddDiscoveredRegions);
@@ -641,15 +641,13 @@ export function SettingsRadioSection({
       const seen = new Set(existing.map((s) => s.toLowerCase()));
       const additions = regions.filter((r) => !seen.has(r.toLowerCase()));
       if (additions.length === 0) {
-        toast.info('All synced regions are already listed');
+        toast.info(t('settings_radio_toast_regions_already_listed'));
         return;
       }
       setKnownRegions([...existing, ...additions].join('\n'));
-      toast.success(
-        `Added ${additions.length} region${additions.length === 1 ? '' : 's'} — review and Save Messaging Settings`
-      );
+      toast.success(t('settings_radio_toast_regions_added', { count: additions.length }));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Region sync failed');
+      toast.error(err instanceof Error ? err.message : t('settings_radio_toast_region_sync_failed'));
     } finally {
       setRegionSyncing(false);
     }
@@ -1501,7 +1499,7 @@ export function SettingsRadioSection({
         <div className="space-y-2 rounded-md border border-input bg-muted/20 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
-              Sync regions from an analyzer
+              {t('settings_radio_region_sync_label')}
             </span>
             <Button
               type="button"
@@ -1510,7 +1508,9 @@ export function SettingsRadioSection({
               onClick={handleSyncRegions}
               disabled={regionSyncing || !regionSyncUrl.trim()}
             >
-              {regionSyncing ? 'Syncing...' : 'Sync Regions'}
+              {regionSyncing
+                ? t('settings_radio_region_sync_button_loading')
+                : t('settings_radio_region_sync_button')}
             </Button>
           </div>
           <Input
@@ -1523,10 +1523,9 @@ export function SettingsRadioSection({
             className="font-mono text-xs"
           />
           <p className="text-[0.8125rem] text-muted-foreground">
-            URL of an analyzer regions endpoint (a JSON array of{' '}
-            <code className="text-xs">{'{code, name}'}</code> objects). The server fetches it and
-            stages the region names above for review before you Save. Synced names are added, never
-            removed. This sends a request to that third-party site.
+            {t('settings_radio_region_sync_desc_prefix')}{' '}
+            <code className="text-xs">{'{code, name}'}</code>{' '}
+            {t('settings_radio_region_sync_desc_suffix')}
           </p>
         </div>
       </div>
