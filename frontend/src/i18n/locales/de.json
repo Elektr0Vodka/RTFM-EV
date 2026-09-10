@@ -678,6 +678,12 @@
   "settings_radio_region_sync_button_loading": "Wird synchronisiert...",
   "settings_radio_region_sync_desc_prefix": "URL eines Analyzer-Regionen-Endpunkts (ein JSON-Array von",
   "settings_radio_region_sync_desc_suffix": "Objekten). Der Server ruft sie ab und stellt die Regionsnamen oben zur Überprüfung bereit, bevor du speicherst. Synchronisierte Namen werden hinzugefügt, nie entfernt. Dabei wird eine Anfrage an diese Drittanbieter-Site gesendet.",
+  "settings_radio_dutch_scopes_label": "Niederländische Regionsbereiche (offline)",
+  "settings_radio_dutch_scopes_button": "Niederländische Bereiche laden",
+  "settings_radio_dutch_scopes_button_loading": "Wird geladen...",
+  "settings_radio_dutch_scopes_desc": "Fügt die mitgelieferten niederländischen Flood-Scope-Namen (nl, nl-nh, nl-ov-ens, ...) zur Liste oben hinzu, speichert und markiert gespeicherte Nachrichten neu. Keine Netzwerkanfrage. Damit erscheinen Regionsmarken bei gescoptem niederländischem Mesh-Verkehr ohne Analyzer-Synchronisation.",
+  "settings_radio_toast_dutch_scopes_seeded": "{added} niederländische Bereiche hinzugefügt; {named} gespeicherte Nachrichten markiert. Öffne eine Unterhaltung erneut, um die Marken zu sehen.",
+  "settings_radio_toast_dutch_scopes_failed": "Niederländische Bereiche konnten nicht geladen werden",
   "settings_radio_toast_regions_added": {
     "one": "{count} Region hinzugefügt — Nachrichteneinstellungen überprüfen und speichern",
     "other": "{count} Regionen hinzugefügt — Nachrichteneinstellungen überprüfen und speichern"

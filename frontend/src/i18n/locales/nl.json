@@ -678,6 +678,12 @@
   "settings_radio_region_sync_button_loading": "Bezig met synchroniseren...",
   "settings_radio_region_sync_desc_prefix": "URL van een analyzer-regio-endpoint (een JSON-array van",
   "settings_radio_region_sync_desc_suffix": "objecten). De server haalt het op en zet de regionamen hierboven klaar ter controle voordat je opslaat. Gesynchroniseerde namen worden toegevoegd, nooit verwijderd. Hiermee wordt een verzoek naar die externe site gestuurd.",
+  "settings_radio_dutch_scopes_label": "Nederlandse regioscopes (offline)",
+  "settings_radio_dutch_scopes_button": "Nederlandse scopes laden",
+  "settings_radio_dutch_scopes_button_loading": "Laden...",
+  "settings_radio_dutch_scopes_desc": "Voegt de meegeleverde Nederlandse flood-scopenamen (nl, nl-nh, nl-ov-ens, ...) toe aan de lijst hierboven, slaat op en labelt opgeslagen berichten opnieuw. Geen netwerkverzoek. Gebruik dit zodat regiolabels verschijnen bij gescopeed Nederlands meshverkeer zonder analyzer-synchronisatie.",
+  "settings_radio_toast_dutch_scopes_seeded": "{added} Nederlandse scopes toegevoegd; {named} opgeslagen berichten gelabeld. Heropen een gesprek om de labels te zien.",
+  "settings_radio_toast_dutch_scopes_failed": "Kon Nederlandse scopes niet laden",
   "settings_radio_toast_regions_added": {
     "one": "{count} regio toegevoegd — controleer en sla berichtinstellingen op",
     "other": "{count} regio's toegevoegd — controleer en sla berichtinstellingen op"

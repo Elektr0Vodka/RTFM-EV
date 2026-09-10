@@ -677,6 +677,12 @@
   "settings_radio_region_sync_button_loading": "Syncing...",
   "settings_radio_region_sync_desc_prefix": "URL of an analyzer regions endpoint (a JSON array of",
   "settings_radio_region_sync_desc_suffix": "objects). The server fetches it and stages the region names above for review before you Save. Synced names are added, never removed. This sends a request to that third-party site.",
+  "settings_radio_dutch_scopes_label": "Dutch region scopes (offline)",
+  "settings_radio_dutch_scopes_button": "Load Dutch scopes",
+  "settings_radio_dutch_scopes_button_loading": "Loading...",
+  "settings_radio_dutch_scopes_desc": "Adds the bundled Dutch flood-scope names (nl, nl-nh, nl-ov-ens, ...) to the list above, saves, and re-tags stored messages. No network request. Use this so region pills appear on scoped Dutch mesh traffic without an analyzer sync.",
+  "settings_radio_toast_dutch_scopes_seeded": "Added {added} Dutch scopes; tagged {named} stored messages. Reopen a conversation to see the pills.",
+  "settings_radio_toast_dutch_scopes_failed": "Could not load Dutch scopes",
   "settings_radio_toast_regions_added": {
     "one": "Added {count} region — review and Save Messaging Settings",
     "other": "Added {count} regions — review and Save Messaging Settings"
