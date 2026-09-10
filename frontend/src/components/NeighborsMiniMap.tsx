@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup, Polyline, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import { themeRasterTile } from '../utils/mapTiles';
+import { useIsDarkTheme } from '../hooks';
 
 /** Watches the map container for size changes and tells Leaflet to re-tile. */
 function InvalidateOnResize() {
@@ -32,6 +34,8 @@ interface Props {
 }
 
 export function NeighborsMiniMap({ neighbors, radioLat, radioLon, radioName }: Props) {
+  const dark = useIsDarkTheme();
+  const tile = themeRasterTile(dark);
   const valid = neighbors.filter(
     (n): n is Neighbor & { lat: number; lon: number } => n.lat != null && n.lon != null
   );
@@ -52,13 +56,16 @@ export function NeighborsMiniMap({ neighbors, radioLat, radioLon, radioName }: P
       <MapContainer
         center={center}
         zoom={10}
+        maxZoom={tile.maxZoom}
         className="h-full w-full"
-        style={{ background: '#1a1a2e' }}
+        style={{ background: tile.background }}
       >
         <InvalidateOnResize />
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          key={tile.id}
+          attribution={tile.attribution}
+          url={tile.url}
+          maxZoom={tile.maxZoom}
         />
         {/* Dotted lines from radio to each neighbor */}
         {hasRadio &&

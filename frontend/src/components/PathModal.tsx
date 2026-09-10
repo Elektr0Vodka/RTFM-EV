@@ -70,7 +70,7 @@ export function PathModal({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-md max-h-[80dvh] flex flex-col">
+      <DialogContent className="w-full max-w-[95vw] sm:max-w-xl md:max-w-2xl max-h-[85dvh] flex flex-col p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>
             {hasPaths ? t('path_modal_title', { count: paths.length }) : t('path_modal_title_status')}
@@ -195,8 +195,8 @@ export function PathModal({
               open={mapModalIndex !== null}
               onOpenChange={(open) => !open && setMapModalIndex(null)}
             >
-              <DialogContent className="sm:max-w-2xl">
-                <DialogHeader>
+              <DialogContent className="flex flex-col w-full max-w-[95vw] sm:max-w-2xl md:max-w-4xl h-[85dvh] max-h-[85dvh] p-4 sm:p-6">
+                <DialogHeader className="shrink-0">
                   <DialogTitle>
                     {mapModalIndex !== null && !hasSinglePath
                       ? t('path_modal_route_map_title_numbered', { n: mapModalIndex + 1 })
@@ -205,20 +205,19 @@ export function PathModal({
                   <DialogDescription>{t('path_modal_route_map_dialog_description')}</DialogDescription>
                 </DialogHeader>
                 {mapModalIndex !== null && (
-                  <Suspense
-                    fallback={
-                      <div
-                        className="rounded border border-border bg-muted/30 animate-pulse"
-                        style={{ height: 400 }}
+                  <div className="flex-1 min-h-0">
+                    <Suspense
+                      fallback={
+                        <div className="h-full rounded border border-border bg-muted/30 animate-pulse" />
+                      }
+                    >
+                      <PathRouteMap
+                        resolved={resolvedPaths[mapModalIndex].resolved}
+                        senderInfo={senderInfo}
+                        fill
                       />
-                    }
-                  >
-                    <PathRouteMap
-                      resolved={resolvedPaths[mapModalIndex].resolved}
-                      senderInfo={senderInfo}
-                      height={400}
-                    />
-                  </Suspense>
+                    </Suspense>
+                  </div>
                 )}
               </DialogContent>
             </Dialog>
