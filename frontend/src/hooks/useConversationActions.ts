@@ -4,6 +4,7 @@ import { toast } from '../components/ui/sonner';
 import type { MessageInputHandle } from '../components/MessageInput';
 import type { Channel, Contact, Conversation, Message, PathDiscoveryResponse } from '../types';
 import { mergeContactIntoList } from '../utils/contactMerge';
+import { buildMarkerPayload } from '../utils/meshcoreOpenPayloads';
 
 interface UseConversationActionsArgs {
   activeConversation: Conversation | null;
@@ -26,6 +27,7 @@ interface UseConversationActionsResult {
     pathHashModeOverride: number | null
   ) => Promise<void>;
   handleSenderClick: (sender: string) => void;
+  handleInsertLocation: (lat: number, lon: number, label: string) => void;
   handleTrace: () => Promise<void>;
   handlePathDiscovery: (publicKey: string) => Promise<PathDiscoveryResponse>;
 }
@@ -136,6 +138,13 @@ export function useConversationActions({
     [messageInputRef]
   );
 
+  const handleInsertLocation = useCallback(
+    (lat: number, lon: number, label: string) => {
+      messageInputRef.current?.appendText(`${buildMarkerPayload(lat, lon, label)} `);
+    },
+    [messageInputRef]
+  );
+
   const handleTrace = useCallback(async () => {
     if (!activeConversation || activeConversation.type !== 'contact') return;
     toast('Trace started...');
@@ -168,6 +177,7 @@ export function useConversationActions({
     handleSetChannelFloodScopeOverride,
     handleSetChannelPathHashModeOverride,
     handleSenderClick,
+    handleInsertLocation,
     handleTrace,
     handlePathDiscovery,
   };

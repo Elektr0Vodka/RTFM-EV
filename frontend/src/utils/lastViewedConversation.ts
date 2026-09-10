@@ -74,6 +74,7 @@ export function getLastViewedConversation(): Conversation | null {
       id: parsed.id,
       name: parsed.name,
       ...(typeof parsed.mapFocusKey === 'string' && { mapFocusKey: parsed.mapFocusKey }),
+      ...(Array.isArray(parsed.mapFocusLatLon) && { mapFocusLatLon: parsed.mapFocusLatLon }),
     };
   } catch {
     return null;
@@ -94,6 +95,7 @@ export function captureLastViewedConversationFromHash(): void {
       id: 'map',
       name: 'Node Map',
       ...(hashConversation.mapFocusKey && { mapFocusKey: hashConversation.mapFocusKey }),
+      ...(hashConversation.mapFocusLatLon && { mapFocusLatLon: hashConversation.mapFocusLatLon }),
     });
     return;
   }

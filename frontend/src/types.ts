@@ -399,6 +399,10 @@ export interface Conversation {
   name: string;
   /** For map view: public key prefix to focus on */
   mapFocusKey?: string;
+  /** For map view: an arbitrary point to focus on */
+  mapFocusLatLon?: [number, number];
+  /** For map view: label to show on the focused point's popup */
+  mapFocusLabel?: string;
 }
 
 export interface RawPacket {

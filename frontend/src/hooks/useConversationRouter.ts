@@ -35,7 +35,13 @@ function resolveConversationFromHash(
     case 'raw':
       return { type: 'raw', id: 'raw', name: 'Raw Packet Feed' };
     case 'map':
-      return { type: 'map', id: 'map', name: 'Node Map', mapFocusKey: hashConv.mapFocusKey };
+      return {
+        type: 'map',
+        id: 'map',
+        name: 'Node Map',
+        mapFocusKey: hashConv.mapFocusKey,
+        ...(hashConv.mapFocusLatLon && { mapFocusLatLon: hashConv.mapFocusLatLon }),
+      };
     case 'visualizer':
       return { type: 'visualizer', id: 'visualizer', name: 'Mesh Visualizer' };
     case 'search':
@@ -129,6 +135,7 @@ export function useConversationRouter({
         id: 'map',
         name: 'Node Map',
         mapFocusKey: hashConv.mapFocusKey,
+        ...(hashConv.mapFocusLatLon && { mapFocusLatLon: hashConv.mapFocusLatLon }),
       });
       hasSetDefaultConversation.current = true;
       return;

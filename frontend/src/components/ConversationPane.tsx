@@ -77,6 +77,8 @@ interface ConversationPaneProps {
   onOpenChannelInfo: (channelKey: string) => void;
   onSenderClick: (sender: string) => void;
   onChannelReferenceClick?: (channelName: string) => void;
+  onInsertLocation?: (lat: number, lon: number, label: string) => void;
+  onCoordinateClick?: (lat: number, lon: number, label: string) => void;
   onLoadOlder: () => Promise<void>;
   onResendChannelMessage: (messageId: number, newTimestamp?: boolean) => Promise<void>;
   onTargetReached: () => void;
@@ -161,6 +163,8 @@ export function ConversationPane({
   onOpenChannelInfo,
   onSenderClick,
   onChannelReferenceClick,
+  onInsertLocation,
+  onCoordinateClick,
   onLoadOlder,
   onResendChannelMessage,
   onTargetReached,
@@ -222,6 +226,8 @@ export function ConversationPane({
             <MapView
               contacts={contacts}
               focusedKey={activeConversation.mapFocusKey}
+              focusedLatLon={activeConversation.mapFocusLatLon}
+              focusedLabel={activeConversation.mapFocusLabel}
               config={config}
               blockedKeys={blockedKeys}
               blockedNames={blockedNames}
@@ -331,6 +337,7 @@ export function ConversationPane({
         onDeleteContact={onDeleteContact}
         onOpenContactInfo={onOpenContactInfo}
         onOpenChannelInfo={onOpenChannelInfo}
+        onInsertLocation={onInsertLocation}
       />
       {activeConversation.type === 'contact' && isPrefixOnlyActiveContact && (
         <ContactResolutionBanner variant="prefix-only" />
@@ -363,6 +370,7 @@ export function ConversationPane({
           }
           onSenderClick={activeConversation.type === 'channel' ? onSenderClick : undefined}
           onChannelReferenceClick={onChannelReferenceClick}
+          onCoordinateClick={onCoordinateClick}
           onLoadOlder={onLoadOlder}
           onResendChannelMessage={
             activeConversation.type === 'channel' ? onResendChannelMessage : undefined
