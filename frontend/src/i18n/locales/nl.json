@@ -300,5 +300,14 @@
   "channel_ignored_invalid_names": "Ongeldige kanaalnamen genegeerd: {names}",
   "toast_failed_load_contact_info": "Laden van contactinfo mislukt",
   "toast_failed_load_channel_info": "Laden van kanaalinfo mislukt",
-  "toast_failed_fetch_telemetry": "Ophalen van telemetrie mislukt"
+  "toast_failed_fetch_telemetry": "Ophalen van telemetrie mislukt",
+  "settings_about_made_by": "Met liefde en open source gemaakt door",
+  "settings_about_licensed_under": "Gelicentieerd onder de",
+  "settings_about_mit_license": "MIT-licentie",
+  "settings_about_free_forever": "Deze code is gratis en advertentievrij, voor altijd. Als je mijn werk waardeert,",
+  "settings_about_buy_coffee": "trakteer me op een koffie!",
+  "settings_about_report_bug": "Een bug melden",
+  "settings_about_changelog": "Wijzigingslog",
+  "settings_about_acknowledgements": "Met grote waardering voor degenen die de tools hebben gemaakt waarop dit is gebouwd:",
+  "settings_about_debug_snapshot": "Debug-ondersteuningssnapshot openen"
 }

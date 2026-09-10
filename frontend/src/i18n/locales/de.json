@@ -300,5 +300,14 @@
   "channel_ignored_invalid_names": "Ungültige Kanalnamen ignoriert: {names}",
   "toast_failed_load_contact_info": "Laden der Kontaktinfo fehlgeschlagen",
   "toast_failed_load_channel_info": "Laden der Kanalinfo fehlgeschlagen",
-  "toast_failed_fetch_telemetry": "Abrufen der Telemetrie fehlgeschlagen"
+  "toast_failed_fetch_telemetry": "Abrufen der Telemetrie fehlgeschlagen",
+  "settings_about_made_by": "Mit Liebe und Open Source erstellt von",
+  "settings_about_licensed_under": "Lizenziert unter der",
+  "settings_about_mit_license": "MIT-Lizenz",
+  "settings_about_free_forever": "Dieser Code ist kostenlos und werbefrei, für immer. Wenn dir meine Arbeit gefällt,",
+  "settings_about_buy_coffee": "spendier mir einen Kaffee!",
+  "settings_about_report_bug": "Fehler melden",
+  "settings_about_changelog": "Änderungsprotokoll",
+  "settings_about_acknowledgements": "Mit großer Wertschätzung an alle, die die Werkzeuge geschaffen haben, auf denen dies aufbaut:",
+  "settings_about_debug_snapshot": "Debug-Support-Snapshot öffnen"
 }
