@@ -39,6 +39,7 @@
   "a11y_set_regional_override": "Regionalen Override festlegen",
   "a11y_switch_to_classic_theme": "Zum klassischen Design wechseln",
   "a11y_switch_to_light_theme": "Zum hellen Design wechseln",
+  "a11y_open_theme_settings": "Design-Einstellungen öffnen",
   "a11y_unread_count": "{count} ungelesen",
   "a11y_unread_messages": {
     "one": "{count} ungelesene Nachricht",
