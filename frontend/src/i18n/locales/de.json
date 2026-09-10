@@ -372,6 +372,7 @@
   "chat_private_channel": "Privater Kanal",
   "chat_radio_not_connected_placeholder": "Funkgerät nicht verbunden",
   "chat_reacted": "hat reagiert",
+  "chat_reacted_to": "hat auf {sender} reagiert",
   "chat_scroll_down_newer": "Nach unten scrollen für neuere Nachrichten",
   "chat_scroll_up_older": "Nach oben scrollen für ältere Nachrichten",
   "chat_select_conversation": "Wähle eine Unterhaltung oder starte eine neue",
