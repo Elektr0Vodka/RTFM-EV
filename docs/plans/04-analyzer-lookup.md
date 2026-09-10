@@ -5,6 +5,28 @@ Status: local planning draft. No code changed by this document. No PRs/issues/co
 Category: C (External analyzer integration), per `docs/plans/README.md` line 68-71.
 Model: Sonnet. State: Absent (greenfield).
 
+## Implementation status (updated 2026-09-10)
+
+Section 5 phasing, tracked against merged/open PRs on `Elektr0Vodka/RTFM-EV`:
+
+- **Step 1 (settings plumbing + minimal editor): SHIPPED (PR #23).** Migration
+  `_072_add_analyzer_sites.py`, `AnalyzerSite` model, `AppSettings.analyzer_sites`,
+  `GET/PATCH /api/settings` wiring, frontend types, add/remove editor.
+- **Step 2 (ContactInfoPane lookup action): SHIPPED (PR #23).**
+- **Step 3 (RawPacketDetailModal "look up sender"): SHIPPED (PR #26).**
+- **Step 4 (ChatHeader icon + visualizer tooltip):** ChatHeader icon SHIPPED
+  (PR #26). Visualizer tooltip **DEFERRED**: verified `PacketNetworkNode.id` is a
+  12-char pubkey prefix (`frontend/src/networkGraph/packetNetworkGraph.ts:372`,
+  `contact.public_key.slice(0, 12)`), not the full 64-hex key analyzer lookup
+  needs (Section 6 open question resolved). Folds into plan [16] (prefix
+  resolution), which is itself probabilistic. Do not wire lookup here.
+- **Step 5 (add-contact paste flow):** `NewMessageModal.prefillRequest`
+  `new-contact` seam SHIPPED (PR #23). A user-facing trigger for that seam (an
+  in-app "Paste from analyzer" affordance vs a new `#add-contact` hash route,
+  Section 4.3) is **still open**; it needs a placement decision before build.
+- **Settings editor inline editing (beyond add/remove): SHIPPED (PR #27).**
+  Per-row Edit/Save/Cancel in `SettingsDatabaseSection.tsx`, shared validation.
+
 ## 1. Summary
 
 Two related, independently shippable features:

@@ -42,6 +42,10 @@ export function SettingsDatabaseSection({
   const [draftName, setDraftName] = useState('');
   const [draftNodeUrl, setDraftNodeUrl] = useState('');
   const [draftPacketUrl, setDraftPacketUrl] = useState('');
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editNodeUrl, setEditNodeUrl] = useState('');
+  const [editPacketUrl, setEditPacketUrl] = useState('');
 
   const saveChainRef = useRef<Promise<void>>(Promise.resolve());
 
@@ -49,6 +53,7 @@ export function SettingsDatabaseSection({
     setAutoDecryptOnAdvert(appSettings.auto_decrypt_dm_on_advert);
     setSyncUrl(appSettings.registry_sync_url ?? '');
     setAnalyzerSites(appSettings.analyzer_sites ?? []);
+    setEditingIndex(null);
   }, [appSettings]);
 
   const handleCleanup = async () => {
@@ -119,33 +124,57 @@ export function SettingsDatabaseSection({
     void persistAppSettings({ analyzer_sites: next }, () => setAnalyzerSites(prev));
   };
 
-  const handleAddAnalyzerSite = () => {
-    const name = draftName.trim();
-    const nodeUrl = draftNodeUrl.trim();
-    const packetUrl = draftPacketUrl.trim();
+  const buildValidatedSite = (
+    rawName: string,
+    rawNodeUrl: string,
+    rawPacketUrl: string
+  ): AnalyzerSite | null => {
+    const name = rawName.trim();
+    const nodeUrl = rawNodeUrl.trim();
+    const packetUrl = rawPacketUrl.trim();
     if (!name) {
       toast.error(t('settings_db_analyzer_toast_no_name'));
-      return;
+      return null;
     }
     if (!isValidNodeTemplate(nodeUrl)) {
       toast.error(t('settings_db_analyzer_toast_bad_node_url'));
-      return;
+      return null;
     }
     if (packetUrl && !isValidPacketTemplate(packetUrl)) {
       toast.error(t('settings_db_analyzer_toast_bad_packet_url'));
-      return;
+      return null;
     }
-    persistAnalyzerSites([
-      ...analyzerSites,
-      { name, node_url_template: nodeUrl, packet_url_template: packetUrl || null },
-    ]);
+    return { name, node_url_template: nodeUrl, packet_url_template: packetUrl || null };
+  };
+
+  const handleAddAnalyzerSite = () => {
+    const site = buildValidatedSite(draftName, draftNodeUrl, draftPacketUrl);
+    if (!site) return;
+    persistAnalyzerSites([...analyzerSites, site]);
     setDraftName('');
     setDraftNodeUrl('');
     setDraftPacketUrl('');
   };
 
   const handleRemoveAnalyzerSite = (index: number) => {
+    if (editingIndex === index) setEditingIndex(null);
     persistAnalyzerSites(analyzerSites.filter((_, i) => i !== index));
+  };
+
+  const handleStartEditAnalyzerSite = (index: number) => {
+    const site = analyzerSites[index];
+    if (!site) return;
+    setEditingIndex(index);
+    setEditName(site.name);
+    setEditNodeUrl(site.node_url_template);
+    setEditPacketUrl(site.packet_url_template ?? '');
+  };
+
+  const handleSaveEditAnalyzerSite = (index: number) => {
+    const site = buildValidatedSite(editName, editNodeUrl, editPacketUrl);
+    if (!site) return;
+    persistAnalyzerSites(analyzerSites.map((existing, i) => (i === index ? site : existing)));
+    setEditingIndex(null);
   };
 
   return (
@@ -307,33 +336,101 @@ export function SettingsDatabaseSection({
 
         {analyzerSites.length > 0 ? (
           <ul className="space-y-2">
-            {analyzerSites.map((site, index) => (
-              <li
-                key={`${site.name}-${index}`}
-                className="rounded-md border border-border p-2.5 flex items-start justify-between gap-3"
-              >
-                <div className="min-w-0 space-y-0.5">
-                  <div className="text-sm font-medium">{site.name}</div>
-                  <div className="text-xs font-mono text-muted-foreground break-all">
-                    {site.node_url_template}
-                  </div>
-                  {site.packet_url_template && (
-                    <div className="text-xs font-mono text-muted-foreground break-all">
-                      {site.packet_url_template}
-                    </div>
-                  )}
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-destructive/50 text-destructive hover:bg-destructive/10 shrink-0"
-                  onClick={() => handleRemoveAnalyzerSite(index)}
-                  aria-label={t('settings_db_analyzer_remove_aria', { name: site.name })}
+            {analyzerSites.map((site, index) =>
+              editingIndex === index ? (
+                <li
+                  key={`${site.name}-${index}`}
+                  className="rounded-md border border-border p-2.5 space-y-2"
                 >
-                  {t('settings_db_analyzer_remove_button')}
-                </Button>
-              </li>
-            ))}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">{t('common_name')}</Label>
+                    <Input
+                      aria-label={t('settings_db_analyzer_edit_name_aria', { name: site.name })}
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">
+                      {t('settings_db_analyzer_node_url_label')}
+                    </Label>
+                    <Input
+                      aria-label={t('settings_db_analyzer_edit_node_url_aria', { name: site.name })}
+                      value={editNodeUrl}
+                      onChange={(e) => setEditNodeUrl(e.target.value)}
+                      className="font-mono text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">
+                      {t('settings_db_analyzer_packet_url_label')}
+                    </Label>
+                    <Input
+                      aria-label={t('settings_db_analyzer_edit_packet_url_aria', {
+                        name: site.name,
+                      })}
+                      value={editPacketUrl}
+                      onChange={(e) => setEditPacketUrl(e.target.value)}
+                      className="font-mono text-xs"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSaveEditAnalyzerSite(index)}
+                      aria-label={t('settings_db_analyzer_save_aria', { name: site.name })}
+                    >
+                      {t('settings_db_analyzer_save_button')}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEditingIndex(null)}
+                      aria-label={t('settings_db_analyzer_cancel_aria', { name: site.name })}
+                    >
+                      {t('common_cancel')}
+                    </Button>
+                  </div>
+                </li>
+              ) : (
+                <li
+                  key={`${site.name}-${index}`}
+                  className="rounded-md border border-border p-2.5 flex items-start justify-between gap-3"
+                >
+                  <div className="min-w-0 space-y-0.5">
+                    <div className="text-sm font-medium">{site.name}</div>
+                    <div className="text-xs font-mono text-muted-foreground break-all">
+                      {site.node_url_template}
+                    </div>
+                    {site.packet_url_template && (
+                      <div className="text-xs font-mono text-muted-foreground break-all">
+                        {site.packet_url_template}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleStartEditAnalyzerSite(index)}
+                      aria-label={t('settings_db_analyzer_edit_aria', { name: site.name })}
+                    >
+                      {t('settings_db_analyzer_edit_button')}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-destructive/50 text-destructive hover:bg-destructive/10"
+                      onClick={() => handleRemoveAnalyzerSite(index)}
+                      aria-label={t('settings_db_analyzer_remove_aria', { name: site.name })}
+                    >
+                      {t('settings_db_analyzer_remove_button')}
+                    </Button>
+                  </div>
+                </li>
+              )
+            )}
           </ul>
         ) : (
           <p className="text-[0.8125rem] text-muted-foreground italic">
