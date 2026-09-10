@@ -667,6 +667,15 @@
   "settings_radio_toast_advert_interval_saved": "Werbeintervall gespeichert",
   "settings_radio_failed_mesh_discovery": "Mesh-Erkennung fehlgeschlagen",
   "settings_radio_toast_regions_already_listed": "Alle entdeckten Regionen sind bereits aufgeführt",
+  "settings_radio_toast_region_sync_no_url": "Zuerst eine Regionen-Sync-URL festlegen",
+  "settings_radio_toast_region_sync_empty": "Synchronisationsquelle lieferte keine Regionen",
+  "settings_radio_toast_region_sync_failed": "Regionensynchronisation fehlgeschlagen",
+  "settings_radio_toast_region_sync_url_save_failed": "Speichern der Regionen-Sync-URL fehlgeschlagen",
+  "settings_radio_region_sync_label": "Regionen von einem Analyzer synchronisieren",
+  "settings_radio_region_sync_button": "Regionen synchronisieren",
+  "settings_radio_region_sync_button_loading": "Wird synchronisiert...",
+  "settings_radio_region_sync_desc_prefix": "URL eines Analyzer-Regionen-Endpunkts (ein JSON-Array von",
+  "settings_radio_region_sync_desc_suffix": "Objekten). Der Server ruft sie ab und stellt die Regionsnamen oben zur Überprüfung bereit, bevor du speicherst. Synchronisierte Namen werden hinzugefügt, nie entfernt. Dabei wird eine Anfrage an diese Drittanbieter-Site gesendet.",
   "settings_radio_toast_regions_added": {
     "one": "{count} Region hinzugefügt — Nachrichteneinstellungen überprüfen und speichern",
     "other": "{count} Regionen hinzugefügt — Nachrichteneinstellungen überprüfen und speichern"
