@@ -10,7 +10,7 @@ from app.models import CommandRequest, RepeaterLoginRequest
 from app.radio import radio_manager
 from app.repository import ContactRepository
 from app.routers.repeaters import send_repeater_command
-from app.routers.rooms import room_acl, room_login, room_status
+from app.routers.rooms import room_acl, room_login, room_lpp_telemetry, room_status
 
 ROOM_KEY = "cc" * 32
 AUTHOR_KEY = "12345678" + ("dd" * 28)
@@ -149,6 +149,38 @@ class TestRoomStatus:
         assert response.packets_received == 80
         assert response.recv_direct == 73
         assert response.recv_errors == 7
+
+    @pytest.mark.asyncio
+    async def test_room_status_timeout_returns_422(self, test_db):
+        mc = _mock_mc()
+        await _insert_contact(ROOM_KEY, name="Room Server", contact_type=3)
+        mc.commands.req_status_sync = AsyncMock(return_value=None)
+
+        with (
+            patch("app.routers.rooms.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await room_status(ROOM_KEY)
+
+        assert exc.value.status_code == 422
+        assert "No status response from room server" in exc.value.detail
+
+    @pytest.mark.asyncio
+    async def test_room_lpp_telemetry_timeout_returns_422(self, test_db):
+        mc = _mock_mc()
+        await _insert_contact(ROOM_KEY, name="Room Server", contact_type=3)
+        mc.commands.req_telemetry_sync = AsyncMock(return_value=None)
+
+        with (
+            patch("app.routers.rooms.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await room_lpp_telemetry(ROOM_KEY)
+
+        assert exc.value.status_code == 422
+        assert "No telemetry response from room server" in exc.value.detail
 
     @pytest.mark.asyncio
     async def test_room_acl_maps_entries(self, test_db):
