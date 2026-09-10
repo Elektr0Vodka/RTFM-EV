@@ -390,7 +390,8 @@ type ConversationType =
   | 'visualizer'
   | 'search'
   | 'trace'
-  | 'channel-registry';
+  | 'channel-registry'
+  | 'node';
 
 export interface Conversation {
   type: ConversationType;
