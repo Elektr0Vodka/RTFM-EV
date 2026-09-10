@@ -146,6 +146,7 @@ export function CommandPalette({
   const {
     favContacts,
     favRepeaters,
+    favRooms,
     regularContacts,
     repeaters,
     rooms,
@@ -154,6 +155,7 @@ export function CommandPalette({
   } = useMemo(() => {
     const fc: SearchableContact[] = [];
     const fr: SearchableContact[] = [];
+    const frm: SearchableContact[] = [];
     const rc: SearchableContact[] = [];
     const rp: SearchableContact[] = [];
     const rm: SearchableContact[] = [];
@@ -168,7 +170,7 @@ export function CommandPalette({
       if (c.type === CONTACT_TYPE_REPEATER) {
         (c.favorite ? fr : rp).push(entry);
       } else if (c.type === CONTACT_TYPE_ROOM) {
-        rm.push(entry);
+        (c.favorite ? frm : rm).push(entry);
       } else {
         (c.favorite ? fc : rc).push(entry);
       }
@@ -186,6 +188,7 @@ export function CommandPalette({
     return {
       favContacts: fc,
       favRepeaters: fr,
+      favRooms: frm,
       regularContacts: rc,
       repeaters: rp,
       rooms: rm,
@@ -199,6 +202,7 @@ export function CommandPalette({
   const fSettings = filterList(SETTING_ITEMS, lq);
   const fFavContacts = filterList(favContacts, lq);
   const fFavRepeaters = filterList(favRepeaters, lq);
+  const fFavRooms = filterList(favRooms, lq);
   const fFavChannels = filterList(favChannels, lq);
   const fContacts = filterList(regularContacts, lq);
   const fRepeaters = filterList(repeaters, lq);
@@ -210,6 +214,7 @@ export function CommandPalette({
     fSettings.length +
     fFavContacts.length +
     fFavRepeaters.length +
+    fFavRooms.length +
     fFavChannels.length +
     fContacts.length +
     fRepeaters.length +
@@ -284,6 +289,17 @@ export function CommandPalette({
                 onSelect={select}
                 onSelectConversation={onSelectConversation}
                 onRepeaterAutoLogin={onRepeaterAutoLogin}
+                showStar
+              />
+            )}
+
+            {fFavRooms.length > 0 && (
+              <ContactGroup
+                heading="Favorite Room Servers"
+                items={fFavRooms}
+                icon={MessageSquare}
+                onSelect={select}
+                onSelectConversation={onSelectConversation}
                 showStar
               />
             )}
