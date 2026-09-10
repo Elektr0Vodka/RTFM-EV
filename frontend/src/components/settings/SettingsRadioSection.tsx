@@ -244,6 +244,8 @@ export function SettingsRadioSection({
   const [maxRadioContacts, setMaxRadioContacts] = useState('');
   const [floodBusy, setFloodBusy] = useState(false);
   const [floodError, setFloodError] = useState<string | null>(null);
+  const [regionSyncUrl, setRegionSyncUrl] = useState('');
+  const [regionSyncing, setRegionSyncing] = useState(false);
 
   // Advertise state
   const [advertisingMode, setAdvertisingMode] = useState<RadioAdvertMode | null>(null);
@@ -272,6 +274,7 @@ export function SettingsRadioSection({
     setFloodScope(stripRegionScopePrefix(appSettings.flood_scope));
     setKnownRegions((appSettings.known_regions ?? []).join('\n'));
     setMaxRadioContacts(String(appSettings.max_radio_contacts));
+    setRegionSyncUrl(appSettings.region_sync_url ?? '');
   }, [appSettings]);
 
   // The preset dropdown is driven by this list: the built-in RADIO_PRESETS by
@@ -603,6 +606,53 @@ export function SettingsRadioSection({
     }
     setKnownRegions([...existing, ...additions].join('\n'));
     toast.success(t('settings_radio_toast_regions_added', { count: additions.length }));
+  };
+
+  const handleSaveRegionSyncUrl = async () => {
+    const trimmed = regionSyncUrl.trim();
+    setRegionSyncUrl(trimmed);
+    if (trimmed === (appSettings.region_sync_url ?? '')) return;
+    try {
+      await onSaveAppSettings({ region_sync_url: trimmed });
+    } catch (err) {
+      setRegionSyncUrl(appSettings.region_sync_url ?? '');
+      toast.error(err instanceof Error ? err.message : 'Failed to save region sync URL');
+    }
+  };
+
+  const handleSyncRegions = async () => {
+    if (!regionSyncUrl.trim()) {
+      toast.error('Set a region sync URL first');
+      return;
+    }
+    setRegionSyncing(true);
+    try {
+      const { regions } = await api.syncRegions();
+      if (regions.length === 0) {
+        toast.info('Sync source returned no regions');
+        return;
+      }
+      // Additive merge into the textarea (mirrors handleAddDiscoveredRegions);
+      // the user reviews and persists via Save Messaging Settings.
+      const existing = knownRegions
+        .split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const seen = new Set(existing.map((s) => s.toLowerCase()));
+      const additions = regions.filter((r) => !seen.has(r.toLowerCase()));
+      if (additions.length === 0) {
+        toast.info('All synced regions are already listed');
+        return;
+      }
+      setKnownRegions([...existing, ...additions].join('\n'));
+      toast.success(
+        `Added ${additions.length} region${additions.length === 1 ? '' : 's'} — review and Save Messaging Settings`
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Region sync failed');
+    } finally {
+      setRegionSyncing(false);
+    }
   };
 
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -1446,6 +1496,38 @@ export function SettingsRadioSection({
               )}
             </div>
           )}
+        </div>
+
+        <div className="space-y-2 rounded-md border border-input bg-muted/20 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
+              Sync regions from an analyzer
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleSyncRegions}
+              disabled={regionSyncing || !regionSyncUrl.trim()}
+            >
+              {regionSyncing ? 'Syncing...' : 'Sync Regions'}
+            </Button>
+          </div>
+          <Input
+            id="region-sync-url"
+            type="url"
+            value={regionSyncUrl}
+            placeholder="https://meshcore-analyzer.eu/api/regions/scopes"
+            onChange={(e) => setRegionSyncUrl(e.target.value)}
+            onBlur={handleSaveRegionSyncUrl}
+            className="font-mono text-xs"
+          />
+          <p className="text-[0.8125rem] text-muted-foreground">
+            URL of an analyzer regions endpoint (a JSON array of{' '}
+            <code className="text-xs">{'{code, name}'}</code> objects). The server fetches it and
+            stages the region names above for review before you Save. Synced names are added, never
+            removed. This sends a request to that third-party site.
+          </p>
         </div>
       </div>
 

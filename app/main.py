@@ -71,6 +71,7 @@ from app.routers import (
     push,
     radio,
     read_state,
+    regions,
     registry,
     repeaters,
     rooms,
@@ -218,6 +219,7 @@ app.include_router(packets.router, prefix="/api")
 app.include_router(read_state.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
 app.include_router(registry.router, prefix="/api")
+app.include_router(regions.router, prefix="/api")
 app.include_router(statistics.router, prefix="/api")
 app.include_router(push.router, prefix="/api")
 app.include_router(ws.router, prefix="/api")

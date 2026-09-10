@@ -79,6 +79,7 @@ const baseSettings: AppSettings = {
   telemetry_routed_hourly: false,
   show_mention_ticker: true,
   registry_sync_url: '',
+  region_sync_url: '',
   analyzer_sites: [],
 };
 
@@ -414,6 +415,34 @@ describe('SettingsModal', () => {
 
     // Existing 'nl-gr' preserved, only the new 'de-by' appended.
     expect(knownRegions.value).toBe('nl-gr\nde-by');
+  });
+
+  it('stages analyzer-synced regions into the known-regions field, additively', async () => {
+    const syncRegions = vi
+      .spyOn(api, 'syncRegions')
+      .mockResolvedValue({ regions: ['Drenthe', 'nl-gr'] });
+    renderModal({
+      appSettings: { ...baseSettings, region_sync_url: 'https://analyzer.test/api/regions/scopes' },
+    });
+    openRadioSection();
+
+    const knownRegions = screen.getByLabelText(
+      'Known Regions (for decoding)'
+    ) as HTMLTextAreaElement;
+    fireEvent.change(knownRegions, { target: { value: 'nl-gr' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sync Regions' }));
+
+    await waitFor(() => expect(syncRegions).toHaveBeenCalled());
+    // Existing 'nl-gr' kept (case-insensitive dedupe), only 'Drenthe' appended.
+    await waitFor(() => expect(knownRegions.value).toBe('nl-gr\nDrenthe'));
+  });
+
+  it('disables the region sync button when no sync URL is configured', () => {
+    renderModal({ appSettings: { ...baseSettings, region_sync_url: '' } });
+    openRadioSection();
+
+    expect(screen.getByRole('button', { name: 'Sync Regions' })).toBeDisabled();
   });
 
   it('saves advert location source through radio config save', async () => {

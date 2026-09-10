@@ -30,6 +30,7 @@ function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings {
     telemetry_routed_hourly: false,
     show_mention_ticker: true,
     registry_sync_url: '',
+    region_sync_url: '',
     analyzer_sites: [],
     ...overrides,
   };

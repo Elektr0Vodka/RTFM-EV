@@ -458,6 +458,7 @@ export interface AppSettings {
   telemetry_routed_hourly: boolean;
   show_mention_ticker: boolean;
   registry_sync_url: string;
+  region_sync_url: string;
   analyzer_sites: AnalyzerSite[];
 }
 
@@ -475,6 +476,7 @@ export interface AppSettingsUpdate {
   telemetry_routed_hourly?: boolean;
   show_mention_ticker?: boolean;
   registry_sync_url?: string;
+  region_sync_url?: string;
   analyzer_sites?: AnalyzerSite[];
 }
 
