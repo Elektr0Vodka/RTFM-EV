@@ -10,10 +10,16 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from datetime import UTC, datetime
 from typing import Any
 
-from app.fanout.community_mqtt import _decode_packet_fields
+from app.fanout.community_mqtt import (
+    CommunityMqttPublisher,
+    _build_radio_info,
+    _decode_packet_fields,
+    _get_client_version,
+)
 from app.path_utils import calculate_packet_hash
 
 logger = logging.getLogger(__name__)
@@ -169,3 +175,100 @@ def build_raw_payload(
         "type": "RAW",
         "data": raw_hex.upper(),
     }
+
+
+class DmcObserverPublisher(CommunityMqttPublisher):
+    """Community MQTT connection, re-shaped to the DMC observer wire schema.
+
+    Reuses CommunityMqttPublisher's connection loop, JWT auth, and device-info
+    gathering. Overrides status publishing (DMC schema, config interval, no LWT).
+    """
+
+    _log_prefix = "DMC Observer MQTT"
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.latest_health: dict[str, Any] | None = None
+
+    def _status_interval_secs(self) -> float:
+        s = self._settings
+        raw = (
+            getattr(s, "dmc_status_interval_ms", _STATUS_INTERVAL_DEFAULT_MS)
+            if s
+            else _STATUS_INTERVAL_DEFAULT_MS
+        )
+        return clamp_status_interval_ms(raw) / 1000.0
+
+    def _build_client_kwargs(self, settings: object) -> dict[str, Any]:
+        # Reuse community broker/auth/TLS/JWT construction, then drop the LWT
+        # (the firmware publishes no will message; decision C).
+        kwargs = super()._build_client_kwargs(settings)
+        kwargs.pop("will", None)
+        return kwargs
+
+    def _on_connected(self, settings: object) -> tuple[str, str]:
+        host = getattr(settings, "community_mqtt_broker_host", "") or "broker"
+        port = getattr(settings, "community_mqtt_broker_port", "")
+        return ("DMC Observer MQTT connected", f"{host}:{port}")
+
+    def _on_error(self) -> tuple[str, str]:
+        return (
+            "DMC Observer MQTT connection failure",
+            "Check your internet connection or try again later.",
+        )
+
+    async def _publish_status(self, settings: object, *, refresh_stats: bool = True) -> None:
+        """Publish the DMC-schema STATUS payload (retained), if enabled."""
+        if not getattr(settings, "dmc_publish_status", True):
+            return
+
+        from app.keystore import get_public_key
+        from app.services.radio_runtime import radio_runtime as radio_manager
+
+        public_key = get_public_key()
+        if public_key is None:
+            return
+        pubkey_hex = public_key.hex().upper()
+
+        iata = getattr(settings, "community_mqtt_iata", "").upper().strip()
+        if not _IATA_RE.fullmatch(iata):
+            return
+
+        device_name = ""
+        if radio_manager.meshcore and radio_manager.meshcore.self_info:
+            device_name = radio_manager.meshcore.self_info.get("name", "")
+
+        if radio_manager.device_info_loaded:
+            raw_ver = radio_manager.firmware_version or "unknown"
+            fw_build = radio_manager.firmware_build or ""
+            fw_str = f"{raw_ver} (Build: {fw_build})" if fw_build else f"{raw_ver}"
+            model = radio_manager.device_model or "unknown"
+        else:
+            info = await self._fetch_device_info()
+            model = info.get("model", "unknown")
+            fw_str = info.get("firmware_version", "unknown")
+
+        stats = _stats_from_health(self.latest_health, queue_len=0)
+
+        payload = build_status_payload(
+            origin=device_name,
+            origin_id=pubkey_hex,
+            model=model,
+            firmware_version=fw_str,
+            radio=_build_radio_info(),
+            client_version=_get_client_version(),
+            stats=stats,
+        )
+        topic = build_dmc_topic(iata, pubkey_hex, "status")
+        await self.publish(topic, payload, retain=True)
+        self._last_status_publish = time.monotonic()
+
+    async def _on_connected_async(self, settings: object) -> None:
+        await self._publish_status(settings)
+
+    async def _on_periodic_wake(self, elapsed: float) -> None:
+        if not self._settings:
+            return
+        now = time.monotonic()
+        if (now - self._last_status_publish) >= self._status_interval_secs():
+            await self._publish_status(self._settings, refresh_stats=True)

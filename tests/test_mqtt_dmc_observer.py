@@ -170,3 +170,34 @@ def test_build_raw_payload():
 
 def test_build_raw_payload_empty_returns_none():
     assert dmc.build_raw_payload({"data": ""}, "x", "aa") is None
+
+
+# ── DmcObserverPublisher ───────────────────────────────────────────────
+
+
+def test_publisher_client_kwargs_has_no_will(monkeypatch):
+    pub = dmc.DmcObserverPublisher()
+
+    def fake_super_kwargs(self, settings):  # noqa: ANN001, ARG001
+        return {"hostname": "h", "port": 1, "will": "SHOULD_BE_REMOVED"}
+
+    monkeypatch.setattr(dmc.CommunityMqttPublisher, "_build_client_kwargs", fake_super_kwargs)
+    kwargs = pub._build_client_kwargs(SimpleNamespace())
+    assert "will" not in kwargs
+
+
+def test_publisher_status_interval_reads_and_clamps():
+    pub = dmc.DmcObserverPublisher()
+    pub._settings = SimpleNamespace(dmc_status_interval_ms=90000)
+    assert pub._status_interval_secs() == 90.0
+    pub._settings = SimpleNamespace(dmc_status_interval_ms=50)  # below min
+    assert pub._status_interval_secs() == 300.0
+
+
+def test_publisher_publish_status_gated_off(monkeypatch):
+    pub = dmc.DmcObserverPublisher()
+    pub._settings = SimpleNamespace(dmc_publish_status=False)
+    published: list = []
+    monkeypatch.setattr(pub, "publish", lambda *a, **k: published.append(a))
+    asyncio.run(pub._publish_status(pub._settings))
+    assert published == []
