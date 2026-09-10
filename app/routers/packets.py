@@ -1,4 +1,5 @@
 import logging
+import time
 from hashlib import sha256
 from sqlite3 import OperationalError
 
@@ -554,6 +555,280 @@ async def get_historical_stats(start_ts: int, end_ts: int) -> HistoricalStatsRes
         neighbors_by_signal=neighbors_by_signal,
         busiest_channels=busiest_channels,
     )
+
+
+# Advert-count thresholds for mesh-health alerts (adverts per window).
+MESH_HEALTH_HIGH_THRESHOLD = 8
+MESH_HEALTH_MEDIUM_THRESHOLD = 2
+
+
+class MeshHealthContact(BaseModel):
+    public_key: str
+    name: str | None
+    advert_count: int
+    first_seen: int | None
+    last_seen: int | None
+    lat: float | None
+    lon: float | None
+    min_path_len: int | None
+    hash_mode: int | None = None
+
+
+class MeshHealthAlert(BaseModel):
+    level: str  # "HIGH" | "MEDIUM"
+    public_key: str
+    name: str | None
+    advert_count: int
+    adverts_per_hour: float
+
+
+class MeshHealthResponse(BaseModel):
+    start_ts: int
+    end_ts: int
+    window_hours: float
+    total_contacts: int
+    high_alert_count: int
+    medium_alert_count: int
+    high_advert_threshold: int
+    medium_advert_threshold: int
+    alerts: list[MeshHealthAlert]
+    contacts: list[MeshHealthContact]
+
+
+@router.get("/mesh-health", response_model=MeshHealthResponse)
+async def get_mesh_health(start_ts: int, end_ts: int) -> MeshHealthResponse:
+    """Advert-frequency health for all contacts heard in the window.
+
+    Advert counts use ``last_primary_seen`` so relay copies are not counted as
+    separate advert events. Contacts advertising too frequently are flagged
+    HIGH (> 8/window) or MEDIUM (> 2/window).
+    """
+    if end_ts <= start_ts:
+        raise HTTPException(status_code=400, detail="end_ts must be greater than start_ts")
+
+    window_hours = (end_ts - start_ts) / 3600.0
+
+    async with db.readonly() as conn:
+        async with conn.execute(
+            """
+            SELECT
+                c.public_key,
+                c.name,
+                c.lat,
+                c.lon,
+                MAX(cap.last_seen) AS last_seen,
+                CASE WHEN MIN(cap.first_seen) < :start_ts THEN :start_ts
+                     ELSE MIN(cap.first_seen) END AS first_seen,
+                MIN(cap.path_len) AS min_path_len,
+                COALESCE(SUM(
+                    CASE WHEN cap.heard_count <= 0 THEN 0
+                         WHEN cap.first_seen >= :start_ts THEN cap.heard_count
+                         WHEN cap.last_primary_seen IS NOT NULL AND cap.last_primary_seen >= :start_ts
+                         THEN 1
+                         ELSE 0
+                    END
+                ), 0) AS advert_count
+            FROM contacts c
+            JOIN contact_advert_paths cap ON cap.public_key = c.public_key
+                AND cap.last_seen >= :start_ts AND cap.last_seen < :end_ts
+            GROUP BY c.public_key
+            ORDER BY advert_count DESC
+            """,
+            {"start_ts": start_ts, "end_ts": end_ts},
+        ) as cur:
+            rows = await cur.fetchall()
+
+    contacts: list[MeshHealthContact] = []
+    alerts: list[MeshHealthAlert] = []
+    high_count = 0
+    medium_count = 0
+
+    for row in rows:
+        advert_count = int(row["advert_count"])
+        contacts.append(
+            MeshHealthContact(
+                public_key=row["public_key"],
+                name=row["name"],
+                advert_count=advert_count,
+                first_seen=row["first_seen"],
+                last_seen=row["last_seen"],
+                lat=row["lat"],
+                lon=row["lon"],
+                min_path_len=row["min_path_len"],
+                hash_mode=None,
+            )
+        )
+
+        adverts_per_hour = advert_count / max(window_hours, 0.01)
+        if advert_count > MESH_HEALTH_HIGH_THRESHOLD:
+            level = "HIGH"
+            high_count += 1
+        elif advert_count > MESH_HEALTH_MEDIUM_THRESHOLD:
+            level = "MEDIUM"
+            medium_count += 1
+        else:
+            continue
+
+        alerts.append(
+            MeshHealthAlert(
+                level=level,
+                public_key=row["public_key"],
+                name=row["name"],
+                advert_count=advert_count,
+                adverts_per_hour=round(adverts_per_hour, 2),
+            )
+        )
+
+    return MeshHealthResponse(
+        start_ts=start_ts,
+        end_ts=end_ts,
+        window_hours=round(window_hours, 2),
+        total_contacts=len(contacts),
+        high_alert_count=high_count,
+        medium_alert_count=medium_count,
+        high_advert_threshold=MESH_HEALTH_HIGH_THRESHOLD,
+        medium_advert_threshold=MESH_HEALTH_MEDIUM_THRESHOLD,
+        alerts=alerts,
+        contacts=contacts,
+    )
+
+
+@router.get("/snr-rssi-scatter")
+async def get_snr_rssi_scatter(
+    start_ts: int | None = None,
+    end_ts: int | None = None,
+    limit: int = 2000,
+) -> list[dict]:
+    """Up to `limit` {rssi, snr, ts} points (newest-first) for an SNR vs RSSI scatter."""
+    now = int(time.time())
+    effective_start = start_ts if start_ts is not None else now - 7 * 86400
+    effective_end = end_ts if end_ts is not None else now
+    async with db.readonly() as conn:
+        async with conn.execute(
+            """
+            SELECT rssi, snr, timestamp
+            FROM raw_packets
+            WHERE rssi IS NOT NULL AND snr IS NOT NULL
+              AND timestamp >= :start_ts AND timestamp <= :end_ts
+            ORDER BY timestamp DESC
+            LIMIT :limit
+            """,
+            {"start_ts": effective_start, "end_ts": effective_end, "limit": min(limit, 5000)},
+        ) as cur:
+            rows = await cur.fetchall()
+    return [
+        {"rssi": int(r["rssi"]), "snr": float(r["snr"]), "ts": int(r["timestamp"])} for r in rows
+    ]
+
+
+@router.get("/hourly-heatmap")
+async def get_hourly_heatmap(start_ts: int | None = None, end_ts: int | None = None) -> dict:
+    """A 7x24 packet-count heatmap grouped by (day_of_week, hour_of_day), UTC.
+
+    day_of_week: 0=Sunday .. 6=Saturday (SQLite strftime('%w')).
+    """
+    now = int(time.time())
+    effective_start = start_ts if start_ts is not None else now - 30 * 86400
+    effective_end = end_ts if end_ts is not None else now
+    async with db.readonly() as conn:
+        async with conn.execute(
+            """
+            SELECT
+                CAST(strftime('%w', datetime(timestamp, 'unixepoch')) AS INTEGER) AS dow,
+                CAST(strftime('%H', datetime(timestamp, 'unixepoch')) AS INTEGER) AS hour,
+                COUNT(*) AS count
+            FROM raw_packets
+            WHERE timestamp >= :start_ts AND timestamp <= :end_ts
+            GROUP BY dow, hour
+            """,
+            {"start_ts": effective_start, "end_ts": effective_end},
+        ) as cur:
+            rows = await cur.fetchall()
+    cells = [{"dow": int(r["dow"]), "hour": int(r["hour"]), "count": int(r["count"])} for r in rows]
+    max_count = max((c["count"] for c in cells), default=0)
+    total = sum(c["count"] for c in cells)
+    return {"cells": cells, "max_count": max_count, "total": total}
+
+
+@router.get("/relay-pairs")
+async def get_relay_pairs(limit: int = 20) -> list[dict]:
+    """Most frequent consecutive node-pair co-occurrences across advert paths.
+
+    Pairs come from contact_advert_paths where path_len >= 2. The per-hop hex
+    width is derived from the stored path_hex length (RT does not store a
+    per-path hash mode).
+    """
+    async with db.readonly() as conn:
+        async with conn.execute(
+            """
+            SELECT path_hex, path_len, heard_count
+            FROM contact_advert_paths
+            WHERE path_len >= 2 AND path_hex IS NOT NULL AND path_hex != ''
+            """,
+        ) as cur:
+            rows = await cur.fetchall()
+
+    pair_counts: dict[tuple[str, str], int] = {}
+    for row in rows:
+        path_hex: str = row["path_hex"] or ""
+        path_len: int = row["path_len"]
+        heard: int = row["heard_count"] or 1
+        if path_len <= 0 or len(path_hex) % path_len != 0:
+            continue
+        hex_per_hop = len(path_hex) // path_len
+        if hex_per_hop == 0:
+            continue
+        hops = [
+            path_hex[i : i + hex_per_hop] for i in range(0, path_len * hex_per_hop, hex_per_hop)
+        ]
+        for a, b in zip(hops, hops[1:], strict=False):
+            pair_counts[(a, b)] = pair_counts.get((a, b), 0) + heard
+
+    top = sorted(pair_counts.items(), key=lambda x: x[1], reverse=True)[: min(limit, 50)]
+    return [{"hop_a": a, "hop_b": b, "count": count} for (a, b), count in top]
+
+
+@router.get("/reachability-rings")
+async def get_reachability_rings(
+    start_ts: int | None = None,
+    end_ts: int | None = None,
+) -> list[dict]:
+    """Unique contact counts grouped by minimum hop distance (reachability rings).
+
+    Returns [{hops: 0|1|2|3|null, count, label}]; contacts with no known path
+    are reported as hops=null.
+    """
+    now = int(time.time())
+    effective_start = start_ts if start_ts is not None else 0
+    effective_end = end_ts if end_ts is not None else now
+    async with db.readonly() as conn:
+        async with conn.execute(
+            """
+            SELECT c.public_key, MIN(cap.path_len) AS min_hops
+            FROM contacts c
+            LEFT JOIN contact_advert_paths cap
+                ON cap.public_key = c.public_key
+                AND (:start_ts = 0 OR cap.last_seen >= :start_ts)
+                AND cap.last_seen <= :end_ts
+            WHERE c.last_seen >= :start_ts AND c.last_seen <= :end_ts
+            GROUP BY c.public_key
+            """,
+            {"start_ts": effective_start, "end_ts": effective_end},
+        ) as cur:
+            rows = await cur.fetchall()
+
+    buckets: dict[int | None, int] = {}
+    for row in rows:
+        h = row["min_hops"]
+        if h is not None:
+            h = int(h)
+            if h >= 3:
+                h = 3
+        buckets[h] = buckets.get(h, 0) + 1
+
+    label_map = {0: "Direct (0-hop)", 1: "1 hop", 2: "2 hops", 3: "3+ hops", None: "Unknown"}
+    order: list[int | None] = [0, 1, 2, 3, None]
+    return [{"hops": h, "count": buckets[h], "label": label_map[h]} for h in order if h in buckets]
 
 
 @router.get("/{packet_id}", response_model=RawPacketDetail)

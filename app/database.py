@@ -89,6 +89,7 @@ CREATE TABLE IF NOT EXISTS contact_advert_paths (
     heard_count INTEGER NOT NULL DEFAULT 1,
     best_rssi REAL,
     best_snr REAL,
+    last_primary_seen INTEGER,
     UNIQUE(public_key, path_hex, path_len),
     FOREIGN KEY (public_key) REFERENCES contacts(public_key) ON DELETE CASCADE
 );

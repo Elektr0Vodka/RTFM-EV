@@ -110,6 +110,37 @@ class TestAdvertPathSignal:
         assert row["best_snr"] == 3.0  # stronger of 3.0 / 1.0
 
     @pytest.mark.asyncio
+    async def test_last_primary_seen_set_on_primary_not_on_relay(self, test_db):
+        """last_primary_seen tracks primary (is_new_packet) arrivals, not relay copies."""
+        pubkey = "dd" * 32
+        await ContactRepository.upsert({"public_key": pubkey, "name": "PrimaryNode"})
+
+        async def _lps():
+            async with test_db.conn.execute(
+                "SELECT last_primary_seen FROM contact_advert_paths WHERE public_key = ?",
+                (pubkey.lower(),),
+            ) as cur:
+                return (await cur.fetchone())["last_primary_seen"]
+
+        # Primary (first-heard) arrival sets last_primary_seen.
+        await ContactAdvertPathRepository.record_observation(
+            public_key=pubkey, path_hex="", timestamp=100, is_new_packet=True
+        )
+        assert await _lps() == 100
+
+        # A later relay copy of the same advert must NOT bump last_primary_seen.
+        await ContactAdvertPathRepository.record_observation(
+            public_key=pubkey, path_hex="", timestamp=200, is_new_packet=False
+        )
+        assert await _lps() == 100
+
+        # Another primary arrival advances it.
+        await ContactAdvertPathRepository.record_observation(
+            public_key=pubkey, path_hex="", timestamp=300, is_new_packet=True
+        )
+        assert await _lps() == 300
+
+    @pytest.mark.asyncio
     async def test_record_observation_null_signal_preserves_existing(self, test_db):
         """A later observation without signal must not wipe the stored best."""
         pubkey = "bb" * 32

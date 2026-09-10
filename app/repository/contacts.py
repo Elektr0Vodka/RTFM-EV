@@ -758,6 +758,7 @@ class ContactAdvertPathRepository:
         hop_count: int | None = None,
         rssi: int | None = None,
         snr: float | None = None,
+        is_new_packet: bool = True,
     ) -> None:
         """
         Upsert a unique advert path observation for a contact and prune to N most recent.
@@ -766,6 +767,12 @@ class ContactAdvertPathRepository:
         the path. On a repeat observation each is the NULL-safe maximum of the
         stored value and the new one, so a signal-less observation never wipes a
         previously recorded best.
+
+        ``last_primary_seen`` records the last time this path was a *primary*
+        arrival (``is_new_packet=True`` — the first-heard copy of a unique advert
+        transmission). Relay copies (``is_new_packet=False``) still refresh
+        ``last_seen`` but never advance ``last_primary_seen``, so mesh-health
+        advert counts reflect unique transmissions, not relay copies.
         """
         if max_paths < 1:
             max_paths = 1
@@ -773,16 +780,21 @@ class ContactAdvertPathRepository:
         normalized_key = public_key.lower()
         normalized_path = path_hex.lower()
         path_len = hop_count if hop_count is not None else len(normalized_path) // 2
+        primary_seen = timestamp if is_new_packet else None
 
         async with db.tx() as conn:
             async with conn.execute(
                 """
                 INSERT INTO contact_advert_paths
-                    (public_key, path_hex, path_len, first_seen, last_seen, heard_count,
-                     best_rssi, best_snr)
-                VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+                    (public_key, path_hex, path_len, first_seen, last_seen, last_primary_seen,
+                     heard_count, best_rssi, best_snr)
+                VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
                 ON CONFLICT(public_key, path_hex, path_len) DO UPDATE SET
                     last_seen = MAX(contact_advert_paths.last_seen, excluded.last_seen),
+                    last_primary_seen = MAX(
+                        COALESCE(contact_advert_paths.last_primary_seen, 0),
+                        COALESCE(excluded.last_primary_seen, 0)
+                    ),
                     heard_count = contact_advert_paths.heard_count + 1,
                     best_rssi = MAX(
                         COALESCE(contact_advert_paths.best_rssi, excluded.best_rssi),
@@ -793,7 +805,16 @@ class ContactAdvertPathRepository:
                         COALESCE(excluded.best_snr, contact_advert_paths.best_snr)
                     )
                 """,
-                (normalized_key, normalized_path, path_len, timestamp, timestamp, rssi, snr),
+                (
+                    normalized_key,
+                    normalized_path,
+                    path_len,
+                    timestamp,
+                    timestamp,
+                    primary_seen,
+                    rssi,
+                    snr,
+                ),
             ):
                 pass
 
