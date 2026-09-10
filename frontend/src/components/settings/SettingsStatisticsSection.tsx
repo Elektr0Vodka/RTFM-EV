@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import { Separator } from '../ui/separator';
 import { api } from '../../api';
+import { useT } from '../../i18n';
 import type { RegionScopeStats, StatisticsResponse } from '../../types';
 
 function formatPercent(value: number): string {
@@ -25,6 +26,7 @@ function formatPercent(value: number): string {
  * size that "2.6%" hides.
  */
 function RegionScopeStatsPanel({ stats }: { stats: RegionScopeStats }) {
+  const t = useT();
   // Corrupt RF captures land in the packet table with random headers, some of
   // which claim to be region-scoped. At or below the measured floor there is
   // nothing to report but noise, so withhold the percentage and say so.
@@ -37,26 +39,36 @@ function RegionScopeStatsPanel({ stats }: { stats: RegionScopeStats }) {
 
   return (
     <div>
-      <h3 className="text-base font-semibold tracking-tight mb-2">Region Scope (24h)</h3>
+      <h3 className="text-base font-semibold tracking-tight mb-2">
+        {t('settings_statistics_region_scope_heading')}
+      </h3>
       <p className="text-[0.8125rem] text-muted-foreground mb-3">
-        How much local traffic uses regional flood scoping. Traffic covers all channel messages
-        heard, including channels you have no key for; senders only counts channels you can decrypt,
-        so the two use different denominators and will not match.
+        {t('settings_statistics_region_scope_desc')}
       </p>
       <div className="space-y-2">
         <div className="flex justify-between items-center gap-4">
-          <span className="text-sm text-muted-foreground">Scoped messages</span>
+          <span className="text-sm text-muted-foreground">
+            {t('settings_statistics_scoped_messages_label')}
+          </span>
           <span className="font-medium text-right">
-            {stats.scoped_messages.toLocaleString()} of {stats.total_messages.toLocaleString()}
+            {t('settings_statistics_count_of_total', {
+              count: stats.scoped_messages.toLocaleString(),
+              total: stats.total_messages.toLocaleString(),
+            })}
             {showTrafficPct && (
               <span className="text-muted-foreground"> ({formatPercent(stats.scoped_pct)})</span>
             )}
           </span>
         </div>
         <div className="flex justify-between items-center gap-4">
-          <span className="text-sm text-muted-foreground">Senders using regions</span>
+          <span className="text-sm text-muted-foreground">
+            {t('settings_statistics_senders_using_regions_label')}
+          </span>
           <span className="font-medium text-right">
-            {stats.scoped_senders.toLocaleString()} of {stats.total_senders.toLocaleString()}
+            {t('settings_statistics_count_of_total', {
+              count: stats.scoped_senders.toLocaleString(),
+              total: stats.total_senders.toLocaleString(),
+            })}
             {stats.total_senders > 0 && (
               <span className="text-muted-foreground">
                 {' '}
@@ -69,14 +81,16 @@ function RegionScopeStatsPanel({ stats }: { stats: RegionScopeStats }) {
       {floor > 0 && stats.scoped_messages > 0 && (
         <p className="text-[0.8125rem] text-muted-foreground mt-2">
           {withinNoise
-            ? `Scoped message count is at or below the estimated false-positive floor (${floor.toFixed(0)}) from corrupt packet captures, so it is not evidence of regional adoption.`
-            : `Includes an estimated ${floor.toFixed(0)} false positives from corrupt packet captures.`}{' '}
-          The sender count is unaffected — it requires successful decryption.
+            ? t('settings_statistics_region_scope_at_floor', { floor: floor.toFixed(0) })
+            : t('settings_statistics_region_scope_est_false_positives', {
+                floor: floor.toFixed(0),
+              })}{' '}
+          {t('settings_statistics_region_scope_sender_unaffected')}
         </p>
       )}
       {stats.total_messages === 0 && (
         <p className="text-sm text-muted-foreground mt-2">
-          No channel messages heard in the last 24 hours.
+          {t('settings_statistics_region_scope_no_messages')}
         </p>
       )}
     </div>
@@ -116,6 +130,7 @@ function formatDateTime(ts: number): string {
 }
 
 function PacketsPerHourChart({ buckets }: { buckets: { timestamp: number; count: number }[] }) {
+  const t = useT();
   // Fill gaps so hours with zero packets still appear on the chart
   const filled: { timestamp: number; count: number }[] = [];
   if (buckets.length > 0) {
@@ -170,7 +185,12 @@ function PacketsPerHourChart({ buckets }: { buckets: { timestamp: number; count:
             strokeDasharray: '3 3',
           }}
           labelFormatter={(idx) => data[Number(idx)]?.label ?? ''}
-          formatter={(value) => [`${Number(value).toLocaleString()} packets`, 'Count']}
+          formatter={(value) => [
+            t('settings_statistics_packets_tooltip_value', {
+              count: Number(value).toLocaleString(),
+            }),
+            t('settings_statistics_count_label'),
+          ]}
         />
         <Area
           type="monotone"
@@ -192,6 +212,7 @@ function NoiseFloorChart({
 }: {
   samples: { timestamp: number; noise_floor_dbm: number }[];
 }) {
+  const t = useT();
   const data = samples.map((s, i) => ({
     idx: i,
     time: formatTime(s.timestamp),
@@ -235,7 +256,7 @@ function NoiseFloorChart({
             strokeDasharray: '3 3',
           }}
           labelFormatter={(idx) => data[Number(idx)]?.time ?? ''}
-          formatter={(value) => [`${value} dBm`, 'Noise Floor']}
+          formatter={(value) => [`${value} dBm`, t('settings_statistics_noise_floor_label')]}
         />
         <Area
           type="linear"
@@ -253,6 +274,7 @@ function NoiseFloorChart({
 }
 
 export function SettingsStatisticsSection({ className }: { className?: string }) {
+  const t = useT();
   const [stats, setStats] = useState<StatisticsResponse | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState(false);
@@ -284,25 +306,33 @@ export function SettingsStatisticsSection({ className }: { className?: string })
     <div className={className}>
       {statsLoading && !stats ? (
         <div className="py-8 text-center text-muted-foreground">
-          Loading statistics... this can take a while if you have a lot of stored packets.
+          {t('settings_statistics_loading')}
         </div>
       ) : stats ? (
         <div className="space-y-6">
           {/* Network */}
           <div>
-            <h3 className="text-base font-semibold tracking-tight mb-2">Network</h3>
+            <h3 className="text-base font-semibold tracking-tight mb-2">
+              {t('settings_statistics_network_heading')}
+            </h3>
             <div className="grid grid-cols-3 gap-3">
               <div className="text-center p-3 bg-muted/50 rounded-md">
                 <div className="text-2xl font-bold">{stats.contact_count}</div>
-                <div className="text-xs text-muted-foreground">Contacts</div>
+                <div className="text-xs text-muted-foreground">
+                  {t('settings_statistics_contacts_label')}
+                </div>
               </div>
               <div className="text-center p-3 bg-muted/50 rounded-md">
                 <div className="text-2xl font-bold">{stats.repeater_count}</div>
-                <div className="text-xs text-muted-foreground">Repeaters</div>
+                <div className="text-xs text-muted-foreground">
+                  {t('settings_statistics_repeaters_label')}
+                </div>
               </div>
               <div className="text-center p-3 bg-muted/50 rounded-md">
                 <div className="text-2xl font-bold">{stats.channel_count}</div>
-                <div className="text-xs text-muted-foreground">Channels</div>
+                <div className="text-xs text-muted-foreground">
+                  {t('settings_statistics_channels_label')}
+                </div>
               </div>
             </div>
           </div>
@@ -311,19 +341,27 @@ export function SettingsStatisticsSection({ className }: { className?: string })
 
           {/* Messages */}
           <div>
-            <h3 className="text-base font-semibold tracking-tight mb-2">Messages</h3>
+            <h3 className="text-base font-semibold tracking-tight mb-2">
+              {t('settings_statistics_messages_heading')}
+            </h3>
             <div className="grid grid-cols-3 gap-3">
               <div className="text-center p-3 bg-muted/50 rounded-md">
                 <div className="text-2xl font-bold">{stats.total_dms}</div>
-                <div className="text-xs text-muted-foreground">Direct Messages</div>
+                <div className="text-xs text-muted-foreground">
+                  {t('settings_statistics_direct_messages_label')}
+                </div>
               </div>
               <div className="text-center p-3 bg-muted/50 rounded-md">
                 <div className="text-2xl font-bold">{stats.total_channel_messages}</div>
-                <div className="text-xs text-muted-foreground">Channel Messages</div>
+                <div className="text-xs text-muted-foreground">
+                  {t('settings_statistics_channel_messages_label')}
+                </div>
               </div>
               <div className="text-center p-3 bg-muted/50 rounded-md">
                 <div className="text-2xl font-bold">{stats.total_outgoing}</div>
-                <div className="text-xs text-muted-foreground">Sent (Outgoing)</div>
+                <div className="text-xs text-muted-foreground">
+                  {t('settings_statistics_sent_outgoing_label')}
+                </div>
               </div>
             </div>
           </div>
@@ -332,31 +370,35 @@ export function SettingsStatisticsSection({ className }: { className?: string })
 
           {/* Activity */}
           <div>
-            <h3 className="text-base font-semibold tracking-tight mb-2">Activity</h3>
+            <h3 className="text-base font-semibold tracking-tight mb-2">
+              {t('settings_statistics_activity_heading')}
+            </h3>
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-muted-foreground">
                   <th className="text-left font-normal pb-1"></th>
-                  <th className="text-right font-normal pb-1">1h</th>
-                  <th className="text-right font-normal pb-1">24h</th>
-                  <th className="text-right font-normal pb-1">7d</th>
+                  <th className="text-right font-normal pb-1">{t('settings_statistics_col_1h')}</th>
+                  <th className="text-right font-normal pb-1">
+                    {t('settings_statistics_col_24h')}
+                  </th>
+                  <th className="text-right font-normal pb-1">{t('settings_statistics_col_7d')}</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td className="py-1">Contacts heard</td>
+                  <td className="py-1">{t('settings_statistics_contacts_heard_label')}</td>
                   <td className="text-right py-1">{stats.contacts_heard.last_hour}</td>
                   <td className="text-right py-1">{stats.contacts_heard.last_24_hours}</td>
                   <td className="text-right py-1">{stats.contacts_heard.last_week}</td>
                 </tr>
                 <tr>
-                  <td className="py-1">Repeaters heard</td>
+                  <td className="py-1">{t('settings_statistics_repeaters_heard_label')}</td>
                   <td className="text-right py-1">{stats.repeaters_heard.last_hour}</td>
                   <td className="text-right py-1">{stats.repeaters_heard.last_24_hours}</td>
                   <td className="text-right py-1">{stats.repeaters_heard.last_week}</td>
                 </tr>
                 <tr>
-                  <td className="py-1">Known-channels active</td>
+                  <td className="py-1">{t('settings_statistics_known_channels_active_label')}</td>
                   <td className="text-right py-1">{stats.known_channels_active.last_hour}</td>
                   <td className="text-right py-1">{stats.known_channels_active.last_24_hours}</td>
                   <td className="text-right py-1">{stats.known_channels_active.last_week}</td>
@@ -369,18 +411,26 @@ export function SettingsStatisticsSection({ className }: { className?: string })
 
           {/* Packets */}
           <div>
-            <h3 className="text-base font-semibold tracking-tight mb-2">Packets</h3>
+            <h3 className="text-base font-semibold tracking-tight mb-2">
+              {t('settings_statistics_packets_label')}
+            </h3>
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Total stored</span>
+                <span className="text-sm text-muted-foreground">
+                  {t('settings_statistics_total_stored_label')}
+                </span>
                 <span className="font-medium">{stats.total_packets}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-success">Decrypted</span>
+                <span className="text-sm text-success">
+                  {t('settings_statistics_decrypted_label')}
+                </span>
                 <span className="font-medium text-success">{stats.decrypted_packets}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-warning">Undecrypted</span>
+                <span className="text-sm text-warning">
+                  {t('settings_statistics_undecrypted_label')}
+                </span>
                 <span className="font-medium text-warning">{stats.undecrypted_packets}</span>
               </div>
             </div>
@@ -392,7 +442,7 @@ export function SettingsStatisticsSection({ className }: { className?: string })
               <Separator />
               <div>
                 <h3 className="text-base font-semibold tracking-tight mb-2">
-                  Packets per Hour (72h)
+                  {t('settings_statistics_packets_per_hour_heading')}
                 </h3>
                 <PacketsPerHourChart buckets={stats.packets_per_hour_72h} />
               </div>
@@ -403,27 +453,30 @@ export function SettingsStatisticsSection({ className }: { className?: string })
 
           {/* Path Hash Width */}
           <div>
-            <h3 className="text-base font-semibold tracking-tight mb-2">Path Hash Width (24h)</h3>
+            <h3 className="text-base font-semibold tracking-tight mb-2">
+              {t('settings_statistics_path_hash_width_heading')}
+            </h3>
             <div className="mb-2 text-xs text-muted-foreground">
-              Parsed stored raw packets from the last 24 hours:{' '}
-              {stats.path_hash_width_24h.total_packets}
+              {t('settings_statistics_path_hash_parsed', {
+                count: stats.path_hash_width_24h.total_packets,
+              })}
             </div>
             {stats.path_hash_width_24h.total_packets > 0 ? (
               <ResponsiveContainer width="100%" height={120}>
                 <BarChart
                   data={[
                     {
-                      name: '1-byte',
+                      name: t('settings_statistics_path_hash_1byte'),
                       count: stats.path_hash_width_24h.single_byte,
                       pct: stats.path_hash_width_24h.single_byte_pct,
                     },
                     {
-                      name: '2-byte',
+                      name: t('settings_statistics_path_hash_2byte'),
                       count: stats.path_hash_width_24h.double_byte,
                       pct: stats.path_hash_width_24h.double_byte_pct,
                     },
                     {
-                      name: '3-byte',
+                      name: t('settings_statistics_path_hash_3byte'),
                       count: stats.path_hash_width_24h.triple_byte,
                       pct: stats.path_hash_width_24h.triple_byte_pct,
                     },
@@ -453,7 +506,7 @@ export function SettingsStatisticsSection({ className }: { className?: string })
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     formatter={(value: any, _: any, props: any) => [
                       `${Number(value).toLocaleString()} (${formatPercent(props.payload.pct)})`,
-                      'Packets',
+                      t('settings_statistics_packets_label'),
                     ]}
                   />
                   <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={40}>
@@ -464,7 +517,9 @@ export function SettingsStatisticsSection({ className }: { className?: string })
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <p className="text-sm text-muted-foreground">No path data in the last 24 hours.</p>
+              <p className="text-sm text-muted-foreground">
+                {t('settings_statistics_path_hash_no_data')}
+              </p>
             )}
           </div>
 
@@ -479,7 +534,7 @@ export function SettingsStatisticsSection({ className }: { className?: string })
               <Separator />
               <div>
                 <h3 className="text-base font-semibold tracking-tight mb-2">
-                  Busiest Channels (24h)
+                  {t('settings_statistics_busiest_channels_heading')}
                 </h3>
                 <ResponsiveContainer
                   width="100%"
@@ -506,7 +561,12 @@ export function SettingsStatisticsSection({ className }: { className?: string })
                     <RechartsTooltip
                       {...TOOLTIP_STYLE}
                       cursor={{ fill: 'hsl(var(--muted))', opacity: 0.5 }}
-                      formatter={(value) => [`${Number(value).toLocaleString()} messages`, null]}
+                      formatter={(value) => [
+                        t('settings_statistics_messages_tooltip_value', {
+                          count: Number(value).toLocaleString(),
+                        }),
+                        null,
+                      ]}
                     />
                     <Bar dataKey="messages" radius={[0, 4, 4, 0]} maxBarSize={16}>
                       {stats.busiest_channels_24h.map((_, i) => (
@@ -524,31 +584,43 @@ export function SettingsStatisticsSection({ className }: { className?: string })
             <>
               <Separator />
               <div>
-                <h3 className="text-base font-semibold tracking-tight mb-2">Noise Floor (24h)</h3>
+                <h3 className="text-base font-semibold tracking-tight mb-2">
+                  {t('settings_statistics_noise_floor_heading')}
+                </h3>
                 {stats.noise_floor_24h.latest_noise_floor_dbm != null && (
                   <div className="mb-2 text-xs text-muted-foreground">
-                    Latest reading: {stats.noise_floor_24h.latest_noise_floor_dbm} dBm
-                    {stats.noise_floor_24h.latest_timestamp != null &&
-                      ` at ${new Date(
-                        stats.noise_floor_24h.latest_timestamp * 1000
-                      ).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}`}
+                    {t('settings_statistics_noise_floor_latest_reading', {
+                      value: stats.noise_floor_24h.latest_noise_floor_dbm,
+                    })}
+                    {stats.noise_floor_24h.latest_timestamp != null && (
+                      <>
+                        {' '}
+                        {t('settings_statistics_noise_floor_at_time', {
+                          time: new Date(
+                            stats.noise_floor_24h.latest_timestamp * 1000
+                          ).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          }),
+                        })}
+                      </>
+                    )}
                   </div>
                 )}
                 {stats.noise_floor_24h.samples.length > 1 ? (
                   <NoiseFloorChart samples={stats.noise_floor_24h.samples} />
                 ) : stats.noise_floor_24h.samples.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    No noise floor samples collected yet. Samples are collected every minute and
-                    retained until server restart.
+                    {t('settings_statistics_noise_floor_no_samples', {
+                      note: t('settings_statistics_noise_floor_samples_note'),
+                    })}
                   </p>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    Only one sample so far ({stats.noise_floor_24h.samples[0].noise_floor_dbm} dBm).
-                    More data needed for a chart. Samples are collected every minute and retained
-                    until server restart.
+                    {t('settings_statistics_noise_floor_one_sample', {
+                      dbm: stats.noise_floor_24h.samples[0].noise_floor_dbm,
+                      note: t('settings_statistics_noise_floor_samples_note'),
+                    })}
                   </p>
                 )}
               </div>
@@ -556,7 +628,9 @@ export function SettingsStatisticsSection({ className }: { className?: string })
           )}
         </div>
       ) : statsError ? (
-        <div className="py-8 text-center text-muted-foreground">Failed to load statistics.</div>
+        <div className="py-8 text-center text-muted-foreground">
+          {t('settings_statistics_failed_to_load')}
+        </div>
       ) : null}
     </div>
   );
