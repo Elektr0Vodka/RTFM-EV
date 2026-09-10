@@ -12,8 +12,10 @@ import logging
 import re
 import time
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import Any
 
+from app.fanout.base import FanoutModule
 from app.fanout.community_mqtt import (
     CommunityMqttPublisher,
     _build_radio_info,
@@ -272,3 +274,106 @@ class DmcObserverPublisher(CommunityMqttPublisher):
         now = time.monotonic()
         if (now - self._last_status_publish) >= self._status_interval_secs():
             await self._publish_status(self._settings, refresh_stats=True)
+
+
+def _config_to_dmc_settings(config: dict) -> SimpleNamespace:
+    """Map a fanout config blob to the settings namespace the publisher reads."""
+    return SimpleNamespace(
+        # Connection knobs reused by the inherited community connection code.
+        community_mqtt_enabled=True,
+        community_mqtt_broker_host=config.get("broker_host", ""),
+        community_mqtt_broker_port=config.get("broker_port", 443),
+        community_mqtt_transport=config.get("transport", "websockets"),
+        community_mqtt_use_tls=config.get("use_tls", True),
+        community_mqtt_tls_verify=config.get("tls_verify", True),
+        community_mqtt_auth_mode=config.get("auth_mode", "token"),
+        community_mqtt_username=config.get("username", ""),
+        community_mqtt_password=config.get("password", ""),
+        community_mqtt_iata=config.get("iata", ""),
+        community_mqtt_email=config.get("email", ""),
+        community_mqtt_token_audience=config.get("token_audience", ""),
+        community_mqtt_websocket_path=config.get("websocket_path", "/"),
+        # DMC knobs.
+        dmc_publish_status=bool(config.get("publish_status", True)),
+        dmc_publish_packets=bool(config.get("publish_packets", True)),
+        dmc_publish_raw=bool(config.get("publish_raw", False)),
+        dmc_status_interval_ms=clamp_status_interval_ms(
+            config.get("status_interval_ms", _STATUS_INTERVAL_DEFAULT_MS)
+        ),
+    )
+
+
+def _get_pubkey_hex() -> str | None:
+    from app.keystore import get_public_key
+
+    key = get_public_key()
+    return key.hex().upper() if key is not None else None
+
+
+def _get_device_name() -> str:
+    from app.services.radio_runtime import radio_runtime as radio_manager
+
+    if radio_manager.meshcore and radio_manager.meshcore.self_info:
+        return radio_manager.meshcore.self_info.get("name", "")
+    return ""
+
+
+class DmcObserverModule(FanoutModule):
+    """Fanout module that mirrors the DMC observer firmware MQTT bridge."""
+
+    def __init__(self, config_id: str, config: dict, *, name: str = "") -> None:
+        super().__init__(config_id, config, name=name)
+        self._publisher = DmcObserverPublisher()
+        self._publisher.set_integration_name(name or config_id)
+
+    async def start(self) -> None:
+        await self._publisher.start(_config_to_dmc_settings(self.config))
+
+    async def stop(self) -> None:
+        await self._publisher.stop()
+
+    async def on_message(self, data: dict) -> None:
+        # DMC observer export publishes packets/raw/status, not decoded messages.
+        pass
+
+    async def on_health(self, data: dict) -> None:
+        self._publisher.latest_health = data
+
+    async def on_raw(self, data: dict) -> None:
+        if not self._publisher.connected:
+            return
+        pubkey_hex = _get_pubkey_hex()
+        if pubkey_hex is None:
+            return
+        iata = str(self.config.get("iata", "")).upper().strip()
+        if not _IATA_RE.fullmatch(iata):
+            return
+        device_name = _get_device_name()
+
+        try:
+            if bool(self.config.get("publish_packets", True)):
+                pkt = build_packet_payload(data, device_name, pubkey_hex)
+                if pkt is not None:
+                    await self._publisher.publish(
+                        build_dmc_topic(iata, pubkey_hex, "packets"), pkt
+                    )
+            if bool(self.config.get("publish_raw", False)):
+                raw = build_raw_payload(data, device_name, pubkey_hex)
+                if raw is not None:
+                    await self._publisher.publish(
+                        build_dmc_topic(iata, pubkey_hex, "raw"), raw
+                    )
+        except Exception as e:  # noqa: BLE001
+            logger.warning("DMC Observer MQTT broadcast error: %s", e, exc_info=True)
+
+    @property
+    def status(self) -> str:
+        if self.last_error:
+            return "error"
+        if self._publisher._is_configured():
+            return "connected" if self._publisher.connected else "disconnected"
+        return "disconnected"
+
+    @property
+    def last_error(self) -> str | None:
+        return self._publisher.last_error

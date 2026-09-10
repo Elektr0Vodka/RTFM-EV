@@ -201,3 +201,76 @@ def test_publisher_publish_status_gated_off(monkeypatch):
     monkeypatch.setattr(pub, "publish", lambda *a, **k: published.append(a))
     asyncio.run(pub._publish_status(pub._settings))
     assert published == []
+
+
+# ── Config mapping + DmcObserverModule ─────────────────────────────────
+
+
+def test_config_to_dmc_settings_defaults():
+    s = dmc._config_to_dmc_settings({})
+    assert s.dmc_publish_status is True
+    assert s.dmc_publish_packets is True
+    assert s.dmc_publish_raw is False
+    assert s.dmc_status_interval_ms == 300000
+    assert s.community_mqtt_enabled is True
+
+
+def test_config_to_dmc_settings_clamps_interval():
+    assert dmc._config_to_dmc_settings({"status_interval_ms": 99}).dmc_status_interval_ms == 300000
+    assert (
+        dmc._config_to_dmc_settings({"status_interval_ms": 120000}).dmc_status_interval_ms == 120000
+    )
+
+
+def test_module_on_health_caches_snapshot():
+    mod = dmc.DmcObserverModule("id1", {}, name="dmc")
+    snap = {"battery_mv": 3900}
+    asyncio.run(mod.on_health(snap))
+    assert mod._publisher.latest_health == snap
+
+
+def test_module_on_raw_publishes_raw_when_enabled(monkeypatch):
+    mod = dmc.DmcObserverModule(
+        "id1", {"iata": "AMS", "publish_packets": True, "publish_raw": True}, name="dmc"
+    )
+    published: list[str] = []
+
+    async def fake_publish(topic, payload, **k):  # noqa: ANN001
+        published.append(topic)
+
+    mod._publisher.connected = True
+    monkeypatch.setattr(mod._publisher, "publish", fake_publish)
+    monkeypatch.setattr(dmc, "_get_pubkey_hex", lambda: "A1B2")
+    monkeypatch.setattr(dmc, "_get_device_name", lambda: "Node")
+
+    # DIRECT_PACKET_HEX decodes to route "D" -> both packets and raw publish.
+    asyncio.run(mod.on_raw({"data": DIRECT_PACKET_HEX, "snr": 7.0, "rssi": -90}))
+    assert "meshcore/AMS/A1B2/packets" in published
+    assert "meshcore/AMS/A1B2/raw" in published
+
+
+def test_module_on_raw_raw_off(monkeypatch):
+    mod = dmc.DmcObserverModule("id1", {"iata": "AMS", "publish_raw": False}, name="dmc")
+    published: list[str] = []
+
+    async def fake_publish(topic, payload, **k):  # noqa: ANN001
+        published.append(topic)
+
+    mod._publisher.connected = True
+    monkeypatch.setattr(mod._publisher, "publish", fake_publish)
+    monkeypatch.setattr(dmc, "_get_pubkey_hex", lambda: "A1B2")
+    monkeypatch.setattr(dmc, "_get_device_name", lambda: "Node")
+    asyncio.run(mod.on_raw({"data": DIRECT_PACKET_HEX}))
+    assert "meshcore/AMS/A1B2/raw" not in published
+    assert "meshcore/AMS/A1B2/packets" in published
+
+
+def test_module_on_raw_skips_when_disconnected(monkeypatch):
+    mod = dmc.DmcObserverModule("id1", {"iata": "AMS"}, name="dmc")
+    published: list[str] = []
+    mod._publisher.connected = False
+    monkeypatch.setattr(
+        mod._publisher, "publish", lambda *a, **k: published.append("x")  # noqa: ARG005
+    )
+    asyncio.run(mod.on_raw({"data": DIRECT_PACKET_HEX}))
+    assert published == []
