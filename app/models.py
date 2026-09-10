@@ -1061,6 +1061,10 @@ class AppSettings(BaseModel):
             "@mentioned in a channel they are not currently viewing"
         ),
     )
+    registry_sync_url: str = Field(
+        default="",
+        description="URL of a remote {name: key} JSON channel list to sync into the registry",
+    )
 
 
 class BusyChannel(BaseModel):

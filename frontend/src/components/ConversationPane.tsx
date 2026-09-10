@@ -31,6 +31,7 @@ const MapView = lazy(() => import('./MapView').then((m) => ({ default: m.MapView
 const VisualizerView = lazy(() =>
   import('./VisualizerView').then((m) => ({ default: m.VisualizerView }))
 );
+const ChannelRegistryView = lazy(() => import('./ChannelRegistryView'));
 
 interface ConversationPaneProps {
   activeConversation: Conversation | null;
@@ -260,6 +261,14 @@ export function ConversationPane({
 
   if (activeConversation.type === 'trace') {
     return <TracePane contacts={contacts} config={config} onRunTracePath={onRunTracePath} />;
+  }
+
+  if (activeConversation.type === 'channel-registry') {
+    return (
+      <Suspense fallback={<LoadingPane label="Loading channel registry..." />}>
+        <ChannelRegistryView channels={channels} />
+      </Suspense>
+    );
   }
 
   if (activeContactIsRepeater) {

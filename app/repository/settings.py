@@ -44,7 +44,7 @@ class AppSettingsRepository:
                    tracked_telemetry_repeaters, tracked_telemetry_contacts,
                    auto_resend_channel,
                    telemetry_interval_hours, telemetry_routed_hourly,
-                   show_mention_ticker
+                   show_mention_ticker, registry_sync_url
             FROM app_settings WHERE id = 1
             """
         ) as cursor:
@@ -145,6 +145,12 @@ class AppSettingsRepository:
         except (KeyError, TypeError):
             show_mention_ticker = True
 
+        # Parse registry_sync_url (migration adds the column with default='')
+        try:
+            registry_sync_url = row["registry_sync_url"] or ""
+        except (KeyError, TypeError):
+            registry_sync_url = ""
+
         return AppSettings(
             max_radio_contacts=row["max_radio_contacts"],
             auto_decrypt_dm_on_advert=bool(row["auto_decrypt_dm_on_advert"]),
@@ -162,6 +168,7 @@ class AppSettingsRepository:
             telemetry_interval_hours=telemetry_interval_hours,
             telemetry_routed_hourly=telemetry_routed_hourly,
             show_mention_ticker=show_mention_ticker,
+            registry_sync_url=registry_sync_url,
         )
 
     @staticmethod
@@ -184,6 +191,7 @@ class AppSettingsRepository:
         telemetry_interval_hours: int | None = None,
         telemetry_routed_hourly: bool | None = None,
         show_mention_ticker: bool | None = None,
+        registry_sync_url: str | None = None,
     ) -> None:
         """Apply field updates using an already-acquired connection.
 
@@ -257,6 +265,10 @@ class AppSettingsRepository:
             updates.append("show_mention_ticker = ?")
             params.append(1 if show_mention_ticker else 0)
 
+        if registry_sync_url is not None:
+            updates.append("registry_sync_url = ?")
+            params.append(registry_sync_url)
+
         if updates:
             query = f"UPDATE app_settings SET {', '.join(updates)} WHERE id = 1"
             async with conn.execute(query, params):
@@ -289,6 +301,7 @@ class AppSettingsRepository:
         telemetry_interval_hours: int | None = None,
         telemetry_routed_hourly: bool | None = None,
         show_mention_ticker: bool | None = None,
+        registry_sync_url: str | None = None,
     ) -> AppSettings:
         """Update app settings. Only provided fields are updated."""
         async with db.tx() as conn:
@@ -310,6 +323,7 @@ class AppSettingsRepository:
                 telemetry_interval_hours=telemetry_interval_hours,
                 telemetry_routed_hourly=telemetry_routed_hourly,
                 show_mention_ticker=show_mention_ticker,
+                registry_sync_url=registry_sync_url,
             )
             return await AppSettingsRepository._get_in_conn(conn)
 

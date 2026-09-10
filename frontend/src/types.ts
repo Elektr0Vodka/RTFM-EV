@@ -366,7 +366,15 @@ export interface ResendChannelMessageResponse {
   message?: Message;
 }
 
-type ConversationType = 'contact' | 'channel' | 'raw' | 'map' | 'visualizer' | 'search' | 'trace';
+type ConversationType =
+  | 'contact'
+  | 'channel'
+  | 'raw'
+  | 'map'
+  | 'visualizer'
+  | 'search'
+  | 'trace'
+  | 'channel-registry';
 
 export interface Conversation {
   type: ConversationType;
@@ -418,6 +426,7 @@ export interface AppSettings {
   telemetry_interval_hours: number;
   telemetry_routed_hourly: boolean;
   show_mention_ticker: boolean;
+  registry_sync_url: string;
 }
 
 export interface AppSettingsUpdate {
@@ -433,6 +442,7 @@ export interface AppSettingsUpdate {
   telemetry_interval_hours?: number;
   telemetry_routed_hourly?: boolean;
   show_mention_ticker?: boolean;
+  registry_sync_url?: string;
 }
 
 export interface TelemetrySchedule {
