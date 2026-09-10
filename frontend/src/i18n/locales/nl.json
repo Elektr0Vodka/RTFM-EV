@@ -39,6 +39,7 @@
   "a11y_set_regional_override": "Regionale override instellen",
   "a11y_switch_to_classic_theme": "Overschakelen naar klassiek thema",
   "a11y_switch_to_light_theme": "Overschakelen naar licht thema",
+  "a11y_open_theme_settings": "Thema-instellingen openen",
   "a11y_unread_count": "{count} ongelezen",
   "a11y_unread_messages": {
     "one": "{count} ongelezen bericht",

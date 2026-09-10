@@ -13,7 +13,10 @@ import { api } from '../api';
 import { toast } from './ui/sonner';
 import { handleKeyboardActivate } from '../utils/a11y';
 import { useT } from '../i18n';
-import { applyTheme, getEffectiveTheme, THEME_CHANGE_EVENT } from '../utils/theme';
+import { getEffectiveTheme, THEME_CHANGE_EVENT } from '../utils/theme';
+import { HeaderLanguageMenu } from './HeaderLanguageMenu';
+import { ThemeSelector } from './settings/ThemeSelector';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import {
   BATTERY_DISPLAY_CHANGE_EVENT,
   getShowBatteryPercent,
@@ -95,8 +98,9 @@ export function StatusBar({
             : t('status_radio_disconnected');
   const [reconnecting, setReconnecting] = useState(false);
   // Track the *effective* theme (follow-os is resolved to original/light) so the
-  // toggle icon and action match what the user currently sees rendered.
+  // header icon matches what the user currently sees rendered.
   const [currentTheme, setCurrentTheme] = useState(getEffectiveTheme);
+  const [themeModalOpen, setThemeModalOpen] = useState(false);
   const [pulseEnabled, setPulseEnabled] = useState(getStatusDotPulseEnabled);
   const [pulseKind, setPulseKind] = useState<StatusDotPulseKind | null>(null);
 
@@ -176,12 +180,6 @@ export function StatusBar({
     } finally {
       setReconnecting(false);
     }
-  };
-
-  const handleThemeToggle = () => {
-    const nextTheme = currentTheme === 'light' ? 'original' : 'light';
-    applyTheme(nextTheme);
-    setCurrentTheme(nextTheme);
   };
 
   return (
@@ -290,19 +288,12 @@ export function StatusBar({
       >
         {settingsMode ? t('nav_back_to_chat') : t('nav_settings_heading')}
       </button>
+      <HeaderLanguageMenu />
       <button
-        onClick={handleThemeToggle}
+        onClick={() => setThemeModalOpen(true)}
         className="p-0.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
-        title={
-          currentTheme === 'light'
-            ? t('a11y_switch_to_classic_theme')
-            : t('a11y_switch_to_light_theme')
-        }
-        aria-label={
-          currentTheme === 'light'
-            ? t('a11y_switch_to_classic_theme')
-            : t('a11y_switch_to_light_theme')
-        }
+        title={t('a11y_open_theme_settings')}
+        aria-label={t('a11y_open_theme_settings')}
       >
         {currentTheme === 'light' ? (
           <Moon className="h-4 w-4" aria-hidden="true" />
@@ -310,6 +301,15 @@ export function StatusBar({
           <Sun className="h-4 w-4" aria-hidden="true" />
         )}
       </button>
+
+      <Dialog open={themeModalOpen} onOpenChange={setThemeModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('settings_color_scheme')}</DialogTitle>
+          </DialogHeader>
+          <ThemeSelector />
+        </DialogContent>
+      </Dialog>
     </header>
   );
 }
