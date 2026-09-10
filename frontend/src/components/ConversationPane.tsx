@@ -377,7 +377,12 @@ export function ConversationPane({
       )}
       {activeContactIsRoom && activeContact && (
         <RoomServerPanel
-          key={activeContact.public_key}
+          // Must not collide with the MessageList sibling below, which is keyed
+          // by activeConversation.id (== the room's public_key for a contact
+          // conversation). Two siblings sharing a key breaks React reconciliation
+          // and orphans a stale panel in the DOM on every re-render. Keep the
+          // public_key so the panel still remounts per room (see 39c75a9).
+          key={`room-server-panel-${activeContact.public_key}`}
           contact={activeContact}
           onAuthenticatedChange={setRoomAuthenticated}
         />
