@@ -737,6 +737,38 @@ class RepeaterNeighborsResponse(BaseModel):
     )
 
 
+class RepeaterSignalSample(BaseModel):
+    """One SNR sample measured by a repeater for a neighbour."""
+
+    observed_at: int = Field(description="Unix epoch seconds (UTC) of capture")
+    snr: float = Field(description="Per-link SNR in dB")
+    secs_ago: int | None = Field(
+        default=None, description="Repeater's 'heard N secs ago' at sample time"
+    )
+
+
+class SelfSignalSample(BaseModel):
+    """One SNR/RSSI sample our own node measured on a 0-hop advert."""
+
+    observed_at: int = Field(description="Unix epoch seconds (UTC) of capture")
+    snr: float = Field(description="Per-link SNR in dB")
+    rssi: int | None = Field(default=None, description="RSSI in dBm if available")
+
+
+class NeighborHistoryEntry(BaseModel):
+    """Per-neighbour signal history from both perspectives."""
+
+    neighbor_pubkey: str = Field(description="Neighbour pubkey prefix (hex)")
+    repeater_samples: list[RepeaterSignalSample] = Field(default_factory=list)
+    self_samples: list[SelfSignalSample] = Field(default_factory=list)
+
+
+class RepeaterNeighborHistoryResponse(BaseModel):
+    """Signal history for a repeater's neighbours."""
+
+    neighbors: list[NeighborHistoryEntry] = Field(default_factory=list)
+
+
 class RepeaterAclResponse(BaseModel):
     """ACL list from a repeater."""
 

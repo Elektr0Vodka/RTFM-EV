@@ -529,6 +529,46 @@ async def _process_group_text(
     return None
 
 
+# X2b: throttled prune timestamp for link_signal, so traffic-only deployments
+# (no tracked repeaters, endpoint never called) still bound history growth.
+_last_link_signal_prune: float = 0.0
+
+
+async def _maybe_record_traffic_signal(
+    subject_pubkey: str,
+    path_length: int | None,
+    rssi: int | None,
+    snr: float | None,
+    timestamp: int,
+) -> None:
+    """Persist a my-node 0-hop signal sample from regular advert traffic (X2b).
+
+    Only direct (path_length == 0) receptions are recorded. Best-effort: never
+    disrupts packet processing. Runs a throttled prune (<=1/hour).
+    """
+    global _last_link_signal_prune
+    if path_length != 0 or snr is None or not subject_pubkey:
+        return
+    from app.repository.link_signal import LinkSignalRepository
+
+    own = get_public_key()
+    observer = own.hex() if own else "self"
+    try:
+        await LinkSignalRepository.record_traffic_sample(
+            observer_pubkey=observer,
+            subject_pubkey=subject_pubkey.lower(),
+            snr=snr,
+            rssi=rssi,
+            observed_at=timestamp,
+        )
+        now = time.time()
+        if now - _last_link_signal_prune > 3600:
+            _last_link_signal_prune = now
+            await LinkSignalRepository.prune()
+    except Exception as e:  # noqa: BLE001 - best-effort telemetry
+        logger.debug("link_signal traffic capture failed: %s", e)
+
+
 async def _process_advertisement(
     raw_bytes: bytes,
     timestamp: int,
@@ -570,6 +610,17 @@ async def _process_advertisement(
 
     new_path_len = packet_info.path_length
     new_path_hex = packet_info.path.hex() if packet_info.path else ""
+
+    # X2b: passively record our own SNR/RSSI to a directly-heard (0-hop) node.
+    # Guarded on is_new_packet so relayed duplicate copies do not each record.
+    if is_new_packet:
+        await _maybe_record_traffic_signal(
+            subject_pubkey=advert.public_key,
+            path_length=new_path_len,
+            rssi=rssi,
+            snr=snr,
+            timestamp=timestamp,
+        )
 
     # Try to find existing contact
     existing = await ContactRepository.get_by_key(advert.public_key.lower())

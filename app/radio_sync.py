@@ -32,6 +32,7 @@ from app.repository import (
     RepeaterTelemetryRepository,
 )
 from app.repository.contact_telemetry import ContactTelemetryRepository
+from app.repository.link_signal import LinkSignalRepository
 from app.services.contact_reconciliation import (
     promote_prefix_contacts_for_contact,
     reconcile_contact_messages,
@@ -1783,6 +1784,36 @@ async def sync_recent_contacts_to_radio(force: bool = False, mc: MeshCore | None
 # ---------------------------------------------------------------------------
 
 
+async def _collect_repeater_neighbor_signal(mc: MeshCore, contact: Contact) -> bool:
+    """Fetch a repeater's neighbours and persist a signal snapshot (X2b).
+
+    Best-effort: returns True on a stored snapshot, False otherwise (logged,
+    not raised). Assumes the contact is already added to the radio by the
+    caller's telemetry step.
+    """
+    try:
+        data = await mc.commands.fetch_all_neighbours(
+            contact.public_key, timeout=10, min_timeout=5
+        )
+    except Exception as e:
+        logger.debug(
+            "Neighbor signal collect: radio command failed for %s: %s",
+            contact.public_key[:12],
+            e,
+        )
+        return False
+    if not data or not data.get("neighbours"):
+        return False
+    try:
+        await LinkSignalRepository.record_repeater_samples(
+            contact.public_key, data["neighbours"], observed_at=int(time.time())
+        )
+    except Exception as e:
+        logger.warning("Neighbor signal collect: persist failed: %s", e)
+        return False
+    return True
+
+
 async def _collect_repeater_telemetry(mc: MeshCore, contact: Contact) -> bool:
     """Fetch status telemetry from a single repeater and record it.
 
@@ -2042,6 +2073,7 @@ async def _run_telemetry_cycle(
             ) as mc:
                 if is_repeater:
                     success = await _collect_repeater_telemetry(mc, contact)
+                    await _collect_repeater_neighbor_signal(mc, contact)
                 else:
                     success = await _collect_contact_telemetry(mc, contact)
                 if success:
@@ -2058,6 +2090,12 @@ async def _run_telemetry_cycle(
         collected,
         len(candidates),
     )
+
+    # Bound neighbor-signal history growth once per cycle (X2b).
+    try:
+        await LinkSignalRepository.prune()
+    except Exception as e:  # noqa: BLE001 - best-effort maintenance
+        logger.debug("Neighbor signal prune failed: %s", e)
 
 
 async def _sleep_until_next_utc_top_of_hour() -> None:
