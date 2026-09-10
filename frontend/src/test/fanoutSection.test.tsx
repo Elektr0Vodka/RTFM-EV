@@ -140,7 +140,7 @@ describe('SettingsFanoutSection', () => {
     const optionButtons = within(dialog)
       .getAllByRole('button')
       .filter((button) => button.hasAttribute('aria-pressed'));
-    expect(optionButtons).toHaveLength(14);
+    expect(optionButtons).toHaveLength(15);
     expect(within(dialog).getByRole('button', { name: 'Close' })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Create' })).toBeInTheDocument();
     expect(
@@ -1710,5 +1710,79 @@ describe('SettingsFanoutSection', () => {
     const alpha = within(webhookGroup).getByText('Alpha Hook');
     const zulu = within(webhookGroup).getByText('Zulu Hook');
     expect(alpha.compareDocumentPosition(zulu) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('creates DMC Observer with raw off and a 5-minute status interval by default', async () => {
+    const created: FanoutConfig = {
+      id: 'dmc-new',
+      type: 'mqtt_dmc_observer',
+      name: 'DMC Observer (native)',
+      enabled: false,
+      config: {},
+      scope: { messages: 'none', raw_packets: 'all' },
+      sort_order: 0,
+      created_at: 3000,
+    };
+    mockedApi.createFanoutConfig.mockResolvedValue(created);
+    mockedApi.getFanoutConfigs.mockResolvedValueOnce([]).mockResolvedValueOnce([created]);
+
+    renderSection();
+    await openCreateIntegrationDialog();
+    selectCreateIntegration('DMC Observer (native)');
+    confirmCreateIntegration();
+    await waitFor(() => expect(screen.getByText('← Back to list')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save as Disabled' }));
+
+    await waitFor(() =>
+      expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'mqtt_dmc_observer',
+          scope: { messages: 'none', raw_packets: 'all' },
+          enabled: false,
+          config: expect.objectContaining({
+            publish_status: true,
+            publish_packets: true,
+            publish_raw: false,
+            status_interval_ms: 300000,
+            broker_port: 443,
+          }),
+        })
+      )
+    );
+  });
+
+  it('maps the DMC status interval minutes field to milliseconds', async () => {
+    const created: FanoutConfig = {
+      id: 'dmc-new-2',
+      type: 'mqtt_dmc_observer',
+      name: 'DMC Observer (native)',
+      enabled: false,
+      config: {},
+      scope: { messages: 'none', raw_packets: 'all' },
+      sort_order: 0,
+      created_at: 3100,
+    };
+    mockedApi.createFanoutConfig.mockResolvedValue(created);
+    mockedApi.getFanoutConfigs.mockResolvedValueOnce([]).mockResolvedValueOnce([created]);
+
+    renderSection();
+    await openCreateIntegrationDialog();
+    selectCreateIntegration('DMC Observer (native)');
+    confirmCreateIntegration();
+    await waitFor(() => expect(screen.getByText('← Back to list')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText('Status interval (minutes)'), {
+      target: { value: '10' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save as Disabled' }));
+
+    await waitFor(() =>
+      expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({ status_interval_ms: 600000 }),
+        })
+      )
+    );
   });
 });
