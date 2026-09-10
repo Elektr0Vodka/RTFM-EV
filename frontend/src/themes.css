@@ -1144,12 +1144,22 @@
   box-shadow:
     0 1px 0 hsl(0 0% 100% / 0.03),
     0 8px 24px hsl(0 0% 0% / 0.35);
+  /* backdrop-filter creates a stacking context, which would otherwise trap the
+     header's dropdown menus (language switcher) behind later page content. Lift
+     the whole bar above the content but below the app's z-50 modal/sheet layer. */
+  position: relative;
+  z-index: 40;
 }
 
 /* DarkDutch: glass conversation header + tricolour chevron */
 [data-theme='darkdutch'] .conversation-header {
   background: hsl(220 30% 2% / 0.72);
   backdrop-filter: blur(12px);
+  /* Same reason as .app-statusbar above: keep the notification/location/other
+     header dropdowns from being trapped behind the message list by the
+     backdrop-filter stacking context. Sits just under the top bar. */
+  position: relative;
+  z-index: 30;
 }
 [data-theme='darkdutch'] .conversation-header::before {
   content: '';
