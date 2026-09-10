@@ -1250,6 +1250,7 @@
   "repeater_console_input_placeholder": "CLI-Befehl...",
   "repeater_console_placeholder_text": "Unten einen CLI-Befehl eingeben...",
   "repeater_console_title": "Konsole",
+  "repeater_console_cli_docs": "CLI-Dokumentation",
   "repeater_csv_header_packets_received": "Empfangene Pakete",
   "repeater_csv_header_packets_received_delta": "Empfangene Pakete Delta",
   "repeater_csv_header_packets_sent": "Gesendete Pakete",
