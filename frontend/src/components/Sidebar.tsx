@@ -8,6 +8,7 @@ import {
   CheckCheck,
   ChevronDown,
   ChevronRight,
+  Library,
   LockOpen,
   Logs,
   Map,
@@ -230,7 +231,15 @@ export function Sidebar({
   };
 
   const isActive = (
-    type: 'contact' | 'channel' | 'raw' | 'map' | 'visualizer' | 'search' | 'trace',
+    type:
+      | 'contact'
+      | 'channel'
+      | 'raw'
+      | 'map'
+      | 'visualizer'
+      | 'search'
+      | 'trace'
+      | 'channel-registry',
     id: string
   ) => activeConversation?.type === type && activeConversation?.id === id;
 
@@ -809,6 +818,18 @@ export function Sidebar({
               type: 'search',
               id: 'search',
               name: 'Message Search',
+            }),
+        }),
+        renderSidebarActionRow({
+          key: 'tool-channel-registry',
+          active: isActive('channel-registry', 'channel-registry'),
+          icon: <Library className="h-4 w-4" />,
+          label: 'Channel Registry',
+          onClick: () =>
+            handleSelectConversation({
+              type: 'channel-registry',
+              id: 'channel-registry',
+              name: 'Channel Registry',
             }),
         }),
         renderSidebarActionRow({

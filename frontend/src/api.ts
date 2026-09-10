@@ -359,6 +359,10 @@ export const api = {
       method: 'POST',
     }),
 
+  // Channel Registry
+  syncRegistry: () =>
+    fetchJson<{ channels: { name: string; key: string }[] }>('/registry/sync'),
+
   // App Settings
   getSettings: () => fetchJson<AppSettings>('/settings'),
   updateSettings: (settings: AppSettingsUpdate) =>

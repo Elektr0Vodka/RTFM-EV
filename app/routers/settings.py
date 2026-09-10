@@ -95,6 +95,10 @@ class AppSettingsUpdate(BaseModel):
             "@mentioned in a channel they are not currently viewing."
         ),
     )
+    registry_sync_url: str | None = Field(
+        default=None,
+        description="URL of a remote {name: key} JSON channel list to sync into the registry",
+    )
 
 
 class BlockKeyRequest(BaseModel):
@@ -281,6 +285,10 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
     # Mention ticker
     if update.show_mention_ticker is not None:
         kwargs["show_mention_ticker"] = update.show_mention_ticker
+
+    # Channel registry sync URL
+    if update.registry_sync_url is not None:
+        kwargs["registry_sync_url"] = update.registry_sync_url
 
     # Flood scope
     flood_scope_changed = False

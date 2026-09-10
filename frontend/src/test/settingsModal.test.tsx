@@ -78,6 +78,7 @@ const baseSettings: AppSettings = {
   telemetry_interval_hours: 8,
   telemetry_routed_hourly: false,
   show_mention_ticker: true,
+  registry_sync_url: '',
 };
 
 function renderModal(overrides?: {
