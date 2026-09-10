@@ -1,7 +1,7 @@
 # RTFM-EV Parity & Gap Audit
 
 Date: 2026-09-10
-Status: draft for review
+Status: backlog in progress — N1 shipped; N2 (PR #24) and X1 (PR #41) implemented and mergeable; X2 next. See §7 for per-item status.
 Author: Elektr0Vodka (with agent research)
 
 This is a living document. It compares the current RTFM-EV against two reference
@@ -210,22 +210,23 @@ Ranking axes: value, effort, protocol/firmware risk, differentiator-vs-parity.
 Each "Now/Next" item gets its own brainstorm → spec → plan cycle.
 
 ### Now
-- **N1. Signal-storage foundation** — a new migration (next free number; `_064`
-  is now taken by Mention Ticker, so `_065`+ — confirm current max at build time)
-  adding `rssi/snr/payload_type` to `raw_packets` + recent/timeseries endpoints.
-  Low protocol risk, unblocks
-  N-many telemetry/neighbor items. Already agreed in fork-port plan.
-- **N2. i18n (EN/NL/DE)** — self-contained frontend sub-project, high visible
-  value, your stated priority. Adopt kiekr-i18n semantics (flat JSON, positional
-  placeholders, ICU plurals, English fallback). Credit Marcel (§9).
+- **N1. Signal-storage foundation** — ✅ SHIPPED (PR #12, migrations `_065`/`_066`;
+  `rssi/snr/payload_type` on `raw_packets`, `/api/packets/recent|timeseries`).
+  Unblocked Phase-3 (packet-feed history, My Node, MeshHealth — all merged).
+- **N2. i18n (EN/NL/DE)** — ✅ IMPLEMENTED, PR #24 open + MERGEABLE (custom runtime
+  in `frontend/src/i18n/`, EN/NL/DE catalogs, `no-literal-string` guard at error).
+  NL/DE machine-drafted, native review still outstanding. Credit Marcel (§9).
 
 ### Next
-- **X1. MQTT export parity** — per-broker per-topic toggles (`status`/`packets`/
-  `raw`, raw default off), configurable status interval (default 5 min, bound
-  1–60 min), mirror DMC payload schemas. Differentiator.
-- **X2. Neighbor discovery** — companion relays `REQ_TYPE_GET_NEIGHBOURS` to
-  repeaters; display neighbor list + per-link signal; optional neighbors-on-map
-  (depends on N1 for signal persistence if history is wanted).
+- **X1. MQTT export parity** — ✅ IMPLEMENTED, PR #41 open + MERGEABLE
+  (`feat/mqtt-dmc-observer-export`). New `mqtt_dmc_observer` fanout type: per-topic
+  toggles (`status`/`packets` on, `raw` off), configurable status interval
+  (1–60 min, clamp 1000–3600000 ms), faithful DMC firmware wire schema
+  (`meshcore/{IATA}/{DEVICE}/{status|packets|raw}`, string SNR/RSSI, array path,
+  `+00:00` timestamps, no LWT). Spec + plan under `docs/superpowers/`.
+- **X2. Neighbor discovery** — NEXT UP. Companion relays `REQ_TYPE_GET_NEIGHBOURS`
+  (`0x06`) to repeaters via `CMD_SEND_BINARY_REQ 50`; display neighbor list +
+  per-link signal; optional neighbors-on-map (depends on N1 for signal history).
 
 ### Later
 - **L1. Region / scope surfacing** — mirror DMC `config` topic `region.scopes[]`,
