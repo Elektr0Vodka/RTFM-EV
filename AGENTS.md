@@ -331,6 +331,7 @@ All endpoints are prefixed with `/api` (e.g., `/api/health`).
 | POST | `/api/radio/discover` | Run a short mesh discovery sweep for nearby repeaters/sensors |
 | POST | `/api/radio/discover-regions` | Sweep nearby repeaters (anon regions request) for flood-allowed region names to merge into `known_regions` |
 | GET | `/api/regions/sync` | Fetch the configured `region_sync_url` (analyzer regions endpoint) and return normalised region names to merge into `known_regions` |
+| GET | `/api/registry/wordlist-sync` | Fetch the configured `wordlist_sync_url` (JSON string-array) and return candidate names for the channel finder wordlist |
 | POST | `/api/radio/trace` | Send a multi-hop trace loop through known repeaters and back to the local radio |
 | POST | `/api/radio/reboot` | Reboot radio or reconnect if disconnected |
 | POST | `/api/radio/disconnect` | Disconnect from radio and pause automatic reconnect attempts |

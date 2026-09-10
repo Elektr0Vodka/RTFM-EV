@@ -377,6 +377,9 @@ export const api = {
   // Region sync (analyzer regions endpoint -> known_regions)
   syncRegions: () => fetchJson<{ regions: string[] }>('/regions/sync'),
 
+  // Wordlist sync (candidate channel names -> channel finder wordlist)
+  syncWordlist: () => fetchJson<{ words: string[] }>('/registry/wordlist-sync'),
+
   // App Settings
   getSettings: () => fetchJson<AppSettings>('/settings'),
   updateSettings: (settings: AppSettingsUpdate) =>

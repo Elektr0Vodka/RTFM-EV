@@ -3,6 +3,33 @@
 Status: local planning document. No code changes, no commits, no issues/PRs.
 Reconciles with `docs/plans/README.md` entry [09] and `docs/sources-of-truth.md`.
 
+## Implementation status (updated 2026-09-10)
+
+**SHIPPED** (single PR), end-to-end, with the section-6 open questions resolved
+at the plan's recommended defaults:
+
+- **Migration `_074_add_wordlist_sync_url.py`** (plan's `_069` was stale; `_073`
+  was highest on main). Column mirrors `registry_sync_url` exactly.
+- **6b (single URL vs list): single URL**, `wordlist_sync_url`, for parity with
+  `registry_sync_url`. Operators point it at one pre-merged source.
+- **6c (size cap): 100,000 entries.** `GET /api/registry/wordlist-sync`
+  (folded into `registry.py` per 4c) filters the payload to strings and 502s if
+  it exceeds `MAX_WORDLIST_ENTRIES`.
+- **6a (rainbow-table): names only**, per the recorded Decision - the endpoint
+  returns a plain string array; keys are auto-derived by the cracker.
+- **Client (4d): replace-not-append.** `frontend/src/lib/wordlistSync.ts` caches
+  the synced set in `localStorage` (`meshcore-wordlist-sync-cache`) and
+  `CrackerPanel.tsx` merges `[...ENGLISH_WORDLIST, ...synced]` in a single
+  `setWordlist()` call at load time. A sync therefore takes effect the next time
+  the cracker panel opens / on reload (documented in the settings hint), not
+  mid-session - a deliberate simplification.
+- **Not implemented (deferred, plan called them optional/out of scope):** the
+  custom-words textarea (4e "Optional"), any push-back/round-trip (6f), and
+  multi-URL support (6b). The `mccl` rainbow table is not wired as a direct-key
+  source (6a decision).
+- **i18n:** all new strings use `t()` keys in EN/NL/DE (the fork enforces this
+  via eslint since PR #24).
+
 ## 1. Summary
 
 RTFM-EV's browser-based channel finder (`CrackerPanel.tsx`) tries to recover

@@ -45,7 +45,7 @@ class AppSettingsRepository:
                    auto_resend_channel,
                    telemetry_interval_hours, telemetry_routed_hourly,
                    show_mention_ticker, registry_sync_url, region_sync_url,
-                   analyzer_sites
+                   wordlist_sync_url, analyzer_sites
             FROM app_settings WHERE id = 1
             """
         ) as cursor:
@@ -158,6 +158,12 @@ class AppSettingsRepository:
         except (KeyError, TypeError):
             region_sync_url = ""
 
+        # Parse wordlist_sync_url (migration adds the column with default='')
+        try:
+            wordlist_sync_url = row["wordlist_sync_url"] or ""
+        except (KeyError, TypeError):
+            wordlist_sync_url = ""
+
         # Parse analyzer_sites JSON (migration adds the column with default='[]').
         # Malformed or non-conforming entries are dropped rather than failing the
         # whole settings load.
@@ -190,6 +196,7 @@ class AppSettingsRepository:
             show_mention_ticker=show_mention_ticker,
             registry_sync_url=registry_sync_url,
             region_sync_url=region_sync_url,
+            wordlist_sync_url=wordlist_sync_url,
             analyzer_sites=analyzer_sites,
         )
 
@@ -215,6 +222,7 @@ class AppSettingsRepository:
         show_mention_ticker: bool | None = None,
         registry_sync_url: str | None = None,
         region_sync_url: str | None = None,
+        wordlist_sync_url: str | None = None,
         analyzer_sites: list[AnalyzerSite] | None = None,
     ) -> None:
         """Apply field updates using an already-acquired connection.
@@ -297,6 +305,10 @@ class AppSettingsRepository:
             updates.append("region_sync_url = ?")
             params.append(region_sync_url)
 
+        if wordlist_sync_url is not None:
+            updates.append("wordlist_sync_url = ?")
+            params.append(wordlist_sync_url)
+
         if analyzer_sites is not None:
             updates.append("analyzer_sites = ?")
             params.append(json.dumps([site.model_dump() for site in analyzer_sites]))
@@ -335,6 +347,7 @@ class AppSettingsRepository:
         show_mention_ticker: bool | None = None,
         registry_sync_url: str | None = None,
         region_sync_url: str | None = None,
+        wordlist_sync_url: str | None = None,
         analyzer_sites: list[AnalyzerSite] | None = None,
     ) -> AppSettings:
         """Update app settings. Only provided fields are updated."""
@@ -359,6 +372,7 @@ class AppSettingsRepository:
                 show_mention_ticker=show_mention_ticker,
                 registry_sync_url=registry_sync_url,
                 region_sync_url=region_sync_url,
+                wordlist_sync_url=wordlist_sync_url,
                 analyzer_sites=analyzer_sites,
             )
             return await AppSettingsRepository._get_in_conn(conn)

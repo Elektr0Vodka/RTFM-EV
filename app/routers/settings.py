@@ -116,6 +116,13 @@ class AppSettingsUpdate(BaseModel):
             "{code, name} objects) to sync region names into known_regions"
         ),
     )
+    wordlist_sync_url: str | None = Field(
+        default=None,
+        description=(
+            "URL of a remote JSON array of candidate channel names to merge "
+            "into the browser channel finder's wordlist"
+        ),
+    )
     analyzer_sites: list[AnalyzerSite] | None = Field(
         default=None,
         description=(
@@ -317,6 +324,10 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
     # Region sync URL (analyzer regions endpoint)
     if update.region_sync_url is not None:
         kwargs["region_sync_url"] = update.region_sync_url
+
+    # Wordlist sync URL (channel finder candidate names)
+    if update.wordlist_sync_url is not None:
+        kwargs["wordlist_sync_url"] = update.wordlist_sync_url
 
     # Analyzer sites (client-side deep-link lookup). Validate each template is an
     # http(s) URL carrying the required placeholder before persisting; reject the

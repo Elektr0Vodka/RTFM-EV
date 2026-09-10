@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { extractPacketPayloadHex } from '../utils/pathUtils';
 import { useRawPackets } from '../stores/rawPacketStore';
 import { notifyChannelFound } from './ChannelRegistryView';
+import { loadSyncedWordlist, mergeWordlists } from '../lib/wordlistSync';
 import { useT } from '../i18n';
 
 interface CrackedChannel {
@@ -94,7 +95,10 @@ export function CrackerPanel({
     import('meshcore-hashtag-cracker/wordlist')
       .then(({ ENGLISH_WORDLIST }) => {
         if (crackerRef.current) {
-          crackerRef.current.setWordlist(ENGLISH_WORDLIST);
+          // Merge the bundled list with any analyzer-synced candidate names.
+          // setWordlist() replaces, so this must be a single merged call.
+          const merged = mergeWordlists(ENGLISH_WORDLIST, loadSyncedWordlist());
+          crackerRef.current.setWordlist(merged);
           setWordlistLoaded(true);
         }
       })

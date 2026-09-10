@@ -459,6 +459,7 @@ export interface AppSettings {
   show_mention_ticker: boolean;
   registry_sync_url: string;
   region_sync_url: string;
+  wordlist_sync_url: string;
   analyzer_sites: AnalyzerSite[];
 }
 
@@ -477,6 +478,7 @@ export interface AppSettingsUpdate {
   show_mention_ticker?: boolean;
   registry_sync_url?: string;
   region_sync_url?: string;
+  wordlist_sync_url?: string;
   analyzer_sites?: AnalyzerSite[];
 }
 

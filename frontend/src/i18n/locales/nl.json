@@ -2084,6 +2084,21 @@
   "settings_db_registry_url_label": "Sync-URL voor kanaallijst",
   "settings_db_registry_url_hint_prefix": "URL van een externe JSON-kanaallijst (",
   "settings_db_registry_url_hint_suffix": "formaat). De server haalt dit op wanneer je op Synchroniseren klikt in het Kanaalregister.",
+  "settings_db_wordlist_heading": "Woordenlijst kanaalzoeker",
+  "settings_db_wordlist_sync_button": "Nu synchroniseren",
+  "settings_db_wordlist_syncing": "Bezig met synchroniseren...",
+  "settings_db_wordlist_url_label": "Woordenlijst-sync-URL",
+  "settings_db_wordlist_url_hint": "URL van een externe JSON-array met kandidaat-kanaalnamen. De server haalt deze op en de kanaalzoeker in de browser voegt de namen bij het volgende openen samen met zijn woordenlijst. Hiermee wordt een verzoek naar die bron gestuurd.",
+  "settings_db_wordlist_cached_count": {
+    "one": "{count} gesynchroniseerd woord in cache",
+    "other": "{count} gesynchroniseerde woorden in cache"
+  },
+  "settings_db_wordlist_toast_no_url": "Stel eerst een woordenlijst-sync-URL in",
+  "settings_db_wordlist_toast_synced": {
+    "one": "{count} woord gesynchroniseerd naar de kanaalzoeker",
+    "other": "{count} woorden gesynchroniseerd naar de kanaalzoeker"
+  },
+  "settings_db_wordlist_toast_failed": "Woordenlijstsynchronisatie mislukt",
   "settings_db_analyzer_heading": "Externe analyzers",
   "settings_db_analyzer_desc_prefix": "Sites die je vanuit het infopaneel van een contact kunt openen om een node op te zoeken. Gebruik",
   "settings_db_analyzer_desc_mid": "in de node-URL (en",
