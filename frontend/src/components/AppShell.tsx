@@ -23,8 +23,8 @@ import { Toaster } from './ui/sonner';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './ui/sheet';
 import {
   SETTINGS_SECTION_ICONS,
-  SETTINGS_SECTION_LABELS,
   SETTINGS_SECTION_ORDER,
+  settingsSectionLabel,
   type SettingsSection,
 } from './settings/settingsConstants';
 import { getContrastTextColor, type LocalLabel } from '../utils/localLabel';
@@ -217,7 +217,7 @@ export function AppShell({
             >
               <span className="flex items-center gap-2">
                 <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                <span>{SETTINGS_SECTION_LABELS[section]}</span>
+                <span>{settingsSectionLabel(section, t)}</span>
               </span>
             </button>
           );

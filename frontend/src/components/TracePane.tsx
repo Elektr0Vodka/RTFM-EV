@@ -25,6 +25,7 @@ import {
 } from './ui/dialog';
 import { Input } from './ui/input';
 import { cn } from '@/lib/utils';
+import { useT, type TFn } from '../i18n';
 
 type TraceSortMode = 'alpha' | 'recent' | 'distance' | 'traced';
 type CustomHopBytes = 1 | 2 | 4;
@@ -153,8 +154,8 @@ function getDistanceKm(contact: Contact, config: RadioConfig | null): number | n
   return calculateDistance(config.lat, config.lon, contact.lat, contact.lon);
 }
 
-function getShortKey(publicKey: string | null | undefined): string {
-  if (!publicKey) return 'unknown';
+function getShortKey(publicKey: string | null | undefined, unknownLabel: string): string {
+  if (!publicKey) return unknownLabel;
   return publicKey.slice(0, 12);
 }
 
@@ -195,6 +196,7 @@ function TraceNodeRow({
   fixed = false,
   actions,
   snr,
+  t,
 }: {
   title: string;
   subtitle: string;
@@ -203,6 +205,7 @@ function TraceNodeRow({
   fixed?: boolean;
   actions?: ReactNode;
   snr?: string | null;
+  t: TFn;
 }) {
   return (
     <div className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-2">
@@ -214,7 +217,7 @@ function TraceNodeRow({
             : 'border-border bg-muted text-muted-foreground'
         )}
       >
-        {fixed ? 'Self' : (badge ?? 'Hop')}
+        {fixed ? t('trace_badge_self') : (badge ?? t('trace_badge_hop'))}
       </div>
       <div className="flex min-w-0 flex-1 items-baseline gap-2">
         <span className="truncate text-sm font-medium">{title}</span>
@@ -227,7 +230,7 @@ function TraceNodeRow({
       </div>
       {snr ? (
         <div className="flex shrink-0 items-baseline gap-1">
-          <span className="text-[0.6875rem] text-muted-foreground">SNR</span>
+          <span className="text-[0.6875rem] text-muted-foreground">{t('trace_snr_label')}</span>
           <span className="font-mono text-sm">{snr}</span>
         </div>
       ) : null}
@@ -237,6 +240,7 @@ function TraceNodeRow({
 }
 
 export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) {
+  const t = useT();
   const { distanceUnit } = useDistanceUnit();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortMode, setSortMode] = useState<TraceSortMode>('alpha');
@@ -336,7 +340,7 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
     [filteredRepeaters]
   );
 
-  const localRadioName = config?.name || 'Local radio';
+  const localRadioName = config?.name || t('trace_local_radio_default');
   const localRadioKey = config?.public_key ?? null;
   const customHopBytesLocked = useMemo(
     () => draftHops.find((hop) => hop.kind === 'custom')?.hopBytes ?? null,
@@ -374,7 +378,7 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
     const hopBytes = customHopBytesLocked ?? customHopBytesDraft;
     const hopHex = normalizeCustomHopHex(customHopHexDraft);
     if (hopHex.length !== hopBytes * 2) {
-      setCustomHopError(`Custom hop must be exactly ${hopBytes * 2} hex characters.`);
+      setCustomHopError(t('trace_custom_hop_length_error', { n: hopBytes * 2 }));
       return;
     }
     setDraftHops((current) => [
@@ -469,7 +473,7 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
       recordTraceRun(trace.hops);
     } catch (err) {
       if (activeRunTokenRef.current !== runToken) return;
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      setError(err instanceof Error ? err.message : t('error_unknown'));
     } finally {
       if (activeRunTokenRef.current === runToken) setLoading(false);
     }
@@ -518,7 +522,7 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
       if (activeRunTokenRef.current !== runToken) {
         return;
       }
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      setError(err instanceof Error ? err.message : t('error_unknown'));
     } finally {
       if (activeRunTokenRef.current === runToken) {
         setLoading(false);
@@ -542,19 +546,18 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto lg:overflow-hidden">
       <div className="shrink-0 border-b border-border px-4 py-3">
-        <h2 className="text-base font-semibold">Trace</h2>
+        <h2 className="text-base font-semibold">{t('nav_trace')}</h2>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-          Build a repeater loop and trace it back to the local radio. The selectable hop list only
-          includes known full-key repeaters, but you can also add custom repeater prefixes.
+          {t('trace_intro_description')}
         </p>
       </div>
 
       <div className="flex flex-1 flex-col gap-4 p-4 lg:min-h-0 lg:flex-row lg:overflow-hidden">
         <section className="flex w-full flex-col rounded-lg border border-border bg-card lg:min-h-0 lg:max-w-[24rem]">
           <div className="shrink-0 border-b border-border p-4">
-            <h3 className="text-sm font-semibold">Repeater Hops</h3>
+            <h3 className="text-sm font-semibold">{t('trace_repeater_hops_heading')}</h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              Search by name or key, then add repeaters in the order you want to traverse them.
+              {t('trace_repeater_hops_description')}
             </p>
             <Button
               type="button"
@@ -563,22 +566,22 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
               className="mt-3"
               onClick={() => setCustomDialogOpen(true)}
             >
-              Custom path
+              {t('trace_custom_path_button')}
             </Button>
             <Input
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search name or public key"
-              aria-label="Search repeaters"
+              placeholder={t('trace_search_placeholder')}
+              aria-label={t('trace_search_aria')}
               className="mt-3"
             />
             <div className="mt-3 flex flex-wrap gap-2">
               {(
                 [
-                  ['alpha', 'A/Z', 'Sort alphabetically'],
-                  ['recent', 'Heard', 'Most recently heard first'],
-                  ['traced', 'Traced', 'Most recently used in traces first'],
-                  ['distance', 'Dist.', 'Closest first'],
+                  ['alpha', t('trace_sort_alpha_label'), t('trace_sort_alpha_desc')],
+                  ['recent', t('trace_sort_recent_label'), t('trace_sort_recent_desc')],
+                  ['traced', t('trace_sort_traced_label'), t('trace_sort_traced_desc')],
+                  ['distance', t('trace_sort_distance_label'), t('trace_sort_distance_desc')],
                 ] as const
               ).map(([value, label, description]) => (
                 <Button
@@ -595,8 +598,7 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
             </div>
             {sortMode === 'distance' && !canSortByDistance ? (
               <p className="mt-2 text-[0.6875rem] text-muted-foreground">
-                Distance sorting is using known repeater coordinates, but the local radio does not
-                currently have a valid location.
+                {t('trace_distance_sort_warning')}
               </p>
             ) : null}
           </div>
@@ -605,12 +607,12 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
             {filteredRepeaters.length === 0 ? (
               <div className="rounded-md border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
                 {sortMode === 'traced' && recentNodeKeys.length === 0
-                  ? 'No repeaters have been used in traces yet. Run a trace and its repeaters will show up here.'
+                  ? t('trace_empty_no_traced_yet')
                   : sortMode === 'traced'
-                    ? 'No known repeaters match your recent trace history.'
+                    ? t('trace_empty_no_traced_match')
                     : sortMode === 'distance' && canSortByDistance
-                      ? 'No repeaters with a known distance matched this search.'
-                      : 'No repeaters matched this search.'}
+                      ? t('trace_empty_no_distance_match')
+                      : t('trace_empty_no_match')}
               </div>
             ) : (
               <div className="space-y-2">
@@ -629,7 +631,7 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
                       key={contact.public_key}
                       role="button"
                       tabIndex={0}
-                      aria-label={`Add repeater ${displayName}`}
+                      aria-label={t('trace_add_repeater_aria', { name: displayName })}
                       className={cn(
                         'flex w-full items-center gap-3 rounded-md border px-3 py-3 text-left transition-colors',
                         selectedCount > 0
@@ -648,16 +650,18 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-medium">{displayName}</div>
                         <div className="truncate text-xs text-muted-foreground">
-                          {getShortKey(contact.public_key)}
+                          {getShortKey(contact.public_key, t('trace_unknown_key'))}
                         </div>
                         {sortMode === 'distance' && distanceKm !== null ? (
                           <div className="mt-1 text-[0.6875rem] text-muted-foreground">
-                            {formatDistance(distanceKm, distanceUnit)} away
+                            {t('trace_distance_away', {
+                              distance: formatDistance(distanceKm, distanceUnit),
+                            })}
                           </div>
                         ) : null}
                         {selectedCount > 0 ? (
                           <div className="mt-1 text-[0.6875rem] text-muted-foreground">
-                            Added {selectedCount} time{selectedCount === 1 ? '' : 's'}
+                            {t('trace_added_count_times', { count: selectedCount })}
                           </div>
                         ) : null}
                       </div>
@@ -672,8 +676,10 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
                 })}
                 {filteredRepeaters.length > MAX_RENDERED_REPEATERS ? (
                   <p className="px-1 pt-1 text-center text-[0.6875rem] text-muted-foreground">
-                    Showing the first {MAX_RENDERED_REPEATERS} of {filteredRepeaters.length}{' '}
-                    repeaters. Search to narrow the list.
+                    {t('trace_showing_first', {
+                      shown: MAX_RENDERED_REPEATERS,
+                      total: filteredRepeaters.length,
+                    })}
                   </p>
                 ) : null}
               </div>
@@ -685,9 +691,9 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
           <div className="flex flex-col rounded-lg border border-border bg-card lg:min-h-0 lg:flex-1 lg:overflow-hidden">
             <div className="shrink-0 flex items-start justify-between gap-3 border-b border-border px-4 py-3">
               <div>
-                <h3 className="text-sm font-semibold">Trace Path</h3>
+                <h3 className="text-sm font-semibold">{t('trace_path_heading')}</h3>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  The first node is display-only. The terminal node is the local radio.
+                  {t('trace_path_description')}
                 </p>
                 {recentTraces.length > 0 && (
                   <div className="mt-2">
@@ -701,7 +707,7 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
                       ) : (
                         <ChevronRight className="h-3 w-3" />
                       )}
-                      Recent traces ({recentTraces.length})
+                      {t('trace_recent_traces_label', { count: recentTraces.length })}
                     </button>
                     {recentTracesOpen && (
                       <div className="mt-1.5 flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
@@ -743,9 +749,9 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
                     className="text-muted-foreground"
                     onClick={handleReverseLink}
                     disabled={draftHops.length < 2}
-                    title="Append the reversed hop chain to build a return path"
+                    title={t('trace_reverse_link_title')}
                   >
-                    Reverse link
+                    {t('trace_reverse_link_button')}
                   </Button>
                   <Button
                     type="button"
@@ -757,7 +763,7 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
                       clearPendingResult();
                     }}
                   >
-                    Clear
+                    {t('map_clear_button')}
                   </Button>
                 </div>
               ) : null}
@@ -765,13 +771,14 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
             <div className="space-y-2 p-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
               <TraceNodeRow
                 title={localRadioName}
-                subtitle={getShortKey(localRadioKey)}
-                meta="Origin"
+                subtitle={getShortKey(localRadioKey, t('trace_unknown_key'))}
+                meta={t('trace_meta_origin')}
                 fixed
+                t={t}
               />
               {draftHops.length === 0 ? (
                 <div className="rounded-md border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
-                  Add at least one hop to build a trace loop.
+                  {t('trace_empty_hops')}
                 </div>
               ) : (
                 draftHops.map((hop, index) => {
@@ -784,17 +791,21 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
                           hop.publicKey,
                           contact?.last_advert ?? null
                         )
-                      : 'Custom hop';
+                      : t('trace_custom_hop_label');
                   const subtitle =
                     hop.kind === 'repeater'
-                      ? getShortKey(hop.publicKey)
-                      : `${hop.hopHex.toUpperCase()} (${hop.hopBytes}-byte)`;
+                      ? getShortKey(hop.publicKey, t('trace_unknown_key'))
+                      : t('trace_hop_hex_subtitle', {
+                          hex: hop.hopHex.toUpperCase(),
+                          bytes: hop.hopBytes,
+                        });
                   return (
                     <div key={hop.id}>
                       <TraceNodeRow
                         title={displayName}
                         subtitle={subtitle}
                         badge={String(index + 1)}
+                        t={t}
                         actions={
                           <>
                             <Button
@@ -802,7 +813,7 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
                               size="icon"
                               variant="outline"
                               className="h-8 w-8"
-                              aria-label={`Move ${displayName} up`}
+                              aria-label={t('trace_move_up_aria', { name: displayName })}
                               onClick={() => handleMoveHop(index, -1)}
                               disabled={index === 0}
                             >
@@ -813,7 +824,7 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
                               size="icon"
                               variant="outline"
                               className="h-8 w-8"
-                              aria-label={`Move ${displayName} down`}
+                              aria-label={t('trace_move_down_aria', { name: displayName })}
                               onClick={() => handleMoveHop(index, 1)}
                               disabled={index === draftHops.length - 1}
                             >
@@ -824,7 +835,7 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
                               size="icon"
                               variant="outline"
                               className="h-8 w-8"
-                              aria-label={`Remove ${displayName}`}
+                              aria-label={t('trace_remove_aria', { name: displayName })}
                               onClick={() => handleRemoveHop(hop.id)}
                             >
                               <X className="h-4 w-4" />
@@ -838,19 +849,23 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
               )}
               <TraceNodeRow
                 title={localRadioName}
-                subtitle={getShortKey(localRadioKey)}
-                meta="Terminal"
+                subtitle={getShortKey(localRadioKey, t('trace_unknown_key'))}
+                meta={t('trace_meta_terminal')}
                 fixed
+                t={t}
               />
             </div>
             <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
               <div className="min-w-0 flex-1 text-xs text-muted-foreground">
                 {draftHops.length === 0
-                  ? 'No hops selected'
-                  : `${draftHops.length} hop${draftHops.length === 1 ? '' : 's'} selected · ${effectiveHopHashBytes}-byte trace · you must be able to hear the final repeater for trace success`}
+                  ? t('trace_no_hops_selected')
+                  : t('trace_hops_selected_summary', {
+                      count: draftHops.length,
+                      bytes: effectiveHopHashBytes,
+                    })}
               </div>
               <Button onClick={handleRunTrace} disabled={loading || draftHops.length === 0}>
-                {loading ? 'Tracing...' : 'Send trace'}
+                {loading ? t('trace_button_tracing') : t('trace_button_send')}
               </Button>
             </div>
           </div>
@@ -859,7 +874,8 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
             <div className="flex flex-col rounded-lg border border-border bg-card lg:min-h-0 lg:flex-1">
               <div className="shrink-0 flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                 <h3 className="text-sm font-semibold">
-                  Results{result ? ` (${result.timeout_seconds.toFixed(1)}s)` : ''}
+                  {t('trace_results_heading')}
+                  {result ? t('trace_results_duration_suffix', { seconds: result.timeout_seconds.toFixed(1) }) : ''}
                 </h3>
                 <Button
                   type="button"
@@ -871,7 +887,7 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
                     setError(null);
                   }}
                 >
-                  Clear
+                  {t('map_clear_button')}
                 </Button>
               </div>
               <div className="min-h-0 flex-1 space-y-2 p-4 lg:overflow-y-auto">
@@ -885,19 +901,24 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
                       const title =
                         node.name ||
                         (node.role === 'custom'
-                          ? 'Custom hop'
+                          ? t('trace_custom_hop_label')
                           : node.role === 'local'
                             ? localRadioName
-                            : getShortKey(node.public_key));
+                            : getShortKey(node.public_key, t('trace_unknown_key')));
                       const subtitle =
                         node.role === 'custom'
-                          ? `Key prefix ${node.observed_hash?.toUpperCase() ?? 'unknown'}`
+                          ? t('trace_key_prefix', {
+                              hash: node.observed_hash?.toUpperCase() ?? t('trace_unknown_key'),
+                            })
                           : node.observed_hash &&
                               node.public_key &&
                               node.observed_hash.toLowerCase() !==
-                                getShortKey(node.public_key).toLowerCase()
-                            ? `${getShortKey(node.public_key)} · key prefix ${node.observed_hash.toUpperCase()}`
-                            : getShortKey(node.public_key);
+                                getShortKey(node.public_key, t('trace_unknown_key')).toLowerCase()
+                            ? t('trace_key_prefix_combined', {
+                                key: getShortKey(node.public_key, t('trace_unknown_key')),
+                                hash: node.observed_hash.toUpperCase(),
+                              })
+                            : getShortKey(node.public_key, t('trace_unknown_key'));
                       return (
                         <div
                           key={`${node.role}-${node.public_key ?? node.observed_hash ?? 'local'}-${index}`}
@@ -907,10 +928,15 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
                             subtitle={subtitle}
                             badge={String(index)}
                             meta={
-                              index === 0 ? 'Origin' : node.role === 'local' ? 'Terminal' : null
+                              index === 0
+                                ? t('trace_meta_origin')
+                                : node.role === 'local'
+                                  ? t('trace_meta_terminal')
+                                  : null
                             }
                             fixed={node.role === 'local'}
                             snr={index === 0 ? null : formatSNR(node.snr)}
+                            t={t}
                           />
                         </div>
                       );
@@ -925,16 +951,13 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
       <Dialog open={customDialogOpen} onOpenChange={setCustomDialogOpen}>
         <DialogContent className="sm:max-w-[440px]">
           <DialogHeader>
-            <DialogTitle>Custom path hop</DialogTitle>
-            <DialogDescription>
-              Add a raw repeater prefix as a 1-byte, 2-byte, or 4-byte hop. Once you add a custom
-              hop, all later custom hops must use the same byte width.
-            </DialogDescription>
+            <DialogTitle>{t('trace_custom_dialog_title')}</DialogTitle>
+            <DialogDescription>{t('trace_custom_dialog_description')}</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <div className="text-sm font-medium">Hop width</div>
+              <div className="text-sm font-medium">{t('trace_hop_width_label')}</div>
               <div className="flex flex-wrap gap-2">
                 {([1, 2, 4] as const).map((value) => {
                   const locked = customHopBytesLocked !== null && customHopBytesLocked !== value;
@@ -948,21 +971,21 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
                       disabled={locked}
                       onClick={() => setCustomHopBytesDraft(value)}
                     >
-                      {value}-byte
+                      {t('trace_hop_width_button', { n: value })}
                     </Button>
                   );
                 })}
               </div>
               {customHopBytesLocked !== null ? (
                 <p className="text-xs text-muted-foreground">
-                  Custom hops are locked to {customHopBytesLocked}-byte prefixes for this trace.
+                  {t('trace_hop_width_locked_note', { n: customHopBytesLocked })}
                 </p>
               ) : null}
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium" htmlFor="custom-hop-hex">
-                Repeater prefix
+                {t('trace_repeater_prefix_label')}
               </label>
               <Input
                 id="custom-hop-hex"
@@ -970,10 +993,14 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
                 onChange={(event) =>
                   setCustomHopHexDraft(normalizeCustomHopHex(event.target.value))
                 }
-                placeholder={`${(customHopBytesLocked ?? customHopBytesDraft) * 2} hex chars`}
+                placeholder={t('trace_hex_chars_placeholder', {
+                  n: (customHopBytesLocked ?? customHopBytesDraft) * 2,
+                })}
               />
               <p className="text-xs text-muted-foreground">
-                Enter exactly {(customHopBytesLocked ?? customHopBytesDraft) * 2} hex characters.
+                {t('trace_hex_chars_instruction', {
+                  n: (customHopBytesLocked ?? customHopBytesDraft) * 2,
+                })}
               </p>
               {customHopError ? (
                 <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -985,10 +1012,10 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
 
           <DialogFooter className="gap-2 sm:justify-between">
             <Button type="button" variant="secondary" onClick={() => setCustomDialogOpen(false)}>
-              Cancel
+              {t('common_cancel')}
             </Button>
             <Button type="button" onClick={handleAddCustomHop}>
-              Add custom hop
+              {t('trace_add_custom_hop_button')}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -16,7 +16,7 @@ import type { LocalLabel } from '../utils/localLabel';
 import { useT } from '../i18n';
 import {
   SETTINGS_SECTION_ICONS,
-  SETTINGS_SECTION_LABELS,
+  settingsSectionLabel,
   type SettingsSection,
 } from './settings/settingsConstants';
 
@@ -192,7 +192,7 @@ export function SettingsModal(props: SettingsModalProps) {
       >
         <span className="inline-flex items-center gap-2 font-medium" role="heading" aria-level={3}>
           <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-          <span>{SETTINGS_SECTION_LABELS[section]}</span>
+          <span>{settingsSectionLabel(section, t)}</span>
         </span>
         <span className="text-muted-foreground md:hidden" aria-hidden="true">
           {expandedSections[section] ? '−' : '+'}
