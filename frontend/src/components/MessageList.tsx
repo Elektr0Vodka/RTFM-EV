@@ -18,6 +18,7 @@ import {
 import {
   giphyUrlForId,
   parseGif,
+  parseMeshCoreOneReaction,
   parseReaction,
   splitReplyMention,
   parseMarker,
@@ -93,14 +94,17 @@ function GifPayload({ gifId, rawText }: { gifId: string; rawText: string }) {
   );
 }
 
-// Renders a MeshCore Open reaction generically (emoji + "reacted"); the target
-// message is not resolved (see issue #291).
-function ReactionPayload({ emoji }: { emoji: string }) {
+// Renders a reaction generically (emoji + "reacted"); the target message is not
+// resolved (see issues #291 and #354). MeshCore One reactions name the target's
+// sender, so show that when it is there.
+function ReactionPayload({ emoji, targetSender }: { emoji: string; targetSender?: string }) {
   const t = useT();
   return (
     <span className="inline-flex items-center gap-1.5">
       <span className="text-xl leading-none">{emoji}</span>
-      <span className="text-xs text-muted-foreground italic">{t('chat_reacted')}</span>
+      <span className="text-xs text-muted-foreground italic">
+        {targetSender ? t('chat_reacted_to', { sender: targetSender }) : t('chat_reacted')}
+      </span>
     </span>
   );
 }
@@ -149,9 +153,9 @@ function renderPayloadBody(
   if (gifId) {
     return <GifPayload gifId={gifId} rawText={body} />;
   }
-  const reaction = parseReaction(body);
+  const reaction = parseReaction(body) ?? parseMeshCoreOneReaction(body);
   if (reaction) {
-    return <ReactionPayload emoji={reaction.emoji} />;
+    return <ReactionPayload emoji={reaction.emoji} targetSender={reaction.targetSender} />;
   }
   const marker = parseMarker(body);
   if (marker) {

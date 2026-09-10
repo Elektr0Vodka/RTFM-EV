@@ -372,6 +372,7 @@
   "chat_private_channel": "Privékanaal",
   "chat_radio_not_connected_placeholder": "Radio niet verbonden",
   "chat_reacted": "reageerde",
+  "chat_reacted_to": "reageerde op {sender}",
   "chat_scroll_down_newer": "Scroll omlaag voor nieuwere berichten",
   "chat_scroll_up_older": "Scroll omhoog voor oudere berichten",
   "chat_select_conversation": "Selecteer een gesprek of start een nieuw gesprek",

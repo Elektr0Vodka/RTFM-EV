@@ -371,6 +371,7 @@
   "chat_private_channel": "Private Channel",
   "chat_radio_not_connected_placeholder": "Radio not connected",
   "chat_reacted": "reacted",
+  "chat_reacted_to": "reacted to {sender}",
   "chat_scroll_down_newer": "Scroll down for newer messages",
   "chat_scroll_up_older": "Scroll up for older messages",
   "chat_select_conversation": "Select a conversation or start a new one",
