@@ -72,8 +72,8 @@ usbipd attach --wsl --busid 3-8
 **This approach is recommended over Docker due to intermittent serial communications issues I've seen on \*nix systems.**
 
 ```bash
-git clone https://github.com/jkingsman/Remote-Terminal-for-MeshCore.git
-cd Remote-Terminal-for-MeshCore
+git clone https://github.com/Elektr0Vodka/RTFM-EV.git
+cd RTFM-EV
 
 uv sync
 cd frontend && npm install && npm run build && cd ..
@@ -145,7 +145,7 @@ sudo docker compose up -d
 The example file and setup script default to the published Docker Hub image. To build locally from your checkout instead, replace:
 
 ```yaml
-image: docker.io/jkingsman/remoteterm-meshcore:latest
+image: docker.io/elektr0vodka/rtfm-ev:latest
 ```
 
 with:
@@ -170,23 +170,23 @@ sudo docker compose down
 
 ## Install Path 3: Arch Linux (AUR)
 
-A [`remoteterm-meshcore`](https://aur.archlinux.org/packages/remoteterm-meshcore) package is available in the AUR. Install it with an AUR helper or build it manually:
+A [`rtfm-ev`](https://aur.archlinux.org/packages/rtfm-ev) package is available in the AUR. Install it with an AUR helper or build it manually:
 
 ```bash
 # with an AUR helper
-yay -S remoteterm-meshcore
+yay -S rtfm-ev
 
 # or manually
-git clone https://aur.archlinux.org/remoteterm-meshcore.git
-cd remoteterm-meshcore
+git clone https://aur.archlinux.org/rtfm-ev.git
+cd rtfm-ev
 makepkg -si
 ```
 
 Configure your radio connection, then start the service:
 
 ```bash
-sudo vi /etc/remoteterm-meshcore/remoteterm.env
-sudo systemctl enable --now remoteterm-meshcore
+sudo vi /etc/rtfm-ev/remoteterm.env
+sudo systemctl enable --now rtfm-ev
 ```
 
 Access the app at http://localhost:8000.
