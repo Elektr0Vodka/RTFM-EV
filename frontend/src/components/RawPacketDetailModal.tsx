@@ -11,6 +11,7 @@ import {
 import { toast } from './ui/sonner';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
+import { useT, type TFn } from '../i18n';
 
 interface RawPacketDetailModalProps {
   packet: RawPacket | null;
@@ -136,6 +137,7 @@ function formatTimestamp(timestamp: number): string {
 
 function formatSignal(
   packet: RawPacket,
+  t: TFn,
   signalOverride?: SignalOverride
 ): { lines: string[]; label: string } {
   const rssi = signalOverride?.rssi ?? packet.rssi;
@@ -146,26 +148,31 @@ function formatSignal(
   const isOverride =
     signalOverride != null && (signalOverride.rssi != null || signalOverride.snr != null);
   return {
-    lines: lines.length > 0 ? lines : ['No signal sample'],
-    label: isOverride ? 'Last Hop Signal' : 'Signal',
+    lines: lines.length > 0 ? lines : [t('packet_signal_none')],
+    label: isOverride ? t('packet_signal_label_last_hop') : t('packet_signal_label'),
   };
 }
 
-function formatByteRange(field: PacketByteField): string {
+function formatByteRange(field: PacketByteField, t: TFn): string {
   if (field.absoluteStartByte === field.absoluteEndByte) {
-    return `Byte ${field.absoluteStartByte}`;
+    return t('packet_byte_single', { n: field.absoluteStartByte });
   }
-  return `Bytes ${field.absoluteStartByte}-${field.absoluteEndByte}`;
+  return t('packet_byte_range', {
+    start: field.absoluteStartByte,
+    end: field.absoluteEndByte,
+  });
 }
 
-function formatPathMode(hashSize: number | undefined, hopCount: number): string {
+function formatPathMode(hashSize: number | undefined, hopCount: number, t: TFn): string {
   if (hopCount === 0) {
-    return 'No path hops';
+    return t('packet_no_path_hops');
   }
+  const hopsText = t('packet_hop_count', { count: hopCount });
   if (!hashSize) {
-    return `${hopCount} hop${hopCount === 1 ? '' : 's'}`;
+    return hopsText;
   }
-  return `${hopCount} hop${hopCount === 1 ? '' : 's'} · ${hashSize} byte hash${hashSize === 1 ? '' : 'es'}`;
+  const hashText = t('packet_hash_size', { count: hashSize });
+  return `${hopsText} · ${hashText}`;
 }
 
 function formatTransportCodes(codes: [number, number]): string {
@@ -227,7 +234,8 @@ function packetShowsDecryptedState(
 function getPacketContext(
   packet: RawPacket,
   inspection: ReturnType<typeof inspectRawPacketWithOptions>,
-  groupTextCandidates: GroupTextResolutionCandidate[]
+  groupTextCandidates: GroupTextResolutionCandidate[],
+  t: TFn
 ) {
   const fallbackSender = packet.decrypted_info?.sender ?? null;
   const fallbackChannel = packet.decrypted_info?.channel_name ?? null;
@@ -237,9 +245,9 @@ function getPacketContext(
       return null;
     }
     return {
-      title: fallbackChannel ? 'Channel' : 'Context',
-      primary: fallbackChannel ?? 'Sender metadata available',
-      secondary: fallbackSender ? `Sender: ${fallbackSender}` : null,
+      title: fallbackChannel ? t('packet_context_title_channel') : t('packet_context_title_context'),
+      primary: fallbackChannel ?? t('packet_sender_metadata_available'),
+      secondary: fallbackSender ? t('packet_sender_prefix', { sender: fallbackSender }) : null,
     };
   }
 
@@ -253,20 +261,23 @@ function getPacketContext(
     const channelName =
       fallbackChannel ?? resolveGroupTextChannelName(payload, groupTextCandidates);
     return {
-      title: 'Channel',
+      title: t('packet_context_title_channel'),
       primary:
-        channelName ?? (payload.channelHash ? `Channel hash ${payload.channelHash}` : 'GroupText'),
+        channelName ??
+        (payload.channelHash
+          ? t('packet_channel_hash_prefix', { hash: payload.channelHash })
+          : 'GroupText'),
       secondary: payload.decrypted?.sender
-        ? `Sender: ${payload.decrypted.sender}`
+        ? t('packet_sender_prefix', { sender: payload.decrypted.sender })
         : fallbackSender
-          ? `Sender: ${fallbackSender}`
+          ? t('packet_sender_prefix', { sender: fallbackSender })
           : null,
     };
   }
 
   if (fallbackSender) {
     return {
-      title: 'Context',
+      title: t('packet_context_title_context'),
       primary: fallbackSender,
       secondary: null,
     };
@@ -416,15 +427,15 @@ function normalizePacketHex(input: string): string {
   return input.replace(/\s+/g, '').toUpperCase();
 }
 
-function validatePacketHex(input: string): string | null {
+function validatePacketHex(input: string, t: TFn): string | null {
   if (!input) {
-    return 'Paste a packet hex string to analyze.';
+    return t('packet_paste_hex_prompt');
   }
   if (!/^[0-9A-F]+$/.test(input)) {
-    return 'Packet hex may only contain 0-9 and A-F characters.';
+    return t('packet_hex_invalid_chars');
   }
   if (input.length % 2 !== 0) {
-    return 'Packet hex must contain an even number of characters.';
+    return t('packet_hex_odd_length');
   }
   return null;
 }
@@ -453,6 +464,7 @@ function FieldBox({
   active: boolean;
   onHoverField: (fieldId: string | null) => void;
 }) {
+  const t = useT();
   return (
     <div
       onMouseEnter={() => onHoverField(field.id)}
@@ -466,7 +478,7 @@ function FieldBox({
         <div className="min-w-0">
           <div className="text-base font-semibold leading-tight text-foreground">{field.name}</div>
           <div className="mt-0.5 text-[0.6875rem] text-muted-foreground">
-            {formatByteRange(field)}
+            {formatByteRange(field, t)}
           </div>
         </div>
         <div
@@ -486,7 +498,7 @@ function FieldBox({
       {field.decryptedMessage ? (
         <div className="mt-2 rounded border border-border/50 bg-background/40 p-2">
           <div className="text-[0.625rem] uppercase tracking-wider text-muted-foreground">
-            {field.name === 'Ciphertext' ? 'Plaintext' : 'Decoded value'}
+            {field.name === 'Ciphertext' ? t('packet_plaintext_label') : t('packet_decoded_value_label')}
           </div>
           <PlaintextContent text={field.decryptedMessage} />
         </div>
@@ -508,7 +520,7 @@ function FieldBox({
                     {part.field}
                   </div>
                   <div className="mt-0.5 text-[0.6875rem] text-muted-foreground">
-                    Bits {part.bits}
+                    {t('packet_bits_label', { bits: part.bits })}
                   </div>
                 </div>
                 <div className="text-right">
@@ -566,11 +578,12 @@ function FieldSection({
   hoveredFieldId: string | null;
   onHoverField: (fieldId: string | null) => void;
 }) {
+  const t = useT();
   return (
     <section className="rounded-lg border border-border/70 bg-card/70 p-3">
       <div className="mb-2 text-sm font-semibold text-foreground">{title}</div>
       {fields.length === 0 ? (
-        <div className="text-sm text-muted-foreground">No decoded fields available.</div>
+        <div className="text-sm text-muted-foreground">{t('packet_no_decoded_fields')}</div>
       ) : (
         <div className="grid gap-2">
           {fields.map((field) => (
@@ -593,6 +606,7 @@ export function RawPacketInspectionPanel({
   channels,
   signalOverride,
 }: RawPacketInspectionPanelProps) {
+  const t = useT();
   const decoderOptions = useMemo(() => createDecoderOptions(channels), [channels]);
   const groupTextCandidates = useMemo(
     () => buildGroupTextResolutionCandidates(channels),
@@ -611,8 +625,8 @@ export function RawPacketInspectionPanel({
   const fullPacketFields = useMemo(() => buildDisplayFields(inspection), [inspection]);
   const colorMap = useMemo(() => buildFieldColorMap(fullPacketFields), [fullPacketFields]);
   const packetContext = useMemo(
-    () => getPacketContext(packet, inspection, groupTextCandidates),
-    [groupTextCandidates, inspection, packet]
+    () => getPacketContext(packet, inspection, groupTextCandidates, t),
+    [groupTextCandidates, inspection, packet, t]
   );
   const packetIsDecrypted = useMemo(
     () => packetShowsDecryptedState(packet, inspection),
@@ -626,7 +640,7 @@ export function RawPacketInspectionPanel({
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="text-[0.625rem] uppercase tracking-wider text-muted-foreground">
-                Summary
+                {t('packet_summary_label')}
               </div>
               <div className="mt-1 text-base font-semibold leading-tight text-foreground">
                 {inspection.summary.summary}
@@ -662,28 +676,38 @@ export function RawPacketInspectionPanel({
           )}
         >
           <CompactMetaCard
-            label="Packet"
-            primary={`${packet.data.length / 2} bytes · ${packetIsDecrypted ? 'Decrypted' : 'Encrypted'}`}
-            secondary={`Storage #${packet.id}${packet.observation_id !== undefined ? ` · Observation #${packet.observation_id}` : ''}`}
+            label={t('packet_meta_label_packet')}
+            primary={t('packet_bytes_status', {
+              count: packet.data.length / 2,
+              status: packetIsDecrypted
+                ? t('settings_statistics_decrypted_label')
+                : t('packet_status_encrypted'),
+            })}
+            secondary={
+              t('packet_storage_number', { id: packet.id }) +
+              (packet.observation_id !== undefined
+                ? t('packet_observation_number_suffix', { id: packet.observation_id })
+                : '')
+            }
           />
           <CompactMetaCard
-            label="Transport"
+            label={t('settings_fanout_transport_label')}
             primary={`${inspection.routeTypeName} · ${inspection.payloadTypeName}`}
-            secondary={`${inspection.payloadVersionName} · ${formatPathMode(inspection.decoded?.pathHashSize, inspection.pathTokens.length)}`}
+            secondary={`${inspection.payloadVersionName} · ${formatPathMode(inspection.decoded?.pathHashSize, inspection.pathTokens.length, t)}`}
           />
           {inspection.decoded?.transportCodes ? (
             <CompactMetaCard
-              label="Scope"
-              primary={packet.region ? packet.region : 'Regional'}
+              label={t('packet_meta_label_scope')}
+              primary={packet.region ? packet.region : t('packet_region_regional_fallback')}
               secondary={
                 packet.region
                   ? formatTransportCodes(inspection.decoded.transportCodes)
-                  : `${formatTransportCodes(inspection.decoded.transportCodes)} · unknown region`
+                  : `${formatTransportCodes(inspection.decoded.transportCodes)}${t('packet_region_unknown_suffix')}`
               }
             />
           ) : null}
           {(() => {
-            const sig = formatSignal(packet, signalOverride);
+            const sig = formatSignal(packet, t, signalOverride);
             return (
               <div className="rounded-lg border border-border/70 bg-card/70 p-2.5">
                 <div className="text-[0.625rem] uppercase tracking-wider text-muted-foreground">
@@ -705,7 +729,9 @@ export function RawPacketInspectionPanel({
 
       {inspection.validationErrors.length > 0 ? (
         <div className="mt-3 rounded-lg border border-warning/40 bg-warning/10 p-2.5">
-          <div className="text-sm font-semibold text-foreground">Validation notes</div>
+          <div className="text-sm font-semibold text-foreground">
+            {t('packet_validation_notes_heading')}
+          </div>
           <div className="mt-1.5 space-y-1 text-sm text-foreground">
             {inspection.validationErrors.map((error) => (
               <div key={error}>{error}</div>
@@ -716,17 +742,17 @@ export function RawPacketInspectionPanel({
 
       <div className="mt-3 rounded-lg border border-border/70 bg-card/70 p-3">
         <div className="flex items-center justify-between gap-3">
-          <div className="text-xl font-semibold text-foreground">Full packet hex</div>
+          <div className="text-xl font-semibold text-foreground">{t('packet_full_hex_heading')}</div>
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={() => {
               navigator.clipboard.writeText(packet.data);
-              toast.success('Packet hex copied!');
+              toast.success(t('toast_packet_hex_copied'));
             }}
           >
-            Copy
+            {t('packet_copy_button')}
           </Button>
         </div>
         <div className="mt-2.5">
@@ -742,7 +768,7 @@ export function RawPacketInspectionPanel({
 
       <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
         <FieldSection
-          title="Packet fields"
+          title={t('packet_fields_heading')}
           fields={packetDisplayFields}
           colorMap={colorMap}
           hoveredFieldId={hoveredFieldId}
@@ -750,7 +776,7 @@ export function RawPacketInspectionPanel({
         />
 
         <FieldSection
-          title="Payload fields"
+          title={t('packet_payload_fields_heading')}
           fields={inspection.payloadFields}
           colorMap={colorMap}
           hoveredFieldId={hoveredFieldId}
@@ -772,6 +798,7 @@ export function RawPacketInspectorDialog({
   signalOverride,
   container,
 }: RawPacketInspectorDialogProps) {
+  const t = useT();
   const [packetInput, setPacketInput] = useState('');
 
   useEffect(() => {
@@ -782,8 +809,8 @@ export function RawPacketInspectorDialog({
 
   const normalizedPacketInput = useMemo(() => normalizePacketHex(packetInput), [packetInput]);
   const packetInputError = useMemo(
-    () => (normalizedPacketInput.length > 0 ? validatePacketHex(normalizedPacketInput) : null),
-    [normalizedPacketInput]
+    () => (normalizedPacketInput.length > 0 ? validatePacketHex(normalizedPacketInput, t) : null),
+    [normalizedPacketInput, t]
   );
   const analyzedPacket = useMemo(
     () =>
@@ -808,13 +835,13 @@ export function RawPacketInspectorDialog({
         <div className="border-b border-border px-4 py-3 pr-14">
           <div className="flex flex-col gap-3">
             <label className="text-sm font-medium text-foreground" htmlFor="raw-packet-input">
-              Packet Hex
+              {t('packet_hex_input_label')}
             </label>
             <textarea
               id="raw-packet-input"
               value={packetInput}
               onChange={(event) => setPacketInput(event.target.value)}
-              placeholder="Paste raw packet hex here..."
+              placeholder={t('packet_hex_input_placeholder')}
               className="min-h-14 w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm text-foreground outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring"
               spellCheck={false}
             />
@@ -827,7 +854,7 @@ export function RawPacketInspectorDialog({
           <RawPacketInspectionPanel packet={analyzedPacket} channels={channels} />
         ) : (
           <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
-            Paste a packet above to inspect it.
+            {t('packet_paste_prompt')}
           </div>
         )}
       </>
@@ -872,6 +899,7 @@ export function RawPacketInspectorDialog({
 }
 
 export function RawPacketDetailModal({ packet, channels, onClose }: RawPacketDetailModalProps) {
+  const t = useT();
   if (!packet) {
     return null;
   }
@@ -882,8 +910,8 @@ export function RawPacketDetailModal({ packet, channels, onClose }: RawPacketDet
       onOpenChange={(isOpen) => !isOpen && onClose()}
       channels={channels}
       source={{ kind: 'packet', packet }}
-      title="Packet Details"
-      description="Detailed byte and field breakdown for the selected raw packet."
+      title={t('packet_details_title')}
+      description={t('packet_details_description')}
     />
   );
 }

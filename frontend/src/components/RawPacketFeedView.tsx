@@ -31,6 +31,7 @@ import { createDecoderOptions } from '../utils/rawPacketInspector';
 import { useRawPacketStatsSession, useRawPackets } from '../stores/rawPacketStore';
 import { getContactDisplayName } from '../utils/pubkey';
 import { cn } from '@/lib/utils';
+import { useT, type TFn } from '../i18n';
 
 const TIMELINE_FILL_COLORS = ['#0ea5e9', '#10b981', '#f59e0b', '#f43f5e', '#8b5cf6'];
 
@@ -125,6 +126,7 @@ function FeedFilterControls({
   matchCount,
   totalCount,
 }: FeedFilterControlsProps) {
+  const t = useT();
   return (
     <div className={cn('mt-1.5 flex-wrap items-center gap-x-3 gap-y-1', className)}>
       <div className="relative">
@@ -132,15 +134,15 @@ function FeedFilterControls({
           type="text"
           value={hexFilter}
           onChange={(event) => onHexFilterChange(event.target.value)}
-          placeholder="Filter by hex…"
-          aria-label="Filter loaded packets by hex substring"
+          placeholder={t('packet_filter_hex_placeholder')}
+          aria-label={t('packet_filter_hex_aria')}
           className="w-44 rounded border border-input bg-background px-2 py-0.5 pr-6 text-xs"
         />
         {hexFilter !== '' && (
           <button
             type="button"
             onClick={() => onHexFilterChange('')}
-            aria-label="Clear hex filter"
+            aria-label={t('packet_clear_hex_filter_aria')}
             className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           >
             <X className="h-3 w-3" />
@@ -149,7 +151,7 @@ function FeedFilterControls({
       </div>
       {hexFilter.trim() !== '' &&
         (hexInvalid ? (
-          <span className="text-[0.6875rem] text-warning">Enter hex only</span>
+          <span className="text-[0.6875rem] text-warning">{t('packet_hex_filter_invalid')}</span>
         ) : (
           <span className="text-[0.6875rem] text-muted-foreground tabular-nums">
             {matchCount.toLocaleString()} / {totalCount.toLocaleString()}
@@ -162,7 +164,7 @@ function FeedFilterControls({
           onChange={onToggleAll}
           className="rounded"
         />
-        All
+        {t('packet_filter_all_label')}
       </label>
       {KNOWN_PAYLOAD_TYPES.map((type) => (
         <span key={type} className="inline-flex items-center gap-1 text-xs">
@@ -180,7 +182,7 @@ function FeedFilterControls({
             className="text-[0.625rem] text-muted-foreground hover:text-primary transition-colors"
             onClick={() => onOnly(type)}
           >
-            (only)
+            {t('packet_filter_only_button')}
           </button>
         </span>
       ))}
@@ -191,7 +193,7 @@ function FeedFilterControls({
           onChange={(event) => onAutoScrollChange(event.target.checked)}
           className="rounded"
         />
-        Autoscroll
+        {t('packet_autoscroll_label')}
       </label>
     </div>
   );
@@ -214,13 +216,17 @@ const TOOLTIP_STYLE = {
   labelStyle: { color: 'hsl(var(--muted-foreground))' },
 } as const;
 
-const WINDOW_LABELS: Record<RawPacketStatsWindow, string> = {
-  '1m': '1 min',
-  '5m': '5 min',
-  '10m': '10 min',
-  '30m': '30 min',
-  session: 'Session',
+const WINDOW_LABEL_KEYS: Record<RawPacketStatsWindow, string> = {
+  '1m': 'packet_window_1m',
+  '5m': 'packet_window_5m',
+  '10m': 'packet_window_10m',
+  '30m': 'packet_window_30m',
+  session: 'packet_window_session',
 };
+
+function getWindowLabel(window: RawPacketStatsWindow, t: TFn): string {
+  return t(WINDOW_LABEL_KEYS[window]);
+}
 
 function formatTimestamp(timestampMs: number): string {
   return new Date(timestampMs).toLocaleString([], {
@@ -232,18 +238,22 @@ function formatTimestamp(timestampMs: number): string {
   });
 }
 
-function formatDuration(seconds: number): string {
+function formatDuration(seconds: number, t: TFn): string {
   if (seconds < 60) {
-    return `${Math.max(1, Math.round(seconds))} sec`;
+    return t('packet_duration_seconds', { count: Math.max(1, Math.round(seconds)) });
   }
   if (seconds < 3600) {
     const minutes = Math.floor(seconds / 60);
     const remainder = Math.round(seconds % 60);
-    return remainder > 0 ? `${minutes}m ${remainder}s` : `${minutes}m`;
+    return remainder > 0
+      ? t('packet_duration_minutes_seconds', { minutes, seconds: remainder })
+      : t('packet_duration_minutes', { minutes });
   }
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.round((seconds % 3600) / 60);
-  return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+  return minutes > 0
+    ? t('packet_duration_hours_minutes', { hours, minutes })
+    : t('packet_duration_hours', { hours });
 }
 
 function formatRate(value: number): string {
@@ -339,7 +349,8 @@ function isNeighborIdentityResolvable(item: NeighborStat, contacts: Contact[]): 
 
 function formatStrongestNeighborDetail(
   stats: ReturnType<typeof buildRawPacketStatsSnapshot>,
-  contacts: Contact[]
+  contacts: Contact[],
+  t: TFn
 ): string | undefined {
   const strongestNeighbor = stats.strongestNeighbors[0];
   if (!strongestNeighbor || strongestNeighbor.bestRssi === null) {
@@ -347,30 +358,38 @@ function formatStrongestNeighborDetail(
   }
 
   const resolvedNeighbor = resolveNeighbor(strongestNeighbor, contacts);
-  return `${formatRssi(resolvedNeighbor.bestRssi)} best heard`;
+  return t('packet_best_heard', { rssi: formatRssi(resolvedNeighbor.bestRssi) });
 }
 
 function getCoverageMessage(
   stats: ReturnType<typeof buildRawPacketStatsSnapshot>,
-  session: RawPacketStatsSessionState
+  session: RawPacketStatsSessionState,
+  t: TFn
 ): { tone: 'default' | 'warning'; message: string } {
   if (session.trimmedObservationCount > 0 && stats.window === 'session') {
     return {
       tone: 'warning',
-      message: `Detailed session history was trimmed after ${session.totalObservedPackets.toLocaleString()} observations.`,
+      message: t('packet_coverage_trimmed', {
+        count: session.totalObservedPackets.toLocaleString(),
+      }),
     };
   }
 
   if (!stats.windowFullyCovered) {
     return {
       tone: 'warning',
-      message: `This window is only covered for ${formatDuration(stats.coverageSeconds)} of frontend-collected history.`,
+      message: t('packet_coverage_partial', {
+        duration: formatDuration(stats.coverageSeconds, t),
+      }),
     };
   }
 
   return {
     tone: 'default',
-    message: `Tracking ${session.observations.length.toLocaleString()} detailed observations from this browser session.`,
+    message: t('packet_coverage_tracking', {
+      count: session.observations.length,
+      n: session.observations.length.toLocaleString(),
+    }),
   };
 }
 
@@ -462,6 +481,7 @@ function NeighborList({
   mode: 'heard' | 'signal' | 'recent';
   contacts: Contact[];
 }) {
+  const t = useT();
   const mergedItems = mergeResolvedNeighbors(items, contacts);
   const sortedItems = [...mergedItems].sort((a, b) => {
     if (mode === 'heard') {
@@ -493,13 +513,23 @@ function NeighborList({
                 <div className="truncate text-sm text-foreground">{item.label}</div>
                 <div className="text-xs text-muted-foreground">
                   {mode === 'heard'
-                    ? `${item.count.toLocaleString()} packets`
+                    ? t('packet_neighbor_packet_count', {
+                        count: item.count,
+                        n: item.count.toLocaleString(),
+                      })
                     : mode === 'signal'
-                      ? `${formatRssi(item.bestRssi)} best`
-                      : `Last seen ${new Date(item.lastSeen * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                      ? t('packet_neighbor_best_signal', { rssi: formatRssi(item.bestRssi) })
+                      : t('packet_neighbor_last_seen', {
+                          time: new Date(item.lastSeen * 1000).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          }),
+                        })}
                 </div>
                 {!isNeighborIdentityResolvable(item, contacts) ? (
-                  <div className="text-[0.6875rem] text-warning">Identity not resolvable</div>
+                  <div className="text-[0.6875rem] text-warning">
+                    {t('packet_identity_not_resolvable')}
+                  </div>
                 ) : null}
               </div>
               {mode !== 'signal' ? (
@@ -522,6 +552,7 @@ function TimelineChart({
   bins: PacketTimelineBin[];
   colorMap: Map<string, string>;
 }) {
+  const t = useT();
   const typeOrder = Array.from(new Set(bins.flatMap((bin) => Object.keys(bin.countsByType)))).slice(
     0,
     TIMELINE_FILL_COLORS.length
@@ -538,7 +569,7 @@ function TimelineChart({
   return (
     <section className="mb-4 break-inside-avoid rounded-lg border border-border/70 bg-card/70 p-3">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold text-foreground">Traffic Timeline</h3>
+        <h3 className="text-sm font-semibold text-foreground">{t('packet_traffic_timeline')}</h3>
         <div className="flex flex-wrap justify-end gap-2 text-[0.6875rem] text-muted-foreground">
           {typeOrder.map((type) => (
             <span key={type} className="inline-flex items-center gap-1">
@@ -588,6 +619,7 @@ function TimelineChart({
 }
 
 export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps) {
+  const t = useT();
   const packets = useRawPackets();
   const rawPacketStatsSession = useRawPacketStatsSession();
   const [statsOpen, setStatsOpen] = useState(() =>
@@ -673,15 +705,15 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
     () => buildRawPacketStatsSnapshot(rawPacketStatsSession, selectedWindow, nowSec),
     [nowSec, rawPacketStatsSession, selectedWindow]
   );
-  const coverageMessage = getCoverageMessage(stats, rawPacketStatsSession);
+  const coverageMessage = getCoverageMessage(stats, rawPacketStatsSession, t);
   const strongestNeighbor = useMemo(() => {
     const topNeighbor = stats.strongestNeighbors[0];
     return topNeighbor ? resolveNeighbor(topNeighbor, contacts) : null;
   }, [contacts, stats]);
 
   const strongestNeighborDetail = useMemo(
-    () => formatStrongestNeighborDetail(stats, contacts),
-    [contacts, stats]
+    () => formatStrongestNeighborDetail(stats, contacts, t),
+    [contacts, stats, t]
   );
   const strongestNeighbors = useMemo(
     () => stats.strongestNeighbors.map((item) => resolveNeighbor(item, contacts)),
@@ -700,9 +732,13 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
       <div className="border-b border-border px-4 py-2.5">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="font-semibold text-base text-foreground">Raw Packet Feed</h2>
+            <h2 className="font-semibold text-base text-foreground">
+              {t('nav_raw_packet_feed_name')}
+            </h2>
             <p className="hidden md:block text-xs text-muted-foreground">
-              Collecting stats since {formatTimestamp(rawPacketStatsSession.sessionStartedAt)}
+              {t('packet_collecting_stats_since', {
+                timestamp: formatTimestamp(rawPacketStatsSession.sessionStartedAt),
+              })}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -712,7 +748,7 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
               size="sm"
               onClick={() => setAnalyzeModalOpen(true)}
             >
-              Analyze Packet
+              {t('chat_analyze_packet_title')}
             </Button>
             <Button
               type="button"
@@ -726,12 +762,14 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
               ) : (
                 <ChevronLeft className="h-4 w-4" />
               )}
-              {statsOpen ? 'Hide Stats' : 'Show Stats'}
+              {statsOpen ? t('packet_hide_stats_button') : t('packet_show_stats_button')}
             </Button>
           </div>
         </div>
         <p className="md:hidden text-xs text-muted-foreground">
-          Collecting stats since {formatTimestamp(rawPacketStatsSession.sessionStartedAt)}
+          {t('packet_collecting_stats_since', {
+            timestamp: formatTimestamp(rawPacketStatsSession.sessionStartedAt),
+          })}
           {!mobileFiltersOpen && (
             <>
               {' · '}
@@ -740,7 +778,7 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
                 className="text-primary hover:text-primary/80 transition-colors"
                 onClick={() => setMobileFiltersOpen(true)}
               >
-                Show Filters
+                {t('packet_show_filters_button')}
               </button>
             </>
           )}
@@ -805,7 +843,7 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <div className="text-[0.625rem] uppercase tracking-wider font-medium text-muted-foreground">
-                      Coverage
+                      {t('packet_coverage_label')}
                     </div>
                     <div
                       className={cn(
@@ -819,65 +857,72 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
                     </div>
                   </div>
                   <label className="flex items-center gap-2 text-sm text-foreground">
-                    <span className="text-muted-foreground">Window</span>
+                    <span className="text-muted-foreground">{t('packet_window_label')}</span>
                     <select
                       value={selectedWindow}
                       onChange={(event) =>
                         setSelectedWindow(event.target.value as RawPacketStatsWindow)
                       }
                       className="rounded-md border border-input bg-background px-2 py-1 text-sm"
-                      aria-label="Stats window"
+                      aria-label={t('packet_stats_window_aria')}
                     >
                       {RAW_PACKET_STATS_WINDOWS.map((option) => (
                         <option key={option} value={option}>
-                          {WINDOW_LABELS[option]}
+                          {getWindowLabel(option, t)}
                         </option>
                       ))}
                     </select>
                   </label>
                 </div>
                 <div className="mt-2 text-xs text-muted-foreground">
-                  {stats.packetCount.toLocaleString()} packets in{' '}
-                  {WINDOW_LABELS[selectedWindow].toLowerCase()} window
-                  {' · '}
-                  {rawPacketStatsSession.totalObservedPackets.toLocaleString()} observed this
-                  session
+                  {t('packet_stats_summary', {
+                    count: stats.packetCount.toLocaleString(),
+                    window: getWindowLabel(selectedWindow, t).toLowerCase(),
+                    total: rawPacketStatsSession.totalObservedPackets.toLocaleString(),
+                  })}
                 </div>
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3">
                 <StatTile
-                  label="Packets / min"
+                  label={t('packet_stat_packets_per_min')}
                   value={formatRate(stats.packetsPerMinute)}
-                  detail={`${stats.packetCount.toLocaleString()} total in window`}
+                  detail={t('packet_stat_total_in_window', {
+                    count: stats.packetCount.toLocaleString(),
+                  })}
                 />
                 <StatTile
-                  label="Unique Sources"
+                  label={t('packet_stat_unique_sources')}
                   value={stats.uniqueSources.toLocaleString()}
-                  detail="Distinct identified senders"
+                  detail={t('packet_stat_distinct_senders')}
                 />
                 <StatTile
-                  label="Decrypt Rate"
+                  label={t('packet_stat_decrypt_rate')}
                   value={formatPercent(stats.decryptRate)}
-                  detail={`${stats.decryptedCount.toLocaleString()} decrypted / ${stats.undecryptedCount.toLocaleString()} locked`}
+                  detail={t('packet_stat_decrypt_detail', {
+                    decrypted: stats.decryptedCount.toLocaleString(),
+                    undecrypted: stats.undecryptedCount.toLocaleString(),
+                  })}
                 />
                 <StatTile
-                  label="Path Diversity"
+                  label={t('packet_stat_path_diversity')}
                   value={stats.distinctPaths.toLocaleString()}
-                  detail={`${formatPercent(stats.pathBearingRate)} path-bearing packets`}
+                  detail={t('packet_stat_path_bearing', {
+                    percent: formatPercent(stats.pathBearingRate),
+                  })}
                 />
                 <StatTile
-                  label="Strongest Neighbor"
+                  label={t('packet_stat_strongest_neighbor')}
                   value={strongestNeighbor?.label ?? '-'}
-                  detail={strongestNeighborDetail ?? 'No neighbor RSSI sample in window'}
+                  detail={strongestNeighborDetail ?? t('packet_stat_no_neighbor_rssi')}
                 />
                 <StatTile
-                  label="Median RSSI"
+                  label={t('packet_stat_median_rssi')}
                   value={formatRssi(stats.medianRssi)}
                   detail={
                     stats.averageRssi === null
-                      ? 'No signal sample in window'
-                      : `Average ${formatRssi(stats.averageRssi)}`
+                      ? t('packet_stat_no_signal_sample')
+                      : t('packet_stat_average_rssi', { value: formatRssi(stats.averageRssi) })
                   }
                 />
               </div>
@@ -888,56 +933,56 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
 
               <div className="md:columns-2 md:gap-4">
                 <RankedBars
-                  title="Packet Types"
+                  title={t('packet_types_title')}
                   items={stats.payloadBreakdown}
-                  emptyLabel="No packets in this window yet."
+                  emptyLabel={t('packet_empty_no_packets_window')}
                   colorMap={PAYLOAD_TYPE_COLOR_MAP}
                 />
 
                 <RankedBars
-                  title="Route Mix"
+                  title={t('packet_route_mix_title')}
                   items={stats.routeBreakdown}
-                  emptyLabel="No packets in this window yet."
+                  emptyLabel={t('packet_empty_no_packets_window')}
                 />
 
                 <RankedBars
-                  title="Hop Profile"
+                  title={t('packet_hop_profile_title')}
                   items={stats.hopProfile}
-                  emptyLabel="No packets in this window yet."
+                  emptyLabel={t('packet_empty_no_packets_window')}
                 />
 
                 <RankedBars
-                  title="Hop Byte Width"
+                  title={t('packet_hop_byte_width_title')}
                   items={stats.hopByteWidthProfile}
-                  emptyLabel="No packets in this window yet."
+                  emptyLabel={t('packet_empty_no_packets_window')}
                 />
 
                 <RankedBars
-                  title="Signal Distribution"
+                  title={t('packet_signal_distribution_title')}
                   items={stats.rssiBuckets}
-                  emptyLabel="No RSSI samples in this window yet."
+                  emptyLabel={t('packet_empty_no_rssi_samples')}
                 />
 
                 <NeighborList
-                  title="Most-Heard Neighbors"
+                  title={t('packet_most_heard_neighbors_title')}
                   items={mostActiveNeighbors}
-                  emptyLabel="No sender identities resolved in this window yet."
+                  emptyLabel={t('packet_empty_no_sender_identities')}
                   mode="heard"
                   contacts={contacts}
                 />
 
                 <NeighborList
-                  title="Strongest Recent Neighbors"
+                  title={t('packet_strongest_recent_neighbors_title')}
                   items={strongestNeighbors}
-                  emptyLabel="No RSSI-tagged neighbors in this window yet."
+                  emptyLabel={t('packet_empty_no_rssi_tagged_neighbors')}
                   mode="signal"
                   contacts={contacts}
                 />
 
                 <NeighborList
-                  title="Newest Heard Neighbors"
+                  title={t('packet_newest_heard_neighbors_title')}
                   items={newestNeighbors}
-                  emptyLabel="No newly identified neighbors in this window yet."
+                  emptyLabel={t('packet_empty_no_newly_identified_neighbors')}
                   mode="recent"
                   contacts={contacts}
                 />
@@ -954,10 +999,10 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
         source={
           selectedPacket
             ? { kind: 'packet', packet: selectedPacket }
-            : { kind: 'loading', message: 'Loading packet...' }
+            : { kind: 'loading', message: t('packet_loading_message') }
         }
-        title="Packet Details"
-        description="Detailed byte and field breakdown for the selected raw packet."
+        title={t('packet_details_title')}
+        description={t('packet_details_description')}
       />
 
       <RawPacketInspectorDialog
@@ -965,8 +1010,8 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
         onOpenChange={setAnalyzeModalOpen}
         channels={channels}
         source={{ kind: 'paste' }}
-        title="Analyze Packet"
-        description="Paste and inspect a raw packet hex string."
+        title={t('chat_analyze_packet_title')}
+        description={t('packet_analyze_description')}
       />
     </>
   );
