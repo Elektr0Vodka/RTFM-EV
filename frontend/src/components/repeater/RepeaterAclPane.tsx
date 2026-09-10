@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils';
 import { RepeaterPane, NotFetched } from './repeaterPaneShared';
+import { useT } from '../../i18n';
 import type { RepeaterAclResponse, PaneState } from '../../types';
 
 export function AclPane({
@@ -13,6 +14,7 @@ export function AclPane({
   onRefresh: () => void;
   disabled?: boolean;
 }) {
+  const t = useT();
   const permColor: Record<number, string> = {
     0: 'bg-muted text-muted-foreground',
     1: 'bg-info/10 text-info',
@@ -25,13 +27,13 @@ export function AclPane({
       {!data ? (
         <NotFetched />
       ) : data.acl.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No ACL entries</p>
+        <p className="text-sm text-muted-foreground">{t('repeater_acl_no_entries')}</p>
       ) : (
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-muted-foreground text-xs">
-              <th className="pb-1 font-medium">Name</th>
-              <th className="pb-1 font-medium text-right">Permission</th>
+              <th className="pb-1 font-medium">{t('common_name')}</th>
+              <th className="pb-1 font-medium text-right">{t('repeater_permission_header')}</th>
             </tr>
           </thead>
           <tbody>

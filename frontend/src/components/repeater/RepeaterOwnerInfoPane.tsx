@@ -1,4 +1,5 @@
 import { RepeaterPane, NotFetched, KvRow } from './repeaterPaneShared';
+import { useT } from '../../i18n';
 import type { RepeaterOwnerInfoResponse, PaneState } from '../../types';
 
 function LabeledBlock({ label, value }: { label: string; value: string }) {
@@ -21,16 +22,22 @@ export function OwnerInfoPane({
   onRefresh: () => void;
   disabled?: boolean;
 }) {
+  const t = useT();
   return (
-    <RepeaterPane title="Owner Info" state={state} onRefresh={onRefresh} disabled={disabled}>
+    <RepeaterPane
+      title={t('repeater_owner_info_title')}
+      state={state}
+      onRefresh={onRefresh}
+      disabled={disabled}
+    >
       {!data ? (
         <NotFetched />
       ) : (
         <div className="space-y-1">
-          <LabeledBlock label="Owner Info" value={data.owner_info ?? '—'} />
-          <KvRow label="Firmware" value={data.firmware_version ?? '—'} />
-          {data.name && <KvRow label="Name" value={data.name} />}
-          <KvRow label="Guest Password" value={data.guest_password ?? '—'} />
+          <LabeledBlock label={t('repeater_owner_info_title')} value={data.owner_info ?? '—'} />
+          <KvRow label={t('repeater_firmware_label')} value={data.firmware_version ?? '—'} />
+          {data.name && <KvRow label={t('common_name')} value={data.name} />}
+          <KvRow label={t('repeater_guest_password_label')} value={data.guest_password ?? '—'} />
         </div>
       )}
     </RepeaterPane>
