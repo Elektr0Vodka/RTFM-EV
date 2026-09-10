@@ -116,7 +116,8 @@ CREATE TABLE IF NOT EXISTS app_settings (
     telemetry_interval_hours INTEGER DEFAULT 8,
     vapid_private_key TEXT DEFAULT '',
     vapid_public_key TEXT DEFAULT '',
-    push_conversations TEXT DEFAULT '[]'
+    push_conversations TEXT DEFAULT '[]',
+    radio_presets TEXT DEFAULT ''
 );
 INSERT OR IGNORE INTO app_settings (id) VALUES (1);
 

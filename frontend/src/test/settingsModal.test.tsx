@@ -202,9 +202,17 @@ function openDatabaseSection() {
   fireEvent.click(databaseToggle);
 }
 
+const NEVER_SYNCED_PRESETS = {
+  entries: [],
+  info_message: '',
+  synced_at: null,
+  source_url: 'https://api.meshcore.nz/api/v1/config',
+};
+
 describe('SettingsModal', () => {
   beforeEach(() => {
     vi.spyOn(api, 'getFanoutConfigs').mockResolvedValue([]);
+    vi.spyOn(api, 'getRadioPresets').mockResolvedValue(NEVER_SYNCED_PRESETS);
   });
 
   afterEach(() => {
@@ -1107,5 +1115,98 @@ describe('SettingsModal', () => {
 
     expect(screen.getByText('DirectRepeater')).toBeInTheDocument();
     expect(screen.getByText('direct')).toBeInTheDocument();
+  });
+
+  it('syncs presets from the official API and replaces the dropdown list', async () => {
+    const syncRadioPresets = vi.spyOn(api, 'syncRadioPresets').mockResolvedValue({
+      entries: [{ name: 'Netherlands', freq: 869.618, bw: 62.5, sf: 7, cr: 5 }],
+      info_message: 'Community radio presets.',
+      synced_at: 1700000000,
+      source_url: 'https://api.meshcore.nz/api/v1/config',
+    });
+
+    renderModal();
+    openRadioSection();
+
+    // Built-in preset is present before syncing.
+    expect(screen.getByRole('option', { name: 'USA/Canada' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sync from official presets' }));
+
+    await waitFor(() => {
+      expect(syncRadioPresets).toHaveBeenCalledTimes(1);
+    });
+
+    // Replace: the official entry is now offered, the built-in list is gone.
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: 'Netherlands' })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('option', { name: 'USA/Canada' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Community radio presets\./)).toBeInTheDocument();
+  });
+
+  it('loads a previously synced preset list on mount', async () => {
+    vi.spyOn(api, 'getRadioPresets').mockResolvedValue({
+      entries: [{ name: 'Netherlands', freq: 869.618, bw: 62.5, sf: 7, cr: 5 }],
+      info_message: 'Synced earlier.',
+      synced_at: 1700000000,
+      source_url: 'https://api.meshcore.nz/api/v1/config',
+    });
+
+    renderModal();
+    openRadioSection();
+
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: 'Netherlands' })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('option', { name: 'USA/Canada' })).not.toBeInTheDocument();
+  });
+
+  it('resets a synced preset list back to the built-in list', async () => {
+    vi.spyOn(api, 'getRadioPresets').mockResolvedValue({
+      entries: [{ name: 'Netherlands', freq: 869.618, bw: 62.5, sf: 7, cr: 5 }],
+      info_message: 'Synced earlier.',
+      synced_at: 1700000000,
+      source_url: 'https://api.meshcore.nz/api/v1/config',
+    });
+    const resetRadioPresets = vi
+      .spyOn(api, 'resetRadioPresets')
+      .mockResolvedValue(NEVER_SYNCED_PRESETS);
+
+    renderModal();
+    openRadioSection();
+
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: 'Netherlands' })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset to built-in' }));
+
+    await waitFor(() => {
+      expect(resetRadioPresets).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: 'USA/Canada' })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('option', { name: 'Netherlands' })).not.toBeInTheDocument();
+  });
+
+  it('shows an error and keeps the list when sync fails', async () => {
+    vi.spyOn(api, 'syncRadioPresets').mockRejectedValue(
+      new Error('Could not reach the official presets API')
+    );
+
+    renderModal();
+    openRadioSection();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sync from official presets' }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Could not reach the official presets API/)
+      ).toBeInTheDocument();
+    });
+    // The built-in list is untouched.
+    expect(screen.getByRole('option', { name: 'USA/Canada' })).toBeInTheDocument();
   });
 });

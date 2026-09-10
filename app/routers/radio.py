@@ -5,6 +5,7 @@ import time
 from contextlib import suppress
 from typing import Literal, TypeAlias
 
+import httpx
 from fastapi import APIRouter, HTTPException
 from meshcore import EventType
 from pydantic import BaseModel, Field
@@ -16,6 +17,7 @@ from app.models import (
     RadioDiscoveryRequest,
     RadioDiscoveryResponse,
     RadioDiscoveryResult,
+    RadioPresetsStore,
     RadioRegionDiscoveryRepeater,
     RadioRegionDiscoveryRequest,
     RadioRegionDiscoveryResponse,
@@ -26,7 +28,7 @@ from app.models import (
 )
 from app.radio_sync import send_advertisement as do_send_advertisement
 from app.radio_sync import sync_radio_time
-from app.repository import ContactRepository
+from app.repository import AppSettingsRepository, ContactRepository
 from app.routers.repeaters import request_anon_region_names
 from app.routers.server_control import _monotonic
 from app.services.contact_reconciliation import (
@@ -45,6 +47,7 @@ from app.services.radio_commands import (
     apply_radio_config_update,
     import_private_key_and_refresh_keystore,
 )
+from app.services.radio_presets import OFFICIAL_PRESETS_URL, fetch_official_presets
 from app.services.radio_runtime import radio_runtime as radio_manager
 from app.websocket import broadcast_event, broadcast_health
 
@@ -409,6 +412,55 @@ async def get_radio_config() -> RadioConfigResponse:
         telemetry_mode_loc=info.get("telemetry_mode_loc", 0),
         telemetry_mode_env=info.get("telemetry_mode_env", 0),
     )
+
+
+@router.get("/presets", response_model=RadioPresetsStore)
+async def get_radio_presets() -> RadioPresetsStore:
+    """Return the last synced official preset list.
+
+    When nothing has been synced yet, returns an empty store with
+    ``synced_at=None`` — the frontend reads that as "use the built-in list".
+    """
+    store = await AppSettingsRepository.get_radio_presets()
+    if store is None:
+        return RadioPresetsStore(source_url=OFFICIAL_PRESETS_URL)
+    return store
+
+
+@router.post("/presets/sync", response_model=RadioPresetsStore)
+async def sync_radio_presets() -> RadioPresetsStore:
+    """Fetch presets from the official MeshCore API and persist them (replace).
+
+    On any upstream/parse failure, or when the upstream yields no usable
+    entries, responds 502 and leaves the previously persisted list untouched.
+    """
+    try:
+        entries, info_message = await fetch_official_presets()
+    except httpx.HTTPError as exc:
+        logger.warning("Radio preset sync failed: %s", exc)
+        raise HTTPException(
+            status_code=502, detail="Could not reach the official presets API"
+        ) from exc
+
+    if not entries:
+        raise HTTPException(
+            status_code=502, detail="The official presets API returned no usable presets"
+        )
+
+    store = RadioPresetsStore(
+        entries=entries,
+        info_message=info_message,
+        synced_at=int(time.time()),
+        source_url=OFFICIAL_PRESETS_URL,
+    )
+    return await AppSettingsRepository.set_radio_presets(store)
+
+
+@router.delete("/presets", response_model=RadioPresetsStore)
+async def reset_radio_presets() -> RadioPresetsStore:
+    """Clear the synced preset list, reverting the dropdown to the built-in set."""
+    await AppSettingsRepository.clear_radio_presets()
+    return RadioPresetsStore(source_url=OFFICIAL_PRESETS_URL)
 
 
 @router.patch("/config", response_model=RadioConfigResponse)
