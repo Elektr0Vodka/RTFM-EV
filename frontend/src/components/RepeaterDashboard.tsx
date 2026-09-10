@@ -26,6 +26,7 @@ import { ActionsPane } from './repeater/RepeaterActionsPane';
 import { ConsolePane } from './repeater/RepeaterConsolePane';
 import { TelemetryHistoryPane } from './repeater/RepeaterTelemetryHistoryPane';
 import { ContactPathDiscoveryModal } from './ContactPathDiscoveryModal';
+import { useT } from '../i18n';
 
 // Re-export for backwards compatibility (used by repeaterFormatters.test.ts)
 export { formatDuration, formatClockDrift } from './repeater/repeaterPaneShared';
@@ -73,6 +74,7 @@ export function RepeaterDashboard({
   autoLoginAndLoadAll,
   onAutoLoginConsumed,
 }: RepeaterDashboardProps) {
+  const t = useT();
   const [pathDiscoveryOpen, setPathDiscoveryOpen] = useState(false);
   const contact = contacts.find((c) => c.public_key === conversation.id) ?? null;
   const hasAdvertLocation = isValidLocation(contact?.lat ?? null, contact?.lon ?? null);
@@ -172,7 +174,7 @@ export function RepeaterDashboard({
                   <button
                     type="button"
                     className="flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-sm text-left transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    aria-label={`View info for ${conversation.name}`}
+                    aria-label={t('repeater_view_info_aria', { name: conversation.name })}
                     onClick={() => onOpenContactInfo(conversation.id)}
                   >
                     <span className="truncate">{conversation.name}</span>
@@ -192,9 +194,9 @@ export function RepeaterDashboard({
                 onKeyDown={handleKeyboardActivate}
                 onClick={() => {
                   navigator.clipboard.writeText(conversation.id);
-                  toast.success('Contact key copied!');
+                  toast.success(t('toast_contact_key_copied'));
                 }}
-                title="Click to copy"
+                title={t('a11y_click_to_copy')}
               >
                 {conversation.id}
               </span>
@@ -215,15 +217,15 @@ export function RepeaterDashboard({
               disabled={anyLoading}
               className="h-7 px-2 text-[0.6875rem] leading-none border-success text-success hover:bg-success/10 hover:text-success sm:h-8 sm:px-3 sm:text-xs"
             >
-              {anyLoading ? 'Loading...' : 'Load All'}
+              {anyLoading ? t('common_loading') : t('repeater_load_all')}
             </Button>
           )}
           {contact && (
             <button
               className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => setPathDiscoveryOpen(true)}
-              title="Path Discovery. Send a routed probe and inspect the forward and return paths"
-              aria-label="Path Discovery"
+              title={t('chat_path_discovery_description')}
+              aria-label={t('a11y_path_discovery')}
             >
               <Route className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
             </button>
@@ -231,8 +233,8 @@ export function RepeaterDashboard({
           <button
             className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onClick={onTrace}
-            title="Direct Trace"
-            aria-label="Direct Trace"
+            title={t('a11y_direct_trace')}
+            aria-label={t('a11y_direct_trace')}
           >
             <DirectTraceIcon className="h-4 w-4 text-muted-foreground" />
           </button>
@@ -242,15 +244,15 @@ export function RepeaterDashboard({
               onClick={onToggleNotifications}
               title={
                 notificationsEnabled
-                  ? 'Disable desktop notifications for this conversation'
+                  ? t('repeater_notifications_disable_title')
                   : notificationsPermission === 'denied'
-                    ? 'Notifications blocked by the browser'
-                    : 'Enable desktop notifications for this conversation'
+                    ? t('repeater_notifications_blocked_title')
+                    : t('repeater_notifications_enable_title')
               }
               aria-label={
                 notificationsEnabled
-                  ? 'Disable notifications for this conversation'
-                  : 'Enable notifications for this conversation'
+                  ? t('repeater_notifications_disable_aria')
+                  : t('repeater_notifications_enable_aria')
               }
             >
               <Bell
@@ -260,7 +262,7 @@ export function RepeaterDashboard({
               />
               {notificationsEnabled && (
                 <span className="hidden md:inline text-[0.6875rem] font-medium text-status-connected">
-                  Notifications On
+                  {t('repeater_notifications_on')}
                 </span>
               )}
             </button>
@@ -270,10 +272,10 @@ export function RepeaterDashboard({
             onClick={() => onToggleFavorite('contact', conversation.id)}
             title={
               isFav
-                ? 'Remove from favorites. Favorite contacts stay loaded on the radio for ACK support.'
-                : 'Add to favorites. Favorite contacts stay loaded on the radio for ACK support.'
+                ? t('chat_remove_favorite_contact_desc')
+                : t('chat_add_favorite_contact_desc')
             }
-            aria-label={isFav ? 'Remove from favorites' : 'Add to favorites'}
+            aria-label={isFav ? t('common_remove_from_favorites') : t('common_add_to_favorites')}
           >
             {isFav ? (
               <Star className="h-4 w-4 fill-current text-favorite" aria-hidden="true" />
@@ -284,8 +286,8 @@ export function RepeaterDashboard({
           <button
             className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive text-lg leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => onDeleteContact(conversation.id)}
-            title="Delete"
-            aria-label="Delete"
+            title={t('common_delete')}
+            aria-label={t('common_delete')}
           >
             <Trash2 className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -325,7 +327,7 @@ export function RepeaterDashboard({
               canRetryPassword={password.trim().length > 0}
               onRetryPassword={() => handleRepeaterLogin(password)}
               onRetryBlank={handleRepeaterGuestLogin}
-              blankRetryLabel="Retry Existing-Access Login"
+              blankRetryLabel={t('repeater_retry_existing_access_login')}
             />
             {/* Top row: Telemetry + Radio Settings | Node Info + Neighbors */}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-stretch">
