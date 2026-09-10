@@ -16,6 +16,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import type { RadioConfig } from '../types';
+import { useT, type TFn } from '../i18n';
 
 // ─── Extra analytics types ───────────────────────────────────────────────────
 
@@ -124,17 +125,17 @@ interface Props {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function relTime(unixSec: number | null | undefined): string {
-  if (unixSec == null) return 'Never';
+function relTime(unixSec: number | null | undefined, t: TFn): string {
+  if (unixSec == null) return t('mesh_health_time_never');
   const d = Date.now() - unixSec * 1000;
-  if (d < 0) return 'just now';
+  if (d < 0) return t('channel_registry_just_now');
   const s = Math.floor(d / 1000);
-  if (s < 60) return `${s}s ago`;
+  if (s < 60) return t('mesh_health_time_seconds_ago', { count: s });
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
+  if (m < 60) return t('channel_registry_minutes_ago', { count: m });
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+  if (h < 24) return t('channel_registry_hours_ago', { count: h });
+  return t('channel_registry_days_ago', { count: Math.floor(h / 24) });
 }
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -184,6 +185,7 @@ function DistBars({ items }: { items: { label: string; count: number; color: str
 // ─── SNR vs RSSI scatter plot ─────────────────────────────────────────────────
 
 function ScatterPlot({ points }: { points: ScatterPoint[] }) {
+  const t = useT();
   if (!points.length) return null;
   const W = 360,
     H = 180;
@@ -210,7 +212,7 @@ function ScatterPlot({ points }: { points: ScatterPoint[] }) {
       viewBox={`0 0 ${W} ${H}`}
       className="w-full h-auto"
       role="img"
-      aria-label="SNR vs RSSI scatter"
+      aria-label={t('mesh_health_scatter_aria_label')}
     >
       {/* Grid lines */}
       {yTicks.map((s) => (
@@ -254,7 +256,7 @@ function ScatterPlot({ points }: { points: ScatterPoint[] }) {
         fontSize={7}
         fill="hsl(var(--muted-foreground))"
       >
-        RSSI (dBm)
+        {t('mesh_health_axis_rssi_dbm')}
       </text>
       <text
         x={9}
@@ -264,7 +266,7 @@ function ScatterPlot({ points }: { points: ScatterPoint[] }) {
         fill="hsl(var(--muted-foreground))"
         transform={`rotate(-90, 9, ${H / 2})`}
       >
-        SNR (dB)
+        {t('mesh_health_axis_snr_db')}
       </text>
       {/* Points */}
       {points.map((p, i) => (
@@ -283,9 +285,19 @@ function ScatterPlot({ points }: { points: ScatterPoint[] }) {
 
 // ─── 7×24 hourly heatmap ──────────────────────────────────────────────────────
 
-const DOW_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DOW_LABEL_KEYS = [
+  'mesh_health_dow_sun',
+  'mesh_health_dow_mon',
+  'mesh_health_dow_tue',
+  'mesh_health_dow_wed',
+  'mesh_health_dow_thu',
+  'mesh_health_dow_fri',
+  'mesh_health_dow_sat',
+] as const;
 
 function HourlyHeatmap({ data }: { data: HeatmapData }) {
+  const t = useT();
+  const dowLabels = useMemo(() => DOW_LABEL_KEYS.map((key) => t(key)), [t]);
   const cellMap = useMemo(() => {
     const m: Record<string, number> = {};
     for (const c of data.cells) m[`${c.dow}:${c.hour}`] = c.count;
@@ -317,7 +329,7 @@ function HourlyHeatmap({ data }: { data: HeatmapData }) {
             className="text-center text-[8px] text-muted-foreground pb-0.5"
             style={{ lineHeight: 1 }}
           >
-            {h % 6 === 0 ? `${h}h` : ''}
+            {h % 6 === 0 ? t('mesh_health_heatmap_hour_label', { hour: h }) : ''}
           </div>
         ))}
         {/* Rows: one per day */}
@@ -327,14 +339,18 @@ function HourlyHeatmap({ data }: { data: HeatmapData }) {
               className="text-[8px] text-muted-foreground flex items-center pr-1"
               style={{ justifyContent: 'flex-end' }}
             >
-              {DOW_LABELS[dow]}
+              {dowLabels[dow]}
             </div>
             {Array.from({ length: 24 }, (_, h) => {
               const count = cellMap[`${dow}:${h}`] ?? 0;
               return (
                 <div
                   key={h}
-                  title={`${DOW_LABELS[dow]} ${h}:00 — ${count} packets`}
+                  title={t('mesh_health_heatmap_cell_title', {
+                    count,
+                    day: dowLabels[dow],
+                    hour: h,
+                  })}
                   className="rounded-sm"
                   style={{ backgroundColor: cellColor(count), height: 10 }}
                 />
@@ -344,14 +360,19 @@ function HourlyHeatmap({ data }: { data: HeatmapData }) {
         ))}
       </div>
       <div className="flex items-center gap-2 mt-1.5 text-[8px] text-muted-foreground">
-        <span>Low</span>
+        <span>{t('mesh_health_heatmap_low')}</span>
         <div className="flex gap-px">
           {['#1e40af', '#2563eb', '#f59e0b', '#ef4444'].map((c) => (
             <div key={c} className="w-4 h-2 rounded-sm" style={{ backgroundColor: c }} />
           ))}
         </div>
-        <span>High</span>
-        <span className="ml-auto">{data.total.toLocaleString()} total packets</span>
+        <span>{t('mesh_health_heatmap_high')}</span>
+        <span className="ml-auto">
+          {t('mesh_health_heatmap_total_packets', {
+            count: data.total,
+            n: data.total.toLocaleString(),
+          })}
+        </span>
       </div>
     </div>
   );
@@ -398,6 +419,7 @@ function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; s
 // ─── Main component ─────────────────────────────────────────────────────────
 
 export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
+  const t = useT();
   const [selectedWindow, setSelectedWindow] = useState<TimeWindow>(DEFAULT_WINDOW);
   const [data, setData] = useState<MeshHealthResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -435,10 +457,10 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
         setLoading(false);
       })
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Failed to load');
+        setError(err instanceof Error ? err.message : t('mesh_health_error_failed_to_load'));
         setLoading(false);
       });
-  }, []);
+  }, [t]);
 
   // Initial fetch and window-change fetch
   useEffect(() => {
@@ -561,11 +583,11 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
   const hopDist = useMemo(() => {
     if (!contactsWithDist.length) return [];
     const b = [
-      { label: 'Direct', count: 0, color: 'hsl(var(--success))' },
-      { label: '1 hop', count: 0, color: 'hsl(var(--primary))' },
-      { label: '2 hops', count: 0, color: 'hsl(var(--info))' },
-      { label: '3+ hops', count: 0, color: 'hsl(var(--warning))' },
-      { label: 'Unknown', count: 0, color: 'hsl(var(--muted-foreground))' },
+      { label: t('mesh_health_hop_direct'), count: 0, color: 'hsl(var(--success))' },
+      { label: t('contact_hop_count', { count: 1 }), count: 0, color: 'hsl(var(--primary))' },
+      { label: t('contact_hop_count', { count: 2 }), count: 0, color: 'hsl(var(--info))' },
+      { label: t('mesh_health_hop_three_plus'), count: 0, color: 'hsl(var(--warning))' },
+      { label: t('common_unknown'), count: 0, color: 'hsl(var(--muted-foreground))' },
     ];
     for (const c of contactsWithDist) {
       const h = c.min_path_len;
@@ -576,15 +598,15 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
       else b[3].count++;
     }
     return b.filter((x) => x.count > 0);
-  }, [contactsWithDist]);
+  }, [contactsWithDist, t]);
 
   const hashModeDist = useMemo(() => {
     if (!contactsWithDist.length) return [];
     const b = [
-      { label: '1-byte', count: 0, color: 'hsl(var(--primary))' },
-      { label: '2-byte', count: 0, color: 'hsl(var(--info))' },
-      { label: '3-byte', count: 0, color: 'hsl(var(--success))' },
-      { label: 'Unknown', count: 0, color: 'hsl(var(--muted-foreground))' },
+      { label: t('channel_hop_width_1byte'), count: 0, color: 'hsl(var(--primary))' },
+      { label: t('channel_hop_width_2byte'), count: 0, color: 'hsl(var(--info))' },
+      { label: t('channel_hop_width_3byte'), count: 0, color: 'hsl(var(--success))' },
+      { label: t('common_unknown'), count: 0, color: 'hsl(var(--muted-foreground))' },
     ];
     for (const c of contactsWithDist) {
       const m = c.hash_mode;
@@ -594,7 +616,7 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
       else b[2].count++;
     }
     return b.filter((x) => x.count > 0);
-  }, [contactsWithDist]);
+  }, [contactsWithDist, t]);
 
   const thClass =
     'px-2 py-1.5 font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors';
@@ -605,16 +627,16 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
       <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
         <div className="flex items-center gap-2">
           <Activity className="h-4 w-4 text-muted-foreground" />
-          <h2 className="font-semibold text-base">Mesh Health</h2>
+          <h2 className="font-semibold text-base">{t('mesh_health_page_title')}</h2>
         </div>
         <div className="flex items-center gap-2">
           {selectedWindow.autoRefresh ? (
             <span className="text-[10px] text-muted-foreground hidden sm:inline">
-              auto-refresh 30s
+              {t('mesh_health_auto_refresh_label')}
             </span>
           ) : (
             <span className="text-[10px] text-muted-foreground hidden sm:inline">
-              manual refresh only
+              {t('mesh_health_manual_refresh_label')}
             </span>
           )}
           <button
@@ -623,7 +645,7 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
             className="flex items-center gap-1.5 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors disabled:opacity-40"
           >
             <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
+            {t('repeater_refresh')}
           </button>
         </div>
       </div>
@@ -657,24 +679,28 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
           {data && (
             <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
               <StatTile
-                label="Contacts Heard"
+                label={t('mesh_health_stat_contacts_heard')}
                 value={data.total_contacts}
-                sub={`last ${selectedWindow.label}`}
+                sub={t('mesh_health_stat_sub_last_window', { window: selectedWindow.label })}
               />
               <StatTile
-                label="HIGH Alerts"
+                label={t('mesh_health_stat_high_alerts_label')}
                 value={data.high_alert_count}
-                sub={`> ${data.high_advert_threshold} adverts`}
+                sub={t('mesh_health_stat_sub_threshold_adverts', {
+                  threshold: data.high_advert_threshold,
+                })}
               />
               <StatTile
-                label="MEDIUM Alerts"
+                label={t('mesh_health_stat_medium_alerts_label')}
                 value={data.medium_alert_count}
-                sub={`> ${data.medium_advert_threshold} adverts`}
+                sub={t('mesh_health_stat_sub_threshold_adverts', {
+                  threshold: data.medium_advert_threshold,
+                })}
               />
               <StatTile
-                label="Window"
+                label={t('packet_window_label')}
                 value={selectedWindow.label}
-                sub={`${data.window_hours.toFixed(1)}h`}
+                sub={t('mesh_health_stat_window_hours', { hours: data.window_hours.toFixed(1) })}
               />
             </div>
           )}
@@ -695,7 +721,7 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
               {hopDist.length > 0 && (
                 <div className="rounded border border-border bg-background p-2.5">
                   <div className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                    Hop Distance
+                    {t('mesh_health_hop_distance_heading')}
                   </div>
                   <DistBars items={hopDist} />
                 </div>
@@ -703,7 +729,7 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
               {hashModeDist.length > 0 && (
                 <div className="rounded border border-border bg-background p-2.5">
                   <div className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                    Hash Mode (bytes/hop)
+                    {t('mesh_health_hash_mode_heading')}
                   </div>
                   <DistBars items={hashModeDist} />
                 </div>
@@ -715,7 +741,12 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
           {reachability.length > 0 && (
             <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
               {reachability.map((r) => (
-                <StatTile key={String(r.hops)} label={r.label} value={r.count} sub="unique nodes" />
+                <StatTile
+                  key={String(r.hops)}
+                  label={r.label}
+                  value={r.count}
+                  sub={t('mesh_health_stat_sub_unique_nodes')}
+                />
               ))}
             </div>
           )}
@@ -726,7 +757,10 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
               {scatter.length > 0 && (
                 <div className="rounded border border-border bg-background p-2.5">
                   <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                    SNR vs RSSI ({scatter.length.toLocaleString()} packets)
+                    {t('mesh_health_scatter_heading', {
+                      count: scatter.length,
+                      n: scatter.length.toLocaleString(),
+                    })}
                   </div>
                   <ScatterPlot points={scatter} />
                 </div>
@@ -734,7 +768,7 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
               {heatmapData && heatmapData.total > 0 && (
                 <div className="rounded border border-border bg-background p-2.5">
                   <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                    Activity by Day &amp; Hour
+                    {t('mesh_health_heatmap_heading')}
                   </div>
                   <HourlyHeatmap data={heatmapData} />
                 </div>
@@ -746,7 +780,7 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
           {relayPairs.length > 0 && (
             <div className="rounded border border-border bg-background p-2.5">
               <div className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                Top Relay Pairs (most frequent consecutive hops in advert paths)
+                {t('mesh_health_relay_pairs_heading')}
               </div>
               <RelayPairBars pairs={relayPairs} />
             </div>
@@ -758,10 +792,10 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
               <div className="border-b border-destructive/30 bg-destructive/10 px-3 py-2 flex items-center gap-2">
                 <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
                 <span className="text-sm font-semibold text-destructive">
-                  HIGH - Advertising Too Frequently
+                  {t('mesh_health_high_alert_heading')}
                 </span>
                 <span className="ml-auto text-[10px] text-destructive/70">
-                  {highAlerts.length} node{highAlerts.length !== 1 ? 's' : ''}
+                  {t('mesh_health_alert_node_count', { count: highAlerts.length })}
                 </span>
               </div>
               <div className="divide-y divide-border">
@@ -787,10 +821,10 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
               <div className="border-b border-yellow-500/30 bg-yellow-500/10 px-3 py-2 flex items-center gap-2">
                 <AlertTriangle className="h-3.5 w-3.5 text-yellow-600 dark:text-yellow-400" />
                 <span className="text-sm font-semibold text-yellow-700 dark:text-yellow-300">
-                  MEDIUM - Above Normal Advert Rate
+                  {t('mesh_health_medium_alert_heading')}
                 </span>
                 <span className="ml-auto text-[10px] text-yellow-600/70 dark:text-yellow-400/70">
-                  {mediumAlerts.length} node{mediumAlerts.length !== 1 ? 's' : ''}
+                  {t('mesh_health_alert_node_count', { count: mediumAlerts.length })}
                 </span>
               </div>
               <div className="divide-y divide-border">
@@ -812,7 +846,7 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
 
           {data && data.alerts.length === 0 && (
             <div className="rounded-lg border border-border bg-card px-4 py-6 text-center text-sm text-muted-foreground">
-              No advert frequency alerts in the last {selectedWindow.label}. Mesh looks healthy.
+              {t('mesh_health_no_alerts_message', { window: selectedWindow.label })}
             </div>
           )}
 
@@ -821,11 +855,15 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
             <div className="rounded-lg border border-border bg-card overflow-hidden">
               <div className="border-b border-border px-3 py-2 flex items-center justify-between gap-2">
                 <span className="text-sm font-semibold text-foreground">
-                  All Advertised Contacts Heard (In Selected Time-Span)
+                  {t('mesh_health_contacts_table_heading')}
                 </span>
                 <span className="text-[10px] text-muted-foreground">
-                  {sorted.length} nodes · last {selectedWindow.label}
-                  {totalPages > 1 && ` · page ${page + 1} of ${totalPages}`}
+                  {t('mesh_health_contacts_summary', {
+                    count: sorted.length,
+                    window: selectedWindow.label,
+                  })}
+                  {totalPages > 1 &&
+                    t('mesh_health_page_indicator', { page: page + 1, total: totalPages })}
                 </span>
               </div>
 
@@ -834,51 +872,57 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
                   <thead>
                     <tr className="border-b border-border bg-background">
                       <th className="px-2 py-1.5 text-left font-semibold text-muted-foreground w-8">
-                        ID
+                        {t('mesh_health_col_id')}
                       </th>
                       <th className={`${thClass} text-left`} onClick={() => handleSort('name')}>
-                        Name <SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
+                        {t('common_name')} <SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
                       </th>
                       <th
                         className={`${thClass} text-right`}
                         onClick={() => handleSort('advert_count')}
                       >
-                        Adverts <SortIcon col="advert_count" sortKey={sortKey} sortDir={sortDir} />
+                        {t('mesh_health_col_adverts')}{' '}
+                        <SortIcon col="advert_count" sortKey={sortKey} sortDir={sortDir} />
                       </th>
                       <th
                         className={`${thClass} text-right`}
                         onClick={() => handleSort('last_seen')}
                       >
-                        Last Heard <SortIcon col="last_seen" sortKey={sortKey} sortDir={sortDir} />
+                        {t('mesh_health_col_last_heard')}{' '}
+                        <SortIcon col="last_seen" sortKey={sortKey} sortDir={sortDir} />
                       </th>
                       <th
                         className={`${thClass} text-right hidden sm:table-cell`}
                         onClick={() => handleSort('first_seen')}
                       >
-                        First Heard{' '}
+                        {t('mesh_health_col_first_heard')}{' '}
                         <SortIcon col="first_seen" sortKey={sortKey} sortDir={sortDir} />
                       </th>
                       <th
                         className={`${thClass} text-right hidden md:table-cell`}
                         onClick={() => handleSort('min_path_len')}
                       >
-                        Hops <SortIcon col="min_path_len" sortKey={sortKey} sortDir={sortDir} />
+                        {t('mesh_health_col_hops')}{' '}
+                        <SortIcon col="min_path_len" sortKey={sortKey} sortDir={sortDir} />
                       </th>
                       <th
                         className={`${thClass} text-right hidden md:table-cell`}
                         onClick={() => handleSort('hash_mode')}
-                        title="Address bytes per hop (1, 2, or 3)"
+                        title={t('mesh_health_col_mode_title')}
                       >
-                        Mode <SortIcon col="hash_mode" sortKey={sortKey} sortDir={sortDir} />
+                        {t('mesh_health_col_mode')}{' '}
+                        <SortIcon col="hash_mode" sortKey={sortKey} sortDir={sortDir} />
                       </th>
                       <th
                         className={`${thClass} text-right hidden md:table-cell`}
                         onClick={() => handleSort('distance')}
                       >
-                        Distance <SortIcon col="distance" sortKey={sortKey} sortDir={sortDir} />
+                        {t('contact_distance')}{' '}
+                        <SortIcon col="distance" sortKey={sortKey} sortDir={sortDir} />
                       </th>
                       <th className={`${thClass} text-right`} onClick={() => handleSort('status')}>
-                        Status <SortIcon col="status" sortKey={sortKey} sortDir={sortDir} />
+                        {t('channel_registry_status_label')}{' '}
+                        <SortIcon col="status" sortKey={sortKey} sortDir={sortDir} />
                       </th>
                     </tr>
                   </thead>
@@ -916,10 +960,10 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
                             </span>
                           </td>
                           <td className="px-2 py-1.5 text-right text-muted-foreground tabular-nums">
-                            {n.last_seen != null ? relTime(n.last_seen) : '—'}
+                            {n.last_seen != null ? relTime(n.last_seen, t) : '—'}
                           </td>
                           <td className="px-2 py-1.5 text-right text-muted-foreground tabular-nums hidden sm:table-cell">
-                            {n.first_seen != null ? relTime(n.first_seen) : '—'}
+                            {n.first_seen != null ? relTime(n.first_seen, t) : '—'}
                           </td>
                           <td className="px-2 py-1.5 text-right text-muted-foreground tabular-nums hidden md:table-cell">
                             {n.min_path_len != null ? n.min_path_len : '—'}
@@ -929,15 +973,19 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
                               className="font-mono text-muted-foreground"
                               title={
                                 n.hash_mode != null
-                                  ? `${n.hash_mode + 1}-byte hop addresses`
-                                  : 'Address width unknown (no data yet)'
+                                  ? t('mesh_health_hop_address_width_title', {
+                                      bytes: n.hash_mode + 1,
+                                    })
+                                  : t('mesh_health_hop_address_width_unknown_title')
                               }
                             >
                               {n.hash_mode != null ? n.hash_mode + 1 : '?'}
                             </span>
                           </td>
                           <td className="px-2 py-1.5 text-right text-muted-foreground tabular-nums hidden md:table-cell">
-                            {n.distKm != null ? `${n.distKm.toFixed(0)} km` : '—'}
+                            {n.distKm != null
+                              ? t('mesh_health_distance_km', { km: n.distKm.toFixed(0) })
+                              : '—'}
                           </td>
                           <td className="px-2 py-1.5 text-right">
                             <span
@@ -947,7 +995,9 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
                                   : 'bg-muted text-muted-foreground'
                               }`}
                             >
-                              {n.isActive ? 'ACTIVE' : 'INACTIVE'}
+                              {n.isActive
+                                ? t('mesh_health_status_active')
+                                : t('mesh_health_status_inactive')}
                             </span>
                           </td>
                         </tr>
@@ -961,8 +1011,11 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
               {totalPages > 1 && (
                 <div className="border-t border-border px-3 py-2 flex items-center justify-between gap-2">
                   <span className="text-[10px] text-muted-foreground">
-                    {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, sorted.length)} of{' '}
-                    {sorted.length}
+                    {t('mesh_health_pagination_range', {
+                      start: page * PAGE_SIZE + 1,
+                      end: Math.min((page + 1) * PAGE_SIZE, sorted.length),
+                      total: sorted.length,
+                    })}
                   </span>
                   <div className="flex items-center gap-1">
                     <button
@@ -977,7 +1030,7 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
                       disabled={page === 0}
                       className="rounded px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors disabled:opacity-30"
                     >
-                      ‹ Prev
+                      {t('mesh_health_pagination_prev')}
                     </button>
                     {Array.from({ length: totalPages }, (_, i) => i)
                       .filter((i) => Math.abs(i - page) <= 2)
@@ -999,7 +1052,7 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
                       disabled={page >= totalPages - 1}
                       className="rounded px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors disabled:opacity-30"
                     >
-                      Next ›
+                      {t('mesh_health_pagination_next')}
                     </button>
                     <button
                       onClick={() => setPage(totalPages - 1)}
@@ -1016,7 +1069,7 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
 
           {data && data.contacts.length === 0 && !loading && (
             <div className="rounded-lg border border-border bg-card px-4 py-6 text-center text-sm text-muted-foreground">
-              No contacts heard in the last {selectedWindow.label}.
+              {t('mesh_health_no_contacts_message', { window: selectedWindow.label })}
             </div>
           )}
         </div>
@@ -1038,6 +1091,7 @@ function AlertRow({
   lon?: number | null;
   onNavigateToMap?: (focusKey?: string) => void;
 }) {
+  const t = useT();
   const shortId = alert.public_key.slice(0, 4).toUpperCase();
   const isHigh = alert.level === 'HIGH';
   const hasLocation = lat != null && lon != null && (lat !== 0 || lon !== 0);
@@ -1051,19 +1105,19 @@ function AlertRow({
         {alert.name ?? alert.public_key.slice(0, 12)}
       </span>
       <span className="text-xs tabular-nums text-muted-foreground">
-        {alert.advert_count} adverts
+        {t('mesh_health_alert_advert_count', { count: alert.advert_count })}
       </span>
       <span className="text-xs tabular-nums text-muted-foreground hidden sm:inline">
-        {alert.adverts_per_hour.toFixed(1)}/hr
+        {t('mesh_health_alert_adverts_per_hour', { value: alert.adverts_per_hour.toFixed(1) })}
       </span>
       {hasLocation && onNavigateToMap && (
         <button
           onClick={() => onNavigateToMap(alert.public_key)}
-          title="Show on map"
+          title={t('mesh_health_show_on_map_title')}
           className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
         >
           <Map className="h-3 w-3" />
-          <span className="hidden sm:inline">Map</span>
+          <span className="hidden sm:inline">{t('mesh_health_map_button_label')}</span>
         </button>
       )}
       <span
@@ -1073,7 +1127,7 @@ function AlertRow({
             : 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-300'
         }`}
       >
-        {alert.level}
+        {isHigh ? t('mesh_health_level_high') : t('mesh_health_level_medium')}
       </span>
     </div>
   );

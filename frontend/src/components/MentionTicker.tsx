@@ -13,6 +13,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { AtSign, X } from 'lucide-react';
+import { useT } from '../i18n';
 import type { Message } from '../types';
 
 export interface MentionEvent {
@@ -34,6 +35,7 @@ interface Props {
 }
 
 export function MentionTicker({ enabled, mentions, onNavigateToMessage }: Props) {
+  const t = useT();
   const [dismissed, setDismissed] = useState(false);
   const prevLengthRef = useRef(0);
 
@@ -53,7 +55,7 @@ export function MentionTicker({ enabled, mentions, onNavigateToMessage }: Props)
       <div className="flex items-center gap-1 flex-shrink-0 pr-2 border-r border-border mr-1 text-primary">
         <AtSign className="h-3 w-3" />
         <span className="font-semibold text-[10px] uppercase tracking-wide">
-          Mentions
+          {t('mention_label')}
           <span className="ml-1 font-bold">{mentions.length}</span>
         </span>
       </div>
@@ -86,7 +88,7 @@ export function MentionTicker({ enabled, mentions, onNavigateToMessage }: Props)
       <button
         onClick={() => setDismissed(true)}
         className="flex-shrink-0 ml-1 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-        title="Dismiss mentions"
+        title={t('mention_dismiss_title')}
       >
         <X className="h-3 w-3" />
       </button>

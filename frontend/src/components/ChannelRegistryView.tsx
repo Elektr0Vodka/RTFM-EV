@@ -32,6 +32,7 @@ import {
 } from '../lib/channelManager';
 import { api } from '../api';
 import { buildAutoFillFromGeo, isVeiligheidsregio, matchDutchChannel } from '../lib/dutchGeo';
+import { useT, type TFn } from '../i18n';
 import type { Channel } from '../types';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
@@ -55,22 +56,36 @@ type SortDir = 'asc' | 'desc';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function fmtDatetime(iso: string | null): string {
+function fmtDatetime(iso: string | null, t: TFn): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '—';
   const diffMs = Date.now() - d.getTime();
   const diffMin = Math.floor(diffMs / 60_000);
-  if (diffMin < 1) return 'just now';
-  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffMin < 1) return t('channel_registry_just_now');
+  if (diffMin < 60) return t('channel_registry_minutes_ago', { count: diffMin });
   const diffH = Math.floor(diffMin / 60);
-  if (diffH < 24) return `${diffH}h ago`;
+  if (diffH < 24) return t('channel_registry_hours_ago', { count: diffH });
   const diffD = Math.floor(diffH / 24);
-  if (diffD < 30) return `${diffD}d ago`;
+  if (diffD < 30) return t('channel_registry_days_ago', { count: diffD });
   return d.toLocaleDateString();
 }
 
-function sourceBadge(source: RegistryChannel['source']) {
+const SOURCE_LABEL_KEYS: Record<RegistryChannel['source'], string> = {
+  finder: 'channel_registry_source_finder_lc',
+  manual: 'channel_registry_source_manual_lc',
+  imported: 'channel_registry_source_imported_lc',
+  radio: 'channel_registry_source_radio_lc',
+};
+
+const STATUS_LABEL_KEYS: Record<RegistryChannel['status'], string> = {
+  active: 'channel_registry_status_active_lc',
+  inactive: 'channel_registry_status_inactive_lc',
+  dormant: 'channel_registry_status_dormant_lc',
+  experimental: 'channel_registry_status_experimental_lc',
+};
+
+function sourceBadge(source: RegistryChannel['source'], t: TFn) {
   const styles: Record<RegistryChannel['source'], string> = {
     finder: 'bg-primary/10 text-primary',
     manual: 'bg-muted text-muted-foreground',
@@ -85,12 +100,12 @@ function sourceBadge(source: RegistryChannel['source']) {
       )}
       data-source={source}
     >
-      {source}
+      {t(SOURCE_LABEL_KEYS[source])}
     </span>
   );
 }
 
-function statusBadge(status: RegistryChannel['status']) {
+function statusBadge(status: RegistryChannel['status'], t: TFn) {
   const styles: Record<RegistryChannel['status'], string> = {
     active: 'bg-green-500/10 text-green-600',
     inactive: 'bg-muted text-muted-foreground',
@@ -105,7 +120,7 @@ function statusBadge(status: RegistryChannel['status']) {
       )}
       data-status={status}
     >
-      {status}
+      {t(STATUS_LABEL_KEYS[status])}
     </span>
   );
 }
@@ -270,6 +285,7 @@ function EditChannelModal({
   onSave: (patch: Partial<RegistryChannel>) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const catListId = useId();
   const subListId = useId();
   const [form, setForm] = useState<EditFormState>(() => channelToEditForm(channel));
@@ -349,12 +365,13 @@ function EditChannelModal({
               <div className="flex items-center gap-1.5 min-w-0">
                 <span className="text-lg leading-none">🇳🇱</span>
                 <span className="text-muted-foreground">
-                  Detected <span className="font-medium text-foreground">{geoMatch?.name}</span>
+                  {t('channel_registry_geo_detected')}{' '}
+                  <span className="font-medium text-foreground">{geoMatch?.name}</span>
                   {' — '}
                   <span className="font-medium text-foreground">{geoFill.region}</span>
                   {', '}
                   <span className="text-orange-600 dark:text-orange-400 font-medium">
-                    VR {geoMatch?.veiligheidsregio}
+                    {t('channel_registry_geo_vr_label')} {geoMatch?.veiligheidsregio}
                   </span>
                 </span>
               </div>
@@ -364,7 +381,7 @@ function EditChannelModal({
                 className="h-6 text-[10px] px-2 shrink-0"
                 onClick={applyGeoFill}
               >
-                Auto-fill
+                {t('channel_registry_auto_fill')}
               </Button>
             </div>
           )}
@@ -372,13 +389,13 @@ function EditChannelModal({
           {/* Category + Subcategory */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label className={labelCls}>Category</Label>
+              <Label className={labelCls}>{t('channel_registry_category')}</Label>
               <Input
                 list={catListId}
                 className={inputCls}
                 value={form.category}
                 onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-                placeholder="e.g. Regional"
+                placeholder={t('channel_registry_category_placeholder')}
               />
               <datalist id={catListId}>
                 {[...categoryMap.keys()].sort().map((k) => (
@@ -387,13 +404,13 @@ function EditChannelModal({
               </datalist>
             </div>
             <div className="space-y-1">
-              <Label className={labelCls}>Subcategory</Label>
+              <Label className={labelCls}>{t('channel_registry_subcategory')}</Label>
               <Input
                 list={subListId}
                 className={inputCls}
                 value={form.subcategory}
                 onChange={(e) => setForm((f) => ({ ...f, subcategory: e.target.value }))}
-                placeholder="e.g. City"
+                placeholder={t('channel_registry_subcategory_placeholder')}
               />
               <datalist id={subListId}>
                 {subOptions.map((s) => (
@@ -406,21 +423,21 @@ function EditChannelModal({
           {/* Country + Region */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label className={labelCls}>Country</Label>
+              <Label className={labelCls}>{t('channel_registry_country')}</Label>
               <Input
                 className={inputCls}
                 value={form.country}
                 onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}
-                placeholder="e.g. Netherlands"
+                placeholder={t('channel_registry_country_placeholder')}
               />
             </div>
             <div className="space-y-1">
-              <Label className={labelCls}>Region</Label>
+              <Label className={labelCls}>{t('channel_registry_region')}</Label>
               <Input
                 className={inputCls}
                 value={form.region}
                 onChange={(e) => setForm((f) => ({ ...f, region: e.target.value }))}
-                placeholder="e.g. Noord-Holland"
+                placeholder={t('channel_registry_region_placeholder_edit')}
               />
             </div>
           </div>
@@ -428,17 +445,19 @@ function EditChannelModal({
           {/* Language + Status + Source */}
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
-              <Label className={labelCls}>Language</Label>
+              <Label className={labelCls}>{t('channel_registry_language')}</Label>
               <Input
                 className={inputCls}
                 value={form.language}
                 onChange={(e) => setForm((f) => ({ ...f, language: e.target.value }))}
-                placeholder="NL, EN"
+                placeholder={t('channel_registry_language_placeholder')}
               />
-              <p className="text-[0.625rem] text-muted-foreground">Comma-separated</p>
+              <p className="text-[0.625rem] text-muted-foreground">
+                {t('channel_registry_comma_separated')}
+              </p>
             </div>
             <div className="space-y-1">
-              <Label className={labelCls}>Status</Label>
+              <Label className={labelCls}>{t('channel_registry_status_label')}</Label>
               <select
                 className="h-7 w-full rounded-md border border-input bg-background px-2 text-sm"
                 value={form.status}
@@ -446,14 +465,14 @@ function EditChannelModal({
                   setForm((f) => ({ ...f, status: e.target.value as RegistryChannel['status'] }))
                 }
               >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="dormant">Dormant</option>
-                <option value="experimental">Experimental</option>
+                <option value="active">{t('channel_registry_status_active')}</option>
+                <option value="inactive">{t('channel_registry_status_inactive')}</option>
+                <option value="dormant">{t('channel_registry_status_dormant')}</option>
+                <option value="experimental">{t('channel_registry_status_experimental')}</option>
               </select>
             </div>
             <div className="space-y-1">
-              <Label className={labelCls}>Source</Label>
+              <Label className={labelCls}>{t('channel_registry_source_label')}</Label>
               <select
                 className="h-7 w-full rounded-md border border-input bg-background px-2 text-sm"
                 value={form.source}
@@ -461,32 +480,32 @@ function EditChannelModal({
                   setForm((f) => ({ ...f, source: e.target.value as RegistryChannel['source'] }))
                 }
               >
-                <option value="manual">User</option>
-                <option value="imported">Imported</option>
-                <option value="radio">Radio</option>
-                <option value="finder">Finder</option>
+                <option value="manual">{t('channel_registry_source_manual_user')}</option>
+                <option value="imported">{t('channel_registry_source_imported')}</option>
+                <option value="radio">{t('channel_registry_source_radio')}</option>
+                <option value="finder">{t('channel_registry_source_finder')}</option>
               </select>
             </div>
           </div>
 
           {/* Scopes */}
           <div className="space-y-1">
-            <Label className={labelCls}>Scopes</Label>
+            <Label className={labelCls}>{t('channel_registry_scopes')}</Label>
             <Input
               className={inputCls}
               value={form.scopes}
               onChange={(e) => setForm((f) => ({ ...f, scopes: e.target.value }))}
-              placeholder="e.g. nl, nl-nh, nl-nh-dhr"
+              placeholder={t('channel_registry_scopes_placeholder')}
             />
             <p className="text-[0.625rem] text-muted-foreground">
-              Comma-separated —{' '}
+              {t('channel_registry_scopes_helper_prefix')}{' '}
               <a
                 href="https://meshwiki.nl/wiki/Lijst_van_regio%27s"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline hover:text-foreground"
               >
-                MeshWiki region guide
+                {t('channel_registry_scopes_meshwiki_link')}
               </a>
             </p>
             {/* Scope pills preview */}
@@ -511,42 +530,44 @@ function EditChannelModal({
 
           {/* Tags */}
           <div className="space-y-1">
-            <Label className={labelCls}>Tags</Label>
+            <Label className={labelCls}>{t('channel_registry_tags')}</Label>
             <Input
               className={inputCls}
               value={form.tags}
               onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))}
-              placeholder="e.g. Emergency, Repeater"
+              placeholder={t('channel_registry_tags_placeholder')}
             />
-            <p className="text-[0.625rem] text-muted-foreground">Comma-separated</p>
+            <p className="text-[0.625rem] text-muted-foreground">
+              {t('channel_registry_comma_separated')}
+            </p>
           </div>
 
           {/* Alias of */}
           <div className="space-y-1">
-            <Label className={labelCls}>Alias of</Label>
+            <Label className={labelCls}>{t('channel_registry_alias_of')}</Label>
             <Input
               className={inputCls}
               value={form.alias_of}
               onChange={(e) => setForm((f) => ({ ...f, alias_of: e.target.value }))}
-              placeholder="e.g. #main-channel"
+              placeholder={t('channel_registry_alias_of_placeholder')}
             />
           </div>
 
           {/* Notes */}
           <div className="space-y-1">
-            <Label className={labelCls}>Notes</Label>
+            <Label className={labelCls}>{t('channel_registry_notes')}</Label>
             <textarea
               className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm min-h-[60px] resize-y"
               value={form.notes}
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-              placeholder="Any additional notes…"
+              placeholder={t('channel_registry_notes_placeholder')}
             />
           </div>
 
           {/* Last Heard + Added */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label className={labelCls}>Last Heard</Label>
+              <Label className={labelCls}>{t('channel_registry_last_heard_label')}</Label>
               <Input
                 type="date"
                 className={inputCls}
@@ -555,7 +576,7 @@ function EditChannelModal({
               />
             </div>
             <div className="space-y-1">
-              <Label className={labelCls}>Added</Label>
+              <Label className={labelCls}>{t('channel_registry_added_label')}</Label>
               <Input
                 type="date"
                 className={inputCls}
@@ -574,7 +595,7 @@ function EditChannelModal({
                 onChange={(e) => setForm((f) => ({ ...f, verified: e.target.checked }))}
                 className="rounded"
               />
-              Verified
+              {t('channel_registry_verified')}
             </label>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <input
@@ -583,11 +604,11 @@ function EditChannelModal({
                 onChange={(e) => setForm((f) => ({ ...f, recommended: e.target.checked }))}
                 className="rounded"
               />
-              Recommended
+              {t('channel_registry_recommended')}
             </label>
             <label
               className="flex items-center gap-2 text-sm cursor-pointer"
-              title="Private channels are never included in any export"
+              title={t('channel_registry_private_title')}
             >
               <input
                 type="checkbox"
@@ -596,7 +617,7 @@ function EditChannelModal({
                 className="rounded accent-destructive"
               />
               <span className={form.private ? 'text-destructive font-medium' : ''}>
-                Private (exclude from export)
+                {t('channel_registry_private_label')}
               </span>
             </label>
           </div>
@@ -604,10 +625,10 @@ function EditChannelModal({
 
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={onClose}>
-            Cancel
+            {t('common_cancel')}
           </Button>
           <Button size="sm" onClick={handleSave}>
-            Save
+            {t('channel_registry_save')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -652,6 +673,7 @@ export default function ChannelRegistryView({
   channels?: Channel[];
   channelStats?: Record<string, ChannelBulkStats>;
 }) {
+  const t = useT();
   const [registry, setRegistry] = useState<RegistryChannel[]>(() => {
     const stored = loadRegistry();
     if (!channels?.length) return stored;
@@ -861,14 +883,14 @@ export default function ChannelRegistryView({
   }
 
   function handleDelete(channelName: string) {
-    if (!confirm(`Remove ${channelName} from the registry?`)) return;
+    if (!confirm(t('channel_registry_confirm_delete', { name: channelName }))) return;
     persist(registry.filter((e) => e.channel !== channelName));
   }
 
   function handleAdd() {
     const name = addForm.channel.trim();
     if (!name) {
-      setAddError('Channel name is required.');
+      setAddError(t('channel_registry_channel_name_required_error'));
       return;
     }
     const next = addManualChannel(
@@ -919,9 +941,9 @@ export default function ChannelRegistryView({
         const incoming = Array.isArray(parsed) ? parsed : [parsed];
         const { result, added, updated } = mergeImport(incoming, registry);
         persist(result);
-        showToast(`Imported: ${added} new, ${updated} updated.`, 'ok');
+        showToast(t('channel_registry_import_result', { added, updated }), 'ok');
       } catch {
-        showToast('Import failed: invalid JSON.', 'err');
+        showToast(t('channel_registry_import_invalid_json'), 'err');
       }
     };
     reader.readAsText(file);
@@ -931,17 +953,20 @@ export default function ChannelRegistryView({
     setSyncLoading(true);
     try {
       const data = await api.syncRegistry();
-      if (!Array.isArray(data?.channels)) throw new Error('Unexpected response from server.');
+      if (!Array.isArray(data?.channels))
+        throw new Error(t('channel_registry_unexpected_response'));
       const { result, added } = addMissingFromSync(data.channels, registry);
       if (added > 0) {
         persist(result);
       }
       showToast(
-        added > 0 ? `Synced: ${added} new channel${added === 1 ? '' : 's'} added.` : 'Already up to date.',
+        added > 0
+          ? t('channel_registry_sync_result', { count: added })
+          : t('channel_registry_already_up_to_date'),
         added > 0 ? 'ok' : 'info'
       );
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Sync failed.', 'err');
+      showToast(err instanceof Error ? err.message : t('channel_registry_sync_failed'), 'err');
     } finally {
       setSyncLoading(false);
     }
@@ -954,9 +979,9 @@ export default function ChannelRegistryView({
       <h2 className="flex justify-between items-center px-4 py-2.5 border-b border-border font-semibold text-base shrink-0">
         <span className="flex items-center gap-2">
           <Hash className="h-4 w-4" />
-          Channel Registry
+          {t('channel_registry_title')}
           <span className="text-xs font-normal text-muted-foreground">
-            {registry.length} {registry.length === 1 ? 'channel' : 'channels'}
+            {t('channel_registry_channel_count', { count: registry.length })}
           </span>
         </span>
         <span className="flex items-center gap-1.5">
@@ -965,10 +990,10 @@ export default function ChannelRegistryView({
             size="sm"
             className="h-7 text-xs px-2"
             onClick={() => fileInputRef.current?.click()}
-            title="Import JSON (Project A or Project B format)"
+            title={t('channel_registry_import_title')}
           >
             <Upload className="h-3.5 w-3.5 mr-1" />
-            Import
+            {t('channel_import')}
           </Button>
           <Button
             variant="outline"
@@ -976,14 +1001,14 @@ export default function ChannelRegistryView({
             className="h-7 text-xs px-2"
             onClick={() => void handleSync()}
             disabled={syncLoading}
-            title="Sync missing channels from the configured remote list"
+            title={t('channel_registry_sync_title')}
           >
             {syncLoading ? (
               <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
             ) : (
               <RefreshCw className="h-3.5 w-3.5 mr-1" />
             )}
-            Sync
+            {t('channel_registry_sync')}
           </Button>
           <Button
             variant="outline"
@@ -993,14 +1018,16 @@ export default function ChannelRegistryView({
             disabled={registry.length === 0}
             title={
               selection.size > 0
-                ? `Export ${selection.size} selected channels (Project B format)`
+                ? t('channel_registry_export_title_selected', { count: selection.size })
                 : sorted.length < registry.length
-                  ? `Export ${sorted.length} filtered channels (Project B format)`
-                  : 'Export all channels (Project B format)'
+                  ? t('channel_registry_export_title_filtered', { count: sorted.length })
+                  : t('channel_registry_export_title_all')
             }
           >
             <Download className="h-3.5 w-3.5 mr-1" />
-            {selection.size > 0 ? `Export (${selection.size})` : 'Export'}
+            {selection.size > 0
+              ? t('channel_registry_export_button_selected', { count: selection.size })
+              : t('channel_export')}
           </Button>
           <Button
             variant="outline"
@@ -1010,14 +1037,16 @@ export default function ChannelRegistryView({
             disabled={registry.length === 0}
             title={
               selection.size > 0
-                ? `Export ${selection.size} selected channels (Project A format)`
+                ? t('channel_registry_export_a_title_selected', { count: selection.size })
                 : sorted.length < registry.length
-                  ? `Export ${sorted.length} filtered channels (Project A format)`
-                  : 'Export all channels (Project A format)'
+                  ? t('channel_registry_export_a_title_filtered', { count: sorted.length })
+                  : t('channel_registry_export_a_title_all')
             }
           >
             <Download className="h-3.5 w-3.5 mr-1" />
-            {selection.size > 0 ? `Export (${selection.size}) (A)` : 'Export (A)'}
+            {selection.size > 0
+              ? t('channel_registry_export_a_button_selected', { count: selection.size })
+              : t('channel_registry_export_a_button')}
           </Button>
           <Button
             size="sm"
@@ -1028,7 +1057,7 @@ export default function ChannelRegistryView({
             }}
           >
             <Plus className="h-3.5 w-3.5 mr-1" />
-            Add
+            {t('channel_registry_add_button')}
           </Button>
         </span>
       </h2>
@@ -1064,7 +1093,7 @@ export default function ChannelRegistryView({
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             className="pl-8 h-8 text-sm"
-            placeholder="Search channels, tags, notes…"
+            placeholder={t('channel_registry_search_placeholder')}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -1082,22 +1111,22 @@ export default function ChannelRegistryView({
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value as '' | RegistryChannel['status'])}
         >
-          <option value="">All status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-          <option value="dormant">Dormant</option>
-          <option value="experimental">Experimental</option>
+          <option value="">{t('channel_registry_filter_all_status')}</option>
+          <option value="active">{t('channel_registry_status_active')}</option>
+          <option value="inactive">{t('channel_registry_status_inactive')}</option>
+          <option value="dormant">{t('channel_registry_status_dormant')}</option>
+          <option value="experimental">{t('channel_registry_status_experimental')}</option>
         </select>
         <select
           className="h-8 rounded-md border border-input bg-background px-2 text-xs text-muted-foreground"
           value={filterSource}
           onChange={(e) => setFilterSource(e.target.value as '' | RegistryChannel['source'])}
         >
-          <option value="">All sources</option>
-          <option value="finder">Finder</option>
-          <option value="radio">Radio</option>
-          <option value="manual">Manual</option>
-          <option value="imported">Imported</option>
+          <option value="">{t('channel_registry_filter_all_sources')}</option>
+          <option value="finder">{t('channel_registry_source_finder')}</option>
+          <option value="radio">{t('channel_registry_source_radio')}</option>
+          <option value="manual">{t('channel_registry_source_manual')}</option>
+          <option value="imported">{t('channel_registry_source_imported')}</option>
         </select>
         {categoryOptions.length > 0 && (
           <select
@@ -1108,7 +1137,7 @@ export default function ChannelRegistryView({
               setFilterSubcategory('');
             }}
           >
-            <option value="">All categories</option>
+            <option value="">{t('channel_registry_filter_all_categories')}</option>
             {categoryOptions.map((c) => (
               <option key={c} value={c}>
                 {c}
@@ -1122,7 +1151,7 @@ export default function ChannelRegistryView({
             value={filterSubcategory}
             onChange={(e) => setFilterSubcategory(e.target.value)}
           >
-            <option value="">All subcategories</option>
+            <option value="">{t('channel_registry_filter_all_subcategories')}</option>
             {subcategoryOptions.map((s) => (
               <option key={s} value={s}>
                 {s}
@@ -1136,7 +1165,7 @@ export default function ChannelRegistryView({
             value={filterRegion}
             onChange={(e) => setFilterRegion(e.target.value)}
           >
-            <option value="">All regions</option>
+            <option value="">{t('channel_registry_filter_all_regions')}</option>
             {regionOptions.map((r) => (
               <option key={r} value={r}>
                 {r}
@@ -1150,7 +1179,7 @@ export default function ChannelRegistryView({
             value={filterScope}
             onChange={(e) => setFilterScope(e.target.value)}
           >
-            <option value="">All scopes</option>
+            <option value="">{t('channel_registry_filter_all_scopes')}</option>
             {scopeOptions.map((s) => (
               <option key={s} value={s}>
                 {s}
@@ -1164,7 +1193,7 @@ export default function ChannelRegistryView({
             value={filterCountry}
             onChange={(e) => setFilterCountry(e.target.value)}
           >
-            <option value="">All countries</option>
+            <option value="">{t('channel_registry_filter_all_countries')}</option>
             {countryOptions.map((c) => (
               <option key={c} value={c}>
                 {c}
@@ -1189,7 +1218,7 @@ export default function ChannelRegistryView({
             }}
           >
             <X className="h-3.5 w-3.5 mr-1" />
-            Clear ({activeFilters})
+            {t('channel_registry_clear_filters', { count: activeFilters })}
           </Button>
         )}
       </div>
@@ -1198,13 +1227,12 @@ export default function ChannelRegistryView({
       {selection.size > 0 && (
         <div className="mx-4 mb-2 shrink-0 flex items-center gap-2 rounded-md border border-border/70 bg-muted/40 px-3 py-1.5 text-xs registry-sel-bar">
           <span className="text-muted-foreground flex-1 text-xs">
-            {selection.size} {selection.size === 1 ? 'channel' : 'channels'} selected — use Export
-            buttons above
+            {t('channel_registry_selection_bar', { count: selection.size })}
           </span>
           <button
             className="text-muted-foreground hover:text-foreground ml-1"
             onClick={() => setSelection(new Set())}
-            title="Clear selection"
+            title={t('channel_registry_clear_selection_title')}
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -1215,18 +1243,15 @@ export default function ChannelRegistryView({
       {registry.length === 0 && (
         <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground text-sm px-8 text-center">
           <Hash className="h-8 w-8 opacity-40" />
-          <p>No channels in the registry yet.</p>
-          <p className="text-xs">
-            Add channels manually, import a JSON file, or they'll appear automatically as the
-            Channel Finder discovers them.
-          </p>
+          <p>{t('channel_registry_empty_title')}</p>
+          <p className="text-xs">{t('channel_registry_empty_description')}</p>
         </div>
       )}
 
       {/* ── No results ───────────────────────────────────────────────────────── */}
       {registry.length > 0 && sorted.length === 0 && (
         <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-          No channels match the current filters.
+          {t('channel_registry_no_results')}
         </div>
       )}
 
@@ -1246,69 +1271,73 @@ export default function ChannelRegistryView({
                 if (el) el.indeterminate = someSortedSelected && !allSortedSelected;
               }}
               onChange={toggleSelectAll}
-              title={allSortedSelected ? 'Deselect all' : 'Select all visible'}
+              title={
+                allSortedSelected
+                  ? t('channel_registry_deselect_all')
+                  : t('channel_registry_select_all_visible')
+              }
             />
             <SortHeader
-              label="Channel"
+              label={t('channel_registry_col_channel')}
               field="channel"
               sortField={sortField}
               sortDir={sortDir}
               onSort={handleSort}
             />
             <SortHeader
-              label="Category"
+              label={t('channel_registry_category')}
               field="category"
               sortField={sortField}
               sortDir={sortDir}
               onSort={handleSort}
             />
             <SortHeader
-              label="Country"
+              label={t('channel_registry_country')}
               field="country"
               sortField={sortField}
               sortDir={sortDir}
               onSort={handleSort}
             />
             <SortHeader
-              label="Region"
+              label={t('channel_registry_region')}
               field="region"
               sortField={sortField}
               sortDir={sortDir}
               onSort={handleSort}
             />
             <span className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
-              Lang
+              {t('channel_registry_col_lang')}
             </span>
             <SortHeader
-              label="Status"
+              label={t('channel_registry_status_label')}
               field="status"
               sortField={sortField}
               sortDir={sortDir}
               onSort={handleSort}
             />
             <SortHeader
-              label="Source"
+              label={t('channel_registry_source_label')}
               field="source"
               sortField={sortField}
               sortDir={sortDir}
               onSort={handleSort}
             />
             <SortHeader
-              label="Last heard"
+              label={t('channel_registry_col_last_heard')}
               field="lastHeard"
               sortField={sortField}
               sortDir={sortDir}
               onSort={handleSort}
             />
             <SortHeader
-              label="Pkts"
+              label={t('channel_registry_col_packets')}
               field="packets"
               sortField={sortField}
               sortDir={sortDir}
               onSort={handleSort}
             />
             <span className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium text-right">
-              Actions
+              {t('channel_registry_col_actions')}
             </span>
           </div>
 
@@ -1329,8 +1358,11 @@ export default function ChannelRegistryView({
 
           <div className="pt-3 text-xs text-center text-muted-foreground">
             {sorted.length === registry.length
-              ? `${registry.length} channels`
-              : `${sorted.length} of ${registry.length} channels`}
+              ? t('channel_registry_footer_count_all', { count: registry.length })
+              : t('channel_registry_footer_count_filtered', {
+                  shown: sorted.length,
+                  count: registry.length,
+                })}
           </div>
         </div>
       )}
@@ -1340,16 +1372,16 @@ export default function ChannelRegistryView({
         <Dialog open onOpenChange={(open) => !open && setShowAddForm(false)}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>Add Channel</DialogTitle>
+              <DialogTitle>{t('channel_registry_add_channel_title')}</DialogTitle>
             </DialogHeader>
             <div className="space-y-3 py-1">
               <div className="space-y-1">
                 <Label className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
-                  Channel name *
+                  {t('channel_registry_channel_name_required')}
                 </Label>
                 <Input
                   className="h-7 text-sm"
-                  placeholder="#example"
+                  placeholder={t('channel_registry_channel_name_placeholder')}
                   value={addForm.channel}
                   onChange={(e) => setAddForm((f) => ({ ...f, channel: e.target.value }))}
                   onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
@@ -1360,22 +1392,22 @@ export default function ChannelRegistryView({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
-                    Category
+                    {t('channel_registry_category')}
                   </Label>
                   <Input
                     className="h-7 text-sm"
-                    placeholder="e.g. Regional"
+                    placeholder={t('channel_registry_category_placeholder')}
                     value={addForm.category}
                     onChange={(e) => setAddForm((f) => ({ ...f, category: e.target.value }))}
                   />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
-                    Subcategory
+                    {t('channel_registry_subcategory')}
                   </Label>
                   <Input
                     className="h-7 text-sm"
-                    placeholder="e.g. City"
+                    placeholder={t('channel_registry_subcategory_placeholder')}
                     value={addForm.subcategory}
                     onChange={(e) => setAddForm((f) => ({ ...f, subcategory: e.target.value }))}
                   />
@@ -1384,22 +1416,22 @@ export default function ChannelRegistryView({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
-                    Country
+                    {t('channel_registry_country')}
                   </Label>
                   <Input
                     className="h-7 text-sm"
-                    placeholder="e.g. Netherlands"
+                    placeholder={t('channel_registry_country_placeholder')}
                     value={addForm.country}
                     onChange={(e) => setAddForm((f) => ({ ...f, country: e.target.value }))}
                   />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
-                    Language
+                    {t('channel_registry_language')}
                   </Label>
                   <Input
                     className="h-7 text-sm"
-                    placeholder="NL, EN"
+                    placeholder={t('channel_registry_language_placeholder')}
                     value={addForm.language}
                     onChange={(e) => setAddForm((f) => ({ ...f, language: e.target.value }))}
                   />
@@ -1408,18 +1440,18 @@ export default function ChannelRegistryView({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
-                    Region
+                    {t('channel_registry_region')}
                   </Label>
                   <Input
                     className="h-7 text-sm"
-                    placeholder="e.g. Amsterdam"
+                    placeholder={t('channel_registry_region_placeholder_add')}
                     value={addForm.region}
                     onChange={(e) => setAddForm((f) => ({ ...f, region: e.target.value }))}
                   />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
-                    Status
+                    {t('channel_registry_status_label')}
                   </Label>
                   <select
                     className="h-7 w-full rounded-md border border-input bg-background px-2 text-sm"
@@ -1431,20 +1463,22 @@ export default function ChannelRegistryView({
                       }))
                     }
                   >
-                    <option value="active">active</option>
-                    <option value="inactive">inactive</option>
-                    <option value="dormant">dormant</option>
-                    <option value="experimental">experimental</option>
+                    <option value="active">{t('channel_registry_status_active_lc')}</option>
+                    <option value="inactive">{t('channel_registry_status_inactive_lc')}</option>
+                    <option value="dormant">{t('channel_registry_status_dormant_lc')}</option>
+                    <option value="experimental">
+                      {t('channel_registry_status_experimental_lc')}
+                    </option>
                   </select>
                 </div>
               </div>
               <div className="space-y-1">
                 <Label className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
-                  Notes
+                  {t('channel_registry_notes')}
                 </Label>
                 <Input
                   className="h-7 text-sm"
-                  placeholder="Optional description"
+                  placeholder={t('channel_registry_notes_placeholder_add')}
                   value={addForm.notes}
                   onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))}
                 />
@@ -1460,10 +1494,10 @@ export default function ChannelRegistryView({
                   setAddError('');
                 }}
               >
-                Cancel
+                {t('common_cancel')}
               </Button>
               <Button size="sm" onClick={handleAdd}>
-                Add Channel
+                {t('channel_registry_add_channel_button')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1500,6 +1534,7 @@ function ChannelRow({
   onEdit: (e: RegistryChannel) => void;
   onDelete: (name: string) => void;
 }) {
+  const t = useT();
   return (
     <div
       className={cn(
@@ -1519,7 +1554,7 @@ function ChannelRow({
         {entry.private && (
           <Lock
             className="h-3 w-3 text-destructive flex-shrink-0"
-            aria-label="Private — excluded from export"
+            aria-label={t('channel_registry_private_badge_aria')}
           />
         )}
         {entry.channel}
@@ -1538,10 +1573,10 @@ function ChannelRow({
       <span className="text-xs text-muted-foreground truncate">
         {entry.language.length > 0 ? entry.language.join(', ') : '—'}
       </span>
-      <span>{statusBadge(entry.status)}</span>
-      <span>{sourceBadge(entry.source)}</span>
+      <span>{statusBadge(entry.status, t)}</span>
+      <span>{sourceBadge(entry.source, t)}</span>
       <span className="text-xs text-muted-foreground tabular-nums">
-        {fmtDatetime(entry.lastHeard)}
+        {fmtDatetime(entry.lastHeard, t)}
       </span>
       <span className="text-xs text-muted-foreground tabular-nums text-right">
         {liveCount > 0 ? liveCount : '—'}
@@ -1550,14 +1585,14 @@ function ChannelRow({
         <button
           className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent"
           onClick={() => onEdit(entry)}
-          title="Edit"
+          title={t('channel_registry_edit_title')}
         >
           <Edit2 className="h-3 w-3" />
         </button>
         <button
           className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
           onClick={() => onDelete(entry.channel)}
-          title="Remove"
+          title={t('channel_registry_remove_title')}
         >
           <Trash2 className="h-3 w-3" />
         </button>

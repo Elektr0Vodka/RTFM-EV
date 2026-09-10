@@ -5,6 +5,7 @@ import { formatTime } from '../utils/messageParser';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
+import { useT } from '../i18n';
 
 const SEARCH_PAGE_SIZE = 50;
 const DEBOUNCE_MS = 300;
@@ -89,6 +90,7 @@ export function SearchView({
   onNavigateToMessage,
   prefillRequest = null,
 }: SearchViewProps) {
+  const t = useT();
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -230,7 +232,7 @@ export function SearchView({
     <div className="flex flex-col h-full">
       {/* Header */}
       <h2 className="flex justify-between items-center px-4 py-2.5 border-b border-border font-semibold text-base">
-        Message Search
+        {t('nav_message_search')}
       </h2>
 
       {/* Search input */}
@@ -238,11 +240,11 @@ export function SearchView({
         <Input
           ref={inputRef}
           type="text"
-          placeholder="Search all messages..."
+          placeholder={t('search_input_placeholder')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="h-9 text-sm"
-          aria-label="Search messages"
+          aria-label={t('search_input_aria_label')}
         />
       </div>
 
@@ -250,28 +252,27 @@ export function SearchView({
       <div className="flex-1 overflow-y-auto">
         {!debouncedQuery && (
           <div className="p-8 text-center text-muted-foreground text-sm">
-            <p>Type to search across all messages</p>
+            <p>{t('search_empty_prompt')}</p>
             <p className="mt-2 text-xs">
-              Tip: use <code>user:</code> or <code>channel:</code> for keys or names, and wrap names
-              with spaces in them in quotes.
+              {t('search_tip_prefix')}{' '}
+              {/* eslint-disable-next-line i18next/no-literal-string */}
+              <code>user:</code> {t('search_tip_or')}{' '}
+              {/* eslint-disable-next-line i18next/no-literal-string */}
+              <code>channel:</code> {t('search_tip_suffix')}
             </p>
-            <p className="mt-2 text-xs">
-              Warning: User-key linkage for group messages is best-effort and based on correlation
-              at advertise time. It does not account for multiple users with the same name, and
-              should be considered unreliable.
-            </p>
+            <p className="mt-2 text-xs">{t('search_warning_user_key_linkage')}</p>
           </div>
         )}
 
         {debouncedQuery && results.length === 0 && !loading && (
           <div className="p-8 text-center text-muted-foreground text-sm">
-            No messages found for &ldquo;{debouncedQuery}&rdquo;
+            {t('search_no_results_for', { query: debouncedQuery })}
           </div>
         )}
 
         {results.map((result) => {
           const convName = getConversationName(result);
-          const typeBadge = result.type === 'CHAN' ? 'Channel' : 'DM';
+          const typeBadge = result.type === 'CHAN' ? t('packet_context_title_channel') : t('map_packet_legend_dm');
 
           return (
             <div
@@ -307,7 +308,9 @@ export function SearchView({
                 {result.sender_name && !result.outgoing && (
                   <span className="text-muted-foreground">{result.sender_name}: </span>
                 )}
-                {result.outgoing && <span className="text-muted-foreground">You: </span>}
+                {result.outgoing && (
+                  <span className="text-muted-foreground">{t('common_you')}: </span>
+                )}
                 {highlightMatch(
                   result.sender_name && result.text.startsWith(`${result.sender_name}: `)
                     ? result.text.slice(result.sender_name.length + 2)
@@ -321,14 +324,14 @@ export function SearchView({
 
         {loading && (
           <div className="p-4 text-center text-muted-foreground text-sm" role="status">
-            Searching...
+            {t('search_loading')}
           </div>
         )}
 
         {hasMore && !loading && (
           <div className="p-4 text-center">
             <Button variant="outline" size="sm" onClick={loadMore}>
-              Load more results
+              {t('search_load_more')}
             </Button>
           </div>
         )}

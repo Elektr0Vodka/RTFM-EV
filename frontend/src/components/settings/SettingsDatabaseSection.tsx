@@ -6,6 +6,7 @@ import { Separator } from '../ui/separator';
 import { toast } from '../ui/sonner';
 import { api } from '../../api';
 import { formatTime } from '../../utils/messageParser';
+import { useT } from '../../i18n';
 import type { AnalyzerSite, AppSettings, AppSettingsUpdate, HealthStatus } from '../../types';
 
 function isValidNodeTemplate(template: string): boolean {
@@ -31,6 +32,7 @@ export function SettingsDatabaseSection({
   onHealthRefresh: () => Promise<void>;
   className?: string;
 }) {
+  const t = useT();
   const [retentionDays, setRetentionDays] = useState('14');
   const [cleaning, setCleaning] = useState(false);
   const [purgingDecryptedRaw, setPurgingDecryptedRaw] = useState(false);
@@ -52,8 +54,8 @@ export function SettingsDatabaseSection({
   const handleCleanup = async () => {
     const days = parseInt(retentionDays, 10);
     if (isNaN(days) || days < 1) {
-      toast.error('Invalid retention days', {
-        description: 'Retention days must be at least 1',
+      toast.error(t('settings_db_toast_invalid_retention_title'), {
+        description: t('settings_db_toast_invalid_retention_desc'),
       });
       return;
     }
@@ -62,14 +64,14 @@ export function SettingsDatabaseSection({
 
     try {
       const result = await api.runMaintenance({ pruneUndecryptedDays: days });
-      toast.success('Database cleanup complete', {
-        description: `Deleted ${result.packets_deleted} old packet${result.packets_deleted === 1 ? '' : 's'}`,
+      toast.success(t('settings_db_toast_cleanup_complete_title'), {
+        description: t('settings_db_toast_cleanup_complete_desc', { count: result.packets_deleted }),
       });
       await onHealthRefresh();
     } catch (err) {
       console.error('Failed to run maintenance:', err);
-      toast.error('Database cleanup failed', {
-        description: err instanceof Error ? err.message : 'Unknown error',
+      toast.error(t('settings_db_toast_cleanup_failed_title'), {
+        description: err instanceof Error ? err.message : t('error_unknown'),
       });
     } finally {
       setCleaning(false);
@@ -81,14 +83,14 @@ export function SettingsDatabaseSection({
 
     try {
       const result = await api.runMaintenance({ purgeLinkedRawPackets: true });
-      toast.success('Decrypted raw packets purged', {
-        description: `Deleted ${result.packets_deleted} raw packet${result.packets_deleted === 1 ? '' : 's'}`,
+      toast.success(t('settings_db_toast_purge_complete_title'), {
+        description: t('settings_db_toast_purge_complete_desc', { count: result.packets_deleted }),
       });
       await onHealthRefresh();
     } catch (err) {
       console.error('Failed to purge decrypted raw packets:', err);
-      toast.error('Failed to purge decrypted raw packets', {
-        description: err instanceof Error ? err.message : 'Unknown error',
+      toast.error(t('settings_db_toast_purge_failed_title'), {
+        description: err instanceof Error ? err.message : t('error_unknown'),
       });
     } finally {
       setPurgingDecryptedRaw(false);
@@ -102,8 +104,8 @@ export function SettingsDatabaseSection({
       } catch (err) {
         console.error('Failed to save database settings:', err);
         revert();
-        toast.error('Failed to save setting', {
-          description: err instanceof Error ? err.message : 'Unknown error',
+        toast.error(t('settings_db_toast_save_failed_title'), {
+          description: err instanceof Error ? err.message : t('error_unknown'),
         });
       }
     });
@@ -122,15 +124,15 @@ export function SettingsDatabaseSection({
     const nodeUrl = draftNodeUrl.trim();
     const packetUrl = draftPacketUrl.trim();
     if (!name) {
-      toast.error('Analyzer site needs a name');
+      toast.error(t('settings_db_analyzer_toast_no_name'));
       return;
     }
     if (!isValidNodeTemplate(nodeUrl)) {
-      toast.error('Node URL must be an http(s) URL containing {pubkey}');
+      toast.error(t('settings_db_analyzer_toast_bad_node_url'));
       return;
     }
     if (packetUrl && !isValidPacketTemplate(packetUrl)) {
-      toast.error('Packet URL must be an http(s) URL containing {hash}');
+      toast.error(t('settings_db_analyzer_toast_bad_packet_url'));
       return;
     }
     persistAnalyzerSites([
@@ -150,24 +152,27 @@ export function SettingsDatabaseSection({
     <div className={className}>
       {/* ── Database Overview ── */}
       <div className="space-y-3">
-        <h3 className="text-base font-semibold tracking-tight">Database Overview</h3>
+        <h3 className="text-base font-semibold tracking-tight">{t('settings_db_overview_heading')}</h3>
         <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2">
           <div className="flex justify-between items-center">
-            <span className="text-sm">Database size</span>
+            <span className="text-sm">{t('settings_db_size_label')}</span>
             <span className="text-sm font-semibold">{health?.database_size_mb ?? '?'} MB</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-sm">Oldest undecrypted packet</span>
+            <span className="text-sm">{t('settings_db_oldest_undecrypted_label')}</span>
             {health?.oldest_undecrypted_timestamp ? (
               <span className="text-sm font-semibold">
                 {formatTime(health.oldest_undecrypted_timestamp)}
                 <span className="font-normal text-muted-foreground ml-1">
-                  ({Math.floor((Date.now() / 1000 - health.oldest_undecrypted_timestamp) / 86400)}{' '}
-                  days)
+                  {t('settings_db_days_ago', {
+                    count: Math.floor(
+                      (Date.now() / 1000 - health.oldest_undecrypted_timestamp) / 86400
+                    ),
+                  })}
                 </span>
               </span>
             ) : (
-              <span className="text-sm text-muted-foreground">None</span>
+              <span className="text-sm text-muted-foreground">{t('settings_db_none')}</span>
             )}
           </div>
         </div>
@@ -177,19 +182,17 @@ export function SettingsDatabaseSection({
 
       {/* ── Storage Cleanup ── */}
       <div className="space-y-4">
-        <h3 className="text-base font-semibold tracking-tight">Storage Cleanup</h3>
+        <h3 className="text-base font-semibold tracking-tight">{t('settings_db_cleanup_heading')}</h3>
 
         <div className="rounded-md border border-border p-3 space-y-2">
-          <h3 className="text-sm font-semibold">Delete Undecrypted Packets</h3>
+          <h3 className="text-sm font-semibold">{t('settings_db_delete_undecrypted_heading')}</h3>
           <p className="text-[0.8125rem] text-muted-foreground">
-            Permanently deletes stored raw packets that have not yet been decrypted. These are
-            retained in case you later obtain the correct key — once deleted, these messages can
-            never be recovered.
+            {t('settings_db_delete_undecrypted_desc')}
           </p>
           <div className="flex gap-2 items-end">
             <div className="space-y-1">
               <Label htmlFor="retention-days" className="text-xs text-muted-foreground">
-                Older than (days)
+                {t('settings_db_older_than_days_label')}
               </Label>
               <Input
                 id="retention-days"
@@ -207,17 +210,15 @@ export function SettingsDatabaseSection({
               disabled={cleaning}
               className="border-destructive/50 text-destructive hover:bg-destructive/10"
             >
-              {cleaning ? 'Deleting...' : 'Delete'}
+              {cleaning ? t('settings_db_deleting') : t('common_delete')}
             </Button>
           </div>
         </div>
 
         <div className="rounded-md border border-border p-3 space-y-2">
-          <h3 className="text-sm font-semibold">Purge Archival Raw Packets</h3>
+          <h3 className="text-sm font-semibold">{t('settings_db_purge_archival_heading')}</h3>
           <p className="text-[0.8125rem] text-muted-foreground">
-            Deletes the raw packet bytes behind messages that are already decrypted and visible in
-            chat. This frees space but removes packet-analysis availability for those messages. It
-            does not affect displayed messages or future decryption.
+            {t('settings_db_purge_archival_desc')}
           </p>
           <Button
             variant="outline"
@@ -225,7 +226,7 @@ export function SettingsDatabaseSection({
             disabled={purgingDecryptedRaw}
             className="w-full border-warning/50 text-warning hover:bg-warning/10"
           >
-            {purgingDecryptedRaw ? 'Purging...' : 'Purge Archival Packets'}
+            {purgingDecryptedRaw ? t('settings_db_purging') : t('settings_db_purge_archival_button')}
           </Button>
         </div>
       </div>
@@ -234,7 +235,7 @@ export function SettingsDatabaseSection({
 
       {/* ── DM Decryption ── */}
       <div className="space-y-3">
-        <h3 className="text-base font-semibold tracking-tight">DM Decryption</h3>
+        <h3 className="text-base font-semibold tracking-tight">{t('settings_db_dm_decryption_heading')}</h3>
         <label className="flex items-center gap-3 cursor-pointer">
           <input
             type="checkbox"
@@ -249,11 +250,10 @@ export function SettingsDatabaseSection({
             }}
             className="w-4 h-4 rounded border-input accent-primary"
           />
-          <span className="text-sm">Auto-decrypt historical DMs when new contact advertises</span>
+          <span className="text-sm">{t('settings_db_auto_decrypt_label')}</span>
         </label>
         <p className="text-[0.8125rem] text-muted-foreground">
-          When enabled, the server will automatically try to decrypt stored DM packets when a new
-          contact sends an advertisement. This may cause brief delays on large packet backlogs.
+          {t('settings_db_auto_decrypt_desc')}
         </p>
       </div>
 
@@ -261,10 +261,10 @@ export function SettingsDatabaseSection({
 
       {/* Channel Registry */}
       <div className="space-y-3">
-        <h3 className="text-base font-semibold tracking-tight">Channel Registry</h3>
+        <h3 className="text-base font-semibold tracking-tight">{t('settings_db_registry_heading')}</h3>
         <div className="space-y-1.5">
           <Label htmlFor="registry-sync-url" className="text-sm font-medium">
-            Channel list sync URL
+            {t('settings_db_registry_url_label')}
           </Label>
           <Input
             id="registry-sync-url"
@@ -282,8 +282,9 @@ export function SettingsDatabaseSection({
             className="font-mono text-xs"
           />
           <p className="text-[0.8125rem] text-muted-foreground">
-            URL of a remote JSON channel list (<code className="text-xs">{`{"#name": "key"}`}</code>{' '}
-            format). The server fetches this when you click Sync in the Channel Registry.
+            {t('settings_db_registry_url_hint_prefix')}
+            <code className="text-xs">{`{"#name": "key"}`}</code>{' '}
+            {t('settings_db_registry_url_hint_suffix')}
           </p>
         </div>
       </div>
@@ -292,15 +293,16 @@ export function SettingsDatabaseSection({
 
       {/* External Analyzers */}
       <div className="space-y-3">
-        <h3 className="text-base font-semibold tracking-tight">External Analyzers</h3>
+        <h3 className="text-base font-semibold tracking-tight">
+          {t('settings_db_analyzer_heading')}
+        </h3>
         <p className="text-[0.8125rem] text-muted-foreground">
-          Sites you can open from a contact&apos;s info pane to look up a node. Use{' '}
-          <code className="text-xs">{'{pubkey}'}</code> in the node URL (and{' '}
-          <code className="text-xs">{'{hash}'}</code> in an optional packet URL) as the placeholder.
+          {t('settings_db_analyzer_desc_prefix')}{' '}
+          <code className="text-xs">{'{pubkey}'}</code> {t('settings_db_analyzer_desc_mid')}{' '}
+          <code className="text-xs">{'{hash}'}</code> {t('settings_db_analyzer_desc_suffix')}
         </p>
         <p className="text-[0.8125rem] text-warning">
-          Privacy: opening a lookup sends the node&apos;s public key to that third-party site in the
-          URL, which it can log. Nothing is sent until you click a lookup.
+          {t('settings_db_analyzer_privacy')}
         </p>
 
         {analyzerSites.length > 0 ? (
@@ -326,23 +328,23 @@ export function SettingsDatabaseSection({
                   size="sm"
                   className="border-destructive/50 text-destructive hover:bg-destructive/10 shrink-0"
                   onClick={() => handleRemoveAnalyzerSite(index)}
-                  aria-label={`Remove analyzer site ${site.name}`}
+                  aria-label={t('settings_db_analyzer_remove_aria', { name: site.name })}
                 >
-                  Remove
+                  {t('settings_db_analyzer_remove_button')}
                 </Button>
               </li>
             ))}
           </ul>
         ) : (
           <p className="text-[0.8125rem] text-muted-foreground italic">
-            No analyzer sites configured.
+            {t('settings_db_analyzer_empty')}
           </p>
         )}
 
         <div className="rounded-md border border-border p-3 space-y-2">
           <div className="space-y-1.5">
             <Label htmlFor="analyzer-name" className="text-xs text-muted-foreground">
-              Name
+              {t('common_name')}
             </Label>
             <Input
               id="analyzer-name"
@@ -353,7 +355,7 @@ export function SettingsDatabaseSection({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="analyzer-node-url" className="text-xs text-muted-foreground">
-              Node URL template
+              {t('settings_db_analyzer_node_url_label')}
             </Label>
             <Input
               id="analyzer-node-url"
@@ -365,7 +367,7 @@ export function SettingsDatabaseSection({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="analyzer-packet-url" className="text-xs text-muted-foreground">
-              Packet URL template (optional)
+              {t('settings_db_analyzer_packet_url_label')}
             </Label>
             <Input
               id="analyzer-packet-url"
@@ -376,7 +378,7 @@ export function SettingsDatabaseSection({
             />
           </div>
           <Button variant="outline" onClick={handleAddAnalyzerSite} className="w-full">
-            Add analyzer site
+            {t('settings_db_analyzer_add_button')}
           </Button>
         </div>
       </div>

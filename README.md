@@ -250,6 +250,17 @@ RemoteTerm supports the [meshcomod](https://github.com/Elektr0Vodka/meshcomod) f
 
 The panel is hidden entirely on non-meshcomod devices, and each control disables itself if the specific firmware build does not advertise support. No configuration is needed: detection is automatic from the radio's device info.
 
+## Languages
+
+The interface is available in English (default), Dutch, and German. Pick a
+language under **Settings -> Local**; the choice is saved per browser. Untranslated
+strings fall back to English, so partial translations never break the UI.
+
+The internationalization approach and portions of the Dutch and German
+translation strings are adapted from
+[kiekr-i18n](https://github.com/marcelverdult/kiekr-i18n) by Marcel Verdult
+([@marcelverdult](https://github.com/marcelverdult)), licensed under CC-BY 4.0.
+
 ## Where To Go Next
 
 - Advanced setup, troubleshooting, HTTPS, systemd, remediation variables, and debug logging: [README_ADVANCED.md](README_ADVANCED.md)

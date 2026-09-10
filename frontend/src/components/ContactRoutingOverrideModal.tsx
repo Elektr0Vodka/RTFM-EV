@@ -18,6 +18,7 @@ import {
 } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import { useT } from '../i18n';
 
 interface ContactRoutingOverrideModalProps {
   open: boolean;
@@ -34,6 +35,7 @@ export function ContactRoutingOverrideModal({
   onSaved,
   onError,
 }: ContactRoutingOverrideModalProps) {
+  const t = useT();
   const [route, setRoute] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,10 +56,12 @@ export function ContactRoutingOverrideModal({
     setError(null);
     try {
       await api.setContactRoutingOverride(contact.public_key, value);
-      onSaved(value.trim() === '' ? 'Routing override cleared' : 'Routing override updated');
+      onSaved(
+        value.trim() === '' ? t('path_override_toast_cleared') : t('path_override_toast_updated')
+      );
       onClose();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to update routing override';
+      const message = err instanceof Error ? err.message : t('path_override_error_fallback');
       setError(message);
       onError(message);
     } finally {
@@ -69,11 +73,8 @@ export function ContactRoutingOverrideModal({
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
-          <DialogTitle>Routing Override</DialogTitle>
-          <DialogDescription>
-            Set a forced route for this contact. Leave the field blank to clear the override and
-            fall back to the learned route or flood until a new path is heard.
-          </DialogDescription>
+          <DialogTitle>{t('path_override_title')}</DialogTitle>
+          <DialogDescription>{t('path_override_description')}</DialogDescription>
         </DialogHeader>
 
         <form
@@ -86,31 +87,28 @@ export function ContactRoutingOverrideModal({
           <div className="rounded-md border border-border bg-muted/20 p-3 text-sm">
             <div className="font-medium">{contact.name || contact.public_key.slice(0, 12)}</div>
             <div className="mt-1 text-muted-foreground">
-              Current learned route: {learnedRouteSummary}
+              {t('path_current_learned_route_label')} {learnedRouteSummary}
             </div>
             {forcedRouteSummary && (
               <div className="mt-1 text-destructive">
-                Current forced route: {forcedRouteSummary}
+                {t('path_current_forced_route_label')} {forcedRouteSummary}
               </div>
             )}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="routing-override-input">Forced route</Label>
+            <Label htmlFor="routing-override-input">{t('path_override_forced_route_field_label')}</Label>
             <Input
               id="routing-override-input"
               value={route}
               onChange={(event) => setRoute(event.target.value)}
-              placeholder='Examples: "ae,f1" or "ae92,f13e"'
+              placeholder={t('path_override_placeholder')}
               autoFocus
               disabled={saving}
             />
             <div className="space-y-1 text-xs text-muted-foreground">
-              <p>Use comma-separated 1, 2, or 3 byte hop IDs for an explicit path.</p>
-              <p>
-                Note: direct messages that do not see an ACK retry up to 3 times. The final retry is
-                sent as flood, even when forced routing is configured.
-              </p>
+              <p>{t('path_override_helper_hop_ids')}</p>
+              <p>{t('path_override_helper_retry_note')}</p>
             </div>
           </div>
 
@@ -123,7 +121,7 @@ export function ContactRoutingOverrideModal({
                 onClick={() => void saveRoute('-1')}
                 disabled={saving}
               >
-                Force Flood
+                {t('path_override_force_flood_button')}
               </Button>
               <Button
                 type="button"
@@ -132,13 +130,15 @@ export function ContactRoutingOverrideModal({
                 onClick={() => void saveRoute('0')}
                 disabled={saving}
               >
-                Force Direct
+                {t('path_override_force_direct_button')}
               </Button>
             </div>
             <Button type="submit" className="w-full" disabled={saving || route.trim().length === 0}>
               {saving
-                ? 'Saving...'
-                : `Force ${route.trim() === '' ? 'custom' : route.trim()} routing`}
+                ? t('settings_radio_saving')
+                : t('path_override_force_route_button', {
+                    route: route.trim() === '' ? t('path_override_custom_label') : route.trim(),
+                  })}
             </Button>
           </div>
 
@@ -150,7 +150,7 @@ export function ContactRoutingOverrideModal({
 
           <DialogFooter className="gap-2 sm:justify-between">
             <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>
-              Cancel
+              {t('common_cancel')}
             </Button>
             <Button
               type="button"
@@ -158,7 +158,7 @@ export function ContactRoutingOverrideModal({
               onClick={() => void saveRoute('')}
               disabled={saving}
             >
-              Clear override
+              {t('path_override_clear_button')}
             </Button>
           </DialogFooter>
         </form>

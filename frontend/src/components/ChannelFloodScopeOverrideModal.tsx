@@ -16,6 +16,7 @@ import {
 } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import { useT } from '../i18n';
 
 interface ChannelFloodScopeOverrideModalProps {
   open: boolean;
@@ -32,6 +33,7 @@ export function ChannelFloodScopeOverrideModal({
   currentOverride,
   onSetOverride,
 }: ChannelFloodScopeOverrideModalProps) {
+  const t = useT();
   const [region, setRegion] = useState('');
 
   useEffect(() => {
@@ -45,39 +47,34 @@ export function ChannelFloodScopeOverrideModal({
   const trimmedRegion = region.trim();
 
   const currentOverrideLabel = isUnscopedMarker(currentOverride)
-    ? 'unscoped (plain flood)'
+    ? t('region_override_unscoped_label')
     : currentOverride
       ? stripRegionScopePrefix(currentOverride)
-      : 'inherit global setting';
+      : t('region_override_inherit_label');
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>Regional Override</DialogTitle>
-          <DialogDescription>
-            Channel-level regional routing temporarily changes the radio flood scope before send and
-            restores it after. This can noticeably slow channel sends. Choose one of three modes
-            below: scope to a region, force unscoped (plain flood, ignoring your global region), or
-            inherit the global setting.
-          </DialogDescription>
+          <DialogTitle>{t('region_override_title')}</DialogTitle>
+          <DialogDescription>{t('region_override_description')}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="rounded-md border border-border bg-muted/20 p-3 text-sm">
             <div className="font-medium">{roomName}</div>
             <div className="mt-1 text-muted-foreground">
-              Current setting: {currentOverrideLabel}
+              {t('region_override_current_setting_label')} {currentOverrideLabel}
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="channel-region-input">Region</Label>
+            <Label htmlFor="channel-region-input">{t('channel_registry_region')}</Label>
             <Input
               id="channel-region-input"
               value={region}
               onChange={(event) => setRegion(event.target.value)}
-              placeholder="Esperance"
+              placeholder={t('region_override_placeholder_example')}
               autoFocus
             />
           </div>
@@ -95,8 +92,8 @@ export function ChannelFloodScopeOverrideModal({
               }}
             >
               {trimmedRegion.length > 0
-                ? `Scope ${roomName} to ${trimmedRegion}`
-                : `Scope ${roomName} to a region`}
+                ? t('region_override_scope_to_region_button', { room: roomName, region: trimmedRegion })
+                : t('region_override_scope_to_region_button_empty', { room: roomName })}
             </Button>
             <Button
               type="button"
@@ -107,7 +104,7 @@ export function ChannelFloodScopeOverrideModal({
                 onClose();
               }}
             >
-              Always send {roomName} unscoped (ignore global region)
+              {t('region_override_always_unscoped_button', { room: roomName })}
             </Button>
             <Button
               type="button"
@@ -118,7 +115,7 @@ export function ChannelFloodScopeOverrideModal({
                 onClose();
               }}
             >
-              Use global region setting for {roomName}
+              {t('region_override_use_global_button', { room: roomName })}
             </Button>
           </div>
         </DialogFooter>

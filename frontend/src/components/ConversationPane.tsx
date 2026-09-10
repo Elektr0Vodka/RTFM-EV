@@ -23,6 +23,7 @@ import {
   isPrefixOnlyContact,
   isUnknownFullKeyContact,
 } from '../utils/pubkey';
+import { useT } from '../i18n';
 
 const RepeaterDashboard = lazy(() =>
   import('./RepeaterDashboard').then((m) => ({ default: m.RepeaterDashboard }))
@@ -111,20 +112,18 @@ function LoadingPane({ label }: { label: string }) {
 }
 
 function ContactResolutionBanner({ variant }: { variant: 'unknown-full-key' | 'prefix-only' }) {
+  const t = useT();
   if (variant === 'prefix-only') {
     return (
       <div className="mx-4 mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-        We&apos;ve received a message from this sender but don&apos;t have their full identity yet.
-        Sending is disabled until their identity is confirmed &mdash; this usually happens
-        automatically when they next advertise.
+        {t('chat_prefix_only_banner')}
       </div>
     );
   }
 
   return (
     <div className="mx-4 mt-3 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
-      This sender&apos;s profile details (name, location) haven&apos;t arrived yet. They will fill
-      in automatically when the sender&apos;s next advert is heard.
+      {t('chat_unknown_full_key_banner')}
     </div>
   );
 }
@@ -189,6 +188,7 @@ export function ConversationPane({
   blockedKeys,
   blockedNames,
 }: ConversationPaneProps) {
+  const t = useT();
   const [roomAuthenticated, setRoomAuthenticated] = useState(false);
   const activeContactIsRepeater = useMemo(() => {
     if (!activeConversation || activeConversation.type !== 'contact') return false;
@@ -214,7 +214,7 @@ export function ConversationPane({
   if (!activeConversation) {
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground">
-        Select a conversation or start a new one
+        {t('chat_select_conversation')}
       </div>
     );
   }
@@ -223,10 +223,10 @@ export function ConversationPane({
     return (
       <>
         <h2 className="flex justify-between items-center px-4 py-2.5 border-b border-border font-semibold text-base">
-          Node Map
+          {t('nav_node_map')}
         </h2>
         <div className="flex-1 overflow-hidden">
-          <Suspense fallback={<LoadingPane label="Loading map..." />}>
+          <Suspense fallback={<LoadingPane label={t('common_loading_map')} />}>
             <MapView
               contacts={contacts}
               focusedKey={activeConversation.mapFocusKey}
@@ -255,7 +255,7 @@ export function ConversationPane({
 
   if (activeConversation.type === 'visualizer') {
     return (
-      <Suspense fallback={<LoadingPane label="Loading visualizer..." />}>
+      <Suspense fallback={<LoadingPane label={t('common_loading_visualizer')} />}>
         <VisualizerView contacts={contacts} channels={channels} config={config} />
       </Suspense>
     );
@@ -309,7 +309,7 @@ export function ConversationPane({
 
   if (activeContactIsRepeater) {
     return (
-      <Suspense fallback={<LoadingPane label="Loading dashboard..." />}>
+      <Suspense fallback={<LoadingPane label={t('common_loading_dashboard')} />}>
         <RepeaterDashboard
           key={activeConversation.id}
           conversation={activeConversation}
@@ -425,8 +425,8 @@ export function ConversationPane({
           senderName={config?.name}
           placeholder={
             !health?.radio_connected
-              ? 'Radio not connected'
-              : `Message ${activeConversation.name}...`
+              ? t('chat_radio_not_connected_placeholder')
+              : t('chat_message_placeholder', { name: activeConversation.name })
           }
         />
       ) : null}

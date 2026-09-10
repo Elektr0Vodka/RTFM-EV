@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { RepeaterPane, NotFetched, LppSensorRow, formatLppLabel } from './repeaterPaneShared';
 import { useDistanceUnit } from '../../contexts/DistanceUnitContext';
+import { useT } from '../../i18n';
 import type { RepeaterLppTelemetryResponse, PaneState } from '../../types';
 
 export function LppTelemetryPane({
@@ -14,6 +15,7 @@ export function LppTelemetryPane({
   onRefresh: () => void;
   disabled?: boolean;
 }) {
+  const t = useT();
   const { distanceUnit } = useDistanceUnit();
 
   // Build disambiguated labels matching the telemetry history chart names
@@ -29,11 +31,16 @@ export function LppTelemetryPane({
   }, [data]);
 
   return (
-    <RepeaterPane title="LPP Sensors" state={state} onRefresh={onRefresh} disabled={disabled}>
+    <RepeaterPane
+      title={t('repeater_lpp_sensors_title')}
+      state={state}
+      onRefresh={onRefresh}
+      disabled={disabled}
+    >
       {!data ? (
         <NotFetched />
       ) : data.sensors.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No sensor data available</p>
+        <p className="text-sm text-muted-foreground">{t('repeater_lpp_no_sensor_data')}</p>
       ) : (
         <div className="space-y-0.5">
           {data.sensors.map((sensor, i) => (

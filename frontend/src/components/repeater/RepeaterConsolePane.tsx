@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect, type FormEvent } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { useT } from '../../i18n';
 
 export function ConsolePane({
   history,
@@ -11,6 +12,7 @@ export function ConsolePane({
   loading: boolean;
   onSend: (command: string) => Promise<void>;
 }) {
+  const t = useT();
   const [input, setInput] = useState('');
   const outputRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -45,14 +47,14 @@ export function ConsolePane({
   return (
     <div className="border border-border rounded-lg overflow-hidden col-span-full">
       <div className="px-3 py-2 bg-muted/50 border-b border-border">
-        <h3 className="text-sm font-medium">Console</h3>
+        <h3 className="text-sm font-medium">{t('repeater_console_title')}</h3>
       </div>
       <div
         ref={outputRef}
         className="h-48 overflow-y-auto p-3 font-mono text-xs bg-console-bg/50 text-console space-y-1"
       >
         {history.length === 0 && (
-          <p className="text-muted-foreground italic">Type a CLI command below...</p>
+          <p className="text-muted-foreground italic">{t('repeater_console_placeholder_text')}</p>
         )}
         {history.map((entry, i) =>
           entry.outgoing ? (
@@ -76,13 +78,13 @@ export function ConsolePane({
           name="console-input"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="CLI command..."
-          aria-label="Console command"
+          placeholder={t('repeater_console_input_placeholder')}
+          aria-label={t('repeater_console_input_aria')}
           disabled={loading}
           className="flex-1 font-mono text-sm"
         />
         <Button type="submit" size="sm" disabled={loading || !input.trimStart()}>
-          Send
+          {t('common_send')}
         </Button>
       </form>
     </div>

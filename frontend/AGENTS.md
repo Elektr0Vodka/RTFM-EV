@@ -555,3 +555,34 @@ This is intentional. In the sidebar, unread direct messages for actual contact c
 2. If URL/hash behavior changes, update `utils/urlHash.ts` tests.
 3. If read/unread semantics change, update `useUnreadCounts` tests.
 4. Keep this file concise; prefer source links over speculative detail.
+
+## Internationalization (i18n)
+
+User-facing strings are localized (EN default, plus NL and DE). See the spec at
+`docs/superpowers/specs/2026-09-10-i18n-en-nl-de-design.md`.
+
+Rules for new strings:
+
+- Never hardcode a user-facing literal. Call `t('key')` from `useT()`
+  (`src/i18n`). This covers visible text, `aria-label`, `placeholder`, `title`,
+  `alt`, and Sonner `toast.*` messages.
+- Keys are flat `snake_case` with a domain prefix: `common_`, `nav_`, `chat_`,
+  `contact_`, `channel_`, `repeater_`, `packet_`, `map_`, `settings_`, `toast_`,
+  `visualizer_`, `command_`, `a11y_`, `error_`. Add a prefix if a new domain
+  appears.
+- Add every key to all three catalogs: `src/i18n/locales/{en,nl,de}.json`.
+  `en.json` is the source of truth; the parity test (`src/test/i18nParity.test.ts`)
+  fails if the key sets differ. If a NL/DE translation is unknown, copy the
+  English value — the runtime falls back to English anyway.
+- Interpolation uses single-brace `{name}` tokens; pass params as
+  `t('key', { name: value })`.
+- Counted strings use a plural object `{ "one": "...", "other": "..." }` and are
+  called with `{ count }`; `Intl.PluralRules` selects the form. Do not hand-roll
+  `count !== 1 ? 's' : ''`.
+- Do NOT translate brand/protocol tokens (MeshCore, RTFM, channel keys, hex
+  pubkeys), log lines, or test fixtures.
+- Locale-aware number/date formatting: use `src/utils/localeFormat.ts` or pass the
+  active locale (from `useLocale()`) to `Intl`/`toLocaleString`.
+
+Translation strings for NL/DE are adapted in part from kiekr-i18n by Marcel
+Verdult (@marcelverdult), https://github.com/marcelverdult/kiekr-i18n, CC-BY 4.0.

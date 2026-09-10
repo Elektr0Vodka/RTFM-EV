@@ -4,6 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { isValidLocation } from '../utils/pathUtils';
 import type { ResolvedPath, SenderInfo } from '../utils/pathUtils';
+import { useT } from '../i18n';
 
 interface PathRouteMapProps {
   resolved: ResolvedPath;
@@ -84,6 +85,7 @@ function RouteMapBounds({ points }: { points: [number, number][] }) {
 }
 
 export function PathRouteMap({ resolved, senderInfo, height = 220 }: PathRouteMapProps) {
+  const t = useT();
   const points = collectPoints(resolved);
   const hasAnyGps = points.length > 0;
 
@@ -105,7 +107,7 @@ export function PathRouteMap({ resolved, senderInfo, height = 220 }: PathRouteMa
   if (!hasAnyGps) {
     return (
       <div className="h-14 rounded border border-border bg-muted/30 flex items-center justify-center text-sm text-muted-foreground">
-        No nodes in this route have GPS coordinates
+        {t('path_map_no_gps')}
       </div>
     );
   }
@@ -117,7 +119,7 @@ export function PathRouteMap({ resolved, senderInfo, height = 220 }: PathRouteMa
       <div
         className="rounded border border-border overflow-hidden"
         role="img"
-        aria-label="Map showing message route between nodes"
+        aria-label={t('path_map_aria_label')}
         style={{ height }}
       >
         <MapContainer
@@ -141,7 +143,7 @@ export function PathRouteMap({ resolved, senderInfo, height = 220 }: PathRouteMa
               <Tooltip direction="top" offset={[0, -14]}>
                 <span className="font-mono">{resolved.sender.prefix}</span>
                 {' · '}
-                {senderInfo.name || 'Sender'}
+                {senderInfo.name || t('path_modal_sender_label')}
               </Tooltip>
             </Marker>
           )}
@@ -174,16 +176,14 @@ export function PathRouteMap({ resolved, senderInfo, height = 220 }: PathRouteMa
               <Tooltip direction="top" offset={[0, -14]}>
                 <span className="font-mono">{resolved.receiver.prefix}</span>
                 {' · '}
-                {resolved.receiver.name || 'Receiver'}
+                {resolved.receiver.name || t('path_map_receiver_fallback')}
               </Tooltip>
             </Marker>
           )}
         </MapContainer>
       </div>
       {someMissingGps && (
-        <p className="text-xs text-muted-foreground mt-1">
-          Some nodes in this route have no GPS and are not shown
-        </p>
+        <p className="text-xs text-muted-foreground mt-1">{t('path_map_missing_gps_note')}</p>
       )}
     </div>
   );
