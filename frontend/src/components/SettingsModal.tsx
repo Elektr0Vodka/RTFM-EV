@@ -13,6 +13,7 @@ import type {
   RadioRegionDiscoveryResponse,
 } from '../types';
 import type { LocalLabel } from '../utils/localLabel';
+import { useT } from '../i18n';
 import {
   SETTINGS_SECTION_ICONS,
   SETTINGS_SECTION_LABELS,
@@ -70,6 +71,7 @@ export type SettingsModalProps = SettingsModalBaseProps &
   );
 
 export function SettingsModal(props: SettingsModalProps) {
+  const t = useT();
   const {
     open,
     pageMode = false,
@@ -234,7 +236,7 @@ export function SettingsModal(props: SettingsModalProps) {
             ) : (
               <div className={sectionContentClass}>
                 <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-                  Radio is not available.
+                  {t('settings_radio_unavailable')}
                 </div>
               </div>
             ))}
@@ -278,7 +280,7 @@ export function SettingsModal(props: SettingsModalProps) {
             ) : (
               <div className={sectionContentClass}>
                 <div className="rounded-md border border-input bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-                  Loading app settings...
+                  {t('settings_loading_app_settings')}
                 </div>
               </div>
             ))}
@@ -300,7 +302,7 @@ export function SettingsModal(props: SettingsModalProps) {
             ) : (
               <div className={sectionContentClass}>
                 <div className="rounded-md border border-input bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-                  Loading app settings...
+                  {t('settings_loading_app_settings')}
                 </div>
               </div>
             ))}

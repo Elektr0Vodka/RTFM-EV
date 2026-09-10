@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ChevronRight, Logs, MessageSquare, Send, Settings, X } from 'lucide-react';
 import { toast } from '../ui/sonner';
+import { useT } from '../../i18n';
 import { usePush } from '../../contexts/PushSubscriptionContext';
 import type { Channel, Contact } from '../../types';
 import { getContactDisplayName } from '../../utils/pubkey';
@@ -85,6 +86,7 @@ function PushDeviceManagement({
   contacts?: Contact[];
   channels?: Channel[];
 }) {
+  const t = useT();
   const {
     isSupported,
     allSubscriptions,
@@ -105,11 +107,11 @@ function PushDeviceManagement({
   if (!isSupported) {
     return (
       <div className="space-y-3">
-        <h3 className="text-base font-semibold tracking-tight">Web Push Notifications</h3>
+        <h3 className="text-base font-semibold tracking-tight">{t('settings_push_heading')}</h3>
         <p className="text-[0.8125rem] text-muted-foreground">
           {window.isSecureContext
-            ? 'Push notifications are not supported by this browser.'
-            : 'Web Push requires HTTPS. Access RemoteTerm over HTTPS (self-signed certificates work) to enable push notifications.'}
+            ? t('settings_push_not_supported')
+            : t('settings_push_requires_https')}
         </p>
       </div>
     );
@@ -118,30 +120,25 @@ function PushDeviceManagement({
   return (
     <div className="space-y-4">
       <div className="space-y-1">
-        <h3 className="text-base font-semibold tracking-tight">Web Push Notifications</h3>
+        <h3 className="text-base font-semibold tracking-tight">{t('settings_push_heading')}</h3>
         <p className="text-[0.8125rem] text-muted-foreground">
-          Receive notifications even when the browser is closed. Use the bell icon in any
-          conversation header to enable push for that contact or channel, or subscribe this browser
-          to receive notifications for all push-enabled conversations.
+          {t('settings_push_description_1')}
         </p>
         <p className="text-[0.8125rem] text-muted-foreground">
-          The set of channels or DMs that trigger push notifications are global per-install (i.e.
-          all devices that register for Web Push will have the same set of channels/DMs that trigger
-          notifications). Subscribing or unsubscribing a particular browser only controls whether
-          that browser receives notifications for the configured set of channels/DMs.
+          {t('settings_push_description_2')}
         </p>
       </div>
 
       {!currentSubscriptionId && (
         <Button variant="outline" size="sm" onClick={() => void subscribe()} disabled={loading}>
-          {loading ? 'Subscribing...' : 'Subscribe This Browser'}
+          {loading ? t('settings_push_subscribing') : t('settings_push_subscribe_browser')}
         </Button>
       )}
 
       {pushConversations.length > 0 && (
         <div className="space-y-2">
           <span className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
-            Push-enabled conversations
+            {t('settings_push_enabled_conversations')}
           </span>
           <div className="flex flex-wrap gap-1.5">
             {pushConversations.map((key) => (
@@ -154,8 +151,10 @@ function PushDeviceManagement({
                   type="button"
                   onClick={() => void toggleConversation(key)}
                   className="rounded-full p-0.5 hover:bg-accent transition-colors"
-                  title="Remove"
-                  aria-label={`Remove ${resolveConversationName(key, contacts, channels)} from push`}
+                  title={t('settings_push_remove_title')}
+                  aria-label={t('settings_push_remove_aria', {
+                    name: resolveConversationName(key, contacts, channels),
+                  })}
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -168,7 +167,7 @@ function PushDeviceManagement({
       {allSubscriptions.length > 0 && (
         <div className="space-y-2">
           <span className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
-            Registered Devices
+            {t('settings_push_registered_devices')}
           </span>
           <div className="mt-2 space-y-2">
             {allSubscriptions.map((sub) => (
@@ -179,19 +178,22 @@ function PushDeviceManagement({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 overflow-hidden">
                     <span className="truncate text-sm font-medium">
-                      {sub.label || 'Unknown device'}
+                      {sub.label || t('settings_push_unknown_device')}
                     </span>
                     {sub.id === currentSubscriptionId && (
                       <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[0.625rem] font-medium text-primary">
-                        Current device
+                        {t('settings_push_current_device')}
                       </span>
                     )}
                   </div>
                   <span className="text-xs text-muted-foreground">
                     {sub.last_success_at
-                      ? `Last push: ${new Date(sub.last_success_at * 1000).toLocaleDateString()}`
-                      : 'Never pushed'}
-                    {sub.failure_count > 0 && ` · ${sub.failure_count} failures`}
+                      ? t('settings_push_last_push', {
+                          date: new Date(sub.last_success_at * 1000).toLocaleDateString(),
+                        })
+                      : t('settings_push_never_pushed')}
+                    {sub.failure_count > 0 &&
+                      ` · ${t('settings_push_failure_count', { count: sub.failure_count })}`}
                   </span>
                 </div>
                 <div className="flex gap-1">
@@ -201,17 +203,19 @@ function PushDeviceManagement({
                     className="h-8 text-sm"
                     onClick={() => void testPush(sub.id)}
                   >
-                    Test
+                    {t('settings_push_test')}
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-8 text-sm text-destructive hover:text-destructive"
                     onClick={() => {
-                      void deleteSubscription(sub.id).then(() => toast.success('Device removed'));
+                      void deleteSubscription(sub.id).then(() =>
+                        toast.success(t('toast_device_removed'))
+                      );
                     }}
                   >
-                    Unsubscribe this device
+                    {t('settings_push_unsubscribe_device')}
                   </Button>
                 </div>
               </div>
@@ -234,6 +238,7 @@ export function SettingsLocalSection({
   channels?: Channel[];
   className?: string;
 }) {
+  const t = useT();
   const { distanceUnit, setDistanceUnit } = useDistanceUnit();
   const { renderRichPayloads, setRenderRichPayloads } = useRichPayloads();
   const { showPathHopWidth, setShowPathHopWidth } = usePathHopWidth();
@@ -283,19 +288,17 @@ export function SettingsLocalSection({
 
   return (
     <div className={className}>
-      <p className="text-[0.8125rem] text-muted-foreground">
-        These settings apply only to this device/browser.
-      </p>
+      <p className="text-[0.8125rem] text-muted-foreground">{t('settings_local_device_only_note')}</p>
 
       <div className="space-y-1">
-        <h3 className="text-base font-semibold tracking-tight">Language</h3>
+        <h3 className="text-base font-semibold tracking-tight">{t('settings_language')}</h3>
         <LanguageSelector />
       </div>
 
       <Separator />
 
       <div className="space-y-1">
-        <h3 className="text-base font-semibold tracking-tight">Color Scheme</h3>
+        <h3 className="text-base font-semibold tracking-tight">{t('settings_color_scheme')}</h3>
         <ThemeSelector />
         <ThemePreview className="mt-6" />
       </div>
@@ -303,7 +306,9 @@ export function SettingsLocalSection({
       <Separator />
 
       <div className="space-y-3">
-        <h3 className="text-base font-semibold tracking-tight">Local Label</h3>
+        <h3 className="text-base font-semibold tracking-tight">
+          {t('settings_local_label_heading')}
+        </h3>
         <div className="flex items-center gap-2">
           <Input
             value={localLabelText}
@@ -313,8 +318,8 @@ export function SettingsLocalSection({
               setLocalLabel(text, localLabelColor);
               onLocalLabelChange?.({ text, color: localLabelColor });
             }}
-            placeholder="e.g. Home Base, Field Radio 2"
-            aria-label="Local label text"
+            placeholder={t('settings_local_label_placeholder')}
+            aria-label={t('settings_local_label_text_aria')}
             className="flex-1"
           />
           <input
@@ -326,19 +331,19 @@ export function SettingsLocalSection({
               setLocalLabel(localLabelText, color);
               onLocalLabelChange?.({ text: localLabelText, color });
             }}
-            aria-label="Local label color"
+            aria-label={t('settings_local_label_color_aria')}
             className="w-10 h-9 rounded border border-input cursor-pointer bg-transparent p-0.5"
           />
         </div>
         <p className="text-[0.8125rem] text-muted-foreground">
-          Display a colored banner at the top of the page to identify this instance.
+          {t('settings_local_label_description')}
         </p>
       </div>
 
       <Separator />
 
       <div className="space-y-3">
-        <Label htmlFor="distance-units">Distance Units</Label>
+        <Label htmlFor="distance-units">{t('settings_distance_units_label')}</Label>
         <select
           id="distance-units"
           value={distanceUnit}
@@ -356,14 +361,14 @@ export function SettingsLocalSection({
           ))}
         </select>
         <p className="text-[0.8125rem] text-muted-foreground">
-          Controls how distances are shown throughout the app.
+          {t('settings_distance_units_description')}
         </p>
       </div>
 
       <Separator />
 
       <div className="space-y-3">
-        <h3 className="text-base font-semibold tracking-tight">UI Tweaks</h3>
+        <h3 className="text-base font-semibold tracking-tight">{t('settings_ui_tweaks_heading')}</h3>
 
         <div className="space-y-2">
           <div className="flex items-start gap-3 rounded-md border border-border/60 p-3">
@@ -374,10 +379,9 @@ export function SettingsLocalSection({
               className="mt-0.5"
             />
             <div className="space-y-1">
-              <Label htmlFor="reopen-last">Reopen Last Conversation</Label>
+              <Label htmlFor="reopen-last">{t('settings_reopen_last_label')}</Label>
               <p className="text-[0.8125rem] text-muted-foreground">
-                Automatically reopen to the last-open channel or contact when the app loads to the
-                bare URL.
+                {t('settings_reopen_last_description')}
               </p>
             </div>
           </div>
@@ -394,9 +398,9 @@ export function SettingsLocalSection({
               className="mt-0.5"
             />
             <div className="space-y-1">
-              <Label htmlFor="auto-focus-input">Auto-Focus Message Input</Label>
+              <Label htmlFor="auto-focus-input">{t('settings_auto_focus_label')}</Label>
               <p className="text-[0.8125rem] text-muted-foreground">
-                Place the cursor in the message input when switching conversations. Desktop only.
+                {t('settings_auto_focus_description')}
               </p>
             </div>
           </div>
@@ -414,10 +418,9 @@ export function SettingsLocalSection({
               className="mt-0.5"
             />
             <div className="space-y-1">
-              <Label htmlFor="battery-percent">Show Battery Percentage</Label>
+              <Label htmlFor="battery-percent">{t('settings_battery_percent_label')}</Label>
               <p className="text-[0.8125rem] text-muted-foreground">
-                Display the radio&apos;s battery percentage in the status bar. Data updates every 60
-                seconds and may take up to a minute to appear after connecting.
+                {t('settings_battery_percent_description')}
               </p>
             </div>
           </div>
@@ -435,10 +438,9 @@ export function SettingsLocalSection({
               className="mt-0.5"
             />
             <div className="space-y-1">
-              <Label htmlFor="battery-voltage">Show Battery Voltage</Label>
+              <Label htmlFor="battery-voltage">{t('settings_battery_voltage_label')}</Label>
               <p className="text-[0.8125rem] text-muted-foreground">
-                Display the radio&apos;s battery voltage in the status bar (in mV). Data updates
-                every 60 seconds and may take up to a minute to appear after connecting.
+                {t('settings_battery_voltage_description')}
               </p>
             </div>
           </div>
@@ -456,10 +458,9 @@ export function SettingsLocalSection({
               className="mt-0.5"
             />
             <div className="space-y-1">
-              <Label htmlFor="status-dot-pulse">Status Dot Glitters</Label>
+              <Label htmlFor="status-dot-pulse">{t('settings_status_dot_label')}</Label>
               <p className="text-[0.8125rem] text-muted-foreground">
-                Flash the connection status dot in color as packets arrive: blue for channel, purple
-                for DM, cyan for advert, dark green for other.
+                {t('settings_status_dot_description')}
               </p>
             </div>
           </div>
@@ -477,16 +478,14 @@ export function SettingsLocalSection({
             />
             <div className="space-y-1">
               <Label htmlFor="render-rich-payloads">
-                Render MeshCore Open GIFs &amp; Reactions
+                {t('settings_render_rich_payloads_label')}
               </Label>
               <p className="text-[0.8125rem] text-muted-foreground">
-                MeshCore Open clients send GIFs and emoji reactions as encoded text (e.g.{' '}
-                <code className="text-[0.75rem]">g:abc123</code> or{' '}
-                <code className="text-[0.75rem]">r:1a2b:05</code>). When enabled, these render as
-                the GIF image or reaction emoji instead of the raw text. Reactions show generically
-                (the emoji is not tied to a specific message). GIFs load from media.giphy.com, which
-                reaches outside your local network and exposes your IP to Giphy — so this is off by
-                default.
+                {t('settings_render_rich_payloads_desc_1')}{' '}
+                <code className="text-[0.75rem]">g:abc123</code>{' '}
+                {t('settings_render_rich_payloads_desc_2')}{' '}
+                <code className="text-[0.75rem]">r:1a2b:05</code>
+                {t('settings_render_rich_payloads_desc_3')}
               </p>
             </div>
           </div>
@@ -503,11 +502,11 @@ export function SettingsLocalSection({
               className="mt-0.5"
             />
             <div className="space-y-1">
-              <Label htmlFor="show-path-hop-width">Show Path Hop Width</Label>
+              <Label htmlFor="show-path-hop-width">{t('settings_path_hop_width_label')}</Label>
               <p className="text-[0.8125rem] text-muted-foreground">
-                Append the per-hop identifier width to the hop-count badge on received messages —
-                e.g. <code className="text-[0.75rem]">(2 · 2B)</code> for a 2-hop path with 2-byte
-                hops. Direct (0-hop) messages show no width. Off by default.
+                {t('settings_path_hop_width_desc_1')}{' '}
+                <code className="text-[0.75rem]">(2 · 2B)</code>{' '}
+                {t('settings_path_hop_width_desc_2')}
               </p>
             </div>
           </div>
@@ -525,10 +524,9 @@ export function SettingsLocalSection({
                 className="mt-0.5"
               />
               <div className="space-y-1">
-                <Label htmlFor="text-replace">Replace as you Type</Label>
+                <Label htmlFor="text-replace">{t('settings_text_replace_label')}</Label>
                 <p className="text-[0.8125rem] text-muted-foreground">
-                  Automatically replace characters as you type in the message input. Define
-                  replacements as a JSON object mapping source strings to their replacements.
+                  {t('settings_text_replace_description')}
                 </p>
               </div>
             </div>
@@ -547,11 +545,11 @@ export function SettingsLocalSection({
                     'w-full rounded-md border bg-background px-3 py-2 text-sm font-mono',
                     textReplaceError ? 'border-destructive' : 'border-input'
                   )}
-                  aria-label="Text replacement map (JSON)"
+                  aria-label={t('settings_text_replace_map_aria')}
                 />
                 {textReplaceError && (
                   <p className="text-xs text-destructive">
-                    {textReplaceError} Changes are not saved until this is resolved.
+                    {textReplaceError} {t('settings_text_replace_unsaved_suffix')}
                   </p>
                 )}
                 <button
@@ -563,7 +561,7 @@ export function SettingsLocalSection({
                   }}
                   className="inline-flex h-8 items-center justify-center rounded-md border border-input px-3 text-sm font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  Reset to Default
+                  {t('settings_reset_to_default')}
                 </button>
               </div>
             )}
@@ -571,7 +569,7 @@ export function SettingsLocalSection({
         </div>
 
         <div className="space-y-3">
-          <Label htmlFor="font-scale-input">Relative Font Size</Label>
+          <Label htmlFor="font-scale-input">{t('settings_font_size_label')}</Label>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <input
               type="range"
@@ -584,7 +582,7 @@ export function SettingsLocalSection({
               onTouchEnd={(event) => handleSliderCommit(Number(event.currentTarget.value))}
               onKeyUp={(event) => handleSliderCommit(Number(event.currentTarget.value))}
               onBlur={(event) => handleSliderCommit(Number(event.currentTarget.value))}
-              aria-label="Relative font size slider"
+              aria-label={t('settings_font_size_slider_aria')}
               className="w-full accent-primary sm:flex-1"
             />
             <div className="flex items-center gap-2 sm:w-40">
@@ -628,7 +626,7 @@ export function SettingsLocalSection({
                   }
                   commitFontScale(parsed);
                 }}
-                aria-label="Relative font size percentage"
+                aria-label={t('settings_font_size_percentage_aria')}
               />
               <span className="text-sm text-muted-foreground">%</span>
             </div>
@@ -638,12 +636,11 @@ export function SettingsLocalSection({
               className="inline-flex h-9 items-center justify-center rounded-md border border-input px-3 text-sm font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
               disabled={fontScale === DEFAULT_FONT_SCALE}
             >
-              Reset
+              {t('settings_reset')}
             </button>
           </div>
           <p className="text-[0.8125rem] text-muted-foreground">
-            Scales the app&apos;s typography for this browser only. The slider moves in 5% steps;
-            the number field accepts any value from 25% to 400%.
+            {t('settings_font_size_description')}
           </p>
         </div>
       </div>
