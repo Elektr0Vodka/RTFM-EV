@@ -29,10 +29,12 @@ def cleanup_test_db_dir():
 async def test_db():
     """Create an in-memory test database with schema + migrations."""
     from app.repository import (
+        battery_history,
         channels,
         contact_telemetry,
         contacts,
         messages,
+        noise_floor,
         raw_packets,
         repeater_telemetry,
         settings,
@@ -51,6 +53,8 @@ async def test_db():
         fanout_repo,
         repeater_telemetry,
         contact_telemetry,
+        noise_floor,
+        battery_history,
     ]
     originals = [(mod, mod.db) for mod in submodules]
 
