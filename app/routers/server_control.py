@@ -44,6 +44,20 @@ def get_server_contact_label(contact: Contact) -> str:
     return "server"
 
 
+def _cli_command_destination(contact: Contact) -> dict[str, object]:
+    """Destination payload for meshcore ``send_cmd``.
+
+    meshcore 2.3.9.1's ``send_cmd`` inspects the destination's adv type to pick
+    the CLI text subtype (``dst_type = dst["type"]`` when not passed explicitly).
+    Handing it a bare pubkey string makes it index a ``str`` with ``"type"`` and
+    raise ``TypeError: string indices must be integers``. Passing a
+    ``{public_key, type}`` dict gives it both the address and the type, so it
+    takes the CLI_DATA branch (correct for repeaters and rooms) without warning.
+    RTFM's ``Contact.type`` matches the meshcore AdvType (repeater=2, room=3).
+    """
+    return {"public_key": contact.public_key, "type": contact.type}
+
+
 def require_server_capable_contact(
     contact: Contact,
     *,
@@ -434,7 +448,7 @@ async def batch_cli_fetch(
             # cannot be pulled and mis-attributed to this one.
             await _flush_pending_messages(mc)
 
-            send_result = await mc.commands.send_cmd(contact.public_key, cmd)
+            send_result = await mc.commands.send_cmd(_cli_command_destination(contact), cmd)
             if send_result.type == EventType.ERROR:
                 logger.debug("Command '%s' send error: %s", cmd, send_result.payload)
                 continue
@@ -572,7 +586,7 @@ async def send_contact_cli_command(
         await _flush_pending_messages(mc)
 
         logger.info("Sending command to %s %s: %s", label, contact.public_key[:12], command)
-        send_result = await mc.commands.send_cmd(contact.public_key, command)
+        send_result = await mc.commands.send_cmd(_cli_command_destination(contact), command)
 
         if send_result.type == EventType.ERROR:
             raise HTTPException(

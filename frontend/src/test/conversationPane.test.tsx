@@ -377,6 +377,63 @@ describe('ConversationPane', () => {
     });
   });
 
+  it('does not give the room panel and message list the same React key', async () => {
+    // Regression: RoomServerPanel was keyed by the contact's public_key and the
+    // sibling MessageList by activeConversation.id, which for a room is that same
+    // public_key. Two siblings sharing a key breaks reconciliation and orphans a
+    // stale panel in the DOM on every re-render (login, stats fetch, new message).
+    // React warns about duplicate sibling keys, so assert it never fires here.
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const room = 'cc'.repeat(32);
+    const contacts: Contact[] = [
+      {
+        public_key: room,
+        name: 'Ops Board',
+        type: 3,
+        flags: 0,
+        direct_path: null,
+        direct_path_len: -1,
+        direct_path_hash_mode: -1,
+        last_advert: null,
+        lat: null,
+        lon: null,
+        last_seen: null,
+        on_radio: false,
+        favorite: false,
+        last_contacted: null,
+        last_read_at: null,
+        first_seen: null,
+      },
+    ];
+
+    render(
+      <ConversationPane
+        {...createProps({
+          activeConversation: { type: 'contact', id: room, name: 'Ops Board' },
+          contacts,
+        })}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByTestId('room-server-panel')).toBeInTheDocument());
+
+    // Authenticate so the RoomServerPanel and MessageList render as siblings, the
+    // exact arrangement where the duplicate key would collide.
+    fireEvent.click(screen.getByRole('button', { name: 'Authenticate room' }));
+    await waitFor(() => expect(screen.getByTestId('message-list')).toBeInTheDocument());
+
+    const duplicateKeyWarning = errorSpy.mock.calls.find((args) =>
+      args.some((arg) => typeof arg === 'string' && arg.includes('same key'))
+    );
+    expect(
+      duplicateKeyWarning,
+      `React warned about a duplicate sibling key: ${JSON.stringify(duplicateKeyWarning)}`
+    ).toBeUndefined();
+    expect(screen.getAllByTestId('room-server-panel')).toHaveLength(1);
+
+    errorSpy.mockRestore();
+  });
+
   it('passes unread marker props to MessageList only for channel conversations', async () => {
     render(
       <ConversationPane
