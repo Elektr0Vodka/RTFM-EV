@@ -33,6 +33,9 @@ const VisualizerView = lazy(() =>
 );
 const ChannelRegistryView = lazy(() => import('./ChannelRegistryView'));
 const MyNodeView = lazy(() => import('./MyNodeView'));
+const MeshHealthView = lazy(() =>
+  import('./MeshHealthView').then((m) => ({ default: m.MeshHealthView }))
+);
 
 interface ConversationPaneProps {
   activeConversation: Conversation | null;
@@ -282,6 +285,24 @@ export function ConversationPane({
     return (
       <Suspense fallback={<LoadingPane label="Loading node analytics..." />}>
         <MyNodeView contacts={contacts} />
+      </Suspense>
+    );
+  }
+
+  if (activeConversation.type === 'mesh-health') {
+    return (
+      <Suspense fallback={<LoadingPane label="Loading mesh health..." />}>
+        <MeshHealthView
+          config={config}
+          onNavigateToMap={(focusKey?: string) =>
+            onSelectConversation({
+              type: 'map',
+              id: 'map',
+              name: 'Node Map',
+              ...(focusKey ? { mapFocusKey: focusKey } : {}),
+            })
+          }
+        />
       </Suspense>
     );
   }
