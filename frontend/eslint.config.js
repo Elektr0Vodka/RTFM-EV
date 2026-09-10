@@ -19,14 +19,18 @@ export default tseslint.config(
     },
   },
   {
-    // i18n guard: flag hardcoded user-facing JSX text. The plugin's default only
-    // checks plain text in JSX markup. Kept at "warn" during the string
-    // migration; flipped to "error" in the i18n finalization task.
+    // i18n guard: fail the build on hardcoded user-facing JSX text so new strings
+    // must go through t(). The plugin's default only checks plain text in JSX
+    // markup. Intentional non-translatables (brand wordmarks, <code> tokens,
+    // unit suffixes, the ThemePreview style-reference panel) carry targeted
+    // eslint-disable comments at their call sites.
     files: ['src/**/*.tsx'],
-    ignores: ['src/test/**'],
+    // Exclude tests and the vendored shadcn/ui primitives (their sr-only labels
+    // stay close to upstream and are not part of the app's translatable copy).
+    ignores: ['src/test/**', 'src/components/ui/**'],
     plugins: { i18next },
     rules: {
-      'i18next/no-literal-string': 'warn',
+      'i18next/no-literal-string': 'error',
     },
   },
   {

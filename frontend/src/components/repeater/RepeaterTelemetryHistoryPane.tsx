@@ -601,6 +601,7 @@ export function TelemetryHistoryPane({
         <div className="mb-3 space-y-3">
           <p className="text-xs text-muted-foreground leading-relaxed">
             {t('repeater_history_explanation_before_endpoint')}{' '}
+            {/* eslint-disable-next-line i18next/no-literal-string */}
             <code className="text-[0.6875rem]">POST /api/contacts/&lt;key&gt;/repeater/status</code>
             {t('repeater_history_explanation_after_endpoint')}{' '}
             <a

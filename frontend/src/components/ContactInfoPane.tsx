@@ -552,12 +552,14 @@ export function ContactInfoPane({
                           className="flex justify-between items-center text-sm"
                         >
                           <span className="truncate">{r.name || r.public_key.slice(0, 12)}</span>
+                          {/* eslint-disable i18next/no-literal-string */}
                           <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">
                             {r.path_len === 0
                               ? t('contact_direct')
                               : t('contact_hop_count', { count: r.path_len })}{' '}
                             · {r.heard_count}x
                           </span>
+                          {/* eslint-enable i18next/no-literal-string */}
                         </div>
                       ))}
                     </div>
@@ -590,9 +592,11 @@ export function ContactInfoPane({
                           ? parsePathHops(p.path, p.path_len).join(' → ')
                           : t('contact_direct_path')}
                       </span>
+                      {/* eslint-disable i18next/no-literal-string */}
                       <span className="text-xs text-muted-foreground flex-shrink-0">
                         {p.heard_count}x · {formatTime(p.last_seen)}
                       </span>
+                      {/* eslint-enable i18next/no-literal-string */}
                     </div>
                   ))}
                 </div>

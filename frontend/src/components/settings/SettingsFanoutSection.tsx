@@ -1182,6 +1182,7 @@ function MqttHaConfigEditor({
 
         <p className="text-[0.8125rem] text-muted-foreground">
           {t('settings_fanout_ha_uses_prefix')}{' '}
+          {/* eslint-disable i18next/no-literal-string */}
           <span
             role="link"
             tabIndex={0}
@@ -1223,6 +1224,7 @@ function MqttHaConfigEditor({
           >
             README_HA.md
           </span>
+          {/* eslint-enable i18next/no-literal-string */}
           .
         </p>
       </div>
@@ -1347,6 +1349,7 @@ function MqttHaConfigEditor({
 
           <p className="text-[0.6875rem] mt-1.5">
             {t('settings_fanout_ha_entity_ids_footer_prefix')}{' '}
+            {/* eslint-disable-next-line i18next/no-literal-string */}
             <code className="text-[0.6875rem]">{prefix}/&lt;node_id&gt;/health|telemetry|gps</code>.
           </p>
         </div>
@@ -1396,6 +1399,7 @@ function MqttHaConfigEditor({
           )}
           <p className="text-[0.6875rem] text-muted-foreground">
             {t('settings_fanout_ha_discovery_topics_prefix')}{' '}
+            {/* eslint-disable-next-line i18next/no-literal-string */}
             <code className="text-[0.6875rem]">homeassistant/.../config</code>
             {t('settings_fanout_ha_discovery_topics_suffix')}
           </p>
@@ -1492,6 +1496,7 @@ function MqttHaConfigEditor({
           {t('settings_fanout_ha_state_updates_prefix')}{' '}
           <code className="text-[0.6875rem]">{prefix}/</code>
           {t('settings_fanout_ha_state_updates_middle')}{' '}
+          {/* eslint-disable-next-line i18next/no-literal-string */}
           <code className="text-[0.6875rem]">homeassistant/</code>{' '}
           {t('settings_fanout_ha_state_updates_suffix')}
         </p>
@@ -1505,6 +1510,7 @@ function MqttHaConfigEditor({
         </h3>
         <p className="text-[0.8125rem] text-muted-foreground">
           {t('settings_fanout_ha_gps_tracked_contacts_desc_prefix')}{' '}
+          {/* eslint-disable-next-line i18next/no-literal-string */}
           <code className="text-[0.6875rem]">device_tracker</code>{' '}
           {t('settings_fanout_ha_gps_tracked_contacts_desc_suffix')}
         </p>
@@ -1701,8 +1707,12 @@ function MqttCommunityConfigEditor({
             <option value="password">{t('settings_fanout_auth_username_password')}</option>
           </select>
           <p className="text-[0.8125rem] text-muted-foreground">
-            {t('settings_fanout_auth_hint_letsmesh')} <code>token</code>{' '}
-            {t('settings_fanout_auth_hint_meshrank')} <code>none</code>.
+            {t('settings_fanout_auth_hint_letsmesh')}{' '}
+            {/* eslint-disable-next-line i18next/no-literal-string */}
+            <code>token</code>{' '}
+            {t('settings_fanout_auth_hint_meshrank')}{' '}
+            {/* eslint-disable-next-line i18next/no-literal-string */}
+            <code>none</code>.
           </p>
         </div>
       </div>
@@ -1720,7 +1730,9 @@ function MqttCommunityConfigEditor({
             />
             <p className="text-[0.8125rem] text-muted-foreground">
               {t('settings_fanout_websocket_path_hint_prefix')} <code>/</code>{' '}
-              {t('settings_fanout_websocket_path_hint_middle')} <code>/mqtt</code>{' '}
+              {t('settings_fanout_websocket_path_hint_middle')}{' '}
+              {/* eslint-disable-next-line i18next/no-literal-string */}
+              <code>/mqtt</code>{' '}
               {t('settings_fanout_websocket_path_hint_suffix')}
             </p>
           </div>
@@ -1887,6 +1899,7 @@ function MeshRankConfigEditor({
         />
         <p className="text-[0.8125rem] text-muted-foreground">
           {t('settings_fanout_meshrank_topic_template_hint')}{' '}
+          {/* eslint-disable-next-line i18next/no-literal-string */}
           <code>meshrank/uplink/B435F6D5F7896B74C6B995FE221C2C1F/{'{PUBLIC_KEY}'}/packets</code>.
         </p>
       </div>
@@ -1991,6 +2004,7 @@ function BotConfigEditor({
       <div className="flex items-center justify-between">
         <p className="text-[0.8125rem] text-muted-foreground">
           {t('settings_fanout_bot_define_prefix')}{' '}
+          {/* eslint-disable-next-line i18next/no-literal-string */}
           <code className="bg-muted px-1 rounded">bot()</code>{' '}
           {t('settings_fanout_bot_define_suffix')}
         </p>
@@ -2024,8 +2038,12 @@ function BotConfigEditor({
         </p>
         <p>
           <strong>{t('settings_fanout_bot_note_label')}</strong>{' '}
-          {t('settings_fanout_bot_note_prefix')} <code>sender_key</code>{' '}
-          {t('settings_fanout_bot_note_is')} <code>None</code>. {t('settings_fanout_bot_note_suffix')}
+          {t('settings_fanout_bot_note_prefix')}{' '}
+          {/* eslint-disable-next-line i18next/no-literal-string */}
+          <code>sender_key</code>{' '}
+          {t('settings_fanout_bot_note_is')}{' '}
+          {/* eslint-disable-next-line i18next/no-literal-string */}
+          <code>None</code>. {t('settings_fanout_bot_note_suffix')}
         </p>
       </div>
     </div>
@@ -2064,6 +2082,7 @@ function MapUploadConfigEditor({
     <div className="space-y-3">
       <p className="text-[0.8125rem] text-muted-foreground">
         {t('settings_fanout_map_upload_desc_prefix')}{' '}
+        {/* eslint-disable i18next/no-literal-string */}
         <a
           href="https://map.meshcore.io"
           target="_blank"
@@ -2072,7 +2091,9 @@ function MapUploadConfigEditor({
         >
           map.meshcore.io
         </a>
+        {/* eslint-enable i18next/no-literal-string */}
         . {t('settings_fanout_map_upload_desc_key_prefix')}{' '}
+        {/* eslint-disable-next-line i18next/no-literal-string */}
         <code>ENABLE_PRIVATE_KEY_EXPORT=1</code>
         {t('settings_fanout_map_upload_desc_suffix')}
       </p>
@@ -2115,7 +2136,9 @@ function MapUploadConfigEditor({
           onChange={(e) => onChange({ ...config, api_url: e.target.value })}
         />
         <p className="text-[0.8125rem] text-muted-foreground">
-          {t('settings_fanout_map_api_url_hint_prefix')} <code>map.meshcore.io</code>{' '}
+          {t('settings_fanout_map_api_url_hint_prefix')}{' '}
+          {/* eslint-disable-next-line i18next/no-literal-string */}
+          <code>map.meshcore.io</code>{' '}
           {t('settings_fanout_map_api_url_hint_suffix')}
         </p>
       </div>
@@ -2722,6 +2745,7 @@ function AppriseConfigEditor({
     <div className="space-y-3">
       <p className="text-[0.8125rem] text-muted-foreground">
         {t('settings_fanout_apprise_intro_prefix')}{' '}
+        {/* eslint-disable i18next/no-literal-string */}
         <a
           href="https://github.com/caronc/apprise"
           target="_blank"
@@ -2729,7 +2753,8 @@ function AppriseConfigEditor({
           className="underline hover:text-foreground"
         >
           Apprise
-        </a>{' '}
+        </a>
+        {/* eslint-enable i18next/no-literal-string */}{' '}
         {t('settings_fanout_apprise_intro_middle')}{' '}
         <a
           href="https://github.com/caronc/apprise/wiki#supported-notifications"
@@ -2755,7 +2780,9 @@ function AppriseConfigEditor({
           rows={4}
         />
         <p className="text-[0.8125rem] text-muted-foreground">
-          {t('settings_fanout_apprise_urls_hint_prefix')} <code>?hsreq=no</code>{' '}
+          {t('settings_fanout_apprise_urls_hint_prefix')}{' '}
+          {/* eslint-disable-next-line i18next/no-literal-string */}
+          <code>?hsreq=no</code>{' '}
           {t('settings_fanout_apprise_urls_hint_suffix')}
         </p>
       </div>
@@ -3019,6 +3046,7 @@ function WebhookConfigEditor({
         </h3>
         <p className="text-[0.8125rem] text-muted-foreground">
           {t('settings_fanout_hmac_signing_desc_prefix')}{' '}
+          {/* eslint-disable-next-line i18next/no-literal-string */}
           <code className="bg-muted px-1 rounded">sha256=ab12cd...</code>
           {t('settings_fanout_hmac_signing_desc_suffix')}
         </p>

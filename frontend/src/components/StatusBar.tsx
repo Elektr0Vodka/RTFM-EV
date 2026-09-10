@@ -197,6 +197,7 @@ export function StatusBar({
         </button>
       )}
 
+      {/* eslint-disable i18next/no-literal-string */}
       <h1 className="text-base font-semibold tracking-tight mr-auto text-foreground flex items-center gap-1.5">
         <svg
           className="h-4 w-4 shrink-0 text-white"
@@ -210,6 +211,7 @@ export function StatusBar({
         </svg>
         RemoteTerm
       </h1>
+      {/* eslint-enable i18next/no-literal-string */}
 
       <div className="flex items-center gap-1.5" role="status" aria-label={statusLabel}>
         <div

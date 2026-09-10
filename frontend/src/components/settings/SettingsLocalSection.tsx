@@ -465,6 +465,7 @@ export function SettingsLocalSection({
             </div>
           </div>
 
+          {/* eslint-disable i18next/no-literal-string -- illustrative code samples, not product copy */}
           <div className="flex items-start gap-3 rounded-md border border-border/60 p-3">
             <Checkbox
               id="render-rich-payloads"
@@ -510,6 +511,7 @@ export function SettingsLocalSection({
               </p>
             </div>
           </div>
+          {/* eslint-enable i18next/no-literal-string */}
 
           <div className="rounded-md border border-border/60 p-3 space-y-2">
             <div className="flex items-start gap-3">
@@ -657,6 +659,7 @@ function ThemePreview({ className }: { className?: string }) {
 
   return (
     <div className={`rounded-lg border border-border bg-card p-3 ${className ?? ''}`}>
+      {/* eslint-disable i18next/no-literal-string -- canonical style reference: illustrative samples, not product copy */}
       <p className="text-xs text-muted-foreground mb-3">
         Preview alert, message, sidebar, and badge contrast for the selected theme.
       </p>
@@ -979,6 +982,7 @@ function PreviewTextRow({
     </div>
   );
 }
+/* eslint-enable i18next/no-literal-string */
 
 function PreviewBanner({ children, className }: { children: React.ReactNode; className: string }) {
   return <div className={`rounded-md px-3 py-2 text-xs ${className}`}>{children}</div>;

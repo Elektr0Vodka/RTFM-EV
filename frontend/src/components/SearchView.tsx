@@ -254,7 +254,10 @@ export function SearchView({
           <div className="p-8 text-center text-muted-foreground text-sm">
             <p>{t('search_empty_prompt')}</p>
             <p className="mt-2 text-xs">
-              {t('search_tip_prefix')} <code>user:</code> {t('search_tip_or')}{' '}
+              {t('search_tip_prefix')}{' '}
+              {/* eslint-disable-next-line i18next/no-literal-string */}
+              <code>user:</code> {t('search_tip_or')}{' '}
+              {/* eslint-disable-next-line i18next/no-literal-string */}
               <code>channel:</code> {t('search_tip_suffix')}
             </p>
             <p className="mt-2 text-xs">{t('search_warning_user_key_linkage')}</p>

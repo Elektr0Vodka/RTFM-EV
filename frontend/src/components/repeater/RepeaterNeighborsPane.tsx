@@ -285,6 +285,7 @@ export function NeighborsPane({
                           </span>
                         )}
                       </td>
+                      {/* eslint-disable-next-line i18next/no-literal-string */}
                       <td className={cn('py-1 text-right font-mono', snrColor)}>{snrStr} dB</td>
                       {hasDistances && (
                         <td className="py-1 text-right text-muted-foreground font-mono">

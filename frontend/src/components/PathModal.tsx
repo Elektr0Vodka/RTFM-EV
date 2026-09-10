@@ -119,8 +119,10 @@ export function PathModal({
                     {hasSignal && (
                       <div className="text-[0.6875rem] text-muted-foreground ml-4">
                         {t('path_modal_last_hop_label')}{' '}
+                        {/* eslint-disable-next-line i18next/no-literal-string */}
                         {p.rssi != null && <span>{p.rssi} dBm RSSI</span>}
                         {p.rssi != null && p.snr != null && <span> · </span>}
+                        {/* eslint-disable-next-line i18next/no-literal-string */}
                         {p.snr != null && <span>{p.snr.toFixed(1)} dB SNR</span>}
                       </div>
                     )}
@@ -236,6 +238,7 @@ export function PathModal({
                   }}
                 >
                   <span className="flex flex-col items-center leading-tight">
+                    {/* eslint-disable-next-line i18next/no-literal-string */}
                     <span>↻ {t('path_modal_resend_button')}</span>
                     <span className="text-[0.625rem] font-normal opacity-80">
                       {t('path_modal_resend_hint')}
@@ -252,6 +255,7 @@ export function PathModal({
                 }}
               >
                 <span className="flex flex-col items-center leading-tight">
+                  {/* eslint-disable-next-line i18next/no-literal-string */}
                   <span>↻ {t('path_modal_resend_as_new_button')}</span>
                   <span className="text-[0.625rem] font-normal opacity-80">
                     {t('path_modal_resend_as_new_hint')}

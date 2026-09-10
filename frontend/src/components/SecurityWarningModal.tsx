@@ -94,6 +94,7 @@ export function SecurityWarningModal({ health }: SecurityWarningModalProps) {
           </p>
           <p>
             {t('security_body_reduce_risk_prefix')}{' '}
+            {/* eslint-disable-next-line i18next/no-literal-string */}
             <code className="break-all rounded bg-muted px-1 py-0.5 text-foreground">
               MESHCORE_DISABLE_BOTS=true
             </code>{' '}

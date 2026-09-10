@@ -375,6 +375,7 @@ export function ChannelImportExportModal({
 
               <p className="text-xs text-muted-foreground">
                 {t('channel_io_format_prefix')}{' '}
+                {/* eslint-disable-next-line i18next/no-literal-string */}
                 <code className="font-mono bg-muted px-1 rounded">#channel-name - hex-key</code>{' '}
                 {t('channel_io_format_suffix')}
               </p>

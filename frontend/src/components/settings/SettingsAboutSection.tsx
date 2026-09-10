@@ -20,7 +20,9 @@ export function SettingsAboutSection({
       <div className="space-y-6">
         {/* Version */}
         <div className="text-center space-y-1">
+          {/* eslint-disable-next-line i18next/no-literal-string */}
           <h3 className="text-lg font-semibold">RemoteTerm for MeshCore</h3>
+          {/* eslint-disable-next-line i18next/no-literal-string */}
           <div className="text-sm text-muted-foreground">
             v{version}
             {commit ? (
@@ -40,6 +42,7 @@ export function SettingsAboutSection({
         <div className="text-sm text-center space-y-2">
           <p>
             {t('settings_about_made_by')}{' '}
+            {/* eslint-disable i18next/no-literal-string */}
             <a
               href="https://jacksbrain.com"
               target="_blank"
@@ -48,6 +51,7 @@ export function SettingsAboutSection({
             >
               Jack Kingsman
             </a>
+            {/* eslint-enable i18next/no-literal-string */}
           </p>
           <p>
             {t('settings_about_licensed_under')}{' '}
@@ -77,6 +81,7 @@ export function SettingsAboutSection({
 
         {/* Links */}
         <div className="flex justify-center gap-4 text-sm">
+          {/* eslint-disable i18next/no-literal-string */}
           <a
             href={GITHUB_URL}
             target="_blank"
@@ -85,6 +90,7 @@ export function SettingsAboutSection({
           >
             GitHub
           </a>
+          {/* eslint-enable i18next/no-literal-string */}
           <a
             href={`${GITHUB_URL}/issues`}
             target="_blank"
@@ -109,6 +115,7 @@ export function SettingsAboutSection({
         <div className="text-sm text-center text-muted-foreground space-y-2">
           <p>{t('settings_about_acknowledgements')}</p>
           <p>
+            {/* eslint-disable i18next/no-literal-string */}
             <a
               href="https://github.com/meshcore-dev/MeshCore"
               target="_blank"
@@ -126,6 +133,7 @@ export function SettingsAboutSection({
             >
               meshcore_py
             </a>
+            {/* eslint-enable i18next/no-literal-string */}
           </p>
         </div>
 
