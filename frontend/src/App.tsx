@@ -787,6 +787,7 @@ export function App() {
     blockedNames: appSettings?.blocked_names ?? [],
     trackedTelemetryContacts: appSettings?.tracked_telemetry_contacts ?? [],
     onToggleTrackedTelemetryContact: handleToggleTrackedTelemetryContact,
+    analyzerSites: appSettings?.analyzer_sites ?? [],
   };
   const channelInfoPaneProps = {
     channelKey: infoPaneChannelKey,

@@ -5,7 +5,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from app.models import CONTACT_TYPE_REPEATER, AppSettings
+from app.models import CONTACT_TYPE_REPEATER, AnalyzerSite, AppSettings
 from app.region_scope import normalize_region_scope
 from app.repository import AppSettingsRepository, ChannelRepository, ContactRepository
 from app.telemetry_interval import (
@@ -21,6 +21,16 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 
 MAX_TRACKED_TELEMETRY_REPEATERS = 8
 MAX_TRACKED_TELEMETRY_CONTACTS = 8
+
+
+def _is_valid_lookup_template(template: str, placeholder: str) -> bool:
+    """A lookup template must be an http(s) URL carrying the required placeholder.
+
+    Rejects ``javascript:`` and other non-web schemes (defense in depth against a
+    user-supplied template later handed to ``window.open`` on the frontend), and
+    templates missing the substitution placeholder (a configuration bug).
+    """
+    return template.startswith(("http://", "https://")) and placeholder in template
 
 
 class AppSettingsUpdate(BaseModel):
@@ -98,6 +108,13 @@ class AppSettingsUpdate(BaseModel):
     registry_sync_url: str | None = Field(
         default=None,
         description="URL of a remote {name: key} JSON channel list to sync into the registry",
+    )
+    analyzer_sites: list[AnalyzerSite] | None = Field(
+        default=None,
+        description=(
+            "External analyzer sites for client-side node/packet deep-link lookups. "
+            "Each node_url_template must be an http(s) URL containing a {pubkey} placeholder."
+        ),
     )
 
 
@@ -289,6 +306,36 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
     # Channel registry sync URL
     if update.registry_sync_url is not None:
         kwargs["registry_sync_url"] = update.registry_sync_url
+
+    # Analyzer sites (client-side deep-link lookup). Validate each template is an
+    # http(s) URL carrying the required placeholder before persisting; reject the
+    # whole update on the first invalid entry rather than silently dropping it.
+    if update.analyzer_sites is not None:
+        cleaned_sites: list[AnalyzerSite] = []
+        for site in update.analyzer_sites:
+            name = site.name.strip()
+            node_tpl = site.node_url_template.strip()
+            if not name:
+                raise HTTPException(status_code=400, detail="Analyzer site name cannot be empty")
+            if not _is_valid_lookup_template(node_tpl, "{pubkey}"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="node_url_template must be an http(s) URL containing '{pubkey}'",
+                )
+            packet_tpl = site.packet_url_template.strip() if site.packet_url_template else None
+            if packet_tpl and not _is_valid_lookup_template(packet_tpl, "{hash}"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="packet_url_template must be an http(s) URL containing '{hash}'",
+                )
+            cleaned_sites.append(
+                AnalyzerSite(
+                    name=name,
+                    node_url_template=node_tpl,
+                    packet_url_template=packet_tpl,
+                )
+            )
+        kwargs["analyzer_sites"] = cleaned_sites
 
     # Flood scope
     flood_scope_changed = False
