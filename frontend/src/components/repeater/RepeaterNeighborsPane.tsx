@@ -1,12 +1,16 @@
-import { useMemo, useState, useCallback, lazy, Suspense } from 'react';
+import { useMemo, useState, useCallback, useEffect, lazy, Suspense } from 'react';
 import { cn } from '@/lib/utils';
 import { RepeaterPane, NotFetched, formatDuration } from './repeaterPaneShared';
+import { NeighborSnrSparkline } from './NeighborSnrSparkline';
+import { NeighborSignalDetailChart } from './NeighborSignalDetailChart';
 import { isValidLocation, calculateDistance, formatDistance } from '../../utils/pathUtils';
 import { useDistanceUnit } from '../../contexts/DistanceUnitContext';
 import { useT } from '../../i18n';
+import { api } from '../../api';
 import type {
   Contact,
   RepeaterNeighborsResponse,
+  RepeaterNeighborHistoryResponse,
   PaneState,
   NeighborInfo,
   RepeaterNodeInfoResponse,
@@ -82,6 +86,29 @@ export function NeighborsPane({
 }) {
   const t = useT();
   const { distanceUnit } = useDistanceUnit();
+
+  const repeaterKey = repeaterContact?.public_key ?? null;
+  const [history, setHistory] = useState<RepeaterNeighborHistoryResponse | null>(null);
+  const [selectedNeighbor, setSelectedNeighbor] = useState<string | null>(null);
+
+  // Load per-neighbor signal history alongside the neighbors data. Re-runs when
+  // `data` changes so a fresh opportunistic snapshot is picked up after a refresh.
+  useEffect(() => {
+    if (!repeaterKey) return;
+    let cancelled = false;
+    api
+      .repeaterNeighborHistory(repeaterKey)
+      .then((h) => {
+        if (!cancelled) setHistory(h);
+      })
+      .catch(() => {
+        if (!cancelled) setHistory(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [repeaterKey, data]);
+
   const advertLat = repeaterContact?.lat ?? null;
   const advertLon = repeaterContact?.lon ?? null;
 
@@ -203,6 +230,23 @@ export function NeighborsPane({
     });
   }, [enriched, sortField, sortDir]);
 
+  const historyByPrefix = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        repeater: { observed_at: number; snr: number }[];
+        self: { observed_at: number; snr: number }[];
+      }
+    >();
+    for (const entry of history?.neighbors ?? []) {
+      map.set(entry.neighbor_pubkey, {
+        repeater: entry.repeater_samples.map((s) => ({ observed_at: s.observed_at, snr: s.snr })),
+        self: entry.self_samples.map((s) => ({ observed_at: s.observed_at, snr: s.snr })),
+      });
+    }
+    return map;
+  }, [history]);
+
   return (
     <RepeaterPane
       title={
@@ -249,6 +293,9 @@ export function NeighborsPane({
                     onSort={handleSort}
                     className="text-right"
                   />
+                  <th className="pb-1 font-medium text-right">
+                    {t('repeater_neighbors_trend_header')}
+                  </th>
                   {hasDistances && (
                     <SortableHeader
                       label={t('repeater_dist_header')}
@@ -276,7 +323,15 @@ export function NeighborsPane({
                   const snrColor =
                     n.snr >= 6 ? 'text-success' : n.snr >= 0 ? 'text-warning' : 'text-destructive';
                   return (
-                    <tr key={i} className="border-t border-border/50">
+                    <tr
+                      key={i}
+                      className="border-t border-border/50 cursor-pointer hover:bg-accent/40"
+                      onClick={() =>
+                        setSelectedNeighbor((cur) =>
+                          cur === n.pubkey_prefix ? null : n.pubkey_prefix
+                        )
+                      }
+                    >
                       <td className="py-1">
                         {n.name || n.pubkey_prefix}
                         {n.name && (
@@ -287,6 +342,14 @@ export function NeighborsPane({
                       </td>
                       {/* eslint-disable-next-line i18next/no-literal-string */}
                       <td className={cn('py-1 text-right font-mono', snrColor)}>{snrStr} dB</td>
+                      <td className="py-1 text-right">
+                        <div className="flex justify-end">
+                          <NeighborSnrSparkline
+                            samples={historyByPrefix.get(n.pubkey_prefix)?.repeater ?? []}
+                            ariaLabel={t('repeater_neighbors_trend_header')}
+                          />
+                        </div>
+                      </td>
                       {hasDistances && (
                         <td className="py-1 text-right text-muted-foreground font-mono">
                           {dist ?? '—'}
@@ -301,6 +364,18 @@ export function NeighborsPane({
               </tbody>
             </table>
           </div>
+          {selectedNeighbor &&
+            (() => {
+              const h = historyByPrefix.get(selectedNeighbor);
+              const nb = sorted.find((x) => x.pubkey_prefix === selectedNeighbor);
+              return (
+                <NeighborSignalDetailChart
+                  name={nb?.name || selectedNeighbor}
+                  repeaterSamples={h?.repeater ?? []}
+                  selfSamples={h?.self ?? []}
+                />
+              );
+            })()}
           {hasValidRepeaterGps && (neighborsWithCoords.length > 0 || hasValidRepeaterGps) ? (
             <Suspense
               fallback={

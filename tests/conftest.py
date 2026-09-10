@@ -33,6 +33,7 @@ async def test_db():
         channels,
         contact_telemetry,
         contacts,
+        link_signal,
         messages,
         noise_floor,
         raw_packets,
@@ -55,6 +56,7 @@ async def test_db():
         contact_telemetry,
         noise_floor,
         battery_history,
+        link_signal,
     ]
     originals = [(mod, mod.db) for mod in submodules]
 

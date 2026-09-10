@@ -561,6 +561,28 @@ export interface RepeaterNeighborsResponse {
   reported_count?: number | null;
 }
 
+export interface RepeaterSignalSample {
+  observed_at: number;
+  snr: number;
+  secs_ago: number | null;
+}
+
+export interface SelfSignalSample {
+  observed_at: number;
+  snr: number;
+  rssi: number | null;
+}
+
+export interface NeighborHistoryEntry {
+  neighbor_pubkey: string;
+  repeater_samples: RepeaterSignalSample[];
+  self_samples: SelfSignalSample[];
+}
+
+export interface RepeaterNeighborHistoryResponse {
+  neighbors: NeighborHistoryEntry[];
+}
+
 export interface RepeaterAclResponse {
   acl: AclEntry[];
 }

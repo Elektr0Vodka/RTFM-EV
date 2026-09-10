@@ -11,22 +11,27 @@ from app.models import (
     CommandResponse,
     Contact,
     LppSensor,
+    NeighborHistoryEntry,
     NeighborInfo,
     RepeaterAclResponse,
     RepeaterAdvertIntervalsResponse,
     RepeaterLoginRequest,
     RepeaterLoginResponse,
     RepeaterLppTelemetryResponse,
+    RepeaterNeighborHistoryResponse,
     RepeaterNeighborsResponse,
     RepeaterNodeInfoResponse,
     RepeaterOwnerInfoResponse,
     RepeaterRadioSettingsResponse,
     RepeaterRegionEntry,
     RepeaterRegionsResponse,
+    RepeaterSignalSample,
     RepeaterStatusResponse,
+    SelfSignalSample,
     TelemetryHistoryEntry,
 )
 from app.repository import ContactRepository, RepeaterTelemetryRepository
+from app.repository.link_signal import LinkSignalRepository
 from app.routers.contacts import _ensure_on_radio, _resolve_contact_or_404
 from app.routers.server_control import (
     batch_cli_fetch,
@@ -269,7 +274,64 @@ async def repeater_neighbors(public_key: str) -> RepeaterNeighborsResponse:
             )
 
     reported_count = neighbors_data.get("neighbours_count") if neighbors_data else None
+
+    # Best-effort: persist a signal snapshot for history (X2b). Never fail the
+    # response on a persistence error.
+    if neighbors_data and neighbors_data.get("neighbours"):
+        try:
+            await LinkSignalRepository.record_repeater_samples(
+                contact.public_key,
+                neighbors_data["neighbours"],
+                observed_at=int(time.time()),
+            )
+        except Exception as exc:  # noqa: BLE001 - best-effort telemetry
+            logger.warning("Failed to persist neighbor signal snapshot: %s", exc)
+
     return RepeaterNeighborsResponse(neighbors=neighbors, reported_count=reported_count)
+
+
+@router.get(
+    "/{public_key}/repeater/neighbors/history",
+    response_model=RepeaterNeighborHistoryResponse,
+)
+async def repeater_neighbor_history(
+    public_key: str, since_hours: int = 720
+) -> RepeaterNeighborHistoryResponse:
+    """Per-neighbor signal history for a repeater (DB read; no radio needed)."""
+    contact = await _resolve_contact_or_404(public_key)
+    since_hours = max(1, min(since_hours, 720))
+    since = int(time.time()) - since_hours * 3600
+
+    rep_rows = await LinkSignalRepository.get_repeater_history(contact.public_key, since)
+
+    # Group repeater samples by neighbour prefix, preserving first-seen order.
+    grouped: dict[str, list[RepeaterSignalSample]] = {}
+    for r in rep_rows:
+        grouped.setdefault(r["subject_pubkey"], []).append(
+            RepeaterSignalSample(
+                observed_at=r["observed_at"], snr=r["snr"], secs_ago=r["secs_ago"]
+            )
+        )
+
+    prefixes = list(grouped.keys())
+    self_rows = await LinkSignalRepository.get_traffic_history_for_subjects(prefixes, since)
+
+    neighbors: list[NeighborHistoryEntry] = []
+    for prefix, rep_samples in grouped.items():
+        self_samples = [
+            SelfSignalSample(observed_at=s["observed_at"], snr=s["snr"], rssi=s["rssi"])
+            for s in self_rows
+            if s["subject_pubkey"].startswith(prefix)
+        ]
+        neighbors.append(
+            NeighborHistoryEntry(
+                neighbor_pubkey=prefix,
+                repeater_samples=rep_samples,
+                self_samples=self_samples,
+            )
+        )
+
+    return RepeaterNeighborHistoryResponse(neighbors=neighbors)
 
 
 @router.post("/{public_key}/repeater/acl", response_model=RepeaterAclResponse)

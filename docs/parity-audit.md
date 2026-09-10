@@ -134,8 +134,9 @@ Frontend (`frontend/`, React 18 + TS + Vite, ~111 `.tsx`):
 ### Neighbor discovery
 | Feature | Ref | RTFM-EV | Appl. | Notes |
 |---|---|---|---|---|
-| Query a repeater's neighbors | both | Absent | Adapt | Host relays `REQ_TYPE_GET_NEIGHBOURS 0x06` via `CMD_SEND_BINARY_REQ 50`. |
-| Neighbors on map + per-link signal | Off | Absent | App | DMC `neighbors` payload has `pubkey/snr/heard_secs_ago/scopes/status`. |
+| Query a repeater's neighbors | both | Present | Adapt | `POST /contacts/{key}/repeater/neighbors` → `fetch_all_neighbours` (`REQ_TYPE_GET_NEIGHBOURS 0x06` via companion `CMD_SEND_BINARY_REQ 50`). Repeater-only opcode; room servers return "unknown command". |
+| Neighbors on map + per-link signal | Off | Present | App | `RepeaterNeighborsPane` + `NeighborsMiniMap` (SNR/distance/last-heard + map). `scopes`/`status` are companion-unreachable (firmware `NeighborDiscoverEntry`/MQTT-only → L3), NOT in the binary response. |
+| Per-link signal history (X2b) | Off | Present | App | `link_signal` table + inline sparkline / detail chart; repeater-query + passive 0-hop traffic perspectives. |
 
 ### Regions / scopes
 | Feature | Ref | RTFM-EV | Appl. | Notes |
@@ -224,9 +225,16 @@ Each "Now/Next" item gets its own brainstorm → spec → plan cycle.
   (1–60 min, clamp 1000–3600000 ms), faithful DMC firmware wire schema
   (`meshcore/{IATA}/{DEVICE}/{status|packets|raw}`, string SNR/RSSI, array path,
   `+00:00` timestamps, no LWT). Spec + plan under `docs/superpowers/`.
-- **X2. Neighbor discovery** — NEXT UP. Companion relays `REQ_TYPE_GET_NEIGHBOURS`
-  (`0x06`) to repeaters via `CMD_SEND_BINARY_REQ 50`; display neighbor list +
-  per-link signal; optional neighbors-on-map (depends on N1 for signal history).
+- **X2. Neighbor discovery** — DONE. The core (query a repeater's neighbors via
+  `REQ_TYPE_GET_NEIGHBOURS 0x06` / `CMD_SEND_BINARY_REQ 50`; neighbor list +
+  per-link signal + neighbors-on-map) was already shipped upstream and predates
+  this audit; the rows above were mis-marked Absent. Verified out of reach:
+  `scopes`/`status` are not in the binary response (firmware `NeighborDiscoverEntry`
+  overlay, MQTT-only → L3); room servers do not answer `0x06` (repeater-only
+  opcode). The buildable increment **X2b (per-link signal history)** shipped:
+  `link_signal` table, opportunistic + tracked-cycle + passive 0-hop-traffic
+  capture, history endpoint, sparkline + detail chart. Spec + plan under
+  `docs/superpowers/`.
 
 ### Later
 - **L1. Region / scope surfacing** — mirror DMC `config` topic `region.scopes[]`,

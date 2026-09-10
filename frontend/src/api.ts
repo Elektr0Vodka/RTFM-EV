@@ -34,6 +34,7 @@ import type {
   RepeaterAdvertIntervalsResponse,
   RepeaterLoginResponse,
   RepeaterLppTelemetryResponse,
+  RepeaterNeighborHistoryResponse,
   RepeaterNeighborsResponse,
   RepeaterNodeInfoResponse,
   RepeaterOwnerInfoResponse,
@@ -511,6 +512,11 @@ export const api = {
     fetchJson<RepeaterNeighborsResponse>(`/contacts/${publicKey}/repeater/neighbors`, {
       method: 'POST',
     }),
+  repeaterNeighborHistory: (publicKey: string, sinceHours?: number) =>
+    fetchJson<RepeaterNeighborHistoryResponse>(
+      `/contacts/${publicKey}/repeater/neighbors/history` +
+        (sinceHours ? `?since_hours=${sinceHours}` : '')
+    ),
   repeaterNodeInfo: (publicKey: string) =>
     fetchJson<RepeaterNodeInfoResponse>(`/contacts/${publicKey}/repeater/node-info`, {
       method: 'POST',
