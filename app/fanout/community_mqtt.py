@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_BROKER = "mqtt-us-v1.letsmesh.net"
 _DEFAULT_PORT = 443  # Community protocol uses WSS on port 443 by default
-_CLIENT_ID = "RemoteTerm"
+_CLIENT_ID = "RTFM-EV"
 
 # JWT lifetime kept under 1 hour for compatibility with services that reject
 # tokens with exp > 3600s from iat (e.g. Waev.app).  Proactive renewal
