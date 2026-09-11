@@ -5,7 +5,7 @@ afterEach(() => vi.restoreAllMocks());
 
 describe('isWebglAvailable', () => {
   it('returns true when a webgl context is obtainable', () => {
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({} as unknown as RenderingContext);
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({} as never);
     expect(isWebglAvailable()).toBe(true);
   });
 
