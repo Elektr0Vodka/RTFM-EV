@@ -1917,6 +1917,18 @@
     "other": "{count} kanalen toevoegen aan je gemonitorde kanalen? Hun verkeer wordt monitorbaar."
   },
   "channel_registry_add_to_channels_confirm_button": "Toevoegen ({count})",
+  "channel_registry_delete_selected_button": "Verwijderen ({count})",
+  "channel_registry_delete_selected_title": "{count} geselecteerde kanalen uit het register verwijderen",
+  "channel_registry_delete_confirm_title": "Kanalen uit het register verwijderen",
+  "channel_registry_delete_confirm_description": {
+    "one": "{count} kanaal uit het register verwijderen? Dit heeft geen invloed op kanalen die de app actief decodeert.",
+    "other": "{count} kanalen uit het register verwijderen? Dit heeft geen invloed op kanalen die de app actief decodeert."
+  },
+  "channel_registry_delete_confirm_button": "Verwijderen ({count})",
+  "channel_registry_delete_result": {
+    "one": "{count} kanaal uit het register verwijderd.",
+    "other": "{count} kanalen uit het register verwijderd."
+  },
   "channel_registry_add_button": "Toevoegen",
   "channel_registry_import_result": "Geïmporteerd: {added} nieuw, {updated} bijgewerkt.",
   "channel_registry_import_invalid_json": "Importeren mislukt: ongeldige JSON.",
