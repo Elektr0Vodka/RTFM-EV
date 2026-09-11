@@ -1,8 +1,24 @@
 # 15. Channel Registry -> existing channel-creation path -> radio
 
 Date: 2026-09-10
-Status: planning only, no code written
+Status: Slice 1 SHIPPED (2026-09-11) via Option A (`bulk-hashtag` reuse). Slice 2
+(radio push) still deferred to `[08]`.
 Category: D (Registry / list sync), extends `docs/plans/README.md` index (new entry `[15]`)
+
+## Implementation status (2026-09-11)
+
+Slice 1 delivered on branch `feat/registry-add-to-channels`. The open question in
+Section 6 item 3 (Option A vs Option B) was resolved by the user in favour of
+**Option A**: registry entries store names only, so the key is derived server-side
+as `SHA256(name)` regardless, which is exactly what `POST /api/channels/bulk-hashtag`
+already does; Option B (import-modal reuse) would have produced identical results
+with extra client-side SHA-256 code. A frontend-only "Add to Channels" button was
+added to `ChannelRegistryView`'s header, reusing the existing
+`handleBulkAddChannels` path and `BulkAddChannelResultModal`. Private-flagged and
+non-`#` (e.g. radio-seeded "Public") entries are excluded (Section 6 items 1, 4).
+No backend change, no migration, no radio push. Channels land with
+`on_radio=false`, becoming monitorable in the app; they reach the radio lazily at
+send time exactly as every other channel does today.
 
 ## 1. Summary
 

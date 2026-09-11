@@ -68,6 +68,7 @@ interface ConversationPaneProps {
   onToggleMute: (key: string) => Promise<void>;
   onDeleteContact: (publicKey: string) => Promise<void>;
   onDeleteChannel: (key: string) => Promise<void>;
+  onAddRegistryChannels?: (channelNames: string[]) => Promise<void>;
   onSetChannelFloodScopeOverride: (channelKey: string, floodScopeOverride: string) => Promise<void>;
   onSetChannelPathHashModeOverride?: (
     channelKey: string,
@@ -155,6 +156,7 @@ export function ConversationPane({
   onToggleMute,
   onDeleteContact,
   onDeleteChannel,
+  onAddRegistryChannels,
   onSetChannelFloodScopeOverride,
   onSetChannelPathHashModeOverride,
   cadCapable,
@@ -276,7 +278,7 @@ export function ConversationPane({
   if (activeConversation.type === 'channel-registry') {
     return (
       <Suspense fallback={<LoadingPane label="Loading channel registry..." />}>
-        <ChannelRegistryView channels={channels} />
+        <ChannelRegistryView channels={channels} onAddToChannels={onAddRegistryChannels} />
       </Suspense>
     );
   }

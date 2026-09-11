@@ -160,7 +160,7 @@ reconciled against `origin/main` on 2026-09-11 (migrations reached
 | 12 | wardrive-gps-fanout | NOT STARTED | Speculative; feasibility gate unresolved in code. |
 | 13 | map-overhaul | PARTIAL | Phase-1 quick-wins shipped (PR #40). Engine migration + 3D/node-size + per-link tool unbuilt. |
 | 14 | historical-device-info | NOT STARTED | No `contact_location_history` / `device_config_history` tables yet. |
-| 15 | registry-to-radio-import | NOT STARTED | Greenfield. |
+| 15 | registry-to-radio-import | SHIPPED (slice 1) | `feat/registry-add-to-channels`; "Add to Channels" in `ChannelRegistryView` via `bulk-hashtag` (Option A). Slice 2 (radio push) still deferred to [08]. |
 | 16 | analyzer-name-resolution | NOT STARTED | Greenfield (absorbs [04] Step 4). |
 | 17 | sidebar-customisation | NOT STARTED | Planning (2026-09-11). Frontend port + gated backend "Owned". |
 | 18 | multi-radio-identity-history | NOT STARTED | Planning (2026-09-11). Self registry + per-radio stats + cross-key merge. |

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { addMissingFromSync } from '../lib/channelManager';
+import { addMissingFromSync, addableRegistryChannelNames } from '../lib/channelManager';
 import type { RegistryChannel } from '../lib/channelManager';
 
 // channelManager reads/writes localStorage — provide a clean stub
@@ -90,5 +90,40 @@ describe('addMissingFromSync', () => {
     expect(result[0].firstSeen).toBeNull();
     expect(result[0].lastHeard).toBeNull();
     expect(result[0].packets).toBe(0);
+  });
+});
+
+const makeEntry = (over: Partial<RegistryChannel>): RegistryChannel => ({
+  ...existingChannel,
+  ...over,
+});
+
+describe('addableRegistryChannelNames', () => {
+  it('returns hashtag channel names in input order', () => {
+    const entries = [
+      makeEntry({ channel: '#denhaag' }),
+      makeEntry({ channel: '#amsterdam' }),
+    ];
+    expect(addableRegistryChannelNames(entries)).toEqual(['#denhaag', '#amsterdam']);
+  });
+
+  it('excludes entries flagged private', () => {
+    const entries = [
+      makeEntry({ channel: '#public-one' }),
+      makeEntry({ channel: '#secret', private: true }),
+    ];
+    expect(addableRegistryChannelNames(entries)).toEqual(['#public-one']);
+  });
+
+  it('excludes non-hashtag entries (e.g. a radio-seeded "Public" channel)', () => {
+    const entries = [
+      makeEntry({ channel: 'Public', source: 'radio' }),
+      makeEntry({ channel: '#amsterdam' }),
+    ];
+    expect(addableRegistryChannelNames(entries)).toEqual(['#amsterdam']);
+  });
+
+  it('returns an empty list for empty input', () => {
+    expect(addableRegistryChannelNames([])).toEqual([]);
   });
 });

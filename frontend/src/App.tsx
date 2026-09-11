@@ -645,6 +645,7 @@ export function App() {
     onToggleMute: handleToggleMute,
     onDeleteContact: handleDeleteContact,
     onDeleteChannel: handleDeleteChannel,
+    onAddRegistryChannels: (channelNames: string[]) => handleBulkAddChannels(channelNames, false),
     onSetChannelFloodScopeOverride: handleSetChannelFloodScopeOverride,
     onSetChannelPathHashModeOverride: handleSetChannelPathHashModeOverride,
     onSelectConversation: handleSelectConversationWithTargetReset,
