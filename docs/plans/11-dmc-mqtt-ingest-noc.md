@@ -307,7 +307,7 @@ Per-node registry + per-type history. Key everything on the device public key he
 - `noc_neighbors_snapshots`: `id`, `device_key`, `received_at`, `total_neighbors`,
   `queried_neighbors`, `truncated`, `self_scopes`, `self_default_scope`, and a child
   `noc_neighbor_entries` (`snapshot_id`, `neighbor_key`, `snr`, `heard_secs_ago`,
-  `scopes`, `status`) — or a JSON blob if per-neighbor querying is not needed.
+  `scopes`, `status`) - or a JSON blob if per-neighbor querying is not needed.
 
 Retention: reuse the maintenance/pruning approach used for telemetry history and raw
 packets (`POST /api/packets/maintenance`; `app/AGENTS.md`). NOC history can grow fast
@@ -419,11 +419,11 @@ are handled explicitly rather than propagated as loose dicts.
   bypasses login. OPEN QUESTION: should management actions be feature-flagged off by
   default (env var) given the NOC page makes them one click from a dashboard?
 - **Broker trust / spoofing.** `origin_id` (device pubkey) in a payload is **not
-  authenticated** by the subscriber — anyone who can publish to the broker can claim
+  authenticated** by the subscriber - anyone who can publish to the broker can claim
   any `device_key`. The NOC registry must treat ingested identity as **observed, not
   verified**, and never let an MQTT payload mutate authoritative RF-contact state (keep
   `noc_*` tables separate from `contacts`, join only for display). OPEN QUESTION:
-  minimum viable trust — restrict to a broker the operator controls, and/or
+  minimum viable trust - restrict to a broker the operator controls, and/or
   allowlist device keys?
 - **Multi-node scale.** status every 5 min + filter every 60 s + neighbors, per node,
   across many nodes and possibly multiple broker configs, is a real write rate. Needs

@@ -14,8 +14,8 @@ code path rather than writing a new bespoke one, per the task instructions.
 **Load-bearing fact established below (cited):** the shipped Channel Registry
 (`frontend/src/lib/channelManager.ts`) stores channel **names only**. Its
 `RegistryChannel` type has no `key` field at all, and the two places that
-could populate one — `GET /api/registry/sync` (which *does* return a
-`{name, key}` pair) and JSON import — both discard the key on the way into
+could populate one - `GET /api/registry/sync` (which *does* return a
+`{name, key}` pair) and JSON import - both discard the key on the way into
 the registry. This means "add registry channels to the app" cannot literally
 reuse `ChannelImportExportModal`'s text-import endpoint (`POST
 /api/channels/import`) without first inventing a key for each entry, because
@@ -29,7 +29,7 @@ to prefer the import-modal path specifically.
 
 Pushing created channels onto the physical radio is **not** part of channel
 creation in this codebase today, regardless of which creation endpoint is
-used — that only happens lazily at send time (`app/services/message_send.py`)
+used - that only happens lazily at send time (`app/services/message_send.py`)
 or via the not-yet-built bulk push in `docs/plans/08-channel-preset-upload.md`.
 This plan does not duplicate that work; see Section 5.
 
@@ -49,19 +49,19 @@ This plan does not duplicate that work; see Section 5.
   `saveRegistry`, `:61-72`). Nothing here is server-side state.
 - Four ways entries get in, none of which store a key:
   1. **Finder discovery** (`recordFinderDiscovery`, `channelManager.ts:80-95`)
-     — called from `CrackerPanel.tsx:345` via the exported
+     - called from `CrackerPanel.tsx:345` via the exported
      `notifyChannelFound` helper (`ChannelRegistryView.tsx:1575-1580`) when
      the hashtag cracker brute-forces a name. The cracker *does* know the key
      at that point (it just cracked it) but `notifyChannelFound` only takes a
-     `channelName` string (`ChannelRegistryView.tsx:1575`) — the key is
+     `channelName` string (`ChannelRegistryView.tsx:1575`) - the key is
      dropped before it reaches the registry. (The key is used separately,
      same call site, to auto-create the channel via `POST /api/channels`
-     with an explicit key — see 2.2 — that is a parallel path, not something
+     with an explicit key - see 2.2 - that is a parallel path, not something
      the registry itself records.)
-  2. **Manual add** (`addManualChannel`, `channelManager.ts:102-130`) — the
+  2. **Manual add** (`addManualChannel`, `channelManager.ts:102-130`) - the
      Add Channel dialog (`ChannelRegistryView.tsx:1339-1471`) has no key
      field at all.
-  3. **Radio seed** (`seedFromRadioChannels`, `channelManager.ts:266-307`) —
+  3. **Radio seed** (`seedFromRadioChannels`, `channelManager.ts:266-307`) -
      one-way seed from already-existing DB channels
      (`ChannelRegistryView.tsx:655-661`, `699-706`). The seed function
      receives `RadioChannelSeed{name, key, is_hashtag, created_at}` but
@@ -69,12 +69,12 @@ This plan does not duplicate that work; see Section 5.
      solely as a dedupe lookup key in the local `byName` map
      (`channelManager.ts:270`), never persisted onto the `RegistryChannel`
      itself.
-  4. **JSON import / remote sync** — `mergeImport`
+  4. **JSON import / remote sync** - `mergeImport`
      (`channelManager.ts:150-214`, accepts the Project A/B JSON schema, which
      also has no `channel_hash`/key field on write) and `addMissingFromSync`
      (`channelManager.ts:222-246`): `for (const { name } of channels)` at
      `:230` explicitly destructures only `name` from the `{name, key}` pairs
-     returned by the sync endpoint (2.3) — **the key from the sync payload is
+     returned by the sync endpoint (2.3) - **the key from the sync payload is
      read and thrown away**.
 - The only place a key is ever attached to a registry row, transiently, is on
   **export**: `toProjectAFormat(entries, keyByName)`
@@ -82,7 +82,7 @@ This plan does not duplicate that work; see Section 5.
   export time from the app's live `channels` prop
   (`ChannelRegistryView.tsx:845-851`, `buildKeyByName`), so `channel_hash` in
   an export is populated only when that name currently exists as a real DB
-  channel — not from anything stored in the registry.
+  channel - not from anything stored in the registry.
 
 ### 2.2 Existing channel-creation code paths (three, not one)
 
@@ -91,18 +91,18 @@ to the radio (`app/routers/channels.py:246` "Channels are NOT pushed to
 radio on creation... loaded to the radio automatically when sending a
 message"):
 
-- **`POST /api/channels`** (`app/routers/channels.py:242-267`) — single
+- **`POST /api/channels`** (`app/routers/channels.py:242-267`) - single
   channel. `_derive_channel_identity` (`app/routers/channels.py:88-130`): if
   the name starts with `#` (hashtag), the key is **always** re-derived as
   `SHA256(name)[:16]` (`:129-130`) regardless of any `key` passed in the
-  request — an explicit key on a hashtag name is only honored for the
+  request - an explicit key on a hashtag name is only honored for the
   non-hashtag / custom-key branch (`:112-127`). This is the path
   `CrackerPanel.tsx` uses via `handleCreateCrackedChannel`
-  (`App.tsx:496-510`) — safe because a cracked hashtag's key is by
+  (`App.tsx:496-510`) - safe because a cracked hashtag's key is by
   definition `SHA256(name)[:16]`, so passing it is redundant, not
   overriding.
 - **`POST /api/channels/bulk-hashtag`** (`app/routers/channels.py:270-342`,
-  request/response models `:38-55`) — takes `channel_names: list[str]` +
+  request/response models `:38-55`) - takes `channel_names: list[str]` +
   `try_historical: bool`. Same `_derive_channel_identity` derivation per
   name, skips names that already exist (`existing_count`), reports
   `invalid_names`, and can kick off a background historical-decrypt sweep
@@ -114,12 +114,12 @@ message"):
   name per line). This is a *different* existing feature from the one named
   in the task ("Channel Import/Export", PR #9) but it is the one already
   built for "I only have names."
-- **`POST /api/channels/import`** (`app/routers/channels.py:452-557`) — the
+- **`POST /api/channels/import`** (`app/routers/channels.py:452-557`) - the
   PR #9 "Channel Import/Export" feature's backend. Parses
   `"#name - hexkey"` lines (`ChannelImportExportModal.tsx:37-50` export
   format, `:68-102` `parseImportFile` requiring exactly 32 lowercase hex
   chars after the last `" - "`). Critically, this endpoint does **not** call
-  `_derive_channel_identity` — it upserts the **literal key parsed from the
+  `_derive_channel_identity` - it upserts the **literal key parsed from the
   line** (`app/routers/channels.py:508-513`, `is_hashtag=True`
   unconditionally) with no re-derivation or validation that the key matches
   `SHA256(name)`. This is the only one of the three endpoints that can
@@ -127,10 +127,10 @@ message"):
   name (e.g. a private channel shared under a friendly display name). It is
   reached from the frontend only via `ChannelImportExportModal`'s Import tab
   (`ChannelImportExportModal.tsx:214-229`, `api.importChannels`,
-  `frontend/src/api.ts:232-` — a multipart file upload, not a JSON body).
+  `frontend/src/api.ts:232-` - a multipart file upload, not a JSON body).
   `ChannelImportExportModal` itself is opened from the sidebar ("Channels ->
   Import", wired at `App.tsx:860-868`) and is **not currently connected to
-  the Channel Registry view** in any way — confirmed by grepping both
+  the Channel Registry view** in any way - confirmed by grepping both
   component names across `frontend/src`; they appear in disjoint files.
 
 None of the three endpoints touch the radio. All three store
@@ -146,7 +146,7 @@ server-side with `httpx.AsyncClient(timeout=10.0, follow_redirects=True)`,
 contract is a flat `{ "#name": "hexkey", ... }` object
 (`app/routers/registry.py:24-30`), normalized into `SyncResponse{channels:
 list[{name, key}]}` (`:13-19`). **The key is present and valid in this
-response** — it is `addMissingFromSync` on the frontend (2.1.4) that drops
+response** - it is `addMissingFromSync` on the frontend (2.1.4) that drops
 it before storing.
 
 ### 2.4 How channels actually reach the radio (cited, not re-designed here)
@@ -210,13 +210,13 @@ literal key on this line" and does not derive one
 without inventing a new provenance is the same hashtag derivation the
 backend already applies elsewhere: `SHA256(name)[:16]`. Today, **no frontend
 code computes this** (verified: no `sha256`/`crypto.subtle` hashing utility
-anywhere in `frontend/src`) — it is currently a server-only computation
+anywhere in `frontend/src`) - it is currently a server-only computation
 (`app/routers/channels.py:129-130`). Implementing Option B means adding a
 new client-side SHA-256 call (`crypto.subtle.digest('SHA-256', ...)`,
 available in all supported browsers over HTTPS/localhost) to build synthetic
 `"#name - <hex>"` lines, wrapping them in a `Blob`/`File`, and calling
 `api.importChannels` (`frontend/src/api.ts:232-`) exactly as if the user had
-uploaded a `.txt` file — i.e., the *frontend* glue is new, but the backend
+uploaded a `.txt` file - i.e., the *frontend* glue is new, but the backend
 code path is untouched and shared with manual `.txt` import.
 
 Both options satisfy "reuse an existing creation path, don't invent a new
@@ -225,7 +225,7 @@ literal wording ("hooking up... to the existing channel export import
 functionality") and gives the user the same result-shape UI
 (`ChannelImportExportModal`'s already-built import summary /
 duplicate-count / invalid-lines panel, `ChannelImportExportModal.tsx:385-425`)
-without needing `BulkAddChannelResultModal` wiring. See Section 6, item 3 —
+without needing `BulkAddChannelResultModal` wiring. See Section 6, item 3 -
 this is flagged as an **open question for the user**, not decided here,
 because the task text explicitly asked to prefer the import-modal logic
 while the facts favor the zero-new-code path.
@@ -240,7 +240,7 @@ Regardless of which option is chosen, the new surface is the same:
   (`:893-899`, `selection.size > 0 ? registry.filter(...) : sorted`) and
   the same private-exclusion rule (`.filter((e) => !e.private)`).
 - Label: "Add to Channels" (working title; avoid "Import" in the label if
-  Option A is chosen, since bulk-hashtag is not the import feature — avoid
+  Option A is chosen, since bulk-hashtag is not the import feature - avoid
   ambiguity with the existing sidebar "Channels -> Import" entry point that
   opens `ChannelImportExportModal`).
 - Dedupe against existing channels happens for free in both options: both
@@ -249,7 +249,7 @@ Regardless of which option is chosen, the new surface is the same:
   (`duplicate_count`, same repository check on the literal key,
   `:502-505`) already skip channels whose key is already in the DB. No new
   dedupe logic is needed in the registry UI itself beyond what the chosen
-  backend endpoint already does — the registry view does not need to
+  backend endpoint already does - the registry view does not need to
   pre-filter against `channels` prop before submitting.
 - Result surfacing: reuse whichever typed result component already exists
   for the chosen endpoint (`BulkAddChannelResultModal.tsx` for Option A, or
@@ -258,12 +258,12 @@ Regardless of which option is chosen, the new surface is the same:
 
 ### 3.3 Typed contracts
 
-No new types needed for Option A — `BulkCreateHashtagChannelsResult`
+No new types needed for Option A - `BulkCreateHashtagChannelsResult`
 (`frontend/src/types.ts:297-304`) and its request signature already exist
 and are already threaded through a hook (`useContactsAndChannels.ts:115-131`).
 
 For Option B, no new backend types either (`ChannelImportResult`,
-`frontend/src/types.ts:306-`, already exists) — only new frontend glue: a
+`frontend/src/types.ts:306-`, already exists) - only new frontend glue: a
 small `deriveHashtagKey(name: string): Promise<string>` helper (new file or
 inline in `ChannelRegistryView.tsx`) and a `buildImportFile(entries:
 RegistryChannel[]): Promise<File>` helper that mirrors
@@ -278,23 +278,23 @@ would look like.
 - Add the button + selection-to-request wiring in `ChannelRegistryView.tsx`
   (Section 3.2), using whichever option is chosen (Section 6, open question).
 - No radio push. Created channels land with `on_radio=False`, exactly like
-  every other creation path today (2.2) — consistent, not a regression.
+  every other creation path today (2.2) - consistent, not a regression.
 - Result modal reuses an existing component (Option A:
   `BulkAddChannelResultModal`; Option B: the import modal's own result
-  view) — no new result UI.
+  view) - no new result UI.
 
 **Slice 2 (deferred to `[08]`, not built here): get them onto the radio.**
 
 - Per Section 2.4, there is no existing bulk radio-push today. Once `[08]`'s
   apply-now endpoint ships (its own Section 4.3), a registry-originated
   channel is indistinguishable from any other DB channel with
-  `on_radio=False` — it becomes eligible for whatever preset/apply
+  `on_radio=False` - it becomes eligible for whatever preset/apply
   mechanism `[08]` builds, with zero registry-specific code needed on the
   radio-push side. Until `[08]` ships, registry-added channels reach the
   radio the same way every channel does today: lazily, the first time
   someone sends a message to them (`app/services/message_send.py:256-295`).
 - This plan does not propose an early bespoke radio-push step for registry
-  channels specifically — doing so would duplicate `[08]`'s design work
+  channels specifically - doing so would duplicate `[08]`'s design work
   (slot planning, capacity checks, partial-failure UX) for one channel
   source out of several, which `[08]` Section 6 already identifies as risk
   territory (partial-apply UX, additive-vs-replace semantics) that should be
@@ -304,7 +304,7 @@ would look like.
 
 - **`[08]` (channel/contact preset upload)** owns "push a set of channels to
   the radio in one action." This plan explicitly does not duplicate that
-  work (Section 4, Slice 2) — it only gets registry-selected names into the
+  work (Section 4, Slice 2) - it only gets registry-selected names into the
   channels table via an existing creation endpoint, the same as manual
   add, cracker discovery, or `.txt` import already do. Once `[08]` ships its
   apply-now endpoint, it applies uniformly to channels regardless of
@@ -313,7 +313,7 @@ would look like.
 - **`[05]` (region-scope list sync)** shares the `GET /api/registry/sync`-
   style template (server-side proxy fetch, additive local merge) but syncs
   into `known_regions` (a flat server-side setting), not into a
-  browser-local catalog. This plan does not touch that sync mechanism — it
+  browser-local catalog. This plan does not touch that sync mechanism - it
   is downstream of it, consuming registry entries that may have arrived via
   sync (2.3) or by any other of the four intake paths (2.1). The dropped-key
   finding in 2.1.4 is specific to the Channel Registry's `addMissingFromSync`
@@ -323,7 +323,7 @@ would look like.
 ## 6. Risks / open questions
 
 1. **Capacity.** Adding channels to the DB from the registry has no
-   enforced ceiling — the DB already stores channels "beyond the radio
+   enforced ceiling - the DB already stores channels "beyond the radio
    limits (~40 channels)" by design (`AGENTS.md:97`). A user selecting, say,
    60 registry entries and clicking "Add to Channels" will succeed at the DB
    layer with zero errors; only later, at radio-load time (2.4), does the
@@ -335,9 +335,9 @@ would look like.
 2. **Dedupe correctness depends on key derivation matching intent.** If
    Option A (bulk-hashtag) is chosen and a registry entry's name was
    associated, in the operator's head, with a *different* (non-hashtag-
-   derived) key — e.g. it came from `mergeImport`'s Project A/B JSON schema,
+   derived) key - e.g. it came from `mergeImport`'s Project A/B JSON schema,
    which can carry arbitrary metadata for a channel someone privately typed
-   in without ever confirming it is a "real" `#`-hashtag secret — bulk-hashtag
+   in without ever confirming it is a "real" `#`-hashtag secret - bulk-hashtag
    will silently create a channel keyed by `SHA256(name)`, which may not be
    the channel the operator actually meant. This is not a new risk
    specific to this plan (the registry never stored a key to compare
@@ -348,7 +348,7 @@ would look like.
    this either, since it has to *assume* hashtag derivation to manufacture a
    key in the first place. Fixing this at the root would mean adding a
    `key` field to `RegistryChannel` and threading it through all four intake
-   paths (2.1) — out of scope for "smallest change," flagged here as a
+   paths (2.1) - out of scope for "smallest change," flagged here as a
    pre-existing data-model gap, not something this plan's UI hookup should
    silently paper over.
 3. **OPEN QUESTION (blocks implementation): Option A vs. Option B (Section
@@ -378,14 +378,14 @@ would look like.
    record, at research time `git ls-tree -r origin/main --name-only --
    app/migrations` shows the highest file as
    `_070_create_battery_history.py`, so the next free number is **`071`**
-   if a future revision of this plan needs one — this supersedes the
+   if a future revision of this plan needs one - this supersedes the
    `069`/`070` figures cited in plans `[05]`/`[08]`, which were written
    against an earlier `origin/main` state (highest was `_068` at the time).
    Re-verify at build time per those plans' own caveat.
 
 ## 7. Verification plan
 
-**Backend tests** (no backend changes if Option A is chosen — existing
+**Backend tests** (no backend changes if Option A is chosen - existing
 `bulk-hashtag` coverage should already exist; confirm before assuming a gap):
 
 - `git grep -l bulk-hashtag tests/` (or equivalent) to confirm whether
@@ -399,7 +399,7 @@ would look like.
 
 - New test for the "Add to Channels" button in a
   `ChannelRegistryView`-focused test file (none currently listed in
-  `frontend/AGENTS.md`'s representative test inventory — confirm whether one
+  `frontend/AGENTS.md`'s representative test inventory - confirm whether one
   exists before assuming a new file is needed): selection-or-all semantics,
   private-entry exclusion, and the correct API call for whichever option is
   chosen.
@@ -410,7 +410,7 @@ would look like.
   `"#name - <sha256 hex>"` for a known fixture name/hash pair, and that
   `api.importChannels` receives it.
 
-**Live/manual verification (required per repo rule — compiling/tests are
+**Live/manual verification (required per repo rule - compiling/tests are
 not proof of runtime behavior):**
 
 - Add 2-3 entries to the Channel Registry (mix of finder-discovered and
@@ -437,6 +437,6 @@ not proof of runtime behavior):**
   file-synthesis helper, both new (if small) frontend code with their own
   unit tests. Still no backend changes. Sonnet-scoped, slightly more than
   Option A due to the new hashing utility and its tests.
-- **Slice 2 (radio push)**: not this plan's effort — tracked entirely under
+- **Slice 2 (radio push)**: not this plan's effort - tracked entirely under
   `[08]`, whose own effort estimate (`08-channel-preset-upload.md` Section
   8) already accounts for it.

@@ -1,7 +1,8 @@
 # 05. Region-scope list sync
 
-Date: 2026-09-10
-Status: draft plan (local planning only, no code changes)
+Date: 2026-09-10 (status reconciled 2026-09-11)
+Status: SHIPPED via PRs #28 (sync), #45 (region pill + offline Dutch seed),
+#48 (store analyzer scope codes, not display names). See "Implementation status".
 Model: Sonnet
 State: Partial (extends shipped `known_regions` + shipped Channel Registry sync)
 
@@ -20,7 +21,7 @@ State: Partial (extends shipped `known_regions` + shipped Channel Registry sync)
   `/regions` prefix, Open Question 6.4) parses the analyzer's bare
   `{code, name}` array, maps `name || code`, and dedupes via the reused
   `_dedupe_region_names` helper. The `scopes[]`-flattening **fallback path
-  (section 4.2) is NOT implemented** — it is explicitly "kept only for a source
+  (section 4.2) is NOT implemented** - it is explicitly "kept only for a source
   that does not expose a regions endpoint", a defensive nicety rather than the
   resolved requirement, so it is deferred (smallest change). A `region_sync_url`
   pointed at `/api/channels` returns channel records and 502s.
@@ -61,7 +62,7 @@ turns out to expose a dedicated flat regions endpoint, `GET
 /api/regions/scopes`, sibling to `/api/channels` on the same host. Section 3.2's
 finding about the toolbox proxy is still accurate as written (the toolbox has
 no regions proxy of its own), but it is no longer the load-bearing constraint
-on this plan's design — see "Decision (2026-09-10)" and section 3.3.
+on this plan's design - see "Decision (2026-09-10)" and section 3.3.
 
 ## Decision (2026-09-10)
 
@@ -72,7 +73,7 @@ branch `main`):
 
 - `GET /api/regions/scopes` is registered at
   `cmd/api-analysis/main.go:502` (`channelview.NewScopesHandler(pool,
-  scopeNames, maxAge)`) — the same backend service (`api-analysis`) that
+  scopeNames, maxAge)`) - the same backend service (`api-analysis`) that
   serves `/api/channels` (`cmd/api-analysis/main.go:303`). Both prefixes are
   routed to `api-analysis:8080` at the public edge
   (`deploy/web/Caddyfile:303-305` for `/api/channels*`,
@@ -82,12 +83,12 @@ branch `main`):
 - Payload is a bare JSON array of `{"code": string, "name": string}` objects
   (`internal/channelview/view.go:180-183`, type `Scope`; handler
   `:1211-1281`). Never an envelope, never `null` (empty array when no data).
-  `name` may be `""` when the shipped catalog has no label for that code —
+  `name` may be `""` when the shipped catalog has no label for that code -
   consumers fall back to `s.name || s.code`.
 - This is a flat, already-deduplicated list of the region codes actually
   present in the read-model's data (not the full ~1493-entry shipped
   catalog), ordered busiest-first (`internal/channelview/view.go:1198-1199`).
-  It is exactly the shape this plan needs for `known_regions` — no
+  It is exactly the shape this plan needs for `known_regions` - no
   client-side flattening of a per-channel `scopes[]` array required.
 - The DMC toolbox itself does not proxy this endpoint. Its only Cloudflare
   Pages Functions are `channels-data.js` (proxies
@@ -99,13 +100,13 @@ branch `main`):
   client-side scope-to-region-name derivation
   (`src/utils/analyzerChannels.ts`) and serial-radio region-gating config
   builders (`src/hooks/useSerialDevice.ts`, `src/lib/config/regionCommands.ts`)
-  — unrelated to a regions list endpoint. So this plan's sync must call the
+  - unrelated to a regions list endpoint. So this plan's sync must call the
   analyzer directly, the same third-party call already accepted for option
   3.2(a); there is no toolbox-side equivalent of 3.2(b) for regions.
 - Cross-check, not the sync source: a separate, unrelated self-hosted
   project, `cornmeister-mesh-analyzer` (local repo
   `G:\Github\repositories\Elektr0Vodka\cornmeister-mesh-analyzer`, deployed at
-  `cornmeister.elektrovodka.nl` per that repo's own docs — a different
+  `cornmeister.elektrovodka.nl` per that repo's own docs - a different
   operator's instance, not affiliated with `meshcore-analyzer.eu`)
   independently implements the identical `GET /api/regions/scopes` path and
   `{code,name}` bare-array shape (`internal/api/api.go:2049`, handler
@@ -120,7 +121,7 @@ only as a documented fallback path, in case a deployment's
 degrades to `[]` rather than erroring, per
 `internal/channelview/view.go:1201-1205`, so an empty response is
 indistinguishable from "no regions in the data yet" and from "endpoint
-down" — this plan does not attempt to tell those apart).
+down" - this plan does not attempt to tell those apart).
 
 ## 2. Current state (cited)
 
@@ -145,7 +146,7 @@ down" — this plan does not attempt to tell those apart).
   transport code; it recomputes `HMAC-SHA256(SHA256("#"+name)[:16], ...)` for
   every name in the candidate list and checks for a match
   (`app/region_resolver.py:63-79`, `compute_transport_code` at `:45-60`).
-  This is an O(len(known_regions)) scan per scoped packet — see Risk 6.3.
+  This is an O(len(known_regions)) scan per scoped packet - see Risk 6.3.
 - Frontend surface: `SettingsRadioSection.tsx` owns a local `knownRegions`
   textarea state (one name per line or comma-separated), loads it from
   `appSettings.known_regions` (`frontend/src/components/settings/SettingsRadioSection.tsx:213`,
@@ -210,7 +211,7 @@ copy:
   `:61-72`). `GET /api/registry/sync` is a pure pass-through proxy; the
   "registry" itself lives entirely in the browser.
 - **Merge semantics**: `addMissingFromSync(channels, existing)`
-  (`frontend/src/lib/channelManager.ts:222-246`) is strictly additive — it
+  (`frontend/src/lib/channelManager.ts:222-246`) is strictly additive - it
   never mutates or removes existing entries, only appends names not already
   present (case-insensitive), tagging new rows `source: 'imported'`.
 - **UI**: `ChannelRegistryView.tsx` "Sync" button
@@ -272,7 +273,7 @@ fetches:
   region-shaped data is the per-channel `scopes: string[]` array embedded in
   the channel feed. A "known regions" list would have to be *derived* as the
   deduplicated union of every channel's `scopes` array across the whole feed
-  — there is no upstream endpoint that already returns that union.
+  - there is no upstream endpoint that already returns that union.
 - The toolbox's only static, curated region vocabulary is two small local
   maps used purely for display labels, not for validation or listing:
   `SCOPE_COUNTRY` (broad ISO-ish country-code → name map, ~46 entries) and
@@ -284,7 +285,7 @@ fetches:
 - `RegionSettingsForm.tsx` / `regionCommands.ts` in the same repo
   (`src/components/config/`, `src/lib/config/regionCommands.ts`) are CLI
   command builders for pushing region-gating config to a single connected
-  DMC repeater over serial/USB config — free-text entry, not a list source.
+  DMC repeater over serial/USB config - free-text entry, not a list source.
   Not relevant to sync.
 
 **Consequence for this plan (see also Risk 6.1):** the URL an operator would
@@ -294,7 +295,7 @@ party, undocumented stability/versioning contract, UNVERIFIED whether it
 allows direct cross-origin browser or server calls at volume), or (b) the
 toolbox's own `https://toolbox.dutchmeshcore.nl/channels-data` proxy, which
 is captioned in its own source as "same-origin" for the toolbox's app and
-edge-cached for the toolbox's own traffic pattern — using it as a
+edge-cached for the toolbox's own traffic pattern - using it as a
 general-purpose third-party integration point was not its intended design,
 though nothing in the function code rejects unrelated callers (permissive
 CORS, no referrer check). Either way, the payload this plan's backfill would
@@ -304,7 +305,7 @@ before it looks like `known_regions`.
 
 **This subsection's finding stands as written** (the toolbox has no
 dedicated regions endpoint), but per the Decision above it is no longer the
-primary data source for this plan — see 3.3.
+primary data source for this plan - see 3.3.
 
 ### 3.3 Analyzer regions endpoint (confirmed 2026-09-10, this is the sync source)
 
@@ -319,7 +320,7 @@ Source: `GET /api/regions/scopes`, local repo
 - **Public URL**: `https://meshcore-analyzer.eu/api/regions/scopes`.
   Confirmed via `deploy/web/Caddyfile`: `handle /api/channels*
   { reverse_proxy api-analysis:8080 }` at `:303-305` and `handle
-  /api/regions* { reverse_proxy api-analysis:8080 }` at `:379-381` — both
+  /api/regions* { reverse_proxy api-analysis:8080 }` at `:379-381` - both
   prefixes forward to the same backend container, so both are reachable on
   the analyzer's public host the toolbox already calls for `/api/channels`.
 - **Handler**: `internal/channelview/view.go:1211-1281`
@@ -337,7 +338,7 @@ Source: `GET /api/regions/scopes`, local repo
   `json:"name"` tags (`internal/channelview/view.go:180-183`). `name` can be
   `""` (no display label in the shipped catalog for that code); consumers
   (`channels.js`/`analytics.js` per the code comment at `:201-205`) render
-  `s.name || s.code`. Never `null` — a fresh/empty deployment or nil pool
+  `s.name || s.code`. Never `null` - a fresh/empty deployment or nil pool
   serves `[]` (`:1256-1258`), by design, so a fetcher cannot distinguish "no
   regions in this deployment's data" from "endpoint unreachable" purely from
   an empty body (HTTP status still distinguishes actual fetch failure from a
@@ -353,7 +354,7 @@ Source: `GET /api/regions/scopes`, local repo
   `:1283-1295`), matching `/api/channels`'s cache shape already relied on
   elsewhere in this plan.
 - **UNVERIFIED**: no live HTTP request was made against
-  `https://meshcore-analyzer.eu/api/regions/scopes` for this update — this is
+  `https://meshcore-analyzer.eu/api/regions/scopes` for this update - this is
   read from source, same limitation already flagged in Risk 6.7 for
   `/api/channels`. Verify both endpoints together with one live check before
   implementation (see section 7, item 2).
@@ -366,7 +367,7 @@ New `app_settings` column, same shape as `registry_sync_url`:
 
 - Migration `app/migrations/_069_add_region_sync_url.py` (next free number;
   verified `069` is unused on both `origin/main` and this branch's HEAD via
-  `git ls-tree -r --name-only origin/main app/migrations` — highest existing
+  `git ls-tree -r --name-only origin/main app/migrations` - highest existing
   is `_068_add_registry_sync_url.py`). `ALTER TABLE app_settings ADD COLUMN
   region_sync_url TEXT NOT NULL DEFAULT ''`, idempotent column-exists guard,
   mirroring `_068` exactly.
@@ -375,7 +376,7 @@ New `app_settings` column, same shape as `registry_sync_url`:
   `:194`, `:268-270`, `:304`, `:326`).
 - `AppSettingsUpdate.region_sync_url: str | None` in
   `app/routers/settings.py`, applied unconditionally like
-  `registry_sync_url` (`app/routers/settings.py:290-291` pattern) — no
+  `registry_sync_url` (`app/routers/settings.py:290-291` pattern) - no
   validation needed at write time since the fetch endpoint validates at read
   time, same as the channel registry.
 - `AppSettings.region_sync_url: string` / `AppSettingsUpdate.region_sync_url?:
@@ -385,7 +386,7 @@ New `app_settings` column, same shape as `registry_sync_url`:
 ### 4.2 Backend proxy endpoint: `GET /api/regions/sync`
 
 New router `app/routers/regions.py` (or extend `app/routers/registry.py` with
-a second route — smallest-change judgment call, see Open Question 6.4),
+a second route - smallest-change judgment call, see Open Question 6.4),
 mirroring `app/routers/registry.py:22-75` structure:
 
 - 400 if `region_sync_url` is blank. Default value is a user/documentation
@@ -394,7 +395,7 @@ mirroring `app/routers/registry.py:22-75` structure:
 - `httpx.AsyncClient(timeout=10.0, follow_redirects=True)` GET, same
   502-on-transport-error / non-200 / non-JSON handling as the registry
   endpoint.
-- **Primary path — sync directly from the analyzer's regions endpoint**
+- **Primary path - sync directly from the analyzer's regions endpoint**
   (section 3.3), since its payload is already the flat, deduplicated shape
   `known_regions` needs:
   1. Accept a bare JSON array of `{"code": string, "name": string}` objects
@@ -402,7 +403,7 @@ mirroring `app/routers/registry.py:22-75` structure:
      a malformed-shape response elsewhere in this plan) anything that is not
      a JSON array of objects.
   2. Map each entry to the string RTFM-EV stores: `name` when non-empty,
-     else `code` — mirroring the analyzer's own display-fallback convention
+     else `code` - mirroring the analyzer's own display-fallback convention
      (`s.name || s.code`, noted in `internal/channelview/view.go:201-205`).
      `known_regions` matches by name text at decode time
      (`app/region_resolver.py:63-79` recomputes the HMAC over `"#"+name`),
@@ -410,20 +411,20 @@ mirroring `app/routers/registry.py:22-75` structure:
      dropping it.
   3. Drop the wildcard `*` sentinel and blanks after the name/code fallback,
      reusing `_dedupe_region_names` from `app/routers/radio.py:664-678`
-     rather than re-implementing it, and dedupe case-insensitively — same
+     rather than re-implementing it, and dedupe case-insensitively - same
      rules already applied to the `discover-regions` sweep and to manual
      `known_regions` edits (`app/routers/settings.py:233-248`), so all three
      write paths stay consistent.
-  4. Return `RegionSyncResponse{regions: list[str]}` — matching what
+  4. Return `RegionSyncResponse{regions: list[str]}` - matching what
      `known_regions` stores (unlike Channel Registry's `{name, key}` pairs, a
      region has no accompanying "key" to transport).
-- **Fallback path — flatten per-channel `scopes[]`** (the original
+- **Fallback path - flatten per-channel `scopes[]`** (the original
   3.2/4.2 design), kept only for a source that does not expose a dedicated
   regions endpoint (e.g. if an operator points `region_sync_url` at
   `/api/channels` directly instead of `/api/regions/scopes`, or at a future
   source shaped like the toolbox's channel feed):
   1. Accept the analyzer/toolbox channel-array shape (`list[{scopes:
-     list[str], ...}]` — tolerate a top-level `{"channels": [...]}` wrapper
+     list[str], ...}]` - tolerate a top-level `{"channels": [...]}` wrapper
      too, matching `mapAnalyzerResponse`'s wrapper handling).
   2. Flatten and dedupe every `scopes[]` entry across all records
      case-insensitively into `list[str]`.
@@ -433,14 +434,14 @@ mirroring `app/routers/registry.py:22-75` structure:
   Whether the endpoint should auto-detect which shape it received (array of
   `{code,name}` vs. array of channel records with `scopes[]`) or require a
   config flag naming which mode to use is an implementation-time judgment
-  call, not fixed here — auto-detection is straightforward (a `{code,name}`
+  call, not fixed here - auto-detection is straightforward (a `{code,name}`
   object has no `scopes` key) but adds a small amount of branching to what
   would otherwise be a single-shape parser.
 - The primary-path mapping (analyzer `{code,name}` array to `known_regions`
   strings) and the fallback flattening logic are both RTFM-EV-side
   normalization with no shared template in the Channel Registry sync (that
   endpoint's source is already a flat `{name: key}` map). Both are new code,
-  not copy-paste, and both should get unit tests — the primary path is now
+  not copy-paste, and both should get unit tests - the primary path is now
   the one actually expected to run in the common case, so it should get the
   more thorough test coverage of the two.
 
@@ -455,7 +456,7 @@ mirroring `app/routers/registry.py:22-75` structure:
   inline in `SettingsRadioSection.tsx` next to
   `handleAddDiscoveredRegions` (`:558-566`), which already implements
   exactly this "existing set, case-insensitive, filter additions, toast if
-  none" pattern for the live-discovery flow — the new sync button should
+  none" pattern for the live-discovery flow - the new sync button should
   call the same merge shape, not a third slightly-different implementation.
 - UI: a "Sync" button next to the existing `known_regions` textarea
   (`SettingsRadioSection.tsx:1322-1339`), loading/disabled state and toast
@@ -464,14 +465,14 @@ mirroring `app/routers/registry.py:22-75` structure:
   region(s) added` / `Already up to date` / error toast).
 - Sync URL configuration: a second `url`-type `<Input>` in **Settings >
   Radio** (co-located with `known_regions`, not in Settings > Database where
-  the channel registry's URL lives — placing it there keeps both region
+  the channel registry's URL lives - placing it there keeps both region
   controls in one section rather than splitting one feature across two
   settings tabs; Open Question 6.5 asks whether that's the right call),
   modeled on `SettingsDatabaseSection.tsx:213-239`'s PATCH-on-blur pattern.
 - **Important divergence from the Channel Registry pattern**: syncing merges
   directly into the *server-side* `known_regions` setting (via `PATCH
   /api/settings`), not into a browser-only `localStorage` structure. There is
-  no client-only "region registry" data model to build — `known_regions`
+  no client-only "region registry" data model to build - `known_regions`
   already is the server-side list. This makes the frontend piece of this
   plan smaller than the Channel Registry's, at the cost of round-tripping
   through `PATCH /api/settings` (which also triggers the region backfill
@@ -485,33 +486,33 @@ mirroring `app/routers/registry.py:22-75` structure:
   `app/routers/registry.py:18-19`.
 - Frontend: no new TS interface needed beyond `{ regions: string[] }` inline
   in `api.ts`, since (unlike `RegistryChannel`) there is no extra per-region
-  metadata to model — `known_regions` is already `string[]`.
+  metadata to model - `known_regions` is already `string[]`.
 
 ## 5. Phasing
 
-1. **Backend plumbing** — migration `_069`, repository fields, settings
+1. **Backend plumbing** - migration `_069`, repository fields, settings
    router field, `GET /api/regions/sync` endpoint with the flatten/dedupe
    logic and its own test file (mirroring how the channel registry endpoint
    would be tested; no existing `test_registry_router.py` was found in the
    test inventory in `app/AGENTS.md`, so this may be the first router test
-   for either sync endpoint — check for one before assuming none exists,
+   for either sync endpoint - check for one before assuming none exists,
    flagged as Open Question 6.6).
-2. **Frontend sync + merge** — `api.ts` method, merge helper reusing the
+2. **Frontend sync + merge** - `api.ts` method, merge helper reusing the
    `handleAddDiscoveredRegions` shape, Sync button, sync-URL input.
-3. **Docs** — update `app/AGENTS.md` `app_settings` field list (currently
+3. **Docs** - update `app/AGENTS.md` `app_settings` field list (currently
    lists `known_regions` but not a paired sync-url; add `region_sync_url`
    next to it) and the root `AGENTS.md` API table (`/api/regions/sync` row
    near the existing `discover-regions` row).
 
-No phase depends on radio hardware or a live connection — this whole feature
+No phase depends on radio hardware or a live connection - this whole feature
 is server + browser, matching the "reuse Channel Registry plumbing" framing
 in `docs/plans/README.md:118`, `:149`.
 
 ## 6. Risks / open questions
 
 1. **Largely resolved by the Decision (2026-09-10) above, one narrower
-   question remains.** Section 3.2's finding still holds — DMC's toolbox
-   itself serves no curated region list — but section 3.3 confirms the
+   question remains.** Section 3.2's finding still holds - DMC's toolbox
+   itself serves no curated region list - but section 3.3 confirms the
    analyzer it proxies for channels does: `GET
    https://meshcore-analyzer.eu/api/regions/scopes`. That is now the
    confirmed candidate for `region_sync_url`, not an open host/path
@@ -520,7 +521,7 @@ in `docs/plans/README.md:118`, `:149`.
    should ship as the *default* value of `region_sync_url` (vs. blank, like
    `registry_sync_url`'s shipped default, with documentation pointing the
    operator at it instead), and (b) whether depending on this specific
-   third-party analyzer by default is acceptable given Risk 6.2 below — DMC's
+   third-party analyzer by default is acceptable given Risk 6.2 below - DMC's
    own project does not operate or guarantee `meshcore-analyzer.eu`.
 2. **Third-party dependency risk.** `meshcore-analyzer.eu` is not a repo
    listed in `docs/sources-of-truth.md`; it is one hop further out than DMC's
@@ -589,7 +590,7 @@ Before implementation is considered complete:
    against a fixture shaped like `channels-sample.json`.
 5. Frontend: `npm run test:run` covering the new sync button (loading state,
    toast copy, additive merge not clobbering existing `known_regions`
-   entries) — model on any existing test coverage for
+   entries) - model on any existing test coverage for
    `ChannelRegistryView`'s sync button and `handleAddDiscoveredRegions` in
    `frontend/src/test/`.
 6. `./scripts/quality/all_quality.sh` before calling the feature done, per

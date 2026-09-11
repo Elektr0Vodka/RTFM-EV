@@ -1,6 +1,9 @@
 # [09] Channel-finder wordlist sync
 
-Status: local planning document. No code changes, no commits, no issues/PRs.
+Status: SHIPPED (PR #30; migration `_074_add_wordlist_sync_url.py`;
+`frontend/src/lib/wordlistSync.ts`). Custom-words / multi-URL / push-back
+deferred (plan marked them optional). See "Implementation status". Reconciled
+2026-09-11.
 Reconciles with `docs/plans/README.md` entry [09] and `docs/sources-of-truth.md`.
 
 ## Implementation status (updated 2026-09-10)
@@ -55,7 +58,7 @@ A second key finding: the reference repo (`mccl`) that the brief names as the
 wordlist source is actually a **name-to-key rainbow table**, structurally identical to
 the Channel Registry sync payload, not a plain word list. This raised a real design
 question, resolved by the user (see Decision below): consume it as names only, fed
-into the wordlist merge — the keys are auto-derived by the cracker, not read
+into the wordlist merge - the keys are auto-derived by the cracker, not read
 directly from the rainbow table.
 
 ## Decision (2026-09-10, user)
@@ -378,7 +381,7 @@ PR #14 referenced in `docs/plans/README.md:135`).
 
 ## 6. Risks and open questions
 
-- **6a. Rainbow-table vs. wordlist semantics — RESOLVED (2026-09-10, user).**
+- **6a. Rainbow-table vs. wordlist semantics - RESOLVED (2026-09-10, user).**
   `mccl`, the repo the task brief names as *the* source, is a name-to-key
   table, not a word list (section 3b). **Decision: option (i)** - extract just
   the names from such a source and feed them into the wordlist merge described

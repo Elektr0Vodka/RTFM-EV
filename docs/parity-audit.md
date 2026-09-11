@@ -1,7 +1,7 @@
 # RTFM-EV Parity & Gap Audit
 
 Date: 2026-09-10
-Status: backlog in progress — N1 shipped; N2 (PR #24) and X1 (PR #41) implemented and mergeable; X2 next. See §7 for per-item status.
+Status: backlog in progress (reconciled 2026-09-11). SHIPPED: N1, N2 (PR #24, merged), X1 (PR #41, merged), X2 core, X2b per-link signal history (PR #47). PARTIAL: L1, L2, L4. Next buildable: L3 (MQTT neighbors/config publish), now unblocked since X1+X2 are done. See §7 for per-item status.
 Author: Elektr0Vodka (with agent research)
 
 This is a living document. It compares the current RTFM-EV against two reference
@@ -40,7 +40,7 @@ N/A rather than pretended into the backlog.
   changelog and should be confirmed against the `meshcore-web` source or the
   installed app before being treated as firm.
 
-**B. DMC observer firmware** — branch `dmc-observer-dev-1171-regiongating`
+**B. DMC observer firmware** - branch `dmc-observer-dev-1171-regiongating`
 (local checkout: `G:\Github\repositories\Dutch-MeshCore\MeshCore`, HEAD
 `c55f3905`). First-class parity target for MQTT / neighbor / region features.
 
@@ -52,15 +52,15 @@ Crediting reference for the i18n work (separate sub-project): Marcel Verdult's
 Each feature is one matrix row. Columns:
 
 - **Status in RTFM-EV**
-  - `Present` — exists and is usable
-  - `Partial` — exists in some form, needs extension to reach parity
-  - `Absent` — not present
-  - `Unverified` — not inspected in the RTFM-EV codebase yet; confirm before scoping
+  - `Present` - exists and is usable
+  - `Partial` - exists in some form, needs extension to reach parity
+  - `Absent` - not present
+  - `Unverified` - not inspected in the RTFM-EV codebase yet; confirm before scoping
 - **Applicability** (does it make sense for a server + browser terminal?)
-  - `App` — applicable, build it
-  - `Adapt` — applicable but must be adapted from the mobile/firmware form
-  - `N/A` — hardware- or mobile-only; documented, not backlogged
-- **Ref** — which reference set the feature comes from (Off = official app,
+  - `App` - applicable, build it
+  - `Adapt` - applicable but must be adapted from the mobile/firmware form
+  - `N/A` - hardware- or mobile-only; documented, not backlogged
+- **Ref** - which reference set the feature comes from (Off = official app,
   DMC = DMC firmware, both, or RTFM = RTFM-EV-native differentiator).
 
 Effort/risk are captured in §7, not the matrix, to keep the matrix scannable.
@@ -68,7 +68,7 @@ Effort/risk are captured in §7, not the matrix, to keep the matrix scannable.
 ## 4. RTFM-EV baseline (what exists today)
 
 Backend (`app/`, FastAPI + aiosqlite, custom per-version migrations; `_063`
-message region scope, `_064` Mention Ticker landed since — confirm current max
+message region scope, `_064` Mention Ticker landed since - confirm current max
 before adding one):
 - Connects to a companion radio via the `meshcore` Python lib (BLE / serial / TCP).
 - Multi-broker fanout via `fanout_configs` table; MQTT module types
@@ -76,7 +76,7 @@ before adding one):
 - Community MQTT already publishes a retained `/status` topic (hardcoded 5-min
   heartbeat, LWT offline) and raw-packet topics with SNR/RSSI/route/path
   (`app/fanout/community_mqtt.py`).
-- `raw_packets` table stores `id/timestamp/data/message_id/payload_hash` only —
+- `raw_packets` table stores `id/timestamp/data/message_id/payload_hash` only -
   **no `rssi`, `snr`, or `payload_type`** persisted (`app/database.py:70-77`).
   Signal values flow only through live events, never to the DB.
 - Telemetry history exists (`_061`, `_062`); message region scope exists
@@ -153,7 +153,7 @@ Frontend (`frontend/`, React 18 + TS + Vite, ~111 `.tsx`):
 | `packets` topic | DMC | Present | App | Community MQTT raw-ish format. |
 | `raw` topic | DMC | Partial | App | Private MQTT has `.../raw/...`; no per-broker toggle. |
 | Per-broker per-topic toggles | DMC | Absent | App | DMC: `mqtt_status_enabled=1`, `mqtt_raw_enabled=0` default off. |
-| Configurable status interval | DMC | Absent | App | DMC limits: 1–60 min (CLI) / 1000ms–3600000ms (bridge), default 5 min. |
+| Configurable status interval | DMC | Absent | App | DMC limits: 1-60 min (CLI) / 1000ms-3600000ms (bridge), default 5 min. |
 | `neighbors` topic publish | DMC | Absent | Adapt | Reconstruct host-side. |
 | `filter` stats topic | DMC | Absent | N/A | Repeater packet-filter concept; no companion analog. |
 | `config` topic (NEW this branch) | DMC | Absent | Adapt | Full node config snapshot; RTFM-EV could mirror its own config. |
@@ -190,9 +190,9 @@ Frontend (`frontend/`, React 18 + TS + Vite, ~111 `.tsx`):
    `meshcore/{iata}/{device}/{type}` topic layout.
 
 5. **Official status-interval limits** (answering the explicit request):
-   **1–60 minutes** at the CLI (`set mqtt.interval`), bridge-clamped
-   1000ms–3600000ms, **default 5 minutes**. Neighbors publish 12–336 h (default
-   24 h); filter stats 60–600 s (default 60 s, 0=off); packets are event-driven
+   **1-60 minutes** at the CLI (`set mqtt.interval`), bridge-clamped
+   1000ms-3600000ms, **default 5 minutes**. Neighbors publish 12-336 h (default
+   24 h); filter stats 60-600 s (default 60 s, 0=off); packets are event-driven
    (toggle only, no interval).
 
 6. **Signal-storage foundation is a prerequisite**, not a feature. Noise-floor
@@ -211,21 +211,21 @@ Ranking axes: value, effort, protocol/firmware risk, differentiator-vs-parity.
 Each "Now/Next" item gets its own brainstorm → spec → plan cycle.
 
 ### Now
-- **N1. Signal-storage foundation** — ✅ SHIPPED (PR #12, migrations `_065`/`_066`;
+- **N1. Signal-storage foundation** - ✅ SHIPPED (PR #12, migrations `_065`/`_066`;
   `rssi/snr/payload_type` on `raw_packets`, `/api/packets/recent|timeseries`).
-  Unblocked Phase-3 (packet-feed history, My Node, MeshHealth — all merged).
-- **N2. i18n (EN/NL/DE)** — ✅ IMPLEMENTED, PR #24 open + MERGEABLE (custom runtime
+  Unblocked Phase-3 (packet-feed history, My Node, MeshHealth - all merged).
+- **N2. i18n (EN/NL/DE)** - ✅ IMPLEMENTED, PR #24 open + MERGEABLE (custom runtime
   in `frontend/src/i18n/`, EN/NL/DE catalogs, `no-literal-string` guard at error).
   NL/DE machine-drafted, native review still outstanding. Credit Marcel (§9).
 
 ### Next
-- **X1. MQTT export parity** — ✅ IMPLEMENTED, PR #41 open + MERGEABLE
+- **X1. MQTT export parity** - ✅ IMPLEMENTED, PR #41 open + MERGEABLE
   (`feat/mqtt-dmc-observer-export`). New `mqtt_dmc_observer` fanout type: per-topic
   toggles (`status`/`packets` on, `raw` off), configurable status interval
-  (1–60 min, clamp 1000–3600000 ms), faithful DMC firmware wire schema
+  (1-60 min, clamp 1000-3600000 ms), faithful DMC firmware wire schema
   (`meshcore/{IATA}/{DEVICE}/{status|packets|raw}`, string SNR/RSSI, array path,
   `+00:00` timestamps, no LWT). Spec + plan under `docs/superpowers/`.
-- **X2. Neighbor discovery** — DONE. The core (query a repeater's neighbors via
+- **X2. Neighbor discovery** - DONE. The core (query a repeater's neighbors via
   `REQ_TYPE_GET_NEIGHBOURS 0x06` / `CMD_SEND_BINARY_REQ 50`; neighbor list +
   per-link signal + neighbors-on-map) was already shipped upstream and predates
   this audit; the rows above were mis-marked Absent. Verified out of reach:
@@ -237,18 +237,18 @@ Each "Now/Next" item gets its own brainstorm → spec → plan cycle.
   `docs/superpowers/`.
 
 ### Later
-- **L1. Region / scope surfacing** — mirror DMC `config` topic `region.scopes[]`,
+- **L1. Region / scope surfacing** - mirror DMC `config` topic `region.scopes[]`,
   `region_gate{}`; extend `_063` message region scope; `CMD_GET_DEFAULT_FLOOD_SCOPE`.
-- **L2. Telemetry graph parity** — noise-floor viewer, receive-error graphs,
+- **L2. Telemetry graph parity** - noise-floor viewer, receive-error graphs,
   Direct/Flood metrics (all gated on N1).
 - **L3. MQTT `neighbors` / `config` topic publishing** (gated on X1 + X2).
-- **L4. Small messaging parity** — mute channel, inline contact sharing (#347),
+- **L4. Small messaging parity** - mute channel, inline contact sharing (#347),
   auto contact discovery confirmation.
 
 ### Won't / N/A
-- On-device pairing UX, phone GPS location sharing — mobile-only.
-- `filter` stats topic — repeater packet-filter concept with no companion analog.
-- Antenna coverage / line-of-sight tools — deferred as heavy/optional; revisit
+- On-device pairing UX, phone GPS location sharing - mobile-only.
+- `filter` stats topic - repeater packet-filter concept with no companion analog.
+- Antenna coverage / line-of-sight tools - deferred as heavy/optional; revisit
   only if there is user demand.
 
 ## 8. Reconciliation with `rtfm-ev-fork-port-plan`

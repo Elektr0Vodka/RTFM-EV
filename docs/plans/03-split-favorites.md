@@ -1,7 +1,9 @@
 # [03] Split Favorites: Contacts vs Repeaters/Room-Servers
 
-Date: 2026-09-10
-Status: draft for review
+Date: 2026-09-10 (status reconciled 2026-09-11)
+Status: SHIPPED (PR #21). The verified gap (room-servers omitted from
+`CommandPalette.tsx` favorite grouping) is closed; heading present at
+`CommandPalette.tsx:318`. Retained as a delivery record.
 Category: B (Contacts & messaging UX), see `docs/plans/README.md`
 Model: Sonnet
 

@@ -1,17 +1,60 @@
-# Changelog — RTFM-EV (DMC-EV fork)
+# Changelog - RTFM-EV (DMC-EV fork)
 
 This changelog covers work done in the **RTFM-EV** fork
 (`Elektr0Vodka/RTFM-EV`) since it diverged from upstream
 `jkingsman/Remote-Terminal-for-MeshCore`.
 
 - Fork base commit: `33b3b8d` (upstream `main`), 2026-07-26
-- Commits since fork: 104 total (70 non-merge)
-- Generated: 2026-09-10
+- Commits since fork: 147 total (98 non-merge)
+- Generated: 2026-09-10; updated 2026-09-11
 
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
-## Firmware — meshcomod (DMC-EV)
+## Update 2026-09-11 (merged since the 2026-09-10 generation)
+
+Work that landed on `origin/main` after this changelog was first written,
+grouped by area. Older entries below remain as generated.
+
+### MQTT / fanout
+- DMC observer MQTT export (parity X1): payload/topic builders, publisher
+  (status schema, fixed interval, no LWT), fanout module for the raw/packets
+  topics, type registration with validation and scope, and a fanout editor with
+  i18n (`4ee1029`, `595e81e`, `a605d58`, `fc6847c`, `3a59ce7`) (PR #41)
+- Rename the community fanout client identifier to RTFM-EV (`a3ce6db`) (PR #50)
+
+### Neighbors / signal history
+- Per-link signal history, parity X2b (`736df88`) (PR #47)
+
+### Regions
+- Offline Dutch region-scope seed for message pills (`7434d0e`) (PR #45)
+- Store analyzer scope codes, not display names (`c71d0e7`) (PR #48)
+
+### Map
+- Route path lines and theme-aware basemaps (`9398e4a`) (PR #42)
+
+### Chat / UI
+- Decode MeshCore One reaction payloads (`9a91d86`) (PR #32)
+- Header language switcher and theme modal (`c77916b`) (PR #31)
+- Keep mobile header dropdowns within the viewport (`0eb2b77`) (PR #44)
+- Keep DarkDutch header dropdowns above page content (`8c6c708`) (PR #43)
+- Chat-header layout: stack the channel key below the name and keep the name
+  left of the DarkDutch chevron (`a783f4e`, `3d485b7`) (PR #45)
+- Stop showing the channel key as the sender key in the path modal (`b66ad53`)
+  (PR #46)
+
+### Rooms
+- Pass destination type to `send_cmd` for meshcore 2.3.9.1, key RoomServerPanel
+  distinctly from the message list, and remount it per room to stop login-state
+  bleed (`42025c8`, `6b8971f`, `39c75a9`) (PRs #49, #36)
+
+### Repeater
+- Command-history recall and CLI docs link in the console (`f362310`) (PR #33)
+
+### Reliability
+- Return 422 for mesh timeouts and stop clients retrying (`a26fd2a`) (PR #37)
+
+## Firmware - meshcomod (DMC-EV)
 
 - Add DMC-EV **CAD toggle** and **GPS** settings panel under Settings → Radio (`b806c5d`)
 - Add CAD toggle to the channel header (`6c3dc5b`)

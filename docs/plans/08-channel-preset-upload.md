@@ -108,7 +108,7 @@ must respect the firmware-reported capacity (`radio_manager.max_channels` /
   `1166-1490` (autoevict branch).
 - `ContactRepository.get_favorites()` / `set_favorite()`
   (`app/repository/contacts.py:476-490`) is the only existing "named group"
-  primitive for contacts today — favorite is a boolean flag, not a set
+  primitive for contacts today - favorite is a boolean flag, not a set
   membership, so there is no existing multi-preset contact grouping to build
   on.
 
@@ -125,7 +125,7 @@ inside it.
 - `POST /api/radio/disconnect` (`app/routers/radio.py:880-891`): calls
   `radio_manager.pause_connection()`, broadcasts health `false`, and pauses
   automatic reconnect. It performs no channel/contact provisioning step
-  today — a "before disconnect" preset-apply hook would need to be inserted
+  today - a "before disconnect" preset-apply hook would need to be inserted
   ahead of this call (frontend-side confirmation flow) or as a new parameter/
   pre-step on this endpoint.
 - `POST /api/radio/reconnect` (`app/routers/radio.py:914-941`) and the reboot
@@ -136,7 +136,7 @@ inside it.
   (`app/AGENTS.md:108`, `app/radio_sync.py:464` `sync_and_offload_all`).
   A preset applied just before disconnect is **not** persisted onto the
   radio across a reconnect by any existing mechanism beyond what the normal
-  reconcile loop and channel LRU cache already do — it is a point-in-time
+  reconcile loop and channel LRU cache already do - it is a point-in-time
   push, not a standing configuration.
 
 ### 2.4 Existing app_settings storage pattern to reuse
@@ -156,7 +156,7 @@ inside it.
   (`app/migrations/_067_add_radio_presets.py:22-25`).
 - **Naming collision risk (fact, not assumption):** `RadioPresetsStore` /
   `radio_presets` already denotes **LoRa radio parameter presets**
-  (frequency/bandwidth/spreading-factor/coding-rate — `RadioPresetEntry` at
+  (frequency/bandwidth/spreading-factor/coding-rate - `RadioPresetEntry` at
   `app/models.py:958-963`), synced from `OFFICIAL_PRESETS_URL`
   (`app/routers/radio.py:50`) and rendered by
   `frontend/src/components/settings/SettingsRadioSection.tsx` and
@@ -175,7 +175,7 @@ inside it.
   `68-102` import parsing). Backend counterparts:
   `GET /api/channels/export` and `POST /api/channels/import`
   (`app/routers/channels.py:416-557`).
-- Import today is DB-only (2.1) — it does not push to the radio. It also has
+- Import today is DB-only (2.1) - it does not push to the radio. It also has
   no contact component; contacts have no equivalent import/export today
   (confirmed: no `contacts/import` or `contacts/export` route in
   `app/routers/contacts.py` route list, `AGENTS.md:337-364`).
@@ -199,7 +199,7 @@ app/services/message_send.py:256-295
 A preset-apply function should reuse `plan_channel_send_slot` /
 `note_channel_slot_loaded` / `invalidate_cached_channel_slot`
 (`app/radio.py:329-395`) rather than reimplementing slot bookkeeping, since
-that cache is also consulted by the ordinary send path afterward — applying
+that cache is also consulted by the ordinary send path afterward - applying
 a preset without updating the cache would cause the next channel send to
 redundantly (but harmlessly) reconfigure the slot.
 
@@ -223,7 +223,7 @@ reusable "stage these contacts on the radio" helper rather than duplicating
 the reconcile loop's TABLE_FULL/autoevict handling
 (`app/radio_sync.py:1417-1466`) inline in a new preset-apply endpoint. This
 is real, non-trivial logic (retry, autoevict pass tracking, error
-threshold `_MAX_AUTOEVICT_RETRIES`) — UNVERIFIED estimate of how much of it a
+threshold `_MAX_AUTOEVICT_RETRIES`) - UNVERIFIED estimate of how much of it a
 "push now" path actually needs, since preset-apply is a one-shot user action,
 not a steady-state background policy. Needs design discussion, not just
 extraction (see Section 6).
@@ -292,35 +292,35 @@ Following the `/api/settings/*` toggle-style sub-resource pattern already
 used for `favorites`, `blocked-keys`, `muted-channels`
 (`app/AGENTS.md:312-319`, `AGENTS.md:387-394`):
 
-- `GET /api/settings/channel-presets` — list presets.
-- `POST /api/settings/channel-presets` — create from current channel
+- `GET /api/settings/channel-presets` - list presets.
+- `POST /api/settings/channel-presets` - create from current channel
   selection (frontend passes the same `Channel[]` shape already used by
   `ChannelImportExportModal`'s "selected channels" export mode,
   `ChannelImportExportModal.tsx:294-296`).
-- `DELETE /api/settings/channel-presets/{id}` — delete.
-- `PATCH /api/settings/channel-presets/{id}` — rename / edit membership.
+- `DELETE /api/settings/channel-presets/{id}` - delete.
+- `PATCH /api/settings/channel-presets/{id}` - rename / edit membership.
 
 (Exact path naming depends on the Section 4.1 naming decision.)
 
 ### 4.3 Apply-now endpoint (proposed)
 
-`POST /api/settings/channel-presets/{id}/apply` — synchronous, radio-locked
+`POST /api/settings/channel-presets/{id}/apply` - synchronous, radio-locked
 operation:
 
 1. Acquire the radio operation lock the same way channel sends do
    (`radio_manager.radio_operation(...)`, `app/radio.py:230-286`) so this
    cannot race a send or the periodic sync loop.
-2. Additive apply (per Decision above — not conditional on slice): for each
+2. Additive apply (per Decision above - not conditional on slice): for each
    channel in the preset, skip it if a channel with the same key is already
    loaded on the radio (dedupe against existing channels), otherwise call
    `plan_channel_send_slot` + `set_channel` + `note_channel_slot_loaded`,
    mirroring 3.1. No clear-slots-first pass is added; existing slots outside
    the preset are left untouched. Stop or continue-on-error per channel
-   (UNVERIFIED which; needs a product decision — partial application without
+   (UNVERIFIED which; needs a product decision - partial application without
    a clear per-channel result list would be a poor user experience for a
    "quick-load before I leave" action).
 3. If the preset includes contacts and contact-bundling ships in this slice
-   (see Section 5 phasing — first slice is channels-only): for each contact,
+   (see Section 5 phasing - first slice is channels-only): for each contact,
    ensure it exists in the DB (`ContactRepository`) and push it to the radio,
    respecting the capacity check pattern used by
    `_effective_radio_capacity()` (2.2) so an apply cannot silently exceed
@@ -363,7 +363,7 @@ New Pydantic models: `ChannelContactPresetChannel`, `ChannelContactPresetContact
 `ChannelContactPreset`, `ChannelContactPresetsStore`, plus a
 `PresetApplyResult` response model (4.3 step 4). New `AppSettingsRepository`
 methods: `get_channel_contact_presets()`, `update_channel_contact_presets(...)`
-— following the exact `get_radio_presets()` / internal-only pattern
+- following the exact `get_radio_presets()` / internal-only pattern
 (`app/repository/settings.py:443`). New frontend TS types mirroring these in
 `frontend/src/types.ts`, and `api.ts` methods, per the "typed contracts at
 important boundaries" ethos (`AGENTS.md:108`).
@@ -374,8 +374,8 @@ important boundaries" ethos (`AGENTS.md:108`).
 
 - CRUD for channel-only presets (4.1, 4.2 minus contacts).
 - Apply-now endpoint pushes channels only (4.3 steps 1-2, 4), additive
-  semantics (Decision above; Section 6 item 1 resolved as "additive" — not
-  slice-1-only — since additive is strictly simpler, matches how the LRU slot
+  semantics (Decision above; Section 6 item 1 resolved as "additive" - not
+  slice-1-only - since additive is strictly simpler, matches how the LRU slot
   cache already behaves for ordinary sends, and needs no new "clear first"
   code path). Existing firmware-reported ~40-slot capacity handling (2.1)
   applies unchanged, and apply dedupes against channels already on the radio
@@ -408,12 +408,12 @@ contacts design.
 
 ## 6. Risks / open questions
 
-1. **Additive vs. replace-slots — RESOLVED (2026-09-10, user): additive.**
+1. **Additive vs. replace-slots - RESOLVED (2026-09-10, user): additive.**
    Apply loads the preset's channels into free/LRU-selected slots via the
    existing cache (3.1), leaving whatever else is already resident, and
    dedupes against channels already loaded on the radio (by key) rather than
    redundantly reconfiguring them. No "replace" mode (clearing all radio
-   channel slots first, 3.2 pattern) is built — that would risk evicting a
+   channel slots first, 3.2 pattern) is built - that would risk evicting a
    channel the operator is mid-conversation on and didn't intend to drop, and
    would duplicate the offload-clear code path outside its current
    connect-time-only usage. This applies across slices, not just slice 1.
@@ -425,7 +425,7 @@ contacts design.
    ceiling the reconcile loop respects, or the two mechanisms will fight
    (reconcile evicting what preset-apply just loaded, or vice versa). No
    existing "coordinate a one-shot push with the steady-state loop" pattern
-   to reuse (3.3) — needs its own design pass in slice 2, not assumed to be
+   to reuse (3.3) - needs its own design pass in slice 2, not assumed to be
    a small addition.
 3. **Radio slot failure/partial-apply UX.** `set_channel` can return
    `EventType.ERROR` (as it already does in the send path,
@@ -437,7 +437,7 @@ contacts design.
    resolved before any migration/model is written, since the column name and
    API paths are hard to rename later without a follow-up migration.
 5. **Preset staleness across reconnect.** Per 2.3, applying a preset does
-   not make it "sticky" — a later reconnect's `sync_and_offload_all` /
+   not make it "sticky" - a later reconnect's `sync_and_offload_all` /
    periodic reconcile can still evict or reconfigure slots per existing
    policy. This is a point-in-time push, not a standing configuration; the
    feature description ("load a working channel set before disconnecting")
@@ -449,7 +449,7 @@ contacts design.
    it and nothing to push (a contact must exist in `contacts` to be
    radio-pushable via the reconcile pattern, 3.3). UNVERIFIED whether the
    apply endpoint should silently skip such contacts or surface them as a
-   distinct "not available" result category — needs product input.
+   distinct "not available" result category - needs product input.
 
 ## 7. Verification plan
 
@@ -468,9 +468,9 @@ contacts design.
   UNVERIFIED whether abort-on-first-error or continue-on-error is correct
   until Section 6 item 3 is resolved with the user.
 - Migration test following the pattern implied by `_067_add_radio_presets.py`
-  (idempotent add-column, default value) — check whether existing migration
+  (idempotent add-column, default value) - check whether existing migration
   tests cover this file-by-file or via a full-migration-chain test
-  (UNVERIFIED; not located during this research pass — confirm location in
+  (UNVERIFIED; not located during this research pass - confirm location in
   `tests/` before writing).
 
 **Frontend tests** (Vitest, `frontend/AGENTS.md` Testing section):
@@ -479,13 +479,13 @@ contacts design.
   the pattern of `frontend/src/test/settingsModal.test.tsx`.
 - `api.ts` method tests following `frontend/src/test/api.test.ts` conventions.
 
-**Live radio observation (required per repo rule — compiling/tests are not
+**Live radio observation (required per repo rule - compiling/tests are not
 proof of runtime behavior):**
 
 - Create a preset with 2-3 channels not currently loaded on the radio, call
   apply-now, and confirm via a direct `get_channel` probe (or the existing
   `GET /api/debug` slot/channel audit, `app/AGENTS.md:236`) that the radio's
-  slots actually contain the expected name/key — not just that the backend
+  slots actually contain the expected name/key - not just that the backend
   returned 200.
 - Repeat on both a serial/BLE connection and a TCP connection, since TCP
   forces `set_channel` before every send unconditionally
@@ -503,7 +503,7 @@ proof of runtime behavior):**
   (`ChannelImportExportModal.tsx` styling, `SettingsRadioAppSection.tsx`
   layout conventions). Main risk is the OPEN QUESTION in Section 6 item 1
   needing a decision before the apply endpoint's core loop is final.
-- **Slice 2 (contacts)**: larger than slice 1 — requires extracting/adapting
+- **Slice 2 (contacts)**: larger than slice 1 - requires extracting/adapting
   nontrivial reconcile-loop logic (3.3) rather than reusing a small existing
   function, plus resolving the capacity-coordination open question
   (Section 6 item 2). Recommend re-scoping with fresh research once slice 1

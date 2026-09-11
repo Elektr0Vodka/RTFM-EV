@@ -1,7 +1,10 @@
 # [13] Map Overhaul: EU-Analyzer UX Import, Phased Quick-Wins then Engine Migration
 
-Date: 2026-09-10
-Status: draft for review
+Date: 2026-09-10 (status reconciled 2026-09-11)
+Status: PARTIAL. Phase-1 quick-wins SHIPPED (PR #40: theme-aware basemaps +
+route path lines `MapView.tsx:860,1116`; node-type legends `:913,957-991`;
+responsive info bar `:899`). NOT started: node-size / 2D-3D tilt / buildings
+controls, the MapLibre-GL engine migration, and the per-link map tool.
 Category: G (Map overhaul), see `docs/plans/README.md`
 Model: Opus
 

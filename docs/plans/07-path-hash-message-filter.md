@@ -1,7 +1,12 @@
 # 07 - Path-hash message filter
 
-Date: 2026-09-10
-Status: draft (local planning only, no code changes)
+Date: 2026-09-10 (status reconciled 2026-09-11)
+Status: PARTIAL. Both surfaces are committed (see "Decision" below); the
+raw-packet feed hop-width filter SHIPPED (PR #22; `RawPacketFeedView.tsx:723-725`
+`enabledHopWidths`), the chat message-list toggle is NOT yet built
+(`MessageList.tsx:382` only renders a width label). No open conflict: the §1
+"do not filter chat" line is superseded by the §Decision. The chat toggle is
+confirmed wanted for spam mitigation (see the 2026-09-11 addendum).
 Category: B (Contacts & messaging UX), per `docs/plans/README.md` entry [07]
 Model: Sonnet
 
@@ -26,18 +31,39 @@ attribute the backend stores. Investigation shows:
 **Recommendation:** build the filter in the **raw packet feed**
 (`RawPacketFeedView.tsx` / `RawPacketList.tsx`), as an additional checkbox
 group next to the existing payload-type filter, entirely client-side. Do
-**not** filter the chat message list — see §3 and §6 for why. This is an
+**not** filter the chat message list - see §3 and §6 for why. This is an
 OPEN QUESTION to confirm with the user before implementation (see §6).
 
 ## Decision (2026-09-10, user)
 
 Build the filter on **both** surfaces: the raw-packet feed (§4.1) and the
-chat message list (§4.2), as **two independent, separate toggles** — not one
+chat message list (§4.2), as **two independent, separate toggles** - not one
 control shared across surfaces. §4.1 remains the primary/lower-risk
 implementation. §4.2 is promoted from "sketch, pursue only if requested" to
 committed scope, with the multi-path/virtualization/pagination/unread-anchor
 caveats already documented in §4.2 and §6 carried forward as implementation
 constraints for that surface, not as reasons to skip it.
+
+## Addendum (2026-09-11, user): spam-mitigation driver for the chat toggle
+
+The chat message-list toggle (§4.2) is confirmed in scope with a concrete
+operational driver: a Dutch spammer is currently flooding chat channels at
+**1-byte path-hash mode**, and the toggle is wanted as a plain "hide/show
+messages at a given path hop size" control so operators can suppress the 1b
+spam in the message list.
+
+Product framing from the user: this is "just a toggle" to hide/show messages by
+hop size, not a complex classifier. That does not erase the multi-path ANY/ALL
+question in §3, but it does resolve its default: for a spam-hiding control,
+classify a message by ANY observed path matching the hidden width (aggressive
+hide), and always keep the "no derivable width" bucket visible (outgoing and
+not-yet-echoed messages must never disappear from a user's own chat). The
+§4.2/§6 virtualization, pagination-cursor, and unread-anchor interactions remain
+hard implementation constraints and still need dedicated test coverage.
+
+Scope note: this is a filter over the existing derived hop-width (client-side,
+no backend change, per §4.1/§4.2). It is unrelated to and does not substitute
+for any upstream/firmware-level spam handling.
 
 ## 2. Current state (cited)
 
@@ -50,7 +76,7 @@ constraints for that surface, not as reasons to skip it.
   either; per-message routing is stored separately as JSON-ish rows via
   `MessageRepository.add_path`/`add_path` (`app/repository/messages.py:60-85,
   127-146`), which only records `path`, `path_len` (hop count), `rssi`, `snr`
-  — no hash mode.
+  - no hash mode.
 - `app/models.py` `MessagePath` (~406-413): `path`, `received_at`, and
   `path_len: int | None` with the comment "None = legacy (infer as
   len(path)//2, i.e. 1-byte hops)". There is no `path_hash_mode` field on a
@@ -68,7 +94,7 @@ constraints for that surface, not as reasons to skip it.
   hash_size)` from the packed path byte; `parse_packet_envelope()` (82-140)
   parses a full packet including hash_size; `bucket_path_hash_widths()`
   (263-304) is an existing backend aggregate that buckets a set of raw rows
-  into single/double/triple-byte counts — used only for the 24h stats
+  into single/double/triple-byte counts - used only for the 24h stats
   endpoint (`ChannelDetail.path_hash_width_24h`, `StatisticsResponse
   .path_hash_width_24h`; `app/models.py` field usage; surfaced in
   `ChannelInfoPane.tsx:242-244` and
@@ -109,7 +135,7 @@ bytes (`data`) or from `path_len` vs. hex length, and only on demand.
 - `frontend/src/contexts/PathHopWidthContext.tsx` (full file) plus
   `frontend/src/utils/pathHopWidthPreference.ts` (localStorage key
   `remoteterm-show-path-hop-width`, off by default) implement a **browser-local
-  display toggle** — not a filter — for whether the hop-width badge is shown
+  display toggle** - not a filter - for whether the hop-width badge is shown
   at all next to a message's hop-count badge.
 - Consumed in `MessageList.tsx:325-327`:
   `const { showPathHopWidth } = usePathHopWidth(); ... const widthLabel =
@@ -123,7 +149,7 @@ bytes (`data`) or from `path_len` vs. hex length, and only on demand.
 `frontend/src/components/RawPacketFeedView.tsx`:
 - `FeedFilterControls` (90-198) renders a hex substring filter, an "All"
   checkbox, one checkbox + "(only)" link per `KNOWN_PAYLOAD_TYPES` entry
-  (167-186), and an "Autoscroll" checkbox — explicitly session-only, not
+  (167-186), and an "Autoscroll" checkbox - explicitly session-only, not
   persisted (confirmed by the errata note in `frontend/AGENTS.md`
   "RawPacketList autoscroll").
 - `enabledTypes` state (603) and `filteredPackets` memo (611-639) filter the
@@ -139,10 +165,10 @@ bytes (`data`) or from `path_len` vs. hex length, and only on demand.
   "3-byte" / "N-byte hop identifiers".
 - `ContactPathDiscoveryModal.tsx:31-33`: "1-byte hops" / "2-byte hops" /
   "3-byte hops".
-- `SettingsRadioSection.tsx:1041-1043`: "1 byte — up to 63 hops (default)" /
-  "2 bytes — up to 32 hops" / "3 bytes — up to 21 hops".
+- `SettingsRadioSection.tsx:1041-1043`: "1 byte - up to 63 hops (default)" /
+  "2 bytes - up to 32 hops" / "3 bytes - up to 21 hops".
 - `rawPacketStats.ts:369-371,393-397`: "1 byte / hop", "2 bytes / hop", "3
-  bytes / hop" (existing stats-chart labels — closest precedent for the new
+  bytes / hop" (existing stats-chart labels - closest precedent for the new
   filter's label set).
 
 ## 3. Reference / interpretation: what would the filter actually mean
@@ -162,7 +188,7 @@ can have different widths (this is exactly why `formatPathHopWidths()`
 returns a multi-value label like `"1B/2B"`). A message with no paths yet
 (outgoing message, or a message not yet echoed) has no derivable width at
 all. "Show/hide 1-byte messages" is therefore not a single well-defined
-predicate for a message row — it would need an explicit policy (e.g. "match
+predicate for a message row - it would need an explicit policy (e.g. "match
 if ANY path is that width" vs. "match if ALL paths are that width" vs. "only
 messages that are unambiguously that width"), and messages with no
 derivable width need an explicit bucket too. Filtering the message list
@@ -188,13 +214,13 @@ Add hop-byte-width as a fourth filter dimension in
 
 - New buckets, matching the labels already used in `rawPacketStats.ts`:
   `"1 byte / hop"`, `"2 bytes / hop"`, `"3 bytes / hop"`, and `"No path"`
-  (0-hop/direct packets — distinct from "1-byte", since they carry no hop
+  (0-hop/direct packets - distinct from "1-byte", since they carry no hop
   bytes to classify; `inferHopByteWidth()` already returns `null` for these,
   see `rawPacketStats.ts:254-267`).
 - Derive per-packet width the same way `summarizeRawPacketForStats` does:
   decode `packet.data` with `MeshCoreDecoder.decode(...)`, read
   `decoded.pathHashSize`, falling back to inferring from the first path
-  token when absent — i.e. reuse (not duplicate) the existing
+  token when absent - i.e. reuse (not duplicate) the existing
   `inferHopByteWidth`-equivalent logic. Because that function currently
   takes a `RawPacketStatsObservation`, not a `RawPacket`, this needs either:
   (a) a small shared helper extracted from `rawPacketStats.ts` that takes a
@@ -208,7 +234,7 @@ Add hop-byte-width as a fourth filter dimension in
   architecture.
 - State: a second `Set<string>` (e.g. `enabledHopWidths`), defaulting to all
   four buckets enabled (parallel to `enabledTypes`), session-only (not
-  persisted) — matching the existing filter checkboxes' explicit
+  persisted) - matching the existing filter checkboxes' explicit
   non-persistence (`autoScroll` errata note applies to the same UI region).
 - UI: extend `FeedFilterControls` with a second checkbox row (or inline
   group) using the same "All" + per-bucket + "(only)" convention as the
@@ -224,7 +250,7 @@ no new field needs to be added to `RawPacketBroadcast`/`RawPacketDetail`.
 
 ### 4.2 Chat message list filter (RESOLVED into scope, per Decision above)
 
-Committed as a second, independent toggle on the chat message list — separate
+Committed as a second, independent toggle on the chat message list - separate
 state, separate UI control from §4.1's raw-feed filter. Design below, still
 sketch-level relative to §4.1's more worked-out plan; the multi-path/
 virtualization caveats listed here must be addressed during implementation,
@@ -242,7 +268,7 @@ not treated as blockers to building it at all:
     not silently break `hasOlder`/`hasNewer` bookkeping, which is
     server-cursor-based, not filtered-count-based).
   - The unread-divider anchor (`first_unread_ids`, keyed by message `id`,
-    `frontend/AGENTS.md` "Types and Contracts") — if the anchor message gets
+    `frontend/AGENTS.md` "Types and Contracts") - if the anchor message gets
     filtered out client-side, `MessageList`'s `findIndex` returns `-1` and
     triggers the "Jump to unread" fallback path unnecessarily.
   - Virtualization (`@tanstack/react-virtual`) row-height/measurement
@@ -250,7 +276,7 @@ not treated as blockers to building it at all:
     (`frontend/AGENTS.md` "Virtualization (MessageList)").
 - This is materially more invasive than §4.1 and touches Primary-priority,
   already-fragile code. Per the Decision above, it is in scope anyway, as a
-  separate toggle from §4.1 — implement with extra care and dedicated test
+  separate toggle from §4.1 - implement with extra care and dedicated test
   coverage for the pagination/unread-anchor/virtualization interactions
   listed above, rather than treating those risks as a reason to drop it.
 
@@ -266,19 +292,19 @@ not treated as blockers to building it at all:
    (toggle behavior, "(only)" behavior, interaction with existing type/hex
    filters, "No path" bucket for direct/0-hop packets).
 4. Message-list variant per §4.2, as a separate, independent toggle from the
-   raw-feed filter in step 2 — in scope per the Decision above, scoped and
+   raw-feed filter in step 2 - in scope per the Decision above, scoped and
    reviewed separately given its higher risk surface (pagination/unread-
    anchor/virtualization interactions, §4.2/§6).
 
 ## 6. Risks / open questions
 
-- **RESOLVED (primary, 2026-09-10, user):** Build both surfaces — the raw
-  packet feed (§4.1) and the chat message list (§4.2) — as two independent,
+- **RESOLVED (primary, 2026-09-10, user):** Build both surfaces - the raw
+  packet feed (§4.1) and the chat message list (§4.2) - as two independent,
   separate toggles, not a single shared control. The brainstorm phrasing said
   "messages," and the underlying property has no natural single per-chat-
   message value (§3), so the chat-list toggle needs an explicit ANY/ALL
   policy and a "no derivable width" bucket (§4.2) plus the pagination/unread-
-  anchor/virtualization coverage called out below — these are implementation
+  anchor/virtualization coverage called out below - these are implementation
   constraints for §4.2, not reasons to omit it.
 - **OPEN QUESTION:** Should "No path" (0-hop/direct) packets be filterable
   at all, or always shown regardless of the hop-width checkboxes? They are
@@ -329,7 +355,7 @@ not treated as blockers to building it at all:
     hide/show packets consistent with each packet's decoded path length in
     the packet detail modal (`RawPacketDetailModal.tsx`), which independently
     renders `pathHashSize`-derived hop formatting today
-    (`rawPacketInspector.ts:294-303`) — use it as a cross-check oracle.
+    (`rawPacketInspector.ts:294-303`) - use it as a cross-check oracle.
 - Run `./scripts/quality/all_quality.sh` before considering this done, per
   `AGENTS.md` "Important Rules".
 
@@ -341,6 +367,6 @@ additions. No migration, no API contract change, no cross-cutting risk.
 Estimate: well within a single Sonnet-scoped implementation session.
 
 Per the Decision above, the message-list variant (§4.2) is in scope, not a
-stretch goal — but given the virtualization/pagination/unread-anchor
+stretch goal - but given the virtualization/pagination/unread-anchor
 interactions in §6, its effort should be tracked separately from §4.1's
 estimate above, not folded into a single combined number.

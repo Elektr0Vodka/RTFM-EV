@@ -1,7 +1,10 @@
 # 04. Analyzer Lookup + Add-Contact-From-Analyzer
 
-Date: 2026-09-10
-Status: local planning draft. No code changed by this document. No PRs/issues/commits.
+Date: 2026-09-10 (status reconciled 2026-09-11)
+Status: SHIPPED (core) via PRs #23, #26, #27 (migration `_072_add_analyzer_sites.py`).
+Step 4 (visualizer tooltip) deferred into plan [16]; Step 5 (user-facing
+"paste/add from analyzer" affordance placement) still an open decision. See the
+"Implementation status" section below for the per-step breakdown.
 Category: C (External analyzer integration), per `docs/plans/README.md` line 68-71.
 Model: Sonnet. State: Absent (greenfield).
 
