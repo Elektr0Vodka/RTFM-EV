@@ -5,7 +5,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { mergePendingAck } from '../hooks/useConversationMessages';
+import {
+  mergePendingAck,
+  reconcileConversationMessages,
+  conversationMessageCache,
+} from '../hooks/useConversationMessages';
 import { getMessageContentKey } from '../utils/messageIdentity';
 import type { Message } from '../types';
 
@@ -309,5 +313,37 @@ describe('mergePendingAck', () => {
     const result = mergePendingAck(existing, 2, paths1);
     // existing.paths is undefined → length -1, paths1.length (1) >= -1 → replaces
     expect(result).toEqual({ ackCount: 2, paths: paths1 });
+  });
+});
+
+// The chat message-list hop-size filter (plan 07 §4.2) is a view-only concern in
+// MessageList. Pagination/cache bookkeeping must stay server-cursor-based and
+// independent of a message's path hop byte-width, so filtering the rendered list
+// can never corrupt hasOlder/hasNewer. These guards pin that independence.
+describe('pagination bookkeeping is independent of path hop-width', () => {
+  const oneBytePath = [{ path: '1A2B', path_len: 2, received_at: 1700000000 }];
+  const twoBytePath = [{ path: 'AABBCCDD', path_len: 2, received_at: 1700000000 }];
+
+  it('reconcile ignores a hop-width change when the path count is unchanged', () => {
+    const current = [createMessage({ id: 1, paths: oneBytePath })];
+    // Same id/text/acked/packet and same number of paths, only the per-hop byte
+    // width differs. Reconcile keys off path *count*, not width, so no update.
+    const fetched = [createMessage({ id: 1, paths: twoBytePath })];
+
+    expect(reconcileConversationMessages(current, fetched)).toBeNull();
+  });
+
+  it('cache round-trips hasOlderMessages regardless of stored hop-width', () => {
+    conversationMessageCache.set('conv-1b', {
+      messages: [createMessage({ id: 1, paths: oneBytePath })],
+      hasOlderMessages: true,
+    });
+    conversationMessageCache.set('conv-2b', {
+      messages: [createMessage({ id: 2, paths: twoBytePath })],
+      hasOlderMessages: false,
+    });
+
+    expect(conversationMessageCache.get('conv-1b')?.hasOlderMessages).toBe(true);
+    expect(conversationMessageCache.get('conv-2b')?.hasOlderMessages).toBe(false);
   });
 });
