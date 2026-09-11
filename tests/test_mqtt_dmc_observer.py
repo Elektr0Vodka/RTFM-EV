@@ -75,7 +75,7 @@ def test_build_status_payload_shape_and_order():
         model="Heltec V3",
         firmware_version="v1.7.2",
         radio="868.5,250.0,10,5",
-        client_version="RemoteTerm/1.0-abc",
+        client_version="RTFM-EV/1.0-abc",
         stats={"battery_mv": 3980, "queue_len": 0},
     )
     assert list(payload.keys()) == [
