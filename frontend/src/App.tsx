@@ -750,6 +750,10 @@ export function App() {
       const keySet = new Set(deletedKeys.map((k) => k.toLowerCase()));
       setContacts((prev) => prev.filter((c) => !keySet.has(c.public_key.toLowerCase())));
     },
+    onBulkDeleteChannels: (deletedKeys: string[]) => {
+      const keySet = new Set(deletedKeys.map((k) => k.toLowerCase()));
+      setChannels((prev) => prev.filter((c) => !keySet.has(c.key.toLowerCase())));
+    },
     trackedTelemetryRepeaters: appSettings?.tracked_telemetry_repeaters ?? [],
     onToggleTrackedTelemetry: handleToggleTrackedTelemetry,
     trackedTelemetryContacts: appSettings?.tracked_telemetry_contacts ?? [],

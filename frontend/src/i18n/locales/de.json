@@ -888,6 +888,9 @@
   "settings_radioapp_bulk_delete_heading": "Kontakte in Massen löschen",
   "settings_radioapp_bulk_delete_desc": "Entferne mehrere Kontakte oder Repeater auf einmal. Nützlich, um Spam oder unerwünschte Knoten aufzuräumen. Der Nachrichtenverlauf bleibt erhalten.",
   "settings_radioapp_open_bulk_delete_button": "Massenlöschung öffnen",
+  "settings_radioapp_bulk_delete_channels_heading": "Kanäle in Massen löschen",
+  "settings_radioapp_bulk_delete_channels_desc": "Entferne mehrere überwachte Kanäle auf einmal. Nützlich, um einen versehentlichen Massenimport aufzuräumen. Der Nachrichtenverlauf bleibt erhalten.",
+  "settings_radioapp_open_bulk_delete_channels_button": "Massenlöschung öffnen",
   "settings_fanout_type_private_mqtt": "Privates MQTT",
   "settings_fanout_type_community_sharing": "Community-Sharing",
   "settings_fanout_type_home_assistant": "Home Assistant",
@@ -1884,6 +1887,12 @@
   "channel_registry_add_to_channels_title_selected": "{count} ausgewählte Kanäle zur App hinzufügen, damit ihr Verkehr sichtbar ist",
   "channel_registry_add_to_channels_none": "Keine Hashtag-Kanäle zum Hinzufügen. Private und Nicht-Hashtag-Einträge werden übersprungen.",
   "channel_registry_add_to_channels_error": "Kanäle konnten nicht hinzugefügt werden",
+  "channel_registry_add_to_channels_confirm_title": "Kanäle zur App hinzufügen",
+  "channel_registry_add_to_channels_confirm_description": {
+    "one": "{count} Kanal zu deinen überwachten Kanälen hinzufügen? Ihr Verkehr wird überwachbar.",
+    "other": "{count} Kanäle zu deinen überwachten Kanälen hinzufügen? Ihr Verkehr wird überwachbar."
+  },
+  "channel_registry_add_to_channels_confirm_button": "Hinzufügen ({count})",
   "channel_registry_add_button": "Hinzufügen",
   "channel_registry_import_result": "Importiert: {added} neu, {updated} aktualisiert.",
   "channel_registry_import_invalid_json": "Import fehlgeschlagen: ungültiges JSON.",
@@ -2114,6 +2123,27 @@
     "other": "{count} Kontakte gelöscht"
   },
   "bulkdelete_toast_failed_title": "Massenlöschung fehlgeschlagen",
+  "bulkdelete_channels_select_description": "Wähle Kanäle aus, die aus der App entfernt werden sollen.",
+  "bulkdelete_channels_confirm_title": "Kanalentfernung bestätigen",
+  "bulkdelete_channels_confirm_description": "Überprüfe die Kanäle unten. Dies entfernt sie aus der App; der Nachrichtenverlauf bleibt erhalten.",
+  "bulkdelete_channels_search_placeholder": "Nach Name suchen",
+  "bulkdelete_channels_type_hashtag": "Hashtag-Räume",
+  "bulkdelete_channels_type_standard": "Standardkanäle",
+  "bulkdelete_channels_shown": {
+    "one": "{count} Kanal angezeigt",
+    "other": "{count} Kanäle angezeigt"
+  },
+  "bulkdelete_channels_no_match": "Keine Kanäle entsprechen den ausgewählten Filtern.",
+  "bulkdelete_channels_confirm_button": {
+    "one": "Ich bestätige die Entfernung von {count} Kanal aus der App",
+    "other": "Ich bestätige die Entfernung von {count} Kanälen aus der App"
+  },
+  "bulkdelete_toast_channels_deleted": {
+    "one": "{count} Kanal gelöscht",
+    "other": "{count} Kanäle gelöscht"
+  },
+  "bulkdelete_col_channel": "Kanal",
+  "bulkdelete_col_type": "Typ",
   "settings_db_registry_heading": "Kanalregister",
   "settings_db_registry_url_label": "Sync-URL für Kanalliste",
   "settings_db_registry_url_hint_prefix": "URL einer externen JSON-Kanalliste (",

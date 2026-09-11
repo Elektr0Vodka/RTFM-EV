@@ -44,21 +44,54 @@ afterEach(() => {
 });
 
 describe('ChannelRegistryView "Add to Channels"', () => {
-  it('submits addable hashtag names, excluding private and non-hashtag entries', async () => {
-    store[STORAGE_KEY] = JSON.stringify([
-      entry({ channel: '#amsterdam' }),
-      entry({ channel: '#secret', private: true }),
-      entry({ channel: 'Public', source: 'radio' }),
-      entry({ channel: '#rotterdam' }),
-    ]);
-
+  it('disables the button when nothing is selected', () => {
+    store[STORAGE_KEY] = JSON.stringify([entry({ channel: '#amsterdam' })]);
     const onAddToChannels = vi.fn().mockResolvedValue(undefined);
     render(<ChannelRegistryView onAddToChannels={onAddToChannels} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /add to channels/i }));
+    const btn = screen.getByRole('button', { name: /add to channels/i });
+    expect(btn).toBeDisabled();
+    fireEvent.click(btn);
+    expect(onAddToChannels).not.toHaveBeenCalled();
+  });
+
+  it('confirms then submits only the selected addable names', async () => {
+    store[STORAGE_KEY] = JSON.stringify([
+      entry({ channel: '#amsterdam' }),
+      entry({ channel: '#rotterdam' }),
+      entry({ channel: '#denhaag' }),
+    ]);
+    const onAddToChannels = vi.fn().mockResolvedValue(undefined);
+    render(<ChannelRegistryView onAddToChannels={onAddToChannels} />);
+
+    // Select the #amsterdam row via its checkbox.
+    const amsterdamRow = screen.getByText('#amsterdam').closest('div');
+    const amsterdamCheckbox = amsterdamRow!.querySelector('input[type="checkbox"]')!;
+    fireEvent.click(amsterdamCheckbox);
+
+    // Open the confirm dialog.
+    fireEvent.click(screen.getByRole('button', { name: /add \(1\)/i }));
+
+    // Confirm (the dialog's confirm button reads "Add (1)").
+    const confirmBtn = await screen.findByRole('button', { name: /^add \(1\)$/i });
+    fireEvent.click(confirmBtn);
 
     await waitFor(() => expect(onAddToChannels).toHaveBeenCalledTimes(1));
-    const submitted = onAddToChannels.mock.calls[0][0] as string[];
-    expect([...submitted].sort()).toEqual(['#amsterdam', '#rotterdam']);
+    expect(onAddToChannels.mock.calls[0][0]).toEqual(['#amsterdam']);
+  });
+
+  it('shows the info toast (no call) when the selection has no addable names', async () => {
+    store[STORAGE_KEY] = JSON.stringify([entry({ channel: 'Public', source: 'radio' })]);
+    const onAddToChannels = vi.fn().mockResolvedValue(undefined);
+    render(<ChannelRegistryView onAddToChannels={onAddToChannels} />);
+
+    const publicRow = screen.getByText('Public').closest('div');
+    const publicCheckbox = publicRow!.querySelector('input[type="checkbox"]')!;
+    fireEvent.click(publicCheckbox);
+
+    fireEvent.click(screen.getByRole('button', { name: /add \(1\)/i }));
+
+    await screen.findByText(/no hashtag channels to add/i);
+    expect(onAddToChannels).not.toHaveBeenCalled();
   });
 });

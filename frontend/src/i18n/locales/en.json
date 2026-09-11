@@ -887,6 +887,9 @@
   "settings_radioapp_bulk_delete_heading": "Bulk Delete Contacts",
   "settings_radioapp_bulk_delete_desc": "Remove multiple contacts or repeaters at once. Useful for cleaning up spam or unwanted nodes. Message history will be preserved.",
   "settings_radioapp_open_bulk_delete_button": "Open Bulk Delete",
+  "settings_radioapp_bulk_delete_channels_heading": "Bulk Delete Channels",
+  "settings_radioapp_bulk_delete_channels_desc": "Remove multiple monitored channels at once. Useful for cleaning up an accidental bulk import. Message history will be preserved.",
+  "settings_radioapp_open_bulk_delete_channels_button": "Open Bulk Delete",
   "settings_fanout_type_private_mqtt": "Private MQTT",
   "settings_fanout_type_community_sharing": "Community Sharing",
   "settings_fanout_type_home_assistant": "Home Assistant",
@@ -1883,6 +1886,12 @@
   "channel_registry_add_to_channels_title_selected": "Add {count} selected channels to the app so their traffic is monitorable",
   "channel_registry_add_to_channels_none": "No hashtag channels to add. Private and non-hashtag entries are skipped.",
   "channel_registry_add_to_channels_error": "Failed to add channels",
+  "channel_registry_add_to_channels_confirm_title": "Add channels to the app",
+  "channel_registry_add_to_channels_confirm_description": {
+    "one": "Add {count} channel to your monitored channels? Their traffic becomes monitorable.",
+    "other": "Add {count} channels to your monitored channels? Their traffic becomes monitorable."
+  },
+  "channel_registry_add_to_channels_confirm_button": "Add ({count})",
   "channel_registry_add_button": "Add",
   "channel_registry_import_result": "Imported: {added} new, {updated} updated.",
   "channel_registry_import_invalid_json": "Import failed: invalid JSON.",
@@ -2113,6 +2122,27 @@
     "other": "Deleted {count} contacts"
   },
   "bulkdelete_toast_failed_title": "Bulk delete failed",
+  "bulkdelete_channels_select_description": "Select channels to remove from the app.",
+  "bulkdelete_channels_confirm_title": "Confirm channel removal",
+  "bulkdelete_channels_confirm_description": "Review the channels below. This removes them from the app; message history is preserved.",
+  "bulkdelete_channels_search_placeholder": "Search by name",
+  "bulkdelete_channels_type_hashtag": "Hashtag rooms",
+  "bulkdelete_channels_type_standard": "Standard channels",
+  "bulkdelete_channels_shown": {
+    "one": "{count} channel shown",
+    "other": "{count} channels shown"
+  },
+  "bulkdelete_channels_no_match": "No channels match the selected filters.",
+  "bulkdelete_channels_confirm_button": {
+    "one": "I confirm removal of {count} channel from the app",
+    "other": "I confirm removal of {count} channels from the app"
+  },
+  "bulkdelete_toast_channels_deleted": {
+    "one": "Deleted {count} channel",
+    "other": "Deleted {count} channels"
+  },
+  "bulkdelete_col_channel": "Channel",
+  "bulkdelete_col_type": "Type",
   "settings_db_registry_heading": "Channel Registry",
   "settings_db_registry_url_label": "Channel list sync URL",
   "settings_db_registry_url_hint_prefix": "URL of a remote JSON channel list (",

@@ -58,6 +58,7 @@ interface SettingsModalBaseProps {
   contacts?: Contact[];
   channels?: Channel[];
   onBulkDeleteContacts?: (deletedKeys: string[]) => void;
+  onBulkDeleteChannels?: (deletedKeys: string[]) => void;
   trackedTelemetryRepeaters?: string[];
   onToggleTrackedTelemetry?: (publicKey: string) => Promise<void>;
   trackedTelemetryContacts?: string[];
@@ -102,6 +103,7 @@ export function SettingsModal(props: SettingsModalProps) {
     contacts,
     channels,
     onBulkDeleteContacts,
+    onBulkDeleteChannels,
     trackedTelemetryRepeaters,
     onToggleTrackedTelemetry,
     trackedTelemetryContacts,
@@ -271,6 +273,8 @@ export function SettingsModal(props: SettingsModalProps) {
                 onToggleBlockedName={onToggleBlockedName}
                 contacts={contacts}
                 onBulkDeleteContacts={onBulkDeleteContacts}
+                channels={channels}
+                onBulkDeleteChannels={onBulkDeleteChannels}
                 trackedTelemetryRepeaters={trackedTelemetryRepeaters}
                 onToggleTrackedTelemetry={onToggleTrackedTelemetry}
                 trackedTelemetryContacts={trackedTelemetryContacts}
