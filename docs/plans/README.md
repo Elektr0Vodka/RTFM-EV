@@ -181,7 +181,7 @@ L3 (neighbors/config publish; now unblocked since X1+X2 done). Fork-port Phase 3
 | 04 | `04-analyzer-lookup.md` | C | Sonnet | Absent | `cornmeister-mesh-analyzer`, `EU-Meshcore-Analyzer`; settings, ContactInfoPane, packet feed |
 | 05 | `05-region-scope-sync.md` | D | Sonnet | Partial | `Dutch-Meshcore-Toolbox`; Channel Registry impl, `known_regions`, `/api/radio/discover-regions` |
 | 06 | `06-cad-dm-toggle.md` | B | Sonnet | Absent | `Elektr0Vodka/meshcomod` fw; `/api/radio/config`, ChatHeader; `feat/cad-header-toggle` (empty) |
-| 07 | `07-path-hash-message-filter.md` | B | Sonnet | Done | chat message-list hop-size + hide-unscoped filters (`feat/chat-hop-size-filter`); raw-feed filter shipped (PR #22) |
+| 07 | `07-path-hash-message-filter.md` | B | Sonnet | Partial | `path_hash_mode` model (AGENTS.md §Path Hash Modes); Sidebar, message list |
 | 08 | `08-channel-preset-upload.md` | E | Sonnet | Absent | Channel Import/Export; `set_channel`, `/api/radio/disconnect`, presets |
 | 09 | `09-channelfinder-wordlist-sync.md` | D | Sonnet | Partial | `mccl`, `EV_Channelfinder`, `MC-Channel-Finder`; CrackerPanel, registry sync pattern |
 | 10 | `10-dmc-firmware-aware-mgmt.md` | F | Opus | Absent | DMC `MeshCore` (`dmc-dev`, `dmc-observer-dev-1171-regiongating`), `DutchMeshCore-OTA`, `flasher.dutchmeshcore.nl`; RepeaterDashboard, repeater CLI endpoints |
