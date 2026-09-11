@@ -78,6 +78,9 @@ function createCommunityConfigDefaults(
     email: '',
     token_audience: '',
     topic_template: DEFAULT_COMMUNITY_PACKET_TOPIC_TEMPLATE,
+    publish_status: true,
+    publish_packets: true,
+    status_interval_ms: 300000,
     ...overrides,
   };
 }
@@ -147,7 +150,6 @@ type DraftType =
   | 'mqtt_community_dmc1'
   | 'mqtt_community_dmc2'
   | 'mqtt_community_meshcore_analyzer_eu'
-  | 'mqtt_dmc_observer'
   | 'webhook'
   | 'apprise'
   | 'sqs'
@@ -332,36 +334,6 @@ function getCreateIntegrationDefinitions(t: TFn): readonly CreateIntegrationDefi
       },
     },
     {
-      value: 'mqtt_dmc_observer',
-      savedType: 'mqtt_dmc_observer',
-      label: t('settings_fanout_type_dmc_observer'),
-      section: t('settings_fanout_type_community_sharing'),
-      description: t('settings_fanout_desc_dmc_observer'),
-      defaultName: t('settings_fanout_type_dmc_observer'),
-      nameMode: 'fixed',
-      defaults: {
-        config: {
-          broker_host: '',
-          broker_port: 443,
-          transport: 'websockets',
-          use_tls: true,
-          tls_verify: true,
-          auth_mode: 'token',
-          username: '',
-          password: '',
-          iata: '',
-          email: '',
-          token_audience: '',
-          websocket_path: '/',
-          publish_status: true,
-          publish_packets: true,
-          publish_raw: false,
-          status_interval_ms: 300000,
-        },
-        scope: { messages: 'none', raw_packets: 'all' },
-      },
-    },
-    {
       value: 'webhook',
       savedType: 'webhook',
       label: t('settings_fanout_type_webhook'),
@@ -514,31 +486,15 @@ function normalizeIntegrationConfigForSave(
 
     const topicTemplate = String(normalized.topic_template ?? '').trim();
     normalized.topic_template = topicTemplate || DEFAULT_COMMUNITY_PACKET_TOPIC_TEMPLATE;
-  }
 
-  if (configType === 'mqtt_dmc_observer') {
-    normalized.broker_host = String(normalized.broker_host ?? '').trim();
-
-    const port = normalized.broker_port;
-    if (port === '' || port === undefined || port === null) {
-      normalized.broker_port = 443;
-    } else if (typeof port === 'string') {
-      const parsed = Number.parseInt(port, 10);
-      normalized.broker_port = Number.isNaN(parsed) ? 443 : parsed;
-    }
-
-    normalized.iata = String(normalized.iata ?? '').trim().toUpperCase();
     normalized.publish_status = normalized.publish_status !== false;
     normalized.publish_packets = normalized.publish_packets !== false;
-    normalized.publish_raw = normalized.publish_raw === true;
-
-    const interval = normalized.status_interval_ms;
-    let intervalMs =
-      typeof interval === 'string' ? Number.parseInt(interval, 10) : Number(interval);
-    if (!Number.isFinite(intervalMs) || intervalMs < 1000 || intervalMs > 3600000) {
-      intervalMs = 300000;
-    }
-    normalized.status_interval_ms = intervalMs;
+    const interval =
+      typeof normalized.status_interval_ms === 'string'
+        ? Number.parseInt(normalized.status_interval_ms, 10)
+        : Number(normalized.status_interval_ms);
+    normalized.status_interval_ms =
+      Number.isFinite(interval) && interval >= 1000 && interval <= 3600000 ? interval : 300000;
   }
 
   if (configType === 'map_upload') {
@@ -1692,6 +1648,64 @@ function MqttHaConfigEditor({
   );
 }
 
+function CommunityTopicControls({
+  config,
+  onChange,
+}: {
+  config: Record<string, unknown>;
+  onChange: (config: Record<string, unknown>) => void;
+}) {
+  const t = useT();
+  const intervalMinutes = (() => {
+    const ms = Number(config.status_interval_ms);
+    if (!Number.isFinite(ms) || ms <= 0) return 5;
+    return Math.round(ms / 60000);
+  })();
+
+  return (
+    <div className="space-y-2">
+      <Separator />
+      <label className="flex items-center gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={config.publish_status !== false}
+          onChange={(e) => onChange({ ...config, publish_status: e.target.checked })}
+          className="h-4 w-4 rounded border-border"
+        />
+        <span className="text-sm">{t('settings_fanout_publish_status')}</span>
+      </label>
+      <label className="flex items-center gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={config.publish_packets !== false}
+          onChange={(e) => onChange({ ...config, publish_packets: e.target.checked })}
+          className="h-4 w-4 rounded border-border"
+        />
+        <span className="text-sm">{t('settings_fanout_publish_packets')}</span>
+      </label>
+      <div className="space-y-2">
+        <Label htmlFor="fanout-comm-interval">{t('settings_fanout_status_interval_min')}</Label>
+        <Input
+          id="fanout-comm-interval"
+          type="number"
+          min="1"
+          max="60"
+          className="w-32"
+          value={intervalMinutes}
+          onChange={(e) => {
+            const m = Number.parseInt(e.target.value, 10);
+            const clamped = Number.isNaN(m) ? 5 : Math.min(60, Math.max(1, m));
+            onChange({ ...config, status_interval_ms: clamped * 60000 });
+          }}
+        />
+        <p className="text-[0.8125rem] text-muted-foreground">
+          {t('settings_fanout_status_interval_help')}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function MqttCommunityConfigEditor({
   config,
   onChange,
@@ -1908,237 +1922,8 @@ function MqttCommunityConfigEditor({
           <code>{DEFAULT_COMMUNITY_PACKET_TOPIC_TEMPLATE}</code>
         </p>
       </div>
-    </div>
-  );
-}
 
-function MqttDmcObserverConfigEditor({
-  config,
-  onChange,
-}: {
-  config: Record<string, unknown>;
-  onChange: (config: Record<string, unknown>) => void;
-}) {
-  const t = useT();
-  const authMode = (config.auth_mode as string) || 'token';
-  const transport = (config.transport as string) || 'websockets';
-  const intervalMinutes = (() => {
-    const ms = Number(config.status_interval_ms);
-    if (!Number.isFinite(ms) || ms <= 0) return 5;
-    return Math.round(ms / 60000);
-  })();
-
-  return (
-    <div className="space-y-3">
-      <p className="text-[0.8125rem] text-muted-foreground">
-        {t('settings_fanout_dmc_observer_desc')}
-      </p>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="fanout-dmc-host">{t('settings_fanout_broker_host_label')}</Label>
-          <Input
-            id="fanout-dmc-host"
-            type="text"
-            value={(config.broker_host as string | undefined) ?? ''}
-            onChange={(e) => onChange({ ...config, broker_host: e.target.value })}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="fanout-dmc-port">{t('settings_fanout_broker_port_label')}</Label>
-          <Input
-            id="fanout-dmc-port"
-            type="number"
-            min="1"
-            max="65535"
-            value={getNumberInputValue(config.broker_port, 443)}
-            onChange={(e) =>
-              onChange({ ...config, broker_port: parseIntegerInputValue(e.target.value) })
-            }
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="fanout-dmc-transport">{t('settings_fanout_transport_label')}</Label>
-          <select
-            id="fanout-dmc-transport"
-            value={transport}
-            onChange={(e) => onChange({ ...config, transport: e.target.value })}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          >
-            <option value="websockets">{t('settings_fanout_transport_websockets')}</option>
-            <option value="tcp">{t('settings_fanout_transport_tcp')}</option>
-          </select>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="fanout-dmc-auth-mode">{t('settings_fanout_authentication_label')}</Label>
-          <select
-            id="fanout-dmc-auth-mode"
-            value={authMode}
-            onChange={(e) => onChange({ ...config, auth_mode: e.target.value })}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          >
-            <option value="token">{t('settings_fanout_auth_token')}</option>
-            <option value="none">{t('settings_fanout_auth_none')}</option>
-            <option value="password">{t('settings_fanout_auth_username_password')}</option>
-          </select>
-        </div>
-      </div>
-
-      {transport === 'websockets' && (
-        <div className="space-y-2">
-          <Label htmlFor="fanout-dmc-ws-path">{t('settings_fanout_websocket_path_label')}</Label>
-          <Input
-            id="fanout-dmc-ws-path"
-            type="text"
-            placeholder="/"
-            value={(config.websocket_path as string | undefined) ?? ''}
-            onChange={(e) => onChange({ ...config, websocket_path: e.target.value })}
-          />
-        </div>
-      )}
-
-      {authMode === 'token' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="fanout-dmc-token-audience">
-              {t('settings_fanout_token_audience_label')}
-            </Label>
-            <Input
-              id="fanout-dmc-token-audience"
-              type="text"
-              placeholder={(config.broker_host as string) || ''}
-              value={(config.token_audience as string | undefined) ?? ''}
-              onChange={(e) => onChange({ ...config, token_audience: e.target.value })}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="fanout-dmc-email">{t('settings_fanout_owner_email_label')}</Label>
-            <Input
-              id="fanout-dmc-email"
-              type="email"
-              placeholder="you@example.com"
-              value={(config.email as string) || ''}
-              onChange={(e) => onChange({ ...config, email: e.target.value })}
-            />
-          </div>
-        </div>
-      )}
-
-      {authMode === 'password' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="fanout-dmc-username">{t('settings_fanout_username_label')}</Label>
-            <Input
-              id="fanout-dmc-username"
-              type="text"
-              value={(config.username as string) || ''}
-              onChange={(e) => onChange({ ...config, username: e.target.value })}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="fanout-dmc-password">{t('settings_fanout_password_label')}</Label>
-            <Input
-              id="fanout-dmc-password"
-              type="password"
-              value={(config.password as string) || ''}
-              onChange={(e) => onChange({ ...config, password: e.target.value })}
-            />
-          </div>
-        </div>
-      )}
-
-      <div className="space-y-2">
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={config.use_tls === undefined ? true : !!config.use_tls}
-            onChange={(e) => onChange({ ...config, use_tls: e.target.checked })}
-            className="h-4 w-4 rounded border-border"
-          />
-          <span className="text-sm">{t('settings_fanout_use_tls_label')}</span>
-        </label>
-        <label className="flex items-center gap-3 cursor-pointer ml-7">
-          <input
-            type="checkbox"
-            checked={config.tls_verify === undefined ? true : !!config.tls_verify}
-            onChange={(e) => onChange({ ...config, tls_verify: e.target.checked })}
-            className="h-4 w-4 rounded border-border"
-            disabled={config.use_tls === undefined ? false : !config.use_tls}
-          />
-          <span className="text-sm">{t('settings_fanout_verify_tls_certificates_label')}</span>
-        </label>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="fanout-dmc-iata">{t('settings_fanout_region_code_iata_label')}</Label>
-        <Input
-          id="fanout-dmc-iata"
-          type="text"
-          maxLength={3}
-          placeholder={t('settings_fanout_iata_placeholder')}
-          value={(config.iata as string) || ''}
-          onChange={(e) => onChange({ ...config, iata: e.target.value.toUpperCase() })}
-          className="w-32"
-        />
-        <p className="text-[0.8125rem] text-muted-foreground">{t('settings_fanout_iata_hint')}</p>
-      </div>
-
-      <Separator />
-
-      <div className="space-y-2">
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={config.publish_status !== false}
-            onChange={(e) => onChange({ ...config, publish_status: e.target.checked })}
-            className="h-4 w-4 rounded border-border"
-          />
-          <span className="text-sm">{t('settings_fanout_dmc_publish_status')}</span>
-        </label>
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={config.publish_packets !== false}
-            onChange={(e) => onChange({ ...config, publish_packets: e.target.checked })}
-            className="h-4 w-4 rounded border-border"
-          />
-          <span className="text-sm">{t('settings_fanout_dmc_publish_packets')}</span>
-        </label>
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={config.publish_raw === true}
-            onChange={(e) => onChange({ ...config, publish_raw: e.target.checked })}
-            className="h-4 w-4 rounded border-border"
-          />
-          <span className="text-sm">{t('settings_fanout_dmc_publish_raw')}</span>
-        </label>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="fanout-dmc-interval">
-          {t('settings_fanout_dmc_status_interval_min')}
-        </Label>
-        <Input
-          id="fanout-dmc-interval"
-          type="number"
-          min="1"
-          max="60"
-          value={intervalMinutes}
-          onChange={(e) => {
-            const m = Number.parseInt(e.target.value, 10);
-            const clamped = Number.isNaN(m) ? 5 : Math.min(60, Math.max(1, m));
-            onChange({ ...config, status_interval_ms: clamped * 60000 });
-          }}
-          className="w-32"
-        />
-        <p className="text-[0.8125rem] text-muted-foreground">
-          {t('settings_fanout_dmc_status_interval_help')}
-        </p>
-      </div>
+      <CommunityTopicControls config={config} onChange={onChange} />
     </div>
   );
 }
@@ -2252,6 +2037,8 @@ function LetsMeshConfigEditor({
           />
         </div>
       </div>
+
+      <CommunityTopicControls config={config} onChange={onChange} />
     </div>
   );
 }
@@ -3798,9 +3585,6 @@ export function SettingsFanoutSection({
 
         {detailType === 'mqtt_community' && (
           <MqttCommunityConfigEditor config={editConfig} onChange={setEditConfig} />
-        )}
-        {detailType === 'mqtt_dmc_observer' && (
-          <MqttDmcObserverConfigEditor config={editConfig} onChange={setEditConfig} />
         )}
 
         {detailType === 'mqtt_community_meshrank' && (

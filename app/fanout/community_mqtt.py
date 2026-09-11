@@ -41,6 +41,19 @@ _TOKEN_RENEWAL_THRESHOLD = _TOKEN_LIFETIME - 300  # 50 minutes
 _STATS_REFRESH_INTERVAL = 300  # 5 minutes
 _STATS_MIN_CACHE_SECS = 60  # Don't re-fetch stats within 60s
 
+_STATUS_INTERVAL_DEFAULT_MS = 300000
+_STATUS_INTERVAL_MIN_MS = 1000
+_STATUS_INTERVAL_MAX_MS = 3600000
+
+
+def _clamp_status_interval_ms(value: object) -> int:
+    """Clamp a status interval to [1000, 3600000] ms, else the 300000 default."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        return _STATUS_INTERVAL_DEFAULT_MS
+    if _STATUS_INTERVAL_MIN_MS <= value <= _STATUS_INTERVAL_MAX_MS:
+        return value
+    return _STATUS_INTERVAL_DEFAULT_MS
+
 # Route type mapping: bottom 2 bits of first byte
 _ROUTE_MAP = {0: "F", 1: "F", 2: "D", 3: "T"}
 
@@ -67,6 +80,8 @@ class CommunityMqttSettings(Protocol):
     community_mqtt_email: str
     community_mqtt_token_audience: str
     community_mqtt_websocket_path: str
+    community_mqtt_publish_status: bool
+    community_mqtt_status_interval_ms: int
 
 
 def _base64url_encode(data: bytes) -> str:
@@ -451,6 +466,9 @@ class CommunityMqttPublisher(BaseMqttPublisher):
         self, settings: CommunityMqttSettings, *, refresh_stats: bool = True
     ) -> None:
         """Build and publish the enriched retained status message."""
+        if not getattr(settings, "community_mqtt_publish_status", True):
+            return
+
         from app.keystore import get_public_key
         from app.services.radio_runtime import radio_runtime as radio_manager
 
@@ -505,8 +523,11 @@ class CommunityMqttPublisher(BaseMqttPublisher):
     async def _on_periodic_wake(self, elapsed: float) -> None:
         if not self._settings:
             return
+        interval_ms = _clamp_status_interval_ms(
+            getattr(self._settings, "community_mqtt_status_interval_ms", _STATUS_INTERVAL_DEFAULT_MS)
+        )
         now = time.monotonic()
-        if (now - self._last_status_publish) >= _STATS_REFRESH_INTERVAL:
+        if (now - self._last_status_publish) >= (interval_ms / 1000.0):
             await self._publish_status(self._settings, refresh_stats=True)
 
     def _on_error(self) -> tuple[str, str]:
