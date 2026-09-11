@@ -692,7 +692,14 @@ export function Sidebar({
             contactType={row.contact.type}
           />
         )}
-        <span className="name flex-1 truncate text-[0.8125rem]">{row.name}</span>
+        <span
+          className={cn(
+            'name flex-1 truncate text-[0.8125rem]',
+            row.muted && 'opacity-40 italic'
+          )}
+        >
+          {row.name}
+        </span>
         <span className="ml-auto flex items-center gap-1">
           {rowIsNew && (
             <span
