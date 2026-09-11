@@ -151,8 +151,8 @@ reconciled against `origin/main` on 2026-09-11 (migrations reached
 | 03 | split-favorites | SHIPPED | PR #21; `CommandPalette.tsx:318`. |
 | 04 | analyzer-lookup | SHIPPED (core) | PRs #23/#26/#27, migration `_072`. Step 4 → [16]; Step 5 affordance open. |
 | 05 | region-scope-sync | SHIPPED | PRs #28/#45/#48, migration `_073`. |
-| 06 | cad-dm-toggle | NOT STARTED | CAD infra global+shipped, but header still gated to `channel` (`ChatHeader.tsx:561`). Deliverable (DM/room-server surfacing) unbuilt. |
-| 07 | path-hash-message-filter | PARTIAL | Raw-feed filter shipped (PR #22). Chat message-list toggle confirmed wanted (1b spam mitigation), not yet built. |
+| 06 | cad-dm-toggle | SHIPPED | PR #52 (`feat/cad-dm-toggle`); CAD toggle renders for DM + room-server headers, gated on `cad_supported`. |
+| 07 | path-hash-message-filter | SHIPPED | Raw-feed filter (PR #22) + chat message-list hop-size/unscoped toggles (PR #51, `feat/chat-hop-size-filter`). |
 | 08 | channel-preset-upload | NOT STARTED | Greenfield. |
 | 09 | channelfinder-wordlist-sync | SHIPPED | PR #30, migration `_074`. |
 | 10 | dmc-firmware-aware-mgmt | NOT STARTED | Greenfield (Opus theme). |

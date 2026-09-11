@@ -934,3 +934,161 @@ describe('Sidebar section summaries', () => {
     ).toBeInTheDocument();
   });
 });
+
+describe('Sidebar customisation (plan 17)', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('renders tools in a stored custom order', () => {
+    localStorage.setItem(
+      'remoteterm-sidebar-tool-order',
+      JSON.stringify([
+        'map',
+        'my-node',
+        'mesh-health',
+        'raw',
+        'visualizer',
+        'trace',
+        'search',
+        'channel-registry',
+        'cracker',
+      ])
+    );
+    renderSidebar();
+    const mapRow = screen.getByRole('button', { name: 'Node Map' });
+    const myNodeRow = screen.getByRole('button', { name: 'My Node' });
+    expect(
+      mapRow.compareDocumentPosition(myNodeRow) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it('renders sections in a stored custom order (favorites before tools)', () => {
+    localStorage.setItem(
+      'remoteterm-sidebar-section-order',
+      JSON.stringify(['favorites', 'tools', 'channels', 'contacts', 'repeaters', 'rooms'])
+    );
+    renderSidebar();
+    const favorites = screen.getByRole('button', { name: 'Favorites' });
+    const tools = screen.getByRole('button', { name: 'Tools' });
+    expect(
+      favorites.compareDocumentPosition(tools) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it('collapses to an icon rail and hides search + section headers', () => {
+    renderSidebar();
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
+    expect(screen.queryByLabelText('Search conversations')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Favorites' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Node Map' })).toBeInTheDocument();
+  });
+
+  it('ignores rail state and hides the toggle when forceExpanded', () => {
+    localStorage.setItem('remoteterm-sidebar-rail-collapsed', 'true');
+    render(
+      <Sidebar
+        contacts={[]}
+        channels={[makeChannel(PUBLIC_CHANNEL_KEY, 'Public')]}
+        activeConversation={null}
+        onSelectConversation={vi.fn()}
+        onNewMessage={vi.fn()}
+        lastMessageTimes={{}}
+        unreadCounts={{}}
+        mentions={{}}
+        showCracker={false}
+        crackerRunning={false}
+        onToggleCracker={vi.fn()}
+        onMarkAllRead={vi.fn()}
+        forceExpanded
+      />
+    );
+    expect(screen.getByLabelText('Search conversations')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Collapse sidebar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Expand sidebar' })).not.toBeInTheDocument();
+  });
+
+  it('opens the customize panel and reorders a section via move-down', () => {
+    renderSidebar();
+    fireEvent.click(screen.getByRole('button', { name: 'Customize sidebar' }));
+    const panel = screen.getByRole('group', { name: 'Customize sidebar' });
+    const toolsRow = within(panel)
+      .getAllByRole('listitem')
+      .find((li) => li.textContent?.includes('Tools'))!;
+    fireEvent.click(within(toolsRow).getByRole('button', { name: 'Move down' }));
+    expect(JSON.parse(localStorage.getItem('remoteterm-sidebar-section-order')!)[0]).toBe(
+      'favorites'
+    );
+  });
+
+  it('resets layout to defaults', () => {
+    localStorage.setItem(
+      'remoteterm-sidebar-tool-order',
+      JSON.stringify([
+        'map',
+        'my-node',
+        'mesh-health',
+        'raw',
+        'visualizer',
+        'trace',
+        'search',
+        'channel-registry',
+        'cracker',
+      ])
+    );
+    renderSidebar();
+    fireEvent.click(screen.getByRole('button', { name: 'Customize sidebar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reset to defaults' }));
+    expect(localStorage.getItem('remoteterm-sidebar-tool-order')).toBeNull();
+  });
+
+  it('renders per-type favourite sub-headers when favourites of multiple types exist', () => {
+    const favChan = { ...makeChannel('BB'.repeat(16), '#flight'), favorite: true };
+    const favContact = makeContact('11'.repeat(32), 'Alice', 1, { favorite: true });
+    render(
+      <Sidebar
+        contacts={[favContact]}
+        channels={[makeChannel(PUBLIC_CHANNEL_KEY, 'Public'), favChan]}
+        activeConversation={null}
+        onSelectConversation={vi.fn()}
+        onNewMessage={vi.fn()}
+        lastMessageTimes={{}}
+        unreadCounts={{}}
+        mentions={{}}
+        showCracker={false}
+        crackerRunning={false}
+        onToggleCracker={vi.fn()}
+        onMarkAllRead={vi.fn()}
+      />
+    );
+    // Sub-headers only appear in a type-grouped sort mode. From the default
+    // 'recent', cycle: recent -> alpha -> type-recent.
+    expect(screen.getByRole('button', { name: 'Favorites' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Sort Favorites alphabetically' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sort Favorites by type, then recent' }));
+    expect(screen.getByRole('button', { name: 'Favorite Channels' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Favorite Contacts' })).toBeInTheDocument();
+  });
+
+  it('renders favourites as a flat list in the default (recent) sort mode', () => {
+    const favChan = { ...makeChannel('BB'.repeat(16), '#flight'), favorite: true };
+    const favContact = makeContact('11'.repeat(32), 'Alice', 1, { favorite: true });
+    render(
+      <Sidebar
+        contacts={[favContact]}
+        channels={[makeChannel(PUBLIC_CHANNEL_KEY, 'Public'), favChan]}
+        activeConversation={null}
+        onSelectConversation={vi.fn()}
+        onNewMessage={vi.fn()}
+        lastMessageTimes={{}}
+        unreadCounts={{}}
+        mentions={{}}
+        showCracker={false}
+        crackerRunning={false}
+        onToggleCracker={vi.fn()}
+        onMarkAllRead={vi.fn()}
+      />
+    );
+    // No per-type sub-headers in flat mode.
+    expect(screen.queryByRole('button', { name: 'Favorite Channels' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Favorite Contacts' })).not.toBeInTheDocument();
+  });
+});
