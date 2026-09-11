@@ -1,1 +1,15 @@
+# Normalize line endings across platforms.
+#
+# Store LF in the repository and check out LF in every working tree, even on
+# Windows (where core.autocrlf=true would otherwise produce CRLF). Git still
+# auto-detects binary files and leaves them untouched.
+#
+# Why: Prettier is configured endOfLine:lf and the `frontend-checks` CI gate
+# runs `prettier --check src/` on Linux (LF). Without this, a Windows checkout
+# gets CRLF working-tree files, which makes a local `prettier --check` report
+# hundreds of false positives and lets CRLF slip into commits, turning PRs red.
+# Forcing LF keeps local checks consistent with CI.
+* text=auto eol=lf
+
+# Existing: keep large generated bundle out of diffs.
 frontend/prebuilt/** -diff
