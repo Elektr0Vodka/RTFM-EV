@@ -1,7 +1,7 @@
 import json
 import logging
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import aiosqlite
 
@@ -9,6 +9,11 @@ from app.database import db
 from app.models import AnalyzerSite, AppSettings
 from app.path_utils import bucket_path_hash_widths, bucket_region_scope, parse_packet_envelope
 from app.telemetry_interval import DEFAULT_TELEMETRY_INTERVAL_HOURS
+
+if TYPE_CHECKING:
+    # Imported for type annotations only. The runtime import stays local to
+    # get_radio_presets/set_radio_presets to avoid a circular import at module load.
+    from app.models import RadioPresetsStore
 
 logger = logging.getLogger(__name__)
 
