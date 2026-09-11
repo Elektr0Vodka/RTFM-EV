@@ -22,6 +22,11 @@ grouped by area. Older entries below remain as generated.
   topics, type registration with validation and scope, and a fanout editor with
   i18n (`4ee1029`, `595e81e`, `a605d58`, `fc6847c`, `3a59ce7`) (PR #41)
 - Rename the community fanout client identifier to RTFM-EV (`a3ce6db`) (PR #50)
+- Community MQTT preset picker: one region-grouped picker inside the Community
+  MQTT editor covering all 37 MeshCore brokers from the Dutch-MeshCore
+  `MQTTPresets.h` list (36 upstream + `bsmesh`), replacing the six hardcoded
+  preset tiles. USERPASS presets ship editable credentials; `mesh-chaun14`
+  authenticates with the radio public key (backend `{pubkey}` substitution)
 
 ### Neighbors / signal history
 - Per-link signal history, parity X2b (`736df88`) (PR #47)

@@ -26,6 +26,14 @@ import { cn } from '@/lib/utils';
 import { api } from '../../api';
 import { useT, type TFn } from '../../i18n';
 import type { Channel, Contact, FanoutConfig, HealthStatus } from '../../types';
+import {
+  COMMUNITY_MQTT_PRESETS,
+  REGION_ORDER,
+  applyPresetToConfig,
+  detectPresetId,
+  CUSTOM_PRESET_ID,
+  type CommunityPresetRegion,
+} from './communityMqttPresets';
 
 const BotCodeEditor = lazy(() =>
   import('../BotCodeEditor').then((m) => ({ default: m.BotCodeEditor }))
@@ -46,21 +54,9 @@ function getTypeLabels(t: TFn): Record<string, string> {
 
 const DEFAULT_COMMUNITY_PACKET_TOPIC_TEMPLATE = 'meshcore/{IATA}/{PUBLIC_KEY}/packets';
 const DEFAULT_COMMUNITY_BROKER_HOST = 'mqtt-us-v1.letsmesh.net';
-const DEFAULT_COMMUNITY_BROKER_HOST_EU = 'mqtt-eu-v1.letsmesh.net';
-const DEFAULT_DMC1_BROKER_HOST = 'collector1.dutchmeshcore.nl';
-const DEFAULT_DMC2_BROKER_HOST = 'collector2.dutchmeshcore.nl';
-const DEFAULT_MESHCORE_ANALYZER_EU_BROKER_HOST = 'mqtt.meshcore-analyzer.eu';
-// Dutch MeshCore collectors serve the WebSocket endpoint under /mqtt (from the
-// MeshCore observer preset URLs wss://collectorN.dutchmeshcore.nl:443/mqtt).
-const DEFAULT_DMC_WEBSOCKET_PATH = '/mqtt';
 const DEFAULT_COMMUNITY_BROKER_PORT = 443;
 const DEFAULT_COMMUNITY_TRANSPORT = 'websockets';
 const DEFAULT_COMMUNITY_AUTH_MODE = 'token';
-const DEFAULT_MESHRANK_BROKER_HOST = 'meshrank.net';
-const DEFAULT_MESHRANK_BROKER_PORT = 8883;
-const DEFAULT_MESHRANK_TRANSPORT = 'tcp';
-const DEFAULT_MESHRANK_AUTH_MODE = 'none';
-const DEFAULT_MESHRANK_IATA = 'XYZ';
 
 function createCommunityConfigDefaults(
   overrides: Partial<Record<string, unknown>> = {}
@@ -144,12 +140,6 @@ type DraftType =
   | 'mqtt_private'
   | 'mqtt_ha'
   | 'mqtt_community'
-  | 'mqtt_community_meshrank'
-  | 'mqtt_community_letsmesh_us'
-  | 'mqtt_community_letsmesh_eu'
-  | 'mqtt_community_dmc1'
-  | 'mqtt_community_dmc2'
-  | 'mqtt_community_meshcore_analyzer_eu'
   | 'webhook'
   | 'apprise'
   | 'sqs'
@@ -226,110 +216,6 @@ function getCreateIntegrationDefinitions(t: TFn): readonly CreateIntegrationDefi
       nameMode: 'counted',
       defaults: {
         config: createCommunityConfigDefaults(),
-        scope: { messages: 'none', raw_packets: 'all' },
-      },
-    },
-    {
-      value: 'mqtt_community_meshrank',
-      savedType: 'mqtt_community',
-      label: t('settings_fanout_type_meshrank'),
-      section: t('settings_fanout_type_community_sharing'),
-      description: t('settings_fanout_desc_meshrank'),
-      defaultName: t('settings_fanout_type_meshrank'),
-      nameMode: 'fixed',
-      defaults: {
-        config: createCommunityConfigDefaults({
-          broker_host: DEFAULT_MESHRANK_BROKER_HOST,
-          broker_port: DEFAULT_MESHRANK_BROKER_PORT,
-          transport: DEFAULT_MESHRANK_TRANSPORT,
-          auth_mode: DEFAULT_MESHRANK_AUTH_MODE,
-          iata: DEFAULT_MESHRANK_IATA,
-          email: '',
-          token_audience: '',
-          topic_template: '',
-        }),
-        scope: { messages: 'none', raw_packets: 'all' },
-      },
-    },
-    {
-      value: 'mqtt_community_letsmesh_us',
-      savedType: 'mqtt_community',
-      label: t('settings_fanout_type_letsmesh_us'),
-      section: t('settings_fanout_type_community_sharing'),
-      description: t('settings_fanout_desc_letsmesh_us'),
-      defaultName: t('settings_fanout_type_letsmesh_us'),
-      nameMode: 'fixed',
-      defaults: {
-        config: createCommunityConfigDefaults({
-          broker_host: DEFAULT_COMMUNITY_BROKER_HOST,
-          token_audience: DEFAULT_COMMUNITY_BROKER_HOST,
-        }),
-        scope: { messages: 'none', raw_packets: 'all' },
-      },
-    },
-    {
-      value: 'mqtt_community_letsmesh_eu',
-      savedType: 'mqtt_community',
-      label: t('settings_fanout_type_letsmesh_eu'),
-      section: t('settings_fanout_type_community_sharing'),
-      description: t('settings_fanout_desc_letsmesh_eu'),
-      defaultName: t('settings_fanout_type_letsmesh_eu'),
-      nameMode: 'fixed',
-      defaults: {
-        config: createCommunityConfigDefaults({
-          broker_host: DEFAULT_COMMUNITY_BROKER_HOST_EU,
-          token_audience: DEFAULT_COMMUNITY_BROKER_HOST_EU,
-        }),
-        scope: { messages: 'none', raw_packets: 'all' },
-      },
-    },
-    {
-      value: 'mqtt_community_dmc1',
-      savedType: 'mqtt_community',
-      label: t('settings_fanout_type_dmc1'),
-      section: t('settings_fanout_type_community_sharing'),
-      description: t('settings_fanout_desc_dmc1'),
-      defaultName: t('settings_fanout_type_dmc1'),
-      nameMode: 'fixed',
-      defaults: {
-        config: createCommunityConfigDefaults({
-          broker_host: DEFAULT_DMC1_BROKER_HOST,
-          token_audience: DEFAULT_DMC1_BROKER_HOST,
-          websocket_path: DEFAULT_DMC_WEBSOCKET_PATH,
-        }),
-        scope: { messages: 'none', raw_packets: 'all' },
-      },
-    },
-    {
-      value: 'mqtt_community_dmc2',
-      savedType: 'mqtt_community',
-      label: t('settings_fanout_type_dmc2'),
-      section: t('settings_fanout_type_community_sharing'),
-      description: t('settings_fanout_desc_dmc2'),
-      defaultName: t('settings_fanout_type_dmc2'),
-      nameMode: 'fixed',
-      defaults: {
-        config: createCommunityConfigDefaults({
-          broker_host: DEFAULT_DMC2_BROKER_HOST,
-          token_audience: DEFAULT_DMC2_BROKER_HOST,
-          websocket_path: DEFAULT_DMC_WEBSOCKET_PATH,
-        }),
-        scope: { messages: 'none', raw_packets: 'all' },
-      },
-    },
-    {
-      value: 'mqtt_community_meshcore_analyzer_eu',
-      savedType: 'mqtt_community',
-      label: t('settings_fanout_type_meshcore_analyzer_eu'),
-      section: t('settings_fanout_type_community_sharing'),
-      description: t('settings_fanout_desc_meshcore_analyzer_eu'),
-      defaultName: t('settings_fanout_type_meshcore_analyzer_eu'),
-      nameMode: 'fixed',
-      defaults: {
-        config: createCommunityConfigDefaults({
-          broker_host: DEFAULT_MESHCORE_ANALYZER_EU_BROKER_HOST,
-          token_audience: DEFAULT_MESHCORE_ANALYZER_EU_BROKER_HOST,
-        }),
         scope: { messages: 'none', raw_packets: 'all' },
       },
     },
@@ -540,83 +426,8 @@ function normalizeDraftName(
 function normalizeDraftConfig(
   draftType: DraftType,
   config: Record<string, unknown>,
-  defs: Record<DraftType, CreateIntegrationDefinition>,
-  t: TFn
+  defs: Record<DraftType, CreateIntegrationDefinition>
 ) {
-  if (draftType === 'mqtt_community_meshrank') {
-    const topicTemplate = String(config.topic_template || '').trim();
-    if (!topicTemplate) {
-      throw new Error(t('settings_fanout_meshrank_topic_required'));
-    }
-
-    return normalizeIntegrationConfigForSave('mqtt_community', {
-      ...config,
-      broker_host: DEFAULT_MESHRANK_BROKER_HOST,
-      broker_port: DEFAULT_MESHRANK_BROKER_PORT,
-      transport: DEFAULT_MESHRANK_TRANSPORT,
-      auth_mode: DEFAULT_MESHRANK_AUTH_MODE,
-      use_tls: true,
-      tls_verify: true,
-      iata: DEFAULT_MESHRANK_IATA,
-      email: '',
-      token_audience: '',
-      topic_template: topicTemplate,
-      username: '',
-      password: '',
-    });
-  }
-
-  if (draftType === 'mqtt_community_letsmesh_us' || draftType === 'mqtt_community_letsmesh_eu') {
-    const brokerHost =
-      draftType === 'mqtt_community_letsmesh_eu'
-        ? DEFAULT_COMMUNITY_BROKER_HOST_EU
-        : DEFAULT_COMMUNITY_BROKER_HOST;
-    return normalizeIntegrationConfigForSave('mqtt_community', {
-      ...config,
-      broker_host: brokerHost,
-      broker_port: DEFAULT_COMMUNITY_BROKER_PORT,
-      transport: DEFAULT_COMMUNITY_TRANSPORT,
-      auth_mode: DEFAULT_COMMUNITY_AUTH_MODE,
-      use_tls: true,
-      tls_verify: true,
-      token_audience: brokerHost,
-      topic_template: (config.topic_template as string) || DEFAULT_COMMUNITY_PACKET_TOPIC_TEMPLATE,
-      username: '',
-      password: '',
-    });
-  }
-
-  if (
-    draftType === 'mqtt_community_dmc1' ||
-    draftType === 'mqtt_community_dmc2' ||
-    draftType === 'mqtt_community_meshcore_analyzer_eu'
-  ) {
-    const brokerHost =
-      draftType === 'mqtt_community_dmc1'
-        ? DEFAULT_DMC1_BROKER_HOST
-        : draftType === 'mqtt_community_dmc2'
-          ? DEFAULT_DMC2_BROKER_HOST
-          : DEFAULT_MESHCORE_ANALYZER_EU_BROKER_HOST;
-    // DMC collectors serve WebSockets under /mqtt; the Analyzer EU broker is at the
-    // root, so it uses the backend's default path.
-    const websocketPath =
-      draftType === 'mqtt_community_meshcore_analyzer_eu' ? '/' : DEFAULT_DMC_WEBSOCKET_PATH;
-    return normalizeIntegrationConfigForSave('mqtt_community', {
-      ...config,
-      broker_host: brokerHost,
-      broker_port: DEFAULT_COMMUNITY_BROKER_PORT,
-      transport: DEFAULT_COMMUNITY_TRANSPORT,
-      auth_mode: DEFAULT_COMMUNITY_AUTH_MODE,
-      use_tls: true,
-      tls_verify: true,
-      token_audience: brokerHost,
-      websocket_path: websocketPath,
-      topic_template: (config.topic_template as string) || DEFAULT_COMMUNITY_PACKET_TOPIC_TEMPLATE,
-      username: '',
-      password: '',
-    });
-  }
-
   return normalizeIntegrationConfigForSave(
     getCreateIntegrationDefinition(draftType, defs).savedType,
     config
@@ -1713,12 +1524,59 @@ function MqttCommunityConfigEditor({
 }) {
   const t = useT();
   const authMode = (config.auth_mode as string) || DEFAULT_COMMUNITY_AUTH_MODE;
+  const currentPresetId = detectPresetId(config);
+  const activePreset = COMMUNITY_MQTT_PRESETS.find((p) => p.id === currentPresetId);
+  const regionLabels: Record<CommunityPresetRegion, string> = {
+    europe: t('settings_fanout_preset_region_europe'),
+    north_america: t('settings_fanout_preset_region_north_america'),
+    oceania: t('settings_fanout_preset_region_oceania'),
+    other: t('settings_fanout_preset_region_other'),
+  };
 
   return (
     <div className="space-y-3">
       <p className="text-[0.8125rem] text-muted-foreground">
         {t('settings_fanout_mqtt_community_desc')}
       </p>
+
+      <div className="space-y-2">
+        <Label htmlFor="fanout-comm-preset">{t('settings_fanout_preset_label')}</Label>
+        <select
+          id="fanout-comm-preset"
+          value={currentPresetId}
+          onChange={(e) => {
+            const preset = COMMUNITY_MQTT_PRESETS.find((p) => p.id === e.target.value);
+            if (preset) onChange(applyPresetToConfig(config, preset));
+          }}
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+        >
+          <option value={CUSTOM_PRESET_ID}>{t('settings_fanout_preset_custom')}</option>
+          {REGION_ORDER.map((region) => (
+            <optgroup key={region} label={regionLabels[region]}>
+              {COMMUNITY_MQTT_PRESETS.filter((p) => p.region === region).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.id}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+        {activePreset?.hasEmbeddedCredentials && (
+          <p className="text-[0.8125rem] text-muted-foreground">
+            {t('settings_fanout_preset_note_embedded_creds')}
+          </p>
+        )}
+        {activePreset?.needsBackendSubstitution && (
+          <p className="text-[0.8125rem] text-muted-foreground">
+            {t('settings_fanout_preset_note_pubkey_username')}
+          </p>
+        )}
+        {activePreset?.requiresTopicTemplate && (
+          <p className="text-[0.8125rem] text-muted-foreground">
+            {t('settings_fanout_preset_note_topic_required')}
+          </p>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -1915,120 +1773,6 @@ function MqttCommunityConfigEditor({
           {t('settings_fanout_topic_template_hint_default')}{' '}
           <code>{DEFAULT_COMMUNITY_PACKET_TOPIC_TEMPLATE}</code>
         </p>
-      </div>
-
-      <CommunityTopicControls config={config} onChange={onChange} />
-    </div>
-  );
-}
-
-function MeshRankConfigEditor({
-  config,
-  onChange,
-}: {
-  config: Record<string, unknown>;
-  onChange: (config: Record<string, unknown>) => void;
-}) {
-  const t = useT();
-  return (
-    <div className="space-y-3">
-      <p className="text-[0.8125rem] text-muted-foreground">
-        {t('settings_fanout_meshrank_editor_desc')}
-      </p>
-
-      <div className="rounded-md border border-input bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-        {t('settings_fanout_meshrank_summary_prefix')} <code>{DEFAULT_MESHRANK_BROKER_HOST}</code>{' '}
-        {t('settings_fanout_meshrank_summary_on_port')} <code>{DEFAULT_MESHRANK_BROKER_PORT}</code>{' '}
-        {t('settings_fanout_meshrank_summary_via')} <code>{DEFAULT_MESHRANK_TRANSPORT}</code>,{' '}
-        {t('settings_fanout_meshrank_summary_auth')} <code>{DEFAULT_MESHRANK_AUTH_MODE}</code>
-        {t('settings_fanout_meshrank_summary_tail')} <code>{DEFAULT_MESHRANK_IATA}</code>.
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="fanout-meshrank-topic-template">
-          {t('settings_fanout_packet_topic_template_label')}
-        </Label>
-        <Input
-          id="fanout-meshrank-topic-template"
-          type="text"
-          placeholder="meshrank/uplink/B435F6D5F7896B74C6B995FE221C2C1F/{PUBLIC_KEY}/packets"
-          value={(config.topic_template as string) || ''}
-          onChange={(e) =>
-            onChange({
-              ...config,
-              iata: DEFAULT_MESHRANK_IATA,
-              topic_template: e.target.value,
-            })
-          }
-        />
-        <p className="text-[0.8125rem] text-muted-foreground">
-          {t('settings_fanout_meshrank_topic_template_hint')}{' '}
-          {/* eslint-disable-next-line i18next/no-literal-string */}
-          <code>meshrank/uplink/B435F6D5F7896B74C6B995FE221C2C1F/{'{PUBLIC_KEY}'}/packets</code>.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function LetsMeshConfigEditor({
-  config,
-  onChange,
-  brokerHost,
-}: {
-  config: Record<string, unknown>;
-  onChange: (config: Record<string, unknown>) => void;
-  brokerHost: string;
-}) {
-  const t = useT();
-  return (
-    <div className="space-y-3">
-      <p className="text-[0.8125rem] text-muted-foreground">
-        {t('settings_fanout_letsmesh_editor_desc')}
-      </p>
-
-      <div className="rounded-md border border-input bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-        {t('settings_fanout_meshrank_summary_prefix')} <code>{brokerHost}</code>{' '}
-        {t('settings_fanout_meshrank_summary_on_port')} <code>{DEFAULT_COMMUNITY_BROKER_PORT}</code>{' '}
-        {t('settings_fanout_meshrank_summary_via')} <code>{DEFAULT_COMMUNITY_TRANSPORT}</code>,{' '}
-        {t('settings_fanout_meshrank_summary_auth')} <code>{DEFAULT_COMMUNITY_AUTH_MODE}</code>,{' '}
-        {t('settings_fanout_letsmesh_summary_tail')} <code>{brokerHost}</code>.
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="fanout-letsmesh-email">{t('settings_fanout_email_label')}</Label>
-          <Input
-            id="fanout-letsmesh-email"
-            type="email"
-            placeholder="you@example.com"
-            value={(config.email as string) || ''}
-            onChange={(e) =>
-              onChange({ ...config, email: e.target.value, broker_host: brokerHost })
-            }
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="fanout-letsmesh-iata">
-            {t('settings_fanout_region_code_iata_label')}
-          </Label>
-          <Input
-            id="fanout-letsmesh-iata"
-            type="text"
-            maxLength={3}
-            placeholder={t('settings_fanout_iata_placeholder')}
-            value={(config.iata as string) || ''}
-            onChange={(e) =>
-              onChange({
-                ...config,
-                broker_host: brokerHost,
-                token_audience: brokerHost,
-                iata: e.target.value.toUpperCase(),
-              })
-            }
-            className="w-32"
-          />
-        </div>
       </div>
 
       <CommunityTopicControls config={config} onChange={onChange} />
@@ -3439,6 +3183,18 @@ export function SettingsFanoutSection({
     const currentDraftType = draftType;
     const currentEditingId = editingId;
     if (!currentEditingId && !currentDraftType) return;
+    // MeshRank (topic_style MESHRANK) has no default packet topic — the broker
+    // assigns one per account, so it must be provided before saving.
+    const activeCommunityPreset = COMMUNITY_MQTT_PRESETS.find(
+      (p) => p.id === detectPresetId(editConfig)
+    );
+    if (
+      activeCommunityPreset?.requiresTopicTemplate &&
+      !String(editConfig.topic_template ?? '').trim()
+    ) {
+      toast.error(t('settings_fanout_meshrank_topic_required'));
+      return;
+    }
     setBusy(true);
     try {
       if (currentDraftType) {
@@ -3452,7 +3208,7 @@ export function SettingsFanoutSection({
             definitionsByValue,
             typeLabels
           ),
-          config: normalizeDraftConfig(currentDraftType, editConfig, definitionsByValue, t),
+          config: normalizeDraftConfig(currentDraftType, editConfig, definitionsByValue),
           scope: normalizeDraftScope(currentDraftType, editScope, definitionsByValue),
           enabled: enabled ?? true,
         });
@@ -3584,50 +3340,6 @@ export function SettingsFanoutSection({
 
         {detailType === 'mqtt_community' && (
           <MqttCommunityConfigEditor config={editConfig} onChange={setEditConfig} />
-        )}
-
-        {detailType === 'mqtt_community_meshrank' && (
-          <MeshRankConfigEditor config={editConfig} onChange={setEditConfig} />
-        )}
-
-        {detailType === 'mqtt_community_letsmesh_us' && (
-          <LetsMeshConfigEditor
-            config={editConfig}
-            onChange={setEditConfig}
-            brokerHost={DEFAULT_COMMUNITY_BROKER_HOST}
-          />
-        )}
-
-        {detailType === 'mqtt_community_letsmesh_eu' && (
-          <LetsMeshConfigEditor
-            config={editConfig}
-            onChange={setEditConfig}
-            brokerHost={DEFAULT_COMMUNITY_BROKER_HOST_EU}
-          />
-        )}
-
-        {detailType === 'mqtt_community_dmc1' && (
-          <LetsMeshConfigEditor
-            config={editConfig}
-            onChange={setEditConfig}
-            brokerHost={DEFAULT_DMC1_BROKER_HOST}
-          />
-        )}
-
-        {detailType === 'mqtt_community_dmc2' && (
-          <LetsMeshConfigEditor
-            config={editConfig}
-            onChange={setEditConfig}
-            brokerHost={DEFAULT_DMC2_BROKER_HOST}
-          />
-        )}
-
-        {detailType === 'mqtt_community_meshcore_analyzer_eu' && (
-          <LetsMeshConfigEditor
-            config={editConfig}
-            onChange={setEditConfig}
-            brokerHost={DEFAULT_MESHCORE_ANALYZER_EU_BROKER_HOST}
-          />
         )}
 
         {detailType === 'bot' && <BotConfigEditor config={editConfig} onChange={setEditConfig} />}
