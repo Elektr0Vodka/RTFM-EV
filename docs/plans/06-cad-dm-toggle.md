@@ -1,7 +1,14 @@
 # 06 - CAD toggle for DMs
 
-Date: 2026-09-10
-Status: draft, local planning only. No commits, no PRs, no issues from this plan.
+Date: 2026-09-10 (implemented 2026-09-11)
+Status: DONE. The single remaining gap identified in this plan (§4.1) is
+implemented on branch `feat/cad-dm-toggle`: the ChatHeader CAD toggle was gated to
+`conversation.type === 'channel'`, so it never rendered for DM (contact) or
+room-server conversations; the render condition now also covers `'contact'`,
+still gated on the runtime `cad_supported` probe. Room-server contacts are covered
+by the same `'contact'` condition (per the Decision below). No new backend, hook,
+or state — this only surfaces the existing global CAD control in more headers.
+Requires CAD-capable meshcomod firmware at runtime (see §6).
 
 ## 1. Summary
 
