@@ -544,6 +544,13 @@
   "settings_about_changelog": "Änderungsprotokoll",
   "settings_about_acknowledgements": "Mit großer Wertschätzung an alle, die die Werkzeuge geschaffen haben, auf denen dies aufbaut:",
   "settings_about_debug_snapshot": "Debug-Support-Snapshot öffnen",
+  "settings_about_update_available": "Update verfügbar",
+  "settings_about_update_commits_behind": {
+    "one": "{count} Commit zurück",
+    "other": "{count} Commits zurück"
+  },
+  "settings_about_update_view_changes": "Änderungen ansehen",
+  "a11y_update_available": "Ein Update ist verfügbar",
   "settings_theme_legend": "Farbthema",
   "settings_push_heading": "Web-Push-Benachrichtigungen",
   "settings_push_not_supported": "Push-Benachrichtigungen werden von diesem Browser nicht unterstützt.",

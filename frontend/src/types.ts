@@ -113,6 +113,16 @@ export interface AppInfo {
   commit_hash: string | null;
 }
 
+export interface UpdateStatus {
+  check_enabled: boolean;
+  update_available: boolean;
+  current_commit: string | null;
+  latest_commit: string | null;
+  commits_behind: number;
+  compare_url: string | null;
+  checked_at: number;
+}
+
 export interface RadioStatsSnapshot {
   timestamp: number | null;
   battery_mv: number | null;

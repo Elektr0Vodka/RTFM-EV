@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     basic_auth_username: str = ""
     basic_auth_password: str = ""
     vapid_subject: str = "mailto:noreply@meshcore.local"
+    update_check_enabled: bool = True
 
     @model_validator(mode="after")
     def validate_transport_exclusivity(self) -> "Settings":

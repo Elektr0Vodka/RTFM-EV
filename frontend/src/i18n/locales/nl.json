@@ -544,6 +544,13 @@
   "settings_about_changelog": "Wijzigingslog",
   "settings_about_acknowledgements": "Met grote waardering voor degenen die de tools hebben gemaakt waarop dit is gebouwd:",
   "settings_about_debug_snapshot": "Debug-ondersteuningssnapshot openen",
+  "settings_about_update_available": "Update beschikbaar",
+  "settings_about_update_commits_behind": {
+    "one": "{count} commit achter",
+    "other": "{count} commits achter"
+  },
+  "settings_about_update_view_changes": "Wijzigingen bekijken",
+  "a11y_update_available": "Er is een update beschikbaar",
   "settings_theme_legend": "Kleurthema",
   "settings_push_heading": "Web Push-meldingen",
   "settings_push_not_supported": "Pushmeldingen worden niet ondersteund door deze browser.",

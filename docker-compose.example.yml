@@ -52,4 +52,10 @@ services:
 
       # Logging
       # MESHCORE_LOG_LEVEL: INFO
+
+      # Update check
+      # The app checks GitHub once every 6h to see if the fork's main branch is
+      # ahead of the running build, and shows an in-app indicator. Set to "false"
+      # to disable the outbound request (air-gapped / privacy-conscious setups).
+      # MESHCORE_UPDATE_CHECK_ENABLED: "false"
     restart: unless-stopped

@@ -15,6 +15,7 @@ import { handleKeyboardActivate } from '../utils/a11y';
 import { useT } from '../i18n';
 import { getEffectiveTheme, THEME_CHANGE_EVENT } from '../utils/theme';
 import { HeaderLanguageMenu } from './HeaderLanguageMenu';
+import { useUpdateStatus } from '../hooks/useUpdateStatus';
 import { ThemeSelector } from './settings/ThemeSelector';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import {
@@ -49,6 +50,7 @@ export function StatusBar({
   onMenuClick,
 }: StatusBarProps) {
   const t = useT();
+  const updateStatus = useUpdateStatus();
   const [showBatteryPercent, setShowBatteryPercent] = useState(getShowBatteryPercent);
   const [showBatteryVoltage, setShowBatteryVoltage] = useState(getShowBatteryVoltage);
 
@@ -280,13 +282,19 @@ export function StatusBar({
       <button
         onClick={onSettingsClick}
         className={cn(
-          'px-3 py-1.5 rounded-md text-xs cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          'relative px-3 py-1.5 rounded-md text-xs cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           settingsMode
             ? 'bg-status-connected/15 border border-status-connected/30 text-status-connected hover:bg-status-connected/25'
             : 'bg-secondary border border-border text-muted-foreground hover:bg-accent hover:text-foreground'
         )}
       >
         {settingsMode ? t('nav_back_to_chat') : t('nav_settings_heading')}
+        {updateStatus?.update_available ? (
+          <span
+            aria-label={t('a11y_update_available')}
+            className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary"
+          />
+        ) : null}
       </button>
       <HeaderLanguageMenu />
       <button
