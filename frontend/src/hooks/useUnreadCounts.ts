@@ -300,7 +300,7 @@ export function useUnreadCounts(
     (items: { type: 'channel' | 'contact'; id: string }[]) => {
       if (items.length === 0) return;
       const keys = items.map((i) => getStateKey(i.type, i.id));
-      const clear = <T,>(prev: Record<string, T>): Record<string, T> => {
+      const clear = <T>(prev: Record<string, T>): Record<string, T> => {
         let changed = false;
         const next = { ...prev };
         for (const key of keys) {
