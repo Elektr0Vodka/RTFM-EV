@@ -14,7 +14,10 @@ import {
   LockOpen,
   Logs,
   Map,
+  PanelLeftClose,
+  PanelLeftOpen,
   Search as SearchIcon,
+  Settings2,
   SquarePen,
   X,
 } from 'lucide-react';
@@ -40,6 +43,20 @@ import {
 import { isPublicChannelKey } from '../utils/publicChannel';
 import { getContactDisplayName } from '../utils/pubkey';
 import { handleKeyboardActivate } from '../utils/a11y';
+import {
+  loadSectionOrder,
+  saveSectionOrder,
+  loadToolOrder,
+  saveToolOrder,
+  loadRailCollapsed,
+  saveRailCollapsed,
+  resetSidebarLayout,
+  ALL_SECTION_KEYS,
+  ALL_TOOL_KEYS,
+  type SidebarSectionKey,
+  type SidebarToolKey,
+} from '../utils/sidebarLayout';
+import { DragList } from './sidebar/DragList';
 import { useT, type TFn } from '../i18n';
 import { ContactAvatar } from './ContactAvatar';
 import { Input } from './ui/input';
@@ -121,6 +138,10 @@ type CollapseState = {
   contacts: boolean;
   rooms: boolean;
   repeaters: boolean;
+  favChannels: boolean;
+  favContacts: boolean;
+  favRooms: boolean;
+  favRepeaters: boolean;
 };
 
 const SIDEBAR_COLLAPSE_STATE_KEY = 'remoteterm-sidebar-collapse-state';
@@ -132,6 +153,10 @@ const DEFAULT_COLLAPSE_STATE: CollapseState = {
   contacts: false,
   rooms: false,
   repeaters: false,
+  favChannels: false,
+  favContacts: false,
+  favRooms: false,
+  favRepeaters: false,
 };
 
 function loadCollapsedState(): CollapseState {
@@ -146,6 +171,10 @@ function loadCollapsedState(): CollapseState {
       contacts: parsed.contacts ?? DEFAULT_COLLAPSE_STATE.contacts,
       rooms: parsed.rooms ?? DEFAULT_COLLAPSE_STATE.rooms,
       repeaters: parsed.repeaters ?? DEFAULT_COLLAPSE_STATE.repeaters,
+      favChannels: parsed.favChannels ?? DEFAULT_COLLAPSE_STATE.favChannels,
+      favContacts: parsed.favContacts ?? DEFAULT_COLLAPSE_STATE.favContacts,
+      favRooms: parsed.favRooms ?? DEFAULT_COLLAPSE_STATE.favRooms,
+      favRepeaters: parsed.favRepeaters ?? DEFAULT_COLLAPSE_STATE.favRepeaters,
     };
   } catch {
     return DEFAULT_COLLAPSE_STATE;
@@ -170,6 +199,8 @@ interface SidebarProps {
   isConversationNotificationsEnabled?: (type: 'channel' | 'contact', id: string) => boolean;
   blockedKeys?: string[];
   blockedNames?: string[];
+  /** When true (mobile drawer mount), pin the rail open and hide the rail toggle. */
+  forceExpanded?: boolean;
 }
 
 function loadInitialSectionSortOrders(): SidebarSectionSortOrders {
@@ -199,6 +230,7 @@ export function Sidebar({
   isConversationNotificationsEnabled,
   blockedKeys = [],
   blockedNames = [],
+  forceExpanded = false,
 }: SidebarProps) {
   const t = useT();
   const isContactBlocked = useCallback(
@@ -218,7 +250,47 @@ export function Sidebar({
   const [contactsCollapsed, setContactsCollapsed] = useState(initialCollapsedState.contacts);
   const [roomsCollapsed, setRoomsCollapsed] = useState(initialCollapsedState.rooms);
   const [repeatersCollapsed, setRepeatersCollapsed] = useState(initialCollapsedState.repeaters);
+  const [favChannelsCollapsed, setFavChannelsCollapsed] = useState(
+    initialCollapsedState.favChannels
+  );
+  const [favContactsCollapsed, setFavContactsCollapsed] = useState(
+    initialCollapsedState.favContacts
+  );
+  const [favRoomsCollapsed, setFavRoomsCollapsed] = useState(initialCollapsedState.favRooms);
+  const [favRepeatersCollapsed, setFavRepeatersCollapsed] = useState(
+    initialCollapsedState.favRepeaters
+  );
   const collapseSnapshotRef = useRef<CollapseState | null>(null);
+
+  // Layout customisation preferences (client-local, see utils/sidebarLayout).
+  const [toolOrder, setToolOrder] = useState<SidebarToolKey[]>(loadToolOrder);
+  const [sectionOrder, setSectionOrder] = useState<SidebarSectionKey[]>(loadSectionOrder);
+  const [railCollapsed, setRailCollapsed] = useState<boolean>(loadRailCollapsed);
+  const [showSettings, setShowSettings] = useState(false);
+  const isRail = railCollapsed && !forceExpanded;
+
+  const toggleRail = () => {
+    setRailCollapsed((prev) => {
+      const next = !prev;
+      saveRailCollapsed(next);
+      return next;
+    });
+  };
+
+  const handleReorderSections = (next: SidebarSectionKey[]) => {
+    setSectionOrder(next);
+    saveSectionOrder(next);
+  };
+  const handleReorderTools = (next: SidebarToolKey[]) => {
+    setToolOrder(next);
+    saveToolOrder(next);
+  };
+  const handleResetLayout = () => {
+    resetSidebarLayout();
+    setSectionOrder([...ALL_SECTION_KEYS]);
+    setToolOrder([...ALL_TOOL_KEYS]);
+    setRailCollapsed(false);
+  };
 
   const handleSortToggle = (section: SidebarSortableSection) => {
     setSectionSortOrders((prev) => {
@@ -510,6 +582,10 @@ export function Sidebar({
           contacts: contactsCollapsed,
           rooms: roomsCollapsed,
           repeaters: repeatersCollapsed,
+          favChannels: favChannelsCollapsed,
+          favContacts: favContactsCollapsed,
+          favRooms: favRoomsCollapsed,
+          favRepeaters: favRepeatersCollapsed,
         };
       }
 
@@ -519,7 +595,11 @@ export function Sidebar({
         channelsCollapsed ||
         contactsCollapsed ||
         roomsCollapsed ||
-        repeatersCollapsed
+        repeatersCollapsed ||
+        favChannelsCollapsed ||
+        favContactsCollapsed ||
+        favRoomsCollapsed ||
+        favRepeatersCollapsed
       ) {
         setToolsCollapsed(false);
         setFavoritesCollapsed(false);
@@ -527,6 +607,10 @@ export function Sidebar({
         setContactsCollapsed(false);
         setRoomsCollapsed(false);
         setRepeatersCollapsed(false);
+        setFavChannelsCollapsed(false);
+        setFavContactsCollapsed(false);
+        setFavRoomsCollapsed(false);
+        setFavRepeatersCollapsed(false);
       }
       return;
     }
@@ -540,6 +624,10 @@ export function Sidebar({
       setContactsCollapsed(prev.contacts);
       setRoomsCollapsed(prev.rooms);
       setRepeatersCollapsed(prev.repeaters);
+      setFavChannelsCollapsed(prev.favChannels);
+      setFavContactsCollapsed(prev.favContacts);
+      setFavRoomsCollapsed(prev.favRooms);
+      setFavRepeatersCollapsed(prev.favRepeaters);
     }
   }, [
     isSearching,
@@ -549,6 +637,10 @@ export function Sidebar({
     contactsCollapsed,
     roomsCollapsed,
     repeatersCollapsed,
+    favChannelsCollapsed,
+    favContactsCollapsed,
+    favRoomsCollapsed,
+    favRepeatersCollapsed,
   ]);
 
   useEffect(() => {
@@ -561,6 +653,10 @@ export function Sidebar({
       contacts: contactsCollapsed,
       rooms: roomsCollapsed,
       repeaters: repeatersCollapsed,
+      favChannels: favChannelsCollapsed,
+      favContacts: favContactsCollapsed,
+      favRooms: favRoomsCollapsed,
+      favRepeaters: favRepeatersCollapsed,
     };
 
     try {
@@ -576,6 +672,10 @@ export function Sidebar({
     contactsCollapsed,
     roomsCollapsed,
     repeatersCollapsed,
+    favChannelsCollapsed,
+    favContactsCollapsed,
+    favRoomsCollapsed,
+    favRepeatersCollapsed,
   ]);
 
   // Separate favorites from regular items, and build combined favorites list
@@ -718,13 +818,40 @@ export function Sidebar({
     icon,
     label,
     onClick,
+    iconOnly = false,
+    iconTitle,
   }: {
     key: string;
     active?: boolean;
     icon: React.ReactNode;
     label: React.ReactNode;
     onClick: () => void;
-  }) => (
+    iconOnly?: boolean;
+    iconTitle?: string;
+  }) => {
+    if (iconOnly) {
+      const labelText = iconTitle ?? (typeof label === 'string' ? label : key);
+      return (
+        <div
+          key={key}
+          data-active={active ? 'true' : undefined}
+          className={cn(
+            'w-full py-2 cursor-pointer flex items-center justify-center border-l-2 border-transparent hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            active && 'bg-accent border-l-primary'
+          )}
+          role="button"
+          tabIndex={0}
+          aria-current={active ? 'page' : undefined}
+          aria-label={labelText}
+          title={labelText}
+          onKeyDown={handleKeyboardActivate}
+          onClick={onClick}
+        >
+          <span aria-hidden="true">{icon}</span>
+        </div>
+      );
+    }
+    return (
     <div
       key={key}
       data-active={active ? 'true' : undefined}
@@ -743,7 +870,8 @@ export function Sidebar({
       </span>
       <span className="sidebar-tool-label flex-1 truncate">{label}</span>
     </div>
-  );
+    );
+  };
 
   const getSectionUnreadCount = (rows: ConversationRow[]): number =>
     rows.reduce((total, row) => total + row.unreadCount, 0);
@@ -755,6 +883,35 @@ export function Sidebar({
       ? buildChannelRow(item.channel, 'fav-chan')
       : buildContactRow(item.contact, 'fav-contact')
   );
+  // Favourites split by type for the collapsible sub-sections. Ranks come from
+  // favoriteTypeRank: channel=0, contact=1, room=2, repeater=3.
+  const favoriteChannelRows = favoriteItems
+    .filter((i): i is Extract<FavoriteItem, { type: 'channel' }> => i.type === 'channel')
+    .map((i) => buildChannelRow(i.channel, 'fav-chan'));
+  const favoriteContactRows = favoriteItems
+    .filter(
+      (i): i is Extract<FavoriteItem, { type: 'contact' }> =>
+        i.type === 'contact' && favoriteTypeRank(i) === 1
+    )
+    .map((i) => buildContactRow(i.contact, 'fav-contact'));
+  const favoriteRoomRows = favoriteItems
+    .filter(
+      (i): i is Extract<FavoriteItem, { type: 'contact' }> =>
+        i.type === 'contact' && favoriteTypeRank(i) === 2
+    )
+    .map((i) => buildContactRow(i.contact, 'fav-room'));
+  const favoriteRepeaterRows = favoriteItems
+    .filter(
+      (i): i is Extract<FavoriteItem, { type: 'contact' }> =>
+        i.type === 'contact' && favoriteTypeRank(i) === 3
+    )
+    .map((i) => buildContactRow(i.contact, 'fav-repeater'));
+  // Favourite sub-sections only make sense in a type-grouped sort mode. In the
+  // flat modes (recent/alpha) the favourites render as a single flat list, which
+  // preserves the existing 4-way favourites sort behaviour.
+  const favoritesGroupedByType =
+    sectionSortOrders.favorites === 'type-recent' ||
+    sectionSortOrders.favorites === 'type-alpha';
   const channelRows = nonFavoriteChannels.map((channel) => buildChannelRow(channel, 'chan'));
   const contactRows = nonFavoriteContacts.map((contact) => buildContactRow(contact, 'contact'));
   const roomRows = nonFavoriteRooms.map((contact) => buildContactRow(contact, 'room'));
@@ -767,21 +924,21 @@ export function Sidebar({
   const repeatersUnreadCount = getSectionUnreadCount(repeaterRows);
   const favoritesHasMention = sectionHasMention(favoriteRows);
   const channelsHasMention = sectionHasMention(channelRows);
-  const toolRows = !query
-    ? [
-        renderSidebarActionRow({
+  // Single source of truth for a tool row, used for both the full list and the
+  // icon-only rail. Order is data-driven via `toolOrder` (utils/sidebarLayout).
+  const buildToolRow = (toolKey: SidebarToolKey, iconOnly: boolean): React.ReactNode => {
+    switch (toolKey) {
+      case 'my-node':
+        return renderSidebarActionRow({
           key: 'tool-my-node',
           active: isActive('node', 'node'),
           icon: <Gauge className="h-4 w-4" />,
           label: t('nav_my_node'),
-          onClick: () =>
-            handleSelectConversation({
-              type: 'node',
-              id: 'node',
-              name: t('nav_my_node'),
-            }),
-        }),
-        renderSidebarActionRow({
+          onClick: () => handleSelectConversation({ type: 'node', id: 'node', name: t('nav_my_node') }),
+          iconOnly,
+        });
+      case 'mesh-health':
+        return renderSidebarActionRow({
           key: 'tool-mesh-health',
           active: isActive('mesh-health', 'mesh-health'),
           icon: <Activity className="h-4 w-4" />,
@@ -792,8 +949,10 @@ export function Sidebar({
               id: 'mesh-health',
               name: t('nav_mesh_health'),
             }),
-        }),
-        renderSidebarActionRow({
+          iconOnly,
+        });
+      case 'raw':
+        return renderSidebarActionRow({
           key: 'tool-raw',
           active: isActive('raw', 'raw'),
           icon: <Logs className="h-4 w-4" />,
@@ -804,20 +963,19 @@ export function Sidebar({
               id: 'raw',
               name: t('nav_raw_packet_feed_name'),
             }),
-        }),
-        renderSidebarActionRow({
+          iconOnly,
+        });
+      case 'map':
+        return renderSidebarActionRow({
           key: 'tool-map',
           active: isActive('map', 'map'),
           icon: <Map className="h-4 w-4" />,
           label: t('nav_node_map'),
-          onClick: () =>
-            handleSelectConversation({
-              type: 'map',
-              id: 'map',
-              name: t('nav_node_map'),
-            }),
-        }),
-        renderSidebarActionRow({
+          onClick: () => handleSelectConversation({ type: 'map', id: 'map', name: t('nav_node_map') }),
+          iconOnly,
+        });
+      case 'visualizer':
+        return renderSidebarActionRow({
           key: 'tool-visualizer',
           active: isActive('visualizer', 'visualizer'),
           icon: <ChartNetwork className="h-4 w-4" />,
@@ -828,20 +986,19 @@ export function Sidebar({
               id: 'visualizer',
               name: t('nav_mesh_visualizer'),
             }),
-        }),
-        renderSidebarActionRow({
+          iconOnly,
+        });
+      case 'trace':
+        return renderSidebarActionRow({
           key: 'tool-trace',
           active: isActive('trace', 'trace'),
           icon: <Cable className="h-4 w-4" />,
           label: t('nav_trace'),
-          onClick: () =>
-            handleSelectConversation({
-              type: 'trace',
-              id: 'trace',
-              name: t('nav_trace'),
-            }),
-        }),
-        renderSidebarActionRow({
+          onClick: () => handleSelectConversation({ type: 'trace', id: 'trace', name: t('nav_trace') }),
+          iconOnly,
+        });
+      case 'search':
+        return renderSidebarActionRow({
           key: 'tool-search',
           active: isActive('search', 'search'),
           icon: <SearchIcon className="h-4 w-4" />,
@@ -852,8 +1009,10 @@ export function Sidebar({
               id: 'search',
               name: t('nav_message_search'),
             }),
-        }),
-        renderSidebarActionRow({
+          iconOnly,
+        });
+      case 'channel-registry':
+        return renderSidebarActionRow({
           key: 'tool-channel-registry',
           active: isActive('channel-registry', 'channel-registry'),
           icon: <Library className="h-4 w-4" />,
@@ -864,11 +1023,14 @@ export function Sidebar({
               id: 'channel-registry',
               name: 'Channel Registry',
             }),
-        }),
-        renderSidebarActionRow({
+          iconOnly,
+        });
+      case 'cracker':
+        return renderSidebarActionRow({
           key: 'tool-cracker',
           active: showCracker,
           icon: <LockOpen className="h-4 w-4" />,
+          iconTitle: t('nav_show_channel_finder'),
           label: (
             <>
               {t(showCracker ? 'nav_hide_channel_finder' : 'nav_show_channel_finder')}
@@ -883,9 +1045,15 @@ export function Sidebar({
             </>
           ),
           onClick: onToggleCracker,
-        }),
-      ]
-    : [];
+          iconOnly,
+        });
+      default:
+        return null;
+    }
+  };
+
+  const toolRows = !query ? toolOrder.map((k) => buildToolRow(k, false)) : [];
+  const toolIconRows = toolOrder.map((k) => buildToolRow(k, true));
 
   const renderSectionHeader = (
     title: string,
@@ -962,78 +1130,20 @@ export function Sidebar({
     );
   };
 
-  return (
-    <nav
-      className="sidebar w-60 h-full min-h-0 overflow-hidden bg-card border-r border-border flex flex-col"
-      aria-label={t('a11y_conversations_nav')}
-    >
-      {/* Header */}
-      <div className="px-3 py-2 border-b border-border">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onNewMessage}
-          title={t('a11y_add_channel_or_contact')}
-          aria-label={t('a11y_add_channel_or_contact')}
-          className="h-8 w-full justify-start gap-2 border-primary/20 bg-primary/5 px-3 text-[0.8125rem] text-primary hover:bg-primary/10 hover:text-primary"
-        >
-          <SquarePen className="h-4 w-4" />
-          <span>{t('nav_add_channel_contact')}</span>
-        </Button>
-      </div>
-
-      {/* List */}
-      <div className="flex-1 min-h-0 overflow-y-auto [contain:layout_paint]">
-        <div className="px-3 py-2 border-b border-border/60">
-          <div className="relative min-w-0">
-            <Input
-              type="text"
-              placeholder={t('common_search_channels_contacts')}
-              aria-label={t('a11y_search_conversations')}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className={cn('h-7 text-[0.8125rem] bg-background/50', searchQuery ? 'pr-8' : 'pr-3')}
-            />
-            {searchQuery && (
-              <button
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-lg leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-                onClick={() => setSearchQuery('')}
-                title={t('a11y_clear_search')}
-                aria-label={t('a11y_clear_search')}
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Tools */}
-        {toolRows.length > 0 && (
-          <>
+  const renderSection = (key: SidebarSectionKey): React.ReactNode => {
+    switch (key) {
+      case 'tools':
+        return toolRows.length > 0 ? (
+          <div key="sec-tools">
             {renderSectionHeader(t('nav_tools_heading'), toolsCollapsed, () =>
               setToolsCollapsed((prev) => !prev)
             )}
             {(isSearching || !toolsCollapsed) && toolRows}
-          </>
-        )}
-
-        {/* Mark All Read */}
-        {!query && Object.values(unreadCounts).some((c) => c > 0) && (
-          <div
-            className="px-3 py-2 cursor-pointer flex items-center gap-2 border-l-2 border-transparent hover:bg-accent transition-colors text-[0.8125rem] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            role="button"
-            tabIndex={0}
-            onKeyDown={handleKeyboardActivate}
-            onClick={onMarkAllRead}
-          >
-            <CheckCheck className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <span className="flex-1 truncate text-muted-foreground">{t('chat_mark_all_read')}</span>
           </div>
-        )}
-
-        {/* Favorites */}
-        {favoriteItems.length > 0 && (
-          <>
+        ) : null;
+      case 'favorites':
+        return favoriteItems.length > 0 ? (
+          <div key="sec-favorites">
             {renderSectionHeader(
               t('nav_favorites_heading'),
               favoritesCollapsed,
@@ -1043,13 +1153,53 @@ export function Sidebar({
               favoritesHasMention
             )}
             {(isSearching || !favoritesCollapsed) &&
-              favoriteRows.map((row) => renderConversationRow(row))}
-          </>
-        )}
-
-        {/* Channels */}
-        {nonFavoriteChannels.length > 0 && (
-          <>
+              (favoritesGroupedByType ? (
+                <>
+                  {favoriteChannelRows.length > 0 && (
+                    <>
+                      {renderSectionHeader(t('nav_favorite_channels'), favChannelsCollapsed, () =>
+                        setFavChannelsCollapsed((prev) => !prev)
+                      )}
+                      {(isSearching || !favChannelsCollapsed) &&
+                        favoriteChannelRows.map((row) => renderConversationRow(row))}
+                    </>
+                  )}
+                  {favoriteContactRows.length > 0 && (
+                    <>
+                      {renderSectionHeader(t('nav_favorite_contacts'), favContactsCollapsed, () =>
+                        setFavContactsCollapsed((prev) => !prev)
+                      )}
+                      {(isSearching || !favContactsCollapsed) &&
+                        favoriteContactRows.map((row) => renderConversationRow(row))}
+                    </>
+                  )}
+                  {favoriteRoomRows.length > 0 && (
+                    <>
+                      {renderSectionHeader(t('nav_favorite_room_servers'), favRoomsCollapsed, () =>
+                        setFavRoomsCollapsed((prev) => !prev)
+                      )}
+                      {(isSearching || !favRoomsCollapsed) &&
+                        favoriteRoomRows.map((row) => renderConversationRow(row))}
+                    </>
+                  )}
+                  {favoriteRepeaterRows.length > 0 && (
+                    <>
+                      {renderSectionHeader(t('nav_favorite_repeaters'), favRepeatersCollapsed, () =>
+                        setFavRepeatersCollapsed((prev) => !prev)
+                      )}
+                      {(isSearching || !favRepeatersCollapsed) &&
+                        favoriteRepeaterRows.map((row) => renderConversationRow(row))}
+                    </>
+                  )}
+                </>
+              ) : (
+                favoriteRows.map((row) => renderConversationRow(row))
+              ))}
+          </div>
+        ) : null;
+      case 'channels':
+        return nonFavoriteChannels.length > 0 ? (
+          <div key="sec-channels">
             {renderSectionHeader(
               t('nav_channels_heading'),
               channelsCollapsed,
@@ -1073,12 +1223,11 @@ export function Sidebar({
             )}
             {(isSearching || !channelsCollapsed) &&
               channelRows.map((row) => renderConversationRow(row))}
-          </>
-        )}
-
-        {/* Contacts */}
-        {nonFavoriteContacts.length > 0 && (
-          <>
+          </div>
+        ) : null;
+      case 'contacts':
+        return nonFavoriteContacts.length > 0 ? (
+          <div key="sec-contacts">
             {renderSectionHeader(
               t('nav_contacts_heading'),
               contactsCollapsed,
@@ -1089,12 +1238,11 @@ export function Sidebar({
             )}
             {(isSearching || !contactsCollapsed) &&
               contactRows.map((row) => renderConversationRow(row))}
-          </>
-        )}
-
-        {/* Repeaters */}
-        {nonFavoriteRepeaters.length > 0 && (
-          <>
+          </div>
+        ) : null;
+      case 'repeaters':
+        return nonFavoriteRepeaters.length > 0 ? (
+          <div key="sec-repeaters">
             {renderSectionHeader(
               t('nav_repeaters_heading'),
               repeatersCollapsed,
@@ -1104,12 +1252,11 @@ export function Sidebar({
             )}
             {(isSearching || !repeatersCollapsed) &&
               repeaterRows.map((row) => renderConversationRow(row))}
-          </>
-        )}
-
-        {/* Room Servers */}
-        {nonFavoriteRooms.length > 0 && (
-          <>
+          </div>
+        ) : null;
+      case 'rooms':
+        return nonFavoriteRooms.length > 0 ? (
+          <div key="sec-rooms">
             {renderSectionHeader(
               t('nav_room_servers_heading'),
               roomsCollapsed,
@@ -1119,20 +1266,183 @@ export function Sidebar({
               roomsUnreadCount > 0
             )}
             {(isSearching || !roomsCollapsed) && roomRows.map((row) => renderConversationRow(row))}
-          </>
-        )}
+          </div>
+        ) : null;
+      default:
+        return null;
+    }
+  };
 
-        {/* Empty state */}
-        {nonFavoriteContacts.length === 0 &&
-          nonFavoriteRooms.length === 0 &&
-          nonFavoriteChannels.length === 0 &&
-          nonFavoriteRepeaters.length === 0 &&
-          favoriteItems.length === 0 && (
-            <div className="p-5 text-center text-muted-foreground">
-              {query ? t('common_no_matches_found') : t('common_no_conversations_yet')}
+  const sectionLabels: Record<SidebarSectionKey, string> = {
+    tools: t('nav_tools_heading'),
+    favorites: t('nav_favorites_heading'),
+    channels: t('nav_channels_heading'),
+    contacts: t('nav_contacts_heading'),
+    repeaters: t('nav_repeaters_heading'),
+    rooms: t('nav_room_servers_heading'),
+  };
+  const toolLabels: Record<SidebarToolKey, string> = {
+    'my-node': t('nav_my_node'),
+    'mesh-health': t('nav_mesh_health'),
+    raw: t('nav_packet_feed'),
+    map: t('nav_node_map'),
+    visualizer: t('nav_mesh_visualizer'),
+    trace: t('nav_trace'),
+    search: t('nav_message_search'),
+    'channel-registry': 'Channel Registry',
+    cracker: t('nav_show_channel_finder'),
+  };
+
+  return (
+    <nav
+      className={cn(
+        'sidebar h-full min-h-0 overflow-hidden bg-card border-r border-border flex flex-col transition-[width] duration-200',
+        isRail ? 'w-12' : 'w-60'
+      )}
+      aria-label={t('a11y_conversations_nav')}
+    >
+      {isRail ? (
+        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col items-stretch py-2">
+          {toolIconRows}
+        </div>
+      ) : (
+        <>
+          {/* Header */}
+          <div className="px-3 py-2 border-b border-border flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onNewMessage}
+              title={t('a11y_add_channel_or_contact')}
+              aria-label={t('a11y_add_channel_or_contact')}
+              className="h-8 flex-1 justify-start gap-2 border-primary/20 bg-primary/5 px-3 text-[0.8125rem] text-primary hover:bg-primary/10 hover:text-primary"
+            >
+              <SquarePen className="h-4 w-4" />
+              <span>{t('nav_add_channel_contact')}</span>
+            </Button>
+            <button
+              type="button"
+              className="h-8 w-8 flex items-center justify-center rounded border border-border text-muted-foreground hover:text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => setShowSettings((p) => !p)}
+              aria-label={t('nav_customize_sidebar')}
+              aria-expanded={showSettings}
+              title={t('nav_customize_sidebar')}
+            >
+              <Settings2 className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* List */}
+          <div className="flex-1 min-h-0 overflow-y-auto [contain:layout_paint]">
+            <div className="px-3 py-2 border-b border-border/60">
+              <div className="relative min-w-0">
+                <Input
+                  type="text"
+                  placeholder={t('common_search_channels_contacts')}
+                  aria-label={t('a11y_search_conversations')}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className={cn(
+                    'h-7 text-[0.8125rem] bg-background/50',
+                    searchQuery ? 'pr-8' : 'pr-3'
+                  )}
+                />
+                {searchQuery && (
+                  <button
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-lg leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                    onClick={() => setSearchQuery('')}
+                    title={t('a11y_clear_search')}
+                    aria-label={t('a11y_clear_search')}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             </div>
-          )}
-      </div>
+
+            {/* Customize sidebar panel */}
+            {showSettings && (
+              <div
+                role="group"
+                aria-label={t('nav_customize_sidebar')}
+                className="px-3 py-3 border-b border-border space-y-4"
+              >
+                <div>
+                  <div className="text-[0.625rem] uppercase tracking-wider text-muted-foreground mb-1.5">
+                    {t('nav_section_order')}
+                  </div>
+                  <DragList
+                    items={sectionOrder}
+                    labels={sectionLabels}
+                    onReorder={handleReorderSections}
+                    moveUpLabel={t('nav_move_up')}
+                    moveDownLabel={t('nav_move_down')}
+                  />
+                </div>
+                <div>
+                  <div className="text-[0.625rem] uppercase tracking-wider text-muted-foreground mb-1.5">
+                    {t('nav_tool_order')}
+                  </div>
+                  <DragList
+                    items={toolOrder}
+                    labels={toolLabels}
+                    onReorder={handleReorderTools}
+                    moveUpLabel={t('nav_move_up')}
+                    moveDownLabel={t('nav_move_down')}
+                  />
+                </div>
+                <Button variant="outline" size="sm" className="w-full" onClick={handleResetLayout}>
+                  {t('nav_reset_to_defaults')}
+                </Button>
+              </div>
+            )}
+
+            {/* Mark All Read */}
+            {!query && Object.values(unreadCounts).some((c) => c > 0) && (
+              <div
+                className="px-3 py-2 cursor-pointer flex items-center gap-2 border-l-2 border-transparent hover:bg-accent transition-colors text-[0.8125rem] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                role="button"
+                tabIndex={0}
+                onKeyDown={handleKeyboardActivate}
+                onClick={onMarkAllRead}
+              >
+                <CheckCheck className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                <span className="flex-1 truncate text-muted-foreground">
+                  {t('chat_mark_all_read')}
+                </span>
+              </div>
+            )}
+
+            {/* Sections in user order */}
+            {sectionOrder.map((sectionKey) => renderSection(sectionKey))}
+
+            {/* Empty state */}
+            {nonFavoriteContacts.length === 0 &&
+              nonFavoriteRooms.length === 0 &&
+              nonFavoriteChannels.length === 0 &&
+              nonFavoriteRepeaters.length === 0 &&
+              favoriteItems.length === 0 && (
+                <div className="p-5 text-center text-muted-foreground">
+                  {query ? t('common_no_matches_found') : t('common_no_conversations_yet')}
+                </div>
+              )}
+          </div>
+        </>
+      )}
+
+      {!forceExpanded && (
+        <div className="border-t border-border p-1 flex justify-center">
+          <button
+            type="button"
+            className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={toggleRail}
+            aria-label={isRail ? t('nav_expand_sidebar') : t('nav_collapse_sidebar')}
+            title={isRail ? t('nav_expand_sidebar') : t('nav_collapse_sidebar')}
+          >
+            {isRail ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          </button>
+        </div>
+      )}
     </nav>
   );
 }

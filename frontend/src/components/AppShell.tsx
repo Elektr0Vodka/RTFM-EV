@@ -226,11 +226,8 @@ export function AppShell({
     </nav>
   );
 
-  const activeSidebarContent = showSettings ? (
-    settingsSidebarContent
-  ) : (
-    <Sidebar {...sidebarProps} />
-  );
+  const renderSidebar = (forceExpanded: boolean) =>
+    showSettings ? settingsSidebarContent : <Sidebar {...sidebarProps} forceExpanded={forceExpanded} />;
 
   return (
     <div className="flex flex-col h-full" {...swipeHandlers}>
@@ -263,7 +260,7 @@ export function AppShell({
       <div data-toast-anchor="statusbar" aria-hidden="true" />
 
       <div className="flex flex-1 overflow-hidden">
-        <div className="hidden md:block min-h-0 overflow-hidden">{activeSidebarContent}</div>
+        <div className="hidden md:block min-h-0 overflow-hidden">{renderSidebar(false)}</div>
 
         <Sheet open={sidebarOpen} onOpenChange={onSidebarOpenChange}>
           <SheetContent
@@ -279,7 +276,7 @@ export function AppShell({
               <SheetDescription>{t('a11y_sidebar_navigation')}</SheetDescription>
             </SheetHeader>
             <div className="flex-1 overflow-hidden" {...closeSwipeHandlers}>
-              {activeSidebarContent}
+              {renderSidebar(true)}
             </div>
           </SheetContent>
         </Sheet>
