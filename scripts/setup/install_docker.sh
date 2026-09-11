@@ -236,7 +236,7 @@ fi
 
 echo -e "${BOLD}─── Image Source ────────────────────────────────────────────────────${NC}"
 echo "How should Docker run RemoteTerm?"
-echo "  1) Use the published Docker Hub image (default)"
+echo "  1) Use the published GHCR image (default)"
 echo "  2) Build locally from this checkout"
 echo
 read -r -p "Select image mode [1-2] (default: 1): " IMAGE_CHOICE
