@@ -569,3 +569,204 @@ describe('MessageList channel sender rendering', () => {
     expect(mounted).toBeLessThan(100);
   });
 });
+
+describe('MessageList hop-size filter', () => {
+  beforeEach(() => {
+    scrollIntoViewMock.mockReset();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoViewMock,
+      writable: true,
+    });
+    Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
+      configurable: true,
+      value: originalGetBoundingClientRect,
+      writable: true,
+    });
+    try {
+      localStorage.clear();
+    } catch {
+      // ignore
+    }
+  });
+
+  const oneByte = (id: number) =>
+    createMessage({
+      id,
+      sender_name: 'Alice',
+      text: `Alice: msg ${id}`,
+      received_at: 1700000000 + id,
+      paths: [{ path: '1A2B', path_len: 2, received_at: 1700000000 + id }],
+    });
+  const twoByte = (id: number) =>
+    createMessage({
+      id,
+      sender_name: 'Bob',
+      text: `Bob: msg ${id}`,
+      received_at: 1700000000 + id,
+      paths: [{ path: 'AABBCCDD', path_len: 2, received_at: 1700000000 + id }],
+    });
+  const noPath = (id: number) =>
+    createMessage({
+      id,
+      outgoing: true,
+      text: `msg ${id}`,
+      received_at: 1700000000 + id,
+      paths: null,
+    });
+
+  const row = (container: HTMLElement, id: number) =>
+    container.querySelector(`[data-message-id="${id}"]`);
+
+  async function openFilterAndCheck(user: ReturnType<typeof userEvent.setup>, name: RegExp) {
+    await user.click(screen.getByRole('button', { name: /filter messages/i }));
+    await user.click(screen.getByRole('checkbox', { name }));
+  }
+  const hideWidth = openFilterAndCheck;
+
+  it('renders all messages before any width is hidden', () => {
+    const { container } = render(
+      <MessageList
+        messages={[oneByte(1), twoByte(2), noPath(3)]}
+        contacts={[]}
+        loading={false}
+      />
+    );
+    expect(row(container, 1)).not.toBeNull();
+    expect(row(container, 2)).not.toBeNull();
+    expect(row(container, 3)).not.toBeNull();
+  });
+
+  it('hides only messages whose observed path width matches the hidden width', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <MessageList
+        messages={[oneByte(1), twoByte(2), noPath(3)]}
+        contacts={[]}
+        loading={false}
+      />
+    );
+
+    await hideWidth(user, /1-byte hops/i);
+
+    expect(row(container, 1)).toBeNull(); // 1-byte hidden
+    expect(row(container, 2)).not.toBeNull(); // 2-byte still shown
+    expect(row(container, 3)).not.toBeNull(); // no derivable width always shown
+  });
+
+  it('keeps the unread-anchor message visible even when its width is hidden', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <MessageList
+        messages={[oneByte(1), oneByte(4), twoByte(2)]}
+        contacts={[]}
+        loading={false}
+        unreadMarkerMessageId={1}
+      />
+    );
+
+    await hideWidth(user, /1-byte hops/i);
+
+    // The anchor (id 1) stays so the unread divider never dangles; the other
+    // 1-byte message (id 4) is hidden as normal.
+    expect(row(container, 1)).not.toBeNull();
+    expect(row(container, 4)).toBeNull();
+    expect(row(container, 2)).not.toBeNull();
+  });
+
+  it('leaves server-driven pagination chrome intact when everything visible is filtered', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <MessageList
+        messages={[oneByte(1), oneByte(2)]}
+        contacts={[]}
+        loading={false}
+        hasOlderMessages={true}
+      />
+    );
+
+    await hideWidth(user, /1-byte hops/i);
+
+    // All rows are filtered out of the view...
+    expect(container.querySelectorAll('[data-message-id]').length).toBe(0);
+    // ...but the older-messages banner is driven by the server cursor prop, not
+    // the rendered count, so it must still be offered.
+    expect(screen.getByText('Scroll up for older messages')).toBeInTheDocument();
+  });
+
+  it('persists the hidden widths across a remount (localStorage-backed)', async () => {
+    const user = userEvent.setup();
+    const first = render(
+      <MessageList messages={[oneByte(1), twoByte(2)]} contacts={[]} loading={false} />
+    );
+    await hideWidth(user, /1-byte hops/i);
+    expect(first.container.querySelector('[data-message-id="1"]')).toBeNull();
+    first.unmount();
+
+    const second = render(
+      <MessageList messages={[oneByte(1), twoByte(2)]} contacts={[]} loading={false} />
+    );
+    // A fresh instance reads the persisted filter, so the 1-byte message stays hidden.
+    expect(second.container.querySelector('[data-message-id="1"]')).toBeNull();
+    expect(second.container.querySelector('[data-message-id="2"]')).not.toBeNull();
+  });
+
+  const scoped = (id: number) =>
+    createMessage({
+      id,
+      sender_name: 'Alice',
+      text: `Alice: scoped ${id}`,
+      region: 'nl-gr',
+      received_at: 1700000000 + id,
+    });
+  const unscopedIncoming = (id: number) =>
+    createMessage({
+      id,
+      sender_name: 'Bob',
+      text: `Bob: unscoped ${id}`,
+      region: null,
+      received_at: 1700000000 + id,
+    });
+  const unscopedOutgoing = (id: number) =>
+    createMessage({
+      id,
+      outgoing: true,
+      text: `mine ${id}`,
+      region: null,
+      received_at: 1700000000 + id,
+    });
+
+  it('hides unscoped incoming messages while keeping scoped and own messages', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <MessageList
+        messages={[scoped(10), unscopedIncoming(11), unscopedOutgoing(12)]}
+        contacts={[]}
+        loading={false}
+      />
+    );
+
+    await openFilterAndCheck(user, /hide unscoped/i);
+
+    expect(row(container, 10)).not.toBeNull(); // region-scoped stays
+    expect(row(container, 11)).toBeNull(); // unscoped incoming hidden
+    expect(row(container, 12)).not.toBeNull(); // your own message always stays
+  });
+
+  it('keeps an unscoped unread-anchor message visible', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <MessageList
+        messages={[unscopedIncoming(11), unscopedIncoming(13)]}
+        contacts={[]}
+        loading={false}
+        unreadMarkerMessageId={11}
+      />
+    );
+
+    await openFilterAndCheck(user, /hide unscoped/i);
+
+    expect(row(container, 11)).not.toBeNull(); // anchor protected
+    expect(row(container, 13)).toBeNull(); // other unscoped hidden
+  });
+});

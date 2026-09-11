@@ -12,6 +12,8 @@ import {
   formatDistance,
   formatHopCounts,
   formatPathHopWidths,
+  pathHopWidths,
+  isMessageHiddenByHopWidth,
 } from '../utils/pathUtils';
 import type { Contact, RadioConfig } from '../types';
 import { CONTACT_TYPE_REPEATER } from '../types';
@@ -876,5 +878,76 @@ describe('formatPathHopWidths', () => {
         { path: '1A2B', path_len: 2, received_at: 1700000001 }, // 1-byte
       ])
     ).toBe('1B/2B');
+  });
+});
+
+describe('pathHopWidths', () => {
+  it('returns empty array for null or empty paths', () => {
+    expect(pathHopWidths(null)).toEqual([]);
+    expect(pathHopWidths([])).toEqual([]);
+  });
+
+  it('returns empty array when no path has a derivable width', () => {
+    // direct (0-hop) and legacy (no path_len) paths contribute nothing
+    expect(
+      pathHopWidths([
+        { path: '', received_at: 1700000000 },
+        { path: 'AABBCCDD', received_at: 1700000001 },
+      ])
+    ).toEqual([]);
+  });
+
+  it('derives the byte width per path (1/2/3)', () => {
+    expect(pathHopWidths([{ path: '1A2B', path_len: 2, received_at: 1 }])).toEqual([1]);
+    expect(pathHopWidths([{ path: 'AABBCCDD', path_len: 2, received_at: 1 }])).toEqual([2]);
+    expect(pathHopWidths([{ path: 'AABBCCDDEEFF', path_len: 2, received_at: 1 }])).toEqual([3]);
+  });
+
+  it('dedupes and sorts widths across multiple paths', () => {
+    expect(
+      pathHopWidths([
+        { path: 'AABBCCDD', path_len: 2, received_at: 1 }, // 2-byte
+        { path: '1A2B', path_len: 2, received_at: 2 }, // 1-byte
+        { path: '11223344', path_len: 2, received_at: 3 }, // 2-byte (dupe)
+      ])
+    ).toEqual([1, 2]);
+  });
+});
+
+describe('isMessageHiddenByHopWidth', () => {
+  const oneByte = [{ path: '1A2B', path_len: 2, received_at: 1 }];
+  const twoByte = [{ path: 'AABBCCDD', path_len: 2, received_at: 1 }];
+  const mixed = [
+    { path: '1A2B', path_len: 2, received_at: 1 }, // 1-byte
+    { path: 'AABBCCDD', path_len: 2, received_at: 2 }, // 2-byte
+  ];
+
+  it('never hides anything when the hidden set is empty', () => {
+    expect(isMessageHiddenByHopWidth(oneByte, new Set())).toBe(false);
+  });
+
+  it('hides a message whose only width matches a hidden width', () => {
+    expect(isMessageHiddenByHopWidth(oneByte, new Set([1]))).toBe(true);
+    expect(isMessageHiddenByHopWidth(oneByte, new Set([2]))).toBe(false);
+  });
+
+  it('hides a message if ANY observed path width matches (aggressive hide)', () => {
+    // mixed carries 1B and 2B; hiding 1B hides the message even though 2B is shown
+    expect(isMessageHiddenByHopWidth(mixed, new Set([1]))).toBe(true);
+    expect(isMessageHiddenByHopWidth(mixed, new Set([3]))).toBe(false);
+  });
+
+  it('always keeps messages with no derivable width visible', () => {
+    // outgoing / not-yet-echoed messages must never disappear
+    expect(isMessageHiddenByHopWidth(null, new Set([1, 2, 3]))).toBe(false);
+    expect(isMessageHiddenByHopWidth([], new Set([1, 2, 3]))).toBe(false);
+    expect(
+      isMessageHiddenByHopWidth([{ path: '', received_at: 1 }], new Set([1, 2, 3]))
+    ).toBe(false);
+  });
+
+  it('respects two-byte hide independently', () => {
+    expect(isMessageHiddenByHopWidth(twoByte, new Set([2]))).toBe(true);
+    expect(isMessageHiddenByHopWidth(twoByte, new Set([1, 3]))).toBe(false);
   });
 });
