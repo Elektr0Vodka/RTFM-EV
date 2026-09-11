@@ -538,6 +538,13 @@
   "settings_about_changelog": "Changelog",
   "settings_about_acknowledgements": "With great appreciation to those who have made the tools upon which this is built:",
   "settings_about_debug_snapshot": "Open debug support snapshot",
+  "settings_about_update_available": "Update available",
+  "settings_about_update_commits_behind": {
+    "one": "{count} commit behind",
+    "other": "{count} commits behind"
+  },
+  "settings_about_update_view_changes": "View changes",
+  "a11y_update_available": "An update is available",
   "settings_theme_legend": "Color theme",
   "settings_push_heading": "Web Push Notifications",
   "settings_push_not_supported": "Push notifications are not supported by this browser.",
