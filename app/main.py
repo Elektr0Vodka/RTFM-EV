@@ -77,6 +77,7 @@ from app.routers import (
     rooms,
     settings,
     statistics,
+    update_status,
     ws,
 )
 from app.security import add_optional_basic_auth_middleware
@@ -207,6 +208,7 @@ async def log_server_errors(request: Request, call_next):
 
 # API routes - all prefixed with /api for production compatibility
 app.include_router(health.router, prefix="/api")
+app.include_router(update_status.router, prefix="/api")
 app.include_router(debug.router, prefix="/api")
 app.include_router(fanout.router, prefix="/api")
 app.include_router(radio.router, prefix="/api")

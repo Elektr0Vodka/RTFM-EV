@@ -41,6 +41,10 @@
   "a11y_switch_to_light_theme": "Overschakelen naar licht thema",
   "a11y_open_theme_settings": "Thema-instellingen openen",
   "a11y_unread_count": "{count} ongelezen",
+  "a11y_total_count": "{count} totaal",
+  "a11y_new_count": "{count} nieuw",
+  "a11y_new_item": "Nieuw",
+  "nav_section_mark_read_seen": "Sectie als gelezen en gezien markeren",
   "a11y_unread_messages": {
     "one": "{count} ongelezen bericht",
     "other": "{count} ongelezen berichten"
@@ -556,6 +560,13 @@
   "settings_about_changelog": "Wijzigingslog",
   "settings_about_acknowledgements": "Met grote waardering voor degenen die de tools hebben gemaakt waarop dit is gebouwd:",
   "settings_about_debug_snapshot": "Debug-ondersteuningssnapshot openen",
+  "settings_about_update_available": "Update beschikbaar",
+  "settings_about_update_commits_behind": {
+    "one": "{count} commit achter",
+    "other": "{count} commits achter"
+  },
+  "settings_about_update_view_changes": "Wijzigingen bekijken",
+  "a11y_update_available": "Er is een update beschikbaar",
   "settings_theme_legend": "Kleurthema",
   "settings_push_heading": "Web Push-meldingen",
   "settings_push_not_supported": "Pushmeldingen worden niet ondersteund door deze browser.",
@@ -1922,6 +1933,18 @@
     "other": "{count} kanalen toevoegen aan je gemonitorde kanalen? Hun verkeer wordt monitorbaar."
   },
   "channel_registry_add_to_channels_confirm_button": "Toevoegen ({count})",
+  "channel_registry_delete_selected_button": "Verwijderen ({count})",
+  "channel_registry_delete_selected_title": "{count} geselecteerde kanalen uit het register verwijderen",
+  "channel_registry_delete_confirm_title": "Kanalen uit het register verwijderen",
+  "channel_registry_delete_confirm_description": {
+    "one": "{count} kanaal uit het register verwijderen? Dit heeft geen invloed op kanalen die de app actief decodeert.",
+    "other": "{count} kanalen uit het register verwijderen? Dit heeft geen invloed op kanalen die de app actief decodeert."
+  },
+  "channel_registry_delete_confirm_button": "Verwijderen ({count})",
+  "channel_registry_delete_result": {
+    "one": "{count} kanaal uit het register verwijderd.",
+    "other": "{count} kanalen uit het register verwijderd."
+  },
   "channel_registry_add_button": "Toevoegen",
   "channel_registry_import_result": "Geïmporteerd: {added} nieuw, {updated} bijgewerkt.",
   "channel_registry_import_invalid_json": "Importeren mislukt: ongeldige JSON.",
@@ -2156,7 +2179,7 @@
   "bulkdelete_channels_confirm_title": "Kanaalverwijdering bevestigen",
   "bulkdelete_channels_confirm_description": "Controleer de kanalen hieronder. Dit verwijdert ze uit de app; berichtgeschiedenis blijft bewaard.",
   "bulkdelete_channels_search_placeholder": "Zoek op naam",
-  "bulkdelete_channels_type_hashtag": "Hashtag-kamers",
+  "bulkdelete_channels_type_hashtag": "# Kanaal",
   "bulkdelete_channels_type_standard": "Standaardkanalen",
   "bulkdelete_channels_shown": {
     "one": "{count} kanaal getoond",

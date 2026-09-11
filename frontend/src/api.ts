@@ -51,6 +51,7 @@ import type {
   StatisticsResponse,
   TraceResponse,
   UnreadCounts,
+  UpdateStatus,
 } from './types';
 
 const API_BASE = './api';
@@ -112,6 +113,9 @@ interface DecryptResult {
 export const api = {
   // Health
   getHealth: () => fetchJson<HealthStatus>('/health'),
+
+  // Update check
+  getUpdateStatus: () => fetchJson<UpdateStatus>('/update-status'),
 
   // Radio config
   getRadioConfig: () => fetchJson<RadioConfig>('/radio/config'),

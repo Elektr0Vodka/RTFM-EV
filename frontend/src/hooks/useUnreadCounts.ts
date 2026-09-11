@@ -35,6 +35,7 @@ interface UseUnreadCountsResult {
   renameConversationState: (oldStateKey: string, newStateKey: string) => void;
   removeConversationState: (stateKey: string) => void;
   markAllRead: () => void;
+  markConversationsRead: (items: { type: 'channel' | 'contact'; id: string }[]) => void;
   refreshUnreads: () => Promise<void>;
 }
 
@@ -294,6 +295,36 @@ export function useUnreadCounts(
     });
   }, []);
 
+  // Mark a specific set of conversations read (used for per-section clear).
+  const markConversationsRead = useCallback(
+    (items: { type: 'channel' | 'contact'; id: string }[]) => {
+      if (items.length === 0) return;
+      const keys = items.map((i) => getStateKey(i.type, i.id));
+      const clear = <T>(prev: Record<string, T>): Record<string, T> => {
+        let changed = false;
+        const next = { ...prev };
+        for (const key of keys) {
+          if (key in next) {
+            delete next[key];
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      };
+      setUnreadCounts((prev) => clear(prev));
+      setMentions((prev) => clear(prev));
+      setFirstUnreadIds((prev) => clear(prev));
+      for (const { type, id } of items) {
+        if (type === 'channel') {
+          api.markChannelRead(id).catch(() => {});
+        } else {
+          api.markContactRead(id).catch(() => {});
+        }
+      }
+    },
+    []
+  );
+
   return {
     unreadCounts,
     mentions,
@@ -304,6 +335,7 @@ export function useUnreadCounts(
     renameConversationState,
     removeConversationState,
     markAllRead,
+    markConversationsRead,
     refreshUnreads: fetchUnreads,
   };
 }

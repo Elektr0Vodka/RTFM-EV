@@ -2,6 +2,7 @@ import type { HealthStatus } from '../../types';
 import { Button } from '../ui/button';
 import { Separator } from '../ui/separator';
 import { useT } from '../../i18n';
+import { useUpdateStatus } from '../../hooks/useUpdateStatus';
 
 const GITHUB_URL = 'https://github.com/Elektr0Vodka/RTFM-EV';
 
@@ -15,6 +16,8 @@ export function SettingsAboutSection({
   const t = useT();
   const version = health?.app_info?.version ?? 'unknown';
   const commit = health?.app_info?.commit_hash;
+  const updateStatus = useUpdateStatus();
+  const showUpdate = updateStatus?.update_available && updateStatus.compare_url;
 
   return (
     <div className={className}>
@@ -35,6 +38,28 @@ export function SettingsAboutSection({
             ) : null}
           </div>
         </div>
+
+        {showUpdate ? (
+          <div className="flex flex-col items-center gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
+            <span className="font-medium text-primary">
+              {t('settings_about_update_available')}
+              <span className="mx-1.5 text-muted-foreground">·</span>
+              <span className="text-muted-foreground">
+                {t('settings_about_update_commits_behind', {
+                  count: updateStatus!.commits_behind,
+                })}
+              </span>
+            </span>
+            <a
+              href={updateStatus!.compare_url!}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              {t('settings_about_update_view_changes')}
+            </a>
+          </div>
+        ) : null}
 
         <Separator />
 

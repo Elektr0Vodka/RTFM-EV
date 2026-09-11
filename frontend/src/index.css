@@ -90,6 +90,8 @@
     --badge-unread-foreground: var(--primary-foreground);
     --badge-mention: var(--destructive);
     --badge-mention-foreground: var(--destructive-foreground);
+    --badge-new: 142 71% 45%;
+    --badge-new-foreground: 0 0% 100%;
 
     /* Sidebar navigation accents */
     --sidebar-icon-color: hsl(var(--foreground));

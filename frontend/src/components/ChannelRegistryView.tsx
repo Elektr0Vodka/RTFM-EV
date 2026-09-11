@@ -702,6 +702,7 @@ export default function ChannelRegistryView({
   const [addError, setAddError] = useState('');
   const [toast, setToast] = useState<{ msg: string; variant: 'ok' | 'err' | 'info' } | null>(null);
   const [addConfirmNames, setAddConfirmNames] = useState<string[] | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -957,6 +958,22 @@ export default function ChannelRegistryView({
     }
   }
 
+  // Names of currently-selected channels that still exist in the registry. Uses the full
+  // registry (not the filtered view) so the confirm list matches exactly what gets deleted.
+  const selectedNames = useMemo(
+    () => registry.filter((e) => selection.has(e.channel)).map((e) => e.channel),
+    [registry, selection]
+  );
+
+  function confirmDeleteSelected() {
+    const count = selection.size;
+    if (count === 0) return;
+    persist(registry.filter((e) => !selection.has(e.channel)));
+    setSelection(new Set());
+    setShowDeleteConfirm(false);
+    showToast(t('channel_registry_delete_result', { count }), 'ok');
+  }
+
   function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1094,6 +1111,17 @@ export default function ChannelRegistryView({
                 : t('channel_registry_add_to_channels_button')}
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs px-2 text-destructive hover:text-destructive hover:bg-destructive/10 disabled:text-muted-foreground"
+            onClick={() => setShowDeleteConfirm(true)}
+            disabled={selection.size === 0}
+            title={t('channel_registry_delete_selected_title', { count: selection.size })}
+          >
+            <Trash2 className="h-3.5 w-3.5 mr-1" />
+            {t('channel_registry_delete_selected_button', { count: selection.size })}
+          </Button>
           <Button
             size="sm"
             className="h-7 text-xs px-2"
@@ -1577,6 +1605,35 @@ export default function ChannelRegistryView({
                 {t('channel_registry_add_to_channels_confirm_button', {
                   count: addConfirmNames.length,
                 })}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── Delete-selection confirm dialog ──────────────────────────────────── */}
+      {showDeleteConfirm && (
+        <Dialog open onOpenChange={(open) => !open && setShowDeleteConfirm(false)}>
+          <DialogContent className="sm:max-w-[480px]">
+            <DialogHeader>
+              <DialogTitle>{t('channel_registry_delete_confirm_title')}</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              {t('channel_registry_delete_confirm_description', { count: selection.size })}
+            </p>
+            <div className="max-h-48 overflow-y-auto rounded-md border border-border/60 divide-y divide-border/30">
+              {selectedNames.map((n) => (
+                <div key={n} className="px-3 py-1.5 text-sm font-medium">
+                  {n}
+                </div>
+              ))}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" size="sm" onClick={() => setShowDeleteConfirm(false)}>
+                {t('common_cancel')}
+              </Button>
+              <Button variant="destructive" size="sm" onClick={confirmDeleteSelected}>
+                {t('channel_registry_delete_confirm_button', { count: selection.size })}
               </Button>
             </DialogFooter>
           </DialogContent>

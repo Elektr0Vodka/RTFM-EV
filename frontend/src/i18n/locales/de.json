@@ -41,6 +41,10 @@
   "a11y_switch_to_light_theme": "Zum hellen Design wechseln",
   "a11y_open_theme_settings": "Design-Einstellungen öffnen",
   "a11y_unread_count": "{count} ungelesen",
+  "a11y_total_count": "{count} gesamt",
+  "a11y_new_count": "{count} neu",
+  "a11y_new_item": "Neu",
+  "nav_section_mark_read_seen": "Abschnitt als gelesen und gesehen markieren",
   "a11y_unread_messages": {
     "one": "{count} ungelesene Nachricht",
     "other": "{count} ungelesene Nachrichten"
@@ -556,6 +560,13 @@
   "settings_about_changelog": "Änderungsprotokoll",
   "settings_about_acknowledgements": "Mit großer Wertschätzung an alle, die die Werkzeuge geschaffen haben, auf denen dies aufbaut:",
   "settings_about_debug_snapshot": "Debug-Support-Snapshot öffnen",
+  "settings_about_update_available": "Update verfügbar",
+  "settings_about_update_commits_behind": {
+    "one": "{count} Commit zurück",
+    "other": "{count} Commits zurück"
+  },
+  "settings_about_update_view_changes": "Änderungen ansehen",
+  "a11y_update_available": "Ein Update ist verfügbar",
   "settings_theme_legend": "Farbthema",
   "settings_push_heading": "Web-Push-Benachrichtigungen",
   "settings_push_not_supported": "Push-Benachrichtigungen werden von diesem Browser nicht unterstützt.",
@@ -1922,6 +1933,18 @@
     "other": "{count} Kanäle zu deinen überwachten Kanälen hinzufügen? Ihr Verkehr wird überwachbar."
   },
   "channel_registry_add_to_channels_confirm_button": "Hinzufügen ({count})",
+  "channel_registry_delete_selected_button": "Löschen ({count})",
+  "channel_registry_delete_selected_title": "{count} ausgewählte Kanäle aus dem Register löschen",
+  "channel_registry_delete_confirm_title": "Kanäle aus dem Register entfernen",
+  "channel_registry_delete_confirm_description": {
+    "one": "{count} Kanal aus dem Register entfernen? Kanäle, die die App aktiv dekodiert, sind nicht betroffen.",
+    "other": "{count} Kanäle aus dem Register entfernen? Kanäle, die die App aktiv dekodiert, sind nicht betroffen."
+  },
+  "channel_registry_delete_confirm_button": "Löschen ({count})",
+  "channel_registry_delete_result": {
+    "one": "{count} Kanal aus dem Register entfernt.",
+    "other": "{count} Kanäle aus dem Register entfernt."
+  },
   "channel_registry_add_button": "Hinzufügen",
   "channel_registry_import_result": "Importiert: {added} neu, {updated} aktualisiert.",
   "channel_registry_import_invalid_json": "Import fehlgeschlagen: ungültiges JSON.",

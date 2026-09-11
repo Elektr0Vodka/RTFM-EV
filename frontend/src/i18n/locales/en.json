@@ -40,6 +40,10 @@
   "a11y_switch_to_light_theme": "Switch to light theme",
   "a11y_open_theme_settings": "Open theme settings",
   "a11y_unread_count": "{count} unread",
+  "a11y_total_count": "{count} total",
+  "a11y_new_count": "{count} new",
+  "a11y_new_item": "New",
+  "nav_section_mark_read_seen": "Mark section read and seen",
   "a11y_unread_messages": {
     "one": "{count} unread message",
     "other": "{count} unread messages"
@@ -555,6 +559,13 @@
   "settings_about_changelog": "Changelog",
   "settings_about_acknowledgements": "With great appreciation to those who have made the tools upon which this is built:",
   "settings_about_debug_snapshot": "Open debug support snapshot",
+  "settings_about_update_available": "Update available",
+  "settings_about_update_commits_behind": {
+    "one": "{count} commit behind",
+    "other": "{count} commits behind"
+  },
+  "settings_about_update_view_changes": "View changes",
+  "a11y_update_available": "An update is available",
   "settings_theme_legend": "Color theme",
   "settings_push_heading": "Web Push Notifications",
   "settings_push_not_supported": "Push notifications are not supported by this browser.",
@@ -1921,6 +1932,18 @@
     "other": "Add {count} channels to your monitored channels? Their traffic becomes monitorable."
   },
   "channel_registry_add_to_channels_confirm_button": "Add ({count})",
+  "channel_registry_delete_selected_button": "Delete ({count})",
+  "channel_registry_delete_selected_title": "Delete {count} selected channels from the registry",
+  "channel_registry_delete_confirm_title": "Remove channels from the registry",
+  "channel_registry_delete_confirm_description": {
+    "one": "Remove {count} channel from the registry? This does not affect channels the app is actively decoding.",
+    "other": "Remove {count} channels from the registry? This does not affect channels the app is actively decoding."
+  },
+  "channel_registry_delete_confirm_button": "Delete ({count})",
+  "channel_registry_delete_result": {
+    "one": "Removed {count} channel from the registry.",
+    "other": "Removed {count} channels from the registry."
+  },
   "channel_registry_add_button": "Add",
   "channel_registry_import_result": "Imported: {added} new, {updated} updated.",
   "channel_registry_import_invalid_json": "Import failed: invalid JSON.",

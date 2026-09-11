@@ -525,9 +525,23 @@ Or run frontend checks individually:
 
 ```bash
 cd frontend
+npm run format:check   # Prettier; CI gate. Run `npm run format` to fix.
+npm run lint
 npm run test:run
 npm run build
 ```
+
+`format:check` is a required CI check (`frontend-checks`): a PR goes red if any
+file under `src/` is not Prettier-clean. Run `npm run format` before committing
+frontend changes, or format just the files you touched
+(`npx prettier --write <paths>`).
+
+Windows caveat: a local `npm run format:check` flags every file with CRLF line
+endings (Prettier is configured `endOfLine: lf`), so it can report hundreds of
+false positives from your checkout, not your edits. CI checks out LF and only
+fails on real formatting issues. To see whether *your* change is clean without
+the CRLF noise, run `npx prettier --check` on the specific files you edited, or
+trust CI. Do not "fix" files you did not touch.
 
 `npm run packaged-build` is release-only. It writes the fallback `frontend/prebuilt`
 directory used by the downloadable prebuilt release zip; normal development and
@@ -551,10 +565,11 @@ This is intentional. In the sidebar, unread direct messages for actual contact c
 
 ## Editing Checklist
 
-1. If API/WS payloads change, update `types.ts`, handlers, and tests.
-2. If URL/hash behavior changes, update `utils/urlHash.ts` tests.
-3. If read/unread semantics change, update `useUnreadCounts` tests.
-4. Keep this file concise; prefer source links over speculative detail.
+1. Run `npm run format` (Prettier) before committing; `format:check` is a CI gate. See Testing for the Windows CRLF caveat.
+2. If API/WS payloads change, update `types.ts`, handlers, and tests.
+3. If URL/hash behavior changes, update `utils/urlHash.ts` tests.
+4. If read/unread semantics change, update `useUnreadCounts` tests.
+5. Keep this file concise; prefer source links over speculative detail.
 
 ## Internationalization (i18n)
 
