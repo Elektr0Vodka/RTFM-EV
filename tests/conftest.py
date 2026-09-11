@@ -25,6 +25,22 @@ def cleanup_test_db_dir():
     shutil.rmtree(_TEST_DB_DIR, ignore_errors=True)
 
 
+@pytest.fixture(autouse=True)
+def _reset_radio_stats_buffers():
+    """Reset radio_stats' module-global in-memory deques before each test.
+
+    ``_noise_floor_samples`` and ``_battery_samples`` are process-global state.
+    Without a reset, a test that samples a snapshot (e.g. battery_mv=4100) leaks
+    that value into any later test on the same xdist worker, e.g. the battery
+    statistics endpoint would report the leaked sample as the latest reading.
+    """
+    from app.services import radio_stats
+
+    radio_stats._noise_floor_samples.clear()
+    radio_stats._battery_samples.clear()
+    yield
+
+
 @pytest.fixture
 async def test_db():
     """Create an in-memory test database with schema + migrations."""
