@@ -142,10 +142,10 @@ sudo docker compose up -d
 
 > If you switched to a local build (`build: .` instead of `image:`), use `sudo docker compose up -d --build` instead — `pull` only fetches remote images.
 
-The example file and setup script default to the published Docker Hub image. To build locally from your checkout instead, replace:
+The example file and setup script default to the published GHCR image (`ghcr.io/elektr0vodka/rtfm-ev:latest`), rebuilt automatically on every push to `main`. To build locally from your checkout instead, replace:
 
 ```yaml
-image: docker.io/elektr0vodka/rtfm-ev:latest
+image: ghcr.io/elektr0vodka/rtfm-ev:latest
 ```
 
 with:

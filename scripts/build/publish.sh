@@ -14,7 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=scripts/build/release_common.sh
 source "$SCRIPT_DIR/release_common.sh"
 
-DOCKER_IMAGE="docker.io/jkingsman/remoteterm-meshcore"
+DOCKER_IMAGE="ghcr.io/elektr0vodka/rtfm-ev"
 DOCKER_PLATFORMS="linux/amd64,linux/arm64"
 VERSION=""
 NOTES_FILE=""
@@ -58,7 +58,7 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-echo -e "${YELLOW}=== RemoteTerm for MeshCore Publish Script ===${NC}"
+echo -e "${YELLOW}=== RTFM-EV Publish Script ===${NC}"
 echo
 
 if [ "$SKIP_QUALITY" -eq 0 ]; then
