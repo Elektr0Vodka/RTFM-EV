@@ -1792,9 +1792,7 @@ async def _collect_repeater_neighbor_signal(mc: MeshCore, contact: Contact) -> b
     caller's telemetry step.
     """
     try:
-        data = await mc.commands.fetch_all_neighbours(
-            contact.public_key, timeout=10, min_timeout=5
-        )
+        data = await mc.commands.fetch_all_neighbours(contact.public_key, timeout=10, min_timeout=5)
     except Exception as e:
         logger.debug(
             "Neighbor signal collect: radio command failed for %s: %s",

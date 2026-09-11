@@ -583,8 +583,7 @@ export function CrackerPanel({
                     : t('cracker_phase_public_key')}
               {progress.phase === 'bruteforce' &&
                 t('cracker_phase_length_suffix', { length: progress.currentLength })}
-              :{' '}
-              {progress.currentPosition}
+              : {progress.currentPosition}
             </span>
             <span>
               {progress.rateKeysPerSec >= 1e9

@@ -61,7 +61,9 @@ export function VisualizerView({ contacts, channels, config }: VisualizerViewPro
         <button
           className="hidden md:inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onClick={toggleFullScreen}
-          title={paneFullScreen ? t('visualizer_exit_fullscreen') : t('visualizer_fullscreen_title')}
+          title={
+            paneFullScreen ? t('visualizer_exit_fullscreen') : t('visualizer_fullscreen_title')
+          }
           aria-label={
             paneFullScreen ? t('visualizer_exit_fullscreen') : t('visualizer_enter_fullscreen')
           }

@@ -121,12 +121,8 @@ function PushDeviceManagement({
     <div className="space-y-4">
       <div className="space-y-1">
         <h3 className="text-base font-semibold tracking-tight">{t('settings_push_heading')}</h3>
-        <p className="text-[0.8125rem] text-muted-foreground">
-          {t('settings_push_description_1')}
-        </p>
-        <p className="text-[0.8125rem] text-muted-foreground">
-          {t('settings_push_description_2')}
-        </p>
+        <p className="text-[0.8125rem] text-muted-foreground">{t('settings_push_description_1')}</p>
+        <p className="text-[0.8125rem] text-muted-foreground">{t('settings_push_description_2')}</p>
       </div>
 
       {!currentSubscriptionId && (
@@ -288,7 +284,9 @@ export function SettingsLocalSection({
 
   return (
     <div className={className}>
-      <p className="text-[0.8125rem] text-muted-foreground">{t('settings_local_device_only_note')}</p>
+      <p className="text-[0.8125rem] text-muted-foreground">
+        {t('settings_local_device_only_note')}
+      </p>
 
       <div className="space-y-1">
         <h3 className="text-base font-semibold tracking-tight">{t('settings_language')}</h3>
@@ -368,7 +366,9 @@ export function SettingsLocalSection({
       <Separator />
 
       <div className="space-y-3">
-        <h3 className="text-base font-semibold tracking-tight">{t('settings_ui_tweaks_heading')}</h3>
+        <h3 className="text-base font-semibold tracking-tight">
+          {t('settings_ui_tweaks_heading')}
+        </h3>
 
         <div className="space-y-2">
           <div className="flex items-start gap-3 rounded-md border border-border/60 p-3">

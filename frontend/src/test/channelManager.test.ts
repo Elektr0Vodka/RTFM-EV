@@ -6,7 +6,9 @@ import type { RegistryChannel } from '../lib/channelManager';
 const store: Record<string, string> = {};
 beforeEach(() => {
   vi.spyOn(Storage.prototype, 'getItem').mockImplementation((k) => store[k] ?? null);
-  vi.spyOn(Storage.prototype, 'setItem').mockImplementation((k, v) => { store[k] = v; });
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation((k, v) => {
+    store[k] = v;
+  });
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -50,9 +52,7 @@ describe('addMissingFromSync', () => {
   });
 
   it('never modifies an existing entry', () => {
-    const incoming = [
-      { name: '#amsterdam', key: 'd768f5a0aa65f8c54e4ea521bd49eb4f' },
-    ];
+    const incoming = [{ name: '#amsterdam', key: 'd768f5a0aa65f8c54e4ea521bd49eb4f' }];
     const { result, added } = addMissingFromSync(incoming, [existingChannel]);
 
     expect(added).toBe(0);
@@ -100,10 +100,7 @@ const makeEntry = (over: Partial<RegistryChannel>): RegistryChannel => ({
 
 describe('addableRegistryChannelNames', () => {
   it('returns hashtag channel names in input order', () => {
-    const entries = [
-      makeEntry({ channel: '#denhaag' }),
-      makeEntry({ channel: '#amsterdam' }),
-    ];
+    const entries = [makeEntry({ channel: '#denhaag' }), makeEntry({ channel: '#amsterdam' })];
     expect(addableRegistryChannelNames(entries)).toEqual(['#denhaag', '#amsterdam']);
   });
 

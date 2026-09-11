@@ -19,7 +19,7 @@ export function resolveLocale(saved: string | null): Locale {
 export function interpolate(tpl: string, params?: Params): string {
   if (!params) return tpl;
   return tpl.replace(/\{(\w+)\}/g, (m, name) =>
-    Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : m,
+    Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : m
   );
 }
 
@@ -37,7 +37,7 @@ export function translate(
   catalogs: Record<Locale, Catalog>,
   locale: Locale,
   key: string,
-  params?: Params,
+  params?: Params
 ): string {
   const hasLocal = catalogs[locale]?.[key] !== undefined;
   const chosenLocale: Locale = hasLocal ? locale : DEFAULT_LOCALE;

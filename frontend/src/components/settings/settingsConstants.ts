@@ -2,6 +2,7 @@ import {
   BarChart3,
   Database,
   Info,
+  Lightbulb,
   MonitorCog,
   RadioTower,
   Share2,
@@ -17,6 +18,7 @@ export type SettingsSection =
   | 'database'
   | 'fanout'
   | 'statistics'
+  | 'handy-info'
   | 'about';
 
 export const SETTINGS_SECTION_ORDER: SettingsSection[] = [
@@ -26,6 +28,7 @@ export const SETTINGS_SECTION_ORDER: SettingsSection[] = [
   'radio-app',
   'database',
   'statistics',
+  'handy-info',
   'about',
 ];
 
@@ -36,6 +39,7 @@ const SETTINGS_SECTION_LABEL_KEYS: Record<SettingsSection, string> = {
   database: 'settings_section_database',
   fanout: 'settings_section_fanout',
   statistics: 'settings_section_statistics',
+  'handy-info': 'settings_section_handy_info',
   about: 'settings_section_about',
 };
 
@@ -50,5 +54,6 @@ export const SETTINGS_SECTION_ICONS: Record<SettingsSection, LucideIcon> = {
   database: Database,
   fanout: Share2,
   statistics: BarChart3,
+  'handy-info': Lightbulb,
   about: Info,
 };

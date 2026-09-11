@@ -40,9 +40,7 @@ class TestPersistSamples:
     async def test_persists_noise_and_battery_from_snapshot(self, test_db):
         from app.services.radio_stats import _persist_samples
 
-        await _persist_samples(
-            {"timestamp": 1700000000, "noise_floor": -105, "battery_mv": 3700}
-        )
+        await _persist_samples({"timestamp": 1700000000, "noise_floor": -105, "battery_mv": 3700})
 
         nf = await NoiseFloorRepository.get_range(1700000000, 1700000000)
         bat = await BatteryHistoryRepository.get_range(1700000000, 1700000000)
@@ -65,9 +63,7 @@ class TestStatisticsEndpoints:
         await NoiseFloorRepository.insert(1700000000, -100)
         await NoiseFloorRepository.insert(1700000100, -95)
 
-        resp = await client.get(
-            "/api/statistics/noise-floor?start_ts=1700000000&end_ts=1700000200"
-        )
+        resp = await client.get("/api/statistics/noise-floor?start_ts=1700000000&end_ts=1700000200")
         assert resp.status_code == 200
         assert resp.json() == [
             {"timestamp": 1700000000, "noise_floor_dbm": -100},

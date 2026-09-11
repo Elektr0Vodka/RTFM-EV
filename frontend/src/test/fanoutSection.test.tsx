@@ -92,6 +92,16 @@ function confirmCreateIntegration() {
   fireEvent.click(within(dialog).getByRole('button', { name: 'Create' }));
 }
 
+// Create a generic Community MQTT integration, then select a broker preset in
+// the in-editor preset picker (the per-broker type tiles were removed).
+async function createCommunityPreset(presetId: string) {
+  await openCreateIntegrationDialog();
+  selectCreateIntegration('Community MQTT/meshcoretomqtt');
+  confirmCreateIntegration();
+  await waitFor(() => expect(screen.getByText('← Back to list')).toBeInTheDocument());
+  fireEvent.change(screen.getByLabelText('Preset'), { target: { value: presetId } });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(window, 'confirm').mockReturnValue(true);
@@ -141,63 +151,37 @@ describe('SettingsFanoutSection', () => {
     const optionButtons = within(dialog)
       .getAllByRole('button')
       .filter((button) => button.hasAttribute('aria-pressed'));
-    expect(optionButtons).toHaveLength(14);
+    // The per-broker community presets were collapsed into a single Community
+    // MQTT type with an in-editor preset picker, leaving 8 integration types.
+    expect(optionButtons).toHaveLength(8);
     expect(within(dialog).getByRole('button', { name: 'Close' })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Create' })).toBeInTheDocument();
-    expect(
-      within(dialog).getByRole('button', { name: startsWithAccessibleName('Private MQTT') })
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByRole('button', { name: startsWithAccessibleName('MeshRank') })
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByRole('button', { name: startsWithAccessibleName('LetsMesh (US)') })
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByRole('button', { name: startsWithAccessibleName('LetsMesh (EU)') })
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByRole('button', { name: startsWithAccessibleName('DMC-1') })
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByRole('button', { name: startsWithAccessibleName('DMC-2') })
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByRole('button', {
-        name: startsWithAccessibleName('MeshCore Analyzer (EU)'),
-      })
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByRole('button', {
-        name: startsWithAccessibleName('Community MQTT/meshcoretomqtt'),
-      })
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByRole('button', { name: startsWithAccessibleName('Webhook') })
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByRole('button', { name: startsWithAccessibleName('Apprise') })
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByRole('button', { name: startsWithAccessibleName('Amazon SQS') })
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByRole('button', { name: startsWithAccessibleName('Python Bot') })
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByRole('button', { name: startsWithAccessibleName('Map Upload') })
-    ).toBeInTheDocument();
+    for (const name of [
+      'Private MQTT',
+      'Home Assistant MQTT Discovery',
+      'Community MQTT/meshcoretomqtt',
+      'Webhook',
+      'Apprise',
+      'Amazon SQS',
+      'Python Bot',
+      'Map Upload',
+    ]) {
+      expect(
+        within(dialog).getByRole('button', { name: startsWithAccessibleName(name) })
+      ).toBeInTheDocument();
+    }
     expect(within(dialog).getByRole('heading', { level: 3 })).toBeInTheDocument();
 
-    const genericCommunityIndex = optionButtons.findIndex((button) =>
-      button.textContent?.startsWith('Community MQTT/meshcoretomqtt')
-    );
-    const meshRankIndex = optionButtons.findIndex((button) =>
-      button.textContent?.startsWith('MeshRank')
-    );
-    expect(genericCommunityIndex).toBeGreaterThan(-1);
-    expect(meshRankIndex).toBeGreaterThan(-1);
-    expect(genericCommunityIndex).toBeLessThan(meshRankIndex);
+    // The standalone MeshRank/LetsMesh/DMC/Analyzer type tiles are gone.
+    expect(
+      within(dialog).queryByRole('button', { name: startsWithAccessibleName('MeshRank') })
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole('button', { name: startsWithAccessibleName('LetsMesh (US)') })
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole('button', { name: startsWithAccessibleName('DMC-1') })
+    ).not.toBeInTheDocument();
   });
 
   it('shows bot option in add integration dialog when bots are enabled', async () => {
@@ -977,17 +961,25 @@ describe('SettingsFanoutSection', () => {
     expect(screen.queryByText('Region: LAX')).not.toBeInTheDocument();
   });
 
-  it('MeshRank preset pre-fills the broker settings and asks for the topic template', async () => {
+  it('MeshRank preset pre-fills the broker settings and leaves the topic template blank', async () => {
     renderSection();
-    await openCreateIntegrationDialog();
-    selectCreateIntegration('MeshRank');
-    confirmCreateIntegration();
+    await createCommunityPreset('meshrank');
 
-    await waitFor(() => expect(screen.getByText('← Back to list')).toBeInTheDocument());
-
-    expect(screen.getByLabelText('Name')).toHaveValue('MeshRank');
+    expect(screen.getByLabelText('Broker Host')).toHaveValue('meshrank.net');
+    expect(screen.getByLabelText('Broker Port')).toHaveValue(8883);
     expect(screen.getByLabelText('Packet Topic Template')).toHaveValue('');
-    expect(screen.queryByLabelText('Broker Host')).not.toBeInTheDocument();
+    // MeshRank uses anonymous auth, so the token-audience field is hidden.
+    expect(screen.queryByLabelText('Token Audience')).not.toBeInTheDocument();
+  });
+
+  it('blocks saving a MeshRank preset until a packet topic template is entered', async () => {
+    renderSection();
+    await createCommunityPreset('meshrank');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save as Enabled' }));
+    // The save is rejected (topic required) and the editor stays open.
+    await waitFor(() => expect(screen.getByLabelText('Packet Topic Template')).toBeInTheDocument());
+    expect(mockedApi.createFanoutConfig).not.toHaveBeenCalled();
   });
 
   it('private MQTT fields can be cleared while editing and normalize defaults on create', async () => {
@@ -1077,10 +1069,7 @@ describe('SettingsFanoutSection', () => {
     mockedApi.getFanoutConfigs.mockResolvedValueOnce([]).mockResolvedValueOnce([createdConfig]);
 
     renderSection();
-    await openCreateIntegrationDialog();
-    selectCreateIntegration('MeshRank');
-    confirmCreateIntegration();
-    await waitFor(() => expect(screen.getByText('← Back to list')).toBeInTheDocument());
+    await createCommunityPreset('meshrank');
 
     fireEvent.change(screen.getByLabelText('Packet Topic Template'), {
       target: {
@@ -1090,29 +1079,29 @@ describe('SettingsFanoutSection', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save as Enabled' }));
 
     await waitFor(() =>
-      expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith({
-        type: 'mqtt_community',
-        name: 'MeshRank',
-        config: {
-          broker_host: 'meshrank.net',
-          broker_port: 8883,
-          transport: 'tcp',
-          use_tls: true,
-          tls_verify: true,
-          auth_mode: 'none',
-          username: '',
-          password: '',
-          iata: 'XYZ',
-          email: '',
-          token_audience: '',
-          topic_template: 'meshrank/uplink/B435F6D5F7896B74C6B995FE221C2C1F/{PUBLIC_KEY}/packets',
-          publish_status: true,
-          publish_packets: true,
-          status_interval_ms: 300000,
-        },
-        scope: { messages: 'none', raw_packets: 'all' },
-        enabled: true,
-      })
+      expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'mqtt_community',
+          config: expect.objectContaining({
+            broker_host: 'meshrank.net',
+            broker_port: 8883,
+            transport: 'tcp',
+            use_tls: true,
+            tls_verify: true,
+            auth_mode: 'none',
+            username: '',
+            password: '',
+            iata: 'XYZ',
+            token_audience: '',
+            topic_template: 'meshrank/uplink/B435F6D5F7896B74C6B995FE221C2C1F/{PUBLIC_KEY}/packets',
+            publish_status: true,
+            publish_packets: true,
+            status_interval_ms: 300000,
+          }),
+          scope: { messages: 'none', raw_packets: 'all' },
+          enabled: true,
+        })
+      )
     );
   });
 
@@ -1236,43 +1225,37 @@ describe('SettingsFanoutSection', () => {
     mockedApi.getFanoutConfigs.mockResolvedValueOnce([]).mockResolvedValueOnce([createdConfig]);
 
     renderSection();
-    await openCreateIntegrationDialog();
-    selectCreateIntegration('LetsMesh (US)');
-    confirmCreateIntegration();
-    await waitFor(() => expect(screen.getByText('← Back to list')).toBeInTheDocument());
+    await createCommunityPreset('analyzer-us');
 
-    expect(screen.getByLabelText('Name')).toHaveValue('LetsMesh (US)');
-    expect(screen.queryByLabelText('Authentication')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Packet Topic Template')).not.toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'user@example.com' } });
+    fireEvent.change(screen.getByLabelText(/Owner Email/), {
+      target: { value: 'user@example.com' },
+    });
     fireEvent.change(screen.getByLabelText('Region Code (IATA)'), { target: { value: 'lax' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save as Disabled' }));
 
     await waitFor(() =>
-      expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith({
-        type: 'mqtt_community',
-        name: 'LetsMesh (US)',
-        config: {
-          broker_host: 'mqtt-us-v1.letsmesh.net',
-          broker_port: 443,
-          transport: 'websockets',
-          use_tls: true,
-          tls_verify: true,
-          auth_mode: 'token',
-          username: '',
-          password: '',
-          iata: 'LAX',
-          email: 'user@example.com',
-          token_audience: 'mqtt-us-v1.letsmesh.net',
-          topic_template: 'meshcore/{IATA}/{PUBLIC_KEY}/packets',
-          publish_status: true,
-          publish_packets: true,
-          status_interval_ms: 300000,
-        },
-        scope: { messages: 'none', raw_packets: 'all' },
-        enabled: false,
-      })
+      expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'mqtt_community',
+          config: expect.objectContaining({
+            broker_host: 'mqtt-us-v1.letsmesh.net',
+            broker_port: 443,
+            transport: 'websockets',
+            use_tls: true,
+            tls_verify: true,
+            auth_mode: 'token',
+            username: '',
+            password: '',
+            iata: 'LAX',
+            email: 'user@example.com',
+            token_audience: 'mqtt-us-v1.letsmesh.net',
+            websocket_path: '/mqtt',
+            topic_template: 'meshcore/{IATA}/{PUBLIC_KEY}/packets',
+          }),
+          scope: { messages: 'none', raw_packets: 'all' },
+          enabled: false,
+        })
+      )
     );
   });
 
@@ -1355,39 +1338,35 @@ describe('SettingsFanoutSection', () => {
     mockedApi.getFanoutConfigs.mockResolvedValueOnce([]).mockResolvedValueOnce([createdConfig]);
 
     renderSection();
-    await openCreateIntegrationDialog();
-    selectCreateIntegration('LetsMesh (EU)');
-    confirmCreateIntegration();
-    await waitFor(() => expect(screen.getByText('← Back to list')).toBeInTheDocument());
+    await createCommunityPreset('analyzer-eu');
 
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'user@example.com' } });
+    fireEvent.change(screen.getByLabelText(/Owner Email/), {
+      target: { value: 'user@example.com' },
+    });
     fireEvent.change(screen.getByLabelText('Region Code (IATA)'), { target: { value: 'ams' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save as Enabled' }));
 
     await waitFor(() =>
-      expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith({
-        type: 'mqtt_community',
-        name: 'LetsMesh (EU)',
-        config: {
-          broker_host: 'mqtt-eu-v1.letsmesh.net',
-          broker_port: 443,
-          transport: 'websockets',
-          use_tls: true,
-          tls_verify: true,
-          auth_mode: 'token',
-          username: '',
-          password: '',
-          iata: 'AMS',
-          email: 'user@example.com',
-          token_audience: 'mqtt-eu-v1.letsmesh.net',
-          topic_template: 'meshcore/{IATA}/{PUBLIC_KEY}/packets',
-          publish_status: true,
-          publish_packets: true,
-          status_interval_ms: 300000,
-        },
-        scope: { messages: 'none', raw_packets: 'all' },
-        enabled: true,
-      })
+      expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'mqtt_community',
+          config: expect.objectContaining({
+            broker_host: 'mqtt-eu-v1.letsmesh.net',
+            broker_port: 443,
+            transport: 'websockets',
+            use_tls: true,
+            tls_verify: true,
+            auth_mode: 'token',
+            iata: 'AMS',
+            email: 'user@example.com',
+            token_audience: 'mqtt-eu-v1.letsmesh.net',
+            websocket_path: '/mqtt',
+            topic_template: 'meshcore/{IATA}/{PUBLIC_KEY}/packets',
+          }),
+          scope: { messages: 'none', raw_packets: 'all' },
+          enabled: true,
+        })
+      )
     );
   });
 
@@ -1420,44 +1399,35 @@ describe('SettingsFanoutSection', () => {
     mockedApi.getFanoutConfigs.mockResolvedValueOnce([]).mockResolvedValueOnce([createdConfig]);
 
     renderSection();
-    await openCreateIntegrationDialog();
-    selectCreateIntegration('DMC-1');
-    confirmCreateIntegration();
-    await waitFor(() => expect(screen.getByText('← Back to list')).toBeInTheDocument());
+    await createCommunityPreset('dutchmeshcore-1');
 
-    expect(screen.getByLabelText('Name')).toHaveValue('DMC-1');
-    expect(screen.queryByLabelText('Authentication')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Packet Topic Template')).not.toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'user@example.com' } });
+    fireEvent.change(screen.getByLabelText(/Owner Email/), {
+      target: { value: 'user@example.com' },
+    });
     fireEvent.change(screen.getByLabelText('Region Code (IATA)'), { target: { value: 'ams' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save as Enabled' }));
 
     await waitFor(() =>
-      expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith({
-        type: 'mqtt_community',
-        name: 'DMC-1',
-        config: {
-          broker_host: 'collector1.dutchmeshcore.nl',
-          broker_port: 443,
-          transport: 'websockets',
-          use_tls: true,
-          tls_verify: true,
-          auth_mode: 'token',
-          username: '',
-          password: '',
-          iata: 'AMS',
-          email: 'user@example.com',
-          token_audience: 'collector1.dutchmeshcore.nl',
-          websocket_path: '/mqtt',
-          topic_template: 'meshcore/{IATA}/{PUBLIC_KEY}/packets',
-          publish_status: true,
-          publish_packets: true,
-          status_interval_ms: 300000,
-        },
-        scope: { messages: 'none', raw_packets: 'all' },
-        enabled: true,
-      })
+      expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'mqtt_community',
+          config: expect.objectContaining({
+            broker_host: 'collector1.dutchmeshcore.nl',
+            broker_port: 443,
+            transport: 'websockets',
+            use_tls: true,
+            tls_verify: true,
+            auth_mode: 'token',
+            iata: 'AMS',
+            email: 'user@example.com',
+            token_audience: 'collector1.dutchmeshcore.nl',
+            websocket_path: '/mqtt',
+            topic_template: 'meshcore/{IATA}/{PUBLIC_KEY}/packets',
+          }),
+          scope: { messages: 'none', raw_packets: 'all' },
+          enabled: true,
+        })
+      )
     );
   });
 
@@ -1490,40 +1460,35 @@ describe('SettingsFanoutSection', () => {
     mockedApi.getFanoutConfigs.mockResolvedValueOnce([]).mockResolvedValueOnce([createdConfig]);
 
     renderSection();
-    await openCreateIntegrationDialog();
-    selectCreateIntegration('DMC-2');
-    confirmCreateIntegration();
-    await waitFor(() => expect(screen.getByText('← Back to list')).toBeInTheDocument());
+    await createCommunityPreset('dutchmeshcore-2');
 
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'user@example.com' } });
+    fireEvent.change(screen.getByLabelText(/Owner Email/), {
+      target: { value: 'user@example.com' },
+    });
     fireEvent.change(screen.getByLabelText('Region Code (IATA)'), { target: { value: 'ams' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save as Enabled' }));
 
     await waitFor(() =>
-      expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith({
-        type: 'mqtt_community',
-        name: 'DMC-2',
-        config: {
-          broker_host: 'collector2.dutchmeshcore.nl',
-          broker_port: 443,
-          transport: 'websockets',
-          use_tls: true,
-          tls_verify: true,
-          auth_mode: 'token',
-          username: '',
-          password: '',
-          iata: 'AMS',
-          email: 'user@example.com',
-          token_audience: 'collector2.dutchmeshcore.nl',
-          websocket_path: '/mqtt',
-          topic_template: 'meshcore/{IATA}/{PUBLIC_KEY}/packets',
-          publish_status: true,
-          publish_packets: true,
-          status_interval_ms: 300000,
-        },
-        scope: { messages: 'none', raw_packets: 'all' },
-        enabled: true,
-      })
+      expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'mqtt_community',
+          config: expect.objectContaining({
+            broker_host: 'collector2.dutchmeshcore.nl',
+            broker_port: 443,
+            transport: 'websockets',
+            use_tls: true,
+            tls_verify: true,
+            auth_mode: 'token',
+            iata: 'AMS',
+            email: 'user@example.com',
+            token_audience: 'collector2.dutchmeshcore.nl',
+            websocket_path: '/mqtt',
+            topic_template: 'meshcore/{IATA}/{PUBLIC_KEY}/packets',
+          }),
+          scope: { messages: 'none', raw_packets: 'all' },
+          enabled: true,
+        })
+      )
     );
   });
 
@@ -1556,40 +1521,35 @@ describe('SettingsFanoutSection', () => {
     mockedApi.getFanoutConfigs.mockResolvedValueOnce([]).mockResolvedValueOnce([createdConfig]);
 
     renderSection();
-    await openCreateIntegrationDialog();
-    selectCreateIntegration('MeshCore Analyzer (EU)');
-    confirmCreateIntegration();
-    await waitFor(() => expect(screen.getByText('← Back to list')).toBeInTheDocument());
+    await createCommunityPreset('meshcore-analyzer-eu');
 
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'user@example.com' } });
+    fireEvent.change(screen.getByLabelText(/Owner Email/), {
+      target: { value: 'user@example.com' },
+    });
     fireEvent.change(screen.getByLabelText('Region Code (IATA)'), { target: { value: 'ams' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save as Enabled' }));
 
     await waitFor(() =>
-      expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith({
-        type: 'mqtt_community',
-        name: 'MeshCore Analyzer (EU)',
-        config: {
-          broker_host: 'mqtt.meshcore-analyzer.eu',
-          broker_port: 443,
-          transport: 'websockets',
-          use_tls: true,
-          tls_verify: true,
-          auth_mode: 'token',
-          username: '',
-          password: '',
-          iata: 'AMS',
-          email: 'user@example.com',
-          token_audience: 'mqtt.meshcore-analyzer.eu',
-          websocket_path: '/',
-          topic_template: 'meshcore/{IATA}/{PUBLIC_KEY}/packets',
-          publish_status: true,
-          publish_packets: true,
-          status_interval_ms: 300000,
-        },
-        scope: { messages: 'none', raw_packets: 'all' },
-        enabled: true,
-      })
+      expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'mqtt_community',
+          config: expect.objectContaining({
+            broker_host: 'mqtt.meshcore-analyzer.eu',
+            broker_port: 443,
+            transport: 'websockets',
+            use_tls: true,
+            tls_verify: true,
+            auth_mode: 'token',
+            iata: 'AMS',
+            email: 'user@example.com',
+            token_audience: 'mqtt.meshcore-analyzer.eu',
+            websocket_path: '/',
+            topic_template: 'meshcore/{IATA}/{PUBLIC_KEY}/packets',
+          }),
+          scope: { messages: 'none', raw_packets: 'all' },
+          enabled: true,
+        })
+      )
     );
   });
 
@@ -1608,15 +1568,16 @@ describe('SettingsFanoutSection', () => {
     mockedApi.getFanoutConfigs.mockResolvedValueOnce([]).mockResolvedValueOnce([created]);
 
     renderSection();
-    await openCreateIntegrationDialog();
-    selectCreateIntegration('DMC-1');
-    confirmCreateIntegration();
-    await waitFor(() => expect(screen.getByText('← Back to list')).toBeInTheDocument());
+    await createCommunityPreset('dutchmeshcore-1');
 
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'user@example.com' } });
+    fireEvent.change(screen.getByLabelText(/Owner Email/), {
+      target: { value: 'user@example.com' },
+    });
     fireEvent.change(screen.getByLabelText('Region Code (IATA)'), { target: { value: 'ams' } });
     fireEvent.click(screen.getByText('Publish packets')); // toggle OFF
-    fireEvent.change(screen.getByLabelText('Status interval (minutes)'), { target: { value: '10' } });
+    fireEvent.change(screen.getByLabelText('Status interval (minutes)'), {
+      target: { value: '10' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Save as Enabled' }));
 
     await waitFor(() =>
@@ -1645,6 +1606,55 @@ describe('SettingsFanoutSection', () => {
     expect(screen.getByLabelText('Broker Host')).toBeInTheDocument();
     expect(screen.getByLabelText('Authentication')).toBeInTheDocument();
     expect(screen.getByLabelText('Packet Topic Template')).toBeInTheDocument();
+    expect(screen.getByLabelText('Preset')).toBeInTheDocument();
+  });
+
+  it('bsmesh preset pre-fills the port-8885 websocket broker', async () => {
+    renderSection();
+    await createCommunityPreset('bsmesh');
+
+    expect(screen.getByLabelText('Broker Host')).toHaveValue('mqtt.bsmesh.de');
+    expect(screen.getByLabelText('Broker Port')).toHaveValue(8885);
+    expect(screen.getByLabelText('Token Audience')).toHaveValue('mqtt.bsmesh.de');
+  });
+
+  it('USERPASS preset pre-fills editable embedded credentials', async () => {
+    renderSection();
+    await createCommunityPreset('tennmesh');
+
+    expect(screen.getByLabelText('Username')).toHaveValue('mqttfeed');
+    expect(screen.getByLabelText('Password')).toHaveValue('tc2live');
+
+    // Credentials stay editable.
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'myuser' } });
+    expect(screen.getByLabelText('Username')).toHaveValue('myuser');
+
+    fireEvent.change(screen.getByLabelText('Region Code (IATA)'), { target: { value: 'bna' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save as Enabled' }));
+
+    await waitFor(() =>
+      expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'mqtt_community',
+          config: expect.objectContaining({
+            broker_host: 'mqtt.tennmesh.com',
+            broker_port: 1883,
+            transport: 'tcp',
+            use_tls: false,
+            auth_mode: 'password',
+            username: 'myuser',
+            password: 'tc2live',
+          }),
+        })
+      )
+    );
+  });
+
+  it('mesh-chaun14 preset carries the {pubkey} username sentinel', async () => {
+    renderSection();
+    await createCommunityPreset('mesh-chaun14');
+
+    expect(screen.getByLabelText('Username')).toHaveValue('{pubkey}');
   });
 
   it('private MQTT list shows broker and topic summary', async () => {

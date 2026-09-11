@@ -395,3 +395,45 @@ class TestChannelExportImport:
         stored = await ChannelRepository.get_by_key("BB" * 16)
         assert stored is not None
         assert stored.name == "#plainname"
+
+
+class TestBulkDeleteChannels:
+    @pytest.mark.asyncio
+    async def test_deletes_given_keys_and_skips_public(self, test_db, client):
+        alpha = "AA" * 16
+        bravo = "BB" * 16
+        await ChannelRepository.upsert(key=alpha, name="#alpha", is_hashtag=True)
+        await ChannelRepository.upsert(key=bravo, name="#bravo", is_hashtag=True)
+        await ChannelRepository.upsert(
+            key=PUBLIC_CHANNEL_KEY, name=PUBLIC_CHANNEL_NAME, is_hashtag=False
+        )
+
+        response = await client.post(
+            "/api/channels/bulk-delete",
+            json={"keys": [alpha, bravo, PUBLIC_CHANNEL_KEY]},
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["deleted"] == 2
+        assert body["skipped"] == [PUBLIC_CHANNEL_KEY]
+        assert await ChannelRepository.get_by_key(alpha) is None
+        assert await ChannelRepository.get_by_key(bravo) is None
+        assert await ChannelRepository.get_by_key(PUBLIC_CHANNEL_KEY) is not None
+
+    @pytest.mark.asyncio
+    async def test_broadcasts_channel_deleted_per_key(self, test_db, client):
+        alpha = "AA" * 16
+        await ChannelRepository.upsert(key=alpha, name="#alpha", is_hashtag=True)
+
+        with patch("app.routers.channels.broadcast_event") as mock_broadcast:
+            response = await client.post("/api/channels/bulk-delete", json={"keys": [alpha]})
+
+        assert response.status_code == 200
+        mock_broadcast.assert_any_call("channel_deleted", {"key": alpha})
+
+    @pytest.mark.asyncio
+    async def test_missing_keys_are_ignored(self, test_db, client):
+        response = await client.post("/api/channels/bulk-delete", json={"keys": ["CC" * 16]})
+        assert response.status_code == 200
+        assert response.json()["deleted"] == 0

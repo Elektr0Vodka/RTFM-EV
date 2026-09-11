@@ -25,6 +25,28 @@ def cleanup_test_db_dir():
     shutil.rmtree(_TEST_DB_DIR, ignore_errors=True)
 
 
+@pytest.fixture(autouse=True)
+def _reset_radio_stats_buffers():
+    """Clear the in-memory radio-stats buffers between tests.
+
+    ``_battery_samples``/``_noise_floor_samples``/``_latest_stats`` are module
+    globals in ``app.services.radio_stats``. Without a reset, a sample recorded
+    by one test (e.g. a 4100 mV battery reading) bleeds into another test's
+    ``/api/statistics/*`` response, since that endpoint merges these in-memory
+    samples with the DB. The collision only shows up when pytest-xdist happens
+    to schedule the two tests onto the same worker, making it flaky.
+    """
+    from app.services import radio_stats
+
+    radio_stats._battery_samples.clear()
+    radio_stats._noise_floor_samples.clear()
+    radio_stats._latest_stats.clear()
+    yield
+    radio_stats._battery_samples.clear()
+    radio_stats._noise_floor_samples.clear()
+    radio_stats._latest_stats.clear()
+
+
 @pytest.fixture
 async def test_db():
     """Create an in-memory test database with schema + migrations."""

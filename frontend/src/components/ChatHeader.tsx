@@ -221,7 +221,12 @@ export function ChatHeader({
   };
 
   const insertContactLocation = () => {
-    if (!onInsertLocation || !activeContact || activeContact.lat == null || activeContact.lon == null)
+    if (
+      !onInsertLocation ||
+      !activeContact ||
+      activeContact.lat == null ||
+      activeContact.lon == null
+    )
       return;
     onInsertLocation(activeContact.lat, activeContact.lon, contactLabel);
     setLocationMenuOpen(false);
@@ -562,30 +567,32 @@ export function ChatHeader({
           cadCapable &&
           cadSupported &&
           onToggleCad && (
-          <button
-            type="button"
-            onClick={() => onToggleCad()}
-            aria-pressed={cadEnabled === null || cadEnabled === undefined ? undefined : cadEnabled}
-            aria-label="Toggle channel activity detection"
-            title={
-              cadEnabled === null || cadEnabled === undefined
-                ? 'CAD state unknown — click to enable channel activity detection'
-                : cadEnabled
-                  ? 'CAD on — scans for channel activity before transmit; click to disable'
-                  : 'CAD off — click to enable channel activity detection'
-            }
-            className={cn(
-              'flex shrink-0 items-center rounded px-1.5 py-1 text-[0.6875rem] font-semibold tracking-wide transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              cadEnabled === true
-                ? 'text-status-connected'
-                : cadEnabled === false
-                  ? 'text-muted-foreground hover:text-foreground'
-                  : 'text-muted-foreground/50 hover:text-muted-foreground'
-            )}
-          >
-            CAD
-          </button>
-        )}
+            <button
+              type="button"
+              onClick={() => onToggleCad()}
+              aria-pressed={
+                cadEnabled === null || cadEnabled === undefined ? undefined : cadEnabled
+              }
+              aria-label="Toggle channel activity detection"
+              title={
+                cadEnabled === null || cadEnabled === undefined
+                  ? 'CAD state unknown — click to enable channel activity detection'
+                  : cadEnabled
+                    ? 'CAD on — scans for channel activity before transmit; click to disable'
+                    : 'CAD off — click to enable channel activity detection'
+              }
+              className={cn(
+                'flex shrink-0 items-center rounded px-1.5 py-1 text-[0.6875rem] font-semibold tracking-wide transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                cadEnabled === true
+                  ? 'text-status-connected'
+                  : cadEnabled === false
+                    ? 'text-muted-foreground hover:text-foreground'
+                    : 'text-muted-foreground/50 hover:text-muted-foreground'
+              )}
+            >
+              CAD
+            </button>
+          )}
         {(conversation.type === 'channel' || conversation.type === 'contact') &&
           onInsertLocation && (
             <div className="sm:relative" ref={locationMenuRef}>

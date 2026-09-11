@@ -27,6 +27,7 @@ import { SettingsFanoutSection } from './settings/SettingsFanoutSection';
 import { SettingsDatabaseSection } from './settings/SettingsDatabaseSection';
 import { SettingsStatisticsSection } from './settings/SettingsStatisticsSection';
 import { SettingsAboutSection } from './settings/SettingsAboutSection';
+import { SettingsHandyInfoSection } from './settings/SettingsHandyInfoSection';
 
 interface SettingsModalBaseProps {
   open: boolean;
@@ -58,6 +59,7 @@ interface SettingsModalBaseProps {
   contacts?: Contact[];
   channels?: Channel[];
   onBulkDeleteContacts?: (deletedKeys: string[]) => void;
+  onBulkDeleteChannels?: (deletedKeys: string[]) => void;
   trackedTelemetryRepeaters?: string[];
   onToggleTrackedTelemetry?: (publicKey: string) => Promise<void>;
   trackedTelemetryContacts?: string[];
@@ -102,6 +104,7 @@ export function SettingsModal(props: SettingsModalProps) {
     contacts,
     channels,
     onBulkDeleteContacts,
+    onBulkDeleteChannels,
     trackedTelemetryRepeaters,
     onToggleTrackedTelemetry,
     trackedTelemetryContacts,
@@ -124,6 +127,7 @@ export function SettingsModal(props: SettingsModalProps) {
     fanout: false,
     database: false,
     statistics: false,
+    'handy-info': false,
     about: false,
   });
 
@@ -271,6 +275,8 @@ export function SettingsModal(props: SettingsModalProps) {
                 onToggleBlockedName={onToggleBlockedName}
                 contacts={contacts}
                 onBulkDeleteContacts={onBulkDeleteContacts}
+                channels={channels}
+                onBulkDeleteChannels={onBulkDeleteChannels}
                 trackedTelemetryRepeaters={trackedTelemetryRepeaters}
                 onToggleTrackedTelemetry={onToggleTrackedTelemetry}
                 trackedTelemetryContacts={trackedTelemetryContacts}
@@ -327,6 +333,19 @@ export function SettingsModal(props: SettingsModalProps) {
           {renderSectionHeader('statistics')}
           {isSectionVisible('statistics') && (
             <SettingsStatisticsSection className={sectionContentClass} />
+          )}
+        </section>
+      )}
+
+      {shouldRenderSection('handy-info') && (
+        <section className={sectionWrapperClass}>
+          {renderSectionHeader('handy-info')}
+          {isSectionVisible('handy-info') && (
+            <SettingsHandyInfoSection
+              appSettings={appSettings}
+              onSaveAppSettings={onSaveAppSettings}
+              className={sectionContentClass}
+            />
           )}
         </section>
       )}

@@ -711,9 +711,7 @@ function ChannelAttributionWarning({
   return (
     <div className={className}>
       <p className="text-xs text-warning">
-        {nameOnly
-          ? t('contact_attribution_warning_named')
-          : t('contact_attribution_warning_keyed')}
+        {nameOnly ? t('contact_attribution_warning_named') : t('contact_attribution_warning_keyed')}
         {includeAliasNote && t('contact_attribution_alias_note')}
       </p>
     </div>

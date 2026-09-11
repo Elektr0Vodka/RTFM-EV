@@ -73,7 +73,9 @@ export function PathModal({
       <DialogContent className="w-full max-w-[95vw] sm:max-w-xl md:max-w-2xl max-h-[85dvh] flex flex-col p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>
-            {hasPaths ? t('path_modal_title', { count: paths.length }) : t('path_modal_title_status')}
+            {hasPaths
+              ? t('path_modal_title', { count: paths.length })
+              : t('path_modal_title_status')}
           </DialogTitle>
           <DialogDescription>
             {!hasPaths ? (
@@ -202,7 +204,9 @@ export function PathModal({
                       ? t('path_modal_route_map_title_numbered', { n: mapModalIndex + 1 })
                       : t('path_modal_route_map_title')}
                   </DialogTitle>
-                  <DialogDescription>{t('path_modal_route_map_dialog_description')}</DialogDescription>
+                  <DialogDescription>
+                    {t('path_modal_route_map_dialog_description')}
+                  </DialogDescription>
                 </DialogHeader>
                 {mapModalIndex !== null && (
                   <div className="flex-1 min-h-0">

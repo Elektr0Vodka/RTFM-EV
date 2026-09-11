@@ -249,6 +249,11 @@ export const api = {
     }),
   deleteChannel: (key: string) =>
     fetchJson<{ status: string }>(`/channels/${key}`, { method: 'DELETE' }),
+  bulkDeleteChannels: (keys: string[]) =>
+    fetchJson<{ deleted: number; skipped: string[] }>('/channels/bulk-delete', {
+      method: 'POST',
+      body: JSON.stringify({ keys }),
+    }),
   importChannels: async (file: File, tryHistorical: boolean): Promise<ChannelImportResult> => {
     const form = new FormData();
     form.append('file', file);
@@ -388,8 +393,7 @@ export const api = {
     }),
 
   // Channel Registry
-  syncRegistry: () =>
-    fetchJson<{ channels: { name: string; key: string }[] }>('/registry/sync'),
+  syncRegistry: () => fetchJson<{ channels: { name: string; key: string }[] }>('/registry/sync'),
 
   // Region sync (analyzer regions endpoint -> known_regions)
   syncRegions: () => fetchJson<{ regions: string[] }>('/regions/sync'),

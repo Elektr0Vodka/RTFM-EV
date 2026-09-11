@@ -72,11 +72,7 @@ function validateHashtagName(channelName: string, permitExtended: boolean, t: TF
   return null;
 }
 
-function parseBulkHashtagNames(
-  rawText: string,
-  permitExtended: boolean,
-  t: TFn
-): BulkParseResult {
+function parseBulkHashtagNames(rawText: string, permitExtended: boolean, t: TFn): BulkParseResult {
   // When extended names are permitted, whitespace can be part of a name, so split on
   // newlines/commas only. Otherwise keep the whitespace-delimited behavior.
   const tokens = rawText
@@ -436,9 +432,7 @@ export function NewMessageModal({
                   className="min-h-48 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
                 />
                 <p className="text-xs text-muted-foreground">
-                  {permitExtended
-                    ? t('chat_bulk_help_extended')
-                    : t('chat_bulk_help_normal')}
+                  {permitExtended ? t('chat_bulk_help_extended') : t('chat_bulk_help_normal')}
                 </p>
               </div>
               <div className="space-y-1">

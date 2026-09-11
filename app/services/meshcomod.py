@@ -5,6 +5,7 @@ to 0 and the reader parses only the first 9 bytes of the 0x17 response. So CAD i
 written with a raw 0x15 frame and read by briefly hooking the reader's handle_rx.
 GPS uses the standard custom-vars commands, which round-trip cleanly.
 """
+
 import logging
 
 from meshcore import EventType

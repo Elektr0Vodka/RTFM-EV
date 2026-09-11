@@ -25,9 +25,7 @@ async def migrate(conn: aiosqlite.Connection) -> None:
     col_cursor = await conn.execute("PRAGMA table_info(contact_advert_paths)")
     existing = {row[1] for row in await col_cursor.fetchall()}
     if "last_primary_seen" not in existing:
-        await conn.execute(
-            "ALTER TABLE contact_advert_paths ADD COLUMN last_primary_seen INTEGER"
-        )
+        await conn.execute("ALTER TABLE contact_advert_paths ADD COLUMN last_primary_seen INTEGER")
         await conn.execute(
             "UPDATE contact_advert_paths SET last_primary_seen = last_seen WHERE heard_count > 0"
         )

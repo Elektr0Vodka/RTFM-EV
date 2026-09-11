@@ -5,11 +5,58 @@ This changelog covers work done in the **RTFM-EV** fork
 `jkingsman/Remote-Terminal-for-MeshCore`.
 
 - Fork base commit: `33b3b8d` (upstream `main`), 2026-07-26
-- Commits since fork: 147 total (98 non-merge)
+- Commits since fork: 177 total (116 non-merge)
 - Generated: 2026-09-10; updated 2026-09-11
 
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
+
+## Update 2026-09-11 (second pass — merged after the previous update)
+
+Work that landed on `origin/main` after the update below, up to `bda40a5`
+(merge of PR #67), grouped by area. The previous update's cutoff was `a3ce6db`.
+
+### Fanout / MQTT
+- Community MQTT topic toggles, replacing the standalone DMC observer type with
+  per-topic toggles on the community module; includes the design spec and
+  implementation plan (`01ecead`, `83a0292`) (PR #60)
+- Community MQTT preset picker covering all 37 MeshCore brokers (`1b9833e`)
+  (PR #67)
+
+### Channels / registry
+- "Add to Channels" action to move channel-registry entries into the app
+  (`f0e691f`) (PR #54)
+- Guard registry import and allow bulk-delete of monitored channels (`d1fea8d`)
+  (PR #61)
+
+### Chat / UI
+- Message-list hop-size and unscoped filters (`e2542e9`) (PR #51)
+
+### Meshcomod / CAD
+- Show the CAD toggle in DM and room-server headers (`3450f28`) (PR #52)
+
+### Settings
+- Handy Info section with endpoint links (`39af6c9`) (PR #64)
+- Declare `RadioPresetsStore` under `TYPE_CHECKING` to resolve an F821 lint
+  error (`1c2ad73`) (PR #53)
+
+### Branding
+- Rebrand About to RTFM-EV and point self URLs at the fork (`510b3df`) (PR #62)
+
+### Tooling / CI
+- Auto-publish a rolling `:latest` container image to GHCR on every push to
+  `main`, tagged `latest` and `sha-<short>`; point the docs, example compose,
+  setup script, and manual release scripts at `ghcr.io/elektr0vodka/rtfm-ev`
+  (`995d130`, `b37a105`) (PR #65)
+- Apply ruff + prettier formatting and a pyright annotation fix to unblock the
+  all-quality workflow (`e6a4399`, `b769c18`) (PR #66)
+- Isolate the `radio_stats` module-global in-memory buffers between tests via an
+  autouse conftest fixture, fixing a flaky cross-test battery-statistics bleed
+  (landed on `main` in `1b9833e`)
+
+### Docs / planning
+- Reconcile the plan-backlog delivery table to 2026-09-11, add plans 17-19, and
+  mark plans 06 and 07 done (`b4d85c4`, `d862b19`, `b662a4d`, `392fea4`)
 
 ## Update 2026-09-11 (merged since the 2026-09-10 generation)
 
@@ -22,6 +69,11 @@ grouped by area. Older entries below remain as generated.
   topics, type registration with validation and scope, and a fanout editor with
   i18n (`4ee1029`, `595e81e`, `a605d58`, `fc6847c`, `3a59ce7`) (PR #41)
 - Rename the community fanout client identifier to RTFM-EV (`a3ce6db`) (PR #50)
+- Community MQTT preset picker: one region-grouped picker inside the Community
+  MQTT editor covering all 37 MeshCore brokers from the Dutch-MeshCore
+  `MQTTPresets.h` list (36 upstream + `bsmesh`), replacing the six hardcoded
+  preset tiles. USERPASS presets ship editable credentials; `mesh-chaun14`
+  authenticates with the radio public key (backend `{pubkey}` substitution)
 
 ### Neighbors / signal history
 - Per-link signal history, parity X2b (`736df88`) (PR #47)
