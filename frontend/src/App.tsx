@@ -382,6 +382,7 @@ export function App() {
     renameConversationState,
     removeConversationState,
     markAllRead,
+    markConversationsRead,
     refreshUnreads,
   } = useUnreadCounts(channels, contacts, activeConversation);
   useFaviconBadge(unreadCounts, mentions, channels);
@@ -601,6 +602,7 @@ export function App() {
     onMarkAllRead: () => {
       void markAllRead();
     },
+    onMarkSectionRead: markConversationsRead,
     onOpenChannelImportExport: () => setShowChannelImportExport(true),
     isConversationNotificationsEnabled,
     blockedKeys: appSettings?.blocked_keys ?? [],

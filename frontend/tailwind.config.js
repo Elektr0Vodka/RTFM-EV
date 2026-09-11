@@ -71,6 +71,10 @@ export default {
           DEFAULT: "hsl(var(--badge-mention))",
           foreground: "hsl(var(--badge-mention-foreground))",
         },
+        "badge-new": {
+          DEFAULT: "hsl(var(--badge-new))",
+          foreground: "hsl(var(--badge-new-foreground))",
+        },
         "toast-error": {
           DEFAULT: "hsl(var(--toast-error))",
           foreground: "hsl(var(--toast-error-foreground))",

@@ -40,6 +40,10 @@
   "a11y_switch_to_light_theme": "Switch to light theme",
   "a11y_open_theme_settings": "Open theme settings",
   "a11y_unread_count": "{count} unread",
+  "a11y_total_count": "{count} total",
+  "a11y_new_count": "{count} new",
+  "a11y_new_item": "New",
+  "nav_section_mark_read_seen": "Mark section read and seen",
   "a11y_unread_messages": {
     "one": "{count} unread message",
     "other": "{count} unread messages"
