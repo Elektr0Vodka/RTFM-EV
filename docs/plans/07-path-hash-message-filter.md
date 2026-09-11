@@ -1,12 +1,16 @@
 # 07 - Path-hash message filter
 
-Date: 2026-09-10 (status reconciled 2026-09-11)
-Status: PARTIAL. Both surfaces are committed (see "Decision" below); the
-raw-packet feed hop-width filter SHIPPED (PR #22; `RawPacketFeedView.tsx:723-725`
-`enabledHopWidths`), the chat message-list toggle is NOT yet built
-(`MessageList.tsx:382` only renders a width label). No open conflict: the §1
-"do not filter chat" line is superseded by the §Decision. The chat toggle is
-confirmed wanted for spam mitigation (see the 2026-09-11 addendum).
+Date: 2026-09-10 (status reconciled 2026-09-11; chat toggle built 2026-09-11)
+Status: DONE (both surfaces). The raw-packet feed hop-width filter SHIPPED
+earlier (PR #22; `RawPacketFeedView.tsx` `enabledHopWidths`). The separate chat
+message-list toggle (§4.2) is now built on branch `feat/chat-hop-size-filter`:
+an independent overlay control on the message list with 1-byte / 2-byte / 3-byte
+hide checkboxes, plus a "hide unscoped" (no regional flood-scope) checkbox added
+on the same request. Frontend-only, localStorage-persisted, no backend change.
+Width derivation reuses `pathUtils.pathHopWidths`; the filter is applied where the
+sorted render list is derived, so virtualization and server-cursor pagination
+(`hasOlder`/`hasNewer`) are unaffected, and a viewer's own outgoing sends, the
+unread-divider anchor, and the active jump target are always kept visible.
 Category: B (Contacts & messaging UX), per `docs/plans/README.md` entry [07]
 Model: Sonnet
 

@@ -24,11 +24,22 @@ import {
   parseMarker,
   type ParsedMarker,
 } from '../utils/meshcoreOpenPayloads';
-import { MapPin } from 'lucide-react';
+import { ListFilter, MapPin } from 'lucide-react';
 import { useRichPayloads } from '../contexts/RichPayloadContext';
 import { usePathHopWidth } from '../contexts/PathHopWidthContext';
-import { formatHopCounts, formatPathHopWidths, type SenderInfo } from '../utils/pathUtils';
+import {
+  formatHopCounts,
+  formatPathHopWidths,
+  isMessageHiddenByHopWidth,
+  type SenderInfo,
+} from '../utils/pathUtils';
 import { getDirectContactRoute } from '../utils/pathUtils';
+import {
+  getSavedHiddenHopWidths,
+  setSavedHiddenHopWidths,
+  getSavedHideUnscoped,
+  setSavedHideUnscoped,
+} from '../utils/messageHopFilterPreference';
 import { ContactAvatar } from './ContactAvatar';
 import { PathModal } from './PathModal';
 import { RawPacketInspectorDialog } from './RawPacketDetailModal';
@@ -517,6 +528,49 @@ export function MessageList({
   const [jumpToUnreadDismissed, setJumpToUnreadDismissed] = useState(false);
   const targetScrolledRef = useRef(false);
   const unreadMarkerRef = useRef<HTMLButtonElement | HTMLDivElement | null>(null);
+  // Per-hop byte widths (1/2/3) the user has chosen to hide from this list, e.g.
+  // to suppress spam flooding a channel at a given path-hash mode. Persisted in
+  // localStorage so the choice survives the per-conversation remount of this
+  // component (see messageHopFilterPreference).
+  const [hiddenHopWidths, setHiddenHopWidths] = useState<Set<number>>(() =>
+    getSavedHiddenHopWidths()
+  );
+  // Hide messages that carry no regional flood-scope ("unscoped"), e.g. global
+  // noise. Persisted like the hop-width filter.
+  const [hideUnscoped, setHideUnscoped] = useState<boolean>(() => getSavedHideUnscoped());
+  const [hopFilterOpen, setHopFilterOpen] = useState(false);
+  const hopFilterRef = useRef<HTMLDivElement>(null);
+  const toggleHopWidth = useCallback((width: number) => {
+    setHiddenHopWidths((prev) => {
+      const next = new Set(prev);
+      if (next.has(width)) {
+        next.delete(width);
+      } else {
+        next.add(width);
+      }
+      setSavedHiddenHopWidths(next);
+      return next;
+    });
+  }, []);
+  const toggleHideUnscoped = useCallback(() => {
+    setHideUnscoped((prev) => {
+      const next = !prev;
+      setSavedHideUnscoped(next);
+      return next;
+    });
+  }, []);
+
+  // Close the hop-size filter panel on an outside click.
+  useEffect(() => {
+    if (!hopFilterOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (hopFilterRef.current && !hopFilterRef.current.contains(e.target as Node)) {
+        setHopFilterOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [hopFilterOpen]);
 
   // Capture scroll state in the scroll handler BEFORE any state updates
   const scrollStateRef = useRef({
@@ -576,13 +630,33 @@ export function MessageList({
   // Sort messages by received_at ascending (oldest first)
   // Note: Deduplication is handled by useConversationMessages.observeMessage()
   // and the database UNIQUE constraint on (type, conversation_key, text, sender_timestamp)
-  const sortedMessages = useMemo(
-    () =>
-      preSorted
-        ? messages
-        : [...messages].sort((a, b) => a.received_at - b.received_at || a.id - b.id),
-    [messages, preSorted]
-  );
+  const sortedMessages = useMemo(() => {
+    const base = preSorted
+      ? messages
+      : [...messages].sort((a, b) => a.received_at - b.received_at || a.id - b.id);
+    if (hiddenHopWidths.size === 0 && !hideUnscoped) {
+      return base;
+    }
+    // Apply the view-only message filters. Three kinds of message are always
+    // kept, so a filter can never make something of the user's own vanish or
+    // strand navigation: their outgoing sends, the unread-divider anchor
+    // (filtering it out returns findIndex -> -1 and triggers a needless "jump to
+    // unread"), and the active jump target. Pagination cursors are server-driven
+    // and read from raw `messages`, so filtering the view here does not perturb
+    // hasOlder/hasNewer bookkeeping.
+    return base.filter((m) => {
+      if (m.outgoing || m.id === unreadMarkerMessageId || m.id === targetMessageId) {
+        return true;
+      }
+      if (isMessageHiddenByHopWidth(m.paths, hiddenHopWidths)) {
+        return false;
+      }
+      if (hideUnscoped && !m.region) {
+        return false;
+      }
+      return true;
+    });
+  }, [messages, preSorted, hiddenHopWidths, hideUnscoped, unreadMarkerMessageId, targetMessageId]);
   /**
    * Only the visible window of messages is mounted. A long channel history otherwise
    * costs a full render of every message on any update — hundreds of milliseconds once
@@ -1134,6 +1208,68 @@ export function MessageList({
 
   return (
     <div className="flex-1 overflow-hidden relative">
+      {/* Hop-size filter: an overlay so it never affects the scroll container's
+          layout or the virtualizer's scrollMargin. */}
+      <div ref={hopFilterRef} className="absolute right-2 top-2 z-20">
+        <button
+          type="button"
+          onClick={() => setHopFilterOpen((v) => !v)}
+          aria-label={t('chat_hop_filter_button')}
+          aria-expanded={hopFilterOpen}
+          title={t('chat_hop_filter_button')}
+          className={cn(
+            'flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card/90 shadow-sm backdrop-blur transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            hiddenHopWidths.size > 0 || hideUnscoped
+              ? 'text-status-connected'
+              : 'text-muted-foreground'
+          )}
+        >
+          <ListFilter className="h-4 w-4" aria-hidden="true" />
+        </button>
+        {hopFilterOpen && (
+          <div className="absolute right-0 top-full z-30 mt-1 w-56 rounded-md border border-border bg-popover p-2 shadow-lg">
+            <div className="mb-1 px-1 text-[0.625rem] font-medium uppercase tracking-wider text-muted-foreground">
+              {t('chat_hop_filter_heading')}
+            </div>
+            {(
+              [
+                [1, 'chat_hop_filter_1byte'],
+                [2, 'chat_hop_filter_2byte'],
+                [3, 'chat_hop_filter_3byte'],
+              ] as const
+            ).map(([width, labelKey]) => (
+              <label
+                key={width}
+                className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-[0.8125rem] hover:bg-accent"
+              >
+                <input
+                  type="checkbox"
+                  className="accent-current"
+                  checked={hiddenHopWidths.has(width)}
+                  onChange={() => toggleHopWidth(width)}
+                />
+                {t(labelKey)}
+              </label>
+            ))}
+            <div className="mt-1 px-1 text-[0.6875rem] text-muted-foreground">
+              {t('chat_hop_filter_hint')}
+            </div>
+            <div className="my-1.5 h-px bg-border" />
+            <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-[0.8125rem] hover:bg-accent">
+              <input
+                type="checkbox"
+                className="accent-current"
+                checked={hideUnscoped}
+                onChange={toggleHideUnscoped}
+              />
+              {t('chat_filter_hide_unscoped')}
+            </label>
+            <div className="mt-1 px-1 text-[0.6875rem] text-muted-foreground">
+              {t('chat_filter_unscoped_hint')}
+            </div>
+          </div>
+        )}
+      </div>
       <div
         className="h-full overflow-y-auto p-4 flex flex-col"
         ref={listRef}

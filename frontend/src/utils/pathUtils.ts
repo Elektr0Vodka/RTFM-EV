@@ -474,17 +474,14 @@ export function formatHopCounts(paths: MessagePath[] | null | undefined): {
 }
 
 /**
- * Compact per-hop width label for a message's paths, e.g. "2B" (2 bytes per
- * hop) or "1B/2B" when different receive paths used different hash widths.
- *
- * The width is derived from each path's hex length divided by its hop count,
- * so it is only shown for paths that actually carry hop bytes with usable
- * `path_len` metadata. Returns null when no path has a derivable width — direct
- * (0-hop) paths and legacy rows without hop metadata contribute nothing.
+ * The distinct per-hop byte widths (1, 2, or 3) observed across a message's
+ * paths, sorted ascending. Direct (0-hop) paths and legacy rows without usable
+ * `path_len` metadata carry no hop bytes to classify and contribute nothing, so
+ * a message with no derivable width returns an empty array.
  */
-export function formatPathHopWidths(paths: MessagePath[] | null | undefined): string | null {
+export function pathHopWidths(paths: MessagePath[] | null | undefined): number[] {
   if (!paths || paths.length === 0) {
-    return null;
+    return [];
   }
   const bytesPerHop = new Set<number>();
   for (const p of paths) {
@@ -493,13 +490,42 @@ export function formatPathHopWidths(paths: MessagePath[] | null | undefined): st
       bytesPerHop.add(mode + 1);
     }
   }
-  if (bytesPerHop.size === 0) {
+  return [...bytesPerHop].sort((a, b) => a - b);
+}
+
+/**
+ * Compact per-hop width label for a message's paths, e.g. "2B" (2 bytes per
+ * hop) or "1B/2B" when different receive paths used different hash widths.
+ * Returns null when no path has a derivable width (see {@link pathHopWidths}).
+ */
+export function formatPathHopWidths(paths: MessagePath[] | null | undefined): string | null {
+  const widths = pathHopWidths(paths);
+  if (widths.length === 0) {
     return null;
   }
-  return [...bytesPerHop]
-    .sort((a, b) => a - b)
-    .map((w) => `${w}B`)
-    .join('/');
+  return widths.map((w) => `${w}B`).join('/');
+}
+
+/**
+ * Whether a message should be hidden given a set of hidden per-hop byte widths.
+ *
+ * Policy (spam-hiding, see plan 07 §4.2): hide the message if ANY observed path
+ * width matches a hidden width (aggressive hide). Messages with no derivable
+ * width are ALWAYS kept visible, so outgoing and not-yet-echoed messages never
+ * disappear. An empty hidden set hides nothing.
+ */
+export function isMessageHiddenByHopWidth(
+  paths: MessagePath[] | null | undefined,
+  hiddenWidths: ReadonlySet<number>
+): boolean {
+  if (hiddenWidths.size === 0) {
+    return false;
+  }
+  const widths = pathHopWidths(paths);
+  if (widths.length === 0) {
+    return false;
+  }
+  return widths.some((w) => hiddenWidths.has(w));
 }
 
 /**
