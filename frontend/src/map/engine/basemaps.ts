@@ -1,4 +1,4 @@
-import type { StyleSpecification } from 'maplibre-gl';
+import type { StyleSpecification, Map as MlMap } from 'maplibre-gl';
 import { recolorNovaDark } from './novaRecolor';
 
 export type BasemapKind = 'vector' | 'vector-recolor' | 'raster';
@@ -224,4 +224,74 @@ export function saveBasemapId(id: string): void {
   } catch {
     /* ignore */
   }
+}
+
+// --- applyBasemap: switch basemaps with a no-op guard + overlay re-apply ---
+// Ported from EU-Meshcore-Analyzer web/js/lib/maplibre-basemap.js.
+
+export interface ApplyBasemapCtx {
+  reapplyOverlays?: () => void;
+  buildingsOn?: boolean;
+  theme?: 'light' | 'dark';
+  onBuildings?: (map: MlMap, on: boolean, theme: 'light' | 'dark') => void;
+}
+
+const _activeBasemap = new WeakMap<object, string>();
+const _recolorCache = new Map<string, Promise<StyleSpecification>>();
+
+function recoloredStyle(entry: BasemapEntry): Promise<StyleSpecification> {
+  const key = entry.styleUrl + '#' + (entry.recolorId || 'recolor');
+  let p = _recolorCache.get(key);
+  if (p) return p;
+  p = fetch(String(entry.styleUrl))
+    .then((r) => {
+      if (!r.ok) throw new Error('style ' + r.status);
+      return r.json();
+    })
+    .then((s) => entry.recolor!(s as StyleSpecification));
+  _recolorCache.set(key, p);
+  p.catch(() => _recolorCache.delete(key));
+  return p;
+}
+
+export function markBasemapApplied(map: MlMap, entry: BasemapEntry): void {
+  if (entry) _activeBasemap.set(map, basemapSig(entry));
+}
+
+export function applyBasemap(map: MlMap, entry: BasemapEntry, ctx: ApplyBasemapCtx = {}): void {
+  if (!entry) return;
+  const sig = basemapSig(entry);
+  if (_activeBasemap.get(map) === sig) return;
+  _activeBasemap.set(map, sig);
+
+  const afterStyle = () =>
+    map.once('styledata', () => {
+      ctx.reapplyOverlays?.();
+      if (ctx.buildingsOn && ctx.onBuildings) ctx.onBuildings(map, true, ctx.theme ?? 'dark');
+    });
+
+  const currentIsRaster = !!map.getSource('carto');
+  const targetKind = resolveBasemapKind(entry);
+  const strategy = switchStrategy(currentIsRaster, targetKind);
+
+  if (strategy === 'setTiles') {
+    const src = map.getSource('carto') as { setTiles?: (t: string[]) => void } | undefined;
+    if (src?.setTiles && entry.tiles) src.setTiles(entry.tiles);
+    return;
+  }
+  if (entry.kind === 'vector-recolor') {
+    recoloredStyle(entry)
+      .then((style) => {
+        map.setStyle(style);
+        afterStyle();
+      })
+      .catch(() => {
+        _activeBasemap.delete(map);
+        applyBasemap(map, getBasemap('ofm-dark'), ctx);
+      });
+    return;
+  }
+  const nextStyle = targetKind === 'vector' ? String(entry.styleUrl) : rasterStyle(entry);
+  map.setStyle(nextStyle as string | StyleSpecification);
+  afterStyle();
 }
