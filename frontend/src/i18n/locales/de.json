@@ -1910,6 +1910,18 @@
     "other": "{count} Kanäle zu deinen überwachten Kanälen hinzufügen? Ihr Verkehr wird überwachbar."
   },
   "channel_registry_add_to_channels_confirm_button": "Hinzufügen ({count})",
+  "channel_registry_delete_selected_button": "Löschen ({count})",
+  "channel_registry_delete_selected_title": "{count} ausgewählte Kanäle aus dem Register löschen",
+  "channel_registry_delete_confirm_title": "Kanäle aus dem Register entfernen",
+  "channel_registry_delete_confirm_description": {
+    "one": "{count} Kanal aus dem Register entfernen? Kanäle, die die App aktiv dekodiert, sind nicht betroffen.",
+    "other": "{count} Kanäle aus dem Register entfernen? Kanäle, die die App aktiv dekodiert, sind nicht betroffen."
+  },
+  "channel_registry_delete_confirm_button": "Löschen ({count})",
+  "channel_registry_delete_result": {
+    "one": "{count} Kanal aus dem Register entfernt.",
+    "other": "{count} Kanäle aus dem Register entfernt."
+  },
   "channel_registry_add_button": "Hinzufügen",
   "channel_registry_import_result": "Importiert: {added} neu, {updated} aktualisiert.",
   "channel_registry_import_invalid_json": "Import fehlgeschlagen: ungültiges JSON.",
