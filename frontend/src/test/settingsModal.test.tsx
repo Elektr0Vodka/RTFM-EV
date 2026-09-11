@@ -562,6 +562,39 @@ describe('SettingsModal', () => {
     expect(screen.getByText('iPhone')).toBeInTheDocument();
   });
 
+  it('renders the Handy Info section above About', () => {
+    renderModal({ mobile: true });
+
+    const handyToggle = screen.getByRole('button', { name: /Handy Info/i });
+    const aboutToggle = screen.getByRole('button', { name: /^About$/i });
+
+    // Both section toggles exist, and Handy Info comes before About in the DOM.
+    expect(handyToggle).toBeInTheDocument();
+    expect(aboutToggle).toBeInTheDocument();
+    expect(
+      handyToggle.compareDocumentPosition(aboutToggle) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it('applies an analyzer preset from the Handy Info section', async () => {
+    const { onSaveAppSettings } = renderModal({ mobile: true });
+
+    fireEvent.click(screen.getByRole('button', { name: /Handy Info/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Apply Cornmeister' }));
+
+    await waitFor(() => {
+      expect(onSaveAppSettings).toHaveBeenCalledWith({
+        analyzer_sites: [
+          {
+            name: 'Cornmeister',
+            node_url_template: 'https://cornmeister.nl/#node?id={pubkey}',
+            packet_url_template: null,
+          },
+        ],
+      });
+    });
+  });
+
   it('reverts checkbox state when auto-persist fails on the database section', async () => {
     // Auto-persist replaced the old "Save Settings" button on this section.
     // The risk is now: a toggle gets applied optimistically, the PATCH fails,
