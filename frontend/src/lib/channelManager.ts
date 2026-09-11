@@ -72,6 +72,19 @@ export function saveRegistry(entries: RegistryChannel[]): void {
 }
 
 /**
+ * Channel names from the registry that can be added to the app's channel list
+ * via the bulk-hashtag creation path. The registry stores names only (no keys),
+ * so a key is derived server-side as SHA256(name); that only makes sense for
+ * hashtag channels. Private-flagged entries and non-hashtag entries (e.g. a
+ * radio-seeded "Public" channel) are excluded. Order is preserved.
+ */
+export function addableRegistryChannelNames(entries: RegistryChannel[]): string[] {
+  return entries
+    .filter((e) => !e.private && e.channel.startsWith('#'))
+    .map((e) => e.channel);
+}
+
+/**
  * Called when the channel finder discovers a channel.
  * If new: creates entry with firstSeen = lastHeard = now, packets = 1.
  * If existing: updates lastHeard = now, increments packets.

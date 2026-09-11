@@ -6,6 +6,7 @@ import {
   Download,
   Edit2,
   Hash,
+  ListPlus,
   Loader2,
   Lock,
   Plus,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 
 import {
+  addableRegistryChannelNames,
   addManualChannel,
   addMissingFromSync,
   applyChannelStats,
@@ -669,9 +671,11 @@ const COL_TEMPLATE = '28px 1fr 130px 90px 80px 90px 80px 80px 60px 44px 52px';
 export default function ChannelRegistryView({
   channels,
   channelStats,
+  onAddToChannels,
 }: {
   channels?: Channel[];
   channelStats?: Record<string, ChannelBulkStats>;
+  onAddToChannels?: (channelNames: string[]) => Promise<void>;
 }) {
   const t = useT();
   const [registry, setRegistry] = useState<RegistryChannel[]>(() => {
@@ -930,6 +934,21 @@ export default function ChannelRegistryView({
     );
   }
 
+  async function handleAddToChannels() {
+    if (!onAddToChannels) return;
+    const base = selection.size > 0 ? registry.filter((e) => selection.has(e.channel)) : sorted;
+    const names = addableRegistryChannelNames(base);
+    if (names.length === 0) {
+      showToast(t('channel_registry_add_to_channels_none'), 'info');
+      return;
+    }
+    try {
+      await onAddToChannels(names);
+    } catch {
+      showToast(t('channel_registry_add_to_channels_error'), 'err');
+    }
+  }
+
   function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1048,6 +1067,27 @@ export default function ChannelRegistryView({
               ? t('channel_registry_export_a_button_selected', { count: selection.size })
               : t('channel_registry_export_a_button')}
           </Button>
+          {onAddToChannels && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs px-2"
+              onClick={() => void handleAddToChannels()}
+              disabled={registry.length === 0}
+              title={
+                selection.size > 0
+                  ? t('channel_registry_add_to_channels_title_selected', { count: selection.size })
+                  : sorted.length < registry.length
+                    ? t('channel_registry_add_to_channels_title_filtered', { count: sorted.length })
+                    : t('channel_registry_add_to_channels_title_all')
+              }
+            >
+              <ListPlus className="h-3.5 w-3.5 mr-1" />
+              {selection.size > 0
+                ? t('channel_registry_add_to_channels_button_selected', { count: selection.size })
+                : t('channel_registry_add_to_channels_button')}
+            </Button>
+          )}
           <Button
             size="sm"
             className="h-7 text-xs px-2"
