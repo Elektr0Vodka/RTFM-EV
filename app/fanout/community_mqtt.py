@@ -361,7 +361,12 @@ class CommunityMqttPublisher(BaseMqttPublisher):
             kwargs["username"] = f"v1_{pubkey_hex}"
             kwargs["password"] = jwt_token
         elif auth_mode == "password":
-            kwargs["username"] = s.community_mqtt_username or None
+            username = s.community_mqtt_username or None
+            if username == "{pubkey}":
+                # MeshCore presets (e.g. mesh-chaun14) use the radio public key
+                # hex as the MQTT username; firmware sends its _device_id here.
+                username = public_key.hex()
+            kwargs["username"] = username
             kwargs["password"] = s.community_mqtt_password or None
         if transport == "websockets":
             kwargs["websocket_path"] = (s.community_mqtt_websocket_path or "").strip() or "/"

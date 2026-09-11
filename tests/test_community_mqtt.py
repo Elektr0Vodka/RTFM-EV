@@ -926,6 +926,33 @@ class TestLwtAndStatusPublish:
         assert "username" not in kwargs
         assert "password" not in kwargs
 
+    def test_build_client_kwargs_substitutes_pubkey_username(self):
+        """A password preset with the {pubkey} sentinel username (mesh-chaun14)
+        should send the radio public key hex, never the literal placeholder."""
+        pub = CommunityMqttPublisher()
+        _, public_key = _make_test_keys()
+        settings = _make_community_settings(
+            community_mqtt_broker_host="mqtt.mesh.chaun14.fr",
+            community_mqtt_broker_port=1884,
+            community_mqtt_transport="tcp",
+            community_mqtt_use_tls=False,
+            community_mqtt_auth_mode="password",
+            community_mqtt_username="{pubkey}",
+            community_mqtt_password="",
+            community_mqtt_iata="CDG",
+        )
+
+        with (
+            patch("app.keystore.get_private_key", return_value=None),
+            patch("app.keystore.get_public_key", return_value=public_key),
+            patch("app.radio.radio_manager") as mock_radio,
+        ):
+            mock_radio.meshcore = None
+            kwargs = pub._build_client_kwargs(settings)
+
+        assert kwargs["username"] == public_key.hex()
+        assert kwargs["username"] != "{pubkey}"
+
     @pytest.mark.asyncio
     async def test_on_connected_async_publishes_online_status(self):
         """_on_connected_async should publish a retained online status with enriched fields."""
