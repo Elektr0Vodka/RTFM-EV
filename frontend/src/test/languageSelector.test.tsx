@@ -10,7 +10,7 @@ describe('LanguageSelector', () => {
     render(
       <I18nProvider>
         <LanguageSelector />
-      </I18nProvider>,
+      </I18nProvider>
     );
     const en = screen.getByRole('radio', { name: /English/ }) as HTMLInputElement;
     const nl = screen.getByRole('radio', { name: /Nederlands/ }) as HTMLInputElement;

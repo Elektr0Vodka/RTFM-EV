@@ -13,11 +13,31 @@ interface AnalyzerPreset {
 // Node URL schemes verified against docs/sources-of-truth.md and the
 // EU-Meshcore-Analyzer source (web/index.html: per-node route #node?id=<pubkey>).
 const ANALYZERS: AnalyzerPreset[] = [
-  { name: 'Cornmeister', site: 'https://cornmeister.nl', template: 'https://cornmeister.nl/#node?id={pubkey}' },
-  { name: 'MC-Radar', site: 'https://mc-radar.woodwar.com', template: 'https://mc-radar.woodwar.com/node/{pubkey}' },
-  { name: 'meshcore-analyzer.eu', site: 'https://meshcore-analyzer.eu', template: 'https://meshcore-analyzer.eu/#node?id={pubkey}' },
-  { name: 'MeshCoreNetz', site: 'https://analyzer.meshcorenetz.de', template: 'https://analyzer.meshcorenetz.de/#node?id={pubkey}' },
-  { name: 'MeshDresden', site: 'https://analyzer.meshdresden.eu', template: 'https://analyzer.meshdresden.eu/#node?id={pubkey}' },
+  {
+    name: 'Cornmeister',
+    site: 'https://cornmeister.nl',
+    template: 'https://cornmeister.nl/#node?id={pubkey}',
+  },
+  {
+    name: 'MC-Radar',
+    site: 'https://mc-radar.woodwar.com',
+    template: 'https://mc-radar.woodwar.com/node/{pubkey}',
+  },
+  {
+    name: 'meshcore-analyzer.eu',
+    site: 'https://meshcore-analyzer.eu',
+    template: 'https://meshcore-analyzer.eu/#node?id={pubkey}',
+  },
+  {
+    name: 'MeshCoreNetz',
+    site: 'https://analyzer.meshcorenetz.de',
+    template: 'https://analyzer.meshcorenetz.de/#node?id={pubkey}',
+  },
+  {
+    name: 'MeshDresden',
+    site: 'https://analyzer.meshdresden.eu',
+    template: 'https://analyzer.meshdresden.eu/#node?id={pubkey}',
+  },
 ];
 
 type SyncField = 'region_sync_url' | 'registry_sync_url';
@@ -29,8 +49,16 @@ interface SyncSource {
 }
 
 const SYNC_SOURCES: SyncSource[] = [
-  { labelKey: 'settings_handy_sync_region_label', field: 'region_sync_url', url: 'https://meshcore-analyzer.eu/api/regions/scopes' },
-  { labelKey: 'settings_handy_sync_registry_label', field: 'registry_sync_url', url: 'https://meshcore-analyzer.eu/api/channels' },
+  {
+    labelKey: 'settings_handy_sync_region_label',
+    field: 'region_sync_url',
+    url: 'https://meshcore-analyzer.eu/api/regions/scopes',
+  },
+  {
+    labelKey: 'settings_handy_sync_registry_label',
+    field: 'registry_sync_url',
+    url: 'https://meshcore-analyzer.eu/api/channels',
+  },
 ];
 
 interface ReferenceLink {
@@ -39,9 +67,18 @@ interface ReferenceLink {
 }
 
 const REFERENCE_LINKS: ReferenceLink[] = [
-  { labelKey: 'settings_handy_link_dutch_settings_label', url: 'https://settings.dutchmeshcore.nl' },
-  { labelKey: 'settings_handy_link_channel_browser_label', url: 'https://toolbox.dutchmeshcore.nl/#/channel-browser' },
-  { labelKey: 'settings_handy_link_meshwiki_label', url: 'https://meshwiki.nl/wiki/Lijst_van_regio%27s' },
+  {
+    labelKey: 'settings_handy_link_dutch_settings_label',
+    url: 'https://settings.dutchmeshcore.nl',
+  },
+  {
+    labelKey: 'settings_handy_link_channel_browser_label',
+    url: 'https://toolbox.dutchmeshcore.nl/#/channel-browser',
+  },
+  {
+    labelKey: 'settings_handy_link_meshwiki_label',
+    url: 'https://meshwiki.nl/wiki/Lijst_van_regio%27s',
+  },
 ];
 
 export function SettingsHandyInfoSection({

@@ -440,27 +440,30 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
   const [relayPairs, setRelayPairs] = useState<RelayPair[]>([]);
   const [reachability, setReachability] = useState<ReachabilityRing[]>([]);
 
-  const fetchHealth = useCallback((win: TimeWindow) => {
-    const endTs = Math.floor(Date.now() / 1000);
-    const startTs = endTs - win.hours * 3600;
-    lastFetchRef.current = endTs;
-    setLoading(true);
-    setError(null);
-    setNowSec(endTs);
-    fetch(`/api/packets/mesh-health?start_ts=${startTs}&end_ts=${endTs}`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<MeshHealthResponse>;
-      })
-      .then((d) => {
-        setData(d);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : t('mesh_health_error_failed_to_load'));
-        setLoading(false);
-      });
-  }, [t]);
+  const fetchHealth = useCallback(
+    (win: TimeWindow) => {
+      const endTs = Math.floor(Date.now() / 1000);
+      const startTs = endTs - win.hours * 3600;
+      lastFetchRef.current = endTs;
+      setLoading(true);
+      setError(null);
+      setNowSec(endTs);
+      fetch(`/api/packets/mesh-health?start_ts=${startTs}&end_ts=${endTs}`)
+        .then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json() as Promise<MeshHealthResponse>;
+        })
+        .then((d) => {
+          setData(d);
+          setLoading(false);
+        })
+        .catch((err: unknown) => {
+          setError(err instanceof Error ? err.message : t('mesh_health_error_failed_to_load'));
+          setLoading(false);
+        });
+    },
+    [t]
+  );
 
   // Initial fetch and window-change fetch
   useEffect(() => {
@@ -875,7 +878,8 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
                         {t('mesh_health_col_id')}
                       </th>
                       <th className={`${thClass} text-left`} onClick={() => handleSort('name')}>
-                        {t('common_name')} <SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
+                        {t('common_name')}{' '}
+                        <SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
                       </th>
                       <th
                         className={`${thClass} text-right`}

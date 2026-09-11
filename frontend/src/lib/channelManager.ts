@@ -79,9 +79,7 @@ export function saveRegistry(entries: RegistryChannel[]): void {
  * radio-seeded "Public" channel) are excluded. Order is preserved.
  */
 export function addableRegistryChannelNames(entries: RegistryChannel[]): string[] {
-  return entries
-    .filter((e) => !e.private && e.channel.startsWith('#'))
-    .map((e) => e.channel);
+  return entries.filter((e) => !e.private && e.channel.startsWith('#')).map((e) => e.channel);
 }
 
 /**

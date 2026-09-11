@@ -32,7 +32,9 @@ export function RegionsPane({
       {!data ? (
         <NotFetched />
       ) : data.regions.length === 0 ? (
-        <p className="text-sm text-muted-foreground italic">{t('repeater_regions_none_returned')}</p>
+        <p className="text-sm text-muted-foreground italic">
+          {t('repeater_regions_none_returned')}
+        </p>
       ) : (
         <div className="space-y-0.5">
           {data.regions.map((region, index) => (
@@ -62,7 +64,9 @@ export function RegionsPane({
                     : t('repeater_regions_flood_blocked_tooltip')
                 }
               >
-                {region.flood_allowed ? t('repeater_flood_label') : t('repeater_regions_blocked_badge')}
+                {region.flood_allowed
+                  ? t('repeater_flood_label')
+                  : t('repeater_regions_blocked_badge')}
               </span>
             </div>
           ))}

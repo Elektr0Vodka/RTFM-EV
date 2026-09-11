@@ -36,7 +36,6 @@ async def migrate(conn: aiosqlite.Connection) -> None:
         "ON link_signal(subject_pubkey, observed_at)"
     )
     await conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_link_signal_observed_at "
-        "ON link_signal(observed_at)"
+        "CREATE INDEX IF NOT EXISTS idx_link_signal_observed_at ON link_signal(observed_at)"
     )
     await conn.commit()

@@ -21,7 +21,7 @@ describe('I18nProvider', () => {
     render(
       <I18nProvider>
         <Probe />
-      </I18nProvider>,
+      </I18nProvider>
     );
     expect(screen.getByTestId('loc').textContent).toBe('en');
     expect(screen.getByTestId('txt').textContent).toBe('Language');

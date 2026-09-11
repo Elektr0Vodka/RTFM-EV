@@ -233,8 +233,8 @@ export function SettingsRadioAppSection({
         )}
         {schedule?.next_routed_run_at != null && (
           <p className="text-xs text-muted-foreground">
-            {t('settings_radioapp_next_routed_run_at')}{' '}
-            {formatTime(schedule.next_routed_run_at)} {t('settings_radioapp_utc_top_of_hour_suffix')}
+            {t('settings_radioapp_next_routed_run_at')} {formatTime(schedule.next_routed_run_at)}{' '}
+            {t('settings_radioapp_utc_top_of_hour_suffix')}
           </p>
         )}
 
@@ -292,7 +292,9 @@ export function SettingsRadioAppSection({
                   {d ? (
                     <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[0.625rem] text-muted-foreground">
                       <span>{d.battery_volts?.toFixed(2)}V</span>
-                      <span>{t('settings_radioapp_noise_dbm', { value: d.noise_floor_dbm ?? '' })}</span>
+                      <span>
+                        {t('settings_radioapp_noise_dbm', { value: d.noise_floor_dbm ?? '' })}
+                      </span>
                       <span>
                         {t('settings_radioapp_rx_count', {
                           value:
@@ -500,7 +502,9 @@ export function SettingsRadioAppSection({
         </div>
 
         <div className="space-y-3">
-          <h4 className="text-sm font-semibold">{t('settings_radioapp_blocked_contacts_heading')}</h4>
+          <h4 className="text-sm font-semibold">
+            {t('settings_radioapp_blocked_contacts_heading')}
+          </h4>
           <p className="text-[0.8125rem] text-muted-foreground">
             {t('settings_radioapp_blocked_contacts_desc')}
           </p>

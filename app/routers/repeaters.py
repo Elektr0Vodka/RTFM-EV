@@ -308,9 +308,7 @@ async def repeater_neighbor_history(
     grouped: dict[str, list[RepeaterSignalSample]] = {}
     for r in rep_rows:
         grouped.setdefault(r["subject_pubkey"], []).append(
-            RepeaterSignalSample(
-                observed_at=r["observed_at"], snr=r["snr"], secs_ago=r["secs_ago"]
-            )
+            RepeaterSignalSample(observed_at=r["observed_at"], snr=r["snr"], secs_ago=r["secs_ago"])
         )
 
     prefixes = list(grouped.keys())

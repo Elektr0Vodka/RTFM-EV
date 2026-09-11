@@ -1193,8 +1193,7 @@ function MqttHaConfigEditor({
         </div>
 
         <p className="text-[0.8125rem] text-muted-foreground">
-          {t('settings_fanout_ha_uses_prefix')}{' '}
-          {/* eslint-disable i18next/no-literal-string */}
+          {t('settings_fanout_ha_uses_prefix')} {/* eslint-disable i18next/no-literal-string */}
           <span
             role="link"
             tabIndex={0}
@@ -1236,8 +1235,7 @@ function MqttHaConfigEditor({
           >
             README_HA.md
           </span>
-          {/* eslint-enable i18next/no-literal-string */}
-          .
+          {/* eslint-enable i18next/no-literal-string */}.
         </p>
       </div>
 
@@ -1779,8 +1777,7 @@ function MqttCommunityConfigEditor({
           <p className="text-[0.8125rem] text-muted-foreground">
             {t('settings_fanout_auth_hint_letsmesh')}{' '}
             {/* eslint-disable-next-line i18next/no-literal-string */}
-            <code>token</code>{' '}
-            {t('settings_fanout_auth_hint_meshrank')}{' '}
+            <code>token</code> {t('settings_fanout_auth_hint_meshrank')}{' '}
             {/* eslint-disable-next-line i18next/no-literal-string */}
             <code>none</code>.
           </p>
@@ -1802,8 +1799,7 @@ function MqttCommunityConfigEditor({
               {t('settings_fanout_websocket_path_hint_prefix')} <code>/</code>{' '}
               {t('settings_fanout_websocket_path_hint_middle')}{' '}
               {/* eslint-disable-next-line i18next/no-literal-string */}
-              <code>/mqtt</code>{' '}
-              {t('settings_fanout_websocket_path_hint_suffix')}
+              <code>/mqtt</code> {t('settings_fanout_websocket_path_hint_suffix')}
             </p>
           </div>
         </div>
@@ -1899,9 +1895,7 @@ function MqttCommunityConfigEditor({
           onChange={(e) => onChange({ ...config, iata: e.target.value.toUpperCase() })}
           className="w-32"
         />
-        <p className="text-[0.8125rem] text-muted-foreground">
-          {t('settings_fanout_iata_hint')}
-        </p>
+        <p className="text-[0.8125rem] text-muted-foreground">{t('settings_fanout_iata_hint')}</p>
       </div>
 
       <div className="space-y-2">
@@ -1944,12 +1938,10 @@ function MeshRankConfigEditor({
 
       <div className="rounded-md border border-input bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
         {t('settings_fanout_meshrank_summary_prefix')} <code>{DEFAULT_MESHRANK_BROKER_HOST}</code>{' '}
-        {t('settings_fanout_meshrank_summary_on_port')}{' '}
-        <code>{DEFAULT_MESHRANK_BROKER_PORT}</code> {t('settings_fanout_meshrank_summary_via')}{' '}
-        <code>{DEFAULT_MESHRANK_TRANSPORT}</code>,{' '}
+        {t('settings_fanout_meshrank_summary_on_port')} <code>{DEFAULT_MESHRANK_BROKER_PORT}</code>{' '}
+        {t('settings_fanout_meshrank_summary_via')} <code>{DEFAULT_MESHRANK_TRANSPORT}</code>,{' '}
         {t('settings_fanout_meshrank_summary_auth')} <code>{DEFAULT_MESHRANK_AUTH_MODE}</code>
-        {t('settings_fanout_meshrank_summary_tail')}{' '}
-        <code>{DEFAULT_MESHRANK_IATA}</code>.
+        {t('settings_fanout_meshrank_summary_tail')} <code>{DEFAULT_MESHRANK_IATA}</code>.
       </div>
 
       <div className="space-y-2">
@@ -1997,9 +1989,8 @@ function LetsMeshConfigEditor({
 
       <div className="rounded-md border border-input bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
         {t('settings_fanout_meshrank_summary_prefix')} <code>{brokerHost}</code>{' '}
-        {t('settings_fanout_meshrank_summary_on_port')}{' '}
-        <code>{DEFAULT_COMMUNITY_BROKER_PORT}</code> {t('settings_fanout_meshrank_summary_via')}{' '}
-        <code>{DEFAULT_COMMUNITY_TRANSPORT}</code>,{' '}
+        {t('settings_fanout_meshrank_summary_on_port')} <code>{DEFAULT_COMMUNITY_BROKER_PORT}</code>{' '}
+        {t('settings_fanout_meshrank_summary_via')} <code>{DEFAULT_COMMUNITY_TRANSPORT}</code>,{' '}
         {t('settings_fanout_meshrank_summary_auth')} <code>{DEFAULT_COMMUNITY_AUTH_MODE}</code>,{' '}
         {t('settings_fanout_letsmesh_summary_tail')} <code>{brokerHost}</code>.
       </div>
@@ -2018,7 +2009,9 @@ function LetsMeshConfigEditor({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="fanout-letsmesh-iata">{t('settings_fanout_region_code_iata_label')}</Label>
+          <Label htmlFor="fanout-letsmesh-iata">
+            {t('settings_fanout_region_code_iata_label')}
+          </Label>
           <Input
             id="fanout-letsmesh-iata"
             type="text"
@@ -2108,14 +2101,14 @@ function BotConfigEditor({
           {t('settings_fanout_bot_available_desc')}
         </p>
         <p>
-          <strong>{t('settings_fanout_bot_limits_label')}</strong> {t('settings_fanout_bot_limits_desc')}
+          <strong>{t('settings_fanout_bot_limits_label')}</strong>{' '}
+          {t('settings_fanout_bot_limits_desc')}
         </p>
         <p>
           <strong>{t('settings_fanout_bot_note_label')}</strong>{' '}
           {t('settings_fanout_bot_note_prefix')}{' '}
           {/* eslint-disable-next-line i18next/no-literal-string */}
-          <code>sender_key</code>{' '}
-          {t('settings_fanout_bot_note_is')}{' '}
+          <code>sender_key</code> {t('settings_fanout_bot_note_is')}{' '}
           {/* eslint-disable-next-line i18next/no-literal-string */}
           <code>None</code>. {t('settings_fanout_bot_note_suffix')}
         </p>
@@ -2165,8 +2158,8 @@ function MapUploadConfigEditor({
         >
           map.meshcore.io
         </a>
-        {/* eslint-enable i18next/no-literal-string */}
-        . {t('settings_fanout_map_upload_desc_key_prefix')}{' '}
+        {/* eslint-enable i18next/no-literal-string */}.{' '}
+        {t('settings_fanout_map_upload_desc_key_prefix')}{' '}
         {/* eslint-disable-next-line i18next/no-literal-string */}
         <code>ENABLE_PRIVATE_KEY_EXPORT=1</code>
         {t('settings_fanout_map_upload_desc_suffix')}
@@ -2212,8 +2205,7 @@ function MapUploadConfigEditor({
         <p className="text-[0.8125rem] text-muted-foreground">
           {t('settings_fanout_map_api_url_hint_prefix')}{' '}
           {/* eslint-disable-next-line i18next/no-literal-string */}
-          <code>map.meshcore.io</code>{' '}
-          {t('settings_fanout_map_api_url_hint_suffix')}
+          <code>map.meshcore.io</code> {t('settings_fanout_map_api_url_hint_suffix')}
         </p>
       </div>
 
@@ -2227,7 +2219,9 @@ function MapUploadConfigEditor({
           className="h-4 w-4 rounded border-border"
         />
         <div>
-          <span className="text-sm font-medium">{t('settings_fanout_map_enable_geofence_label')}</span>
+          <span className="text-sm font-medium">
+            {t('settings_fanout_map_enable_geofence_label')}
+          </span>
           <p className="text-[0.8125rem] text-muted-foreground">
             {t('settings_fanout_map_enable_geofence_desc')}
           </p>
@@ -2252,7 +2246,9 @@ function MapUploadConfigEditor({
             </p>
           )}
           <div className="space-y-2">
-            <Label htmlFor="fanout-map-geofence-radius">{t('settings_fanout_map_radius_km_label')}</Label>
+            <Label htmlFor="fanout-map-geofence-radius">
+              {t('settings_fanout_map_radius_km_label')}
+            </Label>
             <Input
               id="fanout-map-geofence-radius"
               type="number"
@@ -2573,9 +2569,7 @@ function ScopeSelector({
   const showEmptyScopeWarning = messagesEffectivelyNone && !rawEnabled;
 
   const listHint =
-    mode === 'only'
-      ? t('settings_fanout_scope_hint_only')
-      : t('settings_fanout_scope_hint_except');
+    mode === 'only' ? t('settings_fanout_scope_hint_only') : t('settings_fanout_scope_hint_except');
 
   const checkboxLabel =
     mode === 'except'
@@ -2783,7 +2777,9 @@ function AppriseFormatPreview({
       )}
       <div>
         <span className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
-          {markdown ? t('settings_fanout_apprise_raw_label') : t('settings_fanout_apprise_preview_label')}
+          {markdown
+            ? t('settings_fanout_apprise_raw_label')
+            : t('settings_fanout_apprise_preview_label')}
         </span>
         <p className="text-xs font-mono break-all text-muted-foreground">{raw}</p>
       </div>
@@ -2818,8 +2814,7 @@ function AppriseConfigEditor({
   return (
     <div className="space-y-3">
       <p className="text-[0.8125rem] text-muted-foreground">
-        {t('settings_fanout_apprise_intro_prefix')}{' '}
-        {/* eslint-disable i18next/no-literal-string */}
+        {t('settings_fanout_apprise_intro_prefix')} {/* eslint-disable i18next/no-literal-string */}
         <a
           href="https://github.com/caronc/apprise"
           target="_blank"
@@ -2828,8 +2823,7 @@ function AppriseConfigEditor({
         >
           Apprise
         </a>
-        {/* eslint-enable i18next/no-literal-string */}{' '}
-        {t('settings_fanout_apprise_intro_middle')}{' '}
+        {/* eslint-enable i18next/no-literal-string */} {t('settings_fanout_apprise_intro_middle')}{' '}
         <a
           href="https://github.com/caronc/apprise/wiki#supported-notifications"
           target="_blank"
@@ -2842,7 +2836,9 @@ function AppriseConfigEditor({
       </p>
 
       <div className="space-y-2">
-        <Label htmlFor="fanout-apprise-urls">{t('settings_fanout_apprise_notification_urls_label')}</Label>
+        <Label htmlFor="fanout-apprise-urls">
+          {t('settings_fanout_apprise_notification_urls_label')}
+        </Label>
         <textarea
           id="fanout-apprise-urls"
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono min-h-[80px]"
@@ -2856,8 +2852,7 @@ function AppriseConfigEditor({
         <p className="text-[0.8125rem] text-muted-foreground">
           {t('settings_fanout_apprise_urls_hint_prefix')}{' '}
           {/* eslint-disable-next-line i18next/no-literal-string */}
-          <code>?hsreq=no</code>{' '}
-          {t('settings_fanout_apprise_urls_hint_suffix')}
+          <code>?hsreq=no</code> {t('settings_fanout_apprise_urls_hint_suffix')}
         </p>
       </div>
 
@@ -2991,7 +2986,9 @@ function AppriseConfigEditor({
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label htmlFor="fanout-apprise-fmt-dm">{t('settings_fanout_apprise_dm_format_label')}</Label>
+          <Label htmlFor="fanout-apprise-fmt-dm">
+            {t('settings_fanout_apprise_dm_format_label')}
+          </Label>
           {!appriseIsDefault(config.body_format_dm, defaultDm) && (
             <button
               type="button"
@@ -3081,9 +3078,7 @@ function WebhookConfigEditor({
 
   return (
     <div className="space-y-3">
-      <p className="text-[0.8125rem] text-muted-foreground">
-        {t('settings_fanout_webhook_desc')}
-      </p>
+      <p className="text-[0.8125rem] text-muted-foreground">{t('settings_fanout_webhook_desc')}</p>
 
       <div className="space-y-2">
         <Label htmlFor="fanout-webhook-url">{t('settings_fanout_url_label')}</Label>
@@ -3126,7 +3121,9 @@ function WebhookConfigEditor({
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="fanout-webhook-hmac-secret">{t('settings_fanout_hmac_secret_label')}</Label>
+            <Label htmlFor="fanout-webhook-hmac-secret">
+              {t('settings_fanout_hmac_secret_label')}
+            </Label>
             <Input
               id="fanout-webhook-hmac-secret"
               type="password"
@@ -3153,7 +3150,9 @@ function WebhookConfigEditor({
       <Separator />
 
       <div className="space-y-2">
-        <Label htmlFor="fanout-webhook-headers">{t('settings_fanout_extra_headers_json_label')}</Label>
+        <Label htmlFor="fanout-webhook-headers">
+          {t('settings_fanout_extra_headers_json_label')}
+        </Label>
         <textarea
           id="fanout-webhook-headers"
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono min-h-[60px]"
@@ -3185,9 +3184,7 @@ function SqsConfigEditor({
   const t = useT();
   return (
     <div className="space-y-3">
-      <p className="text-[0.8125rem] text-muted-foreground">
-        {t('settings_fanout_sqs_desc')}
-      </p>
+      <p className="text-[0.8125rem] text-muted-foreground">{t('settings_fanout_sqs_desc')}</p>
 
       <div className="rounded-md border border-warning/50 bg-warning/10 px-3 py-2 text-xs text-warning">
         {t('settings_fanout_sqs_plaintext_warning')}
@@ -3243,7 +3240,9 @@ function SqsConfigEditor({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="fanout-sqs-access-key">{t('settings_fanout_sqs_access_key_id_label')}</Label>
+          <Label htmlFor="fanout-sqs-access-key">
+            {t('settings_fanout_sqs_access_key_id_label')}
+          </Label>
           <Input
             id="fanout-sqs-access-key"
             type="text"
@@ -3807,7 +3806,9 @@ export function SettingsFanoutSection({
                                   handleCancelInlineEdit();
                                 }
                               }}
-                              aria-label={t('settings_fanout_edit_name_for_aria', { name: cfg.name })}
+                              aria-label={t('settings_fanout_edit_name_for_aria', {
+                                name: cfg.name,
+                              })}
                               className="h-8"
                             />
                           ) : (

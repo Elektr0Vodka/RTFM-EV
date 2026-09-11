@@ -42,9 +42,7 @@ export function BulkAddChannelResultModal({
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>{t('channel_bulk_add_complete')}</DialogTitle>
-          <DialogDescription>
-            {result?.message ?? t('channel_bulk_review_rooms')}
-          </DialogDescription>
+          <DialogDescription>{result?.message ?? t('channel_bulk_review_rooms')}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">

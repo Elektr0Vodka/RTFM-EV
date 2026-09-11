@@ -25,9 +25,7 @@ class TestMigration064:
             assert applied == LATEST_SCHEMA_VERSION - 63
             assert await get_version(conn) == LATEST_SCHEMA_VERSION
 
-            cursor = await conn.execute(
-                "SELECT show_mention_ticker FROM app_settings WHERE id = 1"
-            )
+            cursor = await conn.execute("SELECT show_mention_ticker FROM app_settings WHERE id = 1")
             row = await cursor.fetchone()
             # Existing rows default to enabled (NOT NULL DEFAULT 1).
             assert row["show_mention_ticker"] == 1

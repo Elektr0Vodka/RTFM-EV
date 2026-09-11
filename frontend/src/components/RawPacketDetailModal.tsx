@@ -245,7 +245,9 @@ function getPacketContext(
       return null;
     }
     return {
-      title: fallbackChannel ? t('packet_context_title_channel') : t('packet_context_title_context'),
+      title: fallbackChannel
+        ? t('packet_context_title_channel')
+        : t('packet_context_title_context'),
       primary: fallbackChannel ?? t('packet_sender_metadata_available'),
       secondary: fallbackSender ? t('packet_sender_prefix', { sender: fallbackSender }) : null,
     };
@@ -498,7 +500,9 @@ function FieldBox({
       {field.decryptedMessage ? (
         <div className="mt-2 rounded border border-border/50 bg-background/40 p-2">
           <div className="text-[0.625rem] uppercase tracking-wider text-muted-foreground">
-            {field.name === 'Ciphertext' ? t('packet_plaintext_label') : t('packet_decoded_value_label')}
+            {field.name === 'Ciphertext'
+              ? t('packet_plaintext_label')
+              : t('packet_decoded_value_label')}
           </div>
           <PlaintextContent text={field.decryptedMessage} />
         </div>
@@ -742,7 +746,9 @@ export function RawPacketInspectionPanel({
 
       <div className="mt-3 rounded-lg border border-border/70 bg-card/70 p-3">
         <div className="flex items-center justify-between gap-3">
-          <div className="text-xl font-semibold text-foreground">{t('packet_full_hex_heading')}</div>
+          <div className="text-xl font-semibold text-foreground">
+            {t('packet_full_hex_heading')}
+          </div>
           <Button
             type="button"
             variant="outline"

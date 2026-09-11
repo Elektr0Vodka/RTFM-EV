@@ -81,9 +81,7 @@ export function TelemetryPane({
                   tx: data.packets_sent.toLocaleString(),
                 })}
                 {rxPerMin && txPerMin && (
-                  <Secondary>
-                    {t('repeater_packets_avg_rx_tx', { rxPerMin, txPerMin })}
-                  </Secondary>
+                  <Secondary>{t('repeater_packets_avg_rx_tx', { rxPerMin, txPerMin })}</Secondary>
                 )}
               </>
             }

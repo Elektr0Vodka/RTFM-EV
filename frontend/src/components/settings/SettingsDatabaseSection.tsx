@@ -76,7 +76,9 @@ export function SettingsDatabaseSection({
     try {
       const result = await api.runMaintenance({ pruneUndecryptedDays: days });
       toast.success(t('settings_db_toast_cleanup_complete_title'), {
-        description: t('settings_db_toast_cleanup_complete_desc', { count: result.packets_deleted }),
+        description: t('settings_db_toast_cleanup_complete_desc', {
+          count: result.packets_deleted,
+        }),
       });
       await onHealthRefresh();
     } catch (err) {
@@ -207,7 +209,9 @@ export function SettingsDatabaseSection({
     <div className={className}>
       {/* ── Database Overview ── */}
       <div className="space-y-3">
-        <h3 className="text-base font-semibold tracking-tight">{t('settings_db_overview_heading')}</h3>
+        <h3 className="text-base font-semibold tracking-tight">
+          {t('settings_db_overview_heading')}
+        </h3>
         <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2">
           <div className="flex justify-between items-center">
             <span className="text-sm">{t('settings_db_size_label')}</span>
@@ -237,7 +241,9 @@ export function SettingsDatabaseSection({
 
       {/* ── Storage Cleanup ── */}
       <div className="space-y-4">
-        <h3 className="text-base font-semibold tracking-tight">{t('settings_db_cleanup_heading')}</h3>
+        <h3 className="text-base font-semibold tracking-tight">
+          {t('settings_db_cleanup_heading')}
+        </h3>
 
         <div className="rounded-md border border-border p-3 space-y-2">
           <h3 className="text-sm font-semibold">{t('settings_db_delete_undecrypted_heading')}</h3>
@@ -281,7 +287,9 @@ export function SettingsDatabaseSection({
             disabled={purgingDecryptedRaw}
             className="w-full border-warning/50 text-warning hover:bg-warning/10"
           >
-            {purgingDecryptedRaw ? t('settings_db_purging') : t('settings_db_purge_archival_button')}
+            {purgingDecryptedRaw
+              ? t('settings_db_purging')
+              : t('settings_db_purge_archival_button')}
           </Button>
         </div>
       </div>
@@ -290,7 +298,9 @@ export function SettingsDatabaseSection({
 
       {/* ── DM Decryption ── */}
       <div className="space-y-3">
-        <h3 className="text-base font-semibold tracking-tight">{t('settings_db_dm_decryption_heading')}</h3>
+        <h3 className="text-base font-semibold tracking-tight">
+          {t('settings_db_dm_decryption_heading')}
+        </h3>
         <label className="flex items-center gap-3 cursor-pointer">
           <input
             type="checkbox"
@@ -316,7 +326,9 @@ export function SettingsDatabaseSection({
 
       {/* Channel Registry */}
       <div className="space-y-3">
-        <h3 className="text-base font-semibold tracking-tight">{t('settings_db_registry_heading')}</h3>
+        <h3 className="text-base font-semibold tracking-tight">
+          {t('settings_db_registry_heading')}
+        </h3>
         <div className="space-y-1.5">
           <Label htmlFor="registry-sync-url" className="text-sm font-medium">
             {t('settings_db_registry_url_label')}
@@ -358,7 +370,9 @@ export function SettingsDatabaseSection({
             onClick={handleSyncWordlist}
             disabled={wordlistSyncing || !wordlistSyncUrl.trim()}
           >
-            {wordlistSyncing ? t('settings_db_wordlist_syncing') : t('settings_db_wordlist_sync_button')}
+            {wordlistSyncing
+              ? t('settings_db_wordlist_syncing')
+              : t('settings_db_wordlist_sync_button')}
           </Button>
         </div>
         <div className="space-y-1.5">
@@ -397,13 +411,11 @@ export function SettingsDatabaseSection({
           {t('settings_db_analyzer_heading')}
         </h3>
         <p className="text-[0.8125rem] text-muted-foreground">
-          {t('settings_db_analyzer_desc_prefix')}{' '}
-          <code className="text-xs">{'{pubkey}'}</code> {t('settings_db_analyzer_desc_mid')}{' '}
-          <code className="text-xs">{'{hash}'}</code> {t('settings_db_analyzer_desc_suffix')}
+          {t('settings_db_analyzer_desc_prefix')} <code className="text-xs">{'{pubkey}'}</code>{' '}
+          {t('settings_db_analyzer_desc_mid')} <code className="text-xs">{'{hash}'}</code>{' '}
+          {t('settings_db_analyzer_desc_suffix')}
         </p>
-        <p className="text-[0.8125rem] text-warning">
-          {t('settings_db_analyzer_privacy')}
-        </p>
+        <p className="text-[0.8125rem] text-warning">{t('settings_db_analyzer_privacy')}</p>
 
         {analyzerSites.length > 0 ? (
           <ul className="space-y-2">

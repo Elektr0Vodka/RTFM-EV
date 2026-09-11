@@ -18,9 +18,7 @@ export function LanguageSelector() {
           key={l}
           className={
             'flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer border transition-colors focus-within:ring-2 focus-within:ring-ring md:w-full ' +
-            (locale === l
-              ? 'border-primary bg-primary/5'
-              : 'border-transparent hover:bg-accent/50')
+            (locale === l ? 'border-primary bg-primary/5' : 'border-transparent hover:bg-accent/50')
           }
         >
           <input

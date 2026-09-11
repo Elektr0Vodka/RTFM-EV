@@ -92,7 +92,10 @@ export function ChannelFloodScopeOverrideModal({
               }}
             >
               {trimmedRegion.length > 0
-                ? t('region_override_scope_to_region_button', { room: roomName, region: trimmedRegion })
+                ? t('region_override_scope_to_region_button', {
+                    room: roomName,
+                    region: trimmedRegion,
+                  })
                 : t('region_override_scope_to_region_button_empty', { room: roomName })}
             </Button>
             <Button

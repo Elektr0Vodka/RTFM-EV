@@ -69,9 +69,7 @@ class TestLinkSignalRepository:
         await LinkSignalRepository.record_traffic_sample(
             SELF, full, snr=4.5, rssi=-80, observed_at=1700000000
         )
-        rows = await LinkSignalRepository.get_traffic_history_for_subjects(
-            ["11223344"], since=0
-        )
+        rows = await LinkSignalRepository.get_traffic_history_for_subjects(["11223344"], since=0)
         assert len(rows) == 1
         assert rows[0]["snr"] == 4.5
         assert rows[0]["rssi"] == -80
@@ -92,7 +90,8 @@ class TestLinkSignalRepository:
             REP, [{"pubkey": "11223344", "snr": 1.0, "secs_ago": 1}], observed_at=now
         )
         await LinkSignalRepository.record_repeater_samples(
-            REP, [{"pubkey": "55667788", "snr": 1.0, "secs_ago": 1}],
+            REP,
+            [{"pubkey": "55667788", "snr": 1.0, "secs_ago": 1}],
             observed_at=now - 40 * 86400,
         )
         deleted = await LinkSignalRepository.prune(older_than_days=30)
@@ -124,9 +123,7 @@ class TestCaptureSiteEndpoint:
 
         with (
             patch.object(repeaters.radio_manager, "require_connected", MagicMock()),
-            patch.object(
-                repeaters.radio_manager, "radio_operation", MagicMock(return_value=_Op())
-            ),
+            patch.object(repeaters.radio_manager, "radio_operation", MagicMock(return_value=_Op())),
             patch.object(
                 repeaters,
                 "_resolve_contact_or_404",
@@ -156,7 +153,8 @@ class TestHistoryEndpoint:
         now = int(time.time())
 
         await LSR.record_repeater_samples(
-            rep_key, [{"pubkey": "11223344", "snr": 5.0, "secs_ago": 10}],
+            rep_key,
+            [{"pubkey": "11223344", "snr": 5.0, "secs_ago": 10}],
             observed_at=now - 120,
         )
         await LSR.record_traffic_sample(
@@ -220,7 +218,10 @@ class TestCaptureSiteTraffic:
 
         subject = "12" * 32
         await pp._maybe_record_traffic_signal(
-            subject_pubkey=subject, path_length=0, rssi=-70, snr=8.0,
+            subject_pubkey=subject,
+            path_length=0,
+            rssi=-70,
+            snr=8.0,
             timestamp=int(time.time()),
         )
         rows = await LSR.get_traffic_history_for_subjects([subject[:8]], since=0)

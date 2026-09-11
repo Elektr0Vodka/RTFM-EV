@@ -427,17 +427,13 @@ class TestBulkDeleteChannels:
         await ChannelRepository.upsert(key=alpha, name="#alpha", is_hashtag=True)
 
         with patch("app.routers.channels.broadcast_event") as mock_broadcast:
-            response = await client.post(
-                "/api/channels/bulk-delete", json={"keys": [alpha]}
-            )
+            response = await client.post("/api/channels/bulk-delete", json={"keys": [alpha]})
 
         assert response.status_code == 200
         mock_broadcast.assert_any_call("channel_deleted", {"key": alpha})
 
     @pytest.mark.asyncio
     async def test_missing_keys_are_ignored(self, test_db, client):
-        response = await client.post(
-            "/api/channels/bulk-delete", json={"keys": ["CC" * 16]}
-        )
+        response = await client.post("/api/channels/bulk-delete", json={"keys": ["CC" * 16]})
         assert response.status_code == 200
         assert response.json()["deleted"] == 0
