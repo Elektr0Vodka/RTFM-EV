@@ -15,6 +15,8 @@ import { useRawPackets } from '../stores/rawPacketStore';
 import { useIsDarkTheme } from '../hooks/useIsDarkTheme';
 import { useT } from '../i18n';
 import { MapSurface } from '../map/MapSurface';
+import { setMapLock2D } from '../map/engine/mapLock2D';
+import { setBuildings3D } from '../map/engine/buildings3D';
 import { createNodesLayer } from '../map/layers/nodesLayer';
 import { createParticleOverlay, type MapParticle } from '../map/layers/particleOverlay';
 import type { ExtraFab } from '../map/controls/MapControls';
@@ -602,17 +604,13 @@ export function MapView({
         onToggleTilt={(on) => {
           setTilt3D(on);
           const map = mapRef.current;
-          if (map) {
-            import('../map/engine/mapLock2D').then(({ setMapLock2D }) => setMapLock2D(map, !on));
-          }
+          if (map) setMapLock2D(map, !on);
         }}
         buildings={buildings}
         onToggleBuildings={(on) => {
           setBuildings(on);
           const map = mapRef.current;
-          if (map) {
-            import('../map/engine/buildings3D').then(({ setBuildings3D }) => setBuildings3D(map, on, theme));
-          }
+          if (map) void setBuildings3D(map, on, theme);
         }}
         nodeScale={nodeScale}
         onNodeScale={setNodeScale}
