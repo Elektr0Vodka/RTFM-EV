@@ -27,6 +27,7 @@ import { SettingsFanoutSection } from './settings/SettingsFanoutSection';
 import { SettingsDatabaseSection } from './settings/SettingsDatabaseSection';
 import { SettingsStatisticsSection } from './settings/SettingsStatisticsSection';
 import { SettingsAboutSection } from './settings/SettingsAboutSection';
+import { SettingsHandyInfoSection } from './settings/SettingsHandyInfoSection';
 
 interface SettingsModalBaseProps {
   open: boolean;
@@ -124,6 +125,7 @@ export function SettingsModal(props: SettingsModalProps) {
     fanout: false,
     database: false,
     statistics: false,
+    'handy-info': false,
     about: false,
   });
 
@@ -327,6 +329,19 @@ export function SettingsModal(props: SettingsModalProps) {
           {renderSectionHeader('statistics')}
           {isSectionVisible('statistics') && (
             <SettingsStatisticsSection className={sectionContentClass} />
+          )}
+        </section>
+      )}
+
+      {shouldRenderSection('handy-info') && (
+        <section className={sectionWrapperClass}>
+          {renderSectionHeader('handy-info')}
+          {isSectionVisible('handy-info') && (
+            <SettingsHandyInfoSection
+              appSettings={appSettings}
+              onSaveAppSettings={onSaveAppSettings}
+              className={sectionContentClass}
+            />
           )}
         </section>
       )}
