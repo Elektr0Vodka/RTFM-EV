@@ -54,6 +54,7 @@ def _clamp_status_interval_ms(value: object) -> int:
         return value
     return _STATUS_INTERVAL_DEFAULT_MS
 
+
 # Route type mapping: bottom 2 bits of first byte
 _ROUTE_MAP = {0: "F", 1: "F", 2: "D", 3: "T"}
 
@@ -524,7 +525,9 @@ class CommunityMqttPublisher(BaseMqttPublisher):
         if not self._settings:
             return
         interval_ms = _clamp_status_interval_ms(
-            getattr(self._settings, "community_mqtt_status_interval_ms", _STATUS_INTERVAL_DEFAULT_MS)
+            getattr(
+                self._settings, "community_mqtt_status_interval_ms", _STATUS_INTERVAL_DEFAULT_MS
+            )
         )
         now = time.monotonic()
         if (now - self._last_status_publish) >= (interval_ms / 1000.0):

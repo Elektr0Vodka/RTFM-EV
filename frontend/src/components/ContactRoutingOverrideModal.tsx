@@ -97,7 +97,9 @@ export function ContactRoutingOverrideModal({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="routing-override-input">{t('path_override_forced_route_field_label')}</Label>
+            <Label htmlFor="routing-override-input">
+              {t('path_override_forced_route_field_label')}
+            </Label>
             <Input
               id="routing-override-input"
               value={route}

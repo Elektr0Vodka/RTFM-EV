@@ -11,24 +11,16 @@ import {
 describe('ChatHeader CAD toggle', () => {
   it('is hidden when the device is not CAD-capable', () => {
     render(
-      <ChatHeader
-        {...makeChannelChatHeaderProps({ cadCapable: false, cadSupported: false })}
-      />
+      <ChatHeader {...makeChannelChatHeaderProps({ cadCapable: false, cadSupported: false })} />
     );
-    expect(
-      screen.queryByRole('button', { name: /channel activity detection/i })
-    ).toBeNull();
+    expect(screen.queryByRole('button', { name: /channel activity detection/i })).toBeNull();
   });
 
   it('is hidden when firmware does not support CAD', () => {
     render(
-      <ChatHeader
-        {...makeChannelChatHeaderProps({ cadCapable: true, cadSupported: false })}
-      />
+      <ChatHeader {...makeChannelChatHeaderProps({ cadCapable: true, cadSupported: false })} />
     );
-    expect(
-      screen.queryByRole('button', { name: /channel activity detection/i })
-    ).toBeNull();
+    expect(screen.queryByRole('button', { name: /channel activity detection/i })).toBeNull();
   });
 
   it('shows on-state and toggles on click', async () => {
@@ -67,13 +59,9 @@ describe('ChatHeader CAD toggle', () => {
   describe('DM (contact) conversation', () => {
     it('is hidden when firmware does not support CAD', () => {
       render(
-        <ChatHeader
-          {...makeContactChatHeaderProps({ cadCapable: true, cadSupported: false })}
-        />
+        <ChatHeader {...makeContactChatHeaderProps({ cadCapable: true, cadSupported: false })} />
       );
-      expect(
-        screen.queryByRole('button', { name: /channel activity detection/i })
-      ).toBeNull();
+      expect(screen.queryByRole('button', { name: /channel activity detection/i })).toBeNull();
     });
 
     it('shows on-state and toggles on click', async () => {
@@ -125,9 +113,7 @@ describe('ChatHeader CAD toggle', () => {
           )}
         />
       );
-      expect(
-        screen.queryByRole('button', { name: /channel activity detection/i })
-      ).toBeNull();
+      expect(screen.queryByRole('button', { name: /channel activity detection/i })).toBeNull();
     });
   });
 });

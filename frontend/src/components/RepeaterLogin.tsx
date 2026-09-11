@@ -89,7 +89,9 @@ export function RepeaterLogin({
           </label>
 
           {rememberPassword && (
-            <p className="text-xs text-muted-foreground">{t('repeater_remember_password_warning')}</p>
+            <p className="text-xs text-muted-foreground">
+              {t('repeater_remember_password_warning')}
+            </p>
           )}
 
           {error && (

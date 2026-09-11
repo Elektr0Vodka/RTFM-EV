@@ -626,11 +626,7 @@ describe('MessageList hop-size filter', () => {
 
   it('renders all messages before any width is hidden', () => {
     const { container } = render(
-      <MessageList
-        messages={[oneByte(1), twoByte(2), noPath(3)]}
-        contacts={[]}
-        loading={false}
-      />
+      <MessageList messages={[oneByte(1), twoByte(2), noPath(3)]} contacts={[]} loading={false} />
     );
     expect(row(container, 1)).not.toBeNull();
     expect(row(container, 2)).not.toBeNull();
@@ -640,11 +636,7 @@ describe('MessageList hop-size filter', () => {
   it('hides only messages whose observed path width matches the hidden width', async () => {
     const user = userEvent.setup();
     const { container } = render(
-      <MessageList
-        messages={[oneByte(1), twoByte(2), noPath(3)]}
-        contacts={[]}
-        loading={false}
-      />
+      <MessageList messages={[oneByte(1), twoByte(2), noPath(3)]} contacts={[]} loading={false} />
     );
 
     await hideWidth(user, /1-byte hops/i);

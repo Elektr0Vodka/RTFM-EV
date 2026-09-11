@@ -692,9 +692,7 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
             <div className="shrink-0 flex items-start justify-between gap-3 border-b border-border px-4 py-3">
               <div>
                 <h3 className="text-sm font-semibold">{t('trace_path_heading')}</h3>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {t('trace_path_description')}
-                </p>
+                <p className="mt-1 text-xs text-muted-foreground">{t('trace_path_description')}</p>
                 {recentTraces.length > 0 && (
                   <div className="mt-2">
                     <button
@@ -875,7 +873,11 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
               <div className="shrink-0 flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                 <h3 className="text-sm font-semibold">
                   {t('trace_results_heading')}
-                  {result ? t('trace_results_duration_suffix', { seconds: result.timeout_seconds.toFixed(1) }) : ''}
+                  {result
+                    ? t('trace_results_duration_suffix', {
+                        seconds: result.timeout_seconds.toFixed(1),
+                      })
+                    : ''}
                 </h3>
                 <Button
                   type="button"

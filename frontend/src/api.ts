@@ -389,8 +389,7 @@ export const api = {
     }),
 
   // Channel Registry
-  syncRegistry: () =>
-    fetchJson<{ channels: { name: string; key: string }[] }>('/registry/sync'),
+  syncRegistry: () => fetchJson<{ channels: { name: string; key: string }[] }>('/registry/sync'),
 
   // Region sync (analyzer regions endpoint -> known_regions)
   syncRegions: () => fetchJson<{ regions: string[] }>('/regions/sync'),

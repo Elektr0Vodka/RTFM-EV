@@ -37,9 +37,7 @@ describe('NeighborSnrSparkline', () => {
   });
 
   it('renders nothing with < 2 samples', () => {
-    const { container } = render(
-      <NeighborSnrSparkline samples={[{ observed_at: 1, snr: 1 }]} />
-    );
+    const { container } = render(<NeighborSnrSparkline samples={[{ observed_at: 1, snr: 1 }]} />);
     expect(container.querySelector('polyline')).toBeNull();
   });
 });

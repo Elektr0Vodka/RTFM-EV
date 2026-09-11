@@ -60,9 +60,7 @@ class TestNormalizeUpstream:
         entries, info = normalize_upstream(SAMPLE_UPSTREAM)
 
         assert info == "Community radio presets."
-        assert entries == [
-            RadioPresetEntry(name="Netherlands", freq=869.618, bw=62.5, sf=7, cr=5)
-        ]
+        assert entries == [RadioPresetEntry(name="Netherlands", freq=869.618, bw=62.5, sf=7, cr=5)]
 
     def test_skips_entries_that_fail_numeric_parse(self):
         entries, _ = normalize_upstream(SAMPLE_UPSTREAM)

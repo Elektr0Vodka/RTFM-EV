@@ -415,7 +415,10 @@ function HopCountBadge({ paths, onClick, variant }: HopCountBadgeProps) {
       }
       aria-label={
         widthLabel
-          ? t('a11y_hop_count_view_path_with_width', { display: hopInfo.display, width: widthLabel })
+          ? t('a11y_hop_count_view_path_with_width', {
+              display: hopInfo.display,
+              width: widthLabel,
+            })
           : t('a11y_hop_count_view_path', { display: hopInfo.display })
       }
     >
@@ -584,48 +587,51 @@ export function MessageList({
   // Track conversation key to detect when entire message set changes
   const prevConvKeyRef = useRef<string | null>(null);
 
-  const handleAnalyzePacket = useCallback(async (message: Message) => {
-    // Extract signal from the first path if available
-    const firstPath = message.paths?.[0];
-    packetSignalOverrideRef.current =
-      firstPath && (firstPath.rssi != null || firstPath.snr != null)
-        ? { rssi: firstPath.rssi ?? null, snr: firstPath.snr ?? null }
-        : undefined;
+  const handleAnalyzePacket = useCallback(
+    async (message: Message) => {
+      // Extract signal from the first path if available
+      const firstPath = message.paths?.[0];
+      packetSignalOverrideRef.current =
+        firstPath && (firstPath.rssi != null || firstPath.snr != null)
+          ? { rssi: firstPath.rssi ?? null, snr: firstPath.snr ?? null }
+          : undefined;
 
-    if (message.packet_id == null) {
-      setPacketInspectorSource({
-        kind: 'unavailable',
-        message: t('chat_no_archival_packet'),
-      });
-      return;
-    }
-
-    const cached = packetCacheRef.current.get(message.packet_id);
-    if (cached) {
-      setPacketInspectorSource({ kind: 'packet', packet: cached });
-      return;
-    }
-
-    setPacketInspectorSource({ kind: 'loading', message: t('chat_loading_packet_analysis') });
-
-    try {
-      const packet = await api.getPacket(message.packet_id);
-      packetCacheRef.current.set(message.packet_id, packet);
-      setPacketInspectorSource({ kind: 'packet', packet });
-    } catch (error) {
-      const description = error instanceof Error ? error.message : t('error_unknown');
-      const isMissing = error instanceof Error && /not found/i.test(error.message);
-      if (!isMissing) {
-        toast.error(t('toast_failed_load_raw_packet'), { description });
+      if (message.packet_id == null) {
+        setPacketInspectorSource({
+          kind: 'unavailable',
+          message: t('chat_no_archival_packet'),
+        });
+        return;
       }
-      setPacketInspectorSource({
-        kind: 'unavailable',
-        message: isMissing
-          ? t('chat_archival_packet_purged')
-          : t('chat_could_not_load_archival_packet', { description }),
-      });
-    }
-  }, [t]);
+
+      const cached = packetCacheRef.current.get(message.packet_id);
+      if (cached) {
+        setPacketInspectorSource({ kind: 'packet', packet: cached });
+        return;
+      }
+
+      setPacketInspectorSource({ kind: 'loading', message: t('chat_loading_packet_analysis') });
+
+      try {
+        const packet = await api.getPacket(message.packet_id);
+        packetCacheRef.current.set(message.packet_id, packet);
+        setPacketInspectorSource({ kind: 'packet', packet });
+      } catch (error) {
+        const description = error instanceof Error ? error.message : t('error_unknown');
+        const isMissing = error instanceof Error && /not found/i.test(error.message);
+        if (!isMissing) {
+          toast.error(t('toast_failed_load_raw_packet'), { description });
+        }
+        setPacketInspectorSource({
+          kind: 'unavailable',
+          message: isMissing
+            ? t('chat_archival_packet_purged')
+            : t('chat_could_not_load_archival_packet', { description }),
+        });
+      }
+    },
+    [t]
+  );
 
   // Sort messages by received_at ascending (oldest first)
   // Note: Deduplication is handled by useConversationMessages.observeMessage()
@@ -1379,7 +1385,8 @@ export function MessageList({
               } else {
                 // Channel message: use stored sender identity first, then parsed/fallback display name
                 avatarName =
-                  channelSenderName || (displaySender !== t('common_unknown') ? displaySender : null);
+                  channelSenderName ||
+                  (displaySender !== t('common_unknown') ? displaySender : null);
                 avatarKey =
                   msg.sender_key ||
                   channelSenderContact?.public_key ||
@@ -1605,7 +1612,10 @@ export function MessageList({
                             ?
                           </span>
                         ) : (
-                          <span className="msg-ack-pending text-muted-foreground" title={t('chat_no_repeats_heard_yet')}>
+                          <span
+                            className="msg-ack-pending text-muted-foreground"
+                            title={t('chat_no_repeats_heard_yet')}
+                          >
                             {' '}
                             ?
                           </span>

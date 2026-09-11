@@ -271,9 +271,7 @@ export function RepeaterDashboard({
             className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => onToggleFavorite('contact', conversation.id)}
             title={
-              isFav
-                ? t('chat_remove_favorite_contact_desc')
-                : t('chat_add_favorite_contact_desc')
+              isFav ? t('chat_remove_favorite_contact_desc') : t('chat_add_favorite_contact_desc')
             }
             aria-label={isFav ? t('common_remove_from_favorites') : t('common_add_to_favorites')}
           >

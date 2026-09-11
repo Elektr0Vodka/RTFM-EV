@@ -89,9 +89,7 @@ export function SecurityWarningModal({ health }: SecurityWarningModalProps) {
         <div className="space-y-3 break-words text-sm leading-6 text-muted-foreground">
           <DialogDescription>{t('security_description')}</DialogDescription>
           <p>{t('security_body_risk')}</p>
-          <p className="font-semibold text-foreground">
-            {t('security_body_safe_networks_only')}
-          </p>
+          <p className="font-semibold text-foreground">{t('security_body_safe_networks_only')}</p>
           <p>
             {t('security_body_reduce_risk_prefix')}{' '}
             {/* eslint-disable-next-line i18next/no-literal-string */}

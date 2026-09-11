@@ -1027,9 +1027,7 @@ export function Sidebar({
             onClick={onMarkAllRead}
           >
             <CheckCheck className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <span className="flex-1 truncate text-muted-foreground">
-              {t('chat_mark_all_read')}
-            </span>
+            <span className="flex-1 truncate text-muted-foreground">{t('chat_mark_all_read')}</span>
           </div>
         )}
 

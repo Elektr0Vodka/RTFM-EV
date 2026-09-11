@@ -57,9 +57,7 @@ describe('BulkDeleteChannelsModal', () => {
     fireEvent.click(screen.getByRole('button', { name: /proceed to confirmation/i }));
     fireEvent.click(screen.getByRole('button', { name: /i confirm removal/i }));
 
-    await waitFor(() =>
-      expect(api.bulkDeleteChannels).toHaveBeenCalledWith(['AA'.repeat(16)])
-    );
+    await waitFor(() => expect(api.bulkDeleteChannels).toHaveBeenCalledWith(['AA'.repeat(16)]));
     await waitFor(() => expect(onDeleted).toHaveBeenCalledWith(['AA'.repeat(16)]));
   });
 });

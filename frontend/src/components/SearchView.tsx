@@ -254,8 +254,7 @@ export function SearchView({
           <div className="p-8 text-center text-muted-foreground text-sm">
             <p>{t('search_empty_prompt')}</p>
             <p className="mt-2 text-xs">
-              {t('search_tip_prefix')}{' '}
-              {/* eslint-disable-next-line i18next/no-literal-string */}
+              {t('search_tip_prefix')} {/* eslint-disable-next-line i18next/no-literal-string */}
               <code>user:</code> {t('search_tip_or')}{' '}
               {/* eslint-disable-next-line i18next/no-literal-string */}
               <code>channel:</code> {t('search_tip_suffix')}
@@ -272,7 +271,8 @@ export function SearchView({
 
         {results.map((result) => {
           const convName = getConversationName(result);
-          const typeBadge = result.type === 'CHAN' ? t('packet_context_title_channel') : t('map_packet_legend_dm');
+          const typeBadge =
+            result.type === 'CHAN' ? t('packet_context_title_channel') : t('map_packet_legend_dm');
 
           return (
             <div

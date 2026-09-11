@@ -65,7 +65,9 @@ export function MeshcomodSettings({ health }: Props) {
           </p>
           {cfg?.gps_supported && cfg?.gps_enabled && (
             <div className="mt-2 flex items-center gap-2">
-              <Label htmlFor="meshcomod-gps-interval">{t('settings_meshcomod_gps_interval_label')}</Label>
+              <Label htmlFor="meshcomod-gps-interval">
+                {t('settings_meshcomod_gps_interval_label')}
+              </Label>
               <input
                 id="meshcomod-gps-interval"
                 type="number"

@@ -15,7 +15,7 @@ class RegionSyncResponse(BaseModel):
     regions: list[str]
 
 
-def _extract_region_names(payload: object) -> list[str]:
+def _extract_region_names(payload: list[object]) -> list[str]:
     """Map an analyzer regions payload to a deduplicated list of region codes.
 
     Expects the analyzer's ``/api/regions/scopes`` shape: a bare JSON array of

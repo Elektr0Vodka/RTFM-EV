@@ -941,9 +941,9 @@ describe('isMessageHiddenByHopWidth', () => {
     // outgoing / not-yet-echoed messages must never disappear
     expect(isMessageHiddenByHopWidth(null, new Set([1, 2, 3]))).toBe(false);
     expect(isMessageHiddenByHopWidth([], new Set([1, 2, 3]))).toBe(false);
-    expect(
-      isMessageHiddenByHopWidth([{ path: '', received_at: 1 }], new Set([1, 2, 3]))
-    ).toBe(false);
+    expect(isMessageHiddenByHopWidth([{ path: '', received_at: 1 }], new Set([1, 2, 3]))).toBe(
+      false
+    );
   });
 
   it('respects two-byte hide independently', () => {

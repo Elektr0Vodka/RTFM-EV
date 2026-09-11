@@ -359,7 +359,9 @@ export function VisualizerControls({
                       className="text-muted-foreground"
                       title={t('visualizer_controls_repulsion_title')}
                     >
-                      {t('visualizer_controls_repulsion_label', { value: Math.abs(chargeStrength) })}
+                      {t('visualizer_controls_repulsion_label', {
+                        value: Math.abs(chargeStrength),
+                      })}
                     </label>
                     <input
                       id="viz-repulsion"
@@ -377,7 +379,9 @@ export function VisualizerControls({
                       className="text-muted-foreground"
                       title={t('visualizer_controls_packet_speed_title')}
                     >
-                      {t('visualizer_controls_packet_speed_label', { value: particleSpeedMultiplier })}
+                      {t('visualizer_controls_packet_speed_label', {
+                        value: particleSpeedMultiplier,
+                      })}
                     </label>
                     <input
                       id="viz-packet-speed"

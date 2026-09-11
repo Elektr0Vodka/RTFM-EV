@@ -391,7 +391,7 @@ describe('useRealtimeAppState', () => {
     expect(onChannelMention).not.toHaveBeenCalled();
   });
 
-  it('does not fire onChannelMention for the user\'s own outgoing message', () => {
+  it("does not fire onChannelMention for the user's own outgoing message", () => {
     const onChannelMention = vi.fn();
     const { args } = createRealtimeArgs({
       checkMention: vi.fn(() => true),

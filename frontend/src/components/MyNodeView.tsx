@@ -768,7 +768,13 @@ function StackedBarChart({
             })}
           </text>
           {Object.entries(hovBin.types).map(([pt, c], ti) => (
-            <text key={pt} textAnchor="middle" y={`${17 + ti * 9}`} fontSize="7" fill={typeColor(pt)}>
+            <text
+              key={pt}
+              textAnchor="middle"
+              y={`${17 + ti * 9}`}
+              fontSize="7"
+              fill={typeColor(pt)}
+            >
               {pt}: {c}
             </text>
           ))}
@@ -1737,7 +1743,9 @@ export default function MyNodeView({ contacts }: Props) {
                     </span>
                     {health?.radio_device_info?.firmware_version && (
                       <span>
-                        {t('node_firmware_prefix', { version: health.radio_device_info.firmware_version })}
+                        {t('node_firmware_prefix', {
+                          version: health.radio_device_info.firmware_version,
+                        })}
                       </span>
                     )}
                     {config.lat != null && config.lon != null && (
@@ -1847,14 +1855,19 @@ export default function MyNodeView({ contacts }: Props) {
                     valueKey="bytes"
                     color="hsl(var(--primary))"
                     formatY={(v) =>
-                      v >= 1000 ? t('node_value_k_compact', { value: (v / 1000).toFixed(0) }) : String(v)
+                      v >= 1000
+                        ? t('node_value_k_compact', { value: (v / 1000).toFixed(0) })
+                        : String(v)
                     }
                     id="grad-bytes"
                     tooltipLabel={t('node_tooltip_bytes')}
                     windowSeconds={windowSeconds}
                   />
                 </ChartCard>
-                <ChartCard title={t('settings_radio_stat_packets_received')} stat={String(liveStats.packets)}>
+                <ChartCard
+                  title={t('settings_radio_stat_packets_received')}
+                  stat={String(liveStats.packets)}
+                >
                   <BarChart
                     bins={activeBins}
                     valueKey="packets"
@@ -1956,7 +1969,11 @@ export default function MyNodeView({ contacts }: Props) {
                         : undefined
                     }
                   >
-                    <BatteryLineChart samples={batterySamples} windowSeconds={windowSeconds} t={t} />
+                    <BatteryLineChart
+                      samples={batterySamples}
+                      windowSeconds={windowSeconds}
+                      t={t}
+                    />
                   </ChartCard>
                 )}
               </div>
@@ -2057,7 +2074,9 @@ export default function MyNodeView({ contacts }: Props) {
                         value={fmtRssi(sessionSnapshot.medianRssi, t)}
                         sub={
                           sessionSnapshot.averageRssi != null
-                            ? t('node_avg_prefix', { value: fmtRssi(sessionSnapshot.averageRssi, t) })
+                            ? t('node_avg_prefix', {
+                                value: fmtRssi(sessionSnapshot.averageRssi, t),
+                              })
                             : undefined
                         }
                       />
@@ -2311,9 +2330,7 @@ export default function MyNodeView({ contacts }: Props) {
                         <div className="space-y-1.5">
                           {historicalStats.neighbors_by_count.slice(0, 10).map((n) => {
                             const displayName = n.name || n.public_key.slice(0, 12);
-                            const nType = contacts.find(
-                              (c) => c.public_key === n.public_key
-                            )?.type;
+                            const nType = contacts.find((c) => c.public_key === n.public_key)?.type;
                             return (
                               <div
                                 key={n.public_key}
@@ -2404,9 +2421,7 @@ export default function MyNodeView({ contacts }: Props) {
                         <div className="space-y-1.5">
                           {historicalStats.neighbors_by_signal.slice(0, 10).map((n) => {
                             const displayName = n.name || n.public_key.slice(0, 12);
-                            const nType = contacts.find(
-                              (c) => c.public_key === n.public_key
-                            )?.type;
+                            const nType = contacts.find((c) => c.public_key === n.public_key)?.type;
                             return (
                               <div
                                 key={n.public_key}
@@ -2540,13 +2555,22 @@ export default function MyNodeView({ contacts }: Props) {
                       label={t('contact_channel_messages')}
                       value={stats.total_channel_messages.toLocaleString()}
                     />
-                    <KV label={t('repeater_series_sent')} value={stats.total_outgoing.toLocaleString()} />
-                    <KV label={t('settings_statistics_contacts_label')} value={stats.contact_count} />
+                    <KV
+                      label={t('repeater_series_sent')}
+                      value={stats.total_outgoing.toLocaleString()}
+                    />
+                    <KV
+                      label={t('settings_statistics_contacts_label')}
+                      value={stats.contact_count}
+                    />
                     <KV
                       label={t('settings_statistics_repeaters_label')}
                       value={stats.repeater_count}
                     />
-                    <KV label={t('settings_statistics_channels_label')} value={stats.channel_count} />
+                    <KV
+                      label={t('settings_statistics_channels_label')}
+                      value={stats.channel_count}
+                    />
                   </div>
                 </div>
 

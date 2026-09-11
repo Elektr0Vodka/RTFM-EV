@@ -1616,7 +1616,9 @@ describe('SettingsFanoutSection', () => {
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'user@example.com' } });
     fireEvent.change(screen.getByLabelText('Region Code (IATA)'), { target: { value: 'ams' } });
     fireEvent.click(screen.getByText('Publish packets')); // toggle OFF
-    fireEvent.change(screen.getByLabelText('Status interval (minutes)'), { target: { value: '10' } });
+    fireEvent.change(screen.getByLabelText('Status interval (minutes)'), {
+      target: { value: '10' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Save as Enabled' }));
 
     await waitFor(() =>

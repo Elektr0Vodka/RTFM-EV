@@ -260,15 +260,7 @@ const TOOLTIP_STYLE = {
   },
 } as const;
 
-function HopWidthChart({
-  stats,
-  ready,
-  t,
-}: {
-  stats: PathHashWidthStats;
-  ready: boolean;
-  t: TFn;
-}) {
+function HopWidthChart({ stats, ready, t }: { stats: PathHashWidthStats; ready: boolean; t: TFn }) {
   const data = useMemo(
     () =>
       hopWidthSegments(t)

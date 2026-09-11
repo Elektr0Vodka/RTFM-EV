@@ -112,7 +112,5 @@ class LinkSignalRepository:
     async def prune(older_than_days: int = 30) -> int:
         cutoff = int(time.time()) - older_than_days * 86400
         async with db.tx() as conn:
-            cur = await conn.execute(
-                "DELETE FROM link_signal WHERE observed_at < ?", (cutoff,)
-            )
+            cur = await conn.execute("DELETE FROM link_signal WHERE observed_at < ?", (cutoff,))
             return cur.rowcount

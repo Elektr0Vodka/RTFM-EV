@@ -94,7 +94,10 @@ function RadioDetailsCollapsible({ stats }: { stats: RadioStatsSnapshot }) {
 
         {/* Core */}
         {stats.uptime_secs != null && (
-          <StatRow label={t('settings_radio_stat_uptime')} value={formatUptime(stats.uptime_secs)} />
+          <StatRow
+            label={t('settings_radio_stat_uptime')}
+            value={formatUptime(stats.uptime_secs)}
+          />
         )}
         {stats.battery_mv != null && stats.battery_mv > 0 && (
           <StatRow
@@ -119,7 +122,10 @@ function RadioDetailsCollapsible({ stats }: { stats: RadioStatsSnapshot }) {
 
         {/* RF */}
         {stats.noise_floor != null && (
-          <StatRow label={t('settings_radio_stat_noise_floor')} value={`${stats.noise_floor} dBm`} />
+          <StatRow
+            label={t('settings_radio_stat_noise_floor')}
+            value={`${stats.noise_floor} dBm`}
+          />
         )}
         {stats.last_rssi != null && (
           <StatRow label={t('settings_radio_stat_last_rssi')} value={`${stats.last_rssi} dBm`} />
@@ -557,7 +563,9 @@ export function SettingsRadioSection({
       }
       toast.success(t('settings_radio_toast_advert_interval_saved'));
     } catch (err) {
-      setAdvertIntervalError(err instanceof Error ? err.message : t('settings_radio_failed_to_save'));
+      setAdvertIntervalError(
+        err instanceof Error ? err.message : t('settings_radio_failed_to_save')
+      );
     } finally {
       setAdvertIntervalBusy(false);
     }
@@ -651,7 +659,9 @@ export function SettingsRadioSection({
       await onSaveAppSettings({ region_sync_url: trimmed });
     } catch (err) {
       setRegionSyncUrl(appSettings.region_sync_url ?? '');
-      toast.error(err instanceof Error ? err.message : t('settings_radio_toast_region_sync_url_save_failed'));
+      toast.error(
+        err instanceof Error ? err.message : t('settings_radio_toast_region_sync_url_save_failed')
+      );
     }
   };
 
@@ -682,7 +692,9 @@ export function SettingsRadioSection({
       setKnownRegions([...existing, ...additions].join('\n'));
       toast.success(t('settings_radio_toast_regions_added', { count: additions.length }));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('settings_radio_toast_region_sync_failed'));
+      toast.error(
+        err instanceof Error ? err.message : t('settings_radio_toast_region_sync_failed')
+      );
     } finally {
       setRegionSyncing(false);
     }
@@ -1069,9 +1081,7 @@ export function SettingsRadioSection({
               onClick={handleSyncPresets}
               disabled={presetSyncing}
             >
-              {presetSyncing
-                ? t('settings_radio_preset_syncing')
-                : t('settings_radio_preset_sync')}
+              {presetSyncing ? t('settings_radio_preset_syncing') : t('settings_radio_preset_sync')}
             </Button>
           </div>
         </div>
@@ -1338,7 +1348,9 @@ export function SettingsRadioSection({
           {busy && !rebooting ? t('settings_radio_saving') : t('settings_radio_save_config_button')}
         </Button>
         <Button onClick={handleSaveAndReboot} disabled={busy || rebooting} className="flex-1">
-          {rebooting ? t('settings_radio_rebooting') : t('settings_radio_save_config_reboot_button')}
+          {rebooting
+            ? t('settings_radio_rebooting')
+            : t('settings_radio_save_config_reboot_button')}
         </Button>
       </div>
       <p className="text-[0.8125rem] text-muted-foreground">{t('settings_radio_reboot_note')}</p>
@@ -1425,7 +1437,9 @@ export function SettingsRadioSection({
             className="mt-0.5"
           />
           <div className="space-y-1">
-            <Label htmlFor="show-mention-ticker">{t('settings_radio_show_mention_ticker_label')}</Label>
+            <Label htmlFor="show-mention-ticker">
+              {t('settings_radio_show_mention_ticker_label')}
+            </Label>
             <p className="text-[0.8125rem] text-muted-foreground">
               {t('settings_radio_show_mention_ticker_desc')}
             </p>

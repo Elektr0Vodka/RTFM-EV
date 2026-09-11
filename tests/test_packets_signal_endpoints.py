@@ -74,9 +74,7 @@ class TestTimeseries:
 
     @pytest.mark.asyncio
     async def test_rejects_bad_range(self, test_db, client):
-        response = await client.get(
-            "/api/packets/timeseries?start_ts=1700000300&end_ts=1700000000"
-        )
+        response = await client.get("/api/packets/timeseries?start_ts=1700000300&end_ts=1700000000")
         assert response.status_code == 400
 
 
@@ -110,9 +108,7 @@ class TestHistoricalStats:
             conversation_key=chan_key,
         )
 
-        response = await client.get(
-            f"/api/packets/historical-stats?start_ts={start}&end_ts={end}"
-        )
+        response = await client.get(f"/api/packets/historical-stats?start_ts={start}&end_ts={end}")
         assert response.status_code == 200
         body = response.json()
 

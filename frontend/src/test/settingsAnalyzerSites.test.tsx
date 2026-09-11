@@ -179,7 +179,9 @@ describe('SettingsDatabaseSection analyzer sites editor', () => {
     fireEvent.change(screen.getByLabelText('Edit name for cornmeister'), {
       target: { value: 'changed' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel editing analyzer site cornmeister' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Cancel editing analyzer site cornmeister' })
+    );
 
     expect(onSave).not.toHaveBeenCalled();
     expect(screen.getByText('cornmeister')).toBeInTheDocument();
