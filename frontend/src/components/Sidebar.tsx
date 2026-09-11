@@ -41,6 +41,7 @@ import { isPublicChannelKey } from '../utils/publicChannel';
 import { getContactDisplayName } from '../utils/pubkey';
 import { handleKeyboardActivate } from '../utils/a11y';
 import { useT, type TFn } from '../i18n';
+import { useSeenItems } from '../hooks/useSeenItems';
 import { ContactAvatar } from './ContactAvatar';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
@@ -166,6 +167,7 @@ interface SidebarProps {
   crackerRunning: boolean;
   onToggleCracker: () => void;
   onMarkAllRead: () => void;
+  onMarkSectionRead?: (items: { type: 'channel' | 'contact'; id: string }[]) => void;
   onOpenChannelImportExport?: () => void;
   isConversationNotificationsEnabled?: (type: 'channel' | 'contact', id: string) => boolean;
   blockedKeys?: string[];
@@ -195,6 +197,7 @@ export function Sidebar({
   crackerRunning,
   onToggleCracker,
   onMarkAllRead,
+  onMarkSectionRead,
   onOpenChannelImportExport,
   isConversationNotificationsEnabled,
   blockedKeys = [],
@@ -219,6 +222,18 @@ export function Sidebar({
   const [roomsCollapsed, setRoomsCollapsed] = useState(initialCollapsedState.rooms);
   const [repeatersCollapsed, setRepeatersCollapsed] = useState(initialCollapsedState.repeaters);
   const collapseSnapshotRef = useRef<CollapseState | null>(null);
+
+  // Track which sidebar items have been seen so newly discovered ones can be
+  // surfaced. Identity is the canonical conversation key. Uses the full prop
+  // arrays so the baseline covers every item regardless of section.
+  const allIdentities = useMemo(
+    () => [
+      ...channels.map((channel) => getStateKey('channel', channel.key)),
+      ...contacts.map((contact) => getStateKey('contact', contact.public_key)),
+    ],
+    [channels, contacts]
+  );
+  const { isNew, countNew, markSeen } = useSeenItems(allIdentities, activeConversation);
 
   const handleSortToggle = (section: SidebarSortableSection) => {
     setSectionSortOrders((prev) => {
@@ -647,6 +662,7 @@ export function Sidebar({
       (row.type === 'contact' &&
         row.contact?.type !== CONTACT_TYPE_REPEATER &&
         row.unreadCount > 0);
+    const rowIsNew = isNew(getStateKey(row.type, row.id));
 
     return (
       <div
@@ -678,6 +694,13 @@ export function Sidebar({
         )}
         <span className="name flex-1 truncate text-[0.8125rem]">{row.name}</span>
         <span className="ml-auto flex items-center gap-1">
+          {rowIsNew && (
+            <span
+              className="h-2 w-2 rounded-full bg-badge-new"
+              aria-label={t('a11y_new_item')}
+              title={t('a11y_new_item')}
+            />
+          )}
           {row.muted ? (
             <span aria-label={t('a11y_channel_muted')} title={t('a11y_channel_muted')}>
               <BellOff className="h-3.5 w-3.5 text-muted-foreground" />
@@ -767,6 +790,24 @@ export function Sidebar({
   const repeatersUnreadCount = getSectionUnreadCount(repeaterRows);
   const favoritesHasMention = sectionHasMention(favoriteRows);
   const channelsHasMention = sectionHasMention(channelRows);
+
+  const identitiesOf = (rows: ConversationRow[]): string[] =>
+    rows.map((row) => getStateKey(row.type, row.id));
+  const favoritesNewCount = countNew(identitiesOf(favoriteRows));
+  const channelsNewCount = countNew(identitiesOf(channelRows));
+  const contactsNewCount = countNew(identitiesOf(contactRows));
+  const roomsNewCount = countNew(identitiesOf(roomRows));
+  const repeatersNewCount = countNew(identitiesOf(repeaterRows));
+
+  // Clear a section: mark its unread conversations read and all its items seen.
+  const clearSection = (rows: ConversationRow[]) => {
+    const readItems = rows
+      .filter((row) => row.unreadCount > 0)
+      .map((row) => ({ type: row.type, id: row.id }));
+    onMarkSectionRead?.(readItems);
+    markSeen(identitiesOf(rows));
+  };
+
   const toolRows = !query
     ? [
         renderSidebarActionRow({
@@ -894,7 +935,10 @@ export function Sidebar({
     sortSection: SidebarSortableSection | null = null,
     unreadCount = 0,
     highlightUnread = false,
-    action: React.ReactNode = null
+    action: React.ReactNode = null,
+    totalCount = 0,
+    newCount = 0,
+    onClearSection: (() => void) | null = null
   ) => {
     const effectiveCollapsed = isSearching ? false : collapsed;
     const sectionSortOrder = sortSection ? sectionSortOrders[sortSection] : null;
@@ -921,7 +965,15 @@ export function Sidebar({
           )}
           <span>{title}</span>
         </button>
-        {(sortSection || unreadCount > 0 || action) && (
+        {totalCount > 0 && (
+          <span
+            className="ml-1.5 text-[0.625rem] font-semibold tabular-nums text-muted-foreground/70"
+            aria-label={t('a11y_total_count', { count: totalCount })}
+          >
+            {totalCount}
+          </span>
+        )}
+        {(sortSection || unreadCount > 0 || newCount > 0 || action || onClearSection) && (
           <div className="ml-auto flex items-center gap-1.5">
             {action}
             {sortSection && sectionSortOrder && (
@@ -942,6 +994,27 @@ export function Sidebar({
               >
                 {sortOrderLabel(sectionSortOrder, t)}
               </button>
+            )}
+            {onClearSection && (
+              <button
+                className="bg-transparent text-muted-foreground/60 p-0.5 rounded hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClearSection();
+                }}
+                aria-label={t('nav_section_mark_read_seen')}
+                title={t('nav_section_mark_read_seen')}
+              >
+                <CheckCheck className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            )}
+            {newCount > 0 && (
+              <span
+                className="text-[0.625rem] font-medium px-1.5 py-0.5 rounded-full bg-badge-new/15 text-badge-new"
+                aria-label={t('a11y_new_count', { count: newCount })}
+              >
+                {newCount}
+              </span>
             )}
             {unreadCount > 0 && (
               <span
@@ -1040,7 +1113,13 @@ export function Sidebar({
               () => setFavoritesCollapsed((prev) => !prev),
               'favorites',
               favoritesUnreadCount,
-              favoritesHasMention
+              favoritesHasMention,
+              null,
+              favoriteRows.length,
+              favoritesNewCount,
+              favoritesUnreadCount > 0 || favoritesNewCount > 0
+                ? () => clearSection(favoriteRows)
+                : null
             )}
             {(isSearching || !favoritesCollapsed) &&
               favoriteRows.map((row) => renderConversationRow(row))}
@@ -1069,7 +1148,12 @@ export function Sidebar({
                 >
                   <ArrowDownUp className="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
-              ) : null
+              ) : null,
+              channelRows.length,
+              channelsNewCount,
+              channelsUnreadCount > 0 || channelsNewCount > 0
+                ? () => clearSection(channelRows)
+                : null
             )}
             {(isSearching || !channelsCollapsed) &&
               channelRows.map((row) => renderConversationRow(row))}
@@ -1085,7 +1169,13 @@ export function Sidebar({
               () => setContactsCollapsed((prev) => !prev),
               'contacts',
               contactsUnreadCount,
-              contactsUnreadCount > 0
+              contactsUnreadCount > 0,
+              null,
+              contactRows.length,
+              contactsNewCount,
+              contactsUnreadCount > 0 || contactsNewCount > 0
+                ? () => clearSection(contactRows)
+                : null
             )}
             {(isSearching || !contactsCollapsed) &&
               contactRows.map((row) => renderConversationRow(row))}
@@ -1100,7 +1190,14 @@ export function Sidebar({
               repeatersCollapsed,
               () => setRepeatersCollapsed((prev) => !prev),
               'repeaters',
-              repeatersUnreadCount
+              repeatersUnreadCount,
+              false,
+              null,
+              repeaterRows.length,
+              repeatersNewCount,
+              repeatersUnreadCount > 0 || repeatersNewCount > 0
+                ? () => clearSection(repeaterRows)
+                : null
             )}
             {(isSearching || !repeatersCollapsed) &&
               repeaterRows.map((row) => renderConversationRow(row))}
@@ -1116,7 +1213,11 @@ export function Sidebar({
               () => setRoomsCollapsed((prev) => !prev),
               'rooms',
               roomsUnreadCount,
-              roomsUnreadCount > 0
+              roomsUnreadCount > 0,
+              null,
+              roomRows.length,
+              roomsNewCount,
+              roomsUnreadCount > 0 || roomsNewCount > 0 ? () => clearSection(roomRows) : null
             )}
             {(isSearching || !roomsCollapsed) && roomRows.map((row) => renderConversationRow(row))}
           </>

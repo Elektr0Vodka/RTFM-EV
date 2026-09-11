@@ -51,6 +51,7 @@ function renderSidebar(overrides?: {
   lastMessageTimes?: ConversationTimes;
   channels?: Channel[];
   isConversationNotificationsEnabled?: (type: 'channel' | 'contact', id: string) => boolean;
+  onMarkSectionRead?: (items: { type: 'channel' | 'contact'; id: string }[]) => void;
 }) {
   const aliceName = 'Alice';
   const roomName = 'Ops Board';
@@ -71,6 +72,7 @@ function renderSidebar(overrides?: {
 
   const channels = overrides?.channels ?? [publicChannel, flightChannel, opsChannel];
   const onSelectConversation = vi.fn();
+  const onMarkSectionRead = overrides?.onMarkSectionRead ?? vi.fn();
 
   const view = render(
     <Sidebar
@@ -86,11 +88,20 @@ function renderSidebar(overrides?: {
       crackerRunning={false}
       onToggleCracker={vi.fn()}
       onMarkAllRead={vi.fn()}
+      onMarkSectionRead={onMarkSectionRead}
       isConversationNotificationsEnabled={overrides?.isConversationNotificationsEnabled}
     />
   );
 
-  return { ...view, flightChannel, opsChannel, aliceName, roomName, onSelectConversation };
+  return {
+    ...view,
+    flightChannel,
+    opsChannel,
+    aliceName,
+    roomName,
+    onSelectConversation,
+    onMarkSectionRead,
+  };
 }
 
 function getSectionHeaderContainer(title: string): HTMLElement {
@@ -108,11 +119,75 @@ describe('Sidebar section summaries', () => {
   it('shows muted section unread totals in each visible section header', () => {
     renderSidebar();
 
-    expect(within(getSectionHeaderContainer('Favorites')).getByText('2')).toBeInTheDocument();
-    expect(within(getSectionHeaderContainer('Channels')).getByText('1')).toBeInTheDocument();
-    expect(within(getSectionHeaderContainer('Contacts')).getByText('3')).toBeInTheDocument();
-    expect(within(getSectionHeaderContainer('Room Servers')).getByText('5')).toBeInTheDocument();
-    expect(within(getSectionHeaderContainer('Repeaters')).getByText('4')).toBeInTheDocument();
+    expect(
+      within(getSectionHeaderContainer('Favorites')).getByLabelText('2 unread')
+    ).toBeInTheDocument();
+    expect(
+      within(getSectionHeaderContainer('Channels')).getByLabelText('1 unread')
+    ).toBeInTheDocument();
+    expect(
+      within(getSectionHeaderContainer('Contacts')).getByLabelText('3 unread')
+    ).toBeInTheDocument();
+    expect(
+      within(getSectionHeaderContainer('Room Servers')).getByLabelText('5 unread')
+    ).toBeInTheDocument();
+    expect(
+      within(getSectionHeaderContainer('Repeaters')).getByLabelText('4 unread')
+    ).toBeInTheDocument();
+  });
+
+  it('shows a green new pill and a per-row new dot for newly discovered items', () => {
+    // Baseline seen-set that excludes Alice, so Contacts shows 1 new + a row dot.
+    const everythingElse = [
+      getStateKey('channel', 'AA'.repeat(16)),
+      getStateKey('channel', 'BB'.repeat(16)),
+      getStateKey('channel', 'CC'.repeat(16)),
+      getStateKey('contact', '33'.repeat(32)), // room
+      getStateKey('contact', '22'.repeat(32)), // repeater
+    ];
+    localStorage.setItem('remoteterm-sidebar-seen-items', JSON.stringify(everythingElse));
+    renderSidebar();
+
+    expect(
+      within(getSectionHeaderContainer('Contacts')).getByLabelText('1 new')
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('New')).toBeInTheDocument();
+  });
+
+  it('per-section clear button marks that section read and seen', () => {
+    const alicePk = '11'.repeat(32);
+    localStorage.setItem(
+      'remoteterm-sidebar-seen-items',
+      JSON.stringify([
+        getStateKey('channel', 'AA'.repeat(16)),
+        getStateKey('channel', 'BB'.repeat(16)),
+        getStateKey('channel', 'CC'.repeat(16)),
+        getStateKey('contact', '33'.repeat(32)),
+        getStateKey('contact', '22'.repeat(32)),
+      ])
+    );
+    const { onMarkSectionRead } = renderSidebar({ onMarkSectionRead: vi.fn() });
+
+    const header = getSectionHeaderContainer('Contacts');
+    const clearBtn = within(header).getByRole('button', {
+      name: 'Mark section read and seen',
+    });
+    fireEvent.click(clearBtn);
+    expect(onMarkSectionRead).toHaveBeenCalledWith([{ type: 'contact', id: alicePk }]);
+  });
+
+  it('shows a total-item counter in each section header', () => {
+    renderSidebar();
+
+    expect(
+      within(getSectionHeaderContainer('Channels')).getByLabelText('2 total')
+    ).toBeInTheDocument();
+    expect(
+      within(getSectionHeaderContainer('Contacts')).getByLabelText('1 total')
+    ).toBeInTheDocument();
+    expect(
+      within(getSectionHeaderContainer('Repeaters')).getByLabelText('1 total')
+    ).toBeInTheDocument();
   });
 
   it('renders a full add channel/contact button above search and calls onNewMessage', () => {

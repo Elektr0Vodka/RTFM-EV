@@ -41,6 +41,10 @@
   "a11y_switch_to_light_theme": "Overschakelen naar licht thema",
   "a11y_open_theme_settings": "Thema-instellingen openen",
   "a11y_unread_count": "{count} ongelezen",
+  "a11y_total_count": "{count} totaal",
+  "a11y_new_count": "{count} nieuw",
+  "a11y_new_item": "Nieuw",
+  "nav_section_mark_read_seen": "Sectie als gelezen en gezien markeren",
   "a11y_unread_messages": {
     "one": "{count} ongelezen bericht",
     "other": "{count} ongelezen berichten"
@@ -2163,7 +2167,7 @@
   "bulkdelete_channels_confirm_title": "Kanaalverwijdering bevestigen",
   "bulkdelete_channels_confirm_description": "Controleer de kanalen hieronder. Dit verwijdert ze uit de app; berichtgeschiedenis blijft bewaard.",
   "bulkdelete_channels_search_placeholder": "Zoek op naam",
-  "bulkdelete_channels_type_hashtag": "Hashtag-kamers",
+  "bulkdelete_channels_type_hashtag": "# Kanaal",
   "bulkdelete_channels_type_standard": "Standaardkanalen",
   "bulkdelete_channels_shown": {
     "one": "{count} kanaal getoond",

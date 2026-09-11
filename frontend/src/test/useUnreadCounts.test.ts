@@ -549,4 +549,34 @@ describe('useUnreadCounts', () => {
     });
     expect(result.current.firstUnreadIds).toEqual({});
   });
+
+  it('markConversationsRead clears local unread and calls per-conversation API', async () => {
+    const mocks = await getMockedApi();
+    const contacts = [makeContact(CONTACT_KEY)];
+
+    const { result } = renderWith({ contacts });
+    await act(async () => {
+      await vi.waitFor(() => expect(mocks.getUnreads).toHaveBeenCalled());
+    });
+
+    // Seed an unread + mention for the contact via a live message event.
+    act(() => {
+      result.current.recordMessageEvent({
+        msg: makeMessage({ id: 42, type: 'PRIV', conversation_key: CONTACT_KEY }),
+        activeConversation: false,
+        isNewMessage: true,
+        hasMention: true,
+      });
+    });
+    expect(result.current.unreadCounts[getStateKey('contact', CONTACT_KEY)]).toBe(1);
+    expect(result.current.mentions[getStateKey('contact', CONTACT_KEY)]).toBe(true);
+
+    act(() => {
+      result.current.markConversationsRead([{ type: 'contact', id: CONTACT_KEY }]);
+    });
+
+    expect(result.current.unreadCounts[getStateKey('contact', CONTACT_KEY)]).toBeUndefined();
+    expect(result.current.mentions[getStateKey('contact', CONTACT_KEY)]).toBeUndefined();
+    expect(mocks.markContactRead).toHaveBeenCalledWith(CONTACT_KEY);
+  });
 });
