@@ -843,6 +843,58 @@ describe('Sidebar section summaries', () => {
     expect(screen.getByRole('button', { name: 'Sort Favorites by recent' })).toBeInTheDocument();
   });
 
+  it('dims and italicizes a muted channel row name while leaving unmuted names normal', () => {
+    const publicChannel = makeChannel(PUBLIC_CHANNEL_KEY, 'Public');
+    const mutedChannel = { ...makeChannel('DD'.repeat(16), '#offtopic'), muted: true };
+    const normalChannel = makeChannel('CC'.repeat(16), '#general');
+
+    render(
+      <Sidebar
+        contacts={[]}
+        channels={[publicChannel, normalChannel, mutedChannel]}
+        activeConversation={null}
+        onSelectConversation={vi.fn()}
+        onNewMessage={vi.fn()}
+        lastMessageTimes={{}}
+        unreadCounts={{}}
+        mentions={{}}
+        showCracker={false}
+        crackerRunning={false}
+        onToggleCracker={vi.fn()}
+        onMarkAllRead={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('#offtopic')).toHaveClass('opacity-40', 'italic');
+
+    const normalName = screen.getByText('#general');
+    expect(normalName).not.toHaveClass('opacity-40');
+    expect(normalName).not.toHaveClass('italic');
+  });
+
+  it('dims and italicizes a muted Public channel row name', () => {
+    const mutedPublic = { ...makeChannel(PUBLIC_CHANNEL_KEY, 'Public'), muted: true };
+
+    render(
+      <Sidebar
+        contacts={[]}
+        channels={[mutedPublic]}
+        activeConversation={null}
+        onSelectConversation={vi.fn()}
+        onNewMessage={vi.fn()}
+        lastMessageTimes={{}}
+        unreadCounts={{}}
+        mentions={{}}
+        showCracker={false}
+        crackerRunning={false}
+        onToggleCracker={vi.fn()}
+        onMarkAllRead={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Public')).toHaveClass('opacity-40', 'italic');
+  });
+
   it('seeds favorites sort from the legacy global sort order when section prefs are missing', () => {
     localStorage.setItem('remoteterm-sortOrder', 'alpha');
 
