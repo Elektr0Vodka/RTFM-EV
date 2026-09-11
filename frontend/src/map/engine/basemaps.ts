@@ -1,4 +1,5 @@
 import type { StyleSpecification } from 'maplibre-gl';
+import { recolorNovaDark } from './novaRecolor';
 
 export type BasemapKind = 'vector' | 'vector-recolor' | 'raster';
 
@@ -156,9 +157,10 @@ export const BASEMAPS: BasemapEntry[] = [
     label: 'map_layer_nova',
     styleUrl: 'https://tiles.openfreemap.org/styles/dark',
     recolorId: 'nova',
+    recolor: recolorNovaDark,
     attribution: OFM_ATTRIBUTION,
     tone: 'dark',
-  }, // .recolor injected in Task 3
+  },
   {
     id: 'ofm-positron',
     kind: 'vector',
