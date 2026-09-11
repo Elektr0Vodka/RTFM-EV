@@ -701,6 +701,7 @@ export default function ChannelRegistryView({
   const [addForm, setAddForm] = useState<AddFormState>(EMPTY_ADD_FORM);
   const [addError, setAddError] = useState('');
   const [toast, setToast] = useState<{ msg: string; variant: 'ok' | 'err' | 'info' } | null>(null);
+  const [addConfirmNames, setAddConfirmNames] = useState<string[] | null>(null);
   const [syncLoading, setSyncLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -934,14 +935,21 @@ export default function ChannelRegistryView({
     );
   }
 
-  async function handleAddToChannels() {
-    if (!onAddToChannels) return;
-    const base = selection.size > 0 ? registry.filter((e) => selection.has(e.channel)) : sorted;
+  function handleAddToChannels() {
+    if (!onAddToChannels || selection.size === 0) return;
+    const base = registry.filter((e) => selection.has(e.channel));
     const names = addableRegistryChannelNames(base);
     if (names.length === 0) {
       showToast(t('channel_registry_add_to_channels_none'), 'info');
       return;
     }
+    setAddConfirmNames(names);
+  }
+
+  async function confirmAddToChannels() {
+    if (!onAddToChannels || !addConfirmNames) return;
+    const names = addConfirmNames;
+    setAddConfirmNames(null);
     try {
       await onAddToChannels(names);
     } catch {
@@ -1072,14 +1080,12 @@ export default function ChannelRegistryView({
               variant="outline"
               size="sm"
               className="h-7 text-xs px-2"
-              onClick={() => void handleAddToChannels()}
-              disabled={registry.length === 0}
+              onClick={handleAddToChannels}
+              disabled={registry.length === 0 || selection.size === 0}
               title={
                 selection.size > 0
                   ? t('channel_registry_add_to_channels_title_selected', { count: selection.size })
-                  : sorted.length < registry.length
-                    ? t('channel_registry_add_to_channels_title_filtered', { count: sorted.length })
-                    : t('channel_registry_add_to_channels_title_all')
+                  : t('channel_registry_add_to_channels_button')
               }
             >
               <ListPlus className="h-3.5 w-3.5 mr-1" />
@@ -1538,6 +1544,39 @@ export default function ChannelRegistryView({
               </Button>
               <Button size="sm" onClick={handleAdd}>
                 {t('channel_registry_add_channel_button')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── Add-to-Channels confirm dialog ─────────────────────────────────── */}
+      {addConfirmNames && (
+        <Dialog open onOpenChange={(open) => !open && setAddConfirmNames(null)}>
+          <DialogContent className="sm:max-w-[480px]">
+            <DialogHeader>
+              <DialogTitle>{t('channel_registry_add_to_channels_confirm_title')}</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              {t('channel_registry_add_to_channels_confirm_description', {
+                count: addConfirmNames.length,
+              })}
+            </p>
+            <div className="max-h-48 overflow-y-auto rounded-md border border-border/60 divide-y divide-border/30">
+              {addConfirmNames.map((n) => (
+                <div key={n} className="px-3 py-1.5 text-sm font-medium">
+                  {n}
+                </div>
+              ))}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" size="sm" onClick={() => setAddConfirmNames(null)}>
+                {t('common_cancel')}
+              </Button>
+              <Button size="sm" onClick={() => void confirmAddToChannels()}>
+                {t('channel_registry_add_to_channels_confirm_button', {
+                  count: addConfirmNames.length,
+                })}
               </Button>
             </DialogFooter>
           </DialogContent>

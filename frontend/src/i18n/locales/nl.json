@@ -888,6 +888,9 @@
   "settings_radioapp_bulk_delete_heading": "Contacten in Bulk Verwijderen",
   "settings_radioapp_bulk_delete_desc": "Verwijder meerdere contacten of repeaters tegelijk. Handig om spam of ongewenste nodes op te ruimen. Berichtgeschiedenis blijft bewaard.",
   "settings_radioapp_open_bulk_delete_button": "Bulkverwijdering Openen",
+  "settings_radioapp_bulk_delete_channels_heading": "Kanalen in Bulk Verwijderen",
+  "settings_radioapp_bulk_delete_channels_desc": "Verwijder meerdere gemonitorde kanalen tegelijk. Handig om een onbedoelde bulkimport op te ruimen. Berichtgeschiedenis blijft bewaard.",
+  "settings_radioapp_open_bulk_delete_channels_button": "Bulkverwijdering Openen",
   "settings_fanout_type_private_mqtt": "Privé-MQTT",
   "settings_fanout_type_community_sharing": "Community delen",
   "settings_fanout_type_home_assistant": "Home Assistant",
@@ -1884,6 +1887,12 @@
   "channel_registry_add_to_channels_title_selected": "Voeg {count} geselecteerde kanalen toe aan de app zodat hun verkeer te volgen is",
   "channel_registry_add_to_channels_none": "Geen hashtag-kanalen om toe te voegen. Privé- en niet-hashtag-vermeldingen worden overgeslagen.",
   "channel_registry_add_to_channels_error": "Kanalen toevoegen mislukt",
+  "channel_registry_add_to_channels_confirm_title": "Kanalen toevoegen aan de app",
+  "channel_registry_add_to_channels_confirm_description": {
+    "one": "{count} kanaal toevoegen aan je gemonitorde kanalen? Hun verkeer wordt monitorbaar.",
+    "other": "{count} kanalen toevoegen aan je gemonitorde kanalen? Hun verkeer wordt monitorbaar."
+  },
+  "channel_registry_add_to_channels_confirm_button": "Toevoegen ({count})",
   "channel_registry_add_button": "Toevoegen",
   "channel_registry_import_result": "Geïmporteerd: {added} nieuw, {updated} bijgewerkt.",
   "channel_registry_import_invalid_json": "Importeren mislukt: ongeldige JSON.",
@@ -2114,6 +2123,27 @@
     "other": "{count} contacten verwijderd"
   },
   "bulkdelete_toast_failed_title": "Bulkverwijdering mislukt",
+  "bulkdelete_channels_select_description": "Selecteer kanalen om uit de app te verwijderen.",
+  "bulkdelete_channels_confirm_title": "Kanaalverwijdering bevestigen",
+  "bulkdelete_channels_confirm_description": "Controleer de kanalen hieronder. Dit verwijdert ze uit de app; berichtgeschiedenis blijft bewaard.",
+  "bulkdelete_channels_search_placeholder": "Zoek op naam",
+  "bulkdelete_channels_type_hashtag": "Hashtag-kamers",
+  "bulkdelete_channels_type_standard": "Standaardkanalen",
+  "bulkdelete_channels_shown": {
+    "one": "{count} kanaal getoond",
+    "other": "{count} kanalen getoond"
+  },
+  "bulkdelete_channels_no_match": "Geen kanalen komen overeen met de geselecteerde filters.",
+  "bulkdelete_channels_confirm_button": {
+    "one": "Ik bevestig verwijdering van {count} kanaal uit de app",
+    "other": "Ik bevestig verwijdering van {count} kanalen uit de app"
+  },
+  "bulkdelete_toast_channels_deleted": {
+    "one": "{count} kanaal verwijderd",
+    "other": "{count} kanalen verwijderd"
+  },
+  "bulkdelete_col_channel": "Kanaal",
+  "bulkdelete_col_type": "Type",
   "settings_db_registry_heading": "Kanaalregister",
   "settings_db_registry_url_label": "Sync-URL voor kanaallijst",
   "settings_db_registry_url_hint_prefix": "URL van een externe JSON-kanaallijst (",

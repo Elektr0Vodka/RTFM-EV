@@ -9,9 +9,11 @@ import { formatTime } from '../../utils/messageParser';
 import { lppDisplayUnit } from '../repeater/repeaterPaneShared';
 import { useDistanceUnit } from '../../contexts/DistanceUnitContext';
 import { BulkDeleteContactsModal } from './BulkDeleteContactsModal';
+import { BulkDeleteChannelsModal } from './BulkDeleteChannelsModal';
 import type {
   AppSettings,
   AppSettingsUpdate,
+  Channel,
   Contact,
   TelemetryHistoryEntry,
   TelemetrySchedule,
@@ -26,6 +28,8 @@ export function SettingsRadioAppSection({
   onToggleBlockedName,
   contacts = [],
   onBulkDeleteContacts,
+  channels = [],
+  onBulkDeleteChannels,
   trackedTelemetryRepeaters = [],
   onToggleTrackedTelemetry,
   trackedTelemetryContacts = [],
@@ -40,6 +44,8 @@ export function SettingsRadioAppSection({
   onToggleBlockedName?: (name: string) => void;
   contacts?: Contact[];
   onBulkDeleteContacts?: (deletedKeys: string[]) => void;
+  channels?: Channel[];
+  onBulkDeleteChannels?: (deletedKeys: string[]) => void;
   trackedTelemetryRepeaters?: string[];
   onToggleTrackedTelemetry?: (publicKey: string) => Promise<void>;
   trackedTelemetryContacts?: string[];
@@ -50,6 +56,7 @@ export function SettingsRadioAppSection({
   const { distanceUnit } = useDistanceUnit();
   const [discoveryBlockedTypes, setDiscoveryBlockedTypes] = useState<number[]>([]);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteChannelsOpen, setBulkDeleteChannelsOpen] = useState(false);
 
   const [latestTelemetry, setLatestTelemetry] = useState<
     Record<string, TelemetryHistoryEntry | null>
@@ -569,6 +576,28 @@ export function SettingsRadioAppSection({
             onClose={() => setBulkDeleteOpen(false)}
             contacts={contacts}
             onDeleted={(keys) => onBulkDeleteContacts?.(keys)}
+          />
+        </div>
+
+        <div className="space-y-3">
+          <h4 className="text-sm font-semibold">
+            {t('settings_radioapp_bulk_delete_channels_heading')}
+          </h4>
+          <p className="text-[0.8125rem] text-muted-foreground">
+            {t('settings_radioapp_bulk_delete_channels_desc')}
+          </p>
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => setBulkDeleteChannelsOpen(true)}
+          >
+            {t('settings_radioapp_open_bulk_delete_channels_button')}
+          </Button>
+          <BulkDeleteChannelsModal
+            open={bulkDeleteChannelsOpen}
+            onClose={() => setBulkDeleteChannelsOpen(false)}
+            channels={channels}
+            onDeleted={(keys) => onBulkDeleteChannels?.(keys)}
           />
         </div>
       </div>

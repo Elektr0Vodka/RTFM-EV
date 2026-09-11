@@ -55,6 +55,10 @@ class BulkCreateHashtagChannelsResponse(BaseModel):
     message: str
 
 
+class BulkDeleteChannelsRequest(BaseModel):
+    keys: list[str] = Field(description="Channel keys (hex) to delete")
+
+
 class ChannelFloodScopeOverrideRequest(BaseModel):
     flood_scope_override: str = Field(
         description=(
@@ -555,6 +559,30 @@ async def import_channels(
         decrypt_total_packets=decrypt_total_packets,
         message=msg,
     )
+
+
+@router.post("/bulk-delete")
+async def bulk_delete_channels(request: BulkDeleteChannelsRequest) -> dict:
+    """Delete multiple channels from the database by key.
+
+    DB-only (mirrors single delete): radio channel slots are managed separately
+    and message history is preserved. The canonical Public channel is never
+    deleted; its key is returned in ``skipped``.
+    """
+    deleted = 0
+    skipped: list[str] = []
+    for key in request.keys:
+        if is_public_channel_key(key):
+            skipped.append(key)
+            continue
+        if await ChannelRepository.get_by_key(key) is None:
+            continue
+        await ChannelRepository.delete(key)
+        broadcast_event("channel_deleted", {"key": key})
+        deleted += 1
+
+    logger.info("Bulk deleted %d/%d channels", deleted, len(request.keys))
+    return {"deleted": deleted, "skipped": skipped}
 
 
 @router.delete("/{key}")
