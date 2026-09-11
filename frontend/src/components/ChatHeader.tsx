@@ -558,7 +558,10 @@ export function ChatHeader({
             />
           </button>
         )}
-        {conversation.type === 'channel' && cadCapable && cadSupported && onToggleCad && (
+        {(conversation.type === 'channel' || conversation.type === 'contact') &&
+          cadCapable &&
+          cadSupported &&
+          onToggleCad && (
           <button
             type="button"
             onClick={() => onToggleCad()}

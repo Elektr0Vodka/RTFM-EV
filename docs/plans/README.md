@@ -180,7 +180,7 @@ L3 (neighbors/config publish; now unblocked since X1+X2 done). Fork-port Phase 3
 | 03 | `03-split-favorites.md` | B | Sonnet | Partial | old fork `Remote-Terminal-for-MeshCore`; `_055`, `repository/contacts.py`, `settings.py` |
 | 04 | `04-analyzer-lookup.md` | C | Sonnet | Absent | `cornmeister-mesh-analyzer`, `EU-Meshcore-Analyzer`; settings, ContactInfoPane, packet feed |
 | 05 | `05-region-scope-sync.md` | D | Sonnet | Partial | `Dutch-Meshcore-Toolbox`; Channel Registry impl, `known_regions`, `/api/radio/discover-regions` |
-| 06 | `06-cad-dm-toggle.md` | B | Sonnet | Absent | `Elektr0Vodka/meshcomod` fw; `/api/radio/config`, ChatHeader; `feat/cad-header-toggle` (empty) |
+| 06 | `06-cad-dm-toggle.md` | B | Sonnet | Done | CAD toggle now renders for DM + room-server headers, gated on `cad_supported` (`feat/cad-dm-toggle`); `app/services/meshcomod.py`, ChatHeader |
 | 07 | `07-path-hash-message-filter.md` | B | Sonnet | Done | chat message-list hop-size + hide-unscoped filters (`feat/chat-hop-size-filter`); raw-feed filter shipped (PR #22) |
 | 08 | `08-channel-preset-upload.md` | E | Sonnet | Absent | Channel Import/Export; `set_channel`, `/api/radio/disconnect`, presets |
 | 09 | `09-channelfinder-wordlist-sync.md` | D | Sonnet | Partial | `mccl`, `EV_Channelfinder`, `MC-Channel-Finder`; CrackerPanel, registry sync pattern |
