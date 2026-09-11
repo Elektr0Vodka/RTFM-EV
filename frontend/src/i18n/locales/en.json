@@ -1612,6 +1612,7 @@
   "map_legend_node_types": "Node types",
   "map_legend_recency": "Recency",
   "map_node_type_legend_aria": "Node type legend",
+  "map_webgl_unavailable": "Map unavailable: WebGL is not available in this browser.",
   "visualizer_fullscreen_page_title": "RemoteTerm MeshCore Visualizer",
   "visualizer_exit_fullscreen": "Exit fullscreen",
   "visualizer_fullscreen_title": "Fullscreen",

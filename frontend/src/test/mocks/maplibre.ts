@@ -53,25 +53,36 @@ export function makeMapStub() {
 
 export function mockMaplibreModule() {
   const stub = makeMapStub();
-  const Popup = vi.fn(() => ({
-    setLngLat: vi.fn().mockReturnThis(),
-    setDOMContent: vi.fn().mockReturnThis(),
-    setHTML: vi.fn().mockReturnThis(),
-    addTo: vi.fn().mockReturnThis(),
-    remove: vi.fn(),
-  }));
-  const NavigationControl = vi.fn();
-  const Marker = vi.fn(() => ({
-    setLngLat: vi.fn().mockReturnThis(),
-    addTo: vi.fn().mockReturnThis(),
-    remove: vi.fn(),
-    getLngLat: vi.fn(() => ({ lng: 0, lat: 0 })),
-    on: vi.fn().mockReturnThis(),
-    setDraggable: vi.fn().mockReturnThis(),
-  }));
+  // These are invoked with `new`, so the implementations must be constructable
+  // (plain functions, not arrow functions).
+  const MapCtor = vi.fn(function MapCtor() {
+    return stub;
+  });
+  const Popup = vi.fn(function Popup() {
+    return {
+      setLngLat: vi.fn().mockReturnThis(),
+      setDOMContent: vi.fn().mockReturnThis(),
+      setHTML: vi.fn().mockReturnThis(),
+      addTo: vi.fn().mockReturnThis(),
+      remove: vi.fn(),
+    };
+  });
+  const NavigationControl = vi.fn(function NavigationControl() {
+    return {};
+  });
+  const Marker = vi.fn(function Marker() {
+    return {
+      setLngLat: vi.fn().mockReturnThis(),
+      addTo: vi.fn().mockReturnThis(),
+      remove: vi.fn(),
+      getLngLat: vi.fn(() => ({ lng: 0, lat: 0 })),
+      on: vi.fn().mockReturnThis(),
+      setDraggable: vi.fn().mockReturnThis(),
+    };
+  });
   return {
-    default: { Map: vi.fn(() => stub), Popup, NavigationControl, Marker },
-    Map: vi.fn(() => stub),
+    default: { Map: MapCtor, Popup, NavigationControl, Marker },
+    Map: MapCtor,
     Popup,
     NavigationControl,
     Marker,

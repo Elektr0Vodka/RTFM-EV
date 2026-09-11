@@ -1613,6 +1613,7 @@
   "map_legend_node_types": "Knooptypen",
   "map_legend_recency": "Recentheid",
   "map_node_type_legend_aria": "Legenda knooptypen",
+  "map_webgl_unavailable": "Kaart niet beschikbaar: WebGL is niet beschikbaar in deze browser.",
   "visualizer_fullscreen_page_title": "RemoteTerm MeshCore-visualisatie",
   "visualizer_exit_fullscreen": "Volledig scherm afsluiten",
   "visualizer_fullscreen_title": "Volledig scherm",
