@@ -693,10 +693,7 @@ export function Sidebar({
           />
         )}
         <span
-          className={cn(
-            'name flex-1 truncate text-[0.8125rem]',
-            row.muted && 'opacity-40 italic'
-          )}
+          className={cn('name flex-1 truncate text-[0.8125rem]', row.muted && 'opacity-40 italic')}
         >
           {row.name}
         </span>
