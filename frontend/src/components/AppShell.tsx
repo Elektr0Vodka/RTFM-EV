@@ -227,7 +227,11 @@ export function AppShell({
   );
 
   const renderSidebar = (forceExpanded: boolean) =>
-    showSettings ? settingsSidebarContent : <Sidebar {...sidebarProps} forceExpanded={forceExpanded} />;
+    showSettings ? (
+      settingsSidebarContent
+    ) : (
+      <Sidebar {...sidebarProps} forceExpanded={forceExpanded} />
+    );
 
   return (
     <div className="flex flex-col h-full" {...swipeHandlers}>

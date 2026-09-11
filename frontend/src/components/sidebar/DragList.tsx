@@ -67,7 +67,9 @@ export function DragList<T extends string>({
             className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/50 cursor-grab active:cursor-grabbing"
             aria-hidden="true"
           />
-          <span className="text-[13px] text-foreground flex-1 truncate">{labels[item] ?? item}</span>
+          <span className="text-[13px] text-foreground flex-1 truncate">
+            {labels[item] ?? item}
+          </span>
           <button
             type="button"
             className="p-0.5 rounded text-muted-foreground hover:text-foreground disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

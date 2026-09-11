@@ -852,24 +852,24 @@ export function Sidebar({
       );
     }
     return (
-    <div
-      key={key}
-      data-active={active ? 'true' : undefined}
-      className={cn(
-        'sidebar-action-row px-3 py-2 cursor-pointer flex items-center gap-2 border-l-2 border-transparent hover:bg-accent transition-colors text-[0.8125rem] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        active && 'bg-accent border-l-primary'
-      )}
-      role="button"
-      tabIndex={0}
-      aria-current={active ? 'page' : undefined}
-      onKeyDown={handleKeyboardActivate}
-      onClick={onClick}
-    >
-      <span className="sidebar-tool-icon" aria-hidden="true">
-        {icon}
-      </span>
-      <span className="sidebar-tool-label flex-1 truncate">{label}</span>
-    </div>
+      <div
+        key={key}
+        data-active={active ? 'true' : undefined}
+        className={cn(
+          'sidebar-action-row px-3 py-2 cursor-pointer flex items-center gap-2 border-l-2 border-transparent hover:bg-accent transition-colors text-[0.8125rem] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          active && 'bg-accent border-l-primary'
+        )}
+        role="button"
+        tabIndex={0}
+        aria-current={active ? 'page' : undefined}
+        onKeyDown={handleKeyboardActivate}
+        onClick={onClick}
+      >
+        <span className="sidebar-tool-icon" aria-hidden="true">
+          {icon}
+        </span>
+        <span className="sidebar-tool-label flex-1 truncate">{label}</span>
+      </div>
     );
   };
 
@@ -910,8 +910,7 @@ export function Sidebar({
   // flat modes (recent/alpha) the favourites render as a single flat list, which
   // preserves the existing 4-way favourites sort behaviour.
   const favoritesGroupedByType =
-    sectionSortOrders.favorites === 'type-recent' ||
-    sectionSortOrders.favorites === 'type-alpha';
+    sectionSortOrders.favorites === 'type-recent' || sectionSortOrders.favorites === 'type-alpha';
   const channelRows = nonFavoriteChannels.map((channel) => buildChannelRow(channel, 'chan'));
   const contactRows = nonFavoriteContacts.map((contact) => buildContactRow(contact, 'contact'));
   const roomRows = nonFavoriteRooms.map((contact) => buildContactRow(contact, 'room'));
@@ -934,7 +933,8 @@ export function Sidebar({
           active: isActive('node', 'node'),
           icon: <Gauge className="h-4 w-4" />,
           label: t('nav_my_node'),
-          onClick: () => handleSelectConversation({ type: 'node', id: 'node', name: t('nav_my_node') }),
+          onClick: () =>
+            handleSelectConversation({ type: 'node', id: 'node', name: t('nav_my_node') }),
           iconOnly,
         });
       case 'mesh-health':
@@ -971,7 +971,8 @@ export function Sidebar({
           active: isActive('map', 'map'),
           icon: <Map className="h-4 w-4" />,
           label: t('nav_node_map'),
-          onClick: () => handleSelectConversation({ type: 'map', id: 'map', name: t('nav_node_map') }),
+          onClick: () =>
+            handleSelectConversation({ type: 'map', id: 'map', name: t('nav_node_map') }),
           iconOnly,
         });
       case 'visualizer':
@@ -994,7 +995,8 @@ export function Sidebar({
           active: isActive('trace', 'trace'),
           icon: <Cable className="h-4 w-4" />,
           label: t('nav_trace'),
-          onClick: () => handleSelectConversation({ type: 'trace', id: 'trace', name: t('nav_trace') }),
+          onClick: () =>
+            handleSelectConversation({ type: 'trace', id: 'trace', name: t('nav_trace') }),
           iconOnly,
         });
       case 'search':
@@ -1439,7 +1441,11 @@ export function Sidebar({
             aria-label={isRail ? t('nav_expand_sidebar') : t('nav_collapse_sidebar')}
             title={isRail ? t('nav_expand_sidebar') : t('nav_collapse_sidebar')}
           >
-            {isRail ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+            {isRail ? (
+              <PanelLeftOpen className="h-4 w-4" />
+            ) : (
+              <PanelLeftClose className="h-4 w-4" />
+            )}
           </button>
         </div>
       )}
