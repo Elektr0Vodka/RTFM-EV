@@ -63,6 +63,8 @@ def _config_to_settings(config: dict) -> SimpleNamespace:
         community_mqtt_email=config.get("email", ""),
         community_mqtt_token_audience=config.get("token_audience", ""),
         community_mqtt_websocket_path=config.get("websocket_path", "/"),
+        community_mqtt_publish_status=config.get("publish_status", True),
+        community_mqtt_status_interval_ms=config.get("status_interval_ms", 300000),
     )
 
 
@@ -93,6 +95,8 @@ class MqttCommunityModule(FanoutModule):
 
     async def on_raw(self, data: dict) -> None:
         if not self._publisher.connected or self._publisher._settings is None:
+            return
+        if not self.config.get("publish_packets", True):
             return
         await _publish_community_packet(self._publisher, self.config, data)
 

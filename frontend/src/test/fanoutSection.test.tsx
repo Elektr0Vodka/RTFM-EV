@@ -141,7 +141,7 @@ describe('SettingsFanoutSection', () => {
     const optionButtons = within(dialog)
       .getAllByRole('button')
       .filter((button) => button.hasAttribute('aria-pressed'));
-    expect(optionButtons).toHaveLength(15);
+    expect(optionButtons).toHaveLength(14);
     expect(within(dialog).getByRole('button', { name: 'Close' })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Create' })).toBeInTheDocument();
     expect(
@@ -901,6 +901,9 @@ describe('SettingsFanoutSection', () => {
           email: '',
           token_audience: '',
           topic_template: 'meshcore/{IATA}/{PUBLIC_KEY}/packets',
+          publish_status: true,
+          publish_packets: true,
+          status_interval_ms: 300000,
         },
         scope: { messages: 'none', raw_packets: 'all' },
         enabled: true,
@@ -1103,6 +1106,9 @@ describe('SettingsFanoutSection', () => {
           email: '',
           token_audience: '',
           topic_template: 'meshrank/uplink/B435F6D5F7896B74C6B995FE221C2C1F/{PUBLIC_KEY}/packets',
+          publish_status: true,
+          publish_packets: true,
+          status_interval_ms: 300000,
         },
         scope: { messages: 'none', raw_packets: 'all' },
         enabled: true,
@@ -1260,6 +1266,9 @@ describe('SettingsFanoutSection', () => {
           email: 'user@example.com',
           token_audience: 'mqtt-us-v1.letsmesh.net',
           topic_template: 'meshcore/{IATA}/{PUBLIC_KEY}/packets',
+          publish_status: true,
+          publish_packets: true,
+          status_interval_ms: 300000,
         },
         scope: { messages: 'none', raw_packets: 'all' },
         enabled: false,
@@ -1372,6 +1381,9 @@ describe('SettingsFanoutSection', () => {
           email: 'user@example.com',
           token_audience: 'mqtt-eu-v1.letsmesh.net',
           topic_template: 'meshcore/{IATA}/{PUBLIC_KEY}/packets',
+          publish_status: true,
+          publish_packets: true,
+          status_interval_ms: 300000,
         },
         scope: { messages: 'none', raw_packets: 'all' },
         enabled: true,
@@ -1439,6 +1451,9 @@ describe('SettingsFanoutSection', () => {
           token_audience: 'collector1.dutchmeshcore.nl',
           websocket_path: '/mqtt',
           topic_template: 'meshcore/{IATA}/{PUBLIC_KEY}/packets',
+          publish_status: true,
+          publish_packets: true,
+          status_interval_ms: 300000,
         },
         scope: { messages: 'none', raw_packets: 'all' },
         enabled: true,
@@ -1502,6 +1517,9 @@ describe('SettingsFanoutSection', () => {
           token_audience: 'collector2.dutchmeshcore.nl',
           websocket_path: '/mqtt',
           topic_template: 'meshcore/{IATA}/{PUBLIC_KEY}/packets',
+          publish_status: true,
+          publish_packets: true,
+          status_interval_ms: 300000,
         },
         scope: { messages: 'none', raw_packets: 'all' },
         enabled: true,
@@ -1565,10 +1583,53 @@ describe('SettingsFanoutSection', () => {
           token_audience: 'mqtt.meshcore-analyzer.eu',
           websocket_path: '/',
           topic_template: 'meshcore/{IATA}/{PUBLIC_KEY}/packets',
+          publish_status: true,
+          publish_packets: true,
+          status_interval_ms: 300000,
         },
         scope: { messages: 'none', raw_packets: 'all' },
         enabled: true,
       })
+    );
+  });
+
+  it('community preset topic controls round-trip toggles and interval', async () => {
+    const created: FanoutConfig = {
+      id: 'comm-toggle',
+      type: 'mqtt_community',
+      name: 'DMC-1',
+      enabled: true,
+      config: {},
+      scope: { messages: 'none', raw_packets: 'all' },
+      sort_order: 0,
+      created_at: 4000,
+    };
+    mockedApi.createFanoutConfig.mockResolvedValue(created);
+    mockedApi.getFanoutConfigs.mockResolvedValueOnce([]).mockResolvedValueOnce([created]);
+
+    renderSection();
+    await openCreateIntegrationDialog();
+    selectCreateIntegration('DMC-1');
+    confirmCreateIntegration();
+    await waitFor(() => expect(screen.getByText('← Back to list')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'user@example.com' } });
+    fireEvent.change(screen.getByLabelText('Region Code (IATA)'), { target: { value: 'ams' } });
+    fireEvent.click(screen.getByText('Publish packets')); // toggle OFF
+    fireEvent.change(screen.getByLabelText('Status interval (minutes)'), { target: { value: '10' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save as Enabled' }));
+
+    await waitFor(() =>
+      expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'mqtt_community',
+          config: expect.objectContaining({
+            publish_status: true,
+            publish_packets: false,
+            status_interval_ms: 600000,
+          }),
+        })
+      )
     );
   });
 
@@ -1712,79 +1773,5 @@ describe('SettingsFanoutSection', () => {
     const alpha = within(webhookGroup).getByText('Alpha Hook');
     const zulu = within(webhookGroup).getByText('Zulu Hook');
     expect(alpha.compareDocumentPosition(zulu) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it('creates DMC Observer with raw off and a 5-minute status interval by default', async () => {
-    const created: FanoutConfig = {
-      id: 'dmc-new',
-      type: 'mqtt_dmc_observer',
-      name: 'DMC Observer (native)',
-      enabled: false,
-      config: {},
-      scope: { messages: 'none', raw_packets: 'all' },
-      sort_order: 0,
-      created_at: 3000,
-    };
-    mockedApi.createFanoutConfig.mockResolvedValue(created);
-    mockedApi.getFanoutConfigs.mockResolvedValueOnce([]).mockResolvedValueOnce([created]);
-
-    renderSection();
-    await openCreateIntegrationDialog();
-    selectCreateIntegration('DMC Observer (native)');
-    confirmCreateIntegration();
-    await waitFor(() => expect(screen.getByText('← Back to list')).toBeInTheDocument());
-
-    fireEvent.click(screen.getByRole('button', { name: 'Save as Disabled' }));
-
-    await waitFor(() =>
-      expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: 'mqtt_dmc_observer',
-          scope: { messages: 'none', raw_packets: 'all' },
-          enabled: false,
-          config: expect.objectContaining({
-            publish_status: true,
-            publish_packets: true,
-            publish_raw: false,
-            status_interval_ms: 300000,
-            broker_port: 443,
-          }),
-        })
-      )
-    );
-  });
-
-  it('maps the DMC status interval minutes field to milliseconds', async () => {
-    const created: FanoutConfig = {
-      id: 'dmc-new-2',
-      type: 'mqtt_dmc_observer',
-      name: 'DMC Observer (native)',
-      enabled: false,
-      config: {},
-      scope: { messages: 'none', raw_packets: 'all' },
-      sort_order: 0,
-      created_at: 3100,
-    };
-    mockedApi.createFanoutConfig.mockResolvedValue(created);
-    mockedApi.getFanoutConfigs.mockResolvedValueOnce([]).mockResolvedValueOnce([created]);
-
-    renderSection();
-    await openCreateIntegrationDialog();
-    selectCreateIntegration('DMC Observer (native)');
-    confirmCreateIntegration();
-    await waitFor(() => expect(screen.getByText('← Back to list')).toBeInTheDocument());
-
-    fireEvent.change(screen.getByLabelText('Status interval (minutes)'), {
-      target: { value: '10' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Save as Disabled' }));
-
-    await waitFor(() =>
-      expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith(
-        expect.objectContaining({
-          config: expect.objectContaining({ status_interval_ms: 600000 }),
-        })
-      )
-    );
   });
 });

@@ -110,33 +110,14 @@ Wraps `MqttPublisher` from `app/fanout/mqtt.py`. Config blob:
 ### mqtt_community (mqtt_community.py)
 Wraps `CommunityMqttPublisher` from `app/fanout/community_mqtt.py`. Config blob:
 - `broker_host`, `broker_port`, `iata`, `email`
-- Only publishes raw packets (on_message is a no-op)
+- Only publishes raw packets and status (on_message is a no-op)
 - The published `raw` field is always the original packet hex.
 - When a direct packet includes a `path` field, it is emitted as comma-separated hop identifiers exactly as the packet reports them. Token width varies with the packet's path hash mode (`1`, `2`, or `3` bytes per hop); there is no legacy flat per-byte companion field.
-
-### mqtt_dmc_observer (mqtt_dmc_observer.py)
-Bridges a companion radio to a DMC (Dutch-MeshCore) observer MQTT broker,
-mirroring the observer firmware's native wire schema. The companion firmware has
-no MQTT of its own, so RTFM-EV reconstructs the payloads host-side. Distinct from
-the `mqtt_community` DMC broker presets, which publish the older
-meshcore-packet-capture schema. `DmcObserverPublisher` subclasses
-`CommunityMqttPublisher` to reuse the connection loop, JWT auth, and device-info
-gathering; `mqtt_community.py` is left untouched. Config blob:
-- Connection knobs (same shape as community): `broker_host`, `broker_port`,
-  `transport`, `use_tls`, `tls_verify`, `auth_mode`, `username`, `password`,
-  `iata`, `email`, `token_audience`, `websocket_path`
-- `publish_status` (bool, default true), `publish_packets` (bool, default true),
-  `publish_raw` (bool, default **false**) — per-topic toggles
-- `status_interval_ms` (int, default 300000; clamped `[1000, 3600000]`; the UI
-  edits minutes, 1-60)
-- Topics: `meshcore/{IATA}/{DEVICE}/{status|packets|raw}` where `{DEVICE}` is the
-  64-char uppercase pubkey hex. `status` is retained (QoS 1); `packets`/`raw` are
-  never retained and are event-driven. No Last-Will (matches firmware).
-- Scope is always `{"messages": "none", "raw_packets": "all"}`. Status stats are
-  drawn from the `on_health` snapshot; `packets`/`raw` from `on_raw`. Timestamps
-  end `+00:00`. `SNR`/`RSSI`/`len`/`packet_type`/`payload_len` are JSON strings;
-  `path` is an array of lowercase hex hop tokens. See
-  `docs/superpowers/specs/2026-09-10-mqtt-dmc-observer-export-design.md`.
+- Per-topic toggles + cadence (all community presets, incl. the DMC/analyzer broker presets):
+  - `publish_status` (bool, default `true`) — gate the retained `meshcore/{IATA}/{PUBKEY}/status` topic
+  - `publish_packets` (bool, default `true`) — gate the `meshcore/{IATA}/{PUBKEY}/packets` topic
+  - `status_interval_ms` (int, default `300000`, clamped `[1000, 3600000]`; the UI edits minutes, 1-60) — status republish cadence
+  - Absent keys default to status on / packets on / 300000 ms (unchanged legacy behavior). No `raw` topic is published (the raw bytes + SNR/RSSI already ride on `/packets`).
 
 ### bot (bot.py)
 Wraps bot code execution via `app/fanout/bot_exec.py`. Config blob:
