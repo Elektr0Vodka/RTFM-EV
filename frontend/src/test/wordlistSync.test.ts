@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { loadSyncedWordlist, saveSyncedWordlist, mergeWordlists } from '../lib/wordlistSync';
+import {
+  loadSyncedWordlist,
+  saveSyncedWordlist,
+  mergeWordlists,
+  loadRegistryWordlist,
+  saveRegistryWordlist,
+  registryWordlistCandidates,
+} from '../lib/wordlistSync';
 
 // wordlistSync reads/writes localStorage - provide a clean stub
 const store: Record<string, string> = {};
@@ -55,5 +62,38 @@ describe('loadSyncedWordlist / saveSyncedWordlist', () => {
   it('returns [] when cached value is not an array', () => {
     store['meshcore-wordlist-sync-cache'] = JSON.stringify({ nope: true });
     expect(loadSyncedWordlist()).toEqual([]);
+  });
+});
+
+describe('registryWordlistCandidates', () => {
+  it('strips a single leading # and trims', () => {
+    expect(registryWordlistCandidates(['#amsterdam', '#den-haag', 'utrecht'])).toEqual([
+      'amsterdam',
+      'den-haag',
+      'utrecht',
+    ]);
+  });
+
+  it('drops empty/whitespace-only names', () => {
+    expect(registryWordlistCandidates(['#', '  ', '#ok'])).toEqual(['ok']);
+  });
+});
+
+describe('loadRegistryWordlist / saveRegistryWordlist', () => {
+  it('round-trips a saved list under its own key', () => {
+    saveRegistryWordlist(['amsterdam', 'saarland']);
+    expect(loadRegistryWordlist()).toEqual(['amsterdam', 'saarland']);
+  });
+
+  it('is independent of the remote sync cache', () => {
+    saveSyncedWordlist(['remote-a']);
+    saveRegistryWordlist(['registry-b']);
+    expect(loadSyncedWordlist()).toEqual(['remote-a']);
+    expect(loadRegistryWordlist()).toEqual(['registry-b']);
+  });
+
+  it('returns [] on malformed cached JSON', () => {
+    store['meshcore-wordlist-registry-cache'] = '{not valid';
+    expect(loadRegistryWordlist()).toEqual([]);
   });
 });

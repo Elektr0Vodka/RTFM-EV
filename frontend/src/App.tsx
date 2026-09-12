@@ -35,6 +35,8 @@ import type { BulkCreateHashtagChannelsResult, Channel, Conversation, Message } 
 import { CONTACT_TYPE_REPEATER, CONTACT_TYPE_ROOM } from './types';
 import { shouldAutoFocusInput } from './utils/autoFocusInput';
 import { computeRegionSeed } from './lib/regionSeed';
+import { loadRegistry, recordMention, saveRegistry } from './lib/channelManager';
+import { buildNameSet } from './lib/hashtagChannelState';
 
 interface ChannelUnreadMarker {
   channelId: string;
@@ -593,6 +595,23 @@ export function App() {
     [channels, handleNavigateToChannel, openNewMessageModal]
   );
 
+  // Channel Registry names (lowercased, '#'-normalised) for classifying #hashtag
+  // references in chat. Re-derived when a mention is captured (nonce bump).
+  const [registryNonce, setRegistryNonce] = useState(0);
+  const registryNames = useMemo(
+    // registryNonce is a deliberate cache-buster; loadRegistry() reads localStorage.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    () => buildNameSet(loadRegistry().map((e) => e.channel)),
+    [registryNonce]
+  );
+  const handleHashtagAdded = useCallback((channelName: string) => {
+    const { result, added } = recordMention(channelName, loadRegistry());
+    if (added) {
+      saveRegistry(result);
+      setRegistryNonce((n) => n + 1);
+    }
+  }, []);
+
   const handleBulkAddChannels = useCallback(
     async (channelNames: string[], tryHistorical: boolean) => {
       const result = await handleBulkCreateHashtagChannels(channelNames, tryHistorical);
@@ -673,6 +692,9 @@ export function App() {
     onOpenChannelInfo: handleOpenChannelInfo,
     onSenderClick: handleSenderClick,
     onChannelReferenceClick: handleChannelReferenceClick,
+    registryNames,
+    autoAddMentionedChannels: appSettings?.auto_add_mentioned_channels ?? false,
+    onHashtagAdded: handleHashtagAdded,
     onInsertLocation: handleInsertLocation,
     onCoordinateClick: handleCoordinateClick,
     onLoadOlder: fetchOlderMessages,

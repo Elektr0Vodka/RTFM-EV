@@ -83,6 +83,9 @@ interface ConversationPaneProps {
   onOpenChannelInfo: (channelKey: string) => void;
   onSenderClick: (sender: string) => void;
   onChannelReferenceClick?: (channelName: string) => void;
+  registryNames?: Set<string>;
+  autoAddMentionedChannels?: boolean;
+  onHashtagAdded?: (channelName: string) => void;
   onInsertLocation?: (lat: number, lon: number, label: string) => void;
   onCoordinateClick?: (lat: number, lon: number, label: string) => void;
   onLoadOlder: () => Promise<void>;
@@ -169,6 +172,9 @@ export function ConversationPane({
   onOpenChannelInfo,
   onSenderClick,
   onChannelReferenceClick,
+  registryNames,
+  autoAddMentionedChannels,
+  onHashtagAdded,
   onInsertLocation,
   onCoordinateClick,
   onLoadOlder,
@@ -414,6 +420,9 @@ export function ConversationPane({
           }
           onSenderClick={activeConversation.type === 'channel' ? onSenderClick : undefined}
           onChannelReferenceClick={onChannelReferenceClick}
+          registryNames={registryNames}
+          autoAddMentionedChannels={autoAddMentionedChannels}
+          onHashtagAdded={onHashtagAdded}
           onCoordinateClick={onCoordinateClick}
           onLoadOlder={onLoadOlder}
           onResendChannelMessage={

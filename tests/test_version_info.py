@@ -19,7 +19,8 @@ class TestAppBuildInfo:
 
         info = version_info.get_app_build_info()
 
-        assert info.version == "3.4.1"
+        # The resolved base version carries the fork build suffix for display.
+        assert info.version == "3.4.1" + version_info.FORK_VERSION_SUFFIX
         assert info.version_source == "package_metadata"
         assert info.commit_hash == "abcdef12"
         assert info.commit_source == "git"
@@ -35,7 +36,7 @@ class TestAppBuildInfo:
 
         info = version_info.get_app_build_info()
 
-        assert info.version == "3.2.0"
+        assert info.version == "3.2.0" + version_info.FORK_VERSION_SUFFIX
         assert info.version_source == "pyproject"
         assert info.commit_hash == "cf1a55e2"
         assert info.commit_source == "build_info"

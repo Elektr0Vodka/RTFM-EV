@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MessageList } from '../components/MessageList';
 import { PathHopWidthProvider } from '../contexts/PathHopWidthContext';
-import { CONTACT_TYPE_ROOM, type Contact, type Message } from '../types';
+import { buildNameSet } from '../lib/hashtagChannelState';
+import { CONTACT_TYPE_ROOM, type Channel, type Contact, type Message } from '../types';
 
 const scrollIntoViewMock = vi.fn();
 const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
@@ -760,5 +761,78 @@ describe('MessageList hop-size filter', () => {
 
     expect(row(container, 11)).not.toBeNull(); // anchor protected
     expect(row(container, 13)).toBeNull(); // other unscoped hidden
+  });
+});
+
+describe('MessageList #hashtag mention states', () => {
+  beforeEach(() => {
+    // Earlier tests persist view filters (hideUnscoped / hop widths) in
+    // localStorage; without clearing them our region-less test message would be
+    // filtered out and no rows would mount.
+    localStorage.clear();
+    scrollIntoViewMock.mockReset();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoViewMock,
+      writable: true,
+    });
+    Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
+      configurable: true,
+      value: originalGetBoundingClientRect,
+      writable: true,
+    });
+  });
+
+  function createChannel(name: string): Channel {
+    return {
+      key: name,
+      name,
+      is_hashtag: true,
+      on_radio: true,
+      last_read_at: null,
+      favorite: false,
+      muted: false,
+    };
+  }
+
+  it('styles followed/known/unknown mentions and captures an unknown one via the + button', async () => {
+    const onHashtagAdded = vi.fn();
+    render(
+      <MessageList
+        messages={[createMessage({ text: 'Alice: try #amsterdam and #saarland and #wetter' })]}
+        contacts={[]}
+        channels={[createChannel('#amsterdam')]}
+        registryNames={buildNameSet(['#saarland'])}
+        onHashtagAdded={onHashtagAdded}
+        loading={false}
+      />
+    );
+
+    // Distinct titles reflect the three states.
+    expect(screen.getByTitle('#amsterdam: followed channel')).toBeInTheDocument();
+    expect(screen.getByTitle('#saarland: in your channel registry')).toBeInTheDocument();
+    expect(screen.getByTitle('#wetter: not in your registry')).toBeInTheDocument();
+
+    // Only the unknown mention gets an inline capture button.
+    expect(screen.queryByLabelText('Add #amsterdam to the channel registry')).toBeNull();
+    const addBtn = screen.getByLabelText('Add #wetter to the channel registry');
+    await userEvent.click(addBtn);
+    expect(onHashtagAdded).toHaveBeenCalledWith('#wetter');
+  });
+
+  it('auto-captures unknown mentions when the setting is on', () => {
+    const onHashtagAdded = vi.fn();
+    render(
+      <MessageList
+        messages={[createMessage({ text: 'Alice: hi #newchan' })]}
+        contacts={[]}
+        channels={[]}
+        registryNames={buildNameSet([])}
+        autoAddMentionedChannels
+        onHashtagAdded={onHashtagAdded}
+        loading={false}
+      />
+    );
+    expect(onHashtagAdded).toHaveBeenCalledWith('#newchan');
   });
 });

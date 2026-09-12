@@ -1512,6 +1512,25 @@ export function SettingsRadioSection({
             </p>
           </div>
         </div>
+
+        <div className="flex items-start gap-3 rounded-md border border-border/60 p-3">
+          <Checkbox
+            id="auto-add-mentioned-channels"
+            checked={appSettings.auto_add_mentioned_channels}
+            onCheckedChange={(checked) =>
+              onSaveAppSettings({ auto_add_mentioned_channels: checked === true })
+            }
+            className="mt-0.5"
+          />
+          <div className="space-y-1">
+            <Label htmlFor="auto-add-mentioned-channels">
+              {t('settings_radio_auto_add_mentioned_label')}
+            </Label>
+            <p className="text-[0.8125rem] text-muted-foreground">
+              {t('settings_radio_auto_add_mentioned_desc')}
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="space-y-2">

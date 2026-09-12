@@ -78,6 +78,7 @@ const SOURCE_LABEL_KEYS: Record<RegistryChannel['source'], string> = {
   manual: 'channel_registry_source_manual_lc',
   imported: 'channel_registry_source_imported_lc',
   radio: 'channel_registry_source_radio_lc',
+  mention: 'channel_registry_source_mention_lc',
 };
 
 const STATUS_LABEL_KEYS: Record<RegistryChannel['status'], string> = {
@@ -93,6 +94,7 @@ function sourceBadge(source: RegistryChannel['source'], t: TFn) {
     manual: 'bg-muted text-muted-foreground',
     imported: 'bg-muted text-muted-foreground',
     radio: 'bg-blue-500/10 text-blue-600',
+    mention: 'bg-accent text-accent-foreground',
   };
   return (
     <span
@@ -486,6 +488,7 @@ function EditChannelModal({
                 <option value="imported">{t('channel_registry_source_imported')}</option>
                 <option value="radio">{t('channel_registry_source_radio')}</option>
                 <option value="finder">{t('channel_registry_source_finder')}</option>
+                <option value="mention">{t('channel_registry_source_mention')}</option>
               </select>
             </div>
           </div>
@@ -1206,6 +1209,7 @@ export default function ChannelRegistryView({
           <option value="radio">{t('channel_registry_source_radio')}</option>
           <option value="manual">{t('channel_registry_source_manual')}</option>
           <option value="imported">{t('channel_registry_source_imported')}</option>
+          <option value="mention">{t('channel_registry_source_mention')}</option>
         </select>
         {categoryOptions.length > 0 && (
           <select

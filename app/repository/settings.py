@@ -49,7 +49,8 @@ class AppSettingsRepository:
                    tracked_telemetry_repeaters, tracked_telemetry_contacts,
                    auto_resend_channel,
                    telemetry_interval_hours, telemetry_routed_hourly,
-                   show_mention_ticker, registry_sync_url, region_sync_url,
+                   show_mention_ticker, auto_add_mentioned_channels,
+                   registry_sync_url, region_sync_url,
                    wordlist_sync_url, analyzer_sites,
                    external_map_enabled, external_map_sync_url,
                    external_map_sync_interval_hours
@@ -153,6 +154,12 @@ class AppSettingsRepository:
         except (KeyError, TypeError):
             show_mention_ticker = True
 
+        # Parse auto_add_mentioned_channels boolean (migration adds it default=0)
+        try:
+            auto_add_mentioned_channels = bool(row["auto_add_mentioned_channels"])
+        except (KeyError, TypeError):
+            auto_add_mentioned_channels = False
+
         # Parse registry_sync_url (migration adds the column with default='')
         try:
             registry_sync_url = row["registry_sync_url"] or ""
@@ -217,6 +224,7 @@ class AppSettingsRepository:
             telemetry_interval_hours=telemetry_interval_hours,
             telemetry_routed_hourly=telemetry_routed_hourly,
             show_mention_ticker=show_mention_ticker,
+            auto_add_mentioned_channels=auto_add_mentioned_channels,
             registry_sync_url=registry_sync_url,
             region_sync_url=region_sync_url,
             wordlist_sync_url=wordlist_sync_url,
@@ -246,6 +254,7 @@ class AppSettingsRepository:
         telemetry_interval_hours: int | None = None,
         telemetry_routed_hourly: bool | None = None,
         show_mention_ticker: bool | None = None,
+        auto_add_mentioned_channels: bool | None = None,
         registry_sync_url: str | None = None,
         region_sync_url: str | None = None,
         wordlist_sync_url: str | None = None,
@@ -326,6 +335,10 @@ class AppSettingsRepository:
             updates.append("show_mention_ticker = ?")
             params.append(1 if show_mention_ticker else 0)
 
+        if auto_add_mentioned_channels is not None:
+            updates.append("auto_add_mentioned_channels = ?")
+            params.append(1 if auto_add_mentioned_channels else 0)
+
         if registry_sync_url is not None:
             updates.append("registry_sync_url = ?")
             params.append(registry_sync_url)
@@ -386,6 +399,7 @@ class AppSettingsRepository:
         telemetry_interval_hours: int | None = None,
         telemetry_routed_hourly: bool | None = None,
         show_mention_ticker: bool | None = None,
+        auto_add_mentioned_channels: bool | None = None,
         registry_sync_url: str | None = None,
         region_sync_url: str | None = None,
         wordlist_sync_url: str | None = None,
@@ -414,6 +428,7 @@ class AppSettingsRepository:
                 telemetry_interval_hours=telemetry_interval_hours,
                 telemetry_routed_hourly=telemetry_routed_hourly,
                 show_mention_ticker=show_mention_ticker,
+                auto_add_mentioned_channels=auto_add_mentioned_channels,
                 registry_sync_url=registry_sync_url,
                 region_sync_url=region_sync_url,
                 wordlist_sync_url=wordlist_sync_url,

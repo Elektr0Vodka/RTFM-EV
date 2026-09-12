@@ -467,6 +467,7 @@ export interface AppSettings {
   telemetry_interval_hours: number;
   telemetry_routed_hourly: boolean;
   show_mention_ticker: boolean;
+  auto_add_mentioned_channels: boolean;
   registry_sync_url: string;
   region_sync_url: string;
   wordlist_sync_url: string;
@@ -508,6 +509,7 @@ export interface AppSettingsUpdate {
   telemetry_interval_hours?: number;
   telemetry_routed_hourly?: boolean;
   show_mention_ticker?: boolean;
+  auto_add_mentioned_channels?: boolean;
   registry_sync_url?: string;
   region_sync_url?: string;
   wordlist_sync_url?: string;

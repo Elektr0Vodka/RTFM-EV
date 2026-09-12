@@ -1150,6 +1150,14 @@ class AppSettings(BaseModel):
             "@mentioned in a channel they are not currently viewing"
         ),
     )
+    auto_add_mentioned_channels: bool = Field(
+        default=False,
+        description=(
+            "When enabled, #hashtag channels referenced in chat messages are "
+            "automatically recorded in the Channel Registry (registry only; no "
+            "followed radio channel is created)"
+        ),
+    )
     registry_sync_url: str = Field(
         default="",
         description="URL of a remote {name: key} JSON channel list to sync into the registry",

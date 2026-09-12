@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { addMissingFromSync, addableRegistryChannelNames } from '../lib/channelManager';
+import {
+  addMissingFromSync,
+  addableRegistryChannelNames,
+  recordMention,
+} from '../lib/channelManager';
 import type { RegistryChannel } from '../lib/channelManager';
 
 // channelManager reads/writes localStorage — provide a clean stub
@@ -122,5 +126,33 @@ describe('addableRegistryChannelNames', () => {
 
   it('returns an empty list for empty input', () => {
     expect(addableRegistryChannelNames([])).toEqual([]);
+  });
+});
+
+describe('recordMention', () => {
+  it('adds an unknown mention as source "mention" with no activity metadata', () => {
+    const { result, added } = recordMention('#saarland', []);
+    expect(added).toBe(true);
+    expect(result).toHaveLength(1);
+    const e = result[0];
+    expect(e.channel).toBe('#saarland');
+    expect(e.source).toBe('mention');
+    expect(e.firstSeen).toBeNull();
+    expect(e.lastHeard).toBeNull();
+    expect(e.packets).toBe(0);
+  });
+
+  it('normalises a missing leading # and is case-insensitive', () => {
+    const existing: RegistryChannel[] = recordMention('#Saarland', []).result;
+    const { result, added } = recordMention('saarland', existing);
+    expect(added).toBe(false);
+    expect(result).toHaveLength(1);
+  });
+
+  it('never mutates an existing entry', () => {
+    const existing = recordMention('#a', []).result.map((e) => ({ ...e, notes: 'keep' }));
+    const { result, added } = recordMention('#a', existing);
+    expect(added).toBe(false);
+    expect(result[0].notes).toBe('keep');
   });
 });

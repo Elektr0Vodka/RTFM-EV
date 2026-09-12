@@ -50,6 +50,7 @@ import { PathModal } from './PathModal';
 import { RawPacketInspectorDialog } from './RawPacketDetailModal';
 import { toast } from './ui/sonner';
 import { handleKeyboardActivate } from '../utils/a11y';
+import { classifyHashtag, buildNameSet, type HashtagState } from '../lib/hashtagChannelState';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { cn } from '@/lib/utils';
 import { useT } from '../i18n';
@@ -70,6 +71,9 @@ interface MessageListProps {
   onLoadOlder?: () => void;
   onResendChannelMessage?: (messageId: number, newTimestamp?: boolean) => void;
   onChannelReferenceClick?: (channelName: string) => void;
+  registryNames?: Set<string>;
+  autoAddMentionedChannels?: boolean;
+  onHashtagAdded?: (channelName: string) => void;
   onCoordinateClick?: (lat: number, lon: number, label: string) => void;
   radioName?: string;
   config?: RadioConfig | null;
@@ -207,6 +211,19 @@ function renderPayloadBody(
   return null;
 }
 
+// Context threaded through the text renderers so #hashtag channel references can
+// be styled by state (followed / known / unknown) and offer inline capture.
+export interface HashtagRenderCtx {
+  onChannelReferenceClick?: (channelName: string) => void;
+  followedNames: Set<string>;
+  registryNames: Set<string>;
+  onAdd?: (channelName: string) => void;
+  addAriaLabel: (channel: string) => string;
+  titleFor: (state: HashtagState, channel: string) => string;
+}
+
+const EMPTY_NAME_SET: Set<string> = new Set();
+
 // Recognize a MeshCore Open payload and render it. Handles both a whole-message
 // payload ("g:<id>") and a reply-prefixed one ("@[Name] g:<id>") — the form
 // meshcore-open sends when a GIF/reaction is a reply, which otherwise renders as
@@ -214,8 +231,8 @@ function renderPayloadBody(
 // payload, so the caller renders normally.
 function renderMeshcoreOpenPayload(
   content: string,
-  radioName?: string,
-  onChannelReferenceClick?: (channelName: string) => void,
+  radioName: string | undefined,
+  ctx: HashtagRenderCtx,
   onCoordinateClick?: (lat: number, lon: number, label: string) => void
 ): ReactNode | null {
   const whole = renderPayloadBody(content, onCoordinateClick);
@@ -229,7 +246,7 @@ function renderMeshcoreOpenPayload(
       // GIF/reaction still reads as a reply to that person.
       return (
         <span className="inline-flex flex-wrap items-center gap-1.5">
-          {renderTextWithMentions(split.mention, radioName, onChannelReferenceClick)}
+          {renderTextWithMentions(split.mention, radioName, ctx)}
           {body}
         </span>
       );
@@ -258,10 +275,21 @@ const BOTTOM_SCROLL_FRAME_BUDGET = 20;
 const URL_PATTERN =
   /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)/g;
 
+// State-specific token colours. "followed" keeps the original primary style;
+// "known" (in registry, not followed) is muted with a dotted underline;
+// "unknown" (in neither) uses a dashed accent underline and gets the inline "+".
+const HASHTAG_STATE_CLASS: Record<HashtagState, string> = {
+  followed: 'font-medium text-primary underline underline-offset-2 hover:text-primary/80',
+  known:
+    'text-muted-foreground underline underline-offset-2 decoration-dotted hover:text-foreground',
+  unknown:
+    'text-accent-foreground underline underline-offset-2 decoration-dashed hover:text-foreground',
+};
+
 function renderChannelReferences(
   text: string,
   keyPrefix: string,
-  onChannelReferenceClick?: (channelName: string) => void
+  ctx: HashtagRenderCtx
 ): ReactNode[] {
   const references = findLinkedChannelReferences(text);
   if (references.length === 0) {
@@ -276,27 +304,47 @@ function renderChannelReferences(
       parts.push(text.slice(lastIndex, reference.start));
     }
 
-    const className =
-      'rounded px-0.5 font-medium text-primary underline underline-offset-2 transition-colors';
-    if (onChannelReferenceClick) {
+    const state = classifyHashtag(reference.label, ctx.followedNames, ctx.registryNames);
+    const className = cn('rounded px-0.5 transition-colors', HASHTAG_STATE_CLASS[state]);
+    const title = ctx.titleFor(state, reference.label);
+    const key = `${keyPrefix}-channel-${index}`;
+
+    if (ctx.onChannelReferenceClick) {
       parts.push(
         <button
-          key={`${keyPrefix}-channel-${index}`}
+          key={key}
           type="button"
+          title={title}
           className={cn(
             className,
-            'inline border-0 bg-transparent p-0 align-baseline hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+            'inline border-0 bg-transparent p-0 align-baseline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
           )}
-          onClick={() => onChannelReferenceClick(reference.label)}
+          onClick={() => ctx.onChannelReferenceClick!(reference.label)}
         >
           {reference.label}
         </button>
       );
     } else {
       parts.push(
-        <span key={`${keyPrefix}-channel-${index}`} className={className}>
+        <span key={key} className={className} title={title}>
           {reference.label}
         </span>
+      );
+    }
+
+    // Unknown mentions get a one-click capture into the registry.
+    if (state === 'unknown' && ctx.onAdd) {
+      parts.push(
+        <button
+          key={`${key}-add`}
+          type="button"
+          aria-label={ctx.addAriaLabel(reference.label)}
+          title={ctx.addAriaLabel(reference.label)}
+          onClick={() => ctx.onAdd!(reference.label)}
+          className="ml-0.5 inline-flex items-center rounded border border-border px-1 text-[0.625rem] leading-none text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          +
+        </button>
       );
     }
 
@@ -311,11 +359,7 @@ function renderChannelReferences(
 }
 
 // Helper to convert URLs and channel references in a plain text string into rich content
-function linkifyText(
-  text: string,
-  keyPrefix: string,
-  onChannelReferenceClick?: (channelName: string) => void
-): ReactNode[] {
+function linkifyText(text: string, keyPrefix: string, ctx: HashtagRenderCtx): ReactNode[] {
   const parts: ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -328,7 +372,7 @@ function linkifyText(
         ...renderChannelReferences(
           text.slice(lastIndex, match.index),
           `${keyPrefix}-text-${keyIndex}`,
-          onChannelReferenceClick
+          ctx
         )
       );
     }
@@ -347,16 +391,10 @@ function linkifyText(
   }
 
   if (lastIndex === 0) {
-    return renderChannelReferences(text, keyPrefix, onChannelReferenceClick);
+    return renderChannelReferences(text, keyPrefix, ctx);
   }
   if (lastIndex < text.length) {
-    parts.push(
-      ...renderChannelReferences(
-        text.slice(lastIndex),
-        `${keyPrefix}-tail`,
-        onChannelReferenceClick
-      )
-    );
+    parts.push(...renderChannelReferences(text.slice(lastIndex), `${keyPrefix}-tail`, ctx));
   }
   return parts;
 }
@@ -364,8 +402,8 @@ function linkifyText(
 // Helper to render text with highlighted @[Name] mentions and clickable URLs
 function renderTextWithMentions(
   text: string,
-  radioName?: string,
-  onChannelReferenceClick?: (channelName: string) => void
+  radioName: string | undefined,
+  ctx: HashtagRenderCtx
 ): ReactNode {
   const mentionPattern = /@\[([^\]]+)\]/g;
   const parts: ReactNode[] = [];
@@ -376,13 +414,7 @@ function renderTextWithMentions(
   while ((match = mentionPattern.exec(text)) !== null) {
     // Add text before the match (with linkification)
     if (match.index > lastIndex) {
-      parts.push(
-        ...linkifyText(
-          text.slice(lastIndex, match.index),
-          `pre-${keyIndex}`,
-          onChannelReferenceClick
-        )
-      );
+      parts.push(...linkifyText(text.slice(lastIndex, match.index), `pre-${keyIndex}`, ctx));
     }
 
     const mentionedName = match[1];
@@ -405,7 +437,7 @@ function renderTextWithMentions(
 
   // Add remaining text after last match (with linkification)
   if (lastIndex < text.length) {
-    parts.push(...linkifyText(text.slice(lastIndex), `post-${keyIndex}`, onChannelReferenceClick));
+    parts.push(...linkifyText(text.slice(lastIndex), `post-${keyIndex}`, ctx));
   }
 
   return parts.length > 0 ? parts : text;
@@ -546,6 +578,9 @@ export function MessageList({
   onLoadOlder,
   onResendChannelMessage,
   onChannelReferenceClick,
+  registryNames,
+  autoAddMentionedChannels = false,
+  onHashtagAdded,
   onCoordinateClick,
   radioName,
   config,
@@ -737,6 +772,47 @@ export function MessageList({
       return true;
     });
   }, [messages, preSorted, hiddenHopWidths, hideUnscoped, unreadMarkerMessageId, targetMessageId]);
+
+  // Followed radio-channel names and the (parent-provided) registry name set,
+  // used to classify #hashtag references in message text.
+  const followedNames = useMemo(() => buildNameSet(channels.map((c) => c.name)), [channels]);
+  const registryNameSet = registryNames ?? EMPTY_NAME_SET;
+  const hashtagCtx = useMemo<HashtagRenderCtx>(
+    () => ({
+      onChannelReferenceClick,
+      followedNames,
+      registryNames: registryNameSet,
+      // Explicit "+" click: capture and confirm with a toast. The passive
+      // auto-capture path calls onHashtagAdded directly (below) with no toast.
+      onAdd: onHashtagAdded
+        ? (channel) => {
+            onHashtagAdded(channel);
+            toast.success(t('toast_hashtag_added_to_registry', { channel }));
+          }
+        : undefined,
+      addAriaLabel: (channel) => t('chat_hashtag_add_to_registry_aria', { channel }),
+      titleFor: (state, channel) =>
+        state === 'followed'
+          ? t('chat_hashtag_followed_title', { channel })
+          : state === 'known'
+            ? t('chat_hashtag_known_title', { channel })
+            : t('chat_hashtag_unknown_title', { channel }),
+    }),
+    [onChannelReferenceClick, followedNames, registryNameSet, onHashtagAdded, t]
+  );
+
+  // Opt-in passive capture: when enabled, record unknown #hashtag references seen
+  // in the currently-rendered messages into the registry (registry only).
+  useEffect(() => {
+    if (!autoAddMentionedChannels || !onHashtagAdded) return;
+    for (const msg of sortedMessages) {
+      for (const ref of findLinkedChannelReferences(msg.text)) {
+        if (classifyHashtag(ref.label, followedNames, registryNameSet) === 'unknown') {
+          onHashtagAdded(ref.label);
+        }
+      }
+    }
+  }, [autoAddMentionedChannels, onHashtagAdded, sortedMessages, followedNames, registryNameSet]);
   /**
    * Only the visible window of messages is mounted. A long channel history otherwise
    * costs a full render of every message on any update — hundreds of milliseconds once
@@ -1607,12 +1683,12 @@ export function MessageList({
                         renderMeshcoreOpenPayload(
                           content,
                           radioName,
-                          onChannelReferenceClick,
+                          hashtagCtx,
                           onCoordinateClick
                         )) ||
                         content.split('\n').map((line, i, arr) => (
                           <span key={i}>
-                            {renderTextWithMentions(line, radioName, onChannelReferenceClick)}
+                            {renderTextWithMentions(line, radioName, hashtagCtx)}
                             {i < arr.length - 1 && <br />}
                           </span>
                         ))}
