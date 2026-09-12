@@ -20,6 +20,14 @@ import { setBuildings3D } from '../map/engine/buildings3D';
 import { createNodesLayer } from '../map/layers/nodesLayer';
 import { createParticleOverlay, type MapParticle } from '../map/layers/particleOverlay';
 import { createDeckTraces, arcRows, type DeckTracesController } from '../map/layers/tracesDeck';
+import { createLinksLayer, type ResolveCoord } from '../map/layers/linksLayer';
+import {
+  buildPacketNetworkContext,
+  createPacketNetworkState,
+  ensureSelfNode,
+  ingestPacketIntoPacketNetwork,
+  projectPacketNetwork,
+} from '../networkGraph/packetNetworkGraph';
 import type { ExtraFab } from '../map/controls/MapControls';
 
 /** Parse a #rrggbb (or #rgb) hex color into an [r,g,b] triple for deck.gl. */
@@ -164,6 +172,7 @@ export function MapView({
   const [tilt3D, setTilt3D] = useState(false);
   const [buildings, setBuildings] = useState(false);
   const [nodeScale, setNodeScale] = useState(getSavedNodeScale);
+  const [linksOn, setLinksOn] = useState(false);
 
   const particleIdRef = useRef(0);
   const seenObservationsRef = useRef(new Set<string>());
@@ -171,6 +180,9 @@ export function MapView({
   const nodesRef = useRef<ReturnType<typeof createNodesLayer> | null>(null);
   const overlayRef = useRef<ReturnType<typeof createParticleOverlay> | null>(null);
   const deckRef = useRef<DeckTracesController | null>(null);
+  const linksLayerRef = useRef<ReturnType<typeof createLinksLayer> | null>(null);
+  const linkStateRef = useRef(createPacketNetworkState(config?.name || 'Me'));
+  const linkProcessedRef = useRef(new Set<string>());
   const popupRef = useRef<MlPopup | null>(null);
   const focusMarkerRef = useRef<MlMarker | null>(null);
 
@@ -194,6 +206,63 @@ export function MapView({
     if (!config || !isValidLocation(config.lat, config.lon)) return null;
     return [config.lat, config.lon];
   }, [config]);
+
+  // Per-link layer: derive edges client-side from the packet network graph.
+  // (No advert-path hints here; links are liveness-only, a Tertiary overlay.)
+  const linkContext = useMemo(
+    () =>
+      buildPacketNetworkContext({
+        contacts,
+        config: config ?? null,
+        repeaterAdvertPaths: [],
+        splitAmbiguousByTraffic: false,
+        useAdvertPathHints: false,
+      }),
+    [contacts, config],
+  );
+
+  // Resolve a graph node id to coordinates: 'self' is my node, otherwise a
+  // 12-char public-key prefix matched to a single contact (see resolveNode in
+  // packetNetworkGraph.ts, which keys nodes by contactIndex.byPrefix12).
+  const resolveLinkCoord = useCallback<ResolveCoord>(
+    (nodeId) => {
+      if (nodeId === 'self') return myLatLon ? { lat: myLatLon[0], lon: myLatLon[1] } : undefined;
+      const matches = prefixIndex.get(nodeId);
+      const c = matches && matches.length === 1 ? matches[0] : undefined;
+      return c && c.lat != null && c.lon != null && isValidLocation(c.lat, c.lon)
+        ? { lat: c.lat, lon: c.lon }
+        : undefined;
+    },
+    [prefixIndex, myLatLon],
+  );
+
+  const refreshLinks = useCallback(() => {
+    const layer = linksLayerRef.current;
+    if (!layer || !linksOn) return;
+    const projection = projectPacketNetwork(linkStateRef.current, {
+      showAmbiguousNodes: false,
+      showAmbiguousPaths: false,
+      collapseLikelyKnownSiblingRepeaters: false,
+    });
+    layer.setData(Array.from(projection.links.values()), resolveLinkCoord);
+  }, [linksOn, resolveLinkCoord]);
+
+  // Ingest packets into the link graph and refresh the layer while links are on.
+  useEffect(() => {
+    if (!linksOn) return;
+    const state = linkStateRef.current;
+    ensureSelfNode(state, config?.name || 'Me');
+    for (const pkt of rawPackets ?? []) {
+      const key = getRawPacketObservationKey(pkt);
+      if (linkProcessedRef.current.has(key)) continue;
+      linkProcessedRef.current.add(key);
+      ingestPacketIntoPacketNetwork(state, linkContext, pkt);
+    }
+    if (linkProcessedRef.current.size > 2000) {
+      linkProcessedRef.current = new Set(Array.from(linkProcessedRef.current).slice(-1000));
+    }
+    refreshLinks();
+  }, [rawPackets, linksOn, linkContext, refreshLinks, config]);
 
   const threeDaysAgoSec = useMemo(() => Date.now() / 1000 - THREE_DAYS_SEC, []);
   const activeSincePreset = MAP_SINCE_PRESETS.find((p) => p.id === sinceId) ?? null;
@@ -468,6 +537,9 @@ export function MapView({
       const overlay = createParticleOverlay(map);
       overlayRef.current = overlay;
       if (showPackets) overlay.start();
+      const links = createLinksLayer(map);
+      links.ensure();
+      linksLayerRef.current = links;
       fitInitialView(map);
       if (focusedLatLon) {
         const el = document.createElement('div');
@@ -497,7 +569,10 @@ export function MapView({
       nodes.setData(mappableContacts, nowSec);
       nodes.setNodeScale(nodeScale);
     }
-  }, [mappableContacts, nowSec, nodeScale]);
+    // A basemap setStyle drops custom sources/layers; re-add and re-feed links.
+    linksLayerRef.current?.reattach();
+    refreshLinks();
+  }, [mappableContacts, nowSec, nodeScale, refreshLinks]);
 
   // Keep node data in sync.
   useEffect(() => {
@@ -642,7 +717,7 @@ export function MapView({
   return (
     <div className="h-full w-full">
       <MapSurface
-        fabs={{ layers: true, legend: true, search: true, tilt: true, buildings: true, nodeSize: true }}
+        fabs={{ layers: true, legend: true, search: true, tilt: true, buildings: true, nodeSize: true, links: true }}
         onReady={handleReady}
         onBasemapReapply={handleBasemapReapply}
         tilt3D={tilt3D}
@@ -659,6 +734,14 @@ export function MapView({
         }}
         nodeScale={nodeScale}
         onNodeScale={setNodeScale}
+        linksOn={linksOn}
+        onToggleLinks={(on) => {
+          setLinksOn(on);
+          const layer = linksLayerRef.current;
+          if (!layer) return;
+          if (on) layer.show();
+          else layer.hide();
+        }}
         onSearch={handleSearch}
         extraFabs={extraFabs}
       />
