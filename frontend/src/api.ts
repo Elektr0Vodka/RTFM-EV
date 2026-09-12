@@ -1,4 +1,5 @@
 import type {
+  AdvertLinkEdge,
   AppSettings,
   AppSettingsUpdate,
   ExternalMapNode,
@@ -199,6 +200,8 @@ export const api = {
     fetchJson<ContactAdvertPathSummary[]>(
       `/contacts/repeaters/advert-paths?limit_per_repeater=${limitPerRepeater}`
     ),
+  getAdvertLinks: (signal?: AbortSignal) =>
+    fetchJson<AdvertLinkEdge[]>('/packets/advert-links', { signal }),
   getContactAnalytics: (params: { publicKey?: string; name?: string }, signal?: AbortSignal) => {
     const searchParams = new URLSearchParams();
     if (params.publicKey) searchParams.set('public_key', params.publicKey);

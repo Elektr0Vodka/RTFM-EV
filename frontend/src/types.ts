@@ -520,6 +520,22 @@ export interface ExternalMapNode {
   mobile: boolean;
 }
 
+export interface AdvertLinkNode {
+  pubkey: string;
+  lat: number;
+  lon: number;
+  kind: 'self' | 'contact' | 'external';
+}
+
+export interface AdvertLinkEdge {
+  a: AdvertLinkNode;
+  b: AdvertLinkNode;
+  hop_width: number;
+  count: number;
+  last_seen: number;
+  ambiguous: boolean;
+}
+
 export interface ExternalMapStatus {
   enabled: boolean;
   count: number;

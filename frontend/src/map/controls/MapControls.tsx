@@ -56,6 +56,10 @@ export interface MapControlsProps {
   onResetRoleColors?: () => void;
   linksOn?: boolean;
   onToggleLinks?: (on: boolean) => void;
+  linkMode?: 'liveness' | 'advert';
+  onLinkMode?: (mode: 'liveness' | 'advert') => void;
+  linkConfidence?: 1 | 2 | 3;
+  onLinkConfidence?: (level: 1 | 2 | 3) => void;
   onSearch?: (query: string) => void;
   legendContent?: ReactNode;
   extraFabs?: ExtraFab[];
@@ -173,6 +177,10 @@ export function MapControls(props: MapControlsProps) {
     onResetRoleColors,
     linksOn = false,
     onToggleLinks,
+    linkMode = 'liveness',
+    onLinkMode,
+    linkConfidence = 2,
+    onLinkConfidence,
     onSearch,
     legendContent,
     extraFabs = [],
@@ -317,6 +325,82 @@ export function MapControls(props: MapControlsProps) {
       ),
     });
   }
+  if (fabs.links) {
+    const confidenceOptions: { level: 1 | 2 | 3; label: string }[] = [
+      { level: 1, label: t('map_links_confidence_low') },
+      { level: 2, label: t('map_links_confidence_medium') },
+      { level: 3, label: t('map_links_confidence_high') },
+    ];
+    panels.push({
+      id: 'links',
+      label: t('map_links_label'),
+      icon: <Spline size={20} aria-hidden />,
+      body: (
+        <div className="flex flex-col gap-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={linksOn}
+              onChange={(e) => onToggleLinks?.(e.target.checked)}
+            />
+            {t('map_links_enable')}
+          </label>
+          <div
+            role="radiogroup"
+            aria-label={t('map_links_mode_label')}
+            className="flex flex-col gap-1"
+          >
+            <span className="text-xs font-medium text-muted-foreground">
+              {t('map_links_mode_label')}
+            </span>
+            {(['liveness', 'advert'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                role="radio"
+                aria-checked={linkMode === mode}
+                className={
+                  'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm ' +
+                  (linkMode === mode ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50')
+                }
+                onClick={() => onLinkMode?.(mode)}
+              >
+                {mode === 'liveness' ? t('map_links_mode_liveness') : t('map_links_mode_advert')}
+              </button>
+            ))}
+          </div>
+          {linkMode === 'advert' && (
+            <div
+              role="radiogroup"
+              aria-label={t('map_links_confidence_label')}
+              className="flex flex-col gap-1"
+            >
+              <span className="text-xs font-medium text-muted-foreground">
+                {t('map_links_confidence_label')}
+              </span>
+              {confidenceOptions.map((opt) => (
+                <button
+                  key={opt.level}
+                  type="button"
+                  role="radio"
+                  aria-checked={linkConfidence === opt.level}
+                  className={
+                    'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm ' +
+                    (linkConfidence === opt.level
+                      ? 'bg-accent text-accent-foreground'
+                      : 'hover:bg-accent/50')
+                  }
+                  onClick={() => onLinkConfidence?.(opt.level)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ),
+    });
+  }
   for (const ex of extraFabs) {
     panels.push({ id: ex.id, label: ex.label, icon: ex.icon, body: ex.panel });
   }
@@ -345,15 +429,6 @@ export function MapControls(props: MapControlsProps) {
       icon: <Building2 size={20} aria-hidden />,
       active: buildings,
       onClick: () => onToggleBuildings?.(!buildings),
-    });
-  }
-  if (fabs.links) {
-    toggles.push({
-      id: 'links',
-      label: t('map_links_label'),
-      icon: <Spline size={20} aria-hidden />,
-      active: linksOn,
-      onClick: () => onToggleLinks?.(!linksOn),
     });
   }
 

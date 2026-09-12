@@ -1271,6 +1271,26 @@ class ExternalMapNode(BaseModel):
     mobile: bool = False
 
 
+class AdvertLinkNode(BaseModel):
+    """A resolved GPS endpoint of an advert-truth map edge."""
+
+    pubkey: str
+    lat: float
+    lon: float
+    kind: Literal["self", "contact", "external"]
+
+
+class AdvertLinkEdge(BaseModel):
+    """One undirected RF link derived from stored advert paths (map truth)."""
+
+    a: AdvertLinkNode
+    b: AdvertLinkNode
+    hop_width: int
+    count: int
+    last_seen: int
+    ambiguous: bool
+
+
 class BusyChannel(BaseModel):
     channel_key: str
     channel_name: str

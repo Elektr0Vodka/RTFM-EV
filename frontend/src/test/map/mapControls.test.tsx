@@ -53,6 +53,36 @@ describe('MapControls', () => {
     expect(screen.getByRole('button', { name: /legend/i })).toHaveAttribute('title', 'Legend');
   });
 
+  it('shows link mode radios, and confidence only in advert mode', () => {
+    const onLinkMode = vi.fn();
+    renderControls({
+      fabs: { links: true },
+      linksOn: true,
+      linkMode: 'liveness',
+      onLinkMode,
+      linkConfidence: 2,
+    });
+    // Open the Links panel via its FAB (aria-label = "Links").
+    fireEvent.click(screen.getByRole('button', { name: 'Links' }));
+    expect(screen.getByRole('radio', { name: 'Liveness' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: 'Advert paths' }));
+    expect(onLinkMode).toHaveBeenCalledWith('advert');
+    // Confidence group is hidden while mode is liveness.
+    expect(screen.queryByRole('radio', { name: /1b\+/ })).not.toBeInTheDocument();
+  });
+
+  it('renders the confidence radios when link mode is advert', () => {
+    renderControls({
+      fabs: { links: true },
+      linksOn: true,
+      linkMode: 'advert',
+      linkConfidence: 2,
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Links' }));
+    expect(screen.getByRole('radio', { name: /1b\+/ })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /3b/ })).toBeInTheDocument();
+  });
+
   it('pins the legend to a floating card and can close it', () => {
     renderControls();
     fireEvent.click(screen.getByRole('button', { name: /legend/i }));
