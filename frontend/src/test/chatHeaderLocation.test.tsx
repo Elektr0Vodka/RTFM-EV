@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { ChatHeader } from '../components/ChatHeader';
 import type { Conversation, RadioConfig } from '../types';
 
-// The modal pulls in Leaflet; stub it so ChatHeader renders in jsdom.
+// The modal pulls in a WebGL map; stub it so ChatHeader renders in jsdom.
 vi.mock('../components/LocationPickerModal', () => ({
   LocationPickerModal: () => null,
 }));

@@ -509,9 +509,11 @@ export interface TrackedTelemetryResponse {
   schedule: TelemetrySchedule;
 }
 
-/** Contact type constants */
+/** Contact type constants (canonical table in AGENTS.md "Contact Types") */
+export const CONTACT_TYPE_CLIENT = 1;
 export const CONTACT_TYPE_REPEATER = 2;
 export const CONTACT_TYPE_ROOM = 3;
+export const CONTACT_TYPE_SENSOR = 4;
 
 export interface NeighborInfo {
   pubkey_prefix: string;

@@ -1,12 +1,10 @@
-import { useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Polyline, Tooltip, useMap } from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { Marker as MlMarker, type Map as MlMap } from 'maplibre-gl';
 import { isValidLocation } from '../utils/pathUtils';
 import type { ResolvedPath, SenderInfo } from '../utils/pathUtils';
-import { themeRasterTile } from '../utils/mapTiles';
 import { useIsDarkTheme } from '../hooks';
 import { useT } from '../i18n';
+import { MiniMap } from '../map/MiniMap';
 
 interface PathRouteMapProps {
   resolved: ResolvedPath;
@@ -28,98 +26,66 @@ const HOP_COLORS = [
   '#a855f7', // Hop 7: purple
   '#64748b', // Hop 8: slate
 ];
-
 const SENDER_COLOR = '#3b82f6'; // blue
 const RECEIVER_COLOR = '#8b5cf6'; // violet
-
-function makeIcon(label: string, color: string): L.DivIcon {
-  return L.divIcon({
-    className: '',
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
-    html: `<div style="
-      width:24px;height:24px;border-radius:50%;
-      background:${color};color:#fff;
-      display:flex;align-items:center;justify-content:center;
-      font-size:11px;font-weight:700;
-      border:2px solid rgba(255,255,255,0.8);
-      box-shadow:0 1px 4px rgba(0,0,0,0.4);
-    ">${label}</div>`,
-  });
-}
 
 function getHopColor(hopIndex: number): string {
   return HOP_COLORS[hopIndex % HOP_COLORS.length];
 }
 
-/** Collect all valid [lat, lon] points for bounds fitting */
+function markerEl(label: string, color: string, title: string): HTMLElement {
+  const el = document.createElement('div');
+  el.title = title;
+  el.textContent = label;
+  el.style.cssText =
+    'width:24px;height:24px;border-radius:50%;color:#fff;display:flex;align-items:center;' +
+    'justify-content:center;font-size:11px;font-weight:700;border:2px solid rgba(255,255,255,0.8);' +
+    `box-shadow:0 1px 4px rgba(0,0,0,0.4);background:${color};`;
+  return el;
+}
+
+interface MarkerSpec {
+  lngLat: [number, number];
+  label: string;
+  color: string;
+  title: string;
+}
+
+/** All valid [lng, lat] points for bounds fitting. */
 function collectPoints(resolved: ResolvedPath): [number, number][] {
   const pts: [number, number][] = [];
   if (isValidLocation(resolved.sender.lat, resolved.sender.lon)) {
-    pts.push([resolved.sender.lat!, resolved.sender.lon!]);
+    pts.push([resolved.sender.lon!, resolved.sender.lat!]);
   }
   for (const hop of resolved.hops) {
     for (const m of hop.matches) {
-      if (isValidLocation(m.lat, m.lon)) {
-        pts.push([m.lat!, m.lon!]);
-      }
+      if (isValidLocation(m.lat, m.lon)) pts.push([m.lon!, m.lat!]);
     }
   }
   if (isValidLocation(resolved.receiver.lat, resolved.receiver.lon)) {
-    pts.push([resolved.receiver.lat!, resolved.receiver.lon!]);
+    pts.push([resolved.receiver.lon!, resolved.receiver.lat!]);
   }
   return pts;
 }
 
-/**
- * Ordered list of route points for the connecting line: sender, then one
- * representative (first located) contact per hop, then receiver. Hops with no
- * located contact are skipped so the line still spans the gap.
- */
+/** Ordered [lng, lat] route line: sender, first located contact per hop,
+ *  receiver. Hops with no located contact are skipped so the line spans them. */
 function collectRouteLine(resolved: ResolvedPath): [number, number][] {
   const line: [number, number][] = [];
   if (isValidLocation(resolved.sender.lat, resolved.sender.lon)) {
-    line.push([resolved.sender.lat!, resolved.sender.lon!]);
+    line.push([resolved.sender.lon!, resolved.sender.lat!]);
   }
   for (const hop of resolved.hops) {
     const m = hop.matches.find((x) => isValidLocation(x.lat, x.lon));
-    if (m) line.push([m.lat!, m.lon!]);
+    if (m) line.push([m.lon!, m.lat!]);
   }
   if (isValidLocation(resolved.receiver.lat, resolved.receiver.lon)) {
-    line.push([resolved.receiver.lat!, resolved.receiver.lon!]);
+    line.push([resolved.receiver.lon!, resolved.receiver.lat!]);
   }
   return line;
 }
 
-/** Watches the map container for size changes and tells Leaflet to re-tile. */
-function InvalidateOnResize() {
-  const map = useMap();
-  useEffect(() => {
-    const container = map.getContainer();
-    const ro = new ResizeObserver(() => map.invalidateSize());
-    ro.observe(container);
-    return () => ro.disconnect();
-  }, [map]);
-  return null;
-}
-
-/** Fit map bounds once on mount, then let the user pan/zoom freely */
-function RouteMapBounds({ points }: { points: [number, number][] }) {
-  const map = useMap();
-  const fitted = useRef(false);
-
-  useEffect(() => {
-    if (fitted.current || points.length === 0) return;
-    fitted.current = true;
-    if (points.length === 1) {
-      map.setView(points[0], 12);
-    } else {
-      map.fitBounds(points as L.LatLngBoundsExpression, { padding: [30, 30], maxZoom: 14 });
-    }
-  }, [map, points]);
-
-  return null;
-}
+const EMPTY_FC = { type: 'FeatureCollection' as const, features: [] };
 
 export function PathRouteMap({
   resolved,
@@ -129,129 +95,147 @@ export function PathRouteMap({
 }: PathRouteMapProps) {
   const t = useT();
   const dark = useIsDarkTheme();
-  const tile = themeRasterTile(dark);
   const lineColor = dark ? '#e2e8f0' : '#1e293b';
-  const points = collectPoints(resolved);
-  const routeLine = collectRouteLine(resolved);
+  const mapRef = useRef<MlMap | null>(null);
+  const markersRef = useRef<MlMarker[]>([]);
+
+  const points = useMemo(() => collectPoints(resolved), [resolved]);
+  const routeLine = useMemo(() => collectRouteLine(resolved), [resolved]);
   const hasAnyGps = points.length > 0;
 
-  // Check if some nodes are missing GPS
-  let totalNodes = 2; // sender + receiver
-  let nodesWithGps = 0;
-  if (isValidLocation(resolved.sender.lat, resolved.sender.lon)) nodesWithGps++;
-  if (isValidLocation(resolved.receiver.lat, resolved.receiver.lon)) nodesWithGps++;
-  for (const hop of resolved.hops) {
-    if (hop.matches.length === 0) {
-      totalNodes++;
-    } else {
-      totalNodes += hop.matches.length;
-      nodesWithGps += hop.matches.filter((m) => isValidLocation(m.lat, m.lon)).length;
+  const markerSpecs = useMemo<MarkerSpec[]>(() => {
+    const specs: MarkerSpec[] = [];
+    if (isValidLocation(resolved.sender.lat, resolved.sender.lon)) {
+      specs.push({
+        lngLat: [resolved.sender.lon!, resolved.sender.lat!],
+        label: 'S',
+        color: SENDER_COLOR,
+        title: `${resolved.sender.prefix} · ${senderInfo.name || t('path_modal_sender_label')}`,
+      });
     }
-  }
-  const someMissingGps = hasAnyGps && nodesWithGps < totalNodes;
+    resolved.hops.forEach((hop, hopIdx) => {
+      for (const m of hop.matches) {
+        if (!isValidLocation(m.lat, m.lon)) continue;
+        specs.push({
+          lngLat: [m.lon!, m.lat!],
+          label: String(hopIdx + 1),
+          color: getHopColor(hopIdx),
+          title: `${hop.prefix} · ${m.name || m.public_key.slice(0, 12)}`,
+        });
+      }
+    });
+    if (isValidLocation(resolved.receiver.lat, resolved.receiver.lon)) {
+      specs.push({
+        lngLat: [resolved.receiver.lon!, resolved.receiver.lat!],
+        label: 'R',
+        color: RECEIVER_COLOR,
+        title: `${resolved.receiver.prefix} · ${resolved.receiver.name || t('path_map_receiver_fallback')}`,
+      });
+    }
+    return specs;
+  }, [resolved, senderInfo, t]);
+
+  const someMissingGps = useMemo(() => {
+    if (!hasAnyGps) return false;
+    let totalNodes = 2;
+    let nodesWithGps = 0;
+    if (isValidLocation(resolved.sender.lat, resolved.sender.lon)) nodesWithGps++;
+    if (isValidLocation(resolved.receiver.lat, resolved.receiver.lon)) nodesWithGps++;
+    for (const hop of resolved.hops) {
+      if (hop.matches.length === 0) totalNodes++;
+      else {
+        totalNodes += hop.matches.length;
+        nodesWithGps += hop.matches.filter((m) => isValidLocation(m.lat, m.lon)).length;
+      }
+    }
+    return nodesWithGps < totalNodes;
+  }, [resolved, hasAnyGps]);
+
+  const drawRoute = useCallback(
+    (map: MlMap) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const m = map as any;
+      if (!m.getSource('pr-line')) {
+        m.addSource('pr-line', { type: 'geojson', data: EMPTY_FC });
+        m.addLayer({
+          id: 'pr-line',
+          type: 'line',
+          source: 'pr-line',
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': lineColor, 'line-width': 3, 'line-opacity': 0.85 },
+        });
+      }
+      m.setPaintProperty('pr-line', 'line-color', lineColor);
+      m.getSource('pr-line')?.setData(
+        routeLine.length >= 2
+          ? {
+              type: 'Feature',
+              properties: {},
+              geometry: { type: 'LineString', coordinates: routeLine },
+            }
+          : EMPTY_FC
+      );
+      markersRef.current.forEach((mk) => mk.remove());
+      markersRef.current = markerSpecs.map((s) =>
+        new MlMarker({ element: markerEl(s.label, s.color, s.title) })
+          .setLngLat(s.lngLat)
+          .addTo(map)
+      );
+    },
+    [routeLine, lineColor, markerSpecs]
+  );
+
+  const handleReady = useCallback(
+    (map: MlMap) => {
+      mapRef.current = map;
+      drawRoute(map);
+    },
+    [drawRoute]
+  );
+
+  useEffect(() => {
+    if (mapRef.current) drawRoute(mapRef.current);
+  }, [drawRoute]);
+  useEffect(
+    () => () => {
+      markersRef.current.forEach((mk) => mk.remove());
+      markersRef.current = [];
+    },
+    []
+  );
 
   if (!hasAnyGps) {
     return (
-      <div className="h-14 rounded border border-border bg-muted/30 flex items-center justify-center text-sm text-muted-foreground">
+      <div className="flex h-14 items-center justify-center rounded border border-border bg-muted/30 text-sm text-muted-foreground">
         {t('path_map_no_gps')}
       </div>
     );
   }
 
-  const center: [number, number] = points[0];
-
   return (
-    <div className={fill ? 'flex flex-col h-full min-h-0' : undefined}>
+    <div className={fill ? 'flex h-full min-h-0 flex-col' : undefined}>
       <div
         className={
           fill
-            ? 'rounded border border-border overflow-hidden flex-1 min-h-0'
-            : 'rounded border border-border overflow-hidden'
+            ? 'min-h-0 flex-1 overflow-hidden rounded border border-border'
+            : 'overflow-hidden rounded border border-border'
         }
         role="img"
         aria-label={t('path_map_aria_label')}
         style={fill ? undefined : { height }}
       >
-        <MapContainer
-          center={center}
+        <MiniMap
+          fitPoints={points}
+          fitMaxZoom={14}
           zoom={10}
-          maxZoom={tile.maxZoom}
-          className="h-full w-full"
-          style={{ background: tile.background }}
-        >
-          <InvalidateOnResize />
-          <TileLayer
-            key={tile.id}
-            attribution={tile.attribution}
-            url={tile.url}
-            maxZoom={tile.maxZoom}
-          />
-          <RouteMapBounds points={points} />
-
-          {/* Connecting line along the route (drawn under the markers) */}
-          {routeLine.length >= 2 && (
-            <Polyline
-              positions={routeLine}
-              pathOptions={{
-                color: lineColor,
-                weight: 3,
-                opacity: 0.85,
-                lineCap: 'round',
-                lineJoin: 'round',
-              }}
-            />
-          )}
-
-          {/* Sender marker */}
-          {isValidLocation(resolved.sender.lat, resolved.sender.lon) && (
-            <Marker
-              position={[resolved.sender.lat!, resolved.sender.lon!]}
-              icon={makeIcon('S', SENDER_COLOR)}
-            >
-              <Tooltip direction="top" offset={[0, -14]}>
-                <span className="font-mono">{resolved.sender.prefix}</span>
-                {' · '}
-                {senderInfo.name || t('path_modal_sender_label')}
-              </Tooltip>
-            </Marker>
-          )}
-
-          {/* Hop markers */}
-          {resolved.hops.map((hop, hopIdx) =>
-            hop.matches
-              .filter((m) => isValidLocation(m.lat, m.lon))
-              .map((m, mIdx) => (
-                <Marker
-                  key={`hop-${hopIdx}-${mIdx}`}
-                  position={[m.lat!, m.lon!]}
-                  icon={makeIcon(String(hopIdx + 1), getHopColor(hopIdx))}
-                >
-                  <Tooltip direction="top" offset={[0, -14]}>
-                    <span className="font-mono">{hop.prefix}</span>
-                    {' · '}
-                    {m.name || m.public_key.slice(0, 12)}
-                  </Tooltip>
-                </Marker>
-              ))
-          )}
-
-          {/* Receiver marker */}
-          {isValidLocation(resolved.receiver.lat, resolved.receiver.lon) && (
-            <Marker
-              position={[resolved.receiver.lat!, resolved.receiver.lon!]}
-              icon={makeIcon('R', RECEIVER_COLOR)}
-            >
-              <Tooltip direction="top" offset={[0, -14]}>
-                <span className="font-mono">{resolved.receiver.prefix}</span>
-                {' · '}
-                {resolved.receiver.name || t('path_map_receiver_fallback')}
-              </Tooltip>
-            </Marker>
-          )}
-        </MapContainer>
+          onReady={handleReady}
+          onBasemapReapply={() => {
+            if (mapRef.current) drawRoute(mapRef.current);
+          }}
+        />
       </div>
       {someMissingGps && (
-        <p className="text-xs text-muted-foreground mt-1 shrink-0">
+        <p className="mt-1 shrink-0 text-xs text-muted-foreground">
           {t('path_map_missing_gps_note')}
         </p>
       )}

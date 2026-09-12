@@ -1,21 +1,9 @@
-import { Fragment, useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import {
-  MapContainer,
-  TileLayer,
-  CircleMarker,
-  Popup,
-  useMap,
-  useMapEvents,
-  Polyline,
-  LayersControl,
-} from 'react-leaflet';
-import type { LatLngBoundsExpression, CircleMarker as LeafletCircleMarker } from 'leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { Popup as MlPopup, Marker as MlMarker, type Map as MlMap } from 'maplibre-gl';
+import { Zap, Clock } from 'lucide-react';
 import type { Contact, RadioConfig } from '../types';
 import { formatTime } from '../utils/messageParser';
 import { isValidLocation } from '../utils/pathUtils';
-import { CONTACT_TYPE_REPEATER } from '../types';
 import {
   parsePacket,
   getPacketLabel,
@@ -24,113 +12,45 @@ import {
 } from '../utils/visualizerUtils';
 import { getRawPacketObservationKey } from '../utils/rawPacketIdentity';
 import { useRawPackets } from '../stores/rawPacketStore';
-import { TILE_LAYERS, MAP_MIN_ZOOM, MAP_MAX_ZOOM, type TileLayerPreset } from '../utils/mapTiles';
-import { cn } from '@/lib/utils';
-import { useT, type TFn } from '../i18n';
+import { useIsDarkTheme } from '../hooks/useIsDarkTheme';
+import { useT } from '../i18n';
+import { MapSurface } from '../map/MapSurface';
+import { setMapLock2D } from '../map/engine/mapLock2D';
+import { setBuildings3D } from '../map/engine/buildings3D';
+import { createNodesLayer } from '../map/layers/nodesLayer';
+import { createParticleOverlay, type MapParticle } from '../map/layers/particleOverlay';
+import { createDeckTraces, arcRows, type DeckTracesController } from '../map/layers/tracesDeck';
+import { createLinksLayer, type ResolveCoord } from '../map/layers/linksLayer';
+import {
+  buildPacketNetworkContext,
+  createPacketNetworkState,
+  ensureSelfNode,
+  ingestPacketIntoPacketNetwork,
+  projectPacketNetwork,
+} from '../networkGraph/packetNetworkGraph';
+import type { ExtraFab } from '../map/controls/MapControls';
 
-// TILE_LAYERS (utils/mapTiles.ts) mixes a generic English descriptor with a
-// kept-as-is provider brand name, e.g. "Dark Gray (Esri)". Map each preset id
-// to a catalog key here (without touching the shared, non-i18n preset data)
-// so the descriptor translates while brand names like "Esri"/"OpenStreetMap"
-// stay put.
-const MAP_TILE_LAYER_LABEL_KEYS: Record<string, string> = {
-  light: 'map_tile_layer_light',
-  darkgray: 'map_tile_layer_darkgray',
-  lightgray: 'map_tile_layer_lightgray',
-  topographic: 'map_tile_layer_topographic',
-  natgeo: 'map_tile_layer_natgeo',
-  satellite: 'map_tile_layer_satellite',
-};
-
-function getTileLayerLabel(t: TFn, layer: TileLayerPreset): string {
-  const key = MAP_TILE_LAYER_LABEL_KEYS[layer.id];
-  return key ? t(key) : layer.label;
+/** Parse a #rrggbb (or #rgb) hex color into an [r,g,b] triple for deck.gl. */
+function hexToRgb(hex: string): [number, number, number] {
+  const h = (hex || '').replace('#', '');
+  const full = h.length === 3 ? h.replace(/./g, (c) => c + c) : h;
+  const n = Number.parseInt(full, 16);
+  if (full.length !== 6 || Number.isNaN(n)) return [255, 255, 255];
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
 interface MapViewProps {
   contacts: Contact[];
-  /** Public key of contact to focus on and open popup */
   focusedKey?: string | null;
   config?: RadioConfig | null;
   blockedKeys?: string[];
   blockedNames?: string[];
-  /** When provided, the contact name in each popup becomes a clickable link
-   *  that opens the conversation for that contact (DM, repeater, or room). */
   onSelectContact?: (contact: Contact) => void;
-  /** When set, center the map here and drop a temporary highlight marker. */
   focusedLatLon?: [number, number];
-  /** Label shown in the highlight marker popup. */
   focusedLabel?: string;
 }
 
-const MAP_LAYER_STORAGE_KEY = 'remoteterm-map-layer';
-const LEGACY_DARK_MAP_STORAGE_KEY = 'remoteterm-dark-map';
-
-function getSavedLayerId(): string {
-  try {
-    const stored = localStorage.getItem(MAP_LAYER_STORAGE_KEY);
-    // The former CARTO layer had id 'dark'; migrate a saved selection to the
-    // replacement Esri dark basemap so users keep a dark map after the swap.
-    if (stored === 'dark') return 'darkgray';
-    if (stored && TILE_LAYERS.some((l) => l.id === stored)) return stored;
-    // Legacy migration: boolean dark-map flag predates multi-layer support.
-    const legacyDark = localStorage.getItem(LEGACY_DARK_MAP_STORAGE_KEY) === 'true';
-    return legacyDark ? 'darkgray' : 'light';
-  } catch {
-    return 'light';
-  }
-}
-
-/**
- * Leaflet-internal companion component: listens for base-layer changes driven
- * by Leaflet's own LayersControl UI and pipes the selection back to React.
- * Kept separate so the persistence/state logic stays out of the render tree.
- */
-function LayerChangeWatcher({ onChange }: { onChange: (name: string) => void }) {
-  useMapEvents({
-    baselayerchange: (event) => {
-      if (event.name) onChange(event.name);
-    },
-  });
-  return null;
-}
-
-/**
- * Enforces the active layer's zoom ceiling on the underlying Leaflet map.
- *
- * Leaflet's `map.getMaxZoom()` prefers `options.maxZoom` (set on MapContainer)
- * over per-layer `maxZoom`, so a per-TileLayer cap is silently ignored unless
- * we push it down to the map itself. We do that here whenever the active
- * layer changes, and clamp the current zoom if the user happened to be zoomed
- * past the new cap at the moment of the switch.
- *
- * The MapContainer's fixed `minZoom`/`maxZoom` remain the absolute hull that
- * prevents the "Attempted to load an infinite number of tiles" race during
- * initial mount (see `MAP_MIN_ZOOM`/`MAP_MAX_ZOOM` below).
- */
-function MaxZoomByActiveLayer({ maxZoom }: { maxZoom: number }) {
-  const map = useMap();
-  useEffect(() => {
-    map.setMaxZoom(maxZoom);
-    if (map.getZoom() > maxZoom) {
-      map.setZoom(maxZoom);
-    }
-  }, [map, maxZoom]);
-  return null;
-}
-
-const MAP_RECENCY_COLORS = {
-  recent: '#06b6d4',
-  today: '#2563eb',
-  stale: '#f59e0b',
-  old: '#64748b',
-} as const;
-const MAP_MARKER_STROKE = '#0f172a';
-const MAP_REPEATER_RING = '#f8fafc';
-
 // --- "Heard since" filter ---
-// Relative presets mirror the marker recency legend so the chips and the dot
-// colors describe the same buckets. `seconds: null` means "no lower bound".
 const MAP_SINCE_PRESETS = [
   { id: '1h', labelKey: 'map_lt_1h', windowLabelKey: 'map_since_window_1h', seconds: 3600 },
   { id: '1d', labelKey: 'map_lt_1d', windowLabelKey: 'map_since_window_1d', seconds: 24 * 60 * 60 },
@@ -150,62 +70,41 @@ const MAP_SINCE_PRESETS = [
 ] as const;
 
 type MapSinceId = (typeof MAP_SINCE_PRESETS)[number]['id'] | 'custom';
-
 const DEFAULT_MAP_SINCE_ID: MapSinceId = '7d';
 const MAP_SINCE_STORAGE_KEY = 'remoteterm-map-since';
-
-/** Relative presets drift as time passes, so recompute the cutoff on this cadence. */
+const MAP_NODE_SCALE_STORAGE_KEY = 'remoteterm-map-node-scale';
 const MAP_SINCE_TICK_MS = 60_000;
+
+const THREE_DAYS_SEC = 3 * 24 * 60 * 60;
+const PARTICLE_LIFETIME_MS = 3000;
+const MAX_MAP_PARTICLES = 200;
 
 function getSavedSinceId(): MapSinceId {
   try {
     const stored = localStorage.getItem(MAP_SINCE_STORAGE_KEY);
-    // 'custom' is deliberately not restored: a stale absolute timestamp from a
-    // previous session would silently filter the map on load.
-    if (stored && MAP_SINCE_PRESETS.some((p) => p.id === stored)) {
-      return stored as MapSinceId;
-    }
+    if (stored && MAP_SINCE_PRESETS.some((p) => p.id === stored)) return stored as MapSinceId;
   } catch {
-    // localStorage may be disabled; fall through to the default.
+    /* ignore */
   }
   return DEFAULT_MAP_SINCE_ID;
 }
 
-/**
- * Convert a `datetime-local` value (local wall clock, no offset) to epoch
- * seconds. Per spec `new Date()` interprets the date-time form in the browser's
- * local zone, which is what we want to compare against UTC-anchored `last_seen`.
- */
+function getSavedNodeScale(): number {
+  try {
+    const v = Number(localStorage.getItem(MAP_NODE_SCALE_STORAGE_KEY));
+    if (Number.isFinite(v) && v >= 0.5 && v <= 2.5) return v;
+  } catch {
+    /* ignore */
+  }
+  return 1;
+}
+
 function localDateTimeToEpochSec(value: string): number | null {
   if (!value) return null;
   const ms = new Date(value).getTime();
   return Number.isNaN(ms) ? null : ms / 1000;
 }
 
-// --- Packet visualization constants ---
-const THREE_DAYS_SEC = 3 * 24 * 60 * 60;
-const PARTICLE_LIFETIME_MS = 3000;
-const PARTICLE_TAIL_LENGTH = 0.25; // fraction of progress to trail behind
-const PARTICLE_RADIUS = 8;
-const PARTICLE_TAIL_WIDTH = 5;
-const MAX_MAP_PARTICLES = 200;
-
-// --- Helpers ---
-
-function getMarkerColor(lastSeen: number | null | undefined): string {
-  if (lastSeen == null) return MAP_RECENCY_COLORS.old;
-  const now = Date.now() / 1000;
-  const age = now - lastSeen;
-  const hour = 3600;
-  const day = 86400;
-
-  if (age < hour) return MAP_RECENCY_COLORS.recent;
-  if (age < day) return MAP_RECENCY_COLORS.today;
-  if (age < 3 * day) return MAP_RECENCY_COLORS.stale;
-  return MAP_RECENCY_COLORS.old;
-}
-
-/** Resolve a hop token to a single contact with GPS, or null. */
 function resolveHopToGps(hopToken: string, prefixIndex: Map<string, Contact[]>): Contact | null {
   const matches = prefixIndex.get(hopToken.toLowerCase());
   if (!matches || matches.length !== 1) return null;
@@ -213,14 +112,12 @@ function resolveHopToGps(hopToken: string, prefixIndex: Map<string, Contact[]>):
   return isValidLocation(c.lat, c.lon) ? c : null;
 }
 
-/** Resolve a contact by display name (for GroupText senders). */
 function resolveNameToGps(name: string, nameIndex: Map<string, Contact>): Contact | null {
   const c = nameIndex.get(name);
   if (!c) return null;
   return isValidLocation(c.lat, c.lon) ? c : null;
 }
 
-/** Collect public keys of all unambiguously resolved GPS-bearing contacts from a parsed packet. */
 function resolvePacketContacts(
   parsed: ReturnType<typeof parsePacket>,
   prefixIndex: Map<string, Contact[]>,
@@ -230,8 +127,6 @@ function resolvePacketContacts(
 ): Set<string> {
   const keys = new Set<string>();
   if (!parsed) return keys;
-
-  // Source by pubkey prefix
   const sourcePrefixes = parsed.advertPubkey
     ? [parsed.advertPubkey.slice(0, 12).toLowerCase()]
     : parsed.srcHash
@@ -243,14 +138,10 @@ function resolvePacketContacts(
       keys.add(matches[0].public_key);
     }
   }
-
-  // Source by name (GroupText sender)
   if (parsed.groupTextSender) {
     const c = resolveNameToGps(parsed.groupTextSender, nameIndex);
     if (c) keys.add(c.public_key);
   }
-
-  // Intermediate hops
   for (const hop of parsed.pathBytes) {
     if (hop.length < 4) continue;
     const matches = prefixIndex.get(hop.toLowerCase());
@@ -258,263 +149,15 @@ function resolvePacketContacts(
       keys.add(matches[0].public_key);
     }
   }
-
-  // Self
-  if (myLatLon && config?.public_key) {
-    keys.add(config.public_key.toLowerCase());
-  }
-
-  // Destination
+  if (myLatLon && config?.public_key) keys.add(config.public_key.toLowerCase());
   if (parsed.dstHash) {
     const matches = prefixIndex.get(parsed.dstHash.toLowerCase());
     if (matches?.length === 1 && isValidLocation(matches[0].lat, matches[0].lon)) {
       keys.add(matches[0].public_key);
     }
   }
-
   return keys;
 }
-
-interface MapParticle {
-  id: number;
-  path: [number, number][]; // lat/lon waypoints
-  color: string;
-  startedAt: number;
-}
-
-// --- Map bounds handler ---
-
-function MapBoundsHandler({
-  contacts,
-  focusedContact,
-  focusedLatLon,
-}: {
-  contacts: Contact[];
-  focusedContact: Contact | null;
-  focusedLatLon?: [number, number];
-}) {
-  const map = useMap();
-  const [hasInitialized, setHasInitialized] = useState(false);
-
-  useEffect(() => {
-    if (focusedLatLon) {
-      map.setView(focusedLatLon, 15);
-      setHasInitialized(true);
-      return;
-    }
-
-    if (focusedContact && focusedContact.lat != null && focusedContact.lon != null) {
-      map.setView([focusedContact.lat, focusedContact.lon], 12);
-      setHasInitialized(true);
-      return;
-    }
-
-    if (hasInitialized) return;
-
-    const fitToContacts = () => {
-      if (contacts.length === 0) {
-        map.setView([20, 0], 2);
-        setHasInitialized(true);
-        return;
-      }
-
-      if (contacts.length === 1) {
-        map.setView([contacts[0].lat!, contacts[0].lon!], 10);
-        setHasInitialized(true);
-        return;
-      }
-
-      const bounds: LatLngBoundsExpression = contacts.map(
-        (c) => [c.lat!, c.lon!] as [number, number]
-      );
-      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
-      setHasInitialized(true);
-    };
-
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          map.setView([position.coords.latitude, position.coords.longitude], 8);
-          setHasInitialized(true);
-        },
-        () => {
-          fitToContacts();
-        },
-        { timeout: 5000, maximumAge: 300000 }
-      );
-    } else {
-      fitToContacts();
-    }
-  }, [map, contacts, hasInitialized, focusedContact, focusedLatLon]);
-
-  return null;
-}
-
-// --- Canvas particle overlay ---
-
-function ParticleOverlay({ particles }: { particles: MapParticle[] }) {
-  const map = useMap();
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const animRef = useRef<number>(0);
-
-  useEffect(() => {
-    const container = map.getContainer();
-    const canvas = document.createElement('canvas');
-    canvas.style.position = 'absolute';
-    canvas.style.top = '0';
-    canvas.style.left = '0';
-    canvas.style.pointerEvents = 'none';
-    canvas.style.zIndex = '450'; // above tiles, below popups
-    container.appendChild(canvas);
-    canvasRef.current = canvas;
-
-    const resize = () => {
-      const size = map.getSize();
-      canvas.width = size.x * window.devicePixelRatio;
-      canvas.height = size.y * window.devicePixelRatio;
-      canvas.style.width = `${size.x}px`;
-      canvas.style.height = `${size.y}px`;
-    };
-    resize();
-    map.on('resize', resize);
-    map.on('zoom', resize);
-
-    return () => {
-      cancelAnimationFrame(animRef.current);
-      map.off('resize', resize);
-      map.off('zoom', resize);
-      container.removeChild(canvas);
-      canvasRef.current = null;
-    };
-  }, [map]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const draw = () => {
-      const now = Date.now();
-      const dpr = window.devicePixelRatio;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.save();
-      ctx.scale(dpr, dpr);
-
-      for (const particle of particles) {
-        const elapsed = now - particle.startedAt;
-        if (elapsed < 0 || elapsed > PARTICLE_LIFETIME_MS) continue;
-        const progress = elapsed / PARTICLE_LIFETIME_MS;
-        const path = particle.path;
-        if (path.length < 2) continue;
-
-        // Calculate total path length in pixels for even speed
-        const pixelPath = path.map((ll) => map.latLngToContainerPoint(L.latLng(ll[0], ll[1])));
-        const segLengths: number[] = [];
-        let totalLen = 0;
-        for (let i = 1; i < pixelPath.length; i++) {
-          const dx = pixelPath[i].x - pixelPath[i - 1].x;
-          const dy = pixelPath[i].y - pixelPath[i - 1].y;
-          const len = Math.sqrt(dx * dx + dy * dy);
-          segLengths.push(len);
-          totalLen += len;
-        }
-        if (totalLen === 0) continue;
-
-        // Interpolate head position
-        const headDist = progress * totalLen;
-        const tailDist = Math.max(0, headDist - PARTICLE_TAIL_LENGTH * totalLen);
-
-        const pointAtDist = (d: number): { x: number; y: number } => {
-          let accum = 0;
-          for (let i = 0; i < segLengths.length; i++) {
-            if (accum + segLengths[i] >= d) {
-              const t = segLengths[i] > 0 ? (d - accum) / segLengths[i] : 0;
-              return {
-                x: pixelPath[i].x + (pixelPath[i + 1].x - pixelPath[i].x) * t,
-                y: pixelPath[i].y + (pixelPath[i + 1].y - pixelPath[i].y) * t,
-              };
-            }
-            accum += segLengths[i];
-          }
-          const last = pixelPath[pixelPath.length - 1];
-          return { x: last.x, y: last.y };
-        };
-
-        const head = pointAtDist(headDist);
-        const tail = pointAtDist(tailDist);
-
-        // Draw tail as a gradient line from transparent to opaque
-        const grad = ctx.createLinearGradient(tail.x, tail.y, head.x, head.y);
-        grad.addColorStop(0, particle.color + '00');
-        grad.addColorStop(1, particle.color + 'cc');
-        ctx.beginPath();
-        ctx.moveTo(tail.x, tail.y);
-
-        // Sample intermediate points along the tail for curved paths
-        const steps = 8;
-        for (let s = 1; s <= steps; s++) {
-          const d = tailDist + ((headDist - tailDist) * s) / steps;
-          const pt = pointAtDist(d);
-          ctx.lineTo(pt.x, pt.y);
-        }
-        ctx.strokeStyle = grad;
-        ctx.lineWidth = PARTICLE_TAIL_WIDTH;
-        ctx.lineCap = 'round';
-        ctx.stroke();
-
-        // Draw head blob with glow
-        const fade = progress > 0.8 ? 1 - (progress - 0.8) / 0.2 : 1;
-        const alpha = Math.round(fade * 230)
-          .toString(16)
-          .padStart(2, '0');
-        // Outer glow
-        ctx.beginPath();
-        ctx.arc(head.x, head.y, PARTICLE_RADIUS + 4, 0, Math.PI * 2);
-        ctx.fillStyle =
-          particle.color +
-          Math.round(fade * 40)
-            .toString(16)
-            .padStart(2, '0');
-        ctx.fill();
-        // Core blob
-        ctx.beginPath();
-        ctx.arc(head.x, head.y, PARTICLE_RADIUS, 0, Math.PI * 2);
-        ctx.fillStyle = particle.color + alpha;
-        ctx.shadowColor = particle.color;
-        ctx.shadowBlur = 12 * fade;
-        ctx.fill();
-        ctx.shadowBlur = 0;
-        // Bright center
-        ctx.beginPath();
-        ctx.arc(head.x, head.y, PARTICLE_RADIUS * 0.4, 0, Math.PI * 2);
-        ctx.fillStyle = '#ffffff' + alpha;
-        ctx.fill();
-      }
-
-      ctx.restore();
-      animRef.current = requestAnimationFrame(draw);
-    };
-
-    animRef.current = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(animRef.current);
-  }, [map, particles]);
-
-  // Redraw on map move/zoom
-  useEffect(() => {
-    const redraw = () => {}; // Animation loop already redraws every frame
-    map.on('move', redraw);
-    map.on('zoom', redraw);
-    return () => {
-      map.off('move', redraw);
-      map.off('zoom', redraw);
-    };
-  }, [map]);
-
-  return null;
-}
-
-// --- Main component ---
 
 export function MapView({
   contacts,
@@ -527,50 +170,32 @@ export function MapView({
   focusedLabel,
 }: MapViewProps) {
   const t = useT();
+  const dark = useIsDarkTheme();
   const rawPackets = useRawPackets();
   const [sinceId, setSinceId] = useState<MapSinceId>(getSavedSinceId);
   const [customSince, setCustomSince] = useState('');
   const [nowSec, setNowSec] = useState(() => Date.now() / 1000);
-  const [selectedLayerId, setSelectedLayerId] = useState<string>(getSavedLayerId);
-  const activeLayer = TILE_LAYERS.find((l) => l.id === selectedLayerId) ?? TILE_LAYERS[0];
-
-  // Sync layer selection across tabs and windows.
-  useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (e.key !== MAP_LAYER_STORAGE_KEY) return;
-      const next = e.newValue ?? '';
-      if (TILE_LAYERS.some((l) => l.id === next)) {
-        setSelectedLayerId(next);
-      }
-    };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, []);
-
-  const handleLayerChange = useCallback(
-    (layerName: string) => {
-      const match = TILE_LAYERS.find((l) => getTileLayerLabel(t, l) === layerName);
-      if (!match) return;
-      setSelectedLayerId(match.id);
-      try {
-        localStorage.setItem(MAP_LAYER_STORAGE_KEY, match.id);
-        // Clear the legacy key so a future downgrade-rollback doesn't revert us.
-        localStorage.removeItem(LEGACY_DARK_MAP_STORAGE_KEY);
-      } catch {
-        // localStorage may be disabled; selection stays in memory only.
-      }
-    },
-    [t]
-  );
-
   const [showPackets, setShowPackets] = useState(false);
   const [discoveryMode, setDiscoveryMode] = useState(false);
   const [discoveredKeys, setDiscoveredKeys] = useState<Set<string>>(new Set());
   const [particles, setParticles] = useState<MapParticle[]>([]);
+  const [tilt3D, setTilt3D] = useState(false);
+  const [buildings, setBuildings] = useState(false);
+  const [nodeScale, setNodeScale] = useState(getSavedNodeScale);
+  const [linksOn, setLinksOn] = useState(false);
+
   const particleIdRef = useRef(0);
   const seenObservationsRef = useRef(new Set<string>());
+  const mapRef = useRef<MlMap | null>(null);
+  const nodesRef = useRef<ReturnType<typeof createNodesLayer> | null>(null);
+  const overlayRef = useRef<ReturnType<typeof createParticleOverlay> | null>(null);
+  const deckRef = useRef<DeckTracesController | null>(null);
+  const linksLayerRef = useRef<ReturnType<typeof createLinksLayer> | null>(null);
+  const linkStateRef = useRef(createPacketNetworkState(config?.name || 'Me'));
+  const linkProcessedRef = useRef(new Set<string>());
+  const popupRef = useRef<MlPopup | null>(null);
+  const focusMarkerRef = useRef<MlMarker | null>(null);
 
-  // Build prefix index and name index for hop resolution
   const { prefixIndex, nameIndex } = useMemo(() => {
     const prefix = new Map<string, Contact[]>();
     const name = new Map<string, Contact>();
@@ -587,21 +212,72 @@ export function MapView({
     return { prefixIndex: prefix, nameIndex: name };
   }, [contacts]);
 
-  // Self GPS
   const myLatLon = useMemo<[number, number] | null>(() => {
     if (!config || !isValidLocation(config.lat, config.lon)) return null;
     return [config.lat, config.lon];
   }, [config]);
 
-  // Determine time window for packet visualization. This bounds packet replay
-  // only; node visibility is governed by the "heard since" filter below.
-  const threeDaysAgoSec = useMemo(() => Date.now() / 1000 - THREE_DAYS_SEC, []);
+  // Per-link layer: derive edges client-side from the packet network graph.
+  // (No advert-path hints here; links are liveness-only, a Tertiary overlay.)
+  const linkContext = useMemo(
+    () =>
+      buildPacketNetworkContext({
+        contacts,
+        config: config ?? null,
+        repeaterAdvertPaths: [],
+        splitAmbiguousByTraffic: false,
+        useAdvertPathHints: false,
+      }),
+    [contacts, config]
+  );
 
+  // Resolve a graph node id to coordinates: 'self' is my node, otherwise a
+  // 12-char public-key prefix matched to a single contact (see resolveNode in
+  // packetNetworkGraph.ts, which keys nodes by contactIndex.byPrefix12).
+  const resolveLinkCoord = useCallback<ResolveCoord>(
+    (nodeId) => {
+      if (nodeId === 'self') return myLatLon ? { lat: myLatLon[0], lon: myLatLon[1] } : undefined;
+      const matches = prefixIndex.get(nodeId);
+      const c = matches && matches.length === 1 ? matches[0] : undefined;
+      return c && c.lat != null && c.lon != null && isValidLocation(c.lat, c.lon)
+        ? { lat: c.lat, lon: c.lon }
+        : undefined;
+    },
+    [prefixIndex, myLatLon]
+  );
+
+  const refreshLinks = useCallback(() => {
+    const layer = linksLayerRef.current;
+    if (!layer || !linksOn) return;
+    const projection = projectPacketNetwork(linkStateRef.current, {
+      showAmbiguousNodes: false,
+      showAmbiguousPaths: false,
+      collapseLikelyKnownSiblingRepeaters: false,
+    });
+    layer.setData(Array.from(projection.links.values()), resolveLinkCoord);
+  }, [linksOn, resolveLinkCoord]);
+
+  // Ingest packets into the link graph and refresh the layer while links are on.
+  useEffect(() => {
+    if (!linksOn) return;
+    const state = linkStateRef.current;
+    ensureSelfNode(state, config?.name || 'Me');
+    for (const pkt of rawPackets ?? []) {
+      const key = getRawPacketObservationKey(pkt);
+      if (linkProcessedRef.current.has(key)) continue;
+      linkProcessedRef.current.add(key);
+      ingestPacketIntoPacketNetwork(state, linkContext, pkt);
+    }
+    if (linkProcessedRef.current.size > 2000) {
+      linkProcessedRef.current = new Set(Array.from(linkProcessedRef.current).slice(-1000));
+    }
+    refreshLinks();
+  }, [rawPackets, linksOn, linkContext, refreshLinks, config]);
+
+  const threeDaysAgoSec = useMemo(() => Date.now() / 1000 - THREE_DAYS_SEC, []);
   const activeSincePreset = MAP_SINCE_PRESETS.find((p) => p.id === sinceId) ?? null;
   const sinceIsRelative = activeSincePreset != null && activeSincePreset.seconds != null;
 
-  // Only tick while a relative preset is active — "All" and absolute custom
-  // cutoffs are fixed, so re-rendering the map on a timer would be pure waste.
   useEffect(() => {
     if (!sinceIsRelative) return;
     const timer = setInterval(() => setNowSec(Date.now() / 1000), MAP_SINCE_TICK_MS);
@@ -610,14 +286,21 @@ export function MapView({
 
   useEffect(() => {
     try {
-      if (sinceId === 'custom') return; // session-only; see getSavedSinceId
+      if (sinceId === 'custom') return;
       localStorage.setItem(MAP_SINCE_STORAGE_KEY, sinceId);
     } catch {
-      // localStorage may be disabled; selection stays in memory only.
+      /* ignore */
     }
   }, [sinceId]);
 
-  /** Epoch seconds; `null` means no lower bound (show everything ever heard). */
+  useEffect(() => {
+    try {
+      localStorage.setItem(MAP_NODE_SCALE_STORAGE_KEY, String(nodeScale));
+    } catch {
+      /* ignore */
+    }
+  }, [nodeScale]);
+
   const sinceCutoffSec = useMemo(() => {
     if (sinceId === 'custom') return localDateTimeToEpochSec(customSince);
     if (!activeSincePreset || activeSincePreset.seconds == null) return null;
@@ -632,20 +315,15 @@ export function MapView({
     [sinceCutoffSec]
   );
 
-  // Filter contacts for map display
   const mappableContacts = useMemo(() => {
     const isBlocked = (c: Contact) =>
       (blockedKeys?.length && blockedKeys.includes(c.public_key.toLowerCase())) ||
       (blockedNames?.length && c.name != null && blockedNames.includes(c.name));
-
     if (showPackets && discoveryMode) {
-      // Discovery mode: only show nodes that have appeared in resolved packets
       return contacts.filter(
         (c) => isValidLocation(c.lat, c.lon) && discoveredKeys.has(c.public_key) && !isBlocked(c)
       );
     }
-    // Both packet and normal mode honour the user's "heard since" filter. The
-    // focused contact is always shown so deep links never land on a blank map.
     return contacts.filter(
       (c) =>
         isValidLocation(c.lat, c.lon) &&
@@ -663,83 +341,61 @@ export function MapView({
     blockedNames,
   ]);
 
-  // Resolve a path of hop tokens to geographic waypoints (only unambiguous + has GPS)
+  const contactByKey = useMemo(() => {
+    const m = new Map<string, Contact>();
+    for (const c of contacts) m.set(c.public_key, c);
+    return m;
+  }, [contacts]);
+
   const resolvePacketPath = useCallback(
     (parsed: ReturnType<typeof parsePacket>): [number, number][] | null => {
       if (!parsed) return null;
-
-      const waypoints: [number, number][] = [];
-
-      // Source: advertPubkey, srcHash, or groupTextSender resolved by name
+      const waypoints: [number, number][] = []; // [lat, lon]
       let sourceContact: Contact | null = null;
       if (parsed.advertPubkey) {
         const prefix = parsed.advertPubkey.slice(0, 12).toLowerCase();
         const matches = prefixIndex.get(prefix);
-        if (matches?.length === 1 && isValidLocation(matches[0].lat, matches[0].lon)) {
+        if (matches?.length === 1 && isValidLocation(matches[0].lat, matches[0].lon))
           sourceContact = matches[0];
-        }
       } else if (parsed.srcHash) {
         sourceContact = resolveHopToGps(parsed.srcHash, prefixIndex);
       } else if (parsed.groupTextSender) {
         sourceContact = resolveNameToGps(parsed.groupTextSender, nameIndex);
       }
-
-      if (sourceContact) {
-        waypoints.push([sourceContact.lat!, sourceContact.lon!]);
-      }
-
-      // Intermediate hops (path bytes)
+      if (sourceContact) waypoints.push([sourceContact.lat!, sourceContact.lon!]);
       for (const hop of parsed.pathBytes) {
-        // Only resolve 2+ byte hops (4+ hex chars) to avoid ambiguous 1-byte hops
         if (hop.length < 4) continue;
         const contact = resolveHopToGps(hop, prefixIndex);
-        if (contact) {
-          waypoints.push([contact.lat!, contact.lon!]);
-        }
+        if (contact) waypoints.push([contact.lat!, contact.lon!]);
       }
-
-      // Destination: self (our radio), or dstHash
-      if (myLatLon) {
-        waypoints.push(myLatLon);
-      } else if (parsed.dstHash) {
+      if (myLatLon) waypoints.push(myLatLon);
+      else if (parsed.dstHash) {
         const dest = resolveHopToGps(parsed.dstHash, prefixIndex);
-        if (dest) {
-          waypoints.push([dest.lat!, dest.lon!]);
-        }
+        if (dest) waypoints.push([dest.lat!, dest.lon!]);
       }
-
-      // Dedupe consecutive identical waypoints
       const deduped = dedupeConsecutive(waypoints.map((w) => `${w[0]},${w[1]}`));
       if (deduped.length < 2) return null;
-
+      // Convert to [lng, lat] for MapLibre.
       return deduped.map((s) => {
         const [lat, lon] = s.split(',').map(Number);
-        return [lat, lon] as [number, number];
+        return [lon, lat] as [number, number];
       });
     },
     [prefixIndex, nameIndex, myLatLon]
   );
 
-  // Process new packets into particles and track discovered contacts
+  // Process new packets into particles and track discovered contacts.
   useEffect(() => {
     if (!showPackets || !rawPackets?.length) return;
-
     const now = Date.now();
     const newParticles: MapParticle[] = [];
     const newDiscovered = new Set<string>();
-
     for (const pkt of rawPackets) {
-      // Skip old packets
       if (pkt.timestamp < threeDaysAgoSec) continue;
-
-      // Deduplicate by observation
       const obsKey = getRawPacketObservationKey(pkt);
       if (seenObservationsRef.current.has(obsKey)) continue;
-
       const parsed = parsePacket(pkt.data);
       if (!parsed) continue;
-
-      // Discover contacts from this packet regardless of whether a full path resolves
       const resolvedContacts = resolvePacketContacts(
         parsed,
         prefixIndex,
@@ -748,14 +404,9 @@ export function MapView({
         config
       );
       const path = resolvePacketPath(parsed);
-
-      // Only mark as seen if we got something useful; otherwise a later run
-      // with updated contacts/config can retry this observation.
       if (resolvedContacts.size === 0 && !path) continue;
       seenObservationsRef.current.add(obsKey);
-
       for (const key of resolvedContacts) newDiscovered.add(key);
-
       if (path) {
         newParticles.push({
           id: particleIdRef.current++,
@@ -765,7 +416,6 @@ export function MapView({
         });
       }
     }
-
     if (newDiscovered.size > 0) {
       setDiscoveredKeys((prev) => {
         const next = new Set(prev);
@@ -773,12 +423,9 @@ export function MapView({
         return next.size !== prev.size ? next : prev;
       });
     }
-
     if (newParticles.length === 0) return;
-
     setParticles((prev) => {
       const combined = [...prev, ...newParticles];
-      // Prune expired and cap total
       const alive = combined.filter((p) => now - p.startedAt < PARTICLE_LIFETIME_MS);
       return alive.slice(-MAX_MAP_PARTICLES);
     });
@@ -793,7 +440,6 @@ export function MapView({
     config,
   ]);
 
-  // Prune expired particles periodically
   useEffect(() => {
     if (!showPackets) return;
     const interval = setInterval(() => {
@@ -803,12 +449,10 @@ export function MapView({
     return () => clearInterval(interval);
   }, [showPackets]);
 
-  // Reset discovered set when exiting discovery mode
   useEffect(() => {
     if (!discoveryMode) setDiscoveredKeys(new Set());
   }, [discoveryMode]);
 
-  // Clear state when toggling off
   useEffect(() => {
     if (!showPackets) {
       setParticles([]);
@@ -818,393 +462,366 @@ export function MapView({
     }
   }, [showPackets]);
 
-  // Find the focused contact by key
-  const focusedContact = useMemo(() => {
-    if (!focusedKey) return null;
-    return mappableContacts.find((c) => c.public_key === focusedKey) || null;
-  }, [focusedKey, mappableContacts]);
+  // Build a themed popup DOM node for a contact.
+  const buildContactPopup = useCallback(
+    (contact: Contact): HTMLElement => {
+      const root = document.createElement('div');
+      root.className = 'text-sm';
+      const nameRow = document.createElement('div');
+      nameRow.className = 'font-medium';
+      if (onSelectContact) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'p-0 bg-transparent border-0 text-primary underline cursor-pointer';
+        btn.textContent = contact.name || contact.public_key.slice(0, 12);
+        btn.title = t('map_open_conversation_title', {
+          name: contact.name || contact.public_key.slice(0, 12),
+        });
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          onSelectContact(contact);
+        });
+        nameRow.appendChild(btn);
+      } else {
+        nameRow.textContent = contact.name || contact.public_key.slice(0, 12);
+      }
+      const heard = document.createElement('div');
+      heard.className = 'text-xs text-muted-foreground mt-1';
+      heard.textContent = t('map_last_heard', {
+        label: contact.last_seen != null ? formatTime(contact.last_seen) : t('map_never_heard'),
+      });
+      const coords = document.createElement('div');
+      coords.className = 'text-xs text-muted-foreground mt-1 font-mono';
+      coords.textContent = `${contact.lat!.toFixed(5)}, ${contact.lon!.toFixed(5)}`;
+      root.append(nameRow, heard, coords);
+      return root;
+    },
+    [onSelectContact, t]
+  );
 
-  const includesFocusedOutsideWindow =
-    focusedContact != null && !isWithinSinceWindow(focusedContact.last_seen);
+  const openContactPopup = useCallback(
+    (id: string) => {
+      const map = mapRef.current;
+      const contact = contactByKey.get(id);
+      if (!map || !contact || contact.lat == null || contact.lon == null) return;
+      popupRef.current?.remove();
+      popupRef.current = new MlPopup({ closeButton: true, offset: 12 })
+        .setLngLat([contact.lon, contact.lat])
+        .setDOMContent(buildContactPopup(contact))
+        .addTo(map);
+    },
+    [contactByKey, buildContactPopup]
+  );
 
-  // Track marker refs to open popup programmatically
-  const markerRefs = useRef<Record<string, LeafletCircleMarker | null>>({});
+  // Initial camera fit / geolocate / focus (port of MapBoundsHandler).
+  const fitInitialView = useCallback(
+    (map: MlMap) => {
+      if (focusedLatLon) {
+        map.flyTo({ center: [focusedLatLon[1], focusedLatLon[0]], zoom: 15, duration: 0 });
+        return;
+      }
+      const focused = focusedKey ? contactByKey.get(focusedKey) : null;
+      if (focused && focused.lat != null && focused.lon != null) {
+        map.flyTo({ center: [focused.lon, focused.lat], zoom: 12, duration: 0 });
+        return;
+      }
+      const pts = mappableContacts.filter((c) => c.lat != null && c.lon != null);
+      const doFit = () => {
+        if (pts.length === 0) {
+          map.flyTo({ center: [0, 20], zoom: 2, duration: 0 });
+        } else if (pts.length === 1) {
+          map.flyTo({ center: [pts[0].lon!, pts[0].lat!], zoom: 10, duration: 0 });
+        } else {
+          let minLng = Infinity,
+            minLat = Infinity,
+            maxLng = -Infinity,
+            maxLat = -Infinity;
+          for (const c of pts) {
+            minLng = Math.min(minLng, c.lon!);
+            maxLng = Math.max(maxLng, c.lon!);
+            minLat = Math.min(minLat, c.lat!);
+            maxLat = Math.max(maxLat, c.lat!);
+          }
+          map.fitBounds(
+            [
+              [minLng, minLat],
+              [maxLng, maxLat],
+            ],
+            { padding: 50, maxZoom: 12, duration: 0 }
+          );
+        }
+      };
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (position) =>
+            map.flyTo({
+              center: [position.coords.longitude, position.coords.latitude],
+              zoom: 8,
+              duration: 0,
+            }),
+          () => doFit(),
+          { timeout: 5000, maximumAge: 300000 }
+        );
+      } else {
+        doFit();
+      }
+    },
+    // Intentionally read latest via refs at call time; fit runs once on ready.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
 
-  const setMarkerRef = useCallback((key: string, ref: LeafletCircleMarker | null) => {
-    if (ref === null) {
-      delete markerRefs.current[key];
-      return;
+  const handleReady = useCallback(
+    (map: MlMap) => {
+      mapRef.current = map;
+      const nodes = createNodesLayer(map, { onClick: openContactPopup });
+      nodes.ensure();
+      nodes.setNodeScale(nodeScale);
+      nodes.setData(mappableContacts, nowSec);
+      nodesRef.current = nodes;
+      const overlay = createParticleOverlay(map);
+      overlayRef.current = overlay;
+      if (showPackets) overlay.start();
+      const links = createLinksLayer(map);
+      links.ensure();
+      linksLayerRef.current = links;
+      fitInitialView(map);
+      if (focusedLatLon) {
+        const el = document.createElement('div');
+        el.className = 'text-sm';
+        const title = document.createElement('div');
+        title.className = 'font-medium';
+        title.textContent = focusedLabel || t('map_shared_location');
+        const coords = document.createElement('div');
+        coords.className = 'text-xs text-muted-foreground mt-1 font-mono';
+        coords.textContent = `${focusedLatLon[0].toFixed(6)}, ${focusedLatLon[1].toFixed(6)}`;
+        el.append(title, coords);
+        const popup = new MlPopup({ offset: 12 }).setDOMContent(el);
+        focusMarkerRef.current = new MlMarker({ color: '#ef4444' })
+          .setLngLat([focusedLatLon[1], focusedLatLon[0]])
+          .setPopup(popup)
+          .addTo(map);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [openContactPopup]
+  );
+
+  const handleBasemapReapply = useCallback(() => {
+    const nodes = nodesRef.current;
+    if (nodes) {
+      nodes.reattach();
+      nodes.setData(mappableContacts, nowSec);
+      nodes.setNodeScale(nodeScale);
     }
-    markerRefs.current[key] = ref;
+    // A basemap setStyle drops custom sources/layers; re-add and re-feed links.
+    linksLayerRef.current?.reattach();
+    refreshLinks();
+  }, [mappableContacts, nowSec, nodeScale, refreshLinks]);
+
+  // Keep node data in sync.
+  useEffect(() => {
+    nodesRef.current?.setData(mappableContacts, nowSec);
+  }, [mappableContacts, nowSec]);
+
+  useEffect(() => {
+    nodesRef.current?.setNodeScale(nodeScale);
+  }, [nodeScale]);
+
+  // Packet replay: the reprojected canvas overlay in 2D, deck.gl arc traces in
+  // 3D. The 2D/3D toggle swaps which one draws the same resolved hop paths.
+  useEffect(() => {
+    const overlay = overlayRef.current;
+    const map = mapRef.current;
+    if (!overlay) return;
+    if (tilt3D && map) {
+      overlay.stop();
+      if (!deckRef.current) deckRef.current = createDeckTraces(map);
+      if (showPackets) {
+        const rows = particles.flatMap((p) =>
+          arcRows(
+            p.path.map(([lon, lat]) => ({ lon, lat })),
+            hexToRgb(p.color)
+          )
+        );
+        deckRef.current.setArcs(rows);
+      } else {
+        deckRef.current.clear();
+      }
+    } else {
+      deckRef.current?.clear();
+      overlay.setParticles(particles);
+      if (showPackets) overlay.start();
+      else overlay.stop();
+    }
+  }, [particles, showPackets, tilt3D]);
+
+  useEffect(() => {
+    return () => {
+      overlayRef.current?.destroy();
+      deckRef.current?.destroy();
+      popupRef.current?.remove();
+      focusMarkerRef.current?.remove();
+    };
   }, []);
 
+  // Focus popup open on focus change.
   useEffect(() => {
-    const currentKeys = new Set(mappableContacts.map((contact) => contact.public_key));
-    for (const key of Object.keys(markerRefs.current)) {
-      if (!currentKeys.has(key)) {
-        delete markerRefs.current[key];
+    if (!focusedKey) return;
+    const timer = setTimeout(() => openContactPopup(focusedKey), 150);
+    return () => clearTimeout(timer);
+  }, [focusedKey, openContactPopup]);
+
+  const handleSearch = useCallback(
+    (query: string) => {
+      const map = mapRef.current;
+      if (!map || !query.trim()) return;
+      const q = query.trim().toLowerCase();
+      const match = mappableContacts.find(
+        (c) =>
+          (c.name && c.name.toLowerCase().includes(q)) || c.public_key.toLowerCase().startsWith(q)
+      );
+      if (match && match.lat != null && match.lon != null) {
+        map.flyTo({ center: [match.lon, match.lat], zoom: 13 });
+        openContactPopup(match.public_key);
       }
-    }
-  }, [mappableContacts]);
+    },
+    [mappableContacts, openContactPopup]
+  );
 
-  useEffect(() => {
-    if (focusedContact && markerRefs.current[focusedContact.public_key]) {
-      const timer = setTimeout(() => {
-        markerRefs.current[focusedContact.public_key]?.openPopup();
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [focusedContact]);
-
-  // Gather unique link paths for static route lines when packet viz is on
-  const routeLines = useMemo(() => {
-    if (!showPackets) return [];
-    const seen = new Set<string>();
-    const lines: { path: [number, number][]; color: string }[] = [];
-    for (const p of particles) {
-      const key = p.path.map((w) => `${w[0]},${w[1]}`).join('|');
-      if (seen.has(key)) continue;
-      seen.add(key);
-      lines.push({ path: p.path, color: p.color });
-    }
-    return lines;
-  }, [showPackets, particles]);
-
-  const sinceLabel = useMemo(() => {
-    if (sinceId === 'custom') {
-      return sinceCutoffSec == null
-        ? t('map_since_any_time')
-        : t('map_since_absolute', {
-            date: new Date(sinceCutoffSec * 1000).toLocaleString(),
-          });
-    }
-    if (!activeSincePreset || activeSincePreset.windowLabelKey == null) {
-      return t('map_since_any_time');
-    }
-    return t('map_since_relative', { window: t(activeSincePreset.windowLabelKey) });
-  }, [sinceId, sinceCutoffSec, activeSincePreset, t]);
-
-  const contactCountLabel = t('map_contact_count', { count: mappableContacts.length });
-  const infoLabel =
-    showPackets && discoveryMode
-      ? t('map_nodes_discovered_live', { count: mappableContacts.length })
-      : t('map_showing_heard', {
-          contacts: contactCountLabel,
-          since: sinceLabel,
-          plusFocused: includesFocusedOutsideWindow ? t('map_plus_focused_contact') : '',
-        });
-
-  return (
-    <div className="flex flex-col h-full">
-      {/* Info bar: stacks vertically on narrow viewports (info label, legend
-          row, controls row) so nothing truncates; flattens to a single row
-          with right-aligned cluster at md and up. */}
-      <div className="px-4 py-2 bg-muted/50 text-xs text-muted-foreground flex flex-col gap-1 md:flex-row md:items-center md:justify-between md:gap-3">
-        <span>{infoLabel}</span>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 md:justify-end">
-          {!showPackets && (
-            // Grouped and labelled like the "Since" filter below it. The colour
-            // dots are aria-hidden, so without this the legend is unlabelled to
-            // assistive tech — and its bucket names collide with the identically
-            // named filter chips for anything selecting by text.
-            <div
-              className="flex flex-wrap items-center gap-x-3 gap-y-1"
-              role="group"
-              aria-label={t('map_recency_legend_aria')}
+  // Since-filter + packet toggles as extra FAB panels.
+  const extraFabs: ExtraFab[] = useMemo(() => {
+    const sincePanel = (
+      <div className="space-y-2">
+        <div role="group" aria-label={t('map_since_label')} className="flex flex-wrap gap-1">
+          {MAP_SINCE_PRESETS.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              aria-pressed={sinceId === p.id}
+              className={
+                'rounded px-2 py-1 text-xs ' +
+                (sinceId === p.id
+                  ? 'bg-accent text-accent-foreground'
+                  : 'bg-muted text-muted-foreground')
+              }
+              onClick={() => setSinceId(p.id)}
             >
-              <span className="flex items-center gap-1">
-                <span
-                  className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: MAP_RECENCY_COLORS.recent }}
-                  aria-hidden="true"
-                />{' '}
-                {t('map_lt_1h')}
-              </span>
-              <span className="flex items-center gap-1">
-                <span
-                  className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: MAP_RECENCY_COLORS.today }}
-                  aria-hidden="true"
-                />{' '}
-                {t('map_lt_1d')}
-              </span>
-              <span className="flex items-center gap-1">
-                <span
-                  className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: MAP_RECENCY_COLORS.stale }}
-                  aria-hidden="true"
-                />{' '}
-                {t('map_lt_3d')}
-              </span>
-              <span className="flex items-center gap-1">
-                <span
-                  className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: MAP_RECENCY_COLORS.old }}
-                  aria-hidden="true"
-                />{' '}
-                {t('map_recency_older')}
-              </span>
-            </div>
-          )}
-          {showPackets && (
-            <>
-              <span className="flex items-center gap-1">
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: PARTICLE_COLOR_MAP['AD'] }}
-                  aria-hidden="true"
-                />
-                {t('map_packet_legend_ad')}
-              </span>
-              <span className="flex items-center gap-1">
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: PARTICLE_COLOR_MAP['GT'] }}
-                  aria-hidden="true"
-                />
-                {t('map_packet_legend_ch')}
-              </span>
-              <span className="flex items-center gap-1">
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: PARTICLE_COLOR_MAP['DM'] }}
-                  aria-hidden="true"
-                />
-                {t('map_packet_legend_dm')}
-              </span>
-              <span className="flex items-center gap-1">
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: PARTICLE_COLOR_MAP['ACK'] }}
-                  aria-hidden="true"
-                />
-                {t('map_packet_legend_ack')}
-              </span>
-            </>
-          )}
-          <span className="flex items-center gap-1">
-            <span
-              className="w-3 h-3 rounded-full border-2"
-              style={{ borderColor: MAP_REPEATER_RING, backgroundColor: MAP_RECENCY_COLORS.today }}
-              aria-hidden="true"
-            />{' '}
-            {t('map_repeater_legend')}
-          </span>
-          {/* "Heard since" filter. Hidden in discovery mode, which selects
-              nodes by live traffic rather than by recency. */}
-          {!(showPackets && discoveryMode) && (
-            <div
-              className="flex flex-wrap items-center gap-1"
-              role="group"
-              aria-label={t('map_since_group_aria')}
-            >
-              <span className="text-[0.6875rem] text-muted-foreground">{t('map_since_label')}</span>
-              {MAP_SINCE_PRESETS.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() => setSinceId(preset.id)}
-                  aria-pressed={sinceId === preset.id}
-                  className={cn(
-                    'rounded px-1.5 py-0.5 text-[0.625rem] uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                    sinceId === preset.id
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'bg-muted hover:bg-accent'
-                  )}
-                >
-                  {t(preset.labelKey)}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setSinceId('custom')}
-                aria-pressed={sinceId === 'custom'}
-                className={cn(
-                  'rounded px-1.5 py-0.5 text-[0.625rem] uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  sinceId === 'custom'
-                    ? 'bg-primary/10 text-primary font-medium'
-                    : 'bg-muted hover:bg-accent'
-                )}
-              >
-                {t('map_custom_button')}
-              </button>
-              {sinceId === 'custom' && (
-                <>
-                  <input
-                    type="datetime-local"
-                    value={customSince}
-                    onChange={(e) => setCustomSince(e.target.value)}
-                    aria-label={t('map_since_custom_input_aria')}
-                    className="rounded border border-input bg-background px-1.5 py-0.5 text-[0.6875rem] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  />
-                  {customSince && (
-                    <button
-                      type="button"
-                      onClick={() => setCustomSince('')}
-                      className="rounded px-1.5 py-0.5 text-[0.625rem] uppercase tracking-wider bg-muted hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      {t('map_clear_button')}
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-          <label className="flex items-center gap-1.5 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={showPackets}
-              onChange={(e) => setShowPackets(e.target.checked)}
-              className="rounded border-border"
-            />
-            <span className="text-[0.6875rem]">{t('map_visualize_packets_label')}</span>
-          </label>
-          {showPackets && (
-            <label className="flex items-center gap-1.5 cursor-pointer">
+              {t(p.labelKey)}
+            </button>
+          ))}
+        </div>
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          {t('map_custom_button')}
+          <input
+            type="datetime-local"
+            value={customSince}
+            aria-label={t('map_since_custom_input_aria')}
+            onChange={(e) => {
+              setCustomSince(e.target.value);
+              setSinceId('custom');
+            }}
+            className="rounded border border-border bg-background px-2 py-1 text-sm"
+          />
+        </label>
+      </div>
+    );
+    const packetsPanel = (
+      <div className="space-y-2">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={showPackets}
+            onChange={(e) => setShowPackets(e.target.checked)}
+          />
+          {t('map_visualize_packets_label')}
+        </label>
+        {showPackets && (
+          <>
+            <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
                 checked={discoveryMode}
                 onChange={(e) => setDiscoveryMode(e.target.checked)}
-                className="rounded border-border"
               />
-              <span className="text-[0.6875rem]">{t('map_discover_nodes_label')}</span>
+              {t('map_discover_nodes_label')}
             </label>
-          )}
-        </div>
+            <p className="text-xs text-muted-foreground">{t('map_discover_nodes_help')}</p>
+          </>
+        )}
       </div>
+    );
+    // Show the active timeframe on the Since FAB itself (compact preset code
+    // like "7d"/"All", or a clock icon for a custom range).
+    const sinceValueText =
+      sinceId === 'custom'
+        ? t('map_custom_button')
+        : t(MAP_SINCE_PRESETS.find((p) => p.id === sinceId)?.labelKey ?? 'map_preset_all');
+    const sinceIcon =
+      sinceId === 'custom' ? (
+        <Clock size={18} aria-hidden />
+      ) : (
+        <span className="text-xs font-semibold leading-none" aria-hidden>
+          {sinceValueText}
+        </span>
+      );
+    return [
+      {
+        id: 'since',
+        label: `${t('map_since_label')}: ${sinceValueText}`,
+        icon: sinceIcon,
+        panel: sincePanel,
+      },
+      {
+        id: 'packets',
+        label: t('map_visualize_packets_label'),
+        icon: <Zap size={20} aria-hidden />,
+        panel: packetsPanel,
+      },
+    ];
+  }, [t, sinceId, customSince, showPackets, discoveryMode]);
 
-      {/* Map */}
-      <div
-        className="flex-1 relative"
-        style={{ zIndex: 0 }}
-        role="img"
-        aria-label={t('map_aria_label')}
-      >
-        <MapContainer
-          center={[20, 0]}
-          zoom={2}
-          minZoom={MAP_MIN_ZOOM}
-          maxZoom={MAP_MAX_ZOOM}
-          className="h-full w-full"
-          style={{ background: activeLayer.background }}
-        >
-          <LayersControl position="topright" collapsed={false}>
-            {TILE_LAYERS.map((layer) => (
-              <LayersControl.BaseLayer
-                key={layer.id}
-                name={getTileLayerLabel(t, layer)}
-                checked={layer.id === selectedLayerId}
-              >
-                <TileLayer
-                  url={layer.url}
-                  attribution={layer.attribution}
-                  maxZoom={layer.maxZoom}
-                />
-              </LayersControl.BaseLayer>
-            ))}
-          </LayersControl>
-          <LayerChangeWatcher onChange={handleLayerChange} />
-          <MaxZoomByActiveLayer maxZoom={activeLayer.maxZoom ?? MAP_MAX_ZOOM} />
-          <MapBoundsHandler
-            contacts={mappableContacts}
-            focusedContact={focusedContact}
-            focusedLatLon={focusedLatLon}
-          />
+  const theme: 'light' | 'dark' = dark ? 'dark' : 'light';
 
-          {/* Faint route lines for active packet paths */}
-          {showPackets &&
-            routeLines.map((line, i) => (
-              <Polyline
-                key={i}
-                positions={line.path}
-                pathOptions={{ color: line.color, weight: 1, opacity: 0.15, dashArray: '4 6' }}
-              />
-            ))}
-
-          {mappableContacts.map((contact) => {
-            const isRepeater = contact.type === CONTACT_TYPE_REPEATER;
-            const color = getMarkerColor(contact.last_seen);
-            const displayName = contact.name || contact.public_key.slice(0, 12);
-            const lastHeardLabel =
-              contact.last_seen != null ? formatTime(contact.last_seen) : t('map_never_heard');
-            const radius = isRepeater ? 10 : 7;
-
-            return (
-              <Fragment key={contact.public_key}>
-                <CircleMarker
-                  key={contact.public_key}
-                  ref={(ref) => setMarkerRef(contact.public_key, ref)}
-                  center={[contact.lat!, contact.lon!]}
-                  radius={radius}
-                  pathOptions={{
-                    color: isRepeater ? MAP_REPEATER_RING : MAP_MARKER_STROKE,
-                    fillColor: color,
-                    fillOpacity: 0.9,
-                    weight: isRepeater ? 3 : 2,
-                  }}
-                >
-                  <Popup>
-                    <div className="text-sm">
-                      <div className="font-medium flex items-center gap-1">
-                        {isRepeater && (
-                          <span title={t('common_repeater')} aria-hidden="true">
-                            🛜
-                          </span>
-                        )}
-                        {onSelectContact ? (
-                          <button
-                            type="button"
-                            className="p-0 bg-transparent border-0 font-inherit text-primary underline hover:text-primary/80 cursor-pointer"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onSelectContact(contact);
-                            }}
-                            title={t('map_open_conversation_title', { name: displayName })}
-                          >
-                            {displayName}
-                          </button>
-                        ) : (
-                          displayName
-                        )}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {t('map_last_heard', { label: lastHeardLabel })}
-                      </div>
-                      <div className="text-xs text-gray-400 mt-1 font-mono">
-                        {contact.lat!.toFixed(5)}, {contact.lon!.toFixed(5)}
-                      </div>
-                    </div>
-                  </Popup>
-                </CircleMarker>
-              </Fragment>
-            );
-          })}
-
-          {focusedLatLon && (
-            <CircleMarker
-              center={focusedLatLon}
-              radius={10}
-              pathOptions={{
-                color: '#ef4444',
-                fillColor: '#ef4444',
-                fillOpacity: 0.5,
-                weight: 3,
-              }}
-            >
-              <Popup>
-                <div className="text-sm">
-                  <div className="font-medium">{focusedLabel || t('map_shared_location')}</div>
-                  <div className="text-xs text-gray-400 mt-1 font-mono">
-                    {focusedLatLon[0].toFixed(6)}, {focusedLatLon[1].toFixed(6)}
-                  </div>
-                </div>
-              </Popup>
-            </CircleMarker>
-          )}
-
-          {showPackets && <ParticleOverlay particles={particles} />}
-        </MapContainer>
-      </div>
+  return (
+    <div className="h-full w-full">
+      <MapSurface
+        fabs={{
+          layers: true,
+          legend: true,
+          search: true,
+          tilt: true,
+          buildings: true,
+          nodeSize: true,
+          links: true,
+        }}
+        onReady={handleReady}
+        onBasemapReapply={handleBasemapReapply}
+        tilt3D={tilt3D}
+        onToggleTilt={(on) => {
+          setTilt3D(on);
+          const map = mapRef.current;
+          if (map) setMapLock2D(map, !on);
+        }}
+        buildings={buildings}
+        onToggleBuildings={(on) => {
+          setBuildings(on);
+          const map = mapRef.current;
+          if (map) void setBuildings3D(map, on, theme);
+        }}
+        nodeScale={nodeScale}
+        onNodeScale={setNodeScale}
+        linksOn={linksOn}
+        onToggleLinks={(on) => {
+          setLinksOn(on);
+          const layer = linksLayerRef.current;
+          if (!layer) return;
+          if (on) layer.show();
+          else layer.hide();
+        }}
+        onSearch={handleSearch}
+        extraFabs={extraFabs}
+      />
     </div>
   );
 }

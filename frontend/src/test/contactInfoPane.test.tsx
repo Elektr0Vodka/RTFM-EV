@@ -29,13 +29,6 @@ vi.mock('../components/ContactAvatar', () => ({
   ContactAvatar: () => <div data-testid="contact-avatar" />,
 }));
 
-vi.mock('react-leaflet', () => ({
-  MapContainer: () => null,
-  TileLayer: () => null,
-  CircleMarker: () => null,
-  Popup: () => null,
-}));
-
 vi.mock('../components/ui/sonner', () => ({
   toast: {
     error: vi.fn(),
