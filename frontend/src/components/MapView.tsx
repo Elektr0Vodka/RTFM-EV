@@ -19,7 +19,17 @@ import { setMapLock2D } from '../map/engine/mapLock2D';
 import { setBuildings3D } from '../map/engine/buildings3D';
 import { createNodesLayer } from '../map/layers/nodesLayer';
 import { createParticleOverlay, type MapParticle } from '../map/layers/particleOverlay';
+import { createDeckTraces, arcRows, type DeckTracesController } from '../map/layers/tracesDeck';
 import type { ExtraFab } from '../map/controls/MapControls';
+
+/** Parse a #rrggbb (or #rgb) hex color into an [r,g,b] triple for deck.gl. */
+function hexToRgb(hex: string): [number, number, number] {
+  const h = (hex || '').replace('#', '');
+  const full = h.length === 3 ? h.replace(/./g, (c) => c + c) : h;
+  const n = Number.parseInt(full, 16);
+  if (full.length !== 6 || Number.isNaN(n)) return [255, 255, 255];
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
 
 interface MapViewProps {
   contacts: Contact[];
@@ -160,6 +170,7 @@ export function MapView({
   const mapRef = useRef<MlMap | null>(null);
   const nodesRef = useRef<ReturnType<typeof createNodesLayer> | null>(null);
   const overlayRef = useRef<ReturnType<typeof createParticleOverlay> | null>(null);
+  const deckRef = useRef<DeckTracesController | null>(null);
   const popupRef = useRef<MlPopup | null>(null);
   const focusMarkerRef = useRef<MlMarker | null>(null);
 
@@ -497,18 +508,38 @@ export function MapView({
     nodesRef.current?.setNodeScale(nodeScale);
   }, [nodeScale]);
 
-  // Feed particles to the overlay and start/stop it.
+  // Packet replay: the reprojected canvas overlay in 2D, deck.gl arc traces in
+  // 3D. The 2D/3D toggle swaps which one draws the same resolved hop paths.
   useEffect(() => {
     const overlay = overlayRef.current;
+    const map = mapRef.current;
     if (!overlay) return;
-    overlay.setParticles(particles);
-    if (showPackets) overlay.start();
-    else overlay.stop();
-  }, [particles, showPackets]);
+    if (tilt3D && map) {
+      overlay.stop();
+      if (!deckRef.current) deckRef.current = createDeckTraces(map);
+      if (showPackets) {
+        const rows = particles.flatMap((p) =>
+          arcRows(
+            p.path.map(([lon, lat]) => ({ lon, lat })),
+            hexToRgb(p.color),
+          ),
+        );
+        deckRef.current.setArcs(rows);
+      } else {
+        deckRef.current.clear();
+      }
+    } else {
+      deckRef.current?.clear();
+      overlay.setParticles(particles);
+      if (showPackets) overlay.start();
+      else overlay.stop();
+    }
+  }, [particles, showPackets, tilt3D]);
 
   useEffect(() => {
     return () => {
       overlayRef.current?.destroy();
+      deckRef.current?.destroy();
       popupRef.current?.remove();
       focusMarkerRef.current?.remove();
     };
