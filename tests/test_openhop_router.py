@@ -185,3 +185,87 @@ class TestOpenHopPolicyGroups:
         with pytest.raises(HTTPException) as exc:
             await list_policy_groups(kind=None)
         assert exc.value.status_code == 409
+
+
+class TestOpenHopPlugins:
+    @pytest.mark.asyncio
+    async def test_plugin_endpoints_409_unconfigured(self, test_db, monkeypatch):
+        _set_model(monkeypatch, "Heltec V3")
+        from app.routers.openhop import list_plugins
+
+        with pytest.raises(HTTPException) as exc:
+            await list_plugins()
+        assert exc.value.status_code == 409
+
+    @pytest.mark.asyncio
+    async def test_plugin_endpoints_delegate_when_configured(self, test_db, monkeypatch):
+        _set_model(monkeypatch, OPENHOP_MODEL)
+        await AppSettingsRepository.update(
+            openhop_api_url="http://node:8000", openhop_api_token="tok"
+        )
+        from app.routers.openhop import (
+            PluginId,
+            PluginInstallBody,
+            PluginSettingsBody,
+            PluginUninstallBody,
+            list_plugins,
+            plugin_catalogue,
+            plugin_catalogue_install,
+            plugin_lifecycle,
+            plugin_logs,
+            plugin_settings_get,
+            plugin_settings_set,
+            plugin_status,
+            plugin_uninstall,
+            plugin_update,
+            plugin_updates,
+        )
+
+        fake = AsyncMock()
+        for m in (
+            "list_plugins",
+            "plugin_status",
+            "plugin_catalogue",
+            "plugin_logs",
+            "get_plugin_config",
+            "check_plugin_update",
+            "enable_plugin",
+            "disable_plugin",
+            "start_plugin",
+            "stop_plugin",
+            "restart_plugin",
+            "catalogue_install",
+            "update_plugin",
+            "set_plugin_config",
+            "uninstall_plugin",
+        ):
+            setattr(fake, m, AsyncMock(return_value={"success": True}))
+        fake.aclose = AsyncMock()
+        with patch("app.routers.openhop.OpenHopClient", return_value=fake):
+            await list_plugins()
+            await plugin_status(id="p1")
+            await plugin_catalogue(refresh=False)
+            await plugin_logs(id="p1", tail=50)
+            await plugin_settings_get(id="p1")
+            await plugin_updates(id="p1", refresh=False)
+            await plugin_lifecycle("enable", PluginId(id="p1"))
+            await plugin_catalogue_install(PluginInstallBody(id="p1", version="2.0.0"))
+            await plugin_update(PluginInstallBody(id="p1"))
+            await plugin_settings_set(PluginSettingsBody(id="p1", config={"k": 1}, restart=True))
+            await plugin_uninstall(PluginUninstallBody(id="p1", delete_data=True))
+        fake.enable_plugin.assert_awaited_once_with("p1")
+        fake.catalogue_install.assert_awaited_once_with("p1", version="2.0.0")
+        fake.set_plugin_config.assert_awaited_once_with("p1", {"k": 1}, restart=True)
+        fake.uninstall_plugin.assert_awaited_once_with("p1", delete_data=True)
+
+    @pytest.mark.asyncio
+    async def test_plugin_lifecycle_rejects_unknown_verb(self, test_db, monkeypatch):
+        _set_model(monkeypatch, OPENHOP_MODEL)
+        await AppSettingsRepository.update(
+            openhop_api_url="http://node:8000", openhop_api_token="tok"
+        )
+        from app.routers.openhop import PluginId, plugin_lifecycle
+
+        with pytest.raises(HTTPException) as exc:
+            await plugin_lifecycle("frobnicate", PluginId(id="p1"))
+        assert exc.value.status_code == 400
