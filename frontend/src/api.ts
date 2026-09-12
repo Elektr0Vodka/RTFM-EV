@@ -57,6 +57,7 @@ import type {
   TraceResponse,
   UnreadCounts,
   UpdateStatus,
+  WordlistMeta,
 } from './types';
 
 const API_BASE = './api';
@@ -637,4 +638,34 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ key }),
     }),
+
+  // Custom wordlists (channel finder)
+  listWordlists: () => fetchJson<{ wordlists: WordlistMeta[] }>('/wordlists'),
+  getWordlistWords: (id: number) => fetchJson<{ words: string[] }>(`/wordlists/${id}/words`),
+  uploadWordlist: async (name: string, file: File): Promise<WordlistMeta> => {
+    const form = new FormData();
+    form.append('name', name);
+    form.append('file', file);
+    // Raw fetch so the browser sets multipart/form-data (not application/json).
+    const res = await fetch(`${API_BASE}/wordlists`, { method: 'POST', body: form });
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = text || res.statusText;
+      try {
+        const j = JSON.parse(text);
+        if (j.detail) msg = j.detail;
+      } catch {
+        /* raw text */
+      }
+      throw new Error(msg);
+    }
+    return res.json() as Promise<WordlistMeta>;
+  },
+  deleteWordlist: async (id: number): Promise<void> => {
+    // DELETE returns 204 (no body), so avoid fetchJson's res.json().
+    const res = await fetch(`${API_BASE}/wordlists/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      throw new ApiError('Failed to delete wordlist', res.status);
+    }
+  },
 };

@@ -498,6 +498,14 @@ export interface AppSettings {
 }
 
 /** A located node synced from an external map/analyzer directory. */
+export interface WordlistMeta {
+  id: number;
+  name: string;
+  entry_count: number;
+  size_bytes: number;
+  created_at: number;
+}
+
 export interface ExternalMapNode {
   pubkey: string;
   name: string;
