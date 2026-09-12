@@ -1,8 +1,8 @@
 import type { Map as MlMap } from 'maplibre-gl';
 
-// Canvas packet-replay overlay, reprojected against MapLibre `map.project` (the
-// Leaflet original used `latLngToContainerPoint`). Ported from the ParticleOverlay
-// in the old MapView. Paths are [lng, lat] pairs to match MapLibre conventions.
+// Canvas packet-replay overlay, projected against MapLibre `map.project`.
+// Ported from the ParticleOverlay in the old MapView. Paths are [lng, lat]
+// pairs to match MapLibre conventions.
 
 export interface MapParticle {
   id: number;
@@ -21,7 +21,7 @@ export type Projector = (lngLat: [number, number]) => { x: number; y: number };
 /** Project a [lng,lat] path to container points using the map projector. Pure. */
 export function projectParticlePath(
   path: [number, number][],
-  project: Projector,
+  project: Projector
 ): { x: number; y: number }[] {
   return path.map((p) => project(p));
 }

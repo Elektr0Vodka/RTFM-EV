@@ -59,16 +59,16 @@ export function resolveBasemapKind(entry: BasemapEntry): 'vector' | 'raster' {
 
 export function switchStrategy(
   currentIsRaster: boolean,
-  targetKind: 'vector' | 'raster',
+  targetKind: 'vector' | 'raster'
 ): 'setTiles' | 'setStyle' {
   if (targetKind === 'vector') return 'setStyle';
   return currentIsRaster ? 'setTiles' : 'setStyle';
 }
 
-// Keyless raster fallbacks, ported from utils/mapTiles.ts. MapLibre does not
-// expand the Leaflet {s} subdomain token, so those URLs are pre-expanded into an
-// a/b/c tiles array. Ids and maxZoom caps are kept so a saved
-// `remoteterm-map-layer` value keeps resolving and the zoom ceilings match.
+// Keyless raster fallbacks (the app's previous raster tile presets). MapLibre
+// does not expand the legacy {s} subdomain token, so those URLs are
+// pre-expanded into an a/b/c tiles array. Ids and maxZoom caps are kept so a
+// saved `remoteterm-map-layer` value keeps resolving and the zoom ceilings match.
 const RASTER_FALLBACKS: BasemapEntry[] = [
   {
     id: 'light',
@@ -200,9 +200,7 @@ export const DEFAULT_BASEMAP_ID = 'nova';
 export const BASEMAP_STORAGE_KEY = 'remoteterm-map-layer';
 
 export function getBasemap(id: string | null | undefined): BasemapEntry {
-  return (
-    BASEMAPS.find((b) => b.id === id) ?? BASEMAPS.find((b) => b.id === DEFAULT_BASEMAP_ID)!
-  );
+  return BASEMAPS.find((b) => b.id === id) ?? BASEMAPS.find((b) => b.id === DEFAULT_BASEMAP_ID)!;
 }
 
 export function getSavedBasemapId(): string {

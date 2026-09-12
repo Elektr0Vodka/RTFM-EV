@@ -53,15 +53,31 @@ body {
   border-right: none;
 }
 
-/* Constrain Leaflet map z-index to stay below modals/sheets */
-.leaflet-container {
-  z-index: 0 !important;
+/* MapLibre chrome themed via the app's HSL tokens; keep the canvas below
+   modals/sheets. */
+.maplibregl-canvas {
+  z-index: 0;
 }
-
-.leaflet-pane {
-  z-index: 0 !important;
+.maplibregl-ctrl-group {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
 }
-
-.leaflet-control {
-  z-index: 10 !important;
+.maplibregl-ctrl-group button + button {
+  border-top: 1px solid hsl(var(--border));
+}
+.maplibregl-popup-content {
+  background: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+  border: 1px solid hsl(var(--border));
+}
+.maplibregl-popup-tip {
+  border-top-color: hsl(var(--popover));
+  border-bottom-color: hsl(var(--popover));
+}
+.maplibregl-ctrl-attrib {
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+.maplibregl-ctrl-attrib a {
+  color: hsl(var(--muted-foreground));
 }
