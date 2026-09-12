@@ -1341,6 +1341,7 @@
   "repeater_neighbors_map_unavailable": "Karten- und Entfernungsdaten sind erst verfügbar, wenn dieser Repeater über eine gültige Position aus seinem Advert oder einem Node-Info-Abruf verfügt.",
   "repeater_neighbors_no_position": "Keine Repeater-Position verfügbar",
   "repeater_neighbors_none_reported": "Keine Nachbarn gemeldet",
+  "repeater_neighbors_from_stored": "Live-Abfrage ergab nichts; letzte bekannte Nachbarn aus gespeichertem Verlauf werden angezeigt.",
   "repeater_neighbors_trend_header": "Verlauf",
   "neighbor_signal_history_title": "Signalverlauf: {name}",
   "neighbor_signal_series_repeater": "Repeater → Nachbar",

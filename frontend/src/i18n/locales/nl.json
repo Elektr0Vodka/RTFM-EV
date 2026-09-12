@@ -1341,6 +1341,7 @@
   "repeater_neighbors_map_unavailable": "Kaart- en afstandsgegevens zijn niet beschikbaar totdat deze repeater een geldige positie heeft van hetzij zijn advertentie, hetzij een Node Info-ophaalactie.",
   "repeater_neighbors_no_position": "Geen repeaterpositie beschikbaar",
   "repeater_neighbors_none_reported": "Geen buren gerapporteerd",
+  "repeater_neighbors_from_stored": "Live-opvraging gaf niets terug; laatst bekende buren uit opgeslagen geschiedenis worden getoond.",
   "repeater_neighbors_trend_header": "Trend",
   "neighbor_signal_history_title": "Signaalgeschiedenis: {name}",
   "neighbor_signal_series_repeater": "Repeater → buur",

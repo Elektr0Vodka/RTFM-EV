@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { RepeaterPane, NotFetched, formatDuration } from './repeaterPaneShared';
 import { NeighborSnrSparkline } from './NeighborSnrSparkline';
 import { NeighborSignalDetailChart } from './NeighborSignalDetailChart';
+import { buildNeighborsFromHistory } from './neighborsFallback';
 import { isValidLocation, calculateDistance, formatDistance } from '../../utils/pathUtils';
 import { useDistanceUnit } from '../../contexts/DistanceUnitContext';
 import { useT } from '../../i18n';
@@ -158,11 +159,26 @@ export function NeighborsPane({
     [sortField]
   );
 
+  // Live radio queries frequently return no neighbours over RF even when the
+  // repeater has a known neighbour set; the SNR history is already persisted, so
+  // fall back to it once a live fetch has completed but returned nothing. This
+  // keeps the list and mini-map populated instead of showing "none reported".
+  const fallbackNeighbors = useMemo(
+    () => (history ? buildNeighborsFromHistory(history, Math.floor(Date.now() / 1000)) : []),
+    [history]
+  );
+  const usingStoredNeighbors =
+    !!data && data.neighbors.length === 0 && fallbackNeighbors.length > 0;
+  const effectiveNeighbors = useMemo(
+    () => (usingStoredNeighbors ? fallbackNeighbors : (data?.neighbors ?? [])),
+    [usingStoredNeighbors, fallbackNeighbors, data]
+  );
+
   // Resolve contact data for each neighbor in a single pass — used for coords
   // (mini-map) and distances (table column + distance sort). The formatted
   // string drives display; the raw km drives numeric distance sorting.
   const { neighborsWithCoords, enriched, hasDistances } = useMemo(() => {
-    if (!data) {
+    if (effectiveNeighbors.length === 0) {
       return {
         neighborsWithCoords: [] as Array<NeighborInfo & { lat: number | null; lon: number | null }>,
         enriched: [] as Array<
@@ -176,10 +192,13 @@ export function NeighborsPane({
     const list: Array<NeighborInfo & { distance: string | null; distanceKm: number | null }> = [];
     let anyDist = false;
 
-    for (const n of data.neighbors) {
+    for (const n of effectiveNeighbors) {
       const contact = contacts.find((c) => c.public_key.startsWith(n.pubkey_prefix));
       const nLat = contact?.lat ?? null;
       const nLon = contact?.lon ?? null;
+      // Stored-history neighbours carry no firmware name; fall back to the
+      // matching contact so both the table and mini-map show a friendly label.
+      const resolvedName = n.name ?? contact?.name ?? null;
 
       let dist: string | null = null;
       let distKm: number | null = null;
@@ -191,10 +210,10 @@ export function NeighborsPane({
           anyDist = true;
         }
       }
-      list.push({ ...n, distance: dist, distanceKm: distKm });
+      list.push({ ...n, name: resolvedName, distance: dist, distanceKm: distKm });
 
       if (isValidLocation(nLat, nLon)) {
-        withCoords.push({ ...n, lat: nLat, lon: nLon });
+        withCoords.push({ ...n, name: resolvedName, lat: nLat, lon: nLon });
       }
     }
 
@@ -203,7 +222,14 @@ export function NeighborsPane({
       enriched: list,
       hasDistances: anyDist,
     };
-  }, [contacts, data, distanceUnit, hasValidRepeaterGps, positionSource.lat, positionSource.lon]);
+  }, [
+    contacts,
+    effectiveNeighbors,
+    distanceUnit,
+    hasValidRepeaterGps,
+    positionSource.lat,
+    positionSource.lon,
+  ]);
 
   const sorted = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1;
@@ -252,14 +278,16 @@ export function NeighborsPane({
       title={
         !data
           ? t('repeater_neighbors_title')
-          : data.reported_count != null && data.reported_count !== data.neighbors.length
-            ? t('repeater_neighbors_title_partial', {
-                shown: data.neighbors.length,
-                total: data.reported_count,
-              })
-            : t('repeater_neighbors_title_count', {
-                count: data.reported_count ?? data.neighbors.length,
-              })
+          : usingStoredNeighbors
+            ? t('repeater_neighbors_title_count', { count: effectiveNeighbors.length })
+            : data.reported_count != null && data.reported_count !== data.neighbors.length
+              ? t('repeater_neighbors_title_partial', {
+                  shown: data.neighbors.length,
+                  total: data.reported_count,
+                })
+              : t('repeater_neighbors_title_count', {
+                  count: data.reported_count ?? data.neighbors.length,
+                })
       }
       headerNote={headerNote}
       state={state}
@@ -274,6 +302,11 @@ export function NeighborsPane({
         <p className="text-sm text-muted-foreground">{t('repeater_neighbors_none_reported')}</p>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-2">
+          {usingStoredNeighbors && (
+            <p className="shrink-0 text-xs text-muted-foreground">
+              {t('repeater_neighbors_from_stored')}
+            </p>
+          )}
           <div className="shrink-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
