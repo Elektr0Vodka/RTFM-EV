@@ -49,9 +49,10 @@ and resolve node names from analyzers to fill in short-id displays). Plans
 customisation; add multi-radio identity/history so a swapped or replaced feeding
 radio stays coherent; and broaden persistence toward an "analyzer with one node
 feeding it"). Plans [20]-[24] were added 2026-09-11/12: [20] OpenHop integration
-(authored on the OpenHop integration branch, pending merge to `main`, so its file
-is not yet present here), [21] signal-tester mirror, [22] data-directory backup,
-[23] packet-history browser, and [24] forwarded node telemetry over MQTT.
+(plan file included; Surface A + Surface B foundation implemented on the OpenHop
+integration branch, pending merge to `main`), [21] signal-tester mirror,
+[22] data-directory backup, [23] packet-history browser, and [24] forwarded node
+telemetry over MQTT.
 
 ### A. Hygiene & docs
 - **A0. Em-dash removal** - VERIFIED near-complete: `git grep` finds **0** em-dashes
@@ -194,7 +195,7 @@ internal "Implementation status" note).
 | 17 | sidebar-customisation | PARTIAL | Customisable layout: reorder, rail collapse, settings panel (PR #72); section counters (PR #71); Repeaters/Rooms/Companions/Sensors merged into one Contacts section with type-filter pills (PR #88). "Owned" grouping still gated on backend `owner_id`. |
 | 18 | multi-radio-identity-history | NOT STARTED | Planning (2026-09-11). Self registry + per-radio stats + cross-key merge. |
 | 19 | analyzer-persistence-retention | NOT STARTED | Planning (2026-09-11). Retention policy; drives [14]. |
-| 20 | openhop-integration | PARTIAL (off-branch) | Surface A (OpenHop as radio over TCP) verified 2026-09-11 against a container sim; Surface B REST management unbuilt. Plan file lives on the OpenHop integration branch, pending merge to `main`. |
+| 20 | openhop-integration | PARTIAL | Surface A (detect + label) and Surface B foundation (REST client + gated proxy + settings config) implemented on `feat/openhop-detection` (pending merge); management panes (policy/plugins/config/update/CAD) pending a design pass. |
 | 21 | signal-tester-mirror | PARTIAL | Per-packet signal audio shipped (PR #76). Flagship per-relay same-packet reception comparison unbuilt (needs a `packet_receptions` table + last-hop resolution). |
 | 22 | data-directory-backup | PARTIAL | Backup delivered (issue #85, 2026-09-13): `VACUUM INTO` snapshot, download + server-path save, migration `_084`. Restore/scheduled backups deferred. |
 | 23 | packet-history-browser | NOT STARTED | Planning stub (2026-09-12). Packet history persists server-side (`raw_packets`, `GET /api/packets/recent` with `after_ts`/`before_ts`); the browsing UI is the gap. |
@@ -228,7 +229,7 @@ Fork-port Phase 3 (My Node, Mesh Health, packet-feed history) all **SHIPPED**.
 | 17 | `17-sidebar-customisation.md` | I | Sonnet (Opus for backend) | Partial | old fork `Remote-Terminal-for-MeshCore` `Sidebar.tsx`; current `Sidebar.tsx`, `AppShell.tsx`, `conversationState.ts`; localStorage precedent `_051` |
 | 18 | `18-multi-radio-identity-history.md` | H | Opus | Absent/Partial | `radio_lifecycle.py`, `keystore.py`, `radio_stats.py`; `contacts.py` upsert/promote, `contact_reconciliation.py`; `battery_history`/`noise_floor_samples` (`_069`/`_070`), `link_signal` (`_075`) |
 | 19 | `19-analyzer-persistence-retention.md` | H | Sonnet | Partial | `app_settings` (`_009`), `settings.py`; telemetry/link/self-stat repos + retention constants; `POST /api/packets/maintenance`; drives [14] |
-| 20 | `20-openhop-integration.md` (off-branch) | F | Opus | Partial | `openhop-dev/openhop_repeater` + `openhop_core`; `app/config.py`, `app/radio.py`, `app/routers/repeaters.py`; sibling of [10] |
+| 20 | `20-openhop-integration.md` | F | Opus | Partial | `openhop-dev/openhop_repeater` + `openhop_core`; `app/config.py`, `app/radio.py`, `app/routers/repeaters.py`; sibling of [10] |
 | 21 | `21-signal-tester-mirror.md` | J | Opus + Sonnet | Partial | `kybl/meshcore-signal-tester`; `raw_packets`, MeshHealthView, firmware `PUSH_CODE_LOG_RX_DATA=0x88`; new `packet_receptions` table |
 | 22 | `22-data-directory-backup.md` | H | Sonnet | Partial | `data/` dir (SQLite DB + assets); backup delivered (issue #85), restore deferred |
 | 23 | `23-packet-history-browser.md` | H | Sonnet | Absent | `raw_packets`, `GET /api/packets/recent` (`app/routers/packets.py:151-190`) |
