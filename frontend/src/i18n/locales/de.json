@@ -1612,6 +1612,11 @@
   "map_open_conversation_title": "Unterhaltung mit {name} öffnen",
   "map_last_heard": "Zuletzt gehört: {label}",
   "map_never_heard": "Von diesem Server nie gehört",
+  "map_heard_label": "Vom Server gehört",
+  "map_heard_all": "Alle",
+  "map_heard_hide": "Nie gehörte ausblenden",
+  "map_heard_only": "Nur nie gehörte",
+  "map_heard_help": "Nie gehörte Knoten stammen aus der Kontaktliste deines Funkgeräts und wurden nicht von diesem Server empfangen.",
   "map_shared_location": "Geteilter Standort",
   "map_contact_count": {
     "one": "{count} Kontakt",

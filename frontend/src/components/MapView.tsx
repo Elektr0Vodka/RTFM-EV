@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { Popup as MlPopup, Marker as MlMarker, type Map as MlMap } from 'maplibre-gl';
-import { Zap, Clock, Globe } from 'lucide-react';
+import { Zap, Clock, Globe, Radio } from 'lucide-react';
 import type { Contact, ExternalMapNode, RadioConfig } from '../types';
 import { api, isAbortError } from '../api';
 import { formatTime } from '../utils/messageParser';
@@ -29,6 +29,7 @@ import { createParticleOverlay, type MapParticle } from '../map/layers/particleO
 import { createDeckTraces, arcRows, type DeckTracesController } from '../map/layers/tracesDeck';
 import { createLinksLayer, type ResolveCoord } from '../map/layers/linksLayer';
 import { createExternalNodesLayer, type ExternalNodeProps } from '../map/layers/externalNodesLayer';
+import { isContactVisibleForFilters, type HeardFilterMode } from '../map/heardFilter';
 import {
   buildPacketNetworkContext,
   createPacketNetworkState,
@@ -80,6 +81,12 @@ const MAP_SINCE_PRESETS = [
 type MapSinceId = (typeof MAP_SINCE_PRESETS)[number]['id'] | 'custom';
 const DEFAULT_MAP_SINCE_ID: MapSinceId = '7d';
 const MAP_SINCE_STORAGE_KEY = 'remoteterm-map-since';
+
+// --- "Heard by server" filter (contacts layer only) ---
+const HEARD_FILTER_MODES = ['all', 'hide', 'only'] as const satisfies readonly HeardFilterMode[];
+const DEFAULT_HEARD_MODE: HeardFilterMode = 'all';
+const MAP_HEARD_STORAGE_KEY = 'remoteterm-map-heard';
+
 const MAP_NODE_SCALE_STORAGE_KEY = 'remoteterm-map-node-scale';
 const MAP_SINCE_TICK_MS = 60_000;
 
@@ -95,6 +102,18 @@ function getSavedSinceId(): MapSinceId {
     /* ignore */
   }
   return DEFAULT_MAP_SINCE_ID;
+}
+
+function getSavedHeardMode(): HeardFilterMode {
+  try {
+    const stored = localStorage.getItem(MAP_HEARD_STORAGE_KEY);
+    if (stored && (HEARD_FILTER_MODES as readonly string[]).includes(stored)) {
+      return stored as HeardFilterMode;
+    }
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_HEARD_MODE;
 }
 
 function getSavedNodeScale(): number {
@@ -181,6 +200,7 @@ export function MapView({
   const dark = useIsDarkTheme();
   const rawPackets = useRawPackets();
   const [sinceId, setSinceId] = useState<MapSinceId>(getSavedSinceId);
+  const [heardFilter, setHeardFilter] = useState<HeardFilterMode>(getSavedHeardMode);
   const [customSince, setCustomSince] = useState('');
   const [nowSec, setNowSec] = useState(() => Date.now() / 1000);
   const [showPackets, setShowPackets] = useState(false);
@@ -377,6 +397,14 @@ export function MapView({
 
   useEffect(() => {
     try {
+      localStorage.setItem(MAP_HEARD_STORAGE_KEY, heardFilter);
+    } catch {
+      /* ignore */
+    }
+  }, [heardFilter]);
+
+  useEffect(() => {
+    try {
       localStorage.setItem(MAP_NODE_SCALE_STORAGE_KEY, String(nodeScale));
     } catch {
       /* ignore */
@@ -424,11 +452,17 @@ export function MapView({
       (c) =>
         isValidLocation(c.lat, c.lon) &&
         !isBlocked(c) &&
-        (c.public_key === focusedKey || isWithinSinceWindow(c.last_seen))
+        isContactVisibleForFilters({
+          lastSeen: c.last_seen,
+          mode: heardFilter,
+          isFocused: c.public_key === focusedKey,
+          isWithinSinceWindow: isWithinSinceWindow(c.last_seen),
+        })
     );
   }, [
     contacts,
     focusedKey,
+    heardFilter,
     isWithinSinceWindow,
     showPackets,
     discoveryMode,
@@ -905,6 +939,34 @@ export function MapView({
         )}
       </div>
     );
+    const heardOptions: { id: HeardFilterMode; labelKey: string }[] = [
+      { id: 'all', labelKey: 'map_heard_all' },
+      { id: 'hide', labelKey: 'map_heard_hide' },
+      { id: 'only', labelKey: 'map_heard_only' },
+    ];
+    const heardPanel = (
+      <div className="space-y-2">
+        <div role="group" aria-label={t('map_heard_label')} className="flex flex-wrap gap-1">
+          {heardOptions.map((o) => (
+            <button
+              key={o.id}
+              type="button"
+              aria-pressed={heardFilter === o.id}
+              className={
+                'rounded px-2 py-1 text-xs ' +
+                (heardFilter === o.id
+                  ? 'bg-accent text-accent-foreground'
+                  : 'bg-muted text-muted-foreground')
+              }
+              onClick={() => setHeardFilter(o.id)}
+            >
+              {t(o.labelKey)}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">{t('map_heard_help')}</p>
+      </div>
+    );
     // Show the active timeframe on the Since FAB itself (compact preset code
     // like "7d"/"All", or a clock icon for a custom range).
     const sinceValueText =
@@ -933,6 +995,14 @@ export function MapView({
         panel: packetsPanel,
       },
       {
+        id: 'heard',
+        label: `${t('map_heard_label')}: ${t(
+          heardOptions.find((o) => o.id === heardFilter)?.labelKey ?? 'map_heard_all'
+        )}`,
+        icon: <Radio size={20} aria-hidden />,
+        panel: heardPanel,
+      },
+      {
         id: 'external',
         label: t('map_external_nodes_label'),
         icon: <Globe size={20} aria-hidden />,
@@ -948,7 +1018,7 @@ export function MapView({
         ),
       },
     ];
-  }, [t, sinceId, customSince, showPackets, discoveryMode, showExternalNodes]);
+  }, [t, sinceId, heardFilter, customSince, showPackets, discoveryMode, showExternalNodes]);
 
   const theme: 'light' | 'dark' = dark ? 'dark' : 'light';
 
