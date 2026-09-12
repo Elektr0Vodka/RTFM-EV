@@ -56,6 +56,7 @@ function createContact(publicKey: string, name: string, type = 1): Contact {
     last_seen: null,
     on_radio: false,
     favorite: false,
+    radio_policy: 'auto',
     last_contacted: null,
     last_read_at: null,
     first_seen: null,

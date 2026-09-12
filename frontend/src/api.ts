@@ -11,7 +11,10 @@ import type {
   Contact,
   ContactAnalytics,
   ContactAdvertPathSummary,
+  ContactRadioResidency,
   ContactTelemetryResponse,
+  RadioContactOccupancy,
+  RadioPolicy,
   FanoutConfig,
   HealthStatus,
   MaintenanceResult,
@@ -183,10 +186,14 @@ export const api = {
     fetchJson<{ status: string; message: string; connected: boolean }>('/radio/reconnect', {
       method: 'POST',
     }),
+  getRadioContactOccupancy: (signal?: AbortSignal) =>
+    fetchJson<RadioContactOccupancy>('/radio/contact-occupancy', { signal }),
 
   // Contacts
   getContacts: (limit = 100, offset = 0) =>
     fetchJson<Contact[]>(`/contacts?limit=${limit}&offset=${offset}`),
+  getRadioResidency: (signal?: AbortSignal) =>
+    fetchJson<ContactRadioResidency[]>('/contacts/radio-residency', { signal }),
   getRepeaterAdvertPaths: (limitPerRepeater = 10) =>
     fetchJson<ContactAdvertPathSummary[]>(
       `/contacts/repeaters/advert-paths?limit_per_repeater=${limitPerRepeater}`
@@ -236,6 +243,14 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ route }),
     }),
+  setContactRadioPolicy: (publicKey: string, policy: RadioPolicy) =>
+    fetchJson<{ status: string; public_key: string; radio_policy: string }>(
+      `/contacts/${publicKey}/radio-policy`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ policy }),
+      }
+    ),
 
   // Channels
   getChannels: () => fetchJson<Channel[]>('/channels'),

@@ -13,6 +13,8 @@ from app.models import (
     ContactActiveRoom,
     ContactAdvertPathSummary,
     ContactAnalytics,
+    ContactRadioPolicyRequest,
+    ContactRadioResidency,
     ContactRoutingOverrideRequest,
     ContactTelemetryResponse,
     ContactUpsert,
@@ -261,6 +263,21 @@ async def get_contact_analytics(
     if not normalized_name:
         raise HTTPException(status_code=400, detail="name is required")
     return await _build_name_only_contact_analytics(normalized_name)
+
+
+@router.get("/radio-residency", response_model=list[ContactRadioResidency])
+async def list_radio_residency() -> list[ContactRadioResidency]:
+    """List the contacts currently selected to occupy the radio, with reasons.
+
+    Derived on demand from the same selection logic the sync uses, so it cannot
+    drift from what a sync would actually load. Read-only; no stored flag.
+    """
+    from app.radio_sync import get_radio_residency
+
+    return [
+        ContactRadioResidency(public_key=contact.public_key, reason=reason)
+        for contact, reason in await get_radio_residency()
+    ]
 
 
 @router.post("", response_model=Contact)
@@ -616,6 +633,34 @@ async def set_contact_routing_override(
         await _broadcast_contact_update(updated_contact)
 
     return {"status": "ok", "public_key": contact.public_key}
+
+
+@router.post("/{public_key}/radio-policy")
+async def set_contact_radio_policy(public_key: str, request: ContactRadioPolicyRequest) -> dict:
+    """Set a contact's radio residency policy (auto / pinned / excluded).
+
+    Persistence only: the policy is honoured by the radio-sync selection, which
+    reconciles on its own schedule. This endpoint does not force an immediate
+    radio load or offload.
+    """
+    contact = await _resolve_contact_or_404(public_key)
+
+    await ContactRepository.set_radio_policy(contact.public_key, request.policy)
+    logger.info(
+        "Set radio policy for %s: %s",
+        contact.public_key[:12],
+        request.policy,
+    )
+
+    updated_contact = await ContactRepository.get_by_key(contact.public_key)
+    if updated_contact:
+        await _broadcast_contact_update(updated_contact)
+
+    return {
+        "status": "ok",
+        "public_key": contact.public_key,
+        "radio_policy": request.policy,
+    }
 
 
 # ---------------------------------------------------------------------------

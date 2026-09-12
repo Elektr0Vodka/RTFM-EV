@@ -177,6 +177,11 @@ class ContactRepository:
             last_seen=row["last_seen"],
             on_radio=bool(row["on_radio"]),
             favorite=bool(row["favorite"]) if "favorite" in available_columns else False,
+            radio_policy=(
+                row["radio_policy"]
+                if "radio_policy" in available_columns and row["radio_policy"]
+                else "auto"
+            ),
             last_contacted=row["last_contacted"],
             last_read_at=row["last_read_at"],
             first_seen=row["first_seen"],
@@ -489,6 +494,28 @@ class ContactRepository:
             async with conn.execute(
                 "UPDATE contacts SET favorite = ? WHERE public_key = ?",
                 (1 if value else 0, public_key.lower()),
+            ):
+                pass
+
+    @staticmethod
+    async def get_pinned() -> list[Contact]:
+        """Return all contacts with radio_policy == 'pinned'."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT * FROM contacts WHERE radio_policy = 'pinned' AND LENGTH(public_key) = 64"
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [ContactRepository._row_to_contact(row) for row in rows]
+
+    @staticmethod
+    async def set_radio_policy(public_key: str, policy: str) -> None:
+        """Set the radio residency policy ('auto', 'pinned', or 'excluded')."""
+        if policy not in {"auto", "pinned", "excluded"}:
+            raise ValueError(f"Invalid radio_policy: {policy!r}")
+        async with db.tx() as conn:
+            async with conn.execute(
+                "UPDATE contacts SET radio_policy = ? WHERE public_key = ?",
+                (policy, public_key.lower()),
             ):
                 pass
 

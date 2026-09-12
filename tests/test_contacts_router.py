@@ -761,3 +761,123 @@ class TestContactTelemetry:
             response = await client.post(f"/api/contacts/{KEY_A}/telemetry")
 
         assert response.status_code == 404
+
+
+class TestRadioPolicy:
+    """Test POST /api/contacts/{public_key}/radio-policy and repository plumbing."""
+
+    @pytest.mark.asyncio
+    async def test_default_policy_is_auto(self, test_db, client):
+        """A freshly inserted contact reads radio_policy == 'auto'."""
+        await _insert_contact(KEY_A)
+        contact = await ContactRepository.get_by_key(KEY_A)
+        assert contact is not None
+        assert contact.radio_policy == "auto"
+
+    @pytest.mark.asyncio
+    async def test_set_pinned_persists_and_broadcasts(self, test_db, client):
+        await _insert_contact(KEY_A)
+
+        with patch("app.websocket.broadcast_event") as mock_broadcast:
+            response = await client.post(
+                f"/api/contacts/{KEY_A}/radio-policy",
+                json={"policy": "pinned"},
+            )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "ok"
+        assert body["radio_policy"] == "pinned"
+        contact = await ContactRepository.get_by_key(KEY_A)
+        assert contact is not None
+        assert contact.radio_policy == "pinned"
+        mock_broadcast.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_set_excluded_persists(self, test_db, client):
+        await _insert_contact(KEY_A)
+
+        with patch("app.websocket.broadcast_event"):
+            response = await client.post(
+                f"/api/contacts/{KEY_A}/radio-policy",
+                json={"policy": "excluded"},
+            )
+
+        assert response.status_code == 200
+        contact = await ContactRepository.get_by_key(KEY_A)
+        assert contact is not None
+        assert contact.radio_policy == "excluded"
+
+    @pytest.mark.asyncio
+    async def test_set_auto_resets(self, test_db, client):
+        await _insert_contact(KEY_A)
+        await ContactRepository.set_radio_policy(KEY_A, "pinned")
+
+        with patch("app.websocket.broadcast_event"):
+            response = await client.post(
+                f"/api/contacts/{KEY_A}/radio-policy",
+                json={"policy": "auto"},
+            )
+
+        assert response.status_code == 200
+        contact = await ContactRepository.get_by_key(KEY_A)
+        assert contact is not None
+        assert contact.radio_policy == "auto"
+
+    @pytest.mark.asyncio
+    async def test_invalid_policy_returns_422(self, test_db, client):
+        await _insert_contact(KEY_A)
+
+        response = await client.post(
+            f"/api/contacts/{KEY_A}/radio-policy",
+            json={"policy": "bogus"},
+        )
+
+        assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_policy_contact_not_found(self, test_db, client):
+        response = await client.post(
+            f"/api/contacts/{KEY_A}/radio-policy",
+            json={"policy": "pinned"},
+        )
+
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_get_pinned_returns_only_pinned(self, test_db, client):
+        await _insert_contact(KEY_A, name="Alice")
+        await _insert_contact(KEY_B, name="Bob")
+        await _insert_contact(KEY_C, name="Carol")
+        await ContactRepository.set_radio_policy(KEY_A, "pinned")
+        await ContactRepository.set_radio_policy(KEY_B, "excluded")
+
+        pinned = await ContactRepository.get_pinned()
+        assert [c.public_key for c in pinned] == [KEY_A]
+
+
+class TestRadioResidency:
+    """Test GET /api/contacts/radio-residency (derived on-radio set + reasons)."""
+
+    @pytest.mark.asyncio
+    async def test_residency_reports_reasons_and_excludes(self, test_db, client):
+        await _insert_contact(KEY_A, name="Pinned")
+        await ContactRepository.set_radio_policy(KEY_A, "pinned")
+        await _insert_contact(KEY_B, name="Fav")
+        await ContactRepository.set_favorite(KEY_B, True)
+        await _insert_contact(KEY_C, name="FavExcluded")
+        await ContactRepository.set_favorite(KEY_C, True)
+        await ContactRepository.set_radio_policy(KEY_C, "excluded")
+
+        with patch(
+            "app.radio_sync.AppSettingsRepository.get",
+            new_callable=AsyncMock,
+            return_value=MagicMock(max_radio_contacts=200, tracked_telemetry_repeaters=[]),
+        ):
+            response = await client.get("/api/contacts/radio-residency")
+
+        assert response.status_code == 200
+        by_key = {e["public_key"]: e["reason"] for e in response.json()}
+        assert by_key.get(KEY_A) == "pinned"
+        assert by_key.get(KEY_B) == "favorite"
+        assert KEY_C not in by_key  # excluded wins over favorite

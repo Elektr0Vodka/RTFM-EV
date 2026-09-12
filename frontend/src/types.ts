@@ -204,9 +204,28 @@ export interface Contact {
   last_seen: number | null;
   on_radio: boolean;
   favorite: boolean;
+  radio_policy: RadioPolicy;
   last_contacted: number | null;
   last_read_at: number | null;
   first_seen: number | null;
+}
+
+export type RadioPolicy = 'auto' | 'pinned' | 'excluded';
+
+export type RadioResidencyReason = 'pinned' | 'favorite' | 'recent-dm' | 'recent-advert';
+
+export interface ContactRadioResidency {
+  public_key: string;
+  reason: RadioResidencyReason;
+}
+
+export interface RadioContactOccupancy {
+  configured: number;
+  hardware_limit: number | null;
+  effective_capacity: number;
+  refill_target: number;
+  full_sync_trigger: number;
+  selected_count: number;
 }
 
 export interface ContactRoute {

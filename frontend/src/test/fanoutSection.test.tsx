@@ -1132,6 +1132,7 @@ describe('SettingsFanoutSection', () => {
         first_seen: null,
         last_read_at: null,
         favorite: false,
+        radio_policy: 'auto',
       },
       {
         public_key: 'cc'.repeat(32),
@@ -1154,6 +1155,7 @@ describe('SettingsFanoutSection', () => {
         first_seen: null,
         last_read_at: null,
         favorite: false,
+        radio_policy: 'auto',
       },
     ]);
     mockedApi.getSettings.mockResolvedValue({

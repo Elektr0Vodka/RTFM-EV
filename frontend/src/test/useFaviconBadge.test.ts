@@ -40,6 +40,7 @@ function makeContact(publicKey: string, favorite = false): Contact {
     last_seen: null,
     on_radio: false,
     favorite,
+    radio_policy: 'auto',
     last_contacted: null,
     last_read_at: null,
     first_seen: null,

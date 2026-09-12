@@ -1291,3 +1291,30 @@ class TestDiscoverRegions:
 
         assert response.repeaters_queried == 2
         assert anon.await_count == 2
+
+
+class TestContactOccupancyEndpoint:
+    """GET /api/radio/contact-occupancy wraps the occupancy snapshot."""
+
+    @pytest.mark.asyncio
+    async def test_returns_occupancy_model(self):
+        from app.routers.radio import get_radio_contact_occupancy
+
+        snapshot = {
+            "configured": 350,
+            "hardware_limit": 350,
+            "effective_capacity": 350,
+            "refill_target": 280,
+            "full_sync_trigger": 333,
+            "selected_count": 42,
+        }
+        with patch(
+            "app.radio_sync.get_contact_occupancy",
+            new_callable=AsyncMock,
+            return_value=snapshot,
+        ):
+            resp = await get_radio_contact_occupancy()
+
+        assert resp.effective_capacity == 350
+        assert resp.refill_target == 280
+        assert resp.selected_count == 42

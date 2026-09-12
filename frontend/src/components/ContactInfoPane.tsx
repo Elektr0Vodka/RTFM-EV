@@ -37,6 +37,7 @@ import { getMapFocusHash } from '../utils/urlHash';
 import { handleKeyboardActivate } from '../utils/a11y';
 import { useT, type TFn } from '../i18n';
 import { ContactAvatar } from './ContactAvatar';
+import { ContactRadioResidencyControl } from './ContactRadioResidencyControl';
 import { LppSensorRow, formatLppLabel } from './repeater/repeaterPaneShared';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './ui/sheet';
 import { toast } from './ui/sonner';
@@ -498,6 +499,9 @@ export function ContactInfoPane({
                 )}
               </button>
             </div>
+
+            {/* Radio residency (pin / exclude / auto + live on-radio status) */}
+            {!isPrefixOnlyResolvedContact && <ContactRadioResidencyControl contact={contact} />}
 
             {/* Block toggles */}
             {(onToggleBlockedKey || onToggleBlockedName) && (

@@ -1529,64 +1529,124 @@ async def stop_background_contact_reconciliation() -> None:
     _contact_reconcile_task = None
 
 
-async def get_contacts_selected_for_radio_sync() -> list[Contact]:
-    """Return the contacts that would be loaded onto the radio right now.
+# Radio residency reasons, in fill-priority order.
+ResidencyReason = Literal["pinned", "favorite", "recent-dm", "recent-advert"]
+RESIDENCY_PINNED: ResidencyReason = "pinned"
+RESIDENCY_FAVORITE: ResidencyReason = "favorite"
+RESIDENCY_RECENT_DM: ResidencyReason = "recent-dm"
+RESIDENCY_RECENT_ADVERT: ResidencyReason = "recent-advert"
+
+
+async def get_radio_residency() -> list[tuple[Contact, ResidencyReason]]:
+    """Return (contact, reason) pairs that would be loaded onto the radio now.
 
     Fill order:
-    1. Favorites (up to full capacity)
+    1. Pinned then favorites (``radio_policy == 'pinned'`` first, then
+       ``favorite``), always loaded up to full capacity.
     2. Most recently DM-active non-repeaters (sent or received, up to 80% refill target)
     3. Most recently advertised non-repeaters (up to 80% refill target)
+
+    Contacts with ``radio_policy == 'excluded'`` are never selected, even when
+    favorited or recently active (exclude wins over favorite). ``reason`` is one
+    of the ``RESIDENCY_*`` constants. This is the single source of truth for
+    which contacts occupy the radio; :func:`get_contacts_selected_for_radio_sync`
+    is a thin wrapper that drops the reason.
     """
     app_settings = await AppSettingsRepository.get()
     max_contacts = _effective_radio_capacity(app_settings.max_radio_contacts)
     refill_target, _full_sync_trigger = _compute_radio_contact_limits(max_contacts)
-    selected_contacts: list[Contact] = []
+    selected: list[tuple[Contact, ResidencyReason]] = []
     selected_keys: set[str] = set()
 
-    # Favorites first — always loaded up to max_contacts
-    favorite_contacts_loaded = 0
+    # First tier: pinned then favorites, always loaded up to capacity. Pinned
+    # precedes favorite (tie-break). ``get_pinned`` only returns 'pinned'
+    # contacts, which are never 'excluded' (mutually exclusive), so only
+    # favorites need the exclude filter here.
+    first_tier: list[tuple[Contact, ResidencyReason]] = []
+    first_tier_keys: set[str] = set()
+    for contact in await ContactRepository.get_pinned():
+        key = contact.public_key.lower()
+        if key not in first_tier_keys:
+            first_tier_keys.add(key)
+            first_tier.append((contact, RESIDENCY_PINNED))
     for contact in await ContactRepository.get_favorites():
+        key = contact.public_key.lower()
+        if contact.radio_policy == "excluded" or key in first_tier_keys:
+            continue
+        first_tier_keys.add(key)
+        first_tier.append((contact, RESIDENCY_FAVORITE))
+
+    for contact, reason in first_tier:
         key = contact.public_key.lower()
         if key in selected_keys:
             continue
         selected_keys.add(key)
-        selected_contacts.append(contact)
-        favorite_contacts_loaded += 1
-        if len(selected_contacts) >= max_contacts:
+        selected.append((contact, reason))
+        if len(selected) >= max_contacts:
             break
 
-    if len(selected_contacts) < refill_target:
+    if len(selected) < refill_target:
         for contact in await ContactRepository.get_recently_dm_active_non_repeaters(
             limit=max_contacts
         ):
             key = contact.public_key.lower()
-            if key in selected_keys:
+            if contact.radio_policy == "excluded" or key in selected_keys:
                 continue
             selected_keys.add(key)
-            selected_contacts.append(contact)
-            if len(selected_contacts) >= refill_target:
+            selected.append((contact, RESIDENCY_RECENT_DM))
+            if len(selected) >= refill_target:
                 break
 
-    if len(selected_contacts) < refill_target:
+    if len(selected) < refill_target:
         for contact in await ContactRepository.get_recently_advertised_non_repeaters(
             limit=max_contacts
         ):
             key = contact.public_key.lower()
-            if key in selected_keys:
+            if contact.radio_policy == "excluded" or key in selected_keys:
                 continue
             selected_keys.add(key)
-            selected_contacts.append(contact)
-            if len(selected_contacts) >= refill_target:
+            selected.append((contact, RESIDENCY_RECENT_ADVERT))
+            if len(selected) >= refill_target:
                 break
 
     logger.debug(
-        "Selected %d contacts to sync (%d favorites, refill_target=%d, capacity=%d)",
-        len(selected_contacts),
-        favorite_contacts_loaded,
+        "Selected %d contacts to sync (refill_target=%d, capacity=%d)",
+        len(selected),
         refill_target,
         max_contacts,
     )
-    return selected_contacts
+    return selected
+
+
+async def get_contacts_selected_for_radio_sync() -> list[Contact]:
+    """Return the contacts that would be loaded onto the radio right now.
+
+    Thin wrapper over :func:`get_radio_residency` that drops the per-contact
+    residency reason. See that function for the fill order.
+    """
+    return [contact for contact, _reason in await get_radio_residency()]
+
+
+async def get_contact_occupancy() -> dict:
+    """Return a capacity/occupancy snapshot for the radio contact working set.
+
+    ``selected_count`` is the size of the app-managed working set (the derived
+    residency), not a live query of the radio; it is bounded by
+    ``refill_target`` in steady state. ``effective_capacity`` is the lower of
+    the configured baseline and the hardware-reported limit.
+    """
+    app_settings = await AppSettingsRepository.get()
+    effective = _effective_radio_capacity(app_settings.max_radio_contacts)
+    refill_target, full_sync_trigger = _compute_radio_contact_limits(effective)
+    selected = await get_radio_residency()
+    return {
+        "configured": max(0, app_settings.max_radio_contacts),
+        "hardware_limit": radio_manager.max_contacts,
+        "effective_capacity": effective,
+        "refill_target": refill_target,
+        "full_sync_trigger": full_sync_trigger,
+        "selected_count": len(selected),
+    }
 
 
 async def _sync_contacts_to_radio_inner(mc: MeshCore) -> dict:
