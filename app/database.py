@@ -31,7 +31,8 @@ CREATE TABLE IF NOT EXISTS contacts (
     last_contacted INTEGER,
     first_seen INTEGER,
     last_read_at INTEGER,
-    favorite INTEGER DEFAULT 0
+    favorite INTEGER DEFAULT 0,
+    radio_policy TEXT NOT NULL DEFAULT 'auto'
 );
 
 CREATE TABLE IF NOT EXISTS channels (

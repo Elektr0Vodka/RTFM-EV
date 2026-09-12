@@ -14,6 +14,7 @@ from app.models import (
     CONTACT_TYPE_REPEATER,
     Contact,
     ContactUpsert,
+    RadioContactOccupancy,
     RadioDiscoveryRequest,
     RadioDiscoveryResponse,
     RadioDiscoveryResult,
@@ -412,6 +413,18 @@ async def get_radio_config() -> RadioConfigResponse:
         telemetry_mode_loc=info.get("telemetry_mode_loc", 0),
         telemetry_mode_env=info.get("telemetry_mode_env", 0),
     )
+
+
+@router.get("/contact-occupancy", response_model=RadioContactOccupancy)
+async def get_radio_contact_occupancy() -> RadioContactOccupancy:
+    """Return the radio contact capacity and the app-managed working-set size.
+
+    Derived on demand from the sync-selection logic; does not query the radio,
+    so it works whether or not the radio is connected.
+    """
+    from app.radio_sync import get_contact_occupancy
+
+    return RadioContactOccupancy(**await get_contact_occupancy())
 
 
 @router.get("/presets", response_model=RadioPresetsStore)

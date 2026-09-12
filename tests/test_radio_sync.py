@@ -3066,3 +3066,160 @@ class TestContactSelectionDmActive:
 
         keys = [c.public_key for c in selected]
         assert repeater_key not in keys
+
+
+# ---------------------------------------------------------------------------
+# get_contacts_selected_for_radio_sync — radio_policy (pinned / excluded)
+# ---------------------------------------------------------------------------
+
+
+class TestContactSelectionRadioPolicy:
+    """Verify pinned contacts are always selected and excluded ones never are."""
+
+    @staticmethod
+    def _settings():
+        return patch(
+            "app.radio_sync.AppSettingsRepository.get",
+            new_callable=AsyncMock,
+            return_value=MagicMock(max_radio_contacts=200, tracked_telemetry_repeaters=[]),
+        )
+
+    @pytest.mark.asyncio
+    async def test_excluded_contact_never_selected(self, test_db):
+        """A recently DM-active contact marked excluded must not be selected."""
+        from app.radio_sync import get_contacts_selected_for_radio_sync
+
+        excluded_key = "aa" * 32
+        await test_db.conn.execute(
+            "INSERT INTO contacts (public_key, name, type, last_seen, radio_policy) "
+            "VALUES (?, ?, 1, 300, 'excluded')",
+            (excluded_key, "Excluded"),
+        )
+        await test_db.conn.execute(
+            "INSERT INTO messages (type, conversation_key, text, received_at) "
+            "VALUES ('PRIV', ?, 'hi', 300)",
+            (excluded_key,),
+        )
+        await test_db.conn.commit()
+
+        with self._settings():
+            selected = await get_contacts_selected_for_radio_sync()
+
+        assert excluded_key not in [c.public_key for c in selected]
+
+    @pytest.mark.asyncio
+    async def test_excluded_wins_over_favorite(self, test_db):
+        """A favorite that is also excluded must not be selected (exclude wins)."""
+        from app.radio_sync import get_contacts_selected_for_radio_sync
+
+        key = "bb" * 32
+        await test_db.conn.execute(
+            "INSERT INTO contacts (public_key, name, type, favorite, radio_policy) "
+            "VALUES (?, ?, 1, 1, 'excluded')",
+            (key, "Fav Excluded"),
+        )
+        await test_db.conn.commit()
+
+        with self._settings():
+            selected = await get_contacts_selected_for_radio_sync()
+
+        assert key not in [c.public_key for c in selected]
+
+    @pytest.mark.asyncio
+    async def test_pinned_selected_without_recency(self, test_db):
+        """A pinned contact with no recent activity is still selected (first tier)."""
+        from app.radio_sync import get_contacts_selected_for_radio_sync
+
+        key = "cc" * 32
+        await test_db.conn.execute(
+            "INSERT INTO contacts (public_key, name, type, radio_policy) "
+            "VALUES (?, ?, 1, 'pinned')",
+            (key, "Pinned"),
+        )
+        await test_db.conn.commit()
+
+        with self._settings():
+            selected = await get_contacts_selected_for_radio_sync()
+
+        assert key in [c.public_key for c in selected]
+
+    @pytest.mark.asyncio
+    async def test_pinned_ordered_before_favorite(self, test_db):
+        """When both are present in the first tier, pinned precedes favorite."""
+        from app.radio_sync import get_contacts_selected_for_radio_sync
+
+        pinned_key = "dd" * 32
+        favorite_key = "ee" * 32
+        await test_db.conn.execute(
+            "INSERT INTO contacts (public_key, name, type, radio_policy) "
+            "VALUES (?, ?, 1, 'pinned')",
+            (pinned_key, "Pinned"),
+        )
+        await test_db.conn.execute(
+            "INSERT INTO contacts (public_key, name, type, favorite) VALUES (?, ?, 1, 1)",
+            (favorite_key, "Favorite"),
+        )
+        await test_db.conn.commit()
+
+        with self._settings():
+            selected = await get_contacts_selected_for_radio_sync()
+
+        keys = [c.public_key for c in selected]
+        assert pinned_key in keys and favorite_key in keys
+        assert keys.index(pinned_key) < keys.index(favorite_key)
+
+
+class TestContactOccupancy:
+    """Verify get_contact_occupancy reports capacity math and working-set size."""
+
+    @pytest.mark.asyncio
+    async def test_occupancy_fields_with_no_hardware_limit(self, test_db):
+        from app.radio_sync import get_contact_occupancy
+
+        # One favorite + one pinned = a working set of 2.
+        await test_db.conn.execute(
+            "INSERT INTO contacts (public_key, name, type, favorite) VALUES (?, ?, 1, 1)",
+            ("aa" * 32, "Fav"),
+        )
+        await test_db.conn.execute(
+            "INSERT INTO contacts (public_key, name, type, radio_policy) VALUES (?, ?, 1, 'pinned')",
+            ("bb" * 32, "Pinned"),
+        )
+        await test_db.conn.commit()
+
+        with (
+            patch(
+                "app.radio_sync.AppSettingsRepository.get",
+                new_callable=AsyncMock,
+                return_value=MagicMock(max_radio_contacts=350, tracked_telemetry_repeaters=[]),
+            ),
+            patch("app.radio_sync.radio_manager.max_contacts", None),
+        ):
+            occ = await get_contact_occupancy()
+
+        assert occ["configured"] == 350
+        assert occ["hardware_limit"] is None
+        assert occ["effective_capacity"] == 350
+        assert occ["refill_target"] == 280  # 80%
+        assert occ["full_sync_trigger"] == 333  # ceil(95%)
+        assert occ["selected_count"] == 2
+
+    @pytest.mark.asyncio
+    async def test_occupancy_clamps_to_hardware_limit(self, test_db):
+        from app.radio_sync import get_contact_occupancy
+
+        with (
+            patch(
+                "app.radio_sync.AppSettingsRepository.get",
+                new_callable=AsyncMock,
+                return_value=MagicMock(max_radio_contacts=350, tracked_telemetry_repeaters=[]),
+            ),
+            patch("app.radio_sync.radio_manager.max_contacts", 100),
+        ):
+            occ = await get_contact_occupancy()
+
+        assert occ["configured"] == 350
+        assert occ["hardware_limit"] == 100
+        assert occ["effective_capacity"] == 100  # min(configured, hardware)
+        assert occ["refill_target"] == 80
+        assert occ["selected_count"] == 0

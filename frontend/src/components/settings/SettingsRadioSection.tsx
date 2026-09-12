@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
-import { api } from '../../api';
+import { api, isAbortError } from '../../api';
 import { RADIO_PRESETS } from '../../utils/radioPresets';
 import { stripRegionScopePrefix } from '../../utils/regionScope';
 import { allDutchScopes } from '../../lib/dutchGeo';
@@ -24,6 +24,7 @@ import type {
   AppSettings,
   AppSettingsUpdate,
   HealthStatus,
+  RadioContactOccupancy,
   RadioAdvertMode,
   RadioConfig,
   RadioConfigUpdate,
@@ -249,6 +250,18 @@ export function SettingsRadioSection({
   const [floodScope, setFloodScope] = useState('');
   const [knownRegions, setKnownRegions] = useState('');
   const [maxRadioContacts, setMaxRadioContacts] = useState('');
+  const [contactOccupancy, setContactOccupancy] = useState<RadioContactOccupancy | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    api
+      .getRadioContactOccupancy(controller.signal)
+      .then(setContactOccupancy)
+      .catch((err) => {
+        if (!isAbortError(err)) setContactOccupancy(null);
+      });
+    return () => controller.abort();
+  }, []);
   const [floodBusy, setFloodBusy] = useState(false);
   const [floodError, setFloodError] = useState<string | null>(null);
   const [regionSyncUrl, setRegionSyncUrl] = useState('');
@@ -1772,6 +1785,25 @@ export function SettingsRadioSection({
               })}
             </p>
           )}
+        {contactOccupancy && (
+          <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-[0.8125rem]">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">{t('settings_radio_occupancy_label')}</span>
+              <span className="font-medium tabular-nums">
+                {t('settings_radio_occupancy_count', {
+                  used: contactOccupancy.selected_count,
+                  total: contactOccupancy.effective_capacity,
+                })}
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t('settings_radio_occupancy_desc', {
+                refill: contactOccupancy.refill_target,
+                offload: contactOccupancy.full_sync_trigger,
+              })}
+            </p>
+          </div>
+        )}
       </div>
 
       {floodError && (

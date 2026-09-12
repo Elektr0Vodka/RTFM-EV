@@ -112,6 +112,7 @@ class Contact(BaseModel):
     last_seen: int | None = None
     on_radio: bool = False
     favorite: bool = False
+    radio_policy: Literal["auto", "pinned", "excluded"] = "auto"
     last_contacted: int | None = None  # Last time we sent/received a message
     last_read_at: int | None = None  # Server-side read state tracking
     first_seen: int | None = None
@@ -242,6 +243,41 @@ class ContactRoutingOverrideRequest(BaseModel):
             "comma-separated 1/2/3-byte hop hex values"
         )
     )
+
+
+class ContactRadioPolicyRequest(BaseModel):
+    """Request to set a contact's radio residency policy.
+
+    ``auto`` keeps the automatic recency-based selection, ``pinned`` always
+    loads the contact onto the radio (up to capacity), and ``excluded`` keeps
+    the contact app-only and never syncs it to the radio.
+    """
+
+    policy: Literal["auto", "pinned", "excluded"] = Field(
+        description="Radio residency policy: 'auto', 'pinned', or 'excluded'"
+    )
+
+
+class ContactRadioResidency(BaseModel):
+    """One contact currently selected to occupy the radio, with the reason."""
+
+    public_key: str = Field(description="Contact public key (64-char hex)")
+    reason: Literal["pinned", "favorite", "recent-dm", "recent-advert"] = Field(
+        description="Why this contact is selected for the radio"
+    )
+
+
+class RadioContactOccupancy(BaseModel):
+    """Capacity/occupancy snapshot for the radio contact working set."""
+
+    configured: int = Field(description="Configured max_radio_contacts baseline")
+    hardware_limit: int | None = Field(
+        description="Radio-reported hardware contact limit, if known"
+    )
+    effective_capacity: int = Field(description="Lower of configured and hardware limit")
+    refill_target: int = Field(description="Non-favorite refill ceiling (~80% of capacity)")
+    full_sync_trigger: int = Field(description="Occupancy that triggers offload/reload (~95%)")
+    selected_count: int = Field(description="Size of the app-managed working set (derived)")
 
 
 # Contact type constants

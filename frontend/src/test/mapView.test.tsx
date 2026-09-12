@@ -34,6 +34,7 @@ const contact = (over: Partial<Contact>): Contact => ({
   last_seen: now,
   on_radio: true,
   favorite: false,
+  radio_policy: 'auto',
   last_contacted: null,
   last_read_at: null,
   first_seen: null,
