@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { StatusBar } from '../components/StatusBar';
-import type { HealthStatus } from '../types';
+import type { HealthStatus, RadioConfig } from '../types';
 
 const baseHealth: HealthStatus = {
   status: 'degraded',
@@ -13,6 +13,20 @@ const baseHealth: HealthStatus = {
   oldest_undecrypted_timestamp: null,
   fanout_statuses: {},
   bots_disabled: false,
+};
+
+const FULL_KEY = '0123456789abcdef'.repeat(4); // 64-char hex
+
+const baseConfig: RadioConfig = {
+  public_key: FULL_KEY,
+  name: 'TestNode',
+  lat: 0,
+  lon: 0,
+  tx_power: 17,
+  max_tx_power: 22,
+  radio: { freq: 910.525, bw: 62.5, sf: 7, cr: 5 },
+  path_hash_mode: 0,
+  path_hash_mode_supported: true,
 };
 
 describe('StatusBar', () => {
@@ -59,6 +73,59 @@ describe('StatusBar', () => {
 
     expect(screen.getByRole('status', { name: 'Radio Paused' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Connect' })).toBeInTheDocument();
+  });
+
+  it('truncates the navbar public key to the radio path-hash byte width', () => {
+    const { rerender } = render(
+      <StatusBar
+        health={{ ...baseHealth, status: 'ok', radio_connected: true }}
+        config={{ ...baseConfig, path_hash_mode: 0 }}
+        onSettingsClick={vi.fn()}
+      />
+    );
+
+    // 1 byte => 2 hex chars
+    expect(screen.getByText('01')).toBeInTheDocument();
+    expect(screen.queryByText(FULL_KEY)).not.toBeInTheDocument();
+
+    // 2 bytes => 4 hex chars
+    rerender(
+      <StatusBar
+        health={{ ...baseHealth, status: 'ok', radio_connected: true }}
+        config={{ ...baseConfig, path_hash_mode: 1 }}
+        onSettingsClick={vi.fn()}
+      />
+    );
+    expect(screen.getByText('0123')).toBeInTheDocument();
+
+    // 3 bytes => 6 hex chars
+    rerender(
+      <StatusBar
+        health={{ ...baseHealth, status: 'ok', radio_connected: true }}
+        config={{ ...baseConfig, path_hash_mode: 2 }}
+        onSettingsClick={vi.fn()}
+      />
+    );
+    expect(screen.getByText('012345')).toBeInTheDocument();
+  });
+
+  it('shows the full public key on hover and copies the full key on click', () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+
+    render(
+      <StatusBar
+        health={{ ...baseHealth, status: 'ok', radio_connected: true }}
+        config={{ ...baseConfig, path_hash_mode: 1 }}
+        onSettingsClick={vi.fn()}
+      />
+    );
+
+    const keyEl = screen.getByText('0123');
+    expect(keyEl).toHaveAttribute('title', FULL_KEY);
+
+    fireEvent.click(keyEl);
+    expect(writeText).toHaveBeenCalledWith(FULL_KEY);
   });
 
   it('exposes the header language switcher', () => {

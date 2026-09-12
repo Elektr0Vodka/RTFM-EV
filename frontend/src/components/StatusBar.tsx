@@ -261,10 +261,10 @@ export function StatusBar({
               navigator.clipboard.writeText(config.public_key);
               toast.success(t('toast_public_key_copied'));
             }}
-            title={t('a11y_click_to_copy_public_key')}
+            title={config.public_key.toLowerCase()}
             aria-label={t('a11y_copy_public_key')}
           >
-            {config.public_key.toLowerCase()}
+            {config.public_key.toLowerCase().slice(0, (config.path_hash_mode + 1) * 2)}
           </span>
         </div>
       )}
