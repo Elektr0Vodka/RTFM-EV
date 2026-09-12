@@ -79,6 +79,7 @@ from app.routers import (
     settings,
     statistics,
     update_status,
+    wordlists,
     ws,
 )
 from app.security import add_optional_basic_auth_middleware
@@ -237,6 +238,7 @@ app.include_router(regions.router, prefix="/api")
 app.include_router(external_map.router, prefix="/api")
 app.include_router(statistics.router, prefix="/api")
 app.include_router(push.router, prefix="/api")
+app.include_router(wordlists.router, prefix="/api")
 app.include_router(ws.router, prefix="/api")
 
 # Serve frontend static files in production
