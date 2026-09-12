@@ -52,3 +52,46 @@ export function mergeWordlists(...lists: string[][]): string[] {
   }
   return out;
 }
+
+// Second, independent cache: candidate names derived from the local Channel
+// Registry (filled by the "Sync from channels" button in the cracker). Kept
+// separate from the remote-sync cache so the two sources stay independently
+// inspectable and re-syncable. Replace semantics, same as the remote cache.
+const REGISTRY_STORAGE_KEY = 'meshcore-wordlist-registry-cache';
+
+/** Load the last registry-synced candidate-name list. Returns [] on any read/parse error. */
+export function loadRegistryWordlist(): string[] {
+  try {
+    const raw = localStorage.getItem(REGISTRY_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((w): w is string => typeof w === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Replace the cached registry-derived wordlist with the given set. */
+export function saveRegistryWordlist(words: string[]): void {
+  try {
+    localStorage.setItem(REGISTRY_STORAGE_KEY, JSON.stringify(words));
+  } catch {
+    // Quota exceeded or storage unavailable: the in-memory merge still works for
+    // this session; the sync just will not persist across reloads.
+  }
+}
+
+/**
+ * Turn registry channel names (each starting with '#', per
+ * addableRegistryChannelNames) into cracker candidates: strip a single leading
+ * '#', trim, drop empties. Dedupe/normalisation happens later in mergeWordlists.
+ */
+export function registryWordlistCandidates(names: string[]): string[] {
+  const out: string[] = [];
+  for (const raw of names) {
+    if (typeof raw !== 'string') continue;
+    const stripped = (raw.startsWith('#') ? raw.slice(1) : raw).trim();
+    if (stripped) out.push(stripped);
+  }
+  return out;
+}

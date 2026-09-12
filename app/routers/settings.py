@@ -98,6 +98,10 @@ class AppSettingsUpdate(BaseModel):
             "path are polled every hour instead of on the normal scheduled interval."
         ),
     )
+    auto_add_mentioned_channels: bool | None = Field(
+        default=None,
+        description="Auto-record #hashtag channels referenced in chat into the registry.",
+    )
     show_mention_ticker: bool | None = Field(
         default=None,
         description=(
@@ -328,6 +332,10 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
     # Mention ticker
     if update.show_mention_ticker is not None:
         kwargs["show_mention_ticker"] = update.show_mention_ticker
+
+    # Auto-add mentioned channels to the registry
+    if update.auto_add_mentioned_channels is not None:
+        kwargs["auto_add_mentioned_channels"] = update.auto_add_mentioned_channels
 
     # Channel registry sync URL
     if update.registry_sync_url is not None:

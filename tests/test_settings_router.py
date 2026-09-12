@@ -71,6 +71,18 @@ class TestUpdateSettings:
         assert fresh.show_mention_ticker is False
 
     @pytest.mark.asyncio
+    async def test_auto_add_mentioned_channels_defaults_disabled(self, test_db):
+        result = await update_settings(AppSettingsUpdate())
+        assert result.auto_add_mentioned_channels is False
+
+    @pytest.mark.asyncio
+    async def test_auto_add_mentioned_channels_round_trip(self, test_db):
+        result = await update_settings(AppSettingsUpdate(auto_add_mentioned_channels=True))
+        assert result.auto_add_mentioned_channels is True
+        fresh = await AppSettingsRepository.get()
+        assert fresh.auto_add_mentioned_channels is True
+
+    @pytest.mark.asyncio
     async def test_registry_sync_url_defaults_empty(self, test_db):
         result = await update_settings(AppSettingsUpdate())
         assert result.registry_sync_url == ""

@@ -29,6 +29,7 @@ function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings {
     telemetry_interval_hours: 8,
     telemetry_routed_hourly: false,
     show_mention_ticker: true,
+    auto_add_mentioned_channels: false,
     registry_sync_url: '',
     region_sync_url: '',
     wordlist_sync_url: '',

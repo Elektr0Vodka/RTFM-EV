@@ -23,7 +23,7 @@ export interface RegistryChannel {
   lastHeard: string | null; // ISO datetime — most recent activity from finder
   added: string | null; // ISO date — when this entry was added to the registry
   packets: number; // Cumulative packet count from finder observations
-  source: 'finder' | 'manual' | 'imported' | 'radio'; // 'radio' = seeded from existing DB channel
+  source: 'finder' | 'manual' | 'imported' | 'radio' | 'mention'; // 'radio' = seeded from existing DB channel; 'mention' = seen referenced in chat
   private?: boolean; // When true, this entry is excluded from all exports
 }
 
@@ -254,6 +254,38 @@ export function addMissingFromSync(
   }
 
   return { result: Array.from(byName.values()), added };
+}
+
+/**
+ * Record a channel referenced in a chat message, if not already present.
+ * Unlike recordFinderDiscovery this sets NO firstSeen/lastHeard and leaves
+ * packets at 0 — a mention is a reference, not observed channel activity.
+ * No-op when the channel already exists (never mutates it). Returns
+ * { result, added }. Caller must persist with saveRegistry when added.
+ */
+export function recordMention(
+  channelName: string,
+  existing: RegistryChannel[]
+): { result: RegistryChannel[]; added: boolean } {
+  const name = normalizeChannelName(channelName);
+  const key = name.toLowerCase();
+  if (existing.some((e) => e.channel.toLowerCase() === key)) {
+    return { result: existing, added: false };
+  }
+  const now = new Date().toISOString();
+  return {
+    result: [
+      ...existing,
+      {
+        ...emptyEntry(name, 'mention', now),
+        firstSeen: null,
+        lastHeard: null,
+        added: now.slice(0, 10),
+        packets: 0,
+      },
+    ],
+    added: true,
+  };
 }
 
 /**

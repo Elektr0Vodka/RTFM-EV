@@ -34,6 +34,19 @@ The previous update's cutoff was `bda40a5` (merge of PR #67).
 
 ### Channels / registry
 - Batch-delete selected channels from the registry (`bd46a39`) (PR #70)
+- New `mention` registry source: #hashtag channels referenced in chat can be
+  captured into the Channel Registry, either via an inline "+" on an unknown
+  mention or passively through the opt-in `auto_add_mentioned_channels` setting
+  (registry-only; no followed radio channel is created) (pending)
+
+### Channel finder
+- Seed the cracker wordlist from Channel Registry names (with the leading `#`
+  stripped) via a "Sync from channels" button; merged alongside the bundled and
+  remote-synced lists (`meshcore-wordlist-registry-cache`) (pending)
+
+### Chat / UI
+- #hashtag channel references in messages are now styled by state: followed,
+  in-registry, or unknown (pending)
 
 ### Tooling / CI
 - Enforce LF line endings via `.gitattributes` (`8f90a0a`) (PR #74)

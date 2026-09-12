@@ -8,7 +8,14 @@ import { cn } from '@/lib/utils';
 import { extractPacketPayloadHex } from '../utils/pathUtils';
 import { useRawPackets } from '../stores/rawPacketStore';
 import { notifyChannelFound } from './ChannelRegistryView';
-import { loadSyncedWordlist, mergeWordlists } from '../lib/wordlistSync';
+import {
+  loadSyncedWordlist,
+  loadRegistryWordlist,
+  saveRegistryWordlist,
+  registryWordlistCandidates,
+  mergeWordlists,
+} from '../lib/wordlistSync';
+import { loadRegistry, addableRegistryChannelNames } from '../lib/channelManager';
 import { useT } from '../i18n';
 
 interface CrackedChannel {
@@ -55,6 +62,7 @@ export function CrackerPanel({
   const [gpuAvailable, setGpuAvailable] = useState<boolean | null>(null);
   const [undecryptedPacketCount, setUndecryptedPacketCount] = useState<number | null>(null);
   const [skippedDuplicates, setSkippedDuplicates] = useState(0);
+  const [registryWordCount, setRegistryWordCount] = useState(() => loadRegistryWordlist().length);
 
   const crackerRef = useRef<GroupTextCracker | null>(null);
   const noSleepRef = useRef<NoSleep | null>(null);
@@ -97,7 +105,11 @@ export function CrackerPanel({
         if (crackerRef.current) {
           // Merge the bundled list with any analyzer-synced candidate names.
           // setWordlist() replaces, so this must be a single merged call.
-          const merged = mergeWordlists(ENGLISH_WORDLIST, loadSyncedWordlist());
+          const merged = mergeWordlists(
+            ENGLISH_WORDLIST,
+            loadSyncedWordlist(),
+            loadRegistryWordlist()
+          );
           crackerRef.current.setWordlist(merged);
           setWordlistLoaded(true);
         }
@@ -415,6 +427,14 @@ export function CrackerPanel({
     }
   }, [onChannelCreate, t]);
 
+  const handleSyncFromChannels = useCallback(() => {
+    const names = addableRegistryChannelNames(loadRegistry());
+    const candidates = registryWordlistCandidates(names);
+    saveRegistryWordlist(candidates);
+    setRegistryWordCount(candidates.length);
+    toast.success(t('cracker_wordlist_synced_from_channels', { count: candidates.length }));
+  }, [t]);
+
   // Start/stop handlers
   const handleStart = () => {
     if (!gpuAvailable) {
@@ -525,6 +545,19 @@ export function CrackerPanel({
           />
           {t('cracker_turbo_mode_label')}
         </label>
+
+        <button
+          type="button"
+          onClick={handleSyncFromChannels}
+          className="px-3 py-1 text-sm rounded border border-border bg-muted hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {t('cracker_sync_from_channels_label')}
+          {registryWordCount > 0 && (
+            <span className="ml-2 text-xs text-muted-foreground">
+              {t('cracker_wordlist_registry_count', { count: registryWordCount })}
+            </span>
+          )}
+        </button>
       </div>
 
       <button
