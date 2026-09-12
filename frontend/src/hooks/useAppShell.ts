@@ -4,6 +4,7 @@ import { getLocalLabel, type LocalLabel } from '../utils/localLabel';
 import { getSavedDistanceUnit, type DistanceUnit } from '../utils/distanceUnits';
 import { getSavedRenderRichPayloads } from '../utils/richPayloadPreference';
 import { getSavedShowPathHopWidth } from '../utils/pathHopWidthPreference';
+import { getSavedLocationMapPreview } from '../utils/locationPreviewPreference';
 import type { SettingsSection } from '../components/settings/settingsConstants';
 import { parseHashSettingsSection, updateSettingsHash, pushSettingsHash } from '../utils/urlHash';
 
@@ -18,6 +19,7 @@ interface UseAppShellResult {
   distanceUnit: DistanceUnit;
   renderRichPayloads: boolean;
   showPathHopWidth: boolean;
+  showLocationPreview: boolean;
   setSettingsSection: (section: SettingsSection) => void;
   setSidebarOpen: (open: boolean) => void;
   setCrackerRunning: (running: boolean) => void;
@@ -25,6 +27,7 @@ interface UseAppShellResult {
   setDistanceUnit: (unit: DistanceUnit) => void;
   setRenderRichPayloads: (enabled: boolean) => void;
   setShowPathHopWidth: (enabled: boolean) => void;
+  setShowLocationPreview: (enabled: boolean) => void;
   handleCloseSettingsView: () => void;
   handleToggleSettingsView: () => void;
   handleOpenNewMessage: () => void;
@@ -46,6 +49,7 @@ export function useAppShell(): UseAppShellResult {
   const [distanceUnit, setDistanceUnit] = useState(getSavedDistanceUnit);
   const [renderRichPayloads, setRenderRichPayloads] = useState(getSavedRenderRichPayloads);
   const [showPathHopWidth, setShowPathHopWidth] = useState(getSavedShowPathHopWidth);
+  const [showLocationPreview, setShowLocationPreview] = useState(getSavedLocationMapPreview);
   const previousHashRef = useRef('');
   const isOpeningSettingsRef = useRef(false);
   const pushedSettingsEntryRef = useRef(false);
@@ -137,6 +141,7 @@ export function useAppShell(): UseAppShellResult {
     distanceUnit,
     renderRichPayloads,
     showPathHopWidth,
+    showLocationPreview,
     setSettingsSection,
     setSidebarOpen,
     setCrackerRunning,
@@ -144,6 +149,7 @@ export function useAppShell(): UseAppShellResult {
     setDistanceUnit,
     setRenderRichPayloads,
     setShowPathHopWidth,
+    setShowLocationPreview,
     handleCloseSettingsView,
     handleToggleSettingsView,
     handleOpenNewMessage,

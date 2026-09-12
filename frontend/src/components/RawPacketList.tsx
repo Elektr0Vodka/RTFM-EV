@@ -11,6 +11,11 @@ interface RawPacketListProps {
   onPacketClick?: (packet: RawPacket) => void;
   /** When true (default), the feed sticks to the newest packet. */
   autoScroll?: boolean;
+  /**
+   * Observation keys (see getRawPacketObservationKey) of packets heard directly
+   * (decoded, 0 hops). Rendered with a "Direct" marker to flag a nearby sender.
+   */
+  directPacketKeys?: Set<string>;
 }
 
 function formatTime(timestamp: number): string {
@@ -66,6 +71,7 @@ export function RawPacketList({
   channels,
   onPacketClick,
   autoScroll = true,
+  directPacketKeys,
 }: RawPacketListProps) {
   const t = useT();
   const listRef = useRef<HTMLDivElement>(null);
@@ -107,6 +113,7 @@ export function RawPacketList({
       ref={listRef}
     >
       {sortedPackets.map(({ packet, decoded }) => {
+        const isDirect = directPacketKeys?.has(getRawPacketObservationKey(packet)) ?? false;
         const cardContent = (
           <>
             <div className="flex items-center gap-2">
@@ -117,6 +124,16 @@ export function RawPacketList({
               >
                 {getRouteTypeLabel(decoded.routeType)}
               </span>
+
+              {/* Direct (0-hop) marker: sender is within direct radio range */}
+              {isDirect && (
+                <span
+                  className="text-[0.625rem] uppercase tracking-wider px-1.5 py-0.5 rounded bg-status-connected/15 text-status-connected"
+                  title={t('chat_scope_direct_title')}
+                >
+                  {t('chat_scope_direct')}
+                </span>
+              )}
 
               {/* Encryption status */}
               {!packet.decrypted && (

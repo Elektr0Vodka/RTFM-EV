@@ -15,6 +15,7 @@ import { MeshCoreDecoder, Utils } from '@michaelhart/meshcore-decoder';
 
 import { RawPacketList } from './RawPacketList';
 import { RawPacketInspectorDialog } from './RawPacketDetailModal';
+import { getRawPacketObservationKey } from '../utils/rawPacketIdentity';
 import { Button } from './ui/button';
 import type { Channel, Contact, RawPacket } from '../types';
 import {
@@ -78,16 +79,21 @@ const PAYLOAD_TYPE_COLOR_MAP = buildColorMap(KNOWN_PAYLOAD_TYPES);
 function summarizePacketForFeed(
   packet: RawPacket,
   decoderOptions?: ReturnType<typeof createDecoderOptions>
-): { payloadType: string; hopWidth: HopByteWidthBucket } {
+): { payloadType: string; hopWidth: HopByteWidthBucket; isDirect: boolean } {
   try {
     const decoded = MeshCoreDecoder.decode(packet.data, decoderOptions);
     const name = decoded.isValid ? Utils.getPayloadTypeName(decoded.payloadType) : 'Unknown';
+    const hopWidth = classifyDecodedHopByteWidth(decoded);
     return {
       payloadType: KNOWN_PAYLOAD_TYPE_SET.has(name) ? name : 'Unknown',
-      hopWidth: classifyDecodedHopByteWidth(decoded),
+      hopWidth,
+      // Direct = decoded successfully and carries no path (0 hops), i.e. heard
+      // directly from a neighbour. `No path` alone also covers undecodable
+      // packets, so gate on isValid to avoid over-claiming.
+      isDirect: decoded.isValid && hopWidth === 'No path',
     };
   } catch {
-    return { payloadType: 'Unknown', hopWidth: 'No path' };
+    return { payloadType: 'Unknown', hopWidth: 'No path', isDirect: false };
   }
 }
 
@@ -736,6 +742,14 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
     [packets, decoderOptions]
   );
 
+  const directPacketKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const { packet, isDirect } of packetsWithTypes) {
+      if (isDirect) keys.add(getRawPacketObservationKey(packet));
+    }
+    return keys;
+  }, [packetsWithTypes]);
+
   const allTypesEnabled = enabledTypes.size === KNOWN_PAYLOAD_TYPES.length;
   const allHopWidthsEnabled = enabledHopWidths.size === HOP_BYTE_WIDTH_BUCKETS.length;
 
@@ -990,6 +1004,7 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
             channels={channels}
             onPacketClick={setSelectedPacket}
             autoScroll={autoScroll}
+            directPacketKeys={directPacketKeys}
           />
         </div>
 

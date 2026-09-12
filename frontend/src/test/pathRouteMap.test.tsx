@@ -102,18 +102,43 @@ describe('PathRouteMap', () => {
     );
     stub.fire('load');
     const src = stub.getSource('pr-line')!;
+    // One coloured LineString feature for the single route.
     expect(src.setData).toHaveBeenCalledWith(
       expect.objectContaining({
-        geometry: {
-          type: 'LineString',
-          coordinates: [
-            [4.0, 52.0], // sender
-            [4.1, 52.1], // located hop 1
-            [4.3, 52.3], // receiver (unlocated hop 2 skipped)
-          ],
-        },
+        type: 'FeatureCollection',
+        features: [
+          expect.objectContaining({
+            geometry: {
+              type: 'LineString',
+              coordinates: [
+                [4.0, 52.0], // sender
+                [4.1, 52.1], // located hop 1
+                [4.3, 52.3], // receiver (unlocated hop 2 skipped)
+              ],
+            },
+          }),
+        ],
       })
     );
+  });
+
+  it('draws one coloured line feature per route when overlaying multiple routes', () => {
+    render(
+      <I18nProvider>
+        <PathRouteMap routes={[resolved, resolved]} senderInfo={senderInfo} />
+      </I18nProvider>
+    );
+    stub.fire('load');
+    const src = stub.getSource('pr-line')!;
+    // The most recent setData for pr-line carries both routes as separate,
+    // distinctly-coloured features (the shared mock retains prior handlers, so
+    // assert on the last call rather than a fixed call count).
+    const calls = src.setData.mock.calls;
+    const lastArg = calls[calls.length - 1][0] as {
+      features: Array<{ properties: { color: string } }>;
+    };
+    expect(lastArg.features).toHaveLength(2);
+    expect(lastArg.features[0].properties.color).not.toBe(lastArg.features[1].properties.color);
   });
 
   it('shows the no-GPS fallback when nothing is located', () => {

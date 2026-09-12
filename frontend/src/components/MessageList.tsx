@@ -5,6 +5,8 @@ import {
   useCallback,
   useMemo,
   useState,
+  lazy,
+  Suspense,
   type ReactNode,
 } from 'react';
 import type { Channel, Contact, Message, MessagePath, RadioConfig, RawPacket } from '../types';
@@ -26,14 +28,17 @@ import {
 } from '../utils/meshcoreOpenPayloads';
 import { ListFilter, MapPin } from 'lucide-react';
 import { useRichPayloads } from '../contexts/RichPayloadContext';
+import { useLocationPreview } from '../contexts/LocationPreviewContext';
 import { usePathHopWidth } from '../contexts/PathHopWidthContext';
 import {
   formatHopCounts,
   formatPathHopWidths,
+  isDirectMessage,
   isMessageHiddenByHopWidth,
   type SenderInfo,
 } from '../utils/pathUtils';
 import { getDirectContactRoute } from '../utils/pathUtils';
+import { classifyMessageScope, formatTransportCode } from '../utils/messageScope';
 import {
   getSavedHiddenHopWidths,
   setSavedHiddenHopWidths,
@@ -120,8 +125,13 @@ function ReactionPayload({ emoji, targetSender }: { emoji: string; targetSender?
   );
 }
 
+const LocationPreviewMap = lazy(() =>
+  import('./LocationPreviewMap').then((m) => ({ default: m.LocationPreviewMap }))
+);
+
 // Renders a MeshCore Open location marker (m:<lat>,<lon>|<label>|poi) as a
-// clickable card. Clicking opens the built-in map centered on the point.
+// clickable card. Clicking opens the built-in map centered on the point. When
+// the inline-preview preference is on, a small map preview is shown below.
 function MarkerMessage({
   marker,
   onCoordinateClick,
@@ -129,6 +139,8 @@ function MarkerMessage({
   marker: ParsedMarker;
   onCoordinateClick?: (lat: number, lon: number, label: string) => void;
 }) {
+  const t = useT();
+  const { showLocationPreview } = useLocationPreview();
   const coords = `${marker.lat.toFixed(6)}, ${marker.lon.toFixed(6)}`;
   const inner = (
     <>
@@ -139,19 +151,39 @@ function MarkerMessage({
       </span>
     </>
   );
-  if (!onCoordinateClick) {
-    return <span className="inline-flex items-center gap-1.5">{inner}</span>;
-  }
-  return (
+  const card = onCoordinateClick ? (
     <button
       type="button"
       className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/50 px-2 py-1 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       onClick={() => onCoordinateClick(marker.lat, marker.lon, marker.label)}
-      title="Show on map"
-      aria-label={`Show on map: ${marker.label || coords}`}
+      title={t('chat_location_show_on_map')}
+      aria-label={t('chat_location_show_on_map_aria', { place: marker.label || coords })}
     >
       {inner}
     </button>
+  ) : (
+    <span className="inline-flex items-center gap-1.5">{inner}</span>
+  );
+
+  if (!showLocationPreview) {
+    return card;
+  }
+
+  return (
+    <span className="flex w-full max-w-sm flex-col gap-1">
+      {card}
+      <Suspense
+        fallback={
+          <div className="mt-1 h-[140px] rounded border border-border bg-muted/30 animate-pulse" />
+        }
+      >
+        <LocationPreviewMap
+          lat={marker.lat}
+          lon={marker.lon}
+          ariaLabel={t('chat_location_preview_aria', { place: marker.label || coords })}
+        />
+      </Suspense>
+    </span>
   );
 }
 
@@ -427,15 +459,57 @@ function HopCountBadge({ paths, onClick, variant }: HopCountBadgeProps) {
   );
 }
 
-// Region scope badge for messages that arrived via a transport-routed (region-scoped) packet.
-function RegionBadge({ region }: { region: string }) {
+// "Direct" badge for messages heard directly (0 hops) on every recorded path,
+// i.e. the sender is within direct radio range of our node.
+function DirectBadge() {
   const t = useT();
   return (
     <span
-      className="ml-1.5 align-middle text-[0.625rem] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground"
-      title={t('a11y_regional_scope', { region })}
+      className="ml-1.5 align-middle text-[0.625rem] uppercase tracking-wider px-1.5 py-0.5 rounded bg-status-connected/15 text-status-connected"
+      title={t('chat_scope_direct_title')}
     >
-      {region}
+      {t('chat_scope_direct')}
+    </span>
+  );
+}
+
+// Region scope badge. Shows the resolved region name, or an explicit "Unscoped" /
+// "Scoped" (unknown region) marker so all three scope states are distinguishable.
+function ScopeBadge({
+  transportCode,
+  region,
+}: {
+  transportCode: number | null | undefined;
+  region: string | null | undefined;
+}) {
+  const t = useT();
+  const scope = classifyMessageScope(transportCode, region);
+  if (scope === 'named') {
+    return (
+      <span
+        className="ml-1.5 align-middle text-[0.625rem] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground"
+        title={t('a11y_regional_scope', { region: region! })}
+      >
+        {region}
+      </span>
+    );
+  }
+  if (scope === 'unknown') {
+    return (
+      <span
+        className="ml-1.5 align-middle text-[0.625rem] uppercase tracking-wider px-1.5 py-0.5 rounded bg-warning/15 text-warning"
+        title={t('chat_scope_unknown_title', { code: formatTransportCode(transportCode!) })}
+      >
+        {t('chat_scope_unknown')}
+      </span>
+    );
+  }
+  return (
+    <span
+      className="ml-1.5 align-middle text-[0.625rem] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground"
+      title={t('chat_scope_unscoped_title')}
+    >
+      {t('chat_scope_unscoped')}
     </span>
   );
 }
@@ -1522,7 +1596,10 @@ export function MessageList({
                             }
                           />
                         )}
-                        {msg.region && <RegionBadge region={msg.region} />}
+                        {!msg.outgoing && isDirectMessage(msg.paths) && <DirectBadge />}
+                        {!msg.outgoing && (
+                          <ScopeBadge transportCode={msg.transport_code} region={msg.region} />
+                        )}
                       </div>
                     )}
                     <div className="break-words whitespace-pre-wrap">
@@ -1562,7 +1639,10 @@ export function MessageList({
                               }
                             />
                           )}
-                          {msg.region && <RegionBadge region={msg.region} />}
+                          {!msg.outgoing && isDirectMessage(msg.paths) && <DirectBadge />}
+                          {!msg.outgoing && (
+                            <ScopeBadge transportCode={msg.transport_code} region={msg.region} />
+                          )}
                         </>
                       )}
                       {msg.outgoing &&

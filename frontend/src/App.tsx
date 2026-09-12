@@ -26,6 +26,7 @@ import type { MessageInputHandle } from './components/MessageInput';
 import { DistanceUnitProvider } from './contexts/DistanceUnitContext';
 import { PathHopWidthProvider } from './contexts/PathHopWidthContext';
 import { RichPayloadProvider } from './contexts/RichPayloadContext';
+import { LocationPreviewProvider } from './contexts/LocationPreviewContext';
 import { usePush } from './contexts/PushSubscriptionContext';
 import { messageContainsMention } from './utils/messageParser';
 import { buildMentionEvent, type MentionEvent } from './components/MentionTicker';
@@ -107,6 +108,7 @@ export function App() {
     distanceUnit,
     renderRichPayloads,
     showPathHopWidth,
+    showLocationPreview,
     setSettingsSection,
     setSidebarOpen,
     setCrackerRunning,
@@ -114,6 +116,7 @@ export function App() {
     setDistanceUnit,
     setRenderRichPayloads,
     setShowPathHopWidth,
+    setShowLocationPreview,
     handleCloseSettingsView,
     handleToggleSettingsView,
     handleOpenNewMessage: openNewMessageModal,
@@ -849,55 +852,60 @@ export function App() {
           showPathHopWidth={showPathHopWidth}
           setShowPathHopWidth={setShowPathHopWidth}
         >
-          <AppShell
-            localLabel={localLabel}
-            showNewMessage={showNewMessage}
-            showBulkAddResults={bulkAddResult !== null}
-            showSettings={showSettings}
-            settingsSection={settingsSection}
-            sidebarOpen={sidebarOpen}
-            showCracker={showCracker}
-            onSettingsSectionChange={setSettingsSection}
-            onSidebarOpenChange={setSidebarOpen}
-            onCrackerRunningChange={setCrackerRunning}
-            onToggleSettingsView={handleToggleSettingsView}
-            onCloseSettingsView={handleCloseSettingsView}
-            onCloseNewMessage={handleCloseNewMessage}
-            onCloseBulkAddResults={handleCloseBulkAddResults}
-            onLocalLabelChange={setLocalLabel}
-            statusProps={statusProps}
-            sidebarProps={sidebarProps}
-            conversationPaneProps={conversationPaneProps}
-            searchProps={searchProps}
-            settingsProps={settingsProps}
-            crackerProps={crackerProps}
-            newMessageModalProps={newMessageModalProps}
-            bulkAddChannelResultModalProps={bulkAddChannelResultModalProps}
-            contactInfoPaneProps={contactInfoPaneProps}
-            channelInfoPaneProps={channelInfoPaneProps}
-            showMentionTicker={appSettings?.show_mention_ticker ?? true}
-            mentionTickerEvents={pendingMentions}
-            onNavigateMentionToMessage={(channelKey, messageId) => {
-              const ch = channelsRef.current.find((c) => c.key === channelKey);
-              handleNavigateToMessage({
-                id: messageId,
-                type: 'CHAN',
-                conversation_key: channelKey,
-                conversation_name: ch ? `#${ch.name}` : channelKey,
-              });
-            }}
-            onDismissMention={handleDismissMention}
-            onRepeaterAutoLogin={handleRepeaterAutoLogin}
-          />
-          <ChannelImportExportModal
-            open={showChannelImportExport}
-            onClose={() => setShowChannelImportExport(false)}
-            channels={channels}
-            crackerFoundChannels={[]}
-            onChannelsImported={() => {
-              api.getChannels().then(setChannels).catch(console.error);
-            }}
-          />
+          <LocationPreviewProvider
+            showLocationPreview={showLocationPreview}
+            setShowLocationPreview={setShowLocationPreview}
+          >
+            <AppShell
+              localLabel={localLabel}
+              showNewMessage={showNewMessage}
+              showBulkAddResults={bulkAddResult !== null}
+              showSettings={showSettings}
+              settingsSection={settingsSection}
+              sidebarOpen={sidebarOpen}
+              showCracker={showCracker}
+              onSettingsSectionChange={setSettingsSection}
+              onSidebarOpenChange={setSidebarOpen}
+              onCrackerRunningChange={setCrackerRunning}
+              onToggleSettingsView={handleToggleSettingsView}
+              onCloseSettingsView={handleCloseSettingsView}
+              onCloseNewMessage={handleCloseNewMessage}
+              onCloseBulkAddResults={handleCloseBulkAddResults}
+              onLocalLabelChange={setLocalLabel}
+              statusProps={statusProps}
+              sidebarProps={sidebarProps}
+              conversationPaneProps={conversationPaneProps}
+              searchProps={searchProps}
+              settingsProps={settingsProps}
+              crackerProps={crackerProps}
+              newMessageModalProps={newMessageModalProps}
+              bulkAddChannelResultModalProps={bulkAddChannelResultModalProps}
+              contactInfoPaneProps={contactInfoPaneProps}
+              channelInfoPaneProps={channelInfoPaneProps}
+              showMentionTicker={appSettings?.show_mention_ticker ?? true}
+              mentionTickerEvents={pendingMentions}
+              onNavigateMentionToMessage={(channelKey, messageId) => {
+                const ch = channelsRef.current.find((c) => c.key === channelKey);
+                handleNavigateToMessage({
+                  id: messageId,
+                  type: 'CHAN',
+                  conversation_key: channelKey,
+                  conversation_name: ch ? `#${ch.name}` : channelKey,
+                });
+              }}
+              onDismissMention={handleDismissMention}
+              onRepeaterAutoLogin={handleRepeaterAutoLogin}
+            />
+            <ChannelImportExportModal
+              open={showChannelImportExport}
+              onClose={() => setShowChannelImportExport(false)}
+              channels={channels}
+              crackerFoundChannels={[]}
+              onChannelsImported={() => {
+                api.getChannels().then(setChannels).catch(console.error);
+              }}
+            />
+          </LocationPreviewProvider>
         </PathHopWidthProvider>
       </RichPayloadProvider>
     </DistanceUnitProvider>

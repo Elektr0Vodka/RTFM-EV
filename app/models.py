@@ -1175,6 +1175,40 @@ class AppSettings(BaseModel):
             "deep-link lookups (name + URL templates). Empty by default."
         ),
     )
+    external_map_enabled: bool = Field(
+        default=False,
+        description=(
+            "Show nodes synced from an external map/analyzer API as an overlay "
+            "layer on the map, and (with an interval set) sync them periodically"
+        ),
+    )
+    external_map_sync_url: str = Field(
+        default="https://meshcore-analyzer.eu/api/nodes",
+        description=(
+            "URL of an external analyzer node directory (bare JSON array of nodes "
+            "with ID/Name/Role/Lat/Lon) to sync into the external-map overlay"
+        ),
+    )
+    external_map_sync_interval_hours: int = Field(
+        default=0,
+        description=(
+            "Background sync cadence for the external-map overlay, in hours. "
+            "0 disables the periodic sync (manual sync only)."
+        ),
+    )
+
+
+class ExternalMapNode(BaseModel):
+    """A located node cached from an external map/analyzer directory."""
+
+    pubkey: str
+    name: str = ""
+    role: str = ""
+    lat: float
+    lon: float
+    last_seen: int | None = None
+    advert_count: int = 0
+    mobile: bool = False
 
 
 class BusyChannel(BaseModel):

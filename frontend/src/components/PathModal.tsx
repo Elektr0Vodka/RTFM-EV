@@ -53,7 +53,7 @@ export function PathModal({
 }: PathModalProps) {
   const t = useT();
   const { distanceUnit } = useDistanceUnit();
-  const [mapModalIndex, setMapModalIndex] = useState<number | null>(null);
+  const [mapModalIndex, setMapModalIndex] = useState<number | 'all' | null>(null);
   const hasResendActions = isOutgoingChan && messageId !== undefined && onResend;
   const hasPaths = paths.length > 0;
   const showAnalyzePacket = hasPaths && packetId != null && onAnalyzePacket;
@@ -161,6 +161,18 @@ export function PathModal({
                 </div>
               )}
 
+            {/* Overlay all resolved routes on one map (only when there are several) */}
+            {!hasSinglePath && (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => setMapModalIndex('all')}
+              >
+                {t('path_modal_map_all_routes_button', { count: paths.length })}
+              </Button>
+            )}
+
             {resolvedPaths.map((pathData, index) => (
               <div key={index}>
                 <div className="flex items-center justify-between mb-2 pb-1 border-b border-border">
@@ -200,12 +212,16 @@ export function PathModal({
               <DialogContent className="flex flex-col w-full max-w-[95vw] sm:max-w-2xl md:max-w-4xl h-[85dvh] max-h-[85dvh] p-4 sm:p-6">
                 <DialogHeader className="shrink-0">
                   <DialogTitle>
-                    {mapModalIndex !== null && !hasSinglePath
-                      ? t('path_modal_route_map_title_numbered', { n: mapModalIndex + 1 })
-                      : t('path_modal_route_map_title')}
+                    {mapModalIndex === 'all'
+                      ? t('path_modal_route_map_title_all', { count: paths.length })
+                      : mapModalIndex !== null && !hasSinglePath
+                        ? t('path_modal_route_map_title_numbered', { n: mapModalIndex + 1 })
+                        : t('path_modal_route_map_title')}
                   </DialogTitle>
                   <DialogDescription>
-                    {t('path_modal_route_map_dialog_description')}
+                    {mapModalIndex === 'all'
+                      ? t('path_modal_route_map_all_description')
+                      : t('path_modal_route_map_dialog_description')}
                   </DialogDescription>
                 </DialogHeader>
                 {mapModalIndex !== null && (
@@ -215,11 +231,19 @@ export function PathModal({
                         <div className="h-full rounded border border-border bg-muted/30 animate-pulse" />
                       }
                     >
-                      <PathRouteMap
-                        resolved={resolvedPaths[mapModalIndex].resolved}
-                        senderInfo={senderInfo}
-                        fill
-                      />
+                      {mapModalIndex === 'all' ? (
+                        <PathRouteMap
+                          routes={resolvedPaths.map((p) => p.resolved)}
+                          senderInfo={senderInfo}
+                          fill
+                        />
+                      ) : (
+                        <PathRouteMap
+                          resolved={resolvedPaths[mapModalIndex].resolved}
+                          senderInfo={senderInfo}
+                          fill
+                        />
+                      )}
                     </Suspense>
                   </div>
                 )}

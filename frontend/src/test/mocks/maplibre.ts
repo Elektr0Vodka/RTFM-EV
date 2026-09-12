@@ -39,6 +39,12 @@ export function makeMapStub() {
     setCenter: vi.fn(),
     setZoom: vi.fn(),
     getZoom: vi.fn(() => 8),
+    getBounds: vi.fn(() => ({
+      getWest: () => 4,
+      getSouth: () => 52,
+      getEast: () => 5,
+      getNorth: () => 53,
+    })),
     getContainer: vi.fn(() => document.createElement('div')),
     getCanvas: vi.fn(() => document.createElement('canvas')),
     queryRenderedFeatures: vi.fn(() => []),

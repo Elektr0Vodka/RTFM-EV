@@ -130,6 +130,18 @@ class AppSettingsUpdate(BaseModel):
             "Each node_url_template must be an http(s) URL containing a {pubkey} placeholder."
         ),
     )
+    external_map_enabled: bool | None = Field(
+        default=None,
+        description="Show and sync the external analyzer node overlay on the map",
+    )
+    external_map_sync_url: str | None = Field(
+        default=None,
+        description="URL of an external analyzer node directory to sync into the overlay",
+    )
+    external_map_sync_interval_hours: int | None = Field(
+        default=None,
+        description="Background sync cadence for the external-map overlay, in hours (0 = manual)",
+    )
 
 
 class BlockKeyRequest(BaseModel):
@@ -328,6 +340,16 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
     # Wordlist sync URL (channel finder candidate names)
     if update.wordlist_sync_url is not None:
         kwargs["wordlist_sync_url"] = update.wordlist_sync_url
+
+    # External-map overlay settings
+    if update.external_map_enabled is not None:
+        kwargs["external_map_enabled"] = update.external_map_enabled
+    if update.external_map_sync_url is not None:
+        kwargs["external_map_sync_url"] = update.external_map_sync_url.strip()
+    if update.external_map_sync_interval_hours is not None:
+        kwargs["external_map_sync_interval_hours"] = max(
+            0, min(168, update.external_map_sync_interval_hours)
+        )
 
     # Analyzer sites (client-side deep-link lookup). Validate each template is an
     # http(s) URL carrying the required placeholder before persisting; reject the
