@@ -1111,6 +1111,10 @@ class AppSettings(BaseModel):
         default=True,
         description="Whether to attempt historical DM decryption on new contact advertisement",
     )
+    advert_retention_days: int = Field(
+        default=30,
+        description="Days of advert_events history to keep; older events are pruned daily",
+    )
     last_message_times: dict[str, int] = Field(
         default_factory=dict,
         description="Map of conversation state keys to last message timestamps",

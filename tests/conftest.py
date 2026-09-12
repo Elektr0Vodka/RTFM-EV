@@ -51,6 +51,7 @@ def _reset_radio_stats_buffers():
 async def test_db():
     """Create an in-memory test database with schema + migrations."""
     from app.repository import (
+        advert_events,
         battery_history,
         channels,
         contact_telemetry,
@@ -69,6 +70,7 @@ async def test_db():
     await db.connect()
 
     submodules = [
+        advert_events,
         contacts,
         channels,
         messages,

@@ -47,6 +47,12 @@ class AppSettingsUpdate(BaseModel):
         default=None,
         description="Whether to attempt historical DM decryption on new contact advertisement",
     )
+    advert_retention_days: int | None = Field(
+        default=None,
+        ge=1,
+        le=365,
+        description="Days of advert history to keep before daily pruning",
+    )
     advert_interval: int | None = Field(
         default=None,
         ge=0,
@@ -268,6 +274,9 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
     if update.auto_decrypt_dm_on_advert is not None:
         logger.info("Updating auto_decrypt_dm_on_advert to %s", update.auto_decrypt_dm_on_advert)
         kwargs["auto_decrypt_dm_on_advert"] = update.auto_decrypt_dm_on_advert
+
+    if update.advert_retention_days is not None:
+        kwargs["advert_retention_days"] = update.advert_retention_days
 
     if update.advert_interval is not None:
         # Enforce minimum 1-hour interval; 0 means disabled

@@ -82,6 +82,7 @@ from app.routers import (
     ws,
 )
 from app.security import add_optional_basic_auth_middleware
+from app.services.advert_pruner import start_advert_prune, stop_advert_prune
 from app.services.external_map import start_external_map_sync, stop_external_map_sync
 from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.radio_stats import start_radio_stats_sampling, stop_radio_stats_sampling
@@ -129,6 +130,9 @@ async def lifespan(app: FastAPI):
     # external_map_enabled / interval settings each tick).
     start_external_map_sync()
 
+    # Daily prune of advert_events per the configured retention.
+    start_advert_prune()
+
     # Always start connection monitor (even if initial connection failed)
     await radio_manager.start_connection_monitor()
 
@@ -158,6 +162,7 @@ async def lifespan(app: FastAPI):
     await stop_message_polling()
     await stop_radio_stats_sampling()
     await stop_external_map_sync()
+    await stop_advert_prune()
     await stop_periodic_advert()
     await stop_periodic_sync()
     await stop_telemetry_collect()

@@ -39,6 +39,7 @@ from app.models import (
 from app.path_utils import calculate_packet_hash
 from app.region_resolver import resolve_region
 from app.repository import (
+    AdvertEventRepository,
     AppSettingsRepository,
     ChannelRepository,
     ContactAdvertPathRepository,
@@ -394,7 +395,13 @@ async def process_raw_packet(
         # Process all advert arrivals (even payload-hash duplicates) so the
         # advert-history table retains recent path observations.
         await _process_advertisement(
-            raw_bytes, ts, packet_info, rssi=rssi, snr=snr, is_new_packet=is_new_packet
+            raw_bytes,
+            ts,
+            packet_info,
+            rssi=rssi,
+            snr=snr,
+            is_new_packet=is_new_packet,
+            packet_id=packet_id,
         )
 
     elif payload_type == PayloadType.TEXT_MESSAGE:
@@ -576,6 +583,7 @@ async def _process_advertisement(
     rssi: int | None = None,
     snr: float | None = None,
     is_new_packet: bool = True,
+    packet_id: int | None = None,
 ) -> None:
     """
     Process an advertisement packet.
@@ -682,6 +690,19 @@ async def _process_advertisement(
         snr=snr,
         is_new_packet=is_new_packet,
     )
+
+    # Record a deduped advert-transmission event. All copies of one payload share
+    # the same raw_packets.id (packet_id), so it is the transmission id; a later
+    # direct copy (is_new_packet=False) lowers min_path_len to 0. Recorded on every
+    # reception, not only is_new_packet, so direct/flood classification is accurate.
+    if packet_id is not None:
+        await AdvertEventRepository.record(
+            transmission_id=packet_id,
+            public_key=advert.public_key.lower(),
+            timestamp=timestamp,
+            path_len=new_path_len,
+            path_hex=new_path_hex,
+        )
     promoted_keys = await promote_prefix_contacts_for_contact(
         public_key=advert.public_key,
         log=logger,
