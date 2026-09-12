@@ -1607,6 +1607,11 @@
   "map_open_conversation_title": "Open conversation with {name}",
   "map_last_heard": "Last heard: {label}",
   "map_never_heard": "Never heard by this server",
+  "map_heard_label": "Heard by server",
+  "map_heard_all": "All",
+  "map_heard_hide": "Hide never-heard",
+  "map_heard_only": "Only never-heard",
+  "map_heard_help": "Never-heard nodes come from your radio's contact list, not observed by this server.",
   "map_shared_location": "Shared location",
   "map_contact_count": {
     "one": "{count} contact",

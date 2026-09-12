@@ -1608,6 +1608,11 @@
   "map_open_conversation_title": "Gesprek openen met {name}",
   "map_last_heard": "Laatst gehoord: {label}",
   "map_never_heard": "Nooit gehoord door deze server",
+  "map_heard_label": "Gehoord door server",
+  "map_heard_all": "Alle",
+  "map_heard_hide": "Nooit-gehoord verbergen",
+  "map_heard_only": "Alleen nooit-gehoord",
+  "map_heard_help": "Nooit-gehoorde nodes komen uit de contactenlijst van je radio, niet waargenomen door deze server.",
   "map_shared_location": "Gedeelde locatie",
   "map_contact_count": {
     "one": "{count} contact",
