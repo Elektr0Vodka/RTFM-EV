@@ -538,6 +538,71 @@ export interface OpenHopStatus {
   base_url: string | null;
 }
 
+export type OpenHopAction = 'allow' | 'drop' | 'log_only';
+export type OpenHopOperator =
+  | 'equals'
+  | 'not_equals'
+  | 'greater_than'
+  | 'less_than'
+  | 'contains'
+  | 'in'
+  | 'starts_with';
+export type OpenHopGroupKind = 'channel_hashes' | 'pubkeys';
+
+export interface OpenHopSimpleCondition {
+  field: string;
+  op: OpenHopOperator;
+  value: string;
+}
+export type OpenHopCondition =
+  | OpenHopSimpleCondition
+  | { all: OpenHopCondition[] }
+  | { any: OpenHopCondition[] }
+  | Record<string, never>;
+
+export interface OpenHopRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  if: OpenHopCondition;
+  then: { action: OpenHopAction };
+}
+export interface OpenHopPolicyEngine {
+  enabled: boolean;
+  default_action: OpenHopAction;
+  rules: OpenHopRule[];
+  objects: {
+    channel_hash_groups: Record<string, string[]>;
+    pubkey_groups: Record<string, string[]>;
+  };
+}
+export interface OpenHopGroupEntry {
+  id: string;
+  friendly_name: string;
+  value: string;
+}
+export interface OpenHopGroup {
+  id: string;
+  friendly_name: string;
+  description: string;
+  entries: OpenHopGroupEntry[];
+}
+export interface OpenHopPolicyDoc {
+  policy_file: string;
+  exists: boolean;
+  policy_engine: OpenHopPolicyEngine;
+  groups: {
+    channel_hashes: OpenHopGroup[];
+    pubkeys: OpenHopGroup[];
+  };
+}
+/** Loose envelope for OpenHop replies: validate ({valid, normalized, effective}) or generic {success}. */
+export interface OpenHopEnvelope<T = unknown> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
 /** A located node synced from an external map/analyzer directory. */
 export interface WordlistMeta {
   id: number;

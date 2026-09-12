@@ -24,6 +24,10 @@ import type {
   MeshcomodConfigUpdate,
   Message,
   OpenHopStatus,
+  OpenHopEnvelope,
+  OpenHopGroupKind,
+  OpenHopPolicyDoc,
+  OpenHopPolicyEngine,
   MessagesAroundResponse,
   RawPacket,
   RadioAdvertMode,
@@ -475,6 +479,42 @@ export const api = {
 
   // OpenHop management (Surface B, opt-in; only meaningful when is_openhop)
   getOpenHopStatus: () => fetchJson<OpenHopStatus>('/openhop/status'),
+  getOpenHopPolicy: () => fetchJson<OpenHopEnvelope<OpenHopPolicyDoc>>('/openhop/policy'),
+  validateOpenHopPolicy: (policy: OpenHopPolicyEngine) =>
+    fetchJson<OpenHopEnvelope<{ valid: boolean; normalized?: unknown; effective?: unknown }>>(
+      '/openhop/policy/validate',
+      { method: 'POST', body: JSON.stringify({ policy }) }
+    ),
+  updateOpenHopPolicy: (policy: OpenHopPolicyEngine) =>
+    fetchJson<OpenHopEnvelope>('/openhop/policy', {
+      method: 'POST',
+      body: JSON.stringify({ policy }),
+    }),
+  createOpenHopGroup: (
+    kind: OpenHopGroupKind,
+    group_id: string,
+    friendly_name = '',
+    description = ''
+  ) =>
+    fetchJson<OpenHopEnvelope>('/openhop/policy/groups', {
+      method: 'POST',
+      body: JSON.stringify({ kind, group_id, friendly_name, description }),
+    }),
+  deleteOpenHopGroup: (kind: OpenHopGroupKind, group_id: string) =>
+    fetchJson<OpenHopEnvelope>('/openhop/policy/groups', {
+      method: 'DELETE',
+      body: JSON.stringify({ kind, group_id }),
+    }),
+  addOpenHopGroupEntry: (kind: OpenHopGroupKind, group_id: string, value: string) =>
+    fetchJson<OpenHopEnvelope>('/openhop/policy/groups/entries', {
+      method: 'POST',
+      body: JSON.stringify({ kind, group_id, value }),
+    }),
+  deleteOpenHopGroupEntry: (kind: OpenHopGroupKind, group_id: string, value: string) =>
+    fetchJson<OpenHopEnvelope>('/openhop/policy/groups/entries', {
+      method: 'DELETE',
+      body: JSON.stringify({ kind, group_id, value }),
+    }),
 
   // Block lists
   toggleBlockedKey: (key: string) =>
