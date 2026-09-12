@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
+from app.routers import health as health_module
 from app.routers.health import build_health_data
 from app.version_info import AppBuildInfo
 
@@ -107,6 +108,7 @@ class TestHealthFanoutStatus:
             "max_contacts": 350,
             "max_channels": 64,
             "is_meshcomod": False,
+            "is_openhop": False,
         }
 
     @pytest.mark.asyncio
@@ -176,3 +178,30 @@ class TestHealthFanoutStatus:
 
         assert data["radio_state"] == "connecting"
         assert data["radio_connected"] is False
+
+
+@pytest.mark.asyncio
+async def test_health_reports_is_openhop_true(monkeypatch):
+    rm = health_module.radio_manager
+    monkeypatch.setattr(rm, "device_info_loaded", True, raising=False)
+    monkeypatch.setattr(rm, "device_model", "openHop-Repeater-Companion", raising=False)
+    monkeypatch.setattr(rm, "firmware_version", "13.0", raising=False)
+    monkeypatch.setattr(rm, "firmware_ver_code", 13, raising=False)
+
+    data = await health_module.build_health_data(radio_connected=True, connection_info="TCP: x")
+
+    assert data["radio_device_info"]["is_openhop"] is True
+    assert data["radio_device_info"]["is_meshcomod"] is False
+
+
+@pytest.mark.asyncio
+async def test_health_reports_is_openhop_false_for_other_models(monkeypatch):
+    rm = health_module.radio_manager
+    monkeypatch.setattr(rm, "device_info_loaded", True, raising=False)
+    monkeypatch.setattr(rm, "device_model", "Heltec V3", raising=False)
+    monkeypatch.setattr(rm, "firmware_version", "v1.17.0", raising=False)
+    monkeypatch.setattr(rm, "firmware_ver_code", 13, raising=False)
+
+    data = await health_module.build_health_data(radio_connected=True, connection_info="TCP: x")
+
+    assert data["radio_device_info"]["is_openhop"] is False
