@@ -37,7 +37,13 @@ export function NeighborsMiniMap({ neighbors, radioLat, radioLon, radioName }: P
         ? valid.map((n) => ({
             type: 'Feature',
             properties: {},
-            geometry: { type: 'LineString', coordinates: [[radioLon, radioLat], [n.lon, n.lat]] },
+            geometry: {
+              type: 'LineString',
+              coordinates: [
+                [radioLon, radioLat],
+                [n.lon, n.lat],
+              ],
+            },
           }))
         : [];
       const neighborPts = valid.map((n) => ({
@@ -58,7 +64,7 @@ export function NeighborsMiniMap({ neighbors, radioLat, radioLon, radioName }: P
       m.getSource('nm-neighbors')?.setData({ type: 'FeatureCollection', features: neighborPts });
       m.getSource('nm-radio')?.setData({ type: 'FeatureCollection', features: radioPts });
     },
-    [valid, hasRadio, radioLat, radioLon, radioName],
+    [valid, hasRadio, radioLat, radioLon, radioName]
   );
 
   const ensureLayers = useCallback(
@@ -66,17 +72,28 @@ export function NeighborsMiniMap({ neighbors, radioLat, radioLon, radioName }: P
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const m = map as any;
       if (!m.getSource('nm-lines')) {
-        m.addSource('nm-lines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+        m.addSource('nm-lines', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] },
+        });
         m.addLayer({
           id: 'nm-lines',
           type: 'line',
           source: 'nm-lines',
           layout: { 'line-cap': 'round' },
-          paint: { 'line-color': '#3b82f6', 'line-width': 1.5, 'line-opacity': 0.5, 'line-dasharray': [2, 2] },
+          paint: {
+            'line-color': '#3b82f6',
+            'line-width': 1.5,
+            'line-opacity': 0.5,
+            'line-dasharray': [2, 2],
+          },
         });
       }
       if (!m.getSource('nm-neighbors')) {
-        m.addSource('nm-neighbors', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+        m.addSource('nm-neighbors', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] },
+        });
         m.addLayer({
           id: 'nm-neighbors',
           type: 'circle',
@@ -91,7 +108,10 @@ export function NeighborsMiniMap({ neighbors, radioLat, radioLon, radioName }: P
         });
       }
       if (!m.getSource('nm-radio')) {
-        m.addSource('nm-radio', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+        m.addSource('nm-radio', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] },
+        });
         m.addLayer({
           id: 'nm-radio',
           type: 'circle',
@@ -107,7 +127,7 @@ export function NeighborsMiniMap({ neighbors, radioLat, radioLon, radioName }: P
       }
       setData(map);
     },
-    [setData],
+    [setData]
   );
 
   const handleReady = useCallback(
@@ -135,7 +155,7 @@ export function NeighborsMiniMap({ neighbors, radioLat, radioLon, radioName }: P
         });
       }
     },
-    [ensureLayers],
+    [ensureLayers]
   );
 
   useEffect(() => {
@@ -145,7 +165,7 @@ export function NeighborsMiniMap({ neighbors, radioLat, radioLon, radioName }: P
     () => () => {
       popupRef.current?.remove();
     },
-    [],
+    []
   );
 
   if (valid.length === 0 && !hasRadio) return null;

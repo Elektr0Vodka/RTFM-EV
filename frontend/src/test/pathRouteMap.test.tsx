@@ -57,8 +57,16 @@ const senderInfo: SenderInfo = {
 const resolved: ResolvedPath = {
   sender: { name: 'Sender', prefix: 'CD', lat: 52.0, lon: 4.0 },
   hops: [
-    { prefix: '1A', matches: [makeContact({ public_key: '11'.repeat(32), lat: 52.1, lon: 4.1 })], distanceFromPrev: null },
-    { prefix: '2B', matches: [makeContact({ public_key: '22'.repeat(32), lat: null, lon: null })], distanceFromPrev: null },
+    {
+      prefix: '1A',
+      matches: [makeContact({ public_key: '11'.repeat(32), lat: 52.1, lon: 4.1 })],
+      distanceFromPrev: null,
+    },
+    {
+      prefix: '2B',
+      matches: [makeContact({ public_key: '22'.repeat(32), lat: null, lon: null })],
+      distanceFromPrev: null,
+    },
   ],
   receiver: { name: 'Receiver', prefix: 'EF', lat: 52.3, lon: 4.3, publicKey: 'ef'.repeat(32) },
   totalDistances: null,
@@ -80,7 +88,7 @@ describe('PathRouteMap', () => {
     render(
       <I18nProvider>
         <PathRouteMap resolved={resolved} senderInfo={senderInfo} />
-      </I18nProvider>,
+      </I18nProvider>
     );
     stub.fire('load');
     expect(markerMock).toHaveBeenCalledTimes(3);
@@ -90,7 +98,7 @@ describe('PathRouteMap', () => {
     render(
       <I18nProvider>
         <PathRouteMap resolved={resolved} senderInfo={senderInfo} />
-      </I18nProvider>,
+      </I18nProvider>
     );
     stub.fire('load');
     const src = stub.getSource('pr-line')!;
@@ -104,7 +112,7 @@ describe('PathRouteMap', () => {
             [4.3, 52.3], // receiver (unlocated hop 2 skipped)
           ],
         },
-      }),
+      })
     );
   });
 
@@ -119,7 +127,7 @@ describe('PathRouteMap', () => {
     const { container } = render(
       <I18nProvider>
         <PathRouteMap resolved={noGps} senderInfo={senderInfo} />
-      </I18nProvider>,
+      </I18nProvider>
     );
     expect(markerMock).not.toHaveBeenCalled();
     expect(container.textContent).toBeTruthy();

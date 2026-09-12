@@ -9,7 +9,9 @@ export const COMPACT_MAP_QUERY = '(max-width: 1024px), (pointer: coarse)';
 function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(() => {
     try {
-      return typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia(query).matches;
+      return (
+        typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia(query).matches
+      );
     } catch {
       return false;
     }

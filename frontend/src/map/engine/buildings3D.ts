@@ -34,7 +34,7 @@ async function vectorSourceDef(): Promise<unknown> {
     const style = await res.json();
     const entry = Object.values(style.sources || {}).find(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (s: any) => s.type === 'vector',
+      (s: any) => s.type === 'vector'
     );
     if (!entry) throw new Error('no vector source in OpenFreeMap style');
     return entry;
@@ -57,7 +57,11 @@ export async function ensureBuildingsSource(map: MlMap): Promise<string> {
   return 'ofm-buildings';
 }
 
-export async function setBuildings3D(map: MlMap, on: boolean, theme: 'light' | 'dark'): Promise<void> {
+export async function setBuildings3D(
+  map: MlMap,
+  on: boolean,
+  theme: 'light' | 'dark'
+): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const m = map as any;
   try {
@@ -70,7 +74,8 @@ export async function setBuildings3D(map: MlMap, on: boolean, theme: 'light' | '
       m.addLayer(buildingsLayerSpec(src, theme));
     } else {
       const paint = buildingsPaint(theme);
-      for (const [prop, val] of Object.entries(paint)) m.setPaintProperty('buildings-3d', prop, val);
+      for (const [prop, val] of Object.entries(paint))
+        m.setPaintProperty('buildings-3d', prop, val);
     }
     if (m.getPitch() < 30) m.easeTo({ pitch: 45, duration: 500 });
   } catch (e) {

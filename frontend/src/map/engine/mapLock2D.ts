@@ -5,7 +5,7 @@ import type { Map as MlMap } from 'maplibre-gl';
 export function setMapLock2D(
   map: MlMap | null | undefined,
   on: boolean,
-  opts?: { maxPitch?: number },
+  opts?: { maxPitch?: number }
 ): void {
   if (!map) return;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

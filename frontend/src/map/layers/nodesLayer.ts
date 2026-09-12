@@ -40,7 +40,9 @@ export function recencyTier(lastSeenSec: number | null | undefined, nowSec: numb
 
 export function circleColorExpr(): ExpressionSpecification {
   const out: unknown[] = ['match', ['get', 'tier']];
-  (Object.keys(NODE_RECENCY_COLORS) as RecencyTier[]).forEach((k) => out.push(k, NODE_RECENCY_COLORS[k]));
+  (Object.keys(NODE_RECENCY_COLORS) as RecencyTier[]).forEach((k) =>
+    out.push(k, NODE_RECENCY_COLORS[k])
+  );
   out.push(NODE_RECENCY_COLORS.old);
   return out as unknown as ExpressionSpecification;
 }
@@ -131,7 +133,7 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
       m.setPaintProperty(
         'rt-nodes',
         'circle-radius',
-        circleRadiusExpr(baseR * nodeScale, repeaterR * nodeScale),
+        circleRadiusExpr(baseR * nodeScale, repeaterR * nodeScale)
       );
     }
   }

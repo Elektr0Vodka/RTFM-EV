@@ -16,7 +16,7 @@ const renderControls = (props = {}) =>
         onSelectBasemap={vi.fn()}
         {...props}
       />
-    </I18nProvider>,
+    </I18nProvider>
   );
 
 describe('MapControls', () => {

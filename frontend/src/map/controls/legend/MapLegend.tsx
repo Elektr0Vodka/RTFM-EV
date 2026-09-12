@@ -1,10 +1,6 @@
 import type { ReactNode } from 'react';
 import { useT } from '../../../i18n';
-import {
-  NODE_RECENCY_COLORS,
-  NODE_TYPE_STROKE,
-  type RecencyTier,
-} from '../../layers/nodesLayer';
+import { NODE_RECENCY_COLORS, NODE_TYPE_STROKE, type RecencyTier } from '../../layers/nodesLayer';
 import {
   CONTACT_TYPE_CLIENT,
   CONTACT_TYPE_REPEATER,

@@ -63,7 +63,7 @@ describe('MapView (MapLibre)', () => {
             contact({ public_key: 'c', lat: null }),
           ]}
         />
-      </I18nProvider>,
+      </I18nProvider>
     );
     stub.fire('load');
     await waitFor(() => {
@@ -80,7 +80,7 @@ describe('MapView (MapLibre)', () => {
           contacts={[contact({ public_key: 'a' }), contact({ public_key: 'bad', name: 'Bad' })]}
           blockedNames={['Bad']}
         />
-      </I18nProvider>,
+      </I18nProvider>
     );
     stub.fire('load');
     await waitFor(() => {
@@ -94,11 +94,13 @@ describe('MapView (MapLibre)', () => {
     render(
       <I18nProvider>
         <MapView contacts={[contact({ public_key: 'a' })]} onSelectContact={vi.fn()} />
-      </I18nProvider>,
+      </I18nProvider>
     );
     stub.fire('load');
     await waitFor(() => {
-      const clickBound = stub.on.mock.calls.some((c: unknown[]) => c[0] === 'click' && c[1] === 'rt-nodes');
+      const clickBound = stub.on.mock.calls.some(
+        (c: unknown[]) => c[0] === 'click' && c[1] === 'rt-nodes'
+      );
       expect(clickBound).toBe(true);
     });
   });

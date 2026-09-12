@@ -54,8 +54,18 @@ interface MapViewProps {
 const MAP_SINCE_PRESETS = [
   { id: '1h', labelKey: 'map_lt_1h', windowLabelKey: 'map_since_window_1h', seconds: 3600 },
   { id: '1d', labelKey: 'map_lt_1d', windowLabelKey: 'map_since_window_1d', seconds: 24 * 60 * 60 },
-  { id: '3d', labelKey: 'map_lt_3d', windowLabelKey: 'map_since_window_3d', seconds: 3 * 24 * 60 * 60 },
-  { id: '7d', labelKey: 'map_preset_7d', windowLabelKey: 'map_since_window_7d', seconds: 7 * 24 * 60 * 60 },
+  {
+    id: '3d',
+    labelKey: 'map_lt_3d',
+    windowLabelKey: 'map_since_window_3d',
+    seconds: 3 * 24 * 60 * 60,
+  },
+  {
+    id: '7d',
+    labelKey: 'map_preset_7d',
+    windowLabelKey: 'map_since_window_7d',
+    seconds: 7 * 24 * 60 * 60,
+  },
   { id: 'all', labelKey: 'map_preset_all', windowLabelKey: null, seconds: null },
 ] as const;
 
@@ -113,7 +123,7 @@ function resolvePacketContacts(
   prefixIndex: Map<string, Contact[]>,
   nameIndex: Map<string, Contact>,
   myLatLon: [number, number] | null,
-  config?: RadioConfig | null,
+  config?: RadioConfig | null
 ): Set<string> {
   const keys = new Set<string>();
   if (!parsed) return keys;
@@ -218,7 +228,7 @@ export function MapView({
         splitAmbiguousByTraffic: false,
         useAdvertPathHints: false,
       }),
-    [contacts, config],
+    [contacts, config]
   );
 
   // Resolve a graph node id to coordinates: 'self' is my node, otherwise a
@@ -233,7 +243,7 @@ export function MapView({
         ? { lat: c.lat, lon: c.lon }
         : undefined;
     },
-    [prefixIndex, myLatLon],
+    [prefixIndex, myLatLon]
   );
 
   const refreshLinks = useCallback(() => {
@@ -302,7 +312,7 @@ export function MapView({
       if (sinceCutoffSec == null) return true;
       return lastSeen != null && lastSeen > sinceCutoffSec;
     },
-    [sinceCutoffSec],
+    [sinceCutoffSec]
   );
 
   const mappableContacts = useMemo(() => {
@@ -311,16 +321,25 @@ export function MapView({
       (blockedNames?.length && c.name != null && blockedNames.includes(c.name));
     if (showPackets && discoveryMode) {
       return contacts.filter(
-        (c) => isValidLocation(c.lat, c.lon) && discoveredKeys.has(c.public_key) && !isBlocked(c),
+        (c) => isValidLocation(c.lat, c.lon) && discoveredKeys.has(c.public_key) && !isBlocked(c)
       );
     }
     return contacts.filter(
       (c) =>
         isValidLocation(c.lat, c.lon) &&
         !isBlocked(c) &&
-        (c.public_key === focusedKey || isWithinSinceWindow(c.last_seen)),
+        (c.public_key === focusedKey || isWithinSinceWindow(c.last_seen))
     );
-  }, [contacts, focusedKey, isWithinSinceWindow, showPackets, discoveryMode, discoveredKeys, blockedKeys, blockedNames]);
+  }, [
+    contacts,
+    focusedKey,
+    isWithinSinceWindow,
+    showPackets,
+    discoveryMode,
+    discoveredKeys,
+    blockedKeys,
+    blockedNames,
+  ]);
 
   const contactByKey = useMemo(() => {
     const m = new Map<string, Contact>();
@@ -336,7 +355,8 @@ export function MapView({
       if (parsed.advertPubkey) {
         const prefix = parsed.advertPubkey.slice(0, 12).toLowerCase();
         const matches = prefixIndex.get(prefix);
-        if (matches?.length === 1 && isValidLocation(matches[0].lat, matches[0].lon)) sourceContact = matches[0];
+        if (matches?.length === 1 && isValidLocation(matches[0].lat, matches[0].lon))
+          sourceContact = matches[0];
       } else if (parsed.srcHash) {
         sourceContact = resolveHopToGps(parsed.srcHash, prefixIndex);
       } else if (parsed.groupTextSender) {
@@ -361,7 +381,7 @@ export function MapView({
         return [lon, lat] as [number, number];
       });
     },
-    [prefixIndex, nameIndex, myLatLon],
+    [prefixIndex, nameIndex, myLatLon]
   );
 
   // Process new packets into particles and track discovered contacts.
@@ -376,7 +396,13 @@ export function MapView({
       if (seenObservationsRef.current.has(obsKey)) continue;
       const parsed = parsePacket(pkt.data);
       if (!parsed) continue;
-      const resolvedContacts = resolvePacketContacts(parsed, prefixIndex, nameIndex, myLatLon, config);
+      const resolvedContacts = resolvePacketContacts(
+        parsed,
+        prefixIndex,
+        nameIndex,
+        myLatLon,
+        config
+      );
       const path = resolvePacketPath(parsed);
       if (resolvedContacts.size === 0 && !path) continue;
       seenObservationsRef.current.add(obsKey);
@@ -403,7 +429,16 @@ export function MapView({
       const alive = combined.filter((p) => now - p.startedAt < PARTICLE_LIFETIME_MS);
       return alive.slice(-MAX_MAP_PARTICLES);
     });
-  }, [rawPackets, showPackets, resolvePacketPath, threeDaysAgoSec, prefixIndex, nameIndex, myLatLon, config]);
+  }, [
+    rawPackets,
+    showPackets,
+    resolvePacketPath,
+    threeDaysAgoSec,
+    prefixIndex,
+    nameIndex,
+    myLatLon,
+    config,
+  ]);
 
   useEffect(() => {
     if (!showPackets) return;
@@ -439,7 +474,9 @@ export function MapView({
         btn.type = 'button';
         btn.className = 'p-0 bg-transparent border-0 text-primary underline cursor-pointer';
         btn.textContent = contact.name || contact.public_key.slice(0, 12);
-        btn.title = t('map_open_conversation_title', { name: contact.name || contact.public_key.slice(0, 12) });
+        btn.title = t('map_open_conversation_title', {
+          name: contact.name || contact.public_key.slice(0, 12),
+        });
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
           onSelectContact(contact);
@@ -459,7 +496,7 @@ export function MapView({
       root.append(nameRow, heard, coords);
       return root;
     },
-    [onSelectContact, t],
+    [onSelectContact, t]
   );
 
   const openContactPopup = useCallback(
@@ -473,7 +510,7 @@ export function MapView({
         .setDOMContent(buildContactPopup(contact))
         .addTo(map);
     },
-    [contactByKey, buildContactPopup],
+    [contactByKey, buildContactPopup]
   );
 
   // Initial camera fit / geolocate / focus (port of MapBoundsHandler).
@@ -495,7 +532,10 @@ export function MapView({
         } else if (pts.length === 1) {
           map.flyTo({ center: [pts[0].lon!, pts[0].lat!], zoom: 10, duration: 0 });
         } else {
-          let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+          let minLng = Infinity,
+            minLat = Infinity,
+            maxLng = -Infinity,
+            maxLat = -Infinity;
           for (const c of pts) {
             minLng = Math.min(minLng, c.lon!);
             maxLng = Math.max(maxLng, c.lon!);
@@ -507,15 +547,20 @@ export function MapView({
               [minLng, minLat],
               [maxLng, maxLat],
             ],
-            { padding: 50, maxZoom: 12, duration: 0 },
+            { padding: 50, maxZoom: 12, duration: 0 }
           );
         }
       };
       if ('geolocation' in navigator) {
         navigator.geolocation.getCurrentPosition(
-          (position) => map.flyTo({ center: [position.coords.longitude, position.coords.latitude], zoom: 8, duration: 0 }),
+          (position) =>
+            map.flyTo({
+              center: [position.coords.longitude, position.coords.latitude],
+              zoom: 8,
+              duration: 0,
+            }),
           () => doFit(),
-          { timeout: 5000, maximumAge: 300000 },
+          { timeout: 5000, maximumAge: 300000 }
         );
       } else {
         doFit();
@@ -523,7 +568,7 @@ export function MapView({
     },
     // Intentionally read latest via refs at call time; fit runs once on ready.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    []
   );
 
   const handleReady = useCallback(
@@ -559,7 +604,7 @@ export function MapView({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [openContactPopup],
+    [openContactPopup]
   );
 
   const handleBasemapReapply = useCallback(() => {
@@ -596,8 +641,8 @@ export function MapView({
         const rows = particles.flatMap((p) =>
           arcRows(
             p.path.map(([lon, lat]) => ({ lon, lat })),
-            hexToRgb(p.color),
-          ),
+            hexToRgb(p.color)
+          )
         );
         deckRef.current.setArcs(rows);
       } else {
@@ -633,14 +678,15 @@ export function MapView({
       if (!map || !query.trim()) return;
       const q = query.trim().toLowerCase();
       const match = mappableContacts.find(
-        (c) => (c.name && c.name.toLowerCase().includes(q)) || c.public_key.toLowerCase().startsWith(q),
+        (c) =>
+          (c.name && c.name.toLowerCase().includes(q)) || c.public_key.toLowerCase().startsWith(q)
       );
       if (match && match.lat != null && match.lon != null) {
         map.flyTo({ center: [match.lon, match.lat], zoom: 13 });
         openContactPopup(match.public_key);
       }
     },
-    [mappableContacts, openContactPopup],
+    [mappableContacts, openContactPopup]
   );
 
   // Since-filter + packet toggles as extra FAB panels.
@@ -655,7 +701,9 @@ export function MapView({
               aria-pressed={sinceId === p.id}
               className={
                 'rounded px-2 py-1 text-xs ' +
-                (sinceId === p.id ? 'bg-accent text-accent-foreground' : 'bg-muted text-muted-foreground')
+                (sinceId === p.id
+                  ? 'bg-accent text-accent-foreground'
+                  : 'bg-muted text-muted-foreground')
               }
               onClick={() => setSinceId(p.id)}
             >
@@ -681,13 +729,21 @@ export function MapView({
     const packetsPanel = (
       <div className="space-y-2">
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={showPackets} onChange={(e) => setShowPackets(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={showPackets}
+            onChange={(e) => setShowPackets(e.target.checked)}
+          />
           {t('map_visualize_packets_label')}
         </label>
         {showPackets && (
           <>
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={discoveryMode} onChange={(e) => setDiscoveryMode(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={discoveryMode}
+                onChange={(e) => setDiscoveryMode(e.target.checked)}
+              />
               {t('map_discover_nodes_label')}
             </label>
             <p className="text-xs text-muted-foreground">{t('map_discover_nodes_help')}</p>
@@ -710,8 +766,18 @@ export function MapView({
         </span>
       );
     return [
-      { id: 'since', label: `${t('map_since_label')}: ${sinceValueText}`, icon: sinceIcon, panel: sincePanel },
-      { id: 'packets', label: t('map_visualize_packets_label'), icon: <Zap size={20} aria-hidden />, panel: packetsPanel },
+      {
+        id: 'since',
+        label: `${t('map_since_label')}: ${sinceValueText}`,
+        icon: sinceIcon,
+        panel: sincePanel,
+      },
+      {
+        id: 'packets',
+        label: t('map_visualize_packets_label'),
+        icon: <Zap size={20} aria-hidden />,
+        panel: packetsPanel,
+      },
     ];
   }, [t, sinceId, customSince, showPackets, discoveryMode]);
 
@@ -720,7 +786,15 @@ export function MapView({
   return (
     <div className="h-full w-full">
       <MapSurface
-        fabs={{ layers: true, legend: true, search: true, tilt: true, buildings: true, nodeSize: true, links: true }}
+        fabs={{
+          layers: true,
+          legend: true,
+          search: true,
+          tilt: true,
+          buildings: true,
+          nodeSize: true,
+          links: true,
+        }}
         onReady={handleReady}
         onBasemapReapply={handleBasemapReapply}
         tilt3D={tilt3D}

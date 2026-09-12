@@ -86,7 +86,9 @@ export function LocationPickerModal({
       const el = document.createElement('div');
       el.style.cssText =
         'width:18px;height:18px;border-radius:9999px;background:#ef4444;border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,0.4);cursor:grab';
-      const marker = new MlMarker({ element: el, draggable: true }).setLngLat([selected[1], selected[0]]).addTo(map);
+      const marker = new MlMarker({ element: el, draggable: true })
+        .setLngLat([selected[1], selected[0]])
+        .addTo(map);
       marker.on('dragend', () => {
         const ll = marker.getLngLat();
         setSelected([ll.lat, ll.lng]);
@@ -96,7 +98,7 @@ export function LocationPickerModal({
     // selected is intentionally read once for the initial marker; later changes
     // are pushed via the effect below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [nodeMarkers],
+    [nodeMarkers]
   );
 
   useEffect(() => {
@@ -107,7 +109,7 @@ export function LocationPickerModal({
       selMarkerRef.current?.remove();
       selMarkerRef.current = null;
     },
-    [],
+    []
   );
 
   if (!open) return null;

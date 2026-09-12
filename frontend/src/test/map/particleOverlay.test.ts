@@ -9,7 +9,7 @@ describe('projectParticlePath', () => {
         [5, 52],
         [6, 53],
       ],
-      project as never,
+      project as never
     );
     expect(pts).toEqual([
       { x: 10, y: 104 },

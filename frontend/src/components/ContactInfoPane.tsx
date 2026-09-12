@@ -56,7 +56,7 @@ function ContactGpsMap({ lat, lon, label }: { lat: number; lon: number; label: s
         .setPopup(new MlPopup({ offset: 12 }).setText(label))
         .addTo(map);
     },
-    [lat, lon, label],
+    [lat, lon, label]
   );
   return <MiniMap center={[lon, lat]} zoom={13} onReady={onReady} />;
 }

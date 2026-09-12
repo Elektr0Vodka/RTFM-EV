@@ -30,7 +30,7 @@ function renderModal(onConfirm = vi.fn()) {
         initialCenter={[52.123456, 4.123456]}
         initialLabel=""
       />
-    </I18nProvider>,
+    </I18nProvider>
   );
   return onConfirm;
 }

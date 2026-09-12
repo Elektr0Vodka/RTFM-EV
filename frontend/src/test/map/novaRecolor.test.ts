@@ -9,7 +9,12 @@ const style = {
     { id: 'background', type: 'background', paint: { 'background-color': '#fff' } },
     { id: 'water', type: 'fill', 'source-layer': 'water', paint: { 'fill-color': '#00f' } },
     { id: 'road_motorway', type: 'line', 'source-layer': 'transportation', paint: {} },
-    { id: 'mystery', type: 'line', 'source-layer': 'unknownlayer', paint: { 'line-color': '#123' } },
+    {
+      id: 'mystery',
+      type: 'line',
+      'source-layer': 'unknownlayer',
+      paint: { 'line-color': '#123' },
+    },
   ],
 } as any;
 

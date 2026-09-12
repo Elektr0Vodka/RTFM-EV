@@ -33,7 +33,7 @@ export interface LinkFeatureCollection {
 export function buildLinkArcs(
   links: PacketNetworkLink[],
   resolve: ResolveCoord,
-  now: number,
+  now: number
 ): LinkFeatureCollection {
   const features: LinkFeatureCollection['features'] = [];
   for (const link of links) {
@@ -94,7 +94,7 @@ export function createLinksLayer(map: MlMap): LinksLayerController {
           'line-width': 1.5,
         },
       },
-      before,
+      before
     );
   }
 
@@ -104,7 +104,8 @@ export function createLinksLayer(map: MlMap): LinksLayerController {
     },
     reattach(): void {
       ensureLayer();
-      if (visible && m.getLayer('rt-links')) m.setLayoutProperty('rt-links', 'visibility', 'visible');
+      if (visible && m.getLayer('rt-links'))
+        m.setLayoutProperty('rt-links', 'visibility', 'visible');
     },
     show(): void {
       ensureLayer();

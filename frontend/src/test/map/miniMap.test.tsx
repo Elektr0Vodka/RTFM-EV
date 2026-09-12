@@ -13,7 +13,10 @@ import { MiniMap } from '../../map/MiniMap';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const mapMock = maplibre.Map as unknown as ReturnType<typeof vi.fn>;
-const stub = (maplibre as any).__stub as { fire: (ev: string) => void; fitBounds: ReturnType<typeof vi.fn> };
+const stub = (maplibre as any).__stub as {
+  fire: (ev: string) => void;
+  fitBounds: ReturnType<typeof vi.fn>;
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -26,7 +29,7 @@ describe('MiniMap', () => {
     render(
       <I18nProvider>
         <MiniMap center={[5, 52]} zoom={12} />
-      </I18nProvider>,
+      </I18nProvider>
     );
     expect(mapMock).toHaveBeenCalledTimes(1);
   });
@@ -40,7 +43,7 @@ describe('MiniMap', () => {
             [6, 53],
           ]}
         />
-      </I18nProvider>,
+      </I18nProvider>
     );
     stub.fire('load');
     expect(stub.fitBounds).toHaveBeenCalledWith(
@@ -48,7 +51,7 @@ describe('MiniMap', () => {
         [5, 52],
         [6, 53],
       ],
-      expect.objectContaining({ maxZoom: 13, duration: 0 }),
+      expect.objectContaining({ maxZoom: 13, duration: 0 })
     );
   });
 });

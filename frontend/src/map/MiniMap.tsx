@@ -55,12 +55,12 @@ export function MiniMap({
             [minLng, minLat],
             [maxLng, maxLat],
           ],
-          { padding: 32, maxZoom: fitMaxZoom, duration: 0 },
+          { padding: 32, maxZoom: fitMaxZoom, duration: 0 }
         );
       }
       onReady?.(map);
     },
-    [fitPoints, fitMaxZoom, zoom, onReady],
+    [fitPoints, fitMaxZoom, zoom, onReady]
   );
 
   return (

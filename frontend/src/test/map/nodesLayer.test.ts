@@ -46,7 +46,7 @@ describe('buildNodeFeatures', () => {
         contact({ public_key: 'a', type: CONTACT_TYPE_REPEATER }),
         contact({ public_key: 'b', lat: null }),
       ],
-      now,
+      now
     );
     expect(fc.features).toHaveLength(1); // 'b' has no lat, dropped
     expect(fc.features[0].geometry).toEqual({ type: 'Point', coordinates: [5, 52] });

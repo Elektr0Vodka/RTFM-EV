@@ -1,7 +1,13 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { Layers, Info, Search, Building2, Rotate3d, CircleDot, Spline, Pin, X } from 'lucide-react';
 import { useT } from '../../i18n';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '../../components/ui/sheet';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '../../components/ui/sheet';
 import { useIsCompactMap } from './breakpoints';
 import { MapLegend } from './legend/MapLegend';
 
@@ -90,8 +96,14 @@ function PinnedPanel({
     const parent = card?.offsetParent as HTMLElement | null;
     if (!grab.current || !card || !parent) return;
     const pr = parent.getBoundingClientRect();
-    const x = Math.max(0, Math.min(e.clientX - pr.left - grab.current.dx, pr.width - card.offsetWidth));
-    const y = Math.max(0, Math.min(e.clientY - pr.top - grab.current.dy, pr.height - card.offsetHeight));
+    const x = Math.max(
+      0,
+      Math.min(e.clientX - pr.left - grab.current.dx, pr.width - card.offsetWidth)
+    );
+    const y = Math.max(
+      0,
+      Math.min(e.clientY - pr.top - grab.current.dy, pr.height - card.offsetHeight)
+    );
     setPos({ x, y });
   };
   const onPointerUp = (e: ReactPointerEvent) => {
@@ -255,7 +267,13 @@ export function MapControls(props: MapControlsProps) {
   }
 
   // Direct-toggle FABs (no panel).
-  const toggles: { id: string; label: string; icon: ReactNode; active: boolean; onClick: () => void }[] = [];
+  const toggles: {
+    id: string;
+    label: string;
+    icon: ReactNode;
+    active: boolean;
+    onClick: () => void;
+  }[] = [];
   if (fabs.tilt) {
     toggles.push({
       id: 'tilt',

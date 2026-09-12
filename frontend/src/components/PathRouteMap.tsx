@@ -87,7 +87,12 @@ function collectRouteLine(resolved: ResolvedPath): [number, number][] {
 
 const EMPTY_FC = { type: 'FeatureCollection' as const, features: [] };
 
-export function PathRouteMap({ resolved, senderInfo, height = 220, fill = false }: PathRouteMapProps) {
+export function PathRouteMap({
+  resolved,
+  senderInfo,
+  height = 220,
+  fill = false,
+}: PathRouteMapProps) {
   const t = useT();
   const dark = useIsDarkTheme();
   const lineColor = dark ? '#e2e8f0' : '#1e293b';
@@ -163,15 +168,21 @@ export function PathRouteMap({ resolved, senderInfo, height = 220, fill = false 
       m.setPaintProperty('pr-line', 'line-color', lineColor);
       m.getSource('pr-line')?.setData(
         routeLine.length >= 2
-          ? { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: routeLine } }
-          : EMPTY_FC,
+          ? {
+              type: 'Feature',
+              properties: {},
+              geometry: { type: 'LineString', coordinates: routeLine },
+            }
+          : EMPTY_FC
       );
       markersRef.current.forEach((mk) => mk.remove());
       markersRef.current = markerSpecs.map((s) =>
-        new MlMarker({ element: markerEl(s.label, s.color, s.title) }).setLngLat(s.lngLat).addTo(map),
+        new MlMarker({ element: markerEl(s.label, s.color, s.title) })
+          .setLngLat(s.lngLat)
+          .addTo(map)
       );
     },
-    [routeLine, lineColor, markerSpecs],
+    [routeLine, lineColor, markerSpecs]
   );
 
   const handleReady = useCallback(
@@ -179,7 +190,7 @@ export function PathRouteMap({ resolved, senderInfo, height = 220, fill = false 
       mapRef.current = map;
       drawRoute(map);
     },
-    [drawRoute],
+    [drawRoute]
   );
 
   useEffect(() => {
@@ -190,7 +201,7 @@ export function PathRouteMap({ resolved, senderInfo, height = 220, fill = false 
       markersRef.current.forEach((mk) => mk.remove());
       markersRef.current = [];
     },
-    [],
+    []
   );
 
   if (!hasAnyGps) {
@@ -224,7 +235,9 @@ export function PathRouteMap({ resolved, senderInfo, height = 220, fill = false 
         />
       </div>
       {someMissingGps && (
-        <p className="mt-1 shrink-0 text-xs text-muted-foreground">{t('path_map_missing_gps_note')}</p>
+        <p className="mt-1 shrink-0 text-xs text-muted-foreground">
+          {t('path_map_missing_gps_note')}
+        </p>
       )}
     </div>
   );

@@ -133,7 +133,7 @@ export function MapSurface(props: MapSurfaceProps) {
       <div
         className={cn(
           'flex h-full w-full items-center justify-center bg-muted p-4 text-center text-sm text-muted-foreground',
-          className,
+          className
         )}
       >
         {t('map_webgl_unavailable')}

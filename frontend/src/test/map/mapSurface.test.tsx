@@ -13,7 +13,10 @@ import { MapSurface } from '../../map/MapSurface';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const mapMock = maplibre.Map as unknown as ReturnType<typeof vi.fn>;
-const stub = (maplibre as any).__stub as { fire: (ev: string) => void; remove: ReturnType<typeof vi.fn> };
+const stub = (maplibre as any).__stub as {
+  fire: (ev: string) => void;
+  remove: ReturnType<typeof vi.fn>;
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -27,7 +30,7 @@ describe('MapSurface', () => {
     render(
       <I18nProvider>
         <MapSurface fabs={{ layers: true }} onReady={onReady} />
-      </I18nProvider>,
+      </I18nProvider>
     );
     expect(mapMock).toHaveBeenCalledTimes(1);
     stub.fire('load');
@@ -38,7 +41,7 @@ describe('MapSurface', () => {
     const { unmount } = render(
       <I18nProvider>
         <MapSurface fabs={{ layers: true }} />
-      </I18nProvider>,
+      </I18nProvider>
     );
     unmount();
     expect(stub.remove).toHaveBeenCalled();
