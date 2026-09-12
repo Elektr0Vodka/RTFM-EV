@@ -22,6 +22,39 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 MAX_TRACKED_TELEMETRY_REPEATERS = 8
 MAX_TRACKED_TELEMETRY_CONTACTS = 8
 
+MAX_BRAND_NAME_LEN = 64
+MAX_BRAND_ICON_BYTES = 131072  # 128 KB, encoded data-URL length
+ALLOWED_BRAND_ICON_MIMES = (
+    "image/png",
+    "image/svg+xml",
+    "image/x-icon",
+    "image/vnd.microsoft.icon",
+    "image/jpeg",
+)
+
+
+def _validate_brand_icon(value: str) -> str:
+    """Return a cleaned brand-icon data URL, or raise HTTP 400.
+
+    Empty clears the icon. Otherwise the value must be a data URL of an allowed
+    image type and within the size cap.
+    """
+    cleaned = value.strip()
+    if not cleaned:
+        return ""
+    if len(cleaned) > MAX_BRAND_ICON_BYTES:
+        raise HTTPException(status_code=400, detail="brand_icon exceeds 128 KB")
+    if not cleaned.startswith("data:"):
+        raise HTTPException(status_code=400, detail="brand_icon must be a data URL")
+    header = cleaned[5 : cleaned.find(",")] if "," in cleaned else ""
+    mime = header.split(";", 1)[0].strip().lower()
+    if mime not in ALLOWED_BRAND_ICON_MIMES:
+        raise HTTPException(
+            status_code=400,
+            detail="brand_icon must be a PNG, SVG, ICO, or JPEG data URL",
+        )
+    return cleaned
+
 
 def _is_valid_lookup_template(template: str, placeholder: str) -> bool:
     """A lookup template must be an http(s) URL carrying the required placeholder.
@@ -151,6 +184,18 @@ class AppSettingsUpdate(BaseModel):
     external_map_sync_interval_hours: int | None = Field(
         default=None,
         description="Background sync cadence for the external-map overlay, in hours (0 = manual)",
+    )
+    brand_name: str | None = Field(
+        default=None,
+        description="Custom navbar wordmark (empty falls back to 'RemoteTerm')",
+    )
+    brand_hidden: bool | None = Field(
+        default=None,
+        description="Hide the navbar wordmark text (icon still shows)",
+    )
+    brand_icon: str | None = Field(
+        default=None,
+        description="Custom navbar icon as a data URL (empty falls back to the built-in SVG)",
     )
 
 
@@ -397,6 +442,14 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
                 )
             )
         kwargs["analyzer_sites"] = cleaned_sites
+
+    # Branding
+    if update.brand_name is not None:
+        kwargs["brand_name"] = update.brand_name.strip()[:MAX_BRAND_NAME_LEN]
+    if update.brand_hidden is not None:
+        kwargs["brand_hidden"] = update.brand_hidden
+    if update.brand_icon is not None:
+        kwargs["brand_icon"] = _validate_brand_icon(update.brand_icon)
 
     # Flood scope
     flood_scope_changed = False

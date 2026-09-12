@@ -1244,6 +1244,18 @@ class AppSettings(BaseModel):
             "0 disables the periodic sync (manual sync only)."
         ),
     )
+    brand_name: str = Field(
+        default="",
+        description="Custom navbar wordmark; empty falls back to the built-in 'RemoteTerm'",
+    )
+    brand_hidden: bool = Field(
+        default=False,
+        description="Hide the navbar wordmark text (the icon still shows)",
+    )
+    brand_icon: str = Field(
+        default="",
+        description="Custom navbar icon as a data URL; empty falls back to the built-in SVG",
+    )
 
 
 class ExternalMapNode(BaseModel):

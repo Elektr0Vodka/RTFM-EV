@@ -54,7 +54,8 @@ class AppSettingsRepository:
                    registry_sync_url, region_sync_url,
                    wordlist_sync_url, analyzer_sites,
                    external_map_enabled, external_map_sync_url,
-                   external_map_sync_interval_hours
+                   external_map_sync_interval_hours,
+                   brand_name, brand_hidden, brand_icon
             FROM app_settings WHERE id = 1
             """
         ) as cursor:
@@ -215,6 +216,20 @@ class AppSettingsRepository:
         except (KeyError, TypeError, ValueError):
             advert_retention_days = 30
 
+        # Branding (migration _082). Guard against older/partial rows.
+        try:
+            brand_name = row["brand_name"] or ""
+        except (KeyError, TypeError):
+            brand_name = ""
+        try:
+            brand_hidden = bool(row["brand_hidden"])
+        except (KeyError, TypeError):
+            brand_hidden = False
+        try:
+            brand_icon = row["brand_icon"] or ""
+        except (KeyError, TypeError):
+            brand_icon = ""
+
         return AppSettings(
             max_radio_contacts=row["max_radio_contacts"],
             auto_decrypt_dm_on_advert=bool(row["auto_decrypt_dm_on_advert"]),
@@ -241,6 +256,9 @@ class AppSettingsRepository:
             external_map_enabled=external_map_enabled,
             external_map_sync_url=external_map_sync_url,
             external_map_sync_interval_hours=external_map_sync_interval_hours,
+            brand_name=brand_name,
+            brand_hidden=brand_hidden,
+            brand_icon=brand_icon,
         )
 
     @staticmethod
@@ -272,6 +290,9 @@ class AppSettingsRepository:
         external_map_enabled: bool | None = None,
         external_map_sync_url: str | None = None,
         external_map_sync_interval_hours: int | None = None,
+        brand_name: str | None = None,
+        brand_hidden: bool | None = None,
+        brand_icon: str | None = None,
     ) -> None:
         """Apply field updates using an already-acquired connection.
 
@@ -381,6 +402,18 @@ class AppSettingsRepository:
             updates.append("external_map_sync_interval_hours = ?")
             params.append(external_map_sync_interval_hours)
 
+        if brand_name is not None:
+            updates.append("brand_name = ?")
+            params.append(brand_name)
+
+        if brand_hidden is not None:
+            updates.append("brand_hidden = ?")
+            params.append(1 if brand_hidden else 0)
+
+        if brand_icon is not None:
+            updates.append("brand_icon = ?")
+            params.append(brand_icon)
+
         if updates:
             query = f"UPDATE app_settings SET {', '.join(updates)} WHERE id = 1"
             async with conn.execute(query, params):
@@ -422,6 +455,9 @@ class AppSettingsRepository:
         external_map_enabled: bool | None = None,
         external_map_sync_url: str | None = None,
         external_map_sync_interval_hours: int | None = None,
+        brand_name: str | None = None,
+        brand_hidden: bool | None = None,
+        brand_icon: str | None = None,
     ) -> AppSettings:
         """Update app settings. Only provided fields are updated."""
         async with db.tx() as conn:
@@ -452,6 +488,9 @@ class AppSettingsRepository:
                 external_map_enabled=external_map_enabled,
                 external_map_sync_url=external_map_sync_url,
                 external_map_sync_interval_hours=external_map_sync_interval_hours,
+                brand_name=brand_name,
+                brand_hidden=brand_hidden,
+                brand_icon=brand_icon,
             )
             return await AppSettingsRepository._get_in_conn(conn)
 
