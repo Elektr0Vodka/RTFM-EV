@@ -11,6 +11,14 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-12 (navbar, PR #98)
+
+### Chat / UI
+- Navbar public key is shown truncated to the connected radio's
+  `path_hash_mode` byte width (1/2/3 bytes = 2/4/6 hex chars) instead of the
+  full 64-char key; hover reveals the full key and click still copies it
+  (`7f114ec`) (PR #98)
+
 ## Update 2026-09-12 (map / audio / fanout, PRs #75-#91)
 
 Work that landed on `origin/main` after PR #74, up to PR #91 (`b180cc7`),
