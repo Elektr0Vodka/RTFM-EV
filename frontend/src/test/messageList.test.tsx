@@ -799,9 +799,7 @@ describe('MessageList #hashtag mention states', () => {
     const onHashtagAdded = vi.fn();
     render(
       <MessageList
-        messages={[
-          createMessage({ text: 'Alice: try #amsterdam and #saarland and #wetter' }),
-        ]}
+        messages={[createMessage({ text: 'Alice: try #amsterdam and #saarland and #wetter' })]}
         contacts={[]}
         channels={[createChannel('#amsterdam')]}
         registryNames={buildNameSet(['#saarland'])}

@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { addMissingFromSync, addableRegistryChannelNames, recordMention } from '../lib/channelManager';
+import {
+  addMissingFromSync,
+  addableRegistryChannelNames,
+  recordMention,
+} from '../lib/channelManager';
 import type { RegistryChannel } from '../lib/channelManager';
 
 // channelManager reads/writes localStorage — provide a clean stub
