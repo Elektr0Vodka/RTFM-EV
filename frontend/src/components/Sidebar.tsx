@@ -28,6 +28,13 @@ import {
   type Channel,
   type Conversation,
 } from '../types';
+import { SegmentedPills, type SegmentedOption, type SegmentedUnread } from './ui/segmented';
+import {
+  contactPillFor,
+  loadContactPill,
+  saveContactPill,
+  type ContactPill,
+} from '../utils/contactPillPreference';
 import {
   buildSidebarSectionSortOrders,
   FAVORITES_SORT_CYCLE,
@@ -264,6 +271,13 @@ export function Sidebar({
     initialCollapsedState.favRepeaters
   );
   const collapseSnapshotRef = useRef<CollapseState | null>(null);
+
+  // Active type filter for the merged Contacts section (persisted).
+  const [contactPill, setContactPill] = useState<ContactPill>(loadContactPill);
+  const handleContactPill = (pill: ContactPill) => {
+    setContactPill(pill);
+    saveContactPill(pill);
+  };
 
   // Layout customisation preferences (client-local, see utils/sidebarLayout).
   const [toolOrder, setToolOrder] = useState<SidebarToolKey[]>(loadToolOrder);
@@ -945,18 +959,68 @@ export function Sidebar({
 
   const favoritesUnreadCount = getSectionUnreadCount(favoriteRows);
   const channelsUnreadCount = getSectionUnreadCount(channelRows);
-  const contactsUnreadCount = getSectionUnreadCount(contactRows);
-  const roomsUnreadCount = getSectionUnreadCount(roomRows);
-  const repeatersUnreadCount = getSectionUnreadCount(repeaterRows);
   const favoritesHasMention = sectionHasMention(favoriteRows);
   const channelsHasMention = sectionHasMention(channelRows);
   const identitiesOf = (rows: ConversationRow[]): string[] =>
     rows.map((row) => getStateKey(row.type, row.id));
   const favoritesNewCount = countNew(identitiesOf(favoriteRows));
   const channelsNewCount = countNew(identitiesOf(channelRows));
-  const contactsNewCount = countNew(identitiesOf(contactRows));
-  const roomsNewCount = countNew(identitiesOf(roomRows));
-  const repeatersNewCount = countNew(identitiesOf(repeaterRows));
+
+  // Merged Contacts section: split the non-repeater/non-room contacts into the
+  // Companions (catch-all) and Sensors buckets, then expose one pill per
+  // non-empty type. Repeaters and Rooms keep their existing sorted lists.
+  const companionRows = contactRows.filter(
+    (row) => row.contact && contactPillFor(row.contact) === 'companions'
+  );
+  const sensorRows = contactRows.filter(
+    (row) => row.contact && contactPillFor(row.contact) === 'sensors'
+  );
+
+  const unreadState = (rows: ConversationRow[]): SegmentedUnread =>
+    sectionHasMention(rows) ? 'mention' : getSectionUnreadCount(rows) > 0 ? 'unread' : 'none';
+
+  const allContactRows = [...companionRows, ...sensorRows, ...repeaterRows, ...roomRows];
+
+  type ContactPillBucket = {
+    pill: Exclude<ContactPill, 'all'>;
+    label: string;
+    rows: ConversationRow[];
+  };
+  const contactPillBuckets: ContactPillBucket[] = (
+    [
+      { pill: 'companions', label: t('nav_contacts_pill_companions'), rows: companionRows },
+      { pill: 'sensors', label: t('nav_contacts_pill_sensors'), rows: sensorRows },
+      { pill: 'repeaters', label: t('nav_repeaters_heading'), rows: repeaterRows },
+      { pill: 'rooms', label: t('nav_room_servers_heading'), rows: roomRows },
+    ] satisfies ContactPillBucket[]
+  ).filter((bucket) => bucket.rows.length > 0);
+
+  const contactPillOptions: SegmentedOption[] = [
+    {
+      value: 'all',
+      label: t('nav_contacts_pill_all'),
+      count: allContactRows.length,
+      unread: unreadState(allContactRows),
+    },
+    ...contactPillBuckets.map((bucket) => ({
+      value: bucket.pill,
+      label: bucket.label,
+      count: bucket.rows.length,
+      unread: unreadState(bucket.rows),
+    })),
+  ];
+
+  // Fall back to All when the persisted pill points at a now-empty bucket.
+  const effectiveContactPill: ContactPill = contactPillOptions.some((o) => o.value === contactPill)
+    ? contactPill
+    : 'all';
+
+  const activeContactRows =
+    effectiveContactPill === 'all'
+      ? allContactRows
+      : (contactPillBuckets.find((bucket) => bucket.pill === effectiveContactPill)?.rows ?? []);
+  const contactsSectionUnread = getSectionUnreadCount(activeContactRows);
+  const contactsSectionNew = countNew(identitiesOf(activeContactRows));
 
   // Clear a section: mark its unread conversations read and all its items seen.
   const clearSection = (rows: ConversationRow[]) => {
@@ -1315,63 +1379,46 @@ export function Sidebar({
           </div>
         ) : null;
       case 'contacts':
-        return nonFavoriteContacts.length > 0 ? (
+        return allContactRows.length > 0 ? (
           <div key="sec-contacts">
             {renderSectionHeader(
               t('nav_contacts_heading'),
               contactsCollapsed,
               () => setContactsCollapsed((prev) => !prev),
               'contacts',
-              contactsUnreadCount,
-              contactsUnreadCount > 0,
+              contactsSectionUnread,
+              sectionHasMention(activeContactRows),
               null,
-              contactRows.length,
-              contactsNewCount,
-              contactsUnreadCount > 0 || contactsNewCount > 0
-                ? () => clearSection(contactRows)
+              activeContactRows.length,
+              contactsSectionNew,
+              contactsSectionUnread > 0 || contactsSectionNew > 0
+                ? () => clearSection(activeContactRows)
                 : null
             )}
-            {(isSearching || !contactsCollapsed) &&
-              contactRows.map((row) => renderConversationRow(row))}
-          </div>
-        ) : null;
-      case 'repeaters':
-        return nonFavoriteRepeaters.length > 0 ? (
-          <div key="sec-repeaters">
-            {renderSectionHeader(
-              t('nav_repeaters_heading'),
-              repeatersCollapsed,
-              () => setRepeatersCollapsed((prev) => !prev),
-              'repeaters',
-              repeatersUnreadCount,
-              false,
-              null,
-              repeaterRows.length,
-              repeatersNewCount,
-              repeatersUnreadCount > 0 || repeatersNewCount > 0
-                ? () => clearSection(repeaterRows)
-                : null
+            {(isSearching || !contactsCollapsed) && (
+              <>
+                {contactPillBuckets.length > 1 && (
+                  <SegmentedPills
+                    ariaLabel={t('a11y_contacts_filter')}
+                    options={contactPillOptions}
+                    value={effectiveContactPill}
+                    onChange={(v) => handleContactPill(v as ContactPill)}
+                  />
+                )}
+                {effectiveContactPill === 'all'
+                  ? contactPillBuckets.map((bucket) => (
+                      <div key={`grp-${bucket.pill}`}>
+                        {contactPillBuckets.length > 1 && (
+                          <div className="px-3 pt-2 pb-0.5 text-[0.625rem] uppercase tracking-wider text-muted-foreground/70">
+                            {bucket.label}
+                          </div>
+                        )}
+                        {bucket.rows.map((row) => renderConversationRow(row))}
+                      </div>
+                    ))
+                  : activeContactRows.map((row) => renderConversationRow(row))}
+              </>
             )}
-            {(isSearching || !repeatersCollapsed) &&
-              repeaterRows.map((row) => renderConversationRow(row))}
-          </div>
-        ) : null;
-      case 'rooms':
-        return nonFavoriteRooms.length > 0 ? (
-          <div key="sec-rooms">
-            {renderSectionHeader(
-              t('nav_room_servers_heading'),
-              roomsCollapsed,
-              () => setRoomsCollapsed((prev) => !prev),
-              'rooms',
-              roomsUnreadCount,
-              roomsUnreadCount > 0,
-              null,
-              roomRows.length,
-              roomsNewCount,
-              roomsUnreadCount > 0 || roomsNewCount > 0 ? () => clearSection(roomRows) : null
-            )}
-            {(isSearching || !roomsCollapsed) && roomRows.map((row) => renderConversationRow(row))}
           </div>
         ) : null;
       default:
@@ -1384,8 +1431,6 @@ export function Sidebar({
     favorites: t('nav_favorites_heading'),
     channels: t('nav_channels_heading'),
     contacts: t('nav_contacts_heading'),
-    repeaters: t('nav_repeaters_heading'),
-    rooms: t('nav_room_servers_heading'),
   };
   const toolLabels: Record<SidebarToolKey, string> = {
     'my-node': t('nav_my_node'),

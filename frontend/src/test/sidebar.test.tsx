@@ -2,7 +2,13 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Sidebar } from '../components/Sidebar';
-import { CONTACT_TYPE_REPEATER, CONTACT_TYPE_ROOM, type Channel, type Contact } from '../types';
+import {
+  CONTACT_TYPE_REPEATER,
+  CONTACT_TYPE_ROOM,
+  CONTACT_TYPE_SENSOR,
+  type Channel,
+  type Contact,
+} from '../types';
 import { getStateKey, type ConversationTimes } from '../utils/conversationState';
 import { PUBLIC_CHANNEL_KEY } from '../utils/publicChannel';
 
@@ -125,15 +131,15 @@ describe('Sidebar section summaries', () => {
     expect(
       within(getSectionHeaderContainer('Channels')).getByLabelText('1 unread')
     ).toBeInTheDocument();
+    // Contacts is now one merged section; its header shows the aggregate unread
+    // across Companions + Sensors + Repeaters + Rooms (3 + 4 + 5 = 12).
     expect(
-      within(getSectionHeaderContainer('Contacts')).getByLabelText('3 unread')
+      within(getSectionHeaderContainer('Contacts')).getByLabelText('12 unread')
     ).toBeInTheDocument();
-    expect(
-      within(getSectionHeaderContainer('Room Servers')).getByLabelText('5 unread')
-    ).toBeInTheDocument();
-    expect(
-      within(getSectionHeaderContainer('Repeaters')).getByLabelText('4 unread')
-    ).toBeInTheDocument();
+    // Per-type unread surfaces as pill dots, not separate section headers.
+    const filter = screen.getByRole('radiogroup', { name: 'Filter contacts by type' });
+    expect(within(filter).getByRole('radio', { name: /Repeaters/ })).toBeInTheDocument();
+    expect(within(filter).getByRole('radio', { name: /Room/ })).toBeInTheDocument();
   });
 
   it('shows a green new pill and a per-row new dot for newly discovered items', () => {
@@ -173,7 +179,13 @@ describe('Sidebar section summaries', () => {
       name: 'Mark section read and seen',
     });
     fireEvent.click(clearBtn);
-    expect(onMarkSectionRead).toHaveBeenCalledWith([{ type: 'contact', id: alicePk }]);
+    // With the All pill active, clearing marks every unread contact across types
+    // (companions, then repeaters, then rooms) read.
+    expect(onMarkSectionRead).toHaveBeenCalledWith([
+      { type: 'contact', id: alicePk },
+      { type: 'contact', id: '22'.repeat(32) },
+      { type: 'contact', id: '33'.repeat(32) },
+    ]);
   });
 
   it('shows a total-item counter in each section header', () => {
@@ -182,11 +194,9 @@ describe('Sidebar section summaries', () => {
     expect(
       within(getSectionHeaderContainer('Channels')).getByLabelText('2 total')
     ).toBeInTheDocument();
+    // Merged Contacts total spans all types: Alice + Relay + Ops Board = 3.
     expect(
-      within(getSectionHeaderContainer('Contacts')).getByLabelText('1 total')
-    ).toBeInTheDocument();
-    expect(
-      within(getSectionHeaderContainer('Repeaters')).getByLabelText('1 total')
+      within(getSectionHeaderContainer('Contacts')).getByLabelText('3 total')
     ).toBeInTheDocument();
   });
 
@@ -246,10 +256,13 @@ describe('Sidebar section summaries', () => {
     );
   });
 
-  it('turns contact row badges red while the contacts rollup remains red', () => {
-    const { aliceName } = renderSidebar();
+  it('turns a mentioned contact row red and reddens the contacts rollup', () => {
+    const { aliceName } = renderSidebar({
+      mentions: { [getStateKey('contact', '11'.repeat(32))]: true },
+    });
 
-    expect(within(getSectionHeaderContainer('Contacts')).getByText('3')).toHaveClass(
+    // The aggregate unread badge (12) reddens because a contact has a mention.
+    expect(within(getSectionHeaderContainer('Contacts')).getByText('12')).toHaveClass(
       'bg-badge-mention',
       'text-badge-mention-foreground'
     );
@@ -301,10 +314,11 @@ describe('Sidebar section summaries', () => {
     );
   });
 
-  it('renders room servers in their own section', () => {
+  it('renders room servers under the Contacts section via a Room pill', () => {
     const { roomName } = renderSidebar();
 
-    expect(screen.getByRole('button', { name: 'Room Servers' })).toBeInTheDocument();
+    const filter = screen.getByRole('radiogroup', { name: 'Filter contacts by type' });
+    expect(within(filter).getByRole('radio', { name: /Room/ })).toBeInTheDocument();
     expect(screen.getByText(roomName)).toBeInTheDocument();
   });
 
@@ -314,11 +328,11 @@ describe('Sidebar section summaries', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Tools' }));
     fireEvent.click(screen.getByRole('button', { name: 'Channels' }));
     fireEvent.click(screen.getByRole('button', { name: 'Contacts' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Room Servers' }));
 
     expect(screen.queryByText('Packet Feed')).not.toBeInTheDocument();
     expect(screen.queryByText(opsChannel.name)).not.toBeInTheDocument();
     expect(screen.queryByText(aliceName)).not.toBeInTheDocument();
+    // Collapsing the merged Contacts section hides room servers too.
     expect(screen.queryByText(roomName)).not.toBeInTheDocument();
 
     const search = screen.getByLabelText('Search conversations');
@@ -344,7 +358,6 @@ describe('Sidebar section summaries', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Tools' }));
     fireEvent.click(screen.getByRole('button', { name: 'Channels' }));
     fireEvent.click(screen.getByRole('button', { name: 'Contacts' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Room Servers' }));
 
     expect(screen.queryByText('Packet Feed')).not.toBeInTheDocument();
     expect(screen.queryByText(opsChannel.name)).not.toBeInTheDocument();
@@ -503,11 +516,12 @@ describe('Sidebar section summaries', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Sort Channels alphabetically' }));
     fireEvent.click(screen.getByRole('button', { name: 'Sort Contacts alphabetically' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Sort Room Servers alphabetically' }));
 
     expect(getChannelsOrder()).toEqual(['#alpha', '#zebra']);
     expect(getContactsOrder()).toEqual(['Amy', 'Zed']);
-    expect(getRoomsOrder()).toEqual(['Alpha Room', 'Zebra Room']);
+    // Rooms and repeaters no longer have their own sort toggle; they keep their
+    // recency order regardless of the Contacts toggle.
+    expect(getRoomsOrder()).toEqual(['Zebra Room', 'Alpha Room']);
     expect(getRepeatersOrder()).toEqual(['Alpha Relay', 'Zulu Relay']);
 
     unmount();
@@ -515,7 +529,7 @@ describe('Sidebar section summaries', () => {
 
     expect(getChannelsOrder()).toEqual(['#alpha', '#zebra']);
     expect(getContactsOrder()).toEqual(['Amy', 'Zed']);
-    expect(getRoomsOrder()).toEqual(['Alpha Room', 'Zebra Room']);
+    expect(getRoomsOrder()).toEqual(['Zebra Room', 'Alpha Room']);
     expect(getRepeatersOrder()).toEqual(['Alpha Relay', 'Zulu Relay']);
   });
 
@@ -1090,5 +1104,93 @@ describe('Sidebar customisation (plan 17)', () => {
     // No per-type sub-headers in flat mode.
     expect(screen.queryByRole('button', { name: 'Favorite Channels' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Favorite Contacts' })).not.toBeInTheDocument();
+  });
+});
+
+describe('Sidebar contacts pills', () => {
+  beforeEach(() => localStorage.clear());
+
+  function renderMixed(extra?: Partial<Parameters<typeof Sidebar>[0]>) {
+    const contacts: Contact[] = [
+      makeContact('11'.repeat(32), 'Alice', 1),
+      makeContact('44'.repeat(32), 'Sensor-1', CONTACT_TYPE_SENSOR),
+      makeContact('22'.repeat(32), 'Relay', CONTACT_TYPE_REPEATER),
+      makeContact('33'.repeat(32), 'Ops Board', CONTACT_TYPE_ROOM),
+    ];
+    return render(
+      <Sidebar
+        contacts={contacts}
+        channels={[]}
+        activeConversation={null}
+        onSelectConversation={vi.fn()}
+        onNewMessage={vi.fn()}
+        lastMessageTimes={{}}
+        unreadCounts={{}}
+        mentions={{}}
+        showCracker={false}
+        crackerRunning={false}
+        onToggleCracker={vi.fn()}
+        onMarkAllRead={vi.fn()}
+        {...extra}
+      />
+    );
+  }
+
+  it('shows one Contacts section with a pill per non-empty type', () => {
+    renderMixed();
+    const group = screen.getByRole('radiogroup', { name: 'Filter contacts by type' });
+    expect(within(group).getByRole('radio', { name: /All/ })).toBeInTheDocument();
+    expect(within(group).getByRole('radio', { name: /Companions/ })).toBeInTheDocument();
+    expect(within(group).getByRole('radio', { name: /Sensors/ })).toBeInTheDocument();
+    expect(within(group).getByRole('radio', { name: /Repeaters/ })).toBeInTheDocument();
+    expect(within(group).getByRole('radio', { name: /Room/ })).toBeInTheDocument();
+    // No separate section headers for the merged types.
+    expect(screen.queryByRole('button', { name: 'Repeaters' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Room Servers' })).not.toBeInTheDocument();
+  });
+
+  it('All shows every type; a type pill filters to that type', () => {
+    renderMixed();
+    expect(screen.getByText('Alice')).toBeInTheDocument();
+    expect(screen.getByText('Relay')).toBeInTheDocument();
+    expect(screen.getByText('Sensor-1')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: /Repeaters/ }));
+    expect(screen.getByText('Relay')).toBeInTheDocument();
+    expect(screen.queryByText('Alice')).not.toBeInTheDocument();
+    expect(screen.queryByText('Sensor-1')).not.toBeInTheDocument();
+  });
+
+  it('hides the pill row when only one type is present', () => {
+    render(
+      <Sidebar
+        contacts={[makeContact('11'.repeat(32), 'Alice', 1)]}
+        channels={[]}
+        activeConversation={null}
+        onSelectConversation={vi.fn()}
+        onNewMessage={vi.fn()}
+        lastMessageTimes={{}}
+        unreadCounts={{}}
+        mentions={{}}
+        showCracker={false}
+        crackerRunning={false}
+        onToggleCracker={vi.fn()}
+        onMarkAllRead={vi.fn()}
+      />
+    );
+    expect(
+      screen.queryByRole('radiogroup', { name: 'Filter contacts by type' })
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('Alice')).toBeInTheDocument();
+  });
+
+  it('persists the selected pill across remount', () => {
+    const { unmount } = renderMixed();
+    fireEvent.click(screen.getByRole('radio', { name: /Repeaters/ }));
+    expect(screen.queryByText('Alice')).not.toBeInTheDocument();
+    unmount();
+    renderMixed();
+    expect(screen.getByText('Relay')).toBeInTheDocument();
+    expect(screen.queryByText('Alice')).not.toBeInTheDocument();
   });
 });

@@ -21,16 +21,21 @@ describe('sidebarLayout persistence', () => {
   });
 
   it('round-trips a custom section order', () => {
-    const order: SidebarSectionKey[] = [
-      'favorites',
-      'tools',
-      'channels',
-      'contacts',
-      'repeaters',
-      'rooms',
-    ];
+    const order: SidebarSectionKey[] = ['favorites', 'tools', 'channels', 'contacts'];
     saveSectionOrder(order);
     expect(loadSectionOrder()).toEqual(order);
+  });
+
+  it('drops legacy repeaters/rooms keys from a stored order', () => {
+    localStorage.setItem(
+      'remoteterm-sidebar-section-order',
+      JSON.stringify(['contacts', 'repeaters', 'rooms', 'channels'])
+    );
+    const loaded = loadSectionOrder();
+    expect(loaded).not.toContain('repeaters');
+    expect(loaded).not.toContain('rooms');
+    expect(loaded[0]).toBe('contacts');
+    expect([...loaded].sort()).toEqual([...ALL_SECTION_KEYS].sort());
   });
 
   it('appends newly-added keys missing from stored order and drops unknown keys', () => {
