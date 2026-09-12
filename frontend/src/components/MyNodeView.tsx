@@ -2513,6 +2513,9 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                 {health?.radio_device_info?.model && (
                   <KV label={t('node_detail_model')} value={health.radio_device_info.model} />
                 )}
+                {health?.radio_device_info?.is_openhop && (
+                  <KV label={t('node_detail_platform')} value={t('node_platform_openhop')} />
+                )}
                 {health?.radio_device_info?.firmware_version && (
                   <KV
                     label={t('repeater_firmware_label')}

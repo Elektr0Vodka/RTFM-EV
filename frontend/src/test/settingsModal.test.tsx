@@ -315,6 +315,7 @@ describe('SettingsModal', () => {
           max_contacts: 350,
           max_channels: 64,
           is_meshcomod: false,
+          is_openhop: false,
         },
       },
     });

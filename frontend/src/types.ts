@@ -156,6 +156,7 @@ export interface HealthStatus {
     max_contacts: number | null;
     max_channels: number | null;
     is_meshcomod: boolean;
+    is_openhop: boolean;
   } | null;
   radio_stats?: RadioStatsSnapshot | null;
   database_size_mb: number;
