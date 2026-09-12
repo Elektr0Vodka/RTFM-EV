@@ -10,6 +10,13 @@ import {
 } from '../../components/ui/sheet';
 import { useIsCompactMap } from './breakpoints';
 import { MapLegend } from './legend/MapLegend';
+import { NODE_ROLE_TYPES, DEFAULT_NODE_ROLE_COLORS } from '../layers/nodeRoleColors';
+import {
+  CONTACT_TYPE_CLIENT,
+  CONTACT_TYPE_REPEATER,
+  CONTACT_TYPE_ROOM,
+  CONTACT_TYPE_SENSOR,
+} from '../../types';
 
 export interface FabConfig {
   layers?: boolean;
@@ -44,6 +51,9 @@ export interface MapControlsProps {
   onToggleBuildings?: (on: boolean) => void;
   nodeScale?: number;
   onNodeScale?: (v: number) => void;
+  roleColors?: Record<number, string>;
+  onRoleColorChange?: (type: number, color: string) => void;
+  onResetRoleColors?: () => void;
   linksOn?: boolean;
   onToggleLinks?: (on: boolean) => void;
   onSearch?: (query: string) => void;
@@ -158,6 +168,9 @@ export function MapControls(props: MapControlsProps) {
     onToggleBuildings,
     nodeScale = 1,
     onNodeScale,
+    roleColors = DEFAULT_NODE_ROLE_COLORS,
+    onRoleColorChange,
+    onResetRoleColors,
     linksOn = false,
     onToggleLinks,
     onSearch,
@@ -167,7 +180,14 @@ export function MapControls(props: MapControlsProps) {
 
   const [searchValue, setSearchValue] = useState('');
 
-  const legendBody = legendContent ?? <MapLegend />;
+  const roleLabel: Record<number, string> = {
+    [CONTACT_TYPE_CLIENT]: t('map_type_client'),
+    [CONTACT_TYPE_REPEATER]: t('map_type_repeater'),
+    [CONTACT_TYPE_ROOM]: t('map_type_room'),
+    [CONTACT_TYPE_SENSOR]: t('map_type_sensor'),
+  };
+
+  const legendBody = legendContent ?? <MapLegend roleColors={roleColors} />;
 
   const panels: PanelDef[] = [];
   if (fabs.layers) {
@@ -247,18 +267,53 @@ export function MapControls(props: MapControlsProps) {
       label: t('map_node_size_label'),
       icon: <CircleDot size={20} aria-hidden />,
       body: (
-        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-          {t('map_node_size_label')}
-          <input
-            type="range"
-            min={0.5}
-            max={2.5}
-            step={0.1}
-            value={nodeScale}
-            aria-label={t('map_node_size_label')}
-            onChange={(e) => onNodeScale?.(Number(e.target.value))}
-          />
-        </label>
+        <div className="flex flex-col gap-3">
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            {t('map_node_size_label')}
+            <input
+              type="range"
+              min={0.5}
+              max={2.5}
+              step={0.1}
+              value={nodeScale}
+              aria-label={t('map_node_size_label')}
+              onChange={(e) => onNodeScale?.(Number(e.target.value))}
+            />
+          </label>
+          {onRoleColorChange && (
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground">
+                  {t('map_node_colors_label')}
+                </span>
+                {onResetRoleColors && (
+                  <button
+                    type="button"
+                    className="text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                    onClick={onResetRoleColors}
+                  >
+                    {t('map_node_colors_reset')}
+                  </button>
+                )}
+              </div>
+              {NODE_ROLE_TYPES.map((type) => (
+                <label
+                  key={type}
+                  className="flex items-center justify-between gap-2 text-xs text-muted-foreground"
+                >
+                  <span>{roleLabel[type]}</span>
+                  <input
+                    type="color"
+                    className="h-6 w-9 cursor-pointer rounded border border-border bg-transparent p-0"
+                    value={roleColors[type] ?? DEFAULT_NODE_ROLE_COLORS[type]}
+                    aria-label={t('map_node_color_for', { role: roleLabel[type] })}
+                    onChange={(e) => onRoleColorChange(type, e.target.value)}
+                  />
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
       ),
     });
   }

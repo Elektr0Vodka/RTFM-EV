@@ -34,6 +34,9 @@ export interface MapSurfaceProps {
   onToggleBuildings?: (on: boolean) => void;
   nodeScale?: number;
   onNodeScale?: (v: number) => void;
+  roleColors?: Record<number, string>;
+  onRoleColorChange?: (type: number, color: string) => void;
+  onResetRoleColors?: () => void;
   linksOn?: boolean;
   onToggleLinks?: (on: boolean) => void;
   onSearch?: (query: string) => void;
@@ -160,6 +163,9 @@ export function MapSurface(props: MapSurfaceProps) {
         onToggleBuildings={props.onToggleBuildings}
         nodeScale={props.nodeScale}
         onNodeScale={props.onNodeScale}
+        roleColors={props.roleColors}
+        onRoleColorChange={props.onRoleColorChange}
+        onResetRoleColors={props.onResetRoleColors}
         linksOn={props.linksOn}
         onToggleLinks={props.onToggleLinks}
         onSearch={props.onSearch}
