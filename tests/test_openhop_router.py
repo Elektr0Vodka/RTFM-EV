@@ -259,6 +259,28 @@ class TestOpenHopPlugins:
         fake.uninstall_plugin.assert_awaited_once_with("p1", delete_data=True)
 
     @pytest.mark.asyncio
+    async def test_plugin_list_preserves_upstream_503(self, test_db, monkeypatch):
+        import httpx
+
+        _set_model(monkeypatch, OPENHOP_MODEL)
+        await AppSettingsRepository.update(
+            openhop_api_url="http://node:8000", openhop_api_token="tok"
+        )
+        fake = AsyncMock()
+        request = httpx.Request("GET", "http://node:8000/api/plugins/")
+        response = httpx.Response(503, json={"success": False, "error": "unavailable"})
+        fake.list_plugins = AsyncMock(
+            side_effect=httpx.HTTPStatusError("503", request=request, response=response)
+        )
+        fake.aclose = AsyncMock()
+        from app.routers.openhop import list_plugins
+
+        with patch("app.routers.openhop.OpenHopClient", return_value=fake):
+            with pytest.raises(HTTPException) as exc:
+                await list_plugins()
+        assert exc.value.status_code == 503
+
+    @pytest.mark.asyncio
     async def test_plugin_lifecycle_rejects_unknown_verb(self, test_db, monkeypatch):
         _set_model(monkeypatch, OPENHOP_MODEL)
         await AppSettingsRepository.update(

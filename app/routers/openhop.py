@@ -94,6 +94,28 @@ async def _relay(action: Callable[[OpenHopClient], Awaitable[dict[str, Any]]]) -
         await client.aclose()
 
 
+async def _relay_upstream(
+    action: Callable[[OpenHopClient], Awaitable[dict[str, Any]]],
+) -> dict[str, Any]:
+    """Like ``_relay`` but preserves the upstream HTTP status.
+
+    Plugin endpoints need this so a 503 (plugin manager not running under
+    ``container_supervisor``) reaches the client as 503, letting the UI show the
+    right notice. Transport-level failures still map to 502.
+    """
+    client = await _require_client()
+    try:
+        return await action(client)
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(
+            status_code=exc.response.status_code, detail=f"OpenHop API error: {exc}"
+        ) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"OpenHop API error: {exc}") from exc
+    finally:
+        await client.aclose()
+
+
 @router.get("/status", response_model=OpenHopStatus)
 async def get_status() -> OpenHopStatus:
     """Report whether OpenHop management is available. Never returns the token."""
@@ -216,52 +238,56 @@ _LIFECYCLE: dict[str, str] = {
 
 @router.get("/plugins")
 async def list_plugins() -> dict[str, Any]:
-    return await _relay(lambda c: c.list_plugins())
+    return await _relay_upstream(lambda c: c.list_plugins())
 
 
 @router.get("/plugins/catalogue")
 async def plugin_catalogue(refresh: bool = False) -> dict[str, Any]:
-    return await _relay(lambda c: c.plugin_catalogue(force_refresh=refresh))
+    return await _relay_upstream(lambda c: c.plugin_catalogue(force_refresh=refresh))
 
 
 @router.get("/plugins/status")
 async def plugin_status(id: str) -> dict[str, Any]:
-    return await _relay(lambda c: c.plugin_status(id))
+    return await _relay_upstream(lambda c: c.plugin_status(id))
 
 
 @router.get("/plugins/logs")
 async def plugin_logs(id: str, tail: int = 200) -> dict[str, Any]:
-    return await _relay(lambda c: c.plugin_logs(id, tail=tail))
+    return await _relay_upstream(lambda c: c.plugin_logs(id, tail=tail))
 
 
 @router.get("/plugins/settings")
 async def plugin_settings_get(id: str) -> dict[str, Any]:
-    return await _relay(lambda c: c.get_plugin_config(id))
+    return await _relay_upstream(lambda c: c.get_plugin_config(id))
 
 
 @router.get("/plugins/updates")
 async def plugin_updates(id: str, refresh: bool = False) -> dict[str, Any]:
-    return await _relay(lambda c: c.check_plugin_update(id, force_refresh=refresh))
+    return await _relay_upstream(lambda c: c.check_plugin_update(id, force_refresh=refresh))
 
 
 @router.post("/plugins/catalogue_install")
 async def plugin_catalogue_install(body: PluginInstallBody) -> dict[str, Any]:
-    return await _relay(lambda c: c.catalogue_install(body.id, version=body.version))
+    return await _relay_upstream(lambda c: c.catalogue_install(body.id, version=body.version))
 
 
 @router.post("/plugins/update")
 async def plugin_update(body: PluginInstallBody) -> dict[str, Any]:
-    return await _relay(lambda c: c.update_plugin(body.id, version=body.version))
+    return await _relay_upstream(lambda c: c.update_plugin(body.id, version=body.version))
 
 
 @router.post("/plugins/settings")
 async def plugin_settings_set(body: PluginSettingsBody) -> dict[str, Any]:
-    return await _relay(lambda c: c.set_plugin_config(body.id, body.config, restart=body.restart))
+    return await _relay_upstream(
+        lambda c: c.set_plugin_config(body.id, body.config, restart=body.restart)
+    )
 
 
 @router.post("/plugins/uninstall")
 async def plugin_uninstall(body: PluginUninstallBody) -> dict[str, Any]:
-    return await _relay(lambda c: c.uninstall_plugin(body.id, delete_data=body.delete_data))
+    return await _relay_upstream(
+        lambda c: c.uninstall_plugin(body.id, delete_data=body.delete_data)
+    )
 
 
 @router.post("/plugins/{verb}")
@@ -269,7 +295,7 @@ async def plugin_lifecycle(verb: str, body: PluginId) -> dict[str, Any]:
     method = _LIFECYCLE.get(verb)
     if method is None:
         raise HTTPException(status_code=400, detail=f"unknown lifecycle verb: {verb}")
-    return await _relay(lambda c: getattr(c, method)(body.id))
+    return await _relay_upstream(lambda c: getattr(c, method)(body.id))
 
 
 # Injectable transport so tests can supply an httpx.MockTransport for the SSE path.
