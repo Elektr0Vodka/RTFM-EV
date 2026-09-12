@@ -593,6 +593,7 @@
   "settings_about_buy_coffee": "spendier mir einen Kaffee!",
   "settings_about_report_bug": "Fehler melden",
   "settings_about_changelog": "Änderungsprotokoll",
+  "settings_about_changelog_ev": "Changelog-EV",
   "settings_about_acknowledgements": "Mit großer Wertschätzung an alle, die die Werkzeuge geschaffen haben, auf denen dies aufbaut:",
   "settings_about_debug_snapshot": "Debug-Support-Snapshot öffnen",
   "settings_about_update_available": "Update verfügbar",

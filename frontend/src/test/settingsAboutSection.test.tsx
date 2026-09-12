@@ -32,6 +32,25 @@ describe('SettingsAboutSection', () => {
     expect(link).toHaveAttribute('href', './api/debug');
   });
 
+  it('links the commit hash to its GitHub commit', () => {
+    useUpdateStatusMock.mockReturnValue(null);
+    render(<SettingsAboutSection health={health} />);
+    const link = screen.getByRole('link', { name: 'deadbeef' });
+    expect(link).toHaveAttribute('href', 'https://github.com/Elektr0Vodka/RTFM-EV/commit/deadbeef');
+    expect(link).toHaveAttribute('target', '_blank');
+  });
+
+  it('renders the fork changelog (Changelog-EV) link', () => {
+    useUpdateStatusMock.mockReturnValue(null);
+    render(<SettingsAboutSection health={health} />);
+    const link = screen.getByRole('link', { name: 'Changelog-EV' });
+    expect(link).toHaveAttribute(
+      'href',
+      'https://github.com/Elektr0Vodka/RTFM-EV/blob/main/CHANGELOG-DMC-EV.md'
+    );
+    expect(link).toHaveAttribute('target', '_blank');
+  });
+
   it('shows the update indicator with a button to the compare url', () => {
     useUpdateStatusMock.mockReturnValue({
       check_enabled: true,
