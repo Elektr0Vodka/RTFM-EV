@@ -1367,6 +1367,8 @@
   "repeater_lpp_sensors_title": "LPP-sensoren",
   "repeater_max_flood_hops_label": "Max. flood-hops",
   "repeater_metric_voltage": "Spanning",
+  "repeater_metric_neighbor_count": "Aantal buren",
+  "repeater_metric_region_count": "Aantal regio's",
   "repeater_neighbors_map_unavailable": "Kaart- en afstandsgegevens zijn niet beschikbaar totdat deze repeater een geldige positie heeft van hetzij zijn advertentie, hetzij een Node Info-ophaalactie.",
   "repeater_neighbors_no_position": "Geen repeaterpositie beschikbaar",
   "repeater_neighbors_none_reported": "Geen buren gerapporteerd",

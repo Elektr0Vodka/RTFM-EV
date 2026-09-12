@@ -1367,6 +1367,8 @@
   "repeater_lpp_sensors_title": "LPP-Sensoren",
   "repeater_max_flood_hops_label": "Max. Flood-Hops",
   "repeater_metric_voltage": "Spannung",
+  "repeater_metric_neighbor_count": "Anzahl Nachbarn",
+  "repeater_metric_region_count": "Anzahl Regionen",
   "repeater_neighbors_map_unavailable": "Karten- und Entfernungsdaten sind erst verfügbar, wenn dieser Repeater über eine gültige Position aus seinem Advert oder einem Node-Info-Abruf verfügt.",
   "repeater_neighbors_no_position": "Keine Repeater-Position verfügbar",
   "repeater_neighbors_none_reported": "Keine Nachbarn gemeldet",

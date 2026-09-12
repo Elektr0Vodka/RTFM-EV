@@ -25,7 +25,9 @@ type BuiltinMetric =
   | 'noise_floor_dbm'
   | 'packets'
   | 'recv_errors'
-  | 'uptime_seconds';
+  | 'uptime_seconds'
+  | 'neighbor_count'
+  | 'region_count';
 
 interface MetricConfig {
   label: string;
@@ -45,6 +47,8 @@ const BUILTIN_METRIC_CONFIG: Record<BuiltinMetric, BuiltinMetricConfig> = {
   packets: { labelKey: 'repeater_packets_label', unit: '', color: '#0ea5e9' },
   recv_errors: { labelKey: 'repeater_rx_errors_label', unit: '', color: '#ef4444' },
   uptime_seconds: { labelKey: 'repeater_uptime_label', unit: 's', color: '#f59e0b' },
+  neighbor_count: { labelKey: 'repeater_metric_neighbor_count', unit: '', color: '#06b6d4' },
+  region_count: { labelKey: 'repeater_metric_region_count', unit: '', color: '#a855f7' },
 };
 
 const BUILTIN_METRICS: BuiltinMetric[] = Object.keys(BUILTIN_METRIC_CONFIG) as BuiltinMetric[];
@@ -209,6 +213,8 @@ function buildCsvColumns(lppMetrics: { key: string; config: MetricConfig }[], t:
       key: 'uptime_seconds',
       header: withUnit(t('repeater_uptime_label'), BUILTIN_METRIC_CONFIG.uptime_seconds.unit),
     },
+    { key: 'neighbor_count', header: t('repeater_metric_neighbor_count') },
+    { key: 'region_count', header: t('repeater_metric_region_count') },
     ...lppMetrics.map((m) => ({
       key: m.key,
       // Unit already reflects the active distance-unit preference, as the chart does.
@@ -362,6 +368,8 @@ export function TelemetryHistoryPane({
             ? +((recvErrors / (packetsReceived + recvErrors)) * 100).toFixed(2)
             : undefined,
         uptime_seconds: d.uptime_seconds,
+        neighbor_count: d.neighbor_count,
+        region_count: d.region_count,
       };
       // Flatten LPP sensors into the point, converting units as needed
       for (const { sensor: s, key } of assignLppKeys(d.lpp_sensors ?? [])) {

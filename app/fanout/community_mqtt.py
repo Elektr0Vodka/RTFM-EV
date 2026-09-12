@@ -211,6 +211,155 @@ def _format_raw_packet(data: dict[str, Any], device_name: str, public_key_hex: s
     return packet
 
 
+# Maps RTFM-EV's internal repeater-telemetry field names (see
+# ``radio_sync._collect_repeater_telemetry``) to the observer feed's ``stats``
+# key names, so the analyzer can reuse its status extractor keyed on the subject
+# node. ``(source_field, transform)`` — transform is applied when not None.
+_NODE_TELEMETRY_STATS_MAP: dict[str, tuple[str, Any]] = {
+    "battery_mv": ("battery_volts", lambda v: round(v * 1000)),
+    "uptime_secs": ("uptime_seconds", None),
+    "packets_sent": ("packets_sent", None),
+    "packets_received": ("packets_received", None),
+    "noise_floor": ("noise_floor_dbm", None),
+    "tx_air_secs": ("airtime_seconds", None),
+    "rx_air_secs": ("rx_airtime_seconds", None),
+    "recv_errors": ("recv_errors", None),
+    "queue_len": ("tx_queue_len", None),
+}
+
+
+def _format_node_telemetry(
+    data: dict[str, Any], device_name: str, public_key_hex: str
+) -> dict | None:
+    """Format a forwarded remote-node telemetry snapshot for the observer feed.
+
+    ``data`` is a ``broadcast_telemetry`` payload: the remote node R's telemetry
+    plus ``public_key``/``name``/``timestamp``. ``origin_id`` stays the local
+    publisher (self, ``public_key_hex``) so the broker's publisher==origin rule
+    is satisfied untouched; the heard node R is carried in ``subject_id``.
+
+    Returns ``None`` when the subject node is unknown (nothing to attribute).
+    """
+    subject_id = data.get("public_key")
+    if not subject_id:
+        return None
+
+    stats: dict[str, Any] = {}
+    for out_key, (src_key, transform) in _NODE_TELEMETRY_STATS_MAP.items():
+        if src_key not in data:
+            continue
+        value = data[src_key]
+        if value is None:
+            continue
+        stats[out_key] = transform(value) if transform is not None else value
+
+    ts = data.get("timestamp")
+    dt = datetime.fromtimestamp(ts, UTC) if isinstance(ts, (int, float)) else datetime.now(UTC)
+
+    payload: dict[str, Any] = {
+        "origin": device_name or "MeshCore Device",
+        "origin_id": public_key_hex.upper(),
+        "timestamp": _format_utc_timestamp(dt),
+        "type": "TELEMETRY",
+        "subject_id": str(subject_id).upper(),
+        "subject_name": data.get("name"),
+    }
+    if stats:
+        payload["stats"] = stats
+    lpp = data.get("lpp_sensors")
+    if lpp:
+        payload["lpp"] = lpp
+    return payload
+
+
+def _format_node_neighbors(
+    data: dict[str, Any], device_name: str, public_key_hex: str
+) -> dict | None:
+    """Format a forwarded remote-repeater neighbor table for the observer feed.
+
+    ``data`` is a ``broadcast_neighbor`` payload: repeater R's neighbor entries
+    (``NeighborInfo`` shape) plus ``public_key``/``name``/``timestamp``/
+    ``reported_count``. As with telemetry, ``origin_id`` is the local publisher
+    (self) and the subject repeater R is carried in ``subject_id`` — the analyzer
+    edge is R <-> neighbor, never self <-> neighbor.
+
+    Returns ``None`` when the subject repeater is unknown.
+    """
+    subject_id = data.get("public_key")
+    if not subject_id:
+        return None
+
+    neighbors = [
+        {
+            "pubkey": entry.get("pubkey_prefix", ""),
+            "name": entry.get("name"),
+            "snr": entry.get("snr"),
+            "heard_secs_ago": entry.get("last_heard_seconds"),
+        }
+        for entry in data.get("neighbors", [])
+    ]
+
+    ts = data.get("timestamp")
+    dt = datetime.fromtimestamp(ts, UTC) if isinstance(ts, (int, float)) else datetime.now(UTC)
+
+    return {
+        "origin": device_name or "MeshCore Device",
+        "origin_id": public_key_hex.upper(),
+        "timestamp": _format_utc_timestamp(dt),
+        "type": "NEIGHBORS",
+        "subject_id": str(subject_id).upper(),
+        "subject_name": data.get("name"),
+        "reported_count": data.get("reported_count"),
+        "neighbors": neighbors,
+    }
+
+
+def _format_node_regions(
+    data: dict[str, Any], device_name: str, public_key_hex: str
+) -> dict | None:
+    """Format a forwarded remote-repeater region table for the observer feed.
+
+    ``data`` is a ``broadcast_region`` payload: repeater R's region hierarchy
+    (``RepeaterRegionEntry`` shape: name/depth/flood_allowed/is_home) plus
+    ``public_key``/``name``/``timestamp`` and optional ``source``/``truncated``.
+    ``origin_id`` is the local publisher (self); the subject repeater R is in
+    ``subject_id``.
+
+    Returns ``None`` when the subject repeater is unknown.
+    """
+    subject_id = data.get("public_key")
+    if not subject_id:
+        return None
+
+    regions = [
+        {
+            "name": entry.get("name"),
+            "depth": entry.get("depth"),
+            "flood_allowed": entry.get("flood_allowed"),
+            "is_home": entry.get("is_home"),
+        }
+        for entry in data.get("regions", [])
+    ]
+
+    ts = data.get("timestamp")
+    dt = datetime.fromtimestamp(ts, UTC) if isinstance(ts, (int, float)) else datetime.now(UTC)
+
+    payload: dict[str, Any] = {
+        "origin": device_name or "MeshCore Device",
+        "origin_id": public_key_hex.upper(),
+        "timestamp": _format_utc_timestamp(dt),
+        "type": "REGIONS",
+        "subject_id": str(subject_id).upper(),
+        "subject_name": data.get("name"),
+        "regions": regions,
+    }
+    if "source" in data:
+        payload["source"] = data.get("source")
+    if "truncated" in data:
+        payload["truncated"] = data.get("truncated")
+    return payload
+
+
 def _build_status_topic(settings: CommunityMqttSettings, pubkey_hex: str) -> str:
     """Build the ``meshcore/{IATA}/{PUBKEY}/status`` topic string."""
     iata = settings.community_mqtt_iata.upper().strip()

@@ -2144,6 +2144,94 @@ class TestCollectRepeaterTelemetryLpp:
         assert recorded_data["battery_volts"] == 4.1
 
     @pytest.mark.asyncio
+    async def test_neighbor_and_region_counts_folded_into_snapshot(self):
+        """Plan [24] fold: the scheduled snapshot also carries neighbor_count /
+        region_count so they chart alongside battery/noise."""
+        from app.radio_sync import _collect_repeater_telemetry
+
+        mc = MagicMock()
+        mc.commands.add_contact = AsyncMock()
+        mc.commands.req_status_sync = AsyncMock(return_value={"bat": 4100, "noise_floor": -110})
+        mc.commands.req_telemetry_sync = AsyncMock(return_value=None)
+        mc.commands.fetch_all_neighbours = AsyncMock(
+            return_value={
+                "neighbours_count": 3,
+                "neighbours": [
+                    {"pubkey": "aa", "snr": 1.0, "secs_ago": 1},
+                    {"pubkey": "bb", "snr": 2.0, "secs_ago": 2},
+                ],
+            }
+        )
+        mc.commands.req_regions_sync = AsyncMock(return_value="*,us,ca,")
+
+        contact = MagicMock()
+        contact.public_key = "aabbccddeeff11223344"
+        contact.name = "TestRepeater"
+        contact.to_radio_dict.return_value = {}
+
+        recorded_data = {}
+
+        async def mock_record(public_key, timestamp, data):
+            recorded_data.update(data)
+
+        mock_fanout = MagicMock()
+        mock_fanout.broadcast_telemetry = AsyncMock()
+
+        with (
+            patch(
+                "app.radio_sync.RepeaterTelemetryRepository.record",
+                new_callable=AsyncMock,
+                side_effect=mock_record,
+            ),
+            patch("app.fanout.manager.fanout_manager", mock_fanout),
+        ):
+            result = await _collect_repeater_telemetry(mc, contact)
+
+        assert result is True
+        assert recorded_data["neighbor_count"] == 3  # prefers firmware-reported total
+        assert recorded_data["region_count"] == 3  # non-empty names in the anon list
+
+    @pytest.mark.asyncio
+    async def test_neighbor_region_fetch_failure_does_not_fail_collection(self):
+        """A neighbor/region fetch error must not drop the telemetry snapshot."""
+        from app.radio_sync import _collect_repeater_telemetry
+
+        mc = MagicMock()
+        mc.commands.add_contact = AsyncMock()
+        mc.commands.req_status_sync = AsyncMock(return_value={"bat": 4100})
+        mc.commands.req_telemetry_sync = AsyncMock(return_value=None)
+        mc.commands.fetch_all_neighbours = AsyncMock(side_effect=Exception("rf timeout"))
+        mc.commands.req_regions_sync = AsyncMock(side_effect=Exception("rf timeout"))
+
+        contact = MagicMock()
+        contact.public_key = "aabbccddeeff11223344"
+        contact.name = "TestRepeater"
+        contact.to_radio_dict.return_value = {}
+
+        recorded_data = {}
+
+        async def mock_record(public_key, timestamp, data):
+            recorded_data.update(data)
+
+        mock_fanout = MagicMock()
+        mock_fanout.broadcast_telemetry = AsyncMock()
+
+        with (
+            patch(
+                "app.radio_sync.RepeaterTelemetryRepository.record",
+                new_callable=AsyncMock,
+                side_effect=mock_record,
+            ),
+            patch("app.fanout.manager.fanout_manager", mock_fanout),
+        ):
+            result = await _collect_repeater_telemetry(mc, contact)
+
+        assert result is True
+        assert "neighbor_count" not in recorded_data
+        assert "region_count" not in recorded_data
+        assert recorded_data["battery_volts"] == 4.1
+
+    @pytest.mark.asyncio
     async def test_lpp_multivalue_sensors_skipped(self):
         from app.radio_sync import _collect_repeater_telemetry
 

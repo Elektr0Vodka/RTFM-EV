@@ -1366,6 +1366,8 @@
   "repeater_lpp_sensors_title": "LPP Sensors",
   "repeater_max_flood_hops_label": "Max Flood Hops",
   "repeater_metric_voltage": "Voltage",
+  "repeater_metric_neighbor_count": "Neighbor count",
+  "repeater_metric_region_count": "Region count",
   "repeater_neighbors_map_unavailable": "Map and distance data are unavailable until this repeater has a valid position from either its advert or a Node Info fetch.",
   "repeater_neighbors_no_position": "No repeater position available",
   "repeater_neighbors_none_reported": "No neighbors reported",

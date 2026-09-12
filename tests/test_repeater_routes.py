@@ -1231,6 +1231,37 @@ class TestRepeaterNeighbors:
 
         assert response.neighbors == []
 
+    @pytest.mark.asyncio
+    async def test_forwards_neighbor_table_to_fanout(self, test_db):
+        """After a fetch, R's neighbor table is broadcast for the observer feed,
+        keyed by the subject repeater R (plan [24])."""
+        import asyncio
+
+        from app.fanout.manager import fanout_manager
+
+        mc = _mock_mc()
+        await _insert_contact(KEY_A, name="Repeater", contact_type=2)
+        mc.commands.fetch_all_neighbours = AsyncMock(
+            return_value={
+                "neighbours_count": 1,
+                "neighbours": [{"pubkey": "bbbbbbbbbbbb", "snr": 9.0, "secs_ago": 5}],
+            }
+        )
+
+        with (
+            patch("app.routers.repeaters.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch.object(fanout_manager, "broadcast_neighbor", new_callable=AsyncMock) as bn,
+        ):
+            await repeater_neighbors(KEY_A)
+            await asyncio.sleep(0)  # let the create_task run
+
+        bn.assert_called_once()
+        payload = bn.call_args.args[0]
+        assert payload["public_key"] == KEY_A  # subject R
+        assert payload["reported_count"] == 1
+        assert payload["neighbors"][0]["pubkey_prefix"] == "bbbbbbbbbbbb"
+
 
 class TestRepeaterAcl:
     @pytest.mark.asyncio
@@ -1735,6 +1766,42 @@ class TestRepeaterRegions:
         assert response.raw == dump
         assert response.truncated is False
         assert response.source == "cli"
+
+    @pytest.mark.asyncio
+    async def test_forwards_region_table_to_fanout(self, test_db):
+        """A fetched region hierarchy is broadcast for the observer feed, keyed
+        by the subject repeater R (plan [24])."""
+        import asyncio
+
+        from app.fanout.manager import fanout_manager
+
+        mc = _mock_mc()
+        await _insert_contact(KEY_A, name="Repeater", contact_type=2)
+        dump = "* F\n us^ F\n"
+        mc.commands.get_msg = AsyncMock(
+            side_effect=[
+                _radio_result(
+                    EventType.CONTACT_MSG_RECV,
+                    {"pubkey_prefix": KEY_A[:12], "text": dump, "txt_type": 1},
+                ),
+            ]
+        )
+
+        with (
+            patch("app.routers.repeaters.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch(_MONOTONIC, side_effect=_advancing_clock()),
+            patch("app.routers.server_control.asyncio.sleep", new_callable=AsyncMock),
+            patch.object(fanout_manager, "broadcast_region", new_callable=AsyncMock) as br,
+        ):
+            await repeater_regions(KEY_A)
+            await asyncio.sleep(0)
+
+        br.assert_called_once()
+        payload = br.call_args.args[0]
+        assert payload["public_key"] == KEY_A  # subject R
+        assert payload["source"] == "cli"
+        assert payload["regions"][0]["name"] == "*"
 
     @pytest.mark.asyncio
     async def test_guest_falls_back_to_anon_flood_allowed_names(self, test_db):

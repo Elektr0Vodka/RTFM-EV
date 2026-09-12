@@ -1883,6 +1883,39 @@ async def _collect_repeater_telemetry(mc: MeshCore, contact: Contact) -> bool:
             e,
         )
 
+    # Fold neighbor/region counts into the tracked time-series (plan [24]) so
+    # they chart alongside battery/noise. Lightweight extra fetches on the same
+    # schedule; each is best-effort and simply omits its metric on failure.
+    try:
+        neighbours = await mc.commands.fetch_all_neighbours(
+            contact.public_key, timeout=10, min_timeout=5
+        )
+        if neighbours:
+            count = neighbours.get("neighbours_count")
+            if count is None:
+                count = len(neighbours.get("neighbours", []))
+            data["neighbor_count"] = count
+    except Exception as e:
+        logger.debug(
+            "Telemetry collect: neighbor count fetch failed for %s (non-fatal): %s",
+            contact.public_key[:12],
+            e,
+        )
+
+    try:
+        regions_raw = await mc.commands.req_regions_sync(
+            contact.public_key, timeout=10, min_timeout=5
+        )
+        if regions_raw:
+            names = [n for n in str(regions_raw).split(",") if n.strip()]
+            data["region_count"] = len(names)
+    except Exception as e:
+        logger.debug(
+            "Telemetry collect: region count fetch failed for %s (non-fatal): %s",
+            contact.public_key[:12],
+            e,
+        )
+
     try:
         timestamp = int(time.time())
         await RepeaterTelemetryRepository.record(
