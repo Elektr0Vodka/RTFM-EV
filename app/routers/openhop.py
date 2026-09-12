@@ -1,0 +1,85 @@
+"""Gated proxy for OpenHop's REST API (Surface B).
+
+Every endpoint here is fail-closed: it does nothing and returns 409 unless the
+connected radio is detected as OpenHop AND the user has configured an OpenHop API
+url + token. Non-OpenHop deployments never reach the delegating paths, and the
+token is never returned to the client.
+"""
+
+import logging
+from typing import Any
+
+import httpx
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+
+from app.repository.settings import AppSettingsRepository
+from app.services.openhop import is_openhop
+from app.services.openhop_api import OpenHopClient
+from app.services.radio_runtime import radio_runtime as radio_manager
+
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/openhop", tags=["openhop"])
+
+
+class OpenHopStatus(BaseModel):
+    configured: bool
+    is_openhop: bool
+    base_url: str | None
+
+
+class OpenHopCliRequest(BaseModel):
+    command: str
+
+
+def _detect_openhop() -> bool:
+    """True when the connected radio identifies as an OpenHop node."""
+    return is_openhop(getattr(radio_manager, "device_model", None))
+
+
+async def _require_client() -> OpenHopClient:
+    """Build a client only when OpenHop is detected AND a url + token are set.
+
+    Fail-closed: raises 409 otherwise. The caller must ``aclose()`` the client.
+    """
+    settings = await AppSettingsRepository.get()
+    if not (_detect_openhop() and settings.openhop_api_url and settings.openhop_api_token):
+        raise HTTPException(status_code=409, detail="OpenHop management not configured")
+    return OpenHopClient(settings.openhop_api_url, settings.openhop_api_token)
+
+
+@router.get("/status", response_model=OpenHopStatus)
+async def get_status() -> OpenHopStatus:
+    """Report whether OpenHop management is available. Never returns the token."""
+    settings = await AppSettingsRepository.get()
+    openhop = _detect_openhop()
+    configured = bool(openhop and settings.openhop_api_url and settings.openhop_api_token)
+    return OpenHopStatus(
+        configured=configured,
+        is_openhop=openhop,
+        base_url=settings.openhop_api_url,
+    )
+
+
+@router.get("/policy")
+async def get_policy() -> dict[str, Any]:
+    """Delegate to the OpenHop node's policy endpoint (read-only)."""
+    client = await _require_client()
+    try:
+        return await client.get_policy()
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"OpenHop API error: {exc}") from exc
+    finally:
+        await client.aclose()
+
+
+@router.post("/cli")
+async def run_cli(body: OpenHopCliRequest) -> dict[str, Any]:
+    """Relay a CLI command to the OpenHop node (foundation: read-only verbs)."""
+    client = await _require_client()
+    try:
+        return await client.cli(body.command)
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"OpenHop API error: {exc}") from exc
+    finally:
+        await client.aclose()

@@ -69,6 +69,7 @@ from app.routers import (
     fanout,
     health,
     messages,
+    openhop,
     packets,
     push,
     radio,
@@ -239,6 +240,7 @@ app.include_router(settings.router, prefix="/api")
 app.include_router(registry.router, prefix="/api")
 app.include_router(regions.router, prefix="/api")
 app.include_router(external_map.router, prefix="/api")
+app.include_router(openhop.router, prefix="/api")
 app.include_router(statistics.router, prefix="/api")
 app.include_router(unfurl.router, prefix="/api")
 app.include_router(push.router, prefix="/api")
