@@ -108,9 +108,9 @@ Each unit is a focused component with a narrow prop interface (`policy`, `onChan
 - The other Surface B panes (Plugins/Config/Update/CAD).
 - Reordering rules by drag-and-drop is optional; a simple up/down control is sufficient for v1.
 
-## Open questions
+## Resolved decisions (2026-09-12)
 
-1. Placement: a new top-level "OpenHop" settings section (recommended) vs. nesting under Radio. Recommendation: new section.
-2. Rule reorder UI: up/down buttons (v1) vs. drag-and-drop (later). Recommendation: up/down.
-3. Group-entry value formats (channel hash bytes vs. hex, pubkey formats): confirm accepted formats against the sim during implementation and validate client-side.
-4. Two group concepts to reconcile during planning: the server-side named groups from `/policy_groups` (`kind: channel_hashes|pubkeys`) vs. the inline `policy_engine.objects.{channel_hash_groups,pubkey_groups}` that rule `@group.name` value-references resolve against. Confirm whether `/policy_groups` writes populate `objects` (so the rule editor's `@` picker lists them) or whether they are separate; probe the sim before building the rule value-reference picker.
+1. **Placement:** a new top-level "OpenHop" settings section (not nested under Radio).
+2. **Rule reorder:** up/down buttons in v1 (no drag-and-drop).
+3. **Group-entry value formats (probed live):** channel-hash entries are a single byte, accepted as `"0xNN"` and normalized to upper-case (`"0x1f"` -> `"0x1F"`); a multi-byte hex is rejected ("channel hash must be one byte (0x00-0xFF)"). The server validates each entry and returns a clear `{"success": false, "error": ...}`. Client strategy: light client-side hint on format, but rely on the server as the validator and surface its error text; do not hard-block on client guesses. Pubkey entry format is validated the same way server-side; surface server errors.
+4. **`/policy_groups` vs. inline `objects` (probed live):** creating a group and adding entries via `/policy_groups` + `/policy_group_entries` DOES populate `policy_engine.objects.{channel_hash_groups,pubkey_groups}` as a derived `{group_id: [values]}` map. So the server-side named groups are the source of truth, and `objects` is the derived view that rule `@channel_hash_groups.<name>` / `@pubkey_groups.<name>` references resolve against. The rule editor's `@`-reference picker lists keys from `policy_engine.objects`; the groups manager drives creation/deletion via the group/entry endpoints and refetches.
