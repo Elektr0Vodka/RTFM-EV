@@ -10,6 +10,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from 'react';
+import { Smile } from 'lucide-react';
 import { Button } from './ui/button';
 import { toast } from './ui/sonner';
 import { cn } from '@/lib/utils';
@@ -32,6 +33,53 @@ const CHANNEL_DANGER_BUFFER = 8; // Red zone starts this many bytes before hard 
 
 const textEncoder = new TextEncoder();
 const RADIO_NO_RESPONSE_SNIPPET = 'no response was heard back';
+
+// Curated set of common emojis for the quick picker. Kept small and
+// dependency-free (no emoji-picker library) since LoRa messages are short and
+// byte-constrained; a compact grid covers the everyday cases.
+const QUICK_EMOJIS = [
+  '😀',
+  '😁',
+  '😂',
+  '🤣',
+  '😊',
+  '😉',
+  '😍',
+  '😘',
+  '😎',
+  '🤔',
+  '😐',
+  '😴',
+  '😢',
+  '😭',
+  '😡',
+  '🥳',
+  '👍',
+  '👎',
+  '👌',
+  '🙏',
+  '👏',
+  '💪',
+  '🤝',
+  '✌️',
+  '❤️',
+  '🔥',
+  '⭐',
+  '✨',
+  '🎉',
+  '💯',
+  '✅',
+  '❌',
+  '📡',
+  '📻',
+  '🛰️',
+  '🔋',
+  '⚡',
+  '🗺️',
+  '📍',
+  '🚀',
+];
+
 /** Get UTF-8 byte length of a string (LoRa packets are byte-constrained, not character-constrained). */
 function byteLen(s: string): number {
   return textEncoder.encode(s).length;
@@ -61,7 +109,9 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const t = useT();
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const emojiRef = useRef<HTMLDivElement>(null);
 
   /** Resize textarea to fit content, clamped between 1 row and ~6 rows. */
   const autoResize = useCallback(() => {
@@ -86,6 +136,43 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   useEffect(() => {
     autoResize();
   }, [text, autoResize]);
+
+  // Close the emoji picker on outside click or Escape (matches HeaderLanguageMenu).
+  useEffect(() => {
+    if (!emojiOpen) return;
+    const handlePointer = (e: MouseEvent) => {
+      if (emojiRef.current && !emojiRef.current.contains(e.target as Node)) {
+        setEmojiOpen(false);
+      }
+    };
+    const handleKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape') setEmojiOpen(false);
+    };
+    document.addEventListener('mousedown', handlePointer);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handlePointer);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [emojiOpen]);
+
+  // Insert an emoji at the current caret position, preserving surrounding text
+  // and advancing the caret to just after the inserted glyph.
+  const insertEmoji = useCallback((emoji: string) => {
+    const el = textareaRef.current;
+    setText((prev) => {
+      const start = el?.selectionStart ?? prev.length;
+      const end = el?.selectionEnd ?? prev.length;
+      const next = prev.slice(0, start) + emoji + prev.slice(end);
+      const caret = start + emoji.length;
+      // Restore caret after React flushes the new value
+      requestAnimationFrame(() => {
+        el?.focus();
+        el?.setSelectionRange(caret, caret);
+      });
+      return next;
+    });
+  }, []);
 
   // Calculate character limits based on conversation type
   const limits = useMemo(() => {
@@ -211,27 +298,66 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       autoComplete="off"
     >
       <div className="flex gap-2 items-end">
-        <textarea
-          ref={textareaRef}
-          name="chat-message-input"
-          aria-label={placeholder || t('a11y_type_message')}
-          data-lpignore="true"
-          data-1p-ignore="true"
-          data-bwignore="true"
-          rows={1}
-          value={text}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder || t('chat_placeholder_type_message')}
-          disabled={disabled || sending}
-          className={cn(
-            'flex-1 min-w-0 resize-none overflow-y-auto',
-            'rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background',
-            'placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-            'disabled:cursor-not-allowed disabled:opacity-50 md:text-sm'
+        <div ref={emojiRef} className="relative flex-1 min-w-0">
+          <textarea
+            ref={textareaRef}
+            name="chat-message-input"
+            aria-label={placeholder || t('a11y_type_message')}
+            data-lpignore="true"
+            data-1p-ignore="true"
+            data-bwignore="true"
+            rows={1}
+            value={text}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder || t('chat_placeholder_type_message')}
+            disabled={disabled || sending}
+            className={cn(
+              'w-full resize-none overflow-y-auto',
+              'rounded-md border border-input bg-background pl-3 pr-11 py-2 text-base ring-offset-background',
+              'placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              'disabled:cursor-not-allowed disabled:opacity-50 md:text-sm'
+            )}
+            style={{ minHeight: '40px', maxHeight: '160px' }}
+          />
+          <button
+            type="button"
+            onClick={() => setEmojiOpen((v) => !v)}
+            disabled={disabled || sending}
+            aria-haspopup="dialog"
+            aria-expanded={emojiOpen}
+            aria-label={t('chat_emoji_picker')}
+            title={t('chat_emoji_picker')}
+            className={cn(
+              'absolute bottom-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-md',
+              'text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'disabled:cursor-not-allowed disabled:opacity-50'
+            )}
+          >
+            <Smile className="h-5 w-5" aria-hidden="true" />
+          </button>
+
+          {emojiOpen && (
+            <div
+              role="dialog"
+              aria-label={t('chat_emoji_picker')}
+              className="absolute bottom-full right-0 mb-2 z-50 grid grid-cols-8 gap-0.5 rounded-md border border-border bg-card p-2 shadow-lg"
+            >
+              {QUICK_EMOJIS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => insertEmoji(emoji)}
+                  aria-label={emoji}
+                  className="flex h-8 w-8 items-center justify-center rounded-sm text-xl leading-none hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span aria-hidden="true">{emoji}</span>
+                </button>
+              ))}
+            </div>
           )}
-          style={{ minHeight: '40px', maxHeight: '160px' }}
-        />
+        </div>
         <Button
           type="submit"
           disabled={disabled || sending || !canSubmit}

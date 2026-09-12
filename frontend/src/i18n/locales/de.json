@@ -56,6 +56,7 @@
   "chat_cracker_status_running": "(läuft)",
   "chat_desktop_notifications_legacy": "Desktop-Benachrichtigungen (veraltet)",
   "chat_direct_trace_description": "Direct Trace. Sendet eine direkte Trace-Probe an diesen Kontakt und zeigt Hin- und Rück-SNR an",
+  "chat_emoji_picker": "Emoji-Auswahl",
   "chat_manage_web_push_devices_in": "Geräte mit aktiviertem Web Push verwalten in",
   "chat_mark_all_read": "Alle als gelesen markieren",
   "chat_mute_channel": "Kanal stummschalten",

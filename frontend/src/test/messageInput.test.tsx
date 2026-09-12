@@ -189,6 +189,41 @@ describe('MessageInput', () => {
     });
   });
 
+  describe('emoji picker', () => {
+    function getEmojiToggle() {
+      return screen.getByRole('button', { name: /emoji picker/i }) as HTMLButtonElement;
+    }
+
+    it('renders the emoji toggle button', () => {
+      renderInput({ conversationType: 'contact' });
+      expect(getEmojiToggle()).toBeTruthy();
+    });
+
+    it('picker is closed by default', () => {
+      renderInput({ conversationType: 'contact' });
+      expect(screen.queryByRole('dialog', { name: /emoji picker/i })).toBeNull();
+    });
+
+    it('opens the picker on toggle click', () => {
+      renderInput({ conversationType: 'contact' });
+      fireEvent.click(getEmojiToggle());
+      expect(screen.getByRole('dialog', { name: /emoji picker/i })).toBeTruthy();
+    });
+
+    it('inserts the chosen emoji into the input and updates the byte counter', () => {
+      renderInput({ conversationType: 'contact' });
+      const input = getInput();
+      fireEvent.change(input, { target: { value: 'hi' } });
+      input.setSelectionRange(2, 2); // caret at end, as after typing
+      fireEvent.click(getEmojiToggle());
+      // Pick the 👍 emoji (4 bytes in UTF-8)
+      fireEvent.click(screen.getByRole('button', { name: '👍' }));
+      expect(getInput().value).toBe('hi👍');
+      // "hi" (2) + "👍" (4) = 6 bytes
+      expect(screen.getByText(/6\/156/)).toBeTruthy();
+    });
+  });
+
   describe('send failure toasts', () => {
     it('shows the radio no-response toast when the send outcome is unknown', async () => {
       onSend.mockRejectedValueOnce(
