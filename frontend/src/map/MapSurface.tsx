@@ -143,7 +143,11 @@ export function MapSurface(props: MapSurfaceProps) {
 
   return (
     <div className={cn('relative h-full w-full', className)}>
-      <div ref={containerRef} className="absolute inset-0" />
+      {/* Fill the parent for real: maplibre-gl.css forces `.maplibregl-map`
+          to position:relative, which cancels an `absolute inset-0` container
+          and collapses its height to 0. Use h-full/w-full so the height
+          resolves against the relative parent instead. */}
+      <div ref={containerRef} className="h-full w-full" />
       {children}
       <MapControls
         fabs={fabs}
