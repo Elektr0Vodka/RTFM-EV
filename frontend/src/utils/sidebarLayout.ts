@@ -6,22 +6,9 @@
 // the old fork's names for a clean migration.
 
 // Reorderable list sections (Mark-All-Read is a pinned action row, not reorderable).
-export type SidebarSectionKey =
-  | 'tools'
-  | 'favorites'
-  | 'channels'
-  | 'contacts'
-  | 'repeaters'
-  | 'rooms';
+export type SidebarSectionKey = 'tools' | 'favorites' | 'channels' | 'contacts';
 
-export const ALL_SECTION_KEYS: SidebarSectionKey[] = [
-  'tools',
-  'favorites',
-  'channels',
-  'contacts',
-  'repeaters',
-  'rooms',
-];
+export const ALL_SECTION_KEYS: SidebarSectionKey[] = ['tools', 'favorites', 'channels', 'contacts'];
 
 // Tool rows, keyed to match the existing render in Sidebar.tsx.
 export type SidebarToolKey =
