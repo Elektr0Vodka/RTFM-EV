@@ -5,11 +5,55 @@ This changelog covers work done in the **RTFM-EV** fork
 `jkingsman/Remote-Terminal-for-MeshCore`.
 
 - Fork base commit: `33b3b8d` (upstream `main`), 2026-07-26
-- Commits since fork: 209 total (139 non-merge)
+- Commits since fork: 222 total (152 non-merge)
 - Generated: 2026-09-10; updated 2026-09-12
 
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
+
+## Update 2026-09-12 (map / audio / fanout, PRs #75-#91)
+
+Work that landed on `origin/main` after PR #74, up to PR #91 (`b180cc7`),
+grouped by area. PRs #83-#86 did not merge. The three "(pending)" items in the
+section below merged as PR #91 and now carry that commit ref.
+
+### Map
+- Map overhaul Phase 2: MapLibre-GL migration with 2D/3D tilt, 3D buildings, a
+  per-link layer, and FAB controls; Leaflet removed (`6b5a104`) (PR #75)
+- Per-role node colour picker with a live legend (`b1e9bb3`) (PR #81)
+- Fall back to a keyless raster basemap when the vector basemap fails
+  (`52c288e`) (PR #80)
+- Three-state heard / never-heard node filter (`8ab06ce`) (PR #89)
+
+### Chat / UI
+- Chat scope and direct pills, map route + analyzer overlays, and a navbar
+  packet graph (`6f0be35`) (PR #77)
+- Per-packet signal audio (Geiger / sonar themes) on the raw packet feed
+  (`4b8dedb`) (PR #76)
+
+### Sidebar
+- Merge Repeaters / Rooms / Companions / Sensors into a single Contacts section
+  with type-filter pills (`2a2e3a5`) (PR #88)
+
+### Repeater
+- Seed `known_regions` from a repeater's reported regions (`5f4244a`) (PR #79)
+- Fall back to stored neighbour history when a live neighbour query is empty
+  (`48f8acf`) (PR #78)
+
+### Fanout / MQTT
+- Forward remote-node telemetry, neighbors, and regions over MQTT with
+  `subject_id` attribution (`d0f392e`) (PR #90)
+
+### Versioning
+- Fork build identity: the displayed version now appends `FORK_VERSION_SUFFIX`
+  (`-EV.0.1`) to the upstream base, e.g. `3.17.1-EV.0.1` (`b180cc7`) (PR #91)
+
+### Tests / tooling
+- Bump `LATEST_SCHEMA_VERSION` to 77 for migrations 076/077 (`4984177`) (PR #82)
+
+### Docs / planning
+- Add backlog stubs: data-directory backup [22] and packet-history browser [23]
+  (`d3e932d`) (PR #87)
 
 ## Update 2026-09-12 (merged after the 2026-09-11 second pass)
 
@@ -37,16 +81,16 @@ The previous update's cutoff was `bda40a5` (merge of PR #67).
 - New `mention` registry source: #hashtag channels referenced in chat can be
   captured into the Channel Registry, either via an inline "+" on an unknown
   mention or passively through the opt-in `auto_add_mentioned_channels` setting
-  (registry-only; no followed radio channel is created) (pending)
+  (registry-only; no followed radio channel is created) (`b180cc7`) (PR #91)
 
 ### Channel finder
 - Seed the cracker wordlist from Channel Registry names (with the leading `#`
   stripped) via a "Sync from channels" button; merged alongside the bundled and
-  remote-synced lists (`meshcore-wordlist-registry-cache`) (pending)
+  remote-synced lists (`meshcore-wordlist-registry-cache`) (`b180cc7`) (PR #91)
 
 ### Chat / UI
 - #hashtag channel references in messages are now styled by state: followed,
-  in-registry, or unknown (pending)
+  in-registry, or unknown (`b180cc7`) (PR #91)
 
 ### Tooling / CI
 - Enforce LF line endings via `.gitattributes` (`8f90a0a`) (PR #74)

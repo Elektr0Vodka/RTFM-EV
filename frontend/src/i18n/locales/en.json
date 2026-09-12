@@ -592,6 +592,7 @@
   "settings_about_buy_coffee": "buy me a coffee!",
   "settings_about_report_bug": "Report a Bug",
   "settings_about_changelog": "Changelog",
+  "settings_about_changelog_ev": "Changelog-EV",
   "settings_about_acknowledgements": "With great appreciation to those who have made the tools upon which this is built:",
   "settings_about_debug_snapshot": "Open debug support snapshot",
   "settings_about_update_available": "Update available",

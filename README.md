@@ -24,6 +24,50 @@ For advanced setup and troubleshooting see [README_ADVANCED.md](README_ADVANCED.
 > [!WARNING]
 > RemoteTerm does *full* management of the radio, meaning that once a radio is connected to RemoteTerm, all contacts/channels will be imported and offloaded to RemoteTerm and the contacts actually synced to the device will be governed by RemoteTerm. This means that RemoteTerm can be a poor fit for users who are looking to swap radios in and out, maintaining radio state (favorites, channels, etc.) irrespective of app usage.
 
+## Project direction: from live terminal to local analyzer
+
+RTFM-EV is a fork of RemoteTerm. It keeps everything RemoteTerm does as a live
+browser terminal for a companion radio, and adds a deliberate change of emphasis.
+
+RemoteTerm is built around the live view. A lot of its interface state is kept in
+the browser, and its analytical surfaces (the raw packet feed and the mesh
+visualizer) render only what has arrived in the current browser session's
+in-memory buffer. Packets are written to the server database, but the interface is
+oriented toward "what is happening now", and history retention is aggressive and
+inconsistent (some data is pruned on hard-coded caps, some is manual-only, and some
+grows unbounded).
+
+RTFM-EV treats the server-side database as the system of record. The intent is that
+a single always-on radio feeding the app builds a long-lived local record of the
+mesh, so the app can act as a full local analyzer and not only a live terminal.
+
+Shipped toward this so far:
+
+- Per-packet signal metadata (RSSI, SNR, payload type) persisted with every stored
+  packet (migration `_065`), plus advert-path signal (`_066`) and per-link signal
+  history (`_075`).
+- Standalone history stores for noise floor (`_069`) and battery (`_070`).
+- Repeater and per-contact telemetry history (`_050`, `_062`) and contact name
+  history (`_024`).
+- "My Node" and mesh-health views that read from this persisted history.
+
+Direction still on the roadmap (planned, not yet built; see `docs/plans/`):
+
+- Configurable, per-data-class retention with an "analyzer mode" preset, so an
+  operator can retain long trends instead of the current aggressive caps
+  (`docs/plans/19-analyzer-persistence-retention.md`).
+- Historical device-info persistence: location and device-config history over time
+  (`docs/plans/14-historical-device-info.md`).
+- Database-backed history browsing, for example a packet-history browser over
+  arbitrary time ranges rather than only the live session buffer
+  (`docs/plans/23-packet-history-browser.md`).
+- Multi-radio identity continuity, so a swapped or replaced feeding radio stays
+  coherent in the long-lived record
+  (`docs/plans/18-multi-radio-identity-history.md`).
+
+This is a direction, not a finished feature set: the retention policy and the
+history-browsing UIs above are planned, not yet implemented.
+
 ## Requirements
 
 - Python 3.11+

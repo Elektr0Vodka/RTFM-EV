@@ -31,9 +31,15 @@ export function SettingsAboutSection({
             {commit ? (
               <>
                 <span className="mx-1.5">·</span>
-                <span className="font-mono text-xs" title={commit}>
+                <a
+                  href={`${GITHUB_URL}/commit/${commit}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono text-xs text-primary hover:underline"
+                  title={commit}
+                >
                   {commit}
-                </span>
+                </a>
               </>
             ) : null}
           </div>
@@ -142,6 +148,14 @@ export function SettingsAboutSection({
             className="text-primary hover:underline"
           >
             {t('settings_about_changelog')}
+          </a>
+          <a
+            href={`${GITHUB_URL}/blob/main/CHANGELOG-DMC-EV.md`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline"
+          >
+            {t('settings_about_changelog_ev')}
           </a>
         </div>
 
