@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { GroupTextCracker, type ProgressReport } from 'meshcore-hashtag-cracker';
 import NoSleep from 'nosleep.js';
-import type { RawPacket, Channel } from '../types';
+import type { RawPacket, Channel, WordlistMeta } from '../types';
 import { api } from '../api';
 import { toast } from './ui/sonner';
 import { cn } from '@/lib/utils';
@@ -16,6 +16,7 @@ import {
   mergeWordlists,
 } from '../lib/wordlistSync';
 import { loadRegistry, addableRegistryChannelNames } from '../lib/channelManager';
+import { loadSelection, saveSelection, type WordlistSelection } from '../lib/wordlistSelection';
 import { useT } from '../i18n';
 
 interface CrackedChannel {
@@ -38,6 +39,19 @@ export interface CrackerPanelProps {
   onChannelCreate: (name: string, key: string) => Promise<void>;
   onRunningChange?: (running: boolean) => void;
   visible?: boolean;
+}
+
+async function loadEnglishWordlist(): Promise<string[]> {
+  const mod = await import('meshcore-hashtag-cracker/wordlist');
+  return mod.ENGLISH_WORDLIST;
+}
+
+async function loadDutchWordlist(): Promise<string[]> {
+  // Bundled static asset (frontend/public/wordlists/nl.txt), fetched on demand.
+  const res = await fetch('wordlists/nl.txt');
+  if (!res.ok) throw new Error(`nl.txt HTTP ${res.status}`);
+  const text = await res.text();
+  return text.split(/\r?\n/).filter((line) => line.length > 0);
 }
 
 export function CrackerPanel({
@@ -63,6 +77,10 @@ export function CrackerPanel({
   const [undecryptedPacketCount, setUndecryptedPacketCount] = useState<number | null>(null);
   const [skippedDuplicates, setSkippedDuplicates] = useState(0);
   const [registryWordCount, setRegistryWordCount] = useState(() => loadRegistryWordlist().length);
+  const [selection, setSelection] = useState<WordlistSelection>(() => loadSelection());
+  const [customLists, setCustomLists] = useState<WordlistMeta[]>([]);
+  const [showWordlists, setShowWordlists] = useState(false);
+  const selectionRef = useRef<WordlistSelection>(selection);
 
   const crackerRef = useRef<GroupTextCracker | null>(null);
   const noSleepRef = useRef<NoSleep | null>(null);
@@ -96,31 +114,71 @@ export function CrackerPanel({
     };
   }, []);
 
-  // Load wordlist dynamically when panel becomes visible for the first time
+  // Keep the selection ref current so rebuildWordlist reads the latest value.
   useEffect(() => {
-    if (!visible || wordlistLoaded) return;
+    selectionRef.current = selection;
+  }, [selection]);
 
-    import('meshcore-hashtag-cracker/wordlist')
-      .then(({ ENGLISH_WORDLIST }) => {
-        if (crackerRef.current) {
-          // Merge the bundled list with any analyzer-synced candidate names.
-          // setWordlist() replaces, so this must be a single merged call.
-          const merged = mergeWordlists(
-            ENGLISH_WORDLIST,
-            loadSyncedWordlist(),
-            loadRegistryWordlist()
-          );
-          crackerRef.current.setWordlist(merged);
-          setWordlistLoaded(true);
+  // Build the merged wordlist from the current selection and push it into the
+  // cracker. setWordlist() replaces, so all enabled bases plus the synced and
+  // registry candidates go into a single merged call.
+  const rebuildWordlist = useCallback(async () => {
+    if (!crackerRef.current) return;
+    const sel = selectionRef.current;
+    const bases: string[][] = [];
+    try {
+      if (sel.english) bases.push(await loadEnglishWordlist());
+      if (sel.dutch) bases.push(await loadDutchWordlist());
+      for (const id of sel.customIds) {
+        try {
+          const { words } = await api.getWordlistWords(id);
+          bases.push(words);
+        } catch (err) {
+          console.error('Failed to load custom wordlist', id, err);
+          toast.error(t('cracker_wordlist_custom_load_failed'));
         }
-      })
-      .catch((err) => {
-        console.error('Failed to load wordlist:', err);
-        toast.error(t('toast_failed_load_wordlist'), {
-          description: t('cracker_channel_finder_unavailable_desc'),
-        });
+      }
+      const merged = mergeWordlists(...bases, loadSyncedWordlist(), loadRegistryWordlist());
+      crackerRef.current.setWordlist(merged);
+      setWordlistLoaded(true);
+    } catch (err) {
+      console.error('Failed to build wordlist:', err);
+      toast.error(t('toast_failed_load_wordlist'), {
+        description: t('cracker_channel_finder_unavailable_desc'),
       });
-  }, [visible, wordlistLoaded]);
+    }
+  }, [t]);
+
+  // Rebuild when the panel is visible or the selection changes, but never
+  // mid-crack (the running cracker must not have its wordlist swapped).
+  useEffect(() => {
+    if (!visible || isRunning) return;
+    void rebuildWordlist();
+  }, [visible, isRunning, selection, rebuildWordlist]);
+
+  // Load custom-list metadata when visible; prune selected ids that no longer exist.
+  useEffect(() => {
+    if (!visible) return;
+    api
+      .listWordlists()
+      .then(({ wordlists }) => {
+        setCustomLists(wordlists);
+        const ids = new Set(wordlists.map((w) => w.id));
+        setSelection((prev) => {
+          const kept = prev.customIds.filter((id) => ids.has(id));
+          if (kept.length === prev.customIds.length) return prev;
+          const next = { ...prev, customIds: kept };
+          saveSelection(next);
+          return next;
+        });
+      })
+      .catch((err) => console.error('Failed to list wordlists:', err));
+  }, [visible]);
+
+  // Persist the selection whenever it changes.
+  useEffect(() => {
+    saveSelection(selection);
+  }, [selection]);
 
   // Fetch undecrypted packet count
   useEffect(() => {
@@ -435,6 +493,47 @@ export function CrackerPanel({
     toast.success(t('cracker_wordlist_synced_from_channels', { count: candidates.length }));
   }, [t]);
 
+  const refreshCustomLists = useCallback(async () => {
+    const { wordlists } = await api.listWordlists();
+    setCustomLists(wordlists);
+    return wordlists;
+  }, []);
+
+  const handleUploadWordlist = useCallback(
+    async (name: string, file: File) => {
+      try {
+        const meta = await api.uploadWordlist(name, file);
+        await refreshCustomLists();
+        setSelection((prev) => ({ ...prev, customIds: [...prev.customIds, meta.id] }));
+        toast.success(t('toast_wordlist_uploaded', { name: meta.name }));
+      } catch (err) {
+        toast.error(t('toast_wordlist_upload_failed'), {
+          description: err instanceof Error ? err.message : undefined,
+        });
+      }
+    },
+    [refreshCustomLists, t]
+  );
+
+  const handleDeleteWordlist = useCallback(
+    async (id: number) => {
+      try {
+        await api.deleteWordlist(id);
+        await refreshCustomLists();
+        setSelection((prev) => ({
+          ...prev,
+          customIds: prev.customIds.filter((x) => x !== id),
+        }));
+        toast.success(t('toast_wordlist_deleted'));
+      } catch (err) {
+        toast.error(t('toast_wordlist_upload_failed'), {
+          description: err instanceof Error ? err.message : undefined,
+        });
+      }
+    },
+    [refreshCustomLists, t]
+  );
+
   // Start/stop handlers
   const handleStart = () => {
     if (!gpuAvailable) {
@@ -558,7 +657,109 @@ export function CrackerPanel({
             </span>
           )}
         </button>
+
+        <button
+          type="button"
+          onClick={() => setShowWordlists((v) => !v)}
+          disabled={isRunning}
+          className="px-3 py-1 text-sm rounded border border-border bg-muted hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {t('cracker_wordlists_button')}
+        </button>
       </div>
+
+      {showWordlists && (
+        <div className="rounded border border-border bg-muted/40 p-3 space-y-2">
+          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+            <input
+              type="checkbox"
+              checked={selection.english}
+              onChange={(e) => setSelection((prev) => ({ ...prev, english: e.target.checked }))}
+              className="rounded"
+            />
+            {t('cracker_wordlist_english')}
+          </label>
+
+          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+            <input
+              type="checkbox"
+              checked={selection.dutch}
+              onChange={(e) => setSelection((prev) => ({ ...prev, dutch: e.target.checked }))}
+              className="rounded"
+            />
+            {t('cracker_wordlist_dutch')}
+            {selection.dutch && (
+              <span className="text-xs text-muted-foreground">
+                ({t('cracker_wordlist_dutch_note')})
+              </span>
+            )}
+          </label>
+
+          {customLists.map((wl) => (
+            <div key={wl.id} className="flex items-center justify-between gap-2">
+              <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selection.customIds.includes(wl.id)}
+                  onChange={(e) =>
+                    setSelection((prev) => ({
+                      ...prev,
+                      customIds: e.target.checked
+                        ? [...prev.customIds, wl.id]
+                        : prev.customIds.filter((x) => x !== wl.id),
+                    }))
+                  }
+                  className="rounded"
+                />
+                {wl.name}
+                <span className="text-xs text-muted-foreground">
+                  {t('cracker_wordlist_entries', { count: wl.entry_count })}
+                </span>
+              </label>
+              <button
+                type="button"
+                onClick={() => handleDeleteWordlist(wl.id)}
+                className="text-xs text-destructive hover:underline"
+              >
+                {t('cracker_wordlist_delete')}
+              </button>
+            </div>
+          ))}
+
+          <form
+            className="flex items-center gap-2 pt-1"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const form = e.currentTarget;
+              const nameInput = form.elements.namedItem('wl-name') as HTMLInputElement;
+              const fileInput = form.elements.namedItem('wl-file') as HTMLInputElement;
+              const file = fileInput.files?.[0];
+              if (!nameInput.value.trim() || !file) return;
+              void handleUploadWordlist(nameInput.value.trim(), file);
+              form.reset();
+            }}
+          >
+            <input
+              name="wl-name"
+              type="text"
+              placeholder={t('cracker_wordlist_upload_name_placeholder')}
+              className="w-32 px-2 py-1 text-sm bg-muted border border-border rounded"
+            />
+            <input
+              name="wl-file"
+              type="file"
+              accept=".txt,text/plain"
+              className="text-xs text-muted-foreground"
+            />
+            <button
+              type="submit"
+              className="px-2 py-1 text-sm rounded border border-border bg-muted hover:bg-accent"
+            >
+              {t('cracker_wordlist_upload_label')}
+            </button>
+          </form>
+        </div>
+      )}
 
       <button
         onClick={isRunning ? handleStop : handleStart}
