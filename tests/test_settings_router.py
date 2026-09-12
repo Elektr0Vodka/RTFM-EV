@@ -75,6 +75,33 @@ class TestUpdateSettings:
         assert result.backup_destination_path == ""
 
     @pytest.mark.asyncio
+    async def test_persists_openhop_api_config(self, test_db):
+        """The PATCH path must forward openhop url/token to storage."""
+        result = await update_settings(
+            AppSettingsUpdate(
+                openhop_api_url="http://127.0.0.1:8010",
+                openhop_api_token="tok123",
+            )
+        )
+        assert result.openhop_api_url == "http://127.0.0.1:8010"
+        assert result.openhop_api_token == "tok123"
+
+        fresh = await AppSettingsRepository.get()
+        assert fresh.openhop_api_url == "http://127.0.0.1:8010"
+        assert fresh.openhop_api_token == "tok123"
+
+    @pytest.mark.asyncio
+    async def test_openhop_api_config_empty_clears(self, test_db):
+        await update_settings(
+            AppSettingsUpdate(openhop_api_url="http://x", openhop_api_token="t")
+        )
+        result = await update_settings(
+            AppSettingsUpdate(openhop_api_url="  ", openhop_api_token="")
+        )
+        assert result.openhop_api_url == ""
+        assert result.openhop_api_token == ""
+
+    @pytest.mark.asyncio
     async def test_show_mention_ticker_defaults_enabled(self, test_db):
         result = await update_settings(AppSettingsUpdate())
         assert result.show_mention_ticker is True

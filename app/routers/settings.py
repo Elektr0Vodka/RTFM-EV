@@ -215,6 +215,14 @@ class AppSettingsUpdate(BaseModel):
         default=None,
         description="Custom navbar icon as a data URL (empty falls back to the built-in SVG)",
     )
+    openhop_api_url: str | None = Field(
+        default=None,
+        description="Base URL of the connected OpenHop node's REST API (empty clears it)",
+    )
+    openhop_api_token: str | None = Field(
+        default=None,
+        description="OpenHop REST API token, sent as X-API-Key (empty clears it)",
+    )
 
 
 class BlockKeyRequest(BaseModel):
@@ -446,6 +454,12 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
         kwargs["backup_to_path_enabled"] = update.backup_to_path_enabled
     if update.backup_destination_path is not None:
         kwargs["backup_destination_path"] = update.backup_destination_path.strip()
+    # OpenHop REST management config (empty string clears the field; the gate
+    # treats an empty url/token as "not configured", same as unset).
+    if update.openhop_api_url is not None:
+        kwargs["openhop_api_url"] = update.openhop_api_url.strip()
+    if update.openhop_api_token is not None:
+        kwargs["openhop_api_token"] = update.openhop_api_token.strip()
 
     # Analyzer sites (client-side deep-link lookup). Validate each template is an
     # http(s) URL carrying the required placeholder before persisting; reject the

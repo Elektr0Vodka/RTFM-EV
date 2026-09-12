@@ -53,8 +53,8 @@ export function OpenHopSettings({ health, appSettings, onSaveAppSettings }: Prop
     setError(null);
     try {
       await onSaveAppSettings({
-        openhop_api_url: url.trim() || null,
-        openhop_api_token: token.trim() || null,
+        openhop_api_url: url.trim(),
+        openhop_api_token: token.trim(),
       });
       try {
         setStatus(await api.getOpenHopStatus());
