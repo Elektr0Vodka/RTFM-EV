@@ -253,6 +253,13 @@ export function SettingsRadioSection({
   const [floodError, setFloodError] = useState<string | null>(null);
   const [regionSyncUrl, setRegionSyncUrl] = useState('');
   const [regionSyncing, setRegionSyncing] = useState(false);
+  const [externalMapUrl, setExternalMapUrl] = useState('');
+  const [externalMapInterval, setExternalMapInterval] = useState('');
+  const [externalMapSyncing, setExternalMapSyncing] = useState(false);
+  const [externalMapStatus, setExternalMapStatus] = useState<{
+    count: number;
+    last_synced_at: number | null;
+  } | null>(null);
 
   // Advertise state
   const [advertisingMode, setAdvertisingMode] = useState<RadioAdvertMode | null>(null);
@@ -282,7 +289,29 @@ export function SettingsRadioSection({
     setKnownRegions((appSettings.known_regions ?? []).join('\n'));
     setMaxRadioContacts(String(appSettings.max_radio_contacts));
     setRegionSyncUrl(appSettings.region_sync_url ?? '');
+    setExternalMapUrl(appSettings.external_map_sync_url ?? '');
+    setExternalMapInterval(String(appSettings.external_map_sync_interval_hours ?? 0));
   }, [appSettings]);
+
+  // Load the external-map cache status (node count + last sync) once. Best
+  // effort: a failure here must never break the settings panel.
+  useEffect(() => {
+    let cancelled = false;
+    try {
+      api
+        .getExternalMapStatus()
+        .then((s) => {
+          if (!cancelled)
+            setExternalMapStatus({ count: s.count, last_synced_at: s.last_synced_at });
+        })
+        .catch(() => {});
+    } catch {
+      // getExternalMapStatus unavailable; leave status unloaded.
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // The preset dropdown is driven by this list: the built-in RADIO_PRESETS by
   // default, or the list last synced from the official MeshCore presets API.
@@ -662,6 +691,44 @@ export function SettingsRadioSection({
       toast.error(
         err instanceof Error ? err.message : t('settings_radio_toast_region_sync_url_save_failed')
       );
+    }
+  };
+
+  const handleSaveExternalMapUrl = async () => {
+    const trimmed = externalMapUrl.trim();
+    setExternalMapUrl(trimmed);
+    if (trimmed === (appSettings.external_map_sync_url ?? '')) return;
+    try {
+      await onSaveAppSettings({ external_map_sync_url: trimmed });
+    } catch (err) {
+      setExternalMapUrl(appSettings.external_map_sync_url ?? '');
+      toast.error(err instanceof Error ? err.message : t('settings_external_map_save_failed'));
+    }
+  };
+
+  const handleSaveExternalMapInterval = async () => {
+    const parsed = parseInt(externalMapInterval, 10);
+    const value = isNaN(parsed) ? 0 : Math.max(0, Math.min(168, parsed));
+    setExternalMapInterval(String(value));
+    if (value === (appSettings.external_map_sync_interval_hours ?? 0)) return;
+    try {
+      await onSaveAppSettings({ external_map_sync_interval_hours: value });
+    } catch (err) {
+      setExternalMapInterval(String(appSettings.external_map_sync_interval_hours ?? 0));
+      toast.error(err instanceof Error ? err.message : t('settings_external_map_save_failed'));
+    }
+  };
+
+  const handleSyncExternalMap = async () => {
+    setExternalMapSyncing(true);
+    try {
+      const res = await api.syncExternalMap();
+      setExternalMapStatus({ count: res.count, last_synced_at: res.synced_at });
+      toast.success(t('settings_external_map_synced', { count: res.count }));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('settings_external_map_sync_failed'));
+    } finally {
+      setExternalMapSyncing(false);
     }
   };
 
@@ -1575,6 +1642,70 @@ export function SettingsRadioSection({
             {t('settings_radio_region_sync_desc_prefix')}{' '}
             <code className="text-xs">{'{code, name}'}</code>{' '}
             {t('settings_radio_region_sync_desc_suffix')}
+          </p>
+        </div>
+
+        <div className="space-y-2 rounded-md border border-input bg-muted/20 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
+              {t('settings_external_map_label')}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleSyncExternalMap}
+              disabled={externalMapSyncing || !externalMapUrl.trim()}
+            >
+              {externalMapSyncing
+                ? t('settings_external_map_sync_button_loading')
+                : t('settings_external_map_sync_button')}
+            </Button>
+          </div>
+          <label className="flex items-center gap-2">
+            <Checkbox
+              id="external-map-enabled"
+              checked={appSettings.external_map_enabled}
+              onCheckedChange={(checked) =>
+                onSaveAppSettings({ external_map_enabled: checked === true })
+              }
+            />
+            <span className="text-[0.8125rem]">{t('settings_external_map_enable_label')}</span>
+          </label>
+          <Input
+            id="external-map-url"
+            type="url"
+            value={externalMapUrl}
+            placeholder="https://meshcore-analyzer.eu/api/nodes"
+            onChange={(e) => setExternalMapUrl(e.target.value)}
+            onBlur={handleSaveExternalMapUrl}
+            className="font-mono text-xs"
+          />
+          <div className="flex items-center gap-2">
+            <Label htmlFor="external-map-interval" className="text-[0.8125rem]">
+              {t('settings_external_map_interval_label')}
+            </Label>
+            <Input
+              id="external-map-interval"
+              type="number"
+              min={0}
+              max={168}
+              value={externalMapInterval}
+              onChange={(e) => setExternalMapInterval(e.target.value)}
+              onBlur={handleSaveExternalMapInterval}
+              className="w-20 text-xs"
+            />
+          </div>
+          <p className="text-[0.8125rem] text-muted-foreground">
+            {externalMapStatus && externalMapStatus.last_synced_at
+              ? t('settings_external_map_status', {
+                  count: externalMapStatus.count,
+                  when: new Date(externalMapStatus.last_synced_at * 1000).toLocaleString(),
+                })
+              : t('settings_external_map_never_synced')}
+          </p>
+          <p className="text-[0.8125rem] text-muted-foreground">
+            {t('settings_external_map_desc')}
           </p>
         </div>
 

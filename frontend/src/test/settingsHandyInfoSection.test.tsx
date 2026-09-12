@@ -36,6 +36,9 @@ function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings {
     region_sync_url: '',
     wordlist_sync_url: '',
     analyzer_sites: [],
+    external_map_enabled: false,
+    external_map_sync_url: '',
+    external_map_sync_interval_hours: 0,
     ...overrides,
   };
 }
@@ -94,6 +97,22 @@ describe('SettingsHandyInfoSection', () => {
             name: 'MC-Radar',
             node_url_template: 'https://mc-radar.woodwar.com/node/{pubkey}',
             packet_url_template: null,
+          },
+        ],
+      })
+    );
+  });
+
+  it('applies the on8ar preset with both node and packet templates', async () => {
+    const { onSave } = renderSection(makeSettings());
+    fireEvent.click(screen.getByRole('button', { name: 'Apply on8ar' }));
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({
+        analyzer_sites: [
+          {
+            name: 'on8ar',
+            node_url_template: 'https://analyzer.on8ar.eu/#/nodes/{pubkey}',
+            packet_url_template: 'https://analyzer.on8ar.eu/#/packets/{hash}',
           },
         ],
       })

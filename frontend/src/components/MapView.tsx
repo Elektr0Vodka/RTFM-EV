@@ -1,7 +1,8 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { Popup as MlPopup, Marker as MlMarker, type Map as MlMap } from 'maplibre-gl';
-import { Zap, Clock } from 'lucide-react';
-import type { Contact, RadioConfig } from '../types';
+import { Zap, Clock, Globe } from 'lucide-react';
+import type { Contact, ExternalMapNode, RadioConfig } from '../types';
+import { api, isAbortError } from '../api';
 import { formatTime } from '../utils/messageParser';
 import { isValidLocation } from '../utils/pathUtils';
 import {
@@ -27,6 +28,7 @@ import {
 import { createParticleOverlay, type MapParticle } from '../map/layers/particleOverlay';
 import { createDeckTraces, arcRows, type DeckTracesController } from '../map/layers/tracesDeck';
 import { createLinksLayer, type ResolveCoord } from '../map/layers/linksLayer';
+import { createExternalNodesLayer, type ExternalNodeProps } from '../map/layers/externalNodesLayer';
 import {
   buildPacketNetworkContext,
   createPacketNetworkState,
@@ -190,6 +192,14 @@ export function MapView({
   const [nodeScale, setNodeScale] = useState(getSavedNodeScale);
   const [roleColors, setRoleColors] = useState<NodeRoleColors>(getSavedNodeRoleColors);
   const [linksOn, setLinksOn] = useState(false);
+  const [showExternalNodes, setShowExternalNodes] = useState(false);
+  const [externalNodes, setExternalNodes] = useState<ExternalMapNode[]>([]);
+  const [viewBounds, setViewBounds] = useState<{
+    west: number;
+    south: number;
+    east: number;
+    north: number;
+  } | null>(null);
 
   const particleIdRef = useRef(0);
   const seenObservationsRef = useRef(new Set<string>());
@@ -202,6 +212,12 @@ export function MapView({
   const linkStateRef = useRef(createPacketNetworkState(config?.name || 'Me'));
   const linkProcessedRef = useRef(new Set<string>());
   const popupRef = useRef<MlPopup | null>(null);
+  const externalRef = useRef<ReturnType<typeof createExternalNodesLayer> | null>(null);
+  const externalPopupRef = useRef<MlPopup | null>(null);
+  // Latest visible external nodes, so a basemap restyle can re-feed the layer.
+  const visibleExternalRef = useRef<ExternalMapNode[]>([]);
+  // Latest "external overlay on" flag for the map's moveend listener (bound once).
+  const showExternalRef = useRef(false);
   const focusMarkerRef = useRef<MlMarker | null>(null);
 
   const { prefixIndex, nameIndex } = useMemo(() => {
@@ -219,6 +235,64 @@ export function MapView({
     }
     return { prefixIndex: prefix, nameIndex: name };
   }, [contacts]);
+
+  // External analyzer node overlay: track the viewport, fetch nodes for it, and
+  // hide any node we already track locally (or our own radio) so the overlay
+  // only adds nodes the mesh has not surfaced to us.
+  const onViewBounds = useCallback(
+    (bounds: { getWest(): number; getSouth(): number; getEast(): number; getNorth(): number }) => {
+      const next = {
+        west: bounds.getWest(),
+        south: bounds.getSouth(),
+        east: bounds.getEast(),
+        north: bounds.getNorth(),
+      };
+      // Keep the previous reference when the box has not moved so React bails out
+      // of the re-render (and we skip a redundant viewport fetch).
+      setViewBounds((prev) =>
+        prev &&
+        prev.west === next.west &&
+        prev.south === next.south &&
+        prev.east === next.east &&
+        prev.north === next.north
+          ? prev
+          : next
+      );
+    },
+    []
+  );
+
+  const localPubkeys = useMemo(() => {
+    const set = new Set(contacts.map((c) => c.public_key.toLowerCase()));
+    if (config?.public_key) set.add(config.public_key.toLowerCase());
+    return set;
+  }, [contacts, config?.public_key]);
+
+  useEffect(() => {
+    if (!showExternalNodes) {
+      setExternalNodes([]);
+      return;
+    }
+    if (!viewBounds) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      api
+        .getExternalMapNodes(viewBounds, controller.signal)
+        .then(setExternalNodes)
+        .catch((err) => {
+          if (!isAbortError(err)) console.error('External node fetch failed', err);
+        });
+    }, 300);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [showExternalNodes, viewBounds]);
+
+  const visibleExternalNodes = useMemo(
+    () => externalNodes.filter((n) => !localPubkeys.has(n.pubkey.toLowerCase())),
+    [externalNodes, localPubkeys]
+  );
 
   const myLatLon = useMemo<[number, number] | null>(() => {
     if (!config || !isValidLocation(config.lat, config.lon)) return null;
@@ -535,6 +609,38 @@ export function MapView({
     [contactByKey, buildContactPopup]
   );
 
+  const openExternalPopup = useCallback(
+    (props: ExternalNodeProps) => {
+      const map = mapRef.current;
+      if (!map) return;
+      const el = document.createElement('div');
+      el.className = 'text-sm';
+      const name = document.createElement('div');
+      name.className = 'font-medium';
+      name.textContent = props.name;
+      const source = document.createElement('div');
+      source.className = 'text-xs text-muted-foreground mt-1';
+      source.textContent = t('map_external_node_source', {
+        role: props.role || t('map_external_node'),
+      });
+      const heard = document.createElement('div');
+      heard.className = 'text-xs text-muted-foreground';
+      heard.textContent = t('map_last_heard', {
+        label: props.last_seen != null ? formatTime(props.last_seen) : t('map_never_heard'),
+      });
+      const coords = document.createElement('div');
+      coords.className = 'text-xs text-muted-foreground/80 mt-1 font-mono';
+      coords.textContent = `${props.lat.toFixed(5)}, ${props.lon.toFixed(5)}`;
+      el.append(name, source, heard, coords);
+      externalPopupRef.current?.remove();
+      externalPopupRef.current = new MlPopup({ closeButton: true, offset: 10 })
+        .setLngLat([props.lon, props.lat])
+        .setDOMContent(el)
+        .addTo(map);
+    },
+    [t]
+  );
+
   // Initial camera fit / geolocate / focus (port of MapBoundsHandler).
   const fitInitialView = useCallback(
     (map: MlMap) => {
@@ -596,6 +702,11 @@ export function MapView({
   const handleReady = useCallback(
     (map: MlMap) => {
       mapRef.current = map;
+      // Analyzer/external overlay under the local nodes so local contacts win.
+      const external = createExternalNodesLayer(map, { onClick: openExternalPopup });
+      external.ensure();
+      external.setData(visibleExternalRef.current);
+      externalRef.current = external;
       const nodes = createNodesLayer(map, {
         onClick: openContactPopup,
         roleColors: roleColorsRef.current,
@@ -604,6 +715,11 @@ export function MapView({
       nodes.setNodeScale(nodeScale);
       nodes.setData(mappableContacts, nowSec);
       nodesRef.current = nodes;
+      // Report the viewport so the external overlay can fetch just what's shown.
+      onViewBounds(map.getBounds());
+      map.on('moveend', () => {
+        if (showExternalRef.current) onViewBounds(map.getBounds());
+      });
       const overlay = createParticleOverlay(map);
       overlayRef.current = overlay;
       if (showPackets) overlay.start();
@@ -642,6 +758,8 @@ export function MapView({
     // A basemap setStyle drops custom sources/layers; re-add and re-feed links.
     linksLayerRef.current?.reattach();
     refreshLinks();
+    externalRef.current?.reattach();
+    externalRef.current?.setData(visibleExternalRef.current);
   }, [mappableContacts, nowSec, nodeScale, refreshLinks]);
 
   // Keep node data in sync.
@@ -652,6 +770,16 @@ export function MapView({
   useEffect(() => {
     nodesRef.current?.setNodeScale(nodeScale);
   }, [nodeScale]);
+
+  // Keep the external overlay layer + refs in sync with fetched/visible nodes.
+  useEffect(() => {
+    showExternalRef.current = showExternalNodes;
+  }, [showExternalNodes]);
+
+  useEffect(() => {
+    visibleExternalRef.current = visibleExternalNodes;
+    externalRef.current?.setData(visibleExternalNodes);
+  }, [visibleExternalNodes]);
 
   // Packet replay: the reprojected canvas overlay in 2D, deck.gl arc traces in
   // 3D. The 2D/3D toggle swaps which one draws the same resolved hop paths.
@@ -686,6 +814,7 @@ export function MapView({
       overlayRef.current?.destroy();
       deckRef.current?.destroy();
       popupRef.current?.remove();
+      externalPopupRef.current?.remove();
       focusMarkerRef.current?.remove();
     };
   }, []);
@@ -803,8 +932,23 @@ export function MapView({
         icon: <Zap size={20} aria-hidden />,
         panel: packetsPanel,
       },
+      {
+        id: 'external',
+        label: t('map_external_nodes_label'),
+        icon: <Globe size={20} aria-hidden />,
+        panel: (
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={showExternalNodes}
+              onChange={(e) => setShowExternalNodes(e.target.checked)}
+            />
+            {t('map_external_nodes_label')}
+          </label>
+        ),
+      },
     ];
-  }, [t, sinceId, customSince, showPackets, discoveryMode]);
+  }, [t, sinceId, customSince, showPackets, discoveryMode, showExternalNodes]);
 
   const theme: 'light' | 'dark' = dark ? 'dark' : 'light';
 

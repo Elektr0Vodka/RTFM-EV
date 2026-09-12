@@ -1136,6 +1136,11 @@ export default function ChannelRegistryView({
         </span>
       </h2>
 
+      {/* ── Explainer ────────────────────────────────────────────────────────── */}
+      <p className="px-4 pt-2.5 text-[0.8125rem] text-muted-foreground shrink-0">
+        {t('channel_registry_explainer')}
+      </p>
+
       {/* ── Hidden file input ─────────────────────────────────────────────────── */}
       <input
         ref={fileInputRef}

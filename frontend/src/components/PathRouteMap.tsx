@@ -7,7 +7,13 @@ import { useT } from '../i18n';
 import { MiniMap } from '../map/MiniMap';
 
 interface PathRouteMapProps {
-  resolved: ResolvedPath;
+  /** Single resolved route (legacy callers). Ignored when `routes` is given. */
+  resolved?: ResolvedPath;
+  /**
+   * Multiple resolved routes to overlay on one map. When more than one is
+   * present each route draws its own coloured line and a legend is shown.
+   */
+  routes?: ResolvedPath[];
   senderInfo: SenderInfo;
   /** Fixed map height in px. Ignored when `fill` is set. */
   height?: number;
@@ -26,11 +32,26 @@ const HOP_COLORS = [
   '#a855f7', // Hop 7: purple
   '#64748b', // Hop 8: slate
 ];
+// Distinct line colours per overlaid route (indexed by route number - 1).
+const ROUTE_LINE_COLORS = [
+  '#3b82f6', // blue
+  '#f97316', // orange
+  '#22c55e', // green
+  '#ec4899', // pink
+  '#a855f7', // purple
+  '#14b8a6', // teal
+  '#eab308', // yellow
+  '#ef4444', // red
+];
 const SENDER_COLOR = '#3b82f6'; // blue
 const RECEIVER_COLOR = '#8b5cf6'; // violet
 
 function getHopColor(hopIndex: number): string {
   return HOP_COLORS[hopIndex % HOP_COLORS.length];
+}
+
+function getRouteColor(routeIndex: number): string {
+  return ROUTE_LINE_COLORS[routeIndex % ROUTE_LINE_COLORS.length];
 }
 
 function markerEl(label: string, color: string, title: string): HTMLElement {
@@ -89,67 +110,99 @@ const EMPTY_FC = { type: 'FeatureCollection' as const, features: [] };
 
 export function PathRouteMap({
   resolved,
+  routes,
   senderInfo,
   height = 220,
   fill = false,
 }: PathRouteMapProps) {
   const t = useT();
   const dark = useIsDarkTheme();
-  const lineColor = dark ? '#e2e8f0' : '#1e293b';
+  const singleLineColor = dark ? '#e2e8f0' : '#1e293b';
   const mapRef = useRef<MlMap | null>(null);
   const markersRef = useRef<MlMarker[]>([]);
 
-  const points = useMemo(() => collectPoints(resolved), [resolved]);
-  const routeLine = useMemo(() => collectRouteLine(resolved), [resolved]);
+  const routeList = useMemo<ResolvedPath[]>(
+    () => (routes && routes.length > 0 ? routes : resolved ? [resolved] : []),
+    [routes, resolved]
+  );
+  const isMulti = routeList.length > 1;
+  const shared = routeList[0];
+
+  // Union of all located points across every route, for bounds fitting.
+  const points = useMemo(() => {
+    const pts: [number, number][] = [];
+    for (const r of routeList) pts.push(...collectPoints(r));
+    return pts;
+  }, [routeList]);
   const hasAnyGps = points.length > 0;
 
+  // One coloured LineString feature per route (colour by route when overlaying,
+  // else the neutral single-route colour).
+  const routeFeatures = useMemo(() => {
+    const features = routeList
+      .map((r, ri) => ({ line: collectRouteLine(r), ri }))
+      .filter(({ line }) => line.length >= 2)
+      .map(({ line, ri }) => ({
+        type: 'Feature' as const,
+        properties: { color: isMulti ? getRouteColor(ri) : singleLineColor },
+        geometry: { type: 'LineString' as const, coordinates: line },
+      }));
+    return { type: 'FeatureCollection' as const, features };
+  }, [routeList, isMulti, singleLineColor]);
+
   const markerSpecs = useMemo<MarkerSpec[]>(() => {
+    if (!shared) return [];
     const specs: MarkerSpec[] = [];
-    if (isValidLocation(resolved.sender.lat, resolved.sender.lon)) {
+    if (isValidLocation(shared.sender.lat, shared.sender.lon)) {
       specs.push({
-        lngLat: [resolved.sender.lon!, resolved.sender.lat!],
+        lngLat: [shared.sender.lon!, shared.sender.lat!],
         label: 'S',
         color: SENDER_COLOR,
-        title: `${resolved.sender.prefix} · ${senderInfo.name || t('path_modal_sender_label')}`,
+        title: `${shared.sender.prefix} · ${senderInfo.name || t('path_modal_sender_label')}`,
       });
     }
-    resolved.hops.forEach((hop, hopIdx) => {
-      for (const m of hop.matches) {
-        if (!isValidLocation(m.lat, m.lon)) continue;
-        specs.push({
-          lngLat: [m.lon!, m.lat!],
-          label: String(hopIdx + 1),
-          color: getHopColor(hopIdx),
-          title: `${hop.prefix} · ${m.name || m.public_key.slice(0, 12)}`,
-        });
-      }
+    routeList.forEach((r, ri) => {
+      r.hops.forEach((hop, hopIdx) => {
+        for (const m of hop.matches) {
+          if (!isValidLocation(m.lat, m.lon)) continue;
+          const who = `${hop.prefix} · ${m.name || m.public_key.slice(0, 12)}`;
+          specs.push({
+            lngLat: [m.lon!, m.lat!],
+            label: String(hopIdx + 1),
+            color: isMulti ? getRouteColor(ri) : getHopColor(hopIdx),
+            title: isMulti ? `${t('path_modal_path_number', { n: ri + 1 })} · ${who}` : who,
+          });
+        }
+      });
     });
-    if (isValidLocation(resolved.receiver.lat, resolved.receiver.lon)) {
+    if (isValidLocation(shared.receiver.lat, shared.receiver.lon)) {
       specs.push({
-        lngLat: [resolved.receiver.lon!, resolved.receiver.lat!],
+        lngLat: [shared.receiver.lon!, shared.receiver.lat!],
         label: 'R',
         color: RECEIVER_COLOR,
-        title: `${resolved.receiver.prefix} · ${resolved.receiver.name || t('path_map_receiver_fallback')}`,
+        title: `${shared.receiver.prefix} · ${shared.receiver.name || t('path_map_receiver_fallback')}`,
       });
     }
     return specs;
-  }, [resolved, senderInfo, t]);
+  }, [routeList, shared, isMulti, senderInfo, t]);
 
   const someMissingGps = useMemo(() => {
-    if (!hasAnyGps) return false;
-    let totalNodes = 2;
+    if (!hasAnyGps || !shared) return false;
+    let totalNodes = 2; // sender + receiver (shared across routes)
     let nodesWithGps = 0;
-    if (isValidLocation(resolved.sender.lat, resolved.sender.lon)) nodesWithGps++;
-    if (isValidLocation(resolved.receiver.lat, resolved.receiver.lon)) nodesWithGps++;
-    for (const hop of resolved.hops) {
-      if (hop.matches.length === 0) totalNodes++;
-      else {
-        totalNodes += hop.matches.length;
-        nodesWithGps += hop.matches.filter((m) => isValidLocation(m.lat, m.lon)).length;
+    if (isValidLocation(shared.sender.lat, shared.sender.lon)) nodesWithGps++;
+    if (isValidLocation(shared.receiver.lat, shared.receiver.lon)) nodesWithGps++;
+    for (const r of routeList) {
+      for (const hop of r.hops) {
+        if (hop.matches.length === 0) totalNodes++;
+        else {
+          totalNodes += hop.matches.length;
+          nodesWithGps += hop.matches.filter((m) => isValidLocation(m.lat, m.lon)).length;
+        }
       }
     }
     return nodesWithGps < totalNodes;
-  }, [resolved, hasAnyGps]);
+  }, [routeList, shared, hasAnyGps]);
 
   const drawRoute = useCallback(
     (map: MlMap) => {
@@ -162,19 +215,10 @@ export function PathRouteMap({
           type: 'line',
           source: 'pr-line',
           layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': lineColor, 'line-width': 3, 'line-opacity': 0.85 },
+          paint: { 'line-color': ['get', 'color'], 'line-width': 3, 'line-opacity': 0.85 },
         });
       }
-      m.setPaintProperty('pr-line', 'line-color', lineColor);
-      m.getSource('pr-line')?.setData(
-        routeLine.length >= 2
-          ? {
-              type: 'Feature',
-              properties: {},
-              geometry: { type: 'LineString', coordinates: routeLine },
-            }
-          : EMPTY_FC
-      );
+      m.getSource('pr-line')?.setData(routeFeatures.features.length ? routeFeatures : EMPTY_FC);
       markersRef.current.forEach((mk) => mk.remove());
       markersRef.current = markerSpecs.map((s) =>
         new MlMarker({ element: markerEl(s.label, s.color, s.title) })
@@ -182,7 +226,7 @@ export function PathRouteMap({
           .addTo(map)
       );
     },
-    [routeLine, lineColor, markerSpecs]
+    [routeFeatures, markerSpecs]
   );
 
   const handleReady = useCallback(
@@ -204,7 +248,7 @@ export function PathRouteMap({
     []
   );
 
-  if (!hasAnyGps) {
+  if (!hasAnyGps || !shared) {
     return (
       <div className="flex h-14 items-center justify-center rounded border border-border bg-muted/30 text-sm text-muted-foreground">
         {t('path_map_no_gps')}
@@ -234,6 +278,22 @@ export function PathRouteMap({
           }}
         />
       </div>
+      {isMulti && (
+        <div className="mt-1 flex shrink-0 flex-wrap gap-x-3 gap-y-1" aria-hidden="true">
+          {routeList.map((r, ri) => (
+            <span
+              key={`legend-${ri}`}
+              className="flex items-center gap-1 text-xs text-muted-foreground"
+            >
+              <span
+                className="inline-block h-2 w-3 rounded-sm"
+                style={{ backgroundColor: getRouteColor(ri) }}
+              />
+              {t('path_map_route_legend', { n: ri + 1, hops: r.hops.length })}
+            </span>
+          ))}
+        </div>
+      )}
       {someMissingGps && (
         <p className="mt-1 shrink-0 text-xs text-muted-foreground">
           {t('path_map_missing_gps_note')}

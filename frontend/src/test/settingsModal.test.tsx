@@ -82,6 +82,9 @@ const baseSettings: AppSettings = {
   region_sync_url: '',
   wordlist_sync_url: '',
   analyzer_sites: [],
+  external_map_enabled: false,
+  external_map_sync_url: '',
+  external_map_sync_interval_hours: 0,
 };
 
 function renderModal(overrides?: {

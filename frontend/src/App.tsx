@@ -26,6 +26,7 @@ import type { MessageInputHandle } from './components/MessageInput';
 import { DistanceUnitProvider } from './contexts/DistanceUnitContext';
 import { PathHopWidthProvider } from './contexts/PathHopWidthContext';
 import { RichPayloadProvider } from './contexts/RichPayloadContext';
+import { LocationPreviewProvider } from './contexts/LocationPreviewContext';
 import { usePush } from './contexts/PushSubscriptionContext';
 import { messageContainsMention } from './utils/messageParser';
 import { buildMentionEvent, type MentionEvent } from './components/MentionTicker';
@@ -33,6 +34,7 @@ import { getStateKey } from './utils/conversationState';
 import type { BulkCreateHashtagChannelsResult, Channel, Conversation, Message } from './types';
 import { CONTACT_TYPE_REPEATER, CONTACT_TYPE_ROOM } from './types';
 import { shouldAutoFocusInput } from './utils/autoFocusInput';
+import { computeRegionSeed } from './lib/regionSeed';
 
 interface ChannelUnreadMarker {
   channelId: string;
@@ -107,6 +109,7 @@ export function App() {
     distanceUnit,
     renderRichPayloads,
     showPathHopWidth,
+    showLocationPreview,
     setSettingsSection,
     setSidebarOpen,
     setCrackerRunning,
@@ -114,6 +117,7 @@ export function App() {
     setDistanceUnit,
     setRenderRichPayloads,
     setShowPathHopWidth,
+    setShowLocationPreview,
     handleCloseSettingsView,
     handleToggleSettingsView,
     handleOpenNewMessage: openNewMessageModal,
@@ -176,6 +180,20 @@ export function App() {
     handleToggleTrackedTelemetry,
     handleToggleTrackedTelemetryContact,
   } = useAppSettings();
+
+  // Seed known_regions from a repeater's reported region codes. Merges into the
+  // existing list (deduped, wildcard dropped) and persists so the region pill and
+  // scoped-flood decode pick up the new regions. Returns the count added.
+  const handleSeedKnownRegions = useCallback(
+    async (codes: string[]): Promise<number> => {
+      const { merged, added } = computeRegionSeed(appSettings?.known_regions ?? [], codes);
+      if (added.length > 0) {
+        await handleSaveAppSettings({ known_regions: merged });
+      }
+      return added.length;
+    },
+    [appSettings?.known_regions, handleSaveAppSettings]
+  );
 
   // Keep user's name in ref for mention detection in WebSocket callback
   const myNameRef = useRef<string | null>(null);
@@ -711,6 +729,7 @@ export function App() {
     },
     trackedTelemetryRepeaters: appSettings?.tracked_telemetry_repeaters ?? [],
     onToggleTrackedTelemetry: handleToggleTrackedTelemetry,
+    onSeedKnownRegions: handleSeedKnownRegions,
     repeaterAutoLoginKey,
     onClearRepeaterAutoLogin: () => setRepeaterAutoLoginKey(null),
     blockedKeys: appSettings?.blocked_keys,
@@ -849,55 +868,60 @@ export function App() {
           showPathHopWidth={showPathHopWidth}
           setShowPathHopWidth={setShowPathHopWidth}
         >
-          <AppShell
-            localLabel={localLabel}
-            showNewMessage={showNewMessage}
-            showBulkAddResults={bulkAddResult !== null}
-            showSettings={showSettings}
-            settingsSection={settingsSection}
-            sidebarOpen={sidebarOpen}
-            showCracker={showCracker}
-            onSettingsSectionChange={setSettingsSection}
-            onSidebarOpenChange={setSidebarOpen}
-            onCrackerRunningChange={setCrackerRunning}
-            onToggleSettingsView={handleToggleSettingsView}
-            onCloseSettingsView={handleCloseSettingsView}
-            onCloseNewMessage={handleCloseNewMessage}
-            onCloseBulkAddResults={handleCloseBulkAddResults}
-            onLocalLabelChange={setLocalLabel}
-            statusProps={statusProps}
-            sidebarProps={sidebarProps}
-            conversationPaneProps={conversationPaneProps}
-            searchProps={searchProps}
-            settingsProps={settingsProps}
-            crackerProps={crackerProps}
-            newMessageModalProps={newMessageModalProps}
-            bulkAddChannelResultModalProps={bulkAddChannelResultModalProps}
-            contactInfoPaneProps={contactInfoPaneProps}
-            channelInfoPaneProps={channelInfoPaneProps}
-            showMentionTicker={appSettings?.show_mention_ticker ?? true}
-            mentionTickerEvents={pendingMentions}
-            onNavigateMentionToMessage={(channelKey, messageId) => {
-              const ch = channelsRef.current.find((c) => c.key === channelKey);
-              handleNavigateToMessage({
-                id: messageId,
-                type: 'CHAN',
-                conversation_key: channelKey,
-                conversation_name: ch ? `#${ch.name}` : channelKey,
-              });
-            }}
-            onDismissMention={handleDismissMention}
-            onRepeaterAutoLogin={handleRepeaterAutoLogin}
-          />
-          <ChannelImportExportModal
-            open={showChannelImportExport}
-            onClose={() => setShowChannelImportExport(false)}
-            channels={channels}
-            crackerFoundChannels={[]}
-            onChannelsImported={() => {
-              api.getChannels().then(setChannels).catch(console.error);
-            }}
-          />
+          <LocationPreviewProvider
+            showLocationPreview={showLocationPreview}
+            setShowLocationPreview={setShowLocationPreview}
+          >
+            <AppShell
+              localLabel={localLabel}
+              showNewMessage={showNewMessage}
+              showBulkAddResults={bulkAddResult !== null}
+              showSettings={showSettings}
+              settingsSection={settingsSection}
+              sidebarOpen={sidebarOpen}
+              showCracker={showCracker}
+              onSettingsSectionChange={setSettingsSection}
+              onSidebarOpenChange={setSidebarOpen}
+              onCrackerRunningChange={setCrackerRunning}
+              onToggleSettingsView={handleToggleSettingsView}
+              onCloseSettingsView={handleCloseSettingsView}
+              onCloseNewMessage={handleCloseNewMessage}
+              onCloseBulkAddResults={handleCloseBulkAddResults}
+              onLocalLabelChange={setLocalLabel}
+              statusProps={statusProps}
+              sidebarProps={sidebarProps}
+              conversationPaneProps={conversationPaneProps}
+              searchProps={searchProps}
+              settingsProps={settingsProps}
+              crackerProps={crackerProps}
+              newMessageModalProps={newMessageModalProps}
+              bulkAddChannelResultModalProps={bulkAddChannelResultModalProps}
+              contactInfoPaneProps={contactInfoPaneProps}
+              channelInfoPaneProps={channelInfoPaneProps}
+              showMentionTicker={appSettings?.show_mention_ticker ?? true}
+              mentionTickerEvents={pendingMentions}
+              onNavigateMentionToMessage={(channelKey, messageId) => {
+                const ch = channelsRef.current.find((c) => c.key === channelKey);
+                handleNavigateToMessage({
+                  id: messageId,
+                  type: 'CHAN',
+                  conversation_key: channelKey,
+                  conversation_name: ch ? `#${ch.name}` : channelKey,
+                });
+              }}
+              onDismissMention={handleDismissMention}
+              onRepeaterAutoLogin={handleRepeaterAutoLogin}
+            />
+            <ChannelImportExportModal
+              open={showChannelImportExport}
+              onClose={() => setShowChannelImportExport(false)}
+              channels={channels}
+              crackerFoundChannels={[]}
+              onChannelsImported={() => {
+                api.getChannels().then(setChannels).catch(console.error);
+              }}
+            />
+          </LocationPreviewProvider>
         </PathHopWidthProvider>
       </RichPayloadProvider>
     </DistanceUnitProvider>

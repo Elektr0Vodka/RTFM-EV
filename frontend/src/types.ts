@@ -471,6 +471,28 @@ export interface AppSettings {
   region_sync_url: string;
   wordlist_sync_url: string;
   analyzer_sites: AnalyzerSite[];
+  external_map_enabled: boolean;
+  external_map_sync_url: string;
+  external_map_sync_interval_hours: number;
+}
+
+/** A located node synced from an external map/analyzer directory. */
+export interface ExternalMapNode {
+  pubkey: string;
+  name: string;
+  role: string;
+  lat: number;
+  lon: number;
+  last_seen: number | null;
+  advert_count: number;
+  mobile: boolean;
+}
+
+export interface ExternalMapStatus {
+  enabled: boolean;
+  count: number;
+  last_synced_at: number | null;
+  interval_hours: number;
 }
 
 export interface AppSettingsUpdate {
@@ -490,6 +512,9 @@ export interface AppSettingsUpdate {
   region_sync_url?: string;
   wordlist_sync_url?: string;
   analyzer_sites?: AnalyzerSite[];
+  external_map_enabled?: boolean;
+  external_map_sync_url?: string;
+  external_map_sync_interval_hours?: number;
 }
 
 export interface TelemetrySchedule {

@@ -8,6 +8,7 @@ interface AnalyzerPreset {
   name: string;
   site: string;
   template: string;
+  packetTemplate?: string;
 }
 
 // Node URL schemes verified against docs/sources-of-truth.md and the
@@ -37,6 +38,12 @@ const ANALYZERS: AnalyzerPreset[] = [
     name: 'MeshDresden',
     site: 'https://analyzer.meshdresden.eu',
     template: 'https://analyzer.meshdresden.eu/#node?id={pubkey}',
+  },
+  {
+    name: 'on8ar',
+    site: 'https://analyzer.on8ar.eu',
+    template: 'https://analyzer.on8ar.eu/#/nodes/{pubkey}',
+    packetTemplate: 'https://analyzer.on8ar.eu/#/packets/{hash}',
   },
 ];
 
@@ -107,7 +114,11 @@ export function SettingsHandyInfoSection({
     }
     const next = [
       ...(appSettings?.analyzer_sites ?? []),
-      { name: preset.name, node_url_template: preset.template, packet_url_template: null },
+      {
+        name: preset.name,
+        node_url_template: preset.template,
+        packet_url_template: preset.packetTemplate ?? null,
+      },
     ];
     void onSaveAppSettings({ analyzer_sites: next })
       .then(() => toast.success(t('settings_handy_toast_analyzer_added', { name: preset.name })))

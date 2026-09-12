@@ -10,6 +10,7 @@ import {
   getSavedBasemapId,
   saveBasemapId,
   rasterStyle,
+  rasterFallbackFor,
   applyBasemap,
   markBasemapApplied,
   type BasemapEntry,
@@ -45,12 +46,16 @@ export interface MapSurfaceProps {
 }
 
 /** Synchronous initial style for map creation. A vector-recolor basemap cannot
- *  be built synchronously (it fetches then recolours), so it mounts on plain
- *  OpenFreeMap dark and is upgraded via applyBasemap once the map has loaded. */
+ *  be built synchronously (it fetches then recolours), so it mounts on the
+ *  tone-matched keyless raster (which paints instantly and reliably) and is
+ *  upgraded via applyBasemap once the map has loaded. Mounting on the raster
+ *  instead of a second OpenFreeMap style avoids the double vector fetch that
+ *  could race and leave the basemap blank under OpenFreeMap rate-limiting, and
+ *  guarantees a visible map even if the vector upgrade never completes. */
 function initialStyleFor(entry: BasemapEntry): string | StyleSpecification {
   if (entry.kind === 'raster') return rasterStyle(entry);
   if (entry.kind === 'vector') return String(entry.styleUrl);
-  return String(getBasemap('ofm-dark').styleUrl);
+  return rasterStyle(rasterFallbackFor(entry));
 }
 
 export function MapSurface(props: MapSurfaceProps) {
@@ -85,7 +90,7 @@ export function MapSurface(props: MapSurfaceProps) {
       attributionControl: { compact: true },
     });
     mapRef.current = map;
-    if (entry.kind === 'vector-recolor') markBasemapApplied(map, getBasemap('ofm-dark'));
+    if (entry.kind === 'vector-recolor') markBasemapApplied(map, rasterFallbackFor(entry));
     else markBasemapApplied(map, entry);
 
     map.on('load', () => {
