@@ -305,7 +305,7 @@ export function AppShell({
                 'hidden'
             )}
           >
-            <ConversationPane {...conversationPaneProps} />
+            <ConversationPane {...conversationPaneProps} sidebarOpen={sidebarOpen} />
           </div>
 
           {searchMounted.current && (

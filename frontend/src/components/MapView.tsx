@@ -58,6 +58,7 @@ interface MapViewProps {
   onSelectContact?: (contact: Contact) => void;
   focusedLatLon?: [number, number];
   focusedLabel?: string;
+  sidebarOpen?: boolean;
 }
 
 // --- "Heard since" filter ---
@@ -196,6 +197,7 @@ export function MapView({
   onSelectContact,
   focusedLatLon,
   focusedLabel,
+  sidebarOpen,
 }: MapViewProps) {
   const t = useT();
   const dark = useIsDarkTheme();
@@ -1102,6 +1104,7 @@ export function MapView({
         onLinkMode={setLinkMode}
         linkConfidence={linkConfidence}
         onLinkConfidence={setLinkConfidence}
+        sidebarOpen={sidebarOpen}
         onSearch={handleSearch}
         extraFabs={extraFabs}
       />

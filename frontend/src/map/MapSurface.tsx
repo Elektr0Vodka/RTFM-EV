@@ -44,6 +44,7 @@ export interface MapSurfaceProps {
   onLinkMode?: (mode: 'liveness' | 'advert') => void;
   linkConfidence?: 1 | 2 | 3;
   onLinkConfidence?: (level: 1 | 2 | 3) => void;
+  sidebarOpen?: boolean;
   onSearch?: (query: string) => void;
   legendContent?: ReactNode;
   extraFabs?: ExtraFab[];
@@ -181,6 +182,7 @@ export function MapSurface(props: MapSurfaceProps) {
         onLinkMode={props.onLinkMode}
         linkConfidence={props.linkConfidence}
         onLinkConfidence={props.onLinkConfidence}
+        sidebarOpen={props.sidebarOpen}
         onSearch={props.onSearch}
         legendContent={props.legendContent}
         extraFabs={props.extraFabs}
