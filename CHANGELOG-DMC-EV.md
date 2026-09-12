@@ -47,7 +47,7 @@ the change. Upstream development is on hold; the fork is the active repository.
 ## Update 2026-09-12 (map / audio / fanout, PRs #75-#91)
 
 Work that landed on `origin/main` after PR #74, up to PR #91 (`b180cc7`),
-grouped by area. PRs #83-#86 did not merge. The three "(PR #100)" items in the
+grouped by area. PRs #83-#86 did not merge. The three "(pending)" items in the
 section below merged as PR #91 and now carry that commit ref.
 
 ### Map
