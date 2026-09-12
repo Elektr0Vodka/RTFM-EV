@@ -1365,6 +1365,7 @@
   "repeater_neighbors_map_unavailable": "Map and distance data are unavailable until this repeater has a valid position from either its advert or a Node Info fetch.",
   "repeater_neighbors_no_position": "No repeater position available",
   "repeater_neighbors_none_reported": "No neighbors reported",
+  "repeater_neighbors_from_stored": "Live query returned none; showing last-known neighbors from stored history.",
   "repeater_neighbors_trend_header": "Trend",
   "neighbor_signal_history_title": "Signal history: {name}",
   "neighbor_signal_series_repeater": "Repeater → neighbor",
