@@ -30,6 +30,15 @@
 - Do not introduce new dependencies without justification.
 - Explain any risks, limitations, or side effects.
 
+## Documentation
+
+- When a change adds, removes, or alters user-facing behavior, features, config, commands, or setup, update the docs that describe it as part of the same change.
+- `CHANGELOG-DMC-EV.md` is the fork changelog. Add an entry for the change, following the existing format (grouped by area, referencing the PR or commit).
+- `CHANGELOG.md` is the upstream changelog, managed by the release scripts (`publish.sh`, `extract_release_notes.sh`). Leave it alone; never edit it by hand.
+- `README.md`, `README_ADVANCED.md`, `README_HA.md`: keep feature lists, setup, and usage accurate for what shipped.
+- `AGENTS.md` files and `docs/` (including `docs/sources-of-truth.md`): update when architecture, workflows, conventions, or sources of truth change.
+- Stage doc updates alongside the code. Do not commit unless explicitly instructed (see Git Rules).
+
 ## Never claim it works without proof
 
 Before writing "fixed", "works", "done", or "deployed":
