@@ -203,6 +203,17 @@ export function getBasemap(id: string | null | undefined): BasemapEntry {
   return BASEMAPS.find((b) => b.id === id) ?? BASEMAPS.find((b) => b.id === DEFAULT_BASEMAP_ID)!;
 }
 
+// Keyless raster ids used as the reliable fallback when a vector style fails to
+// load (OpenFreeMap rate-limiting / blank basemap). Tone-matched so a dark
+// vector falls back to a dark raster and vice versa.
+export const RASTER_FALLBACK_DARK_ID = 'darkgray';
+export const RASTER_FALLBACK_LIGHT_ID = 'lightgray';
+
+/** The keyless raster basemap to fall back to for a given (usually vector) entry. */
+export function rasterFallbackFor(entry: BasemapEntry): BasemapEntry {
+  return getBasemap(entry.tone === 'light' ? RASTER_FALLBACK_LIGHT_ID : RASTER_FALLBACK_DARK_ID);
+}
+
 export function getSavedBasemapId(): string {
   try {
     const stored = localStorage.getItem(BASEMAP_STORAGE_KEY);
@@ -234,8 +245,45 @@ export interface ApplyBasemapCtx {
   onBuildings?: (map: MlMap, on: boolean, theme: 'light' | 'dark') => void;
 }
 
+// How long a vector style has to reach a rendered/idle state before we assume it
+// failed (blank basemap under OpenFreeMap slowness) and fall back to a keyless
+// raster. Chosen to comfortably clear a normal load (a few seconds) while still
+// recovering a hung style promptly.
+export const VECTOR_LOAD_TIMEOUT_MS = 8000;
+
 const _activeBasemap = new WeakMap<object, string>();
 const _recolorCache = new Map<string, Promise<StyleSpecification>>();
+
+// After switching to a vector style, watch for it to reach `idle` (rendered). If
+// it does not within VECTOR_LOAD_TIMEOUT_MS, fall back to the tone-matched
+// keyless raster so the map never stays blank. Skipped on stub maps without an
+// `off` method (unit tests) and when timers are unavailable.
+function armRasterWatchdog(map: MlMap, entry: BasemapEntry, ctx: ApplyBasemapCtx): void {
+  const m = map as unknown as {
+    off?: (ev: string, cb: () => void) => void;
+    once?: (ev: string, cb: () => void) => void;
+  };
+  if (typeof m.off !== 'function' || typeof m.once !== 'function') return;
+  if (typeof setTimeout !== 'function') return;
+  let settled = false;
+  const onIdle = () => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+  };
+  const timer = setTimeout(() => {
+    if (settled) return;
+    settled = true;
+    try {
+      m.off?.('idle', onIdle);
+    } catch {
+      /* ignore */
+    }
+    _activeBasemap.delete(map);
+    applyBasemap(map, rasterFallbackFor(entry), ctx);
+  }, VECTOR_LOAD_TIMEOUT_MS);
+  m.once('idle', onIdle);
+}
 
 function recoloredStyle(entry: BasemapEntry): Promise<StyleSpecification> {
   const key = entry.styleUrl + '#' + (entry.recolorId || 'recolor');
@@ -282,14 +330,18 @@ export function applyBasemap(map: MlMap, entry: BasemapEntry, ctx: ApplyBasemapC
       .then((style) => {
         map.setStyle(style);
         afterStyle();
+        armRasterWatchdog(map, entry, ctx);
       })
       .catch(() => {
+        // Vector style fetch failed (OpenFreeMap unreachable/rate-limited):
+        // fall back to a keyless raster rather than another vector source.
         _activeBasemap.delete(map);
-        applyBasemap(map, getBasemap('ofm-dark'), ctx);
+        applyBasemap(map, rasterFallbackFor(entry), ctx);
       });
     return;
   }
   const nextStyle = targetKind === 'vector' ? String(entry.styleUrl) : rasterStyle(entry);
   map.setStyle(nextStyle as string | StyleSpecification);
   afterStyle();
+  if (targetKind === 'vector') armRasterWatchdog(map, entry, ctx);
 }
