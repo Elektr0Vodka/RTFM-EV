@@ -50,6 +50,7 @@ interface RepeaterDashboardProps {
   onOpenContactInfo?: (publicKey: string) => void;
   trackedTelemetryRepeaters: string[];
   onToggleTrackedTelemetry: (publicKey: string) => Promise<void>;
+  onSeedKnownRegions?: (codes: string[]) => Promise<number>;
   autoLoginAndLoadAll?: boolean;
   onAutoLoginConsumed?: () => void;
 }
@@ -71,6 +72,7 @@ export function RepeaterDashboard({
   onOpenContactInfo,
   trackedTelemetryRepeaters,
   onToggleTrackedTelemetry,
+  onSeedKnownRegions,
   autoLoginAndLoadAll,
   onAutoLoginConsumed,
 }: RepeaterDashboardProps) {
@@ -387,6 +389,7 @@ export function RepeaterDashboard({
                   state={paneStates.regions}
                   onRefresh={() => refreshPane('regions')}
                   disabled={anyLoading}
+                  onSeedKnownRegions={onSeedKnownRegions}
                 />
               </div>
               <div className="flex flex-col gap-4">

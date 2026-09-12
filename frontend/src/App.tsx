@@ -34,6 +34,7 @@ import { getStateKey } from './utils/conversationState';
 import type { BulkCreateHashtagChannelsResult, Channel, Conversation, Message } from './types';
 import { CONTACT_TYPE_REPEATER, CONTACT_TYPE_ROOM } from './types';
 import { shouldAutoFocusInput } from './utils/autoFocusInput';
+import { computeRegionSeed } from './lib/regionSeed';
 
 interface ChannelUnreadMarker {
   channelId: string;
@@ -179,6 +180,20 @@ export function App() {
     handleToggleTrackedTelemetry,
     handleToggleTrackedTelemetryContact,
   } = useAppSettings();
+
+  // Seed known_regions from a repeater's reported region codes. Merges into the
+  // existing list (deduped, wildcard dropped) and persists so the region pill and
+  // scoped-flood decode pick up the new regions. Returns the count added.
+  const handleSeedKnownRegions = useCallback(
+    async (codes: string[]): Promise<number> => {
+      const { merged, added } = computeRegionSeed(appSettings?.known_regions ?? [], codes);
+      if (added.length > 0) {
+        await handleSaveAppSettings({ known_regions: merged });
+      }
+      return added.length;
+    },
+    [appSettings?.known_regions, handleSaveAppSettings]
+  );
 
   // Keep user's name in ref for mention detection in WebSocket callback
   const myNameRef = useRef<string | null>(null);
@@ -714,6 +729,7 @@ export function App() {
     },
     trackedTelemetryRepeaters: appSettings?.tracked_telemetry_repeaters ?? [],
     onToggleTrackedTelemetry: handleToggleTrackedTelemetry,
+    onSeedKnownRegions: handleSeedKnownRegions,
     repeaterAutoLoginKey,
     onClearRepeaterAutoLogin: () => setRepeaterAutoLoginKey(null),
     blockedKeys: appSettings?.blocked_keys,
