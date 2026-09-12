@@ -91,9 +91,7 @@ class TestUpdateSettings:
 
     @pytest.mark.asyncio
     async def test_empty_icon_clears(self, test_db):
-        await update_settings(
-            AppSettingsUpdate(brand_icon="data:image/png;base64,iVBORw0KGgo=")
-        )
+        await update_settings(AppSettingsUpdate(brand_icon="data:image/png;base64,iVBORw0KGgo="))
         result = await update_settings(AppSettingsUpdate(brand_icon=""))
         assert result.brand_icon == ""
 
