@@ -63,6 +63,7 @@ async def test_db():
         raw_packets,
         repeater_telemetry,
         settings,
+        wordlists,
     )
     from app.repository import fanout as fanout_repo
 
@@ -83,6 +84,7 @@ async def test_db():
         battery_history,
         link_signal,
         external_map,
+        wordlists,
     ]
     originals = [(mod, mod.db) for mod in submodules]
 

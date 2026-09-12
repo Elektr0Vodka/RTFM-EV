@@ -11,6 +11,7 @@ from app.repository.messages import MessageRepository
 from app.repository.raw_packets import RawPacketRepository
 from app.repository.repeater_telemetry import RepeaterTelemetryRepository
 from app.repository.settings import AppSettingsRepository, StatisticsRepository
+from app.repository.wordlists import WordlistRepository
 
 __all__ = [
     "AdvertEventRepository",
@@ -25,4 +26,5 @@ __all__ = [
     "RawPacketRepository",
     "RepeaterTelemetryRepository",
     "StatisticsRepository",
+    "WordlistRepository",
 ]
