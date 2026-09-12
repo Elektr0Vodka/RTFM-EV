@@ -22,6 +22,20 @@ from typing import Any
 RELEASE_BUILD_INFO_FILENAME = "build_info.json"
 PROJECT_NAME = "remoteterm-meshcore"
 
+# Fork build identity appended to the resolved upstream version for display,
+# e.g. "3.17.1" -> "3.17.1-EV.0.1". This is intentionally not a PEP 440 version,
+# so it cannot live in pyproject.toml's [project].version (uv must parse that,
+# and this project is a virtual/non-package uv project pinned in uv.lock). Bump
+# this string when cutting a new fork build.
+FORK_VERSION_SUFFIX = "-EV.0.1"
+
+
+def _apply_fork_suffix(version: str) -> str:
+    """Append the fork build suffix once, leaving an already-suffixed value as-is."""
+    if FORK_VERSION_SUFFIX and not version.endswith(FORK_VERSION_SUFFIX):
+        return f"{version}{FORK_VERSION_SUFFIX}"
+    return version
+
 
 @dataclass(frozen=True)
 class AppBuildInfo:
@@ -125,6 +139,8 @@ def get_app_build_info() -> AppBuildInfo:
     if version is None:
         version = "0.0.0"
         version_source = "fallback"
+
+    version = _apply_fork_suffix(version)
 
     commit_hash = _git_output(root, "rev-parse", "--short", "HEAD")
     commit_source: str | None = "git" if commit_hash else None
