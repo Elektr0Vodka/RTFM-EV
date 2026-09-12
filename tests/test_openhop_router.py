@@ -103,3 +103,85 @@ class TestOpenHopGate:
         assert result["data"]["reply"] == "v13"
         fake.cli.assert_awaited_once_with("ver")
         fake.aclose.assert_awaited_once()
+
+
+class TestOpenHopPolicyWrite:
+    @pytest.mark.asyncio
+    async def test_update_policy_409_when_unconfigured(self, test_db, monkeypatch):
+        _set_model(monkeypatch, OPENHOP_MODEL)
+        from app.routers.openhop import PolicyDoc, update_policy
+
+        with pytest.raises(HTTPException) as exc:
+            await update_policy(PolicyDoc(policy={"enabled": True}))
+        assert exc.value.status_code == 409
+
+    @pytest.mark.asyncio
+    async def test_update_and_validate_delegate_when_configured(self, test_db, monkeypatch):
+        _set_model(monkeypatch, OPENHOP_MODEL)
+        await AppSettingsRepository.update(
+            openhop_api_url="http://node:8000", openhop_api_token="tok"
+        )
+        from app.routers.openhop import PolicyDoc, update_policy, validate_policy
+
+        fake = AsyncMock()
+        fake.update_policy = AsyncMock(return_value={"success": True})
+        fake.validate_policy = AsyncMock(return_value={"success": True, "data": {"valid": True}})
+        fake.aclose = AsyncMock()
+        with patch("app.routers.openhop.OpenHopClient", return_value=fake):
+            assert (await update_policy(PolicyDoc(policy={"enabled": True})))["success"] is True
+            result = await validate_policy(PolicyDoc(policy={"enabled": True}))
+            assert result["data"]["valid"] is True
+        fake.update_policy.assert_awaited_once_with({"enabled": True})
+        fake.validate_policy.assert_awaited_once()
+
+
+class TestOpenHopPolicyGroups:
+    @pytest.mark.asyncio
+    async def test_group_and_entry_endpoints_delegate(self, test_db, monkeypatch):
+        _set_model(monkeypatch, OPENHOP_MODEL)
+        await AppSettingsRepository.update(
+            openhop_api_url="http://node:8000", openhop_api_token="tok"
+        )
+        from app.routers.openhop import (
+            EntryCreate,
+            EntryDelete,
+            GroupCreate,
+            GroupDelete,
+            add_group_entry,
+            create_policy_group,
+            delete_group_entry,
+            delete_policy_group,
+            list_policy_groups,
+        )
+
+        fake = AsyncMock()
+        for m in (
+            "list_policy_groups",
+            "create_policy_group",
+            "delete_policy_group",
+            "add_group_entry",
+            "delete_group_entry",
+        ):
+            setattr(fake, m, AsyncMock(return_value={"success": True}))
+        fake.aclose = AsyncMock()
+        with patch("app.routers.openhop.OpenHopClient", return_value=fake):
+            await list_policy_groups(kind=None)
+            await create_policy_group(
+                GroupCreate(kind="channel_hashes", group_id="g1", friendly_name="G1")
+            )
+            await add_group_entry(EntryCreate(kind="channel_hashes", group_id="g1", value="0x1f"))
+            await delete_group_entry(
+                EntryDelete(kind="channel_hashes", group_id="g1", value="0x1f")
+            )
+            await delete_policy_group(GroupDelete(kind="channel_hashes", group_id="g1"))
+        fake.create_policy_group.assert_awaited_once()
+        fake.add_group_entry.assert_awaited_once_with("channel_hashes", "g1", "0x1f")
+
+    @pytest.mark.asyncio
+    async def test_group_endpoints_409_unconfigured(self, test_db, monkeypatch):
+        _set_model(monkeypatch, "Heltec V3")
+        from app.routers.openhop import list_policy_groups
+
+        with pytest.raises(HTTPException) as exc:
+            await list_policy_groups(kind=None)
+        assert exc.value.status_code == 409
