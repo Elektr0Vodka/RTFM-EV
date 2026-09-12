@@ -6,12 +6,14 @@ url + token. Non-OpenHop deployments never reach the delegating paths, and the
 token is never returned to the client.
 """
 
+import json
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 
 import httpx
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.repository.settings import AppSettingsRepository
@@ -268,3 +270,42 @@ async def plugin_lifecycle(verb: str, body: PluginId) -> dict[str, Any]:
     if method is None:
         raise HTTPException(status_code=400, detail=f"unknown lifecycle verb: {verb}")
     return await _relay(lambda c: getattr(c, method)(body.id))
+
+
+# Injectable transport so tests can supply an httpx.MockTransport for the SSE path.
+_stream_transport: httpx.AsyncBaseTransport | None = None
+
+
+@router.get("/plugins/progress")
+async def plugin_progress(id: str, since: int = 0, fresh: bool = False) -> StreamingResponse:
+    """Re-stream OpenHop's plugin progress SSE. Stateless passthrough, fail-closed."""
+    settings = await AppSettingsRepository.get()
+    if not (_detect_openhop() and settings.openhop_api_url and settings.openhop_api_token):
+        raise HTTPException(status_code=409, detail="OpenHop management not configured")
+    base = settings.openhop_api_url.rstrip("/")
+    token = settings.openhop_api_token
+    params = {"id": id, "since": since, "fresh": "1" if fresh else "0"}
+
+    async def stream():
+        # No read timeout: progress can be idle between lines. Connect timeout stays bounded.
+        timeout = httpx.Timeout(8.0, read=None)
+        async with httpx.AsyncClient(
+            base_url=base,
+            headers={"X-API-Key": token},
+            timeout=timeout,
+            transport=_stream_transport,
+        ) as client:
+            try:
+                async with client.stream("GET", "/api/plugins/progress", params=params) as resp:
+                    async for chunk in resp.aiter_raw():
+                        if chunk:
+                            yield chunk
+            except httpx.HTTPError as exc:
+                payload = json.dumps({"type": "done", "state": "error", "error": str(exc)})
+                yield f"data: {payload}\n\n".encode()
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

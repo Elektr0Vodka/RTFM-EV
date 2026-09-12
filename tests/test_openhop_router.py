@@ -269,3 +269,54 @@ class TestOpenHopPlugins:
         with pytest.raises(HTTPException) as exc:
             await plugin_lifecycle("frobnicate", PluginId(id="p1"))
         assert exc.value.status_code == 400
+
+
+class TestOpenHopPluginProgress:
+    @pytest.mark.asyncio
+    async def test_progress_409_unconfigured(self, test_db, monkeypatch):
+        _set_model(monkeypatch, "Heltec V3")
+        from app.routers.openhop import plugin_progress
+
+        with pytest.raises(HTTPException) as exc:
+            await plugin_progress(id="p1", since=0, fresh=False)
+        assert exc.value.status_code == 409
+
+    @pytest.mark.asyncio
+    async def test_progress_relays_upstream_event_stream(self, test_db, monkeypatch):
+        import httpx
+
+        _set_model(monkeypatch, OPENHOP_MODEL)
+        await AppSettingsRepository.update(
+            openhop_api_url="http://node:8000", openhop_api_token="tok"
+        )
+
+        chunks = [
+            b'data: {"type":"connected","id":"p1"}\n\n',
+            b'data: {"type":"line","line":"installing"}\n\n',
+            b'data: {"type":"done","state":"complete"}\n\n',
+        ]
+
+        async def _agen():
+            for c in chunks:
+                yield c
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == "/api/plugins/progress"
+            assert request.headers.get("X-API-Key") == "tok"
+            return httpx.Response(
+                200,
+                content=_agen(),
+                headers={"Content-Type": "text/event-stream"},
+            )
+
+        import app.routers.openhop as mod
+
+        monkeypatch.setattr(mod, "_stream_transport", httpx.MockTransport(handler), raising=False)
+        from app.routers.openhop import plugin_progress
+
+        resp = await plugin_progress(id="p1", since=0, fresh=False)
+        body = b""
+        async for part in resp.body_iterator:
+            body += part if isinstance(part, bytes) else part.encode()
+        assert b'"type":"connected"' in body
+        assert b'"type":"done"' in body
