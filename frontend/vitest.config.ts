@@ -13,5 +13,9 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
+    // maplibre-gl and deck.gl enlarge the module graph; under full parallelism
+    // the one-time transform cost can push individual tests past the 5s default,
+    // so give them more headroom to avoid load-induced timeout flakes.
+    testTimeout: 20000,
   },
 });

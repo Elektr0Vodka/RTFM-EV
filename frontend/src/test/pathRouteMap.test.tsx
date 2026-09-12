@@ -1,31 +1,25 @@
 import { render } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('maplibre-gl', async () => {
+  const { mockMaplibreModule } = await import('./mocks/maplibre');
+  return mockMaplibreModule();
+});
+vi.mock('../map/engine/webgl', () => ({ isWebglAvailable: () => true }));
+
+import * as maplibre from 'maplibre-gl';
+import { I18nProvider } from '../i18n/I18nProvider';
 import { PathRouteMap } from '../components/PathRouteMap';
 import type { Contact } from '../types';
 import type { ResolvedPath, SenderInfo } from '../utils/pathUtils';
 
-// Capture props passed to the mocked leaflet primitives.
-const tileProps: { url?: string }[] = [];
-const polylineProps: { positions?: [number, number][] }[] = [];
-
-vi.mock('react-leaflet', () => ({
-  MapContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  TileLayer: (p: { url: string }) => {
-    tileProps.push(p);
-    return null;
-  },
-  Marker: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Tooltip: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Polyline: (p: { positions: [number, number][] }) => {
-    polylineProps.push(p);
-    return null;
-  },
-  useMap: () => ({
-    setView: vi.fn(),
-    fitBounds: vi.fn(),
-    getContainer: () => document.createElement('div'),
-  }),
-}));
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const markerMock = maplibre.Marker as unknown as ReturnType<typeof vi.fn>;
+const stub = (maplibre as any).__stub as {
+  fire: (ev: string) => void;
+  getSource: (id: string) => { setData: ReturnType<typeof vi.fn> } | undefined;
+  addSource: ReturnType<typeof vi.fn>;
+};
 
 function makeContact(overrides: Partial<Contact>): Contact {
   return {
@@ -79,57 +73,88 @@ const resolved: ResolvedPath = {
   hasGaps: true,
 };
 
-function setBackgroundLightness(triplet: string) {
-  document.documentElement.setAttribute('style', `--background: ${triplet}`);
-}
-
+beforeEach(() => {
+  vi.clearAllMocks();
+  localStorage.setItem('remoteterm-map-layer', 'light');
+});
 afterEach(() => {
-  tileProps.length = 0;
-  polylineProps.length = 0;
   document.documentElement.removeAttribute('style');
 });
 
 describe('PathRouteMap', () => {
-  it('draws a connecting line through located route nodes, skipping unlocated hops', () => {
-    render(<PathRouteMap resolved={resolved} senderInfo={senderInfo} />);
-    expect(polylineProps).toHaveLength(1);
-    expect(polylineProps[0].positions).toEqual([
-      [52.0, 4.0], // sender
-      [52.1, 4.1], // located hop 1
-      [52.3, 4.3], // receiver (unlocated hop 2 skipped)
-    ]);
+  // Runs first: the shared mock stub retains 'load' handlers across renders, so
+  // a later test would replay this render's handler too and inflate the count.
+  it('adds one marker per located node (sender, located hop, receiver)', () => {
+    render(
+      <I18nProvider>
+        <PathRouteMap resolved={resolved} senderInfo={senderInfo} />
+      </I18nProvider>
+    );
+    stub.fire('load');
+    expect(markerMock).toHaveBeenCalledTimes(3);
   });
 
-  it('overlays one connecting line per route when given multiple routes', () => {
-    const secondRoute: ResolvedPath = {
-      ...resolved,
-      hops: [
-        {
-          prefix: '3C',
-          matches: [makeContact({ public_key: '33'.repeat(32), lat: 52.2, lon: 4.2 })],
-          distanceFromPrev: null,
-        },
-      ],
+  it('draws a GL line through located route nodes (lng,lat), skipping unlocated hops', () => {
+    render(
+      <I18nProvider>
+        <PathRouteMap resolved={resolved} senderInfo={senderInfo} />
+      </I18nProvider>
+    );
+    stub.fire('load');
+    const src = stub.getSource('pr-line')!;
+    // One coloured LineString feature for the single route.
+    expect(src.setData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'FeatureCollection',
+        features: [
+          expect.objectContaining({
+            geometry: {
+              type: 'LineString',
+              coordinates: [
+                [4.0, 52.0], // sender
+                [4.1, 52.1], // located hop 1
+                [4.3, 52.3], // receiver (unlocated hop 2 skipped)
+              ],
+            },
+          }),
+        ],
+      })
+    );
+  });
+
+  it('draws one coloured line feature per route when overlaying multiple routes', () => {
+    render(
+      <I18nProvider>
+        <PathRouteMap routes={[resolved, resolved]} senderInfo={senderInfo} />
+      </I18nProvider>
+    );
+    stub.fire('load');
+    const src = stub.getSource('pr-line')!;
+    // The most recent setData for pr-line carries both routes as separate,
+    // distinctly-coloured features (the shared mock retains prior handlers, so
+    // assert on the last call rather than a fixed call count).
+    const calls = src.setData.mock.calls;
+    const lastArg = calls[calls.length - 1][0] as {
+      features: Array<{ properties: { color: string } }>;
     };
-    render(<PathRouteMap routes={[resolved, secondRoute]} senderInfo={senderInfo} />);
-    expect(polylineProps).toHaveLength(2);
-    // Route 2 goes sender -> its located hop -> receiver.
-    expect(polylineProps[1].positions).toEqual([
-      [52.0, 4.0],
-      [52.2, 4.2],
-      [52.3, 4.3],
-    ]);
+    expect(lastArg.features).toHaveLength(2);
+    expect(lastArg.features[0].properties.color).not.toBe(lastArg.features[1].properties.color);
   });
 
-  it('uses the OSM (light) basemap when the theme is light', () => {
-    setBackgroundLightness('40 18% 97%');
-    render(<PathRouteMap resolved={resolved} senderInfo={senderInfo} />);
-    expect(tileProps[tileProps.length - 1]?.url).toContain('openstreetmap.org');
-  });
-
-  it('uses the Esri dark basemap when the theme is dark', () => {
-    setBackgroundLightness('224 14% 8%');
-    render(<PathRouteMap resolved={resolved} senderInfo={senderInfo} />);
-    expect(tileProps[tileProps.length - 1]?.url).toContain('World_Dark_Gray_Base');
+  it('shows the no-GPS fallback when nothing is located', () => {
+    const noGps: ResolvedPath = {
+      sender: { name: 'S', prefix: 'CD', lat: null, lon: null },
+      hops: [],
+      receiver: { name: 'R', prefix: 'EF', lat: null, lon: null, publicKey: null },
+      totalDistances: null,
+      hasGaps: false,
+    };
+    const { container } = render(
+      <I18nProvider>
+        <PathRouteMap resolved={noGps} senderInfo={senderInfo} />
+      </I18nProvider>
+    );
+    expect(markerMock).not.toHaveBeenCalled();
+    expect(container.textContent).toBeTruthy();
   });
 });

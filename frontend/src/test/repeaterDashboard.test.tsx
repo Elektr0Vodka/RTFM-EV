@@ -69,15 +69,6 @@ vi.mock('../components/ui/sonner', () => ({
   },
 }));
 
-// Mock leaflet imports (not needed in test)
-vi.mock('react-leaflet', () => ({
-  MapContainer: () => null,
-  TileLayer: () => null,
-  CircleMarker: () => null,
-  Popup: () => null,
-  Polyline: () => null,
-}));
-
 const REPEATER_KEY = 'aa'.repeat(32);
 
 const conversation: Conversation = {

@@ -12,8 +12,8 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
+import { Marker as MlMarker, Popup as MlPopup, type Map as MlMap } from 'maplibre-gl';
+import { MiniMap } from '../map/MiniMap';
 import { api, isAbortError } from '../api';
 import { formatTime } from '../utils/messageParser';
 import {
@@ -42,8 +42,24 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { toast } from './ui/sonner';
 import { useDistanceUnit } from '../contexts/DistanceUnitContext';
 import { useEntranceSettled } from '../hooks/useEntranceSettled';
-import { useIsDarkTheme } from '../hooks';
-import { themeRasterTile } from '../utils/mapTiles';
+
+/** GPS mini-map for a contact: a single blue marker over a MapSurface with the
+ *  Layers FAB. A DOM Marker survives basemap switches, so no re-attach needed. */
+function ContactGpsMap({ lat, lon, label }: { lat: number; lon: number; label: string }) {
+  const onReady = useCallback(
+    (map: MlMap) => {
+      const el = document.createElement('div');
+      el.style.cssText =
+        'width:14px;height:14px;border-radius:9999px;background:#3b82f6;border:2px solid #1d4ed8;box-shadow:0 0 0 1px rgba(0,0,0,0.3)';
+      new MlMarker({ element: el })
+        .setLngLat([lon, lat])
+        .setPopup(new MlPopup({ offset: 12 }).setText(label))
+        .addTo(map);
+    },
+    [lat, lon, label]
+  );
+  return <MiniMap center={[lon, lat]} zoom={13} onReady={onReady} />;
+}
 import { CONTACT_TYPE_REPEATER } from '../types';
 import type {
   AnalyzerSite,
@@ -1090,8 +1106,6 @@ function ContactTelemetrySection({
   const [mapExpanded, setMapExpanded] = useState(false);
   const [chartExpanded, setChartExpanded] = useState(false);
   const [toggling, setToggling] = useState(false);
-  const dark = useIsDarkTheme();
-  const tile = themeRasterTile(dark);
 
   // Latest telemetry snapshot from history
   const latestEntry =
@@ -1232,37 +1246,12 @@ function ContactTelemetrySection({
                     })}
                   </button>
                   {mapExpanded && (
-                    <div className="mt-1 h-48 rounded border border-border overflow-hidden">
-                      <MapContainer
-                        center={[gpsValue!.latitude, gpsValue!.longitude]}
-                        zoom={13}
-                        maxZoom={tile.maxZoom}
-                        className="h-full w-full"
-                        style={{ background: tile.background }}
-                      >
-                        <TileLayer
-                          key={tile.id}
-                          attribution={tile.attribution}
-                          url={tile.url}
-                          maxZoom={tile.maxZoom}
-                        />
-                        <CircleMarker
-                          center={[gpsValue!.latitude, gpsValue!.longitude]}
-                          radius={7}
-                          pathOptions={{
-                            color: '#1d4ed8',
-                            fillColor: '#3b82f6',
-                            fillOpacity: 1,
-                            weight: 2,
-                          }}
-                        >
-                          <Popup>
-                            <span className="text-sm">
-                              {contact.name ?? contact.public_key.slice(0, 12)}
-                            </span>
-                          </Popup>
-                        </CircleMarker>
-                      </MapContainer>
+                    <div className="mt-1 h-48 overflow-hidden rounded border border-border">
+                      <ContactGpsMap
+                        lat={gpsValue!.latitude}
+                        lon={gpsValue!.longitude}
+                        label={contact.name ?? contact.public_key.slice(0, 12)}
+                      />
                     </div>
                   )}
                 </div>

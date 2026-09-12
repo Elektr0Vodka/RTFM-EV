@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Volume2, VolumeX, X } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -33,6 +33,16 @@ import {
 } from '../utils/rawPacketStats';
 import { createDecoderOptions } from '../utils/rawPacketInspector';
 import { useRawPacketStatsSession, useRawPackets } from '../stores/rawPacketStore';
+import { useSignalAudio } from '../hooks/useSignalAudio';
+import type { SignalAudioTheme } from '../lib/signalAudioEngine';
+import {
+  getSavedSignalAudioOn,
+  getSavedSignalAudioTheme,
+  getSavedSignalAudioVolume,
+  setSavedSignalAudioOn,
+  setSavedSignalAudioTheme,
+  setSavedSignalAudioVolume,
+} from '../utils/signalAudioPreference';
 import { getContactDisplayName } from '../utils/pubkey';
 import { cn } from '@/lib/utils';
 import { useT, type TFn } from '../i18n';
@@ -699,6 +709,27 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
   const [autoScroll, setAutoScroll] = useState(true);
   // Raw-hex substring filter over the in-memory feed buffer (session-only).
   const [hexFilter, setHexFilter] = useState('');
+  // Per-packet signal audio (Geiger / sonar). Persisted per-browser; off by default.
+  const [soundOn, setSoundOn] = useState(getSavedSignalAudioOn);
+  const [soundVolume, setSoundVolume] = useState(getSavedSignalAudioVolume);
+  const [soundTheme, setSoundTheme] = useState<SignalAudioTheme>(getSavedSignalAudioTheme);
+  useSignalAudio({ enabled: soundOn, volume: soundVolume, theme: soundTheme });
+
+  const handleToggleSound = () => {
+    setSoundOn((prev) => {
+      const next = !prev;
+      setSavedSignalAudioOn(next);
+      return next;
+    });
+  };
+  const handleSoundVolumeChange = (value: number) => {
+    setSoundVolume(value);
+    setSavedSignalAudioVolume(value);
+  };
+  const handleSoundThemeChange = (theme: SignalAudioTheme) => {
+    setSoundTheme(theme);
+    setSavedSignalAudioTheme(theme);
+  };
 
   const decoderOptions = useMemo(() => createDecoderOptions(channels), [channels]);
 
@@ -843,6 +874,42 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant={soundOn ? 'default' : 'outline'}
+              size="sm"
+              onClick={handleToggleSound}
+              aria-pressed={soundOn}
+              title={t('packet_sound_tip')}
+            >
+              {soundOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+              <span className="hidden sm:inline">{t('packet_sound')}</span>
+            </Button>
+            {soundOn && (
+              <>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={soundVolume}
+                  onChange={(event) => handleSoundVolumeChange(Number(event.target.value))}
+                  aria-label={t('packet_sound_volume')}
+                  className="w-20 accent-primary"
+                />
+                <select
+                  value={soundTheme}
+                  onChange={(event) =>
+                    handleSoundThemeChange(event.target.value as SignalAudioTheme)
+                  }
+                  aria-label={t('packet_sound_theme')}
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground"
+                >
+                  <option value="geiger">{t('packet_sound_theme_geiger')}</option>
+                  <option value="sonar">{t('packet_sound_theme_sonar')}</option>
+                </select>
+              </>
+            )}
             <Button
               type="button"
               variant="outline"
