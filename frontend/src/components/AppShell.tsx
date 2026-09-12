@@ -202,7 +202,10 @@ export function AppShell({
         </button>
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto py-1 [contain:layout_paint]">
-        {SETTINGS_SECTION_ORDER.map((section) => {
+        {SETTINGS_SECTION_ORDER.filter(
+          (section) =>
+            section !== 'openhop' || statusProps.health?.radio_device_info?.is_openhop === true
+        ).map((section) => {
           const Icon = SETTINGS_SECTION_ICONS[section];
           const disabled = disabledSettingsSections.includes(section);
           return (
@@ -394,6 +397,7 @@ export function AppShell({
         onSelectConversation={sidebarProps.onSelectConversation}
         onOpenSettings={handleOpenSettings}
         onRepeaterAutoLogin={onRepeaterAutoLogin}
+        isOpenHop={statusProps.health?.radio_device_info?.is_openhop === true}
       />
       <SecurityWarningModal health={statusProps.health} />
       <ContactInfoPane {...contactInfoPaneProps} />

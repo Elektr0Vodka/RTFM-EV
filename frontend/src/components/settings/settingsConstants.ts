@@ -6,6 +6,7 @@ import {
   MonitorCog,
   RadioTower,
   Share2,
+  ShieldAlert,
   SlidersHorizontal,
   type LucideIcon,
 } from 'lucide-react';
@@ -17,6 +18,7 @@ export type SettingsSection =
   | 'radio-app'
   | 'database'
   | 'fanout'
+  | 'openhop'
   | 'statistics'
   | 'handy-info'
   | 'about';
@@ -25,6 +27,7 @@ export const SETTINGS_SECTION_ORDER: SettingsSection[] = [
   'radio',
   'local',
   'fanout',
+  'openhop',
   'radio-app',
   'database',
   'statistics',
@@ -38,6 +41,7 @@ const SETTINGS_SECTION_LABEL_KEYS: Record<SettingsSection, string> = {
   'radio-app': 'settings_section_radio_app',
   database: 'settings_section_database',
   fanout: 'settings_section_fanout',
+  openhop: 'settings_section_openhop',
   statistics: 'settings_section_statistics',
   'handy-info': 'settings_section_handy_info',
   about: 'settings_section_about',
@@ -53,6 +57,7 @@ export const SETTINGS_SECTION_ICONS: Record<SettingsSection, LucideIcon> = {
   'radio-app': SlidersHorizontal,
   database: Database,
   fanout: Share2,
+  openhop: ShieldAlert,
   statistics: BarChart3,
   'handy-info': Lightbulb,
   about: Info,

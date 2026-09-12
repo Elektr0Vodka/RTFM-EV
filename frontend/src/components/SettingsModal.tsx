@@ -28,6 +28,7 @@ import { SettingsDatabaseSection } from './settings/SettingsDatabaseSection';
 import { SettingsStatisticsSection } from './settings/SettingsStatisticsSection';
 import { SettingsAboutSection } from './settings/SettingsAboutSection';
 import { SettingsHandyInfoSection } from './settings/SettingsHandyInfoSection';
+import { SettingsOpenHopSection } from './settings/openhop/SettingsOpenHopSection';
 
 interface SettingsModalBaseProps {
   open: boolean;
@@ -125,11 +126,14 @@ export function SettingsModal(props: SettingsModalProps) {
     local: false,
     'radio-app': false,
     fanout: false,
+    openhop: false,
     database: false,
     statistics: false,
     'handy-info': false,
     about: false,
   });
+
+  const isOpenHop = health?.radio_device_info?.is_openhop === true;
 
   // Refresh settings from server when modal opens
   useEffect(() => {
@@ -326,6 +330,21 @@ export function SettingsModal(props: SettingsModalProps) {
               onHealthRefresh={onHealthRefresh}
               className={sectionContentClass}
             />
+          )}
+        </section>
+      )}
+
+      {isOpenHop && shouldRenderSection('openhop') && (
+        <section className={sectionWrapperClass}>
+          {renderSectionHeader('openhop')}
+          {isSectionVisible('openhop') && appSettings && (
+            <div className={sectionContentClass}>
+              <SettingsOpenHopSection
+                health={health}
+                appSettings={appSettings}
+                onSaveAppSettings={onSaveAppSettings}
+              />
+            </div>
           )}
         </section>
       )}
