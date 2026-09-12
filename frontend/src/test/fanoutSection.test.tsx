@@ -111,6 +111,7 @@ beforeEach(() => {
   mockedApi.getSettings.mockResolvedValue({
     max_radio_contacts: 200,
     auto_decrypt_dm_on_advert: true,
+    advert_retention_days: 30,
     last_message_times: {},
     advert_interval: 0,
     last_advert_time: 0,
@@ -1161,6 +1162,7 @@ describe('SettingsFanoutSection', () => {
     mockedApi.getSettings.mockResolvedValue({
       max_radio_contacts: 200,
       auto_decrypt_dm_on_advert: true,
+      advert_retention_days: 30,
       last_message_times: {},
       advert_interval: 0,
       last_advert_time: 0,
