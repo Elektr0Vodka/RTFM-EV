@@ -181,6 +181,13 @@ def _validate_mqtt_community_config(config: dict) -> None:
     config["publish_status"] = bool(config.get("publish_status", True))
     config["publish_packets"] = bool(config.get("publish_packets", True))
 
+    # Forwarding remote-node telemetry/neighbors/regions is opt-in (plan [24]):
+    # each publishes a new observer-feed kind the analyzer drops until it adds a
+    # path, so defaulting off keeps existing configs behaviour-identical.
+    config["publish_telemetry"] = bool(config.get("publish_telemetry", False))
+    config["publish_neighbors"] = bool(config.get("publish_neighbors", False))
+    config["publish_regions"] = bool(config.get("publish_regions", False))
+
     interval = config.get("status_interval_ms", 300000)
     if (
         not isinstance(interval, int)

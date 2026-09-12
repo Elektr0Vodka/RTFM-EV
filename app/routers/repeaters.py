@@ -287,6 +287,23 @@ async def repeater_neighbors(public_key: str) -> RepeaterNeighborsResponse:
         except Exception as exc:  # noqa: BLE001 - best-effort telemetry
             logger.warning("Failed to persist neighbor signal snapshot: %s", exc)
 
+    # Forward R's neighbor table to the observer feed, attributed to R (plan
+    # [24]). Best-effort: never fail the response on a fanout error.
+    if neighbors:
+        from app.fanout.manager import fanout_manager
+
+        asyncio.create_task(
+            fanout_manager.broadcast_neighbor(
+                {
+                    "public_key": contact.public_key,
+                    "name": contact.name or contact.public_key[:12],
+                    "timestamp": int(time.time()),
+                    "reported_count": reported_count,
+                    "neighbors": [n.model_dump() for n in neighbors],
+                }
+            )
+        )
+
     return RepeaterNeighborsResponse(neighbors=neighbors, reported_count=reported_count)
 
 
@@ -613,17 +630,39 @@ async def repeater_regions(public_key: str) -> RepeaterRegionsResponse:
     # The CLI dump always includes the wildcard root, so a non-empty result means
     # the CLI answered. Empty means no CLI reply (guest / timeout) -> try anon.
     if entries:
-        return RepeaterRegionsResponse(regions=entries, raw=raw, truncated=truncated, source="cli")
+        response = RepeaterRegionsResponse(
+            regions=entries, raw=raw, truncated=truncated, source="cli"
+        )
+    else:
+        anon_entries = await _fetch_anon_flood_allowed_regions(contact)
+        if anon_entries is not None:
+            response = RepeaterRegionsResponse(
+                regions=anon_entries, raw=raw, truncated=False, source="anon"
+            )
+        else:
+            # Nothing usable from either path (unsupported firmware, guest with no
+            # anon support, or out of range) -> empty, not a truncated dump.
+            response = RepeaterRegionsResponse(regions=[], raw=raw, truncated=False, source="cli")
 
-    anon_entries = await _fetch_anon_flood_allowed_regions(contact)
-    if anon_entries is not None:
-        return RepeaterRegionsResponse(
-            regions=anon_entries, raw=raw, truncated=False, source="anon"
+    # Forward R's region hierarchy to the observer feed, attributed to R (plan
+    # [24]). Best-effort: never fail the response on a fanout error.
+    if response.regions:
+        from app.fanout.manager import fanout_manager
+
+        asyncio.create_task(
+            fanout_manager.broadcast_region(
+                {
+                    "public_key": contact.public_key,
+                    "name": contact.name or contact.public_key[:12],
+                    "timestamp": int(time.time()),
+                    "regions": [r.model_dump() for r in response.regions],
+                    "truncated": response.truncated,
+                    "source": response.source,
+                }
+            )
         )
 
-    # Nothing usable from either path (unsupported firmware, guest with no anon
-    # support, or out of range) -> empty, not a truncated dump.
-    return RepeaterRegionsResponse(regions=[], raw=raw, truncated=False, source="cli")
+    return response
 
 
 @router.post("/{public_key}/command", response_model=CommandResponse)

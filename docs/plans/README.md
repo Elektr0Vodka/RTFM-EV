@@ -96,7 +96,7 @@ feeding it").
   app and onto the radio. Bridges categories D (registry) and E (provisioning).
   `Sonnet`.
 
-### F. DMC firmware-aware node management (largest theme; three plans)
+### F. DMC firmware-aware node management (largest theme; four plans)
 - **[10] Firmware-aware repeater/observer management** - detect reported firmware
   (DMC Repeater vs DMC-MQTT-Repeater vs stock), gate the management UI to only the
   options that firmware supports, allow manual device-type/fw override (replies can
@@ -110,6 +110,12 @@ feeding it").
   out wardrive MQTT info while that device is bridged into the RTFM instance;
   includes the device-identity/networking problem (home IP vs mobile). `Opus`,
   Speculative - feasibility assessment first.
+- **[24] Forwarded node telemetry / neighbors / regions over MQTT** - OUTBOUND MQTT:
+  forward telemetry/neighbor/region data RTFM-EV receives *from remote nodes after
+  requests* onto the observer feed, attributed to the heard node via a new
+  `subject_id` field (fixes publisher-vs-heard-node id mismatch); fold
+  neighbor/region counts into local telemetry history. Realises X1/L3/L2. `Opus`,
+  Partial (extends fanout + Community sink + telemetry-history).
 
 ### G. Map overhaul (import from EU-Meshcore-Analyzer)
 - **[13] Map overhaul** - responsive mobile/tablet layout + map controls (node
@@ -165,6 +171,7 @@ reconciled against `origin/main` on 2026-09-11 (migrations reached
 | 17 | sidebar-customisation | NOT STARTED | Planning (2026-09-11). Frontend port + gated backend "Owned". |
 | 18 | multi-radio-identity-history | NOT STARTED | Planning (2026-09-11). Self registry + per-radio stats + cross-key merge. |
 | 19 | analyzer-persistence-retention | NOT STARTED | Planning (2026-09-11). Retention policy; drives [14]. |
+| 24 | forwarded-node-telemetry-mqtt | PLANNING | Design written 2026-09-12 (`24-forwarded-node-telemetry-mqtt.md`). Outbound forward of remote-node telemetry/neighbors/regions with `subject_id` attribution; analyzer/collector handoffs pending. |
 
 Parity items (from `docs/parity-audit.md`): **SHIPPED** N1, N2, X1, X2a, X2b;
 **PARTIAL** L1 (pills+sync shipped; DMC config-topic scope tree unbuilt), L2

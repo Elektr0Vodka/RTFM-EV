@@ -295,6 +295,24 @@ class FanoutManager:
             log_label="on_telemetry",
         )
 
+    async def broadcast_neighbor(self, data: dict) -> None:
+        """Dispatch a forwarded remote-node neighbor table to all modules."""
+        await self._dispatch_matching(
+            data,
+            matcher=_always_match,
+            handler_name="on_neighbor",
+            log_label="on_neighbor",
+        )
+
+    async def broadcast_region(self, data: dict) -> None:
+        """Dispatch a forwarded remote-node region table to all modules."""
+        await self._dispatch_matching(
+            data,
+            matcher=_always_match,
+            handler_name="on_region",
+            log_label="on_region",
+        )
+
     async def broadcast_health_fanout(self, data: dict) -> None:
         """Dispatch a radio health snapshot to all modules."""
         await self._dispatch_matching(

@@ -22,6 +22,27 @@ def test_community_toggles_respect_explicit_false():
     assert cfg["publish_packets"] is False
 
 
+def test_forward_toggles_default_off():
+    """Forwarding remote-node telemetry/neighbors/regions is opt-in (plan [24])."""
+    cfg = _base()
+    _validate_mqtt_community_config(cfg)
+    assert cfg["publish_telemetry"] is False
+    assert cfg["publish_neighbors"] is False
+    assert cfg["publish_regions"] is False
+
+
+def test_forward_toggles_coerced_to_bool_when_enabled():
+    cfg = _base() | {
+        "publish_telemetry": True,
+        "publish_neighbors": 1,
+        "publish_regions": "yes",
+    }
+    _validate_mqtt_community_config(cfg)
+    assert cfg["publish_telemetry"] is True
+    assert cfg["publish_neighbors"] is True
+    assert cfg["publish_regions"] is True
+
+
 def test_community_status_interval_clamped_out_of_range():
     for bad in (500, 4_000_000, "nope", None):
         cfg = _base() | {"status_interval_ms": bad}

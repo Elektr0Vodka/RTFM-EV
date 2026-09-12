@@ -9,7 +9,13 @@ from types import SimpleNamespace
 from typing import Any
 
 from app.fanout.base import FanoutModule
-from app.fanout.community_mqtt import CommunityMqttPublisher, _format_raw_packet
+from app.fanout.community_mqtt import (
+    CommunityMqttPublisher,
+    _format_node_neighbors,
+    _format_node_regions,
+    _format_node_telemetry,
+    _format_raw_packet,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +106,41 @@ class MqttCommunityModule(FanoutModule):
             return
         await _publish_community_packet(self._publisher, self.config, data)
 
+    async def on_telemetry(self, data: dict) -> None:
+        if not self._publisher.connected or self._publisher._settings is None:
+            return
+        if not self.config.get("publish_telemetry", False):
+            return
+        await _publish_node_report(
+            self._publisher,
+            self.config,
+            data,
+            kind="node_telemetry",
+            formatter=_format_node_telemetry,
+        )
+
+    async def on_neighbor(self, data: dict) -> None:
+        if not self._publisher.connected or self._publisher._settings is None:
+            return
+        if not self.config.get("publish_neighbors", False):
+            return
+        await _publish_node_report(
+            self._publisher,
+            self.config,
+            data,
+            kind="node_neighbors",
+            formatter=_format_node_neighbors,
+        )
+
+    async def on_region(self, data: dict) -> None:
+        if not self._publisher.connected or self._publisher._settings is None:
+            return
+        if not self.config.get("publish_regions", False):
+            return
+        await _publish_node_report(
+            self._publisher, self.config, data, kind="node_regions", formatter=_format_node_regions
+        )
+
     @property
     def status(self) -> str:
         if self.last_error:
@@ -144,6 +185,54 @@ class MqttCommunityModule(FanoutModule):
             "(ENABLE_PRIVATE_KEY_EXPORT=1), or you're connecting through a proxy "
             "that doesn't forward the key-export command."
         )
+
+
+async def _publish_node_report(
+    publisher: CommunityMqttPublisher,
+    config: dict,
+    data: dict[str, Any],
+    *,
+    kind: str,
+    formatter: Any,
+) -> None:
+    """Publish a forwarded remote-node report to ``meshcore/{IATA}/{SELF}/{kind}``.
+
+    ``origin_id`` stays the local publisher (self) so the broker's
+    publisher==origin rule holds; the heard node is carried in the payload's
+    ``subject_id`` (see the ``_format_node_*`` builders). ``kind`` is a new
+    observer-feed kind the analyzer drops until it adds a path, so this is safe
+    to enable immediately.
+    """
+    try:
+        from app.keystore import get_public_key
+        from app.services.radio_runtime import radio_runtime as radio_manager
+
+        public_key = get_public_key()
+        if public_key is None:
+            return
+
+        pubkey_hex = public_key.hex().upper()
+
+        device_name = ""
+        if radio_manager.meshcore and radio_manager.meshcore.self_info:
+            device_name = radio_manager.meshcore.self_info.get("name", "")
+
+        payload = formatter(data, device_name, pubkey_hex)
+        if payload is None:
+            return
+
+        iata = config.get("iata", "").upper().strip()
+        if not _IATA_RE.fullmatch(iata):
+            logger.debug(
+                "Community MQTT: skipping %s publish — no valid IATA code configured", kind
+            )
+            return
+
+        topic = f"meshcore/{iata}/{pubkey_hex}/{kind}"
+        await publisher.publish(topic, payload)
+
+    except Exception as e:
+        logger.warning("Community MQTT %s broadcast error: %s", kind, e, exc_info=True)
 
 
 async def _publish_community_packet(
