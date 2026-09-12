@@ -3,7 +3,7 @@ import { ChevronRight, Logs, MessageSquare, Send, Settings, X } from 'lucide-rea
 import { toast } from '../ui/sonner';
 import { useT } from '../../i18n';
 import { usePush } from '../../contexts/PushSubscriptionContext';
-import type { Channel, Contact } from '../../types';
+import type { AppSettings, AppSettingsUpdate, Channel, Contact } from '../../types';
 import { getContactDisplayName } from '../../utils/pubkey';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
@@ -18,6 +18,8 @@ import {
   setReopenLastConversationEnabled,
 } from '../../utils/lastViewedConversation';
 import { ThemeSelector } from './ThemeSelector';
+import { CrtSettings } from './CrtSettings';
+import { BrandingSettings } from './BrandingSettings';
 import { LanguageSelector } from './LanguageSelector';
 import { getLocalLabel, setLocalLabel, type LocalLabel } from '../../utils/localLabel';
 import {
@@ -230,11 +232,15 @@ export function SettingsLocalSection({
   contacts,
   channels,
   className,
+  appSettings,
+  onSaveAppSettings,
 }: {
   onLocalLabelChange?: (label: LocalLabel) => void;
   contacts?: Contact[];
   channels?: Channel[];
   className?: string;
+  appSettings?: AppSettings | null;
+  onSaveAppSettings?: (update: AppSettingsUpdate) => void;
 }) {
   const t = useT();
   const { distanceUnit, setDistanceUnit } = useDistanceUnit();
@@ -299,10 +305,21 @@ export function SettingsLocalSection({
       <Separator />
 
       <div className="space-y-1">
-        <h3 className="text-base font-semibold tracking-tight">{t('settings_color_scheme')}</h3>
+        <h3 className="text-base font-semibold tracking-tight">{t('settings_customisation')}</h3>
         <ThemeSelector />
         <ThemePreview className="mt-6" />
       </div>
+
+      <Separator />
+
+      <CrtSettings />
+
+      <Separator />
+
+      <BrandingSettings
+        appSettings={appSettings ?? null}
+        onSave={(update) => onSaveAppSettings?.(update)}
+      />
 
       <Separator />
 

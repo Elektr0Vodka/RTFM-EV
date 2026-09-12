@@ -11,6 +11,25 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-13 (CRT theme + branding)
+
+### Chat / UI
+- CRT theme: a retro phosphor-monitor look with green (default), amber,
+  white, and blue (C64) phosphor variants and individually-toggleable
+  scanline, phosphor-glow, screen-curvature, and flicker effects. Flicker
+  respects `prefers-reduced-motion`. Phosphor and effect choices are
+  per-device (localStorage); the theme lives in a dedicated CRT section under
+  the renamed "Customisation" settings block (was "Color Scheme") (pending)
+- Branding: customise the navbar name, hide it, and upload a custom icon.
+  Stored server-side so it is shared across every device connected to the
+  instance. Icon capped at 128 KB (PNG/SVG/ICO/JPEG). Empty name falls back to
+  "RemoteTerm"; empty icon falls back to the built-in logo (pending)
+
+### Backend
+- Migration `_082` adds `brand_name`, `brand_hidden`, and `brand_icon` columns
+  to `app_settings`; `PATCH /settings` accepts and validates them (name capped
+  at 64 chars, icon type/size checked) (pending)
+
 ## Update 2026-09-12 (My Node map link)
 
 ### Chat / UI

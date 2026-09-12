@@ -1211,3 +1211,183 @@
 [data-theme='darkdutch'] .msg-ack-pending {
   color: hsl(44 90% 61%);
 }
+
+/* ── CRT (retro phosphor monitor) ──────────────────────────────
+   One data-theme, four phosphor variants (data-crt-phosphor), and four
+   individually-toggleable effects (data-crt-<effect>='0' disables). Green is
+   the default phosphor (defined in the base block). */
+:root[data-theme='crt'] {
+  --background: 120 30% 3%;
+  --foreground: 120 100% 76%;
+  --card: 120 24% 5%;
+  --card-foreground: 120 100% 76%;
+  --popover: 120 24% 6%;
+  --popover-foreground: 120 100% 76%;
+  --primary: 123 100% 56%;
+  --primary-foreground: 120 60% 6%;
+  --secondary: 120 18% 10%;
+  --secondary-foreground: 120 80% 72%;
+  --muted: 120 12% 9%;
+  --muted-foreground: 120 40% 52%;
+  --accent: 120 20% 12%;
+  --accent-foreground: 120 100% 76%;
+  --destructive: 8 100% 60%;
+  --destructive-foreground: 8 100% 8%;
+  --border: 120 40% 16%;
+  --input: 120 40% 16%;
+  --ring: 123 100% 56%;
+  --radius: 0px;
+  --msg-outgoing: 120 30% 8%;
+  --msg-incoming: 120 14% 6%;
+  --status-connected: 123 100% 50%;
+  --status-disconnected: 120 10% 34%;
+  --warning: 45 100% 55%;
+  --warning-foreground: 45 100% 8%;
+  --success: 123 100% 46%;
+  --success-foreground: 123 100% 6%;
+  --info: 180 100% 50%;
+  --info-foreground: 180 100% 6%;
+  --region-override: 300 100% 68%;
+  --favorite: 55 100% 55%;
+  --console: 123 100% 56%;
+  --console-command: 123 100% 68%;
+  --console-bg: 120 40% 2%;
+  --toast-error: 8 50% 12%;
+  --toast-error-foreground: 8 90% 74%;
+  --toast-error-border: 8 45% 20%;
+  --code-editor-bg: 120 30% 4%;
+  --font-mono: 'Courier New', 'Lucida Console', monospace;
+  --scrollbar: 120 24% 14%;
+  --scrollbar-hover: 120 34% 20%;
+  --overlay: 0 0% 0%;
+  /* Phosphor tint reused by the effect overlays (glow, scanline blend). */
+  --crt-phosphor: 123 100% 56%;
+}
+
+/* Amber (P3) */
+:root[data-theme='crt'][data-crt-phosphor='amber'] {
+  --background: 30 40% 4%;
+  --foreground: 38 100% 62%;
+  --card: 30 30% 6%;
+  --card-foreground: 38 100% 62%;
+  --popover: 30 30% 7%;
+  --popover-foreground: 38 100% 62%;
+  --primary: 38 100% 56%;
+  --primary-foreground: 30 60% 6%;
+  --secondary-foreground: 38 90% 60%;
+  --muted-foreground: 34 50% 50%;
+  --accent-foreground: 38 100% 62%;
+  --border: 34 55% 18%;
+  --input: 34 55% 18%;
+  --ring: 38 100% 56%;
+  --status-connected: 38 100% 52%;
+  --console: 38 100% 56%;
+  --console-command: 38 100% 70%;
+  --crt-phosphor: 38 100% 56%;
+}
+
+/* White / grey (P4) */
+:root[data-theme='crt'][data-crt-phosphor='white'] {
+  --background: 0 0% 3%;
+  --foreground: 0 0% 86%;
+  --card: 0 0% 6%;
+  --card-foreground: 0 0% 86%;
+  --popover: 0 0% 7%;
+  --popover-foreground: 0 0% 86%;
+  --primary: 0 0% 92%;
+  --primary-foreground: 0 0% 8%;
+  --secondary-foreground: 0 0% 78%;
+  --muted-foreground: 0 0% 52%;
+  --accent-foreground: 0 0% 86%;
+  --border: 0 0% 22%;
+  --input: 0 0% 22%;
+  --ring: 0 0% 80%;
+  --status-connected: 0 0% 82%;
+  --console: 0 0% 90%;
+  --console-command: 0 0% 100%;
+  --crt-phosphor: 0 0% 88%;
+}
+
+/* Blue (C64) */
+:root[data-theme='crt'][data-crt-phosphor='blue'] {
+  --background: 244 55% 12%;
+  --foreground: 240 100% 80%;
+  --card: 244 45% 15%;
+  --card-foreground: 240 100% 80%;
+  --popover: 244 45% 16%;
+  --popover-foreground: 240 100% 80%;
+  --primary: 240 100% 76%;
+  --primary-foreground: 244 60% 10%;
+  --secondary: 244 40% 20%;
+  --secondary-foreground: 240 90% 78%;
+  --muted: 244 30% 20%;
+  --muted-foreground: 240 40% 62%;
+  --accent: 244 40% 24%;
+  --accent-foreground: 240 100% 80%;
+  --border: 240 45% 30%;
+  --input: 240 45% 30%;
+  --ring: 240 100% 76%;
+  --msg-outgoing: 244 45% 20%;
+  --msg-incoming: 244 40% 16%;
+  --status-connected: 240 100% 74%;
+  --console: 240 100% 78%;
+  --console-command: 240 100% 88%;
+  --crt-phosphor: 240 100% 78%;
+}
+
+/* Body background + base mono feel */
+:root[data-theme='crt'] body {
+  background-color: hsl(var(--background));
+}
+
+/* Phosphor glow on text (effect: glow) */
+:root[data-theme='crt']:not([data-crt-glow='0']) body {
+  text-shadow: 0 0 2px hsl(var(--crt-phosphor) / 0.55);
+}
+
+/* Scanlines: fixed full-viewport overlay (effect: scanlines) */
+:root[data-theme='crt']:not([data-crt-scanlines='0']) body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0px,
+    rgba(0, 0, 0, 0) 2px,
+    rgba(0, 0, 0, 0.28) 3px,
+    rgba(0, 0, 0, 0.28) 3px
+  );
+  background-size: 100% 3px;
+}
+
+/* Curvature / vignette: darkened edges (effect: curvature) */
+:root[data-theme='crt']:not([data-crt-curvature='0']) body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9997;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+/* Flicker: animate the scanline overlay opacity (effect: flicker).
+   Disabled for users who prefer reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-theme='crt']:not([data-crt-flicker='0']):not([data-crt-scanlines='0']) body::after {
+    animation: crt-flicker 0.18s steps(2, end) infinite;
+  }
+}
+
+@keyframes crt-flicker {
+  0% {
+    opacity: 0.92;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.95;
+  }
+}

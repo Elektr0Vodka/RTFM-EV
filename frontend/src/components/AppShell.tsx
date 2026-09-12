@@ -69,7 +69,10 @@ interface AppShellProps {
   onCloseNewMessage: () => void;
   onCloseBulkAddResults: () => void;
   onLocalLabelChange: (label: LocalLabel) => void;
-  statusProps: Pick<ComponentProps<typeof StatusBar>, 'health' | 'config'>;
+  statusProps: Pick<
+    ComponentProps<typeof StatusBar>,
+    'health' | 'config' | 'brandName' | 'brandHidden' | 'brandIcon'
+  >;
   sidebarProps: SidebarProps;
   conversationPaneProps: ConversationPaneProps;
   searchProps: SearchViewProps;
@@ -257,6 +260,9 @@ export function AppShell({
       <StatusBar
         health={statusProps.health}
         config={statusProps.config}
+        brandName={statusProps.brandName}
+        brandHidden={statusProps.brandHidden}
+        brandIcon={statusProps.brandIcon}
         settingsMode={showSettings}
         onSettingsClick={onToggleSettingsView}
         onMenuClick={showSettings ? undefined : () => onSidebarOpenChange(true)}

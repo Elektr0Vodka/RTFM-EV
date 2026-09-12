@@ -623,6 +623,9 @@ export function App() {
   const statusProps = {
     health,
     config,
+    brandName: appSettings?.brand_name || undefined,
+    brandHidden: appSettings?.brand_hidden ?? false,
+    brandIcon: appSettings?.brand_icon || undefined,
   };
   const sidebarProps = {
     contacts,

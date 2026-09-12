@@ -6,6 +6,7 @@ import './index.css';
 import './themes.css';
 import './styles.css';
 import { getSavedTheme, applyTheme, initFollowOSListener } from './utils/theme';
+import { applyCrt } from './utils/crt';
 import { applyFontScale, getSavedFontScale } from './utils/fontScale';
 import { PushSubscriptionProvider } from './contexts/PushSubscriptionContext';
 import { I18nProvider } from './i18n';
@@ -17,6 +18,8 @@ polyfillCountryFlagEmojis('Twemoji Country Flags', './fonts/TwemojiCountryFlags.
 
 // Apply saved theme before first render
 applyTheme(getSavedTheme());
+// Stamp CRT phosphor/effect attributes (idempotent; applyTheme also does this).
+applyCrt();
 // Re-apply when the OS color-scheme preference changes, if on "Follow OS".
 initFollowOSListener();
 applyFontScale(getSavedFontScale());
