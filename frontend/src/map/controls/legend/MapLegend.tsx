@@ -28,8 +28,16 @@ function Row({ color, ring, label }: { color: string; ring?: string; label: stri
 }
 
 /** Node-type and recency legend for the map. Optional extra content (e.g. a
- *  packet-type legend) can be appended by the caller. */
-export function MapLegend({ extra }: { extra?: ReactNode }) {
+ *  packet-type legend) can be appended by the caller. Type-ring colours come
+ *  from `roleColors` so the legend stays in sync with the node-colour picker;
+ *  defaults to NODE_TYPE_STROKE when unset. */
+export function MapLegend({
+  extra,
+  roleColors = NODE_TYPE_STROKE,
+}: {
+  extra?: ReactNode;
+  roleColors?: Record<number, string>;
+}) {
   const t = useT();
   const typeRows = [
     { type: CONTACT_TYPE_CLIENT, label: t('map_type_client') },
@@ -50,7 +58,12 @@ export function MapLegend({ extra }: { extra?: ReactNode }) {
           {t('map_legend_node_types')}
         </div>
         {typeRows.map((r) => (
-          <Row key={r.type} color="#64748b" ring={NODE_TYPE_STROKE[r.type]} label={r.label} />
+          <Row
+            key={r.type}
+            color="#64748b"
+            ring={roleColors[r.type] ?? NODE_TYPE_STROKE[r.type]}
+            label={r.label}
+          />
         ))}
       </div>
       <div role="group" aria-label={t('map_recency_legend_aria')}>

@@ -74,4 +74,28 @@ describe('MapControls', () => {
     // The basemap options render inside it.
     expect(screen.getByText('OpenFreeMap Positron')).toBeInTheDocument();
   });
+
+  it('reports a per-role node colour change from the node-size panel', () => {
+    const onRoleColorChange = vi.fn();
+    renderControls({ fabs: { nodeSize: true }, onRoleColorChange });
+    fireEvent.click(screen.getByRole('button', { name: /node size/i }));
+    const clientColor = screen.getByLabelText('Color for Client') as HTMLInputElement;
+    fireEvent.input(clientColor, { target: { value: '#ff0000' } });
+    // CONTACT_TYPE_CLIENT === 1
+    expect(onRoleColorChange).toHaveBeenCalledWith(1, '#ff0000');
+  });
+
+  it('reports a reset of the node colours', () => {
+    const onResetRoleColors = vi.fn();
+    renderControls({ fabs: { nodeSize: true }, onRoleColorChange: vi.fn(), onResetRoleColors });
+    fireEvent.click(screen.getByRole('button', { name: /node size/i }));
+    fireEvent.click(screen.getByRole('button', { name: /reset/i }));
+    expect(onResetRoleColors).toHaveBeenCalledTimes(1);
+  });
+
+  it('omits the colour pickers when no colour handler is provided', () => {
+    renderControls({ fabs: { nodeSize: true } });
+    fireEvent.click(screen.getByRole('button', { name: /node size/i }));
+    expect(screen.queryByLabelText('Color for Client')).not.toBeInTheDocument();
+  });
 });

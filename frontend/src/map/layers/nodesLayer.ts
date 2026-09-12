@@ -47,9 +47,11 @@ export function circleColorExpr(): ExpressionSpecification {
   return out as unknown as ExpressionSpecification;
 }
 
-export function strokeColorExpr(): ExpressionSpecification {
+export function strokeColorExpr(
+  colors: Record<number, string> = NODE_TYPE_STROKE
+): ExpressionSpecification {
   const out: unknown[] = ['match', ['get', 'type']];
-  Object.entries(NODE_TYPE_STROKE).forEach(([type, color]) => out.push(Number(type), color));
+  Object.entries(colors).forEach(([type, color]) => out.push(Number(type), color));
   out.push('#0f172a');
   return out as unknown as ExpressionSpecification;
 }
@@ -79,12 +81,15 @@ export interface NodesLayerOptions {
   baseR?: number;
   repeaterR?: number;
   onClick?: (id: string) => void;
+  /** Per-role stroke colours (type encoding). Defaults to NODE_TYPE_STROKE. */
+  roleColors?: Record<number, string>;
 }
 
 export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
   const baseR = opts.baseR ?? 7;
   const repeaterR = opts.repeaterR ?? 10;
   let nodeScale = 1;
+  let roleColors: Record<number, string> = opts.roleColors ?? NODE_TYPE_STROKE;
   let listenersBound = false;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const m = map as any;
@@ -100,7 +105,7 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
         'circle-color': circleColorExpr(),
         'circle-radius': circleRadiusExpr(baseR * nodeScale, repeaterR * nodeScale),
         'circle-opacity': 0.9,
-        'circle-stroke-color': strokeColorExpr(),
+        'circle-stroke-color': strokeColorExpr(roleColors),
         'circle-stroke-width': ['case', ['get', 'repeater'], 3, 2],
       },
     });
@@ -138,6 +143,13 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
     }
   }
 
+  function setRoleColors(colors: Record<number, string>) {
+    roleColors = colors;
+    if (m.getLayer('rt-nodes')) {
+      m.setPaintProperty('rt-nodes', 'circle-stroke-color', strokeColorExpr(roleColors));
+    }
+  }
+
   function ensure() {
     addSourceAndLayer();
     bindListeners();
@@ -146,5 +158,5 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
     addSourceAndLayer();
   }
 
-  return { ensure, reattach, setData, setNodeScale };
+  return { ensure, reattach, setData, setNodeScale, setRoleColors };
 }

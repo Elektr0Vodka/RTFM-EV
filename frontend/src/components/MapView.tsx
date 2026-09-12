@@ -19,6 +19,12 @@ import { MapSurface } from '../map/MapSurface';
 import { setMapLock2D } from '../map/engine/mapLock2D';
 import { setBuildings3D } from '../map/engine/buildings3D';
 import { createNodesLayer } from '../map/layers/nodesLayer';
+import {
+  getSavedNodeRoleColors,
+  saveNodeRoleColors,
+  DEFAULT_NODE_ROLE_COLORS,
+  type NodeRoleColors,
+} from '../map/layers/nodeRoleColors';
 import { createParticleOverlay, type MapParticle } from '../map/layers/particleOverlay';
 import { createDeckTraces, arcRows, type DeckTracesController } from '../map/layers/tracesDeck';
 import { createLinksLayer, type ResolveCoord } from '../map/layers/linksLayer';
@@ -184,6 +190,7 @@ export function MapView({
   const [tilt3D, setTilt3D] = useState(false);
   const [buildings, setBuildings] = useState(false);
   const [nodeScale, setNodeScale] = useState(getSavedNodeScale);
+  const [roleColors, setRoleColors] = useState<NodeRoleColors>(getSavedNodeRoleColors);
   const [linksOn, setLinksOn] = useState(false);
   const [showExternalNodes, setShowExternalNodes] = useState(false);
   const [externalNodes, setExternalNodes] = useState<ExternalMapNode[]>([]);
@@ -198,6 +205,7 @@ export function MapView({
   const seenObservationsRef = useRef(new Set<string>());
   const mapRef = useRef<MlMap | null>(null);
   const nodesRef = useRef<ReturnType<typeof createNodesLayer> | null>(null);
+  const roleColorsRef = useRef<NodeRoleColors>(roleColors);
   const overlayRef = useRef<ReturnType<typeof createParticleOverlay> | null>(null);
   const deckRef = useRef<DeckTracesController | null>(null);
   const linksLayerRef = useRef<ReturnType<typeof createLinksLayer> | null>(null);
@@ -374,6 +382,20 @@ export function MapView({
       /* ignore */
     }
   }, [nodeScale]);
+
+  // Persist per-role node colours and push them to the live layer + legend.
+  useEffect(() => {
+    roleColorsRef.current = roleColors;
+    saveNodeRoleColors(roleColors);
+    nodesRef.current?.setRoleColors(roleColors);
+  }, [roleColors]);
+
+  const handleRoleColorChange = useCallback((type: number, color: string) => {
+    setRoleColors((prev) => ({ ...prev, [type]: color }));
+  }, []);
+  const handleResetRoleColors = useCallback(() => {
+    setRoleColors({ ...DEFAULT_NODE_ROLE_COLORS });
+  }, []);
 
   const sinceCutoffSec = useMemo(() => {
     if (sinceId === 'custom') return localDateTimeToEpochSec(customSince);
@@ -685,7 +707,10 @@ export function MapView({
       external.ensure();
       external.setData(visibleExternalRef.current);
       externalRef.current = external;
-      const nodes = createNodesLayer(map, { onClick: openContactPopup });
+      const nodes = createNodesLayer(map, {
+        onClick: openContactPopup,
+        roleColors: roleColorsRef.current,
+      });
       nodes.ensure();
       nodes.setNodeScale(nodeScale);
       nodes.setData(mappableContacts, nowSec);
@@ -955,6 +980,9 @@ export function MapView({
         }}
         nodeScale={nodeScale}
         onNodeScale={setNodeScale}
+        roleColors={roleColors}
+        onRoleColorChange={handleRoleColorChange}
+        onResetRoleColors={handleResetRoleColors}
         linksOn={linksOn}
         onToggleLinks={(on) => {
           setLinksOn(on);
