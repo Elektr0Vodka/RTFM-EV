@@ -11,6 +11,12 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-12 (My Node map link)
+
+### Chat / UI
+- "My Node" coordinates now open the internal node map centred on the node
+  instead of linking out to OpenStreetMap in a new tab
+
 ## Update 2026-09-12 (navbar, PR #98)
 
 ### Chat / UI

@@ -21,6 +21,7 @@ import { api } from '../api';
 import { buildRawPacketStatsSnapshot } from '../utils/rawPacketStats';
 import { useRawPackets, useRawPacketStatsSession } from '../stores/rawPacketStore';
 import { getContactDisplayName } from '../utils/pubkey';
+import { handleKeyboardActivate } from '../utils/a11y';
 import { cn } from '@/lib/utils';
 import { useT, type TFn } from '../i18n';
 
@@ -41,6 +42,7 @@ function nodeTypeLabel(type: number | null | undefined, t: TFn): string {
 
 interface Props {
   contacts: Contact[];
+  onCoordinateClick?: (lat: number, lon: number, label: string) => void;
 }
 
 // ─── Time window definitions ────────────────────────────────────────────────
@@ -1306,7 +1308,7 @@ function HBarSection({
 
 // ─── Main ──────────────────────────────────────────────────────────────────
 
-export default function MyNodeView({ contacts }: Props) {
+export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
   const t = useT();
   const rawPackets = useRawPackets();
   const rawPacketStatsSession = useRawPacketStatsSession();
@@ -1748,15 +1750,23 @@ export default function MyNodeView({ contacts }: Props) {
                         })}
                       </span>
                     )}
-                    {config.lat != null && config.lon != null && (
-                      <a
-                        href={`https://www.openstreetmap.org/?mlat=${config.lat}&mlon=${config.lon}&zoom=13`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="transition hover:text-foreground"
+                    {config.lat != null && config.lon != null && onCoordinateClick && (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        className="cursor-pointer transition hover:text-foreground"
+                        onKeyDown={handleKeyboardActivate}
+                        onClick={() =>
+                          onCoordinateClick(
+                            config.lat!,
+                            config.lon!,
+                            config.name || t('node_unnamed_node')
+                          )
+                        }
+                        title={t('contact_view_on_map')}
                       >
-                        {config.lat.toFixed(4)}, {config.lon.toFixed(4)} ↗
-                      </a>
+                        {config.lat.toFixed(4)}, {config.lon.toFixed(4)}
+                      </span>
                     )}
                   </div>
                 </div>

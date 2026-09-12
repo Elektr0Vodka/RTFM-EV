@@ -294,7 +294,7 @@ export function ConversationPane({
   if (activeConversation.type === 'node') {
     return (
       <Suspense fallback={<LoadingPane label="Loading node analytics..." />}>
-        <MyNodeView contacts={contacts} />
+        <MyNodeView contacts={contacts} onCoordinateClick={onCoordinateClick} />
       </Suspense>
     );
   }
