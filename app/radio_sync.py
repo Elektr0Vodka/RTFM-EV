@@ -1530,13 +1530,14 @@ async def stop_background_contact_reconciliation() -> None:
 
 
 # Radio residency reasons, in fill-priority order.
-RESIDENCY_PINNED = "pinned"
-RESIDENCY_FAVORITE = "favorite"
-RESIDENCY_RECENT_DM = "recent-dm"
-RESIDENCY_RECENT_ADVERT = "recent-advert"
+ResidencyReason = Literal["pinned", "favorite", "recent-dm", "recent-advert"]
+RESIDENCY_PINNED: ResidencyReason = "pinned"
+RESIDENCY_FAVORITE: ResidencyReason = "favorite"
+RESIDENCY_RECENT_DM: ResidencyReason = "recent-dm"
+RESIDENCY_RECENT_ADVERT: ResidencyReason = "recent-advert"
 
 
-async def get_radio_residency() -> list[tuple[Contact, str]]:
+async def get_radio_residency() -> list[tuple[Contact, ResidencyReason]]:
     """Return (contact, reason) pairs that would be loaded onto the radio now.
 
     Fill order:
@@ -1554,14 +1555,14 @@ async def get_radio_residency() -> list[tuple[Contact, str]]:
     app_settings = await AppSettingsRepository.get()
     max_contacts = _effective_radio_capacity(app_settings.max_radio_contacts)
     refill_target, _full_sync_trigger = _compute_radio_contact_limits(max_contacts)
-    selected: list[tuple[Contact, str]] = []
+    selected: list[tuple[Contact, ResidencyReason]] = []
     selected_keys: set[str] = set()
 
     # First tier: pinned then favorites, always loaded up to capacity. Pinned
     # precedes favorite (tie-break). ``get_pinned`` only returns 'pinned'
     # contacts, which are never 'excluded' (mutually exclusive), so only
     # favorites need the exclude filter here.
-    first_tier: list[tuple[Contact, str]] = []
+    first_tier: list[tuple[Contact, ResidencyReason]] = []
     first_tier_keys: set[str] = set()
     for contact in await ContactRepository.get_pinned():
         key = contact.public_key.lower()
