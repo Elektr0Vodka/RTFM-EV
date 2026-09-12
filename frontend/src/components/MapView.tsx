@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { Popup as MlPopup, Marker as MlMarker, type Map as MlMap } from 'maplibre-gl';
-import { Layers as LayersIcon, Zap } from 'lucide-react';
+import { Zap, Clock } from 'lucide-react';
 import type { Contact, RadioConfig } from '../types';
 import { formatTime } from '../utils/messageParser';
 import { isValidLocation } from '../utils/pathUtils';
@@ -586,8 +586,22 @@ export function MapView({
         )}
       </div>
     );
+    // Show the active timeframe on the Since FAB itself (compact preset code
+    // like "7d"/"All", or a clock icon for a custom range).
+    const sinceValueText =
+      sinceId === 'custom'
+        ? t('map_custom_button')
+        : t(MAP_SINCE_PRESETS.find((p) => p.id === sinceId)?.labelKey ?? 'map_preset_all');
+    const sinceIcon =
+      sinceId === 'custom' ? (
+        <Clock size={18} aria-hidden />
+      ) : (
+        <span className="text-xs font-semibold leading-none" aria-hidden>
+          {sinceValueText}
+        </span>
+      );
     return [
-      { id: 'since', label: t('map_since_label'), icon: <LayersIcon size={20} aria-hidden />, panel: sincePanel },
+      { id: 'since', label: `${t('map_since_label')}: ${sinceValueText}`, icon: sinceIcon, panel: sincePanel },
       { id: 'packets', label: t('map_visualize_packets_label'), icon: <Zap size={20} aria-hidden />, panel: packetsPanel },
     ];
   }, [t, sinceId, customSince, showPackets, discoveryMode]);
