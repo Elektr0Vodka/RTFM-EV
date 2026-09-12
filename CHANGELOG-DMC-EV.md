@@ -19,16 +19,16 @@ the change. Upstream development is on hold; the fork is the active repository.
   scanline, phosphor-glow, screen-curvature, and flicker effects. Flicker
   respects `prefers-reduced-motion`. Phosphor and effect choices are
   per-device (localStorage); the theme lives in a dedicated CRT section under
-  the renamed "Customisation" settings block (was "Color Scheme") (pending)
+  the renamed "Customisation" settings block (was "Color Scheme") (PR #100)
 - Branding: customise the navbar name, hide it, and upload a custom icon.
   Stored server-side so it is shared across every device connected to the
   instance. Icon capped at 128 KB (PNG/SVG/ICO/JPEG). Empty name falls back to
-  "RemoteTerm"; empty icon falls back to the built-in logo (pending)
+  "RemoteTerm"; empty icon falls back to the built-in logo (PR #100)
 
 ### Backend
 - Migration `_082` adds `brand_name`, `brand_hidden`, and `brand_icon` columns
   to `app_settings`; `PATCH /settings` accepts and validates them (name capped
-  at 64 chars, icon type/size checked) (pending)
+  at 64 chars, icon type/size checked) (PR #100)
 
 ## Update 2026-09-12 (My Node map link)
 
@@ -47,7 +47,7 @@ the change. Upstream development is on hold; the fork is the active repository.
 ## Update 2026-09-12 (map / audio / fanout, PRs #75-#91)
 
 Work that landed on `origin/main` after PR #74, up to PR #91 (`b180cc7`),
-grouped by area. PRs #83-#86 did not merge. The three "(pending)" items in the
+grouped by area. PRs #83-#86 did not merge. The three "(PR #100)" items in the
 section below merged as PR #91 and now carry that commit ref.
 
 ### Map
