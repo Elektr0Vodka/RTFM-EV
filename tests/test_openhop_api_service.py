@@ -70,3 +70,61 @@ async def test_policy_and_group_methods_use_api_key():
     await client.delete_group_entry("channel_hashes", "g1", value="0x1f")
     await client.aclose()
     assert all(v == "tok" for v in seen.values())
+
+
+@pytest.mark.asyncio
+async def test_plugin_read_methods_use_api_key():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen[(request.method, request.url.path, request.url.query.decode())] = request.headers.get(
+            "X-API-Key"
+        )
+        return httpx.Response(200, json={"success": True, "plugins": [], "data": {}})
+
+    client = OpenHopClient("http://node:8000", token="tok", transport=httpx.MockTransport(handler))
+    await client.list_plugins()
+    await client.plugin_status("openhop.nomad")
+    await client.plugin_catalogue()
+    await client.plugin_catalogue(force_refresh=True)
+    await client.plugin_logs("openhop.nomad", tail=50)
+    await client.get_plugin_config("openhop.nomad")
+    await client.check_plugin_update("openhop.nomad")
+    await client.aclose()
+    assert ("GET", "/api/plugins/", "") in seen
+    assert ("GET", "/api/plugins/openhop.nomad", "") in seen
+    assert ("GET", "/api/plugins/catalogue", "") in seen
+    assert ("GET", "/api/plugins/catalogue", "refresh=1") in seen
+    assert ("GET", "/api/plugins/logs", "id=openhop.nomad&tail=50") in seen
+    assert ("GET", "/api/plugins/settings", "id=openhop.nomad") in seen
+    assert ("GET", "/api/plugins/updates", "id=openhop.nomad") in seen
+    assert all(v == "tok" for v in seen.values())
+
+
+@pytest.mark.asyncio
+async def test_plugin_write_methods_send_expected_bodies():
+    bodies = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        import json as _json
+
+        body = _json.loads(request.content.decode() or "{}")
+        bodies[request.url.path] = (request.method, body, request.headers.get("X-API-Key"))
+        return httpx.Response(200, json={"success": True})
+
+    client = OpenHopClient("http://node:8000", token="tok", transport=httpx.MockTransport(handler))
+    await client.enable_plugin("p1")
+    await client.disable_plugin("p1")
+    await client.start_plugin("p1")
+    await client.stop_plugin("p1")
+    await client.restart_plugin("p1")
+    await client.catalogue_install("p1", version="2.0.0")
+    await client.update_plugin("p1")
+    await client.set_plugin_config("p1", {"k": 1}, restart=True)
+    await client.uninstall_plugin("p1", delete_data=True)
+    await client.aclose()
+    assert bodies["/api/plugins/enable"] == ("POST", {"id": "p1"}, "tok")
+    assert bodies["/api/plugins/catalogue_install"][1] == {"id": "p1", "version": "2.0.0"}
+    assert bodies["/api/plugins/update"][1] == {"id": "p1"}
+    assert bodies["/api/plugins/settings"][1] == {"id": "p1", "config": {"k": 1}, "restart": True}
+    assert bodies["/api/plugins/uninstall"][1] == {"id": "p1", "delete_data": True}

@@ -94,5 +94,72 @@ class OpenHopClient:
             body["entry_id"] = entry_id
         return await self._delete("/api/policy_group_entries", body)
 
+    async def _get_q(self, path: str, params: dict[str, Any]) -> dict[str, Any]:
+        r = await self._client.get(path, params=params)
+        r.raise_for_status()
+        return r.json()
+
+    async def list_plugins(self) -> dict[str, Any]:
+        return await self._get("/api/plugins/")
+
+    async def plugin_status(self, plugin_id: str) -> dict[str, Any]:
+        return await self._get(f"/api/plugins/{plugin_id}")
+
+    async def plugin_catalogue(self, force_refresh: bool = False) -> dict[str, Any]:
+        return await self._get("/api/plugins/catalogue" + ("?refresh=1" if force_refresh else ""))
+
+    async def plugin_logs(self, plugin_id: str, tail: int = 200) -> dict[str, Any]:
+        return await self._get_q("/api/plugins/logs", {"id": plugin_id, "tail": tail})
+
+    async def get_plugin_config(self, plugin_id: str) -> dict[str, Any]:
+        return await self._get_q("/api/plugins/settings", {"id": plugin_id})
+
+    async def check_plugin_update(
+        self, plugin_id: str, force_refresh: bool = False
+    ) -> dict[str, Any]:
+        params: dict[str, Any] = {"id": plugin_id}
+        if force_refresh:
+            params["refresh"] = 1
+        return await self._get_q("/api/plugins/updates", params)
+
+    async def enable_plugin(self, plugin_id: str) -> dict[str, Any]:
+        return await self._post("/api/plugins/enable", {"id": plugin_id})
+
+    async def disable_plugin(self, plugin_id: str) -> dict[str, Any]:
+        return await self._post("/api/plugins/disable", {"id": plugin_id})
+
+    async def start_plugin(self, plugin_id: str) -> dict[str, Any]:
+        return await self._post("/api/plugins/start", {"id": plugin_id})
+
+    async def stop_plugin(self, plugin_id: str) -> dict[str, Any]:
+        return await self._post("/api/plugins/stop", {"id": plugin_id})
+
+    async def restart_plugin(self, plugin_id: str) -> dict[str, Any]:
+        return await self._post("/api/plugins/restart", {"id": plugin_id})
+
+    async def catalogue_install(self, plugin_id: str, version: str | None = None) -> dict[str, Any]:
+        body: dict[str, Any] = {"id": plugin_id}
+        if version:
+            body["version"] = version
+        return await self._post("/api/plugins/catalogue_install", body)
+
+    async def update_plugin(self, plugin_id: str, version: str | None = None) -> dict[str, Any]:
+        body: dict[str, Any] = {"id": plugin_id}
+        if version:
+            body["version"] = version
+        return await self._post("/api/plugins/update", body)
+
+    async def set_plugin_config(
+        self, plugin_id: str, config: dict[str, Any], restart: bool = False
+    ) -> dict[str, Any]:
+        return await self._post(
+            "/api/plugins/settings", {"id": plugin_id, "config": config, "restart": restart}
+        )
+
+    async def uninstall_plugin(self, plugin_id: str, delete_data: bool = False) -> dict[str, Any]:
+        return await self._post(
+            "/api/plugins/uninstall", {"id": plugin_id, "delete_data": delete_data}
+        )
+
     async def aclose(self) -> None:
         await self._client.aclose()
