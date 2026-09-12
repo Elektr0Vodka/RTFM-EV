@@ -13,8 +13,10 @@ from app.models import RawPacketDecryptedInfo, RawPacketDetail
 from app.packet_processor import create_message_from_decrypted, run_historical_dm_decryption
 from app.region_resolver import resolve_region
 from app.repository import (
+    AdvertEventRepository,
     AppSettingsRepository,
     ChannelRepository,
+    ContactRepository,
     MessageRepository,
     RawPacketRepository,
 )
@@ -566,6 +568,8 @@ class MeshHealthContact(BaseModel):
     public_key: str
     name: str | None
     advert_count: int
+    direct_count: int = 0
+    flood_count: int = 0
     first_seen: int | None
     last_seen: int | None
     lat: float | None
@@ -608,52 +612,33 @@ async def get_mesh_health(start_ts: int, end_ts: int) -> MeshHealthResponse:
 
     window_hours = (end_ts - start_ts) / 3600.0
 
-    async with db.readonly() as conn:
-        async with conn.execute(
-            """
-            SELECT
-                c.public_key,
-                c.name,
-                c.lat,
-                c.lon,
-                MAX(cap.last_seen) AS last_seen,
-                CASE WHEN MIN(cap.first_seen) < :start_ts THEN :start_ts
-                     ELSE MIN(cap.first_seen) END AS first_seen,
-                MIN(cap.path_len) AS min_path_len,
-                COALESCE(SUM(
-                    CASE WHEN cap.heard_count <= 0 THEN 0
-                         WHEN cap.first_seen >= :start_ts THEN cap.heard_count
-                         WHEN cap.last_primary_seen IS NOT NULL AND cap.last_primary_seen >= :start_ts
-                         THEN 1
-                         ELSE 0
-                    END
-                ), 0) AS advert_count
-            FROM contacts c
-            JOIN contact_advert_paths cap ON cap.public_key = c.public_key
-                AND cap.last_seen >= :start_ts AND cap.last_seen < :end_ts
-            GROUP BY c.public_key
-            ORDER BY advert_count DESC
-            """,
-            {"start_ts": start_ts, "end_ts": end_ts},
-        ) as cur:
-            rows = await cur.fetchall()
+    event_rows = await AdvertEventRepository.mesh_health_rows(start_ts, end_ts)
 
     contacts: list[MeshHealthContact] = []
     alerts: list[MeshHealthAlert] = []
     high_count = 0
     medium_count = 0
 
-    for row in rows:
-        advert_count = int(row["advert_count"])
+    for row in event_rows:
+        pk = row["public_key"]
+        contact = await ContactRepository.get_by_key(pk)
+        direct = row["direct_count"]
+        flood = row["flood_count"]
+        advert_count = direct + flood
+        first_seen = row["first_seen"]
+        if first_seen is not None and first_seen < start_ts:
+            first_seen = start_ts
         contacts.append(
             MeshHealthContact(
-                public_key=row["public_key"],
-                name=row["name"],
+                public_key=pk,
+                name=contact.name if contact else None,
                 advert_count=advert_count,
-                first_seen=row["first_seen"],
-                last_seen=row["last_seen"],
-                lat=row["lat"],
-                lon=row["lon"],
+                direct_count=direct,
+                flood_count=flood,
+                first_seen=first_seen,
+                last_seen=(contact.last_seen if contact else None) or row["last_event"],
+                lat=contact.lat if contact else None,
+                lon=contact.lon if contact else None,
                 min_path_len=row["min_path_len"],
                 hash_mode=None,
             )
@@ -672,12 +657,14 @@ async def get_mesh_health(start_ts: int, end_ts: int) -> MeshHealthResponse:
         alerts.append(
             MeshHealthAlert(
                 level=level,
-                public_key=row["public_key"],
-                name=row["name"],
+                public_key=pk,
+                name=contact.name if contact else None,
                 advert_count=advert_count,
                 adverts_per_hour=round(adverts_per_hour, 2),
             )
         )
+
+    contacts.sort(key=lambda c: c.advert_count, reverse=True)
 
     return MeshHealthResponse(
         start_ts=start_ts,

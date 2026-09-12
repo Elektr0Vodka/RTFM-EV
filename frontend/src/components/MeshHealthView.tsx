@@ -51,6 +51,8 @@ interface MeshHealthContact {
   public_key: string;
   name: string | null;
   advert_count: number;
+  direct_count: number;
+  flood_count: number;
   first_seen: number | null;
   last_seen: number | null;
   lat: number | null;
@@ -84,6 +86,8 @@ interface MeshHealthResponse {
 type SortKey =
   | 'name'
   | 'advert_count'
+  | 'direct_count'
+  | 'flood_count'
   | 'last_seen'
   | 'first_seen'
   | 'min_path_len'
@@ -558,6 +562,10 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
         }
         case 'advert_count':
           return dir * (a.advert_count - b.advert_count);
+        case 'direct_count':
+          return dir * (a.direct_count - b.direct_count);
+        case 'flood_count':
+          return dir * (a.flood_count - b.flood_count);
         case 'last_seen':
           return dir * ((a.last_seen ?? 0) - (b.last_seen ?? 0));
         case 'first_seen':
@@ -619,6 +627,21 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
       else b[2].count++;
     }
     return b.filter((x) => x.count > 0);
+  }, [contactsWithDist, t]);
+
+  const directFloodDist = useMemo(() => {
+    if (!contactsWithDist.length) return [];
+    let direct = 0;
+    let flood = 0;
+    for (const c of contactsWithDist) {
+      direct += c.direct_count;
+      flood += c.flood_count;
+    }
+    const items = [
+      { label: t('mesh_health_col_direct'), count: direct, color: 'hsl(var(--success))' },
+      { label: t('mesh_health_col_flood'), count: flood, color: 'hsl(var(--warning))' },
+    ];
+    return items.filter((x) => x.count > 0);
   }, [contactsWithDist, t]);
 
   const thClass =
@@ -715,6 +738,16 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
                   className="h-16 animate-pulse rounded border border-border bg-background"
                 />
               ))}
+            </div>
+          )}
+
+          {/* Direct vs flood advert split */}
+          {directFloodDist.length > 0 && (
+            <div className="rounded border border-border bg-background p-2.5">
+              <div className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                {t('mesh_health_direct_flood_heading')}
+              </div>
+              <DistBars items={directFloodDist} />
             </div>
           )}
 
@@ -883,9 +916,23 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
                       </th>
                       <th
                         className={`${thClass} text-right`}
+                        onClick={() => handleSort('direct_count')}
+                      >
+                        {t('mesh_health_col_direct')}{' '}
+                        <SortIcon col="direct_count" sortKey={sortKey} sortDir={sortDir} />
+                      </th>
+                      <th
+                        className={`${thClass} text-right`}
+                        onClick={() => handleSort('flood_count')}
+                      >
+                        {t('mesh_health_col_flood')}{' '}
+                        <SortIcon col="flood_count" sortKey={sortKey} sortDir={sortDir} />
+                      </th>
+                      <th
+                        className={`${thClass} text-right`}
                         onClick={() => handleSort('advert_count')}
                       >
-                        {t('mesh_health_col_adverts')}{' '}
+                        {t('mesh_health_col_total')}{' '}
                         <SortIcon col="advert_count" sortKey={sortKey} sortDir={sortDir} />
                       </th>
                       <th
@@ -949,6 +996,12 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
                           </td>
                           <td className="px-2 py-1.5 font-medium text-foreground max-w-[180px] truncate">
                             {n.name ?? n.public_key.slice(0, 12)}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
+                            {n.direct_count}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
+                            {n.flood_count}
                           </td>
                           <td className="px-2 py-1.5 text-right tabular-nums">
                             <span

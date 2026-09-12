@@ -472,6 +472,7 @@ export interface AnalyzerSite {
 export interface AppSettings {
   max_radio_contacts: number;
   auto_decrypt_dm_on_advert: boolean;
+  advert_retention_days: number;
   last_message_times: Record<string, number>;
   advert_interval: number;
   last_advert_time: number;
@@ -518,6 +519,7 @@ export interface ExternalMapStatus {
 export interface AppSettingsUpdate {
   max_radio_contacts?: number;
   auto_decrypt_dm_on_advert?: boolean;
+  advert_retention_days?: number;
   advert_interval?: number;
   auto_resend_channel?: boolean;
   flood_scope?: string;

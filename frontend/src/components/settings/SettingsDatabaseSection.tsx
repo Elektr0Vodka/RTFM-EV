@@ -35,6 +35,7 @@ export function SettingsDatabaseSection({
 }) {
   const t = useT();
   const [retentionDays, setRetentionDays] = useState('14');
+  const [advertRetention, setAdvertRetention] = useState('30');
   const [cleaning, setCleaning] = useState(false);
   const [purgingDecryptedRaw, setPurgingDecryptedRaw] = useState(false);
   const [autoDecryptOnAdvert, setAutoDecryptOnAdvert] = useState(false);
@@ -55,6 +56,7 @@ export function SettingsDatabaseSection({
 
   useEffect(() => {
     setAutoDecryptOnAdvert(appSettings.auto_decrypt_dm_on_advert);
+    setAdvertRetention(String(appSettings.advert_retention_days ?? 30));
     setSyncUrl(appSettings.registry_sync_url ?? '');
     setWordlistSyncUrl(appSettings.wordlist_sync_url ?? '');
     setSyncedWordCount(loadSyncedWordlist().length);
@@ -291,6 +293,42 @@ export function SettingsDatabaseSection({
               ? t('settings_db_purging')
               : t('settings_db_purge_archival_button')}
           </Button>
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* ── Mesh Health History ── */}
+      <div className="space-y-3">
+        <h3 className="text-base font-semibold tracking-tight">
+          {t('settings_db_mesh_history_heading')}
+        </h3>
+        <div className="space-y-1.5">
+          <Label htmlFor="advert-retention-days" className="text-sm font-medium">
+            {t('settings_db_advert_retention_label')}
+          </Label>
+          <Input
+            id="advert-retention-days"
+            type="number"
+            min="1"
+            max="365"
+            value={advertRetention}
+            onChange={(e) => setAdvertRetention(e.target.value)}
+            onBlur={() => {
+              const days = parseInt(advertRetention, 10);
+              if (isNaN(days) || days < 1 || days > 365) {
+                setAdvertRetention(String(appSettings.advert_retention_days ?? 30));
+                return;
+              }
+              void persistAppSettings({ advert_retention_days: days }, () =>
+                setAdvertRetention(String(appSettings.advert_retention_days ?? 30))
+              );
+            }}
+            className="w-24"
+          />
+          <p className="text-[0.8125rem] text-muted-foreground">
+            {t('settings_db_advert_retention_help')}
+          </p>
         </div>
       </div>
 

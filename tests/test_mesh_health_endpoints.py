@@ -17,23 +17,37 @@ async def _contact(pubkey: str, last_seen: int, lat=None, lon=None):
 
 class TestMeshHealth:
     @pytest.mark.asyncio
-    async def test_advert_count_and_alert_thresholds(self, test_db, client):
+    async def test_direct_flood_split_and_alert(self, test_db, client):
+        from app.repository.advert_events import AdvertEventRepository
+
         start, end = 1700000000, 1700003600  # 1h window
         pubkey = "aa" * 32
         await _contact(pubkey, start + 10)
-        # Three primary (direct) adverts in-window -> advert_count 3 -> MEDIUM (>2).
-        for i in range(3):
-            await ContactAdvertPathRepository.record_observation(
-                public_key=pubkey, path_hex="", timestamp=start + 10 + i, is_new_packet=True
+        # 3 direct transmissions + 1 flood-only -> direct 3, flood 1, total 4 -> MEDIUM (>2).
+        for i, txid in enumerate((1, 2, 3)):
+            await AdvertEventRepository.record(
+                transmission_id=txid,
+                public_key=pubkey,
+                timestamp=start + 10 + i,
+                path_len=0,
+                path_hex="",
             )
+        await AdvertEventRepository.record(
+            transmission_id=4,
+            public_key=pubkey,
+            timestamp=start + 20,
+            path_len=2,
+            path_hex="bbbbcccc",
+        )
 
         resp = await client.get(f"/api/packets/mesh-health?start_ts={start}&end_ts={end}")
         assert resp.status_code == 200
         body = resp.json()
         assert body["total_contacts"] == 1
-        c = body["contacts"][0]
-        assert c["public_key"] == pubkey
-        assert c["advert_count"] == 3
+        c = next(x for x in body["contacts"] if x["public_key"] == pubkey)
+        assert c["direct_count"] == 3
+        assert c["flood_count"] == 1
+        assert c["advert_count"] == 4
         assert c["min_path_len"] == 0
         assert body["medium_alert_count"] == 1
         assert body["high_alert_count"] == 0

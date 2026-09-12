@@ -1,3 +1,4 @@
+from app.repository.advert_events import AdvertEventRepository
 from app.repository.channels import ChannelRepository
 from app.repository.contacts import (
     AmbiguousPublicKeyPrefixError,
@@ -12,6 +13,7 @@ from app.repository.repeater_telemetry import RepeaterTelemetryRepository
 from app.repository.settings import AppSettingsRepository, StatisticsRepository
 
 __all__ = [
+    "AdvertEventRepository",
     "AmbiguousPublicKeyPrefixError",
     "AppSettingsRepository",
     "ChannelRepository",

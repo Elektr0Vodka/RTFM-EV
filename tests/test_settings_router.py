@@ -602,3 +602,28 @@ class TestRoutedHourlySetting:
 
         assert result.schedule.routed_hourly is True
         assert result.schedule.next_routed_run_at is not None
+
+
+class TestAdvertRetentionSetting:
+    """PATCH /settings for advert_retention_days (mesh-health history)."""
+
+    @pytest.mark.asyncio
+    async def test_default_is_30(self, test_db):
+        settings = await AppSettingsRepository.get()
+        assert settings.advert_retention_days == 30
+
+    @pytest.mark.asyncio
+    async def test_update_persists(self, test_db):
+        result = await update_settings(AppSettingsUpdate(advert_retention_days=7))
+        assert result.advert_retention_days == 7
+        again = await AppSettingsRepository.get()
+        assert again.advert_retention_days == 7
+
+    @pytest.mark.asyncio
+    async def test_rejects_out_of_range(self):
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            AppSettingsUpdate(advert_retention_days=0)
+        with pytest.raises(ValidationError):
+            AppSettingsUpdate(advert_retention_days=366)

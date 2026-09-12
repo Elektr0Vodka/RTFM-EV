@@ -43,6 +43,7 @@ class AppSettingsRepository:
         async with conn.execute(
             """
             SELECT max_radio_contacts, auto_decrypt_dm_on_advert,
+                   advert_retention_days,
                    last_message_times,
                    advert_interval, last_advert_time, flood_scope, known_regions,
                    blocked_keys, blocked_names, discovery_blocked_types,
@@ -207,9 +208,17 @@ class AppSettingsRepository:
         except (KeyError, TypeError):
             external_map_sync_interval_hours = 0
 
+        # Parse advert_retention_days (migration adds the column with default=30)
+        try:
+            raw_retention = row["advert_retention_days"]
+            advert_retention_days = int(raw_retention) if raw_retention is not None else 30
+        except (KeyError, TypeError, ValueError):
+            advert_retention_days = 30
+
         return AppSettings(
             max_radio_contacts=row["max_radio_contacts"],
             auto_decrypt_dm_on_advert=bool(row["auto_decrypt_dm_on_advert"]),
+            advert_retention_days=advert_retention_days,
             last_message_times=last_message_times,
             advert_interval=row["advert_interval"] or 0,
             last_advert_time=row["last_advert_time"] or 0,
@@ -240,6 +249,7 @@ class AppSettingsRepository:
         *,
         max_radio_contacts: int | None = None,
         auto_decrypt_dm_on_advert: bool | None = None,
+        advert_retention_days: int | None = None,
         last_message_times: dict[str, int] | None = None,
         advert_interval: int | None = None,
         last_advert_time: int | None = None,
@@ -278,6 +288,10 @@ class AppSettingsRepository:
         if auto_decrypt_dm_on_advert is not None:
             updates.append("auto_decrypt_dm_on_advert = ?")
             params.append(1 if auto_decrypt_dm_on_advert else 0)
+
+        if advert_retention_days is not None:
+            updates.append("advert_retention_days = ?")
+            params.append(advert_retention_days)
 
         if last_message_times is not None:
             updates.append("last_message_times = ?")
@@ -385,6 +399,7 @@ class AppSettingsRepository:
     async def update(
         max_radio_contacts: int | None = None,
         auto_decrypt_dm_on_advert: bool | None = None,
+        advert_retention_days: int | None = None,
         last_message_times: dict[str, int] | None = None,
         advert_interval: int | None = None,
         last_advert_time: int | None = None,
@@ -414,6 +429,7 @@ class AppSettingsRepository:
                 conn,
                 max_radio_contacts=max_radio_contacts,
                 auto_decrypt_dm_on_advert=auto_decrypt_dm_on_advert,
+                advert_retention_days=advert_retention_days,
                 last_message_times=last_message_times,
                 advert_interval=advert_interval,
                 last_advert_time=last_advert_time,
