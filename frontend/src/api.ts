@@ -28,6 +28,8 @@ import type {
   OpenHopGroupKind,
   OpenHopPolicyDoc,
   OpenHopPolicyEngine,
+  OpenHopPlugin,
+  OpenHopCatalogueEntry,
   MessagesAroundResponse,
   RawPacket,
   RadioAdvertMode,
@@ -515,6 +517,57 @@ export const api = {
       method: 'DELETE',
       body: JSON.stringify({ kind, group_id, value }),
     }),
+
+  // OpenHop plugins (Surface B; only meaningful when is_openhop AND configured)
+  listOpenHopPlugins: () =>
+    fetchJson<OpenHopEnvelope<never> & { plugins: OpenHopPlugin[] }>('/openhop/plugins'),
+  getOpenHopPluginStatus: (id: string) =>
+    fetchJson<OpenHopEnvelope<OpenHopPlugin>>(
+      `/openhop/plugins/status?id=${encodeURIComponent(id)}`
+    ),
+  getOpenHopPluginCatalogue: (refresh = false) =>
+    fetchJson<OpenHopEnvelope<{ plugins: OpenHopCatalogueEntry[] }>>(
+      `/openhop/plugins/catalogue${refresh ? '?refresh=true' : ''}`
+    ),
+  getOpenHopPluginLogs: (id: string, tail = 200) =>
+    fetchJson<OpenHopEnvelope<{ lines?: string[]; log?: string }>>(
+      `/openhop/plugins/logs?id=${encodeURIComponent(id)}&tail=${tail}`
+    ),
+  getOpenHopPluginConfig: (id: string) =>
+    fetchJson<OpenHopEnvelope<{ config?: Record<string, unknown> }>>(
+      `/openhop/plugins/settings?id=${encodeURIComponent(id)}`
+    ),
+  checkOpenHopPluginUpdate: (id: string, refresh = false) =>
+    fetchJson<OpenHopEnvelope<{ update_available?: boolean; latest_version?: string }>>(
+      `/openhop/plugins/updates?id=${encodeURIComponent(id)}${refresh ? '&refresh=true' : ''}`
+    ),
+  openHopPluginLifecycle: (verb: 'enable' | 'disable' | 'start' | 'stop' | 'restart', id: string) =>
+    fetchJson<OpenHopEnvelope>(`/openhop/plugins/${verb}`, {
+      method: 'POST',
+      body: JSON.stringify({ id }),
+    }),
+  installOpenHopCataloguePlugin: (id: string, version?: string) =>
+    fetchJson<OpenHopEnvelope>('/openhop/plugins/catalogue_install', {
+      method: 'POST',
+      body: JSON.stringify(version ? { id, version } : { id }),
+    }),
+  updateOpenHopPlugin: (id: string, version?: string) =>
+    fetchJson<OpenHopEnvelope>('/openhop/plugins/update', {
+      method: 'POST',
+      body: JSON.stringify(version ? { id, version } : { id }),
+    }),
+  setOpenHopPluginConfig: (id: string, config: Record<string, unknown>, restart = false) =>
+    fetchJson<OpenHopEnvelope>('/openhop/plugins/settings', {
+      method: 'POST',
+      body: JSON.stringify({ id, config, restart }),
+    }),
+  uninstallOpenHopPlugin: (id: string, delete_data = false) =>
+    fetchJson<OpenHopEnvelope>('/openhop/plugins/uninstall', {
+      method: 'POST',
+      body: JSON.stringify({ id, delete_data }),
+    }),
+  openHopPluginProgressUrl: (id: string, since = 0, fresh = true) =>
+    `./api/openhop/plugins/progress?id=${encodeURIComponent(id)}&since=${since}&fresh=${fresh}`,
 
   // Block lists
   toggleBlockedKey: (key: string) =>

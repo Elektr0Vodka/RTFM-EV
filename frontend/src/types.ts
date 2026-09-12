@@ -603,6 +603,40 @@ export interface OpenHopEnvelope<T = unknown> {
   error?: string;
 }
 
+/** An installed OpenHop plugin. Fields are permissive; the pane reads only what it renders. */
+export interface OpenHopPlugin {
+  id: string;
+  name?: string;
+  version?: string;
+  enabled?: boolean;
+  state?: string;
+  running?: boolean;
+  update_available?: boolean;
+  latest_version?: string;
+  [k: string]: unknown;
+}
+
+/** A curated catalogue entry available to install. */
+export interface OpenHopCatalogueEntry {
+  id: string;
+  name?: string;
+  description?: string;
+  repository?: string;
+  category?: string;
+  version?: string;
+  installed?: boolean;
+  update_available?: boolean;
+  [k: string]: unknown;
+}
+
+/** An event from the plugin install/update progress SSE stream. */
+export type OpenHopPluginProgressEvent =
+  | { type: 'connected'; id: string }
+  | { type: 'line'; line: string }
+  | { type: 'status'; state: string; operation?: string | null; started?: number | null }
+  | { type: 'done'; state: string; error?: string | null; started?: number | null }
+  | { type: 'keepalive' };
+
 /** A located node synced from an external map/analyzer directory. */
 export interface WordlistMeta {
   id: number;
