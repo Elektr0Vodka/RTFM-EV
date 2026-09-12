@@ -1562,6 +1562,7 @@
   "map_clear_button": "Wissen",
   "map_visualize_packets_label": "Pakketten visualiseren",
   "map_discover_nodes_label": "Nodes ontdekken",
+  "map_discover_nodes_help": "Passief filter: toont alleen knooppunten die sinds het inschakelen in live pakketten zijn gehoord. Er wordt niets verzonden of opgevraagd.",
   "map_aria_label": "Kaart met locaties van meshnodes",
   "map_open_conversation_title": "Gesprek openen met {name}",
   "map_last_heard": "Laatst gehoord: {label}",

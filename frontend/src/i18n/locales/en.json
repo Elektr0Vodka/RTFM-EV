@@ -1561,6 +1561,7 @@
   "map_clear_button": "Clear",
   "map_visualize_packets_label": "Visualize packets",
   "map_discover_nodes_label": "Discover nodes",
+  "map_discover_nodes_help": "Passive filter: shows only nodes heard in live packets since you turned this on. It does not transmit or request anything.",
   "map_aria_label": "Map showing mesh node locations",
   "map_open_conversation_title": "Open conversation with {name}",
   "map_last_heard": "Last heard: {label}",

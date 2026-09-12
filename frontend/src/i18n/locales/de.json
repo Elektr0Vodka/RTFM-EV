@@ -1562,6 +1562,7 @@
   "map_clear_button": "Löschen",
   "map_visualize_packets_label": "Pakete visualisieren",
   "map_discover_nodes_label": "Knoten entdecken",
+  "map_discover_nodes_help": "Passiver Filter: zeigt nur Knoten, die seit dem Einschalten in Live-Paketen gehört wurden. Es wird nichts gesendet oder angefragt.",
   "map_aria_label": "Karte mit Standorten der Mesh-Knoten",
   "map_open_conversation_title": "Unterhaltung mit {name} öffnen",
   "map_last_heard": "Zuletzt gehört: {label}",

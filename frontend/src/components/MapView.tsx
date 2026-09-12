@@ -685,10 +685,13 @@ export function MapView({
           {t('map_visualize_packets_label')}
         </label>
         {showPackets && (
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={discoveryMode} onChange={(e) => setDiscoveryMode(e.target.checked)} />
-            {t('map_discover_nodes_label')}
-          </label>
+          <>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={discoveryMode} onChange={(e) => setDiscoveryMode(e.target.checked)} />
+              {t('map_discover_nodes_label')}
+            </label>
+            <p className="text-xs text-muted-foreground">{t('map_discover_nodes_help')}</p>
+          </>
         )}
       </div>
     );
