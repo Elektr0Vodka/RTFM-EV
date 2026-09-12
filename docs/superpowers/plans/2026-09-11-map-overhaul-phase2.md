@@ -1959,3 +1959,33 @@ List the two-plus independent checks per claim with their observed results; mark
 - Spec coverage: engine (Tasks 2-6), nodes (8), FAB controls on every map (12-13, 18-20), MapView rewrite (14), overlays 2D/3D (15-16), links liveness-only (17), all five surfaces migrated + Leaflet removed (18-21), i18n (11), verification (22). Bundle-size delta (21). WebGL fallback (1, 13, 22).
 - Type consistency: source ids `rt-nodes`/`rt-links`, layer controllers expose `ensure`/`reattach`/`setData` consistently; `applyBasemap` ctx `onBuildings` matches `setBuildings3D` signature; `getBasemap` fallback id is `nova` (matches `DEFAULT_BASEMAP_ID`).
 - Known research steps (not placeholders): Task 2 Step 3 copies raster presets from `mapTiles.ts`; Task 17 Step 1 confirms the node-id -> contact resolver from `packetNetworkGraph.ts`. Both are concrete reads, required before the code they feed.
+
+---
+
+## Planned follow-ups (post Phase 2, maintainer-requested)
+
+Not in scope for this PR; captured so they are not lost.
+
+1. **Per-role node colour selection in the controls panel.** Let the user pick
+   the colour for each contact role (client / repeater / room / sensor) from the
+   map controls (the node-size / appearance panel), persisted to localStorage,
+   with the legend reflecting the chosen colours live. Note: today's encoding is
+   fill = recency bucket, stroke = type (`NODE_TYPE_STROKE` in
+   `nodesLayer.ts`); a per-role *fill* selector changes that encoding, so decide
+   whether role becomes the fill (recency moves to opacity, per the EU analyzer
+   model) or the stroke stays the role channel and the selector recolours the
+   stroke. The `MapLegend` must read the same colour source so it stays in sync.
+2. **Live-trace / active discovery options.** An active mode that sends RF
+   requests (e.g. `REQ_TYPE_GET_NEIGHBOURS` / `GET_TELEMETRY_DATA` via
+   `CMD_SEND_BINARY_REQ`) and animates the responses on the map (request pulse
+   out, response arcs back, populate neighbour edges on the per-link layer).
+   Unlike the passive "Discover nodes" filter this transmits, so it must respect
+   advert/request cadence (local advert = minutes, flood = hours) and be
+   rate-limited host-side. See the `discover-nodes-and-rf-requests` memory note.
+3. **Basemap robustness (relates to "map doesn't load").** The Nova default does
+   a double style-load (create on OpenFreeMap dark, then re-fetch + recolour +
+   `setStyle` on load); under OpenFreeMap slowness/rate-limiting this races
+   ("Style is not done loading. Rebuilding" + AbortError) and can leave the
+   vector basemap blank. Consider defaulting to a keyless raster or adding a
+   fallback-to-raster when the vector style fails to load. A keyless Esri raster
+   renders instantly and reliably.
