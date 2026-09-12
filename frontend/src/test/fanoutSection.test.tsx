@@ -143,6 +143,8 @@ beforeEach(() => {
     brand_name: '',
     brand_hidden: false,
     brand_icon: '',
+    openhop_api_url: null,
+    openhop_api_token: null,
   });
   mockedApi.getRadioConfig.mockResolvedValue({
     public_key: 'aa'.repeat(32),
@@ -1203,6 +1205,8 @@ describe('SettingsFanoutSection', () => {
       brand_name: '',
       brand_hidden: false,
       brand_icon: '',
+      openhop_api_url: null,
+      openhop_api_token: null,
     });
 
     renderSection();

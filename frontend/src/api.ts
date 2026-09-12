@@ -23,6 +23,7 @@ import type {
   MeshcomodConfig,
   MeshcomodConfigUpdate,
   Message,
+  OpenHopStatus,
   MessagesAroundResponse,
   RawPacket,
   RadioAdvertMode,
@@ -471,6 +472,9 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(settings),
     }),
+
+  // OpenHop management (Surface B, opt-in; only meaningful when is_openhop)
+  getOpenHopStatus: () => fetchJson<OpenHopStatus>('/openhop/status'),
 
   // Block lists
   toggleBlockedKey: (key: string) =>

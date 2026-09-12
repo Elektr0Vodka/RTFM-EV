@@ -96,6 +96,8 @@ const baseSettings: AppSettings = {
   brand_name: '',
   brand_hidden: false,
   brand_icon: '',
+  openhop_api_url: null,
+  openhop_api_token: null,
 };
 
 function renderModal(overrides?: {

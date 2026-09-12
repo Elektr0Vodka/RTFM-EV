@@ -527,6 +527,15 @@ export interface AppSettings {
   brand_name: string;
   brand_hidden: boolean;
   brand_icon: string;
+  openhop_api_url: string | null;
+  openhop_api_token: string | null;
+}
+
+/** Availability of the opt-in OpenHop REST management surface (never carries the token). */
+export interface OpenHopStatus {
+  configured: boolean;
+  is_openhop: boolean;
+  base_url: string | null;
 }
 
 /** A located node synced from an external map/analyzer directory. */
@@ -603,6 +612,8 @@ export interface AppSettingsUpdate {
   brand_name?: string;
   brand_hidden?: boolean;
   brand_icon?: string;
+  openhop_api_url?: string | null;
+  openhop_api_token?: string | null;
 }
 
 export interface TelemetrySchedule {

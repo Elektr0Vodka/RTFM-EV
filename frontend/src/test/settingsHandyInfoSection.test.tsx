@@ -50,6 +50,8 @@ function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings {
     brand_name: '',
     brand_hidden: false,
     brand_icon: '',
+    openhop_api_url: null,
+    openhop_api_token: null,
     ...overrides,
   };
 }

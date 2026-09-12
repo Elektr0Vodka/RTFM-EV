@@ -7,6 +7,7 @@ import { Separator } from '../ui/separator';
 import { toast } from '../ui/sonner';
 import { Checkbox } from '../ui/checkbox';
 import { MeshcomodSettings } from './MeshcomodSettings';
+import { OpenHopSettings } from './OpenHopSettings';
 import { useT } from '../../i18n';
 import {
   Dialog,
@@ -1974,6 +1975,12 @@ export function SettingsRadioSection({
         </div>
 
         <MeshcomodSettings health={health} />
+
+        <OpenHopSettings
+          health={health}
+          appSettings={appSettings}
+          onSaveAppSettings={onSaveAppSettings}
+        />
       </div>
 
       {/* ── Private Key Import Warning ── */}
