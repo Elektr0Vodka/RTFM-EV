@@ -1,8 +1,16 @@
 import { forwardRef } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { MapView } from '../components/MapView';
 import type { Contact } from '../types';
+
+const getExternalMapNodes = vi.fn();
+vi.mock('../api', () => ({
+  api: {
+    getExternalMapNodes: (...args: unknown[]) => getExternalMapNodes(...args),
+  },
+  isAbortError: () => false,
+}));
 
 vi.mock('react-leaflet', () => {
   const BaseLayer = ({
@@ -28,13 +36,24 @@ vi.mock('react-leaflet', () => {
     Popup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     Polyline: () => null,
     LayersControl: LayersControlMock,
-    useMap: () => ({
-      setView: vi.fn(),
-      fitBounds: vi.fn(),
-      setMaxZoom: vi.fn(),
-      setZoom: vi.fn(),
-      getZoom: vi.fn(() => 2),
-    }),
+    // A single stable map instance, like the real useMap (a fresh object each
+    // render would churn effect deps).
+    useMap: (() => {
+      const map = {
+        setView: vi.fn(),
+        fitBounds: vi.fn(),
+        setMaxZoom: vi.fn(),
+        setZoom: vi.fn(),
+        getZoom: vi.fn(() => 2),
+        getBounds: () => ({
+          getWest: () => 3,
+          getSouth: () => 51,
+          getEast: () => 5,
+          getNorth: () => 53,
+        }),
+      };
+      return () => map;
+    })(),
     useMapEvents: () => null,
   };
 });
@@ -137,6 +156,82 @@ describe('MapView', () => {
     render(<MapView contacts={[]} focusedLatLon={[52.123456, 4.123456]} focusedLabel="Home" />);
     expect(screen.getByText('Home')).toBeInTheDocument();
     expect(screen.getByText(/52\.123456, 4\.123456/)).toBeInTheDocument();
+  });
+
+  it('fetches and overlays external analyzer nodes when the layer is toggled on', async () => {
+    getExternalMapNodes.mockReset();
+    getExternalMapNodes.mockResolvedValue([
+      {
+        pubkey: 'ff'.repeat(32),
+        name: 'Analyzer Node',
+        role: 'Repeater',
+        lat: 52.2,
+        lon: 4.2,
+        last_seen: null,
+        advert_count: 0,
+        mobile: false,
+      },
+    ]);
+    const { container } = render(<MapView contacts={[]} />);
+
+    // Off by default: no fetch, no external marker.
+    expect(getExternalMapNodes).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText('Analyzer nodes'));
+
+    await waitFor(() => expect(getExternalMapNodes).toHaveBeenCalled());
+    expect(getExternalMapNodes).toHaveBeenCalledWith(
+      { west: 3, south: 51, east: 5, north: 53 },
+      expect.anything()
+    );
+    // The overlay marker uses the distinct external fill color.
+    await waitFor(() =>
+      expect(container.querySelector('[data-fill-color="#c026d3"]')).not.toBeNull()
+    );
+    expect(screen.getByText('Analyzer Node')).toBeInTheDocument();
+  });
+
+  it('hides external nodes already tracked as local contacts', async () => {
+    getExternalMapNodes.mockReset();
+    const shared = 'ab'.repeat(32);
+    getExternalMapNodes.mockResolvedValue([
+      {
+        pubkey: shared,
+        name: 'Dup',
+        role: 'Repeater',
+        lat: 52.2,
+        lon: 4.2,
+        last_seen: null,
+        advert_count: 0,
+        mobile: false,
+      },
+    ]);
+    const local: Contact = {
+      public_key: shared,
+      name: 'Local Copy',
+      type: 1,
+      flags: 0,
+      direct_path: null,
+      direct_path_len: -1,
+      direct_path_hash_mode: -1,
+      route_override_path: null,
+      route_override_len: null,
+      route_override_hash_mode: null,
+      last_advert: null,
+      lat: 52.2,
+      lon: 4.2,
+      last_seen: Math.floor(Date.now() / 1000),
+      on_radio: false,
+      favorite: false,
+      last_contacted: null,
+      last_read_at: null,
+      first_seen: null,
+    };
+    render(<MapView contacts={[local]} />);
+    fireEvent.click(screen.getByText('Analyzer nodes'));
+    await waitFor(() => expect(getExternalMapNodes).toHaveBeenCalled());
+    // Deduped: the external copy is not rendered (only the local contact shows).
+    await waitFor(() => expect(screen.queryByText('Dup')).toBeNull());
   });
 
   it('keeps the relative cutoff stable across re-renders that do not advance the clock', () => {

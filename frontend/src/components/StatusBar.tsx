@@ -15,6 +15,7 @@ import { handleKeyboardActivate } from '../utils/a11y';
 import { useT } from '../i18n';
 import { getEffectiveTheme, THEME_CHANGE_EVENT } from '../utils/theme';
 import { HeaderLanguageMenu } from './HeaderLanguageMenu';
+import { LivePacketSparkline } from './LivePacketSparkline';
 import { useUpdateStatus } from '../hooks/useUpdateStatus';
 import { ThemeSelector } from './settings/ThemeSelector';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
@@ -212,6 +213,8 @@ export function StatusBar({
         RemoteTerm
       </h1>
       {/* eslint-enable i18next/no-literal-string */}
+
+      <LivePacketSparkline className="hidden lg:flex items-center gap-1.5" />
 
       <div className="flex items-center gap-1.5" role="status" aria-label={statusLabel}>
         <div

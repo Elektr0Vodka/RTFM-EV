@@ -474,6 +474,19 @@ export function formatHopCounts(paths: MessagePath[] | null | undefined): {
 }
 
 /**
+ * True when a message was heard directly (0 hops) on every recorded path, i.e.
+ * the sender is within direct radio range of our node. Requires at least one
+ * path with usable metadata; messages with no path info return false (unknown,
+ * not direct).
+ */
+export function isDirectMessage(paths: MessagePath[] | null | undefined): boolean {
+  if (!paths || paths.length === 0) {
+    return false;
+  }
+  return formatHopCounts(paths).allDirect;
+}
+
+/**
  * The distinct per-hop byte widths (1, 2, or 3) observed across a message's
  * paths, sorted ascending. Direct (0-hop) paths and legacy rows without usable
  * `path_len` metadata carry no hop bytes to classify and contribute nothing, so

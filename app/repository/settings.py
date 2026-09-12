@@ -50,7 +50,9 @@ class AppSettingsRepository:
                    auto_resend_channel,
                    telemetry_interval_hours, telemetry_routed_hourly,
                    show_mention_ticker, registry_sync_url, region_sync_url,
-                   wordlist_sync_url, analyzer_sites
+                   wordlist_sync_url, analyzer_sites,
+                   external_map_enabled, external_map_sync_url,
+                   external_map_sync_interval_hours
             FROM app_settings WHERE id = 1
             """
         ) as cursor:
@@ -182,6 +184,22 @@ class AppSettingsRepository:
         except (json.JSONDecodeError, TypeError, KeyError, ValueError):
             analyzer_sites = []
 
+        # External-map overlay settings (migration _076 adds the columns).
+        try:
+            external_map_enabled = bool(row["external_map_enabled"])
+        except (KeyError, TypeError):
+            external_map_enabled = False
+        try:
+            external_map_sync_url = (
+                row["external_map_sync_url"] or "https://meshcore-analyzer.eu/api/nodes"
+            )
+        except (KeyError, TypeError):
+            external_map_sync_url = "https://meshcore-analyzer.eu/api/nodes"
+        try:
+            external_map_sync_interval_hours = row["external_map_sync_interval_hours"] or 0
+        except (KeyError, TypeError):
+            external_map_sync_interval_hours = 0
+
         return AppSettings(
             max_radio_contacts=row["max_radio_contacts"],
             auto_decrypt_dm_on_advert=bool(row["auto_decrypt_dm_on_advert"]),
@@ -203,6 +221,9 @@ class AppSettingsRepository:
             region_sync_url=region_sync_url,
             wordlist_sync_url=wordlist_sync_url,
             analyzer_sites=analyzer_sites,
+            external_map_enabled=external_map_enabled,
+            external_map_sync_url=external_map_sync_url,
+            external_map_sync_interval_hours=external_map_sync_interval_hours,
         )
 
     @staticmethod
@@ -229,6 +250,9 @@ class AppSettingsRepository:
         region_sync_url: str | None = None,
         wordlist_sync_url: str | None = None,
         analyzer_sites: list[AnalyzerSite] | None = None,
+        external_map_enabled: bool | None = None,
+        external_map_sync_url: str | None = None,
+        external_map_sync_interval_hours: int | None = None,
     ) -> None:
         """Apply field updates using an already-acquired connection.
 
@@ -318,6 +342,18 @@ class AppSettingsRepository:
             updates.append("analyzer_sites = ?")
             params.append(json.dumps([site.model_dump() for site in analyzer_sites]))
 
+        if external_map_enabled is not None:
+            updates.append("external_map_enabled = ?")
+            params.append(1 if external_map_enabled else 0)
+
+        if external_map_sync_url is not None:
+            updates.append("external_map_sync_url = ?")
+            params.append(external_map_sync_url)
+
+        if external_map_sync_interval_hours is not None:
+            updates.append("external_map_sync_interval_hours = ?")
+            params.append(external_map_sync_interval_hours)
+
         if updates:
             query = f"UPDATE app_settings SET {', '.join(updates)} WHERE id = 1"
             async with conn.execute(query, params):
@@ -354,6 +390,9 @@ class AppSettingsRepository:
         region_sync_url: str | None = None,
         wordlist_sync_url: str | None = None,
         analyzer_sites: list[AnalyzerSite] | None = None,
+        external_map_enabled: bool | None = None,
+        external_map_sync_url: str | None = None,
+        external_map_sync_interval_hours: int | None = None,
     ) -> AppSettings:
         """Update app settings. Only provided fields are updated."""
         async with db.tx() as conn:
@@ -379,6 +418,9 @@ class AppSettingsRepository:
                 region_sync_url=region_sync_url,
                 wordlist_sync_url=wordlist_sync_url,
                 analyzer_sites=analyzer_sites,
+                external_map_enabled=external_map_enabled,
+                external_map_sync_url=external_map_sync_url,
+                external_map_sync_interval_hours=external_map_sync_interval_hours,
             )
             return await AppSettingsRepository._get_in_conn(conn)
 

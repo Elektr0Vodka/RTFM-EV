@@ -100,6 +100,27 @@ describe('PathRouteMap', () => {
     ]);
   });
 
+  it('overlays one connecting line per route when given multiple routes', () => {
+    const secondRoute: ResolvedPath = {
+      ...resolved,
+      hops: [
+        {
+          prefix: '3C',
+          matches: [makeContact({ public_key: '33'.repeat(32), lat: 52.2, lon: 4.2 })],
+          distanceFromPrev: null,
+        },
+      ],
+    };
+    render(<PathRouteMap routes={[resolved, secondRoute]} senderInfo={senderInfo} />);
+    expect(polylineProps).toHaveLength(2);
+    // Route 2 goes sender -> its located hop -> receiver.
+    expect(polylineProps[1].positions).toEqual([
+      [52.0, 4.0],
+      [52.2, 4.2],
+      [52.3, 4.3],
+    ]);
+  });
+
   it('uses the OSM (light) basemap when the theme is light', () => {
     setBackgroundLightness('40 18% 97%');
     render(<PathRouteMap resolved={resolved} senderInfo={senderInfo} />);

@@ -9,10 +9,15 @@ import {
   Polyline,
   LayersControl,
 } from 'react-leaflet';
-import type { LatLngBoundsExpression, CircleMarker as LeafletCircleMarker } from 'leaflet';
+import type {
+  LatLngBoundsExpression,
+  LatLngBounds,
+  CircleMarker as LeafletCircleMarker,
+} from 'leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import type { Contact, RadioConfig } from '../types';
+import type { Contact, ExternalMapNode, RadioConfig } from '../types';
+import { api, isAbortError } from '../api';
 import { formatTime } from '../utils/messageParser';
 import { isValidLocation } from '../utils/pathUtils';
 import { CONTACT_TYPE_REPEATER } from '../types';
@@ -94,6 +99,28 @@ function LayerChangeWatcher({ onChange }: { onChange: (name: string) => void }) 
   });
   return null;
 }
+
+/**
+ * Reports the current map bounds on load and after each pan/zoom, so the
+ * external-node overlay can fetch just the viewport (the analyzer directory is
+ * far too large to draw in full).
+ */
+function ViewportWatcher({ onBounds }: { onBounds: (bounds: LatLngBounds) => void }) {
+  const map = useMap();
+  useEffect(() => {
+    onBounds(map.getBounds());
+  }, [map, onBounds]);
+  useMapEvents({
+    moveend: () => onBounds(map.getBounds()),
+    zoomend: () => onBounds(map.getBounds()),
+  });
+  return null;
+}
+
+// External analyzer nodes use a deliberately distinct style (magenta, dashed
+// ring) so they never read as locally-heard contacts.
+const MAP_EXTERNAL_FILL = '#c026d3';
+const MAP_EXTERNAL_STROKE = '#701a75';
 
 /**
  * Enforces the active layer's zoom ceiling on the underlying Leaflet map.
@@ -565,6 +592,14 @@ export function MapView({
 
   const [showPackets, setShowPackets] = useState(false);
   const [discoveryMode, setDiscoveryMode] = useState(false);
+  const [showExternalNodes, setShowExternalNodes] = useState(false);
+  const [externalNodes, setExternalNodes] = useState<ExternalMapNode[]>([]);
+  const [viewBounds, setViewBounds] = useState<{
+    west: number;
+    south: number;
+    east: number;
+    north: number;
+  } | null>(null);
   const [discoveredKeys, setDiscoveredKeys] = useState<Set<string>>(new Set());
   const [particles, setParticles] = useState<MapParticle[]>([]);
   const particleIdRef = useRef(0);
@@ -586,6 +621,61 @@ export function MapView({
     }
     return { prefixIndex: prefix, nameIndex: name };
   }, [contacts]);
+
+  // External analyzer node overlay: track the viewport, fetch nodes for it, and
+  // hide any node we already track locally (or our own radio) so the overlay
+  // only adds nodes the mesh has not surfaced to us.
+  const onViewBounds = useCallback((bounds: LatLngBounds) => {
+    const next = {
+      west: bounds.getWest(),
+      south: bounds.getSouth(),
+      east: bounds.getEast(),
+      north: bounds.getNorth(),
+    };
+    // Return the previous reference unchanged when the box has not moved so
+    // React bails out of the re-render (and we skip a redundant viewport fetch).
+    setViewBounds((prev) =>
+      prev &&
+      prev.west === next.west &&
+      prev.south === next.south &&
+      prev.east === next.east &&
+      prev.north === next.north
+        ? prev
+        : next
+    );
+  }, []);
+
+  const localPubkeys = useMemo(() => {
+    const set = new Set(contacts.map((c) => c.public_key.toLowerCase()));
+    if (config?.public_key) set.add(config.public_key.toLowerCase());
+    return set;
+  }, [contacts, config?.public_key]);
+
+  useEffect(() => {
+    if (!showExternalNodes) {
+      setExternalNodes([]);
+      return;
+    }
+    if (!viewBounds) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      api
+        .getExternalMapNodes(viewBounds, controller.signal)
+        .then(setExternalNodes)
+        .catch((err) => {
+          if (!isAbortError(err)) console.error('External node fetch failed', err);
+        });
+    }, 300);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [showExternalNodes, viewBounds]);
+
+  const visibleExternalNodes = useMemo(
+    () => externalNodes.filter((n) => !localPubkeys.has(n.pubkey.toLowerCase())),
+    [externalNodes, localPubkeys]
+  );
 
   // Self GPS
   const myLatLon = useMemo<[number, number] | null>(() => {
@@ -1070,6 +1160,15 @@ export function MapView({
               <span className="text-[0.6875rem]">{t('map_discover_nodes_label')}</span>
             </label>
           )}
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showExternalNodes}
+              onChange={(e) => setShowExternalNodes(e.target.checked)}
+              className="rounded border-border"
+            />
+            <span className="text-[0.6875rem]">{t('map_external_nodes_label')}</span>
+          </label>
         </div>
       </div>
 
@@ -1104,6 +1203,7 @@ export function MapView({
             ))}
           </LayersControl>
           <LayerChangeWatcher onChange={handleLayerChange} />
+          {showExternalNodes && <ViewportWatcher onBounds={onViewBounds} />}
           <MaxZoomByActiveLayer maxZoom={activeLayer.maxZoom ?? MAP_MAX_ZOOM} />
           <MapBoundsHandler
             contacts={mappableContacts}
@@ -1179,6 +1279,44 @@ export function MapView({
               </Fragment>
             );
           })}
+
+          {showExternalNodes &&
+            visibleExternalNodes.map((node) => {
+              const displayName = node.name || node.pubkey.slice(0, 12);
+              const lastHeardLabel =
+                node.last_seen != null ? formatTime(node.last_seen) : t('map_never_heard');
+              return (
+                <CircleMarker
+                  key={`ext-${node.pubkey}`}
+                  center={[node.lat, node.lon]}
+                  radius={5}
+                  pathOptions={{
+                    color: MAP_EXTERNAL_STROKE,
+                    fillColor: MAP_EXTERNAL_FILL,
+                    fillOpacity: 0.65,
+                    weight: 1,
+                    dashArray: '3 3',
+                  }}
+                >
+                  <Popup>
+                    <div className="text-sm">
+                      <div className="font-medium">{displayName}</div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {t('map_external_node_source', {
+                          role: node.role || t('map_external_node'),
+                        })}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {t('map_last_heard', { label: lastHeardLabel })}
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1 font-mono">
+                        {node.lat.toFixed(5)}, {node.lon.toFixed(5)}
+                      </div>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              );
+            })}
 
           {focusedLatLon && (
             <CircleMarker

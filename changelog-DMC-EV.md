@@ -5,11 +5,43 @@ This changelog covers work done in the **RTFM-EV** fork
 `jkingsman/Remote-Terminal-for-MeshCore`.
 
 - Fork base commit: `33b3b8d` (upstream `main`), 2026-07-26
-- Commits since fork: 177 total (116 non-merge)
-- Generated: 2026-09-10; updated 2026-09-11
+- Commits since fork: 209 total (139 non-merge)
+- Generated: 2026-09-10; updated 2026-09-12
 
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
+
+## Update 2026-09-12 (merged after the 2026-09-11 second pass)
+
+Work that landed on `origin/main` after PR #67, up to PR #74, grouped by area.
+The previous update's cutoff was `bda40a5` (merge of PR #67).
+
+### Sidebar
+- Customisable layout: reorder sections, collapse to a rail, and configure it
+  from a settings panel (`0130411`) (PR #72)
+- Section total/new counters, a per-row new marker, and per-section clear
+  (`bed9c1e`) (PR #71)
+- Dim the name of a muted channel row (`f32e92b`) (PR #73)
+
+### Update checker (in-app update indicator)
+- New `update_check_enabled` setting, env `MESHCORE_UPDATE_CHECK_ENABLED`
+  (`c85abd8`, `0ebb34d`); cached GitHub `main`-compare service (`3a9cadb`) and
+  `/api/update-status` endpoint (`8402b01`); shared `useUpdateStatus` hook,
+  `UpdateStatus` type and api method (`bb80d7d`, `27bb14d`); update indicator +
+  button in About (`b2e05d3`) and an update dot on the StatusBar settings button
+  (`b54f0f9`), with i18n strings (`c050e1d`); design spec and implementation
+  plan (`1152abe`, `27e036e`) (PR #69)
+
+### Channels / registry
+- Batch-delete selected channels from the registry (`bd46a39`) (PR #70)
+
+### Tooling / CI
+- Enforce LF line endings via `.gitattributes` (`8f90a0a`) (PR #74)
+
+### Docs / planning
+- Note the prettier format gate and the CRLF caveat in the frontend docs
+  (`93d87b4`)
+- Correct plans 06/07 delivery status to shipped (`95ca9bf`)
 
 ## Update 2026-09-11 (second pass — merged after the previous update)
 

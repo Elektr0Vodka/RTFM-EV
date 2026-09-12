@@ -1,6 +1,8 @@
 import type {
   AppSettings,
   AppSettingsUpdate,
+  ExternalMapNode,
+  ExternalMapStatus,
   BulkCreateHashtagChannelsResult,
   ChannelImportResult,
   Channel,
@@ -406,6 +408,23 @@ export const api = {
 
   // Wordlist sync (candidate channel names -> channel finder wordlist)
   syncWordlist: () => fetchJson<{ words: string[] }>('/registry/wordlist-sync'),
+
+  // External analyzer node overlay
+  syncExternalMap: () =>
+    fetchJson<{ count: number; synced_at: number }>('/external-map/sync', { method: 'POST' }),
+  getExternalMapStatus: () => fetchJson<ExternalMapStatus>('/external-map/status'),
+  getExternalMapNodes: (
+    bbox: { west: number; south: number; east: number; north: number },
+    signal?: AbortSignal
+  ) => {
+    const qs = new URLSearchParams({
+      west: String(bbox.west),
+      south: String(bbox.south),
+      east: String(bbox.east),
+      north: String(bbox.north),
+    });
+    return fetchJson<ExternalMapNode[]>(`/external-map/nodes?${qs.toString()}`, { signal });
+  },
 
   // App Settings
   getSettings: () => fetchJson<AppSettings>('/settings'),

@@ -129,6 +129,9 @@ beforeEach(() => {
     region_sync_url: '',
     wordlist_sync_url: '',
     analyzer_sites: [],
+    external_map_enabled: false,
+    external_map_sync_url: '',
+    external_map_sync_interval_hours: 0,
   });
   mockedApi.getRadioConfig.mockResolvedValue({
     public_key: 'aa'.repeat(32),
@@ -1173,6 +1176,9 @@ describe('SettingsFanoutSection', () => {
       region_sync_url: '',
       wordlist_sync_url: '',
       analyzer_sites: [],
+      external_map_enabled: false,
+      external_map_sync_url: '',
+      external_map_sync_interval_hours: 0,
     });
 
     renderSection();

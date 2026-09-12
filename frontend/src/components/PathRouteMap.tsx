@@ -9,12 +9,34 @@ import { useIsDarkTheme } from '../hooks';
 import { useT } from '../i18n';
 
 interface PathRouteMapProps {
-  resolved: ResolvedPath;
+  /** Single resolved route (legacy callers). Ignored when `routes` is given. */
+  resolved?: ResolvedPath;
+  /**
+   * Multiple resolved routes to overlay on one map. When more than one is
+   * present each route draws its own coloured line and a legend is shown.
+   */
+  routes?: ResolvedPath[];
   senderInfo: SenderInfo;
   /** Fixed map height in px. Ignored when `fill` is set. */
   height?: number;
   /** When true, the map fills its parent's height instead of using `height`. */
   fill?: boolean;
+}
+
+// Distinct line colours per overlaid route (indexed by route number - 1).
+const ROUTE_LINE_COLORS = [
+  '#3b82f6', // blue
+  '#f97316', // orange
+  '#22c55e', // green
+  '#ec4899', // pink
+  '#a855f7', // purple
+  '#14b8a6', // teal
+  '#eab308', // yellow
+  '#ef4444', // red
+];
+
+function getRouteColor(routeIndex: number): string {
+  return ROUTE_LINE_COLORS[routeIndex % ROUTE_LINE_COLORS.length];
 }
 
 // Colors for hop markers (indexed by hop number - 1)
@@ -123,6 +145,7 @@ function RouteMapBounds({ points }: { points: [number, number][] }) {
 
 export function PathRouteMap({
   resolved,
+  routes,
   senderInfo,
   height = 220,
   fill = false,
@@ -130,27 +153,39 @@ export function PathRouteMap({
   const t = useT();
   const dark = useIsDarkTheme();
   const tile = themeRasterTile(dark);
-  const lineColor = dark ? '#e2e8f0' : '#1e293b';
-  const points = collectPoints(resolved);
-  const routeLine = collectRouteLine(resolved);
+  const singleLineColor = dark ? '#e2e8f0' : '#1e293b';
+
+  const routeList: ResolvedPath[] =
+    routes && routes.length > 0 ? routes : resolved ? [resolved] : [];
+  const isMulti = routeList.length > 1;
+
+  // Union of all located points across every route, for bounds fitting.
+  const points: [number, number][] = [];
+  for (const r of routeList) points.push(...collectPoints(r));
   const hasAnyGps = points.length > 0;
 
-  // Check if some nodes are missing GPS
-  let totalNodes = 2; // sender + receiver
+  // Count nodes missing GPS across all routes (sender/receiver counted once).
+  const shared = routeList[0];
+  let totalNodes = 0;
   let nodesWithGps = 0;
-  if (isValidLocation(resolved.sender.lat, resolved.sender.lon)) nodesWithGps++;
-  if (isValidLocation(resolved.receiver.lat, resolved.receiver.lon)) nodesWithGps++;
-  for (const hop of resolved.hops) {
-    if (hop.matches.length === 0) {
-      totalNodes++;
-    } else {
-      totalNodes += hop.matches.length;
-      nodesWithGps += hop.matches.filter((m) => isValidLocation(m.lat, m.lon)).length;
+  if (shared) {
+    totalNodes += 2; // sender + receiver
+    if (isValidLocation(shared.sender.lat, shared.sender.lon)) nodesWithGps++;
+    if (isValidLocation(shared.receiver.lat, shared.receiver.lon)) nodesWithGps++;
+    for (const r of routeList) {
+      for (const hop of r.hops) {
+        if (hop.matches.length === 0) {
+          totalNodes++;
+        } else {
+          totalNodes += hop.matches.length;
+          nodesWithGps += hop.matches.filter((m) => isValidLocation(m.lat, m.lon)).length;
+        }
+      }
     }
   }
   const someMissingGps = hasAnyGps && nodesWithGps < totalNodes;
 
-  if (!hasAnyGps) {
+  if (!hasAnyGps || !shared) {
     return (
       <div className="h-14 rounded border border-border bg-muted/30 flex items-center justify-center text-sm text-muted-foreground">
         {t('path_map_no_gps')}
@@ -188,68 +223,100 @@ export function PathRouteMap({
           />
           <RouteMapBounds points={points} />
 
-          {/* Connecting line along the route (drawn under the markers) */}
-          {routeLine.length >= 2 && (
-            <Polyline
-              positions={routeLine}
-              pathOptions={{
-                color: lineColor,
-                weight: 3,
-                opacity: 0.85,
-                lineCap: 'round',
-                lineJoin: 'round',
-              }}
-            />
-          )}
+          {/* Connecting line(s) along each route (drawn under the markers) */}
+          {routeList.map((r, ri) => {
+            const routeLine = collectRouteLine(r);
+            if (routeLine.length < 2) return null;
+            return (
+              <Polyline
+                key={`route-line-${ri}`}
+                positions={routeLine}
+                pathOptions={{
+                  color: isMulti ? getRouteColor(ri) : singleLineColor,
+                  weight: 3,
+                  opacity: 0.85,
+                  lineCap: 'round',
+                  lineJoin: 'round',
+                }}
+              />
+            );
+          })}
 
-          {/* Sender marker */}
-          {isValidLocation(resolved.sender.lat, resolved.sender.lon) && (
+          {/* Sender marker (shared by all routes) */}
+          {isValidLocation(shared.sender.lat, shared.sender.lon) && (
             <Marker
-              position={[resolved.sender.lat!, resolved.sender.lon!]}
+              position={[shared.sender.lat!, shared.sender.lon!]}
               icon={makeIcon('S', SENDER_COLOR)}
             >
               <Tooltip direction="top" offset={[0, -14]}>
-                <span className="font-mono">{resolved.sender.prefix}</span>
+                <span className="font-mono">{shared.sender.prefix}</span>
                 {' · '}
                 {senderInfo.name || t('path_modal_sender_label')}
               </Tooltip>
             </Marker>
           )}
 
-          {/* Hop markers */}
-          {resolved.hops.map((hop, hopIdx) =>
-            hop.matches
-              .filter((m) => isValidLocation(m.lat, m.lon))
-              .map((m, mIdx) => (
-                <Marker
-                  key={`hop-${hopIdx}-${mIdx}`}
-                  position={[m.lat!, m.lon!]}
-                  icon={makeIcon(String(hopIdx + 1), getHopColor(hopIdx))}
-                >
-                  <Tooltip direction="top" offset={[0, -14]}>
-                    <span className="font-mono">{hop.prefix}</span>
-                    {' · '}
-                    {m.name || m.public_key.slice(0, 12)}
-                  </Tooltip>
-                </Marker>
-              ))
+          {/* Hop markers: coloured by route when overlaying, else by hop number */}
+          {routeList.map((r, ri) =>
+            r.hops.map((hop, hopIdx) =>
+              hop.matches
+                .filter((m) => isValidLocation(m.lat, m.lon))
+                .map((m, mIdx) => (
+                  <Marker
+                    key={`r${ri}-hop-${hopIdx}-${mIdx}`}
+                    position={[m.lat!, m.lon!]}
+                    icon={makeIcon(
+                      String(hopIdx + 1),
+                      isMulti ? getRouteColor(ri) : getHopColor(hopIdx)
+                    )}
+                  >
+                    <Tooltip direction="top" offset={[0, -14]}>
+                      {isMulti && (
+                        <>
+                          <span>{t('path_modal_path_number', { n: ri + 1 })}</span>
+                          {' · '}
+                        </>
+                      )}
+                      <span className="font-mono">{hop.prefix}</span>
+                      {' · '}
+                      {m.name || m.public_key.slice(0, 12)}
+                    </Tooltip>
+                  </Marker>
+                ))
+            )
           )}
 
-          {/* Receiver marker */}
-          {isValidLocation(resolved.receiver.lat, resolved.receiver.lon) && (
+          {/* Receiver marker (shared by all routes) */}
+          {isValidLocation(shared.receiver.lat, shared.receiver.lon) && (
             <Marker
-              position={[resolved.receiver.lat!, resolved.receiver.lon!]}
+              position={[shared.receiver.lat!, shared.receiver.lon!]}
               icon={makeIcon('R', RECEIVER_COLOR)}
             >
               <Tooltip direction="top" offset={[0, -14]}>
-                <span className="font-mono">{resolved.receiver.prefix}</span>
+                <span className="font-mono">{shared.receiver.prefix}</span>
                 {' · '}
-                {resolved.receiver.name || t('path_map_receiver_fallback')}
+                {shared.receiver.name || t('path_map_receiver_fallback')}
               </Tooltip>
             </Marker>
           )}
         </MapContainer>
       </div>
+      {isMulti && (
+        <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 shrink-0" aria-hidden="true">
+          {routeList.map((r, ri) => (
+            <span
+              key={`legend-${ri}`}
+              className="flex items-center gap-1 text-xs text-muted-foreground"
+            >
+              <span
+                className="inline-block h-2 w-3 rounded-sm"
+                style={{ backgroundColor: getRouteColor(ri) }}
+              />
+              {t('path_map_route_legend', { n: ri + 1, hops: r.hops.length })}
+            </span>
+          ))}
+        </div>
+      )}
       {someMissingGps && (
         <p className="text-xs text-muted-foreground mt-1 shrink-0">
           {t('path_map_missing_gps_note')}

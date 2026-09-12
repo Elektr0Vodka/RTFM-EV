@@ -64,6 +64,7 @@ from app.routers import (
     channels,
     contacts,
     debug,
+    external_map,
     fanout,
     health,
     messages,
@@ -81,6 +82,7 @@ from app.routers import (
     ws,
 )
 from app.security import add_optional_basic_auth_middleware
+from app.services.external_map import start_external_map_sync, stop_external_map_sync
 from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.radio_stats import start_radio_stats_sampling, stop_radio_stats_sampling
 from app.version_info import get_app_build_info
@@ -123,6 +125,10 @@ async def lifespan(app: FastAPI):
     await ensure_default_channels()
     await start_radio_stats_sampling()
 
+    # External-map node overlay sync loop (radio-independent; guarded by the
+    # external_map_enabled / interval settings each tick).
+    start_external_map_sync()
+
     # Always start connection monitor (even if initial connection failed)
     await radio_manager.start_connection_monitor()
 
@@ -151,6 +157,7 @@ async def lifespan(app: FastAPI):
     await stop_background_contact_reconciliation()
     await stop_message_polling()
     await stop_radio_stats_sampling()
+    await stop_external_map_sync()
     await stop_periodic_advert()
     await stop_periodic_sync()
     await stop_telemetry_collect()
@@ -222,6 +229,7 @@ app.include_router(read_state.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
 app.include_router(registry.router, prefix="/api")
 app.include_router(regions.router, prefix="/api")
+app.include_router(external_map.router, prefix="/api")
 app.include_router(statistics.router, prefix="/api")
 app.include_router(push.router, prefix="/api")
 app.include_router(ws.router, prefix="/api")
