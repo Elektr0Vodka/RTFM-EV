@@ -58,7 +58,8 @@ class AppSettingsRepository:
                    external_map_enabled, external_map_sync_url,
                    external_map_sync_interval_hours,
                    backup_to_path_enabled, backup_destination_path,
-                   brand_name, brand_hidden, brand_icon
+                   brand_name, brand_hidden, brand_icon,
+                   openhop_api_url, openhop_api_token
             FROM app_settings WHERE id = 1
             """
         ) as cursor:
@@ -261,6 +262,16 @@ class AppSettingsRepository:
         except (KeyError, TypeError):
             brand_icon = ""
 
+        # OpenHop REST API settings (migration adds the columns; None when unset).
+        try:
+            openhop_api_url = row["openhop_api_url"]
+        except (KeyError, TypeError):
+            openhop_api_url = None
+        try:
+            openhop_api_token = row["openhop_api_token"]
+        except (KeyError, TypeError):
+            openhop_api_token = None
+
         return AppSettings(
             max_radio_contacts=row["max_radio_contacts"],
             auto_decrypt_dm_on_advert=bool(row["auto_decrypt_dm_on_advert"]),
@@ -296,6 +307,8 @@ class AppSettingsRepository:
             brand_name=brand_name,
             brand_hidden=brand_hidden,
             brand_icon=brand_icon,
+            openhop_api_url=openhop_api_url,
+            openhop_api_token=openhop_api_token,
         )
 
     @staticmethod
@@ -336,6 +349,8 @@ class AppSettingsRepository:
         brand_name: str | None = None,
         brand_hidden: bool | None = None,
         brand_icon: str | None = None,
+        openhop_api_url: str | None = None,
+        openhop_api_token: str | None = None,
     ) -> None:
         """Apply field updates using an already-acquired connection.
 
@@ -481,6 +496,14 @@ class AppSettingsRepository:
             updates.append("brand_icon = ?")
             params.append(brand_icon)
 
+        if openhop_api_url is not None:
+            updates.append("openhop_api_url = ?")
+            params.append(openhop_api_url)
+
+        if openhop_api_token is not None:
+            updates.append("openhop_api_token = ?")
+            params.append(openhop_api_token)
+
         if updates:
             query = f"UPDATE app_settings SET {', '.join(updates)} WHERE id = 1"
             async with conn.execute(query, params):
@@ -531,6 +554,8 @@ class AppSettingsRepository:
         brand_name: str | None = None,
         brand_hidden: bool | None = None,
         brand_icon: str | None = None,
+        openhop_api_url: str | None = None,
+        openhop_api_token: str | None = None,
     ) -> AppSettings:
         """Update app settings. Only provided fields are updated."""
         async with db.tx() as conn:
@@ -570,6 +595,8 @@ class AppSettingsRepository:
                 brand_name=brand_name,
                 brand_hidden=brand_hidden,
                 brand_icon=brand_icon,
+                openhop_api_url=openhop_api_url,
+                openhop_api_token=openhop_api_token,
             )
             return await AppSettingsRepository._get_in_conn(conn)
 

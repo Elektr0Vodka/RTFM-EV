@@ -1310,6 +1310,20 @@ class AppSettings(BaseModel):
         default="",
         description="Custom navbar icon as a data URL; empty falls back to the built-in SVG",
     )
+    openhop_api_url: str | None = Field(
+        default=None,
+        description=(
+            "Base URL of the connected OpenHop node's REST API (opt-in Surface B "
+            "management). None when unset or the node is not OpenHop."
+        ),
+    )
+    openhop_api_token: str | None = Field(
+        default=None,
+        description=(
+            "OpenHop REST API token (sent as X-API-Key), created by the user on "
+            "the node. None when unset."
+        ),
+    )
 
 
 class ExternalMapNode(BaseModel):

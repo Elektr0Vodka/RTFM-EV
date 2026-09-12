@@ -711,6 +711,20 @@ class TestAppSettingsRepository:
         assert settings.auto_resend_channel is False
         assert settings.telemetry_interval_hours == DEFAULT_TELEMETRY_INTERVAL_HOURS
 
+    @pytest.mark.asyncio
+    async def test_openhop_api_config_roundtrip(self, test_db):
+        """OpenHop API url/token persist and default to None when unset."""
+        assert (await AppSettingsRepository.get()).openhop_api_url is None
+        assert (await AppSettingsRepository.get()).openhop_api_token is None
+
+        await AppSettingsRepository.update(
+            openhop_api_url="http://127.0.0.1:8000", openhop_api_token="abc"
+        )
+
+        s = await AppSettingsRepository.get()
+        assert s.openhop_api_url == "http://127.0.0.1:8000"
+        assert s.openhop_api_token == "abc"
+
 
 class TestMessageRepositoryGetById:
     """Test MessageRepository.get_by_id method."""
