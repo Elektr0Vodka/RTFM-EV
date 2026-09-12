@@ -41,6 +41,8 @@ export function makeMapStub() {
     getZoom: vi.fn(() => 8),
     getContainer: vi.fn(() => document.createElement('div')),
     getCanvas: vi.fn(() => document.createElement('canvas')),
+    queryRenderedFeatures: vi.fn(() => []),
+    jumpTo: vi.fn(),
     project: vi.fn(() => ({ x: 0, y: 0 })),
     resize: vi.fn(),
     remove: vi.fn(),
