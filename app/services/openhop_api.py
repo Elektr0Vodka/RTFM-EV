@@ -161,5 +161,34 @@ class OpenHopClient:
             "/api/plugins/uninstall", {"id": plugin_id, "delete_data": delete_data}
         )
 
+    async def config_export(self, include_secrets: bool = False) -> dict[str, Any]:
+        path = "/api/config_export" + ("?include_secrets=true" if include_secrets else "")
+        return await self._get(path)
+
+    async def config_import(
+        self, config: dict[str, Any], restart_after: bool = False
+    ) -> dict[str, Any]:
+        return await self._post(
+            "/api/config_import", {"config": config, "restart_after": restart_after}
+        )
+
+    async def validate_config(self) -> dict[str, Any]:
+        return await self._get("/api/validate_config")
+
+    async def update_radio_config(self, params: dict[str, Any]) -> dict[str, Any]:
+        return await self._post("/api/update_radio_config", params)
+
+    async def set_mode(self, mode: str) -> dict[str, Any]:
+        return await self._post("/api/set_mode", {"mode": mode})
+
+    async def hardware_options(self) -> dict[str, Any]:
+        return await self._get("/api/hardware_options")
+
+    async def radio_presets(self) -> dict[str, Any]:
+        return await self._get("/api/radio_presets")
+
+    async def restart_service(self) -> dict[str, Any]:
+        return await self._post("/api/restart_service", {})
+
     async def aclose(self) -> None:
         await self._client.aclose()

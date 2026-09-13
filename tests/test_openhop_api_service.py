@@ -128,3 +128,45 @@ async def test_plugin_write_methods_send_expected_bodies():
     assert bodies["/api/plugins/update"][1] == {"id": "p1"}
     assert bodies["/api/plugins/settings"][1] == {"id": "p1", "config": {"k": 1}, "restart": True}
     assert bodies["/api/plugins/uninstall"][1] == {"id": "p1", "delete_data": True}
+
+
+@pytest.mark.asyncio
+async def test_config_family_methods_use_api_key_and_paths():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen[(request.method, request.url.path)] = request.headers.get("X-API-Key")
+        p, m = request.url.path, request.method
+        if p == "/api/config_export" and m == "GET":
+            return httpx.Response(200, json={"success": True, "data": {"meta": {}, "config": {}}})
+        if p == "/api/config_import" and m == "POST":
+            return httpx.Response(200, json={"success": True, "sections_updated": ["repeater"]})
+        if p == "/api/validate_config" and m == "GET":
+            return httpx.Response(200, json={"success": True, "data": {"valid": True}})
+        if p == "/api/update_radio_config" and m == "POST":
+            return httpx.Response(200, json={"success": True, "data": {"applied": ["txpower=22"]}})
+        if p == "/api/set_mode" and m == "POST":
+            return httpx.Response(200, json={"success": True, "mode": "forward"})
+        if p == "/api/hardware_options" and m == "GET":
+            return httpx.Response(200, json={"hardware": []})
+        if p == "/api/radio_presets" and m == "GET":
+            return httpx.Response(200, json={"presets": [], "source": "local"})
+        if p == "/api/restart_service" and m == "POST":
+            return httpx.Response(200, json={"success": True, "message": "ok"})
+        return httpx.Response(404, json={"success": False})
+
+    client = OpenHopClient("http://node:8000", token="tok", transport=httpx.MockTransport(handler))
+    assert (await client.config_export())["success"] is True
+    assert (await client.config_export(include_secrets=True))["success"] is True
+    assert (await client.config_import({"repeater": {"node_name": "N"}}, restart_after=False))[
+        "sections_updated"
+    ] == ["repeater"]
+    assert (await client.validate_config())["data"]["valid"] is True
+    assert (await client.update_radio_config({"tx_power": 22}))["data"]["applied"] == ["txpower=22"]
+    assert (await client.set_mode("forward"))["mode"] == "forward"
+    assert (await client.hardware_options())["hardware"] == []
+    assert (await client.radio_presets())["source"] == "local"
+    assert (await client.restart_service())["message"] == "ok"
+    await client.aclose()
+    assert all(v == "tok" for v in seen.values())
+    assert ("GET", "/api/config_export") in seen
