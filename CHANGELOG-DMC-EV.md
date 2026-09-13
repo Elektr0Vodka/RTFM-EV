@@ -11,6 +11,16 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-14 (Node icons on top of 3D buildings, claude/node-icon-building-layer)
+
+### Map
+- With the 3D building layer enabled, a node icon whose position falls inside a
+  building footprint is no longer hidden behind the extrusion. The buildings
+  layer is now inserted (or re-seated) just below the node/overlay layers so
+  node circles, labels, and external-node markers always draw on top
+  (`frontend/src/map/engine/buildings3D.ts`). Buildings still render above the
+  basemap; only the map overlays are lifted above them.
+
 ## Update 2026-09-13 (Sidebar back-to-top button, feat/sidebar-back-to-top)
 
 ### Chat / UI
