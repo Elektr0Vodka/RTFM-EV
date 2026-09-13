@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
+  AirtimeSample,
   BatterySample,
   Contact,
   HealthStatus,
@@ -25,7 +26,12 @@ import { handleKeyboardActivate } from '../utils/a11y';
 import { cn } from '@/lib/utils';
 import { useT, type TFn } from '../i18n';
 import { TimeRangeSelector } from './TimeRangeSelector';
-import { BASE_TIME_RANGES, CUSTOM_RANGE_ID, type TimeRange } from '../utils/timeRanges';
+import {
+  BASE_TIME_RANGES,
+  CUSTOM_RANGE_ID,
+  resolveRange,
+  type TimeRange,
+} from '../utils/timeRanges';
 
 // MeshCore node types (contact.type): translation key per mesh vocabulary label.
 const NODE_TYPE_KEYS: Record<number, string> = {
@@ -796,6 +802,98 @@ function StackedBarChart({
   );
 }
 
+// ─── AirtimeLineChart (TX/RX utilization %) ─────────────────────────────────
+
+function AirtimeLineChart({ samples, t }: { samples: AirtimeSample[]; t: TFn }) {
+  if (samples.length < 2)
+    return (
+      <svg width="100%" viewBox={`0 0 ${CW} ${CH}`} style={{ display: 'block' }}>
+        <text
+          x={(PAD_L + INNER_W / 2).toFixed(1)}
+          y={(CH / 2).toFixed(1)}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize="9"
+          fill="hsl(var(--muted-foreground))"
+        >
+          {samples.length === 0 ? t('node_chart_no_data') : t('node_chart_need_more_samples')}
+        </text>
+      </svg>
+    );
+
+  const timestamps = samples.map((s) => s.timestamp * 1000);
+  const tMin = timestamps[0];
+  const tMax = timestamps[timestamps.length - 1];
+  const tRange = tMax - tMin || 1;
+  const yMin = 0;
+  const yMax = 100;
+
+  const xPos = (i: number) => PAD_L + ((timestamps[i] - tMin) / tRange) * INNER_W;
+  const yPos = (v: number) => INNER_H - ((v - yMin) / (yMax - yMin)) * INNER_H;
+
+  const buildPath = (key: 'tx_pct' | 'rx_pct') => {
+    let p = '';
+    for (let i = 0; i < samples.length; i++) {
+      p += `${i === 0 ? 'M' : 'L'}${xPos(i).toFixed(1)},${yPos(samples[i][key]).toFixed(1)}`;
+    }
+    return p;
+  };
+
+  const rxColor = 'hsl(var(--info))';
+  const txColor = 'hsl(var(--destructive))';
+  const yLabels = [0, 25, 50, 75, 100];
+
+  return (
+    <svg
+      width="100%"
+      viewBox={`0 0 ${CW} ${CH}`}
+      preserveAspectRatio="none"
+      style={{ display: 'block', overflow: 'visible' }}
+    >
+      {yLabels.map((v, li) => {
+        const y = yPos(v);
+        return (
+          <g key={li}>
+            <line
+              x1={PAD_L}
+              x2={CW}
+              y1={y.toFixed(1)}
+              y2={y.toFixed(1)}
+              stroke="hsl(var(--border))"
+              strokeWidth="0.5"
+              strokeDasharray="2,2"
+            />
+            <text
+              x={PAD_L - 3}
+              y={y.toFixed(1)}
+              textAnchor="end"
+              dominantBaseline="middle"
+              fontSize="8"
+              fill="hsl(var(--muted-foreground))"
+            >
+              {v}
+            </text>
+          </g>
+        );
+      })}
+      <path
+        d={buildPath('rx_pct')}
+        fill="none"
+        stroke={rxColor}
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d={buildPath('tx_pct')}
+        fill="none"
+        stroke={txColor}
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 // ─── NoiseFloorLineChart ────────────────────────────────────────────────────
 
 function NoiseFloorLineChart({
@@ -1437,6 +1535,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
 
   // Battery
   const [batterySamples, setBatterySamples] = useState<BatterySample[]>([]);
+  const [airtimeSamples, setAirtimeSamples] = useState<AirtimeSample[]>([]);
 
   // Fetch DB historical stats whenever the time window changes (uses nowSec which ticks every 30s)
   useEffect(() => {
@@ -1497,6 +1596,17 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
     nowSec,
     noiseFloorSupported,
   ]);
+
+  // Airtime utilization: always DB-backed (no in-memory deque). Custom via Apply.
+  useEffect(() => {
+    if (selectedWindowId === CUSTOM_RANGE_ID) return;
+    const resolved = resolveRange(selectedWindowId, { nowSec, extras: MYNODE_EXTRAS_AFTER });
+    if (!resolved) return;
+    api.getAirtimeRange(resolved.startTs, resolved.endTs, BIN_COUNT).then(
+      (samples) => setAirtimeSamples(samples),
+      () => {}
+    );
+  }, [selectedWindowId, nowSec]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
   const windowSeconds = useMemo((): number => {
@@ -1811,7 +1921,13 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                   customEnd={customEnd}
                   onCustomStartChange={setCustomStart}
                   onCustomEndChange={setCustomEnd}
-                  onApplyCustom={(s, e) => void fetchHistorical(s, e)}
+                  onApplyCustom={(s, e) => {
+                    void fetchHistorical(s, e);
+                    api.getAirtimeRange(s, e, BIN_COUNT).then(
+                      (samples) => setAirtimeSamples(samples),
+                      () => {}
+                    );
+                  }}
                 />
               </div>
 
@@ -1922,6 +2038,36 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                       windowSeconds={windowSeconds}
                       t={t}
                     />
+                  </ChartCard>
+                )}
+                {airtimeSamples.length > 0 && (
+                  <ChartCard
+                    title={t('node_chart_airtime_title')}
+                    stat={t('node_chart_airtime_stat', {
+                      rx: airtimeSamples[airtimeSamples.length - 1].rx_pct.toFixed(1),
+                      tx: airtimeSamples[airtimeSamples.length - 1].tx_pct.toFixed(1),
+                    })}
+                  >
+                    <AirtimeLineChart samples={airtimeSamples} t={t} />
+                    <div className="mt-1 flex flex-wrap gap-2 px-1">
+                      <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
+                        <span
+                          className="h-1.5 w-1.5 rounded-full"
+                          style={{ background: 'hsl(var(--info))' }}
+                        />
+                        {t('node_chart_airtime_rx')}
+                      </span>
+                      <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
+                        <span
+                          className="h-1.5 w-1.5 rounded-full"
+                          style={{ background: 'hsl(var(--destructive))' }}
+                        />
+                        {t('node_chart_airtime_tx')}
+                      </span>
+                    </div>
+                    <p className="px-1 text-[9px] italic text-muted-foreground">
+                      {t('node_chart_airtime_note')}
+                    </p>
                   </ChartCard>
                 )}
                 {batterySamples.length > 0 && (
