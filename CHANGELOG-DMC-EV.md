@@ -11,6 +11,19 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-13 (database backup, issue #85)
+
+### Settings / Data management
+- In-app database backup added to the Settings database section. A **Download
+  backup** button streams a consistent single-file SQLite snapshot produced with
+  `VACUUM INTO` (safe against WAL torn writes, unlike a file copy). An optional
+  server-side path toggle plus destination directory writes a timestamped
+  snapshot to a configured absolute path via `POST /api/backup/save`
+  (`GET /api/backup/download` backs the download). Backup only for this slice;
+  restore is a documented manual procedure. Adds migration `_084` with
+  `backup_to_path_enabled` / `backup_destination_path` in `app_settings`
+  (issue #85)
+
 ## Update 2026-09-12 (My Node map link)
 
 ### Chat / UI

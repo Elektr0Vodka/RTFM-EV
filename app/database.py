@@ -261,6 +261,23 @@ class Database:
                 raise RuntimeError("Database not connected")
             yield self._connection
 
+    async def backup_to(self, target_path: str) -> None:
+        """Write a consistent snapshot of the database to ``target_path``.
+
+        Runs ``VACUUM INTO`` on the live connection under the lock. VACUUM reads
+        a single consistent transactional view, so the snapshot is safe against
+        WAL torn writes (unlike a raw file copy) and needs no second connection.
+
+        ``target_path`` MUST NOT already exist (VACUUM INTO refuses to overwrite).
+        A ``commit()`` first clears any stray implicit transaction, since VACUUM
+        cannot run inside one.
+        """
+        async with self._lock:
+            if self._connection is None:
+                raise RuntimeError("Database not connected")
+            await self._connection.commit()
+            await self._connection.execute("VACUUM INTO ?", (target_path,))
+
     async def connect(self) -> None:
         logger.info("Connecting to database at %s", self.db_path)
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)

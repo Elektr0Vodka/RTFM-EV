@@ -50,6 +50,9 @@ Shipped toward this so far:
 - Repeater and per-contact telemetry history (`_050`, `_062`) and contact name
   history (`_024`).
 - "My Node" and mesh-health views that read from this persisted history.
+- In-app database backup: download a consistent SQLite snapshot, or write one to a
+  configured server-side path, from the Settings database section (migration
+  `_084`). See `README_ADVANCED.md` for the manual restore procedure.
 
 Direction still on the roadmap (planned, not yet built; see `docs/plans/`):
 

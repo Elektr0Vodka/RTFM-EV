@@ -54,7 +54,8 @@ class AppSettingsRepository:
                    registry_sync_url, region_sync_url,
                    wordlist_sync_url, analyzer_sites,
                    external_map_enabled, external_map_sync_url,
-                   external_map_sync_interval_hours
+                   external_map_sync_interval_hours,
+                   backup_to_path_enabled, backup_destination_path
             FROM app_settings WHERE id = 1
             """
         ) as cursor:
@@ -208,6 +209,16 @@ class AppSettingsRepository:
         except (KeyError, TypeError):
             external_map_sync_interval_hours = 0
 
+        # Server-side backup settings (migration _084 adds the columns).
+        try:
+            backup_to_path_enabled = bool(row["backup_to_path_enabled"])
+        except (KeyError, TypeError):
+            backup_to_path_enabled = False
+        try:
+            backup_destination_path = row["backup_destination_path"] or ""
+        except (KeyError, TypeError):
+            backup_destination_path = ""
+
         # Parse advert_retention_days (migration adds the column with default=30)
         try:
             raw_retention = row["advert_retention_days"]
@@ -241,6 +252,8 @@ class AppSettingsRepository:
             external_map_enabled=external_map_enabled,
             external_map_sync_url=external_map_sync_url,
             external_map_sync_interval_hours=external_map_sync_interval_hours,
+            backup_to_path_enabled=backup_to_path_enabled,
+            backup_destination_path=backup_destination_path,
         )
 
     @staticmethod
@@ -272,6 +285,8 @@ class AppSettingsRepository:
         external_map_enabled: bool | None = None,
         external_map_sync_url: str | None = None,
         external_map_sync_interval_hours: int | None = None,
+        backup_to_path_enabled: bool | None = None,
+        backup_destination_path: str | None = None,
     ) -> None:
         """Apply field updates using an already-acquired connection.
 
@@ -381,6 +396,14 @@ class AppSettingsRepository:
             updates.append("external_map_sync_interval_hours = ?")
             params.append(external_map_sync_interval_hours)
 
+        if backup_to_path_enabled is not None:
+            updates.append("backup_to_path_enabled = ?")
+            params.append(1 if backup_to_path_enabled else 0)
+
+        if backup_destination_path is not None:
+            updates.append("backup_destination_path = ?")
+            params.append(backup_destination_path)
+
         if updates:
             query = f"UPDATE app_settings SET {', '.join(updates)} WHERE id = 1"
             async with conn.execute(query, params):
@@ -422,6 +445,8 @@ class AppSettingsRepository:
         external_map_enabled: bool | None = None,
         external_map_sync_url: str | None = None,
         external_map_sync_interval_hours: int | None = None,
+        backup_to_path_enabled: bool | None = None,
+        backup_destination_path: str | None = None,
     ) -> AppSettings:
         """Update app settings. Only provided fields are updated."""
         async with db.tx() as conn:
@@ -452,6 +477,8 @@ class AppSettingsRepository:
                 external_map_enabled=external_map_enabled,
                 external_map_sync_url=external_map_sync_url,
                 external_map_sync_interval_hours=external_map_sync_interval_hours,
+                backup_to_path_enabled=backup_to_path_enabled,
+                backup_destination_path=backup_destination_path,
             )
             return await AppSettingsRepository._get_in_conn(conn)
 

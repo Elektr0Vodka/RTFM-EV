@@ -1,12 +1,29 @@
 # [22] Data-directory backup
 
-Date: 2026-09-12
-Status: PLANNING (stub). Requested by Richard, 2026-09-12. Nothing built.
+Date: 2026-09-12 (updated 2026-09-13)
+Status: DELIVERED (first slice, issue #85). Backup-only. Requested by Richard,
+2026-09-12. See `docs/superpowers/specs/2026-09-13-data-directory-backup-design.md`
+and `docs/superpowers/plans/2026-09-13-data-directory-backup.md`.
 Category: H (Persistence). See `docs/plans/README.md`.
 Model: Sonnet.
 
-Scope: local planning only. No code changes, no migrations, no commits, no PRs
-from this document.
+### Delivered (2026-09-13, issue #85)
+
+- `meshcore.db`-only snapshot via SQLite `VACUUM INTO` on the live connection
+  (`DatabaseManager.backup_to`), consistent under the single-connection lock.
+- `GET /api/backup/download` (streamed FileResponse) and `POST /api/backup/save`
+  (write to a configured absolute server directory) in `app/routers/backup.py`.
+- `backup_to_path_enabled` / `backup_destination_path` in `app_settings`
+  (migration `_084`), surfaced in the Settings database section UI.
+
+Deferred follow-ups (not built): restore flow, scheduled/automatic backups,
+network-protocol (SMB/NFS/SFTP) clients. Restore is a documented manual procedure
+(`README_ADVANCED.md`).
+
+---
+
+Original stub below (superseded by the delivered slice above). Scope of the stub
+was local planning only.
 
 Product framing: RTFM-EV is a **MeshCore** server + browser terminal driving a
 companion radio. All persisted state (contacts, channels, telemetry, raw packet

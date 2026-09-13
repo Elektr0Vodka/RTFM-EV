@@ -97,12 +97,19 @@ async def test_db():
     original_packets_db = packets_module.db
     packets_module.db = db
 
+    # Backup router uses the connection directly (VACUUM INTO) like packets.
+    import app.routers.backup as backup_module
+
+    original_backup_db = backup_module.db
+    backup_module.db = db
+
     try:
         yield db
     finally:
         for mod, original in originals:
             mod.db = original
         packets_module.db = original_packets_db
+        backup_module.db = original_backup_db
         await db.disconnect()
 
 

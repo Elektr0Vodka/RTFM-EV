@@ -6,7 +6,13 @@ import type { AppSettings } from '../types';
 
 const { toastError } = vi.hoisted(() => ({ toastError: vi.fn() }));
 
-vi.mock('../api', () => ({ api: { runMaintenance: vi.fn() } }));
+vi.mock('../api', () => ({
+  api: {
+    runMaintenance: vi.fn(),
+    downloadBackupUrl: () => './api/backup/download',
+    saveBackup: vi.fn(),
+  },
+}));
 vi.mock('../components/ui/sonner', () => ({
   toast: { error: toastError, success: vi.fn() },
 }));
@@ -38,6 +44,8 @@ function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings {
     external_map_enabled: false,
     external_map_sync_url: '',
     external_map_sync_interval_hours: 0,
+    backup_to_path_enabled: false,
+    backup_destination_path: '',
     ...overrides,
   };
 }

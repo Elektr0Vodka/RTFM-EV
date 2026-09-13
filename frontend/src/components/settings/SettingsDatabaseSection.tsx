@@ -39,6 +39,9 @@ export function SettingsDatabaseSection({
   const [cleaning, setCleaning] = useState(false);
   const [purgingDecryptedRaw, setPurgingDecryptedRaw] = useState(false);
   const [autoDecryptOnAdvert, setAutoDecryptOnAdvert] = useState(false);
+  const [backupToPath, setBackupToPath] = useState(false);
+  const [backupPath, setBackupPath] = useState('');
+  const [savingBackup, setSavingBackup] = useState(false);
   const [syncUrl, setSyncUrl] = useState('');
   const [wordlistSyncUrl, setWordlistSyncUrl] = useState('');
   const [wordlistSyncing, setWordlistSyncing] = useState(false);
@@ -56,6 +59,8 @@ export function SettingsDatabaseSection({
 
   useEffect(() => {
     setAutoDecryptOnAdvert(appSettings.auto_decrypt_dm_on_advert);
+    setBackupToPath(appSettings.backup_to_path_enabled ?? false);
+    setBackupPath(appSettings.backup_destination_path ?? '');
     setAdvertRetention(String(appSettings.advert_retention_days ?? 30));
     setSyncUrl(appSettings.registry_sync_url ?? '');
     setWordlistSyncUrl(appSettings.wordlist_sync_url ?? '');
@@ -109,6 +114,26 @@ export function SettingsDatabaseSection({
       });
     } finally {
       setPurgingDecryptedRaw(false);
+    }
+  };
+
+  const handleSaveBackupToServer = async () => {
+    setSavingBackup(true);
+    try {
+      const result = await api.saveBackup();
+      toast.success(t('settings_db_backup_toast_saved_title'), {
+        description: t('settings_db_backup_toast_saved_desc', {
+          path: result.path,
+          size: result.size_bytes,
+        }),
+      });
+    } catch (err) {
+      console.error('Failed to save backup to server:', err);
+      toast.error(t('settings_db_backup_toast_failed_title'), {
+        description: err instanceof Error ? err.message : t('error_unknown'),
+      });
+    } finally {
+      setSavingBackup(false);
     }
   };
 
@@ -358,6 +383,71 @@ export function SettingsDatabaseSection({
         <p className="text-[0.8125rem] text-muted-foreground">
           {t('settings_db_auto_decrypt_desc')}
         </p>
+      </div>
+
+      <Separator />
+
+      {/* ── Backup ── */}
+      <div className="space-y-3">
+        <h3 className="text-base font-semibold tracking-tight">
+          {t('settings_db_backup_heading')}
+        </h3>
+        <p className="text-[0.8125rem] text-muted-foreground">{t('settings_db_backup_desc')}</p>
+
+        <a href={api.downloadBackupUrl()} download className="inline-block">
+          <Button type="button" variant="secondary">
+            {t('settings_db_backup_download')}
+          </Button>
+        </a>
+
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={backupToPath}
+            onChange={(e) => {
+              const next = e.target.checked;
+              const prev = backupToPath;
+              setBackupToPath(next);
+              void persistAppSettings({ backup_to_path_enabled: next }, () =>
+                setBackupToPath(prev)
+              );
+            }}
+            className="w-4 h-4 rounded border-input accent-primary"
+          />
+          <span className="text-sm">{t('settings_db_backup_server_toggle')}</span>
+        </label>
+
+        {backupToPath && (
+          <div className="space-y-1.5">
+            <Label htmlFor="backup-path" className="text-sm font-medium">
+              {t('settings_db_backup_path_label')}
+            </Label>
+            <Input
+              id="backup-path"
+              value={backupPath}
+              placeholder={t('settings_db_backup_path_placeholder')}
+              onChange={(e) => setBackupPath(e.target.value)}
+              onBlur={() => {
+                const trimmed = backupPath.trim();
+                setBackupPath(trimmed);
+                const prev = appSettings.backup_destination_path ?? '';
+                if (trimmed !== prev) {
+                  void persistAppSettings({ backup_destination_path: trimmed }, () =>
+                    setBackupPath(prev)
+                  );
+                }
+              }}
+              className="font-mono text-xs"
+            />
+            <Button
+              type="button"
+              disabled={savingBackup || !backupPath.trim()}
+              onClick={handleSaveBackupToServer}
+            >
+              {t('settings_db_backup_save_now')}
+            </Button>
+          </div>
+        )}
       </div>
 
       <Separator />

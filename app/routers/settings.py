@@ -152,6 +152,14 @@ class AppSettingsUpdate(BaseModel):
         default=None,
         description="Background sync cadence for the external-map overlay, in hours (0 = manual)",
     )
+    backup_to_path_enabled: bool | None = Field(
+        default=None,
+        description="Allow writing database backups to a configured server-side directory",
+    )
+    backup_destination_path: str | None = Field(
+        default=None,
+        description="Absolute directory backups are written to when the toggle is on",
+    )
 
 
 class BlockKeyRequest(BaseModel):
@@ -367,6 +375,12 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
         kwargs["external_map_sync_interval_hours"] = max(
             0, min(168, update.external_map_sync_interval_hours)
         )
+
+    # Server-side backup settings
+    if update.backup_to_path_enabled is not None:
+        kwargs["backup_to_path_enabled"] = update.backup_to_path_enabled
+    if update.backup_destination_path is not None:
+        kwargs["backup_destination_path"] = update.backup_destination_path.strip()
 
     # Analyzer sites (client-side deep-link lookup). Validate each template is an
     # http(s) URL carrying the required placeholder before persisting; reject the

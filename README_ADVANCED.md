@@ -41,6 +41,29 @@ Import via `PUT /api/radio/private-key` is always available regardless of this s
 
 The Radio Settings config export/import feature uses these endpoints. When export is disabled, config exports will omit the private key and show a notice.
 
+## Database Backup And Restore
+
+All persisted state (contacts, channels, telemetry, raw packet history, settings)
+lives in a single SQLite database, `data/meshcore.db` by default
+(`MESHCORE_DATABASE_PATH`). The Settings database section can produce a consistent
+snapshot of it:
+
+- **Download backup** streams a snapshot to your browser. It is produced with
+  SQLite `VACUUM INTO`, which captures a consistent, defragmented single-file copy
+  even while the database is in use (a plain file copy of an open WAL-mode database
+  can capture a torn write, so it is not used).
+- **Save backups to a server path** (toggle) writes the same snapshot to a
+  configured absolute directory on the server host, named
+  `meshcore-backup-YYYYMMDD-HHMMSS.db`. The directory must exist and be writable; a
+  local-network target works when it is an OS-mounted share. Backing endpoints:
+  `GET /api/backup/download` and `POST /api/backup/save`.
+
+Backup is on-demand only (no scheduled job) and does not include a restore flow.
+
+**Restore (manual):** stop the server, replace `data/meshcore.db` with the backup
+file, delete `data/meshcore.db-wal` and `data/meshcore.db-shm` if present, then
+start the server again.
+
 ## Contact Loading Issues
 
 RemoteTerm loads favorite and recently active contacts onto the radio so that the radio can automatically acknowledge incoming DMs on your behalf. To do this, it first enumerates the radio's existing contact table, then reconciles it with the desired working set.

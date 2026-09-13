@@ -57,6 +57,24 @@ class TestUpdateSettings:
         assert result.max_radio_contacts == 200  # default
 
     @pytest.mark.asyncio
+    async def test_backup_settings_round_trip(self, test_db):
+        result = await update_settings(
+            AppSettingsUpdate(
+                backup_to_path_enabled=True,
+                backup_destination_path="  /mnt/backups  ",
+            )
+        )
+        assert result.backup_to_path_enabled is True
+        # path is trimmed
+        assert result.backup_destination_path == "/mnt/backups"
+
+    @pytest.mark.asyncio
+    async def test_backup_settings_default_off(self, test_db):
+        result = await update_settings(AppSettingsUpdate())
+        assert result.backup_to_path_enabled is False
+        assert result.backup_destination_path == ""
+
+    @pytest.mark.asyncio
     async def test_show_mention_ticker_defaults_enabled(self, test_db):
         result = await update_settings(AppSettingsUpdate())
         assert result.show_mention_ticker is True

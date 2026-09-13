@@ -495,6 +495,8 @@ export interface AppSettings {
   external_map_enabled: boolean;
   external_map_sync_url: string;
   external_map_sync_interval_hours: number;
+  backup_to_path_enabled: boolean;
+  backup_destination_path: string;
 }
 
 /** A located node synced from an external map/analyzer directory. */
@@ -546,6 +548,8 @@ export interface AppSettingsUpdate {
   external_map_enabled?: boolean;
   external_map_sync_url?: string;
   external_map_sync_interval_hours?: number;
+  backup_to_path_enabled?: boolean;
+  backup_destination_path?: string;
 }
 
 export interface TelemetrySchedule {

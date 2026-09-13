@@ -87,6 +87,8 @@ const baseSettings: AppSettings = {
   external_map_enabled: false,
   external_map_sync_url: '',
   external_map_sync_interval_hours: 0,
+  backup_to_path_enabled: false,
+  backup_destination_path: '',
 };
 
 function renderModal(overrides?: {

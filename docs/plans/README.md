@@ -196,7 +196,7 @@ internal "Implementation status" note).
 | 19 | analyzer-persistence-retention | NOT STARTED | Planning (2026-09-11). Retention policy; drives [14]. |
 | 20 | openhop-integration | PARTIAL (off-branch) | Surface A (OpenHop as radio over TCP) verified 2026-09-11 against a container sim; Surface B REST management unbuilt. Plan file lives on the OpenHop integration branch, pending merge to `main`. |
 | 21 | signal-tester-mirror | PARTIAL | Per-packet signal audio shipped (PR #76). Flagship per-relay same-packet reception comparison unbuilt (needs a `packet_receptions` table + last-hop resolution). |
-| 22 | data-directory-backup | NOT STARTED | Planning stub (2026-09-12). |
+| 22 | data-directory-backup | PARTIAL | Backup delivered (issue #85, 2026-09-13): `VACUUM INTO` snapshot, download + server-path save, migration `_084`. Restore/scheduled backups deferred. |
 | 23 | packet-history-browser | NOT STARTED | Planning stub (2026-09-12). Packet history persists server-side (`raw_packets`, `GET /api/packets/recent` with `after_ts`/`before_ts`); the browsing UI is the gap. |
 | 24 | forwarded-node-telemetry-mqtt | SHIPPED (core) | Outbound forward of remote-node telemetry/neighbors/regions with `subject_id` attribution (PR #90). Analyzer/collector handoffs pending. |
 
@@ -230,7 +230,7 @@ Fork-port Phase 3 (My Node, Mesh Health, packet-feed history) all **SHIPPED**.
 | 19 | `19-analyzer-persistence-retention.md` | H | Sonnet | Partial | `app_settings` (`_009`), `settings.py`; telemetry/link/self-stat repos + retention constants; `POST /api/packets/maintenance`; drives [14] |
 | 20 | `20-openhop-integration.md` (off-branch) | F | Opus | Partial | `openhop-dev/openhop_repeater` + `openhop_core`; `app/config.py`, `app/radio.py`, `app/routers/repeaters.py`; sibling of [10] |
 | 21 | `21-signal-tester-mirror.md` | J | Opus + Sonnet | Partial | `kybl/meshcore-signal-tester`; `raw_packets`, MeshHealthView, firmware `PUSH_CODE_LOG_RX_DATA=0x88`; new `packet_receptions` table |
-| 22 | `22-data-directory-backup.md` | H | Sonnet | Absent | `data/` dir (SQLite DB + assets) |
+| 22 | `22-data-directory-backup.md` | H | Sonnet | Partial | `data/` dir (SQLite DB + assets); backup delivered (issue #85), restore deferred |
 | 23 | `23-packet-history-browser.md` | H | Sonnet | Absent | `raw_packets`, `GET /api/packets/recent` (`app/routers/packets.py:151-190`) |
 | 24 | `24-forwarded-node-telemetry-mqtt.md` | F | Opus | Partial | `app/fanout/*`, Community sink, telemetry-history; `subject_id` attribution |
 

@@ -1244,6 +1244,14 @@ class AppSettings(BaseModel):
             "0 disables the periodic sync (manual sync only)."
         ),
     )
+    backup_to_path_enabled: bool = Field(
+        default=False,
+        description="Allow writing database backups to a configured server-side directory",
+    )
+    backup_destination_path: str = Field(
+        default="",
+        description="Absolute directory backups are written to when backup_to_path_enabled is on",
+    )
 
 
 class ExternalMapNode(BaseModel):
