@@ -420,3 +420,95 @@ class TestOpenHopConfig:
         fake.update_radio_config.assert_awaited_once_with({"tx_power": 22})
         fake.config_import.assert_awaited_once_with({"radio": {}}, restart_after=False)
         fake.restart_service.assert_awaited_once_with()
+
+
+class TestOpenHopUpdate:
+    @pytest.mark.asyncio
+    async def test_update_status_409_when_not_openhop(self, test_db, monkeypatch):
+        _set_model(monkeypatch, "Heltec V3")
+        from app.routers.openhop import update_status
+
+        with pytest.raises(HTTPException) as exc:
+            await update_status()
+        assert exc.value.status_code == 409
+
+    @pytest.mark.asyncio
+    async def test_update_routes_delegate_when_configured(self, test_db, monkeypatch):
+        _set_model(monkeypatch, OPENHOP_MODEL)
+        await AppSettingsRepository.update(
+            openhop_api_url="http://node:8000", openhop_api_token="tok"
+        )
+        from app.routers.openhop import (
+            UpdateActionBody,
+            UpdateChannelBody,
+            update_channels,
+            update_check,
+            update_install,
+            update_set_channel,
+            update_status,
+        )
+
+        fake = AsyncMock()
+        fake.update_status = AsyncMock(return_value={"success": True, "state": "idle"})
+        fake.update_check = AsyncMock(return_value={"success": True, "state": "checking"})
+        fake.update_install = AsyncMock(return_value={"success": True, "state": "installing"})
+        fake.update_channels = AsyncMock(
+            return_value={"success": True, "channels": ["main"], "current_channel": "main"}
+        )
+        fake.update_set_channel = AsyncMock(return_value={"success": True, "channel": "dev"})
+        fake.aclose = AsyncMock()
+        with patch("app.routers.openhop.OpenHopClient", return_value=fake):
+            assert (await update_status())["state"] == "idle"
+            assert (await update_check(UpdateActionBody(force=True)))["state"] == "checking"
+            assert (await update_install(UpdateActionBody()))["state"] == "installing"
+            assert (await update_channels())["channels"] == ["main"]
+            assert (await update_set_channel(UpdateChannelBody(channel="dev")))["channel"] == "dev"
+        fake.update_check.assert_awaited_once_with(force=True)
+        fake.update_install.assert_awaited_once_with(force=False)
+        fake.update_set_channel.assert_awaited_once_with("dev")
+
+    @pytest.mark.asyncio
+    async def test_update_progress_409_unconfigured(self, test_db, monkeypatch):
+        _set_model(monkeypatch, "Heltec V3")
+        from app.routers.openhop import update_progress
+
+        with pytest.raises(HTTPException) as exc:
+            await update_progress()
+        assert exc.value.status_code == 409
+
+    @pytest.mark.asyncio
+    async def test_update_progress_relays_stream(self, test_db, monkeypatch):
+        import httpx
+
+        _set_model(monkeypatch, OPENHOP_MODEL)
+        await AppSettingsRepository.update(
+            openhop_api_url="http://node:8000", openhop_api_token="tok"
+        )
+
+        chunks = [
+            b'data: {"type":"line","line":"pip install"}\n\n',
+            b'data: {"type":"done","state":"complete"}\n\n',
+        ]
+
+        async def _agen():
+            for c in chunks:
+                yield c
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == "/api/update/progress"
+            assert request.headers.get("X-API-Key") == "tok"
+            return httpx.Response(
+                200, content=_agen(), headers={"Content-Type": "text/event-stream"}
+            )
+
+        import app.routers.openhop as mod
+
+        monkeypatch.setattr(mod, "_stream_transport", httpx.MockTransport(handler), raising=False)
+        from app.routers.openhop import update_progress
+
+        resp = await update_progress()
+        body = b""
+        async for part in resp.body_iterator:
+            body += part if isinstance(part, bytes) else part.encode()
+        assert b'"type":"line"' in body
+        assert b'"type":"done"' in body

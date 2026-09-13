@@ -395,3 +395,80 @@ async def config_import(body: ConfigImportRequest) -> dict[str, Any]:
 @router.post("/config/restart")
 async def config_restart() -> dict[str, Any]:
     return await _relay(lambda c: c.restart_service())
+
+
+# ---------------------------------------------------------------------------
+# Update (OTA). JSON routes use _relay_upstream so a node-side error status
+# (e.g. 409 "already installing") reaches the client intact. install performs a
+# real pip upgrade + service restart on the node; the frontend confirm-gates it.
+# ---------------------------------------------------------------------------
+class UpdateActionBody(BaseModel):
+    force: bool = False
+
+
+class UpdateChannelBody(BaseModel):
+    channel: str
+
+
+@router.get("/update/status")
+async def update_status() -> dict[str, Any]:
+    return await _relay_upstream(lambda c: c.update_status())
+
+
+@router.post("/update/check")
+async def update_check(body: UpdateActionBody) -> dict[str, Any]:
+    return await _relay_upstream(lambda c: c.update_check(force=body.force))
+
+
+@router.post("/update/install")
+async def update_install(body: UpdateActionBody) -> dict[str, Any]:
+    return await _relay_upstream(lambda c: c.update_install(force=body.force))
+
+
+@router.get("/update/channels")
+async def update_channels() -> dict[str, Any]:
+    return await _relay_upstream(lambda c: c.update_channels())
+
+
+@router.post("/update/set_channel")
+async def update_set_channel(body: UpdateChannelBody) -> dict[str, Any]:
+    return await _relay_upstream(lambda c: c.update_set_channel(body.channel))
+
+
+@router.get("/update/changelog")
+async def update_changelog(channel: str | None = None, max: int = 40) -> dict[str, Any]:
+    return await _relay_upstream(lambda c: c.update_changelog(channel=channel, max_commits=max))
+
+
+@router.get("/update/progress")
+async def update_progress() -> StreamingResponse:
+    """Re-stream OpenHop's OTA install-progress SSE. Stateless passthrough, fail-closed."""
+    settings = await AppSettingsRepository.get()
+    if not (_detect_openhop() and settings.openhop_api_url and settings.openhop_api_token):
+        raise HTTPException(status_code=409, detail="OpenHop management not configured")
+    base = settings.openhop_api_url.rstrip("/")
+    token = settings.openhop_api_token
+
+    async def stream():
+        # No read timeout: progress can be idle between lines. Connect timeout stays bounded.
+        timeout = httpx.Timeout(8.0, read=None)
+        async with httpx.AsyncClient(
+            base_url=base,
+            headers={"X-API-Key": token},
+            timeout=timeout,
+            transport=_stream_transport,
+        ) as client:
+            try:
+                async with client.stream("GET", "/api/update/progress") as resp:
+                    async for chunk in resp.aiter_raw():
+                        if chunk:
+                            yield chunk
+            except httpx.HTTPError as exc:
+                payload = json.dumps({"type": "done", "state": "error", "error": str(exc)})
+                yield f"data: {payload}\n\n".encode()
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
