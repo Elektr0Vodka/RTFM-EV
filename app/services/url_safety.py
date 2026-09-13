@@ -48,7 +48,7 @@ def assert_public_http_url(url: str) -> str:
     except socket.gaierror as exc:
         raise UnsafeUrlError(f"host does not resolve: {host}") from exc
 
-    resolved = {info[4][0] for info in infos}
+    resolved = {str(info[4][0]) for info in infos}
     if not resolved:
         raise UnsafeUrlError(f"host does not resolve: {host}")
     for ip in resolved:
