@@ -6,9 +6,11 @@ from unittest.mock import patch
 
 import pytest
 
+from app.decoder import parse_packet
 from app.packet_processor import process_raw_packet
 from app.repository.contacts import ContactAdvertPathRepository, ContactRepository
 from app.repository.raw_packets import RawPacketRepository
+from app.services.packet_decoded_fields import decoded_stat_fields
 
 FIXTURES_PATH = Path(__file__).parent / "fixtures" / "websocket_events.json"
 with open(FIXTURES_PATH, encoding="utf-8") as f:
@@ -18,6 +20,15 @@ with open(FIXTURES_PATH, encoding="utf-8") as f:
 async def _row(test_db, packet_id: int):
     async with test_db.conn.execute(
         "SELECT rssi, snr, payload_type FROM raw_packets WHERE id = ?", (packet_id,)
+    ) as cur:
+        return await cur.fetchone()
+
+
+async def _decoded_row(test_db, packet_id: int):
+    async with test_db.conn.execute(
+        "SELECT route_type, hop_count, hop_byte_width, path_signature "
+        "FROM raw_packets WHERE id = ?",
+        (packet_id,),
     ) as cur:
         return await cur.fetchone()
 
@@ -44,6 +55,22 @@ class TestCreatePersistsSignal:
         assert row["snr"] is None
         assert row["payload_type"] is None
 
+    @pytest.mark.asyncio
+    async def test_create_stores_decoded_fields(self, test_db):
+        packet_id, _ = await RawPacketRepository.create(
+            b"\x10\x20\x30",
+            1700000002,
+            route_type="Direct",
+            hop_count=2,
+            hop_byte_width=1,
+            path_signature="abcd",
+        )
+        row = await _decoded_row(test_db, packet_id)
+        assert row["route_type"] == "Direct"
+        assert row["hop_count"] == 2
+        assert row["hop_byte_width"] == 1
+        assert row["path_signature"] == "abcd"
+
 
 class TestPipelinePersistsSignal:
     @pytest.mark.asyncio
@@ -65,6 +92,14 @@ class TestPipelinePersistsSignal:
         assert row["snr"] == 7.25
         # channel_message fixture parses as a GROUP_TEXT payload.
         assert row["payload_type"] == "GROUP_TEXT"
+
+        # Decoded stat fields are persisted, matching the ingest-time derivation.
+        expected = decoded_stat_fields(parse_packet(packet_bytes))
+        decoded = await _decoded_row(test_db, packet_id)
+        assert decoded["route_type"] == expected["route_type"]
+        assert decoded["hop_count"] == expected["hop_count"]
+        assert decoded["hop_byte_width"] == expected["hop_byte_width"]
+        assert decoded["path_signature"] == expected["path_signature"]
 
 
 async def _path_signal(test_db, public_key: str):

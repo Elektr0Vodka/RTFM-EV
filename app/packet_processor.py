@@ -58,6 +58,7 @@ from app.services.messages import (
 from app.services.messages import (
     create_message_from_decrypted as _create_message_from_decrypted,
 )
+from app.services.packet_decoded_fields import decoded_stat_fields
 from app.websocket import broadcast_error, broadcast_event
 
 logger = logging.getLogger(__name__)
@@ -308,8 +309,17 @@ async def process_raw_packet(
     payload_type = packet_info.payload_type if packet_info else None
     payload_type_name = payload_type.name if payload_type else "Unknown"
 
+    decoded_fields = decoded_stat_fields(packet_info)
     packet_id, is_new_packet = await RawPacketRepository.create(
-        raw_bytes, ts, rssi=rssi, snr=snr, payload_type=payload_type_name
+        raw_bytes,
+        ts,
+        rssi=rssi,
+        snr=snr,
+        payload_type=payload_type_name,
+        route_type=decoded_fields["route_type"],
+        hop_count=decoded_fields["hop_count"],
+        hop_byte_width=decoded_fields["hop_byte_width"],
+        path_signature=decoded_fields["path_signature"],
     )
     raw_hex = raw_bytes.hex()
 

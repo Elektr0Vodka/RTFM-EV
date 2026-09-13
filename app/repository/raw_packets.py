@@ -19,6 +19,10 @@ class RawPacketRepository:
         rssi: int | None = None,
         snr: float | None = None,
         payload_type: str | None = None,
+        route_type: str | None = None,
+        hop_count: int | None = None,
+        hop_byte_width: int | None = None,
+        path_signature: str | None = None,
     ) -> tuple[int, bool]:
         """
         Create a raw packet with payload-based deduplication.
@@ -45,9 +49,21 @@ class RawPacketRepository:
         async with db.tx() as conn:
             async with conn.execute(
                 "INSERT OR IGNORE INTO raw_packets "
-                "(timestamp, data, payload_hash, rssi, snr, payload_type) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (ts, data, payload_hash, rssi, snr, payload_type),
+                "(timestamp, data, payload_hash, rssi, snr, payload_type, "
+                "route_type, hop_count, hop_byte_width, path_signature) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    ts,
+                    data,
+                    payload_hash,
+                    rssi,
+                    snr,
+                    payload_type,
+                    route_type,
+                    hop_count,
+                    hop_byte_width,
+                    path_signature,
+                ),
             ) as cursor:
                 rowcount = cursor.rowcount
                 lastrowid = cursor.lastrowid
