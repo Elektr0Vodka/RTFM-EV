@@ -47,10 +47,18 @@ Shipped toward this so far:
 - Per-packet signal metadata (RSSI, SNR, payload type) persisted with every stored
   packet (migration `_065`), plus advert-path signal (`_066`) and per-link signal
   history (`_075`).
-- Standalone history stores for noise floor (`_069`) and battery (`_070`).
+- Standalone history stores for noise floor (`_069`), battery (`_070`), and local
+  radio TX/RX airtime (`_088`).
 - Repeater and per-contact telemetry history (`_050`, `_062`) and contact name
   history (`_024`).
-- "My Node" and mesh-health views that read from this persisted history.
+- "My Node" and mesh-health views that read from this persisted history, including
+  a TX/RX airtime utilization (%) chart on My Node.
+- One unified time-range selector across the My Node, mesh-health, map, and raw
+  packet feed views (`20m`-`30d` + custom, plus per-page extras), with the choice
+  remembered per page.
+- Raw Packet Feed stat breakdowns can be computed from the database over the
+  selected range, backed by decoded packet fields persisted at ingest (`_089`),
+  not only the in-memory session buffer.
 - In-app database backup: download a consistent SQLite snapshot, or write one to a
   configured server-side path, from the Settings database section (migration
   `_084`). See `README_ADVANCED.md` for the manual restore procedure.

@@ -11,6 +11,48 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-13 (airtime chart, unified time selector, raw-feed history)
+
+### My Node
+- New "Airtime utilization" chart on the My Node activity grid: two lines (RX %
+  and TX %) over the selected window, 0-100%. The companion firmware already
+  reports cumulative TX/RX airtime seconds in the `STATS_RADIO` frame; those
+  counters are now persisted every 60s (`airtime_history` table, migration 088)
+  and served as per-bin utilization from `GET /api/statistics/airtime/range`,
+  computed from adjacent-sample deltas so a radio reboot (counter reset) or a
+  disconnect gap does not spike the graph (`app/services/airtime_util.py`,
+  `app/repository/airtime_history.py`, `frontend` `AirtimeLineChart`). Note: RX
+  airtime is the firmware's per-packet estimate for parsed packets, not a
+  carrier-sense busy timer.
+
+### Time-range selection (all analytics pages)
+- Unified the four independent time selectors behind one shared component
+  (`frontend/src/components/TimeRangeSelector.tsx`, options in
+  `frontend/src/utils/timeRanges.ts`) with a common base set
+  `20m 1h 3h 6h 12h 24h 48h 3d 7d 14d 30d + Custom (From/To/Apply)`. Each page
+  keeps its extras: My Node keeps `1y`; Mesh Health keeps `30m`; Map keeps `All`
+  (its presets now derive from the shared base set) and its single "since"
+  datetime custom; the Raw Packet Feed keeps its short live windows (`1m/5m/10m`)
+  and `session`.
+- The selected window (and custom range) is now remembered per page in
+  localStorage (`frontend/src/utils/timeRangePreference.ts`; keys
+  `rtfm-mynode-window`, `rtfm-meshhealth-window`, `rtfm-rawfeed-window`; Map's
+  existing `remoteterm-map-since` now also stores the custom value).
+
+### Raw Packet Feed
+- The stat breakdowns can now be shown historically from the database for the
+  base windows (up to 30d), not just the in-memory session ring. Route type,
+  hop count, hop-byte-width, and the path signature are parsed from each packet's
+  header at ingest (no decryption) and persisted on `raw_packets` (migration 089,
+  populated at ingest and backfilled for existing rows). A new
+  `GET /api/packets/raw-feed-stats` computes the payload/route/hop/hop-byte-width
+  /RSSI-bucket breakdowns and counts server-side (`app/services/raw_feed_stats.py`,
+  `app/services/packet_decoded_fields.py`). Short/live windows and `session`
+  still use the in-memory snapshot; neighbor, timeline, and unique-source cards
+  remain live-only (they need decryption) and are noted as such in DB mode.
+- New i18n keys for the shared selector labels and the raw-feed historical note
+  (en/nl/de).
+
 ## Update 2026-09-13 (OpenHop API token hardening, feat/openhop-detection)
 
 ### Security
