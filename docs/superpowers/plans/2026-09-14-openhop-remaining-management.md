@@ -91,6 +91,22 @@ Expected: JSON for each. Record whether `hardware_stats` returns real psutil dat
 
 - [ ] **Step 5: Record findings** in a short note at the top of the plan's "Open questions" section (REST auto-start? psutil present? envelope per endpoint?). No commit.
 
+**TASK 0 FINDINGS (recorded 2026-09-14, live against `openhop-sim:local`, REST on host :8010, token created):**
+- REST **auto-starts** by default (`http.enabled` defaults true). Config path for admin login is `repeater.security.admin_password`. Auth flow: `POST /auth/login` `{username:"admin", password, client_id}` → `{token}`; then `POST /api/auth/tokens` `{name}` (Bearer JWT) → `{token}` (the plaintext API key, shown once). API key sent as `X-API-Key`.
+- psutil **is present** — `hardware_stats` returns real data. **Nested shape (NOT flat):**
+  `data.cpu.{usage_percent,count,frequency,load_avg{1min,5min,15min}}`,
+  `data.memory.{total,available,used,usage_percent}`,
+  `data.disk.{total,used,free,usage_percent}`,
+  `data.network.{bytes_sent,bytes_recv,packets_sent,packets_recv}`,
+  `data.system.{uptime,boot_time,os,kernel,...}`.
+- `hardware_processes`: `{success, data:{processes:[{pid,name,cpu_percent,memory_percent,memory_mb}], total_processes}}`.
+- `stats`: **unwrapped bare object** (no `success`/`data`): `{local_hash, rx_count, forwarded_count, uptime_seconds, noise_floor_dbm, config{...}, ...}`.
+- `site_info`: `{success, site_name}` (flat). `mqtt_status`: `{success, data:{handler_active, brokers:[], neighbors:{phase,...}}}`. `broker_presets`: `{success, data:[{id,name,brokers:[...],website}]}`.
+- `transport_keys`: `{success, data:[], count}`. `neighbor_scopes`: `{success, data:{}, count, served:{scopes}}`.
+- `packet_stats`: `{success, data:{total_packets, avg_rssi, avg_snr, packet_types:[], drop_reasons:[]}}`. `packet_type_stats`: `{success, data:{hours, packet_type_totals:{}, total_packets, period, data_source}}`. `noise_floor_stats`: `{success, data:{stats:{measurement_count, avg_noise_floor, min/max, hours}, hours}}`.
+- `update/status`: flat `{success, current_version, latest_version, has_update, channel, last_checked, state, error, rate_limit_until}`. `update/channels`: `{success, channels:[...], current_channel}`. Both match `update_endpoints.py`.
+- **Companion frame server (TCP 5000) did NOT start** from the `repeater.companions` config entry (log: "0 companion frame server(s)"). To drive `is_openhop` through RTFM-EV in Task 21, resolve the companions config schema (or connect RTFM-EV differently). REST verification is unaffected.
+
 > The container stays up for live verification in later phases. Stop it at the end (`docker stop openhop-sim-rest`).
 
 ---
@@ -1099,23 +1115,28 @@ beforeEach(() => {
   vi.restoreAllMocks();
   vi.spyOn(api, 'getOpenHopHardware').mockResolvedValue({
     success: true,
-    data: { cpu_percent: 12.5, memory_percent: 40, disk_percent: 55, uptime_seconds: 3600 },
+    data: {
+      cpu: { usage_percent: 12.5, count: 4, load_avg: { '1min': 0.5, '5min': 0.4, '15min': 0.3 } },
+      memory: { total: 16000000000, used: 6400000000, usage_percent: 40 },
+      disk: { total: 1000000000000, free: 450000000000, usage_percent: 55 },
+      system: { uptime: 3600, os: 'Debian GNU/Linux 12' },
+    },
   });
 });
 
 describe('OpenHopSystemPane', () => {
-  it('renders hardware stat tiles from live keys', async () => {
+  it('renders hardware stat tiles from the nested live shape', async () => {
     render(<OpenHopSystemPane />);
-    await waitFor(() => expect(screen.getByText(/12\.5%|12\.5/)).toBeInTheDocument());
-    expect(screen.getByText(/40/)).toBeInTheDocument();
-    expect(screen.getByText(/55/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/12\.5/)).toBeInTheDocument()); // CPU %
+    expect(screen.getByText(/40/)).toBeInTheDocument(); // memory %
+    expect(screen.getByText(/55/)).toBeInTheDocument(); // disk %
   });
 });
 ```
 
-- [ ] **Step 4: Run — expect FAIL, then implement the pane.** The pane fetches `getOpenHopHardware` on mount + on an interval (e.g. 5s, cleared on unmount, pausable), and renders stat tiles for the keys **actually present** in `data` (CPU %, memory %, disk %/free, uptime, load, temperature) with a small helper that formats bytes and uptime. Handle the psutil-absent error path (`data` empty + `error`) by showing the node's message. Include a collapsible "Analytics" `<details>` section that lazy-loads `getOpenHopPacketStats`/`getOpenHopPacketTypeStats`/`getOpenHopNoiseFloorStats` and renders their returned objects as simple key/value rows (defensive; no chart dependency).
+- [ ] **Step 4: Run — expect FAIL, then implement the pane.** The pane fetches `getOpenHopHardware` on mount + on an interval (e.g. 5s, cleared on unmount, pausable). Read the **nested** shape confirmed in Task 0: CPU tile = `data.cpu.usage_percent` (+ `data.cpu.load_avg['1min']`), Memory tile = `data.memory.usage_percent` (+ `used`/`total` formatted as bytes), Disk tile = `data.disk.usage_percent` (+ `free`/`total`), Uptime tile = `data.system.uptime` (format seconds → d/h/m). Access each via optional chaining and skip any tile whose value is absent. Handle the psutil-absent path (`success:false` + `error`) by showing the node's message. Include a collapsible "Analytics" `<details>` section that lazy-loads `getOpenHopPacketStats`/`getOpenHopPacketTypeStats`/`getOpenHopNoiseFloorStats` and renders their `data` objects as simple key/value rows (defensive; no chart dependency).
 
-> Because the exact `hardware_stats` keys are psutil-dependent (confirmed live in Task 0), render from a whitelist of known keys and skip any that are absent; never assume a key exists.
+> The `hardware_stats` shape is nested (`data.cpu`, `data.memory`, `data.disk`, `data.system`) — NOT flat — confirmed live in Task 0. Never assume a key exists; optional-chain everything. `getOpenHopNodeStats` (`/stats`) returns an **unwrapped** bare object (no `success`/`data`) — if you surface any of it, read top-level keys directly.
 
 - [ ] **Step 5: Run — expect PASS.**
 
