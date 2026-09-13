@@ -51,11 +51,14 @@ class AppSettingsRepository:
                    auto_resend_channel,
                    telemetry_interval_hours, telemetry_routed_hourly,
                    show_mention_ticker, auto_add_mentioned_channels,
+                   chat_parse_pubkeys, chat_parse_coordinates,
+                   chat_url_previews, chat_linkify_urls,
                    registry_sync_url, region_sync_url,
                    wordlist_sync_url, analyzer_sites,
                    external_map_enabled, external_map_sync_url,
                    external_map_sync_interval_hours,
-                   backup_to_path_enabled, backup_destination_path
+                   backup_to_path_enabled, backup_destination_path,
+                   brand_name, brand_hidden, brand_icon
             FROM app_settings WHERE id = 1
             """
         ) as cursor:
@@ -162,6 +165,24 @@ class AppSettingsRepository:
         except (KeyError, TypeError):
             auto_add_mentioned_channels = False
 
+        # Parse chat entity-parsing booleans (migration _082 adds these columns).
+        try:
+            chat_parse_pubkeys = bool(row["chat_parse_pubkeys"])
+        except (KeyError, TypeError):
+            chat_parse_pubkeys = False
+        try:
+            chat_parse_coordinates = bool(row["chat_parse_coordinates"])
+        except (KeyError, TypeError):
+            chat_parse_coordinates = False
+        try:
+            chat_url_previews = bool(row["chat_url_previews"])
+        except (KeyError, TypeError):
+            chat_url_previews = False
+        try:
+            chat_linkify_urls = bool(row["chat_linkify_urls"])
+        except (KeyError, TypeError):
+            chat_linkify_urls = True
+
         # Parse registry_sync_url (migration adds the column with default='')
         try:
             registry_sync_url = row["registry_sync_url"] or ""
@@ -226,6 +247,20 @@ class AppSettingsRepository:
         except (KeyError, TypeError, ValueError):
             advert_retention_days = 30
 
+        # Branding (migration _082). Guard against older/partial rows.
+        try:
+            brand_name = row["brand_name"] or ""
+        except (KeyError, TypeError):
+            brand_name = ""
+        try:
+            brand_hidden = bool(row["brand_hidden"])
+        except (KeyError, TypeError):
+            brand_hidden = False
+        try:
+            brand_icon = row["brand_icon"] or ""
+        except (KeyError, TypeError):
+            brand_icon = ""
+
         return AppSettings(
             max_radio_contacts=row["max_radio_contacts"],
             auto_decrypt_dm_on_advert=bool(row["auto_decrypt_dm_on_advert"]),
@@ -245,6 +280,10 @@ class AppSettingsRepository:
             telemetry_routed_hourly=telemetry_routed_hourly,
             show_mention_ticker=show_mention_ticker,
             auto_add_mentioned_channels=auto_add_mentioned_channels,
+            chat_parse_pubkeys=chat_parse_pubkeys,
+            chat_parse_coordinates=chat_parse_coordinates,
+            chat_url_previews=chat_url_previews,
+            chat_linkify_urls=chat_linkify_urls,
             registry_sync_url=registry_sync_url,
             region_sync_url=region_sync_url,
             wordlist_sync_url=wordlist_sync_url,
@@ -254,6 +293,9 @@ class AppSettingsRepository:
             external_map_sync_interval_hours=external_map_sync_interval_hours,
             backup_to_path_enabled=backup_to_path_enabled,
             backup_destination_path=backup_destination_path,
+            brand_name=brand_name,
+            brand_hidden=brand_hidden,
+            brand_icon=brand_icon,
         )
 
     @staticmethod
@@ -278,6 +320,10 @@ class AppSettingsRepository:
         telemetry_routed_hourly: bool | None = None,
         show_mention_ticker: bool | None = None,
         auto_add_mentioned_channels: bool | None = None,
+        chat_parse_pubkeys: bool | None = None,
+        chat_parse_coordinates: bool | None = None,
+        chat_url_previews: bool | None = None,
+        chat_linkify_urls: bool | None = None,
         registry_sync_url: str | None = None,
         region_sync_url: str | None = None,
         wordlist_sync_url: str | None = None,
@@ -287,6 +333,9 @@ class AppSettingsRepository:
         external_map_sync_interval_hours: int | None = None,
         backup_to_path_enabled: bool | None = None,
         backup_destination_path: str | None = None,
+        brand_name: str | None = None,
+        brand_hidden: bool | None = None,
+        brand_icon: str | None = None,
     ) -> None:
         """Apply field updates using an already-acquired connection.
 
@@ -368,6 +417,22 @@ class AppSettingsRepository:
             updates.append("auto_add_mentioned_channels = ?")
             params.append(1 if auto_add_mentioned_channels else 0)
 
+        if chat_parse_pubkeys is not None:
+            updates.append("chat_parse_pubkeys = ?")
+            params.append(1 if chat_parse_pubkeys else 0)
+
+        if chat_parse_coordinates is not None:
+            updates.append("chat_parse_coordinates = ?")
+            params.append(1 if chat_parse_coordinates else 0)
+
+        if chat_url_previews is not None:
+            updates.append("chat_url_previews = ?")
+            params.append(1 if chat_url_previews else 0)
+
+        if chat_linkify_urls is not None:
+            updates.append("chat_linkify_urls = ?")
+            params.append(1 if chat_linkify_urls else 0)
+
         if registry_sync_url is not None:
             updates.append("registry_sync_url = ?")
             params.append(registry_sync_url)
@@ -404,6 +469,18 @@ class AppSettingsRepository:
             updates.append("backup_destination_path = ?")
             params.append(backup_destination_path)
 
+        if brand_name is not None:
+            updates.append("brand_name = ?")
+            params.append(brand_name)
+
+        if brand_hidden is not None:
+            updates.append("brand_hidden = ?")
+            params.append(1 if brand_hidden else 0)
+
+        if brand_icon is not None:
+            updates.append("brand_icon = ?")
+            params.append(brand_icon)
+
         if updates:
             query = f"UPDATE app_settings SET {', '.join(updates)} WHERE id = 1"
             async with conn.execute(query, params):
@@ -438,6 +515,10 @@ class AppSettingsRepository:
         telemetry_routed_hourly: bool | None = None,
         show_mention_ticker: bool | None = None,
         auto_add_mentioned_channels: bool | None = None,
+        chat_parse_pubkeys: bool | None = None,
+        chat_parse_coordinates: bool | None = None,
+        chat_url_previews: bool | None = None,
+        chat_linkify_urls: bool | None = None,
         registry_sync_url: str | None = None,
         region_sync_url: str | None = None,
         wordlist_sync_url: str | None = None,
@@ -447,6 +528,9 @@ class AppSettingsRepository:
         external_map_sync_interval_hours: int | None = None,
         backup_to_path_enabled: bool | None = None,
         backup_destination_path: str | None = None,
+        brand_name: str | None = None,
+        brand_hidden: bool | None = None,
+        brand_icon: str | None = None,
     ) -> AppSettings:
         """Update app settings. Only provided fields are updated."""
         async with db.tx() as conn:
@@ -470,6 +554,10 @@ class AppSettingsRepository:
                 telemetry_routed_hourly=telemetry_routed_hourly,
                 show_mention_ticker=show_mention_ticker,
                 auto_add_mentioned_channels=auto_add_mentioned_channels,
+                chat_parse_pubkeys=chat_parse_pubkeys,
+                chat_parse_coordinates=chat_parse_coordinates,
+                chat_url_previews=chat_url_previews,
+                chat_linkify_urls=chat_linkify_urls,
                 registry_sync_url=registry_sync_url,
                 region_sync_url=region_sync_url,
                 wordlist_sync_url=wordlist_sync_url,
@@ -479,6 +567,9 @@ class AppSettingsRepository:
                 external_map_sync_interval_hours=external_map_sync_interval_hours,
                 backup_to_path_enabled=backup_to_path_enabled,
                 backup_destination_path=backup_destination_path,
+                brand_name=brand_name,
+                brand_hidden=brand_hidden,
+                brand_icon=brand_icon,
             )
             return await AppSettingsRepository._get_in_conn(conn)
 

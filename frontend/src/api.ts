@@ -1,6 +1,8 @@
 import type {
+  AdvertLinkEdge,
   AppSettings,
   AppSettingsUpdate,
+  UrlPreview,
   ExternalMapNode,
   ExternalMapStatus,
   BulkCreateHashtagChannelsResult,
@@ -205,6 +207,8 @@ export const api = {
     fetchJson<ContactAdvertPathSummary[]>(
       `/contacts/repeaters/advert-paths?limit_per_repeater=${limitPerRepeater}`
     ),
+  getAdvertLinks: (signal?: AbortSignal) =>
+    fetchJson<AdvertLinkEdge[]>('/packets/advert-links', { signal }),
   getContactAnalytics: (params: { publicKey?: string; name?: string }, signal?: AbortSignal) => {
     const searchParams = new URLSearchParams();
     if (params.publicKey) searchParams.set('public_key', params.publicKey);
@@ -454,6 +458,10 @@ export const api = {
     });
     return fetchJson<ExternalMapNode[]>(`/external-map/nodes?${qs.toString()}`, { signal });
   },
+
+  // Chat link preview (unfurl)
+  unfurl: (url: string, signal?: AbortSignal) =>
+    fetchJson<UrlPreview>(`/unfurl?url=${encodeURIComponent(url)}`, { signal }),
 
   // App Settings
   getSettings: () => fetchJson<AppSettings>('/settings'),

@@ -40,6 +40,7 @@ const MeshHealthView = lazy(() =>
 
 interface ConversationPaneProps {
   activeConversation: Conversation | null;
+  sidebarOpen?: boolean;
   contacts: Contact[];
   channels: Channel[];
   config: RadioConfig | null;
@@ -85,6 +86,11 @@ interface ConversationPaneProps {
   onChannelReferenceClick?: (channelName: string) => void;
   registryNames?: Set<string>;
   autoAddMentionedChannels?: boolean;
+  parsePubkeys?: boolean;
+  parseCoordinates?: boolean;
+  linkifyUrls?: boolean;
+  showUrlPreviews?: boolean;
+  analyzerSites?: import('../types').AnalyzerSite[];
   onHashtagAdded?: (channelName: string) => void;
   onInsertLocation?: (lat: number, lon: number, label: string) => void;
   onCoordinateClick?: (lat: number, lon: number, label: string) => void;
@@ -135,6 +141,7 @@ function ContactResolutionBanner({ variant }: { variant: 'unknown-full-key' | 'p
 
 export function ConversationPane({
   activeConversation,
+  sidebarOpen,
   contacts,
   channels,
   config,
@@ -174,6 +181,11 @@ export function ConversationPane({
   onChannelReferenceClick,
   registryNames,
   autoAddMentionedChannels,
+  parsePubkeys,
+  parseCoordinates,
+  linkifyUrls,
+  showUrlPreviews,
+  analyzerSites,
   onHashtagAdded,
   onInsertLocation,
   onCoordinateClick,
@@ -239,6 +251,7 @@ export function ConversationPane({
           <Suspense fallback={<LoadingPane label={t('common_loading_map')} />}>
             <MapView
               contacts={contacts}
+              sidebarOpen={sidebarOpen}
               focusedKey={activeConversation.mapFocusKey}
               focusedLatLon={activeConversation.mapFocusLatLon}
               focusedLabel={activeConversation.mapFocusLabel}
@@ -422,6 +435,11 @@ export function ConversationPane({
           onChannelReferenceClick={onChannelReferenceClick}
           registryNames={registryNames}
           autoAddMentionedChannels={autoAddMentionedChannels}
+          parsePubkeys={parsePubkeys}
+          parseCoordinates={parseCoordinates}
+          linkifyUrls={linkifyUrls}
+          showUrlPreviews={showUrlPreviews}
+          analyzerSites={analyzerSites}
           onHashtagAdded={onHashtagAdded}
           onCoordinateClick={onCoordinateClick}
           onLoadOlder={onLoadOlder}

@@ -47,6 +47,7 @@ Before writing "fixed", "works", "done", or "deployed":
 2. If you could not verify something, write "NOT VERIFIED" explicitly. Never present a guess as a fact; mark it as an assumption.
 3. Runtime behaviour (UI, live data) must be observed, not reasoned about. Compiling or type-checking is not evidence that a page renders.
 4. Confirm the thing you tested is the thing you changed (right branch, right build, right URL).
+5. Before pushing, run the CI-equivalent checks locally. Passing pytest is not enough: CI also runs `ruff check` / `ruff format --check` (backend) and `lint` / `format:check` / `test:run` / `build` (frontend), several of which fail fast. See `docs/agents/ci-checks.md` for the exact commands.
 
 ## Git Rules
 

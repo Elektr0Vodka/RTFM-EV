@@ -89,6 +89,70 @@ class TestUpdateSettings:
         assert fresh.show_mention_ticker is False
 
     @pytest.mark.asyncio
+    async def test_chat_entity_settings_defaults(self, test_db):
+        result = await update_settings(AppSettingsUpdate())
+        assert result.chat_parse_pubkeys is False
+        assert result.chat_parse_coordinates is False
+        assert result.chat_url_previews is False
+        assert result.chat_linkify_urls is True
+
+    @pytest.mark.asyncio
+    async def test_chat_entity_settings_round_trip(self, test_db):
+        await update_settings(
+            AppSettingsUpdate(
+                chat_parse_pubkeys=True,
+                chat_parse_coordinates=True,
+                chat_url_previews=True,
+                chat_linkify_urls=False,
+            )
+        )
+        fresh = await AppSettingsRepository.get()
+        assert fresh.chat_parse_pubkeys is True
+        assert fresh.chat_parse_coordinates is True
+        assert fresh.chat_url_previews is True
+        assert fresh.chat_linkify_urls is False
+
+    @pytest.mark.asyncio
+    async def test_brand_name_and_hidden_round_trip(self, test_db):
+        result = await update_settings(
+            AppSettingsUpdate(brand_name="  MeshHQ  ", brand_hidden=True)
+        )
+        assert result.brand_name == "MeshHQ"  # trimmed
+        assert result.brand_hidden is True
+
+    @pytest.mark.asyncio
+    async def test_brand_name_truncated_to_cap(self, test_db):
+        result = await update_settings(AppSettingsUpdate(brand_name="x" * 200))
+        assert len(result.brand_name) == 64
+
+    @pytest.mark.asyncio
+    async def test_valid_png_icon_is_stored(self, test_db):
+        icon = "data:image/png;base64,iVBORw0KGgo="
+        result = await update_settings(AppSettingsUpdate(brand_icon=icon))
+        assert result.brand_icon == icon
+
+    @pytest.mark.asyncio
+    async def test_empty_icon_clears(self, test_db):
+        await update_settings(AppSettingsUpdate(brand_icon="data:image/png;base64,iVBORw0KGgo="))
+        result = await update_settings(AppSettingsUpdate(brand_icon=""))
+        assert result.brand_icon == ""
+
+    @pytest.mark.asyncio
+    async def test_disallowed_icon_mime_rejected(self, test_db):
+        with pytest.raises(HTTPException) as exc:
+            await update_settings(
+                AppSettingsUpdate(brand_icon="data:text/html;base64,PHNjcmlwdD4=")
+            )
+        assert exc.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_oversized_icon_rejected(self, test_db):
+        big = "data:image/png;base64," + ("A" * 131073)
+        with pytest.raises(HTTPException) as exc:
+            await update_settings(AppSettingsUpdate(brand_icon=big))
+        assert exc.value.status_code == 400
+
+    @pytest.mark.asyncio
     async def test_auto_add_mentioned_channels_defaults_disabled(self, test_db):
         result = await update_settings(AppSettingsUpdate())
         assert result.auto_add_mentioned_channels is False

@@ -9,7 +9,16 @@ import {
   Suspense,
   type ReactNode,
 } from 'react';
-import type { Channel, Contact, Message, MessagePath, RadioConfig, RawPacket } from '../types';
+import type {
+  AnalyzerSite,
+  Channel,
+  Contact,
+  Message,
+  MessagePath,
+  RadioConfig,
+  RawPacket,
+} from '../types';
+import { buildNodeLookupUrl } from '../utils/analyzerLink';
 import { CONTACT_TYPE_ROOM } from '../types';
 import { api } from '../api';
 import {
@@ -51,6 +60,7 @@ import { RawPacketInspectorDialog } from './RawPacketDetailModal';
 import { toast } from './ui/sonner';
 import { handleKeyboardActivate } from '../utils/a11y';
 import { classifyHashtag, buildNameSet, type HashtagState } from '../lib/hashtagChannelState';
+import { tokenizeMessageText, type ChatToken, type TokenizeOptions } from '../utils/chatEntities';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { cn } from '@/lib/utils';
 import { useT } from '../i18n';
@@ -75,6 +85,16 @@ interface MessageListProps {
   autoAddMentionedChannels?: boolean;
   onHashtagAdded?: (channelName: string) => void;
   onCoordinateClick?: (lat: number, lon: number, label: string) => void;
+  /** Parse 64-hex public keys into contact/analyzer lookups (server setting). */
+  parsePubkeys?: boolean;
+  /** Parse GPS coordinates into location cards (server setting). */
+  parseCoordinates?: boolean;
+  /** Render URLs as clickable links (server setting; default on). */
+  linkifyUrls?: boolean;
+  /** Configured external analyzer sites, for unknown-pubkey lookups. */
+  analyzerSites?: AnalyzerSite[];
+  /** Show a messenger-style preview card for the first URL in a message. */
+  showUrlPreviews?: boolean;
   radioName?: string;
   config?: RadioConfig | null;
   onOpenContactInfo?: (publicKey: string, fromChannel?: boolean) => void;
@@ -131,6 +151,10 @@ function ReactionPayload({ emoji, targetSender }: { emoji: string; targetSender?
 
 const LocationPreviewMap = lazy(() =>
   import('./LocationPreviewMap').then((m) => ({ default: m.LocationPreviewMap }))
+);
+
+const UrlPreviewCard = lazy(() =>
+  import('./UrlPreviewCard').then((m) => ({ default: m.UrlPreviewCard }))
 );
 
 // Renders a MeshCore Open location marker (m:<lat>,<lon>|<label>|poi) as a
@@ -246,7 +270,7 @@ function renderMeshcoreOpenPayload(
       // GIF/reaction still reads as a reply to that person.
       return (
         <span className="inline-flex flex-wrap items-center gap-1.5">
-          {renderTextWithMentions(split.mention, radioName, ctx)}
+          {renderTokens(split.mention, radioName, ctx, DEFAULT_ENTITY_OPTS, EMPTY_TOKEN_DEPS)}
           {body}
         </span>
       );
@@ -271,9 +295,13 @@ const FALLBACK_VIEWPORT_HEIGHT = 800;
  */
 const BOTTOM_SCROLL_FRAME_BUDGET = 20;
 
-// URL regex for linkifying plain text
-const URL_PATTERN =
-  /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)/g;
+// Behavior-preserving default: URLs clickable, no pubkey/coordinate parsing.
+// The real per-setting options are threaded from props at the call sites.
+const DEFAULT_ENTITY_OPTS: TokenizeOptions = {
+  parsePubkeys: false,
+  parseCoordinates: false,
+  linkifyUrls: true,
+};
 
 // State-specific token colours. "followed" keeps the original primary style;
 // "known" (in registry, not followed) is muted with a dotted underline;
@@ -286,161 +314,182 @@ const HASHTAG_STATE_CLASS: Record<HashtagState, string> = {
     'text-accent-foreground underline underline-offset-2 decoration-dashed hover:text-foreground',
 };
 
-function renderChannelReferences(
-  text: string,
-  keyPrefix: string,
-  ctx: HashtagRenderCtx
-): ReactNode[] {
-  const references = findLinkedChannelReferences(text);
-  if (references.length === 0) {
-    return [text];
-  }
+// Render a single #hashtag channel reference token: the styled label (button or
+// span) plus, for an unknown channel, a one-click "+" capture into the registry.
+function renderHashtag(label: string, key: string, ctx: HashtagRenderCtx): ReactNode {
+  const state = classifyHashtag(label, ctx.followedNames, ctx.registryNames);
+  const className = cn('rounded px-0.5 transition-colors', HASHTAG_STATE_CLASS[state]);
+  const title = ctx.titleFor(state, label);
 
-  const parts: ReactNode[] = [];
-  let lastIndex = 0;
+  const token = ctx.onChannelReferenceClick ? (
+    <button
+      key={`${key}-tag`}
+      type="button"
+      title={title}
+      className={cn(
+        className,
+        'inline border-0 bg-transparent p-0 align-baseline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+      )}
+      onClick={() => ctx.onChannelReferenceClick!(label)}
+    >
+      {label}
+    </button>
+  ) : (
+    <span key={`${key}-tag`} className={className} title={title}>
+      {label}
+    </span>
+  );
 
-  references.forEach((reference, index) => {
-    if (reference.start > lastIndex) {
-      parts.push(text.slice(lastIndex, reference.start));
-    }
-
-    const state = classifyHashtag(reference.label, ctx.followedNames, ctx.registryNames);
-    const className = cn('rounded px-0.5 transition-colors', HASHTAG_STATE_CLASS[state]);
-    const title = ctx.titleFor(state, reference.label);
-    const key = `${keyPrefix}-channel-${index}`;
-
-    if (ctx.onChannelReferenceClick) {
-      parts.push(
+  if (state === 'unknown' && ctx.onAdd) {
+    return (
+      <span key={key} className="inline">
+        {token}
         <button
-          key={key}
           type="button"
-          title={title}
-          className={cn(
-            className,
-            'inline border-0 bg-transparent p-0 align-baseline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-          )}
-          onClick={() => ctx.onChannelReferenceClick!(reference.label)}
-        >
-          {reference.label}
-        </button>
-      );
-    } else {
-      parts.push(
-        <span key={key} className={className} title={title}>
-          {reference.label}
-        </span>
-      );
-    }
-
-    // Unknown mentions get a one-click capture into the registry.
-    if (state === 'unknown' && ctx.onAdd) {
-      parts.push(
-        <button
-          key={`${key}-add`}
-          type="button"
-          aria-label={ctx.addAriaLabel(reference.label)}
-          title={ctx.addAriaLabel(reference.label)}
-          onClick={() => ctx.onAdd!(reference.label)}
+          aria-label={ctx.addAriaLabel(label)}
+          title={ctx.addAriaLabel(label)}
+          onClick={() => ctx.onAdd!(label)}
           className="ml-0.5 inline-flex items-center rounded border border-border px-1 text-[0.625rem] leading-none text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           +
         </button>
-      );
-    }
-
-    lastIndex = reference.end;
-  });
-
-  if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
-  }
-
-  return parts;
-}
-
-// Helper to convert URLs and channel references in a plain text string into rich content
-function linkifyText(text: string, keyPrefix: string, ctx: HashtagRenderCtx): ReactNode[] {
-  const parts: ReactNode[] = [];
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-  let keyIndex = 0;
-
-  URL_PATTERN.lastIndex = 0;
-  while ((match = URL_PATTERN.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push(
-        ...renderChannelReferences(
-          text.slice(lastIndex, match.index),
-          `${keyPrefix}-text-${keyIndex}`,
-          ctx
-        )
-      );
-    }
-    parts.push(
-      <a
-        key={`${keyPrefix}-link-${keyIndex++}`}
-        href={match[0]}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-primary underline hover:text-primary/80"
-      >
-        {match[0]}
-      </a>
-    );
-    lastIndex = match.index + match[0].length;
-  }
-
-  if (lastIndex === 0) {
-    return renderChannelReferences(text, keyPrefix, ctx);
-  }
-  if (lastIndex < text.length) {
-    parts.push(...renderChannelReferences(text.slice(lastIndex), `${keyPrefix}-tail`, ctx));
-  }
-  return parts;
-}
-
-// Helper to render text with highlighted @[Name] mentions and clickable URLs
-function renderTextWithMentions(
-  text: string,
-  radioName: string | undefined,
-  ctx: HashtagRenderCtx
-): ReactNode {
-  const mentionPattern = /@\[([^\]]+)\]/g;
-  const parts: ReactNode[] = [];
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-  let keyIndex = 0;
-
-  while ((match = mentionPattern.exec(text)) !== null) {
-    // Add text before the match (with linkification)
-    if (match.index > lastIndex) {
-      parts.push(...linkifyText(text.slice(lastIndex, match.index), `pre-${keyIndex}`, ctx));
-    }
-
-    const mentionedName = match[1];
-    const isOwnMention = radioName ? mentionedName === radioName : false;
-
-    parts.push(
-      <span
-        key={`mention-${keyIndex++}`}
-        className={cn(
-          'rounded px-0.5',
-          isOwnMention ? 'bg-primary/30 text-primary font-medium' : 'bg-muted-foreground/20'
-        )}
-      >
-        @[{mentionedName}]
       </span>
     );
-
-    lastIndex = match.index + match[0].length;
   }
+  return token;
+}
 
-  // Add remaining text after last match (with linkification)
-  if (lastIndex < text.length) {
-    parts.push(...linkifyText(text.slice(lastIndex), `post-${keyIndex}`, ctx));
+// Extra dependencies the pubkey/coordinate token renderers need. Bundled so the
+// module-level renderers stay parameterized rather than closing over component
+// state.
+interface TokenDeps {
+  contacts: Contact[];
+  onOpenContactInfo?: (publicKey: string, fromChannel?: boolean) => void;
+  onCoordinateClick?: (lat: number, lon: number, label: string) => void;
+  analyzerSites: AnalyzerSite[];
+}
+
+const EMPTY_TOKEN_DEPS: TokenDeps = { contacts: [], analyzerSites: [] };
+
+// A 64-hex public key: a loaded contact (opens contact info) or, when unknown, a
+// muted token plus a link to look it up on the first configured analyzer site.
+function PubkeyToken({ value, deps }: { value: string; deps: TokenDeps }) {
+  const t = useT();
+  const known = deps.contacts.find((c) => c.public_key.toLowerCase() === value.toLowerCase());
+  const short = `${value.slice(0, 6)}…${value.slice(-6)}`;
+  if (known && deps.onOpenContactInfo) {
+    return (
+      <button
+        type="button"
+        className="rounded px-0.5 font-mono text-primary underline hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        title={t('chat_pubkey_open_contact', { name: known.name || short })}
+        onClick={() => deps.onOpenContactInfo!(value)}
+      >
+        {known.name || short}
+      </button>
+    );
   }
+  const site = deps.analyzerSites[0];
+  const url = site ? buildNodeLookupUrl(site, value) : null;
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className="font-mono text-muted-foreground" title={value}>
+        {short}
+      </span>
+      {url && (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded border border-border px-1 text-[0.625rem] leading-none text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          title={t('chat_pubkey_lookup_analyzer', { site: site.name })}
+          aria-label={t('chat_pubkey_lookup_analyzer', { site: site.name })}
+        >
+          {t('chat_pubkey_lookup_action')}
+        </a>
+      )}
+    </span>
+  );
+}
 
-  return parts.length > 0 ? parts : text;
+// Render a single tokenized chat entity into a React node.
+function renderToken(
+  tok: ChatToken,
+  i: number,
+  radioName: string | undefined,
+  ctx: HashtagRenderCtx,
+  deps: TokenDeps
+): ReactNode {
+  switch (tok.kind) {
+    case 'text':
+      return tok.value;
+    case 'mention': {
+      const isOwn = radioName ? tok.name === radioName : false;
+      return (
+        <span
+          key={`mention-${i}`}
+          className={cn(
+            'rounded px-0.5',
+            isOwn ? 'bg-primary/30 text-primary font-medium' : 'bg-muted-foreground/20'
+          )}
+        >
+          @[{tok.name}]
+        </span>
+      );
+    }
+    case 'url':
+      return (
+        <a
+          key={`url-${i}`}
+          href={tok.value}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary underline hover:text-primary/80"
+        >
+          {tok.value}
+        </a>
+      );
+    case 'hashtag':
+      return renderHashtag(tok.label, `hashtag-${i}`, ctx);
+    case 'pubkey':
+      return <PubkeyToken key={`pubkey-${i}`} value={tok.value} deps={deps} />;
+    case 'coordinate':
+      return (
+        <MarkerMessage
+          key={`coord-${i}`}
+          marker={{ lat: tok.lat, lon: tok.lon, label: '', flags: '' }}
+          onCoordinateClick={deps.onCoordinateClick}
+        />
+      );
+    default:
+      return null;
+  }
+}
+
+// Render message text: tokenize into entities, then map each to a node. Keeps
+// mention/url/hashtag output identical to the previous nested scanners.
+function renderTokens(
+  text: string,
+  radioName: string | undefined,
+  ctx: HashtagRenderCtx,
+  entityOpts: TokenizeOptions,
+  deps: TokenDeps
+): ReactNode {
+  const tokens = tokenizeMessageText(text, entityOpts);
+  return tokens.map((tok, i) => renderToken(tok, i, radioName, ctx, deps));
+}
+
+// First http(s) URL in a message, for the (optional) link-preview card. URLs are
+// detected regardless of the clickable-links setting.
+function firstUrlIn(text: string): string | null {
+  for (const tok of tokenizeMessageText(text, {
+    parsePubkeys: false,
+    parseCoordinates: false,
+    linkifyUrls: true,
+  })) {
+    if (tok.kind === 'url') return tok.value;
+  }
+  return null;
 }
 
 // Clickable hop count badge that opens the path modal
@@ -582,6 +631,11 @@ export function MessageList({
   autoAddMentionedChannels = false,
   onHashtagAdded,
   onCoordinateClick,
+  parsePubkeys = false,
+  parseCoordinates = false,
+  linkifyUrls = true,
+  analyzerSites = [],
+  showUrlPreviews = false,
   radioName,
   config,
   onOpenContactInfo,
@@ -799,6 +853,17 @@ export function MessageList({
             : t('chat_hashtag_unknown_title', { channel }),
     }),
     [onChannelReferenceClick, followedNames, registryNameSet, onHashtagAdded, t]
+  );
+
+  // Entity-parsing options (from server settings) and the render dependencies the
+  // pubkey/coordinate token renderers need.
+  const entityOpts = useMemo<TokenizeOptions>(
+    () => ({ parsePubkeys, parseCoordinates, linkifyUrls }),
+    [parsePubkeys, parseCoordinates, linkifyUrls]
+  );
+  const tokenDeps = useMemo<TokenDeps>(
+    () => ({ contacts, onOpenContactInfo, onCoordinateClick, analyzerSites }),
+    [contacts, onOpenContactInfo, onCoordinateClick, analyzerSites]
   );
 
   // Opt-in passive capture: when enabled, record unknown #hashtag references seen
@@ -1467,6 +1532,7 @@ export function MessageList({
               msg.type === 'PRIV'
                 ? { sender: null, content: msg.text }
                 : parseSenderFromText(msg.text);
+            const previewUrl = showUrlPreviews ? firstUrlIn(content) : null;
             const directSenderName =
               msg.type === 'PRIV' && isRoomServer ? msg.sender_name || null : null;
             const channelSenderName = msg.type === 'CHAN' ? msg.sender_name || sender : null;
@@ -1688,7 +1754,7 @@ export function MessageList({
                         )) ||
                         content.split('\n').map((line, i, arr) => (
                           <span key={i}>
-                            {renderTextWithMentions(line, radioName, hashtagCtx)}
+                            {renderTokens(line, radioName, hashtagCtx, entityOpts, tokenDeps)}
                             {i < arr.length - 1 && <br />}
                           </span>
                         ))}
@@ -1777,6 +1843,11 @@ export function MessageList({
                           </span>
                         ))}
                     </div>
+                    {previewUrl && (
+                      <Suspense fallback={null}>
+                        <UrlPreviewCard url={previewUrl} />
+                      </Suspense>
+                    )}
                   </div>
                 </div>
               </div>

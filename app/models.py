@@ -1198,6 +1198,22 @@ class AppSettings(BaseModel):
             "followed radio channel is created)"
         ),
     )
+    chat_parse_pubkeys: bool = Field(
+        default=False,
+        description="Parse 64-hex public keys in chat into contact/analyzer lookups",
+    )
+    chat_parse_coordinates: bool = Field(
+        default=False,
+        description="Parse GPS coordinates in chat text into location cards",
+    )
+    chat_url_previews: bool = Field(
+        default=False,
+        description="Fetch OpenGraph link previews for URLs in chat (server-side fetch)",
+    )
+    chat_linkify_urls: bool = Field(
+        default=True,
+        description="Render URLs in chat as clickable links",
+    )
     registry_sync_url: str = Field(
         default="",
         description="URL of a remote {name: key} JSON channel list to sync into the registry",
@@ -1252,6 +1268,18 @@ class AppSettings(BaseModel):
         default="",
         description="Absolute directory backups are written to when backup_to_path_enabled is on",
     )
+    brand_name: str = Field(
+        default="",
+        description="Custom navbar wordmark; empty falls back to the built-in 'RemoteTerm'",
+    )
+    brand_hidden: bool = Field(
+        default=False,
+        description="Hide the navbar wordmark text (the icon still shows)",
+    )
+    brand_icon: str = Field(
+        default="",
+        description="Custom navbar icon as a data URL; empty falls back to the built-in SVG",
+    )
 
 
 class ExternalMapNode(BaseModel):
@@ -1265,6 +1293,26 @@ class ExternalMapNode(BaseModel):
     last_seen: int | None = None
     advert_count: int = 0
     mobile: bool = False
+
+
+class AdvertLinkNode(BaseModel):
+    """A resolved GPS endpoint of an advert-truth map edge."""
+
+    pubkey: str
+    lat: float
+    lon: float
+    kind: Literal["self", "contact", "external"]
+
+
+class AdvertLinkEdge(BaseModel):
+    """One undirected RF link derived from stored advert paths (map truth)."""
+
+    a: AdvertLinkNode
+    b: AdvertLinkNode
+    hop_width: int
+    count: int
+    last_seen: int
+    ambiguous: bool
 
 
 class BusyChannel(BaseModel):

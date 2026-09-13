@@ -1,3 +1,5 @@
+import { applyCrt } from './crt';
+
 export interface Theme {
   id: string;
   name: string;
@@ -158,6 +160,10 @@ export function applyTheme(themeId: string): void {
   } else {
     document.documentElement.dataset.theme = effective;
   }
+
+  // Keep CRT phosphor/effect attributes in sync so they are present the moment
+  // the CRT theme becomes active (and harmless otherwise).
+  applyCrt();
 
   // Update PWA theme-color meta tag — reflect the effective (rendered) theme.
   const theme = THEMES.find((t) => t.id === effective);

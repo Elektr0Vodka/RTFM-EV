@@ -151,4 +151,29 @@ describe('StatusBar', () => {
     expect(localStorage.getItem('remoteterm-theme')).toBe('cyberpunk');
     expect(document.documentElement.dataset.theme).toBe('cyberpunk');
   });
+
+  it('renders the default RemoteTerm wordmark when unset', () => {
+    render(<StatusBar health={baseHealth} config={null} onSettingsClick={vi.fn()} />);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('RemoteTerm');
+  });
+
+  it('renders a custom brand name', () => {
+    render(
+      <StatusBar health={baseHealth} config={null} onSettingsClick={vi.fn()} brandName="MeshHQ" />
+    );
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('MeshHQ');
+  });
+
+  it('hides the wordmark text when brandHidden is set', () => {
+    render(
+      <StatusBar
+        health={baseHealth}
+        config={null}
+        onSettingsClick={vi.fn()}
+        brandName="MeshHQ"
+        brandHidden
+      />
+    );
+    expect(screen.getByRole('heading', { level: 1 })).not.toHaveTextContent('MeshHQ');
+  });
 });

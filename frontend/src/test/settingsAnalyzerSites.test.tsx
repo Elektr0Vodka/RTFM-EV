@@ -37,6 +37,10 @@ function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings {
     telemetry_routed_hourly: false,
     show_mention_ticker: true,
     auto_add_mentioned_channels: false,
+    chat_parse_pubkeys: false,
+    chat_parse_coordinates: false,
+    chat_url_previews: false,
+    chat_linkify_urls: true,
     registry_sync_url: '',
     region_sync_url: '',
     wordlist_sync_url: '',
@@ -46,6 +50,9 @@ function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings {
     external_map_sync_interval_hours: 0,
     backup_to_path_enabled: false,
     backup_destination_path: '',
+    brand_name: '',
+    brand_hidden: false,
+    brand_icon: '',
     ...overrides,
   };
 }

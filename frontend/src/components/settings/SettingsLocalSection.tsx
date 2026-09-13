@@ -3,7 +3,7 @@ import { ChevronRight, Logs, MessageSquare, Send, Settings, X } from 'lucide-rea
 import { toast } from '../ui/sonner';
 import { useT } from '../../i18n';
 import { usePush } from '../../contexts/PushSubscriptionContext';
-import type { Channel, Contact } from '../../types';
+import type { AppSettings, AppSettingsUpdate, Channel, Contact } from '../../types';
 import { getContactDisplayName } from '../../utils/pubkey';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
@@ -18,6 +18,8 @@ import {
   setReopenLastConversationEnabled,
 } from '../../utils/lastViewedConversation';
 import { ThemeSelector } from './ThemeSelector';
+import { CrtSettings } from './CrtSettings';
+import { BrandingSettings } from './BrandingSettings';
 import { LanguageSelector } from './LanguageSelector';
 import { getLocalLabel, setLocalLabel, type LocalLabel } from '../../utils/localLabel';
 import {
@@ -230,11 +232,15 @@ export function SettingsLocalSection({
   contacts,
   channels,
   className,
+  appSettings,
+  onSaveAppSettings,
 }: {
   onLocalLabelChange?: (label: LocalLabel) => void;
   contacts?: Contact[];
   channels?: Channel[];
   className?: string;
+  appSettings?: AppSettings | null;
+  onSaveAppSettings?: (update: AppSettingsUpdate) => void;
 }) {
   const t = useT();
   const { distanceUnit, setDistanceUnit } = useDistanceUnit();
@@ -299,10 +305,21 @@ export function SettingsLocalSection({
       <Separator />
 
       <div className="space-y-1">
-        <h3 className="text-base font-semibold tracking-tight">{t('settings_color_scheme')}</h3>
+        <h3 className="text-base font-semibold tracking-tight">{t('settings_customisation')}</h3>
         <ThemeSelector />
         <ThemePreview className="mt-6" />
       </div>
+
+      <Separator />
+
+      <CrtSettings />
+
+      <Separator />
+
+      <BrandingSettings
+        appSettings={appSettings ?? null}
+        onSave={(update) => onSaveAppSettings?.(update)}
+      />
 
       <Separator />
 
@@ -531,6 +548,80 @@ export function SettingsLocalSection({
               <Label htmlFor="location-map-preview">{t('settings_location_preview_label')}</Label>
               <p className="text-[0.8125rem] text-muted-foreground">
                 {t('settings_location_preview_desc')}
+              </p>
+            </div>
+          </div>
+
+          <div className="pt-1 text-[0.6875rem] font-medium uppercase tracking-wider text-muted-foreground">
+            {t('settings_chat_group_title')}
+          </div>
+
+          <div className="flex items-start gap-3 rounded-md border border-border/60 p-3">
+            <Checkbox
+              id="chat-linkify-urls"
+              checked={appSettings?.chat_linkify_urls ?? true}
+              onCheckedChange={(checked) =>
+                onSaveAppSettings?.({ chat_linkify_urls: checked === true })
+              }
+              className="mt-0.5"
+            />
+            <div className="space-y-1">
+              <Label htmlFor="chat-linkify-urls">{t('settings_chat_linkify_label')}</Label>
+              <p className="text-[0.8125rem] text-muted-foreground">
+                {t('settings_chat_linkify_desc')}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3 rounded-md border border-border/60 p-3">
+            <Checkbox
+              id="chat-url-previews"
+              checked={appSettings?.chat_url_previews ?? false}
+              onCheckedChange={(checked) =>
+                onSaveAppSettings?.({ chat_url_previews: checked === true })
+              }
+              className="mt-0.5"
+            />
+            <div className="space-y-1">
+              <Label htmlFor="chat-url-previews">{t('settings_chat_url_previews_label')}</Label>
+              <p className="text-[0.8125rem] text-muted-foreground">
+                {t('settings_chat_url_previews_desc')}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3 rounded-md border border-border/60 p-3">
+            <Checkbox
+              id="chat-parse-pubkeys"
+              checked={appSettings?.chat_parse_pubkeys ?? false}
+              onCheckedChange={(checked) =>
+                onSaveAppSettings?.({ chat_parse_pubkeys: checked === true })
+              }
+              className="mt-0.5"
+            />
+            <div className="space-y-1">
+              <Label htmlFor="chat-parse-pubkeys">{t('settings_chat_parse_pubkeys_label')}</Label>
+              <p className="text-[0.8125rem] text-muted-foreground">
+                {t('settings_chat_parse_pubkeys_desc')}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3 rounded-md border border-border/60 p-3">
+            <Checkbox
+              id="chat-parse-coordinates"
+              checked={appSettings?.chat_parse_coordinates ?? false}
+              onCheckedChange={(checked) =>
+                onSaveAppSettings?.({ chat_parse_coordinates: checked === true })
+              }
+              className="mt-0.5"
+            />
+            <div className="space-y-1">
+              <Label htmlFor="chat-parse-coordinates">
+                {t('settings_chat_parse_coordinates_label')}
+              </Label>
+              <p className="text-[0.8125rem] text-muted-foreground">
+                {t('settings_chat_parse_coordinates_desc')}
               </p>
             </div>
           </div>

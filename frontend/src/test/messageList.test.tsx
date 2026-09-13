@@ -837,3 +837,86 @@ describe('MessageList #hashtag mention states', () => {
     expect(onHashtagAdded).toHaveBeenCalledWith('#newchan');
   });
 });
+
+describe('MessageList entity parsing', () => {
+  const KEY = 'f40fd1f0b0dedcb2650457bf90d81f3c1b174242449e9012ec38aba5db2d87ee';
+
+  function createContact(overrides: Partial<Contact> = {}): Contact {
+    return {
+      public_key: KEY,
+      name: 'KeyOwner',
+      type: 0,
+      flags: 0,
+      direct_path: null,
+      direct_path_len: 0,
+      direct_path_hash_mode: 0,
+      last_advert: null,
+      lat: null,
+      lon: null,
+      last_seen: null,
+      on_radio: false,
+      favorite: false,
+      radio_policy: 'auto',
+      last_contacted: null,
+      last_read_at: null,
+      first_seen: null,
+      ...overrides,
+    };
+  }
+
+  it('renders a known pubkey as a contact button', async () => {
+    const onOpenContactInfo = vi.fn();
+    render(
+      <MessageList
+        messages={[createMessage({ text: `node ${KEY}`, sender_name: 'Bob' })]}
+        contacts={[createContact()]}
+        loading={false}
+        parsePubkeys
+        onOpenContactInfo={onOpenContactInfo}
+      />
+    );
+    await userEvent.click(screen.getByRole('button', { name: /KeyOwner/ }));
+    expect(onOpenContactInfo).toHaveBeenCalledWith(KEY);
+  });
+
+  it('renders an unknown pubkey with an analyzer lookup link', () => {
+    render(
+      <MessageList
+        messages={[createMessage({ text: `node ${KEY}`, sender_name: 'Bob' })]}
+        contacts={[]}
+        loading={false}
+        parsePubkeys
+        analyzerSites={[{ name: 'radar', node_url_template: 'https://r.example/{pubkey}' }]}
+      />
+    );
+    const link = screen.getByRole('link', { name: /radar/i });
+    expect(link).toHaveAttribute('href', `https://r.example/${KEY}`);
+  });
+
+  it('does not parse pubkeys when the toggle is off', () => {
+    render(
+      <MessageList
+        messages={[createMessage({ text: `node ${KEY}`, sender_name: 'Bob' })]}
+        contacts={[createContact()]}
+        loading={false}
+        onOpenContactInfo={vi.fn()}
+      />
+    );
+    expect(screen.queryByRole('button', { name: /KeyOwner/ })).not.toBeInTheDocument();
+  });
+
+  it('renders a coordinate as a clickable location card when enabled', async () => {
+    const onCoordinateClick = vi.fn();
+    render(
+      <MessageList
+        messages={[createMessage({ text: 'at 52.724169,6.997483', sender_name: 'Bob' })]}
+        contacts={[]}
+        loading={false}
+        parseCoordinates
+        onCoordinateClick={onCoordinateClick}
+      />
+    );
+    await userEvent.click(screen.getByText('52.724169, 6.997483'));
+    expect(onCoordinateClick).toHaveBeenCalledWith(52.724169, 6.997483, '');
+  });
+});

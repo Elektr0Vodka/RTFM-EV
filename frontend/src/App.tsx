@@ -623,6 +623,9 @@ export function App() {
   const statusProps = {
     health,
     config,
+    brandName: appSettings?.brand_name || undefined,
+    brandHidden: appSettings?.brand_hidden ?? false,
+    brandIcon: appSettings?.brand_icon || undefined,
   };
   const sidebarProps = {
     contacts,
@@ -694,6 +697,11 @@ export function App() {
     onChannelReferenceClick: handleChannelReferenceClick,
     registryNames,
     autoAddMentionedChannels: appSettings?.auto_add_mentioned_channels ?? false,
+    parsePubkeys: appSettings?.chat_parse_pubkeys ?? false,
+    parseCoordinates: appSettings?.chat_parse_coordinates ?? false,
+    linkifyUrls: appSettings?.chat_linkify_urls ?? true,
+    showUrlPreviews: appSettings?.chat_url_previews ?? false,
+    analyzerSites: appSettings?.analyzer_sites ?? [],
     onHashtagAdded: handleHashtagAdded,
     onInsertLocation: handleInsertLocation,
     onCoordinateClick: handleCoordinateClick,
