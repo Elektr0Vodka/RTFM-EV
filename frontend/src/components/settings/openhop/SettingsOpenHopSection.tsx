@@ -3,6 +3,7 @@ import type { AppSettings, AppSettingsUpdate, HealthStatus } from '../../../type
 import { useT } from '../../../i18n';
 import { OpenHopPolicyPane } from './OpenHopPolicyPane';
 import { OpenHopPluginsPane } from './plugins/OpenHopPluginsPane';
+import { OpenHopConfigPane } from './config/OpenHopConfigPane';
 
 interface Props {
   health: HealthStatus | null;
@@ -10,7 +11,7 @@ interface Props {
   onSaveAppSettings: (u: AppSettingsUpdate) => Promise<void>;
 }
 
-type OpenHopTab = 'policy' | 'plugins';
+type OpenHopTab = 'policy' | 'plugins' | 'config';
 
 /**
  * Detection-gated OpenHop settings section. Hosts an internal sub-nav over the
@@ -41,12 +42,11 @@ export function SettingsOpenHopSection(props: Props) {
       <div className="flex gap-2" role="tablist" aria-label="OpenHop">
         {tabBtn('policy', t('openhop_tab_policy'))}
         {tabBtn('plugins', t('openhop_tab_plugins'))}
+        {tabBtn('config', t('openhop_tab_config'))}
       </div>
-      {tab === 'policy' ? (
-        <OpenHopPolicyPane {...props} />
-      ) : (
-        <OpenHopPluginsPane health={props.health} />
-      )}
+      {tab === 'policy' && <OpenHopPolicyPane {...props} />}
+      {tab === 'plugins' && <OpenHopPluginsPane health={props.health} />}
+      {tab === 'config' && <OpenHopConfigPane health={props.health} />}
     </div>
   );
 }

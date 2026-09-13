@@ -42,6 +42,11 @@ beforeEach(() => {
     },
   });
   vi.spyOn(api, 'listOpenHopPlugins').mockResolvedValue({ success: true, plugins: [] });
+  vi.spyOn(api, 'getOpenHopConfigExport').mockResolvedValue({
+    success: true,
+    data: { config: { repeater: { mode: 'forward' } } },
+  });
+  vi.spyOn(api, 'getOpenHopPresets').mockResolvedValue({ presets: [], source: 'local' });
 });
 
 describe('SettingsOpenHopSection sub-nav', () => {
@@ -67,5 +72,17 @@ describe('SettingsOpenHopSection sub-nav', () => {
     expect(await screen.findByRole('heading', { name: /policy engine/i })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /plugins/i }));
     expect(await screen.findByText(/no plugins installed/i)).toBeInTheDocument();
+  });
+
+  it('shows the Config tab and switches to it', async () => {
+    render(
+      <SettingsOpenHopSection
+        health={health(true)}
+        appSettings={settings}
+        onSaveAppSettings={vi.fn()}
+      />
+    );
+    await userEvent.click(screen.getByRole('button', { name: /^config$/i }));
+    expect(await screen.findByText(/operating mode/i)).toBeInTheDocument();
   });
 });
