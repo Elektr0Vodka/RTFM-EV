@@ -91,15 +91,27 @@ class TestUpdateSettings:
         assert fresh.openhop_api_token == "tok123"
 
     @pytest.mark.asyncio
-    async def test_openhop_api_config_empty_clears(self, test_db):
-        await update_settings(
-            AppSettingsUpdate(openhop_api_url="http://x", openhop_api_token="t")
-        )
+    async def test_openhop_empty_token_kept_url_cleared(self, test_db):
+        await update_settings(AppSettingsUpdate(openhop_api_url="http://x", openhop_api_token="t"))
         result = await update_settings(
             AppSettingsUpdate(openhop_api_url="  ", openhop_api_token="")
         )
+        # URL still clears; the token is write-only and kept when blank.
         assert result.openhop_api_url == ""
-        assert result.openhop_api_token == ""
+        assert result.openhop_api_token == "t"
+
+    @pytest.mark.asyncio
+    async def test_openhop_token_updates_when_nonempty(self, test_db):
+        await update_settings(AppSettingsUpdate(openhop_api_token="old"))
+        result = await update_settings(AppSettingsUpdate(openhop_api_token="new"))
+        assert result.openhop_api_token == "new"
+
+    @pytest.mark.asyncio
+    async def test_openhop_token_kept_when_only_url_patched(self, test_db):
+        await update_settings(AppSettingsUpdate(openhop_api_token="keepme"))
+        result = await update_settings(AppSettingsUpdate(openhop_api_url="http://y"))
+        assert result.openhop_api_token == "keepme"
+        assert result.openhop_api_url == "http://y"
 
     @pytest.mark.asyncio
     async def test_show_mention_ticker_defaults_enabled(self, test_db):

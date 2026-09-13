@@ -458,7 +458,9 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
     # treats an empty url/token as "not configured", same as unset).
     if update.openhop_api_url is not None:
         kwargs["openhop_api_url"] = update.openhop_api_url.strip()
-    if update.openhop_api_token is not None:
+    # Write-only: only update the token when a non-empty value is provided; a
+    # blank value means "keep the current token".
+    if update.openhop_api_token is not None and update.openhop_api_token.strip():
         kwargs["openhop_api_token"] = update.openhop_api_token.strip()
 
     # Analyzer sites (client-side deep-link lookup). Validate each template is an
