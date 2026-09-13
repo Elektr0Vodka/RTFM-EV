@@ -11,6 +11,19 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-13 (OpenHop API token hardening, feat/openhop-detection)
+
+### Security
+- The OpenHop REST API token is now write-only. `GET /api/settings` (and every
+  other endpoint that returns settings) no longer includes `openhop_api_token`;
+  it is masked to null on serialisation via a model field serializer, while
+  internal reads and column-based storage are unaffected. A computed
+  `openhop_api_token_set` boolean reports whether a token is stored without
+  exposing it. `PATCH /api/settings` now keeps the current token when the field
+  is sent blank and only updates it when a non-empty value is provided; the
+  Settings > OpenHop token input is write-only (starts empty, leave blank to
+  keep). Clearing the URL still disables management (feat/openhop-detection)
+
 ## Update 2026-09-13 (OpenHop Config pane, feat/openhop-detection)
 
 ### Chat / UI
