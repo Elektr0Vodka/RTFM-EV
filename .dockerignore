@@ -25,6 +25,11 @@ data/
 # Tests
 tests/
 frontend/src/test/
+# Co-located test files (kept out of the image like src/test/). Without this the
+# tsc step in the frontend build stage compiles a stray *.test.tsx whose vitest
+# matcher types come from the excluded src/test/setup.ts, breaking the build.
+frontend/src/**/*.test.ts
+frontend/src/**/*.test.tsx
 
 # Docs
 *.md
