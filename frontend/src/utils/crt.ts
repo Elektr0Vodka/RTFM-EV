@@ -1,8 +1,14 @@
-/** Per-device CRT theme preferences (phosphor colour + effect toggles).
+/** CRT screen-effect preferences (scanlines, glow, curvature, flicker) plus the
+ *  optional map tint.
  *
- * These are display-only preferences stored in localStorage, mirroring the
- * existing theme selection. They are applied as data attributes on <html> and
- * are visually inert unless data-theme='crt' (themes.css gates on both). */
+ *  The phosphor colour is no longer a standalone preference: it is carried by
+ *  the selected theme (`crt-green` / `crt-amber` / `crt-white` / `crt-blue`, see
+ *  theme.ts + themes.css). The effect toggles here are a theme-independent
+ *  overlay: when an effect attribute is '1' it renders on top of ANY theme.
+ *  Effects default ON while a CRT theme is active and OFF otherwise, so picking
+ *  a CRT theme gives the full look out of the box while other themes stay clean
+ *  until the user opts in. All state lives in localStorage and is applied as
+ *  data attributes on <html>. */
 
 export const CRT_PHOSPHORS = ['green', 'amber', 'white', 'blue'] as const;
 export type CrtPhosphor = (typeof CRT_PHOSPHORS)[number];
@@ -22,11 +28,14 @@ export const CRT_PHOSPHOR_HUE: Record<CrtPhosphor, number> = {
 };
 
 /** Fired on <html> when a CRT preference that other views react to changes
- *  (phosphor colour, or the map-tint toggle). The map listens to re-tint live. */
+ *  (effect toggles, the map-tint toggle, or the active phosphor via a theme
+ *  change). The map listens to re-tint live. */
 export const CRT_CHANGE_EVENT = 'remoteterm-crt-change';
 
-const PHOSPHOR_KEY = 'remoteterm-crt-phosphor';
 const MAP_TINT_KEY = 'remoteterm-crt-map-tint';
+/** Retired: the standalone phosphor preference, read only to migrate the old
+ *  single `crt` theme to the matching `crt-<phosphor>` theme (see theme.ts). */
+const LEGACY_PHOSPHOR_KEY = 'remoteterm-crt-phosphor';
 const effectKey = (effect: CrtEffect): string => `remoteterm-crt-${effect}`;
 
 function dispatchCrtChange(): void {
@@ -38,29 +47,35 @@ function dispatchCrtChange(): void {
   }
 }
 
-export function getCrtPhosphor(): CrtPhosphor {
+/** True when a theme id names one of the CRT phosphor themes. */
+export function isCrtThemeId(themeId: string | null | undefined): boolean {
+  return !!themeId && /^crt-(green|amber|white|blue)$/.test(themeId);
+}
+
+/** The phosphor of the currently applied theme, or null when the active theme
+ *  is not a CRT theme. Derived from the <html> data-theme attribute (which
+ *  applyTheme stamps) to avoid a circular import with theme.ts. */
+export function getActiveCrtPhosphor(): CrtPhosphor | null {
+  if (typeof document === 'undefined') return null;
+  const theme = document.documentElement.dataset.theme ?? '';
+  const m = /^crt-(green|amber|white|blue)$/.exec(theme);
+  return m ? (m[1] as CrtPhosphor) : null;
+}
+
+/** Maps the retired single `crt` theme (+ stored phosphor) to the new theme id. */
+export function legacyCrtThemeId(): string {
   try {
-    const stored = localStorage.getItem(PHOSPHOR_KEY);
-    if (stored && (CRT_PHOSPHORS as readonly string[]).includes(stored)) {
-      return stored as CrtPhosphor;
+    const p = localStorage.getItem(LEGACY_PHOSPHOR_KEY);
+    if (p && (CRT_PHOSPHORS as readonly string[]).includes(p)) {
+      return `crt-${p}`;
     }
   } catch {
     // localStorage may be unavailable
   }
-  return DEFAULT_CRT_PHOSPHOR;
+  return `crt-${DEFAULT_CRT_PHOSPHOR}`;
 }
 
-export function setCrtPhosphor(phosphor: CrtPhosphor): void {
-  try {
-    localStorage.setItem(PHOSPHOR_KEY, phosphor);
-  } catch {
-    // ignore
-  }
-  applyCrt();
-  dispatchCrtChange();
-}
-
-/** Whether to tint the Nova Dark map basemap to the selected phosphor colour.
+/** Whether to tint the Nova Dark map basemap to the active phosphor colour.
  *  Off by default: only an explicit '1' enables it. */
 export function getCrtMapTint(): boolean {
   try {
@@ -79,13 +94,17 @@ export function setCrtMapTint(enabled: boolean): void {
   dispatchCrtChange();
 }
 
-/** Effects default ON: only an explicit '0' disables them. */
+/** An effect's on/off state. An explicit stored value wins; otherwise the
+ *  default follows the active theme: ON under a CRT theme, OFF elsewhere. */
 export function getCrtEffect(effect: CrtEffect): boolean {
   try {
-    return localStorage.getItem(effectKey(effect)) !== '0';
+    const stored = localStorage.getItem(effectKey(effect));
+    if (stored === '1') return true;
+    if (stored === '0') return false;
   } catch {
-    return true;
+    // fall through to the theme-derived default
   }
+  return getActiveCrtPhosphor() !== null;
 }
 
 export function setCrtEffect(effect: CrtEffect, enabled: boolean): void {
@@ -95,13 +114,14 @@ export function setCrtEffect(effect: CrtEffect, enabled: boolean): void {
     // ignore
   }
   applyCrt();
+  dispatchCrtChange();
 }
 
-/** Stamp phosphor + effect state onto <html> as data attributes. */
+/** Stamp effect state onto <html> as data attributes. The phosphor colour is
+ *  carried by the theme itself (data-theme), so it is not stamped here. */
 export function applyCrt(): void {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
-  root.setAttribute('data-crt-phosphor', getCrtPhosphor());
   for (const effect of CRT_EFFECTS) {
     root.setAttribute(`data-crt-${effect}`, getCrtEffect(effect) ? '1' : '0');
   }

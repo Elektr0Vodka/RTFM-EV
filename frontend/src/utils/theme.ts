@@ -1,4 +1,4 @@
-import { applyCrt } from './crt';
+import { applyCrt, CRT_CHANGE_EVENT, legacyCrtThemeId } from './crt';
 
 export interface Theme {
   id: string;
@@ -99,13 +99,51 @@ export const THEMES: Theme[] = [
     swatches: ['#060709', '#12151b', '#1976e8', '#1b1f27', '#df2020', '#3ecf8e'],
     metaThemeColor: '#060709',
   },
+  // CRT phosphor themes. Selecting one applies the monochrome palette (see
+  // themes.css) and turns the CRT screen effects on by default; the effect
+  // toggles beneath the theme picker then work on top of any theme.
+  {
+    id: 'crt-green',
+    name: 'CRT Green',
+    swatches: ['#060a07', '#0a0f0b', '#2bff5a', '#18241b', '#ffbf40', '#00ffff'],
+    metaThemeColor: '#060a07',
+  },
+  {
+    id: 'crt-amber',
+    name: 'CRT Amber',
+    swatches: ['#0e0a05', '#14100a', '#ffb028', '#241a0e', '#ffbf40', '#00e5e5'],
+    metaThemeColor: '#0e0a05',
+  },
+  {
+    id: 'crt-white',
+    name: 'CRT White',
+    swatches: ['#080808', '#0f0f0f', '#ebebeb', '#1f1f1f', '#cfcfcf', '#9a9a9a'],
+    metaThemeColor: '#080808',
+  },
+  {
+    id: 'crt-blue',
+    name: 'CRT Blue',
+    swatches: ['#0d0c2f', '#15143a', '#8484ff', '#232152', '#ffbf40', '#8484ff'],
+    metaThemeColor: '#0d0c2f',
+  },
 ];
 
 const THEME_KEY = 'remoteterm-theme';
 
 export function getSavedTheme(): string {
   try {
-    return localStorage.getItem(THEME_KEY) ?? 'original';
+    const raw = localStorage.getItem(THEME_KEY);
+    // Migrate the retired single 'crt' theme to the matching phosphor theme.
+    if (raw === 'crt') {
+      const migrated = legacyCrtThemeId();
+      try {
+        localStorage.setItem(THEME_KEY, migrated);
+      } catch {
+        // localStorage may be unavailable; still return the migrated id
+      }
+      return migrated;
+    }
+    return raw ?? 'original';
   } catch {
     return 'original';
   }
@@ -161,9 +199,20 @@ export function applyTheme(themeId: string): void {
     document.documentElement.dataset.theme = effective;
   }
 
-  // Keep CRT phosphor/effect attributes in sync so they are present the moment
-  // the CRT theme becomes active (and harmless otherwise).
+  // Keep CRT effect attributes in sync so they are present the moment a CRT
+  // theme becomes active (and harmless otherwise). Effect defaults follow the
+  // active theme, so this must run after data-theme is set above.
   applyCrt();
+
+  // The active phosphor is derived from the theme, so a theme change can change
+  // the map tint colour. Notify CRT listeners (e.g. the map) to re-render.
+  if (typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(new Event(CRT_CHANGE_EVENT));
+    } catch {
+      // Event constructor may be unavailable in some environments
+    }
+  }
 
   // Update PWA theme-color meta tag — reflect the effective (rendered) theme.
   const theme = THEMES.find((t) => t.id === effective);

@@ -65,6 +65,27 @@ describe('theme module', () => {
     expect(getEffectiveTheme()).toBe('original');
   });
 
+  it('exposes the four CRT phosphor themes in the selectable list', () => {
+    for (const id of ['crt-green', 'crt-amber', 'crt-white', 'crt-blue']) {
+      expect(THEMES.find((t) => t.id === id)).toBeDefined();
+    }
+  });
+
+  it('applyTheme("crt-amber") stamps the theme and turns effects on by default', () => {
+    applyTheme('crt-amber');
+    expect(document.documentElement.dataset.theme).toBe('crt-amber');
+    expect(localStorage.getItem('remoteterm-theme')).toBe('crt-amber');
+    // Effects default on under a CRT theme (see crt.ts).
+    expect(document.documentElement.getAttribute('data-crt-scanlines')).toBe('1');
+  });
+
+  it('migrates a saved "crt" theme to the matching phosphor theme and persists it', () => {
+    localStorage.setItem('remoteterm-theme', 'crt');
+    localStorage.setItem('remoteterm-crt-phosphor', 'blue');
+    expect(getSavedTheme()).toBe('crt-blue');
+    expect(localStorage.getItem('remoteterm-theme')).toBe('crt-blue');
+  });
+
   it('applyTheme updates the PWA meta theme-color to match the effective theme', () => {
     // Seed the meta tag (jsdom base template has none).
     const meta = document.createElement('meta');

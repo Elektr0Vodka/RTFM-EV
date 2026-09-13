@@ -60,6 +60,11 @@
     --ring: 152 60% 38%;
     --radius: 0.5rem;
 
+    /* Phosphor tint used by the CRT glow overlay. Defaults to the theme's
+       primary so the glow works on any theme; CRT themes override it with
+       their phosphor hue (see themes.css). */
+    --crt-phosphor: var(--primary);
+
     /* Semantic colors for specific contexts */
     --msg-outgoing: 152 30% 14%;
     --msg-incoming: 224 12% 15%;
