@@ -161,7 +161,7 @@ def resolve_advert_edges(
         # Emit consecutive edges along the resolved chain. Each edge takes the
         # ambiguity of its newly-resolved endpoint (the earlier node is already
         # anchored, so origin's False never masks a guessed hop).
-        for (a, _), (b, amb_b) in zip(chain, chain[1:]):
+        for (a, _), (b, amb_b) in zip(chain, chain[1:], strict=False):
             add_edge(a, b, width, amb_b, row.first_seen)
 
         # Tail -> self only if the whole chain resolved (no break) and self known.
