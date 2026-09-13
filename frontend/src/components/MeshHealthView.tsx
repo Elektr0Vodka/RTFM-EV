@@ -8,13 +8,14 @@
  *  - MeshRequestsPanel: single-node REQUEST/RESPONSE traffic view.
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Activity, RefreshCw } from 'lucide-react';
 import type { RadioConfig } from '../types';
 import { useT } from '../i18n';
 import { type TimeWindow } from './meshHealthShared';
 import { TimeRangeSelector } from './TimeRangeSelector';
 import { BASE_TIME_RANGES, type TimeRange } from '../utils/timeRanges';
+import { loadStoredTimeRange, saveStoredTimeRange } from '../utils/timeRangePreference';
 import { MeshAdvertsPanel } from './MeshAdvertsPanel';
 import { MeshRequestsPanel } from './MeshRequestsPanel';
 
@@ -29,6 +30,7 @@ const MESH_HEALTH_EXTRAS_BEFORE: TimeRange[] = [
 const MESH_HEALTH_RANGES: TimeRange[] = [...MESH_HEALTH_EXTRAS_BEFORE, ...BASE_TIME_RANGES];
 const AUTO_REFRESH_IDS = new Set(['30m', '1h']);
 const DEFAULT_MESH_HEALTH_ID = '30m';
+const MESH_HEALTH_WINDOW_KEY = 'rtfm-meshhealth-window';
 
 // Build the shared TimeWindow shape (consumed by the panels) from a range id.
 function windowFromId(id: string): TimeWindow {
@@ -50,10 +52,20 @@ interface Props {
 
 export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
   const t = useT();
-  const [selectedWindowId, setSelectedWindowId] = useState<string>(DEFAULT_MESH_HEALTH_ID);
+  const [selectedWindowId, setSelectedWindowId] = useState<string>(
+    () => loadStoredTimeRange(MESH_HEALTH_WINDOW_KEY, DEFAULT_MESH_HEALTH_ID).id
+  );
   const selectedWindow = useMemo(() => windowFromId(selectedWindowId), [selectedWindowId]);
   const [activeTab, setActiveTab] = useState<MeshHealthTab>('adverts');
   const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    saveStoredTimeRange(MESH_HEALTH_WINDOW_KEY, {
+      id: selectedWindowId,
+      customStart: '',
+      customEnd: '',
+    });
+  }, [selectedWindowId]);
   const [loading, setLoading] = useState(false);
 
   // Panels report their own loading so the shared refresh spinner reflects it.

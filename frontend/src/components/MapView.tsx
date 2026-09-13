@@ -79,6 +79,7 @@ const MAP_SINCE_PRESETS: SincePreset[] = [
 type MapSinceId = string;
 const DEFAULT_MAP_SINCE_ID: MapSinceId = '7d';
 const MAP_SINCE_STORAGE_KEY = 'remoteterm-map-since';
+const MAP_SINCE_CUSTOM_KEY = 'remoteterm-map-since-custom';
 
 // --- "Heard by server" filter (contacts layer only) ---
 const HEARD_FILTER_MODES = ['all', 'hide', 'only'] as const satisfies readonly HeardFilterMode[];
@@ -104,6 +105,7 @@ const DEFAULT_LOOKBACK_MS = 60 * 60 * 1000; // 1h replay look-back
 function getSavedSinceId(): MapSinceId {
   try {
     const stored = localStorage.getItem(MAP_SINCE_STORAGE_KEY);
+    if (stored === 'custom') return 'custom';
     if (stored && MAP_SINCE_PRESETS.some((p) => p.id === stored)) return stored as MapSinceId;
   } catch {
     /* ignore */
@@ -223,7 +225,13 @@ export function MapView({
   const rawPackets = useRawPackets();
   const [sinceId, setSinceId] = useState<MapSinceId>(getSavedSinceId);
   const [heardFilter, setHeardFilter] = useState<HeardFilterMode>(getSavedHeardMode);
-  const [customSince, setCustomSince] = useState('');
+  const [customSince, setCustomSince] = useState(() => {
+    try {
+      return localStorage.getItem(MAP_SINCE_CUSTOM_KEY) ?? '';
+    } catch {
+      return '';
+    }
+  });
   const [nowSec, setNowSec] = useState(() => Date.now() / 1000);
   const [showPackets, setShowPackets] = useState(false);
   const [discoveryMode, setDiscoveryMode] = useState(false);
@@ -507,12 +515,12 @@ export function MapView({
 
   useEffect(() => {
     try {
-      if (sinceId === 'custom') return;
       localStorage.setItem(MAP_SINCE_STORAGE_KEY, sinceId);
+      localStorage.setItem(MAP_SINCE_CUSTOM_KEY, customSince);
     } catch {
       /* ignore */
     }
-  }, [sinceId]);
+  }, [sinceId, customSince]);
 
   useEffect(() => {
     try {

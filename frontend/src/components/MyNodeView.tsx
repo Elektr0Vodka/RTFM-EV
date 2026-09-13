@@ -32,6 +32,7 @@ import {
   resolveRange,
   type TimeRange,
 } from '../utils/timeRanges';
+import { loadStoredTimeRange, saveStoredTimeRange } from '../utils/timeRangePreference';
 
 // MeshCore node types (contact.type): translation key per mesh vocabulary label.
 const NODE_TYPE_KEYS: Record<number, string> = {
@@ -105,6 +106,7 @@ const MYNODE_EXTRAS_AFTER: TimeRange[] = [
 const MYNODE_RANGES: TimeRange[] = [...BASE_TIME_RANGES, ...MYNODE_EXTRAS_AFTER];
 const LIVE_WINDOW_IDS = new Set(['20m']);
 const DEFAULT_WINDOW_ID = '20m';
+const MYNODE_WINDOW_KEY = 'rtfm-mynode-window';
 
 // Build the legacy TimeWindow shape from a range id so existing
 // selectedWindow.* consumers keep working unchanged.
@@ -1415,11 +1417,25 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
   const [error, setError] = useState<string | null>(null);
   const loadedAt = useRef(0);
 
-  // Time window
-  const [selectedWindowId, setSelectedWindowId] = useState<string>(DEFAULT_WINDOW_ID);
-  const [customStart, setCustomStart] = useState('');
-  const [customEnd, setCustomEnd] = useState('');
+  // Time window (persisted per page in localStorage)
+  const [selectedWindowId, setSelectedWindowId] = useState<string>(
+    () => loadStoredTimeRange(MYNODE_WINDOW_KEY, DEFAULT_WINDOW_ID).id
+  );
+  const [customStart, setCustomStart] = useState(
+    () => loadStoredTimeRange(MYNODE_WINDOW_KEY, DEFAULT_WINDOW_ID).customStart
+  );
+  const [customEnd, setCustomEnd] = useState(
+    () => loadStoredTimeRange(MYNODE_WINDOW_KEY, DEFAULT_WINDOW_ID).customEnd
+  );
   const selectedWindow = useMemo(() => windowFromId(selectedWindowId), [selectedWindowId]);
+
+  useEffect(() => {
+    saveStoredTimeRange(MYNODE_WINDOW_KEY, {
+      id: selectedWindowId,
+      customStart,
+      customEnd,
+    });
+  }, [selectedWindowId, customStart, customEnd]);
 
   // Historical data
   const [historicalBins, setHistoricalBins] = useState<Bin[] | null>(null);
