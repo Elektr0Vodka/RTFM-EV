@@ -10,7 +10,12 @@ from app.models import (
     RepeaterLppTelemetryResponse,
     RepeaterStatusResponse,
 )
-from app.routers.contacts import _ensure_on_radio, _resolve_contact_or_404
+from app.routers.contacts import (
+    _ensure_on_radio,
+    _record_and_forward_lpp_telemetry,
+    _record_and_forward_status_telemetry,
+    _resolve_contact_or_404,
+)
 from app.routers.server_control import (
     prepare_authenticated_contact_connection,
     require_server_capable_contact,
@@ -60,7 +65,7 @@ async def room_status(public_key: str) -> RepeaterStatusResponse:
     if status is None:
         raise HTTPException(status_code=422, detail="No status response from room server")
 
-    return RepeaterStatusResponse(
+    response = RepeaterStatusResponse(
         battery_volts=status.get("bat", 0) / 1000.0,
         tx_queue_len=status.get("tx_queue_len", 0),
         noise_floor_dbm=status.get("noise_floor", 0),
@@ -80,6 +85,11 @@ async def room_status(public_key: str) -> RepeaterStatusResponse:
         full_events=status.get("full_evts", 0),
         recv_errors=status.get("recv_errors"),
     )
+
+    # Persist + forward the received telemetry (telemetry only; no messages).
+    await _record_and_forward_status_telemetry(contact, response)
+
+    return response
 
 
 @router.post("/{public_key}/room/lpp-telemetry", response_model=RepeaterLppTelemetryResponse)
@@ -108,6 +118,10 @@ async def room_lpp_telemetry(public_key: str) -> RepeaterLppTelemetryResponse:
         )
         for entry in telemetry
     ]
+
+    # Persist + forward the received telemetry (telemetry only; no messages).
+    await _record_and_forward_lpp_telemetry(contact, sensors)
+
     return RepeaterLppTelemetryResponse(sensors=sensors)
 
 

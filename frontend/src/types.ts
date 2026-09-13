@@ -887,6 +887,14 @@ export interface ContactTelemetryResponse {
   telemetry_history: TelemetryHistoryEntry[];
 }
 
+/** Compact latest-telemetry snapshot per node for the map overlay. */
+export interface LatestTelemetry {
+  timestamp: number;
+  battery_volts?: number | null;
+  temperature?: number | null;
+  source: 'repeater' | 'contact';
+}
+
 export interface TrackedTelemetryContactsResponse {
   tracked_telemetry_contacts: string[];
   names: Record<string, string>;

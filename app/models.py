@@ -1462,3 +1462,14 @@ class StatisticsResponse(BaseModel):
 class TelemetryHistoryEntry(BaseModel):
     timestamp: int
     data: dict
+
+
+class LatestTelemetryEntry(BaseModel):
+    """Compact latest-telemetry snapshot for the map overlay (battery + temperature)."""
+
+    timestamp: int = Field(description="Unix timestamp of the newest stored reading")
+    battery_volts: float | None = Field(default=None, description="Battery voltage in volts")
+    temperature: float | None = Field(
+        default=None, description="Temperature in degrees C from the LPP sensors, if present"
+    )
+    source: str = Field(description="Which history table the reading came from: repeater | contact")

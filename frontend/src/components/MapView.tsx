@@ -1,7 +1,13 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { Popup as MlPopup, Marker as MlMarker, type Map as MlMap } from 'maplibre-gl';
 import { Zap, Clock, Globe, Radio } from 'lucide-react';
-import type { AdvertLinkEdge, Contact, ExternalMapNode, RadioConfig } from '../types';
+import type {
+  AdvertLinkEdge,
+  Contact,
+  ExternalMapNode,
+  LatestTelemetry,
+  RadioConfig,
+} from '../types';
 import { api, isAbortError } from '../api';
 import { formatTime } from '../utils/messageParser';
 import { isValidLocation, getEffectiveLocation } from '../utils/pathUtils';
@@ -14,6 +20,7 @@ import { MapSurface } from '../map/MapSurface';
 import { setMapLock2D } from '../map/engine/mapLock2D';
 import { setBuildings3D } from '../map/engine/buildings3D';
 import { createNodesLayer } from '../map/layers/nodesLayer';
+import { createTelemetryLayer } from '../map/layers/telemetryLayer';
 import {
   getSavedNodeRoleColors,
   saveNodeRoleColors,
@@ -87,6 +94,16 @@ const DEFAULT_HEARD_MODE: HeardFilterMode = 'all';
 const MAP_HEARD_STORAGE_KEY = 'remoteterm-map-heard';
 
 const MAP_NODE_SCALE_STORAGE_KEY = 'remoteterm-map-node-scale';
+
+// --- Node labels (off / advert name / observed-width ID tag) ---
+const MAP_LABEL_MODE_STORAGE_KEY = 'remoteterm-map-label-mode';
+const NODE_LABEL_MODES = ['off', 'name', 'tag'] as const;
+type NodeLabelMode = (typeof NODE_LABEL_MODES)[number];
+
+// --- Telemetry overlay (opt-in, off by default) ---
+const MAP_TELEMETRY_STORAGE_KEY = 'remoteterm-map-telemetry';
+const TELEMETRY_REFRESH_MS = 60_000;
+
 const MAP_SINCE_TICK_MS = 60_000;
 
 const THREE_DAYS_SEC = 3 * 24 * 60 * 60;
@@ -122,6 +139,26 @@ function getSavedNodeScale(): number {
     /* ignore */
   }
   return 1;
+}
+
+function getSavedLabelMode(): NodeLabelMode {
+  try {
+    const stored = localStorage.getItem(MAP_LABEL_MODE_STORAGE_KEY);
+    if (stored && (NODE_LABEL_MODES as readonly string[]).includes(stored)) {
+      return stored as NodeLabelMode;
+    }
+  } catch {
+    /* ignore */
+  }
+  return 'off';
+}
+
+function getSavedTelemetryOn(): boolean {
+  try {
+    return localStorage.getItem(MAP_TELEMETRY_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
 }
 
 function localDateTimeToEpochSec(value: string): number | null {
@@ -219,6 +256,9 @@ export function MapView({
   const [buildings, setBuildings] = useState(false);
   const [nodeScale, setNodeScale] = useState(getSavedNodeScale);
   const [roleColors, setRoleColors] = useState<NodeRoleColors>(getSavedNodeRoleColors);
+  const [labelMode, setLabelMode] = useState<NodeLabelMode>(getSavedLabelMode);
+  const [telemetryOn, setTelemetryOn] = useState<boolean>(getSavedTelemetryOn);
+  const [latestTelemetry, setLatestTelemetry] = useState<Record<string, LatestTelemetry>>({});
   const [linksOn, setLinksOn] = useState(false);
   const [linkMode, setLinkMode] = useState<'liveness' | 'advert'>('liveness');
   const [linkConfidence, setLinkConfidence] = useState<1 | 2 | 3>(2);
@@ -237,6 +277,7 @@ export function MapView({
   const glowOnRef = useRef(glowOn);
   const mapRef = useRef<MlMap | null>(null);
   const nodesRef = useRef<ReturnType<typeof createNodesLayer> | null>(null);
+  const telemetryRef = useRef<ReturnType<typeof createTelemetryLayer> | null>(null);
   const roleColorsRef = useRef<NodeRoleColors>(roleColors);
   const packetOverlayRef = useRef<PacketDeckOverlay | null>(null);
   const timelineRef = useRef<PacketTimeline | null>(null);
@@ -496,6 +537,49 @@ export function MapView({
       /* ignore */
     }
   }, [nodeScale]);
+
+  // Persist the label mode and push it to the live layer.
+  useEffect(() => {
+    try {
+      localStorage.setItem(MAP_LABEL_MODE_STORAGE_KEY, labelMode);
+    } catch {
+      /* ignore */
+    }
+    nodesRef.current?.setLabelMode(labelMode);
+  }, [labelMode]);
+
+  // Telemetry overlay: persist the toggle, show/hide the layer, and while on,
+  // fetch latest telemetry immediately and refresh on an interval.
+  useEffect(() => {
+    try {
+      localStorage.setItem(MAP_TELEMETRY_STORAGE_KEY, telemetryOn ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+    telemetryRef.current?.setVisible(telemetryOn);
+    if (!telemetryOn) return;
+
+    const controller = new AbortController();
+    let active = true;
+    const load = async () => {
+      try {
+        const data = await api.getLatestTelemetry(controller.signal);
+        if (active) setLatestTelemetry(data);
+      } catch (err) {
+        if (!isAbortError(err)) {
+          // Non-fatal: keep the last values; the next tick retries.
+          console.warn('telemetry overlay fetch failed', err);
+        }
+      }
+    };
+    void load();
+    const id = window.setInterval(load, TELEMETRY_REFRESH_MS);
+    return () => {
+      active = false;
+      controller.abort();
+      window.clearInterval(id);
+    };
+  }, [telemetryOn]);
 
   // Persist per-role node colours and push them to the live layer + legend.
   useEffect(() => {
@@ -837,8 +921,14 @@ export function MapView({
       });
       nodes.ensure();
       nodes.setNodeScale(nodeScale);
+      nodes.setLabelMode(labelMode);
       nodes.setData(mappableContacts, nowSec);
       nodesRef.current = nodes;
+      const telemetry = createTelemetryLayer(map);
+      telemetry.ensure();
+      telemetry.setData(mappableContacts, latestTelemetry, nowSec);
+      telemetry.setVisible(telemetryOn);
+      telemetryRef.current = telemetry;
       // Report the viewport so the external overlay can fetch just what's shown.
       onViewBounds(map.getBounds());
       map.on('moveend', () => {
@@ -879,6 +969,13 @@ export function MapView({
       nodes.reattach();
       nodes.setData(mappableContacts, nowSec);
       nodes.setNodeScale(nodeScale);
+      nodes.setLabelMode(labelMode);
+    }
+    const telemetry = telemetryRef.current;
+    if (telemetry) {
+      telemetry.reattach();
+      telemetry.setData(mappableContacts, latestTelemetry, nowSec);
+      telemetry.setVisible(telemetryOn);
     }
     // A basemap setStyle drops custom sources/layers; re-add and re-feed links.
     linksLayerRef.current?.reattach();
@@ -886,12 +983,17 @@ export function MapView({
     refreshLinks();
     externalRef.current?.reattach();
     externalRef.current?.setData(visibleExternalRef.current);
-  }, [mappableContacts, nowSec, nodeScale, refreshLinks]);
+  }, [mappableContacts, nowSec, nodeScale, labelMode, telemetryOn, latestTelemetry, refreshLinks]);
 
   // Keep node data in sync.
   useEffect(() => {
     nodesRef.current?.setData(mappableContacts, nowSec);
   }, [mappableContacts, nowSec]);
+
+  // Keep the telemetry overlay data in sync with contacts + latest readings.
+  useEffect(() => {
+    telemetryRef.current?.setData(mappableContacts, latestTelemetry, nowSec);
+  }, [mappableContacts, latestTelemetry, nowSec]);
 
   useEffect(() => {
     nodesRef.current?.setNodeScale(nodeScale);
@@ -1206,6 +1308,8 @@ export function MapView({
           buildings: true,
           nodeSize: true,
           links: true,
+          labelMode: true,
+          telemetry: true,
         }}
         onReady={handleReady}
         onBasemapReapply={handleBasemapReapply}
@@ -1226,12 +1330,16 @@ export function MapView({
         roleColors={roleColors}
         onRoleColorChange={handleRoleColorChange}
         onResetRoleColors={handleResetRoleColors}
+        labelMode={labelMode}
+        onLabelMode={setLabelMode}
         linksOn={linksOn}
         onToggleLinks={(on) => setLinksOn(on)}
         linkMode={linkMode}
         onLinkMode={setLinkMode}
         linkConfidence={linkConfidence}
         onLinkConfidence={setLinkConfidence}
+        telemetryOn={telemetryOn}
+        onToggleTelemetry={setTelemetryOn}
         sidebarOpen={sidebarOpen}
         onSearch={handleSearch}
         extraFabs={extraFabs}

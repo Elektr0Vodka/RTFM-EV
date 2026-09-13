@@ -29,6 +29,11 @@ export const NODE_TYPE_STROKE: Record<number, string> = {
   [CONTACT_TYPE_SENSOR]: '#22c55e',
 };
 
+// Labels only render at/above this zoom to keep wide views uncluttered.
+export const LABEL_MIN_ZOOM = 11;
+
+export type NodeLabelMode = 'off' | 'name' | 'tag';
+
 export function recencyTier(lastSeenSec: number | null | undefined, nowSec: number): RecencyTier {
   if (lastSeenSec == null) return 'old';
   const age = nowSec - lastSeenSec;
@@ -36,6 +41,25 @@ export function recencyTier(lastSeenSec: number | null | undefined, nowSec: numb
   if (age < 86400) return 'today';
   if (age < 3 * 86400) return 'stale';
   return 'old';
+}
+
+/**
+ * Short ID tag for a node: the public-key prefix sized to the path-hash width
+ * observed for that node. hash_mode 0/1/2 -> 1/2/3 bytes -> 2/4/6 hex chars.
+ * Unknown / out-of-range modes (null, -1, 3, non-integer) fall back to 1 byte.
+ */
+export function observedIdTag(publicKey: string, hashMode: number | null | undefined): string {
+  const mode =
+    typeof hashMode === 'number' && Number.isInteger(hashMode) && hashMode >= 0 && hashMode <= 2
+      ? hashMode
+      : 0;
+  return publicKey.slice(0, (mode + 1) * 2).toUpperCase();
+}
+
+function nodeLabel(c: Contact, mode: NodeLabelMode): string {
+  if (mode === 'name') return c.name ?? c.public_key.slice(0, 12);
+  if (mode === 'tag') return observedIdTag(c.public_key, c.direct_path_hash_mode);
+  return '';
 }
 
 export function circleColorExpr(): ExpressionSpecification {
@@ -60,7 +84,11 @@ export function circleRadiusExpr(baseR: number, repeaterR: number): ExpressionSp
   return ['case', ['get', 'repeater'], repeaterR, baseR] as unknown as ExpressionSpecification;
 }
 
-export function buildNodeFeatures(contacts: Contact[], nowSec: number) {
+export function buildNodeFeatures(
+  contacts: Contact[],
+  nowSec: number,
+  labelMode: NodeLabelMode = 'off'
+) {
   const features = contacts
     .filter((c) => c.lat != null && c.lon != null)
     .map((c) => ({
@@ -69,6 +97,7 @@ export function buildNodeFeatures(contacts: Contact[], nowSec: number) {
       properties: {
         id: c.public_key,
         name: c.name ?? c.public_key.slice(0, 12),
+        label: nodeLabel(c, labelMode),
         type: c.type,
         repeater: c.type === CONTACT_TYPE_REPEATER,
         tier: recencyTier(c.last_seen, nowSec),
@@ -90,6 +119,9 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
   const repeaterR = opts.repeaterR ?? 10;
   let nodeScale = 1;
   let roleColors: Record<number, string> = opts.roleColors ?? NODE_TYPE_STROKE;
+  let labelMode: NodeLabelMode = 'off';
+  let lastContacts: Contact[] = [];
+  let lastNowSec = 0;
   let listenersBound = false;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const m = map as any;
@@ -109,6 +141,31 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
         'circle-stroke-width': ['case', ['get', 'repeater'], 3, 2],
       },
     });
+    if (!m.getLayer('rt-node-labels')) {
+      m.addLayer({
+        id: 'rt-node-labels',
+        type: 'symbol',
+        source: 'rt-nodes',
+        minzoom: LABEL_MIN_ZOOM,
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-size': 11,
+          'text-offset': [0, 1.1],
+          'text-anchor': 'top',
+          'text-allow-overlap': false,
+          'text-optional': true,
+          'text-font': ['Noto Sans Regular', 'Open Sans Regular', 'sans-serif'],
+        },
+        paint: {
+          // Outlined label: near-white fill with a dark halo reads on both
+          // light and dark basemaps without needing theme detection. Empty
+          // labels ('off' mode) render nothing.
+          'text-color': '#f8fafc',
+          'text-halo-color': '#0f172a',
+          'text-halo-width': 1.5,
+        },
+      });
+    }
   }
 
   function bindListeners() {
@@ -128,8 +185,16 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
   }
 
   function setData(contacts: Contact[], nowSec: number) {
+    lastContacts = contacts;
+    lastNowSec = nowSec;
     const src = m.getSource('rt-nodes');
-    if (src) src.setData(buildNodeFeatures(contacts, nowSec));
+    if (src) src.setData(buildNodeFeatures(contacts, nowSec, labelMode));
+  }
+
+  function setLabelMode(mode: NodeLabelMode) {
+    labelMode = mode;
+    const src = m.getSource('rt-nodes');
+    if (src) src.setData(buildNodeFeatures(lastContacts, lastNowSec, labelMode));
   }
 
   function setNodeScale(factor: number) {
@@ -158,5 +223,5 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
     addSourceAndLayer();
   }
 
-  return { ensure, reattach, setData, setNodeScale, setRoleColors };
+  return { ensure, reattach, setData, setNodeScale, setRoleColors, setLabelMode };
 }

@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { buildNodeFeatures, circleRadiusExpr, recencyTier } from '../../map/layers/nodesLayer';
+import {
+  buildNodeFeatures,
+  circleRadiusExpr,
+  recencyTier,
+  observedIdTag,
+  LABEL_MIN_ZOOM,
+} from '../../map/layers/nodesLayer';
 import { CONTACT_TYPE_REPEATER, CONTACT_TYPE_CLIENT, type Contact } from '../../types';
 
 const now = 1_000_000; // seconds
@@ -57,5 +63,58 @@ describe('buildNodeFeatures', () => {
       repeater: true,
       tier: 'recent',
     });
+  });
+});
+
+describe('observedIdTag', () => {
+  const pk = '0123456789abcdef0123456789abcdef'; // 32 hex chars
+
+  it('sizes the tag to the observed hash width (mode+1 bytes, uppercase)', () => {
+    expect(observedIdTag(pk, 0)).toBe('01'); // 1 byte  -> 2 hex
+    expect(observedIdTag(pk, 1)).toBe('0123'); // 2 bytes -> 4 hex
+    expect(observedIdTag(pk, 2)).toBe('012345'); // 3 bytes -> 6 hex
+  });
+
+  it('defaults unknown / out-of-range modes to 1 byte', () => {
+    expect(observedIdTag(pk, -1)).toBe('01');
+    expect(observedIdTag(pk, 3)).toBe('01');
+    expect(observedIdTag(pk, null)).toBe('01');
+    expect(observedIdTag(pk, undefined)).toBe('01');
+    expect(observedIdTag(pk, 1.5)).toBe('01');
+  });
+
+  it('returns what exists when the pubkey is shorter than the width', () => {
+    expect(observedIdTag('ab', 2)).toBe('AB');
+  });
+});
+
+describe('buildNodeFeatures label property', () => {
+  const pk = '0123456789abcdef0123456789abcdef';
+
+  it("defaults to an empty label ('off')", () => {
+    const fc = buildNodeFeatures([contact({ public_key: pk, name: 'Alice' })], now);
+    expect(fc.features[0].properties.label).toBe('');
+  });
+
+  it("uses the advert name in 'name' mode, falling back to a 12-char prefix", () => {
+    const named = buildNodeFeatures([contact({ public_key: pk, name: 'Alice' })], now, 'name');
+    expect(named.features[0].properties.label).toBe('Alice');
+    const unnamed = buildNodeFeatures([contact({ public_key: pk, name: null })], now, 'name');
+    expect(unnamed.features[0].properties.label).toBe(pk.slice(0, 12));
+  });
+
+  it("uses the observed-width ID tag in 'tag' mode", () => {
+    const fc = buildNodeFeatures(
+      [contact({ public_key: pk, direct_path_hash_mode: 1 })],
+      now,
+      'tag'
+    );
+    expect(fc.features[0].properties.label).toBe('0123');
+  });
+});
+
+describe('label layer config', () => {
+  it('hides labels below the density zoom threshold', () => {
+    expect(LABEL_MIN_ZOOM).toBe(11);
   });
 });

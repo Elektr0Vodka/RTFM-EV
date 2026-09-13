@@ -27,6 +27,8 @@ export function makeMapStub() {
     addLayer: vi.fn(),
     removeLayer: vi.fn(),
     getLayer: vi.fn(() => undefined),
+    hasImage: vi.fn(() => false),
+    addImage: vi.fn(),
     setPaintProperty: vi.fn(),
     setLayoutProperty: vi.fn(),
     setStyle: vi.fn(),

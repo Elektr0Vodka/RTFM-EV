@@ -183,4 +183,23 @@ describe('MapControls', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Display' }));
     expect(screen.queryByLabelText('Color for Client')).not.toBeInTheDocument();
   });
+
+  it('renders the telemetry overlay toggle in Overlays and reports toggling', () => {
+    const onToggleTelemetry = vi.fn();
+    renderControls({ fabs: { telemetry: true }, telemetryOn: false, onToggleTelemetry });
+    fireEvent.click(screen.getByRole('button', { name: 'Overlays' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /telemetry/i }));
+    expect(onToggleTelemetry).toHaveBeenCalledWith(true);
+  });
+
+  it('renders the label-mode radios and reports a selection', () => {
+    const onLabelMode = vi.fn();
+    renderControls({ fabs: { labelMode: true }, labelMode: 'off', onLabelMode });
+    fireEvent.click(screen.getByRole('button', { name: 'Display' }));
+    expect(screen.getByRole('radio', { name: 'Off' })).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(screen.getByRole('radio', { name: 'ID tag' }));
+    expect(onLabelMode).toHaveBeenCalledWith('tag');
+    fireEvent.click(screen.getByRole('radio', { name: 'Name' }));
+    expect(onLabelMode).toHaveBeenCalledWith('name');
+  });
 });

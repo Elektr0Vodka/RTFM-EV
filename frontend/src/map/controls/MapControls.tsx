@@ -26,6 +26,8 @@ export interface FabConfig {
   buildings?: boolean;
   nodeSize?: boolean;
   links?: boolean;
+  labelMode?: boolean;
+  telemetry?: boolean;
 }
 
 export interface BasemapOption {
@@ -54,12 +56,16 @@ export interface MapControlsProps {
   roleColors?: Record<number, string>;
   onRoleColorChange?: (type: number, color: string) => void;
   onResetRoleColors?: () => void;
+  labelMode?: 'off' | 'name' | 'tag';
+  onLabelMode?: (mode: 'off' | 'name' | 'tag') => void;
   linksOn?: boolean;
   onToggleLinks?: (on: boolean) => void;
   linkMode?: 'liveness' | 'advert';
   onLinkMode?: (mode: 'liveness' | 'advert') => void;
   linkConfidence?: 1 | 2 | 3;
   onLinkConfidence?: (level: 1 | 2 | 3) => void;
+  telemetryOn?: boolean;
+  onToggleTelemetry?: (on: boolean) => void;
   sidebarOpen?: boolean;
   onSearch?: (query: string) => void;
   legendContent?: ReactNode;
@@ -180,12 +186,16 @@ export function MapControls(props: MapControlsProps) {
     roleColors = DEFAULT_NODE_ROLE_COLORS,
     onRoleColorChange,
     onResetRoleColors,
+    labelMode = 'off',
+    onLabelMode,
     linksOn = false,
     onToggleLinks,
     linkMode = 'liveness',
     onLinkMode,
     linkConfidence = 2,
     onLinkConfidence,
+    telemetryOn = false,
+    onToggleTelemetry,
     sidebarOpen = false,
     onSearch,
     legendContent,
@@ -302,6 +312,38 @@ export function MapControls(props: MapControlsProps) {
       ),
     };
   }
+  if (fabs.labelMode) {
+    const labelOptions: { value: 'off' | 'name' | 'tag'; label: string }[] = [
+      { value: 'off', label: t('map_labels_off') },
+      { value: 'name', label: t('map_labels_name') },
+      { value: 'tag', label: t('map_labels_tag') },
+    ];
+    sectionById.labelMode = {
+      id: 'labelMode',
+      title: t('map_labels_label'),
+      body: (
+        <div role="radiogroup" aria-label={t('map_labels_label')} className="flex flex-col gap-1">
+          {labelOptions.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              role="radio"
+              aria-checked={labelMode === opt.value}
+              className={
+                'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm ' +
+                (labelMode === opt.value
+                  ? 'bg-accent text-accent-foreground'
+                  : 'hover:bg-accent/50')
+              }
+              onClick={() => onLabelMode?.(opt.value)}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      ),
+    };
+  }
   if (fabs.legend) {
     sectionById.legend = {
       id: 'legend',
@@ -402,6 +444,23 @@ export function MapControls(props: MapControlsProps) {
     };
   }
 
+  if (fabs.telemetry) {
+    sectionById.telemetry = {
+      id: 'telemetry',
+      title: t('map_telemetry_label'),
+      body: (
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={telemetryOn}
+            onChange={(e) => onToggleTelemetry?.(e.target.checked)}
+          />
+          {t('map_telemetry_enable')}
+        </label>
+      ),
+    };
+  }
+
   // Fold the MapView-supplied extra panels (since, packets, heard, external) in by id.
   for (const ex of extraFabs) {
     sectionById[ex.id] = { id: ex.id, title: ex.label, body: ex.panel };
@@ -412,7 +471,7 @@ export function MapControls(props: MapControlsProps) {
       id: 'display',
       label: t('map_group_display'),
       icon: <Layers size={20} aria-hidden />,
-      memberIds: ['layers', 'nodeSize', 'legend'],
+      memberIds: ['layers', 'nodeSize', 'labelMode', 'legend'],
     },
     {
       id: 'filters',
@@ -424,7 +483,7 @@ export function MapControls(props: MapControlsProps) {
       id: 'overlays',
       label: t('map_group_overlays'),
       icon: <Activity size={20} aria-hidden />,
-      memberIds: ['packets', 'links'],
+      memberIds: ['packets', 'links', 'telemetry'],
     },
   ];
 

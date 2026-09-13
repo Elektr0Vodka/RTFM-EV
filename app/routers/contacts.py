@@ -20,6 +20,7 @@ from app.models import (
     ContactTelemetryResponse,
     ContactUpsert,
     CreateContactRequest,
+    LatestTelemetryEntry,
     LppSensor,
     NearestRepeater,
     PathDiscoveryResponse,
@@ -765,6 +766,113 @@ async def request_contact_telemetry(public_key: str) -> ContactTelemetryResponse
         fetched_at=fetched_at,
         telemetry_history=history,
     )
+
+
+async def _record_and_forward_lpp_telemetry(contact: Contact, sensors: list[LppSensor]) -> None:
+    """Persist CayenneLPP sensors to contact telemetry history and forward them to
+    fanout (e.g. MQTT). Telemetry only, never messages. Best-effort: never raises.
+
+    Used by the room and repeater LPP-telemetry endpoints so telemetry received
+    on those paths reaches the map overlay and MQTT like the tracked-interval and
+    contact-telemetry paths already do.
+    """
+    from app.fanout.manager import fanout_manager
+    from app.repository.contact_telemetry import ContactTelemetryRepository
+
+    if not sensors:
+        return
+    fetched_at = int(time.time())
+    data = {"lpp_sensors": [s.model_dump() for s in sensors]}
+    try:
+        await ContactTelemetryRepository.record(
+            public_key=contact.public_key,
+            timestamp=fetched_at,
+            data=data,
+        )
+        asyncio.create_task(
+            fanout_manager.broadcast_telemetry(
+                {
+                    "public_key": contact.public_key,
+                    "name": contact.name or contact.public_key[:12],
+                    "timestamp": fetched_at,
+                    **data,
+                }
+            )
+        )
+    except Exception as e:
+        logger.warning("Failed to record/forward LPP telemetry: %s", e)
+
+
+async def _record_and_forward_status_telemetry(contact: Contact, response) -> None:
+    """Persist a repeater/room status snapshot to telemetry history and forward it
+    to fanout (e.g. MQTT). Telemetry only, never messages. Best-effort: never raises.
+    """
+    from app.fanout.manager import fanout_manager
+    from app.repository.repeater_telemetry import RepeaterTelemetryRepository
+
+    now = int(time.time())
+    status_dict = response.model_dump(exclude={"telemetry_history"})
+    try:
+        await RepeaterTelemetryRepository.record(
+            public_key=contact.public_key,
+            timestamp=now,
+            data=status_dict,
+        )
+        asyncio.create_task(
+            fanout_manager.broadcast_telemetry(
+                {
+                    "public_key": contact.public_key,
+                    "name": contact.name or contact.public_key[:12],
+                    "timestamp": now,
+                    **status_dict,
+                }
+            )
+        )
+    except Exception as e:
+        logger.warning("Failed to record/forward status telemetry: %s", e)
+
+
+def _extract_temperature(data: dict) -> float | None:
+    """First scalar 'temperature' reading from a stored telemetry data blob's LPP sensors."""
+    for entry in data.get("lpp_sensors") or []:
+        if entry.get("type_name") == "temperature":
+            value = entry.get("value")
+            if isinstance(value, (int, float)):
+                return float(value)
+    return None
+
+
+@router.get("/telemetry/latest", response_model=dict[str, LatestTelemetryEntry])
+async def get_latest_telemetry() -> dict[str, LatestTelemetryEntry]:
+    """Latest stored telemetry per node (read-only): battery + temperature at a glance.
+
+    Merges the repeater and contact history tables; on a key collision the newer
+    reading wins. Used by the map telemetry overlay.
+    """
+    from app.repository.contact_telemetry import ContactTelemetryRepository
+    from app.repository.repeater_telemetry import RepeaterTelemetryRepository
+
+    rep = await RepeaterTelemetryRepository.get_latest_all()
+    con = await ContactTelemetryRepository.get_latest_all()
+    out: dict[str, LatestTelemetryEntry] = {}
+    for pk, row in rep.items():
+        out[pk] = LatestTelemetryEntry(
+            timestamp=row["timestamp"],
+            battery_volts=row["data"].get("battery_volts"),
+            temperature=_extract_temperature(row["data"]),
+            source="repeater",
+        )
+    for pk, row in con.items():
+        existing = out.get(pk)
+        if existing is not None and existing.timestamp >= row["timestamp"]:
+            continue
+        out[pk] = LatestTelemetryEntry(
+            timestamp=row["timestamp"],
+            battery_volts=row["data"].get("battery_volts"),
+            temperature=_extract_temperature(row["data"]),
+            source="contact",
+        )
+    return out
 
 
 @router.get("/{public_key}/telemetry-history", response_model=list[TelemetryHistoryEntry])

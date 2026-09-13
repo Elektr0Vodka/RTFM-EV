@@ -35,6 +35,7 @@ from app.repository.link_signal import LinkSignalRepository
 from app.routers.contacts import (
     _broadcast_contact_update,
     _ensure_on_radio,
+    _record_and_forward_lpp_telemetry,
     _resolve_contact_or_404,
 )
 from app.routers.server_control import (
@@ -242,6 +243,10 @@ async def repeater_lpp_telemetry(public_key: str) -> RepeaterLppTelemetryRespons
         type_name = str(entry.get("type", "unknown"))
         value = entry.get("value", 0)
         sensors.append(LppSensor(channel=channel, type_name=type_name, value=value))
+
+    # Persist + forward the received telemetry (telemetry only; no messages),
+    # so on-receipt readings reach the map overlay and MQTT like the other paths.
+    await _record_and_forward_lpp_telemetry(contact, sensors)
 
     return RepeaterLppTelemetryResponse(sensors=sensors)
 

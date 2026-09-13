@@ -1133,6 +1133,30 @@ class TestRepeaterLppTelemetry:
         assert exc.value.status_code == 422
 
     @pytest.mark.asyncio
+    async def test_records_and_forwards_telemetry(self, test_db):
+        from app.repository.contact_telemetry import ContactTelemetryRepository
+
+        mc = _mock_mc()
+        await _insert_contact(KEY_A, name="Repeater", contact_type=2)
+        mc.commands.req_telemetry_sync = AsyncMock(
+            return_value=[{"channel": 0, "type": "temperature", "value": 24.5}]
+        )
+
+        with (
+            patch("app.routers.repeaters.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch(
+                "app.fanout.manager.fanout_manager.broadcast_telemetry", new=AsyncMock()
+            ) as bcast,
+        ):
+            await repeater_lpp_telemetry(KEY_A)
+
+        latest = await ContactTelemetryRepository.get_latest(KEY_A)
+        assert latest is not None
+        assert latest["data"]["lpp_sensors"][0]["value"] == 24.5
+        bcast.assert_called_once()
+
+    @pytest.mark.asyncio
     async def test_400_not_repeater(self, test_db):
         mc = _mock_mc()
         await _insert_contact(KEY_A, name="Client", contact_type=1)

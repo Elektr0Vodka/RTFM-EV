@@ -128,6 +128,42 @@ Branch `feat/visualize-packets-live-map`.
 ### Notes
 - No backend changes; reuses the existing `raw_packet` WS stream and the
   `GET /packets/recent` endpoint. Frontend only.
+## Update 2026-09-13 (telemetry map overlay)
+
+### Map / UI
+- New opt-in map overlay (Overlays group, off by default) showing each node's
+  latest telemetry at a glance: a battery icon coloured by level (green/amber/
+  red) as the primary encoding, plus a temperature + relative-age badge.
+  Readings older than 24h are faded. The overlay is a separate layer and does
+  not change node marker colours or labels. While enabled it refreshes every
+  60s. Nodes with only temperature (no battery reading) show a neutral marker
+  with the temperature badge.
+
+### Backend
+- New read-only `GET /contacts/telemetry/latest` returns the latest stored
+  telemetry per node (battery volts + temperature + source), merging the
+  repeater and contact history tables (newer reading wins on a key collision).
+  Backed by new `get_latest_all()` methods on the repeater and contact
+  telemetry repositories. No schema change.
+- Telemetry received via the `room/status`, `room/lpp-telemetry`, and
+  `repeater/lpp-telemetry` endpoints is now recorded to telemetry history and
+  forwarded to fanout (MQTT) on receipt, matching the tracked-interval and
+  repeater-status / contact-telemetry paths. Telemetry only; messages are not
+  forwarded. Shared helpers `_record_and_forward_lpp_telemetry` /
+  `_record_and_forward_status_telemetry` in `app/routers/contacts.py`
+  (best-effort; a persistence/forward error never fails the response).
+
+## Update 2026-09-13 (map node labels)
+
+### Map / UI
+- Map gains a node-label control in the Display group with three states:
+  Off (default, unchanged behaviour), Name (advert name, falling back to a
+  12-char public-key prefix), and ID tag. The ID tag shows each node's
+  public-key prefix sized to the path-hash width observed for that node
+  (`direct_path_hash_mode` 0/1/2 -> 1/2/3 bytes -> 2/4/6 hex chars; unknown
+  widths default to 1 byte). Labels render only at/above zoom 11 and are
+  decluttered by the symbol layer's collision detection. The selected mode is
+  persisted per device (`localStorage`). Frontend-only; no API or DB change.
 
 ## Update 2026-09-13 (contact annotations)
 

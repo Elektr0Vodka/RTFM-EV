@@ -41,12 +41,16 @@ export interface MapSurfaceProps {
   roleColors?: Record<number, string>;
   onRoleColorChange?: (type: number, color: string) => void;
   onResetRoleColors?: () => void;
+  labelMode?: 'off' | 'name' | 'tag';
+  onLabelMode?: (mode: 'off' | 'name' | 'tag') => void;
   linksOn?: boolean;
   onToggleLinks?: (on: boolean) => void;
   linkMode?: 'liveness' | 'advert';
   onLinkMode?: (mode: 'liveness' | 'advert') => void;
   linkConfidence?: 1 | 2 | 3;
   onLinkConfidence?: (level: 1 | 2 | 3) => void;
+  telemetryOn?: boolean;
+  onToggleTelemetry?: (on: boolean) => void;
   sidebarOpen?: boolean;
   onSearch?: (query: string) => void;
   legendContent?: ReactNode;
@@ -208,12 +212,16 @@ export function MapSurface(props: MapSurfaceProps) {
         roleColors={props.roleColors}
         onRoleColorChange={props.onRoleColorChange}
         onResetRoleColors={props.onResetRoleColors}
+        labelMode={props.labelMode}
+        onLabelMode={props.onLabelMode}
         linksOn={props.linksOn}
         onToggleLinks={props.onToggleLinks}
         linkMode={props.linkMode}
         onLinkMode={props.onLinkMode}
         linkConfidence={props.linkConfidence}
         onLinkConfidence={props.onLinkConfidence}
+        telemetryOn={props.telemetryOn}
+        onToggleTelemetry={props.onToggleTelemetry}
         sidebarOpen={props.sidebarOpen}
         onSearch={props.onSearch}
         legendContent={props.legendContent}

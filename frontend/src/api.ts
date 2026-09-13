@@ -13,6 +13,7 @@ import type {
   Contact,
   ContactAnalytics,
   ContactAdvertPathSummary,
+  LatestTelemetry,
   ContactRadioResidency,
   ContactTelemetryResponse,
   RadioContactOccupancy,
@@ -217,6 +218,8 @@ export const api = {
   // Contacts
   getContacts: (limit = 100, offset = 0) =>
     fetchJson<Contact[]>(`/contacts?limit=${limit}&offset=${offset}`),
+  getLatestTelemetry: (signal?: AbortSignal) =>
+    fetchJson<Record<string, LatestTelemetry>>('/contacts/telemetry/latest', { signal }),
   getRadioResidency: (signal?: AbortSignal) =>
     fetchJson<ContactRadioResidency[]>('/contacts/radio-residency', { signal }),
   getRepeaterAdvertPaths: (limitPerRepeater = 10) =>

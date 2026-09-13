@@ -98,3 +98,27 @@ class RepeaterTelemetryRepository:
             "timestamp": row["timestamp"],
             "data": json.loads(row["data"]),
         }
+
+    @staticmethod
+    async def get_latest_all() -> dict[str, dict]:
+        """Return the newest telemetry row per public_key: {pk: {timestamp, data}}."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                """
+                SELECT t.public_key AS public_key, t.timestamp AS timestamp, t.data AS data
+                FROM repeater_telemetry_history t
+                JOIN (
+                    SELECT public_key, MAX(timestamp) AS ts
+                    FROM repeater_telemetry_history
+                    GROUP BY public_key
+                ) m ON t.public_key = m.public_key AND t.timestamp = m.ts
+                """
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return {
+            row["public_key"]: {
+                "timestamp": row["timestamp"],
+                "data": json.loads(row["data"]),
+            }
+            for row in rows
+        }

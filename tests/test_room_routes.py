@@ -200,6 +200,56 @@ class TestRoomStatus:
         assert response.acl[0].permission_name == "Admin"
 
 
+class TestRoomTelemetryForwarding:
+    @pytest.mark.asyncio
+    async def test_room_status_records_and_forwards(self, test_db):
+        from app.repository.repeater_telemetry import RepeaterTelemetryRepository
+
+        mc = _mock_mc()
+        await _insert_contact(ROOM_KEY, name="Room Server", contact_type=3)
+        mc.commands.req_status_sync = AsyncMock(return_value={"bat": 4025, "uptime": 600})
+
+        with (
+            patch("app.routers.rooms.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch(
+                "app.fanout.manager.fanout_manager.broadcast_telemetry", new=AsyncMock()
+            ) as bcast,
+        ):
+            await room_status(ROOM_KEY)
+
+        latest = await RepeaterTelemetryRepository.get_latest(ROOM_KEY)
+        assert latest is not None
+        assert latest["data"]["battery_volts"] == 4.025
+        bcast.assert_called_once()
+        assert bcast.call_args.args[0]["public_key"] == ROOM_KEY
+
+    @pytest.mark.asyncio
+    async def test_room_lpp_telemetry_records_and_forwards(self, test_db):
+        from app.repository.contact_telemetry import ContactTelemetryRepository
+
+        mc = _mock_mc()
+        await _insert_contact(ROOM_KEY, name="Room Server", contact_type=3)
+        mc.commands.req_telemetry_sync = AsyncMock(
+            return_value=[{"channel": 1, "type": "temperature", "value": 20.5}]
+        )
+
+        with (
+            patch("app.routers.rooms.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch(
+                "app.fanout.manager.fanout_manager.broadcast_telemetry", new=AsyncMock()
+            ) as bcast,
+        ):
+            response = await room_lpp_telemetry(ROOM_KEY)
+
+        assert response.sensors[0].type_name == "temperature"
+        latest = await ContactTelemetryRepository.get_latest(ROOM_KEY)
+        assert latest is not None
+        assert latest["data"]["lpp_sensors"][0]["value"] == 20.5
+        bcast.assert_called_once()
+
+
 class TestRoomCommandReuse:
     @pytest.mark.asyncio
     async def test_generic_command_route_accepts_room_servers(self, test_db):
