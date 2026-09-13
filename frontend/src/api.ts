@@ -42,6 +42,8 @@ import type {
   OpenHopUpdateStatus,
   OpenHopUpdateChannels,
   OpenHopChangelog,
+  OpenHopCadResult,
+  OpenHopCadManualCheckParams,
   MessagesAroundResponse,
   RawPacket,
   RadioAdvertMode,
@@ -662,6 +664,25 @@ export const api = {
       `/openhop/update/changelog?max=${max}${channel ? `&channel=${encodeURIComponent(channel)}` : ''}`
     ),
   openHopUpdateProgressUrl: () => `./api/openhop/update/progress`,
+
+  // OpenHop CAD calibration (Surface B; real metrics need RF hardware)
+  openHopCadStart: (samples = 8, delay = 100) =>
+    fetchJson<OpenHopEnvelope>('/openhop/cad/start', {
+      method: 'POST',
+      body: JSON.stringify({ samples, delay }),
+    }),
+  openHopCadStop: () => fetchJson<OpenHopEnvelope>('/openhop/cad/stop', { method: 'POST' }),
+  openHopCadManualCheck: (params: OpenHopCadManualCheckParams) =>
+    fetchJson<OpenHopCadResult>('/openhop/cad/manual_check', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    }),
+  openHopCadSave: (peak: number, min_val: number, cad_symbol_num = 2) =>
+    fetchJson<OpenHopEnvelope>('/openhop/cad/save', {
+      method: 'POST',
+      body: JSON.stringify({ peak, min_val, cad_symbol_num }),
+    }),
+  openHopCadStreamUrl: () => `./api/openhop/cad/stream`,
 
   // Block lists
   toggleBlockedKey: (key: string) =>

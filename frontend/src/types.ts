@@ -1236,3 +1236,33 @@ export type OpenHopUpdateEvent =
   | { type: 'status'; state: string }
   | { type: 'done'; state: string; error?: string | null }
   | { type: 'keepalive' };
+
+// OpenHop CAD calibration (Surface B). Meaningful metrics require real RF hardware.
+export interface OpenHopCadResult {
+  success: boolean;
+  data?: {
+    det_peak?: number;
+    det_min?: number;
+    cad_symbol_num?: number;
+    cad_timeout_ms?: number;
+    apply_live?: boolean;
+    samples?: number;
+    attempts?: number;
+    detections?: number;
+    non_detections?: number;
+    timeouts?: number;
+    errors?: number;
+    cad_done_count?: number;
+    detection_rate?: number;
+    detected?: boolean;
+  };
+  error?: string;
+}
+export interface OpenHopCadManualCheckParams {
+  samples?: number;
+  det_peak?: number;
+  det_min?: number;
+  cad_symbol_num?: number;
+  cad_timeout_ms?: number;
+  apply_live?: boolean;
+}
