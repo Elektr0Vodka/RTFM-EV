@@ -11,6 +11,30 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-13 (map advert-truth links + FAB declutter, PR #101)
+
+### Chat / UI
+- Node Map links can now be drawn from the advert paths actually heard (truth)
+  rather than only the client-side liveness graph. The Links control gains a
+  Liveness / Advert-truth mode switch and a confidence selector (1b+/2b+/3b,
+  default 2b+): a hop hash is a truncated public-key prefix, so 1-byte hops are
+  ambiguous and wider hops resolve more uniquely. Advert edges encode confidence
+  as line width, recency as opacity, and ambiguous edges are dashed (PR #101)
+- Node Map floating buttons decluttered from 11 to 6: grouped into Display,
+  Filters, and Overlays category buttons (each opening a panel of sections),
+  plus a standalone Search button and the 2D/3D and buildings toggles. On mobile
+  the button column shifts clear of the sidebar drawer while it is open so it
+  stays visible; tablets and desktops with a persistent sidebar are unaffected
+  (PR #101)
+
+### Backend
+- New read-only `GET /api/packets/advert-links` resolves stored advert paths
+  (`advert_events`) into GPS edges by walking each anchored chain and
+  disambiguating multi-match hop hashes by nearest-to-previously-resolved,
+  resolving hops against local contacts unioned with analyzer nodes
+  (`external_map_nodes`). Returns `hop_width`, `count`, `last_seen`, and an
+  `ambiguous` flag. No migration (PR #101)
+
 ## Update 2026-09-13 (CRT theme + branding)
 
 ### Chat / UI
