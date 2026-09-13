@@ -213,6 +213,7 @@
   "node_window_1h": "1h",
   "node_window_1y": "1y",
   "node_window_20m": "20m",
+  "time_range_30m": "30m",
   "time_range_20m": "20m",
   "time_range_1h": "1h",
   "time_range_3h": "3h",
