@@ -1066,3 +1066,65 @@ export interface StatisticsResponse {
   packets_per_hour_72h: PacketsPerHourBucket[];
   noise_floor_24h: NoiseFloorHistoryStats;
 }
+
+// --- OpenHop config pane (Surface B) ---
+export interface OpenHopConfigExport {
+  success: boolean;
+  data?: { meta?: Record<string, unknown>; config?: Record<string, unknown> };
+  error?: string;
+}
+export interface OpenHopValidateResult {
+  success: boolean;
+  data?: {
+    valid: boolean;
+    blocked_restart?: boolean;
+    errors: { path: string; message: string }[];
+    warnings: { path: string; message: string }[];
+    summary?: { error_count: number; warning_count: number };
+    message?: string;
+  };
+  error?: string;
+}
+export interface OpenHopModeResult {
+  success: boolean;
+  mode?: string;
+  persisted?: boolean;
+  error?: string;
+}
+export interface OpenHopRadioResult {
+  success: boolean;
+  data?: {
+    applied?: string[];
+    live_update?: boolean;
+    restart_required?: boolean;
+    message?: string;
+  };
+  error?: string;
+}
+export interface OpenHopImportResult {
+  success: boolean;
+  message?: string;
+  sections_updated?: string[];
+  saved?: boolean;
+  restart_required?: boolean;
+  error?: string;
+}
+export interface OpenHopRestartResult {
+  success: boolean;
+  message?: string;
+  error?: string;
+}
+export interface OpenHopHardwareOption {
+  key: string;
+  name: string;
+  description?: string;
+  config?: Record<string, unknown>;
+}
+export interface OpenHopRadioPreset {
+  title: string;
+  description?: string;
+  frequency?: string;
+  spreading_factor?: string;
+  bandwidth?: string;
+  coding_rate?: string;
+}

@@ -30,6 +30,14 @@ import type {
   OpenHopPolicyEngine,
   OpenHopPlugin,
   OpenHopCatalogueEntry,
+  OpenHopConfigExport,
+  OpenHopValidateResult,
+  OpenHopModeResult,
+  OpenHopRadioResult,
+  OpenHopImportResult,
+  OpenHopRestartResult,
+  OpenHopHardwareOption,
+  OpenHopRadioPreset,
   MessagesAroundResponse,
   RawPacket,
   RadioAdvertMode,
@@ -570,6 +578,34 @@ export const api = {
     }),
   openHopPluginProgressUrl: (id: string, since = 0, fresh = true) =>
     `./api/openhop/plugins/progress?id=${encodeURIComponent(id)}&since=${since}&fresh=${fresh}`,
+
+  // OpenHop config (Surface B; only meaningful when is_openhop AND configured)
+  getOpenHopConfigExport: (includeSecrets = false) =>
+    fetchJson<OpenHopConfigExport>(
+      `/openhop/config/export${includeSecrets ? '?include_secrets=true' : ''}`
+    ),
+  validateOpenHopConfig: () => fetchJson<OpenHopValidateResult>('/openhop/config/validate'),
+  getOpenHopHardwareOptions: () =>
+    fetchJson<{ hardware: OpenHopHardwareOption[] }>('/openhop/config/hardware_options'),
+  getOpenHopPresets: () =>
+    fetchJson<{ presets: OpenHopRadioPreset[]; source?: string }>('/openhop/config/presets'),
+  setOpenHopMode: (mode: string) =>
+    fetchJson<OpenHopModeResult>('/openhop/config/mode', {
+      method: 'POST',
+      body: JSON.stringify({ mode }),
+    }),
+  updateOpenHopRadio: (params: Record<string, number | string>) =>
+    fetchJson<OpenHopRadioResult>('/openhop/config/radio', {
+      method: 'POST',
+      body: JSON.stringify({ params }),
+    }),
+  importOpenHopConfig: (config: Record<string, unknown>, restartAfter = false) =>
+    fetchJson<OpenHopImportResult>('/openhop/config/import', {
+      method: 'POST',
+      body: JSON.stringify({ config, restart_after: restartAfter }),
+    }),
+  restartOpenHopService: () =>
+    fetchJson<OpenHopRestartResult>('/openhop/config/restart', { method: 'POST' }),
 
   // Block lists
   toggleBlockedKey: (key: string) =>
