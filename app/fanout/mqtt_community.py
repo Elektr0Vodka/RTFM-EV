@@ -87,6 +87,7 @@ class MqttCommunityModule(FanoutModule):
         super().__init__(config_id, config, name=name)
         self._publisher = CommunityMqttPublisher()
         self._publisher.set_integration_name(name or config_id)
+        self._publisher.set_config_id(config_id)
 
     async def start(self) -> None:
         settings = _config_to_settings(self.config)
@@ -154,6 +155,14 @@ class MqttCommunityModule(FanoutModule):
         if self._publisher.last_error:
             return self._publisher.last_error
         return self._key_unavailable_reason()
+
+    @property
+    def mqtt_counters(self) -> dict[str, int]:
+        return {
+            "messages_published": self._publisher.messages_published,
+            "publish_failures": self._publisher.publish_failures,
+            "reconnects": self._publisher.reconnects,
+        }
 
     def _key_unavailable_reason(self) -> str | None:
         """Explain a silent "disconnected" caused by a missing radio key.

@@ -1464,6 +1464,17 @@ class RegionScopeStats(BaseModel):
     scoped_senders_pct: float
 
 
+class MqttBrokerStats(BaseModel):
+    config_id: str
+    name: str
+    type: str
+    status: str = Field(description="connected | disconnected | error")
+    last_error: str | None = None
+    messages_published: int = 0
+    publish_failures: int = 0
+    reconnects: int = 0
+
+
 class StatisticsResponse(BaseModel):
     busiest_channels_24h: list[BusyChannel]
     contact_count: int
@@ -1482,6 +1493,7 @@ class StatisticsResponse(BaseModel):
     region_scope_24h: RegionScopeStats
     packets_per_hour_72h: list[PacketsPerHourBucket]
     noise_floor_24h: NoiseFloorHistoryStats
+    mqtt_brokers: list[MqttBrokerStats] = Field(default_factory=list)
 
 
 class TelemetryHistoryEntry(BaseModel):

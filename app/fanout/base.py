@@ -63,6 +63,15 @@ class FanoutModule:
         """Return the most recent retained operator-facing error, if any."""
         return self._last_error
 
+    @property
+    def mqtt_counters(self) -> dict[str, int] | None:
+        """MQTT publish counters, or None for non-MQTT modules.
+
+        MQTT modules override this to expose their publisher's cumulative
+        counters; the fanout manager uses ``None`` to skip non-MQTT modules.
+        """
+        return None
+
     def _set_last_error(self, value: str | None) -> None:
         """Update the retained error and broadcast health when it changes."""
         if self._last_error == value:

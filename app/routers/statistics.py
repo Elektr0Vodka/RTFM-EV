@@ -2,6 +2,7 @@ import time
 
 from fastapi import APIRouter, Query
 
+from app.fanout.manager import fanout_manager
 from app.models import StatisticsResponse
 from app.repository import StatisticsRepository
 from app.repository.airtime_history import AirtimeHistoryRepository
@@ -21,6 +22,7 @@ router = APIRouter(prefix="/statistics", tags=["statistics"])
 async def get_statistics() -> StatisticsResponse:
     data = await StatisticsRepository.get_all()
     data["noise_floor_24h"] = get_noise_floor_history()
+    data["mqtt_brokers"] = fanout_manager.get_mqtt_stats()
     return StatisticsResponse(**data)
 
 

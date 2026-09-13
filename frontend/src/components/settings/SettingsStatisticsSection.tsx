@@ -436,6 +436,82 @@ export function SettingsStatisticsSection({ className }: { className?: string })
             </div>
           </div>
 
+          {/* MQTT Brokers */}
+          {stats.mqtt_brokers?.length > 0 && (
+            <>
+              <Separator />
+              <div>
+                <h3 className="text-base font-semibold tracking-tight mb-2">
+                  {t('settings_statistics_mqtt_title')}
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-muted-foreground">
+                        <th className="text-left font-normal pb-1">
+                          {t('settings_statistics_mqtt_broker')}
+                        </th>
+                        <th className="text-left font-normal pb-1">
+                          {t('settings_statistics_mqtt_status')}
+                        </th>
+                        <th className="text-right font-normal pb-1">
+                          {t('settings_statistics_mqtt_published')}
+                        </th>
+                        <th className="text-right font-normal pb-1">
+                          {t('settings_statistics_mqtt_failures')}
+                        </th>
+                        <th className="text-right font-normal pb-1">
+                          {t('settings_statistics_mqtt_reconnects')}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stats.mqtt_brokers.map((b) => {
+                        const dot =
+                          b.status === 'connected'
+                            ? 'bg-success'
+                            : b.status === 'error'
+                              ? 'bg-destructive'
+                              : 'bg-muted-foreground';
+                        const statusLabel =
+                          b.status === 'connected'
+                            ? t('settings_statistics_mqtt_status_connected')
+                            : b.status === 'error'
+                              ? t('settings_statistics_mqtt_status_error')
+                              : t('settings_statistics_mqtt_status_disconnected');
+                        return (
+                          <tr key={b.config_id} className="align-top">
+                            <td className="py-1 pr-2">
+                              <div>{b.name}</div>
+                              <div className="text-xs text-muted-foreground">{b.type}</div>
+                            </td>
+                            <td className="py-1 pr-2">
+                              <span className="inline-flex items-center gap-1.5">
+                                <span className={`inline-block h-2 w-2 rounded-full ${dot}`} />
+                                {statusLabel}
+                              </span>
+                              {b.last_error && (
+                                <div
+                                  className="text-xs text-destructive truncate max-w-[16rem]"
+                                  title={b.last_error}
+                                >
+                                  {t('settings_statistics_mqtt_last_error')}: {b.last_error}
+                                </div>
+                              )}
+                            </td>
+                            <td className="text-right py-1">{b.messages_published}</td>
+                            <td className="text-right py-1">{b.publish_failures}</td>
+                            <td className="text-right py-1">{b.reconnects}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+
           {/* Packets per Hour (72h) */}
           {stats.packets_per_hour_72h?.length > 0 && (
             <>

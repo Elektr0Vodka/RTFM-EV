@@ -1091,6 +1091,19 @@ export interface RegionScopeStats {
   scoped_senders_pct: number;
 }
 
+export interface MqttBrokerStats {
+  config_id: string;
+  name: string;
+  /** mqtt_private | mqtt_community | mqtt_ha */
+  type: string;
+  /** connected | disconnected | error */
+  status: string;
+  last_error: string | null;
+  messages_published: number;
+  publish_failures: number;
+  reconnects: number;
+}
+
 export interface StatisticsResponse {
   busiest_channels_24h: BusyChannel[];
   contact_count: number;
@@ -1117,6 +1130,7 @@ export interface StatisticsResponse {
   region_scope_24h: RegionScopeStats;
   packets_per_hour_72h: PacketsPerHourBucket[];
   noise_floor_24h: NoiseFloorHistoryStats;
+  mqtt_brokers: MqttBrokerStats[];
 }
 
 // --- OpenHop config pane (Surface B) ---

@@ -71,10 +71,25 @@ class BaseMqttPublisher(ABC):
         # successful connect then skips the "connected" success toast so these
         # expected reconnects don't spam notifications. See issue #305.
         self._suppress_next_connect_toast: bool = False
+        # Per-broker publish statistics. Session counts are since this publisher
+        # started; the baseline is the cumulative total loaded from the DB on
+        # start(). Cumulative = baseline + session (see the *_published etc.
+        # properties). Flushed to fanout_mqtt_stats periodically and on stop().
+        self._config_id: str | None = None
+        self._session_published: int = 0
+        self._session_failures: int = 0
+        self._session_reconnects: int = 0
+        self._baseline_published: int = 0
+        self._baseline_failures: int = 0
+        self._baseline_reconnects: int = 0
 
     def set_integration_name(self, name: str) -> None:
         """Attach the configured fanout-module name for operator-facing logs."""
         self.integration_name = name.strip()
+
+    def set_config_id(self, config_id: str) -> None:
+        """Attach the owning fanout config id (key for persisted stats)."""
+        self._config_id = config_id
 
     def _integration_label(self) -> str:
         """Return a concise label for logs, including the configured module name."""
@@ -87,6 +102,56 @@ class BaseMqttPublisher(ABC):
         """Return the most recent retained connection/publish error."""
         return self._last_error
 
+    @property
+    def messages_published(self) -> int:
+        """Cumulative messages published (persisted baseline + this session)."""
+        return self._baseline_published + self._session_published
+
+    @property
+    def publish_failures(self) -> int:
+        """Cumulative publish failures (persisted baseline + this session)."""
+        return self._baseline_failures + self._session_failures
+
+    @property
+    def reconnects(self) -> int:
+        """Cumulative reconnects (persisted baseline + this session)."""
+        return self._baseline_reconnects + self._session_reconnects
+
+    async def load_baseline(self) -> None:
+        """Load persisted cumulative counters and reset the session counts to 0."""
+        self._session_published = 0
+        self._session_failures = 0
+        self._session_reconnects = 0
+        if not self._config_id:
+            self._baseline_published = 0
+            self._baseline_failures = 0
+            self._baseline_reconnects = 0
+            return
+        from app.repository.fanout import FanoutMqttStatsRepository
+
+        row = await FanoutMqttStatsRepository.get(self._config_id)
+        self._baseline_published = row["messages_published"] if row else 0
+        self._baseline_failures = row["publish_failures"] if row else 0
+        self._baseline_reconnects = row["reconnects"] if row else 0
+
+    async def flush_stats(self) -> None:
+        """Persist the current cumulative counters (idempotent set). No-op without config id."""
+        if not self._config_id:
+            return
+        from app.repository.fanout import FanoutMqttStatsRepository
+
+        try:
+            await FanoutMqttStatsRepository.set(
+                self._config_id,
+                self.messages_published,
+                self.publish_failures,
+                self.reconnects,
+            )
+        except Exception:
+            logger.warning(
+                "%s failed to flush MQTT stats", self._integration_label(), exc_info=True
+            )
+
     # ── Lifecycle ──────────────────────────────────────────────────────
 
     async def start(self, settings: object) -> None:
@@ -96,10 +161,12 @@ class BaseMqttPublisher(ABC):
         self._settings_version += 1
         self._version_event.set()
         if self._task is None or self._task.done():
+            await self.load_baseline()
             self._task = asyncio.create_task(self._connection_loop())
 
     async def stop(self) -> None:
         """Cancel the background task and disconnect."""
+        await self.flush_stats()
         if self._task and not self._task.done():
             self._task.cancel()
             try:
@@ -124,7 +191,9 @@ class BaseMqttPublisher(ABC):
             return
         try:
             await self._client.publish(topic, json.dumps(payload), retain=retain)
+            self._session_published += 1
         except Exception as e:
+            self._session_failures += 1
             logger.warning(
                 "%s publish failed on %s. This is usually transient network noise; "
                 "if it self-resolves and reconnects, it is generally not a concern. Persistent errors may indicate a problem with your network connection or MQTT broker. Original error: %s",
@@ -248,6 +317,7 @@ class BaseMqttPublisher(ABC):
                         except TimeoutError:
                             elapsed = time.monotonic() - connect_time
                             await self._on_periodic_wake(elapsed)
+                            await self.flush_stats()
                             if self._should_break_wait(elapsed):
                                 # Expected, self-healing reconnect surfaced by the
                                 # periodic wake (e.g. community-MQTT JWT renewal),
@@ -267,6 +337,7 @@ class BaseMqttPublisher(ABC):
                 return
 
             except Exception as e:
+                self._session_reconnects += 1
                 self.connected = False
                 self._client = None
                 self._last_error = _format_error_detail(e)

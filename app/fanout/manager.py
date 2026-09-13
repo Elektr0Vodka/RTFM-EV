@@ -367,6 +367,28 @@ class FanoutManager:
             }
         return result
 
+    def get_mqtt_stats(self) -> list[dict[str, Any]]:
+        """Return per-broker MQTT publish stats for each active MQTT module."""
+        from app.repository.fanout import _configs_cache
+
+        result: list[dict[str, Any]] = []
+        for config_id, (module, _scope) in list(self._modules.items()):
+            counters = module.mqtt_counters
+            if counters is None:
+                continue
+            info = _configs_cache.get(config_id, {})
+            result.append(
+                {
+                    "config_id": config_id,
+                    "name": info.get("name", config_id),
+                    "type": info.get("type", "unknown"),
+                    "status": module.status,
+                    "last_error": module.last_error,
+                    **counters,
+                }
+            )
+        return result
+
     async def disable_bots_until_restart(self) -> str:
         """Stop active bot modules and prevent them from starting again until restart."""
         source = self.get_bots_disabled_source()

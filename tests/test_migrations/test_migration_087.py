@@ -17,8 +17,9 @@ class TestMigration087:
         try:
             # Start just below migration 087 so it runs against the minimal
             # fixture table below. Migrations after it (airtime_history create,
-            # raw_packets decoded-column add) also run but are inert here: the
-            # former needs no fixture, the latter skips when raw_packets is absent.
+            # raw_packets decoded-column add, fanout_mqtt_stats create) also run
+            # but are inert here: those that need a table skip when it is absent,
+            # and fanout_mqtt_stats creates its own independent table.
             await set_version(conn, 86)
             await conn.execute("CREATE TABLE app_settings (id INTEGER PRIMARY KEY)")
             await conn.execute("INSERT INTO app_settings (id) VALUES (1)")

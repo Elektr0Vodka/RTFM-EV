@@ -962,6 +962,7 @@ describe('SettingsModal', () => {
         latest_timestamp: 1711800000,
         samples: [],
       },
+      mqtt_brokers: [],
     };
 
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
@@ -1052,6 +1053,7 @@ describe('SettingsModal', () => {
         latest_timestamp: null,
         samples: [],
       },
+      mqtt_brokers: [],
     };
 
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
@@ -1118,6 +1120,7 @@ describe('SettingsModal', () => {
         latest_timestamp: null,
         samples: [],
       },
+      mqtt_brokers: [],
     };
 
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
@@ -1181,6 +1184,7 @@ describe('SettingsModal', () => {
         latest_timestamp: null,
         samples: [],
       },
+      mqtt_brokers: [],
     };
 
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(

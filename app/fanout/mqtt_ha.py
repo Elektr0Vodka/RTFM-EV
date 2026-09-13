@@ -593,6 +593,7 @@ class MqttHaModule(FanoutModule):
         super().__init__(config_id, config, name=name)
         self._publisher = _HaMqttPublisher()
         self._publisher.set_integration_name(name or config_id)
+        self._publisher.set_config_id(config_id)
         self._publisher._on_connected_callback = self._publish_discovery
         self._discovery_topics: list[str] = []
         self._radio_key: str | None = None
@@ -947,3 +948,11 @@ class MqttHaModule(FanoutModule):
     @property
     def last_error(self) -> str | None:
         return self._publisher.last_error
+
+    @property
+    def mqtt_counters(self) -> dict[str, int]:
+        return {
+            "messages_published": self._publisher.messages_published,
+            "publish_failures": self._publisher.publish_failures,
+            "reconnects": self._publisher.reconnects,
+        }

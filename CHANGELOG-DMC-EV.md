@@ -78,6 +78,29 @@ the change. Upstream development is on hold; the fork is the active repository.
   remain live-only (they need decryption) and are noted as such in DB mode.
 - New i18n keys for the shared selector labels and the raw-feed historical note
   (en/nl/de).
+## Update 2026-09-13 (Per-broker MQTT statistics, feat/mqtt-stats-per-broker)
+
+### Chat / UI
+- The Statistics page (Settings > Statistics) gains an MQTT Brokers table, shown
+  only when at least one MQTT broker is active. Each row reports the broker name
+  and type, connection status (with last error), and cumulative counts of
+  messages published, publish failures, and reconnects. New strings are
+  translated in EN/NL/DE (feat/mqtt-stats-per-broker)
+
+### Backend
+- MQTT publishers now track per-broker publish counters. `BaseMqttPublisher`
+  counts messages published, publish failures, and reconnects in memory
+  (incremented on the existing publish and reconnect paths, no hot-path DB
+  writes) and flushes them as cumulative totals (`baseline + session`) to the
+  new `fanout_mqtt_stats` table on the ~60s connection wake and on stop, so
+  counts survive restarts. `GET /api/statistics` gains an `mqtt_brokers` field
+  (per active MQTT module) via `FanoutManager.get_mqtt_stats()`; a broker's stats
+  row is removed when its fanout config is deleted (feat/mqtt-stats-per-broker)
+
+### Database
+- Migration `_091_create_fanout_mqtt_stats` adds the `fanout_mqtt_stats` table
+  (`config_id` PK, `messages_published`, `publish_failures`, `reconnects`,
+  `updated_at`); `LATEST_SCHEMA_VERSION` bumped to 91 (feat/mqtt-stats-per-broker)
 
 ## Update 2026-09-13 (OpenHop API token hardening, feat/openhop-detection)
 
