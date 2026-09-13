@@ -21,7 +21,7 @@ export function PluginSettingsEditor({ id }: Props) {
       .getOpenHopPluginConfig(id)
       .then((res) => {
         if (!active) return;
-        const config = res.data?.config ?? {};
+        const config = res.config ?? {};
         setText(JSON.stringify(config, null, 2));
       })
       .catch(() => {

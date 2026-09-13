@@ -521,24 +521,26 @@ export const api = {
   // OpenHop plugins (Surface B; only meaningful when is_openhop AND configured)
   listOpenHopPlugins: () =>
     fetchJson<OpenHopEnvelope<never> & { plugins: OpenHopPlugin[] }>('/openhop/plugins'),
+  // OpenHop's plugin endpoints use a FLAT envelope ({success, <fields>...}), unlike
+  // the policy endpoints which nest under {data}. Read fields at the top level.
   getOpenHopPluginStatus: (id: string) =>
-    fetchJson<OpenHopEnvelope<OpenHopPlugin>>(
+    fetchJson<OpenHopEnvelope<never> & OpenHopPlugin>(
       `/openhop/plugins/status?id=${encodeURIComponent(id)}`
     ),
   getOpenHopPluginCatalogue: (refresh = false) =>
-    fetchJson<OpenHopEnvelope<{ plugins: OpenHopCatalogueEntry[] }>>(
+    fetchJson<OpenHopEnvelope<never> & { plugins: OpenHopCatalogueEntry[] }>(
       `/openhop/plugins/catalogue${refresh ? '?refresh=true' : ''}`
     ),
   getOpenHopPluginLogs: (id: string, tail = 200) =>
-    fetchJson<OpenHopEnvelope<{ lines?: string[]; log?: string }>>(
+    fetchJson<OpenHopEnvelope<never> & { lines?: string[]; log?: string; tail?: number }>(
       `/openhop/plugins/logs?id=${encodeURIComponent(id)}&tail=${tail}`
     ),
   getOpenHopPluginConfig: (id: string) =>
-    fetchJson<OpenHopEnvelope<{ config?: Record<string, unknown> }>>(
+    fetchJson<OpenHopEnvelope<never> & { config?: Record<string, unknown> }>(
       `/openhop/plugins/settings?id=${encodeURIComponent(id)}`
     ),
   checkOpenHopPluginUpdate: (id: string, refresh = false) =>
-    fetchJson<OpenHopEnvelope<{ update_available?: boolean; latest_version?: string }>>(
+    fetchJson<OpenHopEnvelope<never> & { updateAvailable?: boolean; latestVersion?: string }>(
       `/openhop/plugins/updates?id=${encodeURIComponent(id)}${refresh ? '&refresh=true' : ''}`
     ),
   openHopPluginLifecycle: (verb: 'enable' | 'disable' | 'start' | 'stop' | 'restart', id: string) =>

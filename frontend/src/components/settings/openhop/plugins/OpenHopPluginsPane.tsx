@@ -61,7 +61,7 @@ export function OpenHopPluginsPane({ health }: Props) {
       setError(null);
       try {
         const res = await api.getOpenHopPluginCatalogue(refresh);
-        setCatalogue(res.data?.plugins ?? []);
+        setCatalogue(res.plugins ?? []);
       } catch (e) {
         classifyError(e);
       }

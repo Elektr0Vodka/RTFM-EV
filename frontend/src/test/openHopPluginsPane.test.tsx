@@ -55,7 +55,7 @@ describe('OpenHopPluginsPane', () => {
     vi.spyOn(api, 'listOpenHopPlugins').mockResolvedValue({ success: true, plugins: [] });
     const cat = vi
       .spyOn(api, 'getOpenHopPluginCatalogue')
-      .mockResolvedValue({ success: true, data: { plugins: [] } });
+      .mockResolvedValue({ success: true, plugins: [] });
     render(<OpenHopPluginsPane health={oh} />);
     await userEvent.click(await screen.findByRole('button', { name: /catalogue/i }));
     await waitFor(() => expect(cat).toHaveBeenCalled());
@@ -84,7 +84,7 @@ describe('OpenHopPluginsPane', () => {
     vi.spyOn(api, 'listOpenHopPlugins').mockResolvedValue({ success: true, plugins: [plugin] });
     vi.spyOn(api, 'getOpenHopPluginConfig').mockResolvedValue({
       success: true,
-      data: { config: { qos: 0 } },
+      config: { qos: 0 },
     });
     const save = vi.spyOn(api, 'setOpenHopPluginConfig').mockResolvedValue({ success: true });
     render(<OpenHopPluginsPane health={oh} />);
@@ -103,7 +103,7 @@ describe('OpenHopPluginsPane', () => {
       .mockResolvedValue({ success: true, plugins: [] });
     vi.spyOn(api, 'getOpenHopPluginCatalogue').mockResolvedValue({
       success: true,
-      data: { plugins: [entry] },
+      plugins: [entry],
     });
     vi.spyOn(api, 'installOpenHopCataloguePlugin').mockResolvedValue({ success: true });
     render(<OpenHopPluginsPane health={oh} />);

@@ -18,8 +18,7 @@ export function PluginLogsView({ id }: Props) {
   const load = useCallback(async () => {
     try {
       const res = await api.getOpenHopPluginLogs(id, tail);
-      const data = res.data ?? {};
-      const out = data.lines ?? (data.log ? data.log.split('\n') : []);
+      const out = res.lines ?? (res.log ? res.log.split('\n') : []);
       setLines(out);
     } catch {
       setLines([]);
