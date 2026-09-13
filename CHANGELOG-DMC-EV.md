@@ -15,7 +15,8 @@ the change. Upstream development is on hold; the fork is the active repository.
 
 ### Chat / UI
 - Chat messages can now parse and act on embedded entities, each gated by a
-  new server-side setting (synced across devices), under Settings > Radio >
+  new server-side setting (synced across devices), under Settings > Local
+  Configuration >
   "Chat parsing":
   - Public keys: a 64-hex key resolves to a known contact (opens contact info)
     or, when unknown, shows a "Look up" link to the first configured external

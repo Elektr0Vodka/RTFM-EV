@@ -504,7 +504,7 @@ describe('SettingsModal', () => {
 
   it('toggles chat pubkey parsing through onSaveAppSettings', async () => {
     const { onSaveAppSettings } = renderModal();
-    openRadioSection();
+    openLocalSection();
 
     fireEvent.click(screen.getByLabelText('Detect public keys'));
 
@@ -515,7 +515,7 @@ describe('SettingsModal', () => {
 
   it('toggles chat url previews through onSaveAppSettings', async () => {
     const { onSaveAppSettings } = renderModal();
-    openRadioSection();
+    openLocalSection();
 
     fireEvent.click(screen.getByLabelText('Link previews'));
 
