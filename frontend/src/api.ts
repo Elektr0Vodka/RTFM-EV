@@ -44,6 +44,8 @@ import type {
   OpenHopChangelog,
   OpenHopCadResult,
   OpenHopCadManualCheckParams,
+  OpenHopHardwareStats,
+  OpenHopAnalyticsResult,
   MessagesAroundResponse,
   RawPacket,
   RadioAdvertMode,
@@ -683,6 +685,19 @@ export const api = {
       body: JSON.stringify({ peak, min_val, cad_symbol_num }),
     }),
   openHopCadStreamUrl: () => `./api/openhop/cad/stream`,
+
+  // OpenHop system / hardware + read-only analytics (Surface B)
+  getOpenHopHardware: () => fetchJson<OpenHopHardwareStats>('/openhop/system/hardware'),
+  getOpenHopProcesses: () => fetchJson<OpenHopAnalyticsResult>('/openhop/system/processes'),
+  getOpenHopNodeStats: () => fetchJson<Record<string, unknown>>('/openhop/system/stats'),
+  getOpenHopSiteInfo: () =>
+    fetchJson<OpenHopEnvelope & { site_name?: string }>('/openhop/system/site_info'),
+  getOpenHopPacketStats: (hours = 24) =>
+    fetchJson<OpenHopAnalyticsResult>(`/openhop/analytics/packet_stats?hours=${hours}`),
+  getOpenHopPacketTypeStats: (hours = 24) =>
+    fetchJson<OpenHopAnalyticsResult>(`/openhop/analytics/packet_type_stats?hours=${hours}`),
+  getOpenHopNoiseFloorStats: (hours = 24) =>
+    fetchJson<OpenHopAnalyticsResult>(`/openhop/analytics/noise_floor_stats?hours=${hours}`),
 
   // Block lists
   toggleBlockedKey: (key: string) =>

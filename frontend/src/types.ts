@@ -1266,3 +1266,27 @@ export interface OpenHopCadManualCheckParams {
   cad_timeout_ms?: number;
   apply_live?: boolean;
 }
+
+// OpenHop system/hardware (Surface B). psutil-nested; every field optional.
+export interface OpenHopHardwareData {
+  cpu?: {
+    usage_percent?: number;
+    count?: number;
+    frequency?: number;
+    load_avg?: { '1min'?: number; '5min'?: number; '15min'?: number };
+  };
+  memory?: { total?: number; available?: number; used?: number; usage_percent?: number };
+  disk?: { total?: number; used?: number; free?: number; usage_percent?: number };
+  system?: { uptime?: number; boot_time?: number; os?: string; kernel?: string };
+  [k: string]: unknown;
+}
+export interface OpenHopHardwareStats {
+  success: boolean;
+  data?: OpenHopHardwareData;
+  error?: string;
+}
+export interface OpenHopAnalyticsResult {
+  success: boolean;
+  data?: Record<string, unknown>;
+  error?: string;
+}
