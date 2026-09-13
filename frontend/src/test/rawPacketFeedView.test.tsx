@@ -120,6 +120,11 @@ function renderView({
 describe('RawPacketFeedView', () => {
   beforeEach(() => {
     resetRawPacketStore();
+    try {
+      localStorage.clear();
+    } catch {
+      /* ignore */
+    }
   });
 
   afterEach(() => {
@@ -134,7 +139,7 @@ describe('RawPacketFeedView', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /show stats/i }));
 
-    expect(screen.getByLabelText('Stats window')).toBeInTheDocument();
+    expect(screen.getByText('30d')).toBeInTheDocument();
     expect(screen.getByText('Packet Types')).toBeInTheDocument();
     expect(screen.getByText('Hop Byte Width')).toBeInTheDocument();
     expect(screen.getByText('Most-Heard Neighbors')).toBeInTheDocument();
@@ -235,7 +240,7 @@ describe('RawPacketFeedView', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: /show stats/i }));
-    fireEvent.change(screen.getByLabelText('Stats window'), { target: { value: '1m' } });
+    fireEvent.click(screen.getByText('1m'));
     expect(screen.getByText(/only covered for 10 sec/i)).toBeInTheDocument();
 
     vi.setSystemTime(new Date('2024-01-01T00:01:10Z'));
@@ -283,7 +288,7 @@ describe('RawPacketFeedView', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: /show stats/i }));
-    fireEvent.change(screen.getByLabelText('Stats window'), { target: { value: 'session' } });
+    fireEvent.click(screen.getByText('session'));
     expect(screen.getAllByText('Alpha').length).toBeGreaterThan(0);
     expect(screen.getByText('Strongest Neighbor')).toBeInTheDocument();
     expect(screen.getByText('-70 dBm best heard')).toBeInTheDocument();
@@ -313,7 +318,7 @@ describe('RawPacketFeedView', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: /show stats/i }));
-    fireEvent.change(screen.getByLabelText('Stats window'), { target: { value: 'session' } });
+    fireEvent.click(screen.getByText('session'));
     expect(screen.getAllByText('Identity not resolvable').length).toBeGreaterThan(0);
   });
 
@@ -359,7 +364,7 @@ describe('RawPacketFeedView', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: /show stats/i }));
-    fireEvent.change(screen.getByLabelText('Stats window'), { target: { value: 'session' } });
+    fireEvent.click(screen.getByText('session'));
 
     expect(screen.getAllByText('Alpha').length).toBeGreaterThan(0);
     expect(screen.queryByText('Identity not resolvable')).not.toBeInTheDocument();

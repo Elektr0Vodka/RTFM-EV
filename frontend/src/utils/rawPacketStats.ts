@@ -1,6 +1,6 @@
 import { MeshCoreDecoder, PayloadType, Utils } from '@michaelhart/meshcore-decoder';
 
-import type { RawPacket } from '../types';
+import type { RawFeedHistoricalStats, RawPacket } from '../types';
 import { getRawPacketObservationKey } from './rawPacketIdentity';
 
 export const RAW_PACKET_STATS_WINDOWS = ['1m', '5m', '10m', '30m', 'session'] as const;
@@ -359,6 +359,60 @@ function formatTimelineLabel(timestamp: number): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+// Raw-feed windows served from the in-memory session ring (short/live); every
+// other (base) window is DB-backed via /packets/raw-feed-stats.
+export const RAW_FEED_LIVE_IDS = new Set(['1m', '5m', '10m', 'session']);
+
+export function isRawFeedLiveWindow(id: string): boolean {
+  return RAW_FEED_LIVE_IDS.has(id);
+}
+
+/**
+ * Adapt a DB-computed historical breakdown into a RawPacketStatsSnapshot so the
+ * existing cards render unchanged. Neighbor/timeline/per-packet data cannot be
+ * derived historically (needs decryption), so those are left empty and the view
+ * gates them as live-only.
+ */
+export function buildSnapshotFromHistorical(
+  db: RawFeedHistoricalStats,
+  windowId: string,
+  startSec: number,
+  endSec: number,
+  nowSec: number = Math.floor(Date.now() / 1000)
+): RawPacketStatsSnapshot {
+  const coverageSeconds = Math.max(1, endSec - startSec);
+  return {
+    window: windowId as RawPacketStatsWindow,
+    nowSec,
+    packets: [],
+    packetCount: db.packet_count,
+    packetsPerMinute: db.packet_count / Math.max(coverageSeconds / 60, 1 / 60),
+    uniqueSources: 0,
+    decryptedCount: db.decrypted_count,
+    undecryptedCount: db.undecrypted_count,
+    decryptRate: db.decrypt_rate,
+    pathBearingCount: db.path_bearing_count,
+    pathBearingRate: db.path_bearing_rate,
+    distinctPaths: db.distinct_paths,
+    payloadBreakdown: db.payload_breakdown,
+    routeBreakdown: db.route_breakdown,
+    topPacketTypes: db.payload_breakdown.slice(0, 5),
+    hopProfile: db.hop_profile,
+    hopByteWidthProfile: db.hop_byte_width_profile,
+    strongestNeighbors: [],
+    mostActiveNeighbors: [],
+    newestNeighbors: [],
+    averageRssi: db.average_rssi,
+    medianRssi: null,
+    bestRssi: db.best_rssi,
+    rssiBuckets: db.rssi_buckets,
+    coverageSeconds,
+    windowFullyCovered: true,
+    oldestStoredTimestamp: startSec,
+    timeline: [],
+  };
 }
 
 function getHopProfileBucket(pathTokenCount: number): string {

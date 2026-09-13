@@ -73,6 +73,7 @@ import type {
   AirtimeSample,
   BatterySample,
   NoiseFloorSample,
+  RawFeedHistoricalStats,
   StatisticsResponse,
   TraceResponse,
   UnreadCounts,
@@ -704,6 +705,10 @@ export const api = {
   getAirtimeRange: (startTs: number, endTs: number, binCount = 40) =>
     fetchJson<AirtimeSample[]>(
       `/statistics/airtime/range?start_ts=${startTs}&end_ts=${endTs}&bin_count=${binCount}`
+    ),
+  getRawFeedStats: (startTs: number, endTs: number) =>
+    fetchJson<RawFeedHistoricalStats>(
+      `/packets/raw-feed-stats?start_ts=${startTs}&end_ts=${endTs}`
     ),
 
   // Granular repeater endpoints

@@ -1023,6 +1023,29 @@ export interface AirtimeSample {
   rx_pct: number;
 }
 
+export interface RawFeedStatItem {
+  label: string;
+  count: number;
+  share: number;
+}
+
+export interface RawFeedHistoricalStats {
+  packet_count: number;
+  decrypted_count: number;
+  undecrypted_count: number;
+  decrypt_rate: number;
+  path_bearing_count: number;
+  path_bearing_rate: number;
+  distinct_paths: number;
+  average_rssi: number | null;
+  best_rssi: number | null;
+  payload_breakdown: RawFeedStatItem[];
+  route_breakdown: RawFeedStatItem[];
+  hop_profile: RawFeedStatItem[];
+  hop_byte_width_profile: RawFeedStatItem[];
+  rssi_buckets: RawFeedStatItem[];
+}
+
 export interface BatteryHistoryStats {
   sample_interval_seconds: number;
   coverage_seconds: number;

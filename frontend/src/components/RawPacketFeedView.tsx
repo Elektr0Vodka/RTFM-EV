@@ -17,13 +17,23 @@ import { RawPacketList } from './RawPacketList';
 import { RawPacketInspectorDialog } from './RawPacketDetailModal';
 import { getRawPacketObservationKey } from '../utils/rawPacketIdentity';
 import { Button } from './ui/button';
-import type { Channel, Contact, RawPacket } from '../types';
+import type { Channel, Contact, RawFeedHistoricalStats, RawPacket } from '../types';
+import { api } from '../api';
+import { TimeRangeSelector } from './TimeRangeSelector';
+import {
+  BASE_TIME_RANGES,
+  CUSTOM_RANGE_ID,
+  resolveRange,
+  type TimeRange,
+} from '../utils/timeRanges';
+import { loadStoredTimeRange, saveStoredTimeRange } from '../utils/timeRangePreference';
 import {
   HOP_BYTE_WIDTH_BUCKETS,
   KNOWN_PAYLOAD_TYPES,
-  RAW_PACKET_STATS_WINDOWS,
   buildRawPacketStatsSnapshot,
+  buildSnapshotFromHistorical,
   classifyDecodedHopByteWidth,
+  isRawFeedLiveWindow,
   type HopByteWidthBucket,
   type NeighborStat,
   type PacketTimelineBin,
@@ -284,17 +294,49 @@ const TOOLTIP_STYLE = {
   labelStyle: { color: 'hsl(var(--muted-foreground))' },
 } as const;
 
-const WINDOW_LABEL_KEYS: Record<RawPacketStatsWindow, string> = {
-  '1m': 'packet_window_1m',
-  '5m': 'packet_window_5m',
-  '10m': 'packet_window_10m',
-  '30m': 'packet_window_30m',
-  session: 'packet_window_session',
+// Raw feed keeps its short live windows as extras before the shared base set,
+// and "session" as a special extra. Base windows are DB-backed.
+const RAW_FEED_EXTRAS_BEFORE: TimeRange[] = [
+  { id: '1m', labelKey: 'time_range_1m', seconds: 60 },
+  { id: '5m', labelKey: 'time_range_5m', seconds: 5 * 60 },
+  { id: '10m', labelKey: 'time_range_10m', seconds: 10 * 60 },
+];
+const RAW_FEED_EXTRAS_SPECIAL: TimeRange[] = [
+  { id: 'session', labelKey: 'time_range_session', seconds: null },
+];
+const DEFAULT_RAW_FEED_ID = '10m';
+const RAW_FEED_WINDOW_KEY = 'rtfm-rawfeed-window';
+
+const _SHORT_LABELS: Record<string, string> = {
+  '1m': 'time_range_1m',
+  '5m': 'time_range_5m',
+  '10m': 'time_range_10m',
 };
 
-function getWindowLabel(window: RawPacketStatsWindow, t: TFn): string {
-  return t(WINDOW_LABEL_KEYS[window]);
+function getWindowLabel(windowId: string, t: TFn): string {
+  if (windowId === 'session') return t('time_range_session');
+  if (windowId === CUSTOM_RANGE_ID) return t('time_range_custom');
+  if (_SHORT_LABELS[windowId]) return t(_SHORT_LABELS[windowId]);
+  const r = BASE_TIME_RANGES.find((x) => x.id === windowId);
+  return r ? t(r.labelKey) : windowId;
 }
+
+const EMPTY_HISTORICAL: RawFeedHistoricalStats = {
+  packet_count: 0,
+  decrypted_count: 0,
+  undecrypted_count: 0,
+  decrypt_rate: 0,
+  path_bearing_count: 0,
+  path_bearing_rate: 0,
+  distinct_paths: 0,
+  average_rssi: null,
+  best_rssi: null,
+  payload_breakdown: [],
+  route_breakdown: [],
+  hop_profile: [],
+  hop_byte_width_profile: [],
+  rssi_buckets: [],
+};
 
 function formatTimestamp(timestampMs: number): string {
   return new Date(timestampMs).toLocaleString([], {
@@ -695,8 +737,26 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
       ? window.matchMedia('(min-width: 768px)').matches
       : false
   );
-  const [selectedWindow, setSelectedWindow] = useState<RawPacketStatsWindow>('10m');
+  const [selectedWindow, setSelectedWindow] = useState<string>(
+    () => loadStoredTimeRange(RAW_FEED_WINDOW_KEY, DEFAULT_RAW_FEED_ID).id
+  );
+  const [customStart, setCustomStart] = useState(
+    () => loadStoredTimeRange(RAW_FEED_WINDOW_KEY, DEFAULT_RAW_FEED_ID).customStart
+  );
+  const [customEnd, setCustomEnd] = useState(
+    () => loadStoredTimeRange(RAW_FEED_WINDOW_KEY, DEFAULT_RAW_FEED_ID).customEnd
+  );
+  const [dbStats, setDbStats] = useState<RawFeedHistoricalStats | null>(null);
+  const isLiveWindow = isRawFeedLiveWindow(selectedWindow);
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
+
+  useEffect(() => {
+    saveStoredTimeRange(RAW_FEED_WINDOW_KEY, {
+      id: selectedWindow,
+      customStart,
+      customEnd,
+    });
+  }, [selectedWindow, customStart, customEnd]);
   const [selectedPacket, setSelectedPacket] = useState<RawPacket | null>(null);
   const [analyzeModalOpen, setAnalyzeModalOpen] = useState(false);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
@@ -833,10 +893,56 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
     setNowSec(Math.floor(Date.now() / 1000));
   }, [packets, rawPacketStatsSession]);
 
-  const stats = useMemo(
-    () => buildRawPacketStatsSnapshot(rawPacketStatsSession, selectedWindow, nowSec),
-    [nowSec, rawPacketStatsSession, selectedWindow]
-  );
+  // For DB-backed (base) windows, fetch historical breakdowns from the server.
+  useEffect(() => {
+    if (isLiveWindow) return;
+    if (selectedWindow === CUSTOM_RANGE_ID) return; // custom fetches on Apply
+    const resolved = resolveRange(selectedWindow, { nowSec });
+    if (!resolved) return;
+    setDbStats(null);
+    let cancelled = false;
+    api.getRawFeedStats(resolved.startTs, resolved.endTs).then(
+      (data) => {
+        if (!cancelled) setDbStats(data);
+      },
+      () => {}
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [isLiveWindow, selectedWindow, nowSec]);
+
+  const stats = useMemo(() => {
+    if (isLiveWindow) {
+      return buildRawPacketStatsSnapshot(
+        rawPacketStatsSession,
+        selectedWindow as RawPacketStatsWindow,
+        nowSec
+      );
+    }
+    const resolved = resolveRange(selectedWindow, {
+      nowSec,
+      customStartSec: customStart ? Math.floor(new Date(customStart).getTime() / 1000) : null,
+      customEndSec: customEnd ? Math.floor(new Date(customEnd).getTime() / 1000) : null,
+    });
+    const start = resolved?.startTs ?? nowSec;
+    const end = resolved?.endTs ?? nowSec;
+    return buildSnapshotFromHistorical(
+      dbStats ?? EMPTY_HISTORICAL,
+      selectedWindow,
+      start,
+      end,
+      nowSec
+    );
+  }, [
+    isLiveWindow,
+    dbStats,
+    nowSec,
+    rawPacketStatsSession,
+    selectedWindow,
+    customStart,
+    customEnd,
+  ]);
   const coverageMessage = getCoverageMessage(stats, rawPacketStatsSession, t);
   const strongestNeighbor = useMemo(() => {
     const topNeighbor = stats.strongestNeighbors[0];
@@ -1036,23 +1142,22 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
                       {coverageMessage.message}
                     </div>
                   </div>
-                  <label className="flex items-center gap-2 text-sm text-foreground">
-                    <span className="text-muted-foreground">{t('packet_window_label')}</span>
-                    <select
-                      value={selectedWindow}
-                      onChange={(event) =>
-                        setSelectedWindow(event.target.value as RawPacketStatsWindow)
-                      }
-                      className="rounded-md border border-input bg-background px-2 py-1 text-sm"
-                      aria-label={t('packet_stats_window_aria')}
-                    >
-                      {RAW_PACKET_STATS_WINDOWS.map((option) => (
-                        <option key={option} value={option}>
-                          {getWindowLabel(option, t)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <TimeRangeSelector
+                    value={selectedWindow}
+                    onChange={setSelectedWindow}
+                    extrasBefore={RAW_FEED_EXTRAS_BEFORE}
+                    extrasSpecial={RAW_FEED_EXTRAS_SPECIAL}
+                    customStart={customStart}
+                    customEnd={customEnd}
+                    onCustomStartChange={setCustomStart}
+                    onCustomEndChange={setCustomEnd}
+                    onApplyCustom={(s, e) => {
+                      api.getRawFeedStats(s, e).then(
+                        (d) => setDbStats(d),
+                        () => {}
+                      );
+                    }}
+                  />
                 </div>
                 <div className="mt-2 text-xs text-muted-foreground">
                   {t('packet_stats_summary', {
@@ -1061,6 +1166,11 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
                     total: rawPacketStatsSession.totalObservedPackets.toLocaleString(),
                   })}
                 </div>
+                {!isLiveWindow && (
+                  <div className="mt-1 text-[0.7rem] italic text-muted-foreground">
+                    {t('packet_stats_historical_note')}
+                  </div>
+                )}
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3">
@@ -1073,7 +1183,7 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
                 />
                 <StatTile
                   label={t('packet_stat_unique_sources')}
-                  value={stats.uniqueSources.toLocaleString()}
+                  value={isLiveWindow ? stats.uniqueSources.toLocaleString() : '-'}
                   detail={t('packet_stat_distinct_senders')}
                 />
                 <StatTile
