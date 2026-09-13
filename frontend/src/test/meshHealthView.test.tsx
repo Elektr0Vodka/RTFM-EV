@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { MeshHealthView } from '../components/MeshHealthView';
 
@@ -29,7 +29,24 @@ const RESPONSE = {
   ],
 };
 
-describe('MeshHealthView direct/flood columns', () => {
+const REQUEST_TRAFFIC = {
+  start_ts: 0,
+  end_ts: 3600,
+  totals: {
+    requests: 5,
+    anon_requests: 1,
+    responses: 2,
+    flood_requests: 3,
+    direct_requests: 2,
+  },
+  series: [
+    { bucket_ts: 0, flood: 2, direct: 1, responses: 1 },
+    { bucket_ts: 1800, flood: 1, direct: 1, responses: 1 },
+  ],
+  pairs: [{ src_hash: '11', dest_hash: '22', requests: 4, flood: 2, direct: 2, last_ts: 200 }],
+};
+
+describe('MeshHealthView Adverts tab (default)', () => {
   beforeEach(() => {
     global.fetch = vi.fn((url: string) => {
       if (String(url).includes('mesh-health')) {
@@ -56,5 +73,37 @@ describe('MeshHealthView direct/flood columns', () => {
     expect(within(row).getByText('3')).toBeInTheDocument();
     expect(within(row).getByText('1')).toBeInTheDocument();
     expect(within(row).getByText('4')).toBeInTheDocument();
+  });
+});
+
+describe('MeshHealthView Requests tab', () => {
+  beforeEach(() => {
+    global.fetch = vi.fn((url: string) => {
+      if (String(url).includes('request-traffic')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(REQUEST_TRAFFIC),
+        } as Response);
+      }
+      if (String(url).includes('mesh-health')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(RESPONSE) } as Response);
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) } as Response);
+    }) as unknown as typeof fetch;
+  });
+
+  it('switches to the Requests panel and renders traffic stats and the pair table', async () => {
+    render(<MeshHealthView config={null} />);
+    // The Adverts panel loads first.
+    await waitFor(() => expect(screen.getByText('Node A')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Requests' }));
+
+    // Responses-heard tile is unique to the Requests panel.
+    await waitFor(() => expect(screen.getByText('Responses heard')).toBeInTheDocument());
+    // The src -> dest pair is rendered as raw hex.
+    expect(screen.getByText(/11\s*→\s*22/)).toBeInTheDocument();
+    // The Adverts contacts table is no longer mounted.
+    expect(screen.queryByText('Node A')).not.toBeInTheDocument();
   });
 });

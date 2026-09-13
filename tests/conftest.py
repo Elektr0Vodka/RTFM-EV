@@ -63,6 +63,7 @@ async def test_db():
         noise_floor,
         raw_packets,
         repeater_telemetry,
+        request_traffic,
         settings,
         wordlists,
     )
@@ -87,6 +88,7 @@ async def test_db():
         link_signal,
         external_map,
         wordlists,
+        request_traffic,
     ]
     originals = [(mod, mod.db) for mod in submodules]
 

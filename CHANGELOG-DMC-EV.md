@@ -40,6 +40,30 @@ the change. Upstream development is on hold; the fork is the active repository.
 - New i18n keys (`packet_sound_theme_waterdrip`, `settings_crt_map_legend`,
   `settings_crt_map_tint`, `settings_crt_map_tint_hint`) added to EN/NL/DE.
 
+## Update 2026-09-13 (Mesh Health Requests panel)
+
+### Chat / UI
+- Mesh Health page gains an Adverts/Requests pill in the header. "Adverts" is
+  the existing view (advert-frequency health); "Requests" is a new single-node
+  view of REQUEST / ANON_REQUEST / RESPONSE traffic this node has heard over RF:
+  stat tiles (requests, flood, direct, responses heard), a flood-vs-direct and
+  a request-type split, a request-volume-over-time chart, and a top
+  sender→target pair table (1-byte peer hashes shown as raw hex, not resolved
+  to names). Both views share the time-window selector and refresh. Modelled on
+  the EU Meshcore Analyzer request-health tab but reframed honestly for one
+  connected node: it makes no answered/unanswered ("wasted") judgment, because a
+  response routed around this node is never heard here.
+- `MeshHealthView` refactored into a shell plus `MeshAdvertsPanel` /
+  `MeshRequestsPanel`, with shared primitives in `meshHealthShared.tsx`.
+
+### Backend
+- New `GET /packets/request-traffic?start_ts&end_ts` endpoint aggregates
+  REQUEST/RESPONSE traffic from `raw_packets` (filtered by `payload_type`,
+  parsed for route type and src/dest hash) into totals, a time-bucketed series,
+  and top src→dest pairs. Aggregation lives in `app/repository/request_traffic.py`.
+- Migration `_086` adds a `(payload_type, timestamp)` index on `raw_packets` for
+  the request-traffic window scan.
+
 ## Update 2026-09-13 (contact annotations)
 
 ### Chat / UI

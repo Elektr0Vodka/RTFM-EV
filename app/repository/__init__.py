@@ -10,6 +10,7 @@ from app.repository.fanout import FanoutConfigRepository
 from app.repository.messages import MessageRepository
 from app.repository.raw_packets import RawPacketRepository
 from app.repository.repeater_telemetry import RepeaterTelemetryRepository
+from app.repository.request_traffic import RequestTrafficRepository
 from app.repository.settings import AppSettingsRepository, StatisticsRepository
 from app.repository.wordlists import WordlistRepository
 
@@ -25,6 +26,7 @@ __all__ = [
     "MessageRepository",
     "RawPacketRepository",
     "RepeaterTelemetryRepository",
+    "RequestTrafficRepository",
     "StatisticsRepository",
     "WordlistRepository",
 ]

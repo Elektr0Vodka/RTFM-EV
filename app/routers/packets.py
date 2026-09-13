@@ -19,8 +19,10 @@ from app.repository import (
     ContactRepository,
     MessageRepository,
     RawPacketRepository,
+    RequestTrafficRepository,
 )
 from app.repository.advert_links import AdvertLinksRepository
+from app.repository.request_traffic import aggregate_request_traffic
 from app.services.advert_links import LocatedNode, resolve_advert_edges
 from app.services.messages import backfill_message_regions
 from app.services.radio_runtime import radio_runtime as radio_manager
@@ -880,6 +882,63 @@ async def get_advert_links(limit: int = 5000) -> list[AdvertLinkEdge]:
         )
         for e in edges
     ]
+
+
+class RequestTrafficTotals(BaseModel):
+    requests: int
+    anon_requests: int
+    responses: int
+    flood_requests: int
+    direct_requests: int
+
+
+class RequestTrafficBucket(BaseModel):
+    bucket_ts: int
+    flood: int
+    direct: int
+    responses: int
+
+
+class RequestTrafficPair(BaseModel):
+    src_hash: str
+    dest_hash: str
+    requests: int
+    flood: int
+    direct: int
+    last_ts: int
+
+
+class RequestTrafficResponse(BaseModel):
+    start_ts: int
+    end_ts: int
+    totals: RequestTrafficTotals
+    series: list[RequestTrafficBucket]
+    pairs: list[RequestTrafficPair]
+
+
+@router.get("/request-traffic", response_model=RequestTrafficResponse)
+async def get_request_traffic(
+    start_ts: int,
+    end_ts: int,
+    buckets: int = 32,
+    pair_limit: int = 20,
+) -> RequestTrafficResponse:
+    """Single-node REQUEST/RESPONSE traffic heard over RF in the window.
+
+    Reports request volume (REQUEST + ANON_REQUEST), flood vs direct split,
+    responses heard, a time-bucketed series, and the top src->dest 1-byte hash
+    pairs. Makes no answered/unanswered judgment: responses routed around this
+    node are never heard here.
+    """
+    if end_ts <= start_ts:
+        raise HTTPException(status_code=400, detail="end_ts must be greater than start_ts")
+
+    bucket_count = max(1, min(buckets, 200))
+    pair_cap = max(1, min(pair_limit, 100))
+
+    packets = await RequestTrafficRepository.window_packets(start_ts, end_ts)
+    agg = aggregate_request_traffic(packets, start_ts, end_ts, bucket_count, pair_cap)
+    return RequestTrafficResponse(start_ts=start_ts, end_ts=end_ts, **agg)
 
 
 @router.get("/{packet_id}", response_model=RawPacketDetail)

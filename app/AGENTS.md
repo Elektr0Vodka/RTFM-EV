@@ -315,6 +315,7 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `GET /packets/undecrypted/count`
 - `POST /packets/region-backfill` — re-resolve region scope for stored channel messages that still have a retained raw packet (region is otherwise only tagged at ingest); returns `{scanned, scoped, named}`
 - `GET /packets/{packet_id}` — fetch one stored raw packet by row ID for on-demand inspection
+- `GET /packets/request-traffic` — single-node REQUEST/RESPONSE traffic in a window: totals (requests, anon, responses, flood/direct split), a time-bucketed series, and top src→dest 1-byte-hash pairs (Mesh Health "Requests" panel). Parses `raw_packets` filtered by `payload_type IN (REQUEST, ANON_REQUEST, RESPONSE)`; makes no answered/unanswered judgment (a single node cannot hear responses routed around it)
 - `POST /packets/decrypt/historical`
 - `POST /packets/maintenance`
 
