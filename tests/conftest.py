@@ -53,6 +53,7 @@ async def test_db():
     from app.repository import (
         advert_events,
         advert_links,
+        airtime_history,
         battery_history,
         channels,
         contact_telemetry,
@@ -85,6 +86,7 @@ async def test_db():
         contact_telemetry,
         noise_floor,
         battery_history,
+        airtime_history,
         link_signal,
         external_map,
         wordlists,
