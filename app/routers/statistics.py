@@ -4,9 +4,15 @@ from fastapi import APIRouter, Query
 
 from app.models import StatisticsResponse
 from app.repository import StatisticsRepository
+from app.repository.airtime_history import AirtimeHistoryRepository
 from app.repository.battery_history import BatteryHistoryRepository
 from app.repository.noise_floor import NoiseFloorRepository
-from app.services.radio_stats import get_battery_history, get_noise_floor_history
+from app.services.airtime_util import compute_airtime_utilization
+from app.services.radio_stats import (
+    STATS_SAMPLE_INTERVAL_SECONDS,
+    get_battery_history,
+    get_noise_floor_history,
+)
 
 router = APIRouter(prefix="/statistics", tags=["statistics"])
 
@@ -57,3 +63,20 @@ async def get_noise_floor_range(
     end_ts: int = Query(..., description="End timestamp (Unix seconds)"),
 ) -> list[dict]:
     return await NoiseFloorRepository.get_range(start_ts, end_ts)
+
+
+@router.get("/airtime/range")
+async def get_airtime_range(
+    start_ts: int = Query(..., description="Start timestamp (Unix seconds)"),
+    end_ts: int = Query(..., description="End timestamp (Unix seconds)"),
+    bin_count: int = Query(40, ge=1, le=500, description="Number of output bins"),
+) -> list[dict]:
+    """Return per-bin TX/RX airtime utilization % over the range.
+
+    Utilization is derived from deltas between cumulative airtime samples, so
+    the response is empty until at least two samples exist in the window.
+    """
+    samples = await AirtimeHistoryRepository.get_range(start_ts, end_ts)
+    return compute_airtime_utilization(
+        samples, start_ts, end_ts, bin_count, STATS_SAMPLE_INTERVAL_SECONDS
+    )

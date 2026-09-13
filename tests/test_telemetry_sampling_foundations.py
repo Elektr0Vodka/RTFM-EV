@@ -2,6 +2,7 @@
 
 import pytest
 
+from app.repository.airtime_history import AirtimeHistoryRepository
 from app.repository.battery_history import BatteryHistoryRepository
 from app.repository.noise_floor import NoiseFloorRepository
 
@@ -79,6 +80,27 @@ class TestStatisticsEndpoints:
         )
         assert resp.status_code == 200
         assert resp.json() == [{"timestamp": 1700000000, "battery_mv": 3900}]
+
+    @pytest.mark.asyncio
+    async def test_airtime_range_endpoint(self, test_db, client):
+        # tx grows 30s over 60s -> 50%; rx grows 6s -> 10%
+        await AirtimeHistoryRepository.insert(1700000000, 0, 0)
+        await AirtimeHistoryRepository.insert(1700000060, 30, 6)
+
+        resp = await client.get(
+            "/api/statistics/airtime/range?start_ts=1700000000&end_ts=1700000060&bin_count=1"
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert len(body) == 1
+        assert body[0]["tx_pct"] == 50.0
+        assert body[0]["rx_pct"] == 10.0
+
+    @pytest.mark.asyncio
+    async def test_airtime_range_endpoint_empty(self, test_db, client):
+        resp = await client.get("/api/statistics/airtime/range?start_ts=0&end_ts=100&bin_count=10")
+        assert resp.status_code == 200
+        assert resp.json() == []
 
     @pytest.mark.asyncio
     async def test_battery_endpoint_shape_merges_db(self, test_db, client):
