@@ -5,6 +5,7 @@ import {
   recencyTier,
   observedIdTag,
   LABEL_MIN_ZOOM,
+  NODE_LABEL_FONT,
 } from '../../map/layers/nodesLayer';
 import { CONTACT_TYPE_REPEATER, CONTACT_TYPE_CLIENT, type Contact } from '../../types';
 
@@ -116,5 +117,13 @@ describe('buildNodeFeatures label property', () => {
 describe('label layer config', () => {
   it('hides labels below the density zoom threshold', () => {
     expect(LABEL_MIN_ZOOM).toBe(11);
+  });
+
+  it('requests a single font, not a stack (a stack 404s on the OFM/openmaptiles glyph servers)', () => {
+    // Regression guard: a multi-font text-font makes MapLibre request the
+    // comma-joined stack as one glyph key, which our basemap glyph servers do
+    // not serve, so node labels silently vanish on the default (Nova) basemap.
+    expect(NODE_LABEL_FONT).toHaveLength(1);
+    expect(NODE_LABEL_FONT[0]).toBe('Noto Sans Regular');
   });
 });

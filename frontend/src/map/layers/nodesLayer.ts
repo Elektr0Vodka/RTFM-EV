@@ -32,6 +32,13 @@ export const NODE_TYPE_STROKE: Record<number, string> = {
 // Labels only render at/above this zoom to keep wide views uncluttered.
 export const LABEL_MIN_ZOOM = 11;
 
+// Font for node labels. MUST be a single font, not a stack: MapLibre requests
+// glyphs for the whole comma-joined fontstack as one key, and the basemap glyph
+// servers we use (OpenFreeMap for the vector/Nova basemaps, openmaptiles for the
+// raster ones) only serve pre-generated single fonts. A multi-font stack 404s
+// and the labels silently disappear. "Noto Sans Regular" is served by both.
+export const NODE_LABEL_FONT = ['Noto Sans Regular'];
+
 export type NodeLabelMode = 'off' | 'name' | 'tag';
 
 export function recencyTier(lastSeenSec: number | null | undefined, nowSec: number): RecencyTier {
@@ -154,7 +161,7 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
           'text-anchor': 'top',
           'text-allow-overlap': false,
           'text-optional': true,
-          'text-font': ['Noto Sans Regular', 'Open Sans Regular', 'sans-serif'],
+          'text-font': NODE_LABEL_FONT,
         },
         paint: {
           // Outlined label: near-white fill with a dark halo reads on both

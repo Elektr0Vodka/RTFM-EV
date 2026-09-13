@@ -11,6 +11,19 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-14 (Map node labels fixed on vector basemaps)
+
+### Map
+- Node name / ID-tag labels now render on the default Nova (and other
+  OpenFreeMap vector) basemaps. The label layer requested a multi-font stack
+  (`Noto Sans Regular,Open Sans Regular,sans-serif`); MapLibre asks the basemap
+  glyph server for that whole comma-joined stack as one key, and the servers we
+  use (OpenFreeMap for vector, openmaptiles for raster) only serve pre-generated
+  single fonts, so the request 404'd and the labels silently vanished. The layer
+  now requests the single font `Noto Sans Regular`, which both servers provide
+  (`frontend/src/map/layers/nodesLayer.ts`, exported as `NODE_LABEL_FONT` with a
+  regression test).
+
 ## Update 2026-09-14 (Node icons on top of 3D buildings, claude/node-icon-building-layer)
 
 ### Map
