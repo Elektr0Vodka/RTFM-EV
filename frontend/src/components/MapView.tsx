@@ -21,6 +21,7 @@ import { MapSurface } from '../map/MapSurface';
 import { setMapLock2D } from '../map/engine/mapLock2D';
 import { setBuildings3D } from '../map/engine/buildings3D';
 import { createNodesLayer } from '../map/layers/nodesLayer';
+import { createNeonNodesOverlay, type NeonNodesOverlay } from '../map/layers/neonNodesLayer';
 import { createTelemetryLayer } from '../map/layers/telemetryLayer';
 import {
   getSavedNodeRoleColors,
@@ -88,6 +89,13 @@ const MAP_HEARD_STORAGE_KEY = 'remoteterm-map-heard';
 
 const MAP_NODE_SCALE_STORAGE_KEY = 'remoteterm-map-node-scale';
 
+// --- Line / arc thickness (multipliers, 0.5-4x) ---
+const MAP_ARC_WIDTH_STORAGE_KEY = 'remoteterm-map-arc-width';
+const MAP_LINK_WIDTH_STORAGE_KEY = 'remoteterm-map-link-width';
+
+// --- Neon node rendering (deck.gl halo+core nodes vs the flat GL circles) ---
+const MAP_NEON_NODES_STORAGE_KEY = 'remoteterm-map-neon-nodes';
+
 // --- Node labels (off / advert name / observed-width ID tag) ---
 const MAP_LABEL_MODE_STORAGE_KEY = 'remoteterm-map-label-mode';
 const NODE_LABEL_MODES = ['off', 'name', 'tag'] as const;
@@ -133,6 +141,25 @@ function getSavedNodeScale(): number {
     /* ignore */
   }
   return 1;
+}
+
+/** Width multiplier (arcs / links), clamped to the slider's 0.5-4x range. */
+function getSavedWidthScale(key: string): number {
+  try {
+    const v = Number(localStorage.getItem(key));
+    if (Number.isFinite(v) && v >= 0.5 && v <= 4) return v;
+  } catch {
+    /* ignore */
+  }
+  return 1;
+}
+
+function getSavedNeonOn(): boolean {
+  try {
+    return localStorage.getItem(MAP_NEON_NODES_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
 }
 
 function getSavedLabelMode(): NodeLabelMode {
@@ -255,6 +282,13 @@ export function MapView({
   const [tilt3D, setTilt3D] = useState(false);
   const [buildings, setBuildings] = useState(false);
   const [nodeScale, setNodeScale] = useState(getSavedNodeScale);
+  const [arcWidthScale, setArcWidthScale] = useState(() =>
+    getSavedWidthScale(MAP_ARC_WIDTH_STORAGE_KEY)
+  );
+  const [linkWidthScale, setLinkWidthScale] = useState(() =>
+    getSavedWidthScale(MAP_LINK_WIDTH_STORAGE_KEY)
+  );
+  const [neonNodes, setNeonNodes] = useState(getSavedNeonOn);
   const [roleColors, setRoleColors] = useState<NodeRoleColors>(getSavedNodeRoleColors);
   const [labelMode, setLabelMode] = useState<NodeLabelMode>(getSavedLabelMode);
   const [telemetryOn, setTelemetryOn] = useState<boolean>(getSavedTelemetryOn);
@@ -277,6 +311,7 @@ export function MapView({
   const glowOnRef = useRef(glowOn);
   const mapRef = useRef<MlMap | null>(null);
   const nodesRef = useRef<ReturnType<typeof createNodesLayer> | null>(null);
+  const neonOverlayRef = useRef<NeonNodesOverlay | null>(null);
   const telemetryRef = useRef<ReturnType<typeof createTelemetryLayer> | null>(null);
   const roleColorsRef = useRef<NodeRoleColors>(roleColors);
   const packetOverlayRef = useRef<PacketDeckOverlay | null>(null);
@@ -537,6 +572,27 @@ export function MapView({
       /* ignore */
     }
   }, [nodeScale]);
+
+  // Persist + apply the packet-arc width multiplier.
+  useEffect(() => {
+    try {
+      localStorage.setItem(MAP_ARC_WIDTH_STORAGE_KEY, String(arcWidthScale));
+    } catch {
+      /* ignore */
+    }
+    packetOverlayRef.current?.setArcWidthScale(arcWidthScale);
+  }, [arcWidthScale]);
+
+  // Persist + apply the link-line width multiplier (liveness + advert layers).
+  useEffect(() => {
+    try {
+      localStorage.setItem(MAP_LINK_WIDTH_STORAGE_KEY, String(linkWidthScale));
+    } catch {
+      /* ignore */
+    }
+    linksLayerRef.current?.setWidthScale(linkWidthScale);
+    advertLinksLayerRef.current?.setWidthScale(linkWidthScale);
+  }, [linkWidthScale]);
 
   // Persist the label mode and push it to the live layer.
   useEffect(() => {
@@ -923,7 +979,16 @@ export function MapView({
       nodes.setNodeScale(nodeScale);
       nodes.setLabelMode(labelMode);
       nodes.setData(mappableContacts, nowSec);
+      // Neon nodes: a deck.gl halo+core overlay that replaces the flat circles
+      // when enabled. The flat circle layer is hidden while neon is on; labels
+      // stay on the GL layer either way.
+      nodes.setCirclesVisible(!neonNodes);
       nodesRef.current = nodes;
+      const neon = createNeonNodesOverlay(map);
+      neon.setNodeScale(nodeScale);
+      neon.setData(mappableContacts, nowSec);
+      neon.setVisible(neonNodes);
+      neonOverlayRef.current = neon;
       const telemetry = createTelemetryLayer(map);
       telemetry.ensure();
       telemetry.setData(mappableContacts, latestTelemetry, nowSec);
@@ -935,11 +1000,14 @@ export function MapView({
         if (showExternalRef.current) onViewBounds(map.getBounds());
       });
       packetOverlayRef.current = createPacketDeckOverlay(map);
+      packetOverlayRef.current.setArcWidthScale(arcWidthScale);
       const links = createLinksLayer(map);
       links.ensure();
+      links.setWidthScale(linkWidthScale);
       linksLayerRef.current = links;
       const advertLinks = createAdvertLinksLayer(map);
       advertLinks.ensure();
+      advertLinks.setWidthScale(linkWidthScale);
       advertLinksLayerRef.current = advertLinks;
       fitInitialView(map);
       if (focusedLatLon) {
@@ -988,7 +1056,19 @@ export function MapView({
   // Keep node data in sync.
   useEffect(() => {
     nodesRef.current?.setData(mappableContacts, nowSec);
+    neonOverlayRef.current?.setData(mappableContacts, nowSec);
   }, [mappableContacts, nowSec]);
+
+  // Toggle between the flat GL circle nodes and the deck.gl neon overlay.
+  useEffect(() => {
+    try {
+      localStorage.setItem(MAP_NEON_NODES_STORAGE_KEY, neonNodes ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+    nodesRef.current?.setCirclesVisible(!neonNodes);
+    neonOverlayRef.current?.setVisible(neonNodes);
+  }, [neonNodes]);
 
   // Keep the telemetry overlay data in sync with contacts + latest readings.
   useEffect(() => {
@@ -997,6 +1077,7 @@ export function MapView({
 
   useEffect(() => {
     nodesRef.current?.setNodeScale(nodeScale);
+    neonOverlayRef.current?.setNodeScale(nodeScale);
   }, [nodeScale]);
 
   // Keep the external overlay layer + refs in sync with fetched/visible nodes.
@@ -1055,6 +1136,7 @@ export function MapView({
   useEffect(() => {
     return () => {
       packetOverlayRef.current?.destroy();
+      neonOverlayRef.current?.destroy();
       clickAudioRef.current?.destroy();
       popupRef.current?.remove();
       externalPopupRef.current?.remove();
@@ -1327,6 +1409,12 @@ export function MapView({
         }}
         nodeScale={nodeScale}
         onNodeScale={setNodeScale}
+        arcWidthScale={arcWidthScale}
+        onArcWidthScale={setArcWidthScale}
+        linkWidthScale={linkWidthScale}
+        onLinkWidthScale={setLinkWidthScale}
+        neonNodes={neonNodes}
+        onToggleNeon={setNeonNodes}
         roleColors={roleColors}
         onRoleColorChange={handleRoleColorChange}
         onResetRoleColors={handleResetRoleColors}

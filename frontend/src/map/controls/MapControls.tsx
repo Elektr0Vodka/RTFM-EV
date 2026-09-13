@@ -53,6 +53,12 @@ export interface MapControlsProps {
   onToggleBuildings?: (on: boolean) => void;
   nodeScale?: number;
   onNodeScale?: (v: number) => void;
+  arcWidthScale?: number;
+  onArcWidthScale?: (v: number) => void;
+  linkWidthScale?: number;
+  onLinkWidthScale?: (v: number) => void;
+  neonNodes?: boolean;
+  onToggleNeon?: (on: boolean) => void;
   roleColors?: Record<number, string>;
   onRoleColorChange?: (type: number, color: string) => void;
   onResetRoleColors?: () => void;
@@ -183,6 +189,12 @@ export function MapControls(props: MapControlsProps) {
     onToggleBuildings,
     nodeScale = 1,
     onNodeScale,
+    arcWidthScale = 1,
+    onArcWidthScale,
+    linkWidthScale = 1,
+    onLinkWidthScale,
+    neonNodes = false,
+    onToggleNeon,
     roleColors = DEFAULT_NODE_ROLE_COLORS,
     onRoleColorChange,
     onResetRoleColors,
@@ -275,6 +287,46 @@ export function MapControls(props: MapControlsProps) {
               onChange={(e) => onNodeScale?.(Number(e.target.value))}
             />
           </label>
+          {onToggleNeon && (
+            <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span>{t('map_neon_nodes_label')}</span>
+              <input
+                type="checkbox"
+                className="h-4 w-4 cursor-pointer"
+                checked={neonNodes}
+                aria-label={t('map_neon_nodes_label')}
+                onChange={(e) => onToggleNeon(e.target.checked)}
+              />
+            </label>
+          )}
+          {onArcWidthScale && (
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              {t('map_arc_width_label')}
+              <input
+                type="range"
+                min={0.5}
+                max={4}
+                step={0.5}
+                value={arcWidthScale}
+                aria-label={t('map_arc_width_label')}
+                onChange={(e) => onArcWidthScale(Number(e.target.value))}
+              />
+            </label>
+          )}
+          {onLinkWidthScale && (
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              {t('map_link_width_label')}
+              <input
+                type="range"
+                min={0.5}
+                max={4}
+                step={0.5}
+                value={linkWidthScale}
+                aria-label={t('map_link_width_label')}
+                onChange={(e) => onLinkWidthScale(Number(e.target.value))}
+              />
+            </label>
+          )}
           {onRoleColorChange && (
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">

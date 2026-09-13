@@ -55,12 +55,16 @@ export function buildLinkArcs(
   return { type: 'FeatureCollection', features };
 }
 
+/** Base line width (px) at scale 1. The width control multiplies this. */
+export const LINK_BASE_WIDTH = 1.5;
+
 export interface LinksLayerController {
   ensure(): void;
   reattach(): void;
   show(): void;
   hide(): void;
   setData(links: PacketNetworkLink[], resolve: ResolveCoord): void;
+  setWidthScale(scale: number): void;
 }
 
 /** GL line layer for client-derived per-link edges, drawn below the node layer
@@ -72,8 +76,10 @@ export function createLinksLayer(map: MlMap): LinksLayerController {
     addSource: (id: string, src: unknown) => void;
     addLayer: (layer: unknown, before?: string) => void;
     setLayoutProperty: (id: string, prop: string, value: unknown) => void;
+    setPaintProperty: (id: string, prop: string, value: unknown) => void;
   };
   let visible = false;
+  let widthScale = 1;
 
   function ensureLayer(): void {
     if (m.getSource('rt-links')) return;
@@ -91,7 +97,7 @@ export function createLinksLayer(map: MlMap): LinksLayerController {
         paint: {
           'line-color': '#58a6ff',
           'line-opacity': ['get', 'liveness'],
-          'line-width': 1.5,
+          'line-width': LINK_BASE_WIDTH * widthScale,
         },
       },
       before
@@ -119,6 +125,12 @@ export function createLinksLayer(map: MlMap): LinksLayerController {
     setData(links: PacketNetworkLink[], resolve: ResolveCoord): void {
       const src = m.getSource('rt-links');
       if (src) src.setData(buildLinkArcs(links, resolve, Date.now()));
+    },
+    setWidthScale(scale: number): void {
+      widthScale = scale;
+      if (m.getLayer('rt-links')) {
+        m.setPaintProperty('rt-links', 'line-width', LINK_BASE_WIDTH * widthScale);
+      }
     },
   };
 }

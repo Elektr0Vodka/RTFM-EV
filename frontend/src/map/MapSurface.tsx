@@ -43,6 +43,12 @@ export interface MapSurfaceProps {
   onResetRoleColors?: () => void;
   labelMode?: 'off' | 'name' | 'tag';
   onLabelMode?: (mode: 'off' | 'name' | 'tag') => void;
+  arcWidthScale?: number;
+  onArcWidthScale?: (v: number) => void;
+  linkWidthScale?: number;
+  onLinkWidthScale?: (v: number) => void;
+  neonNodes?: boolean;
+  onToggleNeon?: (on: boolean) => void;
   linksOn?: boolean;
   onToggleLinks?: (on: boolean) => void;
   linkMode?: 'liveness' | 'advert';
@@ -209,6 +215,12 @@ export function MapSurface(props: MapSurfaceProps) {
         onToggleBuildings={props.onToggleBuildings}
         nodeScale={props.nodeScale}
         onNodeScale={props.onNodeScale}
+        arcWidthScale={props.arcWidthScale}
+        onArcWidthScale={props.onArcWidthScale}
+        linkWidthScale={props.linkWidthScale}
+        onLinkWidthScale={props.onLinkWidthScale}
+        neonNodes={props.neonNodes}
+        onToggleNeon={props.onToggleNeon}
         roleColors={props.roleColors}
         onRoleColorChange={props.onRoleColorChange}
         onResetRoleColors={props.onResetRoleColors}

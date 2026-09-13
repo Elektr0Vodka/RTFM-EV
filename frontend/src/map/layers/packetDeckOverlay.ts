@@ -17,7 +17,11 @@ const rgba = (c: [number, number, number], a: number): [number, number, number, 
 
 /** Build the deck.gl layer list from a render model. Pure apart from the
  *  injected deck module, so it is unit-testable with a fake deck. */
-export function buildPacketLayers(deck: typeof import('deck.gl'), m: PacketRenderModel): unknown[] {
+export function buildPacketLayers(
+  deck: typeof import('deck.gl'),
+  m: PacketRenderModel,
+  arcWidthScale = 1
+): unknown[] {
   const ArcLayer = deck.ArcLayer as unknown as new (p: Record<string, unknown>) => unknown;
   const ScatterplotLayer = deck.ScatterplotLayer as unknown as new (
     p: Record<string, unknown>
@@ -30,7 +34,9 @@ export function buildPacketLayers(deck: typeof import('deck.gl'), m: PacketRende
     getTargetPosition: (d: ArcDatum) => d.t,
     getSourceColor: (d: ArcDatum) => rgba(d.color, rnd(255 * d.opacity)),
     getTargetColor: (d: ArcDatum) => rgba(d.color, rnd(255 * d.opacity)),
-    getWidth: (d: ArcDatum) => d.width,
+    getWidth: (d: ArcDatum) => d.width * arcWidthScale,
+    // deck.gl caches accessor results; bump the trigger when the scale changes.
+    updateTriggers: { getWidth: arcWidthScale },
     getHeight: 0.3,
     widthUnits: 'pixels',
     parameters: { depthTest: true },
@@ -74,6 +80,7 @@ export function buildPacketLayers(deck: typeof import('deck.gl'), m: PacketRende
 
 export interface PacketDeckOverlay {
   setModel(m: PacketRenderModel): void;
+  setArcWidthScale(scale: number): void;
   clear(): void;
   destroy(): void;
 }
@@ -82,6 +89,7 @@ export function createPacketDeckOverlay(map: MlMap): PacketDeckOverlay {
   let overlay: { setProps: (p: Record<string, unknown>) => void } | null = null;
   let deckMod: typeof import('deck.gl') | null = null;
   let model: PacketRenderModel = { arcs: [], pulses: [], glows: [] };
+  let arcWidthScale = 1;
   let destroyed = false;
   let loading: Promise<void> | null = null;
 
@@ -89,7 +97,7 @@ export function createPacketDeckOverlay(map: MlMap): PacketDeckOverlay {
 
   const apply = (): void => {
     if (!overlay || !deckMod) return;
-    overlay.setProps({ layers: buildPacketLayers(deckMod, model) });
+    overlay.setProps({ layers: buildPacketLayers(deckMod, model, arcWidthScale) });
     repaint();
   };
 
@@ -115,6 +123,10 @@ export function createPacketDeckOverlay(map: MlMap): PacketDeckOverlay {
       model = m;
       if (overlay) apply();
       else ensure();
+    },
+    setArcWidthScale(scale: number): void {
+      arcWidthScale = scale;
+      if (overlay) apply();
     },
     clear(): void {
       model = { arcs: [], pulses: [], glows: [] };

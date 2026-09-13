@@ -64,4 +64,14 @@ describe('buildPacketLayers', () => {
     const getFill = glow.props.getFillColor as (d: (typeof model.glows)[0]) => number[];
     expect(getFill(model.glows[0])).toEqual([70, 80, 90, 100]); // round(200*0.5)
   });
+
+  it('arc width getter multiplies the datum width by the scale (default 1)', () => {
+    const [arcDefault] = buildPacketLayers(fakeDeck(), model) as unknown as FakeLayer[];
+    const w1 = arcDefault.props.getWidth as (d: (typeof model.arcs)[0]) => number;
+    expect(w1(model.arcs[0])).toBe(3); // width 3 * 1
+
+    const [arcScaled] = buildPacketLayers(fakeDeck(), model, 2) as unknown as FakeLayer[];
+    const w2 = arcScaled.props.getWidth as (d: (typeof model.arcs)[0]) => number;
+    expect(w2(model.arcs[0])).toBe(6); // width 3 * 2
+  });
 });
