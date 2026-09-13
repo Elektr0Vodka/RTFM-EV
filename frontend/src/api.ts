@@ -70,6 +70,7 @@ import type {
   TrackedTelemetryContactsResponse,
   TrackedTelemetryResponse,
   BatteryHistoryStats,
+  AirtimeSample,
   BatterySample,
   NoiseFloorSample,
   StatisticsResponse,
@@ -700,6 +701,10 @@ export const api = {
   getBatteryHistory: () => fetchJson<BatteryHistoryStats>('/statistics/battery'),
   getBatteryRange: (startTs: number, endTs: number) =>
     fetchJson<BatterySample[]>(`/statistics/battery/range?start_ts=${startTs}&end_ts=${endTs}`),
+  getAirtimeRange: (startTs: number, endTs: number, binCount = 40) =>
+    fetchJson<AirtimeSample[]>(
+      `/statistics/airtime/range?start_ts=${startTs}&end_ts=${endTs}&bin_count=${binCount}`
+    ),
 
   // Granular repeater endpoints
   repeaterLogin: (publicKey: string, password: string) =>

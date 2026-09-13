@@ -1017,6 +1017,12 @@ export interface BatterySample {
   battery_mv: number;
 }
 
+export interface AirtimeSample {
+  timestamp: number;
+  tx_pct: number;
+  rx_pct: number;
+}
+
 export interface BatteryHistoryStats {
   sample_interval_seconds: number;
   coverage_seconds: number;
