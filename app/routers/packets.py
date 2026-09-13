@@ -26,6 +26,7 @@ from app.repository.request_traffic import aggregate_request_traffic
 from app.services.advert_links import LocatedNode, resolve_advert_edges
 from app.services.messages import backfill_message_regions
 from app.services.radio_runtime import radio_runtime as radio_manager
+from app.services.raw_feed_stats import compute_raw_feed_stats
 from app.websocket import broadcast_success
 
 logger = logging.getLogger(__name__)
@@ -602,6 +603,20 @@ class MeshHealthResponse(BaseModel):
     medium_advert_threshold: int
     alerts: list[MeshHealthAlert]
     contacts: list[MeshHealthContact]
+
+
+@router.get("/raw-feed-stats")
+async def get_raw_feed_stats(start_ts: int, end_ts: int) -> dict:
+    """DB-computed Raw Packet Feed breakdowns for a time window (historical fill).
+
+    Reproduces the in-memory session-stats breakdowns (payload/route/hop/hop-byte
+    -width/RSSI buckets + counts) from persisted raw_packets columns, so the Raw
+    Packet Feed can show long ranges the in-memory buffer cannot reach.
+    Decryption-dependent cards (neighbor identity) stay live-only.
+    """
+    if end_ts <= start_ts:
+        raise HTTPException(status_code=400, detail="end_ts must be greater than start_ts")
+    return await compute_raw_feed_stats(start_ts, end_ts)
 
 
 @router.get("/mesh-health", response_model=MeshHealthResponse)

@@ -13,6 +13,7 @@ import { formatTime } from '../utils/messageParser';
 import { isValidLocation, getEffectiveLocation } from '../utils/pathUtils';
 import { parsePacket } from '../utils/visualizerUtils';
 import { getRawPacketObservationKey } from '../utils/rawPacketIdentity';
+import { BASE_TIME_RANGES } from '../utils/timeRanges';
 import { useRawPackets } from '../stores/rawPacketStore';
 import { useIsDarkTheme } from '../hooks/useIsDarkTheme';
 import { useT } from '../i18n';
@@ -66,27 +67,19 @@ interface MapViewProps {
 }
 
 // --- "Heard since" filter ---
-const MAP_SINCE_PRESETS = [
-  { id: '1h', labelKey: 'map_lt_1h', windowLabelKey: 'map_since_window_1h', seconds: 3600 },
-  { id: '1d', labelKey: 'map_lt_1d', windowLabelKey: 'map_since_window_1d', seconds: 24 * 60 * 60 },
-  {
-    id: '3d',
-    labelKey: 'map_lt_3d',
-    windowLabelKey: 'map_since_window_3d',
-    seconds: 3 * 24 * 60 * 60,
-  },
-  {
-    id: '7d',
-    labelKey: 'map_preset_7d',
-    windowLabelKey: 'map_since_window_7d',
-    seconds: 7 * 24 * 60 * 60,
-  },
-  { id: 'all', labelKey: 'map_preset_all', windowLabelKey: null, seconds: null },
-] as const;
+// Map adopts the shared base ranges (single source of truth) and keeps its own
+// "All" extra. Custom stays a single "heard since <datetime>" input, which fits
+// the map better than a From/To range.
+type SincePreset = { id: string; labelKey: string; seconds: number | null };
+const MAP_SINCE_PRESETS: SincePreset[] = [
+  ...BASE_TIME_RANGES.map((r) => ({ id: r.id, labelKey: r.labelKey, seconds: r.seconds })),
+  { id: 'all', labelKey: 'time_range_all', seconds: null },
+];
 
-type MapSinceId = (typeof MAP_SINCE_PRESETS)[number]['id'] | 'custom';
+type MapSinceId = string;
 const DEFAULT_MAP_SINCE_ID: MapSinceId = '7d';
 const MAP_SINCE_STORAGE_KEY = 'remoteterm-map-since';
+const MAP_SINCE_CUSTOM_KEY = 'remoteterm-map-since-custom';
 
 // --- "Heard by server" filter (contacts layer only) ---
 const HEARD_FILTER_MODES = ['all', 'hide', 'only'] as const satisfies readonly HeardFilterMode[];
@@ -112,6 +105,7 @@ const DEFAULT_LOOKBACK_MS = 60 * 60 * 1000; // 1h replay look-back
 function getSavedSinceId(): MapSinceId {
   try {
     const stored = localStorage.getItem(MAP_SINCE_STORAGE_KEY);
+    if (stored === 'custom') return 'custom';
     if (stored && MAP_SINCE_PRESETS.some((p) => p.id === stored)) return stored as MapSinceId;
   } catch {
     /* ignore */
@@ -231,7 +225,13 @@ export function MapView({
   const rawPackets = useRawPackets();
   const [sinceId, setSinceId] = useState<MapSinceId>(getSavedSinceId);
   const [heardFilter, setHeardFilter] = useState<HeardFilterMode>(getSavedHeardMode);
-  const [customSince, setCustomSince] = useState('');
+  const [customSince, setCustomSince] = useState(() => {
+    try {
+      return localStorage.getItem(MAP_SINCE_CUSTOM_KEY) ?? '';
+    } catch {
+      return '';
+    }
+  });
   const [nowSec, setNowSec] = useState(() => Date.now() / 1000);
   const [showPackets, setShowPackets] = useState(false);
   const [discoveryMode, setDiscoveryMode] = useState(false);
@@ -515,12 +515,12 @@ export function MapView({
 
   useEffect(() => {
     try {
-      if (sinceId === 'custom') return;
       localStorage.setItem(MAP_SINCE_STORAGE_KEY, sinceId);
+      localStorage.setItem(MAP_SINCE_CUSTOM_KEY, customSince);
     } catch {
       /* ignore */
     }
-  }, [sinceId]);
+  }, [sinceId, customSince]);
 
   useEffect(() => {
     try {
@@ -1234,7 +1234,7 @@ export function MapView({
     const sinceValueText =
       sinceId === 'custom'
         ? t('map_custom_button')
-        : t(MAP_SINCE_PRESETS.find((p) => p.id === sinceId)?.labelKey ?? 'map_preset_all');
+        : t(MAP_SINCE_PRESETS.find((p) => p.id === sinceId)?.labelKey ?? 'time_range_all');
     const sinceIcon =
       sinceId === 'custom' ? (
         <Clock size={18} aria-hidden />

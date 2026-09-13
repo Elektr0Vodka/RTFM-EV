@@ -105,6 +105,13 @@ async def _persist_samples(snapshot: dict[str, Any]) -> None:
             from app.repository.battery_history import BatteryHistoryRepository
 
             await BatteryHistoryRepository.insert(ts, battery_mv)
+
+        tx_air_secs = snapshot.get("tx_air_secs")
+        rx_air_secs = snapshot.get("rx_air_secs")
+        if isinstance(tx_air_secs, int) and isinstance(rx_air_secs, int):
+            from app.repository.airtime_history import AirtimeHistoryRepository
+
+            await AirtimeHistoryRepository.insert(ts, tx_air_secs, rx_air_secs)
     except Exception:
         logger.exception("Failed to persist radio stats samples")
 

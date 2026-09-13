@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
+  AirtimeSample,
   BatterySample,
   Contact,
   HealthStatus,
@@ -24,6 +25,14 @@ import { getContactDisplayName } from '../utils/pubkey';
 import { handleKeyboardActivate } from '../utils/a11y';
 import { cn } from '@/lib/utils';
 import { useT, type TFn } from '../i18n';
+import { TimeRangeSelector } from './TimeRangeSelector';
+import {
+  BASE_TIME_RANGES,
+  CUSTOM_RANGE_ID,
+  resolveRange,
+  type TimeRange,
+} from '../utils/timeRanges';
+import { loadStoredTimeRange, saveStoredTimeRange } from '../utils/timeRangePreference';
 
 // MeshCore node types (contact.type): translation key per mesh vocabulary label.
 const NODE_TYPE_KEYS: Record<number, string> = {
@@ -89,18 +98,25 @@ interface HistoricalStatsResponse {
   busiest_channels?: HistoricalBusiestChannel[];
 }
 
-const TIME_WINDOWS: TimeWindow[] = [
-  { key: '20m', label: '20m', seconds: 20 * 60, useLive: true },
-  { key: '1h', label: '1h', seconds: 60 * 60, useLive: false },
-  { key: '6h', label: '6h', seconds: 6 * 60 * 60, useLive: false },
-  { key: '1d', label: '1d', seconds: 24 * 60 * 60, useLive: false },
-  { key: '7d', label: '7d', seconds: 7 * 24 * 60 * 60, useLive: false },
-  { key: '30d', label: '30d', seconds: 30 * 24 * 60 * 60, useLive: false },
-  { key: '1y', label: '1y', seconds: 365 * 24 * 60 * 60, useLive: false },
-  { key: 'custom', label: 'Custom', seconds: null, useLive: false },
+// My Node keeps 1y as a longer extra beyond the shared base set; 20m remains
+// the live/in-memory window (the rest are DB-backed).
+const MYNODE_EXTRAS_AFTER: TimeRange[] = [
+  { id: '1y', labelKey: 'time_range_1y', seconds: 365 * 24 * 60 * 60 },
 ];
+const MYNODE_RANGES: TimeRange[] = [...BASE_TIME_RANGES, ...MYNODE_EXTRAS_AFTER];
+const LIVE_WINDOW_IDS = new Set(['20m']);
+const DEFAULT_WINDOW_ID = '20m';
+const MYNODE_WINDOW_KEY = 'rtfm-mynode-window';
 
-const DEFAULT_WINDOW = TIME_WINDOWS[0];
+// Build the legacy TimeWindow shape from a range id so existing
+// selectedWindow.* consumers keep working unchanged.
+function windowFromId(id: string): TimeWindow {
+  if (id === CUSTOM_RANGE_ID) {
+    return { key: 'custom', label: 'Custom', seconds: null, useLive: false };
+  }
+  const r = MYNODE_RANGES.find((x) => x.id === id) ?? MYNODE_RANGES[0];
+  return { key: r.id, label: r.id, seconds: r.seconds, useLive: LIVE_WINDOW_IDS.has(r.id) };
+}
 const BIN_COUNT = 40;
 
 // ─── Data types ─────────────────────────────────────────────────────────────
@@ -175,20 +191,10 @@ function buildLiveBins(packets: RawPacket[], windowMs: number): Bin[] {
 // Compact time-window abbreviations are treated as locale-invariant unit
 // shorthand (matching e.g. map_preset_7d / map_lt_1h elsewhere), so the same
 // key text is used across en/nl/de; only the "Custom" preset is real prose.
-const WINDOW_LABEL_KEYS: Record<string, string> = {
-  '20m': 'node_window_20m',
-  '1h': 'node_window_1h',
-  '6h': 'node_window_6h',
-  '1d': 'node_window_1d',
-  '7d': 'node_window_7d',
-  '30d': 'node_window_30d',
-  '1y': 'node_window_1y',
-  custom: 'settings_radio_preset_custom',
-};
-
 function windowLabel(key: string, t: TFn): string {
-  const labelKey = WINDOW_LABEL_KEYS[key];
-  return labelKey ? t(labelKey) : key;
+  if (key === 'custom') return t('time_range_custom');
+  const r = MYNODE_RANGES.find((x) => x.id === key);
+  return r ? t(r.labelKey) : key;
 }
 
 function fmtWindowLabel(windowKey: string, customStart: string, customEnd: string, t: TFn): string {
@@ -798,6 +804,98 @@ function StackedBarChart({
   );
 }
 
+// ─── AirtimeLineChart (TX/RX utilization %) ─────────────────────────────────
+
+function AirtimeLineChart({ samples, t }: { samples: AirtimeSample[]; t: TFn }) {
+  if (samples.length < 2)
+    return (
+      <svg width="100%" viewBox={`0 0 ${CW} ${CH}`} style={{ display: 'block' }}>
+        <text
+          x={(PAD_L + INNER_W / 2).toFixed(1)}
+          y={(CH / 2).toFixed(1)}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize="9"
+          fill="hsl(var(--muted-foreground))"
+        >
+          {samples.length === 0 ? t('node_chart_no_data') : t('node_chart_need_more_samples')}
+        </text>
+      </svg>
+    );
+
+  const timestamps = samples.map((s) => s.timestamp * 1000);
+  const tMin = timestamps[0];
+  const tMax = timestamps[timestamps.length - 1];
+  const tRange = tMax - tMin || 1;
+  const yMin = 0;
+  const yMax = 100;
+
+  const xPos = (i: number) => PAD_L + ((timestamps[i] - tMin) / tRange) * INNER_W;
+  const yPos = (v: number) => INNER_H - ((v - yMin) / (yMax - yMin)) * INNER_H;
+
+  const buildPath = (key: 'tx_pct' | 'rx_pct') => {
+    let p = '';
+    for (let i = 0; i < samples.length; i++) {
+      p += `${i === 0 ? 'M' : 'L'}${xPos(i).toFixed(1)},${yPos(samples[i][key]).toFixed(1)}`;
+    }
+    return p;
+  };
+
+  const rxColor = 'hsl(var(--info))';
+  const txColor = 'hsl(var(--destructive))';
+  const yLabels = [0, 25, 50, 75, 100];
+
+  return (
+    <svg
+      width="100%"
+      viewBox={`0 0 ${CW} ${CH}`}
+      preserveAspectRatio="none"
+      style={{ display: 'block', overflow: 'visible' }}
+    >
+      {yLabels.map((v, li) => {
+        const y = yPos(v);
+        return (
+          <g key={li}>
+            <line
+              x1={PAD_L}
+              x2={CW}
+              y1={y.toFixed(1)}
+              y2={y.toFixed(1)}
+              stroke="hsl(var(--border))"
+              strokeWidth="0.5"
+              strokeDasharray="2,2"
+            />
+            <text
+              x={PAD_L - 3}
+              y={y.toFixed(1)}
+              textAnchor="end"
+              dominantBaseline="middle"
+              fontSize="8"
+              fill="hsl(var(--muted-foreground))"
+            >
+              {v}
+            </text>
+          </g>
+        );
+      })}
+      <path
+        d={buildPath('rx_pct')}
+        fill="none"
+        stroke={rxColor}
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d={buildPath('tx_pct')}
+        fill="none"
+        stroke={txColor}
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 // ─── NoiseFloorLineChart ────────────────────────────────────────────────────
 
 function NoiseFloorLineChart({
@@ -1319,11 +1417,25 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
   const [error, setError] = useState<string | null>(null);
   const loadedAt = useRef(0);
 
-  // Time window
-  const [selectedWindow, setSelectedWindow] = useState<TimeWindow>(DEFAULT_WINDOW);
-  const [customStart, setCustomStart] = useState('');
-  const [customEnd, setCustomEnd] = useState('');
-  const [showCustomPicker, setShowCustomPicker] = useState(false);
+  // Time window (persisted per page in localStorage)
+  const [selectedWindowId, setSelectedWindowId] = useState<string>(
+    () => loadStoredTimeRange(MYNODE_WINDOW_KEY, DEFAULT_WINDOW_ID).id
+  );
+  const [customStart, setCustomStart] = useState(
+    () => loadStoredTimeRange(MYNODE_WINDOW_KEY, DEFAULT_WINDOW_ID).customStart
+  );
+  const [customEnd, setCustomEnd] = useState(
+    () => loadStoredTimeRange(MYNODE_WINDOW_KEY, DEFAULT_WINDOW_ID).customEnd
+  );
+  const selectedWindow = useMemo(() => windowFromId(selectedWindowId), [selectedWindowId]);
+
+  useEffect(() => {
+    saveStoredTimeRange(MYNODE_WINDOW_KEY, {
+      id: selectedWindowId,
+      customStart,
+      customEnd,
+    });
+  }, [selectedWindowId, customStart, customEnd]);
 
   // Historical data
   const [historicalBins, setHistoricalBins] = useState<Bin[] | null>(null);
@@ -1439,14 +1551,12 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
 
   // Battery
   const [batterySamples, setBatterySamples] = useState<BatterySample[]>([]);
+  const [airtimeSamples, setAirtimeSamples] = useState<AirtimeSample[]>([]);
 
   // Fetch DB historical stats whenever the time window changes (uses nowSec which ticks every 30s)
   useEffect(() => {
-    const windowDef = TIME_WINDOWS.find((w) => w.label === selectedWindow.label);
-    if (!windowDef) return;
-
     const endTs = nowSec;
-    const startTs = windowDef.seconds !== null ? endTs - windowDef.seconds : 0;
+    const startTs = selectedWindow.seconds !== null ? endTs - selectedWindow.seconds : 0;
 
     setHistoricalStatsLoading(true);
     setHistoricalStatsError(null);
@@ -1461,7 +1571,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
         setHistoricalStatsError(err instanceof Error ? err.message : 'Failed to load');
         setHistoricalStatsLoading(false);
       });
-  }, [selectedWindow.label, nowSec]);
+  }, [selectedWindowId, selectedWindow.seconds, nowSec]);
 
   // Battery: filter live samples for the selected window; fetch from DB for historical windows
   useEffect(() => {
@@ -1502,6 +1612,17 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
     nowSec,
     noiseFloorSupported,
   ]);
+
+  // Airtime utilization: always DB-backed (no in-memory deque). Custom via Apply.
+  useEffect(() => {
+    if (selectedWindowId === CUSTOM_RANGE_ID) return;
+    const resolved = resolveRange(selectedWindowId, { nowSec, extras: MYNODE_EXTRAS_AFTER });
+    if (!resolved) return;
+    api.getAirtimeRange(resolved.startTs, resolved.endTs, BIN_COUNT).then(
+      (samples) => setAirtimeSamples(samples),
+      () => {}
+    );
+  }, [selectedWindowId, nowSec]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
   const windowSeconds = useMemo((): number => {
@@ -1807,52 +1928,23 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                     {t('node_historical_load_error', { error: historicalError })}
                   </p>
                 )}
-                {/* Time window buttons */}
-                <div className="flex flex-wrap items-center gap-1">
-                  {TIME_WINDOWS.map((w) => (
-                    <button
-                      key={w.key}
-                      onClick={() => {
-                        setSelectedWindow(w);
-                        if (w.key === 'custom') setShowCustomPicker(true);
-                        else setShowCustomPicker(false);
-                      }}
-                      className={`rounded px-2 py-0.5 text-xs transition ${selectedWindow.key === w.key ? 'bg-primary text-primary-foreground font-medium' : 'border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground'}`}
-                    >
-                      {windowLabel(w.key, t)}
-                    </button>
-                  ))}
-                </div>
-                {showCustomPicker && (
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    <span className="text-xs text-muted-foreground">{t('node_custom_from')}</span>
-                    <input
-                      type="datetime-local"
-                      value={customStart}
-                      onChange={(e) => setCustomStart(e.target.value)}
-                      className="rounded border border-input bg-background px-2 py-0.5 text-xs text-foreground"
-                    />
-                    <span className="text-xs text-muted-foreground">{t('node_custom_to')}</span>
-                    <input
-                      type="datetime-local"
-                      value={customEnd}
-                      onChange={(e) => setCustomEnd(e.target.value)}
-                      className="rounded border border-input bg-background px-2 py-0.5 text-xs text-foreground"
-                    />
-                    {customStart && customEnd && (
-                      <button
-                        onClick={() => {
-                          const s = Math.floor(new Date(customStart).getTime() / 1000);
-                          const e = Math.floor(new Date(customEnd).getTime() / 1000);
-                          if (e > s) void fetchHistorical(s, e);
-                        }}
-                        className="rounded border border-border bg-background px-2 py-0.5 text-xs text-foreground hover:bg-accent transition"
-                      >
-                        {t('node_apply')}
-                      </button>
-                    )}
-                  </div>
-                )}
+                {/* Unified time-range selector */}
+                <TimeRangeSelector
+                  value={selectedWindowId}
+                  onChange={setSelectedWindowId}
+                  extrasAfter={MYNODE_EXTRAS_AFTER}
+                  customStart={customStart}
+                  customEnd={customEnd}
+                  onCustomStartChange={setCustomStart}
+                  onCustomEndChange={setCustomEnd}
+                  onApplyCustom={(s, e) => {
+                    void fetchHistorical(s, e);
+                    api.getAirtimeRange(s, e, BIN_COUNT).then(
+                      (samples) => setAirtimeSamples(samples),
+                      () => {}
+                    );
+                  }}
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-2 p-2 md:grid-cols-3">
@@ -1962,6 +2054,36 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                       windowSeconds={windowSeconds}
                       t={t}
                     />
+                  </ChartCard>
+                )}
+                {airtimeSamples.length > 0 && (
+                  <ChartCard
+                    title={t('node_chart_airtime_title')}
+                    stat={t('node_chart_airtime_stat', {
+                      rx: airtimeSamples[airtimeSamples.length - 1].rx_pct.toFixed(1),
+                      tx: airtimeSamples[airtimeSamples.length - 1].tx_pct.toFixed(1),
+                    })}
+                  >
+                    <AirtimeLineChart samples={airtimeSamples} t={t} />
+                    <div className="mt-1 flex flex-wrap gap-2 px-1">
+                      <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
+                        <span
+                          className="h-1.5 w-1.5 rounded-full"
+                          style={{ background: 'hsl(var(--info))' }}
+                        />
+                        {t('node_chart_airtime_rx')}
+                      </span>
+                      <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
+                        <span
+                          className="h-1.5 w-1.5 rounded-full"
+                          style={{ background: 'hsl(var(--destructive))' }}
+                        />
+                        {t('node_chart_airtime_tx')}
+                      </span>
+                    </div>
+                    <p className="px-1 text-[9px] italic text-muted-foreground">
+                      {t('node_chart_airtime_note')}
+                    </p>
                   </ChartCard>
                 )}
                 {batterySamples.length > 0 && (

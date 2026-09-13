@@ -15,8 +15,10 @@ class TestMigration087:
         conn = await aiosqlite.connect(":memory:")
         conn.row_factory = aiosqlite.Row
         try:
-            # Start just before migration 087 and run to completion. Later
-            # migrations only add columns/tables, so 087's effect persists.
+            # Start just below migration 087 so it runs against the minimal
+            # fixture table below. Migrations after it (airtime_history create,
+            # raw_packets decoded-column add) also run but are inert here: the
+            # former needs no fixture, the latter skips when raw_packets is absent.
             await set_version(conn, 86)
             await conn.execute("CREATE TABLE app_settings (id INTEGER PRIMARY KEY)")
             await conn.execute("INSERT INTO app_settings (id) VALUES (1)")

@@ -385,6 +385,21 @@ It falls back to a 12-char prefix when `name` is missing.
 
 Distance/validation helpers used by path + map UI.
 
+### Time-range selection (`components/TimeRangeSelector.tsx`, `utils/timeRanges.ts`, `utils/timeRangePreference.ts`)
+
+Shared, single-source-of-truth time selector used by My Node, Mesh Health, Map,
+and the Raw Packet Feed. `utils/timeRanges.ts` defines the base ranges
+(`20m 1h 3h 6h 12h 24h 48h 3d 7d 14d 30d`) + `resolveRange(id, {nowSec, custom…,
+extras})`. `TimeRangeSelector` renders the base buttons plus per-page extras
+(`extrasBefore`/`extrasAfter`/`extrasSpecial`) and the Custom From/To/Apply row;
+it owns only the option list and selection, not live-vs-DB or auto-refresh (those
+stay per page, keyed off the selected id). `utils/timeRangePreference.ts`
+persists each page's selection to localStorage (`rtfm-mynode-window`,
+`rtfm-meshhealth-window`, `rtfm-rawfeed-window`; Map uses `remoteterm-map-since`
+[+ `-custom`]). The Raw Packet Feed's base windows are DB-backed via
+`api.getRawFeedStats` (mapped into a snapshot by `buildSnapshotFromHistorical`);
+its `1m/5m/10m`/`session` windows stay in-memory (`isRawFeedLiveWindow`).
+
 ## Types and Contracts (`types.ts`)
 
 `AppSettings` currently includes:

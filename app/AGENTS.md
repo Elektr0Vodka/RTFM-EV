@@ -344,6 +344,8 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 
 ### Statistics
 - `GET /statistics` — aggregated mesh network stats (entity counts, message/packet splits, activity windows, busiest channels, `region_scope_24h` regional adoption)
+- `GET /statistics/airtime/range?start_ts&end_ts&bin_count` — per-bin TX/RX airtime utilization % over a range, derived from the persisted cumulative airtime counters via adjacent-sample deltas (counter resets / disconnect gaps are dropped, not spiked). Feeds the My Node airtime chart. See `app/services/airtime_util.py`.
+- `GET /packets/raw-feed-stats?start_ts&end_ts` — DB-computed Raw Packet Feed breakdowns (payload/route/hop/hop-byte-width/RSSI buckets + counts) for historical windows, from the decoded columns persisted on `raw_packets`. Neighbor/timeline/unique-source data is not included (needs decryption; stays live-only). See `app/services/raw_feed_stats.py`.
 
 ### Push
 - `GET /push/vapid-public-key` — VAPID public key for browser `PushManager.subscribe()`
@@ -382,7 +384,8 @@ Main tables:
 - `channels`
   Includes optional `flood_scope_override` for channel-specific regional sends and optional `path_hash_mode_override` for per-channel path hop width.
 - `messages` (includes `sender_name`, `sender_key` for per-contact channel message attribution)
-- `raw_packets`
+- `raw_packets` (includes signal columns `rssi`/`snr`/`payload_type` and decoded-stat columns `route_type`/`hop_count`/`hop_byte_width`/`path_signature`, parsed from the packet header at ingest and backfilled by migration 089; used by `/packets/raw-feed-stats` for historical breakdowns)
+- `airtime_history` (60s samples of the local radio's cumulative `tx_air_secs`/`rx_air_secs`; utilization % is derived at query time. Sibling of the in-memory `noise_floor_samples`/`battery_history` pattern in `app/services/radio_stats.py`)
 - `contact_advert_paths` (recent unique advertisement paths per contact, keyed by contact + path bytes + hop count)
 - `contact_name_history` (tracks name changes over time)
 - `repeater_telemetry_history` (time-series telemetry snapshots for tracked repeaters)

@@ -53,6 +53,7 @@ async def test_db():
     from app.repository import (
         advert_events,
         advert_links,
+        airtime_history,
         battery_history,
         channels,
         contact_telemetry,
@@ -69,6 +70,7 @@ async def test_db():
         wordlists,
     )
     from app.repository import fanout as fanout_repo
+    from app.services import raw_feed_stats
 
     db = Database(":memory:")
     await db.connect()
@@ -86,11 +88,13 @@ async def test_db():
         contact_telemetry,
         noise_floor,
         battery_history,
+        airtime_history,
         link_signal,
         external_map,
         wordlists,
         request_traffic,
         mention_sound,
+        raw_feed_stats,
     ]
     originals = [(mod, mod.db) for mod in submodules]
 

@@ -8,15 +8,40 @@
  *  - MeshRequestsPanel: single-node REQUEST/RESPONSE traffic view.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Activity, RefreshCw } from 'lucide-react';
 import type { RadioConfig } from '../types';
 import { useT } from '../i18n';
-import { TIME_WINDOWS, DEFAULT_WINDOW, type TimeWindow } from './meshHealthShared';
+import { type TimeWindow } from './meshHealthShared';
+import { TimeRangeSelector } from './TimeRangeSelector';
+import { BASE_TIME_RANGES, type TimeRange } from '../utils/timeRanges';
+import { loadStoredTimeRange, saveStoredTimeRange } from '../utils/timeRangePreference';
 import { MeshAdvertsPanel } from './MeshAdvertsPanel';
 import { MeshRequestsPanel } from './MeshRequestsPanel';
 
 type MeshHealthTab = 'adverts' | 'requests';
+
+// Mesh Health keeps 30m as a shorter extra and adopts the shared base set. The
+// panels fetch now-relative ranges from selectedWindow.hours, so a From/To
+// custom range is not offered here (showCustom disabled). 30m/1h auto-refresh.
+const MESH_HEALTH_EXTRAS_BEFORE: TimeRange[] = [
+  { id: '30m', labelKey: 'time_range_30m', seconds: 30 * 60 },
+];
+const MESH_HEALTH_RANGES: TimeRange[] = [...MESH_HEALTH_EXTRAS_BEFORE, ...BASE_TIME_RANGES];
+const AUTO_REFRESH_IDS = new Set(['30m', '1h']);
+const DEFAULT_MESH_HEALTH_ID = '30m';
+const MESH_HEALTH_WINDOW_KEY = 'rtfm-meshhealth-window';
+
+// Build the shared TimeWindow shape (consumed by the panels) from a range id.
+function windowFromId(id: string): TimeWindow {
+  const r = MESH_HEALTH_RANGES.find((x) => x.id === id) ?? MESH_HEALTH_RANGES[0];
+  return {
+    key: r.id,
+    label: r.id,
+    hours: (r.seconds ?? 0) / 3600,
+    autoRefresh: AUTO_REFRESH_IDS.has(r.id),
+  };
+}
 
 interface Props {
   config: RadioConfig | null;
@@ -27,9 +52,20 @@ interface Props {
 
 export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
   const t = useT();
-  const [selectedWindow, setSelectedWindow] = useState<TimeWindow>(DEFAULT_WINDOW);
+  const [selectedWindowId, setSelectedWindowId] = useState<string>(
+    () => loadStoredTimeRange(MESH_HEALTH_WINDOW_KEY, DEFAULT_MESH_HEALTH_ID).id
+  );
+  const selectedWindow = useMemo(() => windowFromId(selectedWindowId), [selectedWindowId]);
   const [activeTab, setActiveTab] = useState<MeshHealthTab>('adverts');
   const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    saveStoredTimeRange(MESH_HEALTH_WINDOW_KEY, {
+      id: selectedWindowId,
+      customStart: '',
+      customEnd: '',
+    });
+  }, [selectedWindowId]);
   const [loading, setLoading] = useState(false);
 
   // Panels report their own loading so the shared refresh spinner reflects it.
@@ -89,22 +125,18 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
 
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-4xl space-y-4 p-4">
-          {/* Time window selector (shared across tabs) */}
-          <div className="flex gap-1">
-            {TIME_WINDOWS.map((w) => (
-              <button
-                key={w.key}
-                onClick={() => setSelectedWindow(w)}
-                className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
-                  selectedWindow.key === w.key
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-accent hover:text-foreground'
-                }`}
-              >
-                {w.label}
-              </button>
-            ))}
-          </div>
+          {/* Unified time-range selector (shared across tabs) */}
+          <TimeRangeSelector
+            value={selectedWindowId}
+            onChange={setSelectedWindowId}
+            extrasBefore={MESH_HEALTH_EXTRAS_BEFORE}
+            showCustom={false}
+            customStart=""
+            customEnd=""
+            onCustomStartChange={() => {}}
+            onCustomEndChange={() => {}}
+            onApplyCustom={() => {}}
+          />
 
           {activeTab === 'adverts' ? (
             <MeshAdvertsPanel

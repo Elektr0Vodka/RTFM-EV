@@ -82,6 +82,10 @@ CREATE TABLE IF NOT EXISTS raw_packets (
     rssi INTEGER,
     snr REAL,
     payload_type TEXT,
+    route_type TEXT,
+    hop_count INTEGER,
+    hop_byte_width INTEGER,
+    path_signature TEXT,
     FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE SET NULL
 );
 

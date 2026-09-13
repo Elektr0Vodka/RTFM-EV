@@ -4,12 +4,56 @@ import { MeshCoreDecoder } from '@michaelhart/meshcore-decoder';
 
 import {
   buildRawPacketStatsSnapshot,
+  buildSnapshotFromHistorical,
   classifyDecodedHopByteWidth,
   classifyHopByteWidth,
+  isRawFeedLiveWindow,
   summarizeRawPacketForStats,
   type RawPacketStatsSessionState,
 } from '../utils/rawPacketStats';
-import type { RawPacket } from '../types';
+import type { RawFeedHistoricalStats, RawPacket } from '../types';
+
+describe('raw feed source selection + historical snapshot', () => {
+  it('classifies live vs DB windows', () => {
+    for (const id of ['1m', '5m', '10m', 'session']) {
+      expect(isRawFeedLiveWindow(id)).toBe(true);
+    }
+    for (const id of ['20m', '1h', '7d', '30d', 'custom']) {
+      expect(isRawFeedLiveWindow(id)).toBe(false);
+    }
+  });
+
+  it('maps a historical DB response into a snapshot with empty neighbor/timeline data', () => {
+    const db: RawFeedHistoricalStats = {
+      packet_count: 120,
+      decrypted_count: 30,
+      undecrypted_count: 90,
+      decrypt_rate: 0.25,
+      path_bearing_count: 40,
+      path_bearing_rate: 40 / 120,
+      distinct_paths: 12,
+      average_rssi: -78.5,
+      best_rssi: -55,
+      payload_breakdown: [{ label: 'Advert', count: 100, share: 100 / 120 }],
+      route_breakdown: [{ label: 'Flood', count: 120, share: 1 }],
+      hop_profile: [{ label: '0', count: 80, share: 80 / 120 }],
+      hop_byte_width_profile: [{ label: 'No path', count: 80, share: 80 / 120 }],
+      rssi_buckets: [{ label: 'Weak (<-85 dBm)', count: 10, share: 10 / 120 }],
+    };
+    const snap = buildSnapshotFromHistorical(db, '7d', 1000, 1000 + 7 * 86400, 1000 + 7 * 86400);
+    expect(snap.packetCount).toBe(120);
+    expect(snap.decryptedCount).toBe(30);
+    expect(snap.distinctPaths).toBe(12);
+    expect(snap.bestRssi).toBe(-55);
+    expect(snap.payloadBreakdown).toEqual(db.payload_breakdown);
+    expect(snap.routeBreakdown).toEqual(db.route_breakdown);
+    expect(snap.strongestNeighbors).toEqual([]);
+    expect(snap.mostActiveNeighbors).toEqual([]);
+    expect(snap.timeline).toEqual([]);
+    expect(snap.medianRssi).toBeNull();
+    expect(snap.window).toBe('7d');
+  });
+});
 
 const TEXT_MESSAGE_PACKET = '09046F17C47ED00A13E16AB5B94B1CC2D1A5059C6E5A6253C60D';
 // One-byte hop path (pathHashSize undefined; tokens are single bytes).
