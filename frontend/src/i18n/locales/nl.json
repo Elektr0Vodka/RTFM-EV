@@ -2107,6 +2107,8 @@
   "openhop_mqtt_saved": "MQTT-configuratie opgeslagen.",
   "openhop_mqtt_publish": "Buren nu publiceren",
   "openhop_mqtt_publish_note": "Publiceren start een ontdek- en publiceercyclus die minuten duurt.",
+  "openhop_group_node": "Node",
+  "openhop_group_mesh": "Mesh",
   "openhop_policy_heading": "Beleidsengine",
   "openhop_policy_configure_first": "Configureer eerst OpenHop-beheer bij Radio-instellingen.",
   "openhop_policy_load_failed": "Beleid laden mislukt.",

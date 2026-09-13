@@ -2107,6 +2107,8 @@
   "openhop_mqtt_saved": "MQTT-Konfiguration gespeichert.",
   "openhop_mqtt_publish": "Nachbarn jetzt veröffentlichen",
   "openhop_mqtt_publish_note": "Das Veröffentlichen startet einen Erkennungs- und Publikationszyklus, der Minuten dauert.",
+  "openhop_group_node": "Knoten",
+  "openhop_group_mesh": "Mesh",
   "openhop_policy_heading": "Richtlinien-Engine",
   "openhop_policy_configure_first": "Konfiguriere zuerst die OpenHop-Verwaltung in den Radio-Einstellungen.",
   "openhop_policy_load_failed": "Laden der Richtlinie fehlgeschlagen.",

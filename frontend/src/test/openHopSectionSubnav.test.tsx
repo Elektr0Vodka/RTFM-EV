@@ -85,4 +85,28 @@ describe('SettingsOpenHopSection sub-nav', () => {
     await userEvent.click(screen.getByRole('button', { name: /^config$/i }));
     expect(await screen.findByText(/operating mode/i)).toBeInTheDocument();
   });
+
+  it('renders Node and Mesh rows with all eight tabs for an OpenHop node', () => {
+    render(
+      <SettingsOpenHopSection
+        health={health(true)}
+        appSettings={settings}
+        onSaveAppSettings={vi.fn()}
+      />
+    );
+    for (const name of [
+      /^config$/i,
+      /^system$/i,
+      /^update$/i,
+      /^cad$/i,
+      /^policy$/i,
+      /^plugins$/i,
+      /^transport$/i,
+      /^mqtt$/i,
+    ]) {
+      expect(screen.getByRole('button', { name })).toBeInTheDocument();
+    }
+    expect(screen.getByRole('tablist', { name: /node/i })).toBeInTheDocument();
+    expect(screen.getByRole('tablist', { name: /mesh/i })).toBeInTheDocument();
+  });
 });

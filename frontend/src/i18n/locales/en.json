@@ -2106,6 +2106,8 @@
   "openhop_mqtt_saved": "MQTT configuration saved.",
   "openhop_mqtt_publish": "Publish neighbours now",
   "openhop_mqtt_publish_note": "Publishing runs a discovery + publish cycle that takes minutes.",
+  "openhop_group_node": "Node",
+  "openhop_group_mesh": "Mesh",
   "openhop_policy_heading": "Policy engine",
   "openhop_policy_configure_first": "Configure OpenHop management in Radio settings first.",
   "openhop_policy_load_failed": "Failed to load policy.",
