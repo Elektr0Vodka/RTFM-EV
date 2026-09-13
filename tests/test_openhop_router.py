@@ -11,7 +11,20 @@ import pytest
 from fastapi import HTTPException
 
 from app.repository import AppSettingsRepository
-from app.routers.openhop import OpenHopCliRequest, get_policy, get_status, run_cli
+from app.routers.openhop import (
+    ConfigImportRequest,
+    ConfigModeRequest,
+    ConfigRadioRequest,
+    OpenHopCliRequest,
+    config_export,
+    config_import,
+    config_mode,
+    config_radio,
+    config_restart,
+    get_policy,
+    get_status,
+    run_cli,
+)
 
 OPENHOP_MODEL = "openHop-Repeater-Companion"
 
@@ -342,3 +355,70 @@ class TestOpenHopPluginProgress:
             body += part if isinstance(part, bytes) else part.encode()
         assert b'"type":"connected"' in body
         assert b'"type":"done"' in body
+
+
+class TestOpenHopConfig:
+    @pytest.mark.asyncio
+    async def test_config_export_409_when_not_openhop(self, test_db, monkeypatch):
+        _set_model(monkeypatch, "Heltec V3")
+        await AppSettingsRepository.update(
+            openhop_api_url="http://node:8000", openhop_api_token="tok"
+        )
+        with pytest.raises(HTTPException) as exc:
+            await config_export()
+        assert exc.value.status_code == 409
+
+    @pytest.mark.asyncio
+    async def test_config_export_delegates(self, test_db, monkeypatch):
+        _set_model(monkeypatch, OPENHOP_MODEL)
+        await AppSettingsRepository.update(
+            openhop_api_url="http://node:8000", openhop_api_token="tok"
+        )
+        fake = AsyncMock()
+        fake.config_export = AsyncMock(return_value={"success": True, "data": {"config": {}}})
+        fake.aclose = AsyncMock()
+        with patch("app.routers.openhop.OpenHopClient", return_value=fake):
+            result = await config_export(include_secrets=True)
+        assert result["success"] is True
+        fake.config_export.assert_awaited_once_with(include_secrets=True)
+        fake.aclose.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_config_mode_delegates(self, test_db, monkeypatch):
+        _set_model(monkeypatch, OPENHOP_MODEL)
+        await AppSettingsRepository.update(
+            openhop_api_url="http://node:8000", openhop_api_token="tok"
+        )
+        fake = AsyncMock()
+        fake.set_mode = AsyncMock(return_value={"success": True, "mode": "monitor"})
+        fake.aclose = AsyncMock()
+        with patch("app.routers.openhop.OpenHopClient", return_value=fake):
+            result = await config_mode(ConfigModeRequest(mode="monitor"))
+        assert result["mode"] == "monitor"
+        fake.set_mode.assert_awaited_once_with("monitor")
+
+    @pytest.mark.asyncio
+    async def test_config_radio_and_import_and_restart_delegate(self, test_db, monkeypatch):
+        _set_model(monkeypatch, OPENHOP_MODEL)
+        await AppSettingsRepository.update(
+            openhop_api_url="http://node:8000", openhop_api_token="tok"
+        )
+        fake = AsyncMock()
+        fake.update_radio_config = AsyncMock(
+            return_value={"success": True, "data": {"applied": []}}
+        )
+        fake.config_import = AsyncMock(
+            return_value={"success": True, "sections_updated": ["radio"]}
+        )
+        fake.restart_service = AsyncMock(return_value={"success": True, "message": "ok"})
+        fake.aclose = AsyncMock()
+        with patch("app.routers.openhop.OpenHopClient", return_value=fake):
+            r1 = await config_radio(ConfigRadioRequest(params={"tx_power": 22}))
+            r2 = await config_import(ConfigImportRequest(config={"radio": {}}, restart_after=False))
+            r3 = await config_restart()
+        assert r1["success"] is True
+        assert r2["sections_updated"] == ["radio"]
+        assert r3["message"] == "ok"
+        fake.update_radio_config.assert_awaited_once_with({"tx_power": 22})
+        fake.config_import.assert_awaited_once_with({"radio": {}}, restart_after=False)
+        fake.restart_service.assert_awaited_once_with()

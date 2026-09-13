@@ -335,3 +335,63 @@ async def plugin_progress(id: str, since: int = 0, fresh: bool = False) -> Strea
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ---------------------------------------------------------------------------
+# Config (Surface B). All config endpoints return HTTP 200 with a success flag,
+# so _relay is sufficient (transport failures -> 502). The frontend reads the
+# success flag and shows the node's error message when false.
+# ---------------------------------------------------------------------------
+
+
+class ConfigModeRequest(BaseModel):
+    mode: str
+
+
+class ConfigRadioRequest(BaseModel):
+    params: dict[str, Any]
+
+
+class ConfigImportRequest(BaseModel):
+    config: dict[str, Any]
+    restart_after: bool = False
+
+
+@router.get("/config/export")
+async def config_export(include_secrets: bool = False) -> dict[str, Any]:
+    return await _relay(lambda c: c.config_export(include_secrets=include_secrets))
+
+
+@router.get("/config/validate")
+async def config_validate() -> dict[str, Any]:
+    return await _relay(lambda c: c.validate_config())
+
+
+@router.get("/config/hardware_options")
+async def config_hardware_options() -> dict[str, Any]:
+    return await _relay(lambda c: c.hardware_options())
+
+
+@router.get("/config/presets")
+async def config_presets() -> dict[str, Any]:
+    return await _relay(lambda c: c.radio_presets())
+
+
+@router.post("/config/mode")
+async def config_mode(body: ConfigModeRequest) -> dict[str, Any]:
+    return await _relay(lambda c: c.set_mode(body.mode))
+
+
+@router.post("/config/radio")
+async def config_radio(body: ConfigRadioRequest) -> dict[str, Any]:
+    return await _relay(lambda c: c.update_radio_config(body.params))
+
+
+@router.post("/config/import")
+async def config_import(body: ConfigImportRequest) -> dict[str, Any]:
+    return await _relay(lambda c: c.config_import(body.config, restart_after=body.restart_after))
+
+
+@router.post("/config/restart")
+async def config_restart() -> dict[str, Any]:
+    return await _relay(lambda c: c.restart_service())
