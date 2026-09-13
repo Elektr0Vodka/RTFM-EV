@@ -15,16 +15,18 @@ class TestMigration087:
         conn = await aiosqlite.connect(":memory:")
         conn.row_factory = aiosqlite.Row
         try:
-            # Isolate this migration: start one version below the latest so only
-            # migration 087 runs against the minimal fixture table below.
-            await set_version(conn, LATEST_SCHEMA_VERSION - 1)
+            # Start just below migration 087 so it runs against the minimal
+            # fixture table below. Migrations after it (airtime_history create,
+            # raw_packets decoded-column add) also run but are inert here: the
+            # former needs no fixture, the latter skips when raw_packets is absent.
+            await set_version(conn, 86)
             await conn.execute("CREATE TABLE app_settings (id INTEGER PRIMARY KEY)")
             await conn.execute("INSERT INTO app_settings (id) VALUES (1)")
             await conn.commit()
 
             applied = await run_migrations(conn)
 
-            assert applied == 1
+            assert applied == LATEST_SCHEMA_VERSION - 86
             assert await get_version(conn) == LATEST_SCHEMA_VERSION
 
             cursor = await conn.execute(
