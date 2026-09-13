@@ -1195,3 +1195,45 @@ describe('Sidebar contacts pills', () => {
     expect(screen.queryByText('Alice')).not.toBeInTheDocument();
   });
 });
+
+describe('Sidebar back-to-top button', () => {
+  beforeEach(() => localStorage.clear());
+
+  function getListScroller(container: HTMLElement): HTMLElement {
+    const scroller = container.querySelector<HTMLElement>('[data-testid="sidebar-list"]');
+    if (!scroller) throw new Error('Missing sidebar list scroller');
+    return scroller;
+  }
+
+  it('hides the button at the top of the list and reveals it after scrolling down', () => {
+    const { container } = renderSidebar();
+
+    expect(screen.queryByRole('button', { name: 'Back to top' })).not.toBeInTheDocument();
+
+    const scroller = getListScroller(container);
+    Object.defineProperty(scroller, 'scrollTop', { value: 400, configurable: true });
+    fireEvent.scroll(scroller);
+
+    expect(screen.getByRole('button', { name: 'Back to top' })).toBeInTheDocument();
+
+    // Scrolling back near the top hides it again.
+    Object.defineProperty(scroller, 'scrollTop', { value: 0, configurable: true });
+    fireEvent.scroll(scroller);
+
+    expect(screen.queryByRole('button', { name: 'Back to top' })).not.toBeInTheDocument();
+  });
+
+  it('smooth-scrolls the list to the top when clicked', () => {
+    const { container } = renderSidebar();
+    const scroller = getListScroller(container);
+    const scrollTo = vi.fn();
+    scroller.scrollTo = scrollTo;
+
+    Object.defineProperty(scroller, 'scrollTop', { value: 400, configurable: true });
+    fireEvent.scroll(scroller);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back to top' }));
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
+  });
+});

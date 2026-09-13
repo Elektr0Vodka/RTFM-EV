@@ -3,6 +3,7 @@ import {
   Bell,
   BellOff,
   ArrowDownUp,
+  ArrowUp,
   Cable,
   ChartNetwork,
   Activity,
@@ -154,6 +155,9 @@ type CollapseState = {
 
 const SIDEBAR_COLLAPSE_STATE_KEY = 'remoteterm-sidebar-collapse-state';
 
+// Scroll distance (px) past the top before the back-to-top button appears.
+const BACK_TO_TOP_THRESHOLD = 300;
+
 const DEFAULT_COLLAPSE_STATE: CollapseState = {
   tools: false,
   favorites: false,
@@ -285,6 +289,17 @@ export function Sidebar({
   const [railCollapsed, setRailCollapsed] = useState<boolean>(loadRailCollapsed);
   const [showSettings, setShowSettings] = useState(false);
   const isRail = railCollapsed && !forceExpanded;
+
+  // Back-to-top affordance for the expanded conversation list. Appears once the
+  // list is scrolled past BACK_TO_TOP_THRESHOLD and jumps the list back to top.
+  const listScrollRef = useRef<HTMLDivElement | null>(null);
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  const handleListScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
+    setShowBackToTop(event.currentTarget.scrollTop > BACK_TO_TOP_THRESHOLD);
+  }, []);
+  const scrollListToTop = useCallback(() => {
+    listScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
   const toggleRail = () => {
     setRailCollapsed((prev) => {
@@ -1484,99 +1499,122 @@ export function Sidebar({
           </div>
 
           {/* List */}
-          <div className="flex-1 min-h-0 overflow-y-auto [contain:layout_paint]">
-            <div className="px-3 py-2 border-b border-border/60">
-              <div className="relative min-w-0">
-                <Input
-                  type="text"
-                  placeholder={t('common_search_channels_contacts')}
-                  aria-label={t('a11y_search_conversations')}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className={cn(
-                    'h-7 text-[0.8125rem] bg-background/50',
-                    searchQuery ? 'pr-8' : 'pr-3'
+          <div className="relative flex-1 min-h-0">
+            <div
+              ref={listScrollRef}
+              data-testid="sidebar-list"
+              onScroll={handleListScroll}
+              className="h-full overflow-y-auto [contain:layout_paint]"
+            >
+              <div className="px-3 py-2 border-b border-border/60">
+                <div className="relative min-w-0">
+                  <Input
+                    type="text"
+                    placeholder={t('common_search_channels_contacts')}
+                    aria-label={t('a11y_search_conversations')}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className={cn(
+                      'h-7 text-[0.8125rem] bg-background/50',
+                      searchQuery ? 'pr-8' : 'pr-3'
+                    )}
+                  />
+                  {searchQuery && (
+                    <button
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-lg leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                      onClick={() => setSearchQuery('')}
+                      title={t('a11y_clear_search')}
+                      aria-label={t('a11y_clear_search')}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
                   )}
-                />
-                {searchQuery && (
-                  <button
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-lg leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-                    onClick={() => setSearchQuery('')}
-                    title={t('a11y_clear_search')}
-                    aria-label={t('a11y_clear_search')}
+                </div>
+              </div>
+
+              {/* Customize sidebar panel */}
+              {showSettings && (
+                <div
+                  role="group"
+                  aria-label={t('nav_customize_sidebar')}
+                  className="px-3 py-3 border-b border-border space-y-4"
+                >
+                  <div>
+                    <div className="text-[0.625rem] uppercase tracking-wider text-muted-foreground mb-1.5">
+                      {t('nav_section_order')}
+                    </div>
+                    <DragList
+                      items={sectionOrder}
+                      labels={sectionLabels}
+                      onReorder={handleReorderSections}
+                      moveUpLabel={t('nav_move_up')}
+                      moveDownLabel={t('nav_move_down')}
+                    />
+                  </div>
+                  <div>
+                    <div className="text-[0.625rem] uppercase tracking-wider text-muted-foreground mb-1.5">
+                      {t('nav_tool_order')}
+                    </div>
+                    <DragList
+                      items={toolOrder}
+                      labels={toolLabels}
+                      onReorder={handleReorderTools}
+                      moveUpLabel={t('nav_move_up')}
+                      moveDownLabel={t('nav_move_down')}
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={handleResetLayout}
                   >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Customize sidebar panel */}
-            {showSettings && (
-              <div
-                role="group"
-                aria-label={t('nav_customize_sidebar')}
-                className="px-3 py-3 border-b border-border space-y-4"
-              >
-                <div>
-                  <div className="text-[0.625rem] uppercase tracking-wider text-muted-foreground mb-1.5">
-                    {t('nav_section_order')}
-                  </div>
-                  <DragList
-                    items={sectionOrder}
-                    labels={sectionLabels}
-                    onReorder={handleReorderSections}
-                    moveUpLabel={t('nav_move_up')}
-                    moveDownLabel={t('nav_move_down')}
-                  />
-                </div>
-                <div>
-                  <div className="text-[0.625rem] uppercase tracking-wider text-muted-foreground mb-1.5">
-                    {t('nav_tool_order')}
-                  </div>
-                  <DragList
-                    items={toolOrder}
-                    labels={toolLabels}
-                    onReorder={handleReorderTools}
-                    moveUpLabel={t('nav_move_up')}
-                    moveDownLabel={t('nav_move_down')}
-                  />
-                </div>
-                <Button variant="outline" size="sm" className="w-full" onClick={handleResetLayout}>
-                  {t('nav_reset_to_defaults')}
-                </Button>
-              </div>
-            )}
-
-            {/* Mark All Read */}
-            {!query && Object.values(unreadCounts).some((c) => c > 0) && (
-              <div
-                className="px-3 py-2 cursor-pointer flex items-center gap-2 border-l-2 border-transparent hover:bg-accent transition-colors text-[0.8125rem] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                role="button"
-                tabIndex={0}
-                onKeyDown={handleKeyboardActivate}
-                onClick={onMarkAllRead}
-              >
-                <CheckCheck className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                <span className="flex-1 truncate text-muted-foreground">
-                  {t('chat_mark_all_read')}
-                </span>
-              </div>
-            )}
-
-            {/* Sections in user order */}
-            {sectionOrder.map((sectionKey) => renderSection(sectionKey))}
-
-            {/* Empty state */}
-            {nonFavoriteContacts.length === 0 &&
-              nonFavoriteRooms.length === 0 &&
-              nonFavoriteChannels.length === 0 &&
-              nonFavoriteRepeaters.length === 0 &&
-              favoriteItems.length === 0 && (
-                <div className="p-5 text-center text-muted-foreground">
-                  {query ? t('common_no_matches_found') : t('common_no_conversations_yet')}
+                    {t('nav_reset_to_defaults')}
+                  </Button>
                 </div>
               )}
+
+              {/* Mark All Read */}
+              {!query && Object.values(unreadCounts).some((c) => c > 0) && (
+                <div
+                  className="px-3 py-2 cursor-pointer flex items-center gap-2 border-l-2 border-transparent hover:bg-accent transition-colors text-[0.8125rem] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={handleKeyboardActivate}
+                  onClick={onMarkAllRead}
+                >
+                  <CheckCheck className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  <span className="flex-1 truncate text-muted-foreground">
+                    {t('chat_mark_all_read')}
+                  </span>
+                </div>
+              )}
+
+              {/* Sections in user order */}
+              {sectionOrder.map((sectionKey) => renderSection(sectionKey))}
+
+              {/* Empty state */}
+              {nonFavoriteContacts.length === 0 &&
+                nonFavoriteRooms.length === 0 &&
+                nonFavoriteChannels.length === 0 &&
+                nonFavoriteRepeaters.length === 0 &&
+                favoriteItems.length === 0 && (
+                  <div className="p-5 text-center text-muted-foreground">
+                    {query ? t('common_no_matches_found') : t('common_no_conversations_yet')}
+                  </div>
+                )}
+            </div>
+            {showBackToTop && (
+              <button
+                type="button"
+                onClick={scrollListToTop}
+                aria-label={t('nav_back_to_top')}
+                title={t('nav_back_to_top')}
+                className="absolute bottom-4 right-4 h-8 w-8 flex items-center justify-center rounded-full border border-border bg-card/90 text-muted-foreground shadow-md backdrop-blur transition-colors hover:text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <ArrowUp className="h-4 w-4" aria-hidden="true" />
+              </button>
+            )}
           </div>
         </>
       )}

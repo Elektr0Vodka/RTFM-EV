@@ -11,6 +11,16 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-13 (Sidebar back-to-top button, feat/sidebar-back-to-top)
+
+### Chat / UI
+- The expanded sidebar conversation list now shows a floating "back to top"
+  button in its bottom-right corner once the list is scrolled down past ~300px.
+  Clicking it smooth-scrolls the list back to the top. It stays hidden at the
+  top and on lists too short to scroll, and is also available in the mobile
+  drawer. New string `nav_back_to_top` translated in EN/NL/DE
+  (`frontend/src/components/Sidebar.tsx`).
+
 ## Update 2026-09-13 (Mention & DM notification sound, feat/notification-sound-mentions)
 
 ### Chat / UI
