@@ -48,6 +48,8 @@ import type {
   OpenHopAnalyticsResult,
   OpenHopTransportKeys,
   OpenHopNeighborScopes,
+  OpenHopMqttStatus,
+  OpenHopMqttConfigBody,
   MessagesAroundResponse,
   RawPacket,
   RadioAdvertMode,
@@ -718,6 +720,17 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ pubkey }),
     }),
+
+  // OpenHop MQTT config (Surface B)
+  getOpenHopMqttStatus: () => fetchJson<OpenHopMqttStatus>('/openhop/mqtt/status'),
+  getOpenHopMqttPresets: () => fetchJson<OpenHopMqttStatus>('/openhop/mqtt/presets'),
+  openHopUpdateMqttConfig: (body: OpenHopMqttConfigBody) =>
+    fetchJson<OpenHopEnvelope>('/openhop/mqtt/config', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  openHopPublishNeighbors: () =>
+    fetchJson<OpenHopEnvelope>('/openhop/mqtt/publish_neighbors', { method: 'POST' }),
 
   // Block lists
   toggleBlockedKey: (key: string) =>

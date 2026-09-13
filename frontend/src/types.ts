@@ -1317,3 +1317,18 @@ export interface OpenHopNeighborScopes {
   data?: Record<string, OpenHopNeighborScopeRecord>;
   error?: string;
 }
+
+// OpenHop MQTT config (Surface B). update forwards only the fields the user sets.
+export interface OpenHopMqttConfigBody {
+  iata_code?: string;
+  status_interval?: number;
+  owner?: string;
+  email?: string;
+  neighbors?: Record<string, unknown>;
+  brokers?: Record<string, unknown>[];
+}
+export interface OpenHopMqttStatus {
+  success: boolean;
+  data?: Record<string, unknown>;
+  error?: string;
+}
