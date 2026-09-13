@@ -806,6 +806,7 @@
   "settings_openhop_desc": "Konfiguriere die REST-API des verbundenen OpenHop-Knotens, um dessen OpenHop-spezifische Einstellungen zu verwalten. Nur für OpenHop-Knoten sichtbar.",
   "settings_openhop_url_label": "API-URL",
   "settings_openhop_token_label": "API-Token",
+  "settings_openhop_token_placeholder": "Leer lassen, um das aktuelle Token zu behalten",
   "settings_openhop_token_desc": "Erstelle ein Token auf dem Knoten und füge es hier ein. Lokal in dieser Instanz gespeichert.",
   "settings_openhop_status_configured": "Verwaltung konfiguriert.",
   "settings_openhop_status_unconfigured": "Noch nicht konfiguriert.",

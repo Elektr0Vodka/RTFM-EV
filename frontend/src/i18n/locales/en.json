@@ -805,6 +805,7 @@
   "settings_openhop_desc": "Configure the connected OpenHop node's REST API to manage its OpenHop-specific settings. Only shown for OpenHop nodes.",
   "settings_openhop_url_label": "API URL",
   "settings_openhop_token_label": "API Token",
+  "settings_openhop_token_placeholder": "Leave blank to keep the current token",
   "settings_openhop_token_desc": "Create a token on the node and paste it here. Stored locally in this instance.",
   "settings_openhop_status_configured": "Management configured.",
   "settings_openhop_status_unconfigured": "Not configured yet.",

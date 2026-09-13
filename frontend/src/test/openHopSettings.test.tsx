@@ -65,18 +65,35 @@ describe('OpenHopSettings', () => {
     expect(screen.getByLabelText(/token/i)).toBeInTheDocument();
   });
 
-  it('prefills existing url and token from settings', () => {
+  it('does not prefill the token (write-only) but prefills the url', () => {
     render(
       <OpenHopSettings
         health={health(true)}
         appSettings={appSettings({
           openhop_api_url: 'http://node:8000',
-          openhop_api_token: 'abc',
-        })}
+          openhop_api_token: null,
+          openhop_api_token_set: true,
+        } as Partial<AppSettings>)}
         onSaveAppSettings={vi.fn()}
       />
     );
     expect(screen.getByLabelText(/URL/i)).toHaveValue('http://node:8000');
+    expect(screen.getByLabelText(/token/i)).toHaveValue('');
+  });
+
+  it('omits the token on save when left blank', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <OpenHopSettings
+        health={health(true)}
+        appSettings={appSettings({ openhop_api_url: 'http://node:8000' })}
+        onSaveAppSettings={onSave}
+      />
+    );
+    await userEvent.click(screen.getByRole('button', { name: /save/i }));
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({ openhop_api_url: 'http://node:8000' })
+    );
   });
 
   it('saves the entered url and token via onSaveAppSettings', async () => {

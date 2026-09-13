@@ -25,7 +25,9 @@ export function OpenHopSettings({ health, appSettings, onSaveAppSettings }: Prop
   const t = useT();
   const isOpenHop = health?.radio_device_info?.is_openhop ?? false;
   const [url, setUrl] = useState(appSettings.openhop_api_url ?? '');
-  const [token, setToken] = useState(appSettings.openhop_api_token ?? '');
+  // Write-only: the token is never returned by the API, so the input starts empty
+  // and a blank value on save keeps the currently stored token.
+  const [token, setToken] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<OpenHopStatus | null>(null);
@@ -52,10 +54,11 @@ export function OpenHopSettings({ health, appSettings, onSaveAppSettings }: Prop
     setSaving(true);
     setError(null);
     try {
-      await onSaveAppSettings({
-        openhop_api_url: url.trim(),
-        openhop_api_token: token.trim(),
-      });
+      const update: AppSettingsUpdate = { openhop_api_url: url.trim() };
+      const trimmedToken = token.trim();
+      if (trimmedToken) update.openhop_api_token = trimmedToken;
+      await onSaveAppSettings(update);
+      setToken('');
       try {
         setStatus(await api.getOpenHopStatus());
       } catch {
@@ -92,6 +95,7 @@ export function OpenHopSettings({ health, appSettings, onSaveAppSettings }: Prop
           type="password"
           autoComplete="off"
           value={token}
+          placeholder={t('settings_openhop_token_placeholder')}
           onChange={(e) => setToken(e.target.value)}
         />
         <p className="text-xs text-muted-foreground">{t('settings_openhop_token_desc')}</p>

@@ -529,6 +529,7 @@ export interface AppSettings {
   brand_icon: string;
   openhop_api_url: string | null;
   openhop_api_token: string | null;
+  openhop_api_token_set?: boolean;
 }
 
 /** Availability of the opt-in OpenHop REST management surface (never carries the token). */
