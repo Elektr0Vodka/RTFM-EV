@@ -24,6 +24,8 @@ import { getContactDisplayName } from '../utils/pubkey';
 import { handleKeyboardActivate } from '../utils/a11y';
 import { cn } from '@/lib/utils';
 import { useT, type TFn } from '../i18n';
+import { TimeRangeSelector } from './TimeRangeSelector';
+import { BASE_TIME_RANGES, CUSTOM_RANGE_ID, type TimeRange } from '../utils/timeRanges';
 
 // MeshCore node types (contact.type): translation key per mesh vocabulary label.
 const NODE_TYPE_KEYS: Record<number, string> = {
@@ -89,18 +91,24 @@ interface HistoricalStatsResponse {
   busiest_channels?: HistoricalBusiestChannel[];
 }
 
-const TIME_WINDOWS: TimeWindow[] = [
-  { key: '20m', label: '20m', seconds: 20 * 60, useLive: true },
-  { key: '1h', label: '1h', seconds: 60 * 60, useLive: false },
-  { key: '6h', label: '6h', seconds: 6 * 60 * 60, useLive: false },
-  { key: '1d', label: '1d', seconds: 24 * 60 * 60, useLive: false },
-  { key: '7d', label: '7d', seconds: 7 * 24 * 60 * 60, useLive: false },
-  { key: '30d', label: '30d', seconds: 30 * 24 * 60 * 60, useLive: false },
-  { key: '1y', label: '1y', seconds: 365 * 24 * 60 * 60, useLive: false },
-  { key: 'custom', label: 'Custom', seconds: null, useLive: false },
+// My Node keeps 1y as a longer extra beyond the shared base set; 20m remains
+// the live/in-memory window (the rest are DB-backed).
+const MYNODE_EXTRAS_AFTER: TimeRange[] = [
+  { id: '1y', labelKey: 'time_range_1y', seconds: 365 * 24 * 60 * 60 },
 ];
+const MYNODE_RANGES: TimeRange[] = [...BASE_TIME_RANGES, ...MYNODE_EXTRAS_AFTER];
+const LIVE_WINDOW_IDS = new Set(['20m']);
+const DEFAULT_WINDOW_ID = '20m';
 
-const DEFAULT_WINDOW = TIME_WINDOWS[0];
+// Build the legacy TimeWindow shape from a range id so existing
+// selectedWindow.* consumers keep working unchanged.
+function windowFromId(id: string): TimeWindow {
+  if (id === CUSTOM_RANGE_ID) {
+    return { key: 'custom', label: 'Custom', seconds: null, useLive: false };
+  }
+  const r = MYNODE_RANGES.find((x) => x.id === id) ?? MYNODE_RANGES[0];
+  return { key: r.id, label: r.id, seconds: r.seconds, useLive: LIVE_WINDOW_IDS.has(r.id) };
+}
 const BIN_COUNT = 40;
 
 // ─── Data types ─────────────────────────────────────────────────────────────
@@ -175,20 +183,10 @@ function buildLiveBins(packets: RawPacket[], windowMs: number): Bin[] {
 // Compact time-window abbreviations are treated as locale-invariant unit
 // shorthand (matching e.g. map_preset_7d / map_lt_1h elsewhere), so the same
 // key text is used across en/nl/de; only the "Custom" preset is real prose.
-const WINDOW_LABEL_KEYS: Record<string, string> = {
-  '20m': 'node_window_20m',
-  '1h': 'node_window_1h',
-  '6h': 'node_window_6h',
-  '1d': 'node_window_1d',
-  '7d': 'node_window_7d',
-  '30d': 'node_window_30d',
-  '1y': 'node_window_1y',
-  custom: 'settings_radio_preset_custom',
-};
-
 function windowLabel(key: string, t: TFn): string {
-  const labelKey = WINDOW_LABEL_KEYS[key];
-  return labelKey ? t(labelKey) : key;
+  if (key === 'custom') return t('time_range_custom');
+  const r = MYNODE_RANGES.find((x) => x.id === key);
+  return r ? t(r.labelKey) : key;
 }
 
 function fmtWindowLabel(windowKey: string, customStart: string, customEnd: string, t: TFn): string {
@@ -1320,10 +1318,10 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
   const loadedAt = useRef(0);
 
   // Time window
-  const [selectedWindow, setSelectedWindow] = useState<TimeWindow>(DEFAULT_WINDOW);
+  const [selectedWindowId, setSelectedWindowId] = useState<string>(DEFAULT_WINDOW_ID);
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
-  const [showCustomPicker, setShowCustomPicker] = useState(false);
+  const selectedWindow = useMemo(() => windowFromId(selectedWindowId), [selectedWindowId]);
 
   // Historical data
   const [historicalBins, setHistoricalBins] = useState<Bin[] | null>(null);
@@ -1442,11 +1440,8 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
 
   // Fetch DB historical stats whenever the time window changes (uses nowSec which ticks every 30s)
   useEffect(() => {
-    const windowDef = TIME_WINDOWS.find((w) => w.label === selectedWindow.label);
-    if (!windowDef) return;
-
     const endTs = nowSec;
-    const startTs = windowDef.seconds !== null ? endTs - windowDef.seconds : 0;
+    const startTs = selectedWindow.seconds !== null ? endTs - selectedWindow.seconds : 0;
 
     setHistoricalStatsLoading(true);
     setHistoricalStatsError(null);
@@ -1461,7 +1456,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
         setHistoricalStatsError(err instanceof Error ? err.message : 'Failed to load');
         setHistoricalStatsLoading(false);
       });
-  }, [selectedWindow.label, nowSec]);
+  }, [selectedWindowId, selectedWindow.seconds, nowSec]);
 
   // Battery: filter live samples for the selected window; fetch from DB for historical windows
   useEffect(() => {
@@ -1807,52 +1802,17 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                     {t('node_historical_load_error', { error: historicalError })}
                   </p>
                 )}
-                {/* Time window buttons */}
-                <div className="flex flex-wrap items-center gap-1">
-                  {TIME_WINDOWS.map((w) => (
-                    <button
-                      key={w.key}
-                      onClick={() => {
-                        setSelectedWindow(w);
-                        if (w.key === 'custom') setShowCustomPicker(true);
-                        else setShowCustomPicker(false);
-                      }}
-                      className={`rounded px-2 py-0.5 text-xs transition ${selectedWindow.key === w.key ? 'bg-primary text-primary-foreground font-medium' : 'border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground'}`}
-                    >
-                      {windowLabel(w.key, t)}
-                    </button>
-                  ))}
-                </div>
-                {showCustomPicker && (
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    <span className="text-xs text-muted-foreground">{t('node_custom_from')}</span>
-                    <input
-                      type="datetime-local"
-                      value={customStart}
-                      onChange={(e) => setCustomStart(e.target.value)}
-                      className="rounded border border-input bg-background px-2 py-0.5 text-xs text-foreground"
-                    />
-                    <span className="text-xs text-muted-foreground">{t('node_custom_to')}</span>
-                    <input
-                      type="datetime-local"
-                      value={customEnd}
-                      onChange={(e) => setCustomEnd(e.target.value)}
-                      className="rounded border border-input bg-background px-2 py-0.5 text-xs text-foreground"
-                    />
-                    {customStart && customEnd && (
-                      <button
-                        onClick={() => {
-                          const s = Math.floor(new Date(customStart).getTime() / 1000);
-                          const e = Math.floor(new Date(customEnd).getTime() / 1000);
-                          if (e > s) void fetchHistorical(s, e);
-                        }}
-                        className="rounded border border-border bg-background px-2 py-0.5 text-xs text-foreground hover:bg-accent transition"
-                      >
-                        {t('node_apply')}
-                      </button>
-                    )}
-                  </div>
-                )}
+                {/* Unified time-range selector */}
+                <TimeRangeSelector
+                  value={selectedWindowId}
+                  onChange={setSelectedWindowId}
+                  extrasAfter={MYNODE_EXTRAS_AFTER}
+                  customStart={customStart}
+                  customEnd={customEnd}
+                  onCustomStartChange={setCustomStart}
+                  onCustomEndChange={setCustomEnd}
+                  onApplyCustom={(s, e) => void fetchHistorical(s, e)}
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-2 p-2 md:grid-cols-3">
