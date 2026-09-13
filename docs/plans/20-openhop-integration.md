@@ -3,8 +3,14 @@
 Date: 2026-09-11
 Category: F (firmware/node-aware management; sibling of [10])
 Model: Opus
-State: Partial (Surface A verified against a simulated OpenHop node 2026-09-11; Surface B management absent)
-Status: local planning only. No PRs, no issues, no commits from this plan.
+State: Surface A verified (2026-09-11). Surface B delivered: Policy/Plugins/Config
+(PR #108), then Update, CAD, System/Hardware, Transport keys + neighbour scopes,
+and MQTT config (feat/openhop-remaining-mgmt, 2026-09-14). Phase 4 + Phase 5 complete.
+Status: Phases 1-5 implemented. Surface B panes are additive REST proxies over
+`/api/openhop/*`, detection-gated and fail-closed. Live read paths verified against
+the containerized sim (REST auto-starts on port 8000 by default; auth: admin login
+at `/auth/login` -> JWT -> `POST /api/auth/tokens`; API key sent as `X-API-Key`).
+CAD functional calibration and Update `install` NOT verified against real RF/hardware.
 
 Primary references (code is truth):
 

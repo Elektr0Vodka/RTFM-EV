@@ -11,6 +11,41 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-14 (OpenHop management panes: Update, CAD, System, Transport, MQTT, feat/openhop-remaining-mgmt)
+
+### OpenHop (Surface B management)
+- Completes the OpenHop REST-management surface begun in PR #108. The
+  detection-gated OpenHop settings section now uses a two-row sub-nav: a **Node**
+  row (Config, System, Update, CAD) and a **Mesh** row (Policy, Plugins,
+  Transport, MQTT). All new panes are additive REST proxies through
+  `/api/openhop/*`; no database migration, no config change (the API URL + token
+  from migration `_087` are reused). Every route is fail-closed via
+  `_require_client` (409 unless the node is detected as OpenHop and a URL + token
+  are configured).
+- **Update (OTA)** pane: installed/latest version, release-channel selector,
+  changelog, and an install that is **confirm-gated** (it triggers a real pip
+  upgrade + service restart on the node). Install progress streams live over SSE
+  (`/api/openhop/update/progress`).
+- **CAD calibration** pane: manual CAD checks with detection metrics, a live
+  calibration stream (SSE), and a **confirm-gated** save of calibrated
+  peak/min thresholds. Meaningful detection metrics require real LoRa RF
+  hardware; against a no-radio node the checks report no detections.
+- **System / Hardware** pane: CPU, memory, disk, and uptime tiles from the
+  node's psutil stats (auto-refreshed), with a collapsible read-only analytics
+  section (packet, packet-type, and noise-floor stats). Requested by Richard.
+- **Transport keys + neighbour scopes** pane: list/create transport keys
+  (delete is **confirm-gated**), view this node's served scopes and per-neighbour
+  learned scopes, and query one neighbour's scopes on demand.
+- **MQTT config** pane: MQTT runtime status (read-only), a **confirm-gated**
+  write of the whitelisted MQTT observer fields (owner, email, IATA code, status
+  interval), and a **confirm-gated** "publish neighbours now" (an outward RF
+  cycle that takes minutes).
+- Backend: new `OpenHopClient` methods per endpoint (`app/services/openhop_api.py`)
+  and gated proxy routes incl. two new SSE passthroughs
+  (`app/routers/openhop.py`), all tested with `httpx.MockTransport`. Frontend:
+  new panes under `frontend/src/components/settings/openhop/{update,cad,system,transport,mqtt}/`
+  with vitest coverage. New `openhop_*` strings translated in EN/NL/DE.
+
 ## Update 2026-09-13 (Sidebar back-to-top button, feat/sidebar-back-to-top)
 
 ### Chat / UI
