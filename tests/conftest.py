@@ -69,6 +69,7 @@ async def test_db():
         wordlists,
     )
     from app.repository import fanout as fanout_repo
+    from app.services import raw_feed_stats
 
     db = Database(":memory:")
     await db.connect()
@@ -91,6 +92,7 @@ async def test_db():
         external_map,
         wordlists,
         request_traffic,
+        raw_feed_stats,
     ]
     originals = [(mod, mod.db) for mod in submodules]
 
