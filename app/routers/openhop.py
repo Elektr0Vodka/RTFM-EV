@@ -634,3 +634,37 @@ async def scopes_neighbors() -> dict[str, Any]:
 @router.post("/scopes/query")
 async def scopes_query(body: QueryScopeBody) -> dict[str, Any]:
     return await _relay_upstream(lambda c: c.query_neighbor_scopes(body.pubkey))
+
+
+# ---------------------------------------------------------------------------
+# MQTT config. update_mqtt_config forwards only the fields the caller sets;
+# publish_neighbors triggers an outward RF cycle (frontend confirm-gates it).
+# ---------------------------------------------------------------------------
+class MqttConfigBody(BaseModel):
+    iata_code: str | None = None
+    status_interval: int | None = None
+    owner: str | None = None
+    email: str | None = None
+    neighbors: dict[str, Any] | None = None
+    brokers: list[dict[str, Any]] | None = None
+
+
+@router.get("/mqtt/status")
+async def mqtt_status() -> dict[str, Any]:
+    return await _relay_upstream(lambda c: c.mqtt_status())
+
+
+@router.get("/mqtt/presets")
+async def mqtt_presets() -> dict[str, Any]:
+    return await _relay_upstream(lambda c: c.broker_presets())
+
+
+@router.post("/mqtt/config")
+async def mqtt_config(body: MqttConfigBody) -> dict[str, Any]:
+    payload = {k: v for k, v in body.model_dump().items() if v is not None}
+    return await _relay_upstream(lambda c: c.update_mqtt_config(payload))
+
+
+@router.post("/mqtt/publish_neighbors")
+async def mqtt_publish_neighbors() -> dict[str, Any]:
+    return await _relay_upstream(lambda c: c.publish_neighbors())

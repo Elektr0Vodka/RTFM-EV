@@ -291,3 +291,31 @@ async def test_transport_and_scope_methods():
     await c.aclose()
     assert seen[("GET", "/api/transport_key")] == {"key_id": "k1"}
     assert seen[("DELETE", "/api/transport_key")] == {"key_id": "k1"}
+
+
+@pytest.mark.asyncio
+async def test_mqtt_methods():
+    body_seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        import json as _json
+
+        p, m = request.url.path, request.method
+        if p == "/api/mqtt_status" and m == "GET":
+            return httpx.Response(200, json={"success": True, "data": {"handler_active": False}})
+        if p == "/api/broker_presets" and m == "GET":
+            return httpx.Response(200, json={"success": True, "data": []})
+        if p == "/api/update_mqtt_config" and m == "POST":
+            body_seen.update(_json.loads(request.content))
+            return httpx.Response(200, json={"success": True})
+        if p == "/api/publish_neighbors" and m == "POST":
+            return httpx.Response(200, json={"success": True})
+        return httpx.Response(404, json={"success": False})
+
+    c = OpenHopClient("http://n:8000", token="tok", transport=httpx.MockTransport(handler))
+    assert (await c.mqtt_status())["data"]["handler_active"] is False
+    assert (await c.broker_presets())["data"] == []
+    assert (await c.update_mqtt_config({"owner": "Callsign"}))["success"]
+    assert (await c.publish_neighbors())["success"]
+    await c.aclose()
+    assert body_seen == {"owner": "Callsign"}

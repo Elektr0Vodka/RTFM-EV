@@ -271,5 +271,18 @@ class OpenHopClient:
     async def query_neighbor_scopes(self, pubkey: str) -> dict[str, Any]:
         return await self._post("/api/query_neighbor_scopes", {"pubkey": pubkey})
 
+    # --- MQTT config ----------------------------------------------------
+    async def mqtt_status(self) -> dict[str, Any]:
+        return await self._get("/api/mqtt_status")
+
+    async def broker_presets(self) -> dict[str, Any]:
+        return await self._get("/api/broker_presets")
+
+    async def update_mqtt_config(self, config: dict[str, Any]) -> dict[str, Any]:
+        return await self._post("/api/update_mqtt_config", config)
+
+    async def publish_neighbors(self) -> dict[str, Any]:
+        return await self._post("/api/publish_neighbors", {})
+
     async def aclose(self) -> None:
         await self._client.aclose()

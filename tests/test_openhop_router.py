@@ -686,3 +686,44 @@ class TestOpenHopTransport:
         fake.create_transport_key.assert_awaited_once_with("home")
         fake.delete_transport_key.assert_awaited_once_with("k1")
         fake.query_neighbor_scopes.assert_awaited_once_with("ab" * 32)
+
+
+class TestOpenHopMqtt:
+    @pytest.mark.asyncio
+    async def test_mqtt_status_409_when_not_openhop(self, test_db, monkeypatch):
+        _set_model(monkeypatch, "Heltec V3")
+        from app.routers.openhop import mqtt_status
+
+        with pytest.raises(HTTPException) as exc:
+            await mqtt_status()
+        assert exc.value.status_code == 409
+
+    @pytest.mark.asyncio
+    async def test_mqtt_routes_delegate_and_filter_body(self, test_db, monkeypatch):
+        _set_model(monkeypatch, OPENHOP_MODEL)
+        await AppSettingsRepository.update(
+            openhop_api_url="http://node:8000", openhop_api_token="tok"
+        )
+        from app.routers.openhop import (
+            MqttConfigBody,
+            mqtt_config,
+            mqtt_presets,
+            mqtt_publish_neighbors,
+            mqtt_status,
+        )
+
+        fake = AsyncMock()
+        fake.mqtt_status = AsyncMock(
+            return_value={"success": True, "data": {"handler_active": True}}
+        )
+        fake.broker_presets = AsyncMock(return_value={"success": True, "data": []})
+        fake.update_mqtt_config = AsyncMock(return_value={"success": True})
+        fake.publish_neighbors = AsyncMock(return_value={"success": True})
+        fake.aclose = AsyncMock()
+        with patch("app.routers.openhop.OpenHopClient", return_value=fake):
+            assert (await mqtt_status())["data"]["handler_active"] is True
+            assert (await mqtt_presets())["data"] == []
+            assert (await mqtt_config(MqttConfigBody(owner="Callsign")))["success"]
+            assert (await mqtt_publish_neighbors())["success"]
+        # Only the fields the caller set are forwarded (None-valued fields dropped).
+        fake.update_mqtt_config.assert_awaited_once_with({"owner": "Callsign"})
