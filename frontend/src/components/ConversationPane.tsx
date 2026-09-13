@@ -40,6 +40,7 @@ const MeshHealthView = lazy(() =>
 
 interface ConversationPaneProps {
   activeConversation: Conversation | null;
+  sidebarOpen?: boolean;
   contacts: Contact[];
   channels: Channel[];
   config: RadioConfig | null;
@@ -140,6 +141,7 @@ function ContactResolutionBanner({ variant }: { variant: 'unknown-full-key' | 'p
 
 export function ConversationPane({
   activeConversation,
+  sidebarOpen,
   contacts,
   channels,
   config,
@@ -249,6 +251,7 @@ export function ConversationPane({
           <Suspense fallback={<LoadingPane label={t('common_loading_map')} />}>
             <MapView
               contacts={contacts}
+              sidebarOpen={sidebarOpen}
               focusedKey={activeConversation.mapFocusKey}
               focusedLatLon={activeConversation.mapFocusLatLon}
               focusedLabel={activeConversation.mapFocusLabel}

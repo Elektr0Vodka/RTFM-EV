@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { Popup as MlPopup, Marker as MlMarker, type Map as MlMap } from 'maplibre-gl';
 import { Zap, Clock, Globe, Radio } from 'lucide-react';
-import type { Contact, ExternalMapNode, RadioConfig } from '../types';
+import type { AdvertLinkEdge, Contact, ExternalMapNode, RadioConfig } from '../types';
 import { api, isAbortError } from '../api';
 import { formatTime } from '../utils/messageParser';
 import { isValidLocation } from '../utils/pathUtils';
@@ -28,6 +28,7 @@ import {
 import { createParticleOverlay, type MapParticle } from '../map/layers/particleOverlay';
 import { createDeckTraces, arcRows, type DeckTracesController } from '../map/layers/tracesDeck';
 import { createLinksLayer, type ResolveCoord } from '../map/layers/linksLayer';
+import { createAdvertLinksLayer } from '../map/layers/advertLinksLayer';
 import { createExternalNodesLayer, type ExternalNodeProps } from '../map/layers/externalNodesLayer';
 import { isContactVisibleForFilters, type HeardFilterMode } from '../map/heardFilter';
 import {
@@ -57,6 +58,7 @@ interface MapViewProps {
   onSelectContact?: (contact: Contact) => void;
   focusedLatLon?: [number, number];
   focusedLabel?: string;
+  sidebarOpen?: boolean;
 }
 
 // --- "Heard since" filter ---
@@ -195,6 +197,7 @@ export function MapView({
   onSelectContact,
   focusedLatLon,
   focusedLabel,
+  sidebarOpen,
 }: MapViewProps) {
   const t = useT();
   const dark = useIsDarkTheme();
@@ -212,6 +215,9 @@ export function MapView({
   const [nodeScale, setNodeScale] = useState(getSavedNodeScale);
   const [roleColors, setRoleColors] = useState<NodeRoleColors>(getSavedNodeRoleColors);
   const [linksOn, setLinksOn] = useState(false);
+  const [linkMode, setLinkMode] = useState<'liveness' | 'advert'>('liveness');
+  const [linkConfidence, setLinkConfidence] = useState<1 | 2 | 3>(2);
+  const [advertEdges, setAdvertEdges] = useState<AdvertLinkEdge[]>([]);
   const [showExternalNodes, setShowExternalNodes] = useState(false);
   const [externalNodes, setExternalNodes] = useState<ExternalMapNode[]>([]);
   const [viewBounds, setViewBounds] = useState<{
@@ -229,6 +235,7 @@ export function MapView({
   const overlayRef = useRef<ReturnType<typeof createParticleOverlay> | null>(null);
   const deckRef = useRef<DeckTracesController | null>(null);
   const linksLayerRef = useRef<ReturnType<typeof createLinksLayer> | null>(null);
+  const advertLinksLayerRef = useRef<ReturnType<typeof createAdvertLinksLayer> | null>(null);
   const linkStateRef = useRef(createPacketNetworkState(config?.name || 'Me'));
   const linkProcessedRef = useRef(new Set<string>());
   const popupRef = useRef<MlPopup | null>(null);
@@ -375,6 +382,40 @@ export function MapView({
     }
     refreshLinks();
   }, [rawPackets, linksOn, linkContext, refreshLinks, config]);
+
+  // Fetch resolved advert-truth edges while links are on in advert mode.
+  useEffect(() => {
+    if (!linksOn || linkMode !== 'advert') return;
+    const controller = new AbortController();
+    api
+      .getAdvertLinks(controller.signal)
+      .then(setAdvertEdges)
+      .catch((err) => {
+        if (!isAbortError(err)) console.error('Advert links fetch failed', err);
+      });
+    return () => controller.abort();
+  }, [linksOn, linkMode]);
+
+  // Paint advert edges (filtered by the confidence selector) and switch which
+  // links layer is visible based on the mode.
+  useEffect(() => {
+    const liveness = linksLayerRef.current;
+    const advert = advertLinksLayerRef.current;
+    if (!linksOn) {
+      liveness?.hide();
+      advert?.hide();
+      return;
+    }
+    if (linkMode === 'advert') {
+      liveness?.hide();
+      advert?.setData(advertEdges.filter((e) => e.hop_width >= linkConfidence));
+      advert?.show();
+    } else {
+      advert?.hide();
+      liveness?.show();
+      refreshLinks();
+    }
+  }, [linksOn, linkMode, linkConfidence, advertEdges, refreshLinks]);
 
   const threeDaysAgoSec = useMemo(() => Date.now() / 1000 - THREE_DAYS_SEC, []);
   const activeSincePreset = MAP_SINCE_PRESETS.find((p) => p.id === sinceId) ?? null;
@@ -760,6 +801,9 @@ export function MapView({
       const links = createLinksLayer(map);
       links.ensure();
       linksLayerRef.current = links;
+      const advertLinks = createAdvertLinksLayer(map);
+      advertLinks.ensure();
+      advertLinksLayerRef.current = advertLinks;
       fitInitialView(map);
       if (focusedLatLon) {
         const el = document.createElement('div');
@@ -791,6 +835,7 @@ export function MapView({
     }
     // A basemap setStyle drops custom sources/layers; re-add and re-feed links.
     linksLayerRef.current?.reattach();
+    advertLinksLayerRef.current?.reattach();
     refreshLinks();
     externalRef.current?.reattach();
     externalRef.current?.setData(visibleExternalRef.current);
@@ -1054,13 +1099,12 @@ export function MapView({
         onRoleColorChange={handleRoleColorChange}
         onResetRoleColors={handleResetRoleColors}
         linksOn={linksOn}
-        onToggleLinks={(on) => {
-          setLinksOn(on);
-          const layer = linksLayerRef.current;
-          if (!layer) return;
-          if (on) layer.show();
-          else layer.hide();
-        }}
+        onToggleLinks={(on) => setLinksOn(on)}
+        linkMode={linkMode}
+        onLinkMode={setLinkMode}
+        linkConfidence={linkConfidence}
+        onLinkConfidence={setLinkConfidence}
+        sidebarOpen={sidebarOpen}
         onSearch={handleSearch}
         extraFabs={extraFabs}
       />

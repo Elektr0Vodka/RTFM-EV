@@ -508,6 +508,9 @@ export interface AppSettings {
   external_map_enabled: boolean;
   external_map_sync_url: string;
   external_map_sync_interval_hours: number;
+  brand_name: string;
+  brand_hidden: boolean;
+  brand_icon: string;
 }
 
 /** A located node synced from an external map/analyzer directory. */
@@ -528,6 +531,22 @@ export interface ExternalMapNode {
   last_seen: number | null;
   advert_count: number;
   mobile: boolean;
+}
+
+export interface AdvertLinkNode {
+  pubkey: string;
+  lat: number;
+  lon: number;
+  kind: 'self' | 'contact' | 'external';
+}
+
+export interface AdvertLinkEdge {
+  a: AdvertLinkNode;
+  b: AdvertLinkNode;
+  hop_width: number;
+  count: number;
+  last_seen: number;
+  ambiguous: boolean;
 }
 
 export interface ExternalMapStatus {
@@ -563,6 +582,9 @@ export interface AppSettingsUpdate {
   external_map_enabled?: boolean;
   external_map_sync_url?: string;
   external_map_sync_interval_hours?: number;
+  brand_name?: string;
+  brand_hidden?: boolean;
+  brand_icon?: string;
 }
 
 export interface TelemetrySchedule {

@@ -1,5 +1,5 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
-import { Layers, Info, Search, Building2, Rotate3d, CircleDot, Spline, Pin, X } from 'lucide-react';
+import { Layers, Search, Building2, Rotate3d, Filter, Activity, Pin, X } from 'lucide-react';
 import { useT } from '../../i18n';
 import {
   Sheet,
@@ -8,7 +8,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from '../../components/ui/sheet';
-import { useIsCompactMap } from './breakpoints';
+import { useIsCompactMap, useIsMobile } from './breakpoints';
 import { MapLegend } from './legend/MapLegend';
 import { NODE_ROLE_TYPES, DEFAULT_NODE_ROLE_COLORS } from '../layers/nodeRoleColors';
 import {
@@ -56,6 +56,11 @@ export interface MapControlsProps {
   onResetRoleColors?: () => void;
   linksOn?: boolean;
   onToggleLinks?: (on: boolean) => void;
+  linkMode?: 'liveness' | 'advert';
+  onLinkMode?: (mode: 'liveness' | 'advert') => void;
+  linkConfidence?: 1 | 2 | 3;
+  onLinkConfidence?: (level: 1 | 2 | 3) => void;
+  sidebarOpen?: boolean;
   onSearch?: (query: string) => void;
   legendContent?: ReactNode;
   extraFabs?: ExtraFab[];
@@ -154,6 +159,10 @@ function PinnedPanel({
 export function MapControls(props: MapControlsProps) {
   const t = useT();
   const compact = useIsCompactMap();
+  // The sidebar overlays the FABs only below md (768px), where the persistent
+  // sidebar is hidden and a drawer is used. Tablets/touch laptops keep the
+  // persistent sidebar, so the shift is gated on mobile, not the compact map.
+  const isMobile = useIsMobile();
   const [openPanel, setOpenPanel] = useState<string | null>(null);
   const [legendPinned, setLegendPinned] = useState(false);
 
@@ -173,6 +182,11 @@ export function MapControls(props: MapControlsProps) {
     onResetRoleColors,
     linksOn = false,
     onToggleLinks,
+    linkMode = 'liveness',
+    onLinkMode,
+    linkConfidence = 2,
+    onLinkConfidence,
+    sidebarOpen = false,
     onSearch,
     legendContent,
     extraFabs = [],
@@ -189,12 +203,16 @@ export function MapControls(props: MapControlsProps) {
 
   const legendBody = legendContent ?? <MapLegend roleColors={roleColors} />;
 
-  const panels: PanelDef[] = [];
+  // Each control's panel body, keyed by control id. Built-in bodies are defined
+  // here; the MapView-supplied extra panels are folded in by id below. Group FABs
+  // then stack their member sections into one panel.
+  type Section = { id: string; title: string; body: ReactNode };
+  const sectionById: Record<string, Section> = {};
+
   if (fabs.layers) {
-    panels.push({
+    sectionById.layers = {
       id: 'layers',
-      label: t('map_layers'),
-      icon: <Layers size={20} aria-hidden />,
+      title: t('map_basemap_label'),
       body: (
         <div role="radiogroup" aria-label={t('map_basemap_label')} className="space-y-1">
           {basemaps.map((b) => {
@@ -227,45 +245,12 @@ export function MapControls(props: MapControlsProps) {
           })}
         </div>
       ),
-    });
-  }
-  if (fabs.legend) {
-    panels.push({
-      id: 'legend',
-      label: t('map_legend'),
-      icon: <Info size={20} aria-hidden />,
-      body: legendBody,
-    });
-  }
-  if (fabs.search) {
-    panels.push({
-      id: 'search',
-      label: t('map_search'),
-      icon: <Search size={20} aria-hidden />,
-      body: (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            onSearch?.(searchValue);
-          }}
-        >
-          <input
-            type="search"
-            value={searchValue}
-            onChange={(e) => setSearchValue(e.target.value)}
-            aria-label={t('map_search')}
-            placeholder={t('map_search')}
-            className="w-full rounded border border-border bg-background px-2 py-1.5 text-sm"
-          />
-        </form>
-      ),
-    });
+    };
   }
   if (fabs.nodeSize) {
-    panels.push({
+    sectionById.nodeSize = {
       id: 'nodeSize',
-      label: t('map_node_size_label'),
-      icon: <CircleDot size={20} aria-hidden />,
+      title: t('map_node_size_label'),
       body: (
         <div className="flex flex-col gap-3">
           <label className="flex flex-col gap-1 text-xs text-muted-foreground">
@@ -315,10 +300,181 @@ export function MapControls(props: MapControlsProps) {
           )}
         </div>
       ),
+    };
+  }
+  if (fabs.legend) {
+    sectionById.legend = {
+      id: 'legend',
+      title: t('map_legend'),
+      body: (
+        <div className="flex flex-col gap-2">
+          {!legendPinned && (
+            <button
+              type="button"
+              className="flex items-center gap-1.5 self-start rounded border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+              onClick={() => {
+                setLegendPinned(true);
+                setOpenPanel(null);
+              }}
+            >
+              <Pin size={14} aria-hidden />
+              {t('map_legend_pin')}
+            </button>
+          )}
+          {legendBody}
+        </div>
+      ),
+    };
+  }
+  if (fabs.links) {
+    const confidenceOptions: { level: 1 | 2 | 3; label: string }[] = [
+      { level: 1, label: t('map_links_confidence_low') },
+      { level: 2, label: t('map_links_confidence_medium') },
+      { level: 3, label: t('map_links_confidence_high') },
+    ];
+    sectionById.links = {
+      id: 'links',
+      title: t('map_links_label'),
+      body: (
+        <div className="flex flex-col gap-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={linksOn}
+              onChange={(e) => onToggleLinks?.(e.target.checked)}
+            />
+            {t('map_links_enable')}
+          </label>
+          <div
+            role="radiogroup"
+            aria-label={t('map_links_mode_label')}
+            className="flex flex-col gap-1"
+          >
+            <span className="text-xs font-medium text-muted-foreground">
+              {t('map_links_mode_label')}
+            </span>
+            {(['liveness', 'advert'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                role="radio"
+                aria-checked={linkMode === mode}
+                className={
+                  'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm ' +
+                  (linkMode === mode ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50')
+                }
+                onClick={() => onLinkMode?.(mode)}
+              >
+                {mode === 'liveness' ? t('map_links_mode_liveness') : t('map_links_mode_advert')}
+              </button>
+            ))}
+          </div>
+          {linkMode === 'advert' && (
+            <div
+              role="radiogroup"
+              aria-label={t('map_links_confidence_label')}
+              className="flex flex-col gap-1"
+            >
+              <span className="text-xs font-medium text-muted-foreground">
+                {t('map_links_confidence_label')}
+              </span>
+              {confidenceOptions.map((opt) => (
+                <button
+                  key={opt.level}
+                  type="button"
+                  role="radio"
+                  aria-checked={linkConfidence === opt.level}
+                  className={
+                    'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm ' +
+                    (linkConfidence === opt.level
+                      ? 'bg-accent text-accent-foreground'
+                      : 'hover:bg-accent/50')
+                  }
+                  onClick={() => onLinkConfidence?.(opt.level)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ),
+    };
+  }
+
+  // Fold the MapView-supplied extra panels (since, packets, heard, external) in by id.
+  for (const ex of extraFabs) {
+    sectionById[ex.id] = { id: ex.id, title: ex.label, body: ex.panel };
+  }
+
+  const GROUPS: { id: string; label: string; icon: ReactNode; memberIds: string[] }[] = [
+    {
+      id: 'display',
+      label: t('map_group_display'),
+      icon: <Layers size={20} aria-hidden />,
+      memberIds: ['layers', 'nodeSize', 'legend'],
+    },
+    {
+      id: 'filters',
+      label: t('map_group_filters'),
+      icon: <Filter size={20} aria-hidden />,
+      memberIds: ['since', 'heard', 'external'],
+    },
+    {
+      id: 'overlays',
+      label: t('map_group_overlays'),
+      icon: <Activity size={20} aria-hidden />,
+      memberIds: ['packets', 'links'],
+    },
+  ];
+
+  const panels: PanelDef[] = [];
+  for (const g of GROUPS) {
+    const sections = g.memberIds.map((id) => sectionById[id]).filter(Boolean) as Section[];
+    if (sections.length === 0) continue;
+    panels.push({
+      id: g.id,
+      label: g.label,
+      icon: g.icon,
+      body: (
+        <div className="flex flex-col gap-4">
+          {sections.map((s) => (
+            <div key={s.id} className="flex flex-col gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {s.title}
+              </span>
+              {s.body}
+            </div>
+          ))}
+        </div>
+      ),
     });
   }
-  for (const ex of extraFabs) {
-    panels.push({ id: ex.id, label: ex.label, icon: ex.icon, body: ex.panel });
+
+  // Search stays standalone (a distinct quick action, not a category).
+  if (fabs.search) {
+    panels.push({
+      id: 'search',
+      label: t('map_search'),
+      icon: <Search size={20} aria-hidden />,
+      body: (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSearch?.(searchValue);
+          }}
+        >
+          <input
+            type="search"
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
+            aria-label={t('map_search')}
+            placeholder={t('map_search')}
+            className="w-full rounded border border-border bg-background px-2 py-1.5 text-sm"
+          />
+        </form>
+      ),
+    });
   }
 
   // Direct-toggle FABs (no panel).
@@ -347,21 +503,18 @@ export function MapControls(props: MapControlsProps) {
       onClick: () => onToggleBuildings?.(!buildings),
     });
   }
-  if (fabs.links) {
-    toggles.push({
-      id: 'links',
-      label: t('map_links_label'),
-      icon: <Spline size={20} aria-hidden />,
-      active: linksOn,
-      onClick: () => onToggleLinks?.(!linksOn),
-    });
-  }
 
   const activePanel = panels.find((p) => p.id === openPanel) ?? null;
 
   return (
     <>
-      <div className="pointer-events-none absolute left-3 top-3 z-[1200] flex items-start gap-2">
+      <div
+        data-testid="map-fab-stack"
+        className={
+          'pointer-events-none absolute top-3 z-[1200] flex items-start gap-2 transition-[left] duration-200 ' +
+          (isMobile && sidebarOpen ? 'left-[288px]' : 'left-3')
+        }
+      >
         <div className="pointer-events-auto flex flex-col gap-2.5">
           {panels.map((p) => (
             <button
@@ -393,23 +546,9 @@ export function MapControls(props: MapControlsProps) {
 
         {/* Desktop: anchored panel beside the stack. */}
         {!compact && activePanel && (
-          <div className="pointer-events-auto w-56 rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-lg">
+          <div className="pointer-events-auto max-h-[70vh] w-56 overflow-y-auto rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-lg">
             <div className="mb-2 flex items-center justify-between gap-2">
               <span className="text-sm font-semibold">{activePanel.label}</span>
-              {activePanel.id === 'legend' && !legendPinned && (
-                <button
-                  type="button"
-                  title={t('map_legend_pin')}
-                  aria-label={t('map_legend_pin')}
-                  className="rounded p-0.5 text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                  onClick={() => {
-                    setLegendPinned(true);
-                    setOpenPanel(null);
-                  }}
-                >
-                  <Pin size={16} aria-hidden />
-                </button>
-              )}
             </div>
             {activePanel.body}
           </div>
@@ -424,19 +563,6 @@ export function MapControls(props: MapControlsProps) {
               <SheetTitle>{activePanel?.label ?? t('map_controls_title')}</SheetTitle>
               <SheetDescription className="sr-only">{t('map_controls_title')}</SheetDescription>
             </SheetHeader>
-            {activePanel?.id === 'legend' && !legendPinned && (
-              <button
-                type="button"
-                className="mt-2 flex items-center gap-1.5 rounded border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                onClick={() => {
-                  setLegendPinned(true);
-                  setOpenPanel(null);
-                }}
-              >
-                <Pin size={14} aria-hidden />
-                {t('map_legend_pin')}
-              </button>
-            )}
             <div className="pt-2">{activePanel?.body}</div>
           </SheetContent>
         </Sheet>

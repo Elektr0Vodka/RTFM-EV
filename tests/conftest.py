@@ -52,6 +52,7 @@ async def test_db():
     """Create an in-memory test database with schema + migrations."""
     from app.repository import (
         advert_events,
+        advert_links,
         battery_history,
         channels,
         contact_telemetry,
@@ -72,6 +73,7 @@ async def test_db():
 
     submodules = [
         advert_events,
+        advert_links,
         contacts,
         channels,
         messages,

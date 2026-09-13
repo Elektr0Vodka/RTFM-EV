@@ -256,6 +256,8 @@ export function SettingsModal(props: SettingsModalProps) {
               contacts={contacts}
               channels={channels}
               className={sectionContentClass}
+              appSettings={appSettings}
+              onSaveAppSettings={onSaveAppSettings}
             />
           )}
         </section>

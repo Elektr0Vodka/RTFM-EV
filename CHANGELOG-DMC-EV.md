@@ -38,8 +38,51 @@ the change. Upstream development is on hold; the fork is the active repository.
   private / loopback / link-local / reserved hosts (incl. redirects), caps
   response size and time, and caches results (`app/services/url_safety.py`,
   `app/services/unfurl.py`, `app/routers/unfurl.py`)
-- `app_settings` migration `_082` adds `chat_parse_pubkeys`,
+- `app_settings` migration `_083` adds `chat_parse_pubkeys`,
   `chat_parse_coordinates`, `chat_url_previews`, `chat_linkify_urls`
+
+## Update 2026-09-13 (map advert-truth links + FAB declutter, PR #101)
+
+### Chat / UI
+- Node Map links can now be drawn from the advert paths actually heard (truth)
+  rather than only the client-side liveness graph. The Links control gains a
+  Liveness / Advert-truth mode switch and a confidence selector (1b+/2b+/3b,
+  default 2b+): a hop hash is a truncated public-key prefix, so 1-byte hops are
+  ambiguous and wider hops resolve more uniquely. Advert edges encode confidence
+  as line width, recency as opacity, and ambiguous edges are dashed (PR #101)
+- Node Map floating buttons decluttered from 11 to 6: grouped into Display,
+  Filters, and Overlays category buttons (each opening a panel of sections),
+  plus a standalone Search button and the 2D/3D and buildings toggles. On mobile
+  the button column shifts clear of the sidebar drawer while it is open so it
+  stays visible; tablets and desktops with a persistent sidebar are unaffected
+  (PR #101)
+
+### Backend
+- New read-only `GET /api/packets/advert-links` resolves stored advert paths
+  (`advert_events`) into GPS edges by walking each anchored chain and
+  disambiguating multi-match hop hashes by nearest-to-previously-resolved,
+  resolving hops against local contacts unioned with analyzer nodes
+  (`external_map_nodes`). Returns `hop_width`, `count`, `last_seen`, and an
+  `ambiguous` flag. No migration (PR #101)
+
+## Update 2026-09-13 (CRT theme + branding)
+
+### Chat / UI
+- CRT theme: a retro phosphor-monitor look with green (default), amber,
+  white, and blue (C64) phosphor variants and individually-toggleable
+  scanline, phosphor-glow, screen-curvature, and flicker effects. Flicker
+  respects `prefers-reduced-motion`. Phosphor and effect choices are
+  per-device (localStorage); the theme lives in a dedicated CRT section under
+  the renamed "Customisation" settings block (was "Color Scheme") (PR #100)
+- Branding: customise the navbar name, hide it, and upload a custom icon.
+  Stored server-side so it is shared across every device connected to the
+  instance. Icon capped at 128 KB (PNG/SVG/ICO/JPEG). Empty name falls back to
+  "RemoteTerm"; empty icon falls back to the built-in logo (PR #100)
+
+### Backend
+- Migration `_082` adds `brand_name`, `brand_hidden`, and `brand_icon` columns
+  to `app_settings`; `PATCH /settings` accepts and validates them (name capped
+  at 64 chars, icon type/size checked) (PR #100)
 
 ## Update 2026-09-12 (My Node map link)
 

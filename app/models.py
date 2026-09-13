@@ -1260,6 +1260,18 @@ class AppSettings(BaseModel):
             "0 disables the periodic sync (manual sync only)."
         ),
     )
+    brand_name: str = Field(
+        default="",
+        description="Custom navbar wordmark; empty falls back to the built-in 'RemoteTerm'",
+    )
+    brand_hidden: bool = Field(
+        default=False,
+        description="Hide the navbar wordmark text (the icon still shows)",
+    )
+    brand_icon: str = Field(
+        default="",
+        description="Custom navbar icon as a data URL; empty falls back to the built-in SVG",
+    )
 
 
 class ExternalMapNode(BaseModel):
@@ -1273,6 +1285,26 @@ class ExternalMapNode(BaseModel):
     last_seen: int | None = None
     advert_count: int = 0
     mobile: bool = False
+
+
+class AdvertLinkNode(BaseModel):
+    """A resolved GPS endpoint of an advert-truth map edge."""
+
+    pubkey: str
+    lat: float
+    lon: float
+    kind: Literal["self", "contact", "external"]
+
+
+class AdvertLinkEdge(BaseModel):
+    """One undirected RF link derived from stored advert paths (map truth)."""
+
+    a: AdvertLinkNode
+    b: AdvertLinkNode
+    hop_width: int
+    count: int
+    last_seen: int
+    ambiguous: bool
 
 
 class BusyChannel(BaseModel):

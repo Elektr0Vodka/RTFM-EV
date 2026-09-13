@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from app.database import db
 from app.decoder import parse_packet, try_decrypt_packet_with_channel_key
-from app.models import RawPacketDecryptedInfo, RawPacketDetail
+from app.models import AdvertLinkEdge, AdvertLinkNode, RawPacketDecryptedInfo, RawPacketDetail
 from app.packet_processor import create_message_from_decrypted, run_historical_dm_decryption
 from app.region_resolver import resolve_region
 from app.repository import (
@@ -20,7 +20,10 @@ from app.repository import (
     MessageRepository,
     RawPacketRepository,
 )
+from app.repository.advert_links import AdvertLinksRepository
+from app.services.advert_links import LocatedNode, resolve_advert_edges
 from app.services.messages import backfill_message_regions
+from app.services.radio_runtime import radio_runtime as radio_manager
 from app.websocket import broadcast_success
 
 logger = logging.getLogger(__name__)
@@ -816,6 +819,67 @@ async def get_reachability_rings(
     label_map = {0: "Direct (0-hop)", 1: "1 hop", 2: "2 hops", 3: "3+ hops", None: "Unknown"}
     order: list[int | None] = [0, 1, 2, 3, None]
     return [{"hops": h, "count": buckets[h], "label": label_map[h]} for h in order if h in buckets]
+
+
+def _self_located_node() -> LocatedNode | None:
+    """The app's own node as a located node, or None if unavailable.
+
+    Never raises: if the radio is not connected or has no location, self edges
+    are simply omitted from the advert-link graph.
+    """
+    try:
+        if not getattr(radio_manager, "is_connected", False):
+            return None
+        mc = getattr(radio_manager, "meshcore", None)
+        info = getattr(mc, "self_info", None) if mc else None
+        if not info:
+            return None
+        pubkey = (info.get("public_key") or "").lower()
+        lat = info.get("adv_lat")
+        lon = info.get("adv_lon")
+        if not pubkey or lat is None or lon is None:
+            return None
+        if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+            return None
+        if lat == 0.0 and lon == 0.0:
+            return None
+        return LocatedNode(pubkey=pubkey, lat=float(lat), lon=float(lon), kind="self")
+    except Exception:
+        return None
+
+
+@router.get("/advert-links", response_model=list[AdvertLinkEdge])
+async def get_advert_links(limit: int = 5000) -> list[AdvertLinkEdge]:
+    """Resolved advert-path edges for the map link layer (truth).
+
+    Each edge is an undirected RF link derived from stored advert paths, carrying
+    hop_width (confidence), count, last_seen (recency), and an ambiguous flag.
+    Hop hashes are resolved against local contacts UNION analyzer nodes.
+    """
+    rows = await AdvertLinksRepository.recent_events(limit=min(max(limit, 1), 20000))
+    located = await AdvertLinksRepository.located_nodes()
+    self_node = _self_located_node()
+    node_by_pk = {n.pubkey: n for n in located}
+    if self_node is not None:
+        node_by_pk[self_node.pubkey] = self_node
+
+    edges = resolve_advert_edges(rows, located, self_node)
+
+    def to_node(pubkey: str) -> AdvertLinkNode:
+        n = node_by_pk[pubkey]
+        return AdvertLinkNode(pubkey=n.pubkey, lat=n.lat, lon=n.lon, kind=n.kind)
+
+    return [
+        AdvertLinkEdge(
+            a=to_node(e.a_pubkey),
+            b=to_node(e.b_pubkey),
+            hop_width=e.hop_width,
+            count=e.count,
+            last_seen=e.last_seen,
+            ambiguous=e.ambiguous,
+        )
+        for e in edges
+    ]
 
 
 @router.get("/{packet_id}", response_model=RawPacketDetail)

@@ -118,6 +118,21 @@ MESHCORE_LOG_LEVEL=DEBUG uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 You can also navigate to `/api/debug` (or go to Settings -> About -> "Open debug support snapshot" at the bottom). This debug block contains information about the operating environment, expectations around keys and channels, and radio status. It also includes the most recent logs. **Non-log information reveals no keys, channel names, or other privilege information beyond the names of your bots. The logs, however, may contain channel names or keys (but never your private key).** If you do not wish to include this information, copy up to the `STOP COPYING HERE` marker in the debug body.
 
+## Customisation And Branding
+
+Settings -> Customisation groups the appearance controls.
+
+- **Themes**: the swatch grid selects the colour theme (per-device).
+- **CRT mode**: a retro phosphor-monitor theme with green (default), amber,
+  white, or blue (C64) phosphor and toggleable scanline, phosphor-glow,
+  screen-curvature, and flicker effects. Flicker is disabled automatically when
+  the browser requests reduced motion. CRT choices are per-device (stored in the
+  browser), like the theme selection.
+- **Branding**: rename the top-bar "RemoteTerm" wordmark, hide it, or upload a
+  custom icon (PNG/SVG/ICO/JPEG, up to 128 KB). Branding is stored server-side,
+  so it is shared across every device that connects to the instance. Leaving the
+  name empty restores "RemoteTerm"; removing the icon restores the built-in logo.
+
 ## Development Notes
 
 For day-to-day development, see [CONTRIBUTING.md](CONTRIBUTING.md).
