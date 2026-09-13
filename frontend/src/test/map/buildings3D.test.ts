@@ -34,4 +34,38 @@ describe('setBuildings3D', () => {
     await setBuildings3D(map, false, 'dark');
     expect(map.removeLayer).toHaveBeenCalledWith('buildings-3d');
   });
+
+  it('inserts the extrusion below the node overlays so icons stay on top', async () => {
+    const map = {
+      // openmaptiles source present -> no network fetch
+      getSource: vi.fn((id: string) => (id === 'openmaptiles' ? {} : undefined)),
+      // buildings-3d absent; the node layer is present as the anchor
+      getLayer: vi.fn((id: string) => (id === 'rt-nodes' ? {} : undefined)),
+      addLayer: vi.fn(),
+      getPitch: vi.fn(() => 45),
+      easeTo: vi.fn(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+    await setBuildings3D(map, true, 'dark');
+    expect(map.addLayer).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'buildings-3d' }),
+      'rt-nodes'
+    );
+  });
+
+  it('re-seats an existing extrusion below the overlays', async () => {
+    const map = {
+      getSource: vi.fn((id: string) => (id === 'openmaptiles' ? {} : undefined)),
+      getLayer: vi.fn((id: string) =>
+        id === 'rt-nodes' || id === 'buildings-3d' ? {} : undefined
+      ),
+      moveLayer: vi.fn(),
+      setPaintProperty: vi.fn(),
+      getPitch: vi.fn(() => 45),
+      easeTo: vi.fn(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+    await setBuildings3D(map, true, 'dark');
+    expect(map.moveLayer).toHaveBeenCalledWith('buildings-3d', 'rt-nodes');
+  });
 });

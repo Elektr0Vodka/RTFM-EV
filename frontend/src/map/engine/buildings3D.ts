@@ -46,6 +46,20 @@ async function vectorSourceDef(): Promise<unknown> {
   return p;
 }
 
+// Overlay layers (node icons, labels, external nodes) that must draw ABOVE the
+// 3D buildings, so a node icon sitting inside a building footprint stays
+// visible instead of being covered by the extrusion. Listed bottom-most first;
+// we anchor the buildings layer just below the lowest one that exists. MapLibre
+// draws later layers on top, so every overlay above the anchor renders over the
+// buildings.
+const OVERLAY_ANCHORS = ['rt-external', 'rt-nodes', 'rt-node-labels'];
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function overlayAnchor(m: any): string | undefined {
+  for (const id of OVERLAY_ANCHORS) if (m.getLayer(id)) return id;
+  return undefined;
+}
+
 export async function ensureBuildingsSource(map: MlMap): Promise<string> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const m = map as any;
@@ -70,9 +84,13 @@ export async function setBuildings3D(
       return;
     }
     const src = await ensureBuildingsSource(map);
+    const anchor = overlayAnchor(m);
     if (!m.getLayer('buildings-3d')) {
-      m.addLayer(buildingsLayerSpec(src, theme));
+      // Insert below the node/overlay layers so node icons stay on top.
+      m.addLayer(buildingsLayerSpec(src, theme), anchor);
     } else {
+      // Re-seat below the overlays in case it was previously added on top.
+      if (anchor) m.moveLayer('buildings-3d', anchor);
       const paint = buildingsPaint(theme);
       for (const [prop, val] of Object.entries(paint))
         m.setPaintProperty('buildings-3d', prop, val);
