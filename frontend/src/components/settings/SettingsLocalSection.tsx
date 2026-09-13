@@ -21,7 +21,7 @@ import {
   setReopenLastConversationEnabled,
 } from '../../utils/lastViewedConversation';
 import { ThemeSelector } from './ThemeSelector';
-import { CrtSettings } from './CrtSettings';
+import { CrtEffects } from './CrtEffects';
 import { BrandingSettings } from './BrandingSettings';
 import { LanguageSelector } from './LanguageSelector';
 import { getLocalLabel, setLocalLabel, type LocalLabel } from '../../utils/localLabel';
@@ -357,11 +357,11 @@ export function SettingsLocalSection({
       <div className="space-y-1">
         <h3 className="text-base font-semibold tracking-tight">{t('settings_customisation')}</h3>
         <ThemeSelector />
+        {/* CRT phosphor colours are themes in the selector above; the CRT screen
+            effects (universal overlay) toggle here. */}
+        <CrtEffects />
         <ThemePreview className="mt-6" />
       </div>
-
-      {/* CRT is its own bordered section (see CrtSettings), so no flanking separators. */}
-      <CrtSettings />
 
       <Separator />
 

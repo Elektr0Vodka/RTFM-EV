@@ -11,6 +11,31 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-14 (CRT phosphor themes + universal screen effects)
+
+### Chat / UI
+- The four CRT phosphor colours are now first-class themes in the theme picker
+  (both the navbar "Color Scheme" dialog and Settings > Customisation): **CRT
+  Green**, **CRT Amber**, **CRT White**, **CRT Blue**. Selecting one applies its
+  monochrome phosphor palette.
+- The CRT screen effects (scanlines, phosphor glow, screen curvature, flicker)
+  became a theme-independent overlay shown as toggles beneath the theme grid.
+  They now work on top of any theme, not only the CRT ones. Defaults follow the
+  active theme: on under a CRT theme, off otherwise; an explicit toggle persists
+  across themes. The phosphor glow tints to `--crt-phosphor`, which CRT themes
+  set to their hue and other themes fall back to `--primary`.
+- The "tint the map to the CRT colour" toggle moved into the same panel; it acts
+  only while a CRT theme is active (it needs a phosphor hue) and Nova Dark is the
+  chosen basemap.
+- The retired single `crt` theme + separate phosphor picker are gone. A saved
+  `crt` theme is migrated once to the matching `crt-<phosphor>` theme id.
+- Files: `frontend/src/utils/{crt,theme}.ts`, `frontend/src/themes.css`,
+  `frontend/src/index.css`, `frontend/src/components/settings/CrtEffects.tsx`
+  (replaces `CrtSettings.tsx`), `frontend/src/components/StatusBar.tsx`,
+  `frontend/src/components/settings/SettingsLocalSection.tsx`,
+  `frontend/src/map/MapSurface.tsx`. i18n: dropped the CRT enable/phosphor keys,
+  kept the effect/map keys (EN/NL/DE).
+
 ## Update 2026-09-13 (Sidebar back-to-top button, feat/sidebar-back-to-top)
 
 ### Chat / UI

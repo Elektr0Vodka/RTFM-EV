@@ -17,7 +17,12 @@ import {
   type BasemapEntry,
   type NovaTint,
 } from './engine/basemaps';
-import { CRT_CHANGE_EVENT, CRT_PHOSPHOR_HUE, getCrtMapTint, getCrtPhosphor } from '../utils/crt';
+import {
+  CRT_CHANGE_EVENT,
+  CRT_PHOSPHOR_HUE,
+  getActiveCrtPhosphor,
+  getCrtMapTint,
+} from '../utils/crt';
 import { setMapLock2D } from './engine/mapLock2D';
 import { setBuildings3D } from './engine/buildings3D';
 import { isWebglAvailable } from './engine/webgl';
@@ -70,10 +75,12 @@ function initialStyleFor(entry: BasemapEntry): string | StyleSpecification {
   return rasterStyle(rasterFallbackFor(entry));
 }
 
-/** Current Nova tint from CRT prefs, or undefined when the tint is off. */
+/** Current Nova tint from CRT prefs, or undefined when the tint is off or the
+ *  active theme is not a CRT theme (no phosphor hue to tint to). */
 function novaTintFromPrefs(): NovaTint | undefined {
   if (!getCrtMapTint()) return undefined;
-  const p = getCrtPhosphor();
+  const p = getActiveCrtPhosphor();
+  if (!p) return undefined;
   return { id: p, hue: CRT_PHOSPHOR_HUE[p], desaturate: p === 'white' };
 }
 
