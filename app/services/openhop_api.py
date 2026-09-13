@@ -190,5 +190,29 @@ class OpenHopClient:
     async def restart_service(self) -> dict[str, Any]:
         return await self._post("/api/restart_service", {})
 
+    # --- Update (OTA) ---------------------------------------------------
+    async def update_status(self) -> dict[str, Any]:
+        return await self._get("/api/update/status")
+
+    async def update_check(self, force: bool = False) -> dict[str, Any]:
+        return await self._post("/api/update/check", {"force": force})
+
+    async def update_install(self, force: bool = False) -> dict[str, Any]:
+        return await self._post("/api/update/install", {"force": force})
+
+    async def update_channels(self) -> dict[str, Any]:
+        return await self._get("/api/update/channels")
+
+    async def update_set_channel(self, channel: str) -> dict[str, Any]:
+        return await self._post("/api/update/set_channel", {"channel": channel})
+
+    async def update_changelog(
+        self, channel: str | None = None, max_commits: int = 40
+    ) -> dict[str, Any]:
+        params: dict[str, Any] = {"max": max_commits}
+        if channel:
+            params["channel"] = channel
+        return await self._get_q("/api/update/changelog", params)
+
     async def aclose(self) -> None:
         await self._client.aclose()

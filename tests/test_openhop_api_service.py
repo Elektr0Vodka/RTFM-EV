@@ -170,3 +170,46 @@ async def test_config_family_methods_use_api_key_and_paths():
     await client.aclose()
     assert all(v == "tok" for v in seen.values())
     assert ("GET", "/api/config_export") in seen
+
+
+@pytest.mark.asyncio
+async def test_update_methods_use_api_key_and_paths():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen[(request.method, request.url.path)] = request.headers.get("X-API-Key")
+        p, m = request.url.path, request.method
+        if p == "/api/update/status" and m == "GET":
+            return httpx.Response(
+                200,
+                json={
+                    "success": True,
+                    "state": "idle",
+                    "current_version": "1.0.6.dev10",
+                    "channel": "main",
+                },
+            )
+        if p == "/api/update/check" and m == "POST":
+            return httpx.Response(200, json={"success": True, "state": "checking"})
+        if p == "/api/update/install" and m == "POST":
+            return httpx.Response(200, json={"success": True, "state": "installing"})
+        if p == "/api/update/channels" and m == "GET":
+            return httpx.Response(
+                200,
+                json={"success": True, "channels": ["main", "dev"], "current_channel": "main"},
+            )
+        if p == "/api/update/set_channel" and m == "POST":
+            return httpx.Response(200, json={"success": True, "channel": "dev"})
+        if p == "/api/update/changelog" and m == "GET":
+            return httpx.Response(200, json={"success": True, "commits": []})
+        return httpx.Response(404, json={"success": False})
+
+    client = OpenHopClient("http://n:8000", token="tok", transport=httpx.MockTransport(handler))
+    assert (await client.update_status())["state"] == "idle"
+    assert (await client.update_check(force=True))["state"] == "checking"
+    assert (await client.update_install(force=False))["state"] == "installing"
+    assert (await client.update_channels())["channels"] == ["main", "dev"]
+    assert (await client.update_set_channel("dev"))["channel"] == "dev"
+    assert (await client.update_changelog(channel="main", max_commits=10))["success"] is True
+    await client.aclose()
+    assert all(v == "tok" for v in seen.values())
