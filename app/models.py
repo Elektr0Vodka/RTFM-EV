@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field, field_serializer
 
 from app.path_utils import normalize_contact_route, normalize_route_override
 
@@ -1321,9 +1321,20 @@ class AppSettings(BaseModel):
         default=None,
         description=(
             "OpenHop REST API token (sent as X-API-Key), created by the user on "
-            "the node. None when unset."
+            "the node. None when unset. Write-only: masked in all serialised output."
         ),
     )
+
+    @field_serializer("openhop_api_token")
+    def _mask_openhop_api_token(self, value: str | None) -> None:
+        """Write-only: never expose the token in any serialised output."""
+        return None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def openhop_api_token_set(self) -> bool:
+        """Whether an OpenHop API token is stored (without exposing it)."""
+        return bool(self.openhop_api_token)
 
 
 class ExternalMapNode(BaseModel):

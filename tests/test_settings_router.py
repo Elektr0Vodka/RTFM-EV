@@ -736,3 +736,24 @@ class TestAdvertRetentionSetting:
             AppSettingsUpdate(advert_retention_days=0)
         with pytest.raises(ValidationError):
             AppSettingsUpdate(advert_retention_days=366)
+
+
+class TestOpenHopTokenMasking:
+    @pytest.mark.asyncio
+    async def test_settings_serialization_masks_token_but_keeps_attribute(self, test_db):
+        await update_settings(
+            AppSettingsUpdate(openhop_api_url="http://n:8000", openhop_api_token="secret-tok")
+        )
+        settings = await AppSettingsRepository.get()
+        # Attribute stays real for internal use.
+        assert settings.openhop_api_token == "secret-tok"
+        dumped = settings.model_dump()
+        # Serialised output never carries the secret.
+        assert dumped["openhop_api_token"] is None
+        assert dumped["openhop_api_token_set"] is True
+        assert "secret-tok" not in settings.model_dump_json()
+
+    @pytest.mark.asyncio
+    async def test_token_set_flag_false_when_unset(self, test_db):
+        settings = await AppSettingsRepository.get()
+        assert settings.model_dump()["openhop_api_token_set"] is False
