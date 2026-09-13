@@ -1646,6 +1646,50 @@ class TestRepeaterOwnerInfo:
         assert "get guest.password" in cli_cmds
         assert "get owner.info" not in cli_cmds
 
+    @pytest.mark.asyncio
+    async def test_owner_info_autofills_when_empty(self, test_db):
+        await _insert_contact(KEY_A, name="Repeater", contact_type=2)
+
+        async def fake_fetch(contact, *a, **k):
+            return {"owner_info": "PA0AAA", "firmware_version": "v2", "name": "Rep"}
+
+        async def fake_cli(*a, **k):
+            return {"guest_password": None}
+
+        with (
+            patch("app.routers.repeaters.radio_manager.require_connected", return_value=None),
+            patch("app.routers.repeaters.fetch_repeater_owner_info_binary", side_effect=fake_fetch),
+            patch("app.routers.repeaters._batch_cli_fetch", side_effect=fake_cli),
+        ):
+            response = await repeater_owner_info(KEY_A)
+
+        assert response.owner_info_updated is True
+        assert response.stored_owner_info == "PA0AAA"
+        stored = await ContactRepository.get_by_key(KEY_A)
+        assert stored is not None and stored.owner_info == "PA0AAA"
+
+    @pytest.mark.asyncio
+    async def test_owner_info_does_not_overwrite(self, test_db):
+        await _insert_contact(KEY_A, name="Repeater", contact_type=2)
+        await ContactRepository.set_annotations(KEY_A, {"owner_info": "MINE"})
+
+        async def fake_fetch(contact, *a, **k):
+            return {"owner_info": "PA0AAA", "firmware_version": "v2", "name": "Rep"}
+
+        async def fake_cli(*a, **k):
+            return {"guest_password": None}
+
+        with (
+            patch("app.routers.repeaters.radio_manager.require_connected", return_value=None),
+            patch("app.routers.repeaters.fetch_repeater_owner_info_binary", side_effect=fake_fetch),
+            patch("app.routers.repeaters._batch_cli_fetch", side_effect=fake_cli),
+        ):
+            response = await repeater_owner_info(KEY_A)
+
+        assert response.owner_info_updated is False
+        assert response.stored_owner_info == "MINE"
+        assert response.owner_info == "PA0AAA"
+
 
 class TestParseOwnerInfoPayload:
     def test_parses_firmware_name_owner(self):

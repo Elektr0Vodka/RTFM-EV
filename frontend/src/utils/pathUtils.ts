@@ -374,6 +374,25 @@ export function isValidLocation(lat: number | null, lon: number | null): boolean
   return true;
 }
 
+/** Resolve a contact's display location: advertised coords win when valid,
+ *  otherwise fall back to manually-entered coords, otherwise none. */
+export function getEffectiveLocation(contact: {
+  lat: number | null;
+  lon: number | null;
+  manual_lat?: number | null;
+  manual_lon?: number | null;
+}): { lat: number; lon: number } | null {
+  if (isValidLocation(contact.lat, contact.lon)) {
+    return { lat: contact.lat!, lon: contact.lon! };
+  }
+  const mlat = contact.manual_lat ?? null;
+  const mlon = contact.manual_lon ?? null;
+  if (isValidLocation(mlat, mlon)) {
+    return { lat: mlat!, lon: mlon! };
+  }
+  return null;
+}
+
 /**
  * Format distance in human-readable form using the selected display unit.
  */

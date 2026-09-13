@@ -42,6 +42,11 @@ class ContactUpsert(BaseModel):
     on_radio: bool | None = None
     last_contacted: int | None = None
     first_seen: int | None = None
+    notes: str | None = None
+    owner_info: str | None = None
+    owner_key: str | None = None
+    manual_lat: float | None = None
+    manual_lon: float | None = None
 
     @classmethod
     def from_contact(cls, contact: Contact, **changes) -> ContactUpsert:
@@ -116,6 +121,11 @@ class Contact(BaseModel):
     last_contacted: int | None = None  # Last time we sent/received a message
     last_read_at: int | None = None  # Server-side read state tracking
     first_seen: int | None = None
+    notes: str | None = None
+    owner_info: str | None = None
+    owner_key: str | None = None
+    manual_lat: float | None = None
+    manual_lon: float | None = None
     effective_route: ContactRoute | None = None
     effective_route_source: Literal["override", "direct", "flood"] = "flood"
     direct_route: ContactRoute | None = None
@@ -231,6 +241,20 @@ class CreateContactRequest(BaseModel):
         default=False,
         description="Attempt to decrypt historical DM packets for this contact",
     )
+
+
+class ContactAnnotationsUpdate(BaseModel):
+    """Partial update of user-editable contact annotations.
+
+    Every field is optional. A field left unset is unchanged; a field explicitly
+    set to ``null`` clears it. Use ``model_fields_set`` to tell the two apart.
+    """
+
+    notes: str | None = Field(default=None, max_length=2000)
+    owner_info: str | None = Field(default=None, max_length=2000)
+    owner_key: str | None = Field(default=None, description="64-char hex of an existing contact")
+    manual_lat: float | None = Field(default=None, ge=-90, le=90)
+    manual_lon: float | None = Field(default=None, ge=-180, le=180)
 
 
 class ContactRoutingOverrideRequest(BaseModel):
@@ -680,6 +704,12 @@ class RepeaterOwnerInfoResponse(BaseModel):
         default=None, description="Repeater name (from binary owner-info request)"
     )
     guest_password: str | None = Field(default=None, description="Guest password (admin only)")
+    stored_owner_info: str | None = Field(
+        default=None, description="Contact's persisted owner_info after this call"
+    )
+    owner_info_updated: bool = Field(
+        default=False, description="True iff this call auto-filled an empty stored owner_info"
+    )
 
 
 class RepeaterRegionEntry(BaseModel):

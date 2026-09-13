@@ -32,7 +32,11 @@ from app.models import (
 )
 from app.repository import ContactRepository, RepeaterTelemetryRepository
 from app.repository.link_signal import LinkSignalRepository
-from app.routers.contacts import _ensure_on_radio, _resolve_contact_or_404
+from app.routers.contacts import (
+    _broadcast_contact_update,
+    _ensure_on_radio,
+    _resolve_contact_or_404,
+)
 from app.routers.server_control import (
     batch_cli_fetch,
     fetch_repeater_owner_info_binary,
@@ -484,11 +488,27 @@ async def repeater_owner_info(public_key: str) -> RepeaterOwnerInfoResponse:
         [("get guest.password", "guest_password")],
     )
 
+    # Auto-fill the contact's stored owner_info when it is still empty. An existing
+    # user-set value is never overwritten; the client prompts to override instead.
+    fetched_owner_info = owner.get("owner_info")
+    owner_info_updated = False
+    if fetched_owner_info:
+        owner_info_updated = await ContactRepository.set_owner_info_if_empty(
+            contact.public_key, fetched_owner_info
+        )
+
+    refreshed = await ContactRepository.get_by_key(contact.public_key)
+    stored_owner_info = refreshed.owner_info if refreshed else None
+    if owner_info_updated and refreshed:
+        await _broadcast_contact_update(refreshed)
+
     return RepeaterOwnerInfoResponse(
-        owner_info=owner.get("owner_info"),
+        owner_info=fetched_owner_info,
         firmware_version=owner.get("firmware_version"),
         name=owner.get("name"),
         guest_password=cli.get("guest_password"),
+        stored_owner_info=stored_owner_info,
+        owner_info_updated=owner_info_updated,
     )
 
 

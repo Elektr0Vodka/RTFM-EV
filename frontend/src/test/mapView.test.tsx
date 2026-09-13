@@ -74,6 +74,26 @@ describe('MapView (MapLibre)', () => {
     });
   });
 
+  it('maps a contact that has only manual coordinates', async () => {
+    render(
+      <I18nProvider>
+        <MapView
+          contacts={[
+            contact({ public_key: 'adv', lat: 52, lon: 5 }),
+            contact({ public_key: 'man', lat: null, lon: null, manual_lat: 51, manual_lon: 4 }),
+          ]}
+        />
+      </I18nProvider>
+    );
+    stub.fire('load');
+    await waitFor(() => {
+      const ids = lastNodeFeatureCollection()
+        .features.map((f) => f.properties.id)
+        .sort();
+      expect(ids).toEqual(['adv', 'man']);
+    });
+  });
+
   it('excludes blocked contacts', async () => {
     render(
       <I18nProvider>

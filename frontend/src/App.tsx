@@ -31,6 +31,7 @@ import { usePush } from './contexts/PushSubscriptionContext';
 import { messageContainsMention } from './utils/messageParser';
 import { buildMentionEvent, type MentionEvent } from './components/MentionTicker';
 import { getStateKey } from './utils/conversationState';
+import { getContactDisplayName } from './utils/pubkey';
 import type { BulkCreateHashtagChannelsResult, Channel, Conversation, Message } from './types';
 import { CONTACT_TYPE_REPEATER, CONTACT_TYPE_ROOM } from './types';
 import { shouldAutoFocusInput } from './utils/autoFocusInput';
@@ -844,6 +845,16 @@ export function App() {
     trackedTelemetryContacts: appSettings?.tracked_telemetry_contacts ?? [],
     onToggleTrackedTelemetryContact: handleToggleTrackedTelemetryContact,
     analyzerSites: appSettings?.analyzer_sites ?? [],
+    onOpenContactInfo: handleOpenContactInfo,
+    onOpenConversation: (publicKey: string) => {
+      const target = contacts.find((c) => c.public_key === publicKey);
+      handleSelectConversationWithTargetReset({
+        type: 'contact',
+        id: publicKey,
+        name: getContactDisplayName(target?.name ?? null, publicKey, target?.last_advert ?? null),
+      });
+      handleCloseContactInfo();
+    },
   };
   const channelInfoPaneProps = {
     channelKey: infoPaneChannelKey,

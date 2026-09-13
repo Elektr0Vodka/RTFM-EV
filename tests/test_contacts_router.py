@@ -881,3 +881,48 @@ class TestRadioResidency:
         assert by_key.get(KEY_A) == "pinned"
         assert by_key.get(KEY_B) == "favorite"
         assert KEY_C not in by_key  # excluded wins over favorite
+
+
+class TestContactAnnotations:
+    """Tests for POST /contacts/{public_key}/annotations."""
+
+    @pytest.mark.asyncio
+    async def test_set_notes_and_manual_gps(self, test_db, client):
+        await _insert_contact(KEY_A)
+        resp = await client.post(
+            f"/api/contacts/{KEY_A}/annotations",
+            json={"notes": "hello", "manual_lat": 52.0, "manual_lon": 5.0},
+        )
+        assert resp.status_code == 200
+        get = await client.get("/api/contacts")
+        row = next(c for c in get.json() if c["public_key"] == KEY_A)
+        assert row["notes"] == "hello"
+        assert row["manual_lat"] == 52.0
+        assert row["manual_lon"] == 5.0
+
+    @pytest.mark.asyncio
+    async def test_owner_key_must_reference_existing_contact(self, test_db, client):
+        await _insert_contact(KEY_A)
+        resp = await client.post(f"/api/contacts/{KEY_A}/annotations", json={"owner_key": KEY_C})
+        assert resp.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_owner_key_accepts_existing_and_clears(self, test_db, client):
+        await _insert_contact(KEY_A)
+        await _insert_contact(KEY_B, name="Bob")
+        ok = await client.post(f"/api/contacts/{KEY_A}/annotations", json={"owner_key": KEY_B})
+        assert ok.status_code == 200
+        get = await client.get("/api/contacts")
+        row = next(c for c in get.json() if c["public_key"] == KEY_A)
+        assert row["owner_key"] == KEY_B
+
+        clear = await client.post(f"/api/contacts/{KEY_A}/annotations", json={"owner_key": None})
+        assert clear.status_code == 200
+        get = await client.get("/api/contacts")
+        row = next(c for c in get.json() if c["public_key"] == KEY_A)
+        assert row["owner_key"] is None
+
+    @pytest.mark.asyncio
+    async def test_unknown_contact_404(self, test_db, client):
+        resp = await client.post(f"/api/contacts/{KEY_A}/annotations", json={"notes": "x"})
+        assert resp.status_code == 404

@@ -398,6 +398,11 @@ export function RepeaterDashboard({
                   state={paneStates.ownerInfo}
                   onRefresh={() => refreshPane('ownerInfo')}
                   disabled={anyLoading}
+                  publicKey={conversation.id}
+                  onSaveOwnerInfo={async (pk, info) => {
+                    await api.updateContactAnnotations(pk, { owner_info: info });
+                    await refreshPane('ownerInfo');
+                  }}
                 />
                 <ActionsPane
                   onSendZeroHopAdvert={sendZeroHopAdvert}

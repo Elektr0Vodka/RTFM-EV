@@ -208,9 +208,22 @@ export interface Contact {
   last_contacted: number | null;
   last_read_at: number | null;
   first_seen: number | null;
+  notes?: string | null;
+  owner_info?: string | null;
+  owner_key?: string | null;
+  manual_lat?: number | null;
+  manual_lon?: number | null;
 }
 
 export type RadioPolicy = 'auto' | 'pinned' | 'excluded';
+
+export interface ContactAnnotationsUpdate {
+  notes?: string | null;
+  owner_info?: string | null;
+  owner_key?: string | null;
+  manual_lat?: number | null;
+  manual_lon?: number | null;
+}
 
 export type RadioResidencyReason = 'pinned' | 'favorite' | 'recent-dm' | 'recent-advert';
 
@@ -727,6 +740,8 @@ export interface RepeaterOwnerInfoResponse {
   firmware_version: string | null;
   name: string | null;
   guest_password: string | null;
+  stored_owner_info?: string | null;
+  owner_info_updated?: boolean;
 }
 
 export interface RepeaterRegionEntry {

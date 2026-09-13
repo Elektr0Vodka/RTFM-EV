@@ -269,6 +269,7 @@ export function ConversationPane({
                   ),
                 })
               }
+              onOpenContactInfo={(publicKey) => onOpenContactInfo(publicKey)}
             />
           </Suspense>
         </div>

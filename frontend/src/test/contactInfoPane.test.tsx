@@ -1,18 +1,22 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import { ContactInfoPane } from '../components/ContactInfoPane';
 import type { Contact, ContactAnalytics } from '../types';
 
-const { getContactAnalytics, contactTelemetryHistory } = vi.hoisted(() => ({
-  getContactAnalytics: vi.fn(),
-  contactTelemetryHistory: vi.fn(),
-}));
+const { getContactAnalytics, contactTelemetryHistory, updateContactAnnotations } = vi.hoisted(
+  () => ({
+    getContactAnalytics: vi.fn(),
+    contactTelemetryHistory: vi.fn(),
+    updateContactAnnotations: vi.fn(),
+  })
+);
 
 vi.mock('../api', () => ({
   api: {
     getContactAnalytics,
     contactTelemetryHistory,
+    updateContactAnnotations,
   },
   isAbortError: () => false,
 }));
@@ -105,8 +109,43 @@ describe('ContactInfoPane', () => {
     getContactAnalytics.mockReset();
     contactTelemetryHistory.mockReset();
     contactTelemetryHistory.mockResolvedValue([]);
+    updateContactAnnotations.mockReset();
+    updateContactAnnotations.mockResolvedValue({ status: 'ok', public_key: 'AA'.repeat(32) });
     baseProps.onSearchMessagesByKey = vi.fn();
     baseProps.onSearchMessagesByName = vi.fn();
+  });
+
+  it('saves notes via the annotations endpoint', async () => {
+    const contact = createContact();
+    getContactAnalytics.mockResolvedValue(createAnalytics(contact));
+
+    render(<ContactInfoPane {...baseProps} contactKey={contact.public_key} />);
+
+    const box = await screen.findByLabelText('Notes');
+    fireEvent.change(box, { target: { value: 'field note' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save notes' }));
+
+    await waitFor(() =>
+      expect(updateContactAnnotations).toHaveBeenCalledWith(contact.public_key, {
+        notes: 'field note',
+      })
+    );
+  });
+
+  it('lists owned nodes (reverse owner link)', async () => {
+    const owner = createContact({ public_key: 'AA'.repeat(32), name: 'Companion' });
+    const owned = createContact({
+      public_key: 'BB'.repeat(32),
+      name: 'MyRepeater',
+      owner_key: owner.public_key,
+    });
+    getContactAnalytics.mockResolvedValue(createAnalytics(owner));
+
+    render(
+      <ContactInfoPane {...baseProps} contactKey={owner.public_key} contacts={[owner, owned]} />
+    );
+
+    expect(await screen.findByText('MyRepeater')).toBeInTheDocument();
   });
 
   it('shows hop width when contact has a stored path hash mode', async () => {

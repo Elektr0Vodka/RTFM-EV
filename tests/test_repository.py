@@ -887,3 +887,63 @@ class TestContactRepositoryLastSeenSemantics:
         assert contact.last_seen == 1_700_000_500
         # The path itself still updates — only last_seen is monotonic-guarded.
         assert contact.direct_path == "cd"
+
+
+class TestContactRepositoryAnnotations:
+    """Test user-editable annotation columns (notes, owner, manual GPS)."""
+
+    @pytest.mark.asyncio
+    async def test_annotations_roundtrip(self, test_db):
+        key = "aa" * 32
+        owner = "bb" * 32
+        await ContactRepository.upsert(ContactUpsert(public_key=key, name="Node"))
+        await ContactRepository.set_annotations(
+            key,
+            {
+                "notes": "my note",
+                "owner_info": "PA0XYZ",
+                "owner_key": owner,
+                "manual_lat": 52.1,
+                "manual_lon": 5.2,
+            },
+        )
+        c = await ContactRepository.get_by_key(key)
+        assert c is not None
+        assert c.notes == "my note"
+        assert c.owner_info == "PA0XYZ"
+        assert c.owner_key == owner
+        assert c.manual_lat == 52.1
+        assert c.manual_lon == 5.2
+
+    @pytest.mark.asyncio
+    async def test_advert_upsert_does_not_clobber_annotations(self, test_db):
+        key = "aa" * 32
+        await ContactRepository.upsert(ContactUpsert(public_key=key, name="Node"))
+        await ContactRepository.set_annotations(key, {"notes": "keep me"})
+        # A later radio-sync upsert supplies None for annotation fields.
+        await ContactRepository.upsert(ContactUpsert(public_key=key, name="Node", lat=1.0, lon=2.0))
+        c = await ContactRepository.get_by_key(key)
+        assert c is not None
+        assert c.notes == "keep me"
+
+    @pytest.mark.asyncio
+    async def test_set_annotations_clears_with_none(self, test_db):
+        key = "aa" * 32
+        await ContactRepository.upsert(ContactUpsert(public_key=key, name="Node"))
+        await ContactRepository.set_annotations(key, {"notes": "temp"})
+        await ContactRepository.set_annotations(key, {"notes": None})
+        c = await ContactRepository.get_by_key(key)
+        assert c is not None
+        assert c.notes is None
+
+    @pytest.mark.asyncio
+    async def test_set_owner_info_if_empty(self, test_db):
+        key = "aa" * 32
+        await ContactRepository.upsert(ContactUpsert(public_key=key, name="Node"))
+        assert await ContactRepository.set_owner_info_if_empty(key, "PA0AAA") is True
+        c = await ContactRepository.get_by_key(key)
+        assert c is not None and c.owner_info == "PA0AAA"
+        # Does not overwrite an existing value.
+        assert await ContactRepository.set_owner_info_if_empty(key, "PA0BBB") is False
+        c = await ContactRepository.get_by_key(key)
+        assert c is not None and c.owner_info == "PA0AAA"

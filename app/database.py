@@ -32,7 +32,12 @@ CREATE TABLE IF NOT EXISTS contacts (
     first_seen INTEGER,
     last_read_at INTEGER,
     favorite INTEGER DEFAULT 0,
-    radio_policy TEXT NOT NULL DEFAULT 'auto'
+    radio_policy TEXT NOT NULL DEFAULT 'auto',
+    notes TEXT,
+    owner_info TEXT,
+    owner_key TEXT,
+    manual_lat REAL,
+    manual_lon REAL
 );
 
 CREATE TABLE IF NOT EXISTS channels (

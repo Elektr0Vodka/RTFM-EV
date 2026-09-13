@@ -45,6 +45,7 @@ import type {
   RepeaterNeighborsResponse,
   RepeaterNodeInfoResponse,
   RepeaterOwnerInfoResponse,
+  ContactAnnotationsUpdate,
   RepeaterRadioSettingsResponse,
   RepeaterRegionsResponse,
   RepeaterStatusResponse,
@@ -600,6 +601,11 @@ export const api = {
   repeaterOwnerInfo: (publicKey: string) =>
     fetchJson<RepeaterOwnerInfoResponse>(`/contacts/${publicKey}/repeater/owner-info`, {
       method: 'POST',
+    }),
+  updateContactAnnotations: (publicKey: string, update: ContactAnnotationsUpdate) =>
+    fetchJson<{ status: string; public_key: string }>(`/contacts/${publicKey}/annotations`, {
+      method: 'POST',
+      body: JSON.stringify(update),
     }),
   repeaterRegions: (publicKey: string) =>
     fetchJson<RepeaterRegionsResponse>(`/contacts/${publicKey}/repeater/regions`, {

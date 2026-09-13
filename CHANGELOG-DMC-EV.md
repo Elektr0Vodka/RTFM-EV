@@ -11,6 +11,31 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-13 (contact annotations)
+
+### Chat / UI
+- Contact info pane gains user-editable, DB-stored annotations: free-text
+  notes, a free-text owner-info field, an owner pointer to another contact
+  (the operator's companion node), and manual fallback GPS coordinates. The
+  owner name links to open a direct message; the referenced contact shows an
+  "Owned nodes" list of every node that points to it.
+- Map: a node with only manual coordinates now appears on the map (advertised
+  GPS still wins when present). The node popup shows a notes snippet, an owner
+  link, and a "Details" button that opens the full contact info pane.
+- Repeater dashboard: the Owner Info pane auto-saves the repeater's reported
+  owner string to the contact when none is set, and prompts to override when a
+  different value is already saved.
+
+### Backend
+- Migration `_085` adds `notes`, `owner_info`, `owner_key`, `manual_lat`, and
+  `manual_lon` columns to `contacts`; these are user annotations preserved
+  through radio-sync upserts (COALESCE) and never overwritten by adverts.
+- New `POST /contacts/{public_key}/annotations` sets any subset of the
+  annotation fields (null clears; `owner_key` must reference an existing
+  contact) and broadcasts a `contact` WS event.
+- `POST /contacts/{public_key}/repeater/owner-info` now auto-fills the stored
+  `owner_info` when empty and returns `stored_owner_info` + `owner_info_updated`.
+
 ## Update 2026-09-13 (database backup, issue #85)
 
 ### Settings / Data management

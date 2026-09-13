@@ -13,6 +13,7 @@ from app.models import (
     ContactActiveRoom,
     ContactAdvertPathSummary,
     ContactAnalytics,
+    ContactAnnotationsUpdate,
     ContactRadioPolicyRequest,
     ContactRadioResidency,
     ContactRoutingOverrideRequest,
@@ -631,6 +632,38 @@ async def set_contact_routing_override(
     if updated_contact:
         await _best_effort_push_contact_to_radio(updated_contact, "set_routing_override_on_radio")
         await _broadcast_contact_update(updated_contact)
+
+    return {"status": "ok", "public_key": contact.public_key}
+
+
+@router.post("/{public_key}/annotations")
+async def set_contact_annotations(public_key: str, request: ContactAnnotationsUpdate) -> dict:
+    """Update user-editable annotations (notes, owner info, owner pubkey, manual GPS).
+
+    Only fields explicitly present in the request body are changed; a field sent
+    as ``null`` clears it. ``owner_key`` must reference an existing contact.
+    """
+    contact = await _resolve_contact_or_404(public_key)
+
+    provided = request.model_dump(include=request.model_fields_set)
+
+    if "owner_key" in provided:
+        raw = provided["owner_key"]
+        owner_key = (raw or "").strip().lower()
+        if owner_key == "":
+            provided["owner_key"] = None
+        else:
+            if len(owner_key) != 64 or not all(c in "0123456789abcdef" for c in owner_key):
+                raise HTTPException(status_code=422, detail="owner_key must be 64-char hex")
+            if await ContactRepository.get_by_key(owner_key) is None:
+                raise HTTPException(status_code=422, detail="owner_key is not a known contact")
+            provided["owner_key"] = owner_key
+
+    await ContactRepository.set_annotations(contact.public_key, provided)
+
+    updated = await ContactRepository.get_by_key(contact.public_key)
+    if updated:
+        await _broadcast_contact_update(updated)
 
     return {"status": "ok", "public_key": contact.public_key}
 

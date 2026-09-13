@@ -28,6 +28,7 @@ import {
   formatRouteLabel,
   getDirectContactRoute,
   getEffectiveContactRoute,
+  getEffectiveLocation,
   hasRoutingOverride,
   parsePathHops,
 } from '../utils/pathUtils';
@@ -65,6 +66,7 @@ import { CONTACT_TYPE_REPEATER } from '../types';
 import type {
   AnalyzerSite,
   Contact,
+  ContactAnnotationsUpdate,
   ContactActiveRoom,
   ContactAnalytics,
   ContactAnalyticsHourlyBucket,
@@ -114,6 +116,8 @@ interface ContactInfoPaneProps {
   trackedTelemetryContacts?: string[];
   onToggleTrackedTelemetryContact?: (publicKey: string) => Promise<void>;
   analyzerSites?: AnalyzerSite[];
+  onOpenContactInfo?: (publicKey: string) => void;
+  onOpenConversation?: (publicKey: string) => void;
 }
 
 export function ContactInfoPane({
@@ -133,6 +137,8 @@ export function ContactInfoPane({
   trackedTelemetryContacts = [],
   onToggleTrackedTelemetryContact,
   analyzerSites = [],
+  onOpenContactInfo,
+  onOpenConversation,
 }: ContactInfoPaneProps) {
   const t = useT();
   const { distanceUnit } = useDistanceUnit();
@@ -222,12 +228,12 @@ export function ContactInfoPane({
   // Use live contact data where available, fall back to analytics snapshot
   const contact = liveContact ?? analytics?.contact ?? null;
 
+  // Effective location: advertised coords win, else manually-entered fallback.
+  const effectiveLocation = contact ? getEffectiveLocation(contact) : null;
+
   const distFromUs =
-    contact &&
-    config &&
-    isValidLocation(config.lat, config.lon) &&
-    isValidLocation(contact.lat, contact.lon)
-      ? calculateDistance(config.lat, config.lon, contact.lat, contact.lon)
+    effectiveLocation && config && isValidLocation(config.lat, config.lon)
+      ? calculateDistance(config.lat, config.lon, effectiveLocation.lat, effectiveLocation.lon)
       : null;
   const effectiveRoute = contact ? getEffectiveContactRoute(contact) : null;
   const directRoute = contact ? getDirectContactRoute(contact) : null;
@@ -444,8 +450,8 @@ export function ContactInfoPane({
               </div>
             </div>
 
-            {/* GPS */}
-            {isValidLocation(contact.lat, contact.lon) && (
+            {/* GPS (effective location: advertised coords, else manual fallback) */}
+            {effectiveLocation && (
               <div className="px-5 py-3 border-b border-border">
                 <SectionLabel>{t('contact_location')}</SectionLabel>
                 <span
@@ -462,7 +468,7 @@ export function ContactInfoPane({
                   }}
                   title={t('contact_view_on_map')}
                 >
-                  {contact.lat!.toFixed(5)}, {contact.lon!.toFixed(5)}
+                  {effectiveLocation.lat.toFixed(5)}, {effectiveLocation.lon.toFixed(5)}
                 </span>
               </div>
             )}
@@ -499,6 +505,15 @@ export function ContactInfoPane({
                 )}
               </button>
             </div>
+
+            {/* User-editable annotations: notes, owner info, owner, manual GPS */}
+            <ContactAnnotations
+              contact={contact}
+              contacts={contacts}
+              t={t}
+              onOpenContact={onOpenContactInfo}
+              onOpenConversation={onOpenConversation}
+            />
 
             {/* Radio residency (pin / exclude / auto + live on-radio status) */}
             {!isPrefixOnlyResolvedContact && <ContactRadioResidencyControl contact={contact} />}
@@ -1071,6 +1086,217 @@ function NearbyRepeatersSection({
             </span>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function ContactAnnotations({
+  contact,
+  contacts,
+  t,
+  onOpenContact,
+  onOpenConversation,
+}: {
+  contact: Contact;
+  contacts: Contact[];
+  t: TFn;
+  onOpenContact?: (publicKey: string) => void;
+  onOpenConversation?: (publicKey: string) => void;
+}) {
+  const [notes, setNotes] = useState(contact.notes ?? '');
+  const [ownerInfo, setOwnerInfo] = useState(contact.owner_info ?? '');
+  const [ownerKey, setOwnerKey] = useState(contact.owner_key ?? '');
+  const [manualLat, setManualLat] = useState(
+    contact.manual_lat != null ? String(contact.manual_lat) : ''
+  );
+  const [manualLon, setManualLon] = useState(
+    contact.manual_lon != null ? String(contact.manual_lon) : ''
+  );
+
+  // Re-seed local state when the pane switches contact or the row updates over WS.
+  useEffect(() => {
+    setNotes(contact.notes ?? '');
+    setOwnerInfo(contact.owner_info ?? '');
+    setOwnerKey(contact.owner_key ?? '');
+    setManualLat(contact.manual_lat != null ? String(contact.manual_lat) : '');
+    setManualLon(contact.manual_lon != null ? String(contact.manual_lon) : '');
+  }, [
+    contact.public_key,
+    contact.notes,
+    contact.owner_info,
+    contact.owner_key,
+    contact.manual_lat,
+    contact.manual_lon,
+  ]);
+
+  const ownerContact = ownerKey ? (contacts.find((c) => c.public_key === ownerKey) ?? null) : null;
+  const ownedNodes = useMemo(
+    () => contacts.filter((c) => c.owner_key === contact.public_key),
+    [contacts, contact.public_key]
+  );
+  const ownerKnown = ownerKey === '' || contacts.some((c) => c.public_key === ownerKey);
+
+  const save = async (update: ContactAnnotationsUpdate) => {
+    try {
+      await api.updateContactAnnotations(contact.public_key, update);
+      toast.success(t('contact_annotations_saved'));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('contact_annotations_save_failed'));
+    }
+  };
+
+  return (
+    <div className="px-5 py-3 border-b border-border space-y-4">
+      {/* Notes */}
+      <div>
+        <label className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium block mb-1">
+          {t('contact_notes_label')}
+        </label>
+        <textarea
+          aria-label={t('contact_notes_label')}
+          className="w-full text-sm rounded border border-border bg-background p-2 min-h-16"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+        />
+        <button
+          type="button"
+          className="mt-1 text-xs px-2 py-0.5 rounded border border-border hover:bg-accent transition-colors"
+          onClick={() => save({ notes: notes.trim() === '' ? null : notes })}
+        >
+          {t('contact_notes_save')}
+        </button>
+      </div>
+
+      {/* Owner info (free text; may be auto-filled from CLI) */}
+      <div>
+        <label className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium block mb-1">
+          {t('contact_owner_info_label')}
+        </label>
+        <input
+          type="text"
+          aria-label={t('contact_owner_info_label')}
+          className="w-full text-sm rounded border border-border bg-background p-2"
+          value={ownerInfo}
+          onChange={(e) => setOwnerInfo(e.target.value)}
+        />
+        <button
+          type="button"
+          className="mt-1 text-xs px-2 py-0.5 rounded border border-border hover:bg-accent transition-colors"
+          onClick={() => save({ owner_info: ownerInfo.trim() === '' ? null : ownerInfo })}
+        >
+          {t('contact_owner_info_save')}
+        </button>
+      </div>
+
+      {/* Owner pubkey (existing contact); link opens the DM conversation */}
+      <div>
+        <label className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium block mb-1">
+          {t('contact_owner_label')}
+        </label>
+        {ownerContact && onOpenConversation ? (
+          <button
+            type="button"
+            className="text-sm text-primary underline"
+            onClick={() => onOpenConversation(ownerContact.public_key)}
+            title={t('contact_owner_open_dm')}
+          >
+            {getContactDisplayName(
+              ownerContact.name,
+              ownerContact.public_key,
+              ownerContact.last_advert
+            )}
+          </button>
+        ) : ownerKey ? (
+          <span className="text-sm font-mono break-all">{ownerKey}</span>
+        ) : null}
+        <input
+          type="text"
+          placeholder={t('contact_owner_placeholder')}
+          className="w-full text-sm rounded border border-border bg-background p-2 mt-1 font-mono"
+          value={ownerKey}
+          onChange={(e) => setOwnerKey(e.target.value.trim().toLowerCase())}
+        />
+        {!ownerKnown && (
+          <p className="text-xs text-destructive mt-0.5">{t('contact_owner_unknown')}</p>
+        )}
+        <button
+          type="button"
+          className="mt-1 text-xs px-2 py-0.5 rounded border border-border hover:bg-accent transition-colors disabled:opacity-50"
+          disabled={!ownerKnown}
+          onClick={() => save({ owner_key: ownerKey === '' ? null : ownerKey })}
+        >
+          {t('contact_owner_save')}
+        </button>
+      </div>
+
+      {/* Owned nodes (reverse link) */}
+      {ownedNodes.length > 0 && (
+        <div>
+          <SectionLabel>{t('contact_owned_nodes')}</SectionLabel>
+          <div className="space-y-1">
+            {ownedNodes.map((n) => (
+              <button
+                key={n.public_key}
+                type="button"
+                className="block text-sm text-primary hover:underline truncate"
+                onClick={() => onOpenContact?.(n.public_key)}
+              >
+                {getContactDisplayName(n.name, n.public_key, n.last_advert)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Manual location (fallback) */}
+      <div>
+        <label className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium block mb-1">
+          {t('contact_manual_location_label')}
+        </label>
+        <div className="flex gap-2">
+          <input
+            type="number"
+            step="any"
+            placeholder={t('contact_manual_lat')}
+            className="w-full text-sm rounded border border-border bg-background p-2"
+            value={manualLat}
+            onChange={(e) => setManualLat(e.target.value)}
+          />
+          <input
+            type="number"
+            step="any"
+            placeholder={t('contact_manual_lon')}
+            className="w-full text-sm rounded border border-border bg-background p-2"
+            value={manualLon}
+            onChange={(e) => setManualLon(e.target.value)}
+          />
+        </div>
+        <div className="flex gap-2 mt-1">
+          <button
+            type="button"
+            className="text-xs px-2 py-0.5 rounded border border-border hover:bg-accent transition-colors"
+            onClick={() =>
+              save({
+                manual_lat: manualLat.trim() === '' ? null : Number(manualLat),
+                manual_lon: manualLon.trim() === '' ? null : Number(manualLon),
+              })
+            }
+          >
+            {t('contact_manual_location_save')}
+          </button>
+          <button
+            type="button"
+            className="text-xs px-2 py-0.5 rounded border border-border hover:bg-accent transition-colors"
+            onClick={() => {
+              setManualLat('');
+              setManualLon('');
+              save({ manual_lat: null, manual_lon: null });
+            }}
+          >
+            {t('common_clear')}
+          </button>
+        </div>
       </div>
     </div>
   );

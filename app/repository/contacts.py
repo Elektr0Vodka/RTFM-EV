@@ -69,8 +69,9 @@ class ContactRepository:
                                       route_override_path, route_override_len,
                                       route_override_hash_mode,
                                       last_advert, lat, lon, last_seen,
-                                      on_radio, last_contacted, first_seen)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                      on_radio, last_contacted, first_seen,
+                                      notes, owner_info, owner_key, manual_lat, manual_lon)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(public_key) DO UPDATE SET
                     name = COALESCE(excluded.name, contacts.name),
                     type = CASE WHEN excluded.type = 0 THEN contacts.type ELSE excluded.type END,
@@ -103,7 +104,12 @@ class ContactRepository:
                     END,
                     on_radio = COALESCE(excluded.on_radio, contacts.on_radio),
                     last_contacted = COALESCE(excluded.last_contacted, contacts.last_contacted),
-                    first_seen = COALESCE(contacts.first_seen, excluded.first_seen)
+                    first_seen = COALESCE(contacts.first_seen, excluded.first_seen),
+                    notes = COALESCE(excluded.notes, contacts.notes),
+                    owner_info = COALESCE(excluded.owner_info, contacts.owner_info),
+                    owner_key = COALESCE(excluded.owner_key, contacts.owner_key),
+                    manual_lat = COALESCE(excluded.manual_lat, contacts.manual_lat),
+                    manual_lon = COALESCE(excluded.manual_lon, contacts.manual_lon)
                 """,
                 (
                     contact_row.public_key.lower(),
@@ -124,6 +130,11 @@ class ContactRepository:
                     contact_row.on_radio,
                     contact_row.last_contacted,
                     contact_row.first_seen,
+                    contact_row.notes,
+                    contact_row.owner_info,
+                    contact_row.owner_key,
+                    contact_row.manual_lat,
+                    contact_row.manual_lon,
                 ),
             ):
                 pass
@@ -185,6 +196,11 @@ class ContactRepository:
             last_contacted=row["last_contacted"],
             last_read_at=row["last_read_at"],
             first_seen=row["first_seen"],
+            notes=row["notes"] if "notes" in available_columns else None,
+            owner_info=row["owner_info"] if "owner_info" in available_columns else None,
+            owner_key=row["owner_key"] if "owner_key" in available_columns else None,
+            manual_lat=row["manual_lat"] if "manual_lat" in available_columns else None,
+            manual_lon=row["manual_lon"] if "manual_lon" in available_columns else None,
         )
 
     @staticmethod
@@ -418,6 +434,48 @@ class ContactRepository:
                 ),
             ):
                 pass
+
+    _ANNOTATION_COLUMNS = ("notes", "owner_info", "owner_key", "manual_lat", "manual_lon")
+
+    @staticmethod
+    async def set_annotations(public_key: str, changes: dict) -> None:
+        """Update only the annotation columns present in ``changes``.
+
+        A key mapped to ``None`` clears that column. Keys absent from ``changes``
+        are left untouched. Unknown keys are ignored.
+        """
+        cols = [c for c in ContactRepository._ANNOTATION_COLUMNS if c in changes]
+        if not cols:
+            return
+        assignments = ", ".join(f"{c} = ?" for c in cols)
+        params = [changes[c] for c in cols]
+        params.append(public_key.lower())
+        async with db.tx() as conn:
+            async with conn.execute(
+                f"UPDATE contacts SET {assignments} WHERE public_key = ?",
+                params,
+            ):
+                pass
+
+    @staticmethod
+    async def set_owner_info_if_empty(public_key: str, owner_info: str) -> bool:
+        """Set ``owner_info`` only when it is currently NULL or empty.
+
+        Returns True if a row was actually updated (auto-filled), False otherwise
+        (already had a value, or contact not found).
+        """
+        async with db.tx() as conn:
+            async with conn.execute(
+                """
+                UPDATE contacts
+                SET owner_info = ?
+                WHERE public_key = ?
+                  AND (owner_info IS NULL OR owner_info = '')
+                """,
+                (owner_info, public_key.lower()),
+            ) as cursor:
+                rowcount = cursor.rowcount
+        return rowcount > 0
 
     @staticmethod
     async def set_routing_override(

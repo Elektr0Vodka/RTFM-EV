@@ -4,7 +4,7 @@ import { Zap, Clock, Globe, Radio } from 'lucide-react';
 import type { AdvertLinkEdge, Contact, ExternalMapNode, RadioConfig } from '../types';
 import { api, isAbortError } from '../api';
 import { formatTime } from '../utils/messageParser';
-import { isValidLocation } from '../utils/pathUtils';
+import { isValidLocation, getEffectiveLocation } from '../utils/pathUtils';
 import {
   parsePacket,
   getPacketLabel,
@@ -56,6 +56,7 @@ interface MapViewProps {
   blockedKeys?: string[];
   blockedNames?: string[];
   onSelectContact?: (contact: Contact) => void;
+  onOpenContactInfo?: (publicKey: string) => void;
   focusedLatLon?: [number, number];
   focusedLabel?: string;
   sidebarOpen?: boolean;
@@ -195,6 +196,7 @@ export function MapView({
   blockedKeys,
   blockedNames,
   onSelectContact,
+  onOpenContactInfo,
   focusedLatLon,
   focusedLabel,
   sidebarOpen,
@@ -484,22 +486,33 @@ export function MapView({
     const isBlocked = (c: Contact) =>
       (blockedKeys?.length && blockedKeys.includes(c.public_key.toLowerCase())) ||
       (blockedNames?.length && c.name != null && blockedNames.includes(c.name));
+    // Project the effective location (advertised-wins, manual-fallback) onto
+    // lat/lon so a node with only manual coordinates is placed and rendered by
+    // the standard downstream consumers that read c.lat / c.lon.
+    const withEffectiveCoords = (c: Contact): Contact | null => {
+      const loc = getEffectiveLocation(c);
+      if (!loc) return null;
+      return c.lat === loc.lat && c.lon === loc.lon ? c : { ...c, lat: loc.lat, lon: loc.lon };
+    };
     if (showPackets && discoveryMode) {
-      return contacts.filter(
-        (c) => isValidLocation(c.lat, c.lon) && discoveredKeys.has(c.public_key) && !isBlocked(c)
-      );
+      return contacts
+        .filter((c) => discoveredKeys.has(c.public_key) && !isBlocked(c))
+        .map(withEffectiveCoords)
+        .filter((c): c is Contact => c !== null);
     }
-    return contacts.filter(
-      (c) =>
-        isValidLocation(c.lat, c.lon) &&
-        !isBlocked(c) &&
-        isContactVisibleForFilters({
-          lastSeen: c.last_seen,
-          mode: heardFilter,
-          isFocused: c.public_key === focusedKey,
-          isWithinSinceWindow: isWithinSinceWindow(c.last_seen),
-        })
-    );
+    return contacts
+      .filter(
+        (c) =>
+          !isBlocked(c) &&
+          isContactVisibleForFilters({
+            lastSeen: c.last_seen,
+            mode: heardFilter,
+            isFocused: c.public_key === focusedKey,
+            isWithinSinceWindow: isWithinSinceWindow(c.last_seen),
+          })
+      )
+      .map(withEffectiveCoords)
+      .filter((c): c is Contact => c !== null);
   }, [
     contacts,
     focusedKey,
@@ -661,23 +674,58 @@ export function MapView({
       heard.textContent = t('map_last_heard', {
         label: contact.last_seen != null ? formatTime(contact.last_seen) : t('map_never_heard'),
       });
+      const loc = getEffectiveLocation(contact);
       const coords = document.createElement('div');
       coords.className = 'text-xs text-muted-foreground mt-1 font-mono';
-      coords.textContent = `${contact.lat!.toFixed(5)}, ${contact.lon!.toFixed(5)}`;
+      coords.textContent = loc ? `${loc.lat.toFixed(5)}, ${loc.lon.toFixed(5)}` : '';
       root.append(nameRow, heard, coords);
+
+      if (contact.notes) {
+        const notes = document.createElement('div');
+        notes.className = 'text-xs mt-1 whitespace-pre-wrap break-words';
+        notes.textContent =
+          contact.notes.length > 140 ? contact.notes.slice(0, 140) + '…' : contact.notes;
+        root.appendChild(notes);
+      }
+      if (contact.owner_key && onSelectContact) {
+        const ownerLink = document.createElement('button');
+        ownerLink.type = 'button';
+        ownerLink.className =
+          'text-xs text-primary underline mt-1 block bg-transparent border-0 p-0 cursor-pointer';
+        ownerLink.textContent = t('map_owner_link');
+        ownerLink.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const owner = contactByKey.get(contact.owner_key!);
+          if (owner) onSelectContact(owner);
+        });
+        root.appendChild(ownerLink);
+      }
+      if (onOpenContactInfo) {
+        const details = document.createElement('button');
+        details.type = 'button';
+        details.className =
+          'text-xs text-primary underline mt-1 block bg-transparent border-0 p-0 cursor-pointer';
+        details.textContent = t('map_node_details');
+        details.addEventListener('click', (e) => {
+          e.stopPropagation();
+          onOpenContactInfo(contact.public_key);
+        });
+        root.appendChild(details);
+      }
       return root;
     },
-    [onSelectContact, t]
+    [onSelectContact, onOpenContactInfo, contactByKey, t]
   );
 
   const openContactPopup = useCallback(
     (id: string) => {
       const map = mapRef.current;
       const contact = contactByKey.get(id);
-      if (!map || !contact || contact.lat == null || contact.lon == null) return;
+      const loc = contact ? getEffectiveLocation(contact) : null;
+      if (!map || !contact || !loc) return;
       popupRef.current?.remove();
       popupRef.current = new MlPopup({ closeButton: true, offset: 12 })
-        .setLngLat([contact.lon, contact.lat])
+        .setLngLat([loc.lon, loc.lat])
         .setDOMContent(buildContactPopup(contact))
         .addTo(map);
     },
