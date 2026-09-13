@@ -16,6 +16,7 @@ import {
   snrPitchFactor,
   shouldPlay,
   txToneFor,
+  waterDripToneFor,
   jitterParams,
 } from '../utils/signalAudioCore';
 
@@ -28,7 +29,7 @@ const BP_Q = 1.6;
 const DECAY_S = 0.011; // geiger exponential decay to near-silence (~11 ms)
 const PEAK = 0.9; // geiger envelope peak before level jitter
 
-export type SignalAudioTheme = 'geiger' | 'sonar';
+export type SignalAudioTheme = 'geiger' | 'sonar' | 'waterdrip';
 
 export interface PacketCue {
   snrDb: number | null;
@@ -136,6 +137,33 @@ export function createSignalAudioEngine(deps: SignalAudioEngineDeps = {}): Signa
     osc.stop(at + 0.36);
   };
 
+  const playWaterDrip = (cue: PacketCue, at: number): void => {
+    if (!ctx || !master) return;
+    const { pitch, level } = jitterParams(rng);
+    // Base ("resonant") frequency is chosen by packet type, so each type drips at
+    // a different depth. SNR + jitter nudge it so a burst stays organic.
+    const base = waterDripToneFor(cue.payloadType).freq * snrPitchFactor(cue.snrDb) * pitch;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    const g = ctx.createGain();
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 2400;
+    // The drip: a fast downward pitch bend from ~2x the base down to the base
+    // (the characteristic "ploop"). A lower base (deeper type) makes a longer,
+    // deeper drop. A quick attack then a short exponential tail.
+    osc.frequency.setValueAtTime(base * 2, at);
+    osc.frequency.exponentialRampToValueAtTime(base, at + 0.09);
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(0.9 * level, at + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.26);
+    osc.connect(g);
+    g.connect(lp);
+    lp.connect(master);
+    osc.start(at);
+    osc.stop(at + 0.28);
+  };
+
   const playChirp = (cue: TxCue): void => {
     if (!ctx || !master) return;
     const { f1, f2 } = txToneFor(cue.kind);
@@ -162,7 +190,7 @@ export function createSignalAudioEngine(deps: SignalAudioEngineDeps = {}): Signa
       return enabled;
     },
     setTheme(t: SignalAudioTheme): void {
-      if (t === 'geiger' || t === 'sonar') theme = t;
+      if (t === 'geiger' || t === 'sonar' || t === 'waterdrip') theme = t;
     },
     getTheme(): SignalAudioTheme {
       return theme;
@@ -181,6 +209,7 @@ export function createSignalAudioEngine(deps: SignalAudioEngineDeps = {}): Signa
       // burst overlaps into a roar instead of lagging, and nothing is dropped.
       const at = Math.min(Math.max(now, nextAt), now + MAX_LEAD_S);
       if (theme === 'sonar') playSonar(cue, at);
+      else if (theme === 'waterdrip') playWaterDrip(cue, at);
       else playGeiger(cue, at);
       nextAt = at + MIN_SPACING_S;
       return true;

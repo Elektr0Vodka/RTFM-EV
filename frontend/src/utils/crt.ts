@@ -11,8 +11,32 @@ export const DEFAULT_CRT_PHOSPHOR: CrtPhosphor = 'green';
 export const CRT_EFFECTS = ['scanlines', 'glow', 'curvature', 'flicker'] as const;
 export type CrtEffect = (typeof CRT_EFFECTS)[number];
 
+/** Representative hue (HSL degrees) for each phosphor, matching the --crt-phosphor
+ *  values in themes.css. Used to tint the Nova Dark map to the CRT colour. White
+ *  has no meaningful hue, so it desaturates to greyscale (see mapTintDesaturate). */
+export const CRT_PHOSPHOR_HUE: Record<CrtPhosphor, number> = {
+  green: 123,
+  amber: 38,
+  white: 0,
+  blue: 240,
+};
+
+/** Fired on <html> when a CRT preference that other views react to changes
+ *  (phosphor colour, or the map-tint toggle). The map listens to re-tint live. */
+export const CRT_CHANGE_EVENT = 'remoteterm-crt-change';
+
 const PHOSPHOR_KEY = 'remoteterm-crt-phosphor';
+const MAP_TINT_KEY = 'remoteterm-crt-map-tint';
 const effectKey = (effect: CrtEffect): string => `remoteterm-crt-${effect}`;
+
+function dispatchCrtChange(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.dispatchEvent(new Event(CRT_CHANGE_EVENT));
+  } catch {
+    // Event constructor may be unavailable in some environments
+  }
+}
 
 export function getCrtPhosphor(): CrtPhosphor {
   try {
@@ -33,6 +57,26 @@ export function setCrtPhosphor(phosphor: CrtPhosphor): void {
     // ignore
   }
   applyCrt();
+  dispatchCrtChange();
+}
+
+/** Whether to tint the Nova Dark map basemap to the selected phosphor colour.
+ *  Off by default: only an explicit '1' enables it. */
+export function getCrtMapTint(): boolean {
+  try {
+    return localStorage.getItem(MAP_TINT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function setCrtMapTint(enabled: boolean): void {
+  try {
+    localStorage.setItem(MAP_TINT_KEY, enabled ? '1' : '0');
+  } catch {
+    // ignore
+  }
+  dispatchCrtChange();
 }
 
 /** Effects default ON: only an explicit '0' disables them. */

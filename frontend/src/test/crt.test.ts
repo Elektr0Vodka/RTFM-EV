@@ -1,12 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  CRT_CHANGE_EVENT,
   CRT_EFFECTS,
   CRT_PHOSPHORS,
+  CRT_PHOSPHOR_HUE,
   DEFAULT_CRT_PHOSPHOR,
   applyCrt,
   getCrtEffect,
+  getCrtMapTint,
   getCrtPhosphor,
   setCrtEffect,
+  setCrtMapTint,
   setCrtPhosphor,
 } from '../utils/crt';
 
@@ -46,5 +50,31 @@ describe('crt module', () => {
   it('exposes exactly the four phosphors and four effects', () => {
     expect([...CRT_PHOSPHORS]).toEqual(['green', 'amber', 'white', 'blue']);
     expect([...CRT_EFFECTS]).toEqual(['scanlines', 'glow', 'curvature', 'flicker']);
+  });
+
+  it('defines a hue for every phosphor', () => {
+    for (const p of CRT_PHOSPHORS) {
+      expect(typeof CRT_PHOSPHOR_HUE[p]).toBe('number');
+    }
+  });
+
+  it('map tint defaults off and round-trips', () => {
+    expect(getCrtMapTint()).toBe(false);
+    setCrtMapTint(true);
+    expect(getCrtMapTint()).toBe(true);
+    setCrtMapTint(false);
+    expect(getCrtMapTint()).toBe(false);
+  });
+
+  it('dispatches a crt-change event when the phosphor or map tint changes', () => {
+    let count = 0;
+    const onChange = () => {
+      count += 1;
+    };
+    window.addEventListener(CRT_CHANGE_EVENT, onChange);
+    setCrtPhosphor('blue');
+    setCrtMapTint(true);
+    window.removeEventListener(CRT_CHANGE_EVENT, onChange);
+    expect(count).toBe(2);
   });
 });

@@ -180,6 +180,47 @@ describe('onPacket', () => {
     expect(fake.created.oscillators[0].frequency.value).toBeCloseTo(1200);
   });
 
+  it('waterdrip theme synthesizes a sine drip through a lowpass filter', () => {
+    const fake = makeFakeContext();
+    const engine = engineWith(fake);
+    engine.setTheme('waterdrip');
+    engine.setEnabled(true);
+    expect(engine.onPacket({ snrDb: 0, payloadType: 'ADVERT' })).toBe(true);
+    expect(fake.created.oscillators).toHaveLength(1);
+    expect(fake.created.oscillators[0].type).toBe('sine');
+    expect(fake.created.filters).toHaveLength(1);
+    expect(fake.created.filters[0].type).toBe('lowpass');
+    // no noise buffer source for the drip
+    expect(fake.created.bufferSources).toHaveLength(0);
+  });
+
+  it('waterdrip bends the pitch downward (a drip, not a rise)', () => {
+    const fake = makeFakeContext();
+    const engine = engineWith(fake);
+    engine.setTheme('waterdrip');
+    engine.setEnabled(true);
+    engine.onPacket({ snrDb: 0, payloadType: 'ADVERT' });
+    const freq = fake.created.oscillators[0].frequency;
+    const start = freq.setValueAtTime.mock.calls[0][0] as number;
+    const end = freq.exponentialRampToValueAtTime.mock.calls[0][0] as number;
+    expect(start).toBeGreaterThan(end);
+  });
+
+  it('waterdrip depth tracks packet type: a deeper type starts lower', () => {
+    const fake = makeFakeContext();
+    const engine = engineWith(fake);
+    engine.setTheme('waterdrip');
+    engine.setEnabled(true);
+    // Same SNR + fixed jitter, so only the per-type base frequency differs.
+    engine.onPacket({ snrDb: 0, payloadType: 'TRACE' }); // deepest
+    engine.onPacket({ snrDb: 0, payloadType: 'ACK' }); // tightest plink
+    const traceStart = fake.created.oscillators[0].frequency.setValueAtTime.mock
+      .calls[0][0] as number;
+    const ackStart = fake.created.oscillators[1].frequency.setValueAtTime.mock
+      .calls[0][0] as number;
+    expect(traceStart).toBeLessThan(ackStart);
+  });
+
   it('spaces near-simultaneous clicks apart on the audio clock', () => {
     const fake = makeFakeContext();
     const engine = engineWith(fake);

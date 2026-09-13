@@ -58,6 +58,11 @@ describe('signal audio theme preference', () => {
     expect(getSavedSignalAudioTheme()).toBe('sonar');
   });
 
+  it('round-trips the waterdrip theme', () => {
+    setSavedSignalAudioTheme('waterdrip');
+    expect(getSavedSignalAudioTheme()).toBe('waterdrip');
+  });
+
   it('falls back to geiger for an unknown stored theme', () => {
     localStorage.setItem('remoteterm-signal-audio-theme', 'bogus');
     expect(getSavedSignalAudioTheme()).toBe('geiger');

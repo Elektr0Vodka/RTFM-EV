@@ -3,6 +3,7 @@ import {
   snrToPitch,
   snrPitchFactor,
   geigerToneFor,
+  waterDripToneFor,
   shouldPlay,
   txToneFor,
   jitterParams,
@@ -64,6 +65,26 @@ describe('geigerToneFor', () => {
   it('falls back to the default frequency for an unknown or Unknown type', () => {
     expect(geigerToneFor('Unknown').freq).toBe(500);
     expect(geigerToneFor('SOMETHING_ELSE').freq).toBe(500);
+  });
+});
+
+describe('waterDripToneFor', () => {
+  it('returns the mapped base frequency for a known payload type', () => {
+    expect(waterDripToneFor('ADVERT').freq).toBe(600);
+    expect(waterDripToneFor('ACK').freq).toBe(1040);
+    expect(waterDripToneFor('TRACE').freq).toBe(420);
+    expect(waterDripToneFor('TEXT_MESSAGE').freq).toBe(800);
+  });
+
+  it('falls back to the default frequency for an unknown or Unknown type', () => {
+    expect(waterDripToneFor('Unknown').freq).toBe(560);
+    expect(waterDripToneFor('SOMETHING_ELSE').freq).toBe(560);
+  });
+
+  it('encodes depth: a deeper packet type is a lower base frequency', () => {
+    // TRACE is the deepest drop, ACK the tightest/highest plink.
+    expect(waterDripToneFor('TRACE').freq).toBeLessThan(waterDripToneFor('ACK').freq);
+    expect(waterDripToneFor('PATH').freq).toBeLessThan(waterDripToneFor('TEXT_MESSAGE').freq);
   });
 });
 

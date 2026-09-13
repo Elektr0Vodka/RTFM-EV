@@ -11,6 +11,35 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-13 (water-drip audio, CRT section, map tint)
+
+### Packet feed / audio
+- New "Water drip" theme for the raw packet feed's per-packet signal audio,
+  alongside Geiger and sonar. Each drip is a downward sine "ploop"; the drop's
+  depth (base resonant frequency) is chosen by packet type, so a TRACE reads as
+  a deep plunk and an ACK as a tight, high plink (`WATER_DRIP_TONES` in
+  `frontend/src/utils/signalAudioCore.ts`; `playWaterDrip` in
+  `frontend/src/lib/signalAudioEngine.ts`). SNR and per-click jitter still nudge
+  the pitch so a burst stays organic. Persisted per-browser like the other audio
+  settings.
+
+### Customisation / UI
+- CRT controls (enable, phosphor colour, screen effects) are now grouped into a
+  single bordered section in Settings -> Customisation instead of sitting as
+  loose settings between the theme picker and branding
+  (`frontend/src/components/settings/CrtSettings.tsx`).
+- New CRT option "tint the map to the CRT colour": recolours the Nova Dark map
+  basemap to the selected phosphor hue (green/amber/blue) or greyscale (white),
+  applied only while Nova Dark is the selected map layer. Off by default, stored
+  per-browser (`remoteterm-crt-map-tint`), and updates live when the phosphor or
+  the toggle changes. Implemented as a vector-palette recolour keyed per colour
+  so overlays (nodes, routes) are not tinted (`recolorNovaTinted` in
+  `frontend/src/map/engine/novaRecolor.ts`; `novaBasemap` in
+  `frontend/src/map/engine/basemaps.ts`; wiring in
+  `frontend/src/map/MapSurface.tsx`).
+- New i18n keys (`packet_sound_theme_waterdrip`, `settings_crt_map_legend`,
+  `settings_crt_map_tint`, `settings_crt_map_tint_hint`) added to EN/NL/DE.
+
 ## Update 2026-09-13 (contact annotations)
 
 ### Chat / UI

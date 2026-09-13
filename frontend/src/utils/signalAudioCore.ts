@@ -55,6 +55,36 @@ export function geigerToneFor(payloadType: string): { freq: number } {
   return { freq };
 }
 
+// WATER_DRIP_TONES maps a backend payload_type string (PayloadType.name, e.g.
+// "ADVERT") to the resonant base frequency (Hz) of the water-drip theme. A lower
+// value is a "deeper" drop (bigger, more resonant plunk); a higher value is a
+// tighter, higher plink. So the drip's depth encodes the packet type. `default`
+// covers "Unknown" and any unmapped type.
+export const WATER_DRIP_TONES: Readonly<Record<string, number>> = Object.freeze({
+  TRACE: 420, // deepest
+  PATH: 470,
+  RAW_CUSTOM: 500,
+  ANON_REQUEST: 540,
+  REQUEST: 560,
+  ADVERT: 600,
+  RESPONSE: 640,
+  MULTIPART: 680,
+  GROUP_TEXT: 720,
+  GROUP_DATA: 720,
+  TEXT_MESSAGE: 800,
+  CONTROL: 900,
+  ACK: 1040, // tightest, highest plink
+  default: 560,
+});
+
+export function waterDripToneFor(payloadType: string): { freq: number } {
+  const freq =
+    WATER_DRIP_TONES[payloadType] != null
+      ? WATER_DRIP_TONES[payloadType]
+      : WATER_DRIP_TONES.default;
+  return { freq };
+}
+
 // shouldPlay rate-limits so a burst of packets does not machine-gun the output.
 export function shouldPlay(nowMs: number, lastMs: number, minGapMs: number): boolean {
   return nowMs - lastMs >= minGapMs;

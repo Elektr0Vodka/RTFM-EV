@@ -907,6 +907,7 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
                 >
                   <option value="geiger">{t('packet_sound_theme_geiger')}</option>
                   <option value="sonar">{t('packet_sound_theme_sonar')}</option>
+                  <option value="waterdrip">{t('packet_sound_theme_waterdrip')}</option>
                 </select>
               </>
             )}

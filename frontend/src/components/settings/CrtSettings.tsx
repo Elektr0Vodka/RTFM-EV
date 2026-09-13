@@ -7,8 +7,10 @@ import {
   type CrtEffect,
   type CrtPhosphor,
   getCrtEffect,
+  getCrtMapTint,
   getCrtPhosphor,
   setCrtEffect,
+  setCrtMapTint,
   setCrtPhosphor,
 } from '../../utils/crt';
 import { Checkbox } from '../ui/checkbox';
@@ -33,6 +35,7 @@ export function CrtSettings() {
     for (const e of CRT_EFFECTS) initial[e] = getCrtEffect(e);
     return initial;
   });
+  const [mapTint, setMapTint] = useState<boolean>(getCrtMapTint);
 
   const phosphorLabel: Record<CrtPhosphor, string> = {
     green: t('settings_crt_phosphor_green'),
@@ -63,14 +66,22 @@ export function CrtSettings() {
     setCrtEffect(effect, enabled);
   };
 
+  const handleMapTint = (enabled: boolean) => {
+    setMapTint(enabled);
+    setCrtMapTint(enabled);
+  };
+
   return (
-    <div className="space-y-3">
+    // Grouped as one self-contained section so the CRT controls (enable, phosphor,
+    // effects) read as a single unit rather than loose settings interleaved with the
+    // rest of the panel.
+    <section className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-4">
       <div className="space-y-1">
         <h3 className="text-base font-semibold tracking-tight">{t('settings_crt_heading')}</h3>
         <p className="text-[0.8125rem] text-muted-foreground">{t('settings_crt_description')}</p>
       </div>
 
-      <div className="flex items-start gap-3 rounded-md border border-border/60 p-3">
+      <div className="flex items-start gap-3">
         <Checkbox
           id="crt-enable"
           checked={active}
@@ -136,8 +147,26 @@ export function CrtSettings() {
               ))}
             </div>
           </fieldset>
+
+          <fieldset className="space-y-2">
+            <legend className="text-[0.8125rem] font-medium">{t('settings_crt_map_legend')}</legend>
+            <div className="flex items-start gap-3 rounded-md border border-border/60 p-3">
+              <Checkbox
+                id="crt-map-tint"
+                checked={mapTint}
+                onCheckedChange={(c) => handleMapTint(c === true)}
+                className="mt-0.5"
+              />
+              <div className="space-y-1">
+                <Label htmlFor="crt-map-tint">{t('settings_crt_map_tint')}</Label>
+                <p className="text-[0.75rem] text-muted-foreground">
+                  {t('settings_crt_map_tint_hint')}
+                </p>
+              </div>
+            </div>
+          </fieldset>
         </>
       )}
-    </div>
+    </section>
   );
 }

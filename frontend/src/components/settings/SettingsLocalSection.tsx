@@ -310,8 +310,7 @@ export function SettingsLocalSection({
         <ThemePreview className="mt-6" />
       </div>
 
-      <Separator />
-
+      {/* CRT is its own bordered section (see CrtSettings), so no flanking separators. */}
       <CrtSettings />
 
       <Separator />

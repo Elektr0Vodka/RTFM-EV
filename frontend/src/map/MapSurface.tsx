@@ -7,6 +7,7 @@ import { cn } from '../lib/utils';
 import {
   BASEMAPS,
   getBasemap,
+  novaBasemap,
   getSavedBasemapId,
   saveBasemapId,
   rasterStyle,
@@ -14,7 +15,9 @@ import {
   applyBasemap,
   markBasemapApplied,
   type BasemapEntry,
+  type NovaTint,
 } from './engine/basemaps';
+import { CRT_CHANGE_EVENT, CRT_PHOSPHOR_HUE, getCrtMapTint, getCrtPhosphor } from '../utils/crt';
 import { setMapLock2D } from './engine/mapLock2D';
 import { setBuildings3D } from './engine/buildings3D';
 import { isWebglAvailable } from './engine/webgl';
@@ -63,6 +66,23 @@ function initialStyleFor(entry: BasemapEntry): string | StyleSpecification {
   return rasterStyle(rasterFallbackFor(entry));
 }
 
+/** Current Nova tint from CRT prefs, or undefined when the tint is off. */
+function novaTintFromPrefs(): NovaTint | undefined {
+  if (!getCrtMapTint()) return undefined;
+  const p = getCrtPhosphor();
+  return { id: p, hue: CRT_PHOSPHOR_HUE[p], desaturate: p === 'white' };
+}
+
+/** Resolve a basemap id to an entry, applying the CRT tint to Nova Dark only. */
+function resolveBasemapEntry(id: string): BasemapEntry {
+  const entry = getBasemap(id);
+  if (entry.id === 'nova') {
+    const tint = novaTintFromPrefs();
+    if (tint) return novaBasemap(tint);
+  }
+  return entry;
+}
+
 export function MapSurface(props: MapSurfaceProps) {
   const {
     fabs,
@@ -86,7 +106,7 @@ export function MapSurface(props: MapSurfaceProps) {
   // Create the map once.
   useEffect(() => {
     if (!webglOk.current || !containerRef.current) return;
-    const entry = getBasemap(selectedBasemapId);
+    const entry = resolveBasemapEntry(selectedBasemapId);
     const map = new MlMap({
       container: containerRef.current,
       style: initialStyleFor(entry),
@@ -123,6 +143,16 @@ export function MapSurface(props: MapSurfaceProps) {
     return () => ro.disconnect();
   }, []);
 
+  // Re-tint the Nova basemap when a CRT preference changes (phosphor colour or the
+  // map-tint toggle). A bump forces the apply-basemap effect below to re-run.
+  const [tintSig, setTintSig] = useState(0);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onCrtChange = () => setTintSig((n) => n + 1);
+    window.addEventListener(CRT_CHANGE_EVENT, onCrtChange);
+    return () => window.removeEventListener(CRT_CHANGE_EVENT, onCrtChange);
+  }, []);
+
   // Apply basemap changes after mount.
   const firstBasemap = useRef(true);
   useEffect(() => {
@@ -133,13 +163,15 @@ export function MapSurface(props: MapSurfaceProps) {
     const map = mapRef.current;
     if (!map) return;
     saveBasemapId(selectedBasemapId);
-    applyBasemap(map, getBasemap(selectedBasemapId), {
+    // applyBasemap no-ops when the entry's signature is unchanged, so a tintSig
+    // bump on a non-Nova basemap costs nothing.
+    applyBasemap(map, resolveBasemapEntry(selectedBasemapId), {
       reapplyOverlays: onBasemapReapply,
       theme,
       buildingsOn: buildings,
       onBuildings: setBuildings3D,
     });
-  }, [selectedBasemapId, onBasemapReapply, theme, buildings]);
+  }, [selectedBasemapId, onBasemapReapply, theme, buildings, tintSig]);
 
   if (!webglOk.current) {
     return (

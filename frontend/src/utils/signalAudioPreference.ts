@@ -56,7 +56,7 @@ export function setSavedSignalAudioVolume(volume: number): void {
 export function getSavedSignalAudioTheme(): SignalAudioTheme {
   try {
     const raw = localStorage.getItem(SIGNAL_AUDIO_THEME_KEY);
-    return raw === 'sonar' || raw === 'geiger' ? raw : DEFAULT_THEME;
+    return raw === 'sonar' || raw === 'geiger' || raw === 'waterdrip' ? raw : DEFAULT_THEME;
   } catch {
     return DEFAULT_THEME;
   }

@@ -1,5 +1,5 @@
 import type { StyleSpecification, Map as MlMap } from 'maplibre-gl';
-import { recolorNovaDark } from './novaRecolor';
+import { recolorNovaDark, recolorNovaTinted } from './novaRecolor';
 
 export type BasemapKind = 'vector' | 'vector-recolor' | 'raster';
 
@@ -201,6 +201,28 @@ export const BASEMAP_STORAGE_KEY = 'remoteterm-map-layer';
 
 export function getBasemap(id: string | null | undefined): BasemapEntry {
   return BASEMAPS.find((b) => b.id === id) ?? BASEMAPS.find((b) => b.id === DEFAULT_BASEMAP_ID)!;
+}
+
+export interface NovaTint {
+  /** stable id per colour (e.g. the phosphor name); folded into recolorId/cache */
+  id: string;
+  /** target hue in HSL degrees */
+  hue: number;
+  /** greyscale instead of a hue (for the white phosphor) */
+  desaturate: boolean;
+}
+
+/** The Nova Dark entry, optionally tinted to a CRT phosphor colour. Folding the
+ *  tint id into recolorId gives it a distinct basemapSig and recolour-cache key,
+ *  so switching phosphor re-applies (and caches) a differently tinted style. */
+export function novaBasemap(tint?: NovaTint): BasemapEntry {
+  const base = getBasemap('nova');
+  if (!tint) return base;
+  return {
+    ...base,
+    recolorId: 'nova-' + tint.id,
+    recolor: recolorNovaTinted(tint.hue, tint.desaturate),
+  };
 }
 
 // Keyless raster ids used as the reliable fallback when a vector style fails to

@@ -146,11 +146,13 @@ You can also navigate to `/api/debug` (or go to Settings -> About -> "Open debug
 Settings -> Customisation groups the appearance controls.
 
 - **Themes**: the swatch grid selects the colour theme (per-device).
-- **CRT mode**: a retro phosphor-monitor theme with green (default), amber,
-  white, or blue (C64) phosphor and toggleable scanline, phosphor-glow,
-  screen-curvature, and flicker effects. Flicker is disabled automatically when
-  the browser requests reduced motion. CRT choices are per-device (stored in the
-  browser), like the theme selection.
+- **CRT mode**: a retro phosphor-monitor theme, grouped into its own section,
+  with green (default), amber, white, or blue (C64) phosphor and toggleable
+  scanline, phosphor-glow, screen-curvature, and flicker effects. Flicker is
+  disabled automatically when the browser requests reduced motion. A "tint the
+  map to the CRT colour" option recolours the Nova Dark map basemap to match the
+  selected phosphor (applies only while Nova Dark is the chosen map layer). CRT
+  choices are per-device (stored in the browser), like the theme selection.
 - **Branding**: rename the top-bar "RemoteTerm" wordmark, hide it, or upload a
   custom icon (PNG/SVG/ICO/JPEG, up to 128 KB). Branding is stored server-side,
   so it is shared across every device that connects to the instance. Leaving the
