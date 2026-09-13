@@ -1,8 +1,8 @@
 """Server-side link unfurl: fetch a URL and extract OpenGraph-style metadata.
 
 Only used for chat link previews, gated by the ``chat_url_previews`` setting.
-All outbound fetches go through ``url_safety.assert_public_http_url`` and are
-size/time capped. HTML parsing uses the stdlib ``html.parser`` (no new dep).
+Outbound fetches are pinned to a validated public IP (see ``_fetch_once``) and
+are size/time capped. HTML parsing uses the stdlib ``html.parser`` (no new dep).
 """
 
 import asyncio
@@ -10,10 +10,11 @@ import logging
 import time
 from dataclasses import dataclass
 from html.parser import HTMLParser
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import httpx
 
-from app.services.url_safety import UnsafeUrlError, assert_public_http_url
+from app.services.url_safety import UnsafeUrlError, resolve_public_ip
 
 logger = logging.getLogger(__name__)
 
@@ -93,8 +94,32 @@ def parse_link_preview(html: str, url: str) -> LinkPreview:
     )
 
 
+async def _fetch_once(client: httpx.AsyncClient, target: str) -> httpx.Response:
+    """GET ``target`` connecting to a freshly validated public IP for its host.
+
+    The host is resolved and checked, then the request is sent to that exact IP
+    (via the URL) while the original host is preserved as the ``Host`` header and
+    TLS SNI. Because the address that was security-checked is the one actually
+    contacted, a rebinding DNS answer cannot redirect the connection to a private
+    host after the check (the connection performs no second name resolution).
+    """
+    ip = resolve_public_ip(target)
+    parts = urlsplit(target)
+    host_header = parts.netloc  # original host[:port], sent as Host
+    ip_netloc = f"[{ip}]" if ":" in ip else ip
+    if parts.port:
+        ip_netloc = f"{ip_netloc}:{parts.port}"
+    pinned = urlunsplit((parts.scheme, ip_netloc, parts.path or "/", parts.query, ""))
+    return await client.get(
+        pinned,
+        headers={"User-Agent": _USER_AGENT, "Accept": "text/html", "Host": host_header},
+        # SNI + certificate verification use the real hostname, not the IP.
+        extensions={"sni_hostname": parts.hostname or ""},
+    )
+
+
 async def fetch_link_preview(url: str) -> LinkPreview:
-    """Fetch ``url`` (SSRF-guarded, size/redirect capped) and extract a preview.
+    """Fetch ``url`` (SSRF-guarded, IP-pinned, size/redirect capped) and extract a preview.
 
     Raises ``UnsafeUrlError`` for disallowed targets. Returns an empty preview
     when the content is not HTML or carries no usable metadata.
@@ -108,12 +133,12 @@ async def fetch_link_preview(url: str) -> LinkPreview:
     current = url
     async with httpx.AsyncClient(timeout=_FETCH_TIMEOUT, follow_redirects=False) as client:
         for _ in range(_MAX_REDIRECTS + 1):
-            assert_public_http_url(current)
-            resp = await client.get(
-                current, headers={"User-Agent": _USER_AGENT, "Accept": "text/html"}
-            )
-            if resp.is_redirect and resp.next_request is not None:
-                current = str(resp.next_request.url)
+            resp = await _fetch_once(client, current)
+            location = resp.headers.get("location")
+            if resp.is_redirect and location:
+                # Resolve against the original-host URL, not the pinned-IP one,
+                # then re-validate the new hop on the next iteration.
+                current = urljoin(current, location)
                 continue
             content_type = resp.headers.get("content-type", "")
             if "html" not in content_type.lower():

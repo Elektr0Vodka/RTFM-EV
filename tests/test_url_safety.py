@@ -2,7 +2,7 @@ import socket
 
 import pytest
 
-from app.services.url_safety import UnsafeUrlError, assert_public_http_url
+from app.services.url_safety import UnsafeUrlError, assert_public_http_url, resolve_public_ip
 
 
 def test_rejects_non_http_scheme():
@@ -55,3 +55,22 @@ def test_allows_public_host(monkeypatch):
     )
     # Should not raise.
     assert_public_http_url("https://example.com/page")
+
+
+def test_resolve_public_ip_returns_validated_ip(monkeypatch):
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("93.184.216.34", 0))],
+    )
+    assert resolve_public_ip("https://example.com/page") == "93.184.216.34"
+
+
+def test_resolve_public_ip_rejects_private(monkeypatch):
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("10.0.0.5", 0))],
+    )
+    with pytest.raises(UnsafeUrlError):
+        resolve_public_ip("http://internal.example/x")
