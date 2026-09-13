@@ -40,33 +40,44 @@ export function createMentionSoundPlayer(deps: MentionSoundPlayerDeps = {}): Men
       lastPlay = t;
       try {
         audio.currentTime = 0;
+        // audio.play() can throw synchronously (e.g. jsdom "not implemented")
+        // or reject (autoplay blocked); swallow both so the caller never sees it.
+        void Promise.resolve(audio.play()).catch(() => {});
       } catch {
-        /* not always settable before metadata loads */
+        /* environment without media playback; ignore */
       }
-      void Promise.resolve(audio.play()).catch(() => {
-        /* autoplay blocked or no source; ignore */
-      });
     },
     unlock() {
       if (unlocked) return;
       unlocked = true;
       const prevVol = audio.volume;
-      audio.muted = true;
-      void Promise.resolve(audio.play())
-        .then(() => {
-          audio.pause();
-          audio.currentTime = 0;
-        })
-        .catch(() => {
-          /* ignore */
-        })
-        .finally(() => {
-          audio.muted = false;
-          audio.volume = prevVol;
-        });
+      try {
+        audio.muted = true;
+        void Promise.resolve(audio.play())
+          .then(() => {
+            try {
+              audio.pause();
+              audio.currentTime = 0;
+            } catch {
+              /* ignore */
+            }
+          })
+          .catch(() => {})
+          .finally(() => {
+            audio.muted = false;
+            audio.volume = prevVol;
+          });
+      } catch {
+        audio.muted = false;
+        audio.volume = prevVol;
+      }
     },
     dispose() {
-      audio.pause();
+      try {
+        audio.pause();
+      } catch {
+        /* environment without media playback; ignore */
+      }
       audio.src = '';
     },
   };
