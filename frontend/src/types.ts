@@ -1194,3 +1194,45 @@ export interface OpenHopRadioPreset {
   bandwidth?: string;
   coding_rate?: string;
 }
+
+// OpenHop OTA update (Surface B). Status is a FLAT envelope (fields at top level).
+export interface OpenHopUpdateStatus {
+  success: boolean;
+  current_version?: string;
+  latest_version?: string | null;
+  has_update?: boolean;
+  channel?: string;
+  last_checked?: string | null;
+  state?: 'idle' | 'checking' | 'installing' | 'complete' | 'error';
+  error?: string | null;
+  rate_limit_until?: string | null;
+  message?: string;
+}
+export interface OpenHopUpdateChannels {
+  success: boolean;
+  channels: string[];
+  current_channel: string;
+}
+export interface OpenHopChangelogCommit {
+  sha: string;
+  short_sha: string;
+  title: string;
+  body: string;
+  author: string;
+  date: string;
+  url: string;
+}
+export interface OpenHopChangelog {
+  success: boolean;
+  channel: string;
+  installed: string;
+  latest: string;
+  commits: OpenHopChangelogCommit[];
+}
+/** An event from the OTA install-progress SSE stream. */
+export type OpenHopUpdateEvent =
+  | { type: 'connected'; message: string }
+  | { type: 'line'; line: string }
+  | { type: 'status'; state: string }
+  | { type: 'done'; state: string; error?: string | null }
+  | { type: 'keepalive' };

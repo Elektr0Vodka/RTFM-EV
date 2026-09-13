@@ -39,6 +39,9 @@ import type {
   OpenHopRestartResult,
   OpenHopHardwareOption,
   OpenHopRadioPreset,
+  OpenHopUpdateStatus,
+  OpenHopUpdateChannels,
+  OpenHopChangelog,
   MessagesAroundResponse,
   RawPacket,
   RadioAdvertMode,
@@ -635,6 +638,30 @@ export const api = {
     }),
   restartOpenHopService: () =>
     fetchJson<OpenHopRestartResult>('/openhop/config/restart', { method: 'POST' }),
+
+  // OpenHop OTA update (Surface B; only meaningful when is_openhop AND configured)
+  getOpenHopUpdateStatus: () => fetchJson<OpenHopUpdateStatus>('/openhop/update/status'),
+  openHopUpdateCheck: (force = false) =>
+    fetchJson<OpenHopUpdateStatus>('/openhop/update/check', {
+      method: 'POST',
+      body: JSON.stringify({ force }),
+    }),
+  openHopUpdateInstall: (force = false) =>
+    fetchJson<OpenHopUpdateStatus>('/openhop/update/install', {
+      method: 'POST',
+      body: JSON.stringify({ force }),
+    }),
+  getOpenHopUpdateChannels: () => fetchJson<OpenHopUpdateChannels>('/openhop/update/channels'),
+  openHopUpdateSetChannel: (channel: string) =>
+    fetchJson<OpenHopUpdateStatus>('/openhop/update/set_channel', {
+      method: 'POST',
+      body: JSON.stringify({ channel }),
+    }),
+  getOpenHopUpdateChangelog: (channel?: string, max = 40) =>
+    fetchJson<OpenHopChangelog>(
+      `/openhop/update/changelog?max=${max}${channel ? `&channel=${encodeURIComponent(channel)}` : ''}`
+    ),
+  openHopUpdateProgressUrl: () => `./api/openhop/update/progress`,
 
   // Block lists
   toggleBlockedKey: (key: string) =>
