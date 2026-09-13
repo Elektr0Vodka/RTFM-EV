@@ -1290,3 +1290,30 @@ export interface OpenHopAnalyticsResult {
   data?: Record<string, unknown>;
   error?: string;
 }
+
+// OpenHop transport keys + neighbor scopes (Surface B).
+export interface OpenHopTransportKey {
+  id?: string | number;
+  name?: string;
+  flood_policy?: string;
+  [k: string]: unknown;
+}
+export interface OpenHopTransportKeys {
+  success: boolean;
+  data?: OpenHopTransportKey[] | Record<string, OpenHopTransportKey>;
+  count?: number;
+  error?: string;
+}
+export interface OpenHopNeighborScopeRecord {
+  scopes?: string;
+  status?: string;
+  queried_at?: number | null;
+  responded_at?: number | null;
+}
+export interface OpenHopNeighborScopes {
+  success: boolean;
+  count?: number;
+  served?: { scopes?: string };
+  data?: Record<string, OpenHopNeighborScopeRecord>;
+  error?: string;
+}

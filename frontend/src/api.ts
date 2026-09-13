@@ -46,6 +46,8 @@ import type {
   OpenHopCadManualCheckParams,
   OpenHopHardwareStats,
   OpenHopAnalyticsResult,
+  OpenHopTransportKeys,
+  OpenHopNeighborScopes,
   MessagesAroundResponse,
   RawPacket,
   RadioAdvertMode,
@@ -698,6 +700,24 @@ export const api = {
     fetchJson<OpenHopAnalyticsResult>(`/openhop/analytics/packet_type_stats?hours=${hours}`),
   getOpenHopNoiseFloorStats: (hours = 24) =>
     fetchJson<OpenHopAnalyticsResult>(`/openhop/analytics/noise_floor_stats?hours=${hours}`),
+
+  // OpenHop transport keys + neighbor scopes (Surface B)
+  getOpenHopTransportKeys: () => fetchJson<OpenHopTransportKeys>('/openhop/transport/keys'),
+  openHopCreateTransportKey: (name: string) =>
+    fetchJson<OpenHopEnvelope>('/openhop/transport/keys', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    }),
+  openHopDeleteTransportKey: (keyId: string) =>
+    fetchJson<OpenHopEnvelope>(`/openhop/transport/key?key_id=${encodeURIComponent(keyId)}`, {
+      method: 'DELETE',
+    }),
+  getOpenHopNeighborScopes: () => fetchJson<OpenHopNeighborScopes>('/openhop/scopes/neighbors'),
+  openHopQueryNeighborScopes: (pubkey: string) =>
+    fetchJson<OpenHopEnvelope>('/openhop/scopes/query', {
+      method: 'POST',
+      body: JSON.stringify({ pubkey }),
+    }),
 
   // Block lists
   toggleBlockedKey: (key: string) =>
