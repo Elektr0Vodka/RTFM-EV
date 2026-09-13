@@ -588,3 +588,49 @@ class TestOpenHopCad:
         async for part in resp.body_iterator:
             body += part if isinstance(part, bytes) else part.encode()
         assert b'"type":"sample"' in body
+
+
+class TestOpenHopSystem:
+    @pytest.mark.asyncio
+    async def test_hardware_409_when_not_openhop(self, test_db, monkeypatch):
+        _set_model(monkeypatch, "Heltec V3")
+        from app.routers.openhop import system_hardware
+
+        with pytest.raises(HTTPException) as exc:
+            await system_hardware()
+        assert exc.value.status_code == 409
+
+    @pytest.mark.asyncio
+    async def test_system_and_analytics_routes_delegate(self, test_db, monkeypatch):
+        _set_model(monkeypatch, OPENHOP_MODEL)
+        await AppSettingsRepository.update(
+            openhop_api_url="http://node:8000", openhop_api_token="tok"
+        )
+        from app.routers.openhop import (
+            analytics_noise_floor_stats,
+            analytics_packet_stats,
+            analytics_packet_type_stats,
+            system_hardware,
+            system_processes,
+            system_site_info,
+            system_stats,
+        )
+
+        fake = AsyncMock()
+        fake.hardware_stats = AsyncMock(return_value={"success": True, "data": {"cpu": {}}})
+        fake.hardware_processes = AsyncMock(return_value={"success": True, "data": {}})
+        fake.node_stats = AsyncMock(return_value={"local_hash": "0xe4"})
+        fake.get_site_info = AsyncMock(return_value={"success": True, "site_name": ""})
+        fake.packet_stats = AsyncMock(return_value={"success": True, "data": {}})
+        fake.packet_type_stats = AsyncMock(return_value={"success": True, "data": {}})
+        fake.noise_floor_stats = AsyncMock(return_value={"success": True, "data": {}})
+        fake.aclose = AsyncMock()
+        with patch("app.routers.openhop.OpenHopClient", return_value=fake):
+            assert "data" in await system_hardware()
+            assert "data" in await system_processes()
+            assert (await system_stats())["local_hash"] == "0xe4"
+            assert (await system_site_info())["success"] is True
+            assert "data" in await analytics_packet_stats(hours=12)
+            assert "data" in await analytics_packet_type_stats(hours=12)
+            assert "data" in await analytics_noise_floor_stats(hours=12)
+        fake.packet_stats.assert_awaited_once_with(hours=12)

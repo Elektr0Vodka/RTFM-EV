@@ -241,3 +241,18 @@ async def test_cad_methods():
     assert (await c.cad_manual_check({"samples": 1}))["data"]["attempts"] == 1
     assert (await c.cad_save(peak=127, min_val=64, cad_symbol_num=2))["success"]
     await c.aclose()
+
+
+@pytest.mark.asyncio
+async def test_system_and_analytics_methods():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"success": True, "data": {"ok": request.url.path}})
+
+    c = OpenHopClient("http://n:8000", token="tok", transport=httpx.MockTransport(handler))
+    assert (await c.hardware_stats())["data"]["ok"] == "/api/hardware_stats"
+    assert (await c.hardware_processes())["data"]["ok"] == "/api/hardware_processes"
+    assert (await c.node_stats())["data"]["ok"] == "/api/stats"
+    assert (await c.packet_stats(hours=24))["data"]["ok"] == "/api/packet_stats"
+    assert (await c.packet_type_stats(hours=24))["data"]["ok"] == "/api/packet_type_stats"
+    assert (await c.noise_floor_stats(hours=24))["data"]["ok"] == "/api/noise_floor_stats"
+    await c.aclose()

@@ -230,5 +230,25 @@ class OpenHopClient:
             {"peak": peak, "min_val": min_val, "cad_symbol_num": cad_symbol_num},
         )
 
+    # --- System / hardware ----------------------------------------------
+    async def hardware_stats(self) -> dict[str, Any]:
+        return await self._get("/api/hardware_stats")
+
+    async def hardware_processes(self) -> dict[str, Any]:
+        return await self._get("/api/hardware_processes")
+
+    async def node_stats(self) -> dict[str, Any]:
+        return await self._get("/api/stats")
+
+    # --- Analytics (read-only) ------------------------------------------
+    async def packet_stats(self, hours: int = 24) -> dict[str, Any]:
+        return await self._get_q("/api/packet_stats", {"hours": hours})
+
+    async def packet_type_stats(self, hours: int = 24) -> dict[str, Any]:
+        return await self._get_q("/api/packet_type_stats", {"hours": hours})
+
+    async def noise_floor_stats(self, hours: int = 24) -> dict[str, Any]:
+        return await self._get_q("/api/noise_floor_stats", {"hours": hours})
+
     async def aclose(self) -> None:
         await self._client.aclose()

@@ -553,3 +553,42 @@ async def cad_stream() -> StreamingResponse:
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ---------------------------------------------------------------------------
+# System / hardware + read-only analytics. hardware_stats is psutil-nested;
+# /stats is an unwrapped object. The frontend reads both defensively.
+# ---------------------------------------------------------------------------
+@router.get("/system/hardware")
+async def system_hardware() -> dict[str, Any]:
+    return await _relay_upstream(lambda c: c.hardware_stats())
+
+
+@router.get("/system/processes")
+async def system_processes() -> dict[str, Any]:
+    return await _relay_upstream(lambda c: c.hardware_processes())
+
+
+@router.get("/system/stats")
+async def system_stats() -> dict[str, Any]:
+    return await _relay_upstream(lambda c: c.node_stats())
+
+
+@router.get("/system/site_info")
+async def system_site_info() -> dict[str, Any]:
+    return await _relay_upstream(lambda c: c.get_site_info())
+
+
+@router.get("/analytics/packet_stats")
+async def analytics_packet_stats(hours: int = 24) -> dict[str, Any]:
+    return await _relay_upstream(lambda c: c.packet_stats(hours=hours))
+
+
+@router.get("/analytics/packet_type_stats")
+async def analytics_packet_type_stats(hours: int = 24) -> dict[str, Any]:
+    return await _relay_upstream(lambda c: c.packet_type_stats(hours=hours))
+
+
+@router.get("/analytics/noise_floor_stats")
+async def analytics_noise_floor_stats(hours: int = 24) -> dict[str, Any]:
+    return await _relay_upstream(lambda c: c.noise_floor_stats(hours=hours))
