@@ -18,13 +18,19 @@ Recurring offenders (seen repeatedly):
 
 ## Backend (`backend-checks`)
 
-CI runs, in order:
+CI runs FOUR steps, in order (`.github/workflows/all-quality.yml`):
 
 ```
-uv run ruff check app/ tests/
-uv run ruff format --check app/ tests/
-PYTHONPATH=. uv run pytest tests/ -v
+uv run ruff check app/ tests/          # Backend lint
+uv run ruff format --check app/ tests/ # Backend format check
+uv run pyright app/                     # Backend typecheck (easy to forget)
+PYTHONPATH=. uv run pytest tests/ -v    # Backend tests
 ```
+
+The `pyright app/` step is a real gate and NOT covered by pytest. A common miss:
+assigning a plain `str` where a `Literal[...]` is expected (e.g. a dataclass
+field feeding a Pydantic model whose field is `Literal[...]`). Type the source
+field as the same `Literal` so it flows through.
 
 On a Windows host with no Python deps, run the same inside the container image
 (`rtfm-ev-local:latest`), worktree bind-mounted to `/work`:
@@ -32,15 +38,19 @@ On a Windows host with no Python deps, run the same inside the container image
 ```bash
 MSYS_NO_PATHCONV=1 docker run --rm -v "/$(pwd)://work" -w "//work" \
   -e UV_PROJECT_ENVIRONMENT=/app/.venv rtfm-ev-local:latest bash -lc "\
-  uv sync --frozen --group dev && \
-  /app/.venv/bin/ruff check app/ tests/ && \
-  /app/.venv/bin/ruff format --check app/ tests/ && \
-  PYTHONPATH=/work /app/.venv/bin/pytest tests/ -q"
+  apt-get update -qq && apt-get install -y -qq libatomic1 >/dev/null 2>&1; \
+  uv sync --dev && \
+  uv run ruff check app/ tests/ && \
+  uv run ruff format --check app/ tests/ && \
+  uv run pyright app/ && \
+  PYTHONPATH=/work uv run pytest tests/ -q"
 ```
 
-Notes: `PYTHONPATH=/work` is required (else `No module named app`). Do not pass
-`-p no:xdist` (pyproject bakes xdist addopts). Auto-fix import order with
-`ruff check --fix`; ruff format issues with `ruff format`.
+Notes: `PYTHONPATH=/work` is required for pytest (else `No module named app`).
+Do not pass `-p no:xdist` (pyproject bakes xdist addopts). `pyright`'s bundled
+node needs `libatomic1`, which the runtime image lacks, so install it first (the
+one-liner above). Auto-fix import order with `ruff check --fix`; ruff format
+issues with `ruff format`.
 
 ## Frontend (`frontend-checks`)
 

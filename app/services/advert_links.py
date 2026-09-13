@@ -21,6 +21,9 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Literal
+
+NodeKind = Literal["self", "contact", "external"]
 
 # hop_width assigned to direct adverts (origin heard with no hops). Both
 # endpoints are exactly known, so it is maximum confidence and always passes
@@ -35,7 +38,7 @@ class LocatedNode:
     pubkey: str
     lat: float
     lon: float
-    kind: str  # "self" | "contact" | "external"
+    kind: NodeKind
 
 
 @dataclass(frozen=True)
