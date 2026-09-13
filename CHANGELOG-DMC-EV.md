@@ -11,6 +11,28 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-13 (OpenHop Config pane, feat/openhop-detection)
+
+### Chat / UI
+- OpenHop settings gain a third sub-nav tab, Config (after Policy and Plugins),
+  shown only when the connected node is detected as OpenHop and an API URL +
+  token are configured. It mirrors OpenHop's config page: validate the node
+  config (errors/warnings), switch operating mode (forward / monitor / no_tx),
+  edit radio parameters (frequency/bandwidth/SF/coding-rate/TX-power/node-name)
+  with a preset selector that prefills the form, and back up / restore the full
+  config. Radio edits and restore are guarded by a confirm; radio and hardware
+  changes surface a restart-required notice with a Restart-node button. Backup
+  downloads redacted JSON by default with an opt-in full backup that includes
+  secrets (warned). New strings are translated in EN/NL/DE (feat/openhop-detection)
+
+### Backend
+- New gated proxy endpoints under `/api/openhop/config/*` (export, validate,
+  hardware_options, presets, mode, radio, import, restart) delegate to new
+  `OpenHopClient` methods. Fail-closed like the other OpenHop panes: 409 unless
+  the node is OpenHop and a URL + token are set; the token is never returned.
+  All config endpoints return HTTP 200 with a `success` flag, so the proxy uses
+  `_relay` (transport failures map to 502). No migration (feat/openhop-detection)
+
 ## Update 2026-09-13 (water-drip audio, CRT section, map tint)
 
 ### Packet feed / audio

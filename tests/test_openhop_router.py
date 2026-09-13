@@ -30,9 +30,7 @@ OPENHOP_MODEL = "openHop-Repeater-Companion"
 
 
 def _set_model(monkeypatch, model):
-    monkeypatch.setattr(
-        "app.routers.openhop.radio_manager.device_model", model, raising=False
-    )
+    monkeypatch.setattr("app.routers.openhop.radio_manager.device_model", model, raising=False)
 
 
 class TestOpenHopStatus:

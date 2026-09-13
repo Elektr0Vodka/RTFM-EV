@@ -195,7 +195,7 @@ internal "Implementation status" note).
 | 17 | sidebar-customisation | PARTIAL | Customisable layout: reorder, rail collapse, settings panel (PR #72); section counters (PR #71); Repeaters/Rooms/Companions/Sensors merged into one Contacts section with type-filter pills (PR #88). "Owned" grouping still gated on backend `owner_id`. |
 | 18 | multi-radio-identity-history | NOT STARTED | Planning (2026-09-11). Self registry + per-radio stats + cross-key merge. |
 | 19 | analyzer-persistence-retention | NOT STARTED | Planning (2026-09-11). Retention policy; drives [14]. |
-| 20 | openhop-integration | PARTIAL | Surface A (detect + label) and Surface B foundation (REST client + gated proxy + settings config) implemented on `feat/openhop-detection` (pending merge); management panes (policy/plugins/config/update/CAD) pending a design pass. |
+| 20 | openhop-integration | PARTIAL | Surface A (detect + label) and Surface B foundation (REST client + gated proxy + settings config) implemented on `feat/openhop-detection` (pending merge); Policy, Plugins, and Config panes shipped on that branch; Update and CAD panes pending a design pass. |
 | 21 | signal-tester-mirror | PARTIAL | Per-packet signal audio shipped (PR #76). Flagship per-relay same-packet reception comparison unbuilt (needs a `packet_receptions` table + last-hop resolution). |
 | 22 | data-directory-backup | PARTIAL | Backup delivered (issue #85, 2026-09-13): `VACUUM INTO` snapshot, download + server-path save, migration `_084`. Restore/scheduled backups deferred. |
 | 23 | packet-history-browser | NOT STARTED | Planning stub (2026-09-12). Packet history persists server-side (`raw_packets`, `GET /api/packets/recent` with `after_ts`/`before_ts`); the browsing UI is the gap. |
