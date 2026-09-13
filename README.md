@@ -11,6 +11,7 @@ Connect your radio over Serial, TCP, or BLE, and then you can:
 * Access your radio remotely over your network or VPN
 * Search for hashtag channel names for channels you don't have keys for yet
 * Parse entities in chat messages (optional, off by default): resolve public keys to a contact or external analyzer, turn GPS coordinates into a map card, and show clickable links with optional messenger-style previews (Settings > Local Configuration > "Chat parsing")
+* Play an optional notification sound on new @mentions and DMs, with a choice of bundled presets or your own uploaded sound, a volume control, and per-conversation muting (Settings > Local Configuration > "Mention & DM sound")
 * Forward packets, messages, and automatic repeater telemetry to MQTT, Home Assistant, LetsMesh, MeshRank, SQS, Apprise, etc.
 * Use the more recent 1.14+ firmwares which support multibyte pathing
 * Auto-detect [meshcomod (DMC-EV)](https://github.com/Elektr0Vodka/meshcomod) firmware and expose its extra device settings (CAD, GPS)

@@ -1,13 +1,19 @@
 import asyncio
 import logging
-from typing import Literal
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from app.models import CONTACT_TYPE_REPEATER, AnalyzerSite, AppSettings
 from app.region_scope import normalize_region_scope
-from app.repository import AppSettingsRepository, ChannelRepository, ContactRepository
+from app.repository import (
+    AppSettingsRepository,
+    ChannelRepository,
+    ContactRepository,
+    MentionSoundRepository,
+)
 from app.telemetry_interval import (
     DEFAULT_TELEMETRY_INTERVAL_HOURS,
     TELEMETRY_INTERVAL_OPTIONS_HOURS,
@@ -31,6 +37,20 @@ ALLOWED_BRAND_ICON_MIMES = (
     "image/vnd.microsoft.icon",
     "image/jpeg",
 )
+
+MAX_MENTION_SOUND_BYTES = 256 * 1024  # 256 KB
+ALLOWED_MENTION_SOUND_MIMES = (
+    "audio/mpeg",
+    "audio/mp3",
+    "audio/wav",
+    "audio/x-wav",
+    "audio/ogg",
+    "audio/mp4",
+    "audio/x-m4a",
+    "audio/aac",
+)
+ALLOWED_MENTION_SOUND_EXTS = (".mp3", ".wav", ".ogg", ".m4a", ".aac")
+DEFAULT_MENTION_SOUND_PRESET = "beep"
 
 
 def _validate_brand_icon(value: str) -> str:
@@ -147,6 +167,17 @@ class AppSettingsUpdate(BaseModel):
             "Show the scrolling mention ticker in the top bar when the user is "
             "@mentioned in a channel they are not currently viewing."
         ),
+    )
+    mention_sound_enabled: bool | None = Field(
+        default=None,
+        description="Play a sound on @mention or DM.",
+    )
+    mention_sound_choice: str | None = Field(
+        default=None,
+        description="Mention-sound preset id or 'custom'.",
+    )
+    mention_sound_volume: int | None = Field(
+        default=None, ge=0, le=100, description="Mention-sound volume 0..100."
     )
     registry_sync_url: str | None = Field(
         default=None,
@@ -412,6 +443,14 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
     # Mention ticker
     if update.show_mention_ticker is not None:
         kwargs["show_mention_ticker"] = update.show_mention_ticker
+
+    # Mention/DM notification sound
+    if update.mention_sound_enabled is not None:
+        kwargs["mention_sound_enabled"] = update.mention_sound_enabled
+    if update.mention_sound_choice is not None:
+        kwargs["mention_sound_choice"] = update.mention_sound_choice
+    if update.mention_sound_volume is not None:
+        kwargs["mention_sound_volume"] = update.mention_sound_volume
 
     # Auto-add mentioned channels to the registry
     if update.auto_add_mentioned_channels is not None:
@@ -775,3 +814,57 @@ async def get_contact_telemetry_schedule() -> TelemetrySchedule:
         app_settings.telemetry_interval_hours,
         app_settings.telemetry_routed_hourly,
     )
+
+
+@router.post("/mention-sound")
+async def upload_mention_sound(file: Annotated[UploadFile, File()]) -> dict:
+    """Store a custom mention sound and switch the choice to 'custom'.
+
+    Validates type (by MIME or extension) and enforces a 256 KB size cap.
+    """
+    data = await file.read()
+    if len(data) > MAX_MENTION_SOUND_BYTES:
+        raise HTTPException(status_code=413, detail="Sound file exceeds the 256 KB limit.")
+    if len(data) == 0:
+        raise HTTPException(status_code=400, detail="Empty file.")
+
+    filename = (file.filename or "custom").strip()
+    ext_ok = filename.lower().endswith(ALLOWED_MENTION_SOUND_EXTS)
+    mime = (file.content_type or "").lower()
+    mime_ok = mime in ALLOWED_MENTION_SOUND_MIMES
+    if not (ext_ok or mime_ok):
+        raise HTTPException(
+            status_code=415,
+            detail="Unsupported audio type. Use mp3, wav, ogg, m4a, or aac.",
+        )
+
+    stored_mime = mime if mime_ok else "audio/mpeg"
+    meta = await MentionSoundRepository.set(data, stored_mime, filename)
+    await AppSettingsRepository.update(mention_sound_choice="custom")
+    return meta
+
+
+@router.get("/mention-sound")
+async def get_mention_sound() -> Response:
+    """Stream the custom mention sound, or 404 when none is set."""
+    row = await MentionSoundRepository.get()
+    if row is None:
+        raise HTTPException(status_code=404, detail="No custom mention sound set.")
+    return Response(
+        content=row["data"],
+        media_type=row["content_type"],
+        headers={
+            "Cache-Control": "private, max-age=31536000",
+            "ETag": f'"{row["updated_at"]}"',
+        },
+    )
+
+
+@router.delete("/mention-sound", status_code=204)
+async def delete_mention_sound() -> Response:
+    """Delete the custom sound; reset choice to the default preset if it was custom."""
+    await MentionSoundRepository.delete()
+    current = await AppSettingsRepository.get()
+    if current.mention_sound_choice == "custom":
+        await AppSettingsRepository.update(mention_sound_choice=DEFAULT_MENTION_SOUND_PRESET)
+    return Response(status_code=204)

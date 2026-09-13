@@ -102,6 +102,8 @@ interface ConversationPaneProps {
   onDismissUnreadMarker: () => void;
   onSendMessage: (text: string) => Promise<void>;
   onToggleNotifications: () => void;
+  soundMuted?: boolean;
+  onToggleSoundMute?: () => void;
   pushSupported?: boolean;
   pushSubscribed?: boolean;
   pushEnabledForConversation?: boolean;
@@ -197,6 +199,8 @@ export function ConversationPane({
   onDismissUnreadMarker,
   onSendMessage,
   onToggleNotifications,
+  soundMuted,
+  onToggleSoundMute,
   pushSupported,
   pushSubscribed,
   pushEnabledForConversation,
@@ -380,6 +384,8 @@ export function ConversationPane({
         onTrace={onTrace}
         onPathDiscovery={onPathDiscovery}
         onToggleNotifications={onToggleNotifications}
+        soundMuted={soundMuted}
+        onToggleSoundMute={onToggleSoundMute}
         onToggleFavorite={onToggleFavorite}
         onToggleMute={onToggleMute}
         onSetChannelFloodScopeOverride={onSetChannelFloodScopeOverride}

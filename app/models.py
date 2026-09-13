@@ -1127,6 +1127,15 @@ class AnalyzerSite(BaseModel):
     )
 
 
+class MentionSoundMeta(BaseModel):
+    """Metadata for the user-uploaded custom mention sound (blob stored separately)."""
+
+    filename: str
+    content_type: str
+    size_bytes: int
+    updated_at: int
+
+
 class AppSettings(BaseModel):
     """Application settings stored in the database."""
 
@@ -1219,6 +1228,22 @@ class AppSettings(BaseModel):
             "Show the scrolling mention ticker in the top bar when the user is "
             "@mentioned in a channel they are not currently viewing"
         ),
+    )
+    mention_sound_enabled: bool = Field(
+        default=False,
+        description="Play a sound when the user is @mentioned in a channel or receives a DM.",
+    )
+    mention_sound_choice: str = Field(
+        default="beep",
+        description="Selected mention-sound: a preset id or the literal 'custom'.",
+    )
+    mention_sound_volume: int = Field(
+        default=80,
+        description="Mention-sound playback volume, 0..100.",
+    )
+    mention_sound_custom: MentionSoundMeta | None = Field(
+        default=None,
+        description="Metadata for the uploaded custom sound, or null when none is set.",
     )
     auto_add_mentioned_channels: bool = Field(
         default=False,

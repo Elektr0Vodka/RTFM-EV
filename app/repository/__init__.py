@@ -7,6 +7,7 @@ from app.repository.contacts import (
     ContactRepository,
 )
 from app.repository.fanout import FanoutConfigRepository
+from app.repository.mention_sound import MentionSoundRepository
 from app.repository.messages import MessageRepository
 from app.repository.raw_packets import RawPacketRepository
 from app.repository.repeater_telemetry import RepeaterTelemetryRepository
@@ -23,6 +24,7 @@ __all__ = [
     "ContactNameHistoryRepository",
     "ContactRepository",
     "FanoutConfigRepository",
+    "MentionSoundRepository",
     "MessageRepository",
     "RawPacketRepository",
     "RepeaterTelemetryRepository",

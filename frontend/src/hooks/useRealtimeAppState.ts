@@ -65,6 +65,13 @@ interface UseRealtimeAppStateArgs {
   /** Fired for a new incoming channel message that @mentions the user while
    *  they are not viewing that channel — drives the mention ticker. */
   onChannelMention?: (msg: Message) => void;
+  /** Fired for every new, incoming, non-muted message so the caller can decide
+   *  whether to play the mention/DM sound. ctx carries the active-conversation
+   *  and mention flags computed here. */
+  notifyMentionSound?: (
+    msg: Message,
+    ctx: { isForActiveConversation: boolean; hasMention: boolean }
+  ) => void;
   /** Buffer cap override. Defaults to the store's own cap; tests use it to force eviction. */
   maxRawPackets?: number;
 }
@@ -115,6 +122,7 @@ export function useRealtimeAppState({
   receiveMessageAck,
   notifyIncomingMessage,
   onChannelMention,
+  notifyMentionSound,
   maxRawPackets = MAX_RAW_PACKETS,
 }: UseRealtimeAppStateArgs): UseWebSocketOptions {
   const mergeChannelIntoList = useCallback(
@@ -223,6 +231,10 @@ export function useRealtimeAppState({
 
         if (!msg.outgoing && isNewMessage && !isMutedChannel) {
           notifyIncomingMessage?.(msg);
+          notifyMentionSound?.(msg, {
+            isForActiveConversation,
+            hasMention: msg.type === 'CHAN' ? checkMention(msg.text) : false,
+          });
         }
 
         // Surface the mention ticker only for a new channel message that
@@ -326,6 +338,7 @@ export function useRealtimeAppState({
       setHealth,
       notifyIncomingMessage,
       onChannelMention,
+      notifyMentionSound,
     ]
   );
 }

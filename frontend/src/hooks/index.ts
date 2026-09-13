@@ -10,6 +10,7 @@ export { useRealtimeAppState } from './useRealtimeAppState';
 export { useConversationActions } from './useConversationActions';
 export { useConversationNavigation } from './useConversationNavigation';
 export { useBrowserNotifications } from './useBrowserNotifications';
+export { useMentionSound } from './useMentionSound';
 export { useFaviconBadge, useUnreadTitle } from './useFaviconBadge';
 export { useMeshcomodConfig, MESHCOMOD_CONFIG_CHANGE_EVENT } from './useMeshcomodConfig';
 export { useIsDarkTheme } from './useIsDarkTheme';

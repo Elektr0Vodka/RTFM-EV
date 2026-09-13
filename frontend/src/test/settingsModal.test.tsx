@@ -79,6 +79,10 @@ const baseSettings: AppSettings = {
   telemetry_interval_hours: 8,
   telemetry_routed_hourly: false,
   show_mention_ticker: true,
+  mention_sound_enabled: false,
+  mention_sound_choice: 'beep',
+  mention_sound_volume: 80,
+  mention_sound_custom: null,
   auto_add_mentioned_channels: false,
   chat_parse_pubkeys: false,
   chat_parse_coordinates: false,
@@ -599,6 +603,26 @@ describe('SettingsModal', () => {
 
     expect(screen.getByText('Windows 95')).toBeInTheDocument();
     expect(screen.getByText('iPhone')).toBeInTheDocument();
+  });
+
+  it('toggles the mention-sound enable setting', () => {
+    const { onSaveAppSettings } = renderModal();
+    openLocalSection();
+
+    const checkbox = screen.getByRole('checkbox', {
+      name: /Play a sound on mentions and DMs/i,
+    });
+    fireEvent.click(checkbox);
+    expect(onSaveAppSettings).toHaveBeenCalledWith({ mention_sound_enabled: true });
+  });
+
+  it('shows the custom-sound upload control and preset options', () => {
+    renderModal();
+    openLocalSection();
+
+    expect(screen.getByText('No custom sound uploaded')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Upload sound' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Test' })).toBeInTheDocument();
   });
 
   it('renders the Handy Info section above About', () => {

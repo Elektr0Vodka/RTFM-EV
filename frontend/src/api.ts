@@ -77,6 +77,7 @@ import type {
   UnreadCounts,
   UpdateStatus,
   WordlistMeta,
+  MentionSoundMeta,
 } from './types';
 
 const API_BASE = './api';
@@ -489,6 +490,29 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(settings),
     }),
+  uploadMentionSound: async (file: File): Promise<MentionSoundMeta> => {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch(`${API_BASE}/settings/mention-sound`, { method: 'POST', body: form });
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = text || res.statusText;
+      try {
+        const j = JSON.parse(text);
+        if (j.detail) msg = j.detail;
+      } catch {
+        /* raw text */
+      }
+      throw new Error(msg);
+    }
+    return res.json() as Promise<MentionSoundMeta>;
+  },
+  deleteMentionSound: async (): Promise<void> => {
+    const res = await fetch(`${API_BASE}/settings/mention-sound`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 404) {
+      throw new ApiError('Failed to delete mention sound', res.status);
+    }
+  },
 
   // OpenHop management (Surface B, opt-in; only meaningful when is_openhop)
   getOpenHopStatus: () => fetchJson<OpenHopStatus>('/openhop/status'),

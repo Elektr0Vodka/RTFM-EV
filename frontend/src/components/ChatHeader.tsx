@@ -46,6 +46,8 @@ interface ChatHeaderProps {
   onOpenPushSettings?: () => void;
   onToggleFavorite: (type: 'channel' | 'contact', id: string) => void;
   onToggleMute?: (key: string) => void;
+  soundMuted?: boolean;
+  onToggleSoundMute?: () => void;
   onSetChannelFloodScopeOverride?: (key: string, floodScopeOverride: string) => void;
   onSetChannelPathHashModeOverride?: (key: string, pathHashModeOverride: number | null) => void;
   cadCapable?: boolean;
@@ -77,6 +79,8 @@ export function ChatHeader({
   onOpenPushSettings,
   onToggleFavorite,
   onToggleMute,
+  soundMuted,
+  onToggleSoundMute,
   onSetChannelFloodScopeOverride,
   onSetChannelPathHashModeOverride,
   cadCapable,
@@ -416,6 +420,7 @@ export function ChatHeader({
         )}
         {(notificationsSupported ||
           pushSupported ||
+          onToggleSoundMute ||
           (conversation.type === 'channel' && onToggleMute)) &&
           !activeContactIsRoomServer && (
             <div className="sm:relative" ref={notifDropdownRef}>
@@ -462,6 +467,23 @@ export function ChatHeader({
                           {notificationsPermission === 'denied'
                             ? t('chat_notifications_blocked_by_browser')
                             : t('chat_notifications_alerts_tab_open')}
+                        </span>
+                      </div>
+                    </label>
+                  )}
+                  {onToggleSoundMute && (
+                    <label className="flex items-start gap-2.5 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 accent-primary h-4 w-4 shrink-0"
+                        checked={!!soundMuted}
+                        onChange={onToggleSoundMute}
+                      />
+                      <div className="min-w-0">
+                        <span className="text-sm font-medium text-foreground block leading-tight">
+                          {soundMuted
+                            ? t('conversation_sound_unmute')
+                            : t('conversation_sound_mute')}
                         </span>
                       </div>
                     </label>

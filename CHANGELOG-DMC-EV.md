@@ -11,6 +11,32 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-13 (Mention & DM notification sound, feat/notification-sound-mentions)
+
+### Chat / UI
+- New optional notification sound that plays when you are @mentioned in a
+  channel or receive a direct message. Off by default; enabled from
+  Settings > Local Configuration, which also offers a sound picker (five bundled
+  presets plus an uploaded custom sound), a volume slider, and a Test button.
+  The sound is suppressed while you are actively viewing that same conversation
+  with the tab focused, and respects muted channels. A per-conversation "mute
+  mention sound" toggle lives in the conversation header's notification dropdown
+  (channels and DMs), stored per-device. New strings are translated in EN/NL/DE.
+- Bundled preset sounds ship under `frontend/public/sounds/` (ID3 tags
+  stripped). Custom uploads accept mp3/wav/ogg/m4a/aac up to 256 KB.
+- Limitation: browser autoplay policy may block the very first sound on a tab
+  that has never received a user interaction; any click/keypress (including the
+  Test button) unlocks playback for the session.
+
+### Backend
+- Migration `_090` adds `mention_sound_enabled`, `mention_sound_choice`, and
+  `mention_sound_volume` to `app_settings`, plus a single-row `mention_sound`
+  table holding the uploaded custom sound (BLOB + metadata) so the blob stays
+  out of the `GET /api/settings` payload (only its metadata is surfaced).
+- New endpoints `POST/GET/DELETE /api/settings/mention-sound` upload, stream,
+  and clear the custom sound (256 KB cap, audio type validation). Uploading sets
+  the choice to `custom`; deleting resets it to a preset (feat/notification-sound-mentions)
+
 ## Update 2026-09-13 (OpenHop API token hardening, feat/openhop-detection)
 
 ### Security

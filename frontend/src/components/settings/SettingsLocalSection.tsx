@@ -1,6 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ChevronRight, Logs, MessageSquare, Send, Settings, X } from 'lucide-react';
 import { toast } from '../ui/sonner';
+import { api } from '../../api';
+import { createMentionSoundPlayer } from '../../lib/mentionSound';
+import { MENTION_SOUND_PRESET_IDS, mentionSoundUrl } from '../../lib/mentionSoundPresets';
 import { useT } from '../../i18n';
 import { usePush } from '../../contexts/PushSubscriptionContext';
 import type { AppSettings, AppSettingsUpdate, Channel, Contact } from '../../types';
@@ -262,6 +265,53 @@ export function SettingsLocalSection({
   const [fontScale, setFontScale] = useState(getSavedFontScale);
   const [fontScaleSlider, setFontScaleSlider] = useState(getSavedFontScale);
   const [fontScaleInput, setFontScaleInput] = useState(() => String(getSavedFontScale()));
+
+  // Mention-sound settings controls.
+  const testPlayerRef = useRef<ReturnType<typeof createMentionSoundPlayer> | null>(null);
+  const soundFileRef = useRef<HTMLInputElement>(null);
+  const [soundUploadBusy, setSoundUploadBusy] = useState(false);
+
+  const playMentionSoundTest = () => {
+    if (!testPlayerRef.current) {
+      testPlayerRef.current = createMentionSoundPlayer();
+    }
+    const p = testPlayerRef.current;
+    p.setVolume(appSettings?.mention_sound_volume ?? 80);
+    p.setSource(
+      mentionSoundUrl(
+        appSettings?.mention_sound_choice ?? 'beep',
+        appSettings?.mention_sound_custom?.updated_at ?? null
+      )
+    );
+    p.unlock();
+    p.play();
+  };
+
+  const handleMentionSoundFile = async (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > 256 * 1024) {
+      toast.error(t('settings_mention_sound_too_large'));
+      return;
+    }
+    setSoundUploadBusy(true);
+    try {
+      await api.uploadMentionSound(file);
+      onSaveAppSettings?.({ mention_sound_choice: 'custom' });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('settings_mention_sound_upload_error'));
+    } finally {
+      setSoundUploadBusy(false);
+    }
+  };
+
+  const handleRemoveMentionSound = async () => {
+    try {
+      await api.deleteMentionSound();
+      onSaveAppSettings?.({ mention_sound_choice: 'beep' });
+    } catch {
+      toast.error(t('settings_mention_sound_upload_error'));
+    }
+  };
 
   const commitFontScale = (nextScale: number) => {
     const normalized = setSavedFontScale(nextScale);
@@ -548,6 +598,118 @@ export function SettingsLocalSection({
               <p className="text-[0.8125rem] text-muted-foreground">
                 {t('settings_location_preview_desc')}
               </p>
+            </div>
+          </div>
+
+          <div className="pt-1 text-[0.6875rem] font-medium uppercase tracking-wider text-muted-foreground">
+            {t('settings_mention_sound_group_title')}
+          </div>
+
+          <div className="flex items-start gap-3 rounded-md border border-border/60 p-3">
+            <Checkbox
+              id="mention-sound-enabled"
+              checked={appSettings?.mention_sound_enabled ?? false}
+              onCheckedChange={(checked) =>
+                onSaveAppSettings?.({ mention_sound_enabled: checked === true })
+              }
+              className="mt-0.5"
+            />
+            <div className="space-y-1">
+              <Label htmlFor="mention-sound-enabled">
+                {t('settings_mention_sound_enable_label')}
+              </Label>
+              <p className="text-[0.8125rem] text-muted-foreground">
+                {t('settings_mention_sound_enable_desc')}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3 rounded-md border border-border/60 p-3">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="mention-sound-preset" className="w-20 shrink-0">
+                {t('settings_mention_sound_preset_label')}
+              </Label>
+              <select
+                id="mention-sound-preset"
+                className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                value={appSettings?.mention_sound_choice ?? 'beep'}
+                onChange={(e) => onSaveAppSettings?.({ mention_sound_choice: e.target.value })}
+              >
+                {MENTION_SOUND_PRESET_IDS.map((id) => (
+                  <option key={id} value={id}>
+                    {id}
+                  </option>
+                ))}
+                {appSettings?.mention_sound_custom ? (
+                  <option value="custom">{appSettings.mention_sound_custom.filename}</option>
+                ) : null}
+              </select>
+              <Button type="button" variant="outline" size="sm" onClick={playMentionSoundTest}>
+                {t('settings_mention_sound_test')}
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Label htmlFor="mention-sound-volume" className="w-20 shrink-0">
+                {t('settings_mention_sound_volume_label')}
+              </Label>
+              <input
+                id="mention-sound-volume"
+                type="range"
+                min={0}
+                max={100}
+                value={appSettings?.mention_sound_volume ?? 80}
+                onChange={(e) =>
+                  onSaveAppSettings?.({ mention_sound_volume: Number(e.target.value) })
+                }
+                className="flex-1"
+              />
+              <span className="w-8 text-right text-sm text-muted-foreground">
+                {appSettings?.mention_sound_volume ?? 80}
+              </span>
+            </div>
+
+            <div className="space-y-1">
+              <Label>{t('settings_mention_sound_custom_label')}</Label>
+              <p className="text-[0.8125rem] text-muted-foreground">
+                {appSettings?.mention_sound_custom
+                  ? appSettings.mention_sound_custom.filename
+                  : t('settings_mention_sound_custom_none')}
+              </p>
+              <div className="flex gap-2 pt-1">
+                <input
+                  ref={soundFileRef}
+                  type="file"
+                  accept=".mp3,.wav,.ogg,.m4a,.aac,audio/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    void handleMentionSoundFile(file);
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={soundUploadBusy}
+                  onClick={() => soundFileRef.current?.click()}
+                >
+                  {appSettings?.mention_sound_custom
+                    ? t('settings_mention_sound_custom_replace')
+                    : t('settings_mention_sound_custom_upload')}
+                </Button>
+                {appSettings?.mention_sound_custom ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleRemoveMentionSound()}
+                  >
+                    {t('settings_mention_sound_custom_remove')}
+                  </Button>
+                ) : null}
+              </div>
             </div>
           </div>
 

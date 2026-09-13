@@ -15,6 +15,7 @@ import {
   useConversationNavigation,
   useRealtimeAppState,
   useBrowserNotifications,
+  useMentionSound,
   useFaviconBadge,
   useUnreadTitle,
   useMeshcomodConfig,
@@ -31,6 +32,7 @@ import { usePush } from './contexts/PushSubscriptionContext';
 import { messageContainsMention } from './utils/messageParser';
 import { buildMentionEvent, type MentionEvent } from './components/MentionTicker';
 import { getStateKey } from './utils/conversationState';
+import { isConversationSoundMuted, toggleConversationSoundMuted } from './lib/mentionSoundMute';
 import { getContactDisplayName } from './utils/pubkey';
 import type { BulkCreateHashtagChannelsResult, Channel, Conversation, Message } from './types';
 import { CONTACT_TYPE_REPEATER, CONTACT_TYPE_ROOM } from './types';
@@ -92,6 +94,7 @@ export function App() {
   const [bulkAddResult, setBulkAddResult] = useState<BulkCreateHashtagChannelsResult | null>(null);
   const [repeaterAutoLoginKey, setRepeaterAutoLoginKey] = useState<string | null>(null);
   const [visibilityVersion, setVisibilityVersion] = useState(0);
+  const [soundMuteVersion, setSoundMuteVersion] = useState(0);
   const [showChannelImportExport, setShowChannelImportExport] = useState(false);
   const {
     notificationsSupported,
@@ -183,6 +186,14 @@ export function App() {
     handleToggleTrackedTelemetry,
     handleToggleTrackedTelemetryContact,
   } = useAppSettings();
+
+  // Mention/DM notification sound. Plays via the websocket message path below.
+  const { notifyMentionSound } = useMentionSound({
+    enabled: appSettings?.mention_sound_enabled ?? false,
+    choice: appSettings?.mention_sound_choice ?? 'beep',
+    volume: appSettings?.mention_sound_volume ?? 80,
+    customVersion: appSettings?.mention_sound_custom?.updated_at ?? null,
+  });
 
   // Seed known_regions from a repeater's reported region codes. Merges into the
   // existing list (deduped, wildcard dropped) and persists so the region pill and
@@ -477,6 +488,7 @@ export function App() {
     receiveMessageAck,
     notifyIncomingMessage,
     onChannelMention: handleChannelMention,
+    notifyMentionSound,
   });
   const handleVisibilityPolicyChanged = useCallback(() => {
     clearConversationMessages();
@@ -726,6 +738,17 @@ export function App() {
           activeConversation.id,
           activeConversation.name
         );
+      }
+    },
+    soundMuted:
+      (activeConversation?.type === 'contact' || activeConversation?.type === 'channel') &&
+      // soundMuteVersion forces recompute after a toggle (localStorage read).
+      soundMuteVersion >= 0 &&
+      isConversationSoundMuted(activeConversation.type, activeConversation.id),
+    onToggleSoundMute: () => {
+      if (activeConversation?.type === 'contact' || activeConversation?.type === 'channel') {
+        toggleConversationSoundMuted(activeConversation.type, activeConversation.id);
+        setSoundMuteVersion((v) => v + 1);
       }
     },
     pushSupported: pushSubscription.isSupported,

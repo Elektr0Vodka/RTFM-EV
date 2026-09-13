@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 import aiosqlite
 
 from app.database import db
-from app.models import AnalyzerSite, AppSettings
+from app.models import AnalyzerSite, AppSettings, MentionSoundMeta
 from app.path_utils import bucket_path_hash_widths, bucket_region_scope, parse_packet_envelope
 from app.telemetry_interval import DEFAULT_TELEMETRY_INTERVAL_HOURS
 
@@ -59,7 +59,8 @@ class AppSettingsRepository:
                    external_map_sync_interval_hours,
                    backup_to_path_enabled, backup_destination_path,
                    brand_name, brand_hidden, brand_icon,
-                   openhop_api_url, openhop_api_token
+                   openhop_api_url, openhop_api_token,
+                   mention_sound_enabled, mention_sound_choice, mention_sound_volume
             FROM app_settings WHERE id = 1
             """
         ) as cursor:
@@ -272,6 +273,41 @@ class AppSettingsRepository:
         except (KeyError, TypeError):
             openhop_api_token = None
 
+        # Mention/DM notification sound (migration _090 adds the columns).
+        try:
+            mention_sound_enabled = bool(row["mention_sound_enabled"])
+        except (KeyError, TypeError):
+            mention_sound_enabled = False
+        try:
+            mention_sound_choice = row["mention_sound_choice"] or "beep"
+        except (KeyError, TypeError):
+            mention_sound_choice = "beep"
+        try:
+            raw_vol = row["mention_sound_volume"]
+            mention_sound_volume = int(raw_vol) if raw_vol is not None else 80
+        except (KeyError, TypeError, ValueError):
+            mention_sound_volume = 80
+
+        # Custom-sound metadata (NOT the blob) — small, safe to include in GET.
+        # Tolerates a missing table (partial migration) or a partial snapshot
+        # row, degrading to "no custom sound" rather than failing the load.
+        mention_sound_custom = None
+        try:
+            async with conn.execute(
+                "SELECT filename, content_type, size_bytes, updated_at "
+                "FROM mention_sound WHERE id = 1"
+            ) as ms_cursor:
+                ms_row = await ms_cursor.fetchone()
+            if ms_row is not None:
+                mention_sound_custom = MentionSoundMeta(
+                    filename=ms_row["filename"],
+                    content_type=ms_row["content_type"],
+                    size_bytes=ms_row["size_bytes"],
+                    updated_at=ms_row["updated_at"],
+                )
+        except (aiosqlite.Error, KeyError, TypeError, ValueError):
+            mention_sound_custom = None
+
         return AppSettings(
             max_radio_contacts=row["max_radio_contacts"],
             auto_decrypt_dm_on_advert=bool(row["auto_decrypt_dm_on_advert"]),
@@ -309,6 +345,10 @@ class AppSettingsRepository:
             brand_icon=brand_icon,
             openhop_api_url=openhop_api_url,
             openhop_api_token=openhop_api_token,
+            mention_sound_enabled=mention_sound_enabled,
+            mention_sound_choice=mention_sound_choice,
+            mention_sound_volume=mention_sound_volume,
+            mention_sound_custom=mention_sound_custom,
         )
 
     @staticmethod
@@ -351,6 +391,9 @@ class AppSettingsRepository:
         brand_icon: str | None = None,
         openhop_api_url: str | None = None,
         openhop_api_token: str | None = None,
+        mention_sound_enabled: bool | None = None,
+        mention_sound_choice: str | None = None,
+        mention_sound_volume: int | None = None,
     ) -> None:
         """Apply field updates using an already-acquired connection.
 
@@ -504,6 +547,18 @@ class AppSettingsRepository:
             updates.append("openhop_api_token = ?")
             params.append(openhop_api_token)
 
+        if mention_sound_enabled is not None:
+            updates.append("mention_sound_enabled = ?")
+            params.append(1 if mention_sound_enabled else 0)
+
+        if mention_sound_choice is not None:
+            updates.append("mention_sound_choice = ?")
+            params.append(mention_sound_choice)
+
+        if mention_sound_volume is not None:
+            updates.append("mention_sound_volume = ?")
+            params.append(max(0, min(100, mention_sound_volume)))
+
         if updates:
             query = f"UPDATE app_settings SET {', '.join(updates)} WHERE id = 1"
             async with conn.execute(query, params):
@@ -556,6 +611,9 @@ class AppSettingsRepository:
         brand_icon: str | None = None,
         openhop_api_url: str | None = None,
         openhop_api_token: str | None = None,
+        mention_sound_enabled: bool | None = None,
+        mention_sound_choice: str | None = None,
+        mention_sound_volume: int | None = None,
     ) -> AppSettings:
         """Update app settings. Only provided fields are updated."""
         async with db.tx() as conn:
@@ -597,6 +655,9 @@ class AppSettingsRepository:
                 brand_icon=brand_icon,
                 openhop_api_url=openhop_api_url,
                 openhop_api_token=openhop_api_token,
+                mention_sound_enabled=mention_sound_enabled,
+                mention_sound_choice=mention_sound_choice,
+                mention_sound_volume=mention_sound_volume,
             )
             return await AppSettingsRepository._get_in_conn(conn)
 

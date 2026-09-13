@@ -492,6 +492,13 @@ export interface AnalyzerSite {
   packet_url_template?: string | null;
 }
 
+export interface MentionSoundMeta {
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  updated_at: number;
+}
+
 export interface AppSettings {
   max_radio_contacts: number;
   auto_decrypt_dm_on_advert: boolean;
@@ -510,6 +517,10 @@ export interface AppSettings {
   telemetry_interval_hours: number;
   telemetry_routed_hourly: boolean;
   show_mention_ticker: boolean;
+  mention_sound_enabled: boolean;
+  mention_sound_choice: string;
+  mention_sound_volume: number;
+  mention_sound_custom: MentionSoundMeta | null;
   auto_add_mentioned_channels: boolean;
   chat_parse_pubkeys: boolean;
   chat_parse_coordinates: boolean;
@@ -695,6 +706,9 @@ export interface AppSettingsUpdate {
   telemetry_interval_hours?: number;
   telemetry_routed_hourly?: boolean;
   show_mention_ticker?: boolean;
+  mention_sound_enabled?: boolean;
+  mention_sound_choice?: string;
+  mention_sound_volume?: number;
   auto_add_mentioned_channels?: boolean;
   chat_parse_pubkeys?: boolean;
   chat_parse_coordinates?: boolean;

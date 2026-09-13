@@ -410,6 +410,60 @@ describe('useRealtimeAppState', () => {
     expect(onChannelMention).not.toHaveBeenCalled();
   });
 
+  it('fires notifyMentionSound for a new incoming DM with context', () => {
+    const notifyMentionSound = vi.fn();
+    const { args } = createRealtimeArgs({
+      observeMessage: vi.fn(() => ({ added: true, activeConversation: false })),
+      notifyMentionSound,
+    });
+
+    const { result } = renderHook(() => useRealtimeAppState(args));
+    act(() => {
+      result.current.onMessage?.(incomingDm);
+    });
+
+    expect(notifyMentionSound).toHaveBeenCalledWith(incomingDm, {
+      isForActiveConversation: false,
+      hasMention: false,
+    });
+  });
+
+  it('passes hasMention=true to notifyMentionSound for a mentioning channel message', () => {
+    const notifyMentionSound = vi.fn();
+    const { args } = createRealtimeArgs({
+      checkMention: vi.fn(() => true),
+      observeMessage: vi.fn(() => ({ added: true, activeConversation: false })),
+      notifyMentionSound,
+    });
+
+    const { result } = renderHook(() => useRealtimeAppState(args));
+    act(() => {
+      result.current.onMessage?.(incomingChan);
+    });
+
+    expect(notifyMentionSound).toHaveBeenCalledWith(incomingChan, {
+      isForActiveConversation: false,
+      hasMention: true,
+    });
+  });
+
+  it('does not fire notifyMentionSound for a muted channel', () => {
+    const notifyMentionSound = vi.fn();
+    const { args } = createRealtimeArgs({
+      channelsRef: { current: [{ ...publicChannel, muted: true }] },
+      checkMention: vi.fn(() => true),
+      observeMessage: vi.fn(() => ({ added: true, activeConversation: false })),
+      notifyMentionSound,
+    });
+
+    const { result } = renderHook(() => useRealtimeAppState(args));
+    act(() => {
+      result.current.onMessage?.(incomingChan);
+    });
+
+    expect(notifyMentionSound).not.toHaveBeenCalled();
+  });
+
   it('appends raw packets using observation identity dedup', () => {
     const { args } = createRealtimeArgs();
     const packet = rawPacketFixture;

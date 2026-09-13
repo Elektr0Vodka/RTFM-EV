@@ -15,16 +15,16 @@ class TestMigration087:
         conn = await aiosqlite.connect(":memory:")
         conn.row_factory = aiosqlite.Row
         try:
-            # Isolate this migration: start one version below the latest so only
-            # migration 087 runs against the minimal fixture table below.
-            await set_version(conn, LATEST_SCHEMA_VERSION - 1)
+            # Start just before migration 087 and run to completion. Later
+            # migrations only add columns/tables, so 087's effect persists.
+            await set_version(conn, 86)
             await conn.execute("CREATE TABLE app_settings (id INTEGER PRIMARY KEY)")
             await conn.execute("INSERT INTO app_settings (id) VALUES (1)")
             await conn.commit()
 
             applied = await run_migrations(conn)
 
-            assert applied == 1
+            assert applied == LATEST_SCHEMA_VERSION - 86
             assert await get_version(conn) == LATEST_SCHEMA_VERSION
 
             cursor = await conn.execute(
