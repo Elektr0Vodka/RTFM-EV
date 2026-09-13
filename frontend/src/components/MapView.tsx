@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { Popup as MlPopup, Marker as MlMarker, type Map as MlMap } from 'maplibre-gl';
-import { Zap, Clock, Globe, Radio } from 'lucide-react';
+import { Zap, Clock, Globe, Radio, MapPinOff } from 'lucide-react';
 import type {
   AdvertLinkEdge,
   Contact,
@@ -44,6 +44,7 @@ import { createLinksLayer, type ResolveCoord } from '../map/layers/linksLayer';
 import { createAdvertLinksLayer } from '../map/layers/advertLinksLayer';
 import { createExternalNodesLayer, type ExternalNodeProps } from '../map/layers/externalNodesLayer';
 import { isContactVisibleForFilters, type HeardFilterMode } from '../map/heardFilter';
+import { computeWrongLocationKeys } from '../map/wrongLocation';
 import {
   buildPacketNetworkContext,
   createPacketNetworkState,
@@ -96,6 +97,17 @@ type NodeLabelMode = (typeof NODE_LABEL_MODES)[number];
 // --- Telemetry overlay (opt-in, off by default) ---
 const MAP_TELEMETRY_STORAGE_KEY = 'remoteterm-map-telemetry';
 const TELEMETRY_REFRESH_MS = 60_000;
+
+// --- Hide nodes reporting wrong location (opt-in, off by default) ---
+const MAP_HIDE_WRONG_LOCATION_STORAGE_KEY = 'remoteterm-map-hide-wrong-location';
+
+function getSavedHideWrongLocation(): boolean {
+  try {
+    return localStorage.getItem(MAP_HIDE_WRONG_LOCATION_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 const MAP_SINCE_TICK_MS = 60_000;
 
@@ -225,6 +237,7 @@ export function MapView({
   const rawPackets = useRawPackets();
   const [sinceId, setSinceId] = useState<MapSinceId>(getSavedSinceId);
   const [heardFilter, setHeardFilter] = useState<HeardFilterMode>(getSavedHeardMode);
+  const [hideWrongLocation, setHideWrongLocation] = useState<boolean>(getSavedHideWrongLocation);
   const [customSince, setCustomSince] = useState(() => {
     try {
       return localStorage.getItem(MAP_SINCE_CUSTOM_KEY) ?? '';
@@ -469,9 +482,11 @@ export function MapView({
     refreshLinks();
   }, [rawPackets, linksOn, linkContext, refreshLinks, config]);
 
-  // Fetch resolved advert-truth edges while links are on in advert mode.
+  // Fetch resolved advert-truth edges when links are shown in advert mode, or
+  // when the wrong-location filter needs them to measure neighbour distances.
   useEffect(() => {
-    if (!linksOn || linkMode !== 'advert') return;
+    const needEdges = (linksOn && linkMode === 'advert') || hideWrongLocation;
+    if (!needEdges) return;
     const controller = new AbortController();
     api
       .getAdvertLinks(controller.signal)
@@ -480,7 +495,13 @@ export function MapView({
         if (!isAbortError(err)) console.error('Advert links fetch failed', err);
       });
     return () => controller.abort();
-  }, [linksOn, linkMode]);
+  }, [linksOn, linkMode, hideWrongLocation]);
+
+  // Pubkeys hidden by the wrong-location filter (empty unless the toggle is on).
+  const wrongLocationKeys = useMemo(
+    () => (hideWrongLocation ? computeWrongLocationKeys(advertEdges) : new Set<string>()),
+    [hideWrongLocation, advertEdges]
+  );
 
   // Paint advert edges (filtered by the confidence selector) and switch which
   // links layer is visible based on the mode.
@@ -494,14 +515,21 @@ export function MapView({
     }
     if (linkMode === 'advert') {
       liveness?.hide();
-      advert?.setData(advertEdges.filter((e) => e.hop_width >= linkConfidence));
+      advert?.setData(
+        advertEdges.filter(
+          (e) =>
+            e.hop_width >= linkConfidence &&
+            !wrongLocationKeys.has(e.a.pubkey.toLowerCase()) &&
+            !wrongLocationKeys.has(e.b.pubkey.toLowerCase())
+        )
+      );
       advert?.show();
     } else {
       advert?.hide();
       liveness?.show();
       refreshLinks();
     }
-  }, [linksOn, linkMode, linkConfidence, advertEdges, refreshLinks]);
+  }, [linksOn, linkMode, linkConfidence, advertEdges, refreshLinks, wrongLocationKeys]);
 
   const threeDaysAgoSec = useMemo(() => Date.now() / 1000 - THREE_DAYS_SEC, []);
   const activeSincePreset = MAP_SINCE_PRESETS.find((p) => p.id === sinceId) ?? null;
@@ -529,6 +557,14 @@ export function MapView({
       /* ignore */
     }
   }, [heardFilter]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MAP_HIDE_WRONG_LOCATION_STORAGE_KEY, hideWrongLocation ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }, [hideWrongLocation]);
 
   useEffect(() => {
     try {
@@ -613,6 +649,13 @@ export function MapView({
     const isBlocked = (c: Contact) =>
       (blockedKeys?.length && blockedKeys.includes(c.public_key.toLowerCase())) ||
       (blockedNames?.length && c.name != null && blockedNames.includes(c.name));
+    // Hide nodes whose advertised location is implausible (nearest heard
+    // neighbour > 300km). The focused node is always exempt, like the heard
+    // filter, so a searched/selected node is never silently removed.
+    const isHiddenForWrongLocation = (c: Contact) =>
+      hideWrongLocation &&
+      c.public_key !== focusedKey &&
+      wrongLocationKeys.has(c.public_key.toLowerCase());
     // Project the effective location (advertised-wins, manual-fallback) onto
     // lat/lon so a node with only manual coordinates is placed and rendered by
     // the standard downstream consumers that read c.lat / c.lon.
@@ -623,7 +666,9 @@ export function MapView({
     };
     if (showPackets && discoveryMode) {
       return contacts
-        .filter((c) => discoveredKeys.has(c.public_key) && !isBlocked(c))
+        .filter(
+          (c) => discoveredKeys.has(c.public_key) && !isBlocked(c) && !isHiddenForWrongLocation(c)
+        )
         .map(withEffectiveCoords)
         .filter((c): c is Contact => c !== null);
     }
@@ -636,7 +681,8 @@ export function MapView({
             mode: heardFilter,
             isFocused: c.public_key === focusedKey,
             isWithinSinceWindow: isWithinSinceWindow(c.last_seen),
-          })
+          }) &&
+          !isHiddenForWrongLocation(c)
       )
       .map(withEffectiveCoords)
       .filter((c): c is Contact => c !== null);
@@ -650,6 +696,8 @@ export function MapView({
     discoveredKeys,
     blockedKeys,
     blockedNames,
+    hideWrongLocation,
+    wrongLocationKeys,
   ]);
 
   const contactByKey = useMemo(() => {
@@ -1279,6 +1327,24 @@ export function MapView({
           </label>
         ),
       },
+      {
+        id: 'wrong-location',
+        label: t('map_hide_wrong_location_label'),
+        icon: <MapPinOff size={20} aria-hidden />,
+        panel: (
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={hideWrongLocation}
+                onChange={(e) => setHideWrongLocation(e.target.checked)}
+              />
+              {t('map_hide_wrong_location_label')}
+            </label>
+            <p className="text-xs text-muted-foreground">{t('map_hide_wrong_location_help')}</p>
+          </div>
+        ),
+      },
     ];
   }, [
     t,
@@ -1293,6 +1359,7 @@ export function MapView({
     bufferMs,
     soundOn,
     volume,
+    hideWrongLocation,
   ]);
 
   const theme: 'light' | 'dark' = dark ? 'dark' : 'light';

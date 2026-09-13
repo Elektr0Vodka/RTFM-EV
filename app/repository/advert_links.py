@@ -45,6 +45,7 @@ class AdvertLinksRepository:
                 """
                 SELECT pubkey, lat, lon FROM external_map_nodes
                 WHERE lat IS NOT NULL AND lon IS NOT NULL
+                  AND NOT (lat = 0 AND lon = 0)
                 """
             ) as cur:
                 for r in await cur.fetchall():
@@ -55,6 +56,7 @@ class AdvertLinksRepository:
                 """
                 SELECT public_key, lat, lon FROM contacts
                 WHERE lat IS NOT NULL AND lon IS NOT NULL
+                  AND NOT (lat = 0 AND lon = 0)
                 """
             ) as cur:
                 for r in await cur.fetchall():

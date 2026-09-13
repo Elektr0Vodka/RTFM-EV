@@ -1803,6 +1803,8 @@
   "map_packets_volume_label": "Lautstärke",
   "map_discover_nodes_label": "Knoten entdecken",
   "map_external_nodes_label": "Analyzer-Knoten",
+  "map_hide_wrong_location_label": "Knoten mit falschem Standort ausblenden",
+  "map_hide_wrong_location_help": "Blendet Knoten bei (0, 0) oder mehr als 300 km vom nächsten Knoten aus, der sie über Funk gehört hat.",
   "map_external_node": "Knoten",
   "map_external_node_source": "{role} · vom Analyzer",
   "map_discover_nodes_help": "Passiver Filter: zeigt nur Knoten, die seit dem Einschalten in Live-Paketen gehört wurden. Es wird nichts gesendet oder angefragt.",

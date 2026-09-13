@@ -1802,6 +1802,8 @@
   "map_packets_volume_label": "Volume",
   "map_discover_nodes_label": "Discover nodes",
   "map_external_nodes_label": "Analyzer nodes",
+  "map_hide_wrong_location_label": "Hide nodes reporting wrong location",
+  "map_hide_wrong_location_help": "Hides nodes at (0, 0) or more than 300 km from the nearest node that heard them over RF.",
   "map_external_node": "Node",
   "map_external_node_source": "{role} · from analyzer",
   "map_discover_nodes_help": "Passive filter: shows only nodes heard in live packets since you turned this on. It does not transmit or request anything.",

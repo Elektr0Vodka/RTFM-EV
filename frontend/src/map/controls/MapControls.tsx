@@ -477,7 +477,7 @@ export function MapControls(props: MapControlsProps) {
       id: 'filters',
       label: t('map_group_filters'),
       icon: <Filter size={20} aria-hidden />,
-      memberIds: ['since', 'heard', 'external'],
+      memberIds: ['since', 'heard', 'external', 'wrong-location'],
     },
     {
       id: 'overlays',

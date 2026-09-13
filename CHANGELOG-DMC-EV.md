@@ -46,6 +46,28 @@ the change. Upstream development is on hold; the fork is the active repository.
   (`frontend/src/map/engine/buildings3D.ts`). Buildings still render above the
   basemap; only the map overlays are lifted above them.
 
+## Update 2026-09-14 (Hide nodes reporting wrong location, fix/hide-wrong-location-nodes)
+
+### Map
+- New opt-in map toggle "Hide nodes reporting wrong location" (its own FAB
+  panel, off by default, stored per-device). When on, it hides any node whose
+  nearest resolved advert-link neighbour is more than 300 km away, since mesh RF
+  range cannot realistically span that distance. Nodes with no resolvable
+  neighbour to measure against are kept visible (fail-open), and the
+  focused/searched node is always exempt. Hidden nodes also drop their advert
+  arcs so no dangling link remains. New pure helper
+  `frontend/src/map/wrongLocation.ts` (`computeWrongLocationKeys`,
+  `WRONG_LOCATION_MAX_NEIGHBOR_KM = 300`); wired into `MapView.tsx`
+  `mappableContacts`. New strings `map_hide_wrong_location_label` /
+  `map_hide_wrong_location_help` translated in EN/NL/DE.
+
+### Backend
+- `AdvertLinksRepository.located_nodes()` now excludes the `(0, 0)` sentinel
+  (unset GPS, Atlantic Ocean) from the advert-links graph for both contacts and
+  external analyzer nodes, so those nodes no longer create bogus RF edges. This
+  applies unconditionally, independent of the map toggle
+  (`app/repository/advert_links.py`).
+
 ## Update 2026-09-13 (Sidebar back-to-top button, feat/sidebar-back-to-top)
 
 ### Chat / UI

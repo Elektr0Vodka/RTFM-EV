@@ -1803,6 +1803,8 @@
   "map_packets_volume_label": "Volume",
   "map_discover_nodes_label": "Nodes ontdekken",
   "map_external_nodes_label": "Analyzer-nodes",
+  "map_hide_wrong_location_label": "Nodes met foutieve locatie verbergen",
+  "map_hide_wrong_location_help": "Verbergt nodes op (0, 0) of meer dan 300 km van de dichtstbijzijnde node die ze via RF hoorde.",
   "map_external_node": "Node",
   "map_external_node_source": "{role} · via analyzer",
   "map_discover_nodes_help": "Passief filter: toont alleen knooppunten die sinds het inschakelen in live pakketten zijn gehoord. Er wordt niets verzonden of opgevraagd.",
