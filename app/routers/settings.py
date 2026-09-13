@@ -119,6 +119,16 @@ class AppSettingsUpdate(BaseModel):
         default=None,
         description="URL of a remote {name: key} JSON channel list to sync into the registry",
     )
+    chat_parse_pubkeys: bool | None = Field(
+        default=None, description="Parse 64-hex pubkeys in chat"
+    )
+    chat_parse_coordinates: bool | None = Field(
+        default=None, description="Parse GPS coordinates in chat"
+    )
+    chat_url_previews: bool | None = Field(default=None, description="Fetch link previews in chat")
+    chat_linkify_urls: bool | None = Field(
+        default=None, description="Render URLs as clickable links"
+    )
     region_sync_url: str | None = Field(
         default=None,
         description=(
@@ -345,6 +355,16 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
     # Auto-add mentioned channels to the registry
     if update.auto_add_mentioned_channels is not None:
         kwargs["auto_add_mentioned_channels"] = update.auto_add_mentioned_channels
+
+    # Chat entity-parsing toggles
+    if update.chat_parse_pubkeys is not None:
+        kwargs["chat_parse_pubkeys"] = update.chat_parse_pubkeys
+    if update.chat_parse_coordinates is not None:
+        kwargs["chat_parse_coordinates"] = update.chat_parse_coordinates
+    if update.chat_url_previews is not None:
+        kwargs["chat_url_previews"] = update.chat_url_previews
+    if update.chat_linkify_urls is not None:
+        kwargs["chat_linkify_urls"] = update.chat_linkify_urls
 
     # Channel registry sync URL
     if update.registry_sync_url is not None:

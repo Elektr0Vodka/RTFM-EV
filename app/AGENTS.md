@@ -78,9 +78,22 @@ app/
     ├── fanout.py
     ├── repeaters.py
     ├── statistics.py
+    ├── unfurl.py           # GET /api/unfurl: SSRF-guarded link-preview fetch for chat
     ├── push.py
     └── ws.py
 ```
+
+### Chat link previews (`/api/unfurl`)
+
+`GET /api/unfurl?url=<encoded>` fetches a URL server-side and returns OpenGraph
+metadata (`{url, title, description, image, site_name}`) for the chat link-preview
+card. It is gated by the `chat_url_previews` app setting (off by default) and only
+called lazily when a preview card mounts. `services/url_safety.py` requires an
+http(s) scheme and rejects any host resolving to a private / loopback / link-local
+/ reserved address (re-checked on each redirect); `services/unfurl.py` caps the
+response size and time, sends no cookies, parses metadata with the stdlib
+`html.parser`, and caches results in-process. Never fetch untrusted chat URLs
+without going through `assert_public_http_url`.
 
 ## Core Runtime Flows
 

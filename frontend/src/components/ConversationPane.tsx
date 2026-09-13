@@ -85,6 +85,11 @@ interface ConversationPaneProps {
   onChannelReferenceClick?: (channelName: string) => void;
   registryNames?: Set<string>;
   autoAddMentionedChannels?: boolean;
+  parsePubkeys?: boolean;
+  parseCoordinates?: boolean;
+  linkifyUrls?: boolean;
+  showUrlPreviews?: boolean;
+  analyzerSites?: import('../types').AnalyzerSite[];
   onHashtagAdded?: (channelName: string) => void;
   onInsertLocation?: (lat: number, lon: number, label: string) => void;
   onCoordinateClick?: (lat: number, lon: number, label: string) => void;
@@ -174,6 +179,11 @@ export function ConversationPane({
   onChannelReferenceClick,
   registryNames,
   autoAddMentionedChannels,
+  parsePubkeys,
+  parseCoordinates,
+  linkifyUrls,
+  showUrlPreviews,
+  analyzerSites,
   onHashtagAdded,
   onInsertLocation,
   onCoordinateClick,
@@ -422,6 +432,11 @@ export function ConversationPane({
           onChannelReferenceClick={onChannelReferenceClick}
           registryNames={registryNames}
           autoAddMentionedChannels={autoAddMentionedChannels}
+          parsePubkeys={parsePubkeys}
+          parseCoordinates={parseCoordinates}
+          linkifyUrls={linkifyUrls}
+          showUrlPreviews={showUrlPreviews}
+          analyzerSites={analyzerSites}
           onHashtagAdded={onHashtagAdded}
           onCoordinateClick={onCoordinateClick}
           onLoadOlder={onLoadOlder}

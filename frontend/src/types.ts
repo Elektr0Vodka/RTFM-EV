@@ -460,6 +460,15 @@ export interface RawPacket {
   region?: string | null;
 }
 
+/** OpenGraph-style link preview returned by the /unfurl endpoint. */
+export interface UrlPreview {
+  url: string;
+  title?: string | null;
+  description?: string | null;
+  image?: string | null;
+  site_name?: string | null;
+}
+
 /** A user-configured external analyzer site for client-side node/packet lookups. */
 export interface AnalyzerSite {
   name: string;
@@ -488,6 +497,10 @@ export interface AppSettings {
   telemetry_routed_hourly: boolean;
   show_mention_ticker: boolean;
   auto_add_mentioned_channels: boolean;
+  chat_parse_pubkeys: boolean;
+  chat_parse_coordinates: boolean;
+  chat_url_previews: boolean;
+  chat_linkify_urls: boolean;
   registry_sync_url: string;
   region_sync_url: string;
   wordlist_sync_url: string;
@@ -539,6 +552,10 @@ export interface AppSettingsUpdate {
   telemetry_routed_hourly?: boolean;
   show_mention_ticker?: boolean;
   auto_add_mentioned_channels?: boolean;
+  chat_parse_pubkeys?: boolean;
+  chat_parse_coordinates?: boolean;
+  chat_url_previews?: boolean;
+  chat_linkify_urls?: boolean;
   registry_sync_url?: string;
   region_sync_url?: string;
   wordlist_sync_url?: string;

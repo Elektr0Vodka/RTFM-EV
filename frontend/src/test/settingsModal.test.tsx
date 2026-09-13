@@ -80,6 +80,10 @@ const baseSettings: AppSettings = {
   telemetry_routed_hourly: false,
   show_mention_ticker: true,
   auto_add_mentioned_channels: false,
+  chat_parse_pubkeys: false,
+  chat_parse_coordinates: false,
+  chat_url_previews: false,
+  chat_linkify_urls: true,
   registry_sync_url: '',
   region_sync_url: '',
   wordlist_sync_url: '',
@@ -492,6 +496,28 @@ describe('SettingsModal', () => {
 
     await waitFor(() => {
       expect(onSaveAppSettings).toHaveBeenCalledWith({ max_radio_contacts: 250 });
+    });
+  });
+
+  it('toggles chat pubkey parsing through onSaveAppSettings', async () => {
+    const { onSaveAppSettings } = renderModal();
+    openRadioSection();
+
+    fireEvent.click(screen.getByLabelText('Detect public keys'));
+
+    await waitFor(() => {
+      expect(onSaveAppSettings).toHaveBeenCalledWith({ chat_parse_pubkeys: true });
+    });
+  });
+
+  it('toggles chat url previews through onSaveAppSettings', async () => {
+    const { onSaveAppSettings } = renderModal();
+    openRadioSection();
+
+    fireEvent.click(screen.getByLabelText('Link previews'));
+
+    await waitFor(() => {
+      expect(onSaveAppSettings).toHaveBeenCalledWith({ chat_url_previews: true });
     });
   });
 

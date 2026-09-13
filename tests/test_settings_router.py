@@ -71,6 +71,30 @@ class TestUpdateSettings:
         assert fresh.show_mention_ticker is False
 
     @pytest.mark.asyncio
+    async def test_chat_entity_settings_defaults(self, test_db):
+        result = await update_settings(AppSettingsUpdate())
+        assert result.chat_parse_pubkeys is False
+        assert result.chat_parse_coordinates is False
+        assert result.chat_url_previews is False
+        assert result.chat_linkify_urls is True
+
+    @pytest.mark.asyncio
+    async def test_chat_entity_settings_round_trip(self, test_db):
+        await update_settings(
+            AppSettingsUpdate(
+                chat_parse_pubkeys=True,
+                chat_parse_coordinates=True,
+                chat_url_previews=True,
+                chat_linkify_urls=False,
+            )
+        )
+        fresh = await AppSettingsRepository.get()
+        assert fresh.chat_parse_pubkeys is True
+        assert fresh.chat_parse_coordinates is True
+        assert fresh.chat_url_previews is True
+        assert fresh.chat_linkify_urls is False
+
+    @pytest.mark.asyncio
     async def test_auto_add_mentioned_channels_defaults_disabled(self, test_db):
         result = await update_settings(AppSettingsUpdate())
         assert result.auto_add_mentioned_channels is False

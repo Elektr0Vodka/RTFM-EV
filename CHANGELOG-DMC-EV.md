@@ -11,6 +11,36 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-13 (chat entity parsing)
+
+### Chat / UI
+- Chat messages can now parse and act on embedded entities, each gated by a
+  new server-side setting (synced across devices), under Settings > Radio >
+  "Chat parsing":
+  - Public keys: a 64-hex key resolves to a known contact (opens contact info)
+    or, when unknown, shows a "Look up" link to the first configured external
+    analyzer site (`chat_parse_pubkeys`, default off)
+  - Coordinates: bare `lat,lon`, `PREFIX:lat,lon` (wardriving), and `geo:`
+    forms render as a location card; the existing inline map-preview preference
+    still governs whether the card shows a mini-map (`chat_parse_coordinates`,
+    default off)
+  - Clickable links: URLs render as links; can be turned off
+    (`chat_linkify_urls`, default on)
+  - Link previews: messenger-style OpenGraph preview cards, fetched lazily via
+    a new backend endpoint (`chat_url_previews`, default off)
+- Message text rendering was refactored onto a single tokenizer
+  (`utils/chatEntities.ts`) that unifies mention / URL / #hashtag / pubkey /
+  coordinate handling
+
+### Backend
+- New SSRF-guarded `GET /api/unfurl` endpoint fetches a URL server-side and
+  returns OpenGraph metadata for link previews; rejects non-http(s) schemes and
+  private / loopback / link-local / reserved hosts (incl. redirects), caps
+  response size and time, and caches results (`app/services/url_safety.py`,
+  `app/services/unfurl.py`, `app/routers/unfurl.py`)
+- `app_settings` migration `_082` adds `chat_parse_pubkeys`,
+  `chat_parse_coordinates`, `chat_url_previews`, `chat_linkify_urls`
+
 ## Update 2026-09-12 (My Node map link)
 
 ### Chat / UI

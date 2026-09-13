@@ -81,7 +81,8 @@ frontend/src/
 ├── utils/
 │   ├── urlHash.ts              # Hash parsing and encoding
 │   ├── conversationState.ts    # State keys, in-memory + localStorage helpers
-│   ├── messageParser.ts        # Message text → rendered segments
+│   ├── messageParser.ts        # Sender/hashtag/mention parsing helpers used by the tokenizer
+│   ├── chatEntities.ts         # tokenizeMessageText: text → ordered mention/url/hashtag/pubkey/coordinate tokens (pubkey/coord/url gated by app_settings.chat_*)
 │   ├── pathUtils.ts            # Distance/validation helpers for paths + map
 │   ├── pubkey.ts               # getContactDisplayName (12-char prefix fallback)
 │   ├── contactAvatar.ts        # Avatar color derivation from public key

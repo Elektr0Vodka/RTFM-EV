@@ -1198,6 +1198,22 @@ class AppSettings(BaseModel):
             "followed radio channel is created)"
         ),
     )
+    chat_parse_pubkeys: bool = Field(
+        default=False,
+        description="Parse 64-hex public keys in chat into contact/analyzer lookups",
+    )
+    chat_parse_coordinates: bool = Field(
+        default=False,
+        description="Parse GPS coordinates in chat text into location cards",
+    )
+    chat_url_previews: bool = Field(
+        default=False,
+        description="Fetch OpenGraph link previews for URLs in chat (server-side fetch)",
+    )
+    chat_linkify_urls: bool = Field(
+        default=True,
+        description="Render URLs in chat as clickable links",
+    )
     registry_sync_url: str = Field(
         default="",
         description="URL of a remote {name: key} JSON channel list to sync into the registry",

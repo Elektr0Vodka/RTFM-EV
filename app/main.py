@@ -78,6 +78,7 @@ from app.routers import (
     rooms,
     settings,
     statistics,
+    unfurl,
     update_status,
     wordlists,
     ws,
@@ -237,6 +238,7 @@ app.include_router(registry.router, prefix="/api")
 app.include_router(regions.router, prefix="/api")
 app.include_router(external_map.router, prefix="/api")
 app.include_router(statistics.router, prefix="/api")
+app.include_router(unfurl.router, prefix="/api")
 app.include_router(push.router, prefix="/api")
 app.include_router(wordlists.router, prefix="/api")
 app.include_router(ws.router, prefix="/api")
