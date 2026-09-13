@@ -472,3 +472,84 @@ async def update_progress() -> StreamingResponse:
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ---------------------------------------------------------------------------
+# CAD calibration. Manual-check body forwards only the fields the caller sets.
+# ---------------------------------------------------------------------------
+class CadStartBody(BaseModel):
+    samples: int = 8
+    delay: int = 100
+
+
+class CadManualCheckBody(BaseModel):
+    samples: int | None = None
+    det_peak: int | None = None
+    det_min: int | None = None
+    cad_symbol_num: int | None = None
+    cad_timeout_ms: int | None = None
+    apply_live: bool | None = None
+
+
+class CadSaveBody(BaseModel):
+    peak: int
+    min_val: int
+    cad_symbol_num: int = 2
+
+
+@router.post("/cad/start")
+async def cad_start(body: CadStartBody) -> dict[str, Any]:
+    return await _relay_upstream(lambda c: c.cad_start(samples=body.samples, delay=body.delay))
+
+
+@router.post("/cad/stop")
+async def cad_stop() -> dict[str, Any]:
+    return await _relay_upstream(lambda c: c.cad_stop())
+
+
+@router.post("/cad/manual_check")
+async def cad_manual_check(body: CadManualCheckBody) -> dict[str, Any]:
+    params = {k: v for k, v in body.model_dump().items() if v is not None}
+    return await _relay_upstream(lambda c: c.cad_manual_check(params))
+
+
+@router.post("/cad/save")
+async def cad_save(body: CadSaveBody) -> dict[str, Any]:
+    return await _relay_upstream(
+        lambda c: c.cad_save(
+            peak=body.peak, min_val=body.min_val, cad_symbol_num=body.cad_symbol_num
+        )
+    )
+
+
+@router.get("/cad/stream")
+async def cad_stream() -> StreamingResponse:
+    """Re-stream OpenHop's CAD calibration SSE. Stateless passthrough, fail-closed."""
+    settings = await AppSettingsRepository.get()
+    if not (_detect_openhop() and settings.openhop_api_url and settings.openhop_api_token):
+        raise HTTPException(status_code=409, detail="OpenHop management not configured")
+    base = settings.openhop_api_url.rstrip("/")
+    token = settings.openhop_api_token
+
+    async def stream():
+        timeout = httpx.Timeout(8.0, read=None)
+        async with httpx.AsyncClient(
+            base_url=base,
+            headers={"X-API-Key": token},
+            timeout=timeout,
+            transport=_stream_transport,
+        ) as client:
+            try:
+                async with client.stream("GET", "/api/cad_calibration_stream") as resp:
+                    async for chunk in resp.aiter_raw():
+                        if chunk:
+                            yield chunk
+            except httpx.HTTPError as exc:
+                payload = json.dumps({"type": "done", "state": "error", "error": str(exc)})
+                yield f"data: {payload}\n\n".encode()
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

@@ -512,3 +512,79 @@ class TestOpenHopUpdate:
             body += part if isinstance(part, bytes) else part.encode()
         assert b'"type":"line"' in body
         assert b'"type":"done"' in body
+
+
+class TestOpenHopCad:
+    @pytest.mark.asyncio
+    async def test_cad_manual_check_409_when_not_openhop(self, test_db, monkeypatch):
+        _set_model(monkeypatch, "Heltec V3")
+        from app.routers.openhop import CadManualCheckBody, cad_manual_check
+
+        with pytest.raises(HTTPException) as exc:
+            await cad_manual_check(CadManualCheckBody())
+        assert exc.value.status_code == 409
+
+    @pytest.mark.asyncio
+    async def test_cad_routes_delegate_when_configured(self, test_db, monkeypatch):
+        _set_model(monkeypatch, OPENHOP_MODEL)
+        await AppSettingsRepository.update(
+            openhop_api_url="http://node:8000", openhop_api_token="tok"
+        )
+        from app.routers.openhop import (
+            CadManualCheckBody,
+            CadSaveBody,
+            CadStartBody,
+            cad_manual_check,
+            cad_save,
+            cad_start,
+            cad_stop,
+        )
+
+        fake = AsyncMock()
+        fake.cad_start = AsyncMock(return_value={"success": True})
+        fake.cad_stop = AsyncMock(return_value={"success": True})
+        fake.cad_manual_check = AsyncMock(
+            return_value={"success": True, "data": {"attempts": 4, "detected": True}}
+        )
+        fake.cad_save = AsyncMock(return_value={"success": True})
+        fake.aclose = AsyncMock()
+        with patch("app.routers.openhop.OpenHopClient", return_value=fake):
+            assert (await cad_start(CadStartBody(samples=16, delay=50)))["success"]
+            assert (await cad_stop())["success"]
+            r = await cad_manual_check(CadManualCheckBody(samples=4, apply_live=True))
+            assert r["data"]["attempts"] == 4
+            assert (await cad_save(CadSaveBody(peak=127, min_val=64)))["success"]
+        fake.cad_start.assert_awaited_once_with(samples=16, delay=50)
+        # Only non-None fields forwarded to the node.
+        fake.cad_manual_check.assert_awaited_once_with({"samples": 4, "apply_live": True})
+        fake.cad_save.assert_awaited_once_with(peak=127, min_val=64, cad_symbol_num=2)
+
+    @pytest.mark.asyncio
+    async def test_cad_stream_relays(self, test_db, monkeypatch):
+        import httpx
+
+        _set_model(monkeypatch, OPENHOP_MODEL)
+        await AppSettingsRepository.update(
+            openhop_api_url="http://node:8000", openhop_api_token="tok"
+        )
+
+        async def _agen():
+            yield b'data: {"type":"sample","rssi":-120}\n\n'
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == "/api/cad_calibration_stream"
+            assert request.headers.get("X-API-Key") == "tok"
+            return httpx.Response(
+                200, content=_agen(), headers={"Content-Type": "text/event-stream"}
+            )
+
+        import app.routers.openhop as mod
+
+        monkeypatch.setattr(mod, "_stream_transport", httpx.MockTransport(handler), raising=False)
+        from app.routers.openhop import cad_stream
+
+        resp = await cad_stream()
+        body = b""
+        async for part in resp.body_iterator:
+            body += part if isinstance(part, bytes) else part.encode()
+        assert b'"type":"sample"' in body

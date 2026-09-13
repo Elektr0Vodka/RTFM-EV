@@ -214,5 +214,21 @@ class OpenHopClient:
             params["channel"] = channel
         return await self._get_q("/api/update/changelog", params)
 
+    # --- CAD calibration ------------------------------------------------
+    async def cad_start(self, samples: int = 8, delay: int = 100) -> dict[str, Any]:
+        return await self._post("/api/cad_calibration_start", {"samples": samples, "delay": delay})
+
+    async def cad_stop(self) -> dict[str, Any]:
+        return await self._post("/api/cad_calibration_stop", {})
+
+    async def cad_manual_check(self, params: dict[str, Any]) -> dict[str, Any]:
+        return await self._post("/api/cad_manual_check", params)
+
+    async def cad_save(self, peak: int, min_val: int, cad_symbol_num: int = 2) -> dict[str, Any]:
+        return await self._post(
+            "/api/save_cad_settings",
+            {"peak": peak, "min_val": min_val, "cad_symbol_num": cad_symbol_num},
+        )
+
     async def aclose(self) -> None:
         await self._client.aclose()

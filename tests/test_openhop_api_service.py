@@ -213,3 +213,31 @@ async def test_update_methods_use_api_key_and_paths():
     assert (await client.update_changelog(channel="main", max_commits=10))["success"] is True
     await client.aclose()
     assert all(v == "tok" for v in seen.values())
+
+
+@pytest.mark.asyncio
+async def test_cad_methods():
+    def handler(request: httpx.Request) -> httpx.Response:
+        p, m = request.url.path, request.method
+        if p == "/api/cad_calibration_start" and m == "POST":
+            return httpx.Response(200, json={"success": True})
+        if p == "/api/cad_calibration_stop" and m == "POST":
+            return httpx.Response(200, json={"success": True})
+        if p == "/api/cad_manual_check" and m == "POST":
+            return httpx.Response(
+                200,
+                json={
+                    "success": True,
+                    "data": {"detected": False, "detection_rate": 0.0, "attempts": 1},
+                },
+            )
+        if p == "/api/save_cad_settings" and m == "POST":
+            return httpx.Response(200, json={"success": True})
+        return httpx.Response(404, json={"success": False})
+
+    c = OpenHopClient("http://n:8000", token="tok", transport=httpx.MockTransport(handler))
+    assert (await c.cad_start(samples=8, delay=100))["success"]
+    assert (await c.cad_stop())["success"]
+    assert (await c.cad_manual_check({"samples": 1}))["data"]["attempts"] == 1
+    assert (await c.cad_save(peak=127, min_val=64, cad_symbol_num=2))["success"]
+    await c.aclose()
