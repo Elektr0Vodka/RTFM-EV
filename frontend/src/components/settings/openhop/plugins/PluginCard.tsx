@@ -27,8 +27,10 @@ export function PluginCard({ plugin, onReload, onOperate, setError }: Props) {
   const [confirmingUninstall, setConfirmingUninstall] = useState(false);
   const [deleteData, setDeleteData] = useState(false);
 
-  const disabled = plugin.enabled === false;
-  const running = plugin.running === true || plugin.state === 'running';
+  // OpenHop's runtime state is uppercase (RUNNING/STOPPED/DISABLED); normalize it.
+  const stateLc = (plugin.state ?? '').toLowerCase();
+  const disabled = plugin.enabled === false || stateLc === 'disabled';
+  const running = plugin.running === true || stateLc === 'running';
   const badge = disabled
     ? t('openhop_plugin_state_disabled')
     : running

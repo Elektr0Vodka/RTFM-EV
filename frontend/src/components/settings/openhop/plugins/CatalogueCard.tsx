@@ -12,8 +12,16 @@ interface Props {
 export function CatalogueCard({ entry, onOperate }: Props) {
   const t = useT();
 
+  // Catalogue carries update info as camelCase (updateAvailable); tolerate snake too.
+  const updateAvailable = entry.updateAvailable === true || entry.update_available === true;
+
   const install = () => {
     void api.installOpenHopCataloguePlugin(entry.id, entry.version);
+    onOperate(entry.id);
+  };
+
+  const update = () => {
+    void api.updateOpenHopPlugin(entry.id, entry.version);
     onOperate(entry.id);
   };
 
@@ -32,7 +40,15 @@ export function CatalogueCard({ entry, onOperate }: Props) {
           </div>
         </div>
         {entry.installed ? (
-          <span className="text-xs text-muted-foreground">{t('openhop_catalogue_installed')}</span>
+          updateAvailable ? (
+            <Button type="button" size="sm" onClick={update}>
+              {t('openhop_plugin_update')}
+            </Button>
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              {t('openhop_catalogue_installed')}
+            </span>
+          )
         ) : (
           <Button type="button" size="sm" onClick={install}>
             {t('openhop_catalogue_install')}
