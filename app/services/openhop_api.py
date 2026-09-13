@@ -250,5 +250,26 @@ class OpenHopClient:
     async def noise_floor_stats(self, hours: int = 24) -> dict[str, Any]:
         return await self._get_q("/api/noise_floor_stats", {"hours": hours})
 
+    # --- Transport keys + neighbor scopes -------------------------------
+    async def transport_keys(self) -> dict[str, Any]:
+        return await self._get("/api/transport_keys")
+
+    async def create_transport_key(self, name: str) -> dict[str, Any]:
+        return await self._post("/api/transport_keys", {"name": name})
+
+    async def transport_key(self, key_id: str) -> dict[str, Any]:
+        return await self._get_q("/api/transport_key", {"key_id": key_id})
+
+    async def delete_transport_key(self, key_id: str) -> dict[str, Any]:
+        r = await self._client.request("DELETE", "/api/transport_key", params={"key_id": key_id})
+        r.raise_for_status()
+        return r.json()
+
+    async def neighbor_scopes(self) -> dict[str, Any]:
+        return await self._get("/api/neighbor_scopes")
+
+    async def query_neighbor_scopes(self, pubkey: str) -> dict[str, Any]:
+        return await self._post("/api/query_neighbor_scopes", {"pubkey": pubkey})
+
     async def aclose(self) -> None:
         await self._client.aclose()

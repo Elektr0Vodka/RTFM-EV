@@ -634,3 +634,55 @@ class TestOpenHopSystem:
             assert "data" in await analytics_packet_type_stats(hours=12)
             assert "data" in await analytics_noise_floor_stats(hours=12)
         fake.packet_stats.assert_awaited_once_with(hours=12)
+
+
+class TestOpenHopTransport:
+    @pytest.mark.asyncio
+    async def test_transport_keys_409_when_not_openhop(self, test_db, monkeypatch):
+        _set_model(monkeypatch, "Heltec V3")
+        from app.routers.openhop import transport_keys_list
+
+        with pytest.raises(HTTPException) as exc:
+            await transport_keys_list()
+        assert exc.value.status_code == 409
+
+    @pytest.mark.asyncio
+    async def test_transport_and_scope_routes_delegate(self, test_db, monkeypatch):
+        _set_model(monkeypatch, OPENHOP_MODEL)
+        await AppSettingsRepository.update(
+            openhop_api_url="http://node:8000", openhop_api_token="tok"
+        )
+        from app.routers.openhop import (
+            QueryScopeBody,
+            TransportKeyCreate,
+            scopes_neighbors,
+            scopes_query,
+            transport_key_create,
+            transport_key_delete,
+            transport_key_get,
+            transport_keys_list,
+        )
+
+        fake = AsyncMock()
+        fake.transport_keys = AsyncMock(return_value={"success": True, "data": []})
+        fake.create_transport_key = AsyncMock(return_value={"success": True})
+        fake.transport_key = AsyncMock(return_value={"success": True, "data": {"id": "k1"}})
+        fake.delete_transport_key = AsyncMock(return_value={"success": True})
+        fake.neighbor_scopes = AsyncMock(
+            return_value={"success": True, "served": {"scopes": "*"}, "data": {}}
+        )
+        fake.query_neighbor_scopes = AsyncMock(
+            return_value={"success": True, "data": {"status": "timeout"}}
+        )
+        fake.aclose = AsyncMock()
+        with patch("app.routers.openhop.OpenHopClient", return_value=fake):
+            assert (await transport_keys_list())["data"] == []
+            assert (await transport_key_create(TransportKeyCreate(name="home")))["success"]
+            assert (await transport_key_get(key_id="k1"))["data"]["id"] == "k1"
+            assert (await transport_key_delete(key_id="k1"))["success"]
+            assert (await scopes_neighbors())["served"]["scopes"] == "*"
+            r = await scopes_query(QueryScopeBody(pubkey="ab" * 32))
+            assert r["data"]["status"] == "timeout"
+        fake.create_transport_key.assert_awaited_once_with("home")
+        fake.delete_transport_key.assert_awaited_once_with("k1")
+        fake.query_neighbor_scopes.assert_awaited_once_with("ab" * 32)

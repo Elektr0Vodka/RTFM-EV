@@ -592,3 +592,45 @@ async def analytics_packet_type_stats(hours: int = 24) -> dict[str, Any]:
 @router.get("/analytics/noise_floor_stats")
 async def analytics_noise_floor_stats(hours: int = 24) -> dict[str, Any]:
     return await _relay_upstream(lambda c: c.noise_floor_stats(hours=hours))
+
+
+# ---------------------------------------------------------------------------
+# Transport keys + neighbor scopes. Key create/delete are outward changes;
+# the frontend confirm-gates delete.
+# ---------------------------------------------------------------------------
+class TransportKeyCreate(BaseModel):
+    name: str
+
+
+class QueryScopeBody(BaseModel):
+    pubkey: str
+
+
+@router.get("/transport/keys")
+async def transport_keys_list() -> dict[str, Any]:
+    return await _relay_upstream(lambda c: c.transport_keys())
+
+
+@router.post("/transport/keys")
+async def transport_key_create(body: TransportKeyCreate) -> dict[str, Any]:
+    return await _relay_upstream(lambda c: c.create_transport_key(body.name))
+
+
+@router.get("/transport/key")
+async def transport_key_get(key_id: str) -> dict[str, Any]:
+    return await _relay_upstream(lambda c: c.transport_key(key_id))
+
+
+@router.delete("/transport/key")
+async def transport_key_delete(key_id: str) -> dict[str, Any]:
+    return await _relay_upstream(lambda c: c.delete_transport_key(key_id))
+
+
+@router.get("/scopes/neighbors")
+async def scopes_neighbors() -> dict[str, Any]:
+    return await _relay_upstream(lambda c: c.neighbor_scopes())
+
+
+@router.post("/scopes/query")
+async def scopes_query(body: QueryScopeBody) -> dict[str, Any]:
+    return await _relay_upstream(lambda c: c.query_neighbor_scopes(body.pubkey))

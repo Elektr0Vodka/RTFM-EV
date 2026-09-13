@@ -256,3 +256,38 @@ async def test_system_and_analytics_methods():
     assert (await c.packet_type_stats(hours=24))["data"]["ok"] == "/api/packet_type_stats"
     assert (await c.noise_floor_stats(hours=24))["data"]["ok"] == "/api/noise_floor_stats"
     await c.aclose()
+
+
+@pytest.mark.asyncio
+async def test_transport_and_scope_methods():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen[(request.method, request.url.path)] = dict(request.url.params)
+        p, m = request.url.path, request.method
+        if p == "/api/transport_keys" and m == "GET":
+            return httpx.Response(200, json={"success": True, "data": [], "count": 0})
+        if p == "/api/transport_keys" and m == "POST":
+            return httpx.Response(200, json={"success": True})
+        if p == "/api/transport_key" and m == "GET":
+            return httpx.Response(200, json={"success": True, "data": {"id": "k1"}})
+        if p == "/api/transport_key" and m == "DELETE":
+            return httpx.Response(200, json={"success": True})
+        if p == "/api/neighbor_scopes" and m == "GET":
+            return httpx.Response(
+                200, json={"success": True, "count": 0, "data": {}, "served": {"scopes": "*"}}
+            )
+        if p == "/api/query_neighbor_scopes" and m == "POST":
+            return httpx.Response(200, json={"success": True, "data": {"status": "timeout"}})
+        return httpx.Response(404, json={"success": False})
+
+    c = OpenHopClient("http://n:8000", token="tok", transport=httpx.MockTransport(handler))
+    assert (await c.transport_keys())["data"] == []
+    assert (await c.create_transport_key("home"))["success"]
+    assert (await c.transport_key("k1"))["data"]["id"] == "k1"
+    assert (await c.delete_transport_key("k1"))["success"]
+    assert (await c.neighbor_scopes())["served"]["scopes"] == "*"
+    assert (await c.query_neighbor_scopes("ab" * 32))["data"]["status"] == "timeout"
+    await c.aclose()
+    assert seen[("GET", "/api/transport_key")] == {"key_id": "k1"}
+    assert seen[("DELETE", "/api/transport_key")] == {"key_id": "k1"}
