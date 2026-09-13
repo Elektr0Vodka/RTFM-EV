@@ -63,6 +63,36 @@ the change. Upstream development is on hold; the fork is the active repository.
   and top src→dest pairs. Aggregation lives in `app/repository/request_traffic.py`.
 - Migration `_086` adds a `(payload_type, timestamp)` index on `raw_packets` for
   the request-traffic window scan.
+## Update 2026-09-13 (live packet map with replay)
+
+Branch `feat/visualize-packets-live-map`.
+
+### Map / packet visualization
+- The map's "Visualize packets" feature is rebuilt on a deck.gl overlay that
+  renders curved arcs, traveling pulses, and a node glow strobe, DMC-Observers
+  style, in both flat 2D and tilted 3D (replacing the old 2D canvas overlay and
+  the 3D-only arc overlay). Arcs are coloured by SNR (amber to blue to green)
+  and fade with age; pulses ride the arc bow and are coloured by packet type.
+- Packet paths are now resolved solely through the canonical
+  `packetNetworkGraph` (single authority), fixing the previously inaccurate
+  ad-hoc path resolver. As a solo observer, the hop we physically heard (the
+  segment touching our node) is drawn solid/witnessed and the inferred upstream
+  hops are faint; an unresolved hop is bridged rather than dropped to (0,0).
+- New VCR-style playback bar: play/pause, speed (0.5x-8x), a seekable/clickable
+  timeline, a Live button to re-pin to the newest packet, and a look-back
+  selector (15m/1h/6h/all) that backfills history on demand via
+  `GET /packets/recent?before_ts=`. Keyboard: space, arrows, L.
+- New per-feature controls under the "Visualize packets" panel: Pulses and Glow
+  toggles, a smoothing Buffer slider (0-12s) that de-clumps bursty arrivals, and
+  an optional Geiger-click sound (off by default, with a volume slider).
+- The map legend gains a packet-type colour key, an SNR gradient bar, and a
+  witnessed-vs-inferred (solid/dashed) line-style key while packets are shown.
+- All live packet rendering is derived as a pure function of a virtual clock, so
+  replay can seek anywhere without re-running a forward-only scheduler.
+
+### Notes
+- No backend changes; reuses the existing `raw_packet` WS stream and the
+  `GET /packets/recent` endpoint. Frontend only.
 
 ## Update 2026-09-13 (contact annotations)
 

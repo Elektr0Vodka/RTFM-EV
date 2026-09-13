@@ -5,12 +5,7 @@ import type { AdvertLinkEdge, Contact, ExternalMapNode, RadioConfig } from '../t
 import { api, isAbortError } from '../api';
 import { formatTime } from '../utils/messageParser';
 import { isValidLocation, getEffectiveLocation } from '../utils/pathUtils';
-import {
-  parsePacket,
-  getPacketLabel,
-  PARTICLE_COLOR_MAP,
-  dedupeConsecutive,
-} from '../utils/visualizerUtils';
+import { parsePacket } from '../utils/visualizerUtils';
 import { getRawPacketObservationKey } from '../utils/rawPacketIdentity';
 import { useRawPackets } from '../stores/rawPacketStore';
 import { useIsDarkTheme } from '../hooks/useIsDarkTheme';
@@ -25,8 +20,18 @@ import {
   DEFAULT_NODE_ROLE_COLORS,
   type NodeRoleColors,
 } from '../map/layers/nodeRoleColors';
-import { createParticleOverlay, type MapParticle } from '../map/layers/particleOverlay';
-import { createDeckTraces, arcRows, type DeckTracesController } from '../map/layers/tracesDeck';
+import { createPacketDeckOverlay, type PacketDeckOverlay } from '../map/layers/packetDeckOverlay';
+import { createPacketTimeline, type PacketTimeline } from '../map/packets/packetTimeline';
+import {
+  createPlaybackController,
+  type PlaybackController,
+  type PlaybackSnapshot,
+} from '../map/packets/playbackController';
+import { PlaybackBar } from '../map/controls/PlaybackBar';
+import { BUFFER_MAX_MS } from '../map/packets/packetAnimMath';
+import { MapLegend } from '../map/controls/legend/MapLegend';
+import { PacketLegend } from '../map/controls/legend/PacketLegend';
+import { createClickAudio, type ClickAudio } from '../map/packets/clickAudio';
 import { createLinksLayer, type ResolveCoord } from '../map/layers/linksLayer';
 import { createAdvertLinksLayer } from '../map/layers/advertLinksLayer';
 import { createExternalNodesLayer, type ExternalNodeProps } from '../map/layers/externalNodesLayer';
@@ -39,15 +44,6 @@ import {
   projectPacketNetwork,
 } from '../networkGraph/packetNetworkGraph';
 import type { ExtraFab } from '../map/controls/MapControls';
-
-/** Parse a #rrggbb (or #rgb) hex color into an [r,g,b] triple for deck.gl. */
-function hexToRgb(hex: string): [number, number, number] {
-  const h = (hex || '').replace('#', '');
-  const full = h.length === 3 ? h.replace(/./g, (c) => c + c) : h;
-  const n = Number.parseInt(full, 16);
-  if (full.length !== 6 || Number.isNaN(n)) return [255, 255, 255];
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
 
 interface MapViewProps {
   contacts: Contact[];
@@ -94,8 +90,7 @@ const MAP_NODE_SCALE_STORAGE_KEY = 'remoteterm-map-node-scale';
 const MAP_SINCE_TICK_MS = 60_000;
 
 const THREE_DAYS_SEC = 3 * 24 * 60 * 60;
-const PARTICLE_LIFETIME_MS = 3000;
-const MAX_MAP_PARTICLES = 200;
+const DEFAULT_LOOKBACK_MS = 60 * 60 * 1000; // 1h replay look-back
 
 function getSavedSinceId(): MapSinceId {
   try {
@@ -133,13 +128,6 @@ function localDateTimeToEpochSec(value: string): number | null {
   if (!value) return null;
   const ms = new Date(value).getTime();
   return Number.isNaN(ms) ? null : ms / 1000;
-}
-
-function resolveHopToGps(hopToken: string, prefixIndex: Map<string, Contact[]>): Contact | null {
-  const matches = prefixIndex.get(hopToken.toLowerCase());
-  if (!matches || matches.length !== 1) return null;
-  const c = matches[0];
-  return isValidLocation(c.lat, c.lon) ? c : null;
 }
 
 function resolveNameToGps(name: string, nameIndex: Map<string, Contact>): Contact | null {
@@ -211,7 +199,22 @@ export function MapView({
   const [showPackets, setShowPackets] = useState(false);
   const [discoveryMode, setDiscoveryMode] = useState(false);
   const [discoveredKeys, setDiscoveredKeys] = useState<Set<string>>(new Set());
-  const [particles, setParticles] = useState<MapParticle[]>([]);
+  const [pulsesOn, setPulsesOn] = useState(true);
+  const [glowOn, setGlowOn] = useState(true);
+  const [bufferMs, setBufferMs] = useState(0);
+  const [lookbackMs, setLookbackMs] = useState(DEFAULT_LOOKBACK_MS);
+  const [soundOn, setSoundOn] = useState(false);
+  const [volume, setVolume] = useState(0.3);
+  const [playSnap, setPlaySnap] = useState<PlaybackSnapshot>({
+    mode: 'live',
+    currentMs: 0,
+    rate: 1,
+    playing: true,
+  });
+  const [playRange, setPlayRange] = useState<{ minMs: number; maxMs: number }>({
+    minMs: 0,
+    maxMs: 0,
+  });
   const [tilt3D, setTilt3D] = useState(false);
   const [buildings, setBuildings] = useState(false);
   const [nodeScale, setNodeScale] = useState(getSavedNodeScale);
@@ -229,13 +232,21 @@ export function MapView({
     north: number;
   } | null>(null);
 
-  const particleIdRef = useRef(0);
   const seenObservationsRef = useRef(new Set<string>());
+  const pulsesOnRef = useRef(pulsesOn);
+  const glowOnRef = useRef(glowOn);
   const mapRef = useRef<MlMap | null>(null);
   const nodesRef = useRef<ReturnType<typeof createNodesLayer> | null>(null);
   const roleColorsRef = useRef<NodeRoleColors>(roleColors);
-  const overlayRef = useRef<ReturnType<typeof createParticleOverlay> | null>(null);
-  const deckRef = useRef<DeckTracesController | null>(null);
+  const packetOverlayRef = useRef<PacketDeckOverlay | null>(null);
+  const timelineRef = useRef<PacketTimeline | null>(null);
+  const controllerRef = useRef<PlaybackController | null>(null);
+  if (!controllerRef.current) controllerRef.current = createPlaybackController();
+  const resolveCoordRef = useRef<ResolveCoord | null>(null);
+  const linkContextRef = useRef<ReturnType<typeof buildPacketNetworkContext> | null>(null);
+  const snapPushRef = useRef(0);
+  const clickAudioRef = useRef<ClickAudio | null>(null);
+  if (!clickAudioRef.current) clickAudioRef.current = createClickAudio();
   const linksLayerRef = useRef<ReturnType<typeof createLinksLayer> | null>(null);
   const advertLinksLayerRef = useRef<ReturnType<typeof createAdvertLinksLayer> | null>(null);
   const linkStateRef = useRef(createPacketNetworkState(config?.name || 'Me'));
@@ -367,6 +378,38 @@ export function MapView({
     });
     layer.setData(Array.from(projection.links.values()), resolveLinkCoord);
   }, [linksOn, resolveLinkCoord]);
+
+  // Keep refs in sync so the packet timeline (created once) always resolves with
+  // the latest coordinate resolver and network context without being rebuilt.
+  useEffect(() => {
+    resolveCoordRef.current = resolveLinkCoord;
+  }, [resolveLinkCoord]);
+  useEffect(() => {
+    linkContextRef.current = linkContext;
+  }, [linkContext]);
+  useEffect(() => {
+    pulsesOnRef.current = pulsesOn;
+  }, [pulsesOn]);
+  useEffect(() => {
+    glowOnRef.current = glowOn;
+  }, [glowOn]);
+  useEffect(() => {
+    clickAudioRef.current?.setEnabled(soundOn);
+  }, [soundOn]);
+  useEffect(() => {
+    clickAudioRef.current?.setVolume(volume);
+  }, [volume]);
+
+  const ensureTimeline = useCallback((): PacketTimeline => {
+    if (!timelineRef.current) {
+      timelineRef.current = createPacketTimeline({
+        resolveCoord: (id) => resolveCoordRef.current?.(id),
+        getContext: () => linkContextRef.current ?? linkContext,
+        state: createPacketNetworkState(config?.name || 'Me'),
+      });
+    }
+    return timelineRef.current;
+  }, [config?.name, linkContext]);
 
   // Ingest packets into the link graph and refresh the layer while links are on.
   useEffect(() => {
@@ -531,48 +574,27 @@ export function MapView({
     return m;
   }, [contacts]);
 
-  const resolvePacketPath = useCallback(
-    (parsed: ReturnType<typeof parsePacket>): [number, number][] | null => {
-      if (!parsed) return null;
-      const waypoints: [number, number][] = []; // [lat, lon]
-      let sourceContact: Contact | null = null;
-      if (parsed.advertPubkey) {
-        const prefix = parsed.advertPubkey.slice(0, 12).toLowerCase();
-        const matches = prefixIndex.get(prefix);
-        if (matches?.length === 1 && isValidLocation(matches[0].lat, matches[0].lon))
-          sourceContact = matches[0];
-      } else if (parsed.srcHash) {
-        sourceContact = resolveHopToGps(parsed.srcHash, prefixIndex);
-      } else if (parsed.groupTextSender) {
-        sourceContact = resolveNameToGps(parsed.groupTextSender, nameIndex);
-      }
-      if (sourceContact) waypoints.push([sourceContact.lat!, sourceContact.lon!]);
-      for (const hop of parsed.pathBytes) {
-        if (hop.length < 4) continue;
-        const contact = resolveHopToGps(hop, prefixIndex);
-        if (contact) waypoints.push([contact.lat!, contact.lon!]);
-      }
-      if (myLatLon) waypoints.push(myLatLon);
-      else if (parsed.dstHash) {
-        const dest = resolveHopToGps(parsed.dstHash, prefixIndex);
-        if (dest) waypoints.push([dest.lat!, dest.lon!]);
-      }
-      const deduped = dedupeConsecutive(waypoints.map((w) => `${w[0]},${w[1]}`));
-      if (deduped.length < 2) return null;
-      // Convert to [lng, lat] for MapLibre.
-      return deduped.map((s) => {
-        const [lat, lon] = s.split(',').map(Number);
-        return [lon, lat] as [number, number];
-      });
-    },
-    [prefixIndex, nameIndex, myLatLon]
-  );
-
-  // Process new packets into particles and track discovered contacts.
+  // Ingest packets into the timeline (path/visual resolution) and advance the
+  // playback clock; separately track contacts discovered from packets so
+  // discovery mode can filter the node layer. Path accuracy comes entirely from
+  // the canonical packetNetworkGraph inside the timeline (single authority).
   useEffect(() => {
     if (!showPackets || !rawPackets?.length) return;
-    const now = Date.now();
-    const newParticles: MapParticle[] = [];
+    const tl = ensureTimeline();
+    const added = tl.ingest(rawPackets);
+    tl.prune(lookbackMs);
+    const controller = controllerRef.current;
+    const { minMs, maxMs } = tl.range();
+    if (controller && maxMs) {
+      controller.setRange(minMs, maxMs);
+      controller.setNewest(maxMs);
+      setPlayRange((prev) =>
+        prev.minMs === minMs && prev.maxMs === maxMs ? prev : { minMs, maxMs }
+      );
+    }
+    if (soundOn && added > 0 && controller?.snapshot().mode === 'live') {
+      clickAudioRef.current?.play();
+    }
     const newDiscovered = new Set<string>();
     for (const pkt of rawPackets) {
       if (pkt.timestamp < threeDaysAgoSec) continue;
@@ -587,18 +609,9 @@ export function MapView({
         myLatLon,
         config
       );
-      const path = resolvePacketPath(parsed);
-      if (resolvedContacts.size === 0 && !path) continue;
+      if (resolvedContacts.size === 0) continue;
       seenObservationsRef.current.add(obsKey);
       for (const key of resolvedContacts) newDiscovered.add(key);
-      if (path) {
-        newParticles.push({
-          id: particleIdRef.current++,
-          path,
-          color: PARTICLE_COLOR_MAP[getPacketLabel(parsed.payloadType)],
-          startedAt: now,
-        });
-      }
     }
     if (newDiscovered.size > 0) {
       setDiscoveredKeys((prev) => {
@@ -607,16 +620,12 @@ export function MapView({
         return next.size !== prev.size ? next : prev;
       });
     }
-    if (newParticles.length === 0) return;
-    setParticles((prev) => {
-      const combined = [...prev, ...newParticles];
-      const alive = combined.filter((p) => now - p.startedAt < PARTICLE_LIFETIME_MS);
-      return alive.slice(-MAX_MAP_PARTICLES);
-    });
   }, [
     rawPackets,
     showPackets,
-    resolvePacketPath,
+    ensureTimeline,
+    lookbackMs,
+    soundOn,
     threeDaysAgoSec,
     prefixIndex,
     nameIndex,
@@ -625,24 +634,16 @@ export function MapView({
   ]);
 
   useEffect(() => {
-    if (!showPackets) return;
-    const interval = setInterval(() => {
-      const now = Date.now();
-      setParticles((prev) => prev.filter((p) => now - p.startedAt < PARTICLE_LIFETIME_MS));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [showPackets]);
-
-  useEffect(() => {
     if (!discoveryMode) setDiscoveredKeys(new Set());
   }, [discoveryMode]);
 
   useEffect(() => {
     if (!showPackets) {
-      setParticles([]);
       setDiscoveredKeys(new Set());
       setDiscoveryMode(false);
       seenObservationsRef.current.clear();
+      timelineRef.current?.reset();
+      controllerRef.current?.goLive();
     }
   }, [showPackets]);
 
@@ -843,9 +844,7 @@ export function MapView({
       map.on('moveend', () => {
         if (showExternalRef.current) onViewBounds(map.getBounds());
       });
-      const overlay = createParticleOverlay(map);
-      overlayRef.current = overlay;
-      if (showPackets) overlay.start();
+      packetOverlayRef.current = createPacketDeckOverlay(map);
       const links = createLinksLayer(map);
       links.ensure();
       linksLayerRef.current = links;
@@ -908,38 +907,53 @@ export function MapView({
     externalRef.current?.setData(visibleExternalNodes);
   }, [visibleExternalNodes]);
 
-  // Packet replay: the reprojected canvas overlay in 2D, deck.gl arc traces in
-  // 3D. The 2D/3D toggle swaps which one draws the same resolved hop paths.
+  // Packet animation loop: drive the virtual clock and paint the deck.gl overlay
+  // (arcs + pulses + glow) as a pure function of the displayed time. One overlay
+  // serves both flat 2D and tilted 3D. Runs only while packets are shown.
   useEffect(() => {
-    const overlay = overlayRef.current;
-    const map = mapRef.current;
-    if (!overlay) return;
-    if (tilt3D && map) {
-      overlay.stop();
-      if (!deckRef.current) deckRef.current = createDeckTraces(map);
-      if (showPackets) {
-        const rows = particles.flatMap((p) =>
-          arcRows(
-            p.path.map(([lon, lat]) => ({ lon, lat })),
-            hexToRgb(p.color)
-          )
-        );
-        deckRef.current.setArcs(rows);
-      } else {
-        deckRef.current.clear();
-      }
-    } else {
-      deckRef.current?.clear();
-      overlay.setParticles(particles);
-      if (showPackets) overlay.start();
-      else overlay.stop();
+    if (!showPackets) {
+      packetOverlayRef.current?.clear();
+      return;
     }
-  }, [particles, showPackets, tilt3D]);
+    controllerRef.current?.setBufferMs(bufferMs);
+    let raf = 0;
+    const frame = () => {
+      const controller = controllerRef.current;
+      const tl = timelineRef.current;
+      if (controller && tl) {
+        controller.tick(Date.now());
+        const snap = controller.snapshot();
+        packetOverlayRef.current?.setModel(
+          tl.stateAsOf(snap.currentMs, {
+            pulses: pulsesOnRef.current,
+            glows: glowOnRef.current,
+          })
+        );
+        // Mirror the snapshot to React for the PlaybackBar, throttled so the
+        // 60fps clock does not re-render the tree every frame.
+        const now = performance.now();
+        if (now - snapPushRef.current > 150) {
+          snapPushRef.current = now;
+          setPlaySnap((prev) =>
+            prev.mode === snap.mode &&
+            prev.currentMs === snap.currentMs &&
+            prev.rate === snap.rate &&
+            prev.playing === snap.playing
+              ? prev
+              : snap
+          );
+        }
+      }
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, [showPackets, bufferMs]);
 
   useEffect(() => {
     return () => {
-      overlayRef.current?.destroy();
-      deckRef.current?.destroy();
+      packetOverlayRef.current?.destroy();
+      clickAudioRef.current?.destroy();
       popupRef.current?.remove();
       externalPopupRef.current?.remove();
       focusMarkerRef.current?.remove();
@@ -1019,6 +1033,59 @@ export function MapView({
         </label>
         {showPackets && (
           <>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={pulsesOn}
+                onChange={(e) => setPulsesOn(e.target.checked)}
+              />
+              {t('map_packets_pulses_label')}
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={glowOn}
+                onChange={(e) => setGlowOn(e.target.checked)}
+              />
+              {t('map_packets_glow_label')}
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              <span>
+                {t('map_packets_buffer_label')}:{' '}
+                {t('map_packets_buffer_value', { seconds: Math.round(bufferMs / 1000) })}
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={BUFFER_MAX_MS}
+                step={500}
+                value={bufferMs}
+                aria-label={t('map_packets_buffer_label')}
+                onChange={(e) => setBufferMs(Number(e.target.value))}
+              />
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={soundOn}
+                onChange={(e) => setSoundOn(e.target.checked)}
+              />
+              {t('map_packets_sound_label')}
+            </label>
+            {soundOn && (
+              <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                <span>{t('map_packets_volume_label')}</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={volume}
+                  aria-label={t('map_packets_volume_label')}
+                  onChange={(e) => setVolume(Number(e.target.value))}
+                />
+              </label>
+            )}
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -1111,7 +1178,20 @@ export function MapView({
         ),
       },
     ];
-  }, [t, sinceId, heardFilter, customSince, showPackets, discoveryMode, showExternalNodes]);
+  }, [
+    t,
+    sinceId,
+    heardFilter,
+    customSince,
+    showPackets,
+    discoveryMode,
+    showExternalNodes,
+    pulsesOn,
+    glowOn,
+    bufferMs,
+    soundOn,
+    volume,
+  ]);
 
   const theme: 'light' | 'dark' = dark ? 'dark' : 'light';
 
@@ -1155,7 +1235,56 @@ export function MapView({
         sidebarOpen={sidebarOpen}
         onSearch={handleSearch}
         extraFabs={extraFabs}
-      />
+        legendContent={
+          showPackets ? <MapLegend roleColors={roleColors} extra={<PacketLegend />} /> : undefined
+        }
+      >
+        {showPackets && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-4 z-[500] flex justify-center px-2">
+            <PlaybackBar
+              snapshot={playSnap}
+              range={playRange}
+              lookbackMs={lookbackMs}
+              onLookback={setLookbackMs}
+              onPlay={() => {
+                const c = controllerRef.current;
+                if (c) {
+                  c.play();
+                  setPlaySnap(c.snapshot());
+                }
+              }}
+              onPause={() => {
+                const c = controllerRef.current;
+                if (c) {
+                  c.pause();
+                  setPlaySnap(c.snapshot());
+                }
+              }}
+              onSeek={(ms) => {
+                const c = controllerRef.current;
+                if (c) {
+                  c.seek(ms);
+                  setPlaySnap(c.snapshot());
+                }
+              }}
+              onRate={(r) => {
+                const c = controllerRef.current;
+                if (c) {
+                  c.setRate(r);
+                  setPlaySnap(c.snapshot());
+                }
+              }}
+              onLive={() => {
+                const c = controllerRef.current;
+                if (c) {
+                  c.goLive();
+                  setPlaySnap(c.snapshot());
+                }
+              }}
+            />
+          </div>
+        )}
+      </MapSurface>
     </div>
   );
 }

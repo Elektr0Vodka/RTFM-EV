@@ -308,6 +308,13 @@ That gives the store a load-bearing invariant: **no ancestor of `MessageList` ma
 - Packet feed/visualizer render keys and dedup logic should use `observation_id` (fallback to `id` only for older payloads).
 - The dedicated raw packet feed view now includes a frontend-only stats drawer. It tracks a separate lightweight per-observation session history for charts/rankings, so its windows are not limited by the visible packet list cap. Coverage messaging should stay honest when detailed in-memory stats history has been trimmed or the selected window predates the current browser session.
 
+### Live packet map (`map/packets/`)
+
+- The map's "Visualize packets" feature renders with a single deck.gl overlay (`map/layers/packetDeckOverlay.ts`: one `MapLibreOverlay`, arcs + pulses + glow) in both flat 2D and tilted 3D. It replaces the former 2D canvas `particleOverlay` and the 3D-only `tracesDeck` arc path.
+- `map/packets/` holds the framework-agnostic engine: `playbackController.ts` (a virtual clock — live follows wall time minus a smoothing buffer, replay is seekable at a rate), `packetTimeline.ts` (time-indexed buffer whose `stateAsOf(ms)` derives the render model), `packetAnimMath.ts` (pure freshness/pulse/glow/SNR math), and `clickAudio.ts` (optional geiger click). All are unit-tested without a map.
+- **`packetNetworkGraph` is the single path authority** for the live map: the timeline resolves every packet's route through `buildCanonicalPathForPacket`/`ingestPacketIntoPacketNetwork`, then maps node ids to coordinates via the contact-index resolver (`resolveLinkCoord`). There is no second ad-hoc path resolver. As a solo observer, the segment touching our `self` node is drawn witnessed (solid); inferred upstream hops are faint; an unresolved hop is bridged, never placed at `[0,0]`.
+- The `PlaybackBar` (`map/controls/PlaybackBar.tsx`) is a VCR (play/pause/speed/seek/Live/look-back); deeper look-back backfills via `GET /packets/recent?before_ts=`. The render loop mirrors the clock snapshot to React throttled (~150ms) so the 60fps clock does not re-render the tree.
+
 ### Virtualization (`MessageList`)
 
 The message list is windowed with `@tanstack/react-virtual`; only the visible rows are mounted, so render cost no longer scales with conversation length. Three details are load-bearing and easy to break:
