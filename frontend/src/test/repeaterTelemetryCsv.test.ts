@@ -66,7 +66,7 @@ describe('buildTelemetryCsv', () => {
   });
 
   it('strips floating-point noise without flattening small magnitudes', () => {
-    // 0.1 + 0.2 === 0.30000000000000004 — real IEEE-754 noise rather than a
+    // 0.1 + 0.2 === 0.30000000000000004 - real IEEE-754 noise rather than a
     // literal, which the linter rejects for losing precision at parse time.
     const noisy = 0.1 + 0.2;
     expect(`${noisy}`).toBe('0.30000000000000004');

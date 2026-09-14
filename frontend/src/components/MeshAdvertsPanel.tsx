@@ -910,13 +910,13 @@ export function MeshAdvertsPanel({
                         </span>
                       </td>
                       <td className="px-2 py-1.5 text-right text-muted-foreground tabular-nums">
-                        {n.last_seen != null ? relTime(n.last_seen, t) : '—'}
+                        {n.last_seen != null ? relTime(n.last_seen, t) : '-'}
                       </td>
                       <td className="px-2 py-1.5 text-right text-muted-foreground tabular-nums hidden sm:table-cell">
-                        {n.first_seen != null ? relTime(n.first_seen, t) : '—'}
+                        {n.first_seen != null ? relTime(n.first_seen, t) : '-'}
                       </td>
                       <td className="px-2 py-1.5 text-right text-muted-foreground tabular-nums hidden md:table-cell">
-                        {n.min_path_len != null ? n.min_path_len : '—'}
+                        {n.min_path_len != null ? n.min_path_len : '-'}
                       </td>
                       <td className="px-2 py-1.5 text-right tabular-nums hidden md:table-cell">
                         <span
@@ -935,7 +935,7 @@ export function MeshAdvertsPanel({
                       <td className="px-2 py-1.5 text-right text-muted-foreground tabular-nums hidden md:table-cell">
                         {n.distKm != null
                           ? t('mesh_health_distance_km', { km: n.distKm.toFixed(0) })
-                          : '—'}
+                          : '-'}
                       </td>
                       <td className="px-2 py-1.5 text-right">
                         <span

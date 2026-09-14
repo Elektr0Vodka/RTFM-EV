@@ -82,7 +82,7 @@ export function formatAdvertInterval(
   t: TFn,
   unit: 'minutes' | 'hours' = 'hours'
 ): string {
-  if (val == null) return '—';
+  if (val == null) return '-';
   const trimmed = val.trim();
   if (trimmed === '0') return t('repeater_advert_disabled');
   if (unit === 'hours') return `${trimmed}h`;

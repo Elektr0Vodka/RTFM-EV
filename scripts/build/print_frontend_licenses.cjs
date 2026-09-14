@@ -26,7 +26,7 @@ for (const name of depNames) {
     }
   } catch {}
 
-  console.log(`### ${name} (${version}) — ${licenseType}\n`);
+  console.log(`### ${name} (${version}) - ${licenseType}\n`);
   if (licenseText) {
     console.log('<details>');
     console.log('<summary>Full license text</summary>');

@@ -62,7 +62,7 @@ function validateHashtagName(channelName: string, permitExtended: boolean, t: TF
     return t('chat_channel_name_too_long');
   }
   if (permitExtended) {
-    // Hashed verbatim, matching meshcore_py / meshcore-cli / meshcore.js — any character
+    // Hashed verbatim, matching meshcore_py / meshcore-cli / meshcore.js - any character
     // (capitals, whitespace, '&', accents, …) yields a valid SHA256-derived key.
     return null;
   }

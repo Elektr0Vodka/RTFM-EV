@@ -171,7 +171,7 @@ describe('MessageList channel sender rendering', () => {
 
     const dialog = await screen.findByRole('dialog');
     // The sender has no resolvable public key, so the sender prefix must be the
-    // unknown marker — never the channel key (which is shared by every sender in
+    // unknown marker - never the channel key (which is shared by every sender in
     // the channel and would otherwise show identically for all of them).
     expect(within(dialog).getByText('Alice')).toBeInTheDocument();
     expect(within(dialog).queryByText('DEAD')).not.toBeInTheDocument();

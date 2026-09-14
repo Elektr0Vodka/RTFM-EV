@@ -73,7 +73,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
     };
 
     ws.onclose = () => {
-      // Connection lost — will auto-reconnect after delay
+      // Connection lost - will auto-reconnect after delay
       wsRef.current = null;
 
       if (!shouldReconnectRef.current) {

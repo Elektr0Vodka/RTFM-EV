@@ -1062,19 +1062,19 @@ function ThemePreview({ className }: { className?: string }) {
                   a1b2c3d4e5f6...7890abcdef01
                 </p>
                 <p className="text-[0.625rem] text-muted-foreground/60">
-                  text-xs font-mono — keys, identifiers
+                  text-xs font-mono - keys, identifiers
                 </p>
               </div>
               <div>
                 <p className="text-[0.6875rem] font-mono">1h 23m 45s uptime</p>
                 <p className="text-[0.625rem] text-muted-foreground/60">
-                  text-[0.6875rem] font-mono — metadata mono
+                  text-[0.6875rem] font-mono - metadata mono
                 </p>
               </div>
               <div>
                 <p className="text-sm font-mono">$ req_status_sync 0xA1B2...</p>
                 <p className="text-[0.625rem] text-muted-foreground/60">
-                  text-sm font-mono — console / code
+                  text-sm font-mono - console / code
                 </p>
               </div>
             </div>
@@ -1204,7 +1204,7 @@ function ThemePreview({ className }: { className?: string }) {
               </span>
             </div>
             <p className="text-[0.625rem] text-muted-foreground/60 mt-1.5">
-              cursor-pointer hover:text-primary transition-colors — use role=&quot;button&quot; +
+              cursor-pointer hover:text-primary transition-colors - use role=&quot;button&quot; +
               tabIndex
             </p>
           </PreviewSection>
@@ -1251,7 +1251,7 @@ function PreviewTextRow({
     <div>
       <p className={classes}>Sample text at this size</p>
       <p className="text-[0.625rem] text-muted-foreground/60">
-        {label} — {desc}
+        {label} - {desc}
       </p>
     </div>
   );

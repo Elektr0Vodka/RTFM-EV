@@ -36,7 +36,7 @@ async def migrate(conn: aiosqlite.Connection) -> None:
     else:
         logger.debug("auto_vacuum already INCREMENTAL, skipping VACUUM")
 
-    # Enable WAL mode (idempotent — returns current mode)
+    # Enable WAL mode (idempotent - returns current mode)
     cursor = await conn.execute("PRAGMA journal_mode = WAL")
     row = await cursor.fetchone()
     mode = row[0] if row else "unknown"

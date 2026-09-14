@@ -439,7 +439,7 @@ describe('Integration: ACK + messageCache propagation', () => {
     };
     messageCache.addMessage('pk_abc', msg);
 
-    // Update a non-existent message ID — should not throw or modify anything
+    // Update a non-existent message ID - should not throw or modify anything
     messageCache.updateAck(999, 1);
 
     const entry = messageCache.get('pk_abc');

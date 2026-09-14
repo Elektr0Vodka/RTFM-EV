@@ -29,7 +29,7 @@ NO_EVENT_RECEIVED_GUIDANCE = (
     "issue commands to the radio."
 )
 
-# Ed25519 group order (L) — used in the expanded signing primitive below
+# Ed25519 group order (L) - used in the expanded signing primitive below
 _L = 2**252 + 27742317777372353535851937790883648493
 
 # In-memory storage for the private key and derived public key

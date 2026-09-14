@@ -157,7 +157,7 @@ export function seedChannelMessages(options: SeedOptions) {
 }
 
 interface EncryptedGroupTextOptions {
-  channelName: string; // e.g. "test" — will be prefixed with # if needed
+  channelName: string; // e.g. "test" - will be prefixed with # if needed
   senderName: string;
   messageText: string;
   timestamp?: number;

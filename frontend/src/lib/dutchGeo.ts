@@ -1353,7 +1353,7 @@ export const DUTCH_GEO: DutchGeoEntry[] = [...PROVINCES, ...VEILIGHEIDSREGIOS, .
  *
  * These are the region names DMC nodes scope their sends with. Feeding them into
  * the server's ``known_regions`` lets the backend resolve a message's transport
- * code back to a scope offline, without an analyzer sync — verified against live
+ * code back to a scope offline, without an analyzer sync - verified against live
  * traffic, which floods at the national ``nl`` scope.
  */
 export function allDutchScopes(): string[] {

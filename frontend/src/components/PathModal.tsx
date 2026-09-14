@@ -204,7 +204,7 @@ export function PathModal({
               </div>
             ))}
 
-            {/* Map modal — opens when a "Map route" button is clicked */}
+            {/* Map modal - opens when a "Map route" button is clicked */}
             <Dialog
               open={mapModalIndex !== null}
               onOpenChange={(open) => !open && setMapModalIndex(null)}

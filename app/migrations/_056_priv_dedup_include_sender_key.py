@@ -13,8 +13,8 @@ async def migrate(conn: aiosqlite.Connection) -> None:
     different room participants sending identical text in the same clock second
     collide and the second message is silently dropped.
 
-    Adding COALESCE(sender_key, '') is strictly more permissive — no existing
-    rows can conflict — so the migration only needs to rebuild the index.
+    Adding COALESCE(sender_key, '') is strictly more permissive - no existing
+    rows can conflict - so the migration only needs to rebuild the index.
     """
     cursor = await conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='messages'"

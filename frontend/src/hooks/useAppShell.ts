@@ -101,7 +101,7 @@ export function useAppShell(): UseAppShellResult {
     const handlePopstate = () => {
       const section = parseHashSettingsSection();
       if (section !== null) {
-        // Don't set pushedSettingsEntryRef here — the user arrived via
+        // Don't set pushedSettingsEntryRef here - the user arrived via
         // back/forward, not by opening settings.  Closing settings should
         // replaceState, not history.back(), to avoid popping an unrelated entry.
         startTransition(() => {

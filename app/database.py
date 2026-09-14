@@ -210,11 +210,11 @@ class Database:
     a live prepared statement (a ``SELECT`` that returned ``SQLITE_ROW`` but
     hasn't been fully consumed or closed). Under concurrent coroutines, one
     task's in-flight ``fetchone()`` can still be in ``SQLITE_ROW`` state when
-    another task's ``commit()`` runs on the worker — triggering the error.
+    another task's ``commit()`` runs on the worker - triggering the error.
 
     Fix: all DB work goes through ``tx()`` (writes) or ``readonly()`` (reads),
     both of which acquire ``self._lock``. The lock is non-reentrant (asyncio
-    default) by design — nested ``tx()`` calls are a bug. Repository methods
+    default) by design - nested ``tx()`` calls are a bug. Repository methods
     that compose multiple operations factor the raw SQL into private helpers
     that take a ``conn`` and don't lock; the public method acquires the lock
     once and calls those helpers.
@@ -240,7 +240,7 @@ class Database:
         as cursor:``) so no prepared statement is alive when commit runs.
 
         The lock serializes concurrent writers AND ensures no reader's cursor
-        is alive during the commit. Nested calls will deadlock — factor shared
+        is alive during the commit. Nested calls will deadlock - factor shared
         SQL into helpers that accept ``conn`` and do not re-enter ``tx()``.
         """
         async with self._lock:
@@ -297,7 +297,7 @@ class Database:
         # Persists in the DB file but we set it explicitly on every connection.
         await self._connection.execute("PRAGMA journal_mode = WAL")
 
-        # synchronous = NORMAL is safe with WAL — only the most recent
+        # synchronous = NORMAL is safe with WAL - only the most recent
         # transaction can be lost on an OS crash (no corruption risk).
         # Reduces fsync overhead vs. the default FULL.
         await self._connection.execute("PRAGMA synchronous = NORMAL")

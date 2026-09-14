@@ -18,7 +18,7 @@ async def migrate(conn: aiosqlite.Connection) -> None:
         "SELECT name FROM sqlite_master WHERE type='table' AND name='repeater_advert_paths'"
     )
     if not await cursor.fetchone():
-        # Already renamed or doesn't exist — ensure new table exists
+        # Already renamed or doesn't exist - ensure new table exists
         await conn.execute(
             """
             CREATE TABLE IF NOT EXISTS contact_advert_paths (

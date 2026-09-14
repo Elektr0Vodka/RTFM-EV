@@ -103,7 +103,7 @@ const DEFAULT_BOT_CODE = `def bot(**kwargs) -> str | list[str] | None:
             region: Only meaningful when scoped is True (else always None).
                 When scoped, it's the decoded region name, or None if the
                 scope matched none of your known_regions. region alone can't
-                distinguish unscoped from unrecognized — use scoped.
+                distinguish unscoped from unrecognized - use scoped.
 
     Returns:
         None for no reply, a string for a single reply,
@@ -2236,7 +2236,7 @@ function ScopeSelector({
 
   const messages = scope.messages ?? 'all';
   const rawMode = getScopeMode(messages);
-  // When raw packets aren't offered, "none" is not a valid choice — treat as "all"
+  // When raw packets aren't offered, "none" is not a valid choice - treat as "all"
   const mode = !showRawPackets && rawMode === 'none' ? 'all' : rawMode;
   const isListMode = mode === 'only' || mode === 'except';
 
@@ -3183,7 +3183,7 @@ export function SettingsFanoutSection({
     const currentDraftType = draftType;
     const currentEditingId = editingId;
     if (!currentEditingId && !currentDraftType) return;
-    // MeshRank (topic_style MESHRANK) has no default packet topic — the broker
+    // MeshRank (topic_style MESHRANK) has no default packet topic - the broker
     // assigns one per account, so it must be provided before saving.
     const activeCommunityPreset = COMMUNITY_MQTT_PRESETS.find(
       (p) => p.id === detectPresetId(editConfig)

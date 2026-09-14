@@ -184,7 +184,7 @@ export function useConversationRouter({
       }
     }
 
-    // Contact hash — wait for phase 2
+    // Contact hash - wait for phase 2
     if (hashConv?.type === 'contact') return;
 
     // No hash: optionally restore last-viewed conversation if enabled on this device.
@@ -208,7 +208,7 @@ export function useConversationRouter({
       if (lastViewed?.type === 'contact') return;
     }
 
-    // No hash or unresolvable — default to Public
+    // No hash or unresolvable - default to Public
     const publicConversation = getPublicChannelConversation();
     if (publicConversation) {
       if (hashConv?.type === 'channel') {
@@ -240,7 +240,7 @@ export function useConversationRouter({
         return;
       }
 
-      // Contact hash didn't match — fall back to Public if channels loaded.
+      // Contact hash didn't match - fall back to Public if channels loaded.
       const token =
         hashConv.name.length > 16 ? hashConv.name.substring(0, 16) + '…' : hashConv.name;
       toast.error(`Contact not found: ${token}`);
@@ -290,7 +290,7 @@ export function useConversationRouter({
   useEffect(() => {
     activeConversationRef.current = activeConversation;
     if (isHandlingPopstateRef.current) {
-      // URL is already correct from the browser's popstate — no update needed
+      // URL is already correct from the browser's popstate - no update needed
       isHandlingPopstateRef.current = false;
     } else if (activeConversation) {
       if (hashSyncEnabledRef.current && !suspendHashSync) {

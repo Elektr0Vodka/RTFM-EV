@@ -34,7 +34,7 @@ async def migrate(conn: aiosqlite.Connection) -> None:
     )
 
     # Initialize with default row (use only the id column so this works
-    # regardless of which columns exist — defaults fill the rest).
+    # regardless of which columns exist - defaults fill the rest).
     await conn.execute("INSERT OR IGNORE INTO app_settings (id) VALUES (1)")
 
     await conn.commit()

@@ -23,7 +23,7 @@ test.describe('Radio settings', () => {
       await nameInput.clear();
       await nameInput.fill(testName);
 
-      // Use "Save Radio Config" (no reboot) — name changes apply immediately
+      // Use "Save Radio Config" (no reboot) - name changes apply immediately
       await page.getByRole('button', { name: 'Save Radio Config', exact: true }).click();
       await expect(page.getByText('Radio config saved')).toBeVisible({ timeout: 10_000 });
 
@@ -47,7 +47,7 @@ test.describe('Radio settings', () => {
       try {
         await updateRadioConfig({ name: originalName });
       } catch {
-        console.warn('Failed to restore radio name — manual intervention may be needed');
+        console.warn('Failed to restore radio name - manual intervention may be needed');
       }
     }
 

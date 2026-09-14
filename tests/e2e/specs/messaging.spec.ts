@@ -12,7 +12,7 @@ test.describe('Channel messaging in #flightless', () => {
     // Click #flightless in the sidebar (use exact match to avoid "Flightless🥝" etc.)
     await page.getByText('#flightless', { exact: true }).first().click();
 
-    // Verify conversation is open — the input placeholder includes the channel name
+    // Verify conversation is open - the input placeholder includes the channel name
     await expect(page.getByPlaceholder(/message #flightless/i)).toBeVisible();
 
     // Compose a unique message

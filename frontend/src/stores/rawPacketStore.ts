@@ -9,7 +9,7 @@ import {
 } from '../utils/rawPacketStats';
 
 /**
- * Live radio traffic arrives continuously — every packet the node overhears, not
+ * Live radio traffic arrives continuously - every packet the node overhears, not
  * just our own conversations. Holding that stream in App state re-rendered the whole
  * tree (including the message list) on every packet, which made typing crawl in
  * conversations with a lot of history.
@@ -91,7 +91,7 @@ export function recordRawPacket(packet: RawPacket, maxPackets: number = MAX_RAW_
 }
 
 /**
- * Drop the buffered packets on reconnect — we may have missed traffic while offline.
+ * Drop the buffered packets on reconnect - we may have missed traffic while offline.
  * Session stats deliberately survive: they describe the whole observation session.
  */
 export function clearRawPackets(): void {
@@ -111,8 +111,8 @@ export function resetRawPacketStore(): void {
 
 /**
  * Install a specific stream/stats snapshot. Exists so tests can drive the views
- * from fixed fixtures — including stats shapes that a live packet feed would take
- * minutes to produce — without reintroducing prop drilling through the app tree.
+ * from fixed fixtures - including stats shapes that a live packet feed would take
+ * minutes to produce - without reintroducing prop drilling through the app tree.
  */
 export function seedRawPacketStore(next: {
   packets?: RawPacket[];
@@ -121,7 +121,7 @@ export function seedRawPacketStore(next: {
   // Copy rather than alias. The whole store rests on "a snapshot is immutable, and its
   // identity changes only when its contents do". Holding the caller's array would let
   // them mutate the live snapshot in place, and because useSyncExternalStore compares
-  // snapshots with Object.is, React would then bail out of every subsequent render —
+  // snapshots with Object.is, React would then bail out of every subsequent render -
   // leaving the UI permanently disagreeing with getRawPackets() and no way to tell why.
   if (next.packets) {
     packets = [...next.packets];

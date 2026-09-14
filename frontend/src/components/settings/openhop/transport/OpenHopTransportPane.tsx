@@ -78,7 +78,7 @@ export function OpenHopTransportPane() {
     <div className="space-y-4 text-sm">
       <div className="rounded-md border border-border p-3 space-y-2">
         <div className="text-xs font-medium">{t('openhop_tk_title')}</div>
-        {keys.length === 0 && <div className="text-xs text-muted-foreground">—</div>}
+        {keys.length === 0 && <div className="text-xs text-muted-foreground">-</div>}
         {keys.map((k) => {
           const id = String(k.id ?? k.name ?? '');
           return (
@@ -134,7 +134,7 @@ export function OpenHopTransportPane() {
         <div className="text-xs font-medium">{t('openhop_scopes_title')}</div>
         <div className="text-xs text-muted-foreground">
           {t('openhop_scopes_served')}:{' '}
-          <span className="font-mono">{scopes?.served?.scopes ?? '—'}</span>
+          <span className="font-mono">{scopes?.served?.scopes ?? '-'}</span>
         </div>
         {scopeRows.length > 0 && (
           <div className="space-y-0.5">

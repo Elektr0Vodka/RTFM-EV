@@ -52,7 +52,7 @@ test.describe('Favorites persistence', () => {
         return channels.some((c) => c.key === channelKey && c.favorite);
       })
       .toBe(false);
-    // The test channel should no longer appear under the Favorites header —
+    // The test channel should no longer appear under the Favorites header -
     // but the Favorites section itself may remain if radio-synced contacts are favorited.
     const channelsSectionHeader = page.getByText('Channels');
     await expect(channelsSectionHeader).toBeVisible();

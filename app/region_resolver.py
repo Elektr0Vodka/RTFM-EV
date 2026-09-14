@@ -1,7 +1,7 @@
 """Resolve a packet's regional flood-scope (transport code) back to a region name.
 
 MeshCore's TransportFlood/TransportDirect packets carry a 16-bit "transport code"
-derived from the region name *and the packet payload* — it is a keyed MAC, not a
+derived from the region name *and the packet payload* - it is a keyed MAC, not a
 stable per-region identifier:
 
     key  = SHA256("#" + region_name)[:16]            # firmware TransportKey

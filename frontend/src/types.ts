@@ -1075,7 +1075,7 @@ interface PacketsPerHourBucket {
 
 /**
  * Regional flood-scope adoption over the last 24h. Two views with different
- * denominators that will not agree — traffic spans all channels including
+ * denominators that will not agree - traffic spans all channels including
  * undecryptable ones (so it carries a false-positive floor from corrupt RF
  * captures), while senders requires decryption and is therefore noise-free but
  * limited to channels we hold keys for.

@@ -8,7 +8,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-// No-op fetch handler — required for PWA installability criteria.
+// No-op fetch handler - required for PWA installability criteria.
 // We don't cache anything; the app always fetches from the network.
 self.addEventListener("fetch", () => {});
 

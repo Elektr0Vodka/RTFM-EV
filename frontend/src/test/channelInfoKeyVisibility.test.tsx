@@ -118,7 +118,7 @@ describe('ChannelInfoPane key visibility', () => {
     fireEvent.click(screen.getByText('Show Key'));
     expect(screen.getByText(key1.toLowerCase())).toBeInTheDocument();
 
-    // Switch channel — key should be hidden again
+    // Switch channel - key should be hidden again
     rerender(<ChannelInfoPane {...baseProps} channelKey={key2} channels={[ch1, ch2]} />);
 
     await waitFor(() => {

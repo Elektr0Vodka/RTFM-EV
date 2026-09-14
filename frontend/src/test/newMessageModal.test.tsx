@@ -93,7 +93,7 @@ describe('NewMessageModal form reset', () => {
       expect(onClose).toHaveBeenCalled();
       unmount();
 
-      // Re-render to simulate reopening — state should be reset
+      // Re-render to simulate reopening - state should be reset
       renderModal();
       await switchToTab(user, 'Hashtag Channel');
       expect((screen.getByPlaceholderText('channel-name') as HTMLInputElement).value).toBe('');
@@ -278,7 +278,7 @@ describe('NewMessageModal form reset', () => {
       await user.type(screen.getByPlaceholderText('Contact name'), 'Bob');
       await user.type(screen.getByPlaceholderText('64-character hex public key'), 'deadbeef');
 
-      // Switch to Private Channel tab — fields should reset
+      // Switch to Private Channel tab - fields should reset
       await switchToTab(user, 'Private Channel');
 
       expect((screen.getByPlaceholderText('Channel name') as HTMLInputElement).value).toBe('');

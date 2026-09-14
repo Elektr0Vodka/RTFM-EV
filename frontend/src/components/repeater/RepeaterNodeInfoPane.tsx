@@ -32,17 +32,17 @@ export function NodeInfoPane({
         <NotFetched />
       ) : (
         <div>
-          <KvRow label={t('common_name')} value={data.name ?? '—'} />
+          <KvRow label={t('common_name')} value={data.name ?? '-'} />
           <KvRow
             label={t('repeater_lat_lon_label')}
             value={
-              data.lat != null || data.lon != null ? `${data.lat ?? '—'}, ${data.lon ?? '—'}` : '—'
+              data.lat != null || data.lon != null ? `${data.lat ?? '-'}, ${data.lon ?? '-'}` : '-'
             }
           />
           <div className="flex justify-between text-sm py-0.5">
             <span className="text-muted-foreground">{t('repeater_clock_utc_label')}</span>
             <span>
-              {data.clock_utc ?? '—'}
+              {data.clock_utc ?? '-'}
               {clockDrift && (
                 <span
                   className={cn(

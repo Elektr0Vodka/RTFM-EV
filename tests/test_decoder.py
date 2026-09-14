@@ -681,7 +681,7 @@ class TestVerifyAdvertSignature:
     Uses a real captured advert as the golden compatibility vector: it was signed
     by a genuine MeshCore device and accepted by firmware, so our verifier must
     accept it. Corrupting any signed region (pubkey, body, or signature) must be
-    rejected — this is the phantom-contact bug in issue #315.
+    rejected - this is the phantom-contact bug in issue #315.
     """
 
     # Real advert packet (name decodes to "Lightless" + emoji), same vector used

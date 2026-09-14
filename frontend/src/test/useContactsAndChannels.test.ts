@@ -26,7 +26,7 @@ vi.mock('../api', () => ({
   },
 }));
 
-// Mock prefetch — takePrefetchOrFetch calls the fetcher directly
+// Mock prefetch - takePrefetchOrFetch calls the fetcher directly
 vi.mock('../prefetch', () => ({
   takePrefetchOrFetch: vi.fn((_key: string, fetcher: () => Promise<unknown>) => fetcher()),
 }));

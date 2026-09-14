@@ -69,7 +69,7 @@ async def test_empty_page_after_oldest_message(test_db):
     )
     assert msg_id is not None
 
-    # Use before cursor pointing at the only message — should get nothing
+    # Use before cursor pointing at the only message - should get nothing
     result = await MessageRepository.get_all(
         msg_type="CHAN",
         conversation_key=CHAN_KEY,

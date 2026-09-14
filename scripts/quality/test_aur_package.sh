@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# test_aur_package.sh — Build the AUR package in one Arch container, then
+# test_aur_package.sh - Build the AUR package in one Arch container, then
 # install and run it in a clean Arch container with port 8000 exposed.
 #
 # Usage:
@@ -67,7 +67,7 @@ ls -lh /out/*.pkg.tar.zst
 
 PKG_FILE="$(ls "$ARTIFACT_DIR"/*.pkg.tar.zst 2>/dev/null | head -1)"
 if [ -z "$PKG_FILE" ]; then
-    echo -e "${RED}Build failed — no .pkg.tar.zst produced${NC}"
+    echo -e "${RED}Build failed - no .pkg.tar.zst produced${NC}"
     exit 1
 fi
 
@@ -95,7 +95,7 @@ systemd-sysusers
 systemd-tmpfiles --create
 
 echo "============================================"
-echo " RemoteTerm installed — starting server"
+echo " RemoteTerm installed - starting server"
 echo "============================================"
 
 # Run as the remoteterm service user, matching the systemd unit

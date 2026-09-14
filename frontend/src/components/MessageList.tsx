@@ -249,7 +249,7 @@ export interface HashtagRenderCtx {
 const EMPTY_NAME_SET: Set<string> = new Set();
 
 // Recognize a MeshCore Open payload and render it. Handles both a whole-message
-// payload ("g:<id>") and a reply-prefixed one ("@[Name] g:<id>") — the form
+// payload ("g:<id>") and a reply-prefixed one ("@[Name] g:<id>") - the form
 // meshcore-open sends when a GIF/reaction is a reply, which otherwise renders as
 // raw text (issue #291). Returns null when the content is not a recognized
 // payload, so the caller renders normally.
@@ -658,7 +658,7 @@ export function MessageList({
   //
   // Rows are measured lazily, so the total size at mount is a guess built from
   // estimates. A single scrollToIndex against that guess gets undone by the
-  // measurement passes that follow — and under StrictMode's double-invoked
+  // measurement passes that follow - and under StrictMode's double-invoked
   // effects it is undone completely, leaving the view stranded at the top. So
   // the request is held open and re-asserted as measurements land, rather than
   // fired once and marked done.
@@ -880,7 +880,7 @@ export function MessageList({
   }, [autoAddMentionedChannels, onHashtagAdded, sortedMessages, followedNames, registryNameSet]);
   /**
    * Only the visible window of messages is mounted. A long channel history otherwise
-   * costs a full render of every message on any update — hundreds of milliseconds once
+   * costs a full render of every message on any update - hundreds of milliseconds once
    * a conversation has a few thousand messages, which stalls everything else on the
    * main thread, typing included.
    *
@@ -895,7 +895,7 @@ export function MessageList({
     // Rows do not start at the scroll container's origin: the container has p-4
     // padding and may render an "older messages" banner above them. Without this
     // the virtualizer's offsets are short by that distance, so every
-    // scrollToIndex with 'start'/'center' lands high by 16-48px — and the error
+    // scrollToIndex with 'start'/'center' lands high by 16-48px - and the error
     // moves as the banner appears and disappears during pagination.
     scrollMargin,
     // String sentinel for the transient window past the end of a shrunken list:
@@ -969,7 +969,7 @@ export function MessageList({
       // Something other than us moved the scroll (a programmatic scrollTop, a
       // restored position, assistive tech). Gesture handlers only catch a human
       // at the wheel, so also bail when the position we last set has been moved
-      // upward — the pin must never fight another writer.
+      // upward - the pin must never fight another writer.
       if (lastAppliedTop !== null && list.scrollTop < lastAppliedTop - 1) {
         pendingBottomScrollRef.current = false;
         return;
@@ -1128,7 +1128,7 @@ export function MessageList({
 
   /**
    * Located by message id, not by timestamp. The previous `received_at > boundary`
-   * scan returned 0 — the top of the loaded window — whenever the real boundary was
+   * scan returned 0 - the top of the loaded window - whenever the real boundary was
    * further back than anything loaded, so the divider silently pointed at the wrong
    * message. Matching on identity returns -1 in that case, which is the truth: the
    * boundary is elsewhere, and `boundaryOutsideWindow` below offers to go to it.
@@ -1525,7 +1525,7 @@ export function MessageList({
             const contact = msg.type === 'PRIV' ? getContact(msg.conversation_key) : null;
             const isRoomServer = contact?.type === CONTACT_TYPE_ROOM;
 
-            // Only parse "sender: text" prefix for channel messages — DMs never carry
+            // Only parse "sender: text" prefix for channel messages - DMs never carry
             // an in-text sender prefix, so parsing them would incorrectly strip
             // user text that happens to contain a colon (e.g. "TEST1: TEST2").
             const { sender, content } =
@@ -1881,7 +1881,7 @@ export function MessageList({
                 } else if (unreadMarkerRef.current?.scrollIntoView) {
                   unreadMarkerRef.current.scrollIntoView({ block: 'center' });
                 } else {
-                  // The marker row is outside the rendered window — scroll by index.
+                  // The marker row is outside the rendered window - scroll by index.
                   scrollToIndex(unreadMarkerIndex, 'center');
                 }
                 setJumpToUnreadDismissed(true);

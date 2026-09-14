@@ -597,7 +597,7 @@ class TestAdvertisementPipeline:
         """A corrupted/forged advert must not be ingested as a phantom contact (#315).
 
         The raw packet is still stored (so the debug feed sees it), but no contact
-        row is created and no `contact` event is broadcast — mirroring firmware,
+        row is created and no `contact` event is broadcast - mirroring firmware,
         which drops adverts that fail signature verification.
         """
         from app.decoder import parse_packet
@@ -618,7 +618,7 @@ class TestAdvertisementPipeline:
         with patch("app.packet_processor.broadcast_event", mock_broadcast):
             result = await process_raw_packet(bytes(packet_bytes), timestamp=1700000000)
 
-        # No contact created — neither under the original key nor the mangled one.
+        # No contact created - neither under the original key nor the mangled one.
         assert await ContactRepository.get_by_key_prefix(expected_pubkey[:12]) is None
         all_contacts = await ContactRepository.get_all()
         assert all_contacts == []
@@ -2590,11 +2590,11 @@ class TestHistoricalDMDirectionDetection:
     OUR_PUB = bytes.fromhex(OUR_PUB_HEX)
     OUR_PRIV = b"\x01" * 64  # Dummy, won't be used (try_decrypt_dm is mocked)
 
-    # Contact key: first byte differs (0xBB) — normal case
+    # Contact key: first byte differs (0xBB) - normal case
     CONTACT_DIFF_PUB_HEX = "bb" + "11" * 31
     CONTACT_DIFF_PUB = bytes.fromhex(CONTACT_DIFF_PUB_HEX)
 
-    # Contact key: first byte same as ours (0xAA) — the 1/256 collision case
+    # Contact key: first byte same as ours (0xAA) - the 1/256 collision case
     CONTACT_SAME_PUB_HEX = "aa" + "22" * 31
     CONTACT_SAME_PUB = bytes.fromhex(CONTACT_SAME_PUB_HEX)
 
@@ -2675,7 +2675,7 @@ class TestHistoricalDMDirectionDetection:
             payload=b"\xaa\xaa" + b"\x00" * 18,
         )
 
-        # Both hashes are "aa" — matches our first byte (0xAA)
+        # Both hashes are "aa" - matches our first byte (0xAA)
         mock_decrypted = DecryptedDirectMessage(
             timestamp=7100,
             flags=0,

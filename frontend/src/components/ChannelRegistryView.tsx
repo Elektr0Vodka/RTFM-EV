@@ -59,9 +59,9 @@ type SortDir = 'asc' | 'desc';
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmtDatetime(iso: string | null, t: TFn): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return '—';
+  if (isNaN(d.getTime())) return '-';
   const diffMs = Date.now() - d.getTime();
   const diffMin = Math.floor(diffMs / 60_000);
   if (diffMin < 1) return t('channel_registry_just_now');
@@ -371,7 +371,7 @@ function EditChannelModal({
                 <span className="text-muted-foreground">
                   {t('channel_registry_geo_detected')}{' '}
                   <span className="font-medium text-foreground">{geoMatch?.name}</span>
-                  {' — '}
+                  {' - '}
                   <span className="font-medium text-foreground">{geoFill.region}</span>
                   {', '}
                   <span className="text-orange-600 dark:text-orange-400 font-medium">
@@ -770,7 +770,7 @@ export default function ChannelRegistryView({
     return [...new Set(base.map((e) => e.subcategory).filter(Boolean))].sort();
   }, [registry, filterCategory]);
 
-  // categoryMap: lowercase-category → Set<subcategory> — for datalist autocomplete
+  // categoryMap: lowercase-category → Set<subcategory> - for datalist autocomplete
   const categoryMap = useMemo(() => {
     const m = new Map<string, Set<string>>();
     for (const e of registry) {
@@ -1708,15 +1708,15 @@ function ChannelRow({
         className="text-xs text-muted-foreground truncate"
         title={entry.subcategory ? `${entry.category} / ${entry.subcategory}` : entry.category}
       >
-        {entry.category || '—'}
+        {entry.category || '-'}
         {entry.subcategory && (
           <span className="text-muted-foreground/60"> / {entry.subcategory}</span>
         )}
       </span>
-      <span className="text-xs text-muted-foreground truncate">{entry.country || '—'}</span>
-      <span className="text-xs text-muted-foreground truncate">{entry.region || '—'}</span>
+      <span className="text-xs text-muted-foreground truncate">{entry.country || '-'}</span>
+      <span className="text-xs text-muted-foreground truncate">{entry.region || '-'}</span>
       <span className="text-xs text-muted-foreground truncate">
-        {entry.language.length > 0 ? entry.language.join(', ') : '—'}
+        {entry.language.length > 0 ? entry.language.join(', ') : '-'}
       </span>
       <span>{statusBadge(entry.status, t)}</span>
       <span>{sourceBadge(entry.source, t)}</span>
@@ -1724,7 +1724,7 @@ function ChannelRow({
         {fmtDatetime(entry.lastHeard, t)}
       </span>
       <span className="text-xs text-muted-foreground tabular-nums text-right">
-        {liveCount > 0 ? liveCount : '—'}
+        {liveCount > 0 ? liveCount : '-'}
       </span>
       <span className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <button

@@ -232,7 +232,7 @@ class TestChannelEchoDetection:
 
         assert result is None
 
-        # No message_acked broadcast — nothing changed
+        # No message_acked broadcast - nothing changed
         ack_broadcasts = [b for b in broadcasts if b["type"] == "message_acked"]
         assert len(ack_broadcasts) == 0
 
@@ -398,7 +398,7 @@ class TestDMEchoDetection:
 
         assert result is None
 
-        # No message_acked broadcast — nothing changed
+        # No message_acked broadcast - nothing changed
         ack_broadcasts = [b for b in broadcasts if b["type"] == "message_acked"]
         assert len(ack_broadcasts) == 0
 
@@ -1045,7 +1045,7 @@ class TestDirectMessageDirectionDetection:
 
         assert result is not None
 
-        # Should have exactly one message — the original outgoing, not a ghost incoming
+        # Should have exactly one message - the original outgoing, not a ghost incoming
         messages = await MessageRepository.get_all(
             msg_type="PRIV", conversation_key=contact_pub.lower(), limit=10
         )
@@ -1075,7 +1075,7 @@ class TestDirectMessageDirectionDetection:
             {"public_key": contact_pub, "name": "CollidingContact", "type": 1}
         )
 
-        # No outgoing message exists — this is a genuine incoming DM
+        # No outgoing message exists - this is a genuine incoming DM
         packet_info = MagicMock()
         packet_info.payload = bytes([0xAA, 0xAA, 0x00, 0x00]) + b"\x00" * 20
         packet_info.path = b""

@@ -233,7 +233,7 @@ async def _publish_node_report(
         iata = config.get("iata", "").upper().strip()
         if not _IATA_RE.fullmatch(iata):
             logger.debug(
-                "Community MQTT: skipping %s publish — no valid IATA code configured", kind
+                "Community MQTT: skipping %s publish - no valid IATA code configured", kind
             )
             return
 
@@ -269,7 +269,7 @@ async def _publish_community_packet(
             return
         iata = config.get("iata", "").upper().strip()
         if not _IATA_RE.fullmatch(iata):
-            logger.debug("Community MQTT: skipping publish — no valid IATA code configured")
+            logger.debug("Community MQTT: skipping publish - no valid IATA code configured")
             return
         topic = _render_packet_topic(
             str(config.get("topic_template", _DEFAULT_PACKET_TOPIC_TEMPLATE)),

@@ -150,7 +150,7 @@ def split_path_hex(path_hex: str, hop_count: int) -> list[str]:
         return []
     chars_per_hop = len(path_hex) // hop_count
     if chars_per_hop < 2 or chars_per_hop % 2 != 0 or chars_per_hop * hop_count != len(path_hex):
-        # Inconsistent — fall back to legacy 2-char split
+        # Inconsistent - fall back to legacy 2-char split
         return [path_hex[i : i + 2] for i in range(0, len(path_hex), 2)]
     return [path_hex[i : i + chars_per_hop] for i in range(0, len(path_hex), chars_per_hop)]
 

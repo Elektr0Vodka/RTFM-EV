@@ -12,7 +12,7 @@ async def migrate(conn: aiosqlite.Connection) -> None:
 
     The pagination query (ORDER BY received_at DESC, id DESC LIMIT N) hits a
     temp B-tree sort without this index. With it, SQLite walks the index in
-    order and stops after N rows — critical for channels with 30K+ messages.
+    order and stops after N rows - critical for channels with 30K+ messages.
 
     idx_messages_conversation(type, conversation_key) is a strict prefix of
     both this index and idx_messages_unread_covering, so SQLite never picks it.

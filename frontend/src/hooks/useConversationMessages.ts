@@ -801,7 +801,7 @@ export function useConversationMessages(
       }
       seenMessageContent.current.add(contentKey);
 
-      // Limit set size to prevent memory issues — rebuild from current messages
+      // Limit set size to prevent memory issues - rebuild from current messages
       // so visible messages always remain in the dedup set (insertion-order slicing
       // could evict keys for still-displayed messages, allowing echo duplicates).
       if (seenMessageContent.current.size > 1000) {

@@ -96,7 +96,7 @@ test.describe('Webhook delivery', () => {
     });
     webhookId = webhook.id;
 
-    // Send a message via API — this triggers broadcast_event → fanout → webhook
+    // Send a message via API - this triggers broadcast_event → fanout → webhook
     const channel = await ensureFlightlessChannel();
     const testText = `webhook-delivery-${Date.now()}`;
     await sendChannelMessage(channel.key, testText);

@@ -213,7 +213,7 @@ function fmtPct(rate: number): string {
   return `${Math.round(rate * 100)}%`;
 }
 function fmtRssi(v: number | null, t: TFn): string {
-  return v == null ? '—' : t('node_value_dbm', { value: Math.round(v) });
+  return v == null ? '-' : t('node_value_dbm', { value: Math.round(v) });
 }
 
 function fmtBytes(bytes: number, t: TFn): string {
@@ -246,7 +246,7 @@ const NAMED_TYPE_COLORS: Record<string, string> = {
   TEXTMESSAGE: 'hsl(48,  85%, 46%)',
 };
 
-// Fallback palette for any unknown future types — 8 evenly-spaced hues
+// Fallback palette for any unknown future types - 8 evenly-spaced hues
 const FALLBACK_COLORS = [
   'hsl(0,   65%, 52%)',
   'hsl(45,  78%, 48%)',
@@ -1362,7 +1362,7 @@ function KV({ label, value, mono }: { label: string; value: React.ReactNode; mon
   );
 }
 
-/** Horizontal bar breakdown — used for route mix, hop profile, signal dist */
+/** Horizontal bar breakdown - used for route mix, hop profile, signal dist */
 function HBarSection({
   title,
   items,
@@ -1603,7 +1603,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
     const startTs = selectedWindow.seconds !== null ? endTs - selectedWindow.seconds : 0;
     api.getNoiseFloorHistory(startTs, endTs).then(
       (samples) => setNoiseFloorSamples(samples),
-      () => {} // silently ignore — chart will just show no data
+      () => {} // silently ignore - chart will just show no data
     );
   }, [
     selectedWindow.key,
@@ -1773,7 +1773,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
           <span className="text-sm font-semibold text-foreground">{t('node_page_title')}</span>
           {config && (
             <span className="text-sm text-muted-foreground">
-              — {config.name || t('common_unnamed')}
+              - {config.name || t('common_unnamed')}
             </span>
           )}
         </div>
@@ -2246,7 +2246,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                             : undefined
                         }
                       />
-                      {/* Session-only fields not tracked by DB — borrow from live session */}
+                      {/* Session-only fields not tracked by DB - borrow from live session */}
                       {sessionSnapshot.packetCount > 0 && (
                         <>
                           <StatTile

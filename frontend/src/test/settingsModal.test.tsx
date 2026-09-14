@@ -426,7 +426,7 @@ describe('SettingsModal', () => {
     });
     openRadioSection();
 
-    expect(screen.getByText('2/2 repeaters answered — 2 regions found')).toBeInTheDocument();
+    expect(screen.getByText('2/2 repeaters answered - 2 regions found')).toBeInTheDocument();
 
     const knownRegions = screen.getByLabelText(
       'Known Regions (for decoding)'
@@ -720,7 +720,7 @@ describe('SettingsModal', () => {
     fireEvent.click(blockRepeaters);
 
     // Wait for the first PATCH to be registered. Only the first should be
-    // in-flight — the second must be queued behind it.
+    // in-flight - the second must be queued behind it.
     await waitFor(() => {
       expect(deferred.length).toBe(1);
     });
@@ -1000,7 +1000,7 @@ describe('SettingsModal', () => {
     expect(screen.getByText('Busiest Channels (24h)')).toBeInTheDocument();
     expect(screen.getByText('Noise Floor (24h)')).toBeInTheDocument();
     expect(screen.getByText('Region Scope (24h)')).toBeInTheDocument();
-    // Fractions, not bare percentages — the sample size matters at this sparsity
+    // Fractions, not bare percentages - the sample size matters at this sparsity
     expect(screen.getByText(/40 of 120/)).toBeInTheDocument();
     expect(screen.getByText(/3 of 12/)).toBeInTheDocument();
     // 40 scoped is well above the floor of 2, so the percentage is shown
@@ -1139,7 +1139,7 @@ describe('SettingsModal', () => {
     expect(
       screen.getByText(/at or below the estimated false-positive floor \(20\)/)
     ).toBeInTheDocument();
-    // Percentage withheld even though 0.24% would round visibly — it is noise
+    // Percentage withheld even though 0.24% would round visibly - it is noise
     expect(screen.queryByText(/0\.2%/)).not.toBeInTheDocument();
   });
 

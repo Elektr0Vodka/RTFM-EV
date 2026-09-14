@@ -174,7 +174,7 @@ export function NeighborsPane({
     [usingStoredNeighbors, fallbackNeighbors, data]
   );
 
-  // Resolve contact data for each neighbor in a single pass — used for coords
+  // Resolve contact data for each neighbor in a single pass - used for coords
   // (mini-map) and distances (table column + distance sort). The formatted
   // string drives display; the raw km drives numeric distance sorting.
   const { neighborsWithCoords, enriched, hasDistances } = useMemo(() => {
@@ -385,7 +385,7 @@ export function NeighborsPane({
                       </td>
                       {hasDistances && (
                         <td className="py-1 text-right text-muted-foreground font-mono">
-                          {dist ?? '—'}
+                          {dist ?? '-'}
                         </td>
                       )}
                       <td className="py-1 text-right text-muted-foreground">

@@ -45,7 +45,7 @@ frontend/src/
 │   ├── RichPayloadContext.tsx  # Browser-local rich MeshCore payload rendering preference
 │   └── PushSubscriptionContext.tsx # Push subscription state context/provider
 ├── lib/
-│   └── utils.ts            # cn() — clsx + tailwind-merge helper
+│   └── utils.ts            # cn() - clsx + tailwind-merge helper
 ├── networkGraph/
 │   └── packetNetworkGraph.ts # Packet→network graph construction shared by visualizer surfaces
 ├── stores/
@@ -118,7 +118,7 @@ frontend/src/
 │   ├── MessageInput.tsx
 │   ├── NewMessageModal.tsx
 │   ├── SearchView.tsx          # Full-text message search pane
-│   ├── SettingsModal.tsx       # Layout shell — delegates to settings/ sections
+│   ├── SettingsModal.tsx       # Layout shell - delegates to settings/ sections
 │   ├── SecurityWarningModal.tsx # Startup warning for trusted-network / bot execution posture
 │   ├── RawPacketList.tsx
 │   ├── RawPacketFeedView.tsx   # Live raw packet feed + session stats drawer
@@ -136,7 +136,7 @@ frontend/src/
 │   ├── ContactStatusInfo.tsx   # Contact status info component
 │   ├── ContactPathDiscoveryModal.tsx # Forward/return path discovery dialog
 │   ├── ContactRoutingOverrideModal.tsx # Manual direct-route override editor
-│   ├── RepeaterDashboard.tsx   # Layout shell — delegates to repeater/ panes
+│   ├── RepeaterDashboard.tsx   # Layout shell - delegates to repeater/ panes
 │   ├── RepeaterLogin.tsx       # Repeater login form (password + guest)
 │   ├── RoomServerPanel.tsx     # Room-server auth gate + status banner ahead of room chat
 │   ├── ServerLoginStatusBanner.tsx # Shared repeater/room login state banner
@@ -261,9 +261,9 @@ High-level state is delegated to hooks:
 
 `App.tsx` intentionally still does the final `AppShell` prop assembly. That composition layer is considered acceptable here because it keeps the shell contract visible in one place and avoids a prop-bundling hook with little original logic.
 
-**The overheard packet stream is the one piece of app state that deliberately does not live in React.** It is held in `stores/rawPacketStore.ts` and read through `useSyncExternalStore`, because it updates several times a second with every packet the node hears — far more often than anything else — and only four surfaces consume it (`MapView`, `VisualizerView`, `RawPacketFeedView`, `CrackerPanel`). Held in `App` state it re-rendered the entire tree, including `MessageList`, which is neither memoized nor cheap on a long history.
+**The overheard packet stream is the one piece of app state that deliberately does not live in React.** It is held in `stores/rawPacketStore.ts` and read through `useSyncExternalStore`, because it updates several times a second with every packet the node hears - far more often than anything else - and only four surfaces consume it (`MapView`, `VisualizerView`, `RawPacketFeedView`, `CrackerPanel`). Held in `App` state it re-rendered the entire tree, including `MessageList`, which is neither memoized nor cheap on a long history.
 
-That gives the store a load-bearing invariant: **no ancestor of `MessageList` may call `useRawPackets()` / `useRawPacketStatsSession()`.** Nothing about the prop signatures enforces it — an innocuous-looking subscription added to `App`, `AppShell`, or `ConversationPane` silently restores the original slowdown. `src/test/appPacketIsolation.test.tsx` pins it by mounting the real ancestor chain and asserting `MessageList` does not re-render when packets arrive; it carries a negative control so the assertion cannot pass vacuously. Reach for packets in a new view by subscribing in that view, never by lifting them up.
+That gives the store a load-bearing invariant: **no ancestor of `MessageList` may call `useRawPackets()` / `useRawPacketStatsSession()`.** Nothing about the prop signatures enforces it - an innocuous-looking subscription added to `App`, `AppShell`, or `ConversationPane` silently restores the original slowdown. `src/test/appPacketIsolation.test.tsx` pins it by mounting the real ancestor chain and asserting `MessageList` does not re-render when packets arrive; it carries a negative control so the assertion cannot pass vacuously. Reach for packets in a new view by subscribing in that view, never by lifting them up.
 
 `ConversationPane.tsx` owns the main active-conversation surface branching:
 - empty state
@@ -311,7 +311,7 @@ That gives the store a load-bearing invariant: **no ancestor of `MessageList` ma
 ### Live packet map (`map/packets/`)
 
 - The map's "Visualize packets" feature renders with a single deck.gl overlay (`map/layers/packetDeckOverlay.ts`: one `MapLibreOverlay`, arcs + pulses + glow) in both flat 2D and tilted 3D. It replaces the former 2D canvas `particleOverlay` and the 3D-only `tracesDeck` arc path.
-- `map/packets/` holds the framework-agnostic engine: `playbackController.ts` (a virtual clock — live follows wall time minus a smoothing buffer, replay is seekable at a rate), `packetTimeline.ts` (time-indexed buffer whose `stateAsOf(ms)` derives the render model), `packetAnimMath.ts` (pure freshness/pulse/glow/SNR math), and `clickAudio.ts` (optional geiger click). All are unit-tested without a map.
+- `map/packets/` holds the framework-agnostic engine: `playbackController.ts` (a virtual clock - live follows wall time minus a smoothing buffer, replay is seekable at a rate), `packetTimeline.ts` (time-indexed buffer whose `stateAsOf(ms)` derives the render model), `packetAnimMath.ts` (pure freshness/pulse/glow/SNR math), and `clickAudio.ts` (optional geiger click). All are unit-tested without a map.
 - **`packetNetworkGraph` is the single path authority** for the live map: the timeline resolves every packet's route through `buildCanonicalPathForPacket`/`ingestPacketIntoPacketNetwork`, then maps node ids to coordinates via the contact-index resolver (`resolveLinkCoord`). There is no second ad-hoc path resolver. As a solo observer, the segment touching our `self` node is drawn witnessed (solid); inferred upstream hops are faint; an unresolved hop is bridged, never placed at `[0,0]`.
 - The `PlaybackBar` (`map/controls/PlaybackBar.tsx`) is a VCR (play/pause/speed/seek/Live/look-back); deeper look-back backfills via `GET /packets/recent?before_ts=`. The render loop mirrors the clock snapshot to React throttled (~150ms) so the 60fps clock does not re-render the tree.
 
@@ -323,7 +323,7 @@ The message list is windowed with `@tanstack/react-virtual`; only the visible ro
 - **The bottom-pin is deferred and re-asserted** across a bounded run of frames rather than performed once, because row heights start as estimates and a single `scrollToIndex` gets undone as they converge (completely so under StrictMode's double-invoked effects). It is cancelled by a pending `targetMessageId` and by any deliberate scroll gesture.
 - **`getItemKey` returns a string sentinel** for indices past the end of a shrunken list; a bare index would collide with the numeric message-id keyspace and poison the measurement cache.
 
-jsdom has no layout engine, so none of this is observable from the vitest suite — it needs a real browser.
+jsdom has no layout engine, so none of this is observable from the vitest suite - it needs a real browser.
 
 ### Radio settings behavior
 
@@ -425,7 +425,7 @@ Note: MQTT, bot, and community MQTT settings were migrated to the `fanout_config
 
 `UnreadCounts` includes `counts`, `mentions`, `last_message_times`, `last_read_ats`, and `first_unread_ids`.
 
-The unread divider is anchored to `first_unread_ids` — the id of the oldest unread message per conversation — not to a timestamp. `MessageList` locates it with `findIndex(msg.id === unreadMarkerMessageId)`, which returns `-1` when that message is not in the loaded window; that is the signal to offer "Jump to unread" (routed through the `targetMessageId`/`getMessagesAround` path) rather than render a divider. Locating by timestamp instead would return index 0 whenever the boundary sits further back than the loaded window, silently placing the divider on the wrong message.
+The unread divider is anchored to `first_unread_ids` - the id of the oldest unread message per conversation - not to a timestamp. `MessageList` locates it with `findIndex(msg.id === unreadMarkerMessageId)`, which returns `-1` when that message is not in the loaded window; that is the signal to offer "Jump to unread" (routed through the `targetMessageId`/`getMessagesAround` path) rather than render a divider. Locating by timestamp instead would return index 0 whenever the boundary sits further back than the loaded window, silently placing the divider on the wrong message.
 
 Counts are incremented live over WebSocket while `first_unread_ids` only arrives with a full `/read-state/unreads` fetch, so `useUnreadCounts.incrementUnread` seeds the boundary itself on the read→unread transition. A channel going unread while the app is open would otherwise have a count but no boundary, and no divider at all.
 
@@ -438,7 +438,7 @@ Clicking a contact's avatar in `ChatHeader` or `MessageList` opens a `ContactInf
 - GPS location (clickable → map)
 - On-demand LPP telemetry: "Request" button fetches `POST /contacts/{key}/telemetry`, displays sensor readings via `LppSensorRow`, optional GPS mini-map (Leaflet), and history chart (Recharts). Opt-in tracking toggle uses `POST /settings/tracked-telemetry-contacts/toggle`.
 - Favorite toggle
-- Name history ("Also Known As") — shown only when the contact has used multiple names
+- Name history ("Also Known As") - shown only when the contact has used multiple names
 - Message stats: DM count, channel message count
 - Most active rooms (clickable → navigate to channel)
 - Route details from the canonical backend surface (`effective_route`, `effective_route_source`, `direct_route`, `route_override`)
@@ -467,11 +467,11 @@ State: `useConversationNavigation` controls open/close via `infoPaneChannelKey`.
 
 For repeater contacts (`type=2`), `ConversationPane.tsx` renders `RepeaterDashboard` instead of the normal chat UI (ChatHeader + MessageList + MessageInput).
 
-**Login**: `RepeaterLogin` component — password or guest login via `POST /api/contacts/{key}/repeater/login`. The frontend sends exactly one request; the backend internally escalates a timed-out login to one flood retry (see `app/AGENTS.md` § "Server login route escalation"), so a single call may take up to two response windows. Do not add a client-side login retry loop on top — a `LOGIN_FAILED` result means the password was refused, not that the route needs another attempt.
+**Login**: `RepeaterLogin` component - password or guest login via `POST /api/contacts/{key}/repeater/login`. The frontend sends exactly one request; the backend internally escalates a timed-out login to one flood retry (see `app/AGENTS.md` § "Server login route escalation"), so a single call may take up to two response windows. Do not add a client-side login retry loop on top - a `LOGIN_FAILED` result means the password was refused, not that the route needs another attempt.
 
-**Dashboard panes** (after login): Telemetry, Node Info, Neighbors, ACL, Radio Settings, Regions, Advert Intervals, Owner Info — each fetched via granular `POST /api/contacts/{key}/repeater/{pane}` endpoints. The Owner Info pane consumes `owner_info_updated` / `stored_owner_info`: it notes when the repeater's reported owner was auto-saved to the contact (empty case) and offers an override button when a different value is already saved (which calls `api.updateContactAnnotations`). The Regions pane prefers the admin CLI hierarchy and falls back to the guest anon flood-allowed names, so its payload carries a `source` of `cli` or `anon`. Panes retry up to 3 times client-side. `Neighbors` depends on the smaller `node-info` fetch for repeater GPS, not the heavier radio-settings batch. "Load All" fetches all panes serially (parallel would queue behind the radio lock).
+**Dashboard panes** (after login): Telemetry, Node Info, Neighbors, ACL, Radio Settings, Regions, Advert Intervals, Owner Info - each fetched via granular `POST /api/contacts/{key}/repeater/{pane}` endpoints. The Owner Info pane consumes `owner_info_updated` / `stored_owner_info`: it notes when the repeater's reported owner was auto-saved to the contact (empty case) and offers an override button when a different value is already saved (which calls `api.updateContactAnnotations`). The Regions pane prefers the admin CLI hierarchy and falls back to the guest anon flood-allowed names, so its payload carries a `source` of `cli` or `anon`. Panes retry up to 3 times client-side. `Neighbors` depends on the smaller `node-info` fetch for repeater GPS, not the heavier radio-settings batch. "Load All" fetches all panes serially (parallel would queue behind the radio lock).
 
-**Actions pane**: Send Advert, Sync Clock, Reboot — all send CLI commands via `POST /api/contacts/{key}/command`.
+**Actions pane**: Send Advert, Sync Clock, Reboot - all send CLI commands via `POST /api/contacts/{key}/command`.
 
 **Console pane**: Full CLI access via the same command endpoint. History is ephemeral (not persisted to DB).
 
@@ -499,7 +499,7 @@ The `SearchView` component (`components/SearchView.tsx`) provides full-text sear
 Web Push allows notifications even when the browser tab is closed. Requires HTTPS (self-signed OK).
 
 - **Service worker**: `frontend/public/sw.js` handles `push` events (show notification) and `notificationclick` (focus/open tab, navigate via `url_hash`). Registered in `main.tsx` on secure contexts only.
-- **`usePushSubscription` hook**: manages the full subscription lifecycle — subscribe (register SW → `PushManager.subscribe()` → POST to backend), unsubscribe, global push-conversation toggles, device listing, and deletion.
+- **`usePushSubscription` hook**: manages the full subscription lifecycle - subscribe (register SW → `PushManager.subscribe()` → POST to backend), unsubscribe, global push-conversation toggles, device listing, and deletion.
 - **ChatHeader integration**: `BellRing` icon (amber when active) appears next to the existing desktop notification `Bell` on secure contexts. First click subscribes the browser and enables push for that conversation; subsequent clicks toggle the conversation on/off.
 - **Settings > Local**: `PushDeviceManagement` component shows subscription status, lists all registered devices with test/delete buttons. Uses `usePushSubscription` hook directly.
 - Auto-generates device labels from User-Agent (e.g., "Chrome on macOS").
@@ -518,7 +518,7 @@ Key conventions documented in the reference:
 
 - **Text sizes** use `rem`-based Tailwind values so they scale with the user's font-size slider. Do not use hard-locked `px` values (e.g., `text-[10px]`). The canonical sizes are `text-[0.625rem]` (10px), `text-[0.6875rem]` (11px), `text-[0.8125rem]` (13px), plus standard Tailwind `text-xs`/`text-sm`/`text-base`/`text-lg`/`text-xl`.
 - **Group titles** (sub-section headings within settings tabs) use `<h3 className="text-base font-semibold tracking-tight">`. These separate major groups like "Connection", "Identity", "MQTT Broker". When a group contains named sub-items (e.g. "Contact Management" → "Blocked Contacts", "Bulk Delete"), use `<h4 className="text-sm font-semibold">` for the children and nest them inside the parent group's `div` instead of separating with `<Separator />`.
-- **Helper / description text** uses `text-[0.8125rem] text-muted-foreground` (13px). This is for explanatory paragraphs under inputs or sections — not for metadata, timestamps, or alert text which stay at `text-xs`.
+- **Helper / description text** uses `text-[0.8125rem] text-muted-foreground` (13px). This is for explanatory paragraphs under inputs or sections - not for metadata, timestamps, or alert text which stay at `text-xs`.
 - **Metadata labels** use `text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium` for compact category tags like "Push-enabled conversations" or "Registered Devices".
 - **Buttons** use the shadcn `<Button>` component. Semantic color overrides (danger, warning, success) use `variant="outline"` with `className="border-{color}/50 text-{color} hover:bg-{color}/10"`.
 - **Badges/tags** use `text-[0.625rem] uppercase tracking-wider px-1.5 py-0.5 rounded` with `bg-muted` (neutral) or `bg-primary/10` (active).
@@ -529,7 +529,7 @@ Key conventions documented in the reference:
 `SettingsStatisticsSection.tsx` renders `stats.region_scope_24h` via `RegionScopeStatsPanel`. Two presentation rules exist because regional adoption is currently very sparse, and both are deliberate:
 
 - **Fractions, not bare percentages.** "3 of 117" carries the sample size that "2.6%" hides.
-- **The traffic percentage is withheld** when the scoped count is at or below `false_positive_floor` (corrupt-capture noise) or when the share would round to `0.0%`. The floor caveat is always shown alongside a non-zero scoped count. The sender figure is never suppressed — it requires successful decryption and so carries no noise.
+- **The traffic percentage is withheld** when the scoped count is at or below `false_positive_floor` (corrupt-capture noise) or when the share would round to `0.0%`. The floor caveat is always shown alongside a non-zero scoped count. The sender figure is never suppressed - it requires successful decryption and so carries no noise.
 
 Traffic and sender figures use different denominators (all channels vs. decryptable-only) and are not expected to match.
 
@@ -587,7 +587,7 @@ This is intentional. In the sidebar, unread direct messages for actual contact c
 
 ### RawPacketList autoscroll
 
-`RawPacketList` sticks to the latest packet on every update when its `autoScroll` prop is true (the default). `RawPacketFeedView` exposes an "Autoscroll" checkbox next to the type filters (default ticked, session-only — intentionally not persisted) so users can pause scrolling to correlate older packets. Toggling it back on jumps to the bottom immediately (`autoScroll` is an effect dependency).
+`RawPacketList` sticks to the latest packet on every update when its `autoScroll` prop is true (the default). `RawPacketFeedView` exposes an "Autoscroll" checkbox next to the type filters (default ticked, session-only - intentionally not persisted) so users can pause scrolling to correlate older packets. Toggling it back on jumps to the bottom immediately (`autoScroll` is an effect dependency).
 
 ## Editing Checklist
 
@@ -614,7 +614,7 @@ Rules for new strings:
 - Add every key to all three catalogs: `src/i18n/locales/{en,nl,de}.json`.
   `en.json` is the source of truth; the parity test (`src/test/i18nParity.test.ts`)
   fails if the key sets differ. If a NL/DE translation is unknown, copy the
-  English value — the runtime falls back to English anyway.
+  English value - the runtime falls back to English anyway.
 - Interpolation uses single-brace `{name}` tokens; pass params as
   `t('key', { name: value })`.
 - Counted strings use a plural object `{ "one": "...", "other": "..." }` and are

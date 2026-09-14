@@ -8,14 +8,14 @@ export default defineConfig({
   testDir: './specs',
   globalSetup: './global-setup.ts',
 
-  // Radio operations are slow — generous timeouts
+  // Radio operations are slow - generous timeouts
   timeout: 60_000,
   expect: { timeout: 15_000 },
 
   // Give hardware-backed flows one automatic retry before marking the test failed.
   retries: 1,
 
-  // Run tests serially — single radio means no parallelism
+  // Run tests serially - single radio means no parallelism
   fullyParallel: false,
   workers: 1,
 
@@ -48,11 +48,11 @@ export default defineConfig({
     command: `bash -c '
       echo "[e2e] $(date +%T.%3N) Starting webServer command..."
       if [ ! -d frontend/dist ]; then
-        echo "[e2e] $(date +%T.%3N) frontend/dist missing — running npm ci + build"
+        echo "[e2e] $(date +%T.%3N) frontend/dist missing - running npm ci + build"
         cd frontend && npm ci && npm run build
         echo "[e2e] $(date +%T.%3N) Frontend build complete"
       else
-        echo "[e2e] $(date +%T.%3N) frontend/dist exists — skipping build"
+        echo "[e2e] $(date +%T.%3N) frontend/dist exists - skipping build"
       fi
       echo "[e2e] $(date +%T.%3N) Launching uvicorn..."
       uv run uvicorn app.main:app --host 127.0.0.1 --port 8001

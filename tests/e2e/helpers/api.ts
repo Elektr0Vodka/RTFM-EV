@@ -292,7 +292,7 @@ export async function ensureChannel(name: string): Promise<Channel> {
   return createChannel(name);
 }
 
-/** Convenience alias — ensures #flightless exists. */
+/** Convenience alias - ensures #flightless exists. */
 export async function ensureFlightlessChannel(): Promise<Channel> {
   return ensureChannel('#flightless');
 }

@@ -332,7 +332,7 @@ class TestFanoutManagerNewEventDispatch:
 
     @pytest.mark.asyncio
     async def test_broadcast_contact_ignores_scope(self):
-        """Contact dispatch is unconditional — scope doesn't affect it."""
+        """Contact dispatch is unconditional - scope doesn't affect it."""
         manager = FanoutManager()
         mod = StubModule()
         manager._modules["test-id"] = (mod, {"messages": "none", "raw_packets": "none"})
@@ -395,7 +395,7 @@ class TestFanoutManagerNewEventDispatch:
         mod = MinimalModule("test", {})
         manager._modules["test-id"] = (mod, {})
 
-        # Should not raise — base class no-ops silently accept
+        # Should not raise - base class no-ops silently accept
         await manager.broadcast_contact({"public_key": "aabb"})
         await manager.broadcast_telemetry({"public_key": "ccdd"})
         await manager.broadcast_health_fanout({"connected": True})

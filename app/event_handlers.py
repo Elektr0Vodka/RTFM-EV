@@ -257,7 +257,7 @@ async def on_new_contact(event: "Event") -> None:
 
     # Intentionally do not set first_seen or last_seen here: NEW_CONTACT
     # fires from the radio's stored contact DB, not an RF observation.
-    # Both first_seen and last_seen are RF-only timestamps — they track
+    # Both first_seen and last_seen are RF-only timestamps - they track
     # the first and most recent time we actually heard this pubkey over
     # the air (adverts, messages, path updates). Contacts synced from the
     # radio's internal DB without any RF activity stay NULL until a real

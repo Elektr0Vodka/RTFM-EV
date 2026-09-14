@@ -1,5 +1,5 @@
 // Per-conversation "mute the mention sound" flags, kept per-device in
-// localStorage — the override half of the global mention-sound setting.
+// localStorage - the override half of the global mention-sound setting.
 import { getStateKey } from '../utils/conversationState';
 
 const STORAGE_KEY = 'meshcore_mention_sound_muted_by_conversation';

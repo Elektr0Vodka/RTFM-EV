@@ -28,7 +28,7 @@ assignees: ''
 ## 🔌 Connection to the Radio
 - **Connected directly to the radio, or through an intermediary?**
   <!-- Direct is the only officially supported path. If you use an intermediary
-       companion/frameserver such as pyMC / OpenHop, please say so — many issues
+       companion/frameserver such as pyMC / OpenHop, please say so - many issues
        are specific to those and won't reproduce on a direct connection. -->
 - **Transport:** <!-- Serial / TCP / BLE -->
 
@@ -41,18 +41,18 @@ assignees: ''
 <!-- Screenshots are great. A debug snapshot or debug-level logs help enormously. -->
 
 <details>
-<summary><b>How to attach debug information</b> (please read — it speeds up diagnosis a lot)</summary>
+<summary><b>How to attach debug information</b> (please read - it speeds up diagnosis a lot)</summary>
 
-**Easiest — debug support snapshot (recommended for everyone):**
+**Easiest - debug support snapshot (recommended for everyone):**
 In the app, go to **Settings → About → "Open debug support snapshot"** (or navigate to
 `/api/debug`). Copy the block and paste it here.
 
 > 🔒 The snapshot includes recent logs and basic environment/radio status. It never
 > exposes your private key. Logs *may* contain channel names or keys. If you'd rather
-> not share those, copy only **up to the `STOP COPYING HERE` marker** — everything
+> not share those, copy only **up to the `STOP COPYING HERE` marker** - everything
 > above it reveals nothing sensitive beyond your bot names.
 
-**Advanced — full debug-level logs:**
+**Advanced - full debug-level logs:**
 Restart the backend with debug logging enabled to capture detailed radio
 communication and packet processing:
 ```bash

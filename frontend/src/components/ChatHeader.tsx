@@ -598,10 +598,10 @@ export function ChatHeader({
               aria-label="Toggle channel activity detection"
               title={
                 cadEnabled === null || cadEnabled === undefined
-                  ? 'CAD state unknown — click to enable channel activity detection'
+                  ? 'CAD state unknown - click to enable channel activity detection'
                   : cadEnabled
-                    ? 'CAD on — scans for channel activity before transmit; click to disable'
-                    : 'CAD off — click to enable channel activity detection'
+                    ? 'CAD on - scans for channel activity before transmit; click to disable'
+                    : 'CAD off - click to enable channel activity detection'
               }
               className={cn(
                 'flex shrink-0 items-center rounded px-1.5 py-1 text-[0.6875rem] font-semibold tracking-wide transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',

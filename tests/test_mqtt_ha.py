@@ -662,7 +662,7 @@ class TestMqttHaMessage:
         mod._publisher = MagicMock()
         mod._publisher.connected = True
         mod._publisher.publish = AsyncMock()
-        # _radio_key is None — should not publish
+        # _radio_key is None - should not publish
         await mod.on_message({"type": "PRIV", "text": "hi", "sender_name": "X"})
         mod._publisher.publish.assert_not_called()
 

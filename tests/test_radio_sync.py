@@ -817,7 +817,7 @@ class TestSyncAndOffloadAll:
         mock_result.type = EventType.OK
         mock_mc.commands.add_contact = AsyncMock(return_value=mock_result)
 
-        # Make radio_operation raise if called — it should NOT be called
+        # Make radio_operation raise if called - it should NOT be called
         # when mc is provided
         def radio_operation_should_not_be_called(*args, **kwargs):
             raise AssertionError("radio_operation should not be called when mc is passed")
@@ -839,7 +839,7 @@ class TestSyncAndOffloadAll:
         radio_manager._meshcore = mock_mc
         await sync_recent_contacts_to_radio()
 
-        # Second call with mc= but no force — should still be throttled
+        # Second call with mc= but no force - should still be throttled
         result = await sync_recent_contacts_to_radio(mc=mock_mc)
         assert result["throttled"] is True
         assert result["loaded"] == 0
@@ -1702,7 +1702,7 @@ class TestMessagePollLoopRaces:
     @pytest.mark.asyncio
     async def test_disconnect_race_between_precheck_and_lock(self):
         """RadioDisconnectedError between is_connected and radio_operation()
-        is caught by the outer except — loop survives and continues."""
+        is caught by the outer except - loop survives and continues."""
         rm, _mc = _make_connected_manager()
         _disconnect_on_acquire(rm)
         mock_sleep, sleep_calls = _sleep_controller(cancel_after=2)
@@ -1742,7 +1742,7 @@ class TestMessagePollLoopRaces:
     @pytest.mark.asyncio
     async def test_passes_lock_scoped_mc_not_stale_global(self):
         """The mc yielded by radio_operation() is forwarded to
-        poll_for_messages — not a stale radio_manager.meshcore read."""
+        poll_for_messages - not a stale radio_manager.meshcore read."""
         rm, mock_mc = _make_connected_manager()
         mock_sleep, _ = _sleep_controller(cancel_after=2)
 
@@ -1859,7 +1859,7 @@ class TestPeriodicAdvertLoopRaces:
     @pytest.mark.asyncio
     async def test_disconnect_race_between_precheck_and_lock(self):
         """RadioDisconnectedError between is_connected and radio_operation()
-        is caught by the outer except — loop survives and continues."""
+        is caught by the outer except - loop survives and continues."""
         rm, _mc = _make_connected_manager()
         _disconnect_on_acquire(rm)
         # Advert loop: sleep first, then work. Sleep 1 (loop top) passes,
@@ -1900,7 +1900,7 @@ class TestPeriodicAdvertLoopRaces:
     @pytest.mark.asyncio
     async def test_passes_lock_scoped_mc_not_stale_global(self):
         """The mc yielded by radio_operation() is forwarded to
-        send_advertisement — not a stale radio_manager.meshcore read."""
+        send_advertisement - not a stale radio_manager.meshcore read."""
         rm, mock_mc = _make_connected_manager()
         # Sleep 1 (loop top) passes through, work runs, sleep 2 cancels.
         mock_sleep, _ = _sleep_controller(cancel_after=2)
@@ -1951,7 +1951,7 @@ class TestPeriodicSyncLoopRaces:
     @pytest.mark.asyncio
     async def test_disconnect_race_between_precheck_and_lock(self):
         """RadioDisconnectedError between is_connected and radio_operation()
-        is caught by the outer except — loop survives and continues."""
+        is caught by the outer except - loop survives and continues."""
         rm, _mc = _make_connected_manager()
         _disconnect_on_acquire(rm)
         mock_sleep, sleep_calls = _sleep_controller(cancel_after=2)
@@ -2004,7 +2004,7 @@ class TestPeriodicSyncLoopRaces:
     @pytest.mark.asyncio
     async def test_passes_lock_scoped_mc_not_stale_global(self):
         """The mc yielded by radio_operation() is forwarded to
-        sync_and_offload_all and sync_radio_time — not a stale
+        sync_and_offload_all and sync_radio_time - not a stale
         radio_manager.meshcore read."""
         rm, mock_mc = _make_connected_manager()
         mock_sleep, _ = _sleep_controller(cancel_after=2)
@@ -2053,7 +2053,7 @@ class TestPeriodicSyncLoopRaces:
 
 
 # ---------------------------------------------------------------------------
-# _collect_repeater_telemetry — LPP sensor collection
+# _collect_repeater_telemetry - LPP sensor collection
 # ---------------------------------------------------------------------------
 
 
@@ -2564,7 +2564,7 @@ class TestRunTelemetryCycleRoutedOnly:
 
 
 # ---------------------------------------------------------------------------
-# _telemetry_collect_loop — UTC modulo scheduler
+# _telemetry_collect_loop - UTC modulo scheduler
 # ---------------------------------------------------------------------------
 
 
@@ -2742,7 +2742,7 @@ class TestTelemetryCollectSchedulerDecision:
         sleep-to-next-top-of-hour would otherwise carry us past the boundary.
 
         Scenario: server starts at 23:59:30 UTC with a 24-hour interval. The
-        60-second boot guard pushes the first check into 00:00:30 — a matching
+        60-second boot guard pushes the first check into 00:00:30 - a matching
         hour that we must NOT skip. Before the fix, the loop went straight to
         sleeping until 01:00 and then failing the modulo, missing the entire
         day's only scheduled collection.
@@ -2936,7 +2936,7 @@ class TestRoutedHourlySchedulerDecision:
     @pytest.mark.asyncio
     async def test_modulo_hour_runs_full_cycle_even_with_routed_hourly(self):
         """At 16:00 UTC with 8h interval, a normal full cycle runs regardless
-        of whether routed_hourly is enabled — it covers all repeaters."""
+        of whether routed_hourly is enabled - it covers all repeaters."""
         import datetime as real_datetime
         from unittest.mock import AsyncMock, patch
 
@@ -2970,7 +2970,7 @@ class TestRoutedHourlySchedulerDecision:
 
 
 # ---------------------------------------------------------------------------
-# get_contacts_selected_for_radio_sync — DM-active prioritization
+# get_contacts_selected_for_radio_sync - DM-active prioritization
 # ---------------------------------------------------------------------------
 
 
@@ -3069,7 +3069,7 @@ class TestContactSelectionDmActive:
 
 
 # ---------------------------------------------------------------------------
-# get_contacts_selected_for_radio_sync — radio_policy (pinned / excluded)
+# get_contacts_selected_for_radio_sync - radio_policy (pinned / excluded)
 # ---------------------------------------------------------------------------
 
 

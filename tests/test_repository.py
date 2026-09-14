@@ -559,7 +559,7 @@ class TestContactRepositoryResolvePrefixes:
         await ContactRepository.upsert({"public_key": key_b, "name": "A2", "type": 1})
 
         result = await ContactRepository.resolve_prefixes(["aa"])
-        assert "aa" not in result  # ambiguous — two matches
+        assert "aa" not in result  # ambiguous - two matches
 
     @pytest.mark.asyncio
     async def test_empty_prefixes_returns_empty(self, test_db):
@@ -899,7 +899,7 @@ class TestContactRepositoryLastSeenSemantics:
         contact = await ContactRepository.get_by_key("aa" * 32)
         assert contact is not None
         assert contact.last_seen == 1_700_000_500
-        # The path itself still updates — only last_seen is monotonic-guarded.
+        # The path itself still updates - only last_seen is monotonic-guarded.
         assert contact.direct_path == "cd"
 
 

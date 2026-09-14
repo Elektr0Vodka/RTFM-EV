@@ -70,12 +70,12 @@ class ContactUpsert(BaseModel):
                 -1 if radio_data.get("out_path_len", -1) == -1 else 0,
             ),
         )
-        # Clamp invalid contact types to 0 (unknown) — corrupted radio data
+        # Clamp invalid contact types to 0 (unknown) - corrupted radio data
         # can produce values like 111 or 240 that break downstream branching.
         raw_type = radio_data.get("type", 0)
         contact_type = raw_type if raw_type in _VALID_CONTACT_TYPES else 0
 
-        # Null out impossible coordinates — the contact is still ingested,
+        # Null out impossible coordinates - the contact is still ingested,
         # but garbage lat/lon (e.g. 1953.7) is discarded rather than stored.
         lat = radio_data.get("adv_lat")
         lon = radio_data.get("adv_lon")
@@ -724,11 +724,11 @@ class RepeaterRegionEntry(BaseModel):
 class RepeaterRegionsResponse(BaseModel):
     """Region hierarchy and flood permissions from a repeater.
 
-    Primary source is the admin `region` CLI dump — an indented tree capped at
+    Primary source is the admin `region` CLI dump - an indented tree capped at
     ~160 chars, so large region sets can be truncated (``truncated`` flags this).
     When the CLI is unavailable (e.g. guest access), ``source`` is ``"anon"`` and
     ``regions`` is the guest-accessible anon request's flat list of flood-allowed
-    region names only — no hierarchy, no blocked regions, no home marker. See
+    region names only - no hierarchy, no blocked regions, no home marker. See
     issue #309.
     """
 
@@ -1028,7 +1028,7 @@ class RadioRegionDiscoveryResponse(BaseModel):
     """Aggregated result of a region discovery sweep across nearby repeaters.
 
     ``regions`` is the deduplicated union of every repeater's flood-allowed
-    region names — the list an operator can merge into ``known_regions``. The
+    region names - the list an operator can merge into ``known_regions``. The
     anon request only reports flood-allowed names, so blocked regions and the
     hierarchy are not visible here (use the per-repeater admin regions pane for
     the full picture). See issue #309.
@@ -1432,7 +1432,7 @@ class PacketsPerHourBucket(BaseModel):
 class RegionScopeStats(BaseModel):
     """Regional flood-scope adoption over the last 24 hours.
 
-    Two independent views, deliberately not merged — they have different
+    Two independent views, deliberately not merged - they have different
     denominators and will not agree:
 
     - Traffic (``total_messages``/``scoped_messages``) counts flood-routed

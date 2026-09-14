@@ -1255,7 +1255,7 @@ class TestFetchDeviceInfo:
 
         assert result["model"] == "unknown"
         assert result["firmware_version"] == "unknown"
-        # Should NOT be cached — allows retry on next status publish
+        # Should NOT be cached - allows retry on next status publish
         assert pub._cached_device_info is None
 
     @pytest.mark.asyncio
@@ -1271,7 +1271,7 @@ class TestFetchDeviceInfo:
 
         assert result["model"] == "unknown"
         assert result["firmware_version"] == "unknown"
-        # Should NOT be cached — allows retry when radio becomes available
+        # Should NOT be cached - allows retry when radio becomes available
         assert pub._cached_device_info is None
 
     @pytest.mark.asyncio
@@ -1280,7 +1280,7 @@ class TestFetchDeviceInfo:
         pub = CommunityMqttPublisher()
         pub._cached_device_info = {"model": "T-Deck", "firmware_version": "v2.2.2"}
 
-        # No radio mock needed — should return cached
+        # No radio mock needed - should return cached
         result = await pub._fetch_device_info()
         assert result["model"] == "T-Deck"
 

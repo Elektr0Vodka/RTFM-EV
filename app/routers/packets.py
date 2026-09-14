@@ -200,7 +200,7 @@ async def get_recent_packets(
         packets.append(
             {
                 "id": row["id"],
-                # observation_id is not meaningful for historical rows — use id.
+                # observation_id is not meaningful for historical rows - use id.
                 "observation_id": row["id"],
                 "timestamp": row["timestamp"],
                 "data": bytes(row["data"]).hex(),
@@ -1160,7 +1160,7 @@ async def run_maintenance(request: MaintenanceRequest) -> MaintenanceResult:
         logger.info("Deleted %d linked raw packets", purged_linked)
 
     # Run VACUUM to reclaim space on a dedicated connection.
-    # VACUUM requires exclusive access — if the main connection is actively
+    # VACUUM requires exclusive access - if the main connection is actively
     # writing (background sync, message processing, etc.) it fails with
     # SQLITE_BUSY. This is expected; we just report vacuumed=False.
     vacuumed = False

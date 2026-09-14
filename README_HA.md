@@ -32,7 +32,7 @@ When this README shows `<node_id>`, it always means that 12-character value. Nod
 - MQTT discovery topics under `homeassistant/...`
 - Runtime MQTT state topics under your configured prefix, usually `meshcore/...`
 
-**Entity IDs** are different — HA auto-generates them from the device name and entity name, not from the node ID. For example, a radio named "MyRadio" produces entities like `binary_sensor.myradio_connected` and `event.myradio_messages`. A contact named "Alice" produces `device_tracker.alice`. You can find your actual entity IDs in **Settings > Devices & Services > MQTT** in HA, and you can rename them in HA's UI without affecting the integration.
+**Entity IDs** are different - HA auto-generates them from the device name and entity name, not from the node ID. For example, a radio named "MyRadio" produces entities like `binary_sensor.myradio_connected` and `event.myradio_messages`. A contact named "Alice" produces `device_tracker.alice`. You can find your actual entity IDs in **Settings > Devices & Services > MQTT** in HA, and you can rename them in HA's UI without affecting the integration.
 
 You can also see the MQTT topic IDs in RemoteTerm's Home Assistant integration UI:
 
@@ -290,7 +290,7 @@ entities:
 
 ### Full monitoring dashboard with message feed
 
-This example creates a dashboard with repeater vitals, a live message feed, and a network activity graph. Replace the three slug values below to match your setup — find your entity IDs in **Settings > Devices & Services > MQTT**.
+This example creates a dashboard with repeater vitals, a live message feed, and a network activity graph. Replace the three slug values below to match your setup - find your entity IDs in **Settings > Devices & Services > MQTT**.
 
 ```yaml
 # ┌─────────────────────────────────────────────────────┐
@@ -309,7 +309,7 @@ This example creates a dashboard with repeater vitals, a live message feed, and 
 #   message_event: event.myradio_messages
 ```
 
-**Step 1 — Dashboard YAML** (Settings > Dashboards > Add > edit in YAML):
+**Step 1 - Dashboard YAML** (Settings > Dashboards > Add > edit in YAML):
 
 ```yaml
 views:
@@ -317,7 +317,7 @@ views:
     icon: mdi:radio-tower
     cards:
       - type: entities
-        title: Hilltop — Current                     # ← repeater name
+        title: Hilltop - Current                     # ← repeater name
         state_color: true
         entities:
           - entity: sensor.hilltop_battery_voltage    # ← repeater_slug
@@ -374,9 +374,9 @@ views:
         period: hour
 ```
 
-**Step 2 — Message feed helpers**: create 10 text helpers named `MeshCore Msg 1` through `MeshCore Msg 10` (Settings > Helpers > Add > Text). These act as a rolling buffer for the Markdown card above.
+**Step 2 - Message feed helpers**: create 10 text helpers named `MeshCore Msg 1` through `MeshCore Msg 10` (Settings > Helpers > Add > Text). These act as a rolling buffer for the Markdown card above.
 
-**Step 3 — Message feed automation** (Settings > Automations > Create > edit in YAML):
+**Step 3 - Message feed automation** (Settings > Automations > Create > edit in YAML):
 
 ```yaml
 alias: MeshCore Message Feed Buffer

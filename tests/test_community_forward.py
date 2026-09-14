@@ -40,10 +40,10 @@ def test_format_node_telemetry_keys_publisher_and_subject_apart():
     out = _format_node_telemetry(_repeater_telemetry_event(), "MyRadio", _SELF)
 
     assert out is not None
-    # publisher (self) — satisfies the broker's origin_id==publisher rule
+    # publisher (self) - satisfies the broker's origin_id==publisher rule
     assert out["origin_id"] == _SELF.upper()
     assert out["origin"] == "MyRadio"
-    # heard node R — the whole point
+    # heard node R - the whole point
     assert out["subject_id"] == _SUBJECT.upper()
     assert out["subject_name"] == "RepeaterR"
     assert out["type"] == "TELEMETRY"

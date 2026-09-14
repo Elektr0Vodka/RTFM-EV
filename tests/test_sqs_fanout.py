@@ -1,7 +1,7 @@
 """Tests for the SQS fanout module helper functions.
 
 Covers region inference from queue URLs, FIFO deduplication ID fallback chains,
-and message group ID construction — the non-trivial logic in app/fanout/sqs.py.
+and message group ID construction - the non-trivial logic in app/fanout/sqs.py.
 """
 
 import hashlib

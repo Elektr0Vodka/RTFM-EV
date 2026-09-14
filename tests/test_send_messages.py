@@ -707,7 +707,7 @@ class TestOutgoingChannelBroadcast:
     @pytest.mark.asyncio
     async def test_persisted_unscoped_channel_forces_plain_flood_over_scoped_global(self, test_db):
         """A channel persistently marked unscoped ('*') sends unscoped even when the
-        companion has a global region set — the core of issue #303. No per-send
+        companion has a global region set - the core of issue #303. No per-send
         override is supplied, so this exercises the persisted-override path."""
         mc = _make_mc(name="MyNode")
         chan_key = "d3" * 16
@@ -1208,7 +1208,7 @@ class TestResendChannelMessage:
         chan_key = "dd" * 16
         await ChannelRepository.upsert(key=chan_key, name="#old")
 
-        old_ts = int(time.time()) - 60  # 60 seconds ago — outside byte-perfect window
+        old_ts = int(time.time()) - 60  # 60 seconds ago - outside byte-perfect window
         msg_id = await MessageRepository.create(
             msg_type="CHAN",
             text="MyNode: old message",
@@ -1507,7 +1507,7 @@ class TestPathHashModeOverride:
 
     @pytest.mark.asyncio
     async def test_send_channel_msg_phm_restore_succeeds_on_second_attempt(self, test_db):
-        """Restore retries and succeeds on the second attempt — no error broadcast."""
+        """Restore retries and succeeds on the second attempt - no error broadcast."""
         mc = _make_mc(name="MyNode")
         mc.commands.set_path_hash_mode = AsyncMock(
             side_effect=[
@@ -1636,7 +1636,7 @@ class TestChannelEchoWatchdog:
 
     @pytest.mark.asyncio
     async def test_watchdog_handles_radio_busy_gracefully(self, test_db):
-        """RadioOperationBusyError is caught — no exception propagates."""
+        """RadioOperationBusyError is caught - no exception propagates."""
 
         chan_key = "e4" * 16
         await ChannelRepository.upsert(key=chan_key, name="#busy")
@@ -1659,7 +1659,7 @@ class TestChannelEchoWatchdog:
         await radio_manager._operation_lock.acquire()
 
         try:
-            # Should not raise — RadioOperationBusyError is caught internally
+            # Should not raise - RadioOperationBusyError is caught internally
             await message_send_service._channel_echo_watchdog(
                 message_id=msg_id,
                 radio_manager=radio_manager,
@@ -1709,7 +1709,7 @@ class TestRadioExceptionMidSend:
                     SendDirectMessageRequest(destination=pub_key, text="This will fail")
                 )
 
-        # No message should be stored — the exception prevented reaching MessageRepository.create
+        # No message should be stored - the exception prevented reaching MessageRepository.create
         messages = await MessageRepository.get_all(
             msg_type="PRIV", conversation_key=pub_key, limit=10
         )
@@ -1899,7 +1899,7 @@ class TestConcurrentChannelSends:
     @pytest.mark.asyncio
     async def test_concurrent_sends_to_different_channels_both_succeed(self, test_db):
         """Two concurrent send_channel_message calls to different channels
-        should both succeed — the radio_operation lock serializes them."""
+        should both succeed - the radio_operation lock serializes them."""
         mc = _make_mc(name="TestNode")
         chan_key_a = "aa" * 16
         chan_key_b = "bb" * 16

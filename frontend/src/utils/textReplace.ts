@@ -123,7 +123,7 @@ export function applyTextReplacements(
         if (i + needle.length <= cursorPos) {
           newCursor += replacement.length - needle.length;
         } else if (i < cursorPos) {
-          // Cursor is inside this match — place it after the replacement
+          // Cursor is inside this match - place it after the replacement
           newCursor = result.length;
         }
         i += needle.length;

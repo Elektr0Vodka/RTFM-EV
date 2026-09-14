@@ -45,7 +45,7 @@ describe('useEntranceSettled', () => {
     });
     expect(result.current).toBe(false);
 
-    // Close before the timer fires — the pending timeout must be cancelled.
+    // Close before the timer fires - the pending timeout must be cancelled.
     rerender({ open: false });
     act(() => {
       vi.advanceTimersByTime(1000);

@@ -854,7 +854,7 @@ class ContactAdvertPathRepository:
         previously recorded best.
 
         ``last_primary_seen`` records the last time this path was a *primary*
-        arrival (``is_new_packet=True`` — the first-heard copy of a unique advert
+        arrival (``is_new_packet=True`` - the first-heard copy of a unique advert
         transmission). Relay copies (``is_new_packet=False``) still refresh
         ``last_seen`` but never advance ``last_primary_seen``, so mesh-health
         advert counts reflect unique transmissions, not relay copies.

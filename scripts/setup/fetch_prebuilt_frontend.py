@@ -5,7 +5,7 @@ fetch_prebuilt_frontend.py
 Downloads the latest prebuilt frontend artifact from the GitHub releases page
 and installs it into frontend/prebuilt/ so the backend can serve it directly.
 
-No GitHub CLI or authentication required — uses only the public releases API
+No GitHub CLI or authentication required - uses only the public releases API
 and browser_download_url. Requires only the Python standard library.
 """
 

@@ -65,7 +65,7 @@ export function OpenHopCadPane() {
     }
   };
 
-  const pct = (v: number | undefined) => (v == null ? '—' : `${Math.round(v * 100)}%`);
+  const pct = (v: number | undefined) => (v == null ? '-' : `${Math.round(v * 100)}%`);
 
   return (
     <div className="space-y-3 text-sm">

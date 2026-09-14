@@ -217,7 +217,7 @@ elif ! docker compose version &>/dev/null; then
     echo -e "${RED}Warning: docker compose is not available. A compose file will still be generated, but you will need the Docker Compose plugin to run it.${NC}"
 fi
 
-echo -e "${BOLD}=== RemoteTerm for MeshCore — Docker Setup ===${NC}"
+echo -e "${BOLD}=== RemoteTerm for MeshCore - Docker Setup ===${NC}"
 echo
 echo -e "  Repo directory     : ${CYAN}${REPO_DIR}${NC}"
 echo -e "  Example compose    : ${CYAN}${EXAMPLE_FILE}${NC}"

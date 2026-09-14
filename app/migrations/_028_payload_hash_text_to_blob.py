@@ -23,7 +23,7 @@ async def migrate(conn: aiosqlite.Connection) -> None:
         await conn.commit()
         return
 
-    # Check column types — skip if payload_hash doesn't exist or is already BLOB
+    # Check column types - skip if payload_hash doesn't exist or is already BLOB
     cursor = await conn.execute("PRAGMA table_info(raw_packets)")
     cols = {row[1]: row[2] for row in await cursor.fetchall()}
     if "payload_hash" not in cols:
@@ -68,7 +68,7 @@ async def migrate(conn: aiosqlite.Connection) -> None:
                 try:
                     ph = bytes.fromhex(ph)
                 except ValueError:
-                    # Not a valid hex string — hash the value to produce a valid BLOB
+                    # Not a valid hex string - hash the value to produce a valid BLOB
                     ph = sha256(ph.encode()).digest()
             batch.append((rid, ts, data, mid, ph))
 

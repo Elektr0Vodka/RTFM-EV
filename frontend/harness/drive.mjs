@@ -1,6 +1,6 @@
 /**
  * Minimal CDP driver: launches the Playwright-cached Chromium, loads the harness,
- * and evaluates assertions in-page. No dependencies — Node 22+ ships fetch/WebSocket.
+ * and evaluates assertions in-page. No dependencies - Node 22+ ships fetch/WebSocket.
  *
  * Usage: node harness/drive.mjs <harness-url>
  */

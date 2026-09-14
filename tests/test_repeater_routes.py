@@ -895,7 +895,7 @@ class TestRepeaterLoginFloodEscalation:
         assert response.authenticated is True
         assert attempts == 2
         mc.commands.reset_path.assert_awaited_once_with(KEY_A)
-        # The contact must not be re-added between attempts — that would restore
+        # The contact must not be re-added between attempts - that would restore
         # the route we just cleared and send the retry direct again.
         assert mc.commands.add_contact.await_count == 1
 
@@ -1394,7 +1394,7 @@ class TestRepeaterRadioSettings:
             "915.0,250,7,5",  # get radio
             "20",  # get tx
             "3",  # get af
-            "??: dutycycle",  # get dutycycle — unknown-config fallthrough on old fw
+            "??: dutycycle",  # get dutycycle - unknown-config fallthrough on old fw
             "1",  # get repeat
             "3",  # get flood.max
         ]
@@ -1665,7 +1665,7 @@ class TestRepeaterOwnerInfo:
         assert mc.commands.send_binary_req.await_count == 1
         req_type_arg = mc.commands.send_binary_req.await_args.args[1]
         assert req_type_arg.value == 0x07
-        # Only the admin-only guest.password goes over CLI — never 'get owner.info'.
+        # Only the admin-only guest.password goes over CLI - never 'get owner.info'.
         cli_cmds = [call.args[1] for call in mc.commands.send_cmd.await_args_list]
         assert "get guest.password" in cli_cmds
         assert "get owner.info" not in cli_cmds

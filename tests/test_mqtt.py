@@ -441,12 +441,12 @@ class TestConnectionLoop:
             patch("app.websocket.broadcast_success"),
             patch("app.websocket.broadcast_health"),
         ):
-            # Start with unconfigured settings — loop should wait
+            # Start with unconfigured settings - loop should wait
             await pub.start(unconfigured)
             await asyncio.sleep(0.05)
             assert pub.connected is False
 
-            # Now provide configured settings — loop should connect
+            # Now provide configured settings - loop should connect
             configured = _make_settings(mqtt_broker_host="broker.local")
             pub._settings = configured
             pub._settings_version += 1

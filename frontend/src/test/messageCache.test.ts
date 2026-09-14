@@ -306,7 +306,7 @@ describe('messageCache', () => {
       const msg = createMessage({ id: 999, text: 'Incoming WS message' });
       messageCache.addMessage('conv0', msg);
 
-      // Add one more — conv1 should now be LRU and get evicted, not conv0
+      // Add one more - conv1 should now be LRU and get evicted, not conv0
       messageCache.set('conv_new', createEntry());
 
       expect(messageCache.get('conv0')).toBeDefined(); // Was promoted by addMessage

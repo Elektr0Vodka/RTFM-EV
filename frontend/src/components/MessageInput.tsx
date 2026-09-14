@@ -384,7 +384,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             </span>
             {warningMessage && (
               <span className={cn(limitState === 'error' ? 'text-destructive' : 'text-warning')}>
-                — {warningMessage}
+                - {warningMessage}
               </span>
             )}
           </div>
@@ -408,7 +408,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
               )}
               {warningMessage && (
                 <span className={cn(limitState === 'error' ? 'text-destructive' : 'text-warning')}>
-                  — {warningMessage}
+                  - {warningMessage}
                 </span>
               )}
             </div>

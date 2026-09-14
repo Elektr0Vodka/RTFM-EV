@@ -303,7 +303,7 @@ def parse_advertisement(
     timestamp = int.from_bytes(payload[32:36], byteorder="little")
     flags = payload[100]
 
-    # Parse flags — clamp device_role to valid range (0-4); corrupted
+    # Parse flags - clamp device_role to valid range (0-4); corrupted
     # advertisements can have junk in the lower nibble.
     device_role = flags & 0x0F
     if device_role > 4:
@@ -423,7 +423,7 @@ def verify_advert_signature(payload: bytes) -> bool:
     except BadSignatureError:
         return False
     except Exception:
-        # Malformed/non-canonical public key or other unexpected failure — treat
+        # Malformed/non-canonical public key or other unexpected failure - treat
         # as invalid rather than propagating into the packet pipeline.
         logger.warning("Advert signature verification errored; treating as invalid", exc_info=True)
         return False

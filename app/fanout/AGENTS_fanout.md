@@ -6,29 +6,29 @@ The fanout bus is a unified system for dispatching mesh radio events to external
 
 ### FanoutModule (base.py)
 Base class that all integration modules extend:
-- `__init__(config_id, config, *, name="")` — constructor; receives the config UUID, the type-specific config dict, and the user-assigned name
-- `start()` / `stop()` — async lifecycle (e.g. open/close connections)
-- `on_message(data)` — receive decoded messages (scope-gated)
-- `on_raw(data)` — receive raw RF packets (scope-gated)
-- `on_contact(data)` — receive contact upserts; dispatched to all modules
-- `on_telemetry(data)` — receive repeater telemetry snapshots; dispatched to all modules
-- `on_health(data)` — receive periodic radio health snapshots; dispatched to all modules
-- `status` property (**must override**) — return `"connected"`, `"disconnected"`, or `"error"`
+- `__init__(config_id, config, *, name="")` - constructor; receives the config UUID, the type-specific config dict, and the user-assigned name
+- `start()` / `stop()` - async lifecycle (e.g. open/close connections)
+- `on_message(data)` - receive decoded messages (scope-gated)
+- `on_raw(data)` - receive raw RF packets (scope-gated)
+- `on_contact(data)` - receive contact upserts; dispatched to all modules
+- `on_telemetry(data)` - receive repeater telemetry snapshots; dispatched to all modules
+- `on_health(data)` - receive periodic radio health snapshots; dispatched to all modules
+- `status` property (**must override**) - return `"connected"`, `"disconnected"`, or `"error"`
 
 All five event hooks are no-ops by default; modules override only the ones they care about.
 
 ### FanoutManager (manager.py)
 Singleton that owns all active modules and dispatches events:
-- `load_from_db()` — startup: load enabled configs, instantiate modules
-- `reload_config(id)` — CRUD: stop old, start new
-- `remove_config(id)` — delete: stop and remove
-- `broadcast_message(data)` — scope-check + dispatch `on_message`
-- `broadcast_raw(data)` — scope-check + dispatch `on_raw`
-- `broadcast_contact(data)` — dispatch `on_contact` to all modules
-- `broadcast_telemetry(data)` — dispatch `on_telemetry` to all modules
-- `broadcast_health_fanout(data)` — dispatch `on_health` to all modules
-- `stop_all()` — shutdown
-- `get_statuses()` — health endpoint data
+- `load_from_db()` - startup: load enabled configs, instantiate modules
+- `reload_config(id)` - CRUD: stop old, start new
+- `remove_config(id)` - delete: stop and remove
+- `broadcast_message(data)` - scope-check + dispatch `on_message`
+- `broadcast_raw(data)` - scope-check + dispatch `on_raw`
+- `broadcast_contact(data)` - dispatch `on_contact` to all modules
+- `broadcast_telemetry(data)` - dispatch `on_telemetry` to all modules
+- `broadcast_health_fanout(data)` - dispatch `on_health` to all modules
+- `stop_all()` - shutdown
+- `get_statuses()` - health endpoint data
 
 All modules are constructed uniformly: `cls(config_id, config_blob, name=cfg.get("name", ""))`.
 
@@ -41,7 +41,7 @@ Each config has a `scope` JSON blob controlling what events reach it:
 ```
 Community MQTT always enforces `{"messages": "none", "raw_packets": "all"}`.
 
-Scope only gates `on_message` and `on_raw`. The `on_contact`, `on_telemetry`, and `on_health` hooks are dispatched to all modules unconditionally — modules that care about specific contacts or repeaters filter internally based on their own config.
+Scope only gates `on_message` and `on_raw`. The `on_contact`, `on_telemetry`, and `on_health` hooks are dispatched to all modules unconditionally - modules that care about specific contacts or repeaters filter internally based on their own config.
 
 ## Event Flow
 
@@ -68,7 +68,7 @@ Setting `realtime=False` (used during historical decryption) skips fanout dispat
 ## Event Payloads
 
 ### on_message(data)
-`Message.model_dump()` — the full Pydantic message model. Key fields:
+`Message.model_dump()` - the full Pydantic message model. Key fields:
 - `type` (`"PRIV"` | `"CHAN"`), `conversation_key`, `text`, `sender_name`, `sender_key`
 - `outgoing`, `acked`, `paths`, `sender_timestamp`, `received_at`
 
@@ -78,7 +78,7 @@ Raw packet dict from `packet_processor.py`. Key fields:
 - `decrypted_info` (optional: `channel_key`, `contact_key`, `text`)
 
 ### on_contact(data)
-`Contact.model_dump()` — the full Pydantic contact model. Key fields:
+`Contact.model_dump()` - the full Pydantic contact model. Key fields:
 - `public_key`, `name`, `type` (0=unknown, 1=client, 2=repeater, 3=room, 4=sensor)
 - `lat`, `lon`, `last_seen`, `first_seen`, `on_radio`
 
@@ -114,38 +114,38 @@ Wraps `CommunityMqttPublisher` from `app/fanout/community_mqtt.py`. Config blob:
 - The published `raw` field is always the original packet hex.
 - When a direct packet includes a `path` field, it is emitted as comma-separated hop identifiers exactly as the packet reports them. Token width varies with the packet's path hash mode (`1`, `2`, or `3` bytes per hop); there is no legacy flat per-byte companion field.
 - Per-topic toggles + cadence (all community presets, incl. the DMC/analyzer broker presets):
-  - `publish_status` (bool, default `true`) — gate the retained `meshcore/{IATA}/{PUBKEY}/status` topic
-  - `publish_packets` (bool, default `true`) — gate the `meshcore/{IATA}/{PUBKEY}/packets` topic
-  - `status_interval_ms` (int, default `300000`, clamped `[1000, 3600000]`; the UI edits minutes, 1-60) — status republish cadence
+  - `publish_status` (bool, default `true`) - gate the retained `meshcore/{IATA}/{PUBKEY}/status` topic
+  - `publish_packets` (bool, default `true`) - gate the `meshcore/{IATA}/{PUBKEY}/packets` topic
+  - `status_interval_ms` (int, default `300000`, clamped `[1000, 3600000]`; the UI edits minutes, 1-60) - status republish cadence
   - Absent keys default to status on / packets on / 300000 ms (unchanged legacy behavior). No `raw` topic is published (the raw bytes + SNR/RSSI already ride on `/packets`).
 
 ### bot (bot.py)
 Wraps bot code execution via `app/fanout/bot_exec.py`. Config blob:
-- `code` — Python bot function source code
+- `code` - Python bot function source code
 - Executes in a thread pool with timeout and semaphore concurrency control
 - Rate-limits outgoing messages for repeater compatibility
 - Channel `message_text` passed to bot code is normalized for human readability by stripping a leading `"{sender_name}: "` prefix when it matches the payload sender.
-- The `bot(...)` function receives, in order: `sender_name`, `sender_key`, `message_text`, `is_dm`, `channel_key`, `channel_name`, `sender_timestamp`, `path`, then optionally `is_outgoing`, `path_bytes_per_hop`, `packet_hash`. Two further kwargs — `region` (resolved region name; `None` for unscoped flood or a transport code matching no known region) and `scoped` (`bool`: whether the message carried a regional flood scope) — are delivered **only** to bots that use `**kwargs` or explicitly name the parameter; they are intentionally not added to the positional call styles so existing bot signatures keep binding unchanged. `scoped` disambiguates a `None` region: `not scoped` = unscoped, `scoped and region is None` = scoped-but-unknown-region, `scoped and region` = that named region. Unlike `region` (channel-only historically), `scoped` is also set for scoped DMs (flood-direct messages can carry a scope), which resolves the DM half of #300. `_analyze_bot_signature` in `bot_exec.py` picks the call style from the bot's actual signature.
-- **Return shapes** (`execute_bot_code` → `process_bot_response`): `None` (no reply), a `str`, a `list[str]` (sent in order), or a `dict` `{"region": <name|None>, "message": <str|list[str]>}`. The dict form (`BotReply`) scopes the reply send to a region **for that send only**: a region name applies it, `None`/empty clears it (unscoped/plain flood), and an absent `region` key falls back to the channel's persisted `flood_scope_override`. Region scoping applies to channel replies only — it is ignored for DM replies (DMs are not region-scoped). Outgoing scope reuses the existing `send_channel_message_with_effective_scope` set-scope/send/restore machinery via a per-send `flood_scope_override` on `SendChannelMessageRequest`. Note the bot can scope to any region name; whether the echo is *labeled* still depends on the operator's `app_settings.known_regions` (that list only drives decode, not transmit).
+- The `bot(...)` function receives, in order: `sender_name`, `sender_key`, `message_text`, `is_dm`, `channel_key`, `channel_name`, `sender_timestamp`, `path`, then optionally `is_outgoing`, `path_bytes_per_hop`, `packet_hash`. Two further kwargs - `region` (resolved region name; `None` for unscoped flood or a transport code matching no known region) and `scoped` (`bool`: whether the message carried a regional flood scope) - are delivered **only** to bots that use `**kwargs` or explicitly name the parameter; they are intentionally not added to the positional call styles so existing bot signatures keep binding unchanged. `scoped` disambiguates a `None` region: `not scoped` = unscoped, `scoped and region is None` = scoped-but-unknown-region, `scoped and region` = that named region. Unlike `region` (channel-only historically), `scoped` is also set for scoped DMs (flood-direct messages can carry a scope), which resolves the DM half of #300. `_analyze_bot_signature` in `bot_exec.py` picks the call style from the bot's actual signature.
+- **Return shapes** (`execute_bot_code` → `process_bot_response`): `None` (no reply), a `str`, a `list[str]` (sent in order), or a `dict` `{"region": <name|None>, "message": <str|list[str]>}`. The dict form (`BotReply`) scopes the reply send to a region **for that send only**: a region name applies it, `None`/empty clears it (unscoped/plain flood), and an absent `region` key falls back to the channel's persisted `flood_scope_override`. Region scoping applies to channel replies only - it is ignored for DM replies (DMs are not region-scoped). Outgoing scope reuses the existing `send_channel_message_with_effective_scope` set-scope/send/restore machinery via a per-send `flood_scope_override` on `SendChannelMessageRequest`. Note the bot can scope to any region name; whether the echo is *labeled* still depends on the operator's `app_settings.known_regions` (that list only drives decode, not transmit).
 
 ### webhook (webhook.py)
 HTTP webhook delivery. Config blob:
 - `url`, `method` (POST/PUT/PATCH)
-- `hmac_secret` (optional) — when set, each request includes an HMAC-SHA256 signature of the JSON body
-- `hmac_header` (optional, default `X-Webhook-Signature`) — header name for the signature (value format: `sha256=<hex>`)
-- `headers` — arbitrary extra headers (JSON object)
+- `hmac_secret` (optional) - when set, each request includes an HMAC-SHA256 signature of the JSON body
+- `hmac_header` (optional, default `X-Webhook-Signature`) - header name for the signature (value format: `sha256=<hex>`)
+- `headers` - arbitrary extra headers (JSON object)
 
 ### apprise (apprise_mod.py)
 Push notifications via Apprise library. Config blob:
-- `urls` — newline-separated Apprise notification service URLs
-- `preserve_identity` — suppress Discord webhook name/avatar override
-- `include_outgoing` — when true, RemoteTerm-originated manual and bot-sent messages are forwarded to Apprise; missing/false preserves the legacy incoming-only behavior
-- `include_path` — include routing path in notification body
+- `urls` - newline-separated Apprise notification service URLs
+- `preserve_identity` - suppress Discord webhook name/avatar override
+- `include_outgoing` - when true, RemoteTerm-originated manual and bot-sent messages are forwarded to Apprise; missing/false preserves the legacy incoming-only behavior
+- `include_path` - include routing path in notification body
 - Channel notifications normalize stored message text by stripping a leading `"{sender_name}: "` prefix when it matches the payload sender so alerts do not duplicate the name.
 
 ### sqs (sqs.py)
 Amazon SQS delivery. Config blob:
-- `queue_url` — target queue URL
+- `queue_url` - target queue URL
 - `region_name` (optional; inferred from standard AWS SQS queue URLs when omitted), `endpoint_url` (optional)
 - `access_key_id`, `secret_access_key`, `session_token` (all optional; blank uses the normal AWS credential chain)
 - Publishes a JSON envelope of the form `{"event_type":"message"|"raw_packet","data":...}`
@@ -153,16 +153,16 @@ Amazon SQS delivery. Config blob:
 
 ### map_upload (map_upload.py)
 Uploads heard repeater and room-server advertisements to map.meshcore.io. Config blob:
-- `api_url` (optional, default `""`) — upload endpoint; empty falls back to the public map.meshcore.io API
-- `dry_run` (bool, default `true`) — when true, logs the payload at INFO level without sending
-- `geofence_enabled` (bool, default `false`) — when true, only uploads nodes within `geofence_radius_km` of the radio's own configured lat/lon
-- `geofence_radius_km` (float, default `0`) — filter radius in kilometres
+- `api_url` (optional, default `""`) - upload endpoint; empty falls back to the public map.meshcore.io API
+- `dry_run` (bool, default `true`) - when true, logs the payload at INFO level without sending
+- `geofence_enabled` (bool, default `false`) - when true, only uploads nodes within `geofence_radius_km` of the radio's own configured lat/lon
+- `geofence_radius_km` (float, default `0`) - filter radius in kilometres
 
 Geofence notes:
-- The reference center is always the radio's own `adv_lat`/`adv_lon` from `radio_runtime.meshcore.self_info`, read **live at upload time** — no lat/lon is stored in the fanout config itself.
+- The reference center is always the radio's own `adv_lat`/`adv_lon` from `radio_runtime.meshcore.self_info`, read **live at upload time** - no lat/lon is stored in the fanout config itself.
 - If the radio's lat/lon is `(0, 0)` or the radio is not connected, the geofence check is silently skipped so uploads continue normally until coordinates are configured.
 - Requires the radio to have `ENABLE_PRIVATE_KEY_EXPORT=1` firmware to sign uploads.
-- Scope is always `{"messages": "none", "raw_packets": "all"}` — only raw RF packets are processed.
+- Scope is always `{"messages": "none", "raw_packets": "all"}` - only raw RF packets are processed.
 
 ## Adding a New Integration Type
 
@@ -228,7 +228,7 @@ def _validate_my_type_config(config: dict) -> None:
         raise HTTPException(status_code=400, detail="some_required_field is required")
 ```
 
-**c)** Wire validation into both `create_fanout_config` and `update_fanout_config` — add an `elif` to the validation block in each:
+**c)** Wire validation into both `create_fanout_config` and `update_fanout_config` - add an `elif` to the validation block in each:
 ```python
 elif body.type == "my_type":
     _validate_my_type_config(body.config)
@@ -280,7 +280,7 @@ function MyTypeConfigEditor({
 If your type does NOT have user-configurable scope (like bot or community MQTT), omit the `scope`/`onScopeChange` props and the `ScopeSelector`.
 
 The `ScopeSelector` component is defined within the same file. It accepts an optional `showRawPackets` prop:
-- **Without `showRawPackets`** (webhook, apprise): shows message scope only (all/only/except — no "none" option since that would make the integration a no-op). A warning appears when the effective selection matches nothing.
+- **Without `showRawPackets`** (webhook, apprise): shows message scope only (all/only/except - no "none" option since that would make the integration a no-op). A warning appears when the effective selection matches nothing.
 - **With `showRawPackets`** (private MQTT): adds a "Forward raw packets" toggle and includes the "No messages" option (valid when raw packets are enabled). The warning appears only when both raw packets and messages are effectively disabled.
 
 **c)** Add default config and scope in `handleAddCreate`:
@@ -354,20 +354,20 @@ Migrations:
 
 ## Key Files
 
-- `app/fanout/base.py` — FanoutModule base class
-- `app/fanout/manager.py` — FanoutManager singleton
-- `app/fanout/mqtt_base.py` — BaseMqttPublisher ABC (shared MQTT connection loop)
-- `app/fanout/mqtt.py` — MqttPublisher (private MQTT publishing)
-- `app/fanout/community_mqtt.py` — CommunityMqttPublisher (community MQTT with JWT auth)
-- `app/fanout/mqtt_private.py` — Private MQTT fanout module
-- `app/fanout/mqtt_community.py` — Community MQTT fanout module
-- `app/fanout/bot.py` — Bot fanout module
-- `app/fanout/bot_exec.py` — Bot code execution, response processing, rate limiting
-- `app/fanout/webhook.py` — Webhook fanout module
-- `app/fanout/apprise_mod.py` — Apprise fanout module
-- `app/fanout/sqs.py` — Amazon SQS fanout module
-- `app/fanout/map_upload.py` — Map Upload fanout module
-- `app/repository/fanout.py` — Database CRUD
-- `app/routers/fanout.py` — REST API
-- `app/websocket.py` — `broadcast_event()` dispatches to fanout
-- `frontend/src/components/settings/SettingsFanoutSection.tsx` — UI
+- `app/fanout/base.py` - FanoutModule base class
+- `app/fanout/manager.py` - FanoutManager singleton
+- `app/fanout/mqtt_base.py` - BaseMqttPublisher ABC (shared MQTT connection loop)
+- `app/fanout/mqtt.py` - MqttPublisher (private MQTT publishing)
+- `app/fanout/community_mqtt.py` - CommunityMqttPublisher (community MQTT with JWT auth)
+- `app/fanout/mqtt_private.py` - Private MQTT fanout module
+- `app/fanout/mqtt_community.py` - Community MQTT fanout module
+- `app/fanout/bot.py` - Bot fanout module
+- `app/fanout/bot_exec.py` - Bot code execution, response processing, rate limiting
+- `app/fanout/webhook.py` - Webhook fanout module
+- `app/fanout/apprise_mod.py` - Apprise fanout module
+- `app/fanout/sqs.py` - Amazon SQS fanout module
+- `app/fanout/map_upload.py` - Map Upload fanout module
+- `app/repository/fanout.py` - Database CRUD
+- `app/routers/fanout.py` - REST API
+- `app/websocket.py` - `broadcast_event()` dispatches to fanout
+- `frontend/src/components/settings/SettingsFanoutSection.tsx` - UI

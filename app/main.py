@@ -6,7 +6,7 @@ import sys
 # ---------------------------------------------------------------------------
 # On Windows, uvicorn's default event loop (ProactorEventLoop) does not
 # implement add_reader()/add_writer(), which paho-mqtt (via aiomqtt) requires.
-# We cannot fix this from inside the app — the loop is already created by the
+# We cannot fix this from inside the app - the loop is already created by the
 # time this module is imported.  Log a prominent warning so Windows operators
 # who want MQTT know to add ``--loop none`` to their uvicorn command.
 # ---------------------------------------------------------------------------

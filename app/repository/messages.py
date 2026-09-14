@@ -460,7 +460,7 @@ class MessageRepository:
             query += " AND messages.text LIKE ? ESCAPE '\\' COLLATE NOCASE"
             params.append(f"%{escaped_q}%")
 
-        # Forward cursor (after/after_id) — mutually exclusive with before/before_id
+        # Forward cursor (after/after_id) - mutually exclusive with before/before_id
         if after is not None and after_id is not None:
             query += (
                 " AND (messages.received_at > ? OR (messages.received_at = ? AND messages.id > ?))"
@@ -744,7 +744,7 @@ class MessageRepository:
         )
         last_time_where_sql = f"WHERE {last_time_clause}" if last_time_clause else ""
 
-        # Single readonly acquisition for all 5 queries — they form one logical
+        # Single readonly acquisition for all 5 queries - they form one logical
         # snapshot, and holding the lock for the batch is cheaper than acquiring
         # it 5 times.
         async with db.readonly() as conn:
@@ -870,7 +870,7 @@ class MessageRepository:
 
         # Only include last_read_ats for conversations that actually have messages.
         # Without this filter, every contact heard via advertisement (even without
-        # any DMs) bloats the payload — 391KB down to ~46KB on a typical database.
+        # any DMs) bloats the payload - 391KB down to ~46KB on a typical database.
         last_read_ats = {k: v for k, v in last_read_ats.items() if k in last_message_times}
 
         return {
@@ -990,7 +990,7 @@ class MessageRepository:
             # Path hash width distribution for last 24h: fetch raw rows under
             # the lock, then release BEFORE the CPU-bound in-Python envelope
             # parse. Parsing can iterate thousands of rows and previously held
-            # the DB lock for the whole traversal — blocking every other repo
+            # the DB lock for the whole traversal - blocking every other repo
             # caller on a Pi. Keep the lock only for the fetch.
             async with conn.execute(
                 """

@@ -4,7 +4,7 @@ import { RepeaterDashboard } from '../components/RepeaterDashboard';
 import type { UseRepeaterDashboardResult } from '../hooks/useRepeaterDashboard';
 import type { Contact, Conversation } from '../types';
 
-// Mock the hook — typed as mutable version of the return type
+// Mock the hook - typed as mutable version of the return type
 const mockHook: {
   -readonly [K in keyof UseRepeaterDashboardResult]: UseRepeaterDashboardResult[K];
 } = {

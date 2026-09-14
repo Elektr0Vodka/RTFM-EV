@@ -35,7 +35,7 @@ async def ensure_vapid_keys() -> tuple[str, str]:
     vapid = Vapid()
     vapid.generate_keys()
 
-    # Private key as base64url-encoded raw 32-byte EC scalar — the format
+    # Private key as base64url-encoded raw 32-byte EC scalar - the format
     # that pywebpush passes to ``Vapid.from_string()``.
     raw_priv = vapid.private_key.private_numbers().private_value.to_bytes(32, "big")  # type: ignore[union-attr]
     _cached_private_key = base64.urlsafe_b64encode(raw_priv).rstrip(b"=").decode("ascii")

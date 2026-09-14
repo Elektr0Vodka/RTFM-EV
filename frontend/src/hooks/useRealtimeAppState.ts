@@ -63,7 +63,7 @@ interface UseRealtimeAppStateArgs {
   ) => void;
   notifyIncomingMessage?: (msg: Message) => void;
   /** Fired for a new incoming channel message that @mentions the user while
-   *  they are not viewing that channel — drives the mention ticker. */
+   *  they are not viewing that channel - drives the mention ticker. */
   onChannelMention?: (msg: Message) => void;
   /** Fired for every new, incoming, non-muted message so the caller can decide
    *  whether to play the mention/DM sound. ctx carries the active-conversation
@@ -239,7 +239,7 @@ export function useRealtimeAppState({
 
         // Surface the mention ticker only for a new channel message that
         // @mentions the user while they are not viewing that channel. Muted
-        // channels are excluded — muting means "don't surface this channel".
+        // channels are excluded - muting means "don't surface this channel".
         if (
           msg.type === 'CHAN' &&
           !msg.outgoing &&

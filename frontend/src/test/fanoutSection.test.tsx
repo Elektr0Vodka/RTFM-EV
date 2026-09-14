@@ -356,7 +356,7 @@ describe('SettingsFanoutSection', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
     await waitFor(() => expect(screen.getByText('← Back to list')).toBeInTheDocument());
 
-    // "none" is not a valid mode without raw packets — should fall back to "all"
+    // "none" is not a valid mode without raw packets - should fall back to "all"
     const allRadio = screen.getByLabelText('All messages');
     expect(allRadio).toBeChecked();
   });

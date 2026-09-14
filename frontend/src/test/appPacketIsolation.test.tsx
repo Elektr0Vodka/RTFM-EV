@@ -2,7 +2,7 @@
  * The invariant this store exists to protect: nothing on the chat render path may
  * subscribe to the raw packet stream.
  *
- * The original bug was not that the chat view read packets — it never did. It was that
+ * The original bug was not that the chat view read packets - it never did. It was that
  * the stream lived in `App` state, and `App` is an *ancestor* of `MessageList`. Nothing
  * on that path is memoized, so every overheard packet re-rendered the whole message list
  * regardless of which props it actually received.
@@ -212,12 +212,12 @@ describe('overheard packets and the chat render path', () => {
   });
 
   it('re-renders the message list once per batch if an ancestor subscribes', async () => {
-    // Negative control. Proves the assertion above can actually fail — without this, a
+    // Negative control. Proves the assertion above can actually fail - without this, a
     // render counter that never increments would look identical to a passing test.
     //
     // The ancestor has to create the <App /> element inside its own render. Taking it as
     // a `children` prop would defeat the point: that element is built once by the caller,
-    // so its identity never changes and React bails out of the subtree — the test would
+    // so its identity never changes and React bails out of the subtree - the test would
     // pass while proving nothing.
     function SubscribingAncestor() {
       useRawPackets();

@@ -785,7 +785,7 @@ class TestMigration038:
         conn.row_factory = aiosqlite.Row
         try:
             await set_version(conn, 37)
-            # Minimal table with only id — all legacy columns already gone
+            # Minimal table with only id - all legacy columns already gone
             await conn.execute("CREATE TABLE app_settings (id INTEGER PRIMARY KEY)")
             await conn.commit()
 

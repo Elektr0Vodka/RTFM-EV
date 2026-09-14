@@ -319,7 +319,7 @@ class TestRateLimiting:
         mock_packet = MagicMock()
         mock_packet.payload = b"\x00" * 101
 
-        # 30 minutes later — still within the 1-hour window
+        # 30 minutes later - still within the 1-hour window
         new_ts = last_ts + (_REUPLOAD_SECONDS // 2)
 
         with (
@@ -704,7 +704,7 @@ class TestGetRadioParams:
         assert params == {"freq": 0, "cr": 0, "sf": 0, "bw": 0}
 
     def test_passes_freq_and_bw_directly(self):
-        """Python lib already returns freq in MHz and bw in kHz — no division needed."""
+        """Python lib already returns freq in MHz and bw in kHz - no division needed."""
         mock_rt = MagicMock()
         mock_rt.meshcore.self_info = {
             "radio_freq": 915.0,
@@ -891,7 +891,7 @@ class TestGeofence:
             patch("app.fanout.map_upload.get_public_key", return_value=_FAKE_PUBLIC),
             patch("app.fanout.map_upload._get_radio_params", return_value=_FAKE_RADIO_PARAMS),
         ):
-            # ~50 km north — outside the 10 km fence
+            # ~50 km north - outside the 10 km fence
             await mod._upload("ab" * 32, 1000, 2, "aabb", 51.95, -0.1)
             assert ("ab" * 32) not in mod._seen
 
@@ -972,14 +972,14 @@ class TestGeofence:
         )
         await mod.start()
 
-        # Radio is at (0, 0) — treated as "not configured"; all nodes pass through.
+        # Radio is at (0, 0) - treated as "not configured"; all nodes pass through.
         with (
             _mock_radio_runtime_with_location(0.0, 0.0),
             patch("app.fanout.map_upload.get_private_key", return_value=_FAKE_PRIVATE),
             patch("app.fanout.map_upload.get_public_key", return_value=_FAKE_PUBLIC),
             patch("app.fanout.map_upload._get_radio_params", return_value=_FAKE_RADIO_PARAMS),
         ):
-            # This node is many thousands of km from (0,0) — would be filtered if fence active.
+            # This node is many thousands of km from (0,0) - would be filtered if fence active.
             await mod._upload("ab" * 32, 1000, 2, "aabb", 51.5, -0.1)
             assert ("ab" * 32) in mod._seen
 
@@ -1030,7 +1030,7 @@ class TestGeofence:
             patch("app.fanout.map_upload._get_radio_params", return_value=_FAKE_RADIO_PARAMS),
         ):
             with patch("app.fanout.map_upload.logger") as mock_logger:
-                # ~50 km north — inside the fence
+                # ~50 km north - inside the fence
                 await mod._upload("ab" * 32, 1000, 2, "aabb", 51.95, -0.1)
                 mock_logger.info.assert_called_once()
                 log_message = mock_logger.info.call_args[0][0] % mock_logger.info.call_args[0][1:]

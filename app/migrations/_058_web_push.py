@@ -29,7 +29,7 @@ async def migrate(conn: aiosqlite.Connection) -> None:
                 "ALTER TABLE app_settings ADD COLUMN push_conversations TEXT DEFAULT '[]'"
             )
 
-    # Push subscriptions — one row per browser/device
+    # Push subscriptions - one row per browser/device
     await conn.execute(
         """
         CREATE TABLE IF NOT EXISTS push_subscriptions (

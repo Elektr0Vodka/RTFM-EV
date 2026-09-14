@@ -39,7 +39,7 @@ test.describe('Incoming mesh messages', () => {
   test.setTimeout(180_000);
 
   test.beforeAll(async () => {
-    // Ensure all channels exist — create any that are missing
+    // Ensure all channels exist - create any that are missing
     const existing = await getChannels();
     const existingNames = new Set(existing.map((c) => c.name));
 
@@ -55,7 +55,7 @@ test.describe('Incoming mesh messages', () => {
   });
 
   test('receive an incoming message in any channel', { tag: '@mesh-traffic' }, async ({ page }) => {
-    // Nudge echo bot on #flightless — may generate an incoming packet quickly
+    // Nudge echo bot on #flightless - may generate an incoming packet quickly
     await nudgeEchoBot();
 
     await page.goto('/');
@@ -106,7 +106,7 @@ test.describe('Incoming mesh messages', () => {
   });
 
   test('incoming message with path shows hop badge and path modal', { tag: '@mesh-traffic' }, async ({ page }) => {
-    // Nudge echo bot on #flightless — may generate an incoming packet quickly
+    // Nudge echo bot on #flightless - may generate an incoming packet quickly
     await nudgeEchoBot();
 
     await page.goto('/');
@@ -147,7 +147,7 @@ test.describe('Incoming mesh messages', () => {
     // Navigate to the channel that received a message with path data
     await page.getByText(foundChannel!, { exact: true }).first().click();
 
-    // Find any hop badge on the page — they all have title="View message path"
+    // Find any hop badge on the page - they all have title="View message path"
     // We don't care which specific message; just that a path badge exists and works.
     const badge = page.getByTitle('View message path').first();
     await expect(badge).toBeVisible({ timeout: 15_000 });

@@ -89,7 +89,7 @@ describe('ChatHeader key visibility', () => {
     fireEvent.click(screen.getByText('Show Key'));
     expect(screen.getByText(key1.toLowerCase())).toBeInTheDocument();
 
-    // Switch conversation — key should be hidden again
+    // Switch conversation - key should be hidden again
     rerender(<ChatHeader {...baseProps} conversation={conv2} channels={[ch1, ch2]} />);
 
     expect(screen.queryByText(key2.toLowerCase())).not.toBeInTheDocument();

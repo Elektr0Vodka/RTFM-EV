@@ -122,7 +122,7 @@ async def _flush_pending_messages(mc) -> None:
     responses (txt_type=1) be dropped by ``event_handlers.on_contact_message``,
     so they cannot be returned as this command's answer.
 
-    This shrinks — but cannot fully eliminate — same-contact straddle
+    This shrinks - but cannot fully eliminate - same-contact straddle
     mis-attribution: a reply that is still in flight when we send can only be
     bounded by a protocol-level request id, which the wire format lacks.
     """
@@ -149,8 +149,8 @@ async def fetch_contact_cli_response(
 
     To close that race we hold a request-scoped subscription for the target's
     CLI responses for the whole window. Whichever path observes the response
-    first wins — ``get_msg``'s return value on the happy path, or the
-    subscription when ``get_msg`` misses it — and the subscription is torn down
+    first wins - ``get_msg``'s return value on the happy path, or the
+    subscription when ``get_msg`` misses it - and the subscription is torn down
     in ``finally`` so nothing outlives this call (no global state, so a late or
     duplicate response cannot leak into an unrelated later fetch).
 
@@ -248,7 +248,7 @@ async def _attempt_server_login(
     """Send one login and wait for the reply.
 
     Subscriptions are per-attempt because the resolving future can only be
-    settled once — a retry needs a fresh pair.
+    settled once - a retry needs a fresh pair.
     """
     pubkey_prefix = contact.public_key[:12].lower()
     loop = asyncio.get_running_loop()
@@ -320,7 +320,7 @@ async def prepare_authenticated_contact_connection(
     """Prepare connection to a server-capable contact by adding it to the radio and logging in.
 
     A login that draws no reply at all may mean the stored direct route has gone
-    stale, so it escalates to one flood retry — mirroring the DM send path, which
+    stale, so it escalates to one flood retry - mirroring the DM send path, which
     already resets the path before its final attempt. This is deliberately more
     than the reference clients do: firmware ``sendLogin`` and ``send_login_sync``
     are both single-shot, and firmware only clears a stale path when the *host*
@@ -387,7 +387,7 @@ async def prepare_authenticated_contact_connection(
             )
             return response
 
-        # Deliberately no _ensure_on_radio here — re-adding the contact would
+        # Deliberately no _ensure_on_radio here - re-adding the contact would
         # restore the very route we just cleared, and the retry would go direct.
         flood_response = await _attempt_server_login(
             mc,
@@ -469,7 +469,7 @@ class _RepeaterBinaryReqType(Enum):
 
     ``REQ_TYPE_GET_OWNER_INFO`` (0x07) was added at repeater ``FIRMWARE_VER_LEVEL >= 2``.
     The firmware serves it from ``handleRequest`` with no admin gate, so any
-    logged-in client — including a guest — can fetch it, unlike the CLI
+    logged-in client - including a guest - can fetch it, unlike the CLI
     ``get owner.info`` / ``ver`` path which the firmware only routes for admins.
     """
 
@@ -515,8 +515,8 @@ async def fetch_repeater_owner_info_binary(
 
     This is the path Liam and other apps use to show owner info + firmware for a
     guest: a binary ``REQ_TYPE_GET_OWNER_INFO`` request rather than an admin-only
-    CLI command. Returns ``None`` when the repeater does not answer — older
-    firmware (level < 2), not logged in, or out of range — so callers can fall
+    CLI command. Returns ``None`` when the repeater does not answer - older
+    firmware (level < 2), not logged in, or out of range - so callers can fall
     back or leave the fields blank. See issue #306.
     """
     async with radio_manager.radio_operation(

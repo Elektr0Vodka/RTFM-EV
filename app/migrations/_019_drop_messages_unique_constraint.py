@@ -11,7 +11,7 @@ async def migrate(conn: aiosqlite.Connection) -> None:
 
     This constraint creates a large autoindex (~13 MB on a 112K-row database) that
     stores the full message text in a B-tree. The idx_messages_dedup_null_safe unique
-    index already provides identical dedup protection — no rows have NULL
+    index already provides identical dedup protection - no rows have NULL
     sender_timestamp since migration 15 backfilled them all.
 
     INSERT OR IGNORE still works correctly because it checks all unique constraints,

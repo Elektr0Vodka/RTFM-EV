@@ -10,8 +10,8 @@ Usage:
     PYTHONPATH=. uv run python3 scripts/build/dump_api_specs.py [output_dir]
 
 Output (default: references/ha/):
-    openapi.json        — Full OpenAPI 3.x spec for all REST endpoints
-    ws_events.json      — JSON Schema for each WebSocket event type
+    openapi.json        - Full OpenAPI 3.x spec for all REST endpoints
+    ws_events.json      - JSON Schema for each WebSocket event type
 """
 
 import json

@@ -9,7 +9,7 @@ shortest-legal value.
 The user picks an interval via settings. The scheduler uses
 ``clamp_telemetry_interval`` to push that pick up to the shortest legal
 interval if the user has added repeaters that invalidated their choice.
-The stored preference is *not* mutated on clamp — users get their pick back
+The stored preference is *not* mutated on clamp - users get their pick back
 if they later drop repeaters.
 """
 

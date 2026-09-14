@@ -19,7 +19,7 @@ Connect your radio over Serial, TCP, or BLE, and then you can:
 
 For advanced setup and troubleshooting see [README_ADVANCED.md](README_ADVANCED.md). If you plan to contribute, read [CONTRIBUTING.md](CONTRIBUTING.md).
 
-**Warning:** This app is for trusted environments only. _Do not put this on an untrusted network, or open it to the public._ You can optionally set `MESHCORE_BASIC_AUTH_USERNAME` and `MESHCORE_BASIC_AUTH_PASSWORD` for app-wide HTTP Basic auth, but that is only a coarse gate and must be paired with HTTPS. The bots can execute arbitrary Python code which means anyone who gets access to the app can, too. To completely disable the bot system, start the server with `MESHCORE_DISABLE_BOTS=true` — this prevents all bot execution and blocks bot configuration changes via the API. If you need stronger access control, consider using a reverse proxy like Nginx, or extending FastAPI; full access control and user management are outside the scope of this app.
+**Warning:** This app is for trusted environments only. _Do not put this on an untrusted network, or open it to the public._ You can optionally set `MESHCORE_BASIC_AUTH_USERNAME` and `MESHCORE_BASIC_AUTH_PASSWORD` for app-wide HTTP Basic auth, but that is only a coarse gate and must be paired with HTTPS. The bots can execute arbitrary Python code which means anyone who gets access to the app can, too. To completely disable the bot system, start the server with `MESHCORE_DISABLE_BOTS=true` - this prevents all bot execution and blocks bot configuration changes via the API. If you need stronger access control, consider using a reverse proxy like Nginx, or extending FastAPI; full access control and user management are outside the scope of this app.
 
 ![Screenshot of the application's web interface](app_screenshot.png)
 
@@ -64,19 +64,15 @@ Shipped toward this so far:
   configured server-side path, from the Settings database section (migration
   `_084`). See `README_ADVANCED.md` for the manual restore procedure.
 
-Direction still on the roadmap (planned, not yet built; see `docs/plans/`):
+Direction still on the roadmap (planned, not yet built):
 
 - Configurable, per-data-class retention with an "analyzer mode" preset, so an
-  operator can retain long trends instead of the current aggressive caps
-  (`docs/plans/19-analyzer-persistence-retention.md`).
-- Historical device-info persistence: location and device-config history over time
-  (`docs/plans/14-historical-device-info.md`).
+  operator can retain long trends instead of the current aggressive caps.
+- Historical device-info persistence: location and device-config history over time.
 - Database-backed history browsing, for example a packet-history browser over
-  arbitrary time ranges rather than only the live session buffer
-  (`docs/plans/23-packet-history-browser.md`).
+  arbitrary time ranges rather than only the live session buffer.
 - Multi-radio identity continuity, so a swapped or replaced feeding radio stays
-  coherent in the long-lived record
-  (`docs/plans/18-multi-radio-identity-history.md`).
+  coherent in the long-lived record.
 
 This is a direction, not a finished feature set: the retention policy and the
 history-browsing UIs above are planned, not yet implemented.
@@ -217,7 +213,7 @@ sudo docker compose pull
 sudo docker compose up -d
 ```
 
-> If you switched to a local build (`build: .` instead of `image:`), use `sudo docker compose up -d --build` instead — `pull` only fetches remote images.
+> If you switched to a local build (`build: .` instead of `image:`), use `sudo docker compose up -d --build` instead - `pull` only fetches remote images.
 
 The example file and setup script default to the published GHCR image (`ghcr.io/elektr0vodka/rtfm-ev:latest`), rebuilt automatically on every push to `main`. To build locally from your checkout instead, replace:
 
@@ -327,15 +323,6 @@ RemoteTerm supports the [meshcomod](https://github.com/Elektr0Vodka/meshcomod) f
 - **GPS:** enable the on-board GPS receiver and set its reporting interval (0 to 86400 seconds).
 
 The panel is hidden entirely on non-meshcomod devices, and each control disables itself if the specific firmware build does not advertise support. No configuration is needed: detection is automatic from the radio's device info.
-
-## OpenHop node management
-
-RTFM-EV works with [OpenHop](https://github.com/openhop-dev/openhop_repeater) repeaters and room-servers (a Python MeshCore daemon) in two ways:
-
-- **As a radio.** OpenHop speaks the MeshCore companion protocol over TCP (default port 5000), so it can drive RTFM-EV as the connected radio with no OpenHop-specific setup: point the app at its host and port like any other TCP radio.
-- **As a managed node.** When a connected node is detected as OpenHop, an extra **OpenHop** section appears with management panes that the companion link and RF do not expose, organised in a two-row sub-nav: a **Node** row (Config, System, Update, CAD) and a **Mesh** row (Policy, Plugins, Transport keys, MQTT). These talk to OpenHop's REST API, so set the API URL and token in the OpenHop block under **Settings -> Radio** first (the token is write-only). Actions with real-world effect (firmware install, CAD threshold save, transport-key delete, MQTT config writes, "publish neighbours now") are confirmation-gated.
-
-As with the Meshcomod panel, everything is hidden on non-OpenHop devices and detection is automatic from the radio's device info.
 
 ## Languages
 

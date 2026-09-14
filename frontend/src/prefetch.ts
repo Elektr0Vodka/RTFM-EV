@@ -1,7 +1,7 @@
 /**
  * Consume prefetched API promises started in index.html before React loaded.
  *
- * Each key is consumed at most once — the first caller gets the promise,
+ * Each key is consumed at most once - the first caller gets the promise,
  * subsequent callers get undefined and should fall back to a normal fetch.
  */
 

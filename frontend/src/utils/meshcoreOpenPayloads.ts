@@ -131,7 +131,7 @@ export function parseReaction(text: string): ParsedReaction | null {
 //
 // A newer MC1 build swaps the first line to "@[{targetSenderName}]{emoji}", so
 // both orders are accepted. <hash> is 8 Crockford Base32 chars (SHA-256 of the
-// target text + its sender timestamp, first 5 bytes) — like the meshcore-open
+// target text + its sender timestamp, first 5 bytes) - like the meshcore-open
 // hash it is not resolved back to the target message here. There is no wire
 // representation for removing a reaction.
 

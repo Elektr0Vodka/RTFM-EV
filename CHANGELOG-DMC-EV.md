@@ -645,7 +645,7 @@ The previous update's cutoff was `bda40a5` (merge of PR #67).
   (`93d87b4`)
 - Correct plans 06/07 delivery status to shipped (`95ca9bf`)
 
-## Update 2026-09-11 (second pass — merged after the previous update)
+## Update 2026-09-11 (second pass - merged after the previous update)
 
 Work that landed on `origin/main` after the update below, up to `bda40a5`
 (merge of PR #67), grouped by area. The previous update's cutoff was `a3ce6db`.

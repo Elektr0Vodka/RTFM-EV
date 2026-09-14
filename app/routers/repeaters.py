@@ -80,7 +80,7 @@ def _require_repeater(contact: Contact) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Granular repeater endpoints — one attempt, no server-side retries.
+# Granular repeater endpoints - one attempt, no server-side retries.
 # Frontend manages retry logic for better UX control.
 # ---------------------------------------------------------------------------
 
@@ -529,7 +529,7 @@ def _is_region_name(name: str) -> bool:
     Mirrors firmware ``RegionMap::is_name_char``: ``-``, ``$``, ``#``, digits, or
     any byte ``>= 'A'``. Crucially this excludes spaces, so a firmware that does
     not support regions (older than v1.10) and replies to `region` with
-    ``"Unknown command"`` is rejected here rather than mis-parsed as a region —
+    ``"Unknown command"`` is rejected here rather than mis-parsed as a region -
     which lets the endpoint fall back to the anon path or an empty result.
     """
     if name == "*":
@@ -641,7 +641,7 @@ async def repeater_regions(public_key: str) -> RepeaterRegionsResponse:
 
     Primary path is the admin CLI `region` dump (full hierarchy + allowed/blocked
     + home; may be truncated by the firmware's ~160-char cap). When the CLI
-    returns nothing — e.g. guest access, which cannot run CLI commands — it falls
+    returns nothing - e.g. guest access, which cannot run CLI commands - it falls
     back to the guest-accessible anon regions request, which only yields a flat
     list of flood-allowed region names. See issue #309.
     """

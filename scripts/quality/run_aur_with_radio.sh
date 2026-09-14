@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# run_aur_with_radio.sh — Install the published AUR package via yay in an Arch
+# run_aur_with_radio.sh - Install the published AUR package via yay in an Arch
 # container with a real radio attached over serial.
 #
 # Usage:

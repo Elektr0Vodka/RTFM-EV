@@ -27,7 +27,7 @@ class TestMigration019:
                     payload_hash TEXT
                 )
             """)
-            # Create messages WITH UNIQUE constraint — simulates production schema
+            # Create messages WITH UNIQUE constraint - simulates production schema
             await conn.execute("""
                 CREATE TABLE messages (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,

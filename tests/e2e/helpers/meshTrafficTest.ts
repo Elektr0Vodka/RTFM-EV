@@ -13,7 +13,7 @@
  * Call `await nudgeEchoBot()` at the start of any @mesh-traffic test to
  * send a trigger message to an echo bot on #flightless. If the bot is in
  * radio range it will generate an incoming packet, potentially saving the
- * full 3-minute wait. The nudge is best-effort — tests still rely on the
+ * full 3-minute wait. The nudge is best-effort - tests still rely on the
  * long polling timeout for environments without the bot.
  */
 import { test as base, expect } from '@playwright/test';
@@ -30,7 +30,7 @@ const TRAFFIC_ADVISORY =
  * Best-effort: send a message to the echo channel that triggers a remote
  * echo bot on a partner radio. If the bot is within radio range it will
  * reply, generating the incoming traffic the test needs. Failures are
- * silently ignored — the test will fall back to waiting for organic mesh
+ * silently ignored - the test will fall back to waiting for organic mesh
  * traffic.
  *
  * Configure the channel via E2E_ECHO_CHANNEL (default: #flightless).
@@ -40,7 +40,7 @@ export async function nudgeEchoBot(): Promise<void> {
     const channel = await ensureChannel(E2E_ECHO_CHANNEL);
     await sendChannelMessage(channel.key, E2E_ECHO_TRIGGER_MESSAGE);
   } catch {
-    // Best-effort — bot may not be reachable
+    // Best-effort - bot may not be reachable
   }
 }
 

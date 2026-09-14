@@ -23,7 +23,7 @@ vi.mock('../api', () => ({
   },
 }));
 
-// Mock prefetch — takePrefetchOrFetch calls the fetcher directly
+// Mock prefetch - takePrefetchOrFetch calls the fetcher directly
 vi.mock('../prefetch', () => ({
   takePrefetchOrFetch: vi.fn((_key: string, fetcher: () => Promise<unknown>) => fetcher()),
 }));
@@ -509,7 +509,7 @@ describe('useUnreadCounts', () => {
     });
     expect(result.current.firstUnreadIds[key]).toBe(4711);
 
-    // A later message must not move the boundary — it is not the *first* unread.
+    // A later message must not move the boundary - it is not the *first* unread.
     act(() => {
       result.current.recordMessageEvent({
         msg: makeMessage({ id: 4712, type: 'CHAN', conversation_key: CHANNEL_KEY }),

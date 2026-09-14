@@ -438,10 +438,10 @@ export function BulkDeleteContactsModal({
                           {c.public_key.slice(0, 12)}
                         </td>
                         <td className="px-3 py-1.5 hidden sm:table-cell text-xs text-muted-foreground">
-                          {c.first_seen ? formatDate(c.first_seen) : '—'}
+                          {c.first_seen ? formatDate(c.first_seen) : '-'}
                         </td>
                         <td className="px-3 py-1.5 hidden sm:table-cell text-xs text-muted-foreground">
-                          {c.last_seen ? formatDate(c.last_seen) : '—'}
+                          {c.last_seen ? formatDate(c.last_seen) : '-'}
                         </td>
                       </tr>
                     ))}
@@ -494,10 +494,10 @@ export function BulkDeleteContactsModal({
                         {c.public_key.slice(0, 12)}
                       </td>
                       <td className="px-3 py-1.5 hidden sm:table-cell text-xs text-muted-foreground">
-                        {c.first_seen ? formatDate(c.first_seen) : '—'}
+                        {c.first_seen ? formatDate(c.first_seen) : '-'}
                       </td>
                       <td className="px-3 py-1.5 hidden sm:table-cell text-xs text-muted-foreground">
-                        {c.last_seen ? formatDate(c.last_seen) : '—'}
+                        {c.last_seen ? formatDate(c.last_seen) : '-'}
                       </td>
                     </tr>
                   ))}

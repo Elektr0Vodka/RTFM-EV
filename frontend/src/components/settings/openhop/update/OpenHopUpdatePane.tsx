@@ -63,9 +63,9 @@ export function OpenHopUpdatePane() {
       <div className="rounded-md border border-border p-3">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
           <span className="text-muted-foreground">{t('openhop_update_installed')}:</span>
-          <span className="font-mono">{status?.current_version ?? '—'}</span>
+          <span className="font-mono">{status?.current_version ?? '-'}</span>
           <span className="text-muted-foreground">{t('openhop_update_latest')}:</span>
-          <span className="font-mono">{status?.latest_version ?? '—'}</span>
+          <span className="font-mono">{status?.latest_version ?? '-'}</span>
           {status?.has_update && (
             <span className="rounded bg-primary/20 px-2 py-0.5 text-xs text-primary">
               {t('openhop_update_available')}

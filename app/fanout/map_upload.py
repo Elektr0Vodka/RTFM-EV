@@ -11,7 +11,7 @@ Mirrors the logic of the standalone map.meshcore.dev-uploader project
 
 Dry-run mode (default: True) logs the full would-be payload at INFO level
 without making any HTTP requests. Disable it only after verifying the log
-output looks correct — in particular the radio params (freq/bw/sf/cr) and
+output looks correct - in particular the radio params (freq/bw/sf/cr) and
 the raw hex link.
 
 Config keys
@@ -23,7 +23,7 @@ dry_run : bool, default True
 geofence_enabled : bool, default False
     When True, only upload nodes whose location falls within geofence_radius_km of
     the radio's own configured latitude/longitude (read live from the radio at upload
-    time — no lat/lon is stored in this config).  When the radio's lat/lon is not set
+    time - no lat/lon is stored in this config).  When the radio's lat/lon is not set
     (0, 0) or unavailable, the geofence check is silently skipped so uploads continue
     normally until coordinates are configured.
 geofence_radius_km : float, default 0.0
@@ -52,8 +52,8 @@ _DEFAULT_API_URL = "https://map.meshcore.io/api/v1/uploader/node"
 # Re-upload guard: skip re-uploading a pubkey seen within this window (AU parity)
 _REUPLOAD_SECONDS = 3600
 
-# Only upload repeaters (2) and rooms (3). Any other role — including future
-# roles not yet defined — is rejected. An allowlist is used rather than a
+# Only upload repeaters (2) and rooms (3). Any other role - including future
+# roles not yet defined - is rejected. An allowlist is used rather than a
 # blocklist so that new roles cannot accidentally start populating the map.
 _ALLOWED_DEVICE_ROLES = {2, 3}
 
@@ -148,15 +148,15 @@ class MapUploadModule(FanoutModule):
         # Advert Ed25519 signature verification is intentionally skipped.
         # The radio validates packets before passing them to RT.
 
-        # Only process repeaters (2) and rooms (3) — any other role is rejected
+        # Only process repeaters (2) and rooms (3) - any other role is rejected
         if advert.device_role not in _ALLOWED_DEVICE_ROLES:
             return
 
-        # Skip nodes with no valid location — the decoder already nulls out
+        # Skip nodes with no valid location - the decoder already nulls out
         # impossible values, so None means either no location flag or bad coords.
         if advert.lat is None or advert.lon is None:
             logger.debug(
-                "MapUpload: skipping %s — no valid location",
+                "MapUpload: skipping %s - no valid location",
                 advert.public_key[:12],
             )
             return
@@ -168,7 +168,7 @@ class MapUploadModule(FanoutModule):
         if last_seen is not None:
             if last_seen >= advert.timestamp:
                 logger.debug(
-                    "MapUpload: skipping %s — possible replay (last=%d, advert=%d)",
+                    "MapUpload: skipping %s - possible replay (last=%d, advert=%d)",
                     pubkey[:12],
                     last_seen,
                     advert.timestamp,
@@ -176,7 +176,7 @@ class MapUploadModule(FanoutModule):
                 return
             if advert.timestamp < last_seen + _REUPLOAD_SECONDS:
                 logger.debug(
-                    "MapUpload: skipping %s — within 1-hr rate-limit window (delta=%ds)",
+                    "MapUpload: skipping %s - within 1-hr rate-limit window (delta=%ds)",
                     pubkey[:12],
                     advert.timestamp - last_seen,
                 )
@@ -196,7 +196,7 @@ class MapUploadModule(FanoutModule):
         lon: float,
     ) -> None:
         # Geofence check: if enabled, skip nodes outside the configured radius.
-        # The reference center is the radio's own lat/lon read live from self_info —
+        # The reference center is the radio's own lat/lon read live from self_info -
         # no coordinates are stored in the fanout config. If the radio lat/lon is
         # (0, 0) or unavailable the check is skipped transparently so uploads
         # continue normally until the operator sets coordinates in radio settings.
@@ -214,7 +214,7 @@ class MapUploadModule(FanoutModule):
 
             if fence_lat == 0.0 and fence_lon == 0.0:
                 logger.debug(
-                    "MapUpload: geofence skipped for %s — radio lat/lon not configured",
+                    "MapUpload: geofence skipped for %s - radio lat/lon not configured",
                     pubkey[:12],
                 )
             else:
@@ -222,7 +222,7 @@ class MapUploadModule(FanoutModule):
                 geofence_dist_km = _haversine_km(fence_lat, fence_lon, lat, lon)
                 if geofence_dist_km > fence_radius_km:
                     logger.debug(
-                        "MapUpload: skipping %s — outside geofence (%.2f km > %.2f km)",
+                        "MapUpload: skipping %s - outside geofence (%.2f km > %.2f km)",
                         pubkey[:12],
                         geofence_dist_km,
                         fence_radius_km,
@@ -234,7 +234,7 @@ class MapUploadModule(FanoutModule):
 
         if private_key is None or public_key is None:
             logger.warning(
-                "MapUpload: private key not available — cannot sign upload for %s. "
+                "MapUpload: private key not available - cannot sign upload for %s. "
                 "Ensure radio firmware has ENABLE_PRIVATE_KEY_EXPORT=1.",
                 pubkey[:12],
             )

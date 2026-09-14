@@ -72,7 +72,7 @@ class RawPacketRepository:
                 assert lastrowid is not None
                 return (lastrowid, True)
 
-            # Duplicate payload — look up the existing row (same transaction).
+            # Duplicate payload - look up the existing row (same transaction).
             async with conn.execute(
                 "SELECT id FROM raw_packets WHERE payload_hash = ?", (payload_hash,)
             ) as cursor:
@@ -107,7 +107,7 @@ class RawPacketRepository:
         """Internal: keyset-paginated scan of every undecrypted raw packet.
 
         Yields ``(id, data, timestamp)`` for each row across all batches.
-        Lock is acquired per batch only — concurrent writes can interleave
+        Lock is acquired per batch only - concurrent writes can interleave
         at batch boundaries rather than being blocked for the full scan.
         Each batch opens a fresh cursor and consumes it fully with
         ``fetchall()`` before releasing, so no prepared statement is alive

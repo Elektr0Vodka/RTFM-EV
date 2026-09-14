@@ -179,12 +179,12 @@ describe('MessageInput', () => {
     it('does not disable send button when over hard limit', () => {
       // NOTE: This documents the current behavior where canSubmit only checks
       // text.trim().length > 0, NOT the limit state. This is related to
-      // hitlist item 1.1 — the send button stays enabled even over the limit.
+      // hitlist item 1.1 - the send button stays enabled even over the limit.
       renderInput({ conversationType: 'contact' });
       const text = 'x'.repeat(200); // Well over 156 byte limit
       fireEvent.change(getInput(), { target: { value: text } });
 
-      // Button is still enabled — canSubmit only checks non-empty text
+      // Button is still enabled - canSubmit only checks non-empty text
       expect(getSendButton()).toBeEnabled();
     });
   });

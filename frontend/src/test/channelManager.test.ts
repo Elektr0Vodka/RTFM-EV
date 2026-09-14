@@ -6,7 +6,7 @@ import {
 } from '../lib/channelManager';
 import type { RegistryChannel } from '../lib/channelManager';
 
-// channelManager reads/writes localStorage — provide a clean stub
+// channelManager reads/writes localStorage - provide a clean stub
 const store: Record<string, string> = {};
 beforeEach(() => {
   vi.spyOn(Storage.prototype, 'getItem').mockImplementation((k) => store[k] ?? null);

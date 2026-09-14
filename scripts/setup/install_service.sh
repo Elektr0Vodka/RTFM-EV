@@ -24,7 +24,7 @@ CURRENT_USER="$(id -un)"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 FRONTEND_MODE="build"
 
-echo -e "${BOLD}=== RemoteTerm for MeshCore — Service Installer ===${NC}"
+echo -e "${BOLD}=== RemoteTerm for MeshCore - Service Installer ===${NC}"
 echo
 
 # ── sanity checks ──────────────────────────────────────────────────────────────
@@ -81,8 +81,8 @@ require_minimum_version() {
 
 echo -e "${BOLD}─── Transport ───────────────────────────────────────────────────────${NC}"
 echo "How is your MeshCore radio connected?"
-echo "  1) Serial — auto-detect port (default)"
-echo "  2) Serial — specify port manually"
+echo "  1) Serial - auto-detect port (default)"
+echo "  2) Serial - specify port manually"
 echo "  3) TCP (network connection)"
 echo "  4) BLE (Bluetooth)"
 echo
@@ -134,7 +134,7 @@ case "$TRANSPORT_CHOICE" in
         echo -e "${GREEN}BLE: ${BLE_ADDRESS}${NC}"
         ;;
     *)
-        echo -e "${YELLOW}Invalid selection — defaulting to serial auto-detect.${NC}"
+        echo -e "${YELLOW}Invalid selection - defaulting to serial auto-detect.${NC}"
         TRANSPORT_CHOICE=1
         NEED_DIALOUT=true
         ;;
@@ -163,7 +163,7 @@ case "$FRONTEND_CHOICE" in
         ;;
     *)
         FRONTEND_MODE="build"
-        echo -e "${YELLOW}Invalid selection — defaulting to local frontend build.${NC}"
+        echo -e "${YELLOW}Invalid selection - defaulting to local frontend build.${NC}"
         ;;
 esac
 echo

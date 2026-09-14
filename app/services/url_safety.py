@@ -70,7 +70,7 @@ def resolve_public_ip(url: str) -> str:
     """Return one validated public IP for the URL's host, else raise.
 
     Callers connect to this exact IP (and send the original Host / SNI) so the
-    address that was security-checked is the address actually contacted — closing
+    address that was security-checked is the address actually contacted - closing
     the DNS-rebinding gap where a second name resolution could return a private
     address after the check passed.
     """

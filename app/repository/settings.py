@@ -27,7 +27,7 @@ class AppSettingsRepository:
     """Repository for app_settings table (single-row pattern).
 
     Public methods acquire the DB lock exactly once. ``toggle_*`` helpers that
-    need a read-modify-write do so inside a single ``db.tx()`` — the internal
+    need a read-modify-write do so inside a single ``db.tx()`` - the internal
     ``_get_in_conn`` / ``_apply_updates`` helpers run under the caller's
     already-held lock and must NEVER call ``db.tx()`` or ``db.readonly()``.
     """
@@ -288,7 +288,7 @@ class AppSettingsRepository:
         except (KeyError, TypeError, ValueError):
             mention_sound_volume = 80
 
-        # Custom-sound metadata (NOT the blob) — small, safe to include in GET.
+        # Custom-sound metadata (NOT the blob) - small, safe to include in GET.
         # Tolerates a missing table (partial migration) or a partial snapshot
         # row, degrading to "no custom sound" rather than failing the load.
         mention_sound_custom = None
@@ -398,7 +398,7 @@ class AppSettingsRepository:
         """Apply field updates using an already-acquired connection.
 
         Emits a single UPDATE statement inside the caller's transaction. Does
-        NOT commit — the caller's ``db.tx()`` handles that.
+        NOT commit - the caller's ``db.tx()`` handles that.
         """
         updates: list[str] = []
         params: list[Any] = []
@@ -665,7 +665,7 @@ class AppSettingsRepository:
     async def toggle_blocked_key(key: str) -> AppSettings:
         """Toggle a public key in the blocked list. Keys are normalized to lowercase.
 
-        Read-modify-write is atomic under a single ``db.tx()`` lock — two
+        Read-modify-write is atomic under a single ``db.tx()`` lock - two
         concurrent toggles for the same key cannot produce an inconsistent
         intermediate state.
         """
@@ -934,14 +934,14 @@ class StatisticsRepository:
         """Count distinct channel-message senders who scoped at least one send.
 
         Sender attribution requires having decrypted the message, so this only
-        covers channels we hold keys for — a narrower population than the
+        covers channels we hold keys for - a narrower population than the
         packet-level count, but a self-validating one: a message we decrypted is
         provably not a corrupt capture, so this number needs no noise floor.
 
         Scoping is read from ``messages.transport_code`` where present, falling
         back to the linked raw packet for rows stored before region tagging
         existed. Senders are keyed by ``sender_key`` where resolved, falling back
-        to ``sender_name`` — one physical operator may run several nodes, hence
+        to ``sender_name`` - one physical operator may run several nodes, hence
         "senders" rather than "users".
         """
         now = int(time.time())
@@ -1054,7 +1054,7 @@ class StatisticsRepository:
             undecrypted_packets = total_packets - decrypted_packets
 
         # These each acquire their own lock. The snapshot isn't atomic across
-        # them — fine for stats, which are approximate by nature.
+        # them - fine for stats, which are approximate by nature.
         message_totals = await StatisticsRepository.get_database_message_totals()
         contacts_heard = await StatisticsRepository._activity_counts(contact_type=2, exclude=True)
         repeaters_heard = await StatisticsRepository._activity_counts(contact_type=2)

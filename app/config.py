@@ -139,7 +139,7 @@ class _RepeatSquelch(logging.Filter):
             self._repeat_count += 1
             if self._repeat_count == self._threshold:
                 record.msg = (
-                    "%s (repeated %d times — possible serial port contention from another process)"
+                    "%s (repeated %d times - possible serial port contention from another process)"
                 )
                 record.args = (msg, self._repeat_count)
                 record.levelno = logging.WARNING

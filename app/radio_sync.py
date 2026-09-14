@@ -488,12 +488,12 @@ async def sync_and_offload_all(mc: MeshCore) -> dict:
     snapshot_failed = "error" in contacts_result
     if snapshot_failed and not autoevict:
         logger.warning(
-            "Radio contact snapshot failed — attempting best-effort contact "
+            "Radio contact snapshot failed - attempting best-effort contact "
             "loading without a full picture of what's already on the radio"
         )
         broadcast_error(
             "Could not enumerate radio contacts",
-            "Loading favorites and recent contacts on a best-effort basis — "
+            "Loading favorites and recent contacts on a best-effort basis - "
             "some adds may be redundant or fail if the radio's contact table "
             "is already full. Set MESHCORE_LOAD_WITH_AUTOEVICT=true for more "
             "reliable loading without needing to read the radio first. "
@@ -1079,7 +1079,7 @@ def _evict_removed_contact_from_library_cache(mc: MeshCore, public_key: str) -> 
     """Keep the library's contact cache consistent after a successful removal."""
     # LIBRARY INTERNAL FIXUP: The MeshCore library's remove_contact() sends the
     # remove command over the wire but does NOT update the library's in-memory
-    # contact cache (mc._contacts). This is a gap in the library — there's no
+    # contact cache (mc._contacts). This is a gap in the library - there's no
     # public API to clear a single contact from the cache, and the library only
     # refreshes it on a full get_contacts() call.
     #
@@ -1296,7 +1296,7 @@ async def _reconcile_radio_contacts_in_background(
                     if budget > 0:
                         if autoevict:
                             # Budget is consumed by the slice bound rather than
-                            # per-operation decrement — autoevict skips the
+                            # per-operation decrement - autoevict skips the
                             # removal phase so the full budget is always available.
                             batch_contacts = desired_fill_contacts[
                                 autoevict_next_index : autoevict_next_index + budget
@@ -1335,7 +1335,7 @@ async def _reconcile_radio_contacts_in_background(
                                     reason = add_result.payload
                                     if isinstance(reason, dict) and reason.get("error_code") == 3:
                                         logger.warning(
-                                            "Radio contact table full — stopping "
+                                            "Radio contact table full - stopping "
                                             "contact reconcile (loaded %d this cycle)",
                                             loaded,
                                         )
@@ -1344,7 +1344,7 @@ async def _reconcile_radio_contacts_in_background(
                                     hint = ""
                                     if reason is None:
                                         hint = (
-                                            " (no response from radio — if this repeats, check for "
+                                            " (no response from radio - if this repeats, check for "
                                             "serial port contention from another process or try a "
                                             "power cycle)"
                                         )
@@ -1395,7 +1395,7 @@ async def _reconcile_radio_contacts_in_background(
                                     reason = add_result.payload
                                     if isinstance(reason, dict) and reason.get("error_code") == 3:
                                         logger.warning(
-                                            "Radio contact table full — stopping "
+                                            "Radio contact table full - stopping "
                                             "contact reconcile (loaded %d this cycle)",
                                             loaded,
                                         )
@@ -1404,7 +1404,7 @@ async def _reconcile_radio_contacts_in_background(
                                     hint = ""
                                     if reason is None:
                                         hint = (
-                                            " (no response from radio — if this repeats, check for "
+                                            " (no response from radio - if this repeats, check for "
                                             "serial port contention from another process or try a "
                                             "power cycle)"
                                         )
@@ -1750,7 +1750,7 @@ async def _load_contacts_to_radio(mc: MeshCore, contacts: list[Contact]) -> dict
                 hint = ""
                 if reason is None:
                     hint = (
-                        " (no response from radio — if this repeats, check for "
+                        " (no response from radio - if this repeats, check for "
                         "serial port contention from another process or try a "
                         "power cycle)"
                     )
@@ -1914,7 +1914,7 @@ async def _collect_repeater_telemetry(mc: MeshCore, contact: Contact) -> bool:
         "recv_errors": status.get("recv_errors"),
     }
 
-    # Best-effort LPP sensor fetch — failure here does not fail the overall
+    # Best-effort LPP sensor fetch - failure here does not fail the overall
     # collection; status telemetry is still recorded without sensor data.
     try:
         lpp_raw = await mc.commands.req_telemetry_sync(
@@ -2203,7 +2203,7 @@ async def _maybe_run_scheduled_cycle(now: datetime) -> None:
     """Evaluate the modulo gate for the given UTC time and run a cycle if due.
 
     Factored out of the loop so we can also invoke it immediately after the
-    post-boot initial delay — otherwise a restart within the initial-delay
+    post-boot initial delay - otherwise a restart within the initial-delay
     window before a scheduled boundary would carry the task past that boundary
     and skip a due cycle (for 24h cadence users, that's a full day of missed
     telemetry).

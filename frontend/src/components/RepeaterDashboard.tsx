@@ -414,14 +414,14 @@ export function RepeaterDashboard({
               </div>
             </div>
 
-            {/* Console — full width */}
+            {/* Console - full width */}
             <ConsolePane
               history={consoleHistory}
               loading={consoleLoading}
               onSend={sendConsoleCommand}
             />
 
-            {/* Telemetry history chart — full width, below console */}
+            {/* Telemetry history chart - full width, below console */}
             <TelemetryHistoryPane
               entries={telemetryHistory}
               publicKey={conversation.id}

@@ -733,15 +733,15 @@ class TestFanoutWebhookIntegration:
             await manager.load_from_db()
             await _wait_connected(manager, cfg["id"])
 
-            # Matching channel — should deliver
+            # Matching channel - should deliver
             await manager.broadcast_message(
                 {"type": "CHAN", "conversation_key": "ch-yes", "text": "included"}
             )
-            # Non-matching channel — should NOT deliver
+            # Non-matching channel - should NOT deliver
             await manager.broadcast_message(
                 {"type": "CHAN", "conversation_key": "ch-no", "text": "excluded"}
             )
-            # DM — contacts is "none", should NOT deliver
+            # DM - contacts is "none", should NOT deliver
             await manager.broadcast_message(
                 {"type": "PRIV", "conversation_key": "pk1", "text": "dm excluded"}
             )
@@ -1022,15 +1022,15 @@ class TestFanoutWebhookIntegration:
             await manager.load_from_db()
             await _wait_connected(manager, cfg["id"])
 
-            # Excluded channel — should NOT deliver
+            # Excluded channel - should NOT deliver
             await manager.broadcast_message(
                 {"type": "CHAN", "conversation_key": "ch-excluded", "text": "nope"}
             )
-            # Non-excluded channel — should deliver
+            # Non-excluded channel - should deliver
             await manager.broadcast_message(
                 {"type": "CHAN", "conversation_key": "ch-other", "text": "yes"}
             )
-            # DM with empty except list — should deliver
+            # DM with empty except list - should deliver
             await manager.broadcast_message(
                 {"type": "PRIV", "conversation_key": "pk1", "text": "dm yes"}
             )
@@ -1388,7 +1388,7 @@ class TestFanoutAppriseIntegration:
                     "sender_name": "B",
                 }
             )
-            # DM — contacts is "none"
+            # DM - contacts is "none"
             await manager.broadcast_message(
                 {
                     "type": "PRIV",
@@ -1676,13 +1676,13 @@ class TestBotModuleLifecycle:
         mod = BotModule("bot1", {"code": "def bot(**k): return 'hi'"}, name="Test Bot")
         mod._active = True
 
-        # Fire off a message — it will enter the 2s settle sleep
+        # Fire off a message - it will enter the 2s settle sleep
         await mod.on_message(
             {"type": "PRIV", "conversation_key": "abc123", "text": "hello", "outgoing": False}
         )
         assert len(mod._tasks) == 1
 
-        # Stop immediately — should cancel the pending task
+        # Stop immediately - should cancel the pending task
         await mod.stop()
 
         assert mod._active is False
@@ -1906,7 +1906,7 @@ class TestManagerRestartFailure:
         await manager._restart_module("dead1", dead)
         assert "dead1" not in manager._modules
 
-        # Now broadcast — only the healthy module should receive
+        # Now broadcast - only the healthy module should receive
         await manager.broadcast_message({"type": "PRIV", "conversation_key": "k1", "text": "hi"})
 
         assert len(healthy.messages_received) == 1
@@ -1952,7 +1952,7 @@ class TestMapUploadIntegration:
 
         with patch.object(module, "_upload", new_callable=AsyncMock):
             # Provide a parseable but minimal packet so on_raw gets past hex decode;
-            # parse_packet/parse_advertisement returning None is fine — on_raw silently exits
+            # parse_packet/parse_advertisement returning None is fine - on_raw silently exits
             await manager.broadcast_raw(advert_data)
             # Give the asyncio task a chance to run
             import asyncio
@@ -1981,7 +1981,7 @@ class TestMapUploadIntegration:
 
     @pytest.mark.asyncio
     async def test_map_upload_does_not_receive_messages(self, integration_db):
-        """map_upload scope forces raw_packets only — message events must not reach it."""
+        """map_upload scope forces raw_packets only - message events must not reach it."""
         from unittest.mock import AsyncMock, patch
 
         cfg = await FanoutConfigRepository.create(

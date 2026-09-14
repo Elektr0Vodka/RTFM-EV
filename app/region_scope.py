@@ -2,7 +2,7 @@
 
 # Canonical persisted marker for "force unscoped/plain flood". Stored verbatim in
 # the per-channel ``flood_scope_override`` column to mean "this channel is unscoped
-# even if a global region is set" — distinct from NULL, which means "inherit global".
+# even if a global region is set" - distinct from NULL, which means "inherit global".
 UNSCOPED_OVERRIDE_MARKER = "*"
 
 # All values that denote explicit unscoped/plain flood, matching firmware parity.

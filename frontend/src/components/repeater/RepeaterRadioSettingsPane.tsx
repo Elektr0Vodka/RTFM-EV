@@ -16,13 +16,13 @@ import type {
 
 function formatRadioTuple(radio: string | null): { display: string; raw: string | null } {
   if (radio == null) {
-    return { display: '—', raw: null };
+    return { display: '-', raw: null };
   }
 
   const trimmed = radio.trim();
   const parts = trimmed.split(',').map((part) => part.trim());
   if (parts.length !== 4) {
-    return { display: trimmed || '—', raw: trimmed || null };
+    return { display: trimmed || '-', raw: trimmed || null };
   }
 
   const [freqRaw, bwRaw, sfRaw, crRaw] = parts;
@@ -32,7 +32,7 @@ function formatRadioTuple(radio: string | null): { display: string; raw: string 
   const cr = Number.parseInt(crRaw, 10);
 
   if (![freq, bw, sf, cr].every(Number.isFinite)) {
-    return { display: trimmed || '—', raw: trimmed || null };
+    return { display: trimmed || '-', raw: trimmed || null };
   }
 
   const formattedFreq = Number(freq.toFixed(3)).toString();
@@ -74,23 +74,23 @@ export function RadioSettingsPane({
         <NotFetched />
       ) : (
         <div>
-          <KvRow label={t('repeater_firmware_label')} value={data.firmware_version ?? '—'} />
+          <KvRow label={t('repeater_firmware_label')} value={data.firmware_version ?? '-'} />
           <KvRow
             label={t('repeater_radio_label')}
             value={<span title={formattedRadio.raw ?? undefined}>{formattedRadio.display}</span>}
           />
           <KvRow
             label={t('repeater_tx_power_label')}
-            value={data.tx_power != null ? `${data.tx_power} dBm` : '—'}
+            value={data.tx_power != null ? `${data.tx_power} dBm` : '-'}
           />
-          <KvRow label={t('repeater_airtime_factor_label')} value={data.airtime_factor ?? '—'} />
+          <KvRow label={t('repeater_airtime_factor_label')} value={data.airtime_factor ?? '-'} />
           {/* Duty cycle limit is firmware >= 1.15 only; omit the row entirely on
               older nodes rather than showing an empty placeholder. */}
           {data.duty_cycle_limit != null && (
             <KvRow label={t('repeater_duty_cycle_limit_label')} value={data.duty_cycle_limit} />
           )}
-          <KvRow label={t('repeater_repeat_mode_label')} value={data.repeat_enabled ?? '—'} />
-          <KvRow label={t('repeater_max_flood_hops_label')} value={data.flood_max ?? '—'} />
+          <KvRow label={t('repeater_repeat_mode_label')} value={data.repeat_enabled ?? '-'} />
+          <KvRow label={t('repeater_max_flood_hops_label')} value={data.flood_max ?? '-'} />
         </div>
       )}
       {/* Advert Intervals sub-section */}

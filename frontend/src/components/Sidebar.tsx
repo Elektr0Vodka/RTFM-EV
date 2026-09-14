@@ -386,7 +386,7 @@ export function Sidebar({
   );
 
   const getContactHeardTime = useCallback((contact: Contact): number => {
-    // Prefer last_seen (server receive wall clock — the value the UI shows as
+    // Prefer last_seen (server receive wall clock - the value the UI shows as
     // "Last heard") so the recency sort matches the displayed date. Fall back to
     // last_advert only for repeaters known purely from radio sync, which have no
     // independent last_seen. Using Math.max here let a radio-reported (sender

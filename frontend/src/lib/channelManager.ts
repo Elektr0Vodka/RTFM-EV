@@ -4,7 +4,7 @@
 // and extends it with automation metadata (firstSeen, lastHeard, packets, source).
 
 export interface RegistryChannel {
-  // Core fields — compatible with meshcore-nl-discovered-channels schema
+  // Core fields - compatible with meshcore-nl-discovered-channels schema
   channel: string; // Always starts with #, e.g. "#amsterdam"
   category: string;
   subcategory: string;
@@ -19,9 +19,9 @@ export interface RegistryChannel {
   scopes: string[];
   country: string;
   // Extended metadata added by Project B (not in the base Project A schema)
-  firstSeen: string | null; // ISO datetime — when first discovered by the channel finder
-  lastHeard: string | null; // ISO datetime — most recent activity from finder
-  added: string | null; // ISO date — when this entry was added to the registry
+  firstSeen: string | null; // ISO datetime - when first discovered by the channel finder
+  lastHeard: string | null; // ISO datetime - most recent activity from finder
+  added: string | null; // ISO date - when this entry was added to the registry
   packets: number; // Cumulative packet count from finder observations
   source: 'finder' | 'manual' | 'imported' | 'radio' | 'mention'; // 'radio' = seeded from existing DB channel; 'mention' = seen referenced in chat
   private?: boolean; // When true, this entry is excluded from all exports
@@ -226,7 +226,7 @@ export function mergeImport(
 
 /**
  * Add channels from a remote sync payload that are not already in the registry.
- * Never modifies existing entries — pure add-missing-only semantics.
+ * Never modifies existing entries - pure add-missing-only semantics.
  * New entries get source = 'imported', firstSeen = null, lastHeard = null, packets = 0.
  * Returns { result, added }. Caller must persist with saveRegistry.
  */
@@ -259,7 +259,7 @@ export function addMissingFromSync(
 /**
  * Record a channel referenced in a chat message, if not already present.
  * Unlike recordFinderDiscovery this sets NO firstSeen/lastHeard and leaves
- * packets at 0 — a mention is a reference, not observed channel activity.
+ * packets at 0 - a mention is a reference, not observed channel activity.
  * No-op when the channel already exists (never mutates it). Returns
  * { result, added }. Caller must persist with saveRegistry when added.
  */
@@ -297,14 +297,14 @@ export interface RadioChannelSeed {
   name: string;
   key: string;
   is_hashtag?: boolean; // When false (e.g. the default "Public" channel), skip registry seeding
-  created_at?: number; // Unix timestamp (seconds) — optional, falls back to today
+  created_at?: number; // Unix timestamp (seconds) - optional, falls back to today
 }
 
 /**
  * One-way seed: adds any radio channel that is not already in the registry.
  * Never overwrites an existing registry entry.
  * New entries get source = 'radio' and added = the channel's created_at date.
- * Returns { result, added } — caller must persist with saveRegistry if added > 0.
+ * Returns { result, added } - caller must persist with saveRegistry if added > 0.
  */
 export function seedFromRadioChannels(
   radioChannels: RadioChannelSeed[],

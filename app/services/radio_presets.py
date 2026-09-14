@@ -68,7 +68,7 @@ async def fetch_official_presets(
     """GET the upstream config and normalize it.
 
     Raises ``httpx.HTTPStatusError`` on a non-2xx response and
-    ``httpx.RequestError`` on a transport failure — the caller decides how to
+    ``httpx.RequestError`` on a transport failure - the caller decides how to
     surface those. A ``client`` may be injected for testing; otherwise a
     short-lived one is created and closed here.
     """

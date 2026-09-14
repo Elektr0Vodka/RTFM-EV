@@ -4,7 +4,7 @@ import type { OpenHopHardwareData } from '../../../../types';
 import { useT } from '../../../../i18n';
 
 function fmtBytes(n?: number): string {
-  if (n == null) return '—';
+  if (n == null) return '-';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let v = n;
   let i = 0;
@@ -16,7 +16,7 @@ function fmtBytes(n?: number): string {
 }
 
 function fmtUptime(seconds?: number): string {
-  if (seconds == null) return '—';
+  if (seconds == null) return '-';
   const d = Math.floor(seconds / 86400);
   const h = Math.floor((seconds % 86400) / 3600);
   const m = Math.floor((seconds % 3600) / 60);
@@ -106,17 +106,17 @@ export function OpenHopSystemPane() {
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Tile
           label={t('openhop_sys_cpu')}
-          value={hw?.cpu?.usage_percent != null ? `${hw.cpu.usage_percent.toFixed(1)}%` : '—'}
+          value={hw?.cpu?.usage_percent != null ? `${hw.cpu.usage_percent.toFixed(1)}%` : '-'}
           sub={hw?.cpu?.load_avg?.['1min'] != null ? `load ${hw.cpu.load_avg['1min']}` : undefined}
         />
         <Tile
           label={t('openhop_sys_memory')}
-          value={hw?.memory?.usage_percent != null ? `${hw.memory.usage_percent}%` : '—'}
+          value={hw?.memory?.usage_percent != null ? `${hw.memory.usage_percent}%` : '-'}
           sub={`${fmtBytes(hw?.memory?.used)} / ${fmtBytes(hw?.memory?.total)}`}
         />
         <Tile
           label={t('openhop_sys_disk')}
-          value={hw?.disk?.usage_percent != null ? `${hw.disk.usage_percent}%` : '—'}
+          value={hw?.disk?.usage_percent != null ? `${hw.disk.usage_percent}%` : '-'}
           sub={`${fmtBytes(hw?.disk?.free)} ${t('openhop_sys_free')}`}
         />
         <Tile label={t('openhop_sys_uptime')} value={fmtUptime(hw?.system?.uptime)} />

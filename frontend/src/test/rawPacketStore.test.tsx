@@ -232,7 +232,7 @@ describe('rawPacketStore', () => {
    * Asserted through a mounted subscriber rather than getRawPackets(), because the
    * failure mode is specifically a missing emit(): the module state would be correct
    * while every view kept rendering packets that no longer exist. On a quiet mesh the
-   * next packet — and so the next repaint — can be minutes away.
+   * next packet - and so the next repaint - can be minutes away.
    */
   it('notifies subscribed views when the buffer is cleared on reconnect', () => {
     function PacketCount() {

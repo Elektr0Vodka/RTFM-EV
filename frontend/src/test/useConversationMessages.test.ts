@@ -159,7 +159,7 @@ describe('getMessageContentKey', () => {
   });
 
   it('null-timestamp messages with same id produce same key (true duplicates dedup)', () => {
-    // Same message arriving via WS + API fetch has the same id — should still dedup
+    // Same message arriving via WS + API fetch has the same id - should still dedup
     const msg1 = createMessage({ id: 42, sender_timestamp: null, received_at: 1700000001 });
     const msg2 = createMessage({ id: 42, sender_timestamp: null, received_at: 1700000001 });
 

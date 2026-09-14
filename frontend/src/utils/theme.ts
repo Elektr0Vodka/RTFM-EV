@@ -214,7 +214,7 @@ export function applyTheme(themeId: string): void {
     }
   }
 
-  // Update PWA theme-color meta tag — reflect the effective (rendered) theme.
+  // Update PWA theme-color meta tag - reflect the effective (rendered) theme.
   const theme = THEMES.find((t) => t.id === effective);
   if (theme) {
     const meta = document.querySelector('meta[name="theme-color"]');

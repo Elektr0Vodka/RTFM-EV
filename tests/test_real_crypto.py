@@ -329,7 +329,7 @@ class TestHistoricalDMDecryptionPipeline:
         run_historical_dm_decryption passes our_public_key=None, which disables
         the outbound hash check. When our first byte differs from the contact's
         (255/256 cases), outgoing packets fail the inbound src_hash check and
-        are skipped — this is correct behavior.
+        are skipped - this is correct behavior.
         """
         from app.packet_processor import run_historical_dm_decryption
 
@@ -346,7 +346,7 @@ class TestHistoricalDMDecryptionPipeline:
         broadcasts, mock_broadcast = captured_broadcasts
 
         with patch("app.packet_processor.broadcast_event", mock_broadcast):
-            # Decrypt as client1 (the sender) — first bytes differ (a1 != fa)
+            # Decrypt as client1 (the sender) - first bytes differ (a1 != fa)
             # so historical decryption correctly skips this outgoing packet
             await run_historical_dm_decryption(
                 private_key_bytes=CLIENT1_PRIVATE,
@@ -355,7 +355,7 @@ class TestHistoricalDMDecryptionPipeline:
                 display_name="Client2",
             )
 
-        # No messages stored — outgoing DMs are handled by the send endpoint
+        # No messages stored - outgoing DMs are handled by the send endpoint
         messages = await MessageRepository.get_all(
             msg_type="PRIV", conversation_key=CLIENT2_PUBLIC_HEX.lower(), limit=10
         )
@@ -468,7 +468,7 @@ class TestLiveDMDecryptionPipeline:
         from app.keystore import set_private_key
 
         set_private_key(CLIENT2_PRIVATE)
-        # No contacts registered — client1 is unknown
+        # No contacts registered - client1 is unknown
 
         broadcasts, mock_broadcast = captured_broadcasts
 
@@ -490,7 +490,7 @@ class TestLiveDMDecryptionPipeline:
     @pytest.mark.asyncio
     async def test_dm_without_private_key_not_decrypted(self, test_db, captured_broadcasts):
         """Without a private key in the keystore, DMs are stored but not decrypted."""
-        # Don't call set_private_key — keystore is empty
+        # Don't call set_private_key - keystore is empty
 
         await ContactRepository.upsert(
             {

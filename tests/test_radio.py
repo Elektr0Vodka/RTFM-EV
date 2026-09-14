@@ -329,7 +329,7 @@ class TestConnectionMonitor:
 
 
 class TestReconnectLock:
-    """Tests for reconnect() lock serialization — no duplicate reconnections."""
+    """Tests for reconnect() lock serialization - no duplicate reconnections."""
 
     @pytest.mark.asyncio
     async def test_concurrent_reconnects_only_connect_once(self):
@@ -664,7 +664,7 @@ class TestManualDisconnectCleanup:
 
 
 class TestSerialDeviceProbe:
-    """Tests for test_serial_device() — verifies cleanup on all exit paths."""
+    """Tests for test_serial_device() - verifies cleanup on all exit paths."""
 
     @pytest.mark.asyncio
     async def test_success_returns_true_and_disconnects(self):
@@ -722,7 +722,7 @@ class TestSerialDeviceProbe:
 
     @pytest.mark.asyncio
     async def test_timeout_returns_false_no_disconnect_needed(self):
-        """asyncio.TimeoutError before create_serial completes — mc is None, no disconnect."""
+        """asyncio.TimeoutError before create_serial completes - mc is None, no disconnect."""
         from app.radio import test_serial_device
 
         with patch("app.radio.MeshCore") as mock_meshcore:
@@ -771,7 +771,7 @@ class TestSerialDeviceProbe:
 
 
 class TestPostConnectSetupOrdering:
-    """Tests for post_connect_setup() — verifies drain-before-auto-fetch ordering."""
+    """Tests for post_connect_setup() - verifies drain-before-auto-fetch ordering."""
 
     @pytest.mark.asyncio
     async def test_drain_runs_before_auto_fetch(self):

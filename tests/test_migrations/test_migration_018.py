@@ -17,7 +17,7 @@ class TestMigration018:
         try:
             await set_version(conn, 17)
 
-            # Create raw_packets WITH UNIQUE(data) — simulates production schema
+            # Create raw_packets WITH UNIQUE(data) - simulates production schema
             await conn.execute("""
                 CREATE TABLE raw_packets (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -113,7 +113,7 @@ class TestMigration018:
         try:
             await set_version(conn, 17)
 
-            # Create raw_packets WITHOUT UNIQUE(data) — fresh install schema
+            # Create raw_packets WITHOUT UNIQUE(data) - fresh install schema
             await conn.execute("""
                 CREATE TABLE raw_packets (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,

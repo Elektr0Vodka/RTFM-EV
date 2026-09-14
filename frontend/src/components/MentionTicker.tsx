@@ -5,7 +5,7 @@
  * @mentioned in a channel they are not currently viewing.
  *
  * - Renders in the top of the main content area
- * - Does NOT mark the message as read — it only surfaces the mention
+ * - Does NOT mark the message as read - it only surfaces the mention
  * - Clicking a mention navigates to the channel at that specific message
  * - Dismiss button hides the ticker until a new mention arrives
  * - Callers expire entries (see App.tsx); the component just renders what it is given

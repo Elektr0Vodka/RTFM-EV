@@ -44,7 +44,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
       () =>
         reject(
           new Error(
-            `${label} timed out — the service worker may have failed to install. ` +
+            `${label} timed out - the service worker may have failed to install. ` +
               'Mobile browsers require a trusted TLS certificate for service workers, ' +
               'even if the page itself loads with a self-signed cert.'
           )

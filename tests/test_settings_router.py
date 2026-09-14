@@ -636,7 +636,7 @@ class TestTelemetryScheduleEndpoint:
 
         At N=0 the clamp helper returns the default 8h, which is a fine
         display value for an empty state. Options start at 8h for the same
-        reason — any lower shortest-legal only makes sense once the user
+        reason - any lower shortest-legal only makes sense once the user
         has at least one repeater tracked.
         """
         schedule = await get_telemetry_schedule()

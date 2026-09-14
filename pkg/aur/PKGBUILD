@@ -8,7 +8,7 @@ pkgdesc='Web interface for MeshCore mesh radio networks'
 arch=(x86_64 aarch64)
 url='https://github.com/Elektr0Vodka/RTFM-EV'
 license=('MIT')
-# No system python dependency — we bundle a standalone interpreter via
+# No system python dependency - we bundle a standalone interpreter via
 # python-build-standalone so the package is immune to Arch python ABI bumps.
 depends=(glibc)
 makedepends=(uv nodejs npm)
@@ -98,7 +98,7 @@ package() {
     -e "s|$srcdir/python|$_optdir/python|g" \
     "$_instdir/.venv/pyvenv.cfg" 2>/dev/null || true
 
-  # Recreate the venv interpreter symlinks — these are symlinks (not files),
+  # Recreate the venv interpreter symlinks - these are symlinks (not files),
   # so sed cannot fix them. Point them at the bundled Python.
   ln -sf "$_optdir/python/bin/python3" "$_instdir/.venv/bin/python"
   ln -sf python "$_instdir/.venv/bin/python3"

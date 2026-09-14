@@ -19,7 +19,7 @@ SERVICE_SCRIPT = "scripts/setup/install_service.sh"
 DOCKER_SCRIPT = "scripts/setup/install_docker.sh"
 
 # ---------------------------------------------------------------------------
-# Brutal test strings — shared across both formats
+# Brutal test strings - shared across both formats
 # ---------------------------------------------------------------------------
 
 BRUTAL_STRINGS = [

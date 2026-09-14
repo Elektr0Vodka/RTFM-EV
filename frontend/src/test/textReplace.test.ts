@@ -39,7 +39,7 @@ describe('map JSON persistence', () => {
   it('rejects invalid JSON with error string', () => {
     const err = setTextReplaceMapJson('not json');
     expect(err).toBeTypeOf('string');
-    // localStorage unchanged — still returns default
+    // localStorage unchanged - still returns default
     expect(getTextReplaceMapJson()).toBe(DEFAULT_MAP_JSON);
   });
 
@@ -152,7 +152,7 @@ describe('applyTextReplacements', () => {
 
   it('handles multiple replacements with cursor tracking', () => {
     const map = JSON.stringify({ ':)': 'S' });
-    // ":):)" cursor at end (4) — two replacements, each shrinks by 1
+    // ":):)" cursor at end (4) - two replacements, each shrinks by 1
     const result = applyTextReplacements(':):)', 4, map);
     expect(result).toEqual({ text: 'SS', cursor: 2 });
   });
@@ -177,7 +177,7 @@ describe('applyTextReplacements', () => {
   });
 
   it('works with the default Cyrillic map', () => {
-    // "Привет" — П has no mapping, р→p, и has no mapping, в has no mapping, е→e, т has no mapping
+    // "Привет" - П has no mapping, р→p, и has no mapping, в has no mapping, е→e, т has no mapping
     const result = applyTextReplacements('Привет', 6, DEFAULT_MAP_JSON);
     expect(result).not.toBeNull();
     expect(result!.text).toBe('Пpивeт');

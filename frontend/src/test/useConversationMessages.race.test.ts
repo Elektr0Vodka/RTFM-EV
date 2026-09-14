@@ -205,7 +205,7 @@ describe('useConversationMessages conversation switch', () => {
     expect(result.current.hasOlderMessages).toBe(true);
     expect(result.current.messages).toHaveLength(200);
 
-    // Start fetching older messages — use a deferred promise so it stays in-flight
+    // Start fetching older messages - use a deferred promise so it stays in-flight
     const olderDeferred = createDeferred<Message[]>();
     mockGetMessages.mockReturnValueOnce(olderDeferred.promise);
 
@@ -221,13 +221,13 @@ describe('useConversationMessages conversation switch', () => {
       rerender({ conv: convB });
     });
 
-    // loadingOlder must reset immediately — no phantom spinner in conv B
+    // loadingOlder must reset immediately - no phantom spinner in conv B
     await waitFor(() => expect(result.current.loadingOlder).toBe(false));
     await waitFor(() => expect(result.current.messagesLoading).toBe(false));
     expect(result.current.messages).toHaveLength(1);
     expect(result.current.messages[0].conversation_key).toBe('conv_b');
 
-    // Resolve the stale older-messages fetch — should not affect conv B's state
+    // Resolve the stale older-messages fetch - should not affect conv B's state
     await act(async () => {
       olderDeferred.resolve([
         createMessage({ id: 500, conversation_key: 'conv_a', text: 'stale-old' }),

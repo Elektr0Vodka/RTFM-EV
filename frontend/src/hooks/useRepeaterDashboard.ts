@@ -440,7 +440,7 @@ export function useRepeaterDashboard(
       'lppTelemetry',
       'regions',
     ];
-    // Serial execution — parallel calls just queue behind the radio lock anyway
+    // Serial execution - parallel calls just queue behind the radio lock anyway
     for (const pane of panes) {
       await refreshPane(pane);
     }

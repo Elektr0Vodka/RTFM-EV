@@ -146,7 +146,7 @@
   }
 }
 
-/* Custom scrollbar — thin, unobtrusive, matches palette */
+/* Custom scrollbar - thin, unobtrusive, matches palette */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;

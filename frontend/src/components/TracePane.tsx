@@ -161,7 +161,7 @@ function getShortKey(publicKey: string | null | undefined, unknownLabel: string)
 
 function formatSNR(snr: number | null | undefined): string {
   if (typeof snr !== 'number' || Number.isNaN(snr)) {
-    return '—';
+    return '-';
   }
   return `${snr >= 0 ? '+' : ''}${snr.toFixed(1)} dB`;
 }

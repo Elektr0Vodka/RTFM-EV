@@ -46,7 +46,7 @@ class BaseMqttPublisher(ABC):
     Subclasses implement the abstract hooks to control configuration checks,
     client construction, toast messages, and optional wait-loop behavior.
 
-    The settings type is duck-typed — each subclass defines a Protocol
+    The settings type is duck-typed - each subclass defines a Protocol
     describing the attributes it expects (e.g. ``PrivateMqttSettings``,
     ``CommunityMqttSettings``). Callers pass ``SimpleNamespace`` instances
     that satisfy the protocol.
@@ -181,7 +181,7 @@ class BaseMqttPublisher(ABC):
         self._suppress_next_connect_toast = False
 
     async def restart(self, settings: object) -> None:
-        """Called when settings change — stop + start."""
+        """Called when settings change - stop + start."""
         await self.stop()
         await self.start(settings)
 
@@ -298,7 +298,7 @@ class BaseMqttPublisher(ABC):
                     backoff = _BACKOFF_MIN
 
                     if self._suppress_next_connect_toast:
-                        # Planned/self-healing reconnect — health still updates,
+                        # Planned/self-healing reconnect - health still updates,
                         # but skip the redundant "connected" toast.
                         self._suppress_next_connect_toast = False
                     else:
@@ -326,7 +326,7 @@ class BaseMqttPublisher(ABC):
                                 break
                             continue
 
-                # async with exited — client is now closed
+                # async with exited - client is now closed
                 self._client = None
                 self.connected = False
                 _broadcast_health()
@@ -355,7 +355,7 @@ class BaseMqttPublisher(ABC):
                 )
                 if _on_proactor:
                     broadcast_error(
-                        "MQTT unavailable — Windows event loop incompatible",
+                        "MQTT unavailable - Windows event loop incompatible",
                         "The default Windows event loop (ProactorEventLoop) does "
                         "not support MQTT. Add --loop none to your uvicorn "
                         "command and restart. See README.md for details.",

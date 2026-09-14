@@ -19,13 +19,13 @@ differ elsewhere.
   DMC and meshcomod below.
 - Local: `G:\Github\repositories\Meshcore` (no git remote configured locally).
 
-### DMC-MeshCore (two flavours — this distinction matters for the Repeater Manager)
+### DMC-MeshCore (two flavours - this distinction matters for the Repeater Manager)
 - Repo: https://github.com/Dutch-MeshCore/MeshCore (upstream: `meshcore-dev/MeshCore`).
 - Local: `G:\Github\repositories\Dutch-MeshCore\MeshCore`.
-- **DMC Repeater** — branch `dmc-dev`. Stock repeater firmware plus DMC
+- **DMC Repeater** - branch `dmc-dev`. Stock repeater firmware plus DMC
   configuration and packet-filter management exposed over **Serial / RF CLI**. No
   on-device MQTT. Target for remote repeater-management panel extensions.
-- **DMC-MQTT-Repeater / Observer** — branch `dmc-observer-dev-1171-regiongating`
+- **DMC-MQTT-Repeater / Observer** - branch `dmc-observer-dev-1171-regiongating`
   (region-gating work; supersedes `dmc-observer-dev`, `dmc-observer-dev-1-17*`).
   Everything in DMC Repeater plus **on-device MQTT** (`WITH_MQTT_BRIDGE`), webconfig,
   and wifi. Six MQTT topic types: `status`(0) / `packets`(1) / `raw`(2) /

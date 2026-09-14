@@ -108,7 +108,7 @@ npm run build
 E2E tests exercise the full stack (backend + frontend + real radio hardware) via Playwright.
 
 > [!WARNING]
-> E2E tests are **not part of the normal development path** — most contributors will never need to run them. They exist to catch integration issues that unit tests can't and generally only need to be run by maintainers.
+> E2E tests are **not part of the normal development path** - most contributors will never need to run them. They exist to catch integration issues that unit tests can't and generally only need to be run by maintainers.
 
 ### Hardware requirements
 
@@ -137,7 +137,7 @@ The test harness starts its own uvicorn instance on port 8001 with a fresh tempo
 
 ### Making mesh-traffic tests reliable: the echo bot
 
-The most practical way to guarantee incoming traffic is to run an **echo bot on a second radio** monitoring a known channel. When the test suite starts a `@mesh-traffic` test, it sends a trigger message to that channel. If a bot on another radio is listening, it replies — generating the incoming RF packet the test needs within seconds instead of waiting for organic mesh traffic.
+The most practical way to guarantee incoming traffic is to run an **echo bot on a second radio** monitoring a known channel. When the test suite starts a `@mesh-traffic` test, it sends a trigger message to that channel. If a bot on another radio is listening, it replies - generating the incoming RF packet the test needs within seconds instead of waiting for organic mesh traffic.
 
 The test suite sends `!echo please give incoming message` to the echo channel (default `#flightless`) at the start of each `@mesh-traffic` test. The trigger message is configurable via `E2E_ECHO_TRIGGER_MESSAGE`.
 
@@ -152,7 +152,7 @@ Setup:
            return f"[ECHO] {message_text}"
        return None
    ```
-4. The test suite calls `nudgeEchoBot()` automatically — no manual intervention needed
+4. The test suite calls `nudgeEchoBot()` automatically - no manual intervention needed
 
 Without the echo bot, `@mesh-traffic` tests rely on organic traffic from other nodes. In a quiet RF environment they will time out.
 

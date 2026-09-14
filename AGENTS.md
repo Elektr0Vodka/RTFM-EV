@@ -22,7 +22,7 @@ A web interface for MeshCore mesh radio networks. The backend connects to a Mesh
 
 **Interop references:**
 - `docs/sources-of-truth.md` - Canonical upstream repos for the firmware (official MeshCore, DMC Repeater / DMC-MQTT-Repeater, meshcomod) and tooling RTFM-EV interoperates with. Verify wire formats, CLI verbs, MQTT payloads, and URL schemes here.
-- `docs/plans/README.md` - Local feature-planning backlog (categorised, per-plan model assignment, dependencies).
+- `docs/plans/` and `docs/superpowers/` - Local-only planning backlog and per-feature spec/plan notes. These are git-ignored (kept on disk, not tracked), so they are present only in local checkouts that have them.
 
 Ancillary AGENTS.md files which should generally not be reviewed unless specific work is being performed on those features include:
 - `app/fanout/AGENTS_fanout.md` - Fanout bus architecture (MQTT, bots, webhooks, Apprise, SQS)
@@ -71,18 +71,18 @@ Ancillary AGENTS.md files which should generally not be reviewed unless specific
 - Accurate message display: correct ordering, deduplication, pagination/history loading, and real-time updates without data loss or duplicates
 - Accurate ACK tracking, repeat/echo counting, and path display
 - Historical packet decryption (recovering incoming messages using newly-added keys)
-- Outgoing DMs are stored as plaintext by the send endpoint — no decryption needed
+- Outgoing DMs are stored as plaintext by the send endpoint - no decryption needed
 
 **Secondary:**
 - Channel key cracker (WebGPU brute-force)
 - Repeater management (telemetry, CLI commands, ACL)
 
 **Tertiary (best-effort, quality-of-life):**
-- Raw packet feed — a debug/observation tool ("radio aquarium"); interesting to watch or copy packets from, but not critical infrastructure
-- Map view — visual display of node locations from advertisements
-- Network visualizer — force-directed graph of mesh topology
-- Fanout integrations (MQTT, bots, webhooks, Apprise, SQS) — see `app/fanout/AGENTS_fanout.md`
-- Read state tracking / mark-all-read — convenience feature for unread badges; no need for transactional atomicity or race-condition hardening
+- Raw packet feed - a debug/observation tool ("radio aquarium"); interesting to watch or copy packets from, but not critical infrastructure
+- Map view - visual display of node locations from advertisements
+- Network visualizer - force-directed graph of mesh topology
+- Fanout integrations (MQTT, bots, webhooks, Apprise, SQS) - see `app/fanout/AGENTS_fanout.md`
+- Read state tracking / mark-all-read - convenience feature for unread badges; no need for transactional atomicity or race-condition hardening
 
 ## Error Handling Philosophy
 
@@ -114,7 +114,7 @@ The following are **deliberate design choices**, not bugs. They are documented i
 
 1. **No CORS restrictions**: The backend allows all origins (`allow_origins=["*"]`). This lets users access their radio from any device/origin on their network without configuration hassle.
 2. **Minimal optional access control only**: The app has no user accounts, sessions, authorization model, or per-feature permissions. Operators may optionally set `MESHCORE_BASIC_AUTH_USERNAME` and `MESHCORE_BASIC_AUTH_PASSWORD` for app-wide HTTP Basic auth, but this is only a coarse gate and still requires HTTPS plus a trusted network posture.
-3. **Arbitrary bot code execution**: The bot system (`app/fanout/bot_exec.py`) executes user-provided Python via `exec()` with full `__builtins__`. This is intentional — bots are a power-user feature for automation. The README explicitly warns that anyone on the network can execute arbitrary code through this. Operators can set `MESHCORE_DISABLE_BOTS=true` to completely disable the bot system at startup — this skips all bot execution, returns 403 on bot settings updates, and shows a disabled message in the frontend.
+3. **Arbitrary bot code execution**: The bot system (`app/fanout/bot_exec.py`) executes user-provided Python via `exec()` with full `__builtins__`. This is intentional - bots are a power-user feature for automation. The README explicitly warns that anyone on the network can execute arbitrary code through this. Operators can set `MESHCORE_DISABLE_BOTS=true` to completely disable the bot system at startup - this skips all bot execution, returns 403 on bot settings updates, and shows a disabled message in the frontend.
 
 ## Intentional Packet Handling Decision
 
@@ -183,7 +183,7 @@ Outgoing DMs send once immediately, then may retry up to 2 more times in the bac
 
 ACKs are not a contact-route source. They drive message delivery state and may appear in analytics/detail surfaces, but they do not update `direct_path*` or otherwise influence route selection for future sends.
 
-**Channel messages**: Flood messages echo back through repeaters. Repeats are identified by the database UNIQUE constraint `idx_messages_dedup_null_safe` on `(type, conversation_key, text, COALESCE(sender_timestamp, 0))` where `type = 'CHAN'` — when an INSERT hits a duplicate, `_handle_duplicate_message()` in `packet_processor.py` adds the new path and, for outgoing messages only, increments the ack count. Incoming repeats add path data but do not change the ack count. There is no timestamp-windowed matching; deduplication is exact-match only.
+**Channel messages**: Flood messages echo back through repeaters. Repeats are identified by the database UNIQUE constraint `idx_messages_dedup_null_safe` on `(type, conversation_key, text, COALESCE(sender_timestamp, 0))` where `type = 'CHAN'` - when an INSERT hits a duplicate, `_handle_duplicate_message()` in `packet_processor.py` adds the new path and, for outgoing messages only, increments the ack count. Incoming repeats add path data but do not change the ack count. There is no timestamp-windowed matching; deduplication is exact-match only.
 
 **Incoming direct messages**: A separate unique index `idx_messages_incoming_priv_dedup` on `(type, conversation_key, text, COALESCE(sender_timestamp, 0), COALESCE(sender_key, ''))` where `type = 'PRIV' AND outgoing = 0` deduplicates incoming DMs. The additional `sender_key` term (added in migration 056) distinguishes room-server posts from different senders that arrive in the same second with identical text.
 
@@ -430,7 +430,7 @@ All endpoints are prefixed with `/api` (e.g., `/api/health`).
 
 - Stored as 32-character hex string (TEXT PRIMARY KEY)
 - Hashtag channels: `SHA256("#name")[:16]` converted to hex
-- Hashtag channel names are hashed **verbatim** (any character — `&`, capitals, spaces, accents — is valid), matching `meshcore_py` / meshcore-cli / meshcore.js, which impose no character restriction (firmware never validates or even sees the name; it only receives the precomputed secret). The New-Conversation UI defaults to normalizing names to lowercase `[a-z0-9-]`, but a "Permit capitals, whitespace, and extended characters" toggle hashes the name exactly as typed for cross-client interop. The only server-side limit is non-empty and ≤32 UTF-8 bytes including the leading `#` (the on-radio name field size).
+- Hashtag channel names are hashed **verbatim** (any character - `&`, capitals, spaces, accents - is valid), matching `meshcore_py` / meshcore-cli / meshcore.js, which impose no character restriction (firmware never validates or even sees the name; it only receives the precomputed secret). The New-Conversation UI defaults to normalizing names to lowercase `[a-z0-9-]`, but a "Permit capitals, whitespace, and extended characters" toggle hashes the name exactly as typed for cross-client interop. The only server-side limit is non-empty and ≤32 UTF-8 bytes including the leading `#` (the on-radio name field size).
 - Custom channels: User-provided or generated
 - Channels may also persist `flood_scope_override`; when set, channel sends temporarily switch the radio flood scope to that value for the duration of the send, then restore the global app setting.
 - Channels may persist `path_hash_mode_override` (0/1/2); when set, channel sends temporarily switch the radio path hash mode for the duration of the send, then restore the radio default.
@@ -465,7 +465,7 @@ Community MQTT forwards raw packets only. Its derived `path` field, when present
 
 ### Web Push Notifications
 
-Web Push is a standalone subsystem (`app/push/`) that sends browser push notifications for incoming messages even when the browser tab is closed. It is **not** a fanout module — it manages its own per-browser subscriptions, while the set of push-enabled conversations is stored once per server instance.
+Web Push is a standalone subsystem (`app/push/`) that sends browser push notifications for incoming messages even when the browser tab is closed. It is **not** a fanout module - it manages its own per-browser subscriptions, while the set of push-enabled conversations is stored once per server instance.
 
 - **Requires HTTPS** (self-signed certificates work) and outbound internet from the server to reach browser push services (Google FCM, Mozilla autopush).
 - VAPID key pair is auto-generated on first startup and stored in `app_settings`.

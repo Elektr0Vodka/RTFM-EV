@@ -163,7 +163,7 @@ def _decode_packet_fields(raw_bytes: bytes) -> tuple[str, str, str, list[str], i
 def _format_raw_packet(data: dict[str, Any], device_name: str, public_key_hex: str) -> dict | None:
     """Convert a RawPacketBroadcast dict to meshcore-packet-capture format.
 
-    Returns ``None`` when the packet cannot be decoded — callers should skip
+    Returns ``None`` when the packet cannot be decoded - callers should skip
     publishing rather than forwarding malformed data.
     """
     raw_hex = data.get("data", "")
@@ -214,7 +214,7 @@ def _format_raw_packet(data: dict[str, Any], device_name: str, public_key_hex: s
 # Maps RTFM-EV's internal repeater-telemetry field names (see
 # ``radio_sync._collect_repeater_telemetry``) to the observer feed's ``stats``
 # key names, so the analyzer can reuse its status extractor keyed on the subject
-# node. ``(source_field, transform)`` — transform is applied when not None.
+# node. ``(source_field, transform)`` - transform is applied when not None.
 _NODE_TELEMETRY_STATS_MAP: dict[str, tuple[str, Any]] = {
     "battery_mv": ("battery_volts", lambda v: round(v * 1000)),
     "uptime_secs": ("uptime_seconds", None),
@@ -280,7 +280,7 @@ def _format_node_neighbors(
     ``data`` is a ``broadcast_neighbor`` payload: repeater R's neighbor entries
     (``NeighborInfo`` shape) plus ``public_key``/``name``/``timestamp``/
     ``reported_count``. As with telemetry, ``origin_id`` is the local publisher
-    (self) and the subject repeater R is carried in ``subject_id`` — the analyzer
+    (self) and the subject repeater R is carried in ``subject_id`` - the analyzer
     edge is R <-> neighbor, never self <-> neighbor.
 
     Returns ``None`` when the subject repeater is unknown.
@@ -555,7 +555,7 @@ class CommunityMqttPublisher(BaseMqttPublisher):
                             "firmware_version": fw_str,
                         }
                     else:
-                        # Old firmware — cache what we can
+                        # Old firmware - cache what we can
                         self._cached_device_info = {
                             "model": "unknown",
                             "firmware_version": f"v{fw_ver}" if fw_ver else "unknown",
@@ -566,7 +566,7 @@ class CommunityMqttPublisher(BaseMqttPublisher):
         except Exception as e:
             logger.debug("Community MQTT: device info fetch failed: %s", e)
 
-        # Don't cache transient failures — allow retry on next status publish
+        # Don't cache transient failures - allow retry on next status publish
         return fallback
 
     async def _fetch_stats(self) -> dict[str, Any] | None:

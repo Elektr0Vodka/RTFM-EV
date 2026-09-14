@@ -37,3 +37,7 @@ docker-compose.yaml
 ha_test_config/
 
 .superpowers/
+
+# Local-only planning docs (kept on disk, not tracked)
+docs/plans/
+docs/superpowers/

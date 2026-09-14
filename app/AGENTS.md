@@ -141,7 +141,7 @@ without going through `assert_public_http_url`.
 
 - Server is source of truth (`contacts.last_read_at`, `channels.last_read_at`).
 - `GET /api/read-state/unreads` returns counts, mention flags, `last_message_times`, `last_read_ats`, and `first_unread_ids`.
-- `first_unread_ids` maps stateKey -> id of the oldest unread message, so the client can anchor the unread divider (and jump to it) without paging back through history. It is computed with `ROW_NUMBER() OVER (PARTITION BY type, conversation_key ORDER BY received_at, id)` — deliberately not `MIN(received_at)` with a bare id, because sender timestamps are whole seconds and same-second ties are routine, and not `MIN(id)`, because historical decryption inserts old messages with new ids.
+- `first_unread_ids` maps stateKey -> id of the oldest unread message, so the client can anchor the unread divider (and jump to it) without paging back through history. It is computed with `ROW_NUMBER() OVER (PARTITION BY type, conversation_key ORDER BY received_at, id)` - deliberately not `MIN(received_at)` with a bare id, because sender timestamps are whole seconds and same-second ties are routine, and not `MIN(id)`, because historical decryption inserts old messages with new ids.
 
 ### DM ingest + ACKs
 
@@ -160,9 +160,9 @@ without going through `assert_public_http_url`.
 
 `prepare_authenticated_contact_connection` (`routers/server_control.py`, shared by repeater and room login) sends one login over the contact's effective route. If that draws **no reply at all**, it calls `reset_path(...)` and retries exactly once as flood.
 
-This is intentionally *more* than the reference implementations do — do not "correct" it back to single-shot:
+This is intentionally *more* than the reference implementations do - do not "correct" it back to single-shot:
 - Firmware `BaseChatMesh::sendLogin` picks flood only when `out_path_len == OUT_PATH_UNKNOWN` and never retries; `CMD_SEND_LOGIN` calls it once.
-- `meshcore_py` has `send_msg_with_retry` (with `flood_after` + `reset_path`) but no login equivalent — `send_login`/`send_login_sync` are single-shot.
+- `meshcore_py` has `send_msg_with_retry` (with `flood_after` + `reset_path`) but no login equivalent - `send_login`/`send_login_sync` are single-shot.
 - Firmware only clears a stale path when the *host* asks (`CMD_RESET_PATH`); client-side path learning is otherwise passive via `onContactPathRecv`.
 
 Escalating is still correct because the **server** side treats an inbound flood as its cue to relearn the return path (`simple_repeater`/`simple_room_server`: `if (is_flood) client->out_path_len = OUT_PATH_UNKNOWN`). A flood login is therefore what repairs a broken route in both directions, and login gates the whole repeater dashboard.
@@ -171,18 +171,18 @@ Escalation is bounded to one extra attempt and only fires when:
 - the first attempt **timed out**. `LOGIN_FAILED` means the server heard us and refused, so the route is fine and retrying only hammers it with bad credentials; a send error is a local radio problem a different route will not fix.
 - the contact was **not already on flood** (`effective_route_source != "flood"`), since the retry would otherwise be byte-identical.
 
-The retry deliberately does not re-run `_ensure_on_radio` — re-adding the contact would restore the route just cleared. `reset_path` clears the route on the radio only; the stored contact route is untouched, so the next `add_contact` re-stages it. That mirrors the DM retry and keeps one bad login from discarding a route that may be fine.
+The retry deliberately does not re-run `_ensure_on_radio` - re-adding the contact would restore the route just cleared. `reset_path` clears the route on the radio only; the stored contact route is untouched, so the next `add_contact` re-stages it. That mirrors the DM retry and keeps one bad login from discarding a route that may be fine.
 
 ### Echo/repeat dedup
 
 - Channel message uniqueness (`idx_messages_dedup_null_safe`): `(type, conversation_key, text, COALESCE(sender_timestamp, 0))` where `type = 'CHAN'`.
-- Incoming PRIV message uniqueness (`idx_messages_incoming_priv_dedup`): `(type, conversation_key, text, COALESCE(sender_timestamp, 0), COALESCE(sender_key, ''))` where `type = 'PRIV' AND outgoing = 0` — `sender_key` was added in migration 056 to distinguish room-server posts from different senders in the same second.
+- Incoming PRIV message uniqueness (`idx_messages_incoming_priv_dedup`): `(type, conversation_key, text, COALESCE(sender_timestamp, 0), COALESCE(sender_key, ''))` where `type = 'PRIV' AND outgoing = 0` - `sender_key` was added in migration 056 to distinguish room-server posts from different senders in the same second.
 - Duplicate insert is treated as an echo/repeat: the new path (if any) is appended, and the ACK count is incremented only for outgoing channel messages. Incoming direct messages with the same dedup identity also collapse onto one stored row, with later observations merging path data instead of creating a second DM.
 
 ### Region scope decoding (transport codes)
 
 - `ROUTE_TYPE_TRANSPORT_FLOOD`/`ROUTE_TYPE_TRANSPORT_DIRECT` packets carry a 4-byte transport-code block; `parse_packet_envelope` exposes it as `transport_codes = (code_1, code_2)` (little-endian uint16s; `code_2` is reserved/0).
-- `code_1` is a keyed MAC over the payload, not a stable per-region id: `code = HMAC-SHA256(SHA256("#" + region_name)[:16], payload_type || payload)[:2]` (firmware `TransportKeyStore.cpp`; reserved values `0x0000`/`0xFFFF` are nudged to `0x0001`/`0xFFFE`). There is **no** reverse lookup table — to name a packet's region you recompute the code per candidate region and check for a match (`app/region_resolver.py`).
+- `code_1` is a keyed MAC over the payload, not a stable per-region id: `code = HMAC-SHA256(SHA256("#" + region_name)[:16], payload_type || payload)[:2]` (firmware `TransportKeyStore.cpp`; reserved values `0x0000`/`0xFFFF` are nudged to `0x0001`/`0xFFFE`). There is **no** reverse lookup table - to name a packet's region you recompute the code per candidate region and check for a match (`app/region_resolver.py`).
 - Candidate region names come from `app_settings.known_regions` (user-editable, seeded by migration 063 from `flood_scope` + channel `flood_scope_override`).
 - Channel messages persist `messages.transport_code` (uint16, NULL = unscoped plain flood) and `messages.region` (resolved name, NULL = scoped but no list match) at ingest, so the chat region badge survives raw-packet purge. The packet inspector (`GET /packets/{id}` and the `raw_packet` WS broadcast) resolves region on the fly against the current list since it still holds the raw payload.
 
@@ -191,9 +191,9 @@ The retry deliberately does not re-run `_ensure_on_radio` — re-adding the cont
 `GET /statistics` reports regional flood-scope uptake as two views with different denominators that intentionally will not agree:
 
 - **Traffic** (`bucket_region_scope` in `path_utils.py`) counts flood-routed (`route_type` 0/1) GroupText packets across all channels, including undecryptable ones. Zero-hop/direct sends are excluded because firmware reaches them through the non-transport `sendZeroHop`/`sendDirect` overloads and they can never carry transport codes.
-- **Senders** (`StatisticsRepository._region_scope_senders_24h`) counts distinct senders with at least one scoped message. Attribution requires decryption, so it only covers channels we hold keys for — narrower, but self-validating (a decrypted packet is provably not a corrupt capture) and immune to one chatty node skewing the result. Identity is `sender_key` falling back to `sender_name`; scoping reads `messages.transport_code`, falling back to the linked raw packet for rows stored before region tagging existed.
+- **Senders** (`StatisticsRepository._region_scope_senders_24h`) counts distinct senders with at least one scoped message. Attribution requires decryption, so it only covers channels we hold keys for - narrower, but self-validating (a decrypted packet is provably not a corrupt capture) and immune to one chatty node skewing the result. Identity is `sender_key` falling back to `sender_name`; scoping reads `messages.transport_code`, falling back to the linked raw packet for rows stored before region tagging existed.
 
-`false_positive_floor` exists because corrupt RF captures land in `raw_packets` with effectively random headers and a share of them claim `TRANSPORT_FLOOD`. That garbage spreads near-uniformly across payload-type buckets, so it is measured directly from payload types the protocol does not define (`0x0C`/`0x0D`/`0x0E`) and averaged per bucket. **A `scoped_messages` count at or below the floor is not evidence of adoption**; surface the two together and never show the percentage alone. Do not "fix" the floor by removing it — without it the metric reads several times higher than reality.
+`false_positive_floor` exists because corrupt RF captures land in `raw_packets` with effectively random headers and a share of them claim `TRANSPORT_FLOOD`. That garbage spreads near-uniformly across payload-type buckets, so it is measured directly from payload types the protocol does not define (`0x0C`/`0x0D`/`0x0E`) and averaged per bucket. **A `scoped_messages` count at or below the floor is not evidence of adoption**; surface the two together and never show the percentage alone. Do not "fix" the floor by removing it - without it the metric reads several times higher than reality.
 
 Both traffic buckets come from one 24h raw-packet scan (`_packet_shape_24h`) shared with `path_hash_width_24h`, so adding region stats costs no extra query or parse pass.
 
@@ -232,7 +232,7 @@ Both traffic buckets come from one 24h raw-packet scan (`_packet_shape_24h`) sha
 
 Web Push is a standalone subsystem in `app/push/`, separate from the fanout module system. It sends browser push notifications for incoming messages even when the tab is closed.
 
-- **Not a fanout module** — Web Push manages per-browser subscriptions (N browsers, each with its own endpoint and delivery state), unlike fanout which is one-config-to-one-destination.
+- **Not a fanout module** - Web Push manages per-browser subscriptions (N browsers, each with its own endpoint and delivery state), unlike fanout which is one-config-to-one-destination.
 - **VAPID keys**: auto-generated P-256 key pair on first startup, stored in `app_settings.vapid_private_key` / `vapid_public_key`. Cached in-module by `app/push/vapid.py`.
 - **VAPID subject**: the JWT `sub` claim comes from `get_vapid_claims()` in `app/push/vapid.py`, configurable via `MESHCORE_VAPID_SUBJECT` (default `mailto:noreply@meshcore.local`). Apple's APNs rejects `.local` subjects with `403 BadJwtToken`, so iOS/Safari deployments must set a real `mailto:`/`https:` contact.
 - **Dispatch**: `broadcast_event()` in `websocket.py` fires `push_manager.dispatch_message(data)` alongside fanout for `message` events. The manager checks the global `app_settings.push_conversations` list, then sends to all currently registered subscriptions via `pywebpush` (run in a thread executor).
@@ -246,50 +246,50 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `GET /health`
 
 ### Debug
-- `GET /debug` — support snapshot with recent logs, live radio probe, slot/contact audits, and version/git info
+- `GET /debug` - support snapshot with recent logs, live radio probe, slot/contact audits, and version/git info
 
 ### Radio
-- `GET /radio/config` — includes `path_hash_mode`, `path_hash_mode_supported`, advert-location on/off, and `multi_acks_enabled`
-- `PATCH /radio/config` — may update `path_hash_mode` (`0..2`) when firmware supports it, and `multi_acks_enabled`
-- `GET /radio/private-key` — export in-memory private key as hex (requires `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT=true`)
+- `GET /radio/config` - includes `path_hash_mode`, `path_hash_mode_supported`, advert-location on/off, and `multi_acks_enabled`
+- `PATCH /radio/config` - may update `path_hash_mode` (`0..2`) when firmware supports it, and `multi_acks_enabled`
+- `GET /radio/private-key` - export in-memory private key as hex (requires `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT=true`)
 - `PUT /radio/private-key`
-- `POST /radio/advertise` — manual advert send; request body may set `mode` to `flood` or `zero_hop` (defaults to `flood`)
-- `POST /radio/discover` — short mesh discovery sweep for nearby repeaters/sensors
-- `POST /radio/discover-regions` — sweep nearby repeaters via the guest anon regions request; aggregates flood-allowed region names into a deduped union for merging into `known_regions` (direct-routed, so only in-range repeaters answer; optional `public_keys`, else recent repeaters)
-- `GET /regions/sync` — server-side fetch of the configured `region_sync_url` (an analyzer regions endpoint returning a bare `{code, name}` array); maps each entry to `name || code`, dedupes, drops the `*` wildcard, and returns `{regions: [...]}` for additive merge into `known_regions` (mirrors `GET /registry/sync`; 400 if unset, 502 on unreachable/non-array)
+- `POST /radio/advertise` - manual advert send; request body may set `mode` to `flood` or `zero_hop` (defaults to `flood`)
+- `POST /radio/discover` - short mesh discovery sweep for nearby repeaters/sensors
+- `POST /radio/discover-regions` - sweep nearby repeaters via the guest anon regions request; aggregates flood-allowed region names into a deduped union for merging into `known_regions` (direct-routed, so only in-range repeaters answer; optional `public_keys`, else recent repeaters)
+- `GET /regions/sync` - server-side fetch of the configured `region_sync_url` (an analyzer regions endpoint returning a bare `{code, name}` array); maps each entry to `name || code`, dedupes, drops the `*` wildcard, and returns `{regions: [...]}` for additive merge into `known_regions` (mirrors `GET /registry/sync`; 400 if unset, 502 on unreachable/non-array)
 - `GET /registry/wordlist-sync`: server-side fetch of the configured `wordlist_sync_url` (a JSON array of candidate channel-name strings); filters to strings, caps at 100k entries, and returns `{words: [...]}` for the browser channel finder to merge into its bundled wordlist (mirrors `GET /registry/sync`; 400 if unset, 502 on unreachable/non-array/oversized)
-- `POST /radio/trace` — send a multi-hop trace loop through known repeaters and back to the local radio
+- `POST /radio/trace` - send a multi-hop trace loop through known repeaters and back to the local radio
 - `POST /radio/disconnect`
 - `POST /radio/reboot`
 - `POST /radio/reconnect`
 
 ### Contacts
 - `GET /contacts`
-- `GET /contacts/analytics` — unified keyed-or-name analytics payload
-- `GET /contacts/repeaters/advert-paths` — recent advert paths for all contacts
+- `GET /contacts/analytics` - unified keyed-or-name analytics payload
+- `GET /contacts/repeaters/advert-paths` - recent advert paths for all contacts
 - `POST /contacts`
 - `POST /contacts/bulk-delete`
 - `DELETE /contacts/{public_key}`
 - `POST /contacts/{public_key}/mark-read`
 - `POST /contacts/{public_key}/command`
-- `POST /contacts/{public_key}/annotations` — set user annotations (`notes`, `owner_info`, `owner_key`, `manual_lat`, `manual_lon`); partial update, explicit `null` clears a field, `owner_key` must reference an existing contact (422 otherwise); broadcasts `contact`
+- `POST /contacts/{public_key}/annotations` - set user annotations (`notes`, `owner_info`, `owner_key`, `manual_lat`, `manual_lon`); partial update, explicit `null` clears a field, `owner_key` must reference an existing contact (422 otherwise); broadcasts `contact`
 - `POST /contacts/{public_key}/routing-override`
 - `POST /contacts/{public_key}/trace`
-- `POST /contacts/{public_key}/path-discovery` — discover forward/return paths, persist the learned direct route, and sync it back to the radio best-effort
-- `POST /contacts/{public_key}/repeater/login` — one attempt on the effective route, then one flood retry on timeout
+- `POST /contacts/{public_key}/path-discovery` - discover forward/return paths, persist the learned direct route, and sync it back to the radio best-effort
+- `POST /contacts/{public_key}/repeater/login` - one attempt on the effective route, then one flood retry on timeout
 - `POST /contacts/{public_key}/repeater/status`
 - `POST /contacts/{public_key}/repeater/lpp-telemetry`
 - `POST /contacts/{public_key}/repeater/neighbors`
 - `POST /contacts/{public_key}/repeater/acl`
 - `POST /contacts/{public_key}/repeater/node-info`
 - `POST /contacts/{public_key}/repeater/radio-settings`
-- `POST /contacts/{public_key}/repeater/regions` — CLI region hierarchy, falling back to the guest anon flood-allowed names (`source`: `cli` or `anon`)
+- `POST /contacts/{public_key}/repeater/regions` - CLI region hierarchy, falling back to the guest anon flood-allowed names (`source`: `cli` or `anon`)
 - `POST /contacts/{public_key}/repeater/advert-intervals`
-- `POST /contacts/{public_key}/repeater/owner-info` — also auto-fills the contact's stored `owner_info` when empty (never overwrites) and returns `stored_owner_info` + `owner_info_updated`
-- `GET /contacts/{public_key}/repeater/telemetry-history` — stored telemetry history for a repeater (read-only, no radio access)
-- `POST /contacts/{public_key}/telemetry` — on-demand CayenneLPP telemetry from any contact (persists in `contact_telemetry_history`)
-- `GET /contacts/{public_key}/telemetry-history` — stored LPP telemetry history for a contact (read-only)
-- `POST /contacts/{public_key}/room/login` — one attempt on the effective route, then one flood retry on timeout
+- `POST /contacts/{public_key}/repeater/owner-info` - also auto-fills the contact's stored `owner_info` when empty (never overwrites) and returns `stored_owner_info` + `owner_info_updated`
+- `GET /contacts/{public_key}/repeater/telemetry-history` - stored telemetry history for a repeater (read-only, no radio access)
+- `POST /contacts/{public_key}/telemetry` - on-demand CayenneLPP telemetry from any contact (persists in `contact_telemetry_history`)
+- `GET /contacts/{public_key}/telemetry-history` - stored LPP telemetry history for a contact (read-only)
+- `POST /contacts/{public_key}/room/login` - one attempt on the effective route, then one flood retry on timeout
 - `POST /contacts/{public_key}/room/status`
 - `POST /contacts/{public_key}/room/lpp-telemetry`
 - `POST /contacts/{public_key}/room/acl`
@@ -305,22 +305,22 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `POST /channels/{key}/mark-read`
 
 ### Messages
-- `GET /messages` — list with filters; supports `q` (full-text search), `after`/`after_id` (forward cursor)
-- `GET /messages/around/{message_id}` — context messages around a target (for jump-to-message navigation)
+- `GET /messages` - list with filters; supports `q` (full-text search), `after`/`after_id` (forward cursor)
+- `GET /messages/around/{message_id}` - context messages around a target (for jump-to-message navigation)
 - `POST /messages/direct`
 - `POST /messages/channel`
 - `POST /messages/channel/{message_id}/resend`
 
 ### Packets
 - `GET /packets/undecrypted/count`
-- `POST /packets/region-backfill` — re-resolve region scope for stored channel messages that still have a retained raw packet (region is otherwise only tagged at ingest); returns `{scanned, scoped, named}`
-- `GET /packets/{packet_id}` — fetch one stored raw packet by row ID for on-demand inspection
-- `GET /packets/request-traffic` — single-node REQUEST/RESPONSE traffic in a window: totals (requests, anon, responses, flood/direct split), a time-bucketed series, and top src→dest 1-byte-hash pairs (Mesh Health "Requests" panel). Parses `raw_packets` filtered by `payload_type IN (REQUEST, ANON_REQUEST, RESPONSE)`; makes no answered/unanswered judgment (a single node cannot hear responses routed around it)
+- `POST /packets/region-backfill` - re-resolve region scope for stored channel messages that still have a retained raw packet (region is otherwise only tagged at ingest); returns `{scanned, scoped, named}`
+- `GET /packets/{packet_id}` - fetch one stored raw packet by row ID for on-demand inspection
+- `GET /packets/request-traffic` - single-node REQUEST/RESPONSE traffic in a window: totals (requests, anon, responses, flood/direct split), a time-bucketed series, and top src→dest 1-byte-hash pairs (Mesh Health "Requests" panel). Parses `raw_packets` filtered by `payload_type IN (REQUEST, ANON_REQUEST, RESPONSE)`; makes no answered/unanswered judgment (a single node cannot hear responses routed around it)
 - `POST /packets/decrypt/historical`
 - `POST /packets/maintenance`
 
 ### Read state
-- `GET /read-state/unreads` — counts, mention flags, `last_message_times`, `last_read_ats`, and `first_unread_ids`
+- `GET /read-state/unreads` - counts, mention flags, `last_message_times`, `last_read_ats`, and `first_unread_ids`
 - `POST /read-state/mark-all-read`
 
 ### Settings
@@ -330,49 +330,49 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `POST /settings/blocked-keys/toggle`
 - `POST /settings/blocked-names/toggle`
 - `POST /settings/tracked-telemetry/toggle`
-- `GET /settings/tracked-telemetry/schedule` — current telemetry scheduling derivation, interval options, and next-run-at timestamp
-- `POST /settings/tracked-telemetry-contacts/toggle` — toggle tracked LPP telemetry for any contact (max 8)
-- `GET /settings/tracked-telemetry-contacts/schedule` — contact telemetry scheduling (shared ceiling with repeaters)
+- `GET /settings/tracked-telemetry/schedule` - current telemetry scheduling derivation, interval options, and next-run-at timestamp
+- `POST /settings/tracked-telemetry-contacts/toggle` - toggle tracked LPP telemetry for any contact (max 8)
+- `GET /settings/tracked-telemetry-contacts/schedule` - contact telemetry scheduling (shared ceiling with repeaters)
 - `POST /settings/muted-channels/toggle`
 
 ### Fanout
-- `GET /fanout` — list all fanout configs
-- `POST /fanout` — create new fanout config
-- `PATCH /fanout/{id}` — update fanout config (triggers module reload)
-- `DELETE /fanout/{id}` — delete fanout config (stops module)
-- `POST /fanout/bots/disable-until-restart` — stop bot modules and keep bots disabled until restart
+- `GET /fanout` - list all fanout configs
+- `POST /fanout` - create new fanout config
+- `PATCH /fanout/{id}` - update fanout config (triggers module reload)
+- `DELETE /fanout/{id}` - delete fanout config (stops module)
+- `POST /fanout/bots/disable-until-restart` - stop bot modules and keep bots disabled until restart
 
 ### Statistics
-- `GET /statistics` — aggregated mesh network stats (entity counts, message/packet splits, activity windows, busiest channels, `region_scope_24h` regional adoption)
-- `GET /statistics/airtime/range?start_ts&end_ts&bin_count` — per-bin TX/RX airtime utilization % over a range, derived from the persisted cumulative airtime counters via adjacent-sample deltas (counter resets / disconnect gaps are dropped, not spiked). Feeds the My Node airtime chart. See `app/services/airtime_util.py`.
-- `GET /packets/raw-feed-stats?start_ts&end_ts` — DB-computed Raw Packet Feed breakdowns (payload/route/hop/hop-byte-width/RSSI buckets + counts) for historical windows, from the decoded columns persisted on `raw_packets`. Neighbor/timeline/unique-source data is not included (needs decryption; stays live-only). See `app/services/raw_feed_stats.py`.
+- `GET /statistics` - aggregated mesh network stats (entity counts, message/packet splits, activity windows, busiest channels, `region_scope_24h` regional adoption)
+- `GET /statistics/airtime/range?start_ts&end_ts&bin_count` - per-bin TX/RX airtime utilization % over a range, derived from the persisted cumulative airtime counters via adjacent-sample deltas (counter resets / disconnect gaps are dropped, not spiked). Feeds the My Node airtime chart. See `app/services/airtime_util.py`.
+- `GET /packets/raw-feed-stats?start_ts&end_ts` - DB-computed Raw Packet Feed breakdowns (payload/route/hop/hop-byte-width/RSSI buckets + counts) for historical windows, from the decoded columns persisted on `raw_packets`. Neighbor/timeline/unique-source data is not included (needs decryption; stays live-only). See `app/services/raw_feed_stats.py`.
 
 ### Push
-- `GET /push/vapid-public-key` — VAPID public key for browser `PushManager.subscribe()`
-- `POST /push/subscribe` — register/upsert push subscription (keyed by endpoint URL)
-- `GET /push/subscriptions` — list all push subscriptions
-- `PATCH /push/subscriptions/{id}` — update label or filter preferences
-- `DELETE /push/subscriptions/{id}` — delete subscription
-- `POST /push/subscriptions/{id}/test` — send test notification
-- `GET /push/conversations` — global list of push-enabled conversation state keys
-- `POST /push/conversations/toggle` — add or remove a conversation from the global push list
+- `GET /push/vapid-public-key` - VAPID public key for browser `PushManager.subscribe()`
+- `POST /push/subscribe` - register/upsert push subscription (keyed by endpoint URL)
+- `GET /push/subscriptions` - list all push subscriptions
+- `PATCH /push/subscriptions/{id}` - update label or filter preferences
+- `DELETE /push/subscriptions/{id}` - delete subscription
+- `POST /push/subscriptions/{id}/test` - send test notification
+- `GET /push/conversations` - global list of push-enabled conversation state keys
+- `POST /push/conversations/toggle` - add or remove a conversation from the global push list
 
 ### WebSocket
 - `WS /ws`
 
 ## WebSocket Events
 
-- `health` — radio connection status (broadcast on change, personal on connect)
-- `contact` — single contact upsert (from advertisements and radio sync)
-- `contact_resolved` — prefix contact reconciled to a full contact row (payload: `{ previous_public_key, contact }`)
-- `message` — new message (channel or DM, from packet processor or send endpoints)
-- `message_acked` — ACK/echo update for existing message (ack count + paths)
-- `raw_packet` — every incoming RF packet (for real-time packet feed UI)
-- `contact_deleted` — contact removed from database (payload: `{ public_key }`)
-- `channel` — single channel upsert/update (payload: full `Channel`)
-- `channel_deleted` — channel removed from database (payload: `{ key }`)
-- `error` — toast notification (reconnect failure, missing private key, stuck radio startup, etc.)
-- `success` — toast notification (historical decrypt complete, etc.)
+- `health` - radio connection status (broadcast on change, personal on connect)
+- `contact` - single contact upsert (from advertisements and radio sync)
+- `contact_resolved` - prefix contact reconciled to a full contact row (payload: `{ previous_public_key, contact }`)
+- `message` - new message (channel or DM, from packet processor or send endpoints)
+- `message_acked` - ACK/echo update for existing message (ack count + paths)
+- `raw_packet` - every incoming RF packet (for real-time packet feed UI)
+- `contact_deleted` - contact removed from database (payload: `{ public_key }`)
+- `channel` - single channel upsert/update (payload: full `Channel`)
+- `channel_deleted` - channel removed from database (payload: `{ key }`)
+- `error` - toast notification (reconnect failure, missing private key, stuck radio startup, etc.)
+- `success` - toast notification (historical decrypt complete, etc.)
 
 Backend WS sends go through typed serialization in `events.py`. Initial WS connect sends `health` only. Contacts/channels are loaded by REST.
 Client sends `"ping"` text; server replies `{"type":"pong"}`.
@@ -380,7 +380,7 @@ Client sends `"ping"` text; server replies `{"type":"pong"}`.
 ## Data Model Notes
 
 Main tables:
-- `contacts` (includes `first_seen` for contact age tracking and `direct_path_hash_mode` / `route_override_*` for DM routing; plus user-editable annotations `notes`, `owner_info`, `owner_key`, `manual_lat`, `manual_lon` — preserved through radio-sync upserts via `COALESCE`, never overwritten by adverts. `owner_key` references another contact; `manual_lat`/`manual_lon` are fallback coordinates used by the frontend only when the contact has no valid advertised location)
+- `contacts` (includes `first_seen` for contact age tracking and `direct_path_hash_mode` / `route_override_*` for DM routing; plus user-editable annotations `notes`, `owner_info`, `owner_key`, `manual_lat`, `manual_lon` - preserved through radio-sync upserts via `COALESCE`, never overwritten by adverts. `owner_key` references another contact; `manual_lat`/`manual_lon` are fallback coordinates used by the frontend only when the contact has no valid advertised location)
 - `channels`
   Includes optional `flood_scope_override` for channel-specific regional sends and optional `path_hash_mode_override` for per-channel path hop width.
 - `messages` (includes `sender_name`, `sender_key` for per-contact channel message attribution)
@@ -507,25 +507,25 @@ tests/
 
 ### Sender timestamps are 1-second resolution (protocol constraint)
 
-The MeshCore radio protocol encodes `sender_timestamp` as a 4-byte little-endian integer (Unix seconds). This is a firmware-level wire format — the radio, the Python library (`commands/messaging.py`), and the decoder (`decoder.py`) all read/write exactly 4 bytes. Millisecond Unix timestamps would overflow 4 bytes, so higher resolution is not possible without a firmware change.
+The MeshCore radio protocol encodes `sender_timestamp` as a 4-byte little-endian integer (Unix seconds). This is a firmware-level wire format - the radio, the Python library (`commands/messaging.py`), and the decoder (`decoder.py`) all read/write exactly 4 bytes. Millisecond Unix timestamps would overflow 4 bytes, so higher resolution is not possible without a firmware change.
 
-**Consequence:** Message dedup still operates at 1-second granularity because the radio protocol only provides second-resolution `sender_timestamp`. Do not attempt to fix this by switching to millisecond timestamps — it will break echo dedup (the echo's 4-byte timestamp won't match the stored value) and overflow `to_bytes(4, "little")`. Incoming DMs now share the same second-resolution content identity tradeoff as channel echoes: same-contact same-text same-second observations collapse onto one stored row.
+**Consequence:** Message dedup still operates at 1-second granularity because the radio protocol only provides second-resolution `sender_timestamp`. Do not attempt to fix this by switching to millisecond timestamps - it will break echo dedup (the echo's 4-byte timestamp won't match the stored value) and overflow `to_bytes(4, "little")`. Incoming DMs now share the same second-resolution content identity tradeoff as channel echoes: same-contact same-text same-second observations collapse onto one stored row.
 
 ### Outgoing DM echoes remain undecrypted
 
-When our own outgoing DM is heard back via `RX_LOG_DATA` (self-echo, loopback), `_process_direct_message` passes `our_public_key=None` for the outgoing direction, disabling the outbound hash check in the decoder. The decoder's inbound check (`src_hash == their_first_byte`) fails because the source is us, not the contact — so decryption returns `None`. This is by design: outgoing DMs are stored directly by the send endpoint, so no message is lost.
+When our own outgoing DM is heard back via `RX_LOG_DATA` (self-echo, loopback), `_process_direct_message` passes `our_public_key=None` for the outgoing direction, disabling the outbound hash check in the decoder. The decoder's inbound check (`src_hash == their_first_byte`) fails because the source is us, not the contact - so decryption returns `None`. This is by design: outgoing DMs are stored directly by the send endpoint, so no message is lost.
 
 ### Infinite setup retry on connection monitor
 
-When `post_connect_setup()` fails (e.g. `export_and_store_private_key` raises `RuntimeError` because the radio didn't respond), `_setup_complete` is never set to `True`. The connection monitor sees `connected and not setup_complete` and retries every 5 seconds — indefinitely. This is intentional: the radio may be rebooting, waking from sleep, or otherwise temporarily unresponsive. We keep retrying so that setup completes automatically once the radio becomes available, without requiring manual intervention.
+When `post_connect_setup()` fails (e.g. `export_and_store_private_key` raises `RuntimeError` because the radio didn't respond), `_setup_complete` is never set to `True`. The connection monitor sees `connected and not setup_complete` and retries every 5 seconds - indefinitely. This is intentional: the radio may be rebooting, waking from sleep, or otherwise temporarily unresponsive. We keep retrying so that setup completes automatically once the radio becomes available, without requiring manual intervention.
 
 ### DELETE channel returns 200 for non-existent keys
 
-`DELETE /api/channels/{key}` returns `{"status": "ok"}` even if the key didn't exist. This is intentional — the postcondition is "channel doesn't exist," which is satisfied regardless of whether it existed before. No 404 needed.
+`DELETE /api/channels/{key}` returns `{"status": "ok"}` even if the key didn't exist. This is intentional - the postcondition is "channel doesn't exist," which is satisfied regardless of whether it existed before. No 404 needed.
 
 ### Contact lat/lon 0.0 vs NULL
 
-MeshCore uses `0.0` as the sentinel for "no GPS coordinates" (see `models.py` `to_radio_dict`). The upsert SQL uses `COALESCE(excluded.lat, contacts.lat)`, which preserves existing values when the new value is `NULL` — but `0.0` is not `NULL`, so it overwrites previously valid coordinates. This is intentional: we always want the most recent location data. If a device stops broadcasting GPS, the old coordinates are presumably stale/wrong, so overwriting with "not available" (`0.0`) is the correct behavior.
+MeshCore uses `0.0` as the sentinel for "no GPS coordinates" (see `models.py` `to_radio_dict`). The upsert SQL uses `COALESCE(excluded.lat, contacts.lat)`, which preserves existing values when the new value is `NULL` - but `0.0` is not `NULL`, so it overwrites previously valid coordinates. This is intentional: we always want the most recent location data. If a device stops broadcasting GPS, the old coordinates are presumably stale/wrong, so overwriting with "not available" (`0.0`) is the correct behavior.
 
 ## Editing Checklist
 

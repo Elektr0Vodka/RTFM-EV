@@ -188,8 +188,8 @@ interface CsvColumn {
 }
 
 /** Columns mirror the flattened point shape built by `chartData` below, so every
- *  metric the pane can plot — builtins, their derived series, and each
- *  discovered LPP sensor — gets a column. Keep the two in step. */
+ *  metric the pane can plot - builtins, their derived series, and each
+ *  discovered LPP sensor - gets a column. Keep the two in step. */
 function buildCsvColumns(lppMetrics: { key: string; config: MetricConfig }[], t: TFn): CsvColumn[] {
   const withUnit = (label: string, unit: string) => (unit ? `${label} (${unit})` : label);
   return [
@@ -504,7 +504,7 @@ export function TelemetryHistoryPane({
     return `${cleanNumber(value)}${suffix}`;
   };
 
-  // Custom tooltip so each row carries a color swatch matching its line —
+  // Custom tooltip so each row carries a color swatch matching its line -
   // essential for the multi-series packets view where four values overlap.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const renderTooltip = ({ active, payload, label }: any) => {
@@ -558,7 +558,7 @@ export function TelemetryHistoryPane({
     [contacts, publicKey]
   );
 
-  // Exports the full stored history, not the brushed viewport — the button is
+  // Exports the full stored history, not the brushed viewport - the button is
   // about archiving the data, while the brush is a chart-reading aid.
   const handleDownloadCsv = () => {
     const csv = buildTelemetryCsv(chartData, buildCsvColumns(lppMetrics, t));

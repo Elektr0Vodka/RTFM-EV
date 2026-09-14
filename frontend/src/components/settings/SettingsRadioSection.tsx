@@ -937,7 +937,7 @@ export function SettingsRadioSection({
       }
 
       if (typeof data.private_key === 'string' && data.private_key) {
-        // Private key present — show warning dialog before applying
+        // Private key present - show warning dialog before applying
         pendingImportRef.current = data;
         setKeyImportDialogOpen(true);
       } else {

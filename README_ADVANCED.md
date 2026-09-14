@@ -37,7 +37,7 @@ If room sends appear to be using the wrong channel slot or another client is cha
 
 `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT=true` enables `GET /api/radio/private-key`, which returns the in-memory private key as hex for backup or migration. The key is held in memory only (exported from the radio on connect) and is never persisted to disk. Only enable this on a trusted network when you need to retrieve the key.
 
-Import via `PUT /api/radio/private-key` is always available regardless of this setting — it is write-only and does not expose key material.
+Import via `PUT /api/radio/private-key` is always available regardless of this setting - it is write-only and does not expose key material.
 
 The Radio Settings config export/import feature uses these endpoints. When export is disabled, config exports will omit the private key and show a notice.
 
@@ -75,13 +75,13 @@ If the radio's contact table is already full (from contacts added by advertiseme
 - **Clear the radio's contact table** using another MeshCore client (e.g., the official companion app), then restart RemoteTerm
 - **Lower the contact fill target** in Radio Settings to reduce how many contacts the app tries to load
 - **Enable autoevict mode** (see below) to let the radio automatically make room
-- If you don't need auto-DM acking, you can safely ignore these warnings — **sending and receiving messages is never affected**
+- If you don't need auto-DM acking, you can safely ignore these warnings - **sending and receiving messages is never affected**
 
 ### Autoevict Mode
 
 Setting `MESHCORE_LOAD_WITH_AUTOEVICT=true` enables an alternative contact loading strategy that avoids TABLE_FULL errors entirely. On connect, the app enables the radio's `AUTO_ADD_OVERWRITE_OLDEST` preference, which makes the radio automatically evict the oldest non-favorite contact when the contact table is full. This means:
 
-- Contact adds never fail — the radio always makes room by evicting stale contacts
+- Contact adds never fail - the radio always makes room by evicting stale contacts
 - The app can load contacts even when it can't enumerate the radio's existing contact table (e.g., on slow BLE connections)
 - No contact removal step is needed during reconciliation
 
@@ -123,7 +123,7 @@ Accept the browser warning, or use [mkcert](https://github.com/FiloSottile/mkcer
 
 ## Systemd Service
 
-On Linux systems, this is the recommended installation method if you want RemoteTerm set up as a persistent systemd service that starts automatically on boot and restarts automatically if it crashes. Run the installer script from the repo root. It runs as your current user, installs from wherever you cloned the repo, and prints a quick-reference cheatsheet when done — no separate service account or path juggling required.
+On Linux systems, this is the recommended installation method if you want RemoteTerm set up as a persistent systemd service that starts automatically on boot and restarts automatically if it crashes. Run the installer script from the repo root. It runs as your current user, installs from wherever you cloned the repo, and prints a quick-reference cheatsheet when done - no separate service account or path juggling required.
 
 ```bash
 bash scripts/setup/install_service.sh

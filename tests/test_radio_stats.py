@@ -190,7 +190,7 @@ class TestSampleAllStats:
 
     @pytest.mark.asyncio
     async def test_all_stats_succeed(self):
-        """All three stats commands succeed — full snapshot returned."""
+        """All three stats commands succeed - full snapshot returned."""
         from meshcore import EventType
 
         radio_stats._noise_floor_samples.clear()

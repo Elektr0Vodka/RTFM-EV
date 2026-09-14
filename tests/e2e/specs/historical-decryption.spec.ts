@@ -47,7 +47,7 @@ test.describe('Historical packet decryption', () => {
 
     // Check "Try decrypting" checkbox
     const tryHistorical = dialog.locator('#try-historical');
-    // The checkbox may be hidden until undecrypted count loads — wait for label
+    // The checkbox may be hidden until undecrypted count loads - wait for label
     await expect(dialog.getByText(/Try decrypting.*stored packet/)).toBeVisible({ timeout: 10_000 });
     await tryHistorical.check();
 

@@ -77,7 +77,7 @@ export function OpenHopMqttPane() {
               </div>
             ))
           ) : (
-            <div className="text-xs text-muted-foreground">—</div>
+            <div className="text-xs text-muted-foreground">-</div>
           )}
         </div>
       </div>

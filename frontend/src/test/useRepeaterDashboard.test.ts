@@ -34,7 +34,7 @@ vi.mock('../components/ui/sonner', () => ({
   },
 }));
 
-// Get mock reference — cast to Record<string, Mock> for type-safe mock method access
+// Get mock reference - cast to Record<string, Mock> for type-safe mock method access
 const { api: _rawApi } = await import('../api');
 const mockApi = _rawApi as unknown as Record<string, Mock>;
 const { ApiError } = await import('../api');

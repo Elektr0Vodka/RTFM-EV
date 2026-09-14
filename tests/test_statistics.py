@@ -597,7 +597,7 @@ class TestPacketsPerHour:
             "INSERT INTO raw_packets (timestamp, data, payload_hash) VALUES (?, ?, ?)",
             (hour_start - 1800, b"\x02", b"\xaa" * 32),
         )
-        # 1 packet outside the 72h window — should be excluded
+        # 1 packet outside the 72h window - should be excluded
         await conn.execute(
             "INSERT INTO raw_packets (timestamp, data, payload_hash) VALUES (?, ?, ?)",
             (now - 260000, b"\x03", b"\xbb" * 32),

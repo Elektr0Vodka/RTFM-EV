@@ -176,8 +176,8 @@ def _legacy_geo_sensor_topics(nid: str, lpp_sensors: list[dict]) -> list[str]:
     These configs were published ``retain=True``, so after an upgrade they linger
     in the broker and HA keeps recreating a dead ``sensor.*_gps_ch*`` entity whose
     ``{{ value_json.lpp_gps_ch* }}`` template no longer resolves. We recompute the
-    topics from current telemetry — replicating the pre-filter ``_assign_lpp_keys``
-    numbering for geo sensors only — so they can be cleared even across a restart,
+    topics from current telemetry - replicating the pre-filter ``_assign_lpp_keys``
+    numbering for geo sensors only - so they can be cleared even across a restart,
     when the in-memory ``_discovery_topics`` history no longer remembers them.
     """
     counts: dict[str, int] = {}
@@ -231,7 +231,7 @@ def _repeater_telemetry_payload(data: dict[str, Any]) -> dict[str, Any]:
 def _contact_telemetry_payload(data: dict[str, Any]) -> dict[str, Any]:
     """Build the flat HA state payload for a contact LPP telemetry snapshot.
 
-    Unlike repeaters, contacts only have LPP sensor data — no battery_volts,
+    Unlike repeaters, contacts only have LPP sensor data - no battery_volts,
     noise_floor_dbm, packets_received, etc.
     """
     payload: dict[str, Any] = {}
@@ -526,7 +526,7 @@ def _repeater_discovery_configs(
             cfg["unit_of_measurement"] = sensor["unit"]
         if sensor.get("precision") is not None:
             cfg["suggested_display_precision"] = sensor["precision"]
-        # 10 hours — margin over the 8-hour auto-collect cycle
+        # 10 hours - margin over the 8-hour auto-collect cycle
         cfg["expire_after"] = 36000
 
         topic = f"homeassistant/sensor/meshcore_{nid}/{sensor['object_id']}/config"
@@ -628,7 +628,7 @@ class MqttHaModule(FanoutModule):
     async def _publish_discovery(self) -> None:
         """Publish HA discovery configs and one-shot cached repeater state."""
         if not self._radio_key:
-            # Don't publish discovery until we know the radio identity —
+            # Don't publish discovery until we know the radio identity -
             # the first health heartbeat will provide it and trigger this.
             return
 
@@ -640,7 +640,7 @@ class MqttHaModule(FanoutModule):
         radio_name = self._radio_name or "MeshCore Radio"
         configs.extend(_radio_discovery_configs(self._prefix, self._radio_key, radio_name))
 
-        # Tracked repeaters — resolve names and LPP sensors from DB best-effort
+        # Tracked repeaters - resolve names and LPP sensors from DB best-effort
         for pub_key in self._tracked_repeaters:
             rname = await self._resolve_contact_name(pub_key)
             configs.extend(
@@ -666,7 +666,7 @@ class MqttHaModule(FanoutModule):
                     )
                 )
 
-        # Tracked contacts — resolve names and LPP sensors from DB best-effort
+        # Tracked contacts - resolve names and LPP sensors from DB best-effort
         for pub_key in self._tracked_contacts:
             cname = await self._resolve_contact_name(pub_key)
             configs.append(
@@ -836,7 +836,7 @@ class MqttHaModule(FanoutModule):
                 self._radio_name = new_name
                 await self._publish_discovery()
 
-        # Don't publish health state until we know the radio identity —
+        # Don't publish health state until we know the radio identity -
         # otherwise we create a stale "unknown" device in HA.
         if not self._radio_key:
             return

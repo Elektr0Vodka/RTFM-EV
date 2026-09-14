@@ -39,7 +39,7 @@ test.describe('Channel info pane', () => {
 
     // Wait for messages to load. Assert on the newest seeded message, not the
     // oldest: the list is virtualized, so it opens at the bottom and only the
-    // visible window is in the DOM — seed-0 is 30 rows up and legitimately absent.
+    // visible window is in the DOM - seed-0 is 30 rows up and legitimately absent.
     await expect(page.getByText(`seed-${SEED_COUNT - 1}`)).toBeVisible({ timeout: 15_000 });
 
     // Click the channel name in the header to open info pane
@@ -64,7 +64,7 @@ test.describe('Channel info pane', () => {
     await expect(infoPane.getByText('All Time')).toBeVisible();
 
     // All Time count should be non-zero (our seeded messages)
-    // InfoItem renders: <span>All Time</span><p>VALUE</p> — use CSS sibling selector
+    // InfoItem renders: <span>All Time</span><p>VALUE</p> - use CSS sibling selector
     const allTimeValue = infoPane.locator('span:text-is("All Time") + p');
     const count = await allTimeValue.textContent();
     expect(Number(count?.replace(/,/g, ''))).toBeGreaterThanOrEqual(SEED_COUNT);

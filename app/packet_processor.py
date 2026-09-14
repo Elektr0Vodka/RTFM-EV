@@ -166,7 +166,7 @@ async def run_historical_dm_decryption(
         # Note: passing our_public_key=None disables the outbound hash check in
         # try_decrypt_dm (only the inbound check src_hash == their_first_byte runs).
         # For the 255/256 case where our first byte differs from the contact's,
-        # outgoing packets fail the inbound check and are skipped — which is correct
+        # outgoing packets fail the inbound check and are skipped - which is correct
         # since outgoing DMs are stored directly by the send endpoint.
         # For the 1/256 case where bytes match, an outgoing packet may decrypt
         # successfully, but the dual-hash direction check below correctly identifies
@@ -190,7 +190,7 @@ async def run_historical_dm_decryption(
                 outgoing = True
             else:
                 # Incoming, ambiguous (both match), or neither matches.
-                # Default to incoming — outgoing DMs are stored by the send
+                # Default to incoming - outgoing DMs are stored by the send
                 # endpoint, so historical decryption only recovers incoming.
                 outgoing = False
 
@@ -617,7 +617,7 @@ async def _process_advertisement(
     # adverts at exactly this check; without it a bit-flipped advert would be
     # ingested as a phantom contact with a mangled public key (issue #315). The raw
     # packet is already stored (see process_raw_packet) and still surfaces in the
-    # debug feed — only contact creation/update is gated here, matching firmware.
+    # debug feed - only contact creation/update is gated here, matching firmware.
     if not verify_advert_signature(packet_info.payload):
         logger.warning(
             "Dropping advertisement with invalid signature from %s (packet %s)",
@@ -848,7 +848,7 @@ async def _process_direct_message(
         if result is not None:
             # In the ambiguous direction case (both first bytes match), we
             # defaulted to incoming.  Check if a matching outgoing message
-            # already exists — if so, this is actually our own outgoing echo
+            # already exists - if so, this is actually our own outgoing echo
             # and should be treated as such instead of creating a duplicate
             # incoming row.
             effective_outgoing = is_outgoing

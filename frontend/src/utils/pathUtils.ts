@@ -88,7 +88,7 @@ function formatEndpointPrefix(key: string | null | undefined, pathHashMode: numb
  * multi-byte hop identifiers (1, 2, or 3 bytes per hop).
  *
  * Falls back to 2-char (1-byte) chunks when hopCount is missing or doesn't
- * divide evenly — matching legacy behavior.
+ * divide evenly - matching legacy behavior.
  */
 export function parsePathHops(path: string | null | undefined, hopCount?: number | null): string[] {
   if (!path || path.length === 0) {

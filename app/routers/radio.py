@@ -432,7 +432,7 @@ async def get_radio_presets() -> RadioPresetsStore:
     """Return the last synced official preset list.
 
     When nothing has been synced yet, returns an empty store with
-    ``synced_at=None`` — the frontend reads that as "use the built-in list".
+    ``synced_at=None`` - the frontend reads that as "use the built-in list".
     """
     store = await AppSettingsRepository.get_radio_presets()
     if store is None:

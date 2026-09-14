@@ -60,7 +60,7 @@ interface NewMessagePrefillRequest {
  * never been read: its true boundary is the first message ever sent there, so
  * offering to jump would haul the reader to the start of history for no gain.
  * Everything loaded is unread in that case, so the divider belongs at the top of
- * the window — which is what the pre-id behaviour did, and it is genuinely the
+ * the window - which is what the pre-id behaviour did, and it is genuinely the
  * more useful answer.
  */
 export function resolveUnreadMarkerId(
@@ -229,7 +229,7 @@ export function App() {
     []
   );
 
-  // useContactsAndChannels is called first — it uses the ref bridge for setActiveConversation
+  // useContactsAndChannels is called first - it uses the ref bridge for setActiveConversation
   const {
     contacts,
     contactsLoaded,
@@ -314,7 +314,7 @@ export function App() {
     [setContacts, setChannels]
   );
 
-  // useConversationRouter is called second — it receives channels/contacts as inputs
+  // useConversationRouter is called second - it receives channels/contacts as inputs
   const {
     activeConversation,
     setActiveConversation,

@@ -44,10 +44,10 @@ export function OwnerInfoPane({
         <NotFetched />
       ) : (
         <div className="space-y-1">
-          <LabeledBlock label={t('repeater_owner_info_title')} value={data.owner_info ?? '—'} />
-          <KvRow label={t('repeater_firmware_label')} value={data.firmware_version ?? '—'} />
+          <LabeledBlock label={t('repeater_owner_info_title')} value={data.owner_info ?? '-'} />
+          <KvRow label={t('repeater_firmware_label')} value={data.firmware_version ?? '-'} />
           {data.name && <KvRow label={t('common_name')} value={data.name} />}
-          <KvRow label={t('repeater_guest_password_label')} value={data.guest_password ?? '—'} />
+          <KvRow label={t('repeater_guest_password_label')} value={data.guest_password ?? '-'} />
           {data.owner_info_updated && (
             <p className="text-xs text-green-600">{t('repeater_owner_info_autofilled')}</p>
           )}

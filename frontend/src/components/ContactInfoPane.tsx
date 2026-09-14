@@ -603,7 +603,7 @@ export function ContactInfoPane({
               </div>
             )}
 
-            {/* Nearest Repeaters (Hops) — last 7 days only */}
+            {/* Nearest Repeaters (Hops) - last 7 days only */}
             {analytics &&
               (() => {
                 const sevenDaysAgo = Math.floor(Date.now() / 1000) - 7 * 86400;

@@ -259,13 +259,13 @@ def execute_bot_code(
         path_bytes_per_hop: Number of bytes per routing hop (1, 2, or 3), if known
         packet_hash: MeshCore packet hash (first 16 hex chars of SHA256, uppercase), if known
         scoped: True if the message carried a regional flood scope, False for
-            plain/unscoped flood. Check this first — it is the meaningful signal.
+            plain/unscoped flood. Check this first - it is the meaningful signal.
             Set for scoped DMs too (flood-direct messages can carry a scope).
         region: Only meaningful when scoped is True. When scoped is False, region
             is always None and should be ignored. When scoped is True, region is
             the decoded region name, or None if the scope matched none of your
             known_regions (i.e. scoped, but region unrecognized). region is never
-            enough on its own to tell "unscoped" from "unrecognized" — use scoped.
+            enough on its own to tell "unscoped" from "unrecognized" - use scoped.
 
     Returns:
         Response string, list of strings, or None.
@@ -419,7 +419,7 @@ async def process_bot_response(
     between sends, giving repeaters time to return to listening mode.
 
     Args:
-        response: The response to send — a string, a list of messages to send in
+        response: The response to send - a string, a list of messages to send in
             order, or a BotReply carrying a per-send region scope
         is_dm: Whether the original message was a DM
         sender_key: Public key of the original sender (for DM replies)
