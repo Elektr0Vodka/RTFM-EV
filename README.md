@@ -328,6 +328,15 @@ RemoteTerm supports the [meshcomod](https://github.com/Elektr0Vodka/meshcomod) f
 
 The panel is hidden entirely on non-meshcomod devices, and each control disables itself if the specific firmware build does not advertise support. No configuration is needed: detection is automatic from the radio's device info.
 
+## OpenHop node management
+
+RTFM-EV works with [OpenHop](https://github.com/openhop-dev/openhop_repeater) repeaters and room-servers (a Python MeshCore daemon) in two ways:
+
+- **As a radio.** OpenHop speaks the MeshCore companion protocol over TCP (default port 5000), so it can drive RTFM-EV as the connected radio with no OpenHop-specific setup: point the app at its host and port like any other TCP radio.
+- **As a managed node.** When a connected node is detected as OpenHop, an extra **OpenHop** section appears with management panes that the companion link and RF do not expose, organised in a two-row sub-nav: a **Node** row (Config, System, Update, CAD) and a **Mesh** row (Policy, Plugins, Transport keys, MQTT). These talk to OpenHop's REST API, so set the API URL and token in the OpenHop block under **Settings -> Radio** first (the token is write-only). Actions with real-world effect (firmware install, CAD threshold save, transport-key delete, MQTT config writes, "publish neighbours now") are confirmation-gated.
+
+As with the Meshcomod panel, everything is hidden on non-OpenHop devices and detection is automatic from the radio's device info.
+
 ## Languages
 
 The interface is available in English (default), Dutch, and German. Pick a
