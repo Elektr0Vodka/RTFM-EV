@@ -1669,6 +1669,36 @@ export function SettingsOpenHopSection(props: Props) {
 
 ---
 
+## Verification results (Task 21, observed 2026-09-14)
+
+All checks run and observed, not inferred.
+
+- **Backend gate:** `ruff check app/ tests/` clean; `ruff format --check` clean; `uv run pyright`
+  on the changed files 0 errors; **full backend suite 2087 passed, 0 failures** (Linux container,
+  no Windows env noise); openhop suite 49 passed.
+- **Frontend gate:** `npm run lint` 0 errors (4 pre-existing warnings in unrelated files);
+  **full suite 1496 tests passed** (183 files) incl. i18n parity; `npm run build` (tsc + vite)
+  succeeded; every changed file prettier-clean.
+- **Live client vs sim REST:** all 13 new read methods succeeded against the running
+  `openhop-sim:local` REST (real responses); nested `hardware_stats` shape confirmed
+  (cpu.usage_percent, memory.usage_percent, disk.free, system.uptime).
+- **Full gated proxy end-to-end:** ran an RTFM-EV backend connected to the sim companion
+  (TCP 5000) with `is_openhop: true`, configured the REST url + token, and every proxy GET
+  returned HTTP 200 with real data; the nested hardware shape flowed through intact.
+- **Real browser (all six panes):** two-row Node/Mesh sub-nav rendered; System pane showed
+  live CPU/Memory/Disk/Uptime tiles (Richard's ask); Update showed installed 1.0.5 + channel
+  selector; Transport showed served scopes `*`; MQTT showed live status + config form; CAD
+  showed the manual-check + save forms with the RF-hardware note; Policy/Plugins/Config
+  (PR #108) still render.
+- **Sim companion config gotcha:** companions live under `identities.companions` (not
+  `repeater.companions`); the REST server auto-starts (`http.enabled` default true); admin
+  login is `POST /auth/login` -> JWT -> `POST /api/auth/tokens`; API key sent as `X-API-Key`.
+
+**NOT VERIFIED (by design):** CAD functional detection metrics (requires real LoRa RF
+hardware; the `NullRadio` sim returns no detections), Update `install` (destructive pip
+upgrade + service restart; never triggered), MQTT config write against a real broker, and
+`publish_neighbors` (outward RF cycle). All four are covered by unit tests only.
+
 ## Self-Review notes (author)
 
 - **Spec coverage:** Update (T1–6), CAD (T7–9), System+Analytics (T10–12), Transport+scopes (T13–15), MQTT (T16–18), two-row sub-nav (T19), docs (T20), verification incl. sim boot + CI gates (T0, T21). Safety gating (confirm on install/delete/config-write/publish) is in each pane task. `is_openhop` detection reused, not re-added.
