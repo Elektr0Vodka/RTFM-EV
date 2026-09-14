@@ -44,6 +44,20 @@ describe('TimeRangeSelector', () => {
     expect(screen.getByText('time_range_all')).toBeInTheDocument();
   });
 
+  it('orders extras by duration, not by slot (30m extra falls after 20m base)', () => {
+    render(
+      <TimeRangeSelector
+        {...base()}
+        extrasBefore={[{ id: '30m', labelKey: 'time_range_30m', seconds: 30 * 60 }]}
+      />
+    );
+    const labels = screen
+      .getAllByRole('button')
+      .map((b) => b.textContent)
+      .filter((l): l is string => l === 'time_range_20m' || l === 'time_range_30m');
+    expect(labels).toEqual(['time_range_20m', 'time_range_30m']);
+  });
+
   it('fires onChange with the clicked id', () => {
     const onChange = vi.fn();
     render(<TimeRangeSelector {...base({ onChange })} />);

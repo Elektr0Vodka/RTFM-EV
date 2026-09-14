@@ -11,6 +11,18 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-14 (Time-range selector ordering, claude/time-selection-swap-7a724e)
+
+### Time-range selector (UI)
+- The shared `TimeRangeSelector` now always renders its main window buttons
+  shortest-to-longest by duration, regardless of which slot (`extrasBefore` /
+  base / `extrasAfter`) an option came from. This fixes Mesh Health, where the
+  `30m` extra was placed before the `20m` base window and read `30m 20m 1h ...`;
+  it now reads `20m 30m 1h ...`. Other consumers (Raw Packet Feed, My Node) were
+  already ascending and are unchanged. `null`-duration windows sort last
+  (`frontend/src/components/TimeRangeSelector.tsx`). Frontend gates green (lint,
+  prettier, tsc, vitest); runtime-verified on Mesh Health.
+
 ## Update 2026-09-14 (Raw Packet Feed filter modal, claude/filter-modal-bar-declutter-51125e)
 
 ### Raw Packet Feed (UI)

@@ -31,7 +31,12 @@ export function TimeRangeSelector({
   className,
 }: TimeRangeSelectorProps) {
   const t = useT();
-  const mainRanges = [...extrasBefore, ...BASE_TIME_RANGES, ...extrasAfter];
+  // Always render the main buttons shortest-to-longest, regardless of which
+  // slot an extra came from, so windows never read out of order (e.g. a 30m
+  // extra placed "before" the 20m base window). null seconds sort last.
+  const mainRanges = [...extrasBefore, ...BASE_TIME_RANGES, ...extrasAfter].sort(
+    (a, b) => (a.seconds ?? Infinity) - (b.seconds ?? Infinity)
+  );
 
   function btnClass(active: boolean): string {
     return `rounded px-2 py-0.5 text-xs transition ${
