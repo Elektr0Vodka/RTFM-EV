@@ -1,9 +1,12 @@
 # [09] Channel-finder wordlist sync
 
 Status: SHIPPED (PR #30; migration `_074_add_wordlist_sync_url.py`;
-`frontend/src/lib/wordlistSync.ts`). Custom-words / multi-URL / push-back
-deferred (plan marked them optional). See "Implementation status". Reconciled
-2026-09-11.
+`frontend/src/lib/wordlistSync.ts`). Extended by PR #96 (migration `_081`): a
+wordlist selector with a bundled English list, a bundled Dutch list, and custom
+uploaded wordlists (`app/repository/wordlists.py`, `app/routers/wordlists.py`,
+`frontend/src/components/CrackerPanel.tsx`), which delivers the previously
+"deferred (optional)" custom-words path. Multi-URL / push-back still deferred.
+See "Implementation status". Reconciled 2026-09-14.
 Reconciles with `docs/plans/README.md` entry [09] and `docs/sources-of-truth.md`.
 
 ## Implementation status (updated 2026-09-10)

@@ -1,9 +1,15 @@
 # [24] Forwarded node telemetry / neighbors / regions over MQTT (`subject_id` attribution)
 
-Date: 2026-09-12
+Date: 2026-09-12 (status reconciled 2026-09-14)
 Category: F (DMC firmware-aware node management / MQTT export parity)
 Model: Opus
+Status: SHIPPED (core) via PR #90; forward-on-receipt telemetry extended in PR #109.
 State: Partial (extends existing fanout bus + Community MQTT sink + telemetry-history; no new subsystem)
+
+Implementation status (2026-09-14): core SHIPPED. Outbound forward of
+remote-node telemetry / neighbors / regions with `subject_id` attribution landed
+in PR #90 (`d0f392e`); PR #109 added forward-on-receipt telemetry. Remaining:
+analyzer/collector handoffs (see sections below).
 Scope: local planning + implementation in **RTFM-EV only**. Handoff notes (docs, no code) left in the two local sibling repos for other agents. Firmware repos are read-only research. Code-is-truth: non-obvious claims cite `file:line` or `file::symbol`.
 
 Relates to parity backlog `docs/parity-audit.md`: **X1** (MQTT export), **L3** (MQTT neighbors/config publish), **L2** (telemetry graphs). This plan realises the "forward data *received from other nodes*" half of X1/L3 with correct origin attribution, plus the local-history half of L2 for neighbor/region counts.

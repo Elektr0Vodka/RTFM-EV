@@ -1,7 +1,15 @@
 # [17] Sidebar customisation (old-fork port)
 
-Date: 2026-09-11
-Status: draft for review
+Date: 2026-09-11 (status reconciled 2026-09-14)
+Status: PARTIAL. SHIPPED: customisable layout (reorder, rail collapse, settings
+panel, PR #72), section counters (PR #71), and Repeaters/Rooms/Companions/Sensors
+merged into one Contacts section with type-filter pills (PR #88); a back-to-top
+button for long conversation lists (PR #114). The backend
+gate for "Owned" grouping is now partly satisfied: PR #104 (migration `_085`)
+added `contacts.owner_key` / `owner_info`, and an "Owned nodes" reverse-link list
+exists in the contact info pane (`ContactInfoPane.tsx`). REMAINING: the sidebar
+"Owned" *grouping* itself is not built (`Sidebar.tsx` has no owner section;
+sections are `tools | favorites | channels | contacts` in `sidebarLayout.ts`).
 Category: B (Contacts and messaging UX) / layout, see `docs/plans/README.md`
 Model: Sonnet (layout customisations); Opus/backend for the "Owned" grouping
 State: Partial (extends the current `Sidebar.tsx`; ports from the old fork)

@@ -5,8 +5,8 @@ This changelog covers work done in the **RTFM-EV** fork
 `jkingsman/Remote-Terminal-for-MeshCore`.
 
 - Fork base commit: `33b3b8d` (upstream `main`), 2026-07-26
-- Commits since fork: 222 total (152 non-merge)
-- Generated: 2026-09-10; updated 2026-09-12
+- Commits since fork: 251 total (181 non-merge)
+- Generated: 2026-09-10; updated 2026-09-14
 
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
@@ -512,6 +512,49 @@ Branch `feat/visualize-packets-live-map`.
   `path_hash_mode` byte width (1/2/3 bytes = 2/4/6 hex chars) instead of the
   full 64-char key; hover reveals the full key and click still copies it
   (`7f114ec`) (PR #98)
+
+## Update 2026-09-12 (contacts residency, mesh-health direct/flood, emoji, wordlist selector, PRs #92/#94/#95/#96)
+
+Backfilled entries for four PRs that merged after the `#75-#91` umbrella but were
+not recorded when they landed.
+
+### Contacts
+- Per-contact radio-residency policy (`auto`/`pinned`/`excluded`) so operators
+  control which contacts occupy the bounded radio working set, separate from the
+  app's unbounded contact store and from the favorite flag. Pinned contacts are
+  always loaded (favorite tier), excluded are never synced (exclude wins over
+  favorite). Radio residency is derived (single source of truth, cannot drift),
+  exposed at `GET /contacts/radio-residency`; a `ContactRadioResidencyControl`
+  (pin/exclude + live on-radio badge) sits in the contact info pane, and a "Radio
+  working set" occupancy readout (`GET /radio/contact-occupancy`) sits in the
+  radio settings section. i18n EN/NL/DE (`0ca2d5f`) (PR #92)
+
+### Mesh Health
+- Adverts split into direct vs flood with dedup and retention. New
+  `advert_events` table records one row per unique advert transmission (keyed by
+  the primary copy's `raw_packets.id`) so copies flooded over multiple paths
+  dedupe to one event; `min_path_len` (0 = direct, >0 = flood) is refined across
+  copies. `GET /api/packets/mesh-health` returns `direct_count`/`flood_count` per
+  contact and fires alerts on the deduped total; the Mesh Health view gains
+  Direct/Flood/Total columns and a direct-vs-flood summary. Retention is
+  configurable on the Database settings page (`advert_retention_days`, default
+  30) with a daily prune loop. `advert_events` also stores `path_hex`/`hop_width`
+  for the later map-links feature (`5c3074a`) (PR #94)
+
+### Chat / UI
+- Emoji picker on the message input (`c963ceb`) (PR #95)
+
+### Cracker
+- Channel-finder wordlist selector: choose between a bundled English list, a
+  bundled Dutch list, or custom uploaded wordlists, with a rebuild flow and
+  selection persistence. Adds a canonical wordlist normalizer, a
+  `WordlistRepository` with on-disk storage, and upload/list/words/delete API
+  (`52ee211`) (PR #96)
+
+### Backend / Database
+- Migration `_079` adds `contacts.radio_policy` (PR #92); migration `_080`
+  creates `advert_events` with a backfill from `contact_advert_paths` (PR #94);
+  migration `_081` creates the `wordlists` table (PR #96)
 
 ## Update 2026-09-12 (map / audio / fanout, PRs #75-#91)
 

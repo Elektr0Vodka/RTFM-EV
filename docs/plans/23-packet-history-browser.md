@@ -1,7 +1,14 @@
 # [23] Packet-history browser (DB-backed, under Tools)
 
-Date: 2026-09-12
-Status: PLANNING (stub). Requested by Richard, 2026-09-12. Nothing built.
+Date: 2026-09-12 (status reconciled 2026-09-14)
+Status: PLANNING (stub) for the browsing UI. Requested by Richard, 2026-09-12.
+The browsing view is NOT built. Adjacent progress: PR #110 added DB-backed
+historical *stat breakdowns* for the Raw Packet Feed (`GET /api/packets/raw-feed-stats`,
+`app/services/raw_feed_stats.py`) plus per-packet decoded fields at ingest
+(migration `_089`), but that is aggregate counts only. The live packet *list*
+(`RawPacketList` in `RawPacketFeedView.tsx`) is still fed from the bounded 500-row
+in-memory buffer (`frontend/src/stores/rawPacketStore.ts`); no Tools view browses
+individual persisted `raw_packets` over arbitrary ranges with the inspector.
 Category: H (Persistence). See `docs/plans/README.md`.
 Model: Sonnet.
 

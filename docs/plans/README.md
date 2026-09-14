@@ -48,11 +48,11 @@ and resolve node names from analyzers to fill in short-id displays). Plans
 [17]-[19] were added 2026-09-11 (user requests: port the old-fork sidebar
 customisation; add multi-radio identity/history so a swapped or replaced feeding
 radio stays coherent; and broaden persistence toward an "analyzer with one node
-feeding it"). Plans [20]-[24] were added 2026-09-11/12: [20] OpenHop integration
-(plan file included; Surface A + Surface B foundation implemented on the OpenHop
-integration branch, pending merge to `main`), [21] signal-tester mirror,
-[22] data-directory backup, [23] packet-history browser, and [24] forwarded node
-telemetry over MQTT.
+feeding it"). Plans [20]-[25] were added 2026-09-11/12: [20] OpenHop integration
+(Surface A + full Surface B management, merged to `main` via PR #108 + #119), [21]
+signal-tester mirror, [22] data-directory backup, [23] packet-history browser,
+[24] forwarded node telemetry over MQTT, and [25] separate radio-vs-app contact
+management (renumbered from a duplicate [24] on 2026-09-14; shipped as PR #92).
 
 ### A. Hygiene & docs
 - **A0. Em-dash removal** - VERIFIED near-complete: `git grep` finds **0** em-dashes
@@ -168,13 +168,15 @@ telemetry over MQTT.
   per-packet signal audio (shipped separately in PR #76). `Opus` (flagship) +
   `Sonnet` (QoL imports).
 
-## Delivery status (reconciled 2026-09-12)
+## Delivery status (reconciled 2026-09-14)
 
 The `State` column below is the *planning* state at authoring time (greenfield /
 partial / blocked / speculative). This section is the separate *delivery* status,
-reconciled against `origin/main` on 2026-09-12 at `b180cc7` (migrations reached
-`_078_add_auto_add_mentioned_channels.py`; evidence is in each plan's header and
-internal "Implementation status" note).
+reconciled against `main` on 2026-09-14 at `b34c5034` (migrations reached
+`_091_create_fanout_mqtt_stats.py`, `LATEST_SCHEMA_VERSION = 91`; evidence is in
+each plan's header and internal "Implementation status" note). Since the previous
+reconciliation (2026-09-12, `b180cc7`, `_078`) PRs #92-#119 merged; the rows
+below reflect that.
 
 | # | Plan | Delivery | Evidence / remaining gap |
 |---|---|---|---|
@@ -184,29 +186,31 @@ internal "Implementation status" note).
 | 06 | cad-dm-toggle | SHIPPED | PR #52 (`feat/cad-dm-toggle`); CAD toggle renders for DM + room-server headers, gated on `cad_supported`. |
 | 07 | path-hash-message-filter | SHIPPED | Raw-feed filter (PR #22) + chat message-list hop-size/unscoped toggles (PR #51, `feat/chat-hop-size-filter`). |
 | 08 | channel-preset-upload | NOT STARTED | Greenfield. |
-| 09 | channelfinder-wordlist-sync | SHIPPED | PR #30, migration `_074`. |
+| 09 | channelfinder-wordlist-sync | SHIPPED | PR #30, migration `_074`; extended by PR #96 (wordlist selector: bundled English/Dutch + custom uploads, migration `_081`). Multi-URL / push-back deferred. |
 | 10 | dmc-firmware-aware-mgmt | NOT STARTED | Greenfield (Opus theme). |
 | 11 | dmc-mqtt-ingest-noc | NOT STARTED | Only outbound fanout exists; no inbound/NOC. |
 | 12 | wardrive-gps-fanout | NOT STARTED | Speculative; feasibility gate unresolved in code. |
-| 13 | map-overhaul | SHIPPED | Phase-1 quick-wins (PR #40) + Phase-2 MapLibre migration with 2D/3D, buildings, per-link layer, FAB controls, Leaflet removed (PR #75); per-role node colours (PR #81), keyless raster fallback (PR #80), heard/never-heard filter (PR #89). Remaining: triangulation tool. |
+| 13 | map-overhaul | SHIPPED (core) | Phase-1 quick-wins (PR #40) + Phase-2 MapLibre migration with 2D/3D, buildings, per-link layer, FAB controls, Leaflet removed (PR #75); per-role node colours (PR #81), keyless raster fallback (PR #80), heard/never-heard filter (PR #89); advert-truth/link layer + confidence toggle (PR #101), live packet visualization with deck.gl arcs/pulses + VCR replay (PR #107), telemetry overlay + observed-width labels (PR #109); neon-node toggle + arc/line-width sliders + vector-basemap label fix (PR #117), node icons above the 3D building layer (PR #115), hide-nodes-reporting-wrong-location toggle (PR #118). Remaining: triangulation tool (verified absent 2026-09-14). |
 | 14 | historical-device-info | NOT STARTED | No `contact_location_history` / `device_config_history` tables yet. |
 | 15 | registry-to-radio-import | SHIPPED (slice 1) | `feat/registry-add-to-channels`; "Add to Channels" in `ChannelRegistryView` via `bulk-hashtag` (Option A). Slice 2 (radio push) still deferred to [08]. |
-| 16 | analyzer-name-resolution | NOT STARTED | Greenfield (absorbs [04] Step 4). |
-| 17 | sidebar-customisation | PARTIAL | Customisable layout: reorder, rail collapse, settings panel (PR #72); section counters (PR #71); Repeaters/Rooms/Companions/Sensors merged into one Contacts section with type-filter pills (PR #88). "Owned" grouping still gated on backend `owner_id`. |
+| 16 | analyzer-name-resolution | NOT STARTED | Greenfield (absorbs [04] Step 4). Verified 2026-09-14: no resolution service/endpoint/hook. Local observed-width display formatting shipped (PR #109 map labels, PR #98 navbar), but that formats a known pubkey, not analyzer resolution. |
+| 17 | sidebar-customisation | PARTIAL | Customisable layout: reorder, rail collapse, settings panel (PR #72); section counters (PR #71); Repeaters/Rooms/Companions/Sensors merged into one Contacts section with type-filter pills (PR #88); back-to-top button for long conversation lists (PR #114). Backend owner fields now exist (`contacts.owner_key`/`owner_info`, migration `_085`, PR #104) with an "Owned nodes" list in the contact info pane; the sidebar "Owned" *grouping* itself is still unbuilt. |
 | 18 | multi-radio-identity-history | NOT STARTED | Planning (2026-09-11). Self registry + per-radio stats + cross-key merge. |
 | 19 | analyzer-persistence-retention | NOT STARTED | Planning (2026-09-11). Retention policy; drives [14]. |
-| 20 | openhop-integration | DONE (Phases 1-5) | Surface A (detect + label) + Surface B: Policy/Plugins/Config (PR #108) and Update, CAD, System/Hardware, Transport keys + neighbour scopes, MQTT config (`feat/openhop-remaining-mgmt`). Two-row Node/Mesh sub-nav. Live read paths verified vs the containerized sim; CAD functional + Update install NOT verified (no RF/hardware). |
+| 20 | openhop-integration | DONE (Phases 1-5) | Surface A (detect + label) + Surface B: Policy/Plugins/Config (PR #108) and Update, CAD, System/Hardware, Transport keys + neighbour scopes, MQTT config (`feat/openhop-remaining-mgmt`, PR #119). Two-row Node/Mesh sub-nav. Live read paths verified vs the containerized sim; CAD functional + Update install NOT verified (no RF/hardware). |
 | 21 | signal-tester-mirror | PARTIAL | Per-packet signal audio shipped (PR #76). Flagship per-relay same-packet reception comparison unbuilt (needs a `packet_receptions` table + last-hop resolution). |
-| 22 | data-directory-backup | PARTIAL | Backup delivered (issue #85, 2026-09-13): `VACUUM INTO` snapshot, download + server-path save, migration `_084`. Restore/scheduled backups deferred. |
-| 23 | packet-history-browser | NOT STARTED | Planning stub (2026-09-12). Packet history persists server-side (`raw_packets`, `GET /api/packets/recent` with `after_ts`/`before_ts`); the browsing UI is the gap. |
-| 24 | forwarded-node-telemetry-mqtt | SHIPPED (core) | Outbound forward of remote-node telemetry/neighbors/regions with `subject_id` attribution (PR #90). Analyzer/collector handoffs pending. |
+| 22 | data-directory-backup | PARTIAL | Backup delivered (issue #85 / PR #103, 2026-09-13): `VACUUM INTO` snapshot, download + server-path save (`app/routers/backup.py`), migration `_084`. Verified 2026-09-14: no restore endpoint and no scheduled backup; both deferred. |
+| 23 | packet-history-browser | NOT STARTED | Planning stub (2026-09-12). PR #110 added DB-backed historical *stat breakdowns* (`GET /api/packets/raw-feed-stats`, migration `_089`), but the packet *list* is still the bounded 500-row in-memory buffer; the browsing UI (a Tools view over persisted `raw_packets` with the inspector) is the gap. |
+| 24 | forwarded-node-telemetry-mqtt | SHIPPED (core) | Outbound forward of remote-node telemetry/neighbors/regions with `subject_id` attribution (PR #90); forward-on-receipt telemetry extended in PR #109. Analyzer/collector handoffs pending. |
+| 25 | contact-radio-app-separation | SHIPPED (core) | PR #92, migration `_079`: per-contact `radio_policy` (auto/pinned/excluded), derived `GET /contacts/radio-residency`, `ContactRadioResidencyControl`, and radio working-set occupancy (`GET /radio/contact-occupancy`). Renumbered from [24] (collision) on 2026-09-14. |
 
 Parity items (from `docs/parity-audit.md`): **SHIPPED** N1, N2, X1, X2a, X2b;
 **PARTIAL** L1 (pills+sync shipped; DMC config-topic scope tree unbuilt), L2
-(noise-floor viewer shipped; rx-error / Direct-Flood graphs UNVERIFIED/absent),
-L3 (neighbor/region publish shipped via PR #90 / plan [24]; config publish still
-pending), L4 (channel mute shipped; inline contact-sharing #347 unbuilt).
-Fork-port Phase 3 (My Node, Mesh Health, packet-feed history) all **SHIPPED**.
+(noise-floor viewer shipped; Direct/Flood advert metrics shipped via PR #94;
+rx-error graphs still absent), L3 (neighbor/region publish shipped via PR #90 /
+plan [24]; config publish still pending), L4 (channel mute shipped; inline
+contact-sharing #347 unbuilt). Fork-port Phase 3 (My Node, Mesh Health,
+packet-feed history) all **SHIPPED**.
 
 ## Plan index (dispatch table)
 
@@ -234,6 +238,7 @@ Fork-port Phase 3 (My Node, Mesh Health, packet-feed history) all **SHIPPED**.
 | 22 | `22-data-directory-backup.md` | H | Sonnet | Partial | `data/` dir (SQLite DB + assets); backup delivered (issue #85), restore deferred |
 | 23 | `23-packet-history-browser.md` | H | Sonnet | Absent | `raw_packets`, `GET /api/packets/recent` (`app/routers/packets.py:151-190`) |
 | 24 | `24-forwarded-node-telemetry-mqtt.md` | F | Opus | Partial | `app/fanout/*`, Community sink, telemetry-history; `subject_id` attribution |
+| 25 | `25-contact-radio-app-separation.md` | B | Opus | Partial | `app/radio_sync.py`, `app/repository/contacts.py`, `app/routers/contacts.py`; `contacts.radio_policy` (`_079`), `ContactRadioResidencyControl.tsx` (renumbered from [24]) |
 
 ## Post-research findings (these changed the initial assumptions)
 
@@ -294,8 +299,9 @@ Each finding is cited in full in its plan file. Read these before scheduling wor
   sidebar UI grouping (collapsible sub-headers). RTFM-EV already has partial parity;
   the concrete verified gap is that `CommandPalette.tsx` omits room-servers from its
   favorite grouping. No migration needed.
-- **Migration numbering (moving target):** next free is **`_079`** as of
-  2026-09-12 (origin/main reached `_078_add_auto_add_mentioned_channels.py`). The
+- **Migration numbering (moving target):** next free is **`_092`** as of
+  2026-09-14 (main reached `_091_create_fanout_mqtt_stats.py`,
+  `LATEST_SCHEMA_VERSION = 91`). The
   number kept drifting while these plans sat unbuilt: `_069` at authoring, `_072`
   by 2026-09-10, `_075` by 2026-09-11, `_078` by 2026-09-12 (via the analyzer-sites,
   region-sync-url, wordlist-sync-url, link-signal, external-map, and
@@ -367,7 +373,10 @@ Recommended local build order once plans are approved:
    [22] data-directory backup.
 
 Already delivered from this backlog since authoring: [24] forwarded-node-telemetry
-(core, PR #90) and the [13] engine migration (PR #75); see the delivery table above.
+(core, PR #90 + #109), the [13] engine migration (PR #75) plus advert-links (#101),
+live packet viz (#107) and telemetry overlay (#109), [09] wordlist selector (#96),
+[20] OpenHop management, all five phases (#108 + #119), [22] data-directory backup
+(#103), and [25] radio-vs-app contact separation (#92); see the delivery table above.
 
 ## Reconciliation with parity-audit and fork-port-plan
 

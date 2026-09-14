@@ -1,8 +1,14 @@
 # 16. Analyzer Name Resolution
 
-Date: 2026-09-10
-Status: local planning draft (feasibility-gated). No code changes by this
-document. No PRs/issues/commits.
+Date: 2026-09-10 (status reconciled 2026-09-14)
+Status: NOT STARTED. Local planning draft (feasibility-gated); no
+analyzer-based name-resolution code exists (verified 2026-09-14: no service,
+table, endpoint, or hook). Adjacent but unrelated: local observed-width display
+formatting shipped (PR #109 map node labels in `nodesLayer.ts`; PR #98 navbar
+pubkey truncation in `pathUtils.ts`) formats an already-known pubkey to the
+observed path-hash byte width; it does not resolve unknown ids/names from an
+analyzer. The one server-side analyzer fetch that exists (`external_map.py`) is
+a bulk map-overlay directory sync, not on-demand resolution.
 Category: C (External analyzer integration), per `docs/plans/README.md`
 "C. External analyzer integration" section (which already describes this item
 as [16] even though the dispatch table has not been re-rendered with a new

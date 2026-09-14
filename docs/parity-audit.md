@@ -1,7 +1,7 @@
 # RTFM-EV Parity & Gap Audit
 
 Date: 2026-09-10
-Status: backlog in progress (reconciled 2026-09-11). SHIPPED: N1, N2 (PR #24, merged), X1 (PR #41, merged), X2 core, X2b per-link signal history (PR #47). PARTIAL: L1, L2, L4. Next buildable: L3 (MQTT neighbors/config publish), now unblocked since X1+X2 are done. See §7 for per-item status.
+Status: backlog in progress (reconciled 2026-09-14). SHIPPED: N1, N2 (PR #24, merged), X1 (PR #41, merged), X2 core, X2b per-link signal history (PR #47). PARTIAL: L1 (region pills + sync shipped; DMC config-topic scope tree unbuilt), L2 (noise-floor viewer + Direct/Flood advert metrics shipped via PR #94; rx-error graphs still absent), L3 (neighbor/region publish shipped via PR #90; config-topic publish still pending), L4 (channel mute shipped; inline contact-sharing #347 unbuilt). See §7 for per-item status.
 Author: Elektr0Vodka (with agent research)
 
 This is a living document. It compares the current RTFM-EV against two reference
@@ -237,13 +237,16 @@ Each "Now/Next" item gets its own brainstorm → spec → plan cycle.
   `docs/superpowers/`.
 
 ### Later
-- **L1. Region / scope surfacing** - mirror DMC `config` topic `region.scopes[]`,
-  `region_gate{}`; extend `_063` message region scope; `CMD_GET_DEFAULT_FLOOD_SCOPE`.
-- **L2. Telemetry graph parity** - noise-floor viewer, receive-error graphs,
-  Direct/Flood metrics (all gated on N1).
-- **L3. MQTT `neighbors` / `config` topic publishing** (gated on X1 + X2).
-- **L4. Small messaging parity** - mute channel, inline contact sharing (#347),
-  auto contact discovery confirmation.
+- **L1. Region / scope surfacing** - PARTIAL: region pills + list sync shipped
+  (plan [05]). Remaining: mirror DMC `config` topic `region.scopes[]`,
+  `region_gate{}`; `CMD_GET_DEFAULT_FLOOD_SCOPE`.
+- **L2. Telemetry graph parity** - PARTIAL: noise-floor viewer and Direct/Flood
+  advert metrics shipped (PR #94). Remaining: receive-error graphs.
+- **L3. MQTT `neighbors` / `config` topic publishing** - PARTIAL: neighbor /
+  region publish shipped with `subject_id` attribution (PR #90, plan [24]).
+  Remaining: `config`-topic publishing.
+- **L4. Small messaging parity** - PARTIAL: mute channel shipped. Remaining:
+  inline contact sharing (#347), auto contact discovery confirmation.
 
 ### Won't / N/A
 - On-device pairing UX, phone GPS location sharing - mobile-only.

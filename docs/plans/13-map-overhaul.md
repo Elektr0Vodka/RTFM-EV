@@ -1,10 +1,20 @@
 # [13] Map Overhaul: EU-Analyzer UX Import, Phased Quick-Wins then Engine Migration
 
-Date: 2026-09-10 (status reconciled 2026-09-11)
-Status: PARTIAL. Phase-1 quick-wins SHIPPED (PR #40: theme-aware basemaps +
-route path lines `MapView.tsx:860,1116`; node-type legends `:913,957-991`;
-responsive info bar `:899`). NOT started: node-size / 2D-3D tilt / buildings
-controls, the MapLibre-GL engine migration, and the per-link map tool.
+Date: 2026-09-10 (status reconciled 2026-09-14)
+Status: PARTIAL (nearly complete). Phase-1 quick-wins SHIPPED (PR #40:
+theme-aware basemaps + route path lines; node-type legends; responsive info
+bar). Phase-2 SHIPPED: MapLibre-GL engine migration with 2D/3D tilt, 3D
+buildings, FAB controls, Leaflet removed (PR #75); per-role node colours
+(PR #81); keyless raster fallback (PR #80); heard/never-heard filter (PR #89).
+Additional layers shipped since: advert-truth/link layer with confidence toggle
+(PR #101, `frontend/src/map/layers/advertLinksLayer.ts`); live packet
+visualization with deck.gl arcs/pulses/glow + VCR replay (PR #107,
+`frontend/src/map/layers/packetDeckOverlay.ts`); telemetry overlay + observed-width
+node labels (PR #109, `telemetryLayer.ts`, `nodesLayer.ts`); neon-node toggle +
+packet-arc / link-line width sliders + vector-basemap label fix (PR #117), node
+icons above the 3D building layer (PR #115), and a hide-nodes-reporting-wrong-location
+toggle (PR #118). NOT started: the triangulation tool (the only remaining planned
+item; absent from `frontend/src/map/**`).
 Category: G (Map overhaul), see `docs/plans/README.md`
 Model: Opus
 

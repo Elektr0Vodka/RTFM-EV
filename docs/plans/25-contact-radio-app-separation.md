@@ -1,13 +1,21 @@
-# [24] Separate radio vs app contact management
+# [25] Separate radio vs app contact management
 
-Date: 2026-09-12
-Status: draft for review
+Date: 2026-09-12 (renumbered from [24] on 2026-09-14 to resolve a plan-number
+collision with `24-forwarded-node-telemetry-mqtt.md`)
+Status: SHIPPED (core) via PR #92
 Category: B (Contacts & messaging UX) / radio sync, see `docs/plans/README.md`
 Model: Opus
 State: Partial (extends the existing automatic radio-sync selection with a new
 per-contact policy dimension; adds derived residency reporting and a capacity
-surface). No code changes, no migrations, no commits/PRs/issues from this
-document.
+surface).
+
+Implementation status (2026-09-14): SHIPPED as PR #92. `contacts.radio_policy`
+(`auto`/`pinned`/`excluded`) via migration `_079`; `get_contacts_selected_for_radio_sync`
+honors pinned/excluded; `get_radio_residency` is the derived single source of
+truth exposed at `GET /contacts/radio-residency`; `ContactRadioResidencyControl`
+in the contact info pane; radio working-set occupancy at
+`GET /radio/contact-occupancy`. Remaining/optional refinements, if any, live in
+the sections below.
 
 Scope: local planning only.
 
