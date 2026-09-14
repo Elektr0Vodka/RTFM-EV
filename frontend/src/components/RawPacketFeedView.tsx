@@ -15,6 +15,8 @@ import { MeshCoreDecoder, Utils } from '@michaelhart/meshcore-decoder';
 
 import { RawPacketList } from './RawPacketList';
 import { RawPacketInspectorDialog } from './RawPacketDetailModal';
+import { usePacketFilters } from '../hooks/usePacketFilters';
+import { PacketFilterModal } from './PacketFilterModal';
 import { getRawPacketObservationKey } from '../utils/rawPacketIdentity';
 import { Button } from './ui/button';
 import type { Channel, Contact, RawFeedHistoricalStats, RawPacket } from '../types';
@@ -28,7 +30,6 @@ import {
 } from '../utils/timeRanges';
 import { loadStoredTimeRange, saveStoredTimeRange } from '../utils/timeRangePreference';
 import {
-  HOP_BYTE_WIDTH_BUCKETS,
   KNOWN_PAYLOAD_TYPES,
   buildRawPacketStatsSnapshot,
   buildSnapshotFromHistorical,
@@ -105,176 +106,6 @@ function summarizePacketForFeed(
   } catch {
     return { payloadType: 'Unknown', hopWidth: 'No path', isDirect: false };
   }
-}
-
-/**
- * Normalize a raw-hex filter query. Lowercases, strips whitespace, `:`
- * separators, and a leading `0x` so a pasted key prefix like `A1B2C3`,
- * `a1:b2:c3`, or `0xa1b2` all match. Returns `invalid: true` when non-hex
- * characters remain after cleaning so the UI can hint instead of silently
- * showing zero results. Matches against `RawPacket.data` (stored lowercase hex).
- */
-function normalizeHexQuery(raw: string): { query: string; invalid: boolean } {
-  const cleaned = raw
-    .trim()
-    .toLowerCase()
-    .replace(/^0x/, '')
-    .replace(/[\s:]+/g, '');
-  if (cleaned === '') return { query: '', invalid: false };
-  return { query: cleaned, invalid: !/^[0-9a-f]+$/.test(cleaned) };
-}
-
-interface FeedFilterControlsProps {
-  className?: string;
-  allTypesEnabled: boolean;
-  enabledTypes: Set<string>;
-  onToggleAll: () => void;
-  onToggleType: (type: string) => void;
-  onOnly: (type: string) => void;
-  allHopWidthsEnabled: boolean;
-  enabledHopWidths: Set<string>;
-  onToggleAllHopWidths: () => void;
-  onToggleHopWidth: (bucket: string) => void;
-  onOnlyHopWidth: (bucket: string) => void;
-  autoScroll: boolean;
-  onAutoScrollChange: (checked: boolean) => void;
-  hexFilter: string;
-  onHexFilterChange: (value: string) => void;
-  hexInvalid: boolean;
-  matchCount: number;
-  totalCount: number;
-}
-
-/**
- * The feed filter bar: hex substring filter, payload-type checkboxes, and the
- * autoscroll toggle. Rendered twice (mobile + desktop) with only the display
- * classes differing, so the control set lives here to stay in sync. Display is
- * driven entirely by `className` (no base `flex`) to avoid a Tailwind
- * `flex`/`hidden` conflict.
- */
-function FeedFilterControls({
-  className,
-  allTypesEnabled,
-  enabledTypes,
-  onToggleAll,
-  onToggleType,
-  onOnly,
-  allHopWidthsEnabled,
-  enabledHopWidths,
-  onToggleAllHopWidths,
-  onToggleHopWidth,
-  onOnlyHopWidth,
-  autoScroll,
-  onAutoScrollChange,
-  hexFilter,
-  onHexFilterChange,
-  hexInvalid,
-  matchCount,
-  totalCount,
-}: FeedFilterControlsProps) {
-  const t = useT();
-  return (
-    <div className={cn('mt-1.5 flex-wrap items-center gap-x-3 gap-y-1', className)}>
-      <div className="relative">
-        <input
-          type="text"
-          value={hexFilter}
-          onChange={(event) => onHexFilterChange(event.target.value)}
-          placeholder={t('packet_filter_hex_placeholder')}
-          aria-label={t('packet_filter_hex_aria')}
-          className="w-44 rounded border border-input bg-background px-2 py-0.5 pr-6 text-xs"
-        />
-        {hexFilter !== '' && (
-          <button
-            type="button"
-            onClick={() => onHexFilterChange('')}
-            aria-label={t('packet_clear_hex_filter_aria')}
-            className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-3 w-3" />
-          </button>
-        )}
-      </div>
-      {hexFilter.trim() !== '' &&
-        (hexInvalid ? (
-          <span className="text-[0.6875rem] text-warning">{t('packet_hex_filter_invalid')}</span>
-        ) : (
-          <span className="text-[0.6875rem] text-muted-foreground tabular-nums">
-            {matchCount.toLocaleString()} / {totalCount.toLocaleString()}
-          </span>
-        ))}
-      <label className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer">
-        <input
-          type="checkbox"
-          checked={allTypesEnabled}
-          onChange={onToggleAll}
-          className="rounded"
-        />
-        {t('packet_filter_all_label')}
-      </label>
-      {KNOWN_PAYLOAD_TYPES.map((type) => (
-        <span key={type} className="inline-flex items-center gap-1 text-xs">
-          <label className="flex items-center gap-1 text-foreground cursor-pointer">
-            <input
-              type="checkbox"
-              checked={enabledTypes.has(type)}
-              onChange={() => onToggleType(type)}
-              className="rounded"
-            />
-            {type}
-          </label>
-          <button
-            type="button"
-            className="text-[0.625rem] text-muted-foreground hover:text-primary transition-colors"
-            onClick={() => onOnly(type)}
-          >
-            {t('packet_filter_only_button')}
-          </button>
-        </span>
-      ))}
-      <span aria-hidden="true" className="text-muted-foreground/40">
-        |
-      </span>
-      <label className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer">
-        <input
-          type="checkbox"
-          checked={allHopWidthsEnabled}
-          onChange={onToggleAllHopWidths}
-          className="rounded"
-        />
-        {t('packet_filter_all_widths_label')}
-      </label>
-      {HOP_BYTE_WIDTH_BUCKETS.map((bucket) => (
-        <span key={bucket} className="inline-flex items-center gap-1 text-xs">
-          <label className="flex items-center gap-1 text-foreground cursor-pointer">
-            <input
-              type="checkbox"
-              checked={enabledHopWidths.has(bucket)}
-              onChange={() => onToggleHopWidth(bucket)}
-              className="rounded"
-            />
-            {bucket}
-          </label>
-          <button
-            type="button"
-            className="text-[0.625rem] text-muted-foreground hover:text-primary transition-colors"
-            onClick={() => onOnlyHopWidth(bucket)}
-          >
-            {t('packet_filter_only_button')}
-          </button>
-        </span>
-      ))}
-      <label className="ml-auto flex items-center gap-1 text-xs text-foreground cursor-pointer">
-        <input
-          type="checkbox"
-          checked={autoScroll}
-          onChange={(event) => onAutoScrollChange(event.target.checked)}
-          className="rounded"
-        />
-        {t('packet_autoscroll_label')}
-      </label>
-    </div>
-  );
 }
 
 interface RawPacketFeedViewProps {
@@ -759,16 +590,11 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
   }, [selectedWindow, customStart, customEnd]);
   const [selectedPacket, setSelectedPacket] = useState<RawPacket | null>(null);
   const [analyzeModalOpen, setAnalyzeModalOpen] = useState(false);
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-  const [enabledTypes, setEnabledTypes] = useState<Set<string>>(() => new Set(KNOWN_PAYLOAD_TYPES));
-  // Hop-byte-width filter buckets; session-only, matching the sibling filters.
-  const [enabledHopWidths, setEnabledHopWidths] = useState<Set<string>>(
-    () => new Set(HOP_BYTE_WIDTH_BUCKETS)
-  );
+  // Payload-type / hop-width / hex / group filter state (session-only).
+  const filters = usePacketFilters();
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
   // Autoscroll defaults on; intentionally not persisted across refreshes.
   const [autoScroll, setAutoScroll] = useState(true);
-  // Raw-hex substring filter over the in-memory feed buffer (session-only).
-  const [hexFilter, setHexFilter] = useState('');
   // Per-packet signal audio (Geiger / sonar). Persisted per-browser; off by default.
   const [soundOn, setSoundOn] = useState(getSavedSignalAudioOn);
   const [soundVolume, setSoundVolume] = useState(getSavedSignalAudioVolume);
@@ -810,77 +636,31 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
     return keys;
   }, [packetsWithTypes]);
 
-  const allTypesEnabled = enabledTypes.size === KNOWN_PAYLOAD_TYPES.length;
-  const allHopWidthsEnabled = enabledHopWidths.size === HOP_BYTE_WIDTH_BUCKETS.length;
-
-  const { query: hexQuery, invalid: hexInvalid } = useMemo(
-    () => normalizeHexQuery(hexFilter),
-    [hexFilter]
-  );
-
   const filteredPackets = useMemo(() => {
     // A non-hex query matches nothing; the input surfaces a hint instead.
-    if (hexInvalid) return [];
+    if (filters.hexInvalid) return [];
     // Fast path: no filters active.
-    if (allTypesEnabled && allHopWidthsEnabled && hexQuery === '') return packets;
+    if (filters.allTypesEnabled && filters.allHopWidthsEnabled && filters.hexQuery === '') {
+      return packets;
+    }
     return packetsWithTypes
       .filter(
         ({ packet, payloadType, hopWidth }) =>
-          (allTypesEnabled || enabledTypes.has(payloadType)) &&
-          (allHopWidthsEnabled || enabledHopWidths.has(hopWidth)) &&
-          (hexQuery === '' || packet.data.toLowerCase().includes(hexQuery))
+          (filters.allTypesEnabled || filters.enabledTypes.has(payloadType)) &&
+          (filters.allHopWidthsEnabled || filters.enabledHopWidths.has(hopWidth)) &&
+          (filters.hexQuery === '' || packet.data.toLowerCase().includes(filters.hexQuery))
       )
       .map(({ packet }) => packet);
   }, [
     packetsWithTypes,
-    enabledTypes,
-    enabledHopWidths,
     packets,
-    allTypesEnabled,
-    allHopWidthsEnabled,
-    hexQuery,
-    hexInvalid,
+    filters.allTypesEnabled,
+    filters.allHopWidthsEnabled,
+    filters.enabledTypes,
+    filters.enabledHopWidths,
+    filters.hexQuery,
+    filters.hexInvalid,
   ]);
-
-  const handleToggleAll = () => {
-    setEnabledTypes(allTypesEnabled ? new Set() : new Set(KNOWN_PAYLOAD_TYPES));
-  };
-
-  const handleToggleType = (type: string) => {
-    setEnabledTypes((prev) => {
-      const next = new Set(prev);
-      if (next.has(type)) {
-        next.delete(type);
-      } else {
-        next.add(type);
-      }
-      return next;
-    });
-  };
-
-  const handleOnly = (type: string) => {
-    setEnabledTypes(new Set([type]));
-  };
-
-  const handleToggleAllHopWidths = () => {
-    setEnabledHopWidths(allHopWidthsEnabled ? new Set() : new Set(HOP_BYTE_WIDTH_BUCKETS));
-  };
-
-  const handleToggleHopWidth = (bucket: string) => {
-    setEnabledHopWidths((prev) => {
-      const next = new Set(prev);
-      if (next.has(bucket)) {
-        next.delete(bucket);
-      } else {
-        next.add(bucket);
-      }
-      return next;
-    });
-  };
-
-  const handleOnlyHopWidth = (bucket: string) => {
-    setEnabledHopWidths(new Set([bucket]));
-  };
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -1045,63 +825,63 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
           {t('packet_collecting_stats_since', {
             timestamp: formatTimestamp(rawPacketStatsSession.sessionStartedAt),
           })}
-          {!mobileFiltersOpen && (
-            <>
-              {' · '}
-              <button
-                type="button"
-                className="text-primary hover:text-primary/80 transition-colors"
-                onClick={() => setMobileFiltersOpen(true)}
-              >
-                {t('packet_show_filters_button')}
-              </button>
-            </>
-          )}
         </p>
 
-        {mobileFiltersOpen && (
-          <FeedFilterControls
-            className="flex md:hidden"
-            allTypesEnabled={allTypesEnabled}
-            enabledTypes={enabledTypes}
-            onToggleAll={handleToggleAll}
-            onToggleType={handleToggleType}
-            onOnly={handleOnly}
-            allHopWidthsEnabled={allHopWidthsEnabled}
-            enabledHopWidths={enabledHopWidths}
-            onToggleAllHopWidths={handleToggleAllHopWidths}
-            onToggleHopWidth={handleToggleHopWidth}
-            onOnlyHopWidth={handleOnlyHopWidth}
-            autoScroll={autoScroll}
-            onAutoScrollChange={setAutoScroll}
-            hexFilter={hexFilter}
-            onHexFilterChange={setHexFilter}
-            hexInvalid={hexInvalid}
-            matchCount={filteredPackets.length}
-            totalCount={packets.length}
-          />
-        )}
-
-        <FeedFilterControls
-          className="hidden md:flex"
-          allTypesEnabled={allTypesEnabled}
-          enabledTypes={enabledTypes}
-          onToggleAll={handleToggleAll}
-          onToggleType={handleToggleType}
-          onOnly={handleOnly}
-          allHopWidthsEnabled={allHopWidthsEnabled}
-          enabledHopWidths={enabledHopWidths}
-          onToggleAllHopWidths={handleToggleAllHopWidths}
-          onToggleHopWidth={handleToggleHopWidth}
-          onOnlyHopWidth={handleOnlyHopWidth}
-          autoScroll={autoScroll}
-          onAutoScrollChange={setAutoScroll}
-          hexFilter={hexFilter}
-          onHexFilterChange={setHexFilter}
-          hexInvalid={hexInvalid}
-          matchCount={filteredPackets.length}
-          totalCount={packets.length}
-        />
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <div className="relative">
+            <input
+              type="text"
+              value={filters.hexFilter}
+              onChange={(event) => filters.setHexFilter(event.target.value)}
+              placeholder={t('packet_filter_hex_placeholder')}
+              aria-label={t('packet_filter_hex_aria')}
+              className="w-44 rounded border border-input bg-background px-2 py-0.5 pr-6 text-xs"
+            />
+            {filters.hexFilter !== '' && (
+              <button
+                type="button"
+                onClick={() => filters.setHexFilter('')}
+                aria-label={t('packet_clear_hex_filter_aria')}
+                className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+          {filters.hexFilter.trim() !== '' &&
+            (filters.hexInvalid ? (
+              <span className="text-[0.6875rem] text-warning">
+                {t('packet_hex_filter_invalid')}
+              </span>
+            ) : (
+              <span className="text-[0.6875rem] text-muted-foreground tabular-nums">
+                {filteredPackets.length.toLocaleString()} / {packets.length.toLocaleString()}
+              </span>
+            ))}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setFilterModalOpen(true)}
+            aria-expanded={filterModalOpen}
+          >
+            {t('packet_filters_button')}
+            {filters.activeFilterCount > 0 && (
+              <span className="ml-1 rounded-full bg-primary px-1.5 text-[0.625rem] font-semibold text-primary-foreground tabular-nums">
+                {filters.activeFilterCount}
+              </span>
+            )}
+          </Button>
+          <label className="ml-auto flex items-center gap-1 text-xs text-foreground cursor-pointer">
+            <input
+              type="checkbox"
+              checked={autoScroll}
+              onChange={(event) => setAutoScroll(event.target.checked)}
+              className="rounded"
+            />
+            {t('packet_autoscroll_label')}
+          </label>
+        </div>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
@@ -1302,6 +1082,26 @@ export function RawPacketFeedView({ contacts, channels }: RawPacketFeedViewProps
         source={{ kind: 'paste' }}
         title={t('chat_analyze_packet_title')}
         description={t('packet_analyze_description')}
+      />
+
+      <PacketFilterModal
+        open={filterModalOpen}
+        onOpenChange={setFilterModalOpen}
+        enabledTypes={filters.enabledTypes}
+        enabledHopWidths={filters.enabledHopWidths}
+        allTypesEnabled={filters.allTypesEnabled}
+        allHopWidthsEnabled={filters.allHopWidthsEnabled}
+        groupByHash={filters.groupByHash}
+        onToggleAll={filters.toggleAll}
+        onToggleType={filters.toggleType}
+        onOnlyType={filters.onlyType}
+        onToggleAllHopWidths={filters.toggleAllHopWidths}
+        onToggleHopWidth={filters.toggleHopWidth}
+        onOnlyHopWidth={filters.onlyHopWidth}
+        onGroupByHashChange={filters.setGroupByHash}
+        onReset={filters.reset}
+        matchCount={filteredPackets.length}
+        totalCount={packets.length}
       />
     </>
   );

@@ -11,6 +11,22 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-14 (Raw Packet Feed filter modal, claude/filter-modal-bar-declutter-51125e)
+
+### Raw Packet Feed (UI)
+- Decluttered the feed header: the payload-type and hop-byte-width checkboxes (and
+  their per-item "only" links) moved out of the inline bar into a **Filters** modal
+  opened from a single button that shows an **active-filter count** badge. The bar now
+  keeps only the hex search, the Filters button, and Autoscroll. The separate mobile
+  "Show filters" expand path is gone; mobile opens the same modal.
+- Added a **Group repeats by content** toggle to the Filters modal (state + control
+  wired here; the grouped-row rendering that collapses the same packet seen across
+  different relay paths lands in the follow-up phase).
+- Refactor: filter state extracted into a reusable `usePacketFilters` hook and the UI
+  into a `PacketFilterModal` component, so a later Packet History view can reuse both
+  (`frontend/src/hooks/usePacketFilters.ts`, `frontend/src/components/PacketFilterModal.tsx`).
+  New EN/NL/DE strings; frontend gates green (lint, prettier, 1527 vitest, build).
+
 ## Update 2026-09-14 (OpenHop management panes: Update, CAD, System, Transport, MQTT, feat/openhop-remaining-mgmt)
 
 ### OpenHop (Surface B management)

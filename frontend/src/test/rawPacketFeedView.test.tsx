@@ -457,6 +457,12 @@ describe('RawPacketFeedView', () => {
       };
     }
 
+    // The type/width checkboxes now live behind the Filters button; open the
+    // modal before interacting with them.
+    function openFilters() {
+      fireEvent.click(screen.getByRole('button', { name: /filters/i }));
+    }
+
     // Scope the "(only)" click to the bucket's own control group; several
     // "(only)" buttons exist (one per payload type and per hop-width bucket).
     function onlyHopWidth(bucket: string) {
@@ -467,6 +473,7 @@ describe('RawPacketFeedView', () => {
 
     it('renders all hop-width buckets enabled by default', () => {
       renderView({ packets: [makePacket(1, 'aabbcc')] });
+      openFilters();
 
       expect((screen.getByLabelText('All widths') as HTMLInputElement).checked).toBe(true);
       for (const bucket of HOP_WIDTH_BUCKETS) {
@@ -479,6 +486,7 @@ describe('RawPacketFeedView', () => {
 
       expect(screen.getByText('AABBCC')).toBeInTheDocument();
 
+      openFilters();
       fireEvent.click(screen.getByLabelText('No path'));
 
       expect(screen.queryByText('AABBCC')).not.toBeInTheDocument();
@@ -488,6 +496,7 @@ describe('RawPacketFeedView', () => {
     it('"(only)" isolates a single width and hides the others', () => {
       renderView({ packets: [makePacket(1, 'aabbcc')] }); // "No path"
 
+      openFilters();
       onlyHopWidth('No path');
       expect(screen.getByText('AABBCC')).toBeInTheDocument();
 
@@ -498,6 +507,7 @@ describe('RawPacketFeedView', () => {
 
     it('classifies a real one-byte-hop packet into the "1 byte / hop" bucket', () => {
       renderView({ packets: [makePacket(1, ONE_BYTE_HOP_PACKET_HEX, 'TextMessage')] });
+      openFilters();
 
       // Selecting a different width hides the packet...
       onlyHopWidth('2 bytes / hop');
@@ -518,6 +528,7 @@ describe('RawPacketFeedView', () => {
       expect(screen.queryByText('DDEEFF')).not.toBeInTheDocument();
 
       // The hex-matching packet is "No path"; isolating a hop width removes it too.
+      openFilters();
       onlyHopWidth('1 byte / hop');
       expect(screen.queryByText('AABBCC')).not.toBeInTheDocument();
       expect(screen.getByText(/No packets received yet/i)).toBeInTheDocument();
