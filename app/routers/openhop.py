@@ -327,7 +327,12 @@ async def plugin_progress(id: str, since: int = 0, fresh: bool = False) -> Strea
                         if chunk:
                             yield chunk
             except httpx.HTTPError as exc:
-                payload = json.dumps({"type": "done", "state": "error", "error": str(exc)})
+                # Log the transport detail server-side; never leak the exception
+                # text to the SSE client (CodeQL: information exposure).
+                logger.warning("OpenHop SSE stream error: %s", exc)
+                payload = json.dumps(
+                    {"type": "done", "state": "error", "error": "OpenHop stream error"}
+                )
                 yield f"data: {payload}\n\n".encode()
 
     return StreamingResponse(
@@ -464,7 +469,12 @@ async def update_progress() -> StreamingResponse:
                         if chunk:
                             yield chunk
             except httpx.HTTPError as exc:
-                payload = json.dumps({"type": "done", "state": "error", "error": str(exc)})
+                # Log the transport detail server-side; never leak the exception
+                # text to the SSE client (CodeQL: information exposure).
+                logger.warning("OpenHop SSE stream error: %s", exc)
+                payload = json.dumps(
+                    {"type": "done", "state": "error", "error": "OpenHop stream error"}
+                )
                 yield f"data: {payload}\n\n".encode()
 
     return StreamingResponse(
@@ -545,7 +555,12 @@ async def cad_stream() -> StreamingResponse:
                         if chunk:
                             yield chunk
             except httpx.HTTPError as exc:
-                payload = json.dumps({"type": "done", "state": "error", "error": str(exc)})
+                # Log the transport detail server-side; never leak the exception
+                # text to the SSE client (CodeQL: information exposure).
+                logger.warning("OpenHop SSE stream error: %s", exc)
+                payload = json.dumps(
+                    {"type": "done", "state": "error", "error": "OpenHop stream error"}
+                )
                 yield f"data: {payload}\n\n".encode()
 
     return StreamingResponse(
