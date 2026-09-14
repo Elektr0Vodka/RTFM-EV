@@ -1,4 +1,5 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import { ContactInfoPane } from '../components/ContactInfoPane';
@@ -116,14 +117,24 @@ describe('ContactInfoPane', () => {
   });
 
   it('saves notes via the annotations endpoint', async () => {
+    const user = userEvent.setup();
     const contact = createContact();
     getContactAnalytics.mockResolvedValue(createAnalytics(contact));
 
     render(<ContactInfoPane {...baseProps} contactKey={contact.public_key} />);
 
     const box = await screen.findByLabelText('Notes');
-    fireEvent.change(box, { target: { value: 'field note' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save notes' }));
+    // Type via userEvent so its awaited actions flush the annotations re-seed
+    // effect (which resets local notes from the freshly-loaded contact) before
+    // and independently of the typed value. With fireEvent that effect could
+    // flush as a deferred passive effect between change and click, clobbering
+    // the typed notes back to '' and saving null under CI load (#104).
+    await user.clear(box);
+    await user.type(box, 'field note');
+    // Guard: confirm the typed value is committed and has not been re-seeded
+    // away before triggering the save.
+    await waitFor(() => expect(box).toHaveValue('field note'));
+    await user.click(screen.getByRole('button', { name: 'Save notes' }));
 
     await waitFor(() =>
       expect(updateContactAnnotations).toHaveBeenCalledWith(contact.public_key, {
