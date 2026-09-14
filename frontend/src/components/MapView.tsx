@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { Popup as MlPopup, Marker as MlMarker, type Map as MlMap } from 'maplibre-gl';
-import { Zap, Clock, Globe, Radio } from 'lucide-react';
+import { Zap, Clock, Globe, Radio, MapPinOff } from 'lucide-react';
 import type {
   AdvertLinkEdge,
   Contact,
@@ -21,6 +21,7 @@ import { MapSurface } from '../map/MapSurface';
 import { setMapLock2D } from '../map/engine/mapLock2D';
 import { setBuildings3D } from '../map/engine/buildings3D';
 import { createNodesLayer } from '../map/layers/nodesLayer';
+import { createNeonNodesOverlay, type NeonNodesOverlay } from '../map/layers/neonNodesLayer';
 import { createTelemetryLayer } from '../map/layers/telemetryLayer';
 import {
   getSavedNodeRoleColors,
@@ -44,6 +45,7 @@ import { createLinksLayer, type ResolveCoord } from '../map/layers/linksLayer';
 import { createAdvertLinksLayer } from '../map/layers/advertLinksLayer';
 import { createExternalNodesLayer, type ExternalNodeProps } from '../map/layers/externalNodesLayer';
 import { isContactVisibleForFilters, type HeardFilterMode } from '../map/heardFilter';
+import { computeWrongLocationKeys } from '../map/wrongLocation';
 import {
   buildPacketNetworkContext,
   createPacketNetworkState,
@@ -88,6 +90,13 @@ const MAP_HEARD_STORAGE_KEY = 'remoteterm-map-heard';
 
 const MAP_NODE_SCALE_STORAGE_KEY = 'remoteterm-map-node-scale';
 
+// --- Line / arc thickness (multipliers, 0.5-4x) ---
+const MAP_ARC_WIDTH_STORAGE_KEY = 'remoteterm-map-arc-width';
+const MAP_LINK_WIDTH_STORAGE_KEY = 'remoteterm-map-link-width';
+
+// --- Neon node rendering (deck.gl halo+core nodes vs the flat GL circles) ---
+const MAP_NEON_NODES_STORAGE_KEY = 'remoteterm-map-neon-nodes';
+
 // --- Node labels (off / advert name / observed-width ID tag) ---
 const MAP_LABEL_MODE_STORAGE_KEY = 'remoteterm-map-label-mode';
 const NODE_LABEL_MODES = ['off', 'name', 'tag'] as const;
@@ -96,6 +105,17 @@ type NodeLabelMode = (typeof NODE_LABEL_MODES)[number];
 // --- Telemetry overlay (opt-in, off by default) ---
 const MAP_TELEMETRY_STORAGE_KEY = 'remoteterm-map-telemetry';
 const TELEMETRY_REFRESH_MS = 60_000;
+
+// --- Hide nodes reporting wrong location (opt-in, off by default) ---
+const MAP_HIDE_WRONG_LOCATION_STORAGE_KEY = 'remoteterm-map-hide-wrong-location';
+
+function getSavedHideWrongLocation(): boolean {
+  try {
+    return localStorage.getItem(MAP_HIDE_WRONG_LOCATION_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 const MAP_SINCE_TICK_MS = 60_000;
 
@@ -133,6 +153,25 @@ function getSavedNodeScale(): number {
     /* ignore */
   }
   return 1;
+}
+
+/** Width multiplier (arcs / links), clamped to the slider's 0.5-4x range. */
+function getSavedWidthScale(key: string): number {
+  try {
+    const v = Number(localStorage.getItem(key));
+    if (Number.isFinite(v) && v >= 0.5 && v <= 4) return v;
+  } catch {
+    /* ignore */
+  }
+  return 1;
+}
+
+function getSavedNeonOn(): boolean {
+  try {
+    return localStorage.getItem(MAP_NEON_NODES_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
 }
 
 function getSavedLabelMode(): NodeLabelMode {
@@ -225,6 +264,7 @@ export function MapView({
   const rawPackets = useRawPackets();
   const [sinceId, setSinceId] = useState<MapSinceId>(getSavedSinceId);
   const [heardFilter, setHeardFilter] = useState<HeardFilterMode>(getSavedHeardMode);
+  const [hideWrongLocation, setHideWrongLocation] = useState<boolean>(getSavedHideWrongLocation);
   const [customSince, setCustomSince] = useState(() => {
     try {
       return localStorage.getItem(MAP_SINCE_CUSTOM_KEY) ?? '';
@@ -255,6 +295,13 @@ export function MapView({
   const [tilt3D, setTilt3D] = useState(false);
   const [buildings, setBuildings] = useState(false);
   const [nodeScale, setNodeScale] = useState(getSavedNodeScale);
+  const [arcWidthScale, setArcWidthScale] = useState(() =>
+    getSavedWidthScale(MAP_ARC_WIDTH_STORAGE_KEY)
+  );
+  const [linkWidthScale, setLinkWidthScale] = useState(() =>
+    getSavedWidthScale(MAP_LINK_WIDTH_STORAGE_KEY)
+  );
+  const [neonNodes, setNeonNodes] = useState(getSavedNeonOn);
   const [roleColors, setRoleColors] = useState<NodeRoleColors>(getSavedNodeRoleColors);
   const [labelMode, setLabelMode] = useState<NodeLabelMode>(getSavedLabelMode);
   const [telemetryOn, setTelemetryOn] = useState<boolean>(getSavedTelemetryOn);
@@ -277,6 +324,7 @@ export function MapView({
   const glowOnRef = useRef(glowOn);
   const mapRef = useRef<MlMap | null>(null);
   const nodesRef = useRef<ReturnType<typeof createNodesLayer> | null>(null);
+  const neonOverlayRef = useRef<NeonNodesOverlay | null>(null);
   const telemetryRef = useRef<ReturnType<typeof createTelemetryLayer> | null>(null);
   const roleColorsRef = useRef<NodeRoleColors>(roleColors);
   const packetOverlayRef = useRef<PacketDeckOverlay | null>(null);
@@ -469,9 +517,11 @@ export function MapView({
     refreshLinks();
   }, [rawPackets, linksOn, linkContext, refreshLinks, config]);
 
-  // Fetch resolved advert-truth edges while links are on in advert mode.
+  // Fetch resolved advert-truth edges when links are shown in advert mode, or
+  // when the wrong-location filter needs them to measure neighbour distances.
   useEffect(() => {
-    if (!linksOn || linkMode !== 'advert') return;
+    const needEdges = (linksOn && linkMode === 'advert') || hideWrongLocation;
+    if (!needEdges) return;
     const controller = new AbortController();
     api
       .getAdvertLinks(controller.signal)
@@ -480,7 +530,13 @@ export function MapView({
         if (!isAbortError(err)) console.error('Advert links fetch failed', err);
       });
     return () => controller.abort();
-  }, [linksOn, linkMode]);
+  }, [linksOn, linkMode, hideWrongLocation]);
+
+  // Pubkeys hidden by the wrong-location filter (empty unless the toggle is on).
+  const wrongLocationKeys = useMemo(
+    () => (hideWrongLocation ? computeWrongLocationKeys(advertEdges) : new Set<string>()),
+    [hideWrongLocation, advertEdges]
+  );
 
   // Paint advert edges (filtered by the confidence selector) and switch which
   // links layer is visible based on the mode.
@@ -494,14 +550,21 @@ export function MapView({
     }
     if (linkMode === 'advert') {
       liveness?.hide();
-      advert?.setData(advertEdges.filter((e) => e.hop_width >= linkConfidence));
+      advert?.setData(
+        advertEdges.filter(
+          (e) =>
+            e.hop_width >= linkConfidence &&
+            !wrongLocationKeys.has(e.a.pubkey.toLowerCase()) &&
+            !wrongLocationKeys.has(e.b.pubkey.toLowerCase())
+        )
+      );
       advert?.show();
     } else {
       advert?.hide();
       liveness?.show();
       refreshLinks();
     }
-  }, [linksOn, linkMode, linkConfidence, advertEdges, refreshLinks]);
+  }, [linksOn, linkMode, linkConfidence, advertEdges, refreshLinks, wrongLocationKeys]);
 
   const threeDaysAgoSec = useMemo(() => Date.now() / 1000 - THREE_DAYS_SEC, []);
   const activeSincePreset = MAP_SINCE_PRESETS.find((p) => p.id === sinceId) ?? null;
@@ -532,11 +595,40 @@ export function MapView({
 
   useEffect(() => {
     try {
+      localStorage.setItem(MAP_HIDE_WRONG_LOCATION_STORAGE_KEY, hideWrongLocation ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }, [hideWrongLocation]);
+
+  useEffect(() => {
+    try {
       localStorage.setItem(MAP_NODE_SCALE_STORAGE_KEY, String(nodeScale));
     } catch {
       /* ignore */
     }
   }, [nodeScale]);
+
+  // Persist + apply the packet-arc width multiplier.
+  useEffect(() => {
+    try {
+      localStorage.setItem(MAP_ARC_WIDTH_STORAGE_KEY, String(arcWidthScale));
+    } catch {
+      /* ignore */
+    }
+    packetOverlayRef.current?.setArcWidthScale(arcWidthScale);
+  }, [arcWidthScale]);
+
+  // Persist + apply the link-line width multiplier (liveness + advert layers).
+  useEffect(() => {
+    try {
+      localStorage.setItem(MAP_LINK_WIDTH_STORAGE_KEY, String(linkWidthScale));
+    } catch {
+      /* ignore */
+    }
+    linksLayerRef.current?.setWidthScale(linkWidthScale);
+    advertLinksLayerRef.current?.setWidthScale(linkWidthScale);
+  }, [linkWidthScale]);
 
   // Persist the label mode and push it to the live layer.
   useEffect(() => {
@@ -613,6 +705,13 @@ export function MapView({
     const isBlocked = (c: Contact) =>
       (blockedKeys?.length && blockedKeys.includes(c.public_key.toLowerCase())) ||
       (blockedNames?.length && c.name != null && blockedNames.includes(c.name));
+    // Hide nodes whose advertised location is implausible (nearest heard
+    // neighbour > 300km). The focused node is always exempt, like the heard
+    // filter, so a searched/selected node is never silently removed.
+    const isHiddenForWrongLocation = (c: Contact) =>
+      hideWrongLocation &&
+      c.public_key !== focusedKey &&
+      wrongLocationKeys.has(c.public_key.toLowerCase());
     // Project the effective location (advertised-wins, manual-fallback) onto
     // lat/lon so a node with only manual coordinates is placed and rendered by
     // the standard downstream consumers that read c.lat / c.lon.
@@ -623,7 +722,9 @@ export function MapView({
     };
     if (showPackets && discoveryMode) {
       return contacts
-        .filter((c) => discoveredKeys.has(c.public_key) && !isBlocked(c))
+        .filter(
+          (c) => discoveredKeys.has(c.public_key) && !isBlocked(c) && !isHiddenForWrongLocation(c)
+        )
         .map(withEffectiveCoords)
         .filter((c): c is Contact => c !== null);
     }
@@ -636,7 +737,8 @@ export function MapView({
             mode: heardFilter,
             isFocused: c.public_key === focusedKey,
             isWithinSinceWindow: isWithinSinceWindow(c.last_seen),
-          })
+          }) &&
+          !isHiddenForWrongLocation(c)
       )
       .map(withEffectiveCoords)
       .filter((c): c is Contact => c !== null);
@@ -650,6 +752,8 @@ export function MapView({
     discoveredKeys,
     blockedKeys,
     blockedNames,
+    hideWrongLocation,
+    wrongLocationKeys,
   ]);
 
   const contactByKey = useMemo(() => {
@@ -923,7 +1027,16 @@ export function MapView({
       nodes.setNodeScale(nodeScale);
       nodes.setLabelMode(labelMode);
       nodes.setData(mappableContacts, nowSec);
+      // Neon nodes: a deck.gl halo+core overlay that replaces the flat circles
+      // when enabled. The flat circle layer is hidden while neon is on; labels
+      // stay on the GL layer either way.
+      nodes.setCirclesVisible(!neonNodes);
       nodesRef.current = nodes;
+      const neon = createNeonNodesOverlay(map);
+      neon.setNodeScale(nodeScale);
+      neon.setData(mappableContacts, nowSec);
+      neon.setVisible(neonNodes);
+      neonOverlayRef.current = neon;
       const telemetry = createTelemetryLayer(map);
       telemetry.ensure();
       telemetry.setData(mappableContacts, latestTelemetry, nowSec);
@@ -935,11 +1048,14 @@ export function MapView({
         if (showExternalRef.current) onViewBounds(map.getBounds());
       });
       packetOverlayRef.current = createPacketDeckOverlay(map);
+      packetOverlayRef.current.setArcWidthScale(arcWidthScale);
       const links = createLinksLayer(map);
       links.ensure();
+      links.setWidthScale(linkWidthScale);
       linksLayerRef.current = links;
       const advertLinks = createAdvertLinksLayer(map);
       advertLinks.ensure();
+      advertLinks.setWidthScale(linkWidthScale);
       advertLinksLayerRef.current = advertLinks;
       fitInitialView(map);
       if (focusedLatLon) {
@@ -988,7 +1104,19 @@ export function MapView({
   // Keep node data in sync.
   useEffect(() => {
     nodesRef.current?.setData(mappableContacts, nowSec);
+    neonOverlayRef.current?.setData(mappableContacts, nowSec);
   }, [mappableContacts, nowSec]);
+
+  // Toggle between the flat GL circle nodes and the deck.gl neon overlay.
+  useEffect(() => {
+    try {
+      localStorage.setItem(MAP_NEON_NODES_STORAGE_KEY, neonNodes ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+    nodesRef.current?.setCirclesVisible(!neonNodes);
+    neonOverlayRef.current?.setVisible(neonNodes);
+  }, [neonNodes]);
 
   // Keep the telemetry overlay data in sync with contacts + latest readings.
   useEffect(() => {
@@ -997,6 +1125,7 @@ export function MapView({
 
   useEffect(() => {
     nodesRef.current?.setNodeScale(nodeScale);
+    neonOverlayRef.current?.setNodeScale(nodeScale);
   }, [nodeScale]);
 
   // Keep the external overlay layer + refs in sync with fetched/visible nodes.
@@ -1055,6 +1184,7 @@ export function MapView({
   useEffect(() => {
     return () => {
       packetOverlayRef.current?.destroy();
+      neonOverlayRef.current?.destroy();
       clickAudioRef.current?.destroy();
       popupRef.current?.remove();
       externalPopupRef.current?.remove();
@@ -1279,6 +1409,24 @@ export function MapView({
           </label>
         ),
       },
+      {
+        id: 'wrong-location',
+        label: t('map_hide_wrong_location_label'),
+        icon: <MapPinOff size={20} aria-hidden />,
+        panel: (
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={hideWrongLocation}
+                onChange={(e) => setHideWrongLocation(e.target.checked)}
+              />
+              {t('map_hide_wrong_location_label')}
+            </label>
+            <p className="text-xs text-muted-foreground">{t('map_hide_wrong_location_help')}</p>
+          </div>
+        ),
+      },
     ];
   }, [
     t,
@@ -1293,6 +1441,7 @@ export function MapView({
     bufferMs,
     soundOn,
     volume,
+    hideWrongLocation,
   ]);
 
   const theme: 'light' | 'dark' = dark ? 'dark' : 'light';
@@ -1327,6 +1476,12 @@ export function MapView({
         }}
         nodeScale={nodeScale}
         onNodeScale={setNodeScale}
+        arcWidthScale={arcWidthScale}
+        onArcWidthScale={setArcWidthScale}
+        linkWidthScale={linkWidthScale}
+        onLinkWidthScale={setLinkWidthScale}
+        neonNodes={neonNodes}
+        onToggleNeon={setNeonNodes}
         roleColors={roleColors}
         onRoleColorChange={handleRoleColorChange}
         onResetRoleColors={handleResetRoleColors}

@@ -18,6 +18,7 @@ import { HeaderLanguageMenu } from './HeaderLanguageMenu';
 import { LivePacketSparkline } from './LivePacketSparkline';
 import { useUpdateStatus } from '../hooks/useUpdateStatus';
 import { ThemeSelector } from './settings/ThemeSelector';
+import { CrtEffects } from './settings/CrtEffects';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import {
   BATTERY_DISPLAY_CHANGE_EVENT,
@@ -327,11 +328,12 @@ export function StatusBar({
       </button>
 
       <Dialog open={themeModalOpen} onOpenChange={setThemeModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t('settings_color_scheme')}</DialogTitle>
           </DialogHeader>
           <ThemeSelector />
+          <CrtEffects />
         </DialogContent>
       </Dialog>
     </header>

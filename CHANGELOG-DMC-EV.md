@@ -46,6 +46,92 @@ the change. Upstream development is on hold; the fork is the active repository.
   new panes under `frontend/src/components/settings/openhop/{update,cad,system,transport,mqtt}/`
   with vitest coverage. New `openhop_*` strings translated in EN/NL/DE.
 
+## Update 2026-09-14 (Map: neon nodes, line/arc thickness)
+
+### Map
+- New **Neon nodes** toggle in the map Display panel. When on, nodes render as a
+  deck.gl halo + bright core (the "neon" look), replacing the flat GL circles;
+  the existing packet glow supplies the per-node activity pulse. The flat circle
+  layer is hidden while neon is on and the node labels stay on top either way.
+  Off by default, per-device (`frontend/src/map/layers/neonNodesLayer.ts`,
+  wired through `MapView`; the flat layer gains `setCirclesVisible`).
+- New **Packet arc width** and **Link line width** sliders (0.5-4x) in the same
+  panel. Arc width multiplies the deck.gl packet-arc width; link width scales the
+  liveness and advert link line widths. Both persist per-device
+  (`packetDeckOverlay.setArcWidthScale`, `linksLayer`/`advertLinksLayer`
+  `setWidthScale`). New strings `map_neon_nodes_label`, `map_arc_width_label`,
+  `map_link_width_label` (EN/NL/DE).
+
+## Update 2026-09-14 (Map node labels fixed on vector basemaps)
+
+### Map
+- Node name / ID-tag labels now render on the default Nova (and other
+  OpenFreeMap vector) basemaps. The label layer requested a multi-font stack
+  (`Noto Sans Regular,Open Sans Regular,sans-serif`); MapLibre asks the basemap
+  glyph server for that whole comma-joined stack as one key, and the servers we
+  use (OpenFreeMap for vector, openmaptiles for raster) only serve pre-generated
+  single fonts, so the request 404'd and the labels silently vanished. The layer
+  now requests the single font `Noto Sans Regular`, which both servers provide
+  (`frontend/src/map/layers/nodesLayer.ts`, exported as `NODE_LABEL_FONT` with a
+  regression test).
+
+## Update 2026-09-14 (CRT phosphor themes + universal screen effects)
+
+### Chat / UI
+- The four CRT phosphor colours are now first-class themes in the theme picker
+  (both the navbar "Color Scheme" dialog and Settings > Customisation): **CRT
+  Green**, **CRT Amber**, **CRT White**, **CRT Blue**. Selecting one applies its
+  monochrome phosphor palette.
+- The CRT screen effects (scanlines, phosphor glow, screen curvature, flicker)
+  became a theme-independent overlay shown as toggles beneath the theme grid.
+  They now work on top of any theme, not only the CRT ones. Defaults follow the
+  active theme: on under a CRT theme, off otherwise; an explicit toggle persists
+  across themes. The phosphor glow tints to `--crt-phosphor`, which CRT themes
+  set to their hue and other themes fall back to `--primary`.
+- The "tint the map to the CRT colour" toggle moved into the same panel; it acts
+  only while a CRT theme is active (it needs a phosphor hue) and Nova Dark is the
+  chosen basemap.
+- The retired single `crt` theme + separate phosphor picker are gone. A saved
+  `crt` theme is migrated once to the matching `crt-<phosphor>` theme id.
+- Files: `frontend/src/utils/{crt,theme}.ts`, `frontend/src/themes.css`,
+  `frontend/src/index.css`, `frontend/src/components/settings/CrtEffects.tsx`
+  (replaces `CrtSettings.tsx`), `frontend/src/components/StatusBar.tsx`,
+  `frontend/src/components/settings/SettingsLocalSection.tsx`,
+  `frontend/src/map/MapSurface.tsx`. i18n: dropped the CRT enable/phosphor keys,
+  kept the effect/map keys (EN/NL/DE).
+
+## Update 2026-09-14 (Node icons on top of 3D buildings, claude/node-icon-building-layer)
+
+### Map
+- With the 3D building layer enabled, a node icon whose position falls inside a
+  building footprint is no longer hidden behind the extrusion. The buildings
+  layer is now inserted (or re-seated) just below the node/overlay layers so
+  node circles, labels, and external-node markers always draw on top
+  (`frontend/src/map/engine/buildings3D.ts`). Buildings still render above the
+  basemap; only the map overlays are lifted above them.
+
+## Update 2026-09-14 (Hide nodes reporting wrong location, fix/hide-wrong-location-nodes)
+
+### Map
+- New opt-in map toggle "Hide nodes reporting wrong location" (its own FAB
+  panel, off by default, stored per-device). When on, it hides any node whose
+  nearest resolved advert-link neighbour is more than 300 km away, since mesh RF
+  range cannot realistically span that distance. Nodes with no resolvable
+  neighbour to measure against are kept visible (fail-open), and the
+  focused/searched node is always exempt. Hidden nodes also drop their advert
+  arcs so no dangling link remains. New pure helper
+  `frontend/src/map/wrongLocation.ts` (`computeWrongLocationKeys`,
+  `WRONG_LOCATION_MAX_NEIGHBOR_KM = 300`); wired into `MapView.tsx`
+  `mappableContacts`. New strings `map_hide_wrong_location_label` /
+  `map_hide_wrong_location_help` translated in EN/NL/DE.
+
+### Backend
+- `AdvertLinksRepository.located_nodes()` now excludes the `(0, 0)` sentinel
+  (unset GPS, Atlantic Ocean) from the advert-links graph for both contacts and
+  external analyzer nodes, so those nodes no longer create bogus RF edges. This
+  applies unconditionally, independent of the map toggle
+  (`app/repository/advert_links.py`).
+
 ## Update 2026-09-13 (Sidebar back-to-top button, feat/sidebar-back-to-top)
 
 ### Chat / UI

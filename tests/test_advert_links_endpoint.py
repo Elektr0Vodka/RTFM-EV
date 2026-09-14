@@ -53,6 +53,38 @@ class TestLocatedNodes:
         assert "dd00000000" not in by_pk
 
     @pytest.mark.asyncio
+    async def test_excludes_zero_zero_sentinel(self, test_db):
+        # (0, 0) is the "unset GPS" sentinel (Atlantic Ocean); it must never
+        # enter the located-nodes set for either a contact or an external node.
+        await ContactRepository.upsert(
+            ContactUpsert(public_key="ff00000000", name="Real", lat=52.0, lon=5.0)
+        )
+        await ContactRepository.upsert(
+            ContactUpsert(public_key="cc00000000", name="ZeroContact", lat=0.0, lon=0.0)
+        )
+        await ExternalMapRepository.replace_all(
+            [
+                ExternalMapNode(
+                    pubkey="bb00000000",
+                    name="ZeroExternal",
+                    role="Repeater",
+                    lat=0.0,
+                    lon=0.0,
+                    last_seen=1,
+                    advert_count=0,
+                    mobile=False,
+                )
+            ],
+            source="test",
+            synced_at=1,
+        )
+        nodes = await AdvertLinksRepository.located_nodes()
+        by_pk = {n.pubkey: n for n in nodes}
+        assert "ff00000000" in by_pk
+        assert "cc00000000" not in by_pk
+        assert "bb00000000" not in by_pk
+
+    @pytest.mark.asyncio
     async def test_contact_wins_over_external_on_pubkey_collision(self, test_db):
         await ContactRepository.upsert(
             ContactUpsert(public_key="aa11000000", name="LocalRepeater", lat=1.0, lon=2.0)

@@ -1213,10 +1213,11 @@
 }
 
 /* ── CRT (retro phosphor monitor) ──────────────────────────────
-   One data-theme, four phosphor variants (data-crt-phosphor), and four
-   individually-toggleable effects (data-crt-<effect>='0' disables). Green is
-   the default phosphor (defined in the base block). */
-:root[data-theme='crt'] {
+   Four phosphor themes (crt-green/amber/white/blue). Green is the shared base
+   (matched by every crt-* theme); amber/white/blue override the hue-specific
+   vars. The four screen effects are a theme-independent overlay applied
+   whenever data-crt-<effect>='1', so they work on top of any theme. */
+:root[data-theme^='crt-'] {
   --background: 120 30% 3%;
   --foreground: 120 100% 76%;
   --card: 120 24% 5%;
@@ -1265,7 +1266,7 @@
 }
 
 /* Amber (P3) */
-:root[data-theme='crt'][data-crt-phosphor='amber'] {
+:root[data-theme='crt-amber'] {
   --background: 30 40% 4%;
   --foreground: 38 100% 62%;
   --card: 30 30% 6%;
@@ -1287,7 +1288,7 @@
 }
 
 /* White / grey (P4) */
-:root[data-theme='crt'][data-crt-phosphor='white'] {
+:root[data-theme='crt-white'] {
   --background: 0 0% 3%;
   --foreground: 0 0% 86%;
   --card: 0 0% 6%;
@@ -1309,7 +1310,7 @@
 }
 
 /* Blue (C64) */
-:root[data-theme='crt'][data-crt-phosphor='blue'] {
+:root[data-theme='crt-blue'] {
   --background: 244 55% 12%;
   --foreground: 240 100% 80%;
   --card: 244 45% 15%;
@@ -1336,17 +1337,19 @@
 }
 
 /* Body background + base mono feel */
-:root[data-theme='crt'] body {
+:root[data-theme^='crt-'] body {
   background-color: hsl(var(--background));
 }
 
-/* Phosphor glow on text (effect: glow) */
-:root[data-theme='crt']:not([data-crt-glow='0']) body {
+/* Phosphor glow on text (effect: glow). Works on any theme; the colour is the
+   theme's --crt-phosphor (CRT themes set their hue, others fall back to
+   --primary in index.css). */
+:root[data-crt-glow='1'] body {
   text-shadow: 0 0 2px hsl(var(--crt-phosphor) / 0.55);
 }
 
 /* Scanlines: fixed full-viewport overlay (effect: scanlines) */
-:root[data-theme='crt']:not([data-crt-scanlines='0']) body::after {
+:root[data-crt-scanlines='1'] body::after {
   content: '';
   position: fixed;
   inset: 0;
@@ -1363,7 +1366,7 @@
 }
 
 /* Curvature / vignette: darkened edges (effect: curvature) */
-:root[data-theme='crt']:not([data-crt-curvature='0']) body::before {
+:root[data-crt-curvature='1'] body::before {
   content: '';
   position: fixed;
   inset: 0;
@@ -1375,7 +1378,7 @@
 /* Flicker: animate the scanline overlay opacity (effect: flicker).
    Disabled for users who prefer reduced motion. */
 @media (prefers-reduced-motion: no-preference) {
-  :root[data-theme='crt']:not([data-crt-flicker='0']):not([data-crt-scanlines='0']) body::after {
+  :root[data-crt-flicker='1'][data-crt-scanlines='1'] body::after {
     animation: crt-flicker 0.18s steps(2, end) infinite;
   }
 }

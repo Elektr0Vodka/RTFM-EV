@@ -46,6 +46,12 @@ export interface AdvertLinksLayerController {
   show(): void;
   hide(): void;
   setData(edges: AdvertLinkEdge[]): void;
+  setWidthScale(scale: number): void;
+}
+
+/** Confidence-driven width expression, scaled by the width control. */
+export function advertWidthExpr(scale: number): unknown {
+  return scale === 1 ? ['get', 'width'] : ['*', ['get', 'width'], scale];
 }
 
 const SOURCE_ID = 'rt-advert-links';
@@ -63,8 +69,10 @@ export function createAdvertLinksLayer(map: MlMap): AdvertLinksLayerController {
     addSource: (id: string, src: unknown) => void;
     addLayer: (layer: unknown, before?: string) => void;
     setLayoutProperty: (id: string, prop: string, value: unknown) => void;
+    setPaintProperty: (id: string, prop: string, value: unknown) => void;
   };
   let visible = false;
+  let widthScale = 1;
 
   function ensureLayers(): void {
     if (!m.getSource(SOURCE_ID)) {
@@ -86,7 +94,7 @@ export function createAdvertLinksLayer(map: MlMap): AdvertLinksLayerController {
           paint: {
             'line-color': LINE_COLOR,
             'line-opacity': ['get', 'opacity'],
-            'line-width': ['get', 'width'],
+            'line-width': advertWidthExpr(widthScale),
           },
         },
         before
@@ -103,7 +111,7 @@ export function createAdvertLinksLayer(map: MlMap): AdvertLinksLayerController {
           paint: {
             'line-color': LINE_COLOR,
             'line-opacity': ['get', 'opacity'],
-            'line-width': ['get', 'width'],
+            'line-width': advertWidthExpr(widthScale),
             'line-dasharray': [2, 2],
           },
         },
@@ -138,6 +146,12 @@ export function createAdvertLinksLayer(map: MlMap): AdvertLinksLayerController {
     setData(edges: AdvertLinkEdge[]): void {
       const src = m.getSource(SOURCE_ID);
       if (src) src.setData(buildAdvertArcs(edges, Date.now()));
+    },
+    setWidthScale(scale: number): void {
+      widthScale = scale;
+      for (const id of [SOLID_LAYER, DASHED_LAYER]) {
+        if (m.getLayer(id)) m.setPaintProperty(id, 'line-width', advertWidthExpr(widthScale));
+      }
     },
   };
 }

@@ -32,6 +32,13 @@ export const NODE_TYPE_STROKE: Record<number, string> = {
 // Labels only render at/above this zoom to keep wide views uncluttered.
 export const LABEL_MIN_ZOOM = 11;
 
+// Font for node labels. MUST be a single font, not a stack: MapLibre requests
+// glyphs for the whole comma-joined fontstack as one key, and the basemap glyph
+// servers we use (OpenFreeMap for the vector/Nova basemaps, openmaptiles for the
+// raster ones) only serve pre-generated single fonts. A multi-font stack 404s
+// and the labels silently disappear. "Noto Sans Regular" is served by both.
+export const NODE_LABEL_FONT = ['Noto Sans Regular'];
+
 export type NodeLabelMode = 'off' | 'name' | 'tag';
 
 export function recencyTier(lastSeenSec: number | null | undefined, nowSec: number): RecencyTier {
@@ -120,6 +127,9 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
   let nodeScale = 1;
   let roleColors: Record<number, string> = opts.roleColors ?? NODE_TYPE_STROKE;
   let labelMode: NodeLabelMode = 'off';
+  // The flat circle layer is hidden when the neon node overlay takes over; the
+  // label layer stays visible either way. Preserved across style re-attaches.
+  let circlesVisible = true;
   let lastContacts: Contact[] = [];
   let lastNowSec = 0;
   let listenersBound = false;
@@ -133,6 +143,7 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
       id: 'rt-nodes',
       type: 'circle',
       source: 'rt-nodes',
+      layout: { visibility: circlesVisible ? 'visible' : 'none' },
       paint: {
         'circle-color': circleColorExpr(),
         'circle-radius': circleRadiusExpr(baseR * nodeScale, repeaterR * nodeScale),
@@ -154,7 +165,7 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
           'text-anchor': 'top',
           'text-allow-overlap': false,
           'text-optional': true,
-          'text-font': ['Noto Sans Regular', 'Open Sans Regular', 'sans-serif'],
+          'text-font': NODE_LABEL_FONT,
         },
         paint: {
           // Outlined label: near-white fill with a dark halo reads on both
@@ -215,6 +226,13 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
     }
   }
 
+  function setCirclesVisible(v: boolean) {
+    circlesVisible = v;
+    if (m.getLayer('rt-nodes')) {
+      m.setLayoutProperty('rt-nodes', 'visibility', v ? 'visible' : 'none');
+    }
+  }
+
   function ensure() {
     addSourceAndLayer();
     bindListeners();
@@ -223,5 +241,13 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
     addSourceAndLayer();
   }
 
-  return { ensure, reattach, setData, setNodeScale, setRoleColors, setLabelMode };
+  return {
+    ensure,
+    reattach,
+    setData,
+    setNodeScale,
+    setRoleColors,
+    setLabelMode,
+    setCirclesVisible,
+  };
 }
