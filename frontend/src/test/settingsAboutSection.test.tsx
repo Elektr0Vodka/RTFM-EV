@@ -1,12 +1,20 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SettingsAboutSection } from '../components/settings/SettingsAboutSection';
+import type { UpdateStatus } from '../types';
 
 const useUpdateStatusMock = vi.fn();
 vi.mock('../hooks/useUpdateStatus', () => ({
   useUpdateStatus: () => useUpdateStatusMock(),
 }));
+
+const refreshMock = vi.fn();
+
+/** Wrap a status value in the hook's return shape. */
+function mockStatus(status: UpdateStatus | null, refreshing = false) {
+  useUpdateStatusMock.mockReturnValue({ status, refresh: refreshMock, refreshing });
+}
 
 const health = {
   status: 'ok',
@@ -23,17 +31,19 @@ const health = {
 describe('SettingsAboutSection', () => {
   beforeEach(() => {
     useUpdateStatusMock.mockReset();
+    refreshMock.mockReset();
+    refreshMock.mockResolvedValue(null);
   });
 
   it('renders the debug support snapshot link', () => {
-    useUpdateStatusMock.mockReturnValue(null);
+    mockStatus(null);
     render(<SettingsAboutSection health={health} />);
     const link = screen.getByRole('link', { name: /Open debug support snapshot/i });
     expect(link).toHaveAttribute('href', './api/debug');
   });
 
   it('links the commit hash to its GitHub commit', () => {
-    useUpdateStatusMock.mockReturnValue(null);
+    mockStatus(null);
     render(<SettingsAboutSection health={health} />);
     const link = screen.getByRole('link', { name: 'deadbeef' });
     expect(link).toHaveAttribute('href', 'https://github.com/Elektr0Vodka/RTFM-EV/commit/deadbeef');
@@ -41,7 +51,7 @@ describe('SettingsAboutSection', () => {
   });
 
   it('renders the fork changelog (Changelog-EV) link', () => {
-    useUpdateStatusMock.mockReturnValue(null);
+    mockStatus(null);
     render(<SettingsAboutSection health={health} />);
     const link = screen.getByRole('link', { name: 'Changelog-EV' });
     expect(link).toHaveAttribute(
@@ -52,7 +62,7 @@ describe('SettingsAboutSection', () => {
   });
 
   it('shows the update indicator with a button to the compare url', () => {
-    useUpdateStatusMock.mockReturnValue({
+    mockStatus({
       check_enabled: true,
       update_available: true,
       current_commit: 'dc11fbe0',
@@ -72,7 +82,7 @@ describe('SettingsAboutSection', () => {
   });
 
   it('renders no update indicator when up to date', () => {
-    useUpdateStatusMock.mockReturnValue({
+    mockStatus({
       check_enabled: true,
       update_available: false,
       current_commit: 'dc11fbe0',
@@ -84,5 +94,13 @@ describe('SettingsAboutSection', () => {
     render(<SettingsAboutSection health={health} />);
     expect(screen.queryByText(/Update available/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /View changes/i })).not.toBeInTheDocument();
+  });
+
+  it('calls refresh when the manual update-check button is clicked', () => {
+    mockStatus(null);
+    render(<SettingsAboutSection health={health} />);
+    const button = screen.getByRole('button', { name: /Check for updates now/i });
+    fireEvent.click(button);
+    expect(refreshMock).toHaveBeenCalledTimes(1);
   });
 });

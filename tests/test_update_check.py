@@ -112,3 +112,15 @@ async def test_result_is_cached_within_ttl():
         await uc.get_update_status()
         await uc.get_update_status()
     client.get.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_force_bypasses_cache_within_ttl():
+    payload = {"status": "ahead", "ahead_by": 2, "commits": [{"sha": "aabbccdd"}]}
+    get_patch, client = _patch_get(_mock_response(200, payload))
+    with _patch_build_info("dc11fbe0"), get_patch:
+        await uc.get_update_status()
+        # A normal follow-up is served from cache; force re-queries GitHub.
+        await uc.get_update_status()
+        await uc.get_update_status(force=True)
+    assert client.get.await_count == 2

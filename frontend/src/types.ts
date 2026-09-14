@@ -499,6 +499,41 @@ export interface MentionSoundMeta {
   updated_at: number;
 }
 
+/** Group of a Handy Info entry; decides its tab (links => Links, else Configure). */
+export type HandyGroup = 'analyzers' | 'sync' | 'links';
+/** Sub-heading category for open-only link entries in the Links tab. */
+export type HandyLinkCategory = 'community' | 'monitoring' | 'tools' | 'technical' | 'fun';
+/** Apply action of an apply-capable entry. */
+export type HandyApplyKind = 'analyzer' | 'region_sync' | 'registry_sync';
+
+/** Per-user override of a built-in Handy Info entry, keyed by the built-in id. */
+export interface HandyInfoOverride {
+  hidden?: boolean;
+  label?: string | null;
+  url?: string | null;
+  category?: string | null;
+  node_url_template?: string | null;
+  packet_url_template?: string | null;
+}
+
+/** A user-created Handy Info entry (link or apply-capable preset). */
+export interface HandyInfoCustomEntry {
+  id: string;
+  group: HandyGroup;
+  category?: string | null;
+  label: string;
+  url: string;
+  apply_kind?: HandyApplyKind | null;
+  node_url_template?: string | null;
+  packet_url_template?: string | null;
+}
+
+/** Persisted overlay for the Handy Info section. */
+export interface HandyInfoSettings {
+  overrides: Record<string, HandyInfoOverride>;
+  custom: HandyInfoCustomEntry[];
+}
+
 export interface AppSettings {
   max_radio_contacts: number;
   auto_decrypt_dm_on_advert: boolean;
@@ -530,6 +565,7 @@ export interface AppSettings {
   region_sync_url: string;
   wordlist_sync_url: string;
   analyzer_sites: AnalyzerSite[];
+  handy_info: HandyInfoSettings;
   external_map_enabled: boolean;
   external_map_sync_url: string;
   external_map_sync_interval_hours: number;
@@ -718,6 +754,7 @@ export interface AppSettingsUpdate {
   region_sync_url?: string;
   wordlist_sync_url?: string;
   analyzer_sites?: AnalyzerSite[];
+  handy_info?: HandyInfoSettings;
   external_map_enabled?: boolean;
   external_map_sync_url?: string;
   external_map_sync_interval_hours?: number;

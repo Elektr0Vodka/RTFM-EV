@@ -105,8 +105,12 @@ async def _fetch(current_commit: str) -> tuple[dict[str, Any], bool]:
     )
 
 
-async def get_update_status() -> dict[str, Any]:
-    """Return the cached update-status payload, refreshing past the TTL."""
+async def get_update_status(force: bool = False) -> dict[str, Any]:
+    """Return the cached update-status payload, refreshing past the TTL.
+
+    ``force=True`` bypasses the TTL freshness check and re-queries GitHub (used by
+    the manual "refresh update check" button), still serialized under the lock.
+    """
     global _cache, _cache_at, _cache_ttl
 
     if not settings.update_check_enabled:
@@ -118,7 +122,8 @@ async def get_update_status() -> dict[str, Any]:
 
     async with _lock:
         fresh = (
-            _cache is not None
+            not force
+            and _cache is not None
             and _cache.get("current_commit") == current_commit
             and (time.time() - _cache_at) < _cache_ttl
         )

@@ -1,6 +1,9 @@
+import { RefreshCw } from 'lucide-react';
+
 import type { HealthStatus } from '../../types';
 import { Button } from '../ui/button';
 import { Separator } from '../ui/separator';
+import { toast } from '../ui/sonner';
 import { useT } from '../../i18n';
 import { useUpdateStatus } from '../../hooks/useUpdateStatus';
 
@@ -16,8 +19,19 @@ export function SettingsAboutSection({
   const t = useT();
   const version = health?.app_info?.version ?? 'unknown';
   const commit = health?.app_info?.commit_hash;
-  const updateStatus = useUpdateStatus();
+  const { status: updateStatus, refresh, refreshing } = useUpdateStatus();
   const showUpdate = updateStatus?.update_available && updateStatus.compare_url;
+
+  const handleRefresh = async () => {
+    const result = await refresh();
+    if (result?.update_available) {
+      toast.info(t('settings_about_update_commits_behind', { count: result.commits_behind }));
+    } else if (result?.check_enabled) {
+      toast.success(t('settings_about_update_up_to_date'));
+    } else {
+      toast.error(t('settings_about_update_check_failed'));
+    }
+  };
 
   return (
     <div className={className}>
@@ -42,6 +56,18 @@ export function SettingsAboutSection({
                 </a>
               </>
             ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="ml-1 h-6 w-6 align-middle"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              aria-label={t('settings_about_update_refresh_aria')}
+              title={t('settings_about_update_refresh_aria')}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+            </Button>
           </div>
         </div>
 

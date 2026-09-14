@@ -19,13 +19,13 @@ describe('StatusBar update dot', () => {
   beforeEach(() => useUpdateStatusMock.mockReset());
 
   it('shows the update dot when an update is available', () => {
-    useUpdateStatusMock.mockReturnValue({ update_available: true });
+    useUpdateStatusMock.mockReturnValue({ status: { update_available: true } });
     render(<StatusBar {...baseProps} />);
     expect(screen.getByLabelText(/update is available/i)).toBeInTheDocument();
   });
 
   it('hides the update dot when up to date', () => {
-    useUpdateStatusMock.mockReturnValue({ update_available: false });
+    useUpdateStatusMock.mockReturnValue({ status: { update_available: false } });
     render(<StatusBar {...baseProps} />);
     expect(screen.queryByLabelText(/update is available/i)).not.toBeInTheDocument();
   });

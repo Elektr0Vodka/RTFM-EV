@@ -6,7 +6,14 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from app.models import CONTACT_TYPE_REPEATER, AnalyzerSite, AppSettings
+from app.models import (
+    CONTACT_TYPE_REPEATER,
+    AnalyzerSite,
+    AppSettings,
+    HandyInfoCustomEntry,
+    HandyInfoOverride,
+    HandyInfoSettings,
+)
 from app.region_scope import normalize_region_scope
 from app.repository import (
     AppSettingsRepository,
@@ -84,6 +91,128 @@ def _is_valid_lookup_template(template: str, placeholder: str) -> bool:
     templates missing the substitution placeholder (a configuration bug).
     """
     return template.startswith(("http://", "https://")) and placeholder in template
+
+
+def _is_valid_http_url(value: str) -> bool:
+    """A plain URL must use the http(s) scheme (rejects ``javascript:`` etc.)."""
+    return value.startswith(("http://", "https://"))
+
+
+HANDY_GROUPS = ("analyzers", "sync", "links")
+HANDY_LINK_CATEGORIES = ("community", "monitoring", "tools", "technical", "fun")
+
+
+def _clean_handy_override(raw: HandyInfoOverride) -> HandyInfoOverride:
+    """Validate and normalize a single built-in override, or raise HTTP 400."""
+    url = raw.url.strip() if raw.url is not None else None
+    if url and not _is_valid_http_url(url):
+        raise HTTPException(
+            status_code=400, detail="Handy Info override url must be an http(s) URL"
+        )
+    node_tpl = raw.node_url_template.strip() if raw.node_url_template else None
+    if node_tpl and not _is_valid_lookup_template(node_tpl, "{pubkey}"):
+        raise HTTPException(
+            status_code=400,
+            detail="node_url_template must be an http(s) URL containing '{pubkey}'",
+        )
+    packet_tpl = raw.packet_url_template.strip() if raw.packet_url_template else None
+    if packet_tpl and not _is_valid_lookup_template(packet_tpl, "{hash}"):
+        raise HTTPException(
+            status_code=400,
+            detail="packet_url_template must be an http(s) URL containing '{hash}'",
+        )
+    label = raw.label.strip() if raw.label is not None else None
+    category = raw.category.strip() if raw.category else None
+    if category and category not in HANDY_LINK_CATEGORIES:
+        raise HTTPException(status_code=400, detail=f"Unknown Handy Info category '{category}'")
+    return HandyInfoOverride(
+        hidden=raw.hidden,
+        label=label,
+        url=url,
+        category=category,
+        node_url_template=node_tpl,
+        packet_url_template=packet_tpl,
+    )
+
+
+def _clean_handy_custom(raw: HandyInfoCustomEntry) -> HandyInfoCustomEntry:
+    """Validate and normalize a single user-created entry, or raise HTTP 400."""
+    entry_id = raw.id.strip()
+    if not entry_id:
+        raise HTTPException(status_code=400, detail="Handy Info entry id cannot be empty")
+    label = raw.label.strip()
+    if not label:
+        raise HTTPException(status_code=400, detail="Handy Info entry label cannot be empty")
+    if raw.group not in HANDY_GROUPS:
+        raise HTTPException(status_code=400, detail=f"Unknown Handy Info group '{raw.group}'")
+    url = raw.url.strip()
+    if not _is_valid_http_url(url):
+        raise HTTPException(status_code=400, detail="Handy Info entry url must be an http(s) URL")
+
+    apply_kind = raw.apply_kind
+    node_tpl = raw.node_url_template.strip() if raw.node_url_template else None
+    packet_tpl = raw.packet_url_template.strip() if raw.packet_url_template else None
+    category = raw.category.strip() if raw.category else None
+
+    if raw.group == "links":
+        if apply_kind is not None:
+            raise HTTPException(status_code=400, detail="Link entries cannot have an apply_kind")
+        if not category or category not in HANDY_LINK_CATEGORIES:
+            raise HTTPException(status_code=400, detail="Link entries require a valid category")
+        node_tpl = None
+        packet_tpl = None
+    elif raw.group == "analyzers":
+        if apply_kind != "analyzer":
+            raise HTTPException(
+                status_code=400, detail="Analyzer entries must have apply_kind 'analyzer'"
+            )
+        if not node_tpl or not _is_valid_lookup_template(node_tpl, "{pubkey}"):
+            raise HTTPException(
+                status_code=400,
+                detail="node_url_template must be an http(s) URL containing '{pubkey}'",
+            )
+        if packet_tpl and not _is_valid_lookup_template(packet_tpl, "{hash}"):
+            raise HTTPException(
+                status_code=400,
+                detail="packet_url_template must be an http(s) URL containing '{hash}'",
+            )
+        category = None
+    else:  # sync
+        if apply_kind not in ("region_sync", "registry_sync"):
+            raise HTTPException(
+                status_code=400,
+                detail="Sync entries must have apply_kind 'region_sync' or 'registry_sync'",
+            )
+        node_tpl = None
+        packet_tpl = None
+        category = None
+
+    return HandyInfoCustomEntry(
+        id=entry_id,
+        group=raw.group,
+        category=category,
+        label=label,
+        url=url,
+        apply_kind=apply_kind,
+        node_url_template=node_tpl,
+        packet_url_template=packet_tpl,
+    )
+
+
+def _validate_handy_info(raw: HandyInfoSettings) -> HandyInfoSettings:
+    """Validate the whole Handy Info overlay, raising HTTP 400 on the first problem."""
+    overrides = {key: _clean_handy_override(value) for key, value in raw.overrides.items()}
+    seen_ids: set[str] = set()
+    custom: list[HandyInfoCustomEntry] = []
+    for entry in raw.custom:
+        cleaned = _clean_handy_custom(entry)
+        if cleaned.id in seen_ids:
+            raise HTTPException(
+                status_code=400, detail=f"Duplicate Handy Info entry id '{cleaned.id}'"
+            )
+        seen_ids.add(cleaned.id)
+        custom.append(cleaned)
+    return HandyInfoSettings(overrides=overrides, custom=custom)
 
 
 class AppSettingsUpdate(BaseModel):
@@ -212,6 +341,13 @@ class AppSettingsUpdate(BaseModel):
         description=(
             "External analyzer sites for client-side node/packet deep-link lookups. "
             "Each node_url_template must be an http(s) URL containing a {pubkey} placeholder."
+        ),
+    )
+    handy_info: HandyInfoSettings | None = Field(
+        default=None,
+        description=(
+            "User overlay for the Handy Info section: overrides of built-in entries "
+            "plus user-created entries. Replaces the whole overlay when provided."
         ),
     )
     external_map_enabled: bool | None = Field(
@@ -531,6 +667,11 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
                 )
             )
         kwargs["analyzer_sites"] = cleaned_sites
+
+    # Handy Info overlay (built-in overrides + user-created entries). Validated
+    # and normalized; the whole overlay is replaced on each update.
+    if update.handy_info is not None:
+        kwargs["handy_info"] = _validate_handy_info(update.handy_info)
 
     # Branding
     if update.brand_name is not None:

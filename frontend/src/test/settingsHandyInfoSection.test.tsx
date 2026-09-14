@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SettingsHandyInfoSection } from '../components/settings/SettingsHandyInfoSection';
@@ -46,6 +47,7 @@ function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings {
     region_sync_url: '',
     wordlist_sync_url: '',
     analyzer_sites: [],
+    handy_info: { overrides: {}, custom: [] },
     external_map_enabled: false,
     external_map_sync_url: '',
     external_map_sync_interval_hours: 0,
@@ -86,15 +88,23 @@ describe('SettingsHandyInfoSection', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders analyzer, sync, and reference entries', () => {
+  it('renders analyzer and sync entries on the Configure tab', () => {
     renderSection(makeSettings());
     expect(screen.getByText('Cornmeister')).toBeInTheDocument();
     expect(screen.getByText('MC-Radar')).toBeInTheDocument();
     expect(screen.getByText('Region scopes')).toBeInTheDocument();
     expect(screen.getByText('Channel registry')).toBeInTheDocument();
+  });
+
+  it('shows reference and new links on the Links tab', async () => {
+    renderSection(makeSettings());
+    await userEvent.click(screen.getByRole('tab', { name: 'Links' }));
     expect(screen.getByText('Dutch mesh settings')).toBeInTheDocument();
     expect(screen.getByText('DMC channel browser')).toBeInTheDocument();
     expect(screen.getByText('Region list (meshwiki)')).toBeInTheDocument();
+    expect(screen.getByText('MeshCore.io')).toBeInTheDocument();
+    expect(screen.getByText('Triangulator')).toBeInTheDocument();
+    expect(screen.getByText('Zweerbericht')).toBeInTheDocument();
   });
 
   it('copies an analyzer node template to the clipboard', () => {
@@ -187,5 +197,70 @@ describe('SettingsHandyInfoSection', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Apply Channel registry' }));
     expect(confirmSpy).toHaveBeenCalled();
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('hides a built-in entry through the overlay', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { onSave } = renderSection(makeSettings());
+    fireEvent.click(screen.getByRole('button', { name: 'Hide MC-Radar' }));
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({
+        handy_info: { overrides: { 'analyzer-mc-radar': { hidden: true } }, custom: [] },
+      })
+    );
+  });
+
+  it('does not render a hidden built-in entry', () => {
+    renderSection(
+      makeSettings({
+        handy_info: { overrides: { 'analyzer-mc-radar': { hidden: true } }, custom: [] },
+      })
+    );
+    expect(screen.queryByText('MC-Radar')).not.toBeInTheDocument();
+    expect(screen.getByText('Cornmeister')).toBeInTheDocument();
+  });
+
+  it('adds a custom link through the dialog', async () => {
+    const { onSave } = renderSection(makeSettings());
+    await userEvent.click(screen.getByRole('tab', { name: 'Links' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+    fireEvent.change(screen.getByLabelText('Label'), { target: { value: 'My Site' } });
+    fireEvent.change(screen.getByLabelText('URL'), { target: { value: 'https://my.example' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const arg = onSave.mock.calls[onSave.mock.calls.length - 1][0];
+    expect(arg.handy_info.custom).toHaveLength(1);
+    expect(arg.handy_info.custom[0]).toMatchObject({
+      group: 'links',
+      category: 'community',
+      label: 'My Site',
+      url: 'https://my.example',
+      apply_kind: null,
+    });
+  });
+
+  it('rejects a custom link with a non-http URL', async () => {
+    const { onSave } = renderSection(makeSettings());
+    await userEvent.click(screen.getByRole('tab', { name: 'Links' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+    fireEvent.change(screen.getByLabelText('Label'), { target: { value: 'Bad' } });
+    fireEvent.change(screen.getByLabelText('URL'), { target: { value: 'javascript:alert(1)' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onSave).not.toHaveBeenCalled();
+    expect(toastError).toHaveBeenCalled();
+  });
+
+  it('resets the overlay to defaults', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { onSave } = renderSection(
+      makeSettings({
+        handy_info: { overrides: { 'analyzer-mc-radar': { hidden: true } }, custom: [] },
+      })
+    );
+    await userEvent.click(screen.getByRole('tab', { name: 'Links' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Reset to defaults' }));
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({ handy_info: { overrides: {}, custom: [] } })
+    );
   });
 });

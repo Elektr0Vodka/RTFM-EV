@@ -15,12 +15,12 @@ class TestMigration091:
         conn = await aiosqlite.connect(":memory:")
         conn.row_factory = aiosqlite.Row
         try:
-            # Start just below 091 so only this migration runs.
-            await set_version(conn, LATEST_SCHEMA_VERSION - 1)
+            # Start just below 091; run to completion (091 plus any later migration).
+            await set_version(conn, 90)
 
             applied = await run_migrations(conn)
 
-            assert applied == 1
+            assert applied == LATEST_SCHEMA_VERSION - 90
             assert await get_version(conn) == LATEST_SCHEMA_VERSION
 
             cursor = await conn.execute("PRAGMA table_info(fanout_mqtt_stats)")

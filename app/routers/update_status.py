@@ -17,7 +17,11 @@ class UpdateStatusResponse(BaseModel):
 
 
 @router.get("/update-status", response_model=UpdateStatusResponse)
-async def update_status() -> UpdateStatusResponse:
-    """Report whether the fork's main branch is ahead of the running commit."""
-    data = await get_update_status()
+async def update_status(force: bool = False) -> UpdateStatusResponse:
+    """Report whether the fork's main branch is ahead of the running commit.
+
+    ``force=true`` bypasses the in-memory TTL cache and re-queries GitHub, for the
+    manual "refresh update check" button in Settings > About.
+    """
+    data = await get_update_status(force=force)
     return UpdateStatusResponse(**data)

@@ -160,7 +160,8 @@ export const api = {
   getHealth: () => fetchJson<HealthStatus>('/health'),
 
   // Update check
-  getUpdateStatus: () => fetchJson<UpdateStatus>('/update-status'),
+  getUpdateStatus: (force = false) =>
+    fetchJson<UpdateStatus>(`/update-status${force ? '?force=true' : ''}`),
 
   // Radio config
   getRadioConfig: () => fetchJson<RadioConfig>('/radio/config'),

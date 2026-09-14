@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { api } from '../api';
@@ -26,15 +26,32 @@ describe('useUpdateStatus', () => {
     const first = renderHook(() => useUpdateStatus());
     const second = renderHook(() => useUpdateStatus());
 
-    await waitFor(() => expect(first.result.current?.update_available).toBe(true));
-    await waitFor(() => expect(second.result.current?.commits_behind).toBe(7));
+    await waitFor(() => expect(first.result.current.status?.update_available).toBe(true));
+    await waitFor(() => expect(second.result.current.status?.commits_behind).toBe(7));
 
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
-  it('returns null when the request fails', async () => {
+  it('returns null status when the request fails', async () => {
     vi.spyOn(api, 'getUpdateStatus').mockRejectedValue(new Error('offline'));
     const { result } = renderHook(() => useUpdateStatus());
-    await waitFor(() => expect(result.current).toBeNull());
+    await waitFor(() => expect(result.current.status).toBeNull());
+  });
+
+  it('refresh() forces a fresh check and updates the status', async () => {
+    const spy = vi
+      .spyOn(api, 'getUpdateStatus')
+      .mockResolvedValueOnce(sample)
+      .mockResolvedValueOnce({ ...sample, update_available: false, commits_behind: 0 });
+
+    const { result } = renderHook(() => useUpdateStatus());
+    await waitFor(() => expect(result.current.status?.update_available).toBe(true));
+
+    await act(async () => {
+      await result.current.refresh();
+    });
+
+    expect(spy).toHaveBeenLastCalledWith(true);
+    expect(result.current.status?.update_available).toBe(false);
   });
 });

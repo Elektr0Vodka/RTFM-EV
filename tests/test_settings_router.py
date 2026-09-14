@@ -6,7 +6,15 @@ import pytest
 from fastapi import HTTPException
 from meshcore import EventType
 
-from app.models import CONTACT_TYPE_REPEATER, AnalyzerSite, AppSettings, ContactUpsert
+from app.models import (
+    CONTACT_TYPE_REPEATER,
+    AnalyzerSite,
+    AppSettings,
+    ContactUpsert,
+    HandyInfoCustomEntry,
+    HandyInfoOverride,
+    HandyInfoSettings,
+)
 from app.repository import AppSettingsRepository, ContactRepository
 from app.routers.settings import (
     AppSettingsUpdate,
@@ -314,6 +322,148 @@ class TestUpdateSettings:
         sites = [AnalyzerSite(name="   ", node_url_template="https://example.com/{pubkey}")]
         with pytest.raises(HTTPException) as exc:
             await update_settings(AppSettingsUpdate(analyzer_sites=sites))
+        assert exc.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_handy_info_defaults_empty(self, test_db):
+        result = await update_settings(AppSettingsUpdate())
+        assert result.handy_info.overrides == {}
+        assert result.handy_info.custom == []
+
+    @pytest.mark.asyncio
+    async def test_handy_info_link_round_trip(self, test_db):
+        overlay = HandyInfoSettings(
+            overrides={"link-meshwiki": HandyInfoOverride(hidden=True)},
+            custom=[
+                HandyInfoCustomEntry(
+                    id="c1",
+                    group="links",
+                    category="tools",
+                    label="  My Tool  ",
+                    url="  https://example.com/tool  ",
+                )
+            ],
+        )
+        result = await update_settings(AppSettingsUpdate(handy_info=overlay))
+        assert result.handy_info.overrides["link-meshwiki"].hidden is True
+        assert len(result.handy_info.custom) == 1
+        entry = result.handy_info.custom[0]
+        assert entry.label == "My Tool"
+        assert entry.url == "https://example.com/tool"
+        assert entry.category == "tools"
+        assert entry.apply_kind is None
+
+        fresh = await AppSettingsRepository.get()
+        assert fresh.handy_info == result.handy_info
+
+    @pytest.mark.asyncio
+    async def test_handy_info_custom_analyzer_round_trip(self, test_db):
+        overlay = HandyInfoSettings(
+            custom=[
+                HandyInfoCustomEntry(
+                    id="a1",
+                    group="analyzers",
+                    label="My Analyzer",
+                    url="https://an.example.com",
+                    apply_kind="analyzer",
+                    node_url_template="https://an.example.com/#node?id={pubkey}",
+                    packet_url_template="https://an.example.com/#packet?h={hash}",
+                )
+            ],
+        )
+        result = await update_settings(AppSettingsUpdate(handy_info=overlay))
+        entry = result.handy_info.custom[0]
+        assert entry.apply_kind == "analyzer"
+        assert entry.node_url_template.endswith("{pubkey}")
+        assert entry.packet_url_template.endswith("{hash}")
+
+    @pytest.mark.asyncio
+    async def test_handy_info_rejects_non_http_link_url(self, test_db):
+        overlay = HandyInfoSettings(
+            custom=[
+                HandyInfoCustomEntry(
+                    id="c1", group="links", category="tools", label="bad", url="javascript:alert(1)"
+                )
+            ],
+        )
+        with pytest.raises(HTTPException) as exc:
+            await update_settings(AppSettingsUpdate(handy_info=overlay))
+        assert exc.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_handy_info_rejects_link_with_apply_kind(self, test_db):
+        overlay = HandyInfoSettings(
+            custom=[
+                HandyInfoCustomEntry(
+                    id="c1",
+                    group="links",
+                    category="tools",
+                    label="bad",
+                    url="https://example.com",
+                    apply_kind="analyzer",
+                )
+            ],
+        )
+        with pytest.raises(HTTPException) as exc:
+            await update_settings(AppSettingsUpdate(handy_info=overlay))
+        assert exc.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_handy_info_rejects_link_missing_category(self, test_db):
+        overlay = HandyInfoSettings(
+            custom=[
+                HandyInfoCustomEntry(id="c1", group="links", label="bad", url="https://example.com")
+            ],
+        )
+        with pytest.raises(HTTPException) as exc:
+            await update_settings(AppSettingsUpdate(handy_info=overlay))
+        assert exc.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_handy_info_rejects_analyzer_without_pubkey(self, test_db):
+        overlay = HandyInfoSettings(
+            custom=[
+                HandyInfoCustomEntry(
+                    id="a1",
+                    group="analyzers",
+                    label="bad",
+                    url="https://an.example.com",
+                    apply_kind="analyzer",
+                    node_url_template="https://an.example.com/node",
+                )
+            ],
+        )
+        with pytest.raises(HTTPException) as exc:
+            await update_settings(AppSettingsUpdate(handy_info=overlay))
+        assert exc.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_handy_info_rejects_duplicate_ids(self, test_db):
+        overlay = HandyInfoSettings(
+            custom=[
+                HandyInfoCustomEntry(
+                    id="dup", group="links", category="tools", label="a", url="https://a.example"
+                ),
+                HandyInfoCustomEntry(
+                    id="dup", group="links", category="tools", label="b", url="https://b.example"
+                ),
+            ],
+        )
+        with pytest.raises(HTTPException) as exc:
+            await update_settings(AppSettingsUpdate(handy_info=overlay))
+        assert exc.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_handy_info_override_rejects_bad_template(self, test_db):
+        overlay = HandyInfoSettings(
+            overrides={
+                "analyzer-cornmeister": HandyInfoOverride(
+                    node_url_template="https://x.example/node"
+                )
+            },
+        )
+        with pytest.raises(HTTPException) as exc:
+            await update_settings(AppSettingsUpdate(handy_info=overlay))
         assert exc.value.status_code == 400
 
     @pytest.mark.asyncio

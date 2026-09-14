@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 import aiosqlite
 
 from app.database import db
-from app.models import AnalyzerSite, AppSettings, MentionSoundMeta
+from app.models import AnalyzerSite, AppSettings, HandyInfoSettings, MentionSoundMeta
 from app.path_utils import bucket_path_hash_widths, bucket_region_scope, parse_packet_envelope
 from app.telemetry_interval import DEFAULT_TELEMETRY_INTERVAL_HOURS
 
@@ -54,7 +54,7 @@ class AppSettingsRepository:
                    chat_parse_pubkeys, chat_parse_coordinates,
                    chat_url_previews, chat_linkify_urls,
                    registry_sync_url, region_sync_url,
-                   wordlist_sync_url, analyzer_sites,
+                   wordlist_sync_url, analyzer_sites, handy_info,
                    external_map_enabled, external_map_sync_url,
                    external_map_sync_interval_hours,
                    backup_to_path_enabled, backup_destination_path,
@@ -216,6 +216,17 @@ class AppSettingsRepository:
         except (json.JSONDecodeError, TypeError, KeyError, ValueError):
             analyzer_sites = []
 
+        # Parse handy_info JSON overlay (migration _092 adds the column with
+        # default='{}'). Malformed content degrades to an empty overlay rather
+        # than failing the whole settings load.
+        handy_info = HandyInfoSettings()
+        try:
+            raw_handy = row["handy_info"]
+            if raw_handy:
+                handy_info = HandyInfoSettings.model_validate(json.loads(raw_handy))
+        except (json.JSONDecodeError, TypeError, KeyError, ValueError):
+            handy_info = HandyInfoSettings()
+
         # External-map overlay settings (migration _076 adds the columns).
         try:
             external_map_enabled = bool(row["external_map_enabled"])
@@ -335,6 +346,7 @@ class AppSettingsRepository:
             region_sync_url=region_sync_url,
             wordlist_sync_url=wordlist_sync_url,
             analyzer_sites=analyzer_sites,
+            handy_info=handy_info,
             external_map_enabled=external_map_enabled,
             external_map_sync_url=external_map_sync_url,
             external_map_sync_interval_hours=external_map_sync_interval_hours,
@@ -381,6 +393,7 @@ class AppSettingsRepository:
         region_sync_url: str | None = None,
         wordlist_sync_url: str | None = None,
         analyzer_sites: list[AnalyzerSite] | None = None,
+        handy_info: HandyInfoSettings | None = None,
         external_map_enabled: bool | None = None,
         external_map_sync_url: str | None = None,
         external_map_sync_interval_hours: int | None = None,
@@ -507,6 +520,10 @@ class AppSettingsRepository:
             updates.append("analyzer_sites = ?")
             params.append(json.dumps([site.model_dump() for site in analyzer_sites]))
 
+        if handy_info is not None:
+            updates.append("handy_info = ?")
+            params.append(json.dumps(handy_info.model_dump()))
+
         if external_map_enabled is not None:
             updates.append("external_map_enabled = ?")
             params.append(1 if external_map_enabled else 0)
@@ -601,6 +618,7 @@ class AppSettingsRepository:
         region_sync_url: str | None = None,
         wordlist_sync_url: str | None = None,
         analyzer_sites: list[AnalyzerSite] | None = None,
+        handy_info: HandyInfoSettings | None = None,
         external_map_enabled: bool | None = None,
         external_map_sync_url: str | None = None,
         external_map_sync_interval_hours: int | None = None,
@@ -645,6 +663,7 @@ class AppSettingsRepository:
                 region_sync_url=region_sync_url,
                 wordlist_sync_url=wordlist_sync_url,
                 analyzer_sites=analyzer_sites,
+                handy_info=handy_info,
                 external_map_enabled=external_map_enabled,
                 external_map_sync_url=external_map_sync_url,
                 external_map_sync_interval_hours=external_map_sync_interval_hours,

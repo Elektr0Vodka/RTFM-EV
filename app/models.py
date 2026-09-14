@@ -1127,6 +1127,63 @@ class AnalyzerSite(BaseModel):
     )
 
 
+class HandyInfoOverride(BaseModel):
+    """User customization layered on top of a built-in Handy Info entry.
+
+    Keyed by the built-in entry's stable id. Only the changed fields are stored;
+    ``hidden`` removes the built-in from the effective list. Cleared entirely by
+    "Reset to defaults".
+    """
+
+    hidden: bool = Field(default=False, description="Hide this built-in entry")
+    label: str | None = Field(default=None, description="Override display label")
+    url: str | None = Field(default=None, description="Override site/open URL")
+    category: str | None = Field(default=None, description="Override link category")
+    node_url_template: str | None = Field(
+        default=None, description="Override analyzer node URL template ({pubkey})"
+    )
+    packet_url_template: str | None = Field(
+        default=None, description="Override analyzer packet URL template ({hash})"
+    )
+
+
+class HandyInfoCustomEntry(BaseModel):
+    """A user-created Handy Info entry (link or apply-capable preset)."""
+
+    id: str = Field(description="Client-generated stable id (uuid)")
+    group: str = Field(description="'analyzers' | 'sync' | 'links'")
+    category: str | None = Field(
+        default=None, description="Link category, required when group == 'links'"
+    )
+    label: str = Field(description="Display label")
+    url: str = Field(description="Site/open URL; also the value applied for *_sync entries")
+    apply_kind: str | None = Field(
+        default=None,
+        description="'analyzer' | 'region_sync' | 'registry_sync' | None (None => open-only link)",
+    )
+    node_url_template: str | None = Field(
+        default=None, description="Analyzer node URL template ({pubkey})"
+    )
+    packet_url_template: str | None = Field(
+        default=None, description="Optional analyzer packet URL template ({hash})"
+    )
+
+
+class HandyInfoSettings(BaseModel):
+    """Persisted overlay for the Handy Info settings section.
+
+    Built-in entries live in frontend code; this stores per-user edits to them
+    (``overrides``) plus fully user-created entries (``custom``).
+    """
+
+    overrides: dict[str, HandyInfoOverride] = Field(
+        default_factory=dict, description="Overrides keyed by built-in entry id"
+    )
+    custom: list[HandyInfoCustomEntry] = Field(
+        default_factory=list, description="User-created entries"
+    )
+
+
 class MentionSoundMeta(BaseModel):
     """Metadata for the user-uploaded custom mention sound (blob stored separately)."""
 
@@ -1292,6 +1349,13 @@ class AppSettings(BaseModel):
         description=(
             "User-configured external analyzer sites for client-side node/packet "
             "deep-link lookups (name + URL templates). Empty by default."
+        ),
+    )
+    handy_info: HandyInfoSettings = Field(
+        default_factory=HandyInfoSettings,
+        description=(
+            "User overlay for the Handy Info section: overrides of built-in "
+            "entries plus user-created entries. Empty by default."
         ),
     )
     external_map_enabled: bool = Field(

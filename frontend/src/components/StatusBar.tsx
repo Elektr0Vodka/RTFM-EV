@@ -58,7 +58,7 @@ export function StatusBar({
   brandIcon,
 }: StatusBarProps) {
   const t = useT();
-  const updateStatus = useUpdateStatus();
+  const { status: updateStatus } = useUpdateStatus();
   const [showBatteryPercent, setShowBatteryPercent] = useState(getShowBatteryPercent);
   const [showBatteryVoltage, setShowBatteryVoltage] = useState(getShowBatteryVoltage);
 

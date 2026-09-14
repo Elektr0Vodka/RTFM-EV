@@ -39,6 +39,37 @@ the change. Upstream development is on hold; the fork is the active repository.
   (`frontend/src/hooks/usePacketFilters.ts`, `frontend/src/components/PacketFilterModal.tsx`).
   New EN/NL/DE strings; frontend gates green (lint, prettier, 1527 vitest, build).
 
+## Update 2026-09-14 (Handy info: links refresh, manual update check, user-managed entries, feat/handy-info-links-refresh)
+
+### Settings > Handy info
+- The Handy info section is now split into two tabs: **Configure** (apply-capable
+  analyzer presets and region/registry sync sources) and **Links** (open-only
+  reference links grouped by category: Community sites, Monitoring & data, Tools,
+  Technical, Fun). Requested by Richard.
+- Added community/monitoring/tool/technical/fun links: meshcore.io, meshcore.nl,
+  dutchmeshcore.nl, meshwiki.nl, mc-spamdetector.nl, analyser.meshwiki.nl,
+  observers.dutchmeshcore.nl, triangulator.dutchmeshcore.nl, rx.mesh-hunter.eu,
+  the MeshCore protocol spec (swaits.github.io/meshcore-spec), and zweerbericht.nl.
+- **User-managed entries**: add, edit, hide, and delete both built-in and custom
+  entries (links or apply-capable presets). Built-ins stay defined in code and are
+  layered with a persisted overlay (per-id overrides + hidden flag + custom list),
+  so a released change to the built-ins still reaches users who have customized;
+  "Reset to defaults" clears the overlay. Persisted server-side in a new
+  `handy_info` app-settings column (migration `_092`), mirroring `analyzer_sites`.
+
+### Settings > About
+- Added a manual **refresh update-check** button next to the commit hash. The
+  `/update-status` endpoint gained a `?force=true` that bypasses the 6-hour
+  in-memory cache and re-queries the GitHub compare API; the button toasts the
+  result (up to date / update available) and is disabled while in flight.
+
+### Backend / migrations
+- New `HandyInfoSettings`/`HandyInfoOverride`/`HandyInfoCustomEntry` models and
+  `AppSettings.handy_info` field, validated in the settings PATCH handler (http(s)
+  URLs; analyzer templates require `{pubkey}`/`{hash}`; category/group/apply-kind
+  consistency; duplicate-id rejection). Migration `_092_add_handy_info`
+  (`TEXT NOT NULL DEFAULT '{}'`); `LATEST_SCHEMA_VERSION` bumped to 92.
+
 ## Update 2026-09-14 (OpenHop management panes: Update, CAD, System, Transport, MQTT, feat/openhop-remaining-mgmt)
 
 ### OpenHop (Surface B management)
