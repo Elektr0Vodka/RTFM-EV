@@ -39,6 +39,43 @@ async def test_get_policy_and_cli_use_api_key():
 
 
 @pytest.mark.asyncio
+async def test_airtime_chart_data_sends_params_and_key():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/airtime_chart_data":
+            seen["key"] = request.headers.get("X-API-Key")
+            seen["params"] = dict(request.url.params)
+            return httpx.Response(
+                200,
+                json={
+                    "success": True,
+                    "data": {
+                        "bucket_seconds": 60,
+                        "buckets": [{"timestamp": 100, "tx_ms": 30000, "rx_ms": 6000}],
+                        "rx_total": 1,
+                        "tx_total": 1,
+                    },
+                },
+            )
+        return httpx.Response(404, json={"success": False})
+
+    client = OpenHopClient("http://node:8000", token="tok", transport=httpx.MockTransport(handler))
+    resp = await client.airtime_chart_data(
+        1000.0, 2000.0, bucket_seconds=60, sf=7, bw_hz=62500, cr=5
+    )
+    await client.aclose()
+
+    assert seen["key"] == "tok"
+    assert seen["params"]["sf"] == "7"
+    assert seen["params"]["bw_hz"] == "62500"
+    assert seen["params"]["cr"] == "5"
+    assert seen["params"]["preamble"] == "17"  # default
+    assert seen["params"]["bucket_seconds"] == "60"
+    assert resp["data"]["buckets"][0]["rx_ms"] == 6000
+
+
+@pytest.mark.asyncio
 async def test_policy_and_group_methods_use_api_key():
     seen = {}
 

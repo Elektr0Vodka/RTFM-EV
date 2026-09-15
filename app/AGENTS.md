@@ -344,7 +344,7 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 
 ### Statistics
 - `GET /statistics` - aggregated mesh network stats (entity counts, message/packet splits, activity windows, busiest channels, `region_scope_24h` regional adoption)
-- `GET /statistics/airtime/range?start_ts&end_ts&bin_count` - per-bin TX/RX airtime utilization % over a range, derived from the persisted cumulative airtime counters via adjacent-sample deltas (counter resets / disconnect gaps are dropped, not spiked). Feeds the My Node airtime chart. See `app/services/airtime_util.py`.
+- `GET /statistics/airtime/range?start_ts&end_ts&bin_count` - per-bin TX/RX airtime utilization % over a range. Default source: the persisted cumulative airtime counters via adjacent-sample deltas (counter resets / disconnect gaps are dropped, not spiked). On OpenHop nodes with the OpenHop API configured, it instead sources TX/RX from OpenHop's `/api/airtime_chart_data` (real per-packet time-on-air, RX included) because OpenHop's companion `STATS_RADIO` frame hardcodes `rx_air_secs=0`; any failure / missing config / non-OpenHop node falls back to the local computation. Feeds the My Node airtime chart. See `app/services/airtime_util.py` (`compute_airtime_utilization`, `map_openhop_airtime_buckets`) and `app/services/openhop_api.py::airtime_chart_data`.
 - `GET /packets/raw-feed-stats?start_ts&end_ts` - DB-computed Raw Packet Feed breakdowns (payload/route/hop/hop-byte-width/RSSI buckets + counts) for historical windows, from the decoded columns persisted on `raw_packets`. Neighbor/timeline/unique-source data is not included (needs decryption; stays live-only). See `app/services/raw_feed_stats.py`.
 
 ### Push

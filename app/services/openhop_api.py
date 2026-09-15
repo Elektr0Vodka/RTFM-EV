@@ -250,6 +250,38 @@ class OpenHopClient:
     async def noise_floor_stats(self, hours: int = 24) -> dict[str, Any]:
         return await self._get_q("/api/noise_floor_stats", {"hours": hours})
 
+    async def airtime_chart_data(
+        self,
+        start_ts: float,
+        end_ts: float,
+        *,
+        bucket_seconds: int,
+        sf: int,
+        bw_hz: int,
+        cr: int,
+        preamble: int = 17,
+    ) -> dict[str, Any]:
+        """Server-side aggregated TX/RX airtime buckets for a time range.
+
+        OpenHop derives per-packet time-on-air from its packet DB (RX and TX),
+        so this reports real RX airtime even though the companion STATS_RADIO
+        frame hardcodes ``rx_air_secs`` to 0. ``preamble`` defaults to OpenHop's
+        own default (17). Response is the standard ``{success, data}`` envelope
+        whose ``data`` holds ``buckets`` + ``bucket_seconds``.
+        """
+        return await self._get_q(
+            "/api/airtime_chart_data",
+            {
+                "start_timestamp": start_ts,
+                "end_timestamp": end_ts,
+                "bucket_seconds": bucket_seconds,
+                "sf": sf,
+                "bw_hz": bw_hz,
+                "cr": cr,
+                "preamble": preamble,
+            },
+        )
+
     # --- Transport keys + neighbor scopes -------------------------------
     async def transport_keys(self) -> dict[str, Any]:
         return await self._get("/api/transport_keys")

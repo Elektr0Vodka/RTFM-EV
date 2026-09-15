@@ -11,6 +11,31 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-15 (My Node RX airtime via OpenHop REST, claude/node-rx-tx-zero-rx-feaaa3)
+
+### My Node airtime chart (backend)
+- Fixed RX airtime always reading 0 on OpenHop nodes. Root cause is upstream:
+  OpenHop's companion `STATS_RADIO` frame hardcodes `rx_air_secs = 0` (it tracks
+  RX airtime internally but never reports it over that frame), so the local
+  cumulative-counter path never sees RX. When the connected node is detected as
+  OpenHop **and** the OpenHop REST API is configured, `/statistics/airtime/range`
+  now sources TX/RX from OpenHop's `/api/airtime_chart_data` (real per-packet
+  time-on-air from its packet DB, RX included), mapping the pre-bucketed
+  `rx_ms`/`tx_ms` to the existing `{timestamp, tx_pct, rx_pct}` chart shape. Any
+  failure, an unconfigured API, unknown radio params, or a non-OpenHop node fall
+  back silently to the local `airtime_history` computation, so nothing changes
+  for other radios (`app/routers/statistics.py`,
+  `app/services/openhop_api.py::airtime_chart_data`,
+  `app/services/airtime_util.py::map_openhop_airtime_buckets`).
+- Corrected the chart's caption (`node_chart_airtime_note`, EN/NL/DE): it claimed
+  RX airtime was "estimated per parsed packet" (there was no such estimation) and
+  now states airtime is reported by the radio (per-packet time-on-air), not
+  carrier-sense.
+- Tests: mapper unit tests, `OpenHopClient.airtime_chart_data` transport test, and
+  endpoint tests for the OpenHop path plus fall-back-to-local on error /
+  unconfigured / non-OpenHop. Backend gates green (ruff check + format, pytest);
+  frontend i18n parity + build green.
+
 ## Update 2026-09-14 (Time-range selector ordering, claude/time-selection-swap-7a724e)
 
 ### Time-range selector (UI)

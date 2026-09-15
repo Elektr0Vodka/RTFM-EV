@@ -242,7 +242,7 @@
   "node_chart_airtime_stat": "RX {rx}% / TX {tx}%",
   "node_chart_airtime_rx": "RX %",
   "node_chart_airtime_tx": "TX %",
-  "node_chart_airtime_note": "RX-zendtijd is geschat per gedecodeerd pakket, niet carrier-sense.",
+  "node_chart_airtime_note": "Zendtijd wordt door de radio gerapporteerd (time-on-air per pakket), niet carrier-sense.",
   "node_window_30d": "30d",
   "node_window_6h": "6h",
   "node_window_7d": "7d",

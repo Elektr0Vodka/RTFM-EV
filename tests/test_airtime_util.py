@@ -1,6 +1,9 @@
 """Tests for airtime utilization binning (reset-safe deltas)."""
 
-from app.services.airtime_util import compute_airtime_utilization
+from app.services.airtime_util import (
+    compute_airtime_utilization,
+    map_openhop_airtime_buckets,
+)
 
 SAMPLE_INTERVAL = 60
 
@@ -63,3 +66,41 @@ def test_empty_and_single_sample():
         )
         == []
     )
+
+
+# ── map_openhop_airtime_buckets ──────────────────────────────────────────────
+
+
+def test_map_openhop_buckets_ms_to_percent():
+    # 60s buckets: 30000ms tx -> 50%, 6000ms rx -> 10%
+    data = {
+        "bucket_seconds": 60,
+        "buckets": [
+            {"timestamp": 1000, "tx_ms": 30000, "rx_ms": 6000},
+        ],
+    }
+    out = map_openhop_airtime_buckets(data)
+    assert out == [{"timestamp": 1000, "tx_pct": 50.0, "rx_pct": 10.0}]
+
+
+def test_map_openhop_buckets_caps_at_100_and_sorts():
+    data = {
+        "bucket_seconds": 60,
+        "buckets": [
+            {"timestamp": 120, "tx_ms": 0, "rx_ms": 120000},  # 200% -> capped 100
+            {"timestamp": 60, "tx_ms": 0, "rx_ms": 0},
+        ],
+    }
+    out = map_openhop_airtime_buckets(data)
+    assert [p["timestamp"] for p in out] == [60, 120]
+    assert out[1]["rx_pct"] == 100.0
+
+
+def test_map_openhop_buckets_empty_and_missing_fields():
+    assert map_openhop_airtime_buckets({}) == []
+    assert map_openhop_airtime_buckets({"bucket_seconds": 0, "buckets": []}) == []
+    # bucket_seconds 0 -> no divide-by-zero, percentages are 0
+    out = map_openhop_airtime_buckets(
+        {"bucket_seconds": 0, "buckets": [{"timestamp": 5, "tx_ms": 10, "rx_ms": 10}]}
+    )
+    assert out == [{"timestamp": 5, "tx_pct": 0.0, "rx_pct": 0.0}]

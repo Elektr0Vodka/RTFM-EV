@@ -242,7 +242,7 @@
   "node_chart_airtime_stat": "RX {rx}% / TX {tx}%",
   "node_chart_airtime_rx": "RX %",
   "node_chart_airtime_tx": "TX %",
-  "node_chart_airtime_note": "RX-Sendezeit wird pro dekodiertem Paket geschätzt, nicht Carrier-Sense.",
+  "node_chart_airtime_note": "Sendezeit wird vom Funkgerät gemeldet (Time-on-Air pro Paket), nicht Carrier-Sense.",
   "node_window_30d": "30d",
   "node_window_6h": "6h",
   "node_window_7d": "7d",

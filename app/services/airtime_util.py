@@ -59,3 +59,34 @@ def compute_airtime_utilization(
             }
         )
     return out
+
+
+def map_openhop_airtime_buckets(data: dict) -> list[dict]:
+    """Map OpenHop's ``airtime_chart_data`` payload to chart points.
+
+    OpenHop returns pre-bucketed ``rx_ms``/``tx_ms`` per ``bucket_seconds`` slot
+    (from its packet DB, so RX is real). Convert each bucket to channel
+    utilization %: ``100 * ms / (bucket_seconds * 1000)``, capped at 100, in the
+    same ``{timestamp, tx_pct, rx_pct}`` shape the local computation returns.
+    """
+    bucket_seconds = data.get("bucket_seconds") or 0
+    denom = bucket_seconds * 1000
+    out: list[dict] = []
+    for bucket in data.get("buckets") or []:
+        ts = bucket.get("timestamp")
+        if ts is None:
+            continue
+        if denom > 0:
+            tx_pct = min(100.0, 100.0 * (bucket.get("tx_ms", 0.0) / denom))
+            rx_pct = min(100.0, 100.0 * (bucket.get("rx_ms", 0.0) / denom))
+        else:
+            tx_pct = rx_pct = 0.0
+        out.append(
+            {
+                "timestamp": int(ts),
+                "tx_pct": round(tx_pct, 2),
+                "rx_pct": round(rx_pct, 2),
+            }
+        )
+    out.sort(key=lambda p: p["timestamp"])
+    return out
