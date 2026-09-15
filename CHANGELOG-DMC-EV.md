@@ -11,6 +11,19 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-16 (Favorites always split by type, feat/favorites-always-grouped)
+
+### Sidebar Favorites (frontend)
+- The Favorites section is now **always** split into its type groups (Channels,
+  Companions, Repeaters, Room Servers, Sensors), at every sort level - not only in
+  the former "by type" sort modes. The Favorites sort toggle is now a plain
+  recent <-> alpha 2-way cycle (like every other section) that orders items
+  *within* each group; the `type-recent`/`type-alpha` modes are retired and any
+  persisted value is normalised to recent/alpha
+  (`frontend/src/components/Sidebar.tsx`, `frontend/src/utils/conversationState.ts`
+  `FAVORITES_SORT_CYCLE`). Frontend gates green (lint, prettier, tsc, 1563 vitest,
+  build).
+
 ## Update 2026-09-15 (Favorites type separation + reorderable groups, sidebar orders in DB, claude/favorites-separation-ordering-df44aa)
 
 ### Sidebar Favorites (frontend)

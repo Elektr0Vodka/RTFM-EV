@@ -588,16 +588,10 @@ export function Sidebar({
 
   const sortFavoriteItemsByOrder = useCallback(
     (items: FavoriteItem[], order: SortOrder) => {
-      const typeGrouped = order === 'type-recent' || order === 'type-alpha';
+      // Favourites are always rendered split into type groups (the render buckets
+      // by favoritesOrder), so this only decides the order WITHIN each group.
       const byRecent = order === 'recent' || order === 'type-recent';
       return [...items].sort((a, b) => {
-        if (typeGrouped) {
-          // Rank by the user's chosen favorites-group order.
-          const rankDiff =
-            favoritesOrder.indexOf(favoriteGroupOf(a)) - favoritesOrder.indexOf(favoriteGroupOf(b));
-          if (rankDiff !== 0) return rankDiff;
-        }
-
         if (byRecent) {
           const timeA =
             a.type === 'channel'
@@ -615,7 +609,7 @@ export function Sidebar({
         return getFavoriteItemName(a).localeCompare(getFavoriteItemName(b));
       });
     },
-    [getContactRecentTime, getFavoriteItemName, getLastMessageTime, favoritesOrder]
+    [getContactRecentTime, getFavoriteItemName, getLastMessageTime]
   );
 
   // Split non-repeater contacts and repeater contacts into separate sorted lists
@@ -1086,11 +1080,6 @@ export function Sidebar({
     }
   };
 
-  // Favourite sub-sections only make sense in a type-grouped sort mode. In the
-  // flat modes (recent/alpha) the favourites render as a single flat list, which
-  // preserves the existing 4-way favourites sort behaviour.
-  const favoritesGroupedByType =
-    sectionSortOrders.favorites === 'type-recent' || sectionSortOrders.favorites === 'type-alpha';
   const channelRows = nonFavoriteChannels.map((channel) => buildChannelRow(channel, 'chan'));
   const contactRows = nonFavoriteContacts.map((contact) => buildContactRow(contact, 'contact'));
   const roomRows = nonFavoriteRooms.map((contact) => buildContactRow(contact, 'room'));
@@ -1446,26 +1435,23 @@ export function Sidebar({
                 ? () => clearSection(favoriteRows)
                 : null
             )}
-            {(isSearching || !favoritesCollapsed) &&
-              (favoritesGroupedByType ? (
-                <>
-                  {favoritesOrder.map((group) => {
-                    if (hiddenFavoriteSet.has(group)) return null;
-                    const rows = favoriteRowsByGroup[group];
-                    if (rows.length === 0) return null;
-                    const meta = favoriteGroupMeta(group);
-                    return (
-                      <Fragment key={`fav-grp-${group}`}>
-                        {renderSectionHeader(meta.label, meta.collapsed, meta.toggle)}
-                        {(isSearching || !meta.collapsed) &&
-                          rows.map((row) => renderConversationRow(row))}
-                      </Fragment>
-                    );
-                  })}
-                </>
-              ) : (
-                favoriteRows.map((row) => renderConversationRow(row))
-              ))}
+            {(isSearching || !favoritesCollapsed) && (
+              <>
+                {favoritesOrder.map((group) => {
+                  if (hiddenFavoriteSet.has(group)) return null;
+                  const rows = favoriteRowsByGroup[group];
+                  if (rows.length === 0) return null;
+                  const meta = favoriteGroupMeta(group);
+                  return (
+                    <Fragment key={`fav-grp-${group}`}>
+                      {renderSectionHeader(meta.label, meta.collapsed, meta.toggle)}
+                      {(isSearching || !meta.collapsed) &&
+                        rows.map((row) => renderConversationRow(row))}
+                    </Fragment>
+                  );
+                })}
+              </>
+            )}
           </div>
         ) : null;
       case 'channels':

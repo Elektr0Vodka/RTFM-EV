@@ -20,11 +20,14 @@ export type SortOrder = 'recent' | 'alpha' | 'type-recent' | 'type-alpha';
 export type SidebarSortableSection = 'favorites' | 'channels' | 'contacts' | 'rooms' | 'repeaters';
 export type SidebarSectionSortOrders = Record<SidebarSortableSection, SortOrder>;
 
-// Full cycle for the Favorites sort toggle, in click order.
-export const FAVORITES_SORT_CYCLE: SortOrder[] = ['recent', 'alpha', 'type-recent', 'type-alpha'];
+// Favourites are always split into type groups now, so the sort toggle only
+// controls the order WITHIN each group: recent <-> alpha, like every other
+// section. The legacy 'type-recent'/'type-alpha' values are normalised below.
+export const FAVORITES_SORT_CYCLE: SortOrder[] = ['recent', 'alpha'];
 
 function coerceFavoritesSortOrder(value: unknown): SortOrder {
-  return (FAVORITES_SORT_CYCLE as unknown[]).includes(value) ? (value as SortOrder) : 'recent';
+  if (value === 'alpha' || value === 'type-alpha') return 'alpha';
+  return 'recent';
 }
 
 function coerceBasicSortOrder(value: unknown): SortOrder {

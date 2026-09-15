@@ -822,9 +822,9 @@ describe('Sidebar section summaries', () => {
     expect(getFavoritesOrder()).toEqual(['Amy', 'Zed']);
   });
 
-  it('cycles favorites through the four sort orders, grouping by type', () => {
-    // Mixed-type favorites: a channel (rank 0), two clients (rank 1), a repeater
-    // (rank 3). Names are chosen so plain-alpha and type-grouped orders differ.
+  it('always groups favorites by type and toggles recent<->alpha within groups', () => {
+    // Mixed-type favorites: a channel (channels group), two companions, a repeater.
+    // Favorites are ALWAYS grouped now; the toggle only orders within each group.
     const chan = makeChannel('cd'.repeat(16), 'Zulu');
     const alpha = makeContact('11'.repeat(32), 'Alpha', 1, { favorite: true });
     const bravo = makeContact('22'.repeat(32), 'Bravo', 1, { favorite: true });
@@ -857,23 +857,18 @@ describe('Sidebar section summaries', () => {
 
     render(<Sidebar {...props} />);
 
-    // recent -> alpha: pure name order regardless of type.
-    fireEvent.click(screen.getByRole('button', { name: 'Sort Favorites alphabetically' }));
-    expect(getFavoritesOrder()).toEqual(['Alpha', 'Bravo', 'Yankee', 'Zulu']);
-
-    // alpha -> type-recent: group by type (channel, clients, repeater); within the
-    // client group, more-recent Bravo precedes Alpha.
-    fireEvent.click(screen.getByRole('button', { name: 'Sort Favorites by type, then recent' }));
+    // Default (recent), always grouped: channels group (Zulu), then companions
+    // (recent: Bravo before Alpha), then repeaters (Yankee).
     expect(getFavoritesOrder()).toEqual(['Zulu', 'Bravo', 'Alpha', 'Yankee']);
 
-    // type-recent -> type-alpha: same grouping, clients now A-Z (Alpha before Bravo).
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Sort Favorites by type, then alphabetically' })
-    );
+    // recent -> alpha: same grouping, companions now A-Z (Alpha before Bravo).
+    fireEvent.click(screen.getByRole('button', { name: 'Sort Favorites alphabetically' }));
     expect(getFavoritesOrder()).toEqual(['Zulu', 'Alpha', 'Bravo', 'Yankee']);
 
-    // type-alpha -> recent: cycle wraps back to the recency sort.
+    // alpha -> recent: 2-way toggle wraps back.
     expect(screen.getByRole('button', { name: 'Sort Favorites by recent' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Sort Favorites by recent' }));
+    expect(getFavoritesOrder()).toEqual(['Zulu', 'Bravo', 'Alpha', 'Yankee']);
   });
 
   it('dims and italicizes a muted channel row name while leaving unmuted names normal', () => {
@@ -960,11 +955,9 @@ describe('Sidebar section summaries', () => {
       .filter((text): text is string => Boolean(text));
 
     expect(favoriteRows).toEqual(['Amy', 'Zed']);
-    // Favorites now cycles recent -> alpha -> type-recent -> type-alpha, so the
-    // next order after the seeded 'alpha' is the type-grouped recency sort.
-    expect(
-      screen.getByRole('button', { name: 'Sort Favorites by type, then recent' })
-    ).toBeInTheDocument();
+    // Favorites toggle is a 2-way recent<->alpha cycle now; after the seeded
+    // 'alpha' the next order is 'recent'.
+    expect(screen.getByRole('button', { name: 'Sort Favorites by recent' })).toBeInTheDocument();
   });
 });
 
@@ -1140,11 +1133,8 @@ describe('Sidebar customisation (plan 17)', () => {
         onMarkAllRead={vi.fn()}
       />
     );
-    // Sub-headers only appear in a type-grouped sort mode. From the default
-    // 'recent', cycle: recent -> alpha -> type-recent.
+    // Favorites are always split into type groups now (no need to switch sort mode).
     expect(screen.getByRole('button', { name: 'Favorites' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Sort Favorites alphabetically' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Sort Favorites by type, then recent' }));
     expect(screen.getByRole('button', { name: 'Favorite Channels' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Favorite Companions' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Favorite Repeaters' })).toBeInTheDocument();
@@ -1170,7 +1160,7 @@ describe('Sidebar customisation (plan 17)', () => {
     expect(lastCall.sidebar_favorites_order[1]).toBe('channels');
   });
 
-  it('renders favourites as a flat list in the default (recent) sort mode', () => {
+  it('shows the type sub-headers even in the default (recent) sort mode', () => {
     const favChan = { ...makeChannel('BB'.repeat(16), '#flight'), favorite: true };
     const favContact = makeContact('11'.repeat(32), 'Alice', 1, { favorite: true });
     render(
@@ -1189,9 +1179,9 @@ describe('Sidebar customisation (plan 17)', () => {
         onMarkAllRead={vi.fn()}
       />
     );
-    // No per-type sub-headers in flat mode.
-    expect(screen.queryByRole('button', { name: 'Favorite Channels' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Favorite Companions' })).not.toBeInTheDocument();
+    // Grouping is unconditional: sub-headers appear without switching sort mode.
+    expect(screen.getByRole('button', { name: 'Favorite Channels' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Favorite Companions' })).toBeInTheDocument();
   });
 });
 
