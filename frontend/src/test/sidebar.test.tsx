@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Sidebar } from '../components/Sidebar';
 import {
+  CONTACT_TYPE_CLIENT,
   CONTACT_TYPE_REPEATER,
   CONTACT_TYPE_ROOM,
   CONTACT_TYPE_SENSOR,
@@ -59,6 +60,16 @@ function renderSidebar(overrides?: {
   channels?: Channel[];
   isConversationNotificationsEnabled?: (type: 'channel' | 'contact', id: string) => boolean;
   onMarkSectionRead?: (items: { type: 'channel' | 'contact'; id: string }[]) => void;
+  sidebarSectionOrder?: string[];
+  sidebarToolOrder?: string[];
+  sidebarFavoritesOrder?: string[];
+  sidebarHidden?: { sections: string[]; tools: string[]; favorites: string[] };
+  onSaveSidebarOrder?: (update: {
+    sidebar_section_order?: string[];
+    sidebar_tool_order?: string[];
+    sidebar_favorites_order?: string[];
+    sidebar_hidden?: { sections: string[]; tools: string[]; favorites: string[] };
+  }) => void;
 }) {
   const aliceName = 'Alice';
   const roomName = 'Ops Board';
@@ -80,6 +91,7 @@ function renderSidebar(overrides?: {
   const channels = overrides?.channels ?? [publicChannel, flightChannel, opsChannel];
   const onSelectConversation = vi.fn();
   const onMarkSectionRead = overrides?.onMarkSectionRead ?? vi.fn();
+  const onSaveSidebarOrder = overrides?.onSaveSidebarOrder ?? vi.fn();
 
   const view = render(
     <Sidebar
@@ -97,6 +109,11 @@ function renderSidebar(overrides?: {
       onMarkAllRead={vi.fn()}
       onMarkSectionRead={onMarkSectionRead}
       isConversationNotificationsEnabled={overrides?.isConversationNotificationsEnabled}
+      sidebarSectionOrder={overrides?.sidebarSectionOrder}
+      sidebarToolOrder={overrides?.sidebarToolOrder}
+      sidebarFavoritesOrder={overrides?.sidebarFavoritesOrder}
+      sidebarHidden={overrides?.sidebarHidden}
+      onSaveSidebarOrder={onSaveSidebarOrder}
     />
   );
 
@@ -108,6 +125,7 @@ function renderSidebar(overrides?: {
     roomName,
     onSelectConversation,
     onMarkSectionRead,
+    onSaveSidebarOrder,
   };
 }
 
@@ -954,9 +972,8 @@ describe('Sidebar customisation (plan 17)', () => {
   beforeEach(() => localStorage.clear());
 
   it('renders tools in a stored custom order', () => {
-    localStorage.setItem(
-      'remoteterm-sidebar-tool-order',
-      JSON.stringify([
+    renderSidebar({
+      sidebarToolOrder: [
         'map',
         'my-node',
         'mesh-health',
@@ -966,9 +983,8 @@ describe('Sidebar customisation (plan 17)', () => {
         'search',
         'channel-registry',
         'cracker',
-      ])
-    );
-    renderSidebar();
+      ],
+    });
     const mapRow = screen.getByRole('button', { name: 'Node Map' });
     const myNodeRow = screen.getByRole('button', { name: 'My Node' });
     expect(
@@ -977,11 +993,9 @@ describe('Sidebar customisation (plan 17)', () => {
   });
 
   it('renders sections in a stored custom order (favorites before tools)', () => {
-    localStorage.setItem(
-      'remoteterm-sidebar-section-order',
-      JSON.stringify(['favorites', 'tools', 'channels', 'contacts', 'repeaters', 'rooms'])
-    );
-    renderSidebar();
+    renderSidebar({
+      sidebarSectionOrder: ['favorites', 'tools', 'channels', 'contacts', 'repeaters', 'rooms'],
+    });
     const favorites = screen.getByRole('button', { name: 'Favorites' });
     const tools = screen.getByRole('button', { name: 'Tools' });
     expect(
@@ -1022,15 +1036,56 @@ describe('Sidebar customisation (plan 17)', () => {
   });
 
   it('opens the customize panel and reorders a section via move-down', () => {
-    renderSidebar();
+    const { onSaveSidebarOrder } = renderSidebar();
     fireEvent.click(screen.getByRole('button', { name: 'Customize sidebar' }));
     const panel = screen.getByRole('group', { name: 'Customize sidebar' });
     const toolsRow = within(panel)
       .getAllByRole('listitem')
       .find((li) => li.textContent?.includes('Tools'))!;
     fireEvent.click(within(toolsRow).getByRole('button', { name: 'Move down' }));
-    expect(JSON.parse(localStorage.getItem('remoteterm-sidebar-section-order')!)[0]).toBe(
-      'favorites'
+    // Persisted to the backend via the save callback (Tools moves below Favorites).
+    expect(onSaveSidebarOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ sidebar_section_order: expect.arrayContaining(['favorites']) })
+    );
+    const calls = (onSaveSidebarOrder as ReturnType<typeof vi.fn>).mock.calls;
+    const lastCall = calls[calls.length - 1][0];
+    expect(lastCall.sidebar_section_order[0]).toBe('favorites');
+  });
+
+  it('omits a hidden section from the sidebar', () => {
+    renderSidebar({ sidebarHidden: { sections: ['channels'], tools: [], favorites: [] } });
+    expect(screen.queryByRole('button', { name: 'Channels' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Favorites' })).toBeInTheDocument();
+    // Hidden section is still listed in the Customize panel so it can be re-shown.
+    fireEvent.click(screen.getByRole('button', { name: 'Customize sidebar' }));
+    const panel = screen.getByRole('group', { name: 'Customize sidebar' });
+    expect(
+      within(panel)
+        .getAllByRole('listitem')
+        .some((li) => li.textContent?.includes('Channels'))
+    ).toBe(true);
+  });
+
+  it('omits a hidden tool from the sidebar', () => {
+    renderSidebar({ sidebarHidden: { sections: [], tools: ['map'], favorites: [] } });
+    expect(screen.queryByRole('button', { name: 'Node Map' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'My Node' })).toBeInTheDocument();
+  });
+
+  it('toggles a section hidden via the Customize panel and persists it', () => {
+    const { onSaveSidebarOrder } = renderSidebar();
+    fireEvent.click(screen.getByRole('button', { name: 'Customize sidebar' }));
+    const panel = screen.getByRole('group', { name: 'Customize sidebar' });
+    const channelsRow = within(panel)
+      .getAllByRole('listitem')
+      .find((li) => li.textContent?.includes('Channels'))!;
+    fireEvent.click(within(channelsRow).getByRole('button', { name: 'Hide from sidebar' }));
+    expect(onSaveSidebarOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sidebar_hidden: expect.objectContaining({
+          sections: expect.arrayContaining(['channels']),
+        }),
+      })
     );
   });
 
@@ -1055,12 +1110,23 @@ describe('Sidebar customisation (plan 17)', () => {
     expect(localStorage.getItem('remoteterm-sidebar-tool-order')).toBeNull();
   });
 
-  it('renders per-type favourite sub-headers when favourites of multiple types exist', () => {
+  it('splits favourites into five type groups including a distinct Sensors group', () => {
     const favChan = { ...makeChannel('BB'.repeat(16), '#flight'), favorite: true };
-    const favContact = makeContact('11'.repeat(32), 'Alice', 1, { favorite: true });
+    const favCompanion = makeContact('11'.repeat(32), 'Alice', CONTACT_TYPE_CLIENT, {
+      favorite: true,
+    });
+    const favRepeater = makeContact('22'.repeat(32), 'Relay', CONTACT_TYPE_REPEATER, {
+      favorite: true,
+    });
+    const favRoom = makeContact('33'.repeat(32), 'Ops Board', CONTACT_TYPE_ROOM, {
+      favorite: true,
+    });
+    const favSensor = makeContact('44'.repeat(32), 'TempProbe', CONTACT_TYPE_SENSOR, {
+      favorite: true,
+    });
     render(
       <Sidebar
-        contacts={[favContact]}
+        contacts={[favCompanion, favRepeater, favRoom, favSensor]}
         channels={[makeChannel(PUBLIC_CHANNEL_KEY, 'Public'), favChan]}
         activeConversation={null}
         onSelectConversation={vi.fn()}
@@ -1080,7 +1146,28 @@ describe('Sidebar customisation (plan 17)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sort Favorites alphabetically' }));
     fireEvent.click(screen.getByRole('button', { name: 'Sort Favorites by type, then recent' }));
     expect(screen.getByRole('button', { name: 'Favorite Channels' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Favorite Contacts' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Favorite Companions' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Favorite Repeaters' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Favorite Room Servers' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Favorite Sensors' })).toBeInTheDocument();
+  });
+
+  it('reorders favourite groups via the Favorites Order list and persists it', () => {
+    const { onSaveSidebarOrder } = renderSidebar();
+    fireEvent.click(screen.getByRole('button', { name: 'Customize sidebar' }));
+    const panel = screen.getByRole('group', { name: 'Customize sidebar' });
+    const channelsRow = within(panel)
+      .getAllByRole('listitem')
+      .find((li) => li.textContent?.includes('Favorite Channels'))!;
+    fireEvent.click(within(channelsRow).getByRole('button', { name: 'Move down' }));
+    expect(onSaveSidebarOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ sidebar_favorites_order: expect.any(Array) })
+    );
+    const calls = (onSaveSidebarOrder as ReturnType<typeof vi.fn>).mock.calls;
+    const lastCall = calls[calls.length - 1][0];
+    // Channels started first; after move-down it is second.
+    expect(lastCall.sidebar_favorites_order[0]).toBe('companions');
+    expect(lastCall.sidebar_favorites_order[1]).toBe('channels');
   });
 
   it('renders favourites as a flat list in the default (recent) sort mode', () => {
@@ -1104,7 +1191,7 @@ describe('Sidebar customisation (plan 17)', () => {
     );
     // No per-type sub-headers in flat mode.
     expect(screen.queryByRole('button', { name: 'Favorite Channels' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Favorite Contacts' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Favorite Companions' })).not.toBeInTheDocument();
   });
 });
 

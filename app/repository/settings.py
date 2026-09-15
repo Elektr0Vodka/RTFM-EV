@@ -6,7 +6,13 @@ from typing import TYPE_CHECKING, Any
 import aiosqlite
 
 from app.database import db
-from app.models import AnalyzerSite, AppSettings, HandyInfoSettings, MentionSoundMeta
+from app.models import (
+    AnalyzerSite,
+    AppSettings,
+    HandyInfoSettings,
+    MentionSoundMeta,
+    SidebarHidden,
+)
 from app.path_utils import bucket_path_hash_widths, bucket_region_scope, parse_packet_envelope
 from app.telemetry_interval import DEFAULT_TELEMETRY_INTERVAL_HOURS
 
@@ -60,7 +66,9 @@ class AppSettingsRepository:
                    backup_to_path_enabled, backup_destination_path,
                    brand_name, brand_hidden, brand_icon,
                    openhop_api_url, openhop_api_token,
-                   mention_sound_enabled, mention_sound_choice, mention_sound_volume
+                   mention_sound_enabled, mention_sound_choice, mention_sound_volume,
+                   sidebar_section_order, sidebar_tool_order, sidebar_favorites_order,
+                   sidebar_hidden
             FROM app_settings WHERE id = 1
             """
         ) as cursor:
@@ -106,6 +114,33 @@ class AppSettingsRepository:
                 known_regions = json.loads(raw_regions)
         except (json.JSONDecodeError, TypeError, KeyError):
             known_regions = []
+
+        # Parse sidebar order columns (JSON array string; "" or invalid -> []).
+        def _parse_order(column: str) -> list[str]:
+            try:
+                raw = row[column]
+            except (KeyError, IndexError):
+                return []
+            if not raw:
+                return []
+            try:
+                value = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                return []
+            return [str(x) for x in value] if isinstance(value, list) else []
+
+        sidebar_section_order = _parse_order("sidebar_section_order")
+        sidebar_tool_order = _parse_order("sidebar_tool_order")
+        sidebar_favorites_order = _parse_order("sidebar_favorites_order")
+
+        # Parse sidebar_hidden JSON object ({} or invalid -> empty overlay).
+        sidebar_hidden = SidebarHidden()
+        try:
+            raw_hidden = row["sidebar_hidden"]
+            if raw_hidden:
+                sidebar_hidden = SidebarHidden.model_validate(json.loads(raw_hidden))
+        except (json.JSONDecodeError, TypeError, KeyError, ValueError):
+            sidebar_hidden = SidebarHidden()
 
         # Parse discovery_blocked_types JSON
         discovery_blocked_types: list[int] = []
@@ -361,6 +396,10 @@ class AppSettingsRepository:
             mention_sound_choice=mention_sound_choice,
             mention_sound_volume=mention_sound_volume,
             mention_sound_custom=mention_sound_custom,
+            sidebar_section_order=sidebar_section_order,
+            sidebar_tool_order=sidebar_tool_order,
+            sidebar_favorites_order=sidebar_favorites_order,
+            sidebar_hidden=sidebar_hidden,
         )
 
     @staticmethod
@@ -407,6 +446,10 @@ class AppSettingsRepository:
         mention_sound_enabled: bool | None = None,
         mention_sound_choice: str | None = None,
         mention_sound_volume: int | None = None,
+        sidebar_section_order: list[str] | None = None,
+        sidebar_tool_order: list[str] | None = None,
+        sidebar_favorites_order: list[str] | None = None,
+        sidebar_hidden: SidebarHidden | None = None,
     ) -> None:
         """Apply field updates using an already-acquired connection.
 
@@ -447,6 +490,22 @@ class AppSettingsRepository:
         if known_regions is not None:
             updates.append("known_regions = ?")
             params.append(json.dumps(known_regions))
+
+        if sidebar_section_order is not None:
+            updates.append("sidebar_section_order = ?")
+            params.append(json.dumps(sidebar_section_order))
+
+        if sidebar_tool_order is not None:
+            updates.append("sidebar_tool_order = ?")
+            params.append(json.dumps(sidebar_tool_order))
+
+        if sidebar_favorites_order is not None:
+            updates.append("sidebar_favorites_order = ?")
+            params.append(json.dumps(sidebar_favorites_order))
+
+        if sidebar_hidden is not None:
+            updates.append("sidebar_hidden = ?")
+            params.append(json.dumps(sidebar_hidden.model_dump()))
 
         if blocked_keys is not None:
             updates.append("blocked_keys = ?")
@@ -632,6 +691,10 @@ class AppSettingsRepository:
         mention_sound_enabled: bool | None = None,
         mention_sound_choice: str | None = None,
         mention_sound_volume: int | None = None,
+        sidebar_section_order: list[str] | None = None,
+        sidebar_tool_order: list[str] | None = None,
+        sidebar_favorites_order: list[str] | None = None,
+        sidebar_hidden: SidebarHidden | None = None,
     ) -> AppSettings:
         """Update app settings. Only provided fields are updated."""
         async with db.tx() as conn:
@@ -677,6 +740,10 @@ class AppSettingsRepository:
                 mention_sound_enabled=mention_sound_enabled,
                 mention_sound_choice=mention_sound_choice,
                 mention_sound_volume=mention_sound_volume,
+                sidebar_section_order=sidebar_section_order,
+                sidebar_tool_order=sidebar_tool_order,
+                sidebar_favorites_order=sidebar_favorites_order,
+                sidebar_hidden=sidebar_hidden,
             )
             return await AppSettingsRepository._get_in_conn(conn)
 

@@ -11,6 +11,37 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-15 (Favorites type separation + reorderable groups, sidebar orders in DB, claude/favorites-separation-ordering-df44aa)
+
+### Sidebar Favorites (frontend)
+- Split the Favorites section (in "by type" sort mode) into five type groups:
+  Channels, Companions, Repeaters, Room Servers, and a new **Sensors** group.
+  Classification now uses the shared `contactPillFor()` helper instead of the
+  ad-hoc `favoriteTypeRank`, so favorited sensors are no longer folded into
+  Companions (`frontend/src/components/Sidebar.tsx`).
+- Added a **Favorites Order** drag list to the Customize-sidebar panel; the five
+  favorite groups render in the user's chosen order.
+- Added a per-entry **show/hide toggle** (eye icon) to every Customize-sidebar
+  list (sections, tools, favorite groups). Hidden entries are omitted from the
+  sidebar but stay listed (greyed) in the Customize panel so they can be
+  re-shown; visibility persists server-side in `app_settings.sidebar_hidden`
+  (migration `_094`).
+
+### Sidebar order persistence (backend + frontend)
+- Moved the three sidebar drag orders (section, tool, favorites-group) from
+  localStorage to `app_settings` so they sync across devices, reversing migration
+  `_051`. New migration `_093` adds `sidebar_section_order`, `sidebar_tool_order`
+  and `sidebar_favorites_order` (JSON-array TEXT). A one-time client shim migrates
+  any existing localStorage orders to the server. Rail-collapse, per-section sort
+  mode, and collapse states remain client-local
+  (`app/migrations/_093_add_sidebar_orders.py`, `app/repository/settings.py`,
+  `app/routers/settings.py`, `app/models.py`, `frontend/src/hooks/useAppSettings.ts`,
+  `frontend/src/utils/sidebarLayout.ts`).
+- Hidden-entry visibility (above) shares the same server-persistence path; the
+  DragList component gained an optional eye/eye-off toggle reused by all three
+  lists (`app/migrations/_094_add_sidebar_hidden.py`,
+  `frontend/src/components/sidebar/DragList.tsx`).
+
 ## Update 2026-09-15 (Restore My Node / Mesh Health / Channel Registry on refresh, claude/page-refresh-navigation-713850)
 
 ### Navigation (bugfix)

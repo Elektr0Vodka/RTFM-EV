@@ -534,6 +534,12 @@ export interface HandyInfoSettings {
   custom: HandyInfoCustomEntry[];
 }
 
+export interface SidebarHidden {
+  sections: string[];
+  tools: string[];
+  favorites: string[];
+}
+
 export interface AppSettings {
   max_radio_contacts: number;
   auto_decrypt_dm_on_advert: boolean;
@@ -545,6 +551,10 @@ export interface AppSettings {
   known_regions: string[];
   blocked_keys: string[];
   blocked_names: string[];
+  sidebar_section_order: string[];
+  sidebar_tool_order: string[];
+  sidebar_favorites_order: string[];
+  sidebar_hidden: SidebarHidden;
   discovery_blocked_types: number[];
   tracked_telemetry_repeaters: string[];
   tracked_telemetry_contacts: string[];
@@ -738,6 +748,10 @@ export interface AppSettingsUpdate {
   known_regions?: string[];
   blocked_keys?: string[];
   blocked_names?: string[];
+  sidebar_section_order?: string[];
+  sidebar_tool_order?: string[];
+  sidebar_favorites_order?: string[];
+  sidebar_hidden?: SidebarHidden;
   discovery_blocked_types?: number[];
   telemetry_interval_hours?: number;
   telemetry_routed_hourly?: boolean;

@@ -3,13 +3,15 @@ import { api } from '../api';
 import { takePrefetchOrFetch } from '../prefetch';
 import { toast } from '../components/ui/sonner';
 import { initLastMessageTimes } from '../utils/conversationState';
+import { readLegacyLocalOrders, clearLegacyLocalOrders } from '../utils/sidebarLayout';
 import type { AppSettings, AppSettingsUpdate } from '../types';
 
 export function useAppSettings() {
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
 
-  // One-time migration guard
+  // One-time migration guards
   const hasMigratedRef = useRef(false);
+  const hasMigratedOrdersRef = useRef(false);
 
   const fetchAppSettings = useCallback(async () => {
     try {
@@ -178,6 +180,40 @@ export function useAppSettings() {
     };
     migrate();
   }, [appSettings]);
+
+  // One-time migration: move any pre-server-side sidebar drag orders from
+  // localStorage to the backend (reverses the old localStorage-only behaviour).
+  // Runs once when settings first load; if the server already has an order, the
+  // stale local keys are just cleared.
+  useEffect(() => {
+    if (!appSettings || hasMigratedOrdersRef.current) return;
+    hasMigratedOrdersRef.current = true;
+
+    const serverUnset =
+      (appSettings.sidebar_section_order?.length ?? 0) === 0 &&
+      (appSettings.sidebar_tool_order?.length ?? 0) === 0;
+    if (!serverUnset) {
+      clearLegacyLocalOrders();
+      return;
+    }
+
+    const legacy = readLegacyLocalOrders();
+    if (!legacy.section && !legacy.tool) return;
+
+    const update: AppSettingsUpdate = {};
+    if (legacy.section) update.sidebar_section_order = legacy.section;
+    if (legacy.tool) update.sidebar_tool_order = legacy.tool;
+
+    const migrateOrders = async () => {
+      try {
+        await api.updateSettings(update);
+        await fetchAppSettings();
+      } finally {
+        clearLegacyLocalOrders();
+      }
+    };
+    void migrateOrders();
+  }, [appSettings, fetchAppSettings]);
 
   return {
     appSettings,

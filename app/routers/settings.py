@@ -13,6 +13,7 @@ from app.models import (
     HandyInfoCustomEntry,
     HandyInfoOverride,
     HandyInfoSettings,
+    SidebarHidden,
 )
 from app.region_scope import normalize_region_scope
 from app.repository import (
@@ -250,6 +251,22 @@ class AppSettingsUpdate(BaseModel):
             "Region scope names used to decode incoming transport-scoped packets "
             "(stored without a leading '#')"
         ),
+    )
+    sidebar_hidden: SidebarHidden | None = Field(
+        default=None,
+        description="Customize-sidebar entries hidden from the sidebar (sections/tools/favorites)",
+    )
+    sidebar_section_order: list[str] | None = Field(
+        default=None,
+        description="User's Customize-sidebar section drag order (empty list = client default)",
+    )
+    sidebar_tool_order: list[str] | None = Field(
+        default=None,
+        description="User's Customize-sidebar tool drag order (empty list = client default)",
+    )
+    sidebar_favorites_order: list[str] | None = Field(
+        default=None,
+        description="User's Favorites group drag order (empty list = client default)",
     )
     blocked_keys: list[str] | None = Field(
         default=None,
@@ -587,6 +604,17 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
         kwargs["mention_sound_choice"] = update.mention_sound_choice
     if update.mention_sound_volume is not None:
         kwargs["mention_sound_volume"] = update.mention_sound_volume
+
+    # Sidebar drag orders (server-persisted so they sync across devices). Unknown
+    # keys are tolerated - the client reconciles against its canonical key lists.
+    if update.sidebar_section_order is not None:
+        kwargs["sidebar_section_order"] = [str(k) for k in update.sidebar_section_order]
+    if update.sidebar_tool_order is not None:
+        kwargs["sidebar_tool_order"] = [str(k) for k in update.sidebar_tool_order]
+    if update.sidebar_favorites_order is not None:
+        kwargs["sidebar_favorites_order"] = [str(k) for k in update.sidebar_favorites_order]
+    if update.sidebar_hidden is not None:
+        kwargs["sidebar_hidden"] = update.sidebar_hidden
 
     # Auto-add mentioned channels to the registry
     if update.auto_add_mentioned_channels is not None:

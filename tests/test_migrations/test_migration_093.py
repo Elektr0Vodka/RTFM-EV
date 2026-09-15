@@ -1,4 +1,4 @@
-"""Tests for database migration 092: add handy_info column to app_settings."""
+"""Tests for database migration 093: add sidebar order columns to app_settings."""
 
 import aiosqlite
 import pytest
@@ -7,11 +7,11 @@ from app.migrations import get_version, run_migrations, set_version
 from tests.test_migrations.conftest import LATEST_SCHEMA_VERSION
 
 
-class TestMigration092:
-    """Test migration 092: add the handy_info overlay column."""
+class TestMigration093:
+    """Test migration 093: add the three sidebar drag-order columns."""
 
     @pytest.mark.asyncio
-    async def test_adds_handy_info_column(self):
+    async def test_adds_sidebar_order_columns(self):
         conn = await aiosqlite.connect(":memory:")
         conn.row_factory = aiosqlite.Row
         try:
@@ -20,22 +20,29 @@ class TestMigration092:
             )
             await conn.execute("INSERT INTO app_settings (id) VALUES (1)")
             await conn.commit()
-            # Start just below 092 so this migration (and any later ones) run.
-            await set_version(conn, 91)
+            # Start just below 093 so this migration (and any later ones) run.
+            await set_version(conn, 92)
 
             applied = await run_migrations(conn)
 
-            assert applied == LATEST_SCHEMA_VERSION - 91
+            assert applied == LATEST_SCHEMA_VERSION - 92
             assert await get_version(conn) == LATEST_SCHEMA_VERSION
 
             cursor = await conn.execute("PRAGMA table_info(app_settings)")
             columns = {row["name"] for row in await cursor.fetchall()}
-            assert "handy_info" in columns
+            assert "sidebar_section_order" in columns
+            assert "sidebar_tool_order" in columns
+            assert "sidebar_favorites_order" in columns
 
-            # Default is an empty JSON object.
-            async with conn.execute("SELECT handy_info FROM app_settings WHERE id = 1") as cur:
+            # Default is an empty string (unset -> client falls back to defaults).
+            async with conn.execute(
+                "SELECT sidebar_section_order, sidebar_tool_order, sidebar_favorites_order "
+                "FROM app_settings WHERE id = 1"
+            ) as cur:
                 row = await cur.fetchone()
-            assert row["handy_info"] == "{}"
+            assert row["sidebar_section_order"] == ""
+            assert row["sidebar_tool_order"] == ""
+            assert row["sidebar_favorites_order"] == ""
         finally:
             await conn.close()
 
@@ -44,12 +51,12 @@ class TestMigration092:
         conn = await aiosqlite.connect(":memory:")
         conn.row_factory = aiosqlite.Row
         try:
-            await set_version(conn, 91)
+            await set_version(conn, 92)
             await conn.commit()
 
             applied = await run_migrations(conn)
 
-            assert applied == LATEST_SCHEMA_VERSION - 91
+            assert applied == LATEST_SCHEMA_VERSION - 92
             assert await get_version(conn) == LATEST_SCHEMA_VERSION
         finally:
             await conn.close()

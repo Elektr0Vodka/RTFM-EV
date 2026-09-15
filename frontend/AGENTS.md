@@ -100,6 +100,7 @@ frontend/src/
 │   ├── lastViewedConversation.ts   # localStorage for last-viewed conversation
 │   ├── contactMerge.ts            # Merge WS contact updates into list
 │   ├── localLabel.ts              # Local label (text + color) in localStorage
+│   ├── sidebarLayout.ts           # Sidebar order reconcilers (section/tool/favorites-group orders + hidden-entry overlay persist server-side in app_settings, reversing migration _051; rail-collapse stays localStorage) + one-time legacy-order migration helpers
 │   ├── radioPresets.ts            # LoRa radio preset configurations
 │   ├── publicChannel.ts           # Public-channel resolution helpers for routing/hash defaults
 │   ├── fontScale.ts               # Browser-local relative font scale persistence/application

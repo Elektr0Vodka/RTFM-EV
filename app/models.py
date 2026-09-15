@@ -1193,6 +1193,18 @@ class MentionSoundMeta(BaseModel):
     updated_at: int
 
 
+class SidebarHidden(BaseModel):
+    """Customize-sidebar entries the user has hidden from the sidebar.
+
+    Each list holds the keys of entries hidden from that Customize list; the
+    entries still appear in the Customize panel so they can be re-shown.
+    """
+
+    sections: list[str] = Field(default_factory=list)
+    tools: list[str] = Field(default_factory=list)
+    favorites: list[str] = Field(default_factory=list)
+
+
 class AppSettings(BaseModel):
     """Application settings stored in the database."""
 
@@ -1241,6 +1253,22 @@ class AppSettings(BaseModel):
     blocked_names: list[str] = Field(
         default_factory=list,
         description="Display names whose messages are hidden from the UI",
+    )
+    sidebar_hidden: SidebarHidden = Field(
+        default_factory=SidebarHidden,
+        description="Customize-sidebar entries hidden from the sidebar (sections/tools/favorites).",
+    )
+    sidebar_section_order: list[str] = Field(
+        default_factory=list,
+        description="User's Customize-sidebar section drag order; empty = client default.",
+    )
+    sidebar_tool_order: list[str] = Field(
+        default_factory=list,
+        description="User's Customize-sidebar tool drag order; empty = client default.",
+    )
+    sidebar_favorites_order: list[str] = Field(
+        default_factory=list,
+        description="User's Favorites group drag order; empty = client default.",
     )
     discovery_blocked_types: list[int] = Field(
         default_factory=list,

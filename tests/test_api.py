@@ -420,6 +420,73 @@ class TestDebugEndpoint:
         assert "blocked_names" not in payload["settings"]
         assert "sidebar_sort_order" not in payload["settings"]
 
+    @pytest.mark.asyncio
+    async def test_sidebar_orders_round_trip(self, test_db, client):
+        """Sidebar drag orders default to empty lists and persist via PATCH."""
+        response = await client.get("/api/settings")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["sidebar_section_order"] == []
+        assert body["sidebar_tool_order"] == []
+        assert body["sidebar_favorites_order"] == []
+
+        response = await client.patch(
+            "/api/settings",
+            json={
+                "sidebar_section_order": ["favorites", "tools", "channels", "contacts"],
+                "sidebar_tool_order": ["map", "my-node"],
+                "sidebar_favorites_order": [
+                    "sensors",
+                    "channels",
+                    "companions",
+                    "repeaters",
+                    "rooms",
+                ],
+            },
+        )
+        assert response.status_code == 200
+        out = response.json()
+        assert out["sidebar_section_order"] == ["favorites", "tools", "channels", "contacts"]
+        assert out["sidebar_tool_order"] == ["map", "my-node"]
+        assert out["sidebar_favorites_order"] == [
+            "sensors",
+            "channels",
+            "companions",
+            "repeaters",
+            "rooms",
+        ]
+
+        # Persisted across a fresh GET.
+        response = await client.get("/api/settings")
+        assert response.json()["sidebar_favorites_order"][0] == "sensors"
+
+    @pytest.mark.asyncio
+    async def test_sidebar_hidden_round_trip(self, test_db, client):
+        """Hidden sidebar entries default to empty lists and persist via PATCH."""
+        response = await client.get("/api/settings")
+        assert response.status_code == 200
+        hidden = response.json()["sidebar_hidden"]
+        assert hidden == {"sections": [], "tools": [], "favorites": []}
+
+        response = await client.patch(
+            "/api/settings",
+            json={
+                "sidebar_hidden": {
+                    "sections": ["contacts"],
+                    "tools": ["cracker", "trace"],
+                    "favorites": ["sensors"],
+                }
+            },
+        )
+        assert response.status_code == 200
+        out = response.json()["sidebar_hidden"]
+        assert out["sections"] == ["contacts"]
+        assert out["tools"] == ["cracker", "trace"]
+        assert out["favorites"] == ["sensors"]
+
+        response = await client.get("/api/settings")
+        assert response.json()["sidebar_hidden"]["sections"] == ["contacts"]
+
 
 class TestRadioDisconnectedHandler:
     """Test that RadioDisconnectedError maps to 423."""

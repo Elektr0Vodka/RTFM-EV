@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { GripVertical, ChevronUp, ChevronDown } from 'lucide-react';
+import { GripVertical, ChevronUp, ChevronDown, Eye, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface DragListProps<T extends string> {
@@ -8,6 +8,12 @@ interface DragListProps<T extends string> {
   onReorder: (next: T[]) => void;
   moveUpLabel: string;
   moveDownLabel: string;
+  /** Keys currently hidden from the sidebar. When provided, each row gets an
+   *  eye/eye-off toggle and hidden rows render greyed. */
+  hiddenKeys?: Set<string>;
+  onToggleHidden?: (key: T) => void;
+  showLabel?: string;
+  hideLabel?: string;
 }
 
 function move<T>(items: T[], from: number, to: number): T[] {
@@ -28,6 +34,10 @@ export function DragList<T extends string>({
   onReorder,
   moveUpLabel,
   moveDownLabel,
+  hiddenKeys,
+  onToggleHidden,
+  showLabel,
+  hideLabel,
 }: DragListProps<T>) {
   const dragIndex = useRef<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
@@ -41,57 +51,83 @@ export function DragList<T extends string>({
     onReorder(move(items, from, i));
   };
 
+  const canHide = !!onToggleHidden;
+
   return (
     <ul className="space-y-1" role="list">
-      {items.map((item, i) => (
-        <li
-          key={item}
-          role="listitem"
-          draggable
-          onDragStart={() => (dragIndex.current = i)}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setOverIndex(i);
-          }}
-          onDrop={(e) => handleDrop(e, i)}
-          onDragEnd={() => {
-            dragIndex.current = null;
-            setOverIndex(null);
-          }}
-          className={cn(
-            'flex items-center gap-2 rounded px-2 py-1.5 bg-background border border-border select-none transition-all',
-            overIndex === i && dragIndex.current !== i && 'border-primary bg-accent'
-          )}
-        >
-          <GripVertical
-            className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/50 cursor-grab active:cursor-grabbing"
-            aria-hidden="true"
-          />
-          <span className="text-[13px] text-foreground flex-1 truncate">
-            {labels[item] ?? item}
-          </span>
-          <button
-            type="button"
-            className="p-0.5 rounded text-muted-foreground hover:text-foreground disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            onClick={() => onReorder(move(items, i, i - 1))}
-            disabled={i === 0}
-            aria-label={moveUpLabel}
-            title={moveUpLabel}
+      {items.map((item, i) => {
+        const isHidden = hiddenKeys?.has(item) ?? false;
+        return (
+          <li
+            key={item}
+            role="listitem"
+            draggable
+            onDragStart={() => (dragIndex.current = i)}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setOverIndex(i);
+            }}
+            onDrop={(e) => handleDrop(e, i)}
+            onDragEnd={() => {
+              dragIndex.current = null;
+              setOverIndex(null);
+            }}
+            className={cn(
+              'flex items-center gap-2 rounded px-2 py-1.5 bg-background border border-border select-none transition-all',
+              overIndex === i && dragIndex.current !== i && 'border-primary bg-accent'
+            )}
           >
-            <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className="p-0.5 rounded text-muted-foreground hover:text-foreground disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            onClick={() => onReorder(move(items, i, i + 1))}
-            disabled={i === items.length - 1}
-            aria-label={moveDownLabel}
-            title={moveDownLabel}
-          >
-            <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
-          </button>
-        </li>
-      ))}
+            <GripVertical
+              className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/50 cursor-grab active:cursor-grabbing"
+              aria-hidden="true"
+            />
+            <span
+              className={cn(
+                'text-[13px] flex-1 truncate',
+                isHidden ? 'text-muted-foreground/50 line-through' : 'text-foreground'
+              )}
+            >
+              {labels[item] ?? item}
+            </span>
+            {canHide && (
+              <button
+                type="button"
+                className="p-0.5 rounded text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => onToggleHidden?.(item)}
+                aria-label={isHidden ? showLabel : hideLabel}
+                aria-pressed={isHidden}
+                title={isHidden ? showLabel : hideLabel}
+              >
+                {isHidden ? (
+                  <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
+                ) : (
+                  <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                )}
+              </button>
+            )}
+            <button
+              type="button"
+              className="p-0.5 rounded text-muted-foreground hover:text-foreground disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => onReorder(move(items, i, i - 1))}
+              disabled={i === 0}
+              aria-label={moveUpLabel}
+              title={moveUpLabel}
+            >
+              <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="p-0.5 rounded text-muted-foreground hover:text-foreground disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => onReorder(move(items, i, i + 1))}
+              disabled={i === items.length - 1}
+              aria-label={moveDownLabel}
+              title={moveDownLabel}
+            >
+              <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          </li>
+        );
+      })}
     </ul>
   );
 }

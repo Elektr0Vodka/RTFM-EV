@@ -660,6 +660,11 @@ export function App() {
     isConversationNotificationsEnabled,
     blockedKeys: appSettings?.blocked_keys ?? [],
     blockedNames: appSettings?.blocked_names ?? [],
+    sidebarSectionOrder: appSettings?.sidebar_section_order ?? [],
+    sidebarToolOrder: appSettings?.sidebar_tool_order ?? [],
+    sidebarFavoritesOrder: appSettings?.sidebar_favorites_order ?? [],
+    sidebarHidden: appSettings?.sidebar_hidden,
+    onSaveSidebarOrder: handleSaveAppSettings,
   };
   const bulkAddChannelResultModalProps = {
     result: bulkAddResult,

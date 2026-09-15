@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bell,
   BellOff,
@@ -52,17 +52,20 @@ import { isPublicChannelKey } from '../utils/publicChannel';
 import { getContactDisplayName } from '../utils/pubkey';
 import { handleKeyboardActivate } from '../utils/a11y';
 import {
-  loadSectionOrder,
-  saveSectionOrder,
-  loadToolOrder,
-  saveToolOrder,
+  resolveSectionOrder,
+  resolveToolOrder,
+  resolveFavoritesOrder,
+  resolveHidden,
   loadRailCollapsed,
   saveRailCollapsed,
   resetSidebarLayout,
   ALL_SECTION_KEYS,
   ALL_TOOL_KEYS,
+  ALL_FAVORITE_GROUP_KEYS,
   type SidebarSectionKey,
   type SidebarToolKey,
+  type FavoriteGroupKey,
+  type SidebarHidden,
 } from '../utils/sidebarLayout';
 import { DragList } from './sidebar/DragList';
 import { useT, type TFn } from '../i18n';
@@ -74,18 +77,12 @@ import { cn } from '@/lib/utils';
 
 type FavoriteItem = { type: 'channel'; channel: Channel } | { type: 'contact'; contact: Contact };
 
-// Grouping order for the Favorites "by type" sorts. Mirrors the standalone sidebar
-// section order: Channels, Contacts (clients/sensors/unknown), Rooms, Repeaters.
-function favoriteTypeRank(item: FavoriteItem): number {
-  if (item.type === 'channel') return 0;
-  switch (item.contact.type) {
-    case CONTACT_TYPE_ROOM:
-      return 2;
-    case CONTACT_TYPE_REPEATER:
-      return 3;
-    default:
-      return 1;
-  }
+// Which favorite type group an item belongs to. Channels are their own group;
+// contacts use the shared classifier so sensors are split out from companions,
+// matching the merged Contacts section.
+function favoriteGroupOf(item: FavoriteItem): FavoriteGroupKey {
+  if (item.type === 'channel') return 'channels';
+  return contactPillFor(item.contact); // 'companions' | 'sensors' | 'repeaters' | 'rooms'
 }
 
 // The next order when the section's sort toggle is clicked. Favorites cycles
@@ -151,6 +148,7 @@ type CollapseState = {
   favContacts: boolean;
   favRooms: boolean;
   favRepeaters: boolean;
+  favSensors: boolean;
 };
 
 const SIDEBAR_COLLAPSE_STATE_KEY = 'remoteterm-sidebar-collapse-state';
@@ -169,6 +167,7 @@ const DEFAULT_COLLAPSE_STATE: CollapseState = {
   favContacts: false,
   favRooms: false,
   favRepeaters: false,
+  favSensors: false,
 };
 
 function loadCollapsedState(): CollapseState {
@@ -187,6 +186,7 @@ function loadCollapsedState(): CollapseState {
       favContacts: parsed.favContacts ?? DEFAULT_COLLAPSE_STATE.favContacts,
       favRooms: parsed.favRooms ?? DEFAULT_COLLAPSE_STATE.favRooms,
       favRepeaters: parsed.favRepeaters ?? DEFAULT_COLLAPSE_STATE.favRepeaters,
+      favSensors: parsed.favSensors ?? DEFAULT_COLLAPSE_STATE.favSensors,
     };
   } catch {
     return DEFAULT_COLLAPSE_STATE;
@@ -212,6 +212,19 @@ interface SidebarProps {
   isConversationNotificationsEnabled?: (type: 'channel' | 'contact', id: string) => boolean;
   blockedKeys?: string[];
   blockedNames?: string[];
+  /** Server-persisted sidebar drag orders (empty array = use canonical default). */
+  sidebarSectionOrder?: string[];
+  sidebarToolOrder?: string[];
+  sidebarFavoritesOrder?: string[];
+  /** Hidden Customize-sidebar entries (server-persisted). */
+  sidebarHidden?: { sections: string[]; tools: string[]; favorites: string[] };
+  /** Persist a sidebar order/visibility change to the backend. */
+  onSaveSidebarOrder?: (update: {
+    sidebar_section_order?: string[];
+    sidebar_tool_order?: string[];
+    sidebar_favorites_order?: string[];
+    sidebar_hidden?: { sections: string[]; tools: string[]; favorites: string[] };
+  }) => void | Promise<void>;
   /** When true (mobile drawer mount), pin the rail open and hide the rail toggle. */
   forceExpanded?: boolean;
 }
@@ -244,6 +257,11 @@ export function Sidebar({
   isConversationNotificationsEnabled,
   blockedKeys = [],
   blockedNames = [],
+  sidebarSectionOrder = [],
+  sidebarToolOrder = [],
+  sidebarFavoritesOrder = [],
+  sidebarHidden,
+  onSaveSidebarOrder,
   forceExpanded = false,
 }: SidebarProps) {
   const t = useT();
@@ -274,6 +292,7 @@ export function Sidebar({
   const [favRepeatersCollapsed, setFavRepeatersCollapsed] = useState(
     initialCollapsedState.favRepeaters
   );
+  const [favSensorsCollapsed, setFavSensorsCollapsed] = useState(initialCollapsedState.favSensors);
   const collapseSnapshotRef = useRef<CollapseState | null>(null);
 
   // Active type filter for the merged Contacts section (persisted).
@@ -283,10 +302,46 @@ export function Sidebar({
     saveContactPill(pill);
   };
 
-  // Layout customisation preferences (client-local, see utils/sidebarLayout).
-  const [toolOrder, setToolOrder] = useState<SidebarToolKey[]>(loadToolOrder);
-  const [sectionOrder, setSectionOrder] = useState<SidebarSectionKey[]>(loadSectionOrder);
+  // Layout customisation preferences. Section/tool/favorites orders are
+  // server-persisted (see App -> appSettings); rail collapse stays client-local.
+  const [toolOrder, setToolOrder] = useState<SidebarToolKey[]>(() =>
+    resolveToolOrder(sidebarToolOrder)
+  );
+  const [sectionOrder, setSectionOrder] = useState<SidebarSectionKey[]>(() =>
+    resolveSectionOrder(sidebarSectionOrder)
+  );
+  const [favoritesOrder, setFavoritesOrder] = useState<FavoriteGroupKey[]>(() =>
+    resolveFavoritesOrder(sidebarFavoritesOrder)
+  );
+  const [hidden, setHidden] = useState<SidebarHidden>(() => resolveHidden(sidebarHidden));
   const [railCollapsed, setRailCollapsed] = useState<boolean>(loadRailCollapsed);
+
+  // Re-sync local order state when the server value changes (e.g. after fetch or
+  // a PATCH round-trip). JSON compare avoids clobbering an identical value.
+  useEffect(() => {
+    setSectionOrder((prev) => {
+      const next = resolveSectionOrder(sidebarSectionOrder);
+      return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+    });
+  }, [sidebarSectionOrder]);
+  useEffect(() => {
+    setToolOrder((prev) => {
+      const next = resolveToolOrder(sidebarToolOrder);
+      return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+    });
+  }, [sidebarToolOrder]);
+  useEffect(() => {
+    setFavoritesOrder((prev) => {
+      const next = resolveFavoritesOrder(sidebarFavoritesOrder);
+      return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+    });
+  }, [sidebarFavoritesOrder]);
+  useEffect(() => {
+    setHidden((prev) => {
+      const next = resolveHidden(sidebarHidden);
+      return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+    });
+  }, [sidebarHidden]);
   const [showSettings, setShowSettings] = useState(false);
   const isRail = railCollapsed && !forceExpanded;
 
@@ -311,16 +366,36 @@ export function Sidebar({
 
   const handleReorderSections = (next: SidebarSectionKey[]) => {
     setSectionOrder(next);
-    saveSectionOrder(next);
+    void onSaveSidebarOrder?.({ sidebar_section_order: next });
   };
   const handleReorderTools = (next: SidebarToolKey[]) => {
     setToolOrder(next);
-    saveToolOrder(next);
+    void onSaveSidebarOrder?.({ sidebar_tool_order: next });
+  };
+  const handleReorderFavoriteGroups = (next: FavoriteGroupKey[]) => {
+    setFavoritesOrder(next);
+    void onSaveSidebarOrder?.({ sidebar_favorites_order: next });
+  };
+  const handleToggleHidden = (kind: keyof SidebarHidden, key: string) => {
+    const list = hidden[kind] as string[];
+    const nextList = list.includes(key) ? list.filter((k) => k !== key) : [...list, key];
+    const next = { ...hidden, [kind]: nextList } as SidebarHidden;
+    setHidden(next);
+    void onSaveSidebarOrder?.({ sidebar_hidden: next });
   };
   const handleResetLayout = () => {
     resetSidebarLayout();
     setSectionOrder([...ALL_SECTION_KEYS]);
     setToolOrder([...ALL_TOOL_KEYS]);
+    setFavoritesOrder([...ALL_FAVORITE_GROUP_KEYS]);
+    const clearedHidden: SidebarHidden = { sections: [], tools: [], favorites: [] };
+    setHidden(clearedHidden);
+    void onSaveSidebarOrder?.({
+      sidebar_section_order: [],
+      sidebar_tool_order: [],
+      sidebar_favorites_order: [],
+      sidebar_hidden: clearedHidden,
+    });
     setRailCollapsed(false);
   };
 
@@ -517,7 +592,9 @@ export function Sidebar({
       const byRecent = order === 'recent' || order === 'type-recent';
       return [...items].sort((a, b) => {
         if (typeGrouped) {
-          const rankDiff = favoriteTypeRank(a) - favoriteTypeRank(b);
+          // Rank by the user's chosen favorites-group order.
+          const rankDiff =
+            favoritesOrder.indexOf(favoriteGroupOf(a)) - favoritesOrder.indexOf(favoriteGroupOf(b));
           if (rankDiff !== 0) return rankDiff;
         }
 
@@ -538,7 +615,7 @@ export function Sidebar({
         return getFavoriteItemName(a).localeCompare(getFavoriteItemName(b));
       });
     },
-    [getContactRecentTime, getFavoriteItemName, getLastMessageTime]
+    [getContactRecentTime, getFavoriteItemName, getLastMessageTime, favoritesOrder]
   );
 
   // Split non-repeater contacts and repeater contacts into separate sorted lists
@@ -630,6 +707,7 @@ export function Sidebar({
           favContacts: favContactsCollapsed,
           favRooms: favRoomsCollapsed,
           favRepeaters: favRepeatersCollapsed,
+          favSensors: favSensorsCollapsed,
         };
       }
 
@@ -643,7 +721,8 @@ export function Sidebar({
         favChannelsCollapsed ||
         favContactsCollapsed ||
         favRoomsCollapsed ||
-        favRepeatersCollapsed
+        favRepeatersCollapsed ||
+        favSensorsCollapsed
       ) {
         setToolsCollapsed(false);
         setFavoritesCollapsed(false);
@@ -655,6 +734,7 @@ export function Sidebar({
         setFavContactsCollapsed(false);
         setFavRoomsCollapsed(false);
         setFavRepeatersCollapsed(false);
+        setFavSensorsCollapsed(false);
       }
       return;
     }
@@ -672,6 +752,7 @@ export function Sidebar({
       setFavContactsCollapsed(prev.favContacts);
       setFavRoomsCollapsed(prev.favRooms);
       setFavRepeatersCollapsed(prev.favRepeaters);
+      setFavSensorsCollapsed(prev.favSensors);
     }
   }, [
     isSearching,
@@ -685,6 +766,7 @@ export function Sidebar({
     favContactsCollapsed,
     favRoomsCollapsed,
     favRepeatersCollapsed,
+    favSensorsCollapsed,
   ]);
 
   useEffect(() => {
@@ -701,6 +783,7 @@ export function Sidebar({
       favContacts: favContactsCollapsed,
       favRooms: favRoomsCollapsed,
       favRepeaters: favRepeatersCollapsed,
+      favSensors: favSensorsCollapsed,
     };
 
     try {
@@ -720,6 +803,7 @@ export function Sidebar({
     favContactsCollapsed,
     favRoomsCollapsed,
     favRepeatersCollapsed,
+    favSensorsCollapsed,
   ]);
 
   // Separate favorites from regular items, and build combined favorites list
@@ -939,29 +1023,69 @@ export function Sidebar({
       ? buildChannelRow(item.channel, 'fav-chan')
       : buildContactRow(item.contact, 'fav-contact')
   );
-  // Favourites split by type for the collapsible sub-sections. Ranks come from
-  // favoriteTypeRank: channel=0, contact=1, room=2, repeater=3.
-  const favoriteChannelRows = favoriteItems
-    .filter((i): i is Extract<FavoriteItem, { type: 'channel' }> => i.type === 'channel')
-    .map((i) => buildChannelRow(i.channel, 'fav-chan'));
-  const favoriteContactRows = favoriteItems
-    .filter(
-      (i): i is Extract<FavoriteItem, { type: 'contact' }> =>
-        i.type === 'contact' && favoriteTypeRank(i) === 1
-    )
-    .map((i) => buildContactRow(i.contact, 'fav-contact'));
-  const favoriteRoomRows = favoriteItems
-    .filter(
-      (i): i is Extract<FavoriteItem, { type: 'contact' }> =>
-        i.type === 'contact' && favoriteTypeRank(i) === 2
-    )
-    .map((i) => buildContactRow(i.contact, 'fav-room'));
-  const favoriteRepeaterRows = favoriteItems
-    .filter(
-      (i): i is Extract<FavoriteItem, { type: 'contact' }> =>
-        i.type === 'contact' && favoriteTypeRank(i) === 3
-    )
-    .map((i) => buildContactRow(i.contact, 'fav-repeater'));
+  // Favourites split by type for the collapsible sub-sections. favoriteItems is
+  // already sorted (group order then recent/alpha), so pushing in order keeps the
+  // intra-group order. Row-key prefixes stay stable per group.
+  const FAV_ROW_PREFIX: Record<FavoriteGroupKey, string> = {
+    channels: 'fav-chan',
+    companions: 'fav-contact',
+    repeaters: 'fav-repeater',
+    rooms: 'fav-room',
+    sensors: 'fav-sensor',
+  };
+  const favoriteRowsByGroup: Record<FavoriteGroupKey, ConversationRow[]> = {
+    channels: [],
+    companions: [],
+    repeaters: [],
+    rooms: [],
+    sensors: [],
+  };
+  for (const item of favoriteItems) {
+    const group = favoriteGroupOf(item);
+    const row =
+      item.type === 'channel'
+        ? buildChannelRow(item.channel, FAV_ROW_PREFIX.channels)
+        : buildContactRow(item.contact, FAV_ROW_PREFIX[group]);
+    favoriteRowsByGroup[group].push(row);
+  }
+  // Label + collapse handle for each favourite type group.
+  const favoriteGroupMeta = (
+    group: FavoriteGroupKey
+  ): { label: string; collapsed: boolean; toggle: () => void } => {
+    switch (group) {
+      case 'channels':
+        return {
+          label: t('nav_favorite_channels'),
+          collapsed: favChannelsCollapsed,
+          toggle: () => setFavChannelsCollapsed((prev) => !prev),
+        };
+      case 'companions':
+        return {
+          label: t('nav_favorite_companions'),
+          collapsed: favContactsCollapsed,
+          toggle: () => setFavContactsCollapsed((prev) => !prev),
+        };
+      case 'repeaters':
+        return {
+          label: t('nav_favorite_repeaters'),
+          collapsed: favRepeatersCollapsed,
+          toggle: () => setFavRepeatersCollapsed((prev) => !prev),
+        };
+      case 'rooms':
+        return {
+          label: t('nav_favorite_room_servers'),
+          collapsed: favRoomsCollapsed,
+          toggle: () => setFavRoomsCollapsed((prev) => !prev),
+        };
+      case 'sensors':
+        return {
+          label: t('nav_favorite_sensors'),
+          collapsed: favSensorsCollapsed,
+          toggle: () => setFavSensorsCollapsed((prev) => !prev),
+        };
+    }
+  };
+
   // Favourite sub-sections only make sense in a type-grouped sort mode. In the
   // flat modes (recent/alpha) the favourites render as a single flat list, which
   // preserves the existing 4-way favourites sort behaviour.
@@ -1177,8 +1301,14 @@ export function Sidebar({
     }
   };
 
-  const toolRows = !query ? toolOrder.map((k) => buildToolRow(k, false)) : [];
-  const toolIconRows = toolOrder.map((k) => buildToolRow(k, true));
+  // Hidden-entry lookups (Customize panel visibility toggles).
+  const hiddenSectionSet = new Set<string>(hidden.sections);
+  const hiddenToolSet = new Set<string>(hidden.tools);
+  const hiddenFavoriteSet = new Set<string>(hidden.favorites);
+
+  const visibleToolOrder = toolOrder.filter((k) => !hiddenToolSet.has(k));
+  const toolRows = !query ? visibleToolOrder.map((k) => buildToolRow(k, false)) : [];
+  const toolIconRows = visibleToolOrder.map((k) => buildToolRow(k, true));
 
   const renderSectionHeader = (
     title: string,
@@ -1288,6 +1418,7 @@ export function Sidebar({
   };
 
   const renderSection = (key: SidebarSectionKey): React.ReactNode => {
+    if (hiddenSectionSet.has(key)) return null;
     switch (key) {
       case 'tools':
         return toolRows.length > 0 ? (
@@ -1318,42 +1449,19 @@ export function Sidebar({
             {(isSearching || !favoritesCollapsed) &&
               (favoritesGroupedByType ? (
                 <>
-                  {favoriteChannelRows.length > 0 && (
-                    <>
-                      {renderSectionHeader(t('nav_favorite_channels'), favChannelsCollapsed, () =>
-                        setFavChannelsCollapsed((prev) => !prev)
-                      )}
-                      {(isSearching || !favChannelsCollapsed) &&
-                        favoriteChannelRows.map((row) => renderConversationRow(row))}
-                    </>
-                  )}
-                  {favoriteContactRows.length > 0 && (
-                    <>
-                      {renderSectionHeader(t('nav_favorite_contacts'), favContactsCollapsed, () =>
-                        setFavContactsCollapsed((prev) => !prev)
-                      )}
-                      {(isSearching || !favContactsCollapsed) &&
-                        favoriteContactRows.map((row) => renderConversationRow(row))}
-                    </>
-                  )}
-                  {favoriteRoomRows.length > 0 && (
-                    <>
-                      {renderSectionHeader(t('nav_favorite_room_servers'), favRoomsCollapsed, () =>
-                        setFavRoomsCollapsed((prev) => !prev)
-                      )}
-                      {(isSearching || !favRoomsCollapsed) &&
-                        favoriteRoomRows.map((row) => renderConversationRow(row))}
-                    </>
-                  )}
-                  {favoriteRepeaterRows.length > 0 && (
-                    <>
-                      {renderSectionHeader(t('nav_favorite_repeaters'), favRepeatersCollapsed, () =>
-                        setFavRepeatersCollapsed((prev) => !prev)
-                      )}
-                      {(isSearching || !favRepeatersCollapsed) &&
-                        favoriteRepeaterRows.map((row) => renderConversationRow(row))}
-                    </>
-                  )}
+                  {favoritesOrder.map((group) => {
+                    if (hiddenFavoriteSet.has(group)) return null;
+                    const rows = favoriteRowsByGroup[group];
+                    if (rows.length === 0) return null;
+                    const meta = favoriteGroupMeta(group);
+                    return (
+                      <Fragment key={`fav-grp-${group}`}>
+                        {renderSectionHeader(meta.label, meta.collapsed, meta.toggle)}
+                        {(isSearching || !meta.collapsed) &&
+                          rows.map((row) => renderConversationRow(row))}
+                      </Fragment>
+                    );
+                  })}
                 </>
               ) : (
                 favoriteRows.map((row) => renderConversationRow(row))
@@ -1458,6 +1566,13 @@ export function Sidebar({
     'channel-registry': 'Channel Registry',
     cracker: t('nav_show_channel_finder'),
   };
+  const favoriteGroupLabels: Record<FavoriteGroupKey, string> = {
+    channels: t('nav_favorite_channels'),
+    companions: t('nav_favorite_companions'),
+    repeaters: t('nav_favorite_repeaters'),
+    rooms: t('nav_favorite_room_servers'),
+    sensors: t('nav_favorite_sensors'),
+  };
 
   return (
     <nav
@@ -1549,6 +1664,10 @@ export function Sidebar({
                       onReorder={handleReorderSections}
                       moveUpLabel={t('nav_move_up')}
                       moveDownLabel={t('nav_move_down')}
+                      hiddenKeys={hiddenSectionSet}
+                      onToggleHidden={(k) => handleToggleHidden('sections', k)}
+                      showLabel={t('nav_show_entry')}
+                      hideLabel={t('nav_hide_entry')}
                     />
                   </div>
                   <div>
@@ -1561,6 +1680,26 @@ export function Sidebar({
                       onReorder={handleReorderTools}
                       moveUpLabel={t('nav_move_up')}
                       moveDownLabel={t('nav_move_down')}
+                      hiddenKeys={hiddenToolSet}
+                      onToggleHidden={(k) => handleToggleHidden('tools', k)}
+                      showLabel={t('nav_show_entry')}
+                      hideLabel={t('nav_hide_entry')}
+                    />
+                  </div>
+                  <div>
+                    <div className="text-[0.625rem] uppercase tracking-wider text-muted-foreground mb-1.5">
+                      {t('nav_favorites_order')}
+                    </div>
+                    <DragList
+                      items={favoritesOrder}
+                      labels={favoriteGroupLabels}
+                      onReorder={handleReorderFavoriteGroups}
+                      moveUpLabel={t('nav_move_up')}
+                      moveDownLabel={t('nav_move_down')}
+                      hiddenKeys={hiddenFavoriteSet}
+                      onToggleHidden={(k) => handleToggleHidden('favorites', k)}
+                      showLabel={t('nav_show_entry')}
+                      hideLabel={t('nav_hide_entry')}
                     />
                   </div>
                   <Button
