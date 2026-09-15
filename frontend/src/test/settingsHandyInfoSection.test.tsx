@@ -128,6 +128,7 @@ describe('SettingsHandyInfoSection', () => {
             name: 'MC-Radar',
             node_url_template: 'https://mc-radar.woodwar.com/node/{pubkey}',
             packet_url_template: null,
+            channel_url_template: 'https://mc-radar.woodwar.com/group-messages?channel={name}',
           },
         ],
       })
@@ -144,6 +145,7 @@ describe('SettingsHandyInfoSection', () => {
             name: 'on8ar',
             node_url_template: 'https://analyzer.on8ar.eu/#/nodes/{pubkey}',
             packet_url_template: 'https://analyzer.on8ar.eu/#/packets/{hash}',
+            channel_url_template: 'https://analyzer.on8ar.eu/#/channels/{name}',
           },
         ],
       })
@@ -241,6 +243,31 @@ describe('SettingsHandyInfoSection', () => {
       url: 'https://my.example',
       apply_kind: null,
     });
+  });
+
+  it('edits a built-in analyzer channel template through the dialog', async () => {
+    const { onSave } = renderSection(makeSettings());
+    await userEvent.click(screen.getByRole('button', { name: 'Edit MC-Radar' }));
+    fireEvent.change(screen.getByLabelText(/Channel URL template/), {
+      target: { value: 'https://mc-radar.woodwar.com/group-messages?channel={name}&obs=1' },
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const arg = onSave.mock.calls[onSave.mock.calls.length - 1][0];
+    expect(arg.handy_info.overrides['analyzer-mc-radar']).toEqual({
+      channel_url_template: 'https://mc-radar.woodwar.com/group-messages?channel={name}&obs=1',
+    });
+  });
+
+  it('rejects an analyzer channel template with no placeholder through the dialog', async () => {
+    const { onSave } = renderSection(makeSettings());
+    await userEvent.click(screen.getByRole('button', { name: 'Edit MC-Radar' }));
+    fireEvent.change(screen.getByLabelText(/Channel URL template/), {
+      target: { value: 'https://mc-radar.woodwar.com/group-messages' },
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onSave).not.toHaveBeenCalled();
+    expect(toastError).toHaveBeenCalled();
   });
 
   it('rejects a custom link with a non-http URL', async () => {

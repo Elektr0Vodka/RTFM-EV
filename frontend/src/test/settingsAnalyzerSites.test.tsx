@@ -108,6 +108,82 @@ describe('SettingsDatabaseSection analyzer sites editor', () => {
     expect(screen.getByText('mc-radar')).toBeInTheDocument();
   });
 
+  it('adds an analyzer site with a channel template and persists it', async () => {
+    const { onSave } = renderSection(makeSettings());
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'mc-analyzer' } });
+    fireEvent.change(screen.getByLabelText('Node URL template'), {
+      target: { value: 'https://meshcore-analyzer.eu/#node?id={pubkey}' },
+    });
+    fireEvent.change(screen.getByLabelText('Channel URL template (optional)'), {
+      target: { value: 'https://meshcore-analyzer.eu/#channels?channel={name}' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Add analyzer site' }));
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({
+        analyzer_sites: [
+          {
+            name: 'mc-analyzer',
+            node_url_template: 'https://meshcore-analyzer.eu/#node?id={pubkey}',
+            packet_url_template: null,
+            channel_url_template: 'https://meshcore-analyzer.eu/#channels?channel={name}',
+          },
+        ],
+      })
+    );
+  });
+
+  it('preserves the channel template when editing the node URL', async () => {
+    const { onSave } = renderSection(
+      makeSettings({
+        analyzer_sites: [
+          {
+            name: 'cornmeister',
+            node_url_template: 'https://cornmeister.nl/#node?id={pubkey}',
+            packet_url_template: null,
+            channel_url_template: 'https://cornmeister.nl/#channels?channel={name}',
+          },
+        ],
+      })
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit analyzer site cornmeister' }));
+    fireEvent.change(screen.getByLabelText('Edit node URL for cornmeister'), {
+      target: { value: 'https://cornmeister.nl/#node?id={pubkey}&tab=details' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save analyzer site cornmeister' }));
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({
+        analyzer_sites: [
+          {
+            name: 'cornmeister',
+            node_url_template: 'https://cornmeister.nl/#node?id={pubkey}&tab=details',
+            packet_url_template: null,
+            channel_url_template: 'https://cornmeister.nl/#channels?channel={name}',
+          },
+        ],
+      })
+    );
+  });
+
+  it('rejects a channel template with neither {name} nor {channel}', () => {
+    const { onSave } = renderSection(makeSettings());
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'bad' } });
+    fireEvent.change(screen.getByLabelText('Node URL template'), {
+      target: { value: 'https://example.com/node/{pubkey}' },
+    });
+    fireEvent.change(screen.getByLabelText('Channel URL template (optional)'), {
+      target: { value: 'https://example.com/channels' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Add analyzer site' }));
+
+    expect(toastError).toHaveBeenCalled();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
   it('rejects a node template missing the {pubkey} placeholder', () => {
     const { onSave } = renderSection(makeSettings());
 

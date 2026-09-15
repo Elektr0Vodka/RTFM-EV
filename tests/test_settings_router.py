@@ -290,6 +290,48 @@ class TestUpdateSettings:
         )
 
     @pytest.mark.asyncio
+    async def test_analyzer_sites_channel_template_round_trip(self, test_db):
+        sites = [
+            AnalyzerSite(
+                name="meshcore-analyzer.eu",
+                node_url_template="https://meshcore-analyzer.eu/#node?id={pubkey}",
+                channel_url_template="https://meshcore-analyzer.eu/#channels?channel={name}",
+            )
+        ]
+        result = await update_settings(AppSettingsUpdate(analyzer_sites=sites))
+        assert result.analyzer_sites[0].channel_url_template == (
+            "https://meshcore-analyzer.eu/#channels?channel={name}"
+        )
+
+        fresh = await AppSettingsRepository.get()
+        assert fresh.analyzer_sites == result.analyzer_sites
+
+    @pytest.mark.asyncio
+    async def test_analyzer_sites_accepts_channel_key_placeholder(self, test_db):
+        sites = [
+            AnalyzerSite(
+                name="custom",
+                node_url_template="https://x.example/{pubkey}",
+                channel_url_template="https://x.example/ch/{channel}",
+            )
+        ]
+        result = await update_settings(AppSettingsUpdate(analyzer_sites=sites))
+        assert result.analyzer_sites[0].channel_url_template == "https://x.example/ch/{channel}"
+
+    @pytest.mark.asyncio
+    async def test_analyzer_sites_rejects_bad_channel_template(self, test_db):
+        sites = [
+            AnalyzerSite(
+                name="bad",
+                node_url_template="https://example.com/{pubkey}",
+                channel_url_template="https://example.com/channels-no-placeholder",
+            )
+        ]
+        with pytest.raises(HTTPException) as exc:
+            await update_settings(AppSettingsUpdate(analyzer_sites=sites))
+        assert exc.value.status_code == 400
+
+    @pytest.mark.asyncio
     async def test_analyzer_sites_name_and_template_stripped(self, test_db):
         sites = [
             AnalyzerSite(

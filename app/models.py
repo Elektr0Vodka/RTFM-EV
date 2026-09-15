@@ -1125,6 +1125,14 @@ class AnalyzerSite(BaseModel):
             "Best-effort: not every analyzer's packet hash matches RTFM-EV's raw-packet id."
         ),
     )
+    channel_url_template: str | None = Field(
+        default=None,
+        description=(
+            "Optional URL template for channel lookups. Supports a {name} placeholder "
+            "(channel display name, incl. leading # for hashtag channels) and/or a "
+            "{channel} placeholder (channel key)."
+        ),
+    )
 
 
 class HandyInfoOverride(BaseModel):
@@ -1144,6 +1152,9 @@ class HandyInfoOverride(BaseModel):
     )
     packet_url_template: str | None = Field(
         default=None, description="Override analyzer packet URL template ({hash})"
+    )
+    channel_url_template: str | None = Field(
+        default=None, description="Override analyzer channel URL template ({name}/{channel})"
     )
 
 
@@ -1166,6 +1177,9 @@ class HandyInfoCustomEntry(BaseModel):
     )
     packet_url_template: str | None = Field(
         default=None, description="Optional analyzer packet URL template ({hash})"
+    )
+    channel_url_template: str | None = Field(
+        default=None, description="Optional analyzer channel URL template ({name}/{channel})"
     )
 
 

@@ -30,6 +30,7 @@ const baseForm: HandyEntryForm = {
   applyKind: '',
   node_url_template: '',
   packet_url_template: '',
+  channel_url_template: '',
 };
 
 describe('resolveHandyEntries', () => {
@@ -56,6 +57,47 @@ describe('resolveHandyEntries', () => {
     expect(y.label).toBe('Renamed');
     expect(y.labelKey).toBeUndefined();
     expect(y.url).toBe('https://y.example');
+  });
+
+  it('carries the analyzer channel_url_template from a built-in', () => {
+    const builtins: HandyBuiltin[] = [
+      {
+        id: 'analyzer-z',
+        group: 'analyzers',
+        label: 'Z',
+        url: 'https://z.example',
+        apply: {
+          kind: 'analyzer',
+          node_url_template: 'https://z.example/{pubkey}',
+          channel_url_template: 'https://z.example/#channels?channel={name}',
+        },
+      },
+    ];
+    const entries = resolveHandyEntries(builtins, { overrides: {}, custom: [] });
+    expect(entries[0].apply?.channel_url_template).toBe(
+      'https://z.example/#channels?channel={name}'
+    );
+  });
+
+  it('overrides the analyzer channel_url_template', () => {
+    const builtins: HandyBuiltin[] = [
+      {
+        id: 'analyzer-z',
+        group: 'analyzers',
+        label: 'Z',
+        url: 'https://z.example',
+        apply: {
+          kind: 'analyzer',
+          node_url_template: 'https://z.example/{pubkey}',
+          channel_url_template: 'https://z.example/#channels?channel={name}',
+        },
+      },
+    ];
+    const entries = resolveHandyEntries(builtins, {
+      overrides: { 'analyzer-z': { channel_url_template: 'https://z.example/ch/{channel}' } },
+      custom: [],
+    });
+    expect(entries[0].apply?.channel_url_template).toBe('https://z.example/ch/{channel}');
   });
 
   it('appends custom entries after built-ins', () => {
@@ -96,6 +138,31 @@ describe('buildBuiltinOverride', () => {
     expect(buildBuiltinOverride(analyzer, form, undefined, 'X')).toBeNull();
   });
 
+  it('stores a changed channel_url_template', () => {
+    const analyzerZ: HandyBuiltin = {
+      id: 'analyzer-z',
+      group: 'analyzers',
+      label: 'Z',
+      url: 'https://z.example',
+      apply: {
+        kind: 'analyzer',
+        node_url_template: 'https://z.example/{pubkey}',
+        channel_url_template: 'https://z.example/ch/{name}',
+      },
+    };
+    const form = {
+      ...baseForm,
+      group: 'analyzers' as const,
+      label: 'Z',
+      url: 'https://z.example',
+      node_url_template: 'https://z.example/{pubkey}',
+      channel_url_template: 'https://z.example/#channels?channel={name}',
+    };
+    expect(buildBuiltinOverride(analyzerZ, form, undefined, 'Z')).toEqual({
+      channel_url_template: 'https://z.example/#channels?channel={name}',
+    });
+  });
+
   it('preserves an existing hidden flag', () => {
     const form = {
       ...baseForm,
@@ -127,6 +194,7 @@ describe('formToCustomEntry', () => {
       apply_kind: null,
       node_url_template: null,
       packet_url_template: null,
+      channel_url_template: null,
     });
   });
 
@@ -147,6 +215,33 @@ describe('formToCustomEntry', () => {
       packet_url_template: 'https://a.example/{hash}',
       category: null,
     });
+  });
+
+  it('includes channel_url_template for an analyzer entry', () => {
+    const form = {
+      ...baseForm,
+      group: 'analyzers' as const,
+      applyKind: 'analyzer' as const,
+      label: 'A',
+      url: 'https://a.example',
+      node_url_template: 'https://a.example/{pubkey}',
+      channel_url_template: 'https://a.example/#channels?channel={name}',
+    };
+    expect(formToCustomEntry('id3', form)).toMatchObject({
+      channel_url_template: 'https://a.example/#channels?channel={name}',
+    });
+  });
+
+  it('nulls an empty channel_url_template for an analyzer entry', () => {
+    const form = {
+      ...baseForm,
+      group: 'analyzers' as const,
+      applyKind: 'analyzer' as const,
+      label: 'A',
+      url: 'https://a.example',
+      node_url_template: 'https://a.example/{pubkey}',
+    };
+    expect(formToCustomEntry('id4', form)).toMatchObject({ channel_url_template: null });
   });
 });
 

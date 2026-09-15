@@ -34,3 +34,35 @@ export function buildPacketLookupUrl(site: AnalyzerSite, hash: string): string |
   if (!site.packet_url_template) return null;
   return buildAnalyzerLookupUrl(site.packet_url_template, '{hash}', hash);
 }
+
+/**
+ * Build a channel-lookup URL, or null when the site has no channel template or
+ * the template is unusable. The template must be http(s) and contain at least
+ * one of the placeholders {name} (channel display name, incl. leading # for
+ * hashtag channels) or {channel} (channel key); every present placeholder is
+ * substituted (URL-encoded), so a missing value for a used placeholder yields
+ * null rather than an incomplete URL.
+ */
+export function buildChannelLookupUrl(
+  site: AnalyzerSite,
+  channel: { name: string; key: string }
+): string | null {
+  const trimmed = site.channel_url_template?.trim();
+  if (!trimmed) return null;
+  if (!/^https?:\/\//i.test(trimmed)) return null;
+
+  const usesName = trimmed.includes('{name}');
+  const usesKey = trimmed.includes('{channel}');
+  if (!usesName && !usesKey) return null;
+
+  let url = trimmed;
+  if (usesName) {
+    if (!channel.name) return null;
+    url = url.split('{name}').join(encodeURIComponent(channel.name));
+  }
+  if (usesKey) {
+    if (!channel.key) return null;
+    url = url.split('{channel}').join(encodeURIComponent(channel.key));
+  }
+  return url;
+}

@@ -11,6 +11,40 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-16 (Per-channel analyzer link, claude/channel-analyzer-links)
+
+### Channel info panel (frontend + backend)
+- The per-channel info/stats panel now shows an **"Open channel on <site>"**
+  button for each configured analyzer that has a channel URL template, opening
+  the channel on that external analyzer in a new tab
+  (`window.open(..., '_blank', 'noopener,noreferrer')`). Mirrors the existing
+  per-contact "Look up on <site>" action
+  (`frontend/src/components/ChannelInfoPane.tsx`, wired via
+  `channelInfoPaneProps.analyzerSites` in `frontend/src/App.tsx`).
+- Added an optional **`channel_url_template`** to analyzer sites. It supports a
+  `{name}` placeholder (channel display name, incl. leading `#` for hashtag
+  channels) and/or a `{channel}` placeholder (channel key); the value is
+  URL-encoded. New helper `buildChannelLookupUrl()`
+  (`frontend/src/utils/analyzerLink.ts`).
+- The six built-in analyzer presets ship with verified channel templates: the
+  four DMC-analyzer sites (meshcore-analyzer.eu, Cornmeister, MeshCoreNetz,
+  MeshDresden) use `#channels?channel={name}`, on8ar uses `#/channels/{name}`,
+  and MC-Radar uses `/group-messages?channel={name}`
+  (`frontend/src/components/settings/handyInfo.ts`). All six address channels by
+  name; none use the key.
+- Both analyzer-site editors gained a Channel URL template field: the Handy Info
+  Configure dialog (`SettingsHandyInfoSection.tsx`) and the Settings > Database
+  analyzer-sites editor (`SettingsDatabaseSection.tsx`, which now also preserves
+  an existing channel template when other fields are edited).
+- Backend: `AnalyzerSite`, `HandyInfoOverride`, and `HandyInfoCustomEntry` gain
+  `channel_url_template`; the settings router validates it is an http(s) URL
+  containing `{name}` or `{channel}` (`app/models.py`, `app/routers/settings.py`).
+  No DB migration: `analyzer_sites` is a JSON column.
+- Gates green: 1584 vitest, backend settings suite (incl. 3 new tests), tsc,
+  eslint, prettier, ruff check/format, vite build. Runtime-verified against a
+  throwaway backend on a copied live DB: the button renders in the real Public
+  channel panel and opens `https://meshcore-analyzer.eu/#channels?channel=Public`.
+
 ## Update 2026-09-16 (Favorites always split by type, feat/favorites-always-grouped)
 
 ### Sidebar Favorites (frontend)

@@ -1,20 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
-import { Star } from 'lucide-react';
+import { ExternalLink, Star } from 'lucide-react';
 import { api } from '../api';
 import { formatTime } from '../utils/messageParser';
 import { handleKeyboardActivate } from '../utils/a11y';
+import { buildChannelLookupUrl } from '../utils/analyzerLink';
 import { useEntranceSettled } from '../hooks/useEntranceSettled';
 import { useT, type TFn } from '../i18n';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './ui/sheet';
 import { toast } from './ui/sonner';
-import type { Channel, ChannelDetail, PathHashWidthStats } from '../types';
+import type { AnalyzerSite, Channel, ChannelDetail, PathHashWidthStats } from '../types';
 
 interface ChannelInfoPaneProps {
   channelKey: string | null;
   onClose: () => void;
   channels: Channel[];
   onToggleFavorite: (type: 'channel' | 'contact', id: string) => void;
+  analyzerSites?: AnalyzerSite[];
 }
 
 export function ChannelInfoPane({
@@ -22,6 +24,7 @@ export function ChannelInfoPane({
   onClose,
   channels,
   onToggleFavorite,
+  analyzerSites = [],
 }: ChannelInfoPaneProps) {
   const t = useT();
   const [detail, setDetail] = useState<ChannelDetail | null>(null);
@@ -65,6 +68,24 @@ export function ChannelInfoPane({
 
   // Use live channel data where available, fall back to detail snapshot
   const channel = liveChannel ?? detail?.channel ?? null;
+
+  // Display name used for {name}-based analyzer lookups: hashtag channels carry
+  // a leading '#' (matching the pane header), which every analyzer expects.
+  const channelDisplayName =
+    channel && channel.is_hashtag && !channel.name.startsWith('#')
+      ? `#${channel.name}`
+      : (channel?.name ?? '');
+
+  // Resolve per-site channel deep links up front; drop sites without a usable
+  // channel template so the section only renders when there is something to show.
+  const channelAnalyzerLinks = channel
+    ? analyzerSites
+        .map((site) => ({
+          site,
+          url: buildChannelLookupUrl(site, { name: channelDisplayName, key: channel.key }),
+        }))
+        .filter((link): link is { site: AnalyzerSite; url: string } => link.url !== null)
+    : [];
 
   return (
     <Sheet open={channelKey !== null} onOpenChange={(open) => !open && onClose()}>
@@ -142,6 +163,29 @@ export function ChannelInfoPane({
                 )}
               </button>
             </div>
+
+            {/* Open this channel on external analyzer(s). Hidden when no site has
+                a channel template. Opens a third-party site in a new tab; see the
+                privacy note in the analyzer-sites settings editor. */}
+            {channelAnalyzerLinks.length > 0 && (
+              <div className="px-5 py-3 border-b border-border space-y-2">
+                {channelAnalyzerLinks.map(({ site, url }) => (
+                  <button
+                    key={site.name}
+                    type="button"
+                    className="text-sm flex items-center gap-2 hover:text-primary transition-colors"
+                    onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+                    title={t('channel_analyzer_lookup_title', { name: site.name })}
+                  >
+                    <ExternalLink
+                      className="h-4.5 w-4.5 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    <span>{t('channel_analyzer_lookup_label', { name: site.name })}</span>
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Message Activity */}
             {detail && detail.message_counts.all_time > 0 && (

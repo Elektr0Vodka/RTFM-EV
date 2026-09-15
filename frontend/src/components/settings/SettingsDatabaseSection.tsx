@@ -20,6 +20,11 @@ function isValidPacketTemplate(template: string): boolean {
   return /^https?:\/\//i.test(t) && t.includes('{hash}');
 }
 
+function isValidChannelTemplate(template: string): boolean {
+  const t = template.trim();
+  return /^https?:\/\//i.test(t) && (t.includes('{name}') || t.includes('{channel}'));
+}
+
 export function SettingsDatabaseSection({
   appSettings,
   health,
@@ -50,10 +55,12 @@ export function SettingsDatabaseSection({
   const [draftName, setDraftName] = useState('');
   const [draftNodeUrl, setDraftNodeUrl] = useState('');
   const [draftPacketUrl, setDraftPacketUrl] = useState('');
+  const [draftChannelUrl, setDraftChannelUrl] = useState('');
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
   const [editNodeUrl, setEditNodeUrl] = useState('');
   const [editPacketUrl, setEditPacketUrl] = useState('');
+  const [editChannelUrl, setEditChannelUrl] = useState('');
 
   const saveChainRef = useRef<Promise<void>>(Promise.resolve());
 
@@ -162,11 +169,13 @@ export function SettingsDatabaseSection({
   const buildValidatedSite = (
     rawName: string,
     rawNodeUrl: string,
-    rawPacketUrl: string
+    rawPacketUrl: string,
+    rawChannelUrl: string
   ): AnalyzerSite | null => {
     const name = rawName.trim();
     const nodeUrl = rawNodeUrl.trim();
     const packetUrl = rawPacketUrl.trim();
+    const channelUrl = rawChannelUrl.trim();
     if (!name) {
       toast.error(t('settings_db_analyzer_toast_no_name'));
       return null;
@@ -179,16 +188,29 @@ export function SettingsDatabaseSection({
       toast.error(t('settings_db_analyzer_toast_bad_packet_url'));
       return null;
     }
-    return { name, node_url_template: nodeUrl, packet_url_template: packetUrl || null };
+    if (channelUrl && !isValidChannelTemplate(channelUrl)) {
+      toast.error(t('settings_db_analyzer_toast_bad_channel_url'));
+      return null;
+    }
+    const site: AnalyzerSite = {
+      name,
+      node_url_template: nodeUrl,
+      packet_url_template: packetUrl || null,
+    };
+    // Only carry the channel template when set, so sites without one keep a
+    // minimal shape (and editing another field never invents an empty value).
+    if (channelUrl) site.channel_url_template = channelUrl;
+    return site;
   };
 
   const handleAddAnalyzerSite = () => {
-    const site = buildValidatedSite(draftName, draftNodeUrl, draftPacketUrl);
+    const site = buildValidatedSite(draftName, draftNodeUrl, draftPacketUrl, draftChannelUrl);
     if (!site) return;
     persistAnalyzerSites([...analyzerSites, site]);
     setDraftName('');
     setDraftNodeUrl('');
     setDraftPacketUrl('');
+    setDraftChannelUrl('');
   };
 
   const handleRemoveAnalyzerSite = (index: number) => {
@@ -203,10 +225,11 @@ export function SettingsDatabaseSection({
     setEditName(site.name);
     setEditNodeUrl(site.node_url_template);
     setEditPacketUrl(site.packet_url_template ?? '');
+    setEditChannelUrl(site.channel_url_template ?? '');
   };
 
   const handleSaveEditAnalyzerSite = (index: number) => {
-    const site = buildValidatedSite(editName, editNodeUrl, editPacketUrl);
+    const site = buildValidatedSite(editName, editNodeUrl, editPacketUrl, editChannelUrl);
     if (!site) return;
     persistAnalyzerSites(analyzerSites.map((existing, i) => (i === index ? site : existing)));
     setEditingIndex(null);
@@ -585,6 +608,19 @@ export function SettingsDatabaseSection({
                       className="font-mono text-xs"
                     />
                   </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">
+                      {t('settings_db_analyzer_channel_url_label')}
+                    </Label>
+                    <Input
+                      aria-label={t('settings_db_analyzer_edit_channel_url_aria', {
+                        name: site.name,
+                      })}
+                      value={editChannelUrl}
+                      onChange={(e) => setEditChannelUrl(e.target.value)}
+                      className="font-mono text-xs"
+                    />
+                  </div>
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
@@ -617,6 +653,11 @@ export function SettingsDatabaseSection({
                     {site.packet_url_template && (
                       <div className="text-xs font-mono text-muted-foreground break-all">
                         {site.packet_url_template}
+                      </div>
+                    )}
+                    {site.channel_url_template && (
+                      <div className="text-xs font-mono text-muted-foreground break-all">
+                        {site.channel_url_template}
                       </div>
                     )}
                   </div>
@@ -682,6 +723,18 @@ export function SettingsDatabaseSection({
               value={draftPacketUrl}
               placeholder="https://example.com/#packets?hash={hash}"
               onChange={(e) => setDraftPacketUrl(e.target.value)}
+              className="font-mono text-xs"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="analyzer-channel-url" className="text-xs text-muted-foreground">
+              {t('settings_db_analyzer_channel_url_label')}
+            </Label>
+            <Input
+              id="analyzer-channel-url"
+              value={draftChannelUrl}
+              placeholder="https://example.com/#channels?channel={name}"
+              onChange={(e) => setDraftChannelUrl(e.target.value)}
               className="font-mono text-xs"
             />
           </div>

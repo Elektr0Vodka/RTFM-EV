@@ -44,6 +44,7 @@ const EMPTY_FORM: HandyEntryForm = {
   applyKind: '',
   node_url_template: '',
   packet_url_template: '',
+  channel_url_template: '',
 };
 
 function genId(): string {
@@ -104,6 +105,7 @@ export function SettingsHandyInfoSection({
         name,
         node_url_template: template,
         packet_url_template: entry.apply?.packet_url_template ?? null,
+        channel_url_template: entry.apply?.channel_url_template ?? null,
       },
     ];
     void onSaveAppSettings({ analyzer_sites: next })
@@ -161,6 +163,7 @@ export function SettingsHandyInfoSection({
       applyKind: entry.apply?.kind ?? '',
       node_url_template: entry.apply?.node_url_template ?? '',
       packet_url_template: entry.apply?.packet_url_template ?? '',
+      channel_url_template: entry.apply?.channel_url_template ?? '',
     });
     setDialogOpen(true);
   };
@@ -180,6 +183,14 @@ export function SettingsHandyInfoSection({
       const packet = form.packet_url_template.trim();
       if (packet && (!/^https?:\/\//.test(packet) || !packet.includes('{hash}'))) {
         return t('settings_handy_err_packet_tpl');
+      }
+      const channel = form.channel_url_template.trim();
+      if (
+        channel &&
+        (!/^https?:\/\//.test(channel) ||
+          (!channel.includes('{name}') && !channel.includes('{channel}')))
+      ) {
+        return t('settings_handy_err_channel_tpl');
       }
     }
     return null;
@@ -539,6 +550,17 @@ export function SettingsHandyInfoSection({
                     placeholder="https://.../{hash}"
                     onChange={(e) =>
                       setForm((f) => ({ ...f, packet_url_template: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="handy-channel">{t('settings_handy_field_channel_tpl')}</Label>
+                  <Input
+                    id="handy-channel"
+                    value={form.channel_url_template}
+                    placeholder="https://.../{name}"
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, channel_url_template: e.target.value }))
                     }
                   />
                 </div>

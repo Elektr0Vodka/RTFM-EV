@@ -490,6 +490,12 @@ export interface AnalyzerSite {
   node_url_template: string;
   /** Optional URL template with a {hash} placeholder for packet lookups. */
   packet_url_template?: string | null;
+  /**
+   * Optional URL template for channel lookups. Supports a {name} placeholder
+   * (channel display name, incl. leading # for hashtag channels) and/or a
+   * {channel} placeholder (channel key). Every built-in analyzer uses {name}.
+   */
+  channel_url_template?: string | null;
 }
 
 export interface MentionSoundMeta {
@@ -514,6 +520,7 @@ export interface HandyInfoOverride {
   category?: string | null;
   node_url_template?: string | null;
   packet_url_template?: string | null;
+  channel_url_template?: string | null;
 }
 
 /** A user-created Handy Info entry (link or apply-capable preset). */
@@ -526,6 +533,7 @@ export interface HandyInfoCustomEntry {
   apply_kind?: HandyApplyKind | null;
   node_url_template?: string | null;
   packet_url_template?: string | null;
+  channel_url_template?: string | null;
 }
 
 /** Persisted overlay for the Handy Info section. */

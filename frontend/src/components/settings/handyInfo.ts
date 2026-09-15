@@ -21,6 +21,7 @@ export interface HandyBuiltin {
     kind: HandyApplyKind;
     node_url_template?: string;
     packet_url_template?: string;
+    channel_url_template?: string;
   };
 }
 
@@ -39,6 +40,7 @@ export interface HandyEntry {
     kind: HandyApplyKind;
     node_url_template?: string;
     packet_url_template?: string;
+    channel_url_template?: string;
   };
 }
 
@@ -62,14 +64,22 @@ export const HANDY_BUILTINS: HandyBuiltin[] = [
     group: 'analyzers',
     label: 'Cornmeister',
     url: 'https://cornmeister.nl',
-    apply: { kind: 'analyzer', node_url_template: 'https://cornmeister.nl/#node?id={pubkey}' },
+    apply: {
+      kind: 'analyzer',
+      node_url_template: 'https://cornmeister.nl/#node?id={pubkey}',
+      channel_url_template: 'https://cornmeister.nl/#channels?channel={name}',
+    },
   },
   {
     id: 'analyzer-mc-radar',
     group: 'analyzers',
     label: 'MC-Radar',
     url: 'https://mc-radar.woodwar.com',
-    apply: { kind: 'analyzer', node_url_template: 'https://mc-radar.woodwar.com/node/{pubkey}' },
+    apply: {
+      kind: 'analyzer',
+      node_url_template: 'https://mc-radar.woodwar.com/node/{pubkey}',
+      channel_url_template: 'https://mc-radar.woodwar.com/group-messages?channel={name}',
+    },
   },
   {
     id: 'analyzer-meshcore-analyzer-eu',
@@ -79,6 +89,7 @@ export const HANDY_BUILTINS: HandyBuiltin[] = [
     apply: {
       kind: 'analyzer',
       node_url_template: 'https://meshcore-analyzer.eu/#node?id={pubkey}',
+      channel_url_template: 'https://meshcore-analyzer.eu/#channels?channel={name}',
     },
   },
   {
@@ -89,6 +100,7 @@ export const HANDY_BUILTINS: HandyBuiltin[] = [
     apply: {
       kind: 'analyzer',
       node_url_template: 'https://analyzer.meshcorenetz.de/#node?id={pubkey}',
+      channel_url_template: 'https://analyzer.meshcorenetz.de/#channels?channel={name}',
     },
   },
   {
@@ -99,6 +111,7 @@ export const HANDY_BUILTINS: HandyBuiltin[] = [
     apply: {
       kind: 'analyzer',
       node_url_template: 'https://analyzer.meshdresden.eu/#node?id={pubkey}',
+      channel_url_template: 'https://analyzer.meshdresden.eu/#channels?channel={name}',
     },
   },
   {
@@ -110,6 +123,7 @@ export const HANDY_BUILTINS: HandyBuiltin[] = [
       kind: 'analyzer',
       node_url_template: 'https://analyzer.on8ar.eu/#/nodes/{pubkey}',
       packet_url_template: 'https://analyzer.on8ar.eu/#/packets/{hash}',
+      channel_url_template: 'https://analyzer.on8ar.eu/#/channels/{name}',
     },
   },
   // --- Sync sources (apply-capable => Configure tab) ---
@@ -257,6 +271,7 @@ export function resolveHandyEntries(
           kind: b.apply.kind,
           node_url_template: pick(o?.node_url_template, b.apply.node_url_template),
           packet_url_template: pick(o?.packet_url_template, b.apply.packet_url_template),
+          channel_url_template: pick(o?.channel_url_template, b.apply.channel_url_template),
         }
       : undefined;
     result.push({
@@ -284,6 +299,7 @@ export function resolveHandyEntries(
             kind: c.apply_kind,
             node_url_template: c.node_url_template ?? undefined,
             packet_url_template: c.packet_url_template ?? undefined,
+            channel_url_template: c.channel_url_template ?? undefined,
           }
         : undefined,
     });
@@ -301,6 +317,7 @@ export interface HandyEntryForm {
   applyKind: '' | HandyApplyKind;
   node_url_template: string;
   packet_url_template: string;
+  channel_url_template: string;
 }
 
 /**
@@ -329,6 +346,10 @@ export function buildBuiltinOverride(
     if (packet !== (builtin.apply.packet_url_template ?? '')) {
       next.packet_url_template = packet || null;
     }
+    const channel = form.channel_url_template.trim();
+    if (channel !== (builtin.apply.channel_url_template ?? '')) {
+      next.channel_url_template = channel || null;
+    }
   }
 
   const hasValue =
@@ -337,7 +358,8 @@ export function buildBuiltinOverride(
     next.url !== undefined ||
     next.category !== undefined ||
     next.node_url_template !== undefined ||
-    next.packet_url_template !== undefined;
+    next.packet_url_template !== undefined ||
+    next.channel_url_template !== undefined;
   return hasValue ? next : null;
 }
 
@@ -355,6 +377,10 @@ export function formToCustomEntry(id: string, form: HandyEntryForm): HandyInfoCu
     packet_url_template:
       applyKind === 'analyzer' && form.packet_url_template.trim()
         ? form.packet_url_template.trim()
+        : null,
+    channel_url_template:
+      applyKind === 'analyzer' && form.channel_url_template.trim()
+        ? form.channel_url_template.trim()
         : null,
   };
 }

@@ -99,6 +99,22 @@ def _is_valid_http_url(value: str) -> bool:
     return value.startswith(("http://", "https://"))
 
 
+def _is_valid_channel_template(template: str) -> bool:
+    """A channel template must be http(s) and carry a {name} or {channel} placeholder.
+
+    Channels are addressed by name on some analyzers and by key on others, so
+    either placeholder is accepted; the frontend substitutes whichever is present.
+    """
+    return template.startswith(("http://", "https://")) and (
+        "{name}" in template or "{channel}" in template
+    )
+
+
+CHANNEL_TEMPLATE_ERROR = (
+    "channel_url_template must be an http(s) URL containing '{name}' or '{channel}'"
+)
+
+
 HANDY_GROUPS = ("analyzers", "sync", "links")
 HANDY_LINK_CATEGORIES = ("community", "monitoring", "tools", "technical", "fun")
 
@@ -122,6 +138,9 @@ def _clean_handy_override(raw: HandyInfoOverride) -> HandyInfoOverride:
             status_code=400,
             detail="packet_url_template must be an http(s) URL containing '{hash}'",
         )
+    channel_tpl = raw.channel_url_template.strip() if raw.channel_url_template else None
+    if channel_tpl and not _is_valid_channel_template(channel_tpl):
+        raise HTTPException(status_code=400, detail=CHANNEL_TEMPLATE_ERROR)
     label = raw.label.strip() if raw.label is not None else None
     category = raw.category.strip() if raw.category else None
     if category and category not in HANDY_LINK_CATEGORIES:
@@ -133,6 +152,7 @@ def _clean_handy_override(raw: HandyInfoOverride) -> HandyInfoOverride:
         category=category,
         node_url_template=node_tpl,
         packet_url_template=packet_tpl,
+        channel_url_template=channel_tpl,
     )
 
 
@@ -153,6 +173,7 @@ def _clean_handy_custom(raw: HandyInfoCustomEntry) -> HandyInfoCustomEntry:
     apply_kind = raw.apply_kind
     node_tpl = raw.node_url_template.strip() if raw.node_url_template else None
     packet_tpl = raw.packet_url_template.strip() if raw.packet_url_template else None
+    channel_tpl = raw.channel_url_template.strip() if raw.channel_url_template else None
     category = raw.category.strip() if raw.category else None
 
     if raw.group == "links":
@@ -162,6 +183,7 @@ def _clean_handy_custom(raw: HandyInfoCustomEntry) -> HandyInfoCustomEntry:
             raise HTTPException(status_code=400, detail="Link entries require a valid category")
         node_tpl = None
         packet_tpl = None
+        channel_tpl = None
     elif raw.group == "analyzers":
         if apply_kind != "analyzer":
             raise HTTPException(
@@ -177,6 +199,8 @@ def _clean_handy_custom(raw: HandyInfoCustomEntry) -> HandyInfoCustomEntry:
                 status_code=400,
                 detail="packet_url_template must be an http(s) URL containing '{hash}'",
             )
+        if channel_tpl and not _is_valid_channel_template(channel_tpl):
+            raise HTTPException(status_code=400, detail=CHANNEL_TEMPLATE_ERROR)
         category = None
     else:  # sync
         if apply_kind not in ("region_sync", "registry_sync"):
@@ -186,6 +210,7 @@ def _clean_handy_custom(raw: HandyInfoCustomEntry) -> HandyInfoCustomEntry:
             )
         node_tpl = None
         packet_tpl = None
+        channel_tpl = None
         category = None
 
     return HandyInfoCustomEntry(
@@ -197,6 +222,7 @@ def _clean_handy_custom(raw: HandyInfoCustomEntry) -> HandyInfoCustomEntry:
         apply_kind=apply_kind,
         node_url_template=node_tpl,
         packet_url_template=packet_tpl,
+        channel_url_template=channel_tpl,
     )
 
 
@@ -687,11 +713,15 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
                     status_code=400,
                     detail="packet_url_template must be an http(s) URL containing '{hash}'",
                 )
+            channel_tpl = site.channel_url_template.strip() if site.channel_url_template else None
+            if channel_tpl and not _is_valid_channel_template(channel_tpl):
+                raise HTTPException(status_code=400, detail=CHANNEL_TEMPLATE_ERROR)
             cleaned_sites.append(
                 AnalyzerSite(
                     name=name,
                     node_url_template=node_tpl,
                     packet_url_template=packet_tpl,
+                    channel_url_template=channel_tpl,
                 )
             )
         kwargs["analyzer_sites"] = cleaned_sites

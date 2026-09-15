@@ -128,3 +128,92 @@ describe('ChannelInfoPane key visibility', () => {
     expect(screen.getByText('Show Key')).toBeInTheDocument();
   });
 });
+
+describe('ChannelInfoPane analyzer channel lookup', () => {
+  const nameSite = {
+    name: 'meshcore-analyzer.eu',
+    node_url_template: 'https://meshcore-analyzer.eu/#node?id={pubkey}',
+    channel_url_template: 'https://meshcore-analyzer.eu/#channels?channel={name}',
+  };
+
+  it('opens a private channel on the analyzer using its name', async () => {
+    const key = 'AB'.repeat(16);
+    const channel = makeChannel(key, 'Public', false);
+    mockGetChannelDetail.mockResolvedValue(makeDetail(channel));
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+    render(
+      <ChannelInfoPane
+        {...baseProps}
+        channelKey={key}
+        channels={[channel]}
+        analyzerSites={[nameSite]}
+      />
+    );
+
+    const button = await screen.findByText('Open channel on meshcore-analyzer.eu');
+    button.click();
+    expect(openSpy).toHaveBeenCalledWith(
+      'https://meshcore-analyzer.eu/#channels?channel=Public',
+      '_blank',
+      'noopener,noreferrer'
+    );
+    openSpy.mockRestore();
+  });
+
+  it('prefixes and encodes a hashtag channel name stored without a leading #', async () => {
+    const key = 'CD'.repeat(16);
+    const channel = makeChannel(key, 'test', true);
+    mockGetChannelDetail.mockResolvedValue(makeDetail(channel));
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+    render(
+      <ChannelInfoPane
+        {...baseProps}
+        channelKey={key}
+        channels={[channel]}
+        analyzerSites={[nameSite]}
+      />
+    );
+
+    const button = await screen.findByText('Open channel on meshcore-analyzer.eu');
+    button.click();
+    expect(openSpy).toHaveBeenCalledWith(
+      'https://meshcore-analyzer.eu/#channels?channel=%23test',
+      '_blank',
+      'noopener,noreferrer'
+    );
+    openSpy.mockRestore();
+  });
+
+  it('hides the channel lookup for a site with no channel template', async () => {
+    const key = 'EF'.repeat(16);
+    const channel = makeChannel(key, 'Public', false);
+    mockGetChannelDetail.mockResolvedValue(makeDetail(channel));
+
+    render(
+      <ChannelInfoPane
+        {...baseProps}
+        channelKey={key}
+        channels={[channel]}
+        analyzerSites={[
+          { name: 'mc-radar', node_url_template: 'https://mc-radar.woodwar.com/node/{pubkey}' },
+        ]}
+      />
+    );
+
+    await screen.findByText('Public');
+    expect(screen.queryByText(/Open channel on/)).not.toBeInTheDocument();
+  });
+
+  it('shows no channel lookup when no sites are configured', async () => {
+    const key = 'BA'.repeat(16);
+    const channel = makeChannel(key, 'Public', false);
+    mockGetChannelDetail.mockResolvedValue(makeDetail(channel));
+
+    render(<ChannelInfoPane {...baseProps} channelKey={key} channels={[channel]} />);
+
+    await screen.findByText('Public');
+    expect(screen.queryByText(/Open channel on/)).not.toBeInTheDocument();
+  });
+});

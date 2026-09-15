@@ -889,6 +889,7 @@ export function App() {
     onClose: handleCloseChannelInfo,
     channels,
     onToggleFavorite: handleToggleFavorite,
+    analyzerSites: appSettings?.analyzer_sites ?? [],
   };
 
   // Connect to WebSocket

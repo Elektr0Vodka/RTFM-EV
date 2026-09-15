@@ -657,6 +657,7 @@ describe('SettingsModal', () => {
             name: 'Cornmeister',
             node_url_template: 'https://cornmeister.nl/#node?id={pubkey}',
             packet_url_template: null,
+            channel_url_template: 'https://cornmeister.nl/#channels?channel={name}',
           },
         ],
       });
