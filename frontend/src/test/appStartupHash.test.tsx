@@ -116,6 +116,19 @@ vi.mock('../components/VisualizerView', () => ({
   VisualizerView: () => null,
 }));
 
+vi.mock('../components/MyNodeView', () => ({
+  default: () => null,
+}));
+
+vi.mock('../components/MeshHealthView', () => ({
+  MeshHealthView: () => null,
+}));
+
+vi.mock('../components/ChannelRegistryView', () => ({
+  default: () => null,
+  notifyChannelFound: vi.fn(),
+}));
+
 vi.mock('../components/CrackerPanel', () => ({
   CrackerPanel: () => null,
 }));
@@ -259,6 +272,45 @@ describe('App startup hash resolution', () => {
     await waitFor(() => {
       for (const node of screen.getAllByTestId('active-conversation')) {
         expect(node).toHaveTextContent('trace:trace:Trace');
+      }
+    });
+  });
+
+  it('restores the My Node view from the URL hash even when channels are unavailable', async () => {
+    setHash('#node');
+    mocks.api.getChannels.mockResolvedValue([]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      for (const node of screen.getAllByTestId('active-conversation')) {
+        expect(node).toHaveTextContent('node:node:');
+      }
+    });
+  });
+
+  it('restores the Mesh Health view from the URL hash even when channels are unavailable', async () => {
+    setHash('#mesh-health');
+    mocks.api.getChannels.mockResolvedValue([]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      for (const node of screen.getAllByTestId('active-conversation')) {
+        expect(node).toHaveTextContent('mesh-health:mesh-health:');
+      }
+    });
+  });
+
+  it('restores the Channel Registry view from the URL hash even when channels are unavailable', async () => {
+    setHash('#channel-registry');
+    mocks.api.getChannels.mockResolvedValue([]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      for (const node of screen.getAllByTestId('active-conversation')) {
+        expect(node).toHaveTextContent('channel-registry:channel-registry:');
       }
     });
   });
@@ -480,6 +532,28 @@ describe('App startup hash resolution', () => {
       await waitFor(() => {
         for (const node of screen.getAllByTestId('active-conversation')) {
           expect(node).toHaveTextContent(`contact:${aliceContact.public_key}:Alice`);
+        }
+      });
+    });
+
+    it('navigates to the My Node view when popstate fires with a node hash', async () => {
+      setHash('');
+      render(<App />);
+
+      await waitFor(() => {
+        for (const node of screen.getAllByTestId('active-conversation')) {
+          expect(node).toHaveTextContent(`channel:${publicChannel.key}:Public`);
+        }
+      });
+
+      act(() => {
+        setHash('#node');
+        window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+      });
+
+      await waitFor(() => {
+        for (const node of screen.getAllByTestId('active-conversation')) {
+          expect(node).toHaveTextContent('node:node:');
         }
       });
     });

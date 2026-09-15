@@ -48,6 +48,12 @@ function resolveConversationFromHash(
       return { type: 'search', id: 'search', name: 'Message Search' };
     case 'trace':
       return { type: 'trace', id: 'trace', name: 'Trace' };
+    case 'node':
+      return { type: 'node', id: 'node', name: 'My Node' };
+    case 'mesh-health':
+      return { type: 'mesh-health', id: 'mesh-health', name: 'Mesh Health' };
+    case 'channel-registry':
+      return { type: 'channel-registry', id: 'channel-registry', name: 'Channel Registry' };
     case 'channel': {
       const channel = resolveChannelFromHashToken(hashConv.name, channels);
       return channel ? { type: 'channel', id: channel.key, name: channel.name } : null;
@@ -152,6 +158,25 @@ export function useConversationRouter({
     }
     if (hashConv?.type === 'trace') {
       setActiveConversationState({ type: 'trace', id: 'trace', name: 'Trace' });
+      hasSetDefaultConversation.current = true;
+      return;
+    }
+    if (hashConv?.type === 'node') {
+      setActiveConversationState({ type: 'node', id: 'node', name: 'My Node' });
+      hasSetDefaultConversation.current = true;
+      return;
+    }
+    if (hashConv?.type === 'mesh-health') {
+      setActiveConversationState({ type: 'mesh-health', id: 'mesh-health', name: 'Mesh Health' });
+      hasSetDefaultConversation.current = true;
+      return;
+    }
+    if (hashConv?.type === 'channel-registry') {
+      setActiveConversationState({
+        type: 'channel-registry',
+        id: 'channel-registry',
+        name: 'Channel Registry',
+      });
       hasSetDefaultConversation.current = true;
       return;
     }

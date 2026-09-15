@@ -11,6 +11,20 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-15 (Restore My Node / Mesh Health / Channel Registry on refresh, claude/page-refresh-navigation-713850)
+
+### Navigation (bugfix)
+- Refreshing the page (or using browser back/forward) while on **My Node**,
+  **Mesh Health**, or **Channel Registry** no longer drops the user back to the
+  Public channel. These views already wrote their URL hash (`#node`,
+  `#mesh-health`, `#channel-registry`), but the startup resolver
+  (`useConversationRouter` phase 1) and the popstate handler
+  (`resolveConversationFromHash`) had no cases for those hash types, so they fell
+  through to the Public-channel default. Added the three missing cases in both
+  places (`frontend/src/hooks/useConversationRouter.ts`). Frontend gates green
+  (lint, prettier, tsc, build, vitest incl. new App-startup and popstate tests in
+  `frontend/src/test/appStartupHash.test.tsx`).
+
 ## Update 2026-09-15 (My Node RX airtime via OpenHop REST, claude/node-rx-tx-zero-rx-feaaa3)
 
 ### My Node airtime chart (backend)
