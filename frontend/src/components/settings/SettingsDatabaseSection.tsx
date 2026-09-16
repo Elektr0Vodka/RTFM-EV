@@ -564,6 +564,9 @@ export function SettingsDatabaseSection({
         <p className="text-[0.8125rem] text-muted-foreground">
           {t('settings_db_analyzer_desc_prefix')} <code className="text-xs">{'{pubkey}'}</code>{' '}
           {t('settings_db_analyzer_desc_mid')} <code className="text-xs">{'{hash}'}</code>{' '}
+          {t('settings_db_analyzer_desc_channel_mid')}{' '}
+          <code className="text-xs">{'{name}'}</code> {t('settings_db_analyzer_desc_channel_or')}{' '}
+          <code className="text-xs">{'{channel}'}</code>{' '}
           {t('settings_db_analyzer_desc_suffix')}
         </p>
         <p className="text-[0.8125rem] text-warning">{t('settings_db_analyzer_privacy')}</p>
