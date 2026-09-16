@@ -143,13 +143,17 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
       id: 'rt-nodes',
       type: 'circle',
       source: 'rt-nodes',
-      layout: { visibility: circlesVisible ? 'visible' : 'none' },
+      // Always kept 'visible' so the layer stays hit-testable; when the neon
+      // overlay takes over, the circles are made fully transparent (opacity 0)
+      // rather than hidden, so node clicks still open the info pane. See #132.
+      layout: { visibility: 'visible' },
       paint: {
         'circle-color': circleColorExpr(),
         'circle-radius': circleRadiusExpr(baseR * nodeScale, repeaterR * nodeScale),
-        'circle-opacity': 0.9,
+        'circle-opacity': circlesVisible ? 0.9 : 0,
         'circle-stroke-color': strokeColorExpr(roleColors),
         'circle-stroke-width': ['case', ['get', 'repeater'], 3, 2],
+        'circle-stroke-opacity': circlesVisible ? 1 : 0,
       },
     });
     if (!m.getLayer('rt-node-labels')) {
@@ -229,7 +233,11 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
   function setCirclesVisible(v: boolean) {
     circlesVisible = v;
     if (m.getLayer('rt-nodes')) {
-      m.setLayoutProperty('rt-nodes', 'visibility', v ? 'visible' : 'none');
+      // Toggle transparency, not layout visibility: a 'none' layer is excluded
+      // from hit-testing, which would stop neon-mode node clicks from opening the
+      // info pane. Transparent (opacity 0) circles stay clickable.
+      m.setPaintProperty('rt-nodes', 'circle-opacity', v ? 0.9 : 0);
+      m.setPaintProperty('rt-nodes', 'circle-stroke-opacity', v ? 1 : 0);
     }
   }
 

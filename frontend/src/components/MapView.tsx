@@ -678,6 +678,7 @@ export function MapView({
     roleColorsRef.current = roleColors;
     saveNodeRoleColors(roleColors);
     nodesRef.current?.setRoleColors(roleColors);
+    neonOverlayRef.current?.setRoleColors(roleColors);
   }, [roleColors]);
 
   const handleRoleColorChange = useCallback((type: number, color: string) => {
@@ -1034,6 +1035,7 @@ export function MapView({
       nodesRef.current = nodes;
       const neon = createNeonNodesOverlay(map);
       neon.setNodeScale(nodeScale);
+      neon.setRoleColors(roleColorsRef.current);
       neon.setData(mappableContacts, nowSec);
       neon.setVisible(neonNodes);
       neonOverlayRef.current = neon;

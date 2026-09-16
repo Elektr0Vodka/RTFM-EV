@@ -11,7 +11,7 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
-## Update 2026-09-16 (Analyzer channel-placeholder help text, feat/analyzer-channel-help-text)
+## Update 2026-09-16 (Analyzer channel help text + neon-node parity, feat/analyzer-channel-help-text)
 
 ### Settings > Database (frontend)
 - The "External Analyzers" description now documents the channel-URL placeholders
@@ -20,6 +20,24 @@ the change. Upstream development is on hold; the fork is the active repository.
   (`frontend/src/components/settings/SettingsDatabaseSection.tsx`; new i18n keys
   `settings_db_analyzer_desc_channel_mid` / `_channel_or`, reworded prefix/mid/suffix
   in EN/NL/DE). Follow-up to the per-channel analyzer link feature (#132).
+
+### Map neon nodes (bugfix)
+- **Neon nodes are clickable again.** Enabling "Neon nodes" replaced the flat GL
+  circle layer's visuals with a deck.gl overlay, but it did so by setting the
+  circle layer to `visibility:'none'`, which also removes it from hit-testing, so
+  clicking a neon node no longer opened the info popup. The flat `rt-nodes` layer
+  is now kept rendered (transparent, `circle-opacity`/`circle-stroke-opacity` 0)
+  instead of hidden, so it still hit-tests and node clicks work in neon mode
+  (`frontend/src/map/layers/nodesLayer.ts`).
+- **Neon nodes honour the node-colour picker / legend.** The neon core drew a
+  fixed dark rim and ignored the per-type role colours, so it didn't match the
+  legend or the "Node colors by role" picker. The core ring now encodes node type
+  via `roleColors` (same source as the flat layer's stroke and the legend); the
+  overlay gained `setRoleColors`, wired in `MapView` on create and on change
+  (`frontend/src/map/layers/neonNodesLayer.ts`, `frontend/src/components/MapView.tsx`).
+- Gates green (tsc, eslint, prettier, 1586 vitest incl. new neon unit tests).
+  Runtime-verified on the live map: clicking a neon node opens its info popup, and
+  nodes render with recency-tier fill + type-coloured rings.
 
 ## Update 2026-09-16 (Per-channel analyzer link, claude/channel-analyzer-links)
 

@@ -1,7 +1,7 @@
 import type { Map as MlMap } from 'maplibre-gl';
 import { loadDeck } from './tracesDeck';
 import { CONTACT_TYPE_REPEATER, type Contact } from '../../types';
-import { NODE_RECENCY_COLORS, recencyTier, type RecencyTier } from './nodesLayer';
+import { NODE_RECENCY_COLORS, NODE_TYPE_STROKE, recencyTier, type RecencyTier } from './nodesLayer';
 
 // Neon node rendering: a deck.gl overlay that draws each node as a translucent
 // halo circle under a bright core (the classic "neon" technique), interleaved
@@ -33,6 +33,8 @@ export interface NeonNodeDatum {
   pos: [number, number];
   tier: RecencyTier;
   repeater: boolean;
+  /** Contact type, so the core ring can encode type like the flat layer's stroke. */
+  type: number;
 }
 
 export function buildNeonNodeData(contacts: Contact[], nowSec: number): NeonNodeDatum[] {
@@ -43,6 +45,7 @@ export function buildNeonNodeData(contacts: Contact[], nowSec: number): NeonNode
       pos: [c.lon, c.lat],
       tier: recencyTier(c.last_seen, nowSec),
       repeater: c.type === CONTACT_TYPE_REPEATER,
+      type: c.type,
     });
   }
   return out;
@@ -53,13 +56,21 @@ export function buildNeonNodeData(contacts: Contact[], nowSec: number): NeonNode
 export function buildNeonNodeLayers(
   deck: typeof import('deck.gl'),
   data: NeonNodeDatum[],
-  nodeScale = 1
+  nodeScale = 1,
+  roleColors: Record<number, string> = NODE_TYPE_STROKE
 ): unknown[] {
   const ScatterplotLayer = deck.ScatterplotLayer as unknown as new (
     p: Record<string, unknown>
   ) => unknown;
 
   const coreR = (d: NeonNodeDatum) => (d.repeater ? REPEATER_CORE_R : CORE_R) * nodeScale;
+  // Core ring encodes node TYPE via the per-role colour (same source as the flat
+  // layer's stroke and the legend), so neon honours the node-colour picker.
+  const ringColor = (d: NeonNodeDatum): [number, number, number, number] => {
+    const hex = roleColors[d.type] ?? NODE_TYPE_STROKE[d.type];
+    const [r, g, b] = hex ? hexToRgb(hex) : [8, 14, 22];
+    return [r, g, b, 220];
+  };
 
   const halo = new ScatterplotLayer({
     id: 'neon-nodes-halo',
@@ -89,12 +100,12 @@ export function buildNeonNodeLayers(
       const [r, g, b] = TIER_RGB[d.tier];
       return [r, g, b, 235];
     },
-    // Dark rim makes the bright core pop against the halo (observer trick).
+    // Ring encodes node type (role colour), matching the flat layer + legend.
     stroked: true,
-    getLineColor: [8, 14, 22, 220],
-    lineWidthMinPixels: 1,
+    getLineColor: ringColor,
+    lineWidthMinPixels: 1.5,
     billboard: true,
-    updateTriggers: { getRadius: nodeScale },
+    updateTriggers: { getRadius: nodeScale, getLineColor: roleColors },
     parameters: { depthTest: false, depthMask: false },
   });
 
@@ -104,6 +115,7 @@ export function buildNeonNodeLayers(
 export interface NeonNodesOverlay {
   setData(contacts: Contact[], nowSec: number): void;
   setNodeScale(scale: number): void;
+  setRoleColors(colors: Record<number, string>): void;
   setVisible(visible: boolean): void;
   destroy(): void;
 }
@@ -113,6 +125,7 @@ export function createNeonNodesOverlay(map: MlMap): NeonNodesOverlay {
   let deckMod: typeof import('deck.gl') | null = null;
   let data: NeonNodeDatum[] = [];
   let nodeScale = 1;
+  let roleColors: Record<number, string> = NODE_TYPE_STROKE;
   let visible = false;
   let destroyed = false;
   let loading: Promise<void> | null = null;
@@ -121,7 +134,9 @@ export function createNeonNodesOverlay(map: MlMap): NeonNodesOverlay {
 
   const apply = (): void => {
     if (!overlay || !deckMod) return;
-    overlay.setProps({ layers: visible ? buildNeonNodeLayers(deckMod, data, nodeScale) : [] });
+    overlay.setProps({
+      layers: visible ? buildNeonNodeLayers(deckMod, data, nodeScale, roleColors) : [],
+    });
     repaint();
   };
 
@@ -150,6 +165,10 @@ export function createNeonNodesOverlay(map: MlMap): NeonNodesOverlay {
     },
     setNodeScale(scale: number): void {
       nodeScale = scale;
+      if (overlay) apply();
+    },
+    setRoleColors(colors: Record<number, string>): void {
+      roleColors = colors;
       if (overlay) apply();
     },
     setVisible(v: boolean): void {

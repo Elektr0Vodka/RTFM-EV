@@ -63,15 +63,20 @@ describe('buildNeonNodeData', () => {
       now
     );
     expect(data).toHaveLength(2); // 'b' dropped
-    expect(data[0]).toMatchObject({ pos: [5, 52], tier: 'recent', repeater: true });
-    expect(data[1]).toMatchObject({ tier: 'old', repeater: false });
+    expect(data[0]).toMatchObject({
+      pos: [5, 52],
+      tier: 'recent',
+      repeater: true,
+      type: CONTACT_TYPE_REPEATER,
+    });
+    expect(data[1]).toMatchObject({ tier: 'old', repeater: false, type: CONTACT_TYPE_CLIENT });
   });
 });
 
 describe('buildNeonNodeLayers', () => {
   const data: NeonNodeDatum[] = [
-    { pos: [5, 52], tier: 'recent', repeater: false },
-    { pos: [6, 53], tier: 'old', repeater: true },
+    { pos: [5, 52], tier: 'recent', repeater: false, type: CONTACT_TYPE_CLIENT },
+    { pos: [6, 53], tier: 'old', repeater: true, type: CONTACT_TYPE_REPEATER },
   ];
 
   it('builds a halo layer under a core layer with stable ids', () => {
@@ -103,5 +108,20 @@ describe('buildNeonNodeLayers', () => {
     const fill = core.props.getFillColor as (d: NeonNodeDatum) => number[];
     // 'recent' -> #06b6d4 -> [6,182,212]
     expect(fill(data[0]).slice(0, 3)).toEqual([6, 182, 212]);
+  });
+
+  it('rings the core with the per-type role colour (matches the legend/picker)', () => {
+    const roleColors = { [CONTACT_TYPE_CLIENT]: '#010203', [CONTACT_TYPE_REPEATER]: '#0a141e' };
+    const [, core] = buildNeonNodeLayers(fakeDeck(), data, 1, roleColors) as unknown as FakeLayer[];
+    const line = core.props.getLineColor as (d: NeonNodeDatum) => number[];
+    expect(line(data[0]).slice(0, 3)).toEqual([1, 2, 3]); // client -> #010203
+    expect(line(data[1]).slice(0, 3)).toEqual([10, 20, 30]); // repeater -> #0a141e
+  });
+
+  it('defaults the core ring to the NODE_TYPE_STROKE colour for the type', () => {
+    const [, core] = buildNeonNodeLayers(fakeDeck(), data) as unknown as FakeLayer[];
+    const line = core.props.getLineColor as (d: NeonNodeDatum) => number[];
+    // repeater default stroke #f8fafc -> [248,250,252]
+    expect(line(data[1]).slice(0, 3)).toEqual([248, 250, 252]);
   });
 });
