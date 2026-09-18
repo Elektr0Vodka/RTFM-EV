@@ -45,6 +45,33 @@ the change. Upstream development is on hold; the fork is the active repository.
   (e.g. 0-5% instead of 0-100%).
 - Not included (follow-up): the radar view (tracked separately).
 
+## Update 2026-09-18 (Per-favorite-group sort, feat/favorites-per-group-sort)
+
+### Sidebar favorites (frontend + backend)
+- **Each favorite sub-group now has its own sort toggle.** Previously the
+  Favorites section had a single recent/alpha toggle applied to every group.
+  That toggle is removed from the parent Favorites header; instead each visible
+  sub-group header (Favorite Channels / Companions / Repeaters / Rooms / Sensors)
+  gets its own recent (⏱) / alpha (A-Z) toggle, and each group's rows are sorted
+  independently by that group's order
+  (`frontend/src/components/Sidebar.tsx`: per-group sorting in the favorites
+  memo, `handleFavoriteGroupSortToggle`, generalised sort control in
+  `renderSectionHeader`). Reuses the existing `chat_sort_*` i18n keys, so no new
+  strings.
+- **Per-group sort orders persist server-side** in `app_settings` so they sync
+  across devices, matching how the favorites drag-order and hidden overlay moved
+  server-side (migrations `_093`/`_094`). New column
+  `sidebar_favorite_sort_orders` (migration **`_095`**, `LATEST_SCHEMA_VERSION`
+  bumped 94 → 95), a typed `SidebarFavoriteSortOrders` model (mirrors
+  `SidebarHidden`), repository read/parse + update passthrough, and the
+  `PATCH /api/settings` request field. Empty object / unknown values reconcile to
+  all-`recent` on the client (`resolveFavoriteSortOrders` in
+  `frontend/src/utils/sidebarLayout.ts`).
+- Gates green: backend `ruff check`/`ruff format --check`, migration + settings
+  API tests (119 passed); frontend tsc, eslint, prettier, `vitest run` (1588
+  passed incl. new per-group-sort and resolver tests) and `vite build`. Runtime
+  against the live app NOT observed.
+
 ## Update 2026-09-16 (Analyzer channel help text + neon-node parity, feat/analyzer-channel-help-text)
 
 ### Settings > Database (frontend)

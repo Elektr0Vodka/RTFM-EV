@@ -31,6 +31,13 @@ function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings {
     sidebar_tool_order: [],
     sidebar_favorites_order: [],
     sidebar_hidden: { sections: [], tools: [], favorites: [] },
+    sidebar_favorite_sort_orders: {
+      channels: 'recent',
+      companions: 'recent',
+      repeaters: 'recent',
+      rooms: 'recent',
+      sensors: 'recent',
+    },
     discovery_blocked_types: [],
     tracked_telemetry_repeaters: [],
     tracked_telemetry_contacts: [],

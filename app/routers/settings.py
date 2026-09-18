@@ -13,6 +13,7 @@ from app.models import (
     HandyInfoCustomEntry,
     HandyInfoOverride,
     HandyInfoSettings,
+    SidebarFavoriteSortOrders,
     SidebarHidden,
 )
 from app.region_scope import normalize_region_scope
@@ -293,6 +294,10 @@ class AppSettingsUpdate(BaseModel):
     sidebar_favorites_order: list[str] | None = Field(
         default=None,
         description="User's Favorites group drag order (empty list = client default)",
+    )
+    sidebar_favorite_sort_orders: SidebarFavoriteSortOrders | None = Field(
+        default=None,
+        description="Per-favorite-group sort order (recent/alpha) in the sidebar",
     )
     blocked_keys: list[str] | None = Field(
         default=None,
@@ -641,6 +646,8 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
         kwargs["sidebar_favorites_order"] = [str(k) for k in update.sidebar_favorites_order]
     if update.sidebar_hidden is not None:
         kwargs["sidebar_hidden"] = update.sidebar_hidden
+    if update.sidebar_favorite_sort_orders is not None:
+        kwargs["sidebar_favorite_sort_orders"] = update.sidebar_favorite_sort_orders
 
     # Auto-add mentioned channels to the registry
     if update.auto_add_mentioned_channels is not None:

@@ -6,6 +6,7 @@ import {
   resolveSectionOrder,
   resolveToolOrder,
   resolveFavoritesOrder,
+  resolveFavoriteSortOrders,
   resolveHidden,
   readLegacyLocalOrders,
   clearLegacyLocalOrders,
@@ -79,6 +80,35 @@ describe('resolveHidden', () => {
       tools: ['map'],
       favorites: [],
     });
+  });
+});
+
+describe('resolveFavoriteSortOrders', () => {
+  const ALL_RECENT = {
+    channels: 'recent',
+    companions: 'recent',
+    repeaters: 'recent',
+    rooms: 'recent',
+    sensors: 'recent',
+  };
+
+  it('defaults every group to recent for missing/invalid input', () => {
+    expect(resolveFavoriteSortOrders(undefined)).toEqual(ALL_RECENT);
+    expect(resolveFavoriteSortOrders(null)).toEqual(ALL_RECENT);
+    expect(resolveFavoriteSortOrders('nope')).toEqual(ALL_RECENT);
+    expect(resolveFavoriteSortOrders({})).toEqual(ALL_RECENT);
+  });
+
+  it('keeps valid alpha/recent values per group', () => {
+    expect(resolveFavoriteSortOrders({ channels: 'alpha', sensors: 'alpha' })).toEqual({
+      ...ALL_RECENT,
+      channels: 'alpha',
+      sensors: 'alpha',
+    });
+  });
+
+  it('coerces unknown values to recent and ignores unknown keys', () => {
+    expect(resolveFavoriteSortOrders({ channels: 'weird', bogus: 'alpha' })).toEqual(ALL_RECENT);
   });
 });
 

@@ -487,6 +487,39 @@ class TestDebugEndpoint:
         response = await client.get("/api/settings")
         assert response.json()["sidebar_hidden"]["sections"] == ["contacts"]
 
+    @pytest.mark.asyncio
+    async def test_sidebar_favorite_sort_orders_round_trip(self, test_db, client):
+        """Per-favorite-group sort orders default to 'recent' and persist via PATCH."""
+        response = await client.get("/api/settings")
+        assert response.status_code == 200
+        orders = response.json()["sidebar_favorite_sort_orders"]
+        assert orders == {
+            "channels": "recent",
+            "companions": "recent",
+            "repeaters": "recent",
+            "rooms": "recent",
+            "sensors": "recent",
+        }
+
+        response = await client.patch(
+            "/api/settings",
+            json={
+                "sidebar_favorite_sort_orders": {
+                    "channels": "alpha",
+                    "sensors": "alpha",
+                }
+            },
+        )
+        assert response.status_code == 200
+        out = response.json()["sidebar_favorite_sort_orders"]
+        assert out["channels"] == "alpha"
+        assert out["sensors"] == "alpha"
+        # Unspecified groups fall back to the model default.
+        assert out["companions"] == "recent"
+
+        response = await client.get("/api/settings")
+        assert response.json()["sidebar_favorite_sort_orders"]["channels"] == "alpha"
+
 
 class TestRadioDisconnectedHandler:
     """Test that RadioDisconnectedError maps to 423."""

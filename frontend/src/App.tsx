@@ -663,6 +663,7 @@ export function App() {
     sidebarSectionOrder: appSettings?.sidebar_section_order ?? [],
     sidebarToolOrder: appSettings?.sidebar_tool_order ?? [],
     sidebarFavoritesOrder: appSettings?.sidebar_favorites_order ?? [],
+    sidebarFavoriteSortOrders: appSettings?.sidebar_favorite_sort_orders,
     sidebarHidden: appSettings?.sidebar_hidden,
     onSaveSidebarOrder: handleSaveAppSettings,
   };
