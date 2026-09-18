@@ -1,5 +1,7 @@
+import type { FavoriteSortOrder, SidebarFavoriteSortOrders } from '../types';
+
 // Sidebar layout preferences (section order, tool order, favorites-group order,
-// rail collapse).
+// favorites-group sort orders, rail collapse).
 //
 // The three drag-orders (section, tool, favorites-group) are persisted
 // SERVER-SIDE in app_settings so they sync across devices. This module holds the
@@ -89,6 +91,25 @@ export function resolveToolOrder(serverValue: unknown): SidebarToolKey[] {
 }
 export function resolveFavoritesOrder(serverValue: unknown): FavoriteGroupKey[] {
   return reconcile<FavoriteGroupKey>(serverValue, ALL_FAVORITE_GROUP_KEYS);
+}
+
+// Default sort order applied to a favorite group with no stored preference.
+export const DEFAULT_FAVORITE_SORT_ORDER: FavoriteSortOrder = 'recent';
+
+// Normalise the server's sidebar_favorite_sort_orders object into a complete,
+// valid map (one order per favorite group). Unknown keys are dropped and any
+// value other than 'alpha' falls back to the default 'recent'.
+export function resolveFavoriteSortOrders(serverValue: unknown): SidebarFavoriteSortOrders {
+  const obj = (serverValue ?? {}) as Record<string, unknown>;
+  const coerce = (value: unknown): FavoriteSortOrder =>
+    value === 'alpha' ? 'alpha' : DEFAULT_FAVORITE_SORT_ORDER;
+  return {
+    channels: coerce(obj.channels),
+    companions: coerce(obj.companions),
+    repeaters: coerce(obj.repeaters),
+    rooms: coerce(obj.rooms),
+    sensors: coerce(obj.sensors),
+  };
 }
 
 // Normalise the server's sidebar_hidden object: keep only valid keys per list,

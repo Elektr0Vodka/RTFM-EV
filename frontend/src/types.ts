@@ -548,6 +548,16 @@ export interface SidebarHidden {
   favorites: string[];
 }
 
+export type FavoriteSortOrder = 'recent' | 'alpha';
+
+export interface SidebarFavoriteSortOrders {
+  channels: FavoriteSortOrder;
+  companions: FavoriteSortOrder;
+  repeaters: FavoriteSortOrder;
+  rooms: FavoriteSortOrder;
+  sensors: FavoriteSortOrder;
+}
+
 export interface AppSettings {
   max_radio_contacts: number;
   auto_decrypt_dm_on_advert: boolean;
@@ -563,6 +573,7 @@ export interface AppSettings {
   sidebar_tool_order: string[];
   sidebar_favorites_order: string[];
   sidebar_hidden: SidebarHidden;
+  sidebar_favorite_sort_orders: SidebarFavoriteSortOrders;
   discovery_blocked_types: number[];
   tracked_telemetry_repeaters: string[];
   tracked_telemetry_contacts: string[];
@@ -760,6 +771,7 @@ export interface AppSettingsUpdate {
   sidebar_tool_order?: string[];
   sidebar_favorites_order?: string[];
   sidebar_hidden?: SidebarHidden;
+  sidebar_favorite_sort_orders?: Partial<SidebarFavoriteSortOrders>;
   discovery_blocked_types?: number[];
   telemetry_interval_hours?: number;
   telemetry_routed_hourly?: boolean;

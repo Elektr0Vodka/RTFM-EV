@@ -780,10 +780,11 @@ describe('Sidebar section summaries', () => {
     });
   });
 
-  it('sorts favorites independently and persists the favorites sort preference', () => {
+  it('sorts a favorite group by its own toggle and persists it server-side', () => {
     const publicChannel = makeChannel(PUBLIC_CHANNEL_KEY, 'Public');
     const zed = makeContact('11'.repeat(32), 'Zed', 1, { last_advert: 150, favorite: true });
     const amy = makeContact('22'.repeat(32), 'Amy', 1, { favorite: true });
+    const onSaveSidebarOrder = vi.fn();
 
     const props = {
       contacts: [zed, amy],
@@ -800,6 +801,7 @@ describe('Sidebar section summaries', () => {
       crackerRunning: false,
       onToggleCracker: vi.fn(),
       onMarkAllRead: vi.fn(),
+      onSaveSidebarOrder,
     };
 
     const getFavoritesOrder = () =>
@@ -810,36 +812,48 @@ describe('Sidebar section summaries', () => {
 
     const { unmount } = render(<Sidebar {...props} />);
 
+    // Both are companions; default order is recent (Zed most recent).
     expect(getFavoritesOrder()).toEqual(['Zed', 'Amy']);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Sort Favorites alphabetically' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Sort Favorite Companions alphabetically' })
+    );
 
     expect(getFavoritesOrder()).toEqual(['Amy', 'Zed']);
+    // Persisted to the backend, not localStorage.
+    expect(onSaveSidebarOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sidebar_favorite_sort_orders: expect.objectContaining({ companions: 'alpha' }),
+      })
+    );
 
+    // A remount that receives the server value renders the persisted order.
     unmount();
-    render(<Sidebar {...props} />);
+    render(<Sidebar {...props} sidebarFavoriteSortOrders={{ companions: 'alpha' }} />);
 
     expect(getFavoritesOrder()).toEqual(['Amy', 'Zed']);
   });
 
-  it('always groups favorites by type and toggles recent<->alpha within groups', () => {
-    // Mixed-type favorites: a channel (channels group), two companions, a repeater.
-    // Favorites are ALWAYS grouped now; the toggle only orders within each group.
-    const chan = makeChannel('cd'.repeat(16), 'Zulu');
+  it('sorts each favorite group independently by its own per-group toggle', () => {
+    // Two channels (channels group) and two companions (companions group). Toggling
+    // one group's order must not affect the other group's order.
+    const chanZulu = { ...makeChannel('cd'.repeat(16), 'Zulu'), favorite: true };
+    const chanAce = { ...makeChannel('ef'.repeat(16), 'Ace'), favorite: true };
     const alpha = makeContact('11'.repeat(32), 'Alpha', 1, { favorite: true });
     const bravo = makeContact('22'.repeat(32), 'Bravo', 1, { favorite: true });
-    const yankee = makeContact('33'.repeat(32), 'Yankee', 2, { favorite: true }); // repeater
-    const favChannel = { ...chan, favorite: true };
 
     const props = {
-      contacts: [alpha, bravo, yankee],
-      channels: [favChannel],
+      contacts: [alpha, bravo],
+      channels: [chanZulu, chanAce],
       activeConversation: null,
       onSelectConversation: vi.fn(),
       onNewMessage: vi.fn(),
       lastMessageTimes: {
+        // channels: Zulu more recent than Ace; companions: Bravo more recent than Alpha.
+        [getStateKey('channel', chanZulu.key)]: 400,
+        [getStateKey('channel', chanAce.key)]: 100,
         [getStateKey('contact', alpha.public_key)]: 100,
-        [getStateKey('contact', bravo.public_key)]: 300, // Bravo more recent than Alpha
+        [getStateKey('contact', bravo.public_key)]: 300,
       },
       unreadCounts: {},
       mentions: {},
@@ -851,24 +865,29 @@ describe('Sidebar section summaries', () => {
 
     const getFavoritesOrder = () =>
       screen
-        .getAllByText(/^(Alpha|Bravo|Yankee|Zulu)$/)
+        .getAllByText(/^(Alpha|Bravo|Zulu|Ace)$/)
         .map((node) => node.textContent)
         .filter((text): text is string => Boolean(text));
 
     render(<Sidebar {...props} />);
 
-    // Default (recent), always grouped: channels group (Zulu), then companions
-    // (recent: Bravo before Alpha), then repeaters (Yankee).
-    expect(getFavoritesOrder()).toEqual(['Zulu', 'Bravo', 'Alpha', 'Yankee']);
+    // Both groups default to recent: channels [Zulu, Ace], companions [Bravo, Alpha].
+    expect(getFavoritesOrder()).toEqual(['Zulu', 'Ace', 'Bravo', 'Alpha']);
 
-    // recent -> alpha: same grouping, companions now A-Z (Alpha before Bravo).
-    fireEvent.click(screen.getByRole('button', { name: 'Sort Favorites alphabetically' }));
-    expect(getFavoritesOrder()).toEqual(['Zulu', 'Alpha', 'Bravo', 'Yankee']);
+    // Toggle only the Companions group to alpha: companions reorder to [Alpha, Bravo]
+    // while the Channels group keeps its recent order [Zulu, Ace].
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Sort Favorite Companions alphabetically' })
+    );
+    expect(getFavoritesOrder()).toEqual(['Zulu', 'Ace', 'Alpha', 'Bravo']);
 
-    // alpha -> recent: 2-way toggle wraps back.
-    expect(screen.getByRole('button', { name: 'Sort Favorites by recent' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Sort Favorites by recent' }));
-    expect(getFavoritesOrder()).toEqual(['Zulu', 'Bravo', 'Alpha', 'Yankee']);
+    // Now toggle only the Channels group to alpha: channels reorder to [Ace, Zulu]
+    // while Companions stays alpha [Alpha, Bravo].
+    fireEvent.click(screen.getByRole('button', { name: 'Sort Favorite Channels alphabetically' }));
+    expect(getFavoritesOrder()).toEqual(['Ace', 'Zulu', 'Alpha', 'Bravo']);
+
+    // The parent Favorites header no longer exposes a sort toggle.
+    expect(screen.queryByRole('button', { name: /^Sort Favorites / })).not.toBeInTheDocument();
   });
 
   it('dims and italicizes a muted channel row name while leaving unmuted names normal', () => {
@@ -921,43 +940,6 @@ describe('Sidebar section summaries', () => {
     );
 
     expect(screen.getByText('Public')).toHaveClass('opacity-40', 'italic');
-  });
-
-  it('seeds favorites sort from the legacy global sort order when section prefs are missing', () => {
-    localStorage.setItem('remoteterm-sortOrder', 'alpha');
-
-    const publicChannel = makeChannel(PUBLIC_CHANNEL_KEY, 'Public');
-    const zed = makeContact('11'.repeat(32), 'Zed', 1, { last_advert: 150, favorite: true });
-    const amy = makeContact('22'.repeat(32), 'Amy', 1, { favorite: true });
-
-    render(
-      <Sidebar
-        contacts={[zed, amy]}
-        channels={[publicChannel]}
-        activeConversation={null}
-        onSelectConversation={vi.fn()}
-        onNewMessage={vi.fn()}
-        lastMessageTimes={{
-          [getStateKey('contact', zed.public_key)]: 200,
-        }}
-        unreadCounts={{}}
-        mentions={{}}
-        showCracker={false}
-        crackerRunning={false}
-        onToggleCracker={vi.fn()}
-        onMarkAllRead={vi.fn()}
-      />
-    );
-
-    const favoriteRows = screen
-      .getAllByText(/^(Amy|Zed)$/)
-      .map((node) => node.textContent)
-      .filter((text): text is string => Boolean(text));
-
-    expect(favoriteRows).toEqual(['Amy', 'Zed']);
-    // Favorites toggle is a 2-way recent<->alpha cycle now; after the seeded
-    // 'alpha' the next order is 'recent'.
-    expect(screen.getByRole('button', { name: 'Sort Favorites by recent' })).toBeInTheDocument();
   });
 });
 

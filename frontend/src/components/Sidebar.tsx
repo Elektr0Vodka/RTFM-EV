@@ -55,6 +55,7 @@ import {
   resolveSectionOrder,
   resolveToolOrder,
   resolveFavoritesOrder,
+  resolveFavoriteSortOrders,
   resolveHidden,
   loadRailCollapsed,
   saveRailCollapsed,
@@ -67,6 +68,7 @@ import {
   type FavoriteGroupKey,
   type SidebarHidden,
 } from '../utils/sidebarLayout';
+import type { FavoriteSortOrder, SidebarFavoriteSortOrders } from '../types';
 import { DragList } from './sidebar/DragList';
 import { useT, type TFn } from '../i18n';
 import { useSeenItems } from '../hooks/useSeenItems';
@@ -216,6 +218,8 @@ interface SidebarProps {
   sidebarSectionOrder?: string[];
   sidebarToolOrder?: string[];
   sidebarFavoritesOrder?: string[];
+  /** Per-favorite-group sort orders (server-persisted). */
+  sidebarFavoriteSortOrders?: Partial<SidebarFavoriteSortOrders>;
   /** Hidden Customize-sidebar entries (server-persisted). */
   sidebarHidden?: { sections: string[]; tools: string[]; favorites: string[] };
   /** Persist a sidebar order/visibility change to the backend. */
@@ -223,6 +227,7 @@ interface SidebarProps {
     sidebar_section_order?: string[];
     sidebar_tool_order?: string[];
     sidebar_favorites_order?: string[];
+    sidebar_favorite_sort_orders?: Partial<SidebarFavoriteSortOrders>;
     sidebar_hidden?: { sections: string[]; tools: string[]; favorites: string[] };
   }) => void | Promise<void>;
   /** When true (mobile drawer mount), pin the rail open and hide the rail toggle. */
@@ -260,6 +265,7 @@ export function Sidebar({
   sidebarSectionOrder = [],
   sidebarToolOrder = [],
   sidebarFavoritesOrder = [],
+  sidebarFavoriteSortOrders,
   sidebarHidden,
   onSaveSidebarOrder,
   forceExpanded = false,
@@ -313,6 +319,9 @@ export function Sidebar({
   const [favoritesOrder, setFavoritesOrder] = useState<FavoriteGroupKey[]>(() =>
     resolveFavoritesOrder(sidebarFavoritesOrder)
   );
+  const [favoriteSortOrders, setFavoriteSortOrders] = useState<SidebarFavoriteSortOrders>(() =>
+    resolveFavoriteSortOrders(sidebarFavoriteSortOrders)
+  );
   const [hidden, setHidden] = useState<SidebarHidden>(() => resolveHidden(sidebarHidden));
   const [railCollapsed, setRailCollapsed] = useState<boolean>(loadRailCollapsed);
 
@@ -336,6 +345,12 @@ export function Sidebar({
       return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
     });
   }, [sidebarFavoritesOrder]);
+  useEffect(() => {
+    setFavoriteSortOrders((prev) => {
+      const next = resolveFavoriteSortOrders(sidebarFavoriteSortOrders);
+      return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+    });
+  }, [sidebarFavoriteSortOrders]);
   useEffect(() => {
     setHidden((prev) => {
       const next = resolveHidden(sidebarHidden);
@@ -376,6 +391,12 @@ export function Sidebar({
     setFavoritesOrder(next);
     void onSaveSidebarOrder?.({ sidebar_favorites_order: next });
   };
+  const handleFavoriteGroupSortToggle = (group: FavoriteGroupKey) => {
+    const nextOrder: FavoriteSortOrder = favoriteSortOrders[group] === 'alpha' ? 'recent' : 'alpha';
+    const next = { ...favoriteSortOrders, [group]: nextOrder };
+    setFavoriteSortOrders(next);
+    void onSaveSidebarOrder?.({ sidebar_favorite_sort_orders: next });
+  };
   const handleToggleHidden = (kind: keyof SidebarHidden, key: string) => {
     const list = hidden[kind] as string[];
     const nextList = list.includes(key) ? list.filter((k) => k !== key) : [...list, key];
@@ -388,12 +409,15 @@ export function Sidebar({
     setSectionOrder([...ALL_SECTION_KEYS]);
     setToolOrder([...ALL_TOOL_KEYS]);
     setFavoritesOrder([...ALL_FAVORITE_GROUP_KEYS]);
+    const clearedSortOrders = resolveFavoriteSortOrders({});
+    setFavoriteSortOrders(clearedSortOrders);
     const clearedHidden: SidebarHidden = { sections: [], tools: [], favorites: [] };
     setHidden(clearedHidden);
     void onSaveSidebarOrder?.({
       sidebar_section_order: [],
       sidebar_tool_order: [],
       sidebar_favorites_order: [],
+      sidebar_favorite_sort_orders: clearedSortOrders,
       sidebar_hidden: clearedHidden,
     });
     setRailCollapsed(false);
@@ -800,9 +824,13 @@ export function Sidebar({
     favSensorsCollapsed,
   ]);
 
-  // Separate favorites from regular items, and build combined favorites list
+  // Separate favorites from regular items. Favorites are grouped by type and each
+  // group is sorted independently by its own order (favoriteSortOrders[group]);
+  // favoriteItems is the flat concatenation, used only for order-independent
+  // aggregates (section unread/new counts, presence).
   const {
     favoriteItems,
+    favoriteItemsByGroup,
     nonFavoriteChannels,
     nonFavoriteContacts,
     nonFavoriteRooms,
@@ -824,8 +852,24 @@ export function Sidebar({
       ...favContacts.map((contact) => ({ type: 'contact' as const, contact })),
     ];
 
+    const byGroup: Record<FavoriteGroupKey, FavoriteItem[]> = {
+      channels: [],
+      companions: [],
+      repeaters: [],
+      rooms: [],
+      sensors: [],
+    };
+    for (const item of items) {
+      byGroup[favoriteGroupOf(item)].push(item);
+    }
+    const sortedByGroup = {} as Record<FavoriteGroupKey, FavoriteItem[]>;
+    for (const group of ALL_FAVORITE_GROUP_KEYS) {
+      sortedByGroup[group] = sortFavoriteItemsByOrder(byGroup[group], favoriteSortOrders[group]);
+    }
+
     return {
-      favoriteItems: sortFavoriteItemsByOrder(items, sectionSortOrders.favorites),
+      favoriteItems: ALL_FAVORITE_GROUP_KEYS.flatMap((group) => sortedByGroup[group]),
+      favoriteItemsByGroup: sortedByGroup,
       nonFavoriteChannels: nonFavChannels,
       nonFavoriteContacts: nonFavContacts,
       nonFavoriteRooms: nonFavRooms,
@@ -836,7 +880,7 @@ export function Sidebar({
     filteredNonRepeaterContacts,
     filteredRooms,
     filteredRepeaters,
-    sectionSortOrders.favorites,
+    favoriteSortOrders,
     sortFavoriteItemsByOrder,
   ]);
 
@@ -1017,9 +1061,9 @@ export function Sidebar({
       ? buildChannelRow(item.channel, 'fav-chan')
       : buildContactRow(item.contact, 'fav-contact')
   );
-  // Favourites split by type for the collapsible sub-sections. favoriteItems is
-  // already sorted (group order then recent/alpha), so pushing in order keeps the
-  // intra-group order. Row-key prefixes stay stable per group.
+  // Favourites split by type for the collapsible sub-sections. Each group is
+  // already sorted by its own order (favoriteItemsByGroup), so building rows in
+  // order preserves the intra-group order. Row-key prefixes stay stable per group.
   const FAV_ROW_PREFIX: Record<FavoriteGroupKey, string> = {
     channels: 'fav-chan',
     companions: 'fav-contact',
@@ -1034,13 +1078,14 @@ export function Sidebar({
     rooms: [],
     sensors: [],
   };
-  for (const item of favoriteItems) {
-    const group = favoriteGroupOf(item);
-    const row =
-      item.type === 'channel'
-        ? buildChannelRow(item.channel, FAV_ROW_PREFIX.channels)
-        : buildContactRow(item.contact, FAV_ROW_PREFIX[group]);
-    favoriteRowsByGroup[group].push(row);
+  for (const group of ALL_FAVORITE_GROUP_KEYS) {
+    for (const item of favoriteItemsByGroup[group]) {
+      favoriteRowsByGroup[group].push(
+        item.type === 'channel'
+          ? buildChannelRow(item.channel, FAV_ROW_PREFIX.channels)
+          : buildContactRow(item.contact, FAV_ROW_PREFIX[group])
+      );
+    }
   }
   // Label + collapse handle for each favourite type group.
   const favoriteGroupMeta = (
@@ -1309,10 +1354,27 @@ export function Sidebar({
     action: React.ReactNode = null,
     totalCount = 0,
     newCount = 0,
-    onClearSection: (() => void) | null = null
+    onClearSection: (() => void) | null = null,
+    favoriteGroupSort: { order: FavoriteSortOrder; onToggle: () => void } | null = null
   ) => {
     const effectiveCollapsed = isSearching ? false : collapsed;
     const sectionSortOrder = sortSection ? sectionSortOrders[sortSection] : null;
+    // Unified sort control: either a top-level section (localStorage recent/alpha
+    // cycle) or a favorite sub-group (server-persisted recent<->alpha).
+    const sortControl: { order: SortOrder; next: SortOrder; onToggle: () => void } | null =
+      sortSection && sectionSortOrder
+        ? {
+            order: sectionSortOrder,
+            next: nextSortOrder(sortSection, sectionSortOrder),
+            onToggle: () => handleSortToggle(sortSection),
+          }
+        : favoriteGroupSort
+          ? {
+              order: favoriteGroupSort.order,
+              next: favoriteGroupSort.order === 'alpha' ? 'recent' : 'alpha',
+              onToggle: favoriteGroupSort.onToggle,
+            }
+          : null;
 
     return (
       <div className="flex justify-between items-center px-3 py-2 pt-3.5">
@@ -1344,26 +1406,23 @@ export function Sidebar({
             {totalCount}
           </span>
         )}
-        {(sortSection || unreadCount > 0 || newCount > 0 || action || onClearSection) && (
+        {(sortControl || unreadCount > 0 || newCount > 0 || action || onClearSection) && (
           <div className="ml-auto flex items-center gap-1.5">
             {action}
-            {sortSection && sectionSortOrder && (
+            {sortControl && (
               <button
                 className="bg-transparent text-muted-foreground/60 px-1 py-0.5 text-[0.625rem] rounded hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring whitespace-nowrap"
-                onClick={() => handleSortToggle(sortSection)}
+                onClick={sortControl.onToggle}
                 aria-label={t('chat_sort_aria', {
                   section: title,
-                  description: sortOrderDescription(
-                    nextSortOrder(sortSection, sectionSortOrder),
-                    t
-                  ),
+                  description: sortOrderDescription(sortControl.next, t),
                 })}
                 title={t('chat_sort_title', {
-                  current: sortOrderDescription(sectionSortOrder, t),
-                  next: sortOrderDescription(nextSortOrder(sortSection, sectionSortOrder), t),
+                  current: sortOrderDescription(sortControl.order, t),
+                  next: sortOrderDescription(sortControl.next, t),
                 })}
               >
-                {sortOrderLabel(sectionSortOrder, t)}
+                {sortOrderLabel(sortControl.order, t)}
               </button>
             )}
             {onClearSection && (
@@ -1425,7 +1484,7 @@ export function Sidebar({
               t('nav_favorites_heading'),
               favoritesCollapsed,
               () => setFavoritesCollapsed((prev) => !prev),
-              'favorites',
+              null,
               favoritesUnreadCount,
               favoritesHasMention,
               null,
@@ -1444,7 +1503,22 @@ export function Sidebar({
                   const meta = favoriteGroupMeta(group);
                   return (
                     <Fragment key={`fav-grp-${group}`}>
-                      {renderSectionHeader(meta.label, meta.collapsed, meta.toggle)}
+                      {renderSectionHeader(
+                        meta.label,
+                        meta.collapsed,
+                        meta.toggle,
+                        null,
+                        0,
+                        false,
+                        null,
+                        0,
+                        0,
+                        null,
+                        {
+                          order: favoriteSortOrders[group],
+                          onToggle: () => handleFavoriteGroupSortToggle(group),
+                        }
+                      )}
                       {(isSearching || !meta.collapsed) &&
                         rows.map((row) => renderConversationRow(row))}
                     </Fragment>

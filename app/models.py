@@ -1219,6 +1219,21 @@ class SidebarHidden(BaseModel):
     favorites: list[str] = Field(default_factory=list)
 
 
+class SidebarFavoriteSortOrders(BaseModel):
+    """Per-favorite-group sort order in the sidebar.
+
+    Each favorite type sub-group (channels/companions/repeaters/rooms/sensors)
+    keeps its own sort order (``recent`` or ``alpha``). The frontend constrains
+    values to those two; unknown values are reconciled to ``recent`` there.
+    """
+
+    channels: str = Field(default="recent")
+    companions: str = Field(default="recent")
+    repeaters: str = Field(default="recent")
+    rooms: str = Field(default="recent")
+    sensors: str = Field(default="recent")
+
+
 class AppSettings(BaseModel):
     """Application settings stored in the database."""
 
@@ -1283,6 +1298,10 @@ class AppSettings(BaseModel):
     sidebar_favorites_order: list[str] = Field(
         default_factory=list,
         description="User's Favorites group drag order; empty = client default.",
+    )
+    sidebar_favorite_sort_orders: SidebarFavoriteSortOrders = Field(
+        default_factory=SidebarFavoriteSortOrders,
+        description="Per-favorite-group sort order (recent/alpha) in the sidebar.",
     )
     discovery_blocked_types: list[int] = Field(
         default_factory=list,

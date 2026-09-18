@@ -11,6 +11,7 @@ from app.models import (
     AppSettings,
     HandyInfoSettings,
     MentionSoundMeta,
+    SidebarFavoriteSortOrders,
     SidebarHidden,
 )
 from app.path_utils import bucket_path_hash_widths, bucket_region_scope, parse_packet_envelope
@@ -68,7 +69,7 @@ class AppSettingsRepository:
                    openhop_api_url, openhop_api_token,
                    mention_sound_enabled, mention_sound_choice, mention_sound_volume,
                    sidebar_section_order, sidebar_tool_order, sidebar_favorites_order,
-                   sidebar_hidden
+                   sidebar_hidden, sidebar_favorite_sort_orders
             FROM app_settings WHERE id = 1
             """
         ) as cursor:
@@ -141,6 +142,17 @@ class AppSettingsRepository:
                 sidebar_hidden = SidebarHidden.model_validate(json.loads(raw_hidden))
         except (json.JSONDecodeError, TypeError, KeyError, ValueError):
             sidebar_hidden = SidebarHidden()
+
+        # Parse sidebar_favorite_sort_orders JSON object ({} or invalid -> defaults).
+        sidebar_favorite_sort_orders = SidebarFavoriteSortOrders()
+        try:
+            raw_sort_orders = row["sidebar_favorite_sort_orders"]
+            if raw_sort_orders:
+                sidebar_favorite_sort_orders = SidebarFavoriteSortOrders.model_validate(
+                    json.loads(raw_sort_orders)
+                )
+        except (json.JSONDecodeError, TypeError, KeyError, ValueError):
+            sidebar_favorite_sort_orders = SidebarFavoriteSortOrders()
 
         # Parse discovery_blocked_types JSON
         discovery_blocked_types: list[int] = []
@@ -400,6 +412,7 @@ class AppSettingsRepository:
             sidebar_tool_order=sidebar_tool_order,
             sidebar_favorites_order=sidebar_favorites_order,
             sidebar_hidden=sidebar_hidden,
+            sidebar_favorite_sort_orders=sidebar_favorite_sort_orders,
         )
 
     @staticmethod
@@ -450,6 +463,7 @@ class AppSettingsRepository:
         sidebar_tool_order: list[str] | None = None,
         sidebar_favorites_order: list[str] | None = None,
         sidebar_hidden: SidebarHidden | None = None,
+        sidebar_favorite_sort_orders: SidebarFavoriteSortOrders | None = None,
     ) -> None:
         """Apply field updates using an already-acquired connection.
 
@@ -506,6 +520,10 @@ class AppSettingsRepository:
         if sidebar_hidden is not None:
             updates.append("sidebar_hidden = ?")
             params.append(json.dumps(sidebar_hidden.model_dump()))
+
+        if sidebar_favorite_sort_orders is not None:
+            updates.append("sidebar_favorite_sort_orders = ?")
+            params.append(json.dumps(sidebar_favorite_sort_orders.model_dump()))
 
         if blocked_keys is not None:
             updates.append("blocked_keys = ?")
@@ -695,6 +713,7 @@ class AppSettingsRepository:
         sidebar_tool_order: list[str] | None = None,
         sidebar_favorites_order: list[str] | None = None,
         sidebar_hidden: SidebarHidden | None = None,
+        sidebar_favorite_sort_orders: SidebarFavoriteSortOrders | None = None,
     ) -> AppSettings:
         """Update app settings. Only provided fields are updated."""
         async with db.tx() as conn:
@@ -744,6 +763,7 @@ class AppSettingsRepository:
                 sidebar_tool_order=sidebar_tool_order,
                 sidebar_favorites_order=sidebar_favorites_order,
                 sidebar_hidden=sidebar_hidden,
+                sidebar_favorite_sort_orders=sidebar_favorite_sort_orders,
             )
             return await AppSettingsRepository._get_in_conn(conn)
 
