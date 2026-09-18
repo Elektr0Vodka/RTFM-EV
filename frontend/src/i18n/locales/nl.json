@@ -51,6 +51,7 @@
   },
   "a11y_view_contact_info_title": "Contactinfo bekijken",
   "a11y_view_info_for": "Info bekijken voor {name}",
+  "chart_zoom_hint": "Scroll om te zoomen, sleep om te pannen, dubbelklik om te resetten",
   "chat_add_favorite_contact_desc": "Toevoegen aan favorieten. Favoriete contacten blijven geladen op de radio voor ACK-ondersteuning.",
   "chat_cracker_status_idle": "(inactief)",
   "chat_cracker_status_running": "(actief)",

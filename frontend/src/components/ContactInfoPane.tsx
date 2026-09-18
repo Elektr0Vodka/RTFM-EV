@@ -37,6 +37,8 @@ import { buildNodeLookupUrl } from '../utils/analyzerLink';
 import { getMapFocusHash } from '../utils/urlHash';
 import { handleKeyboardActivate } from '../utils/a11y';
 import { useT, type TFn } from '../i18n';
+import { ZoomableChart } from './charts/ZoomableChart';
+import type { ChartWindow } from '../lib/chartZoom';
 import { ContactAvatar } from './ContactAvatar';
 import { ContactRadioResidencyControl } from './ContactRadioResidencyControl';
 import { LppSensorRow, formatLppLabel } from './repeater/repeaterPaneShared';
@@ -926,6 +928,8 @@ const TOOLTIP_STYLE = {
 } as const;
 
 const ACTIVITY_CHART_HEIGHT = 140;
+const INDEX_MIN_SPAN = 2; // smallest zoom window, in buckets
+const TIME_MIN_SPAN = 30; // smallest zoom window, in seconds
 
 function ActivityLineChart<T extends ContactAnalyticsHourlyBucket | ContactAnalyticsWeeklyBucket>({
   ready,
@@ -968,69 +972,82 @@ function ActivityLineChart<T extends ContactAnalyticsHourlyBucket | ContactAnaly
 
   return (
     <div role="img" aria-label={ariaLabel}>
-      <ResponsiveContainer width="100%" height={ACTIVITY_CHART_HEIGHT}>
-        <LineChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -16 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-          <XAxis
-            dataKey="idx"
-            type="number"
-            domain={[0, Math.max(1, points.length - 1)]}
-            tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-            tickLine={false}
-            axisLine={false}
-            ticks={tickIndices}
-            tickFormatter={(idx) => String(data[idx]?.tick ?? '')}
-          />
-          <YAxis
-            tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-            tickLine={false}
-            axisLine={false}
-            tickFormatter={(v) => valueFormatter(v)}
-            width={40}
-          />
-          <RechartsTooltip
-            {...TOOLTIP_STYLE}
-            cursor={{
-              stroke: 'hsl(var(--muted-foreground))',
-              strokeWidth: 1,
-              strokeDasharray: '3 3',
-            }}
-            labelFormatter={(idx) => String(data[Number(idx)]?.tick ?? '')}
-            formatter={(value, name) => {
-              const match = series.find((s) => String(s.key) === name);
-              return [valueFormatter(Number(value)), match?.label ?? String(name)];
-            }}
-          />
-          {legendItems && (
-            <Legend
-              content={() => (
-                <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-1 text-[0.6875rem] text-muted-foreground">
-                  {legendItems.map((item) => (
-                    <span key={item.label} className="inline-flex items-center gap-1.5">
-                      <span
-                        className="inline-block h-2 w-2 rounded-full"
-                        style={{ backgroundColor: item.color }}
-                      />
-                      {item.label}
-                    </span>
-                  ))}
-                </div>
+      <ZoomableChart
+        full={[0, Math.max(1, points.length - 1)]}
+        minSpan={INDEX_MIN_SPAN}
+        disabled={points.length < 2}
+        inset={{ left: 24, right: 4 }}
+      >
+        {({ domain, isPanning }) => (
+          <ResponsiveContainer width="100%" height={ACTIVITY_CHART_HEIGHT}>
+            <LineChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -16 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis
+                dataKey="idx"
+                type="number"
+                allowDataOverflow
+                domain={domain}
+                tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                tickLine={false}
+                axisLine={false}
+                ticks={tickIndices}
+                tickFormatter={(idx) => String(data[idx]?.tick ?? '')}
+              />
+              <YAxis
+                tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(v) => valueFormatter(v)}
+                width={40}
+              />
+              {!isPanning && (
+                <RechartsTooltip
+                  {...TOOLTIP_STYLE}
+                  cursor={{
+                    stroke: 'hsl(var(--muted-foreground))',
+                    strokeWidth: 1,
+                    strokeDasharray: '3 3',
+                  }}
+                  labelFormatter={(idx) => String(data[Number(idx)]?.tick ?? '')}
+                  formatter={(value, name) => {
+                    const match = series.find((s) => String(s.key) === name);
+                    return [valueFormatter(Number(value)), match?.label ?? String(name)];
+                  }}
+                />
               )}
-            />
-          )}
-          {series.map((entry) => (
-            <Line
-              key={String(entry.key)}
-              type="linear"
-              dataKey={String(entry.key)}
-              stroke={entry.color}
-              strokeWidth={1.5}
-              dot={false}
-              activeDot={{ r: 4, strokeWidth: 2, stroke: 'hsl(var(--popover))' }}
-            />
-          ))}
-        </LineChart>
-      </ResponsiveContainer>
+              {legendItems && (
+                <Legend
+                  content={() => (
+                    <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-1 text-[0.6875rem] text-muted-foreground">
+                      {legendItems.map((item) => (
+                        <span key={item.label} className="inline-flex items-center gap-1.5">
+                          <span
+                            className="inline-block h-2 w-2 rounded-full"
+                            style={{ backgroundColor: item.color }}
+                          />
+                          {item.label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                />
+              )}
+              {series.map((entry) => (
+                <Line
+                  key={String(entry.key)}
+                  type="linear"
+                  dataKey={String(entry.key)}
+                  stroke={entry.color}
+                  strokeWidth={1.5}
+                  dot={false}
+                  isAnimationActive={false}
+                  activeDot={{ r: 4, strokeWidth: 2, stroke: 'hsl(var(--popover))' }}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </ZoomableChart>
     </div>
   );
 }
@@ -1417,6 +1434,17 @@ function ContactTelemetrySection({
 
   const activeSeries = sensorSeries.find((s) => s.key === activeMetric);
 
+  const telemetryFull = useMemo<ChartWindow>(() => {
+    if (chartData.length === 0) return [0, 0];
+    let lo = chartData[0].time;
+    let hi = chartData[0].time;
+    for (const d of chartData) {
+      if (d.time < lo) lo = d.time;
+      if (d.time > hi) hi = d.time;
+    }
+    return [lo, hi];
+  }, [chartData]);
+
   return (
     <div className="px-5 py-3 border-b border-border">
       <div className="flex items-center justify-between">
@@ -1529,46 +1557,60 @@ function ContactTelemetrySection({
                     ))}
                   </div>
                   {chartData.length > 1 && activeSeries && (
-                    <ResponsiveContainer width="100%" height={120}>
-                      <AreaChart data={chartData}>
-                        <CartesianGrid
-                          strokeDasharray="3 3"
-                          stroke="hsl(var(--border))"
-                          vertical={false}
-                        />
-                        <XAxis
-                          dataKey="time"
-                          tickFormatter={(timestamp: number) => {
-                            const d = new Date(timestamp * 1000);
-                            return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
-                          }}
-                          tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                          tickLine={false}
-                          axisLine={false}
-                        />
-                        <YAxis
-                          tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                          tickLine={false}
-                          axisLine={false}
-                          width={40}
-                        />
-                        <RechartsTooltip
-                          {...TOOLTIP_STYLE}
-                          labelFormatter={(timestamp) =>
-                            new Date(Number(timestamp) * 1000).toLocaleString()
-                          }
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="value"
-                          name={activeSeries.label}
-                          stroke={activeSeries.color}
-                          fill={activeSeries.color}
-                          fillOpacity={0.15}
-                          dot={false}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
+                    <ZoomableChart
+                      full={telemetryFull}
+                      minSpan={TIME_MIN_SPAN}
+                      inset={{ left: 40, right: 4 }}
+                    >
+                      {({ domain, isPanning }) => (
+                        <ResponsiveContainer width="100%" height={120}>
+                          <AreaChart data={chartData}>
+                            <CartesianGrid
+                              strokeDasharray="3 3"
+                              stroke="hsl(var(--border))"
+                              vertical={false}
+                            />
+                            <XAxis
+                              dataKey="time"
+                              type="number"
+                              allowDataOverflow
+                              domain={domain}
+                              tickFormatter={(timestamp: number) => {
+                                const d = new Date(timestamp * 1000);
+                                return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
+                              }}
+                              tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                              tickLine={false}
+                              axisLine={false}
+                            />
+                            <YAxis
+                              tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                              tickLine={false}
+                              axisLine={false}
+                              width={40}
+                            />
+                            {!isPanning && (
+                              <RechartsTooltip
+                                {...TOOLTIP_STYLE}
+                                labelFormatter={(timestamp) =>
+                                  new Date(Number(timestamp) * 1000).toLocaleString()
+                                }
+                              />
+                            )}
+                            <Area
+                              type="monotone"
+                              dataKey="value"
+                              name={activeSeries.label}
+                              stroke={activeSeries.color}
+                              fill={activeSeries.color}
+                              fillOpacity={0.15}
+                              dot={false}
+                              isAnimationActive={false}
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      )}
+                    </ZoomableChart>
                   )}
                 </div>
               )}

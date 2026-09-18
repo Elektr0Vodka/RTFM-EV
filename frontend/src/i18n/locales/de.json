@@ -51,6 +51,7 @@
   },
   "a11y_view_contact_info_title": "Kontaktinfo anzeigen",
   "a11y_view_info_for": "Info anzeigen für {name}",
+  "chart_zoom_hint": "Scrollen zum Zoomen, ziehen zum Verschieben, Doppelklick zum Zurücksetzen",
   "chat_add_favorite_contact_desc": "Zu Favoriten hinzufügen. Favorisierte Kontakte bleiben für ACK-Unterstützung auf dem Funkgerät geladen.",
   "chat_cracker_status_idle": "(inaktiv)",
   "chat_cracker_status_running": "(läuft)",
