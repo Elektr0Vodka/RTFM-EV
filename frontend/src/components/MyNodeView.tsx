@@ -33,6 +33,7 @@ import {
   type TimeRange,
 } from '../utils/timeRanges';
 import { loadStoredTimeRange, saveStoredTimeRange } from '../utils/timeRangePreference';
+import { ZoomableBinChart } from './charts/ZoomableBinChart';
 
 // MeshCore node types (contact.type): translation key per mesh vocabulary label.
 const NODE_TYPE_KEYS: Record<number, string> = {
@@ -806,6 +807,19 @@ function StackedBarChart({
 
 // ─── AirtimeLineChart (TX/RX utilization %) ─────────────────────────────────
 
+// niceCeilPct rounds a percentage up to a "nice" 1/2/5x10^k bound (min 1, cap
+// 100), so a chart whose peak is e.g. 1.8% scales to a 0..2 axis instead of
+// wasting the plot on the empty 2..100 range.
+function niceCeilPct(v: number): number {
+  if (!(v > 0)) return 1;
+  if (v >= 100) return 100;
+  const exp = Math.floor(Math.log10(v));
+  const base = Math.pow(10, exp);
+  const f = v / base;
+  const nf = f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10;
+  return Math.min(100, nf * base);
+}
+
 function AirtimeLineChart({ samples, t }: { samples: AirtimeSample[]; t: TFn }) {
   if (samples.length < 2)
     return (
@@ -828,7 +842,10 @@ function AirtimeLineChart({ samples, t }: { samples: AirtimeSample[]; t: TFn }) 
   const tMax = timestamps[timestamps.length - 1];
   const tRange = tMax - tMin || 1;
   const yMin = 0;
-  const yMax = 100;
+  // Auto-scale to the visible peak so low utilization is readable, instead of
+  // pinning the axis at a full 100%.
+  const peakPct = samples.reduce((m, s) => Math.max(m, s.tx_pct ?? 0, s.rx_pct ?? 0), 0);
+  const yMax = niceCeilPct(peakPct);
 
   const xPos = (i: number) => PAD_L + ((timestamps[i] - tMin) / tRange) * INNER_W;
   const yPos = (v: number) => INNER_H - ((v - yMin) / (yMax - yMin)) * INNER_H;
@@ -843,7 +860,8 @@ function AirtimeLineChart({ samples, t }: { samples: AirtimeSample[]; t: TFn }) 
 
   const rxColor = 'hsl(var(--info))';
   const txColor = 'hsl(var(--destructive))';
-  const yLabels = [0, 25, 50, 75, 100];
+  const yLabels = [0, yMax / 2, yMax];
+  const fmtPct = (v: number) => (yMax >= 10 ? String(Math.round(v)) : String(Number(v.toFixed(2))));
 
   return (
     <svg
@@ -873,7 +891,7 @@ function AirtimeLineChart({ samples, t }: { samples: AirtimeSample[]; t: TFn }) 
               fontSize="8"
               fill="hsl(var(--muted-foreground))"
             >
-              {v}
+              {fmtPct(v)}
             </text>
           </g>
         );
@@ -1637,6 +1655,10 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
   );
   const activeBins = selectedWindow.useLive ? liveBins : (historicalBins ?? liveBins);
 
+  // Each chart owns its own zoom window (see ZoomableBinChart); this is just the
+  // shared left-gutter fraction used to anchor the cursor to the plot area.
+  const binPlotLeftFrac = PAD_L / CW;
+
   const liveStats = useMemo(() => {
     const totalPkts = activeBins.reduce((s, b) => s + b.packets, 0);
     const totalBytes = activeBins.reduce((s, b) => s + b.bytes, 0);
@@ -1952,35 +1974,45 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                   title={t('node_chart_bytes_received')}
                   stat={t('node_value_bytes_compact', { value: liveStats.bytes.toLocaleString() })}
                 >
-                  <BarChart
-                    bins={activeBins}
-                    valueKey="bytes"
-                    color="hsl(var(--primary))"
-                    formatY={(v) =>
-                      v >= 1000
-                        ? t('node_value_k_compact', { value: (v / 1000).toFixed(0) })
-                        : String(v)
-                    }
-                    id="grad-bytes"
-                    tooltipLabel={t('node_tooltip_bytes')}
-                    windowSeconds={windowSeconds}
-                  />
+                  <ZoomableBinChart items={activeBins} plotLeftFrac={binPlotLeftFrac}>
+                    {(bins) => (
+                      <BarChart
+                        bins={bins}
+                        valueKey="bytes"
+                        color="hsl(var(--primary))"
+                        formatY={(v) =>
+                          v >= 1000
+                            ? t('node_value_k_compact', { value: (v / 1000).toFixed(0) })
+                            : String(v)
+                        }
+                        id="grad-bytes"
+                        tooltipLabel={t('node_tooltip_bytes')}
+                        windowSeconds={windowSeconds}
+                      />
+                    )}
+                  </ZoomableBinChart>
                 </ChartCard>
                 <ChartCard
                   title={t('settings_radio_stat_packets_received')}
                   stat={String(liveStats.packets)}
                 >
-                  <BarChart
-                    bins={activeBins}
-                    valueKey="packets"
-                    color="hsl(var(--info))"
-                    id="grad-pkts"
-                    tooltipLabel={t('node_tooltip_packets')}
-                    windowSeconds={windowSeconds}
-                  />
+                  <ZoomableBinChart items={activeBins} plotLeftFrac={binPlotLeftFrac}>
+                    {(bins) => (
+                      <BarChart
+                        bins={bins}
+                        valueKey="packets"
+                        color="hsl(var(--info))"
+                        id="grad-pkts"
+                        tooltipLabel={t('node_tooltip_packets')}
+                        windowSeconds={windowSeconds}
+                      />
+                    )}
+                  </ZoomableBinChart>
                 </ChartCard>
                 <ChartCard title={t('node_chart_packets_by_type')}>
-                  <StackedBarChart bins={activeBins} windowSeconds={windowSeconds} t={t} />
+                  <ZoomableBinChart items={activeBins} plotLeftFrac={binPlotLeftFrac}>
+                    {(bins) => <StackedBarChart bins={bins} windowSeconds={windowSeconds} t={t} />}
+                  </ZoomableBinChart>
                   {typesInWindow.length > 0 ? (
                     <div className="mt-1 flex flex-wrap gap-2 px-1">
                       {typesInWindow.map((pt) => (
@@ -2009,16 +2041,20 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                     return v != null ? t('node_stat_db_avg', { value: v.toFixed(1) }) : undefined;
                   })()}
                 >
-                  <LineChart
-                    bins={activeBins}
-                    valueKey="snr"
-                    color="hsl(var(--warning))"
-                    formatY={(v) => t('node_value_db_compact', { value: v })}
-                    id="line-snr"
-                    tooltipLabel={t('trace_snr_label')}
-                    windowSeconds={windowSeconds}
-                    t={t}
-                  />
+                  <ZoomableBinChart items={activeBins} plotLeftFrac={binPlotLeftFrac}>
+                    {(bins) => (
+                      <LineChart
+                        bins={bins}
+                        valueKey="snr"
+                        color="hsl(var(--warning))"
+                        formatY={(v) => t('node_value_db_compact', { value: v })}
+                        id="line-snr"
+                        tooltipLabel={t('trace_snr_label')}
+                        windowSeconds={windowSeconds}
+                        t={t}
+                      />
+                    )}
+                  </ZoomableBinChart>
                 </ChartCard>
                 <ChartCard
                   title={t('node_chart_rssi_title')}
@@ -2027,16 +2063,20 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                     return v != null ? t('node_stat_dbm_avg', { value: v.toFixed(0) }) : undefined;
                   })()}
                 >
-                  <LineChart
-                    bins={activeBins}
-                    valueKey="rssi"
-                    color="hsl(var(--destructive))"
-                    formatY={(v) => t('node_value_dbm_compact', { value: v })}
-                    id="line-rssi"
-                    tooltipLabel={t('node_tooltip_rssi')}
-                    windowSeconds={windowSeconds}
-                    t={t}
-                  />
+                  <ZoomableBinChart items={activeBins} plotLeftFrac={binPlotLeftFrac}>
+                    {(bins) => (
+                      <LineChart
+                        bins={bins}
+                        valueKey="rssi"
+                        color="hsl(var(--destructive))"
+                        formatY={(v) => t('node_value_dbm_compact', { value: v })}
+                        id="line-rssi"
+                        tooltipLabel={t('node_tooltip_rssi')}
+                        windowSeconds={windowSeconds}
+                        t={t}
+                      />
+                    )}
+                  </ZoomableBinChart>
                 </ChartCard>
                 {noiseFloorSupported !== false && (
                   <ChartCard
@@ -2049,11 +2089,11 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                         : undefined
                     }
                   >
-                    <NoiseFloorLineChart
-                      samples={noiseFloorSamples}
-                      windowSeconds={windowSeconds}
-                      t={t}
-                    />
+                    <ZoomableBinChart items={noiseFloorSamples} plotLeftFrac={binPlotLeftFrac}>
+                      {(s) => (
+                        <NoiseFloorLineChart samples={s} windowSeconds={windowSeconds} t={t} />
+                      )}
+                    </ZoomableBinChart>
                   </ChartCard>
                 )}
                 {airtimeSamples.length > 0 && (
@@ -2064,7 +2104,9 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                       tx: airtimeSamples[airtimeSamples.length - 1].tx_pct.toFixed(1),
                     })}
                   >
-                    <AirtimeLineChart samples={airtimeSamples} t={t} />
+                    <ZoomableBinChart items={airtimeSamples} plotLeftFrac={binPlotLeftFrac}>
+                      {(s) => <AirtimeLineChart samples={s} t={t} />}
+                    </ZoomableBinChart>
                     <div className="mt-1 flex flex-wrap gap-2 px-1">
                       <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
                         <span
@@ -2101,11 +2143,9 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                         : undefined
                     }
                   >
-                    <BatteryLineChart
-                      samples={batterySamples}
-                      windowSeconds={windowSeconds}
-                      t={t}
-                    />
+                    <ZoomableBinChart items={batterySamples} plotLeftFrac={binPlotLeftFrac}>
+                      {(s) => <BatteryLineChart samples={s} windowSeconds={windowSeconds} t={t} />}
+                    </ZoomableBinChart>
                   </ChartCard>
                 )}
               </div>

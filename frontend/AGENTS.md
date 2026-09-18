@@ -335,6 +335,29 @@ jsdom has no layout engine, so none of this is observable from the vitest suite 
 - Mesh discovery in the radio section is limited to node classes that currently answer discovery control-data requests in firmware: repeaters and sensors.
 - Frontend `path_len` fields are hop counts, not raw byte lengths; multibyte path rendering must use the accompanying metadata before splitting hop identifiers.
 
+### Chart zoom/pan (`lib/chartZoom.ts`, `hooks/useChartZoom.ts`, `components/charts/`)
+
+- Time-series charts support wheel-zoom-to-cursor, drag-pan, and double-click
+  reset, ported from `DutchMeshCore-Observers` (`svgchart.js` `barViewClamp` +
+  `bindTimeZoom`), generalized to an arbitrary `[min,max]` domain.
+- `lib/chartZoom.ts` is the single source of truth for the interaction math
+  (`clampWindow` / `zoomAtFraction` / `panByFraction`, pure + unit-tested). The
+  "x" unit is unix seconds for time charts and a bucket index for index/bin
+  charts; `minSpan` is 30 (seconds) or 2 (buckets).
+- Two adapters bind it to our two chart systems, so both feel identical:
+  - **Recharts:** `useChartZoom` hook + `ZoomableChart` wrapper. The chart binds
+    the returned `domain` onto a numeric `<XAxis domain allowDataOverflow
+    type="number">` and hides its tooltip while `isPanning`. `RepeaterTelemetry`-
+    `HistoryPane` is the exception: it drives its existing `<Brush>` window
+    instead (skips drags that start on `.recharts-brush`).
+  - **Custom SVG (`MyNodeView`):** `SvgZoomFrame` owns the wheel/drag/dblclick;
+    `ZoomableBinChart` wraps it with per-chart index-window state and hands the
+    child the visible slice of `bins`/`samples`. Every My Node chart (including
+    the line charts) is wrapped, and each zooms independently.
+- Wheel is bound with a native non-passive listener so it can `preventDefault`
+  (React `onWheel` is passive). New charts opting in should set
+  `isAnimationActive={false}` so zoom/pan re-renders don't animate.
+
 ## WebSocket (`useWebSocket.ts`)
 
 - Auto reconnect (3s) with cleanup guard on unmount.

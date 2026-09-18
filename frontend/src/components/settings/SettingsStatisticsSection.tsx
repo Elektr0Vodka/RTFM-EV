@@ -12,9 +12,12 @@ import {
   Cell,
 } from 'recharts';
 import { Separator } from '../ui/separator';
+import { ZoomableChart } from '../charts/ZoomableChart';
 import { api } from '../../api';
 import { useT } from '../../i18n';
 import type { RegionScopeStats, StatisticsResponse } from '../../types';
+
+const INDEX_MIN_SPAN = 2; // smallest zoom window, in buckets
 
 function formatPercent(value: number): string {
   return `${value.toFixed(1)}%`;
@@ -158,52 +161,65 @@ function PacketsPerHourChart({ buckets }: { buckets: { timestamp: number; count:
   }
 
   return (
-    <ResponsiveContainer width="100%" height={140}>
-      <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -8 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-        <XAxis
-          dataKey="idx"
-          type="number"
-          domain={[0, data.length - 1]}
-          tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-          tickLine={false}
-          axisLine={false}
-          ticks={tickIndices}
-          tickFormatter={(idx) => data[idx]?.label ?? ''}
-        />
-        <YAxis
-          tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-          tickLine={false}
-          axisLine={false}
-          allowDecimals={false}
-        />
-        <RechartsTooltip
-          {...TOOLTIP_STYLE}
-          cursor={{
-            stroke: 'hsl(var(--muted-foreground))',
-            strokeWidth: 1,
-            strokeDasharray: '3 3',
-          }}
-          labelFormatter={(idx) => data[Number(idx)]?.label ?? ''}
-          formatter={(value) => [
-            t('settings_statistics_packets_tooltip_value', {
-              count: Number(value).toLocaleString(),
-            }),
-            t('settings_statistics_count_label'),
-          ]}
-        />
-        <Area
-          type="monotone"
-          dataKey="count"
-          stroke="#0ea5e9"
-          fill="#0ea5e9"
-          fillOpacity={0.15}
-          strokeWidth={1.5}
-          dot={false}
-          activeDot={{ r: 4, fill: '#0ea5e9', strokeWidth: 2, stroke: 'hsl(var(--popover))' }}
-        />
-      </AreaChart>
-    </ResponsiveContainer>
+    <ZoomableChart
+      full={[0, Math.max(0, data.length - 1)]}
+      minSpan={INDEX_MIN_SPAN}
+      disabled={data.length < 2}
+      inset={{ left: 22, right: 4 }}
+    >
+      {({ domain, isPanning }) => (
+        <ResponsiveContainer width="100%" height={140}>
+          <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -8 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis
+              dataKey="idx"
+              type="number"
+              allowDataOverflow
+              domain={domain}
+              tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+              tickLine={false}
+              axisLine={false}
+              ticks={tickIndices}
+              tickFormatter={(idx) => data[idx]?.label ?? ''}
+            />
+            <YAxis
+              tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+              tickLine={false}
+              axisLine={false}
+              allowDecimals={false}
+            />
+            {!isPanning && (
+              <RechartsTooltip
+                {...TOOLTIP_STYLE}
+                cursor={{
+                  stroke: 'hsl(var(--muted-foreground))',
+                  strokeWidth: 1,
+                  strokeDasharray: '3 3',
+                }}
+                labelFormatter={(idx) => data[Number(idx)]?.label ?? ''}
+                formatter={(value) => [
+                  t('settings_statistics_packets_tooltip_value', {
+                    count: Number(value).toLocaleString(),
+                  }),
+                  t('settings_statistics_count_label'),
+                ]}
+              />
+            )}
+            <Area
+              type="monotone"
+              dataKey="count"
+              stroke="#0ea5e9"
+              fill="#0ea5e9"
+              fillOpacity={0.15}
+              strokeWidth={1.5}
+              dot={false}
+              isAnimationActive={false}
+              activeDot={{ r: 4, fill: '#0ea5e9', strokeWidth: 2, stroke: 'hsl(var(--popover))' }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      )}
+    </ZoomableChart>
   );
 }
 
@@ -228,48 +244,61 @@ function NoiseFloorChart({
   }
 
   return (
-    <ResponsiveContainer width="100%" height={120}>
-      <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -8 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-        <XAxis
-          dataKey="idx"
-          type="number"
-          domain={[0, samples.length - 1]}
-          tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-          tickLine={false}
-          axisLine={false}
-          ticks={tickIndices}
-          tickFormatter={(idx) => data[idx]?.time ?? ''}
-        />
-        <YAxis
-          tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-          tickLine={false}
-          axisLine={false}
-          domain={['dataMin - 5', 'dataMax + 5']}
-          tickFormatter={(v) => `${v}`}
-        />
-        <RechartsTooltip
-          {...TOOLTIP_STYLE}
-          cursor={{
-            stroke: 'hsl(var(--muted-foreground))',
-            strokeWidth: 1,
-            strokeDasharray: '3 3',
-          }}
-          labelFormatter={(idx) => data[Number(idx)]?.time ?? ''}
-          formatter={(value) => [`${value} dBm`, t('settings_statistics_noise_floor_label')]}
-        />
-        <Area
-          type="linear"
-          dataKey="noise_floor"
-          stroke="#8b5cf6"
-          fill="#8b5cf6"
-          fillOpacity={0.15}
-          strokeWidth={1.5}
-          dot={false}
-          activeDot={{ r: 4, fill: '#8b5cf6', strokeWidth: 2, stroke: 'hsl(var(--popover))' }}
-        />
-      </AreaChart>
-    </ResponsiveContainer>
+    <ZoomableChart
+      full={[0, Math.max(0, samples.length - 1)]}
+      minSpan={INDEX_MIN_SPAN}
+      disabled={samples.length < 2}
+      inset={{ left: 22, right: 4 }}
+    >
+      {({ domain, isPanning }) => (
+        <ResponsiveContainer width="100%" height={120}>
+          <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -8 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis
+              dataKey="idx"
+              type="number"
+              allowDataOverflow
+              domain={domain}
+              tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+              tickLine={false}
+              axisLine={false}
+              ticks={tickIndices}
+              tickFormatter={(idx) => data[idx]?.time ?? ''}
+            />
+            <YAxis
+              tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+              tickLine={false}
+              axisLine={false}
+              domain={['dataMin - 5', 'dataMax + 5']}
+              tickFormatter={(v) => `${v}`}
+            />
+            {!isPanning && (
+              <RechartsTooltip
+                {...TOOLTIP_STYLE}
+                cursor={{
+                  stroke: 'hsl(var(--muted-foreground))',
+                  strokeWidth: 1,
+                  strokeDasharray: '3 3',
+                }}
+                labelFormatter={(idx) => data[Number(idx)]?.time ?? ''}
+                formatter={(value) => [`${value} dBm`, t('settings_statistics_noise_floor_label')]}
+              />
+            )}
+            <Area
+              type="linear"
+              dataKey="noise_floor"
+              stroke="#8b5cf6"
+              fill="#8b5cf6"
+              fillOpacity={0.15}
+              strokeWidth={1.5}
+              dot={false}
+              isAnimationActive={false}
+              activeDot={{ r: 4, fill: '#8b5cf6', strokeWidth: 2, stroke: 'hsl(var(--popover))' }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      )}
+    </ZoomableChart>
   );
 }
 

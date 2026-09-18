@@ -11,6 +11,40 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-18 (Interactive chart zoom/pan, feat/chart-zoom-scaling)
+
+### Time-series charts (frontend)
+- **Charts now zoom and pan like the DutchMeshCore-Observers charts.** Scroll
+  (wheel/trackpad) zooms the visible x-window toward the cursor, drag pans it,
+  and double-click resets to the full range. Ported from
+  `DutchMeshCore-Observers/web/js/lib/svgchart.js` (`barViewClamp` +
+  `bindTimeZoom`), generalized to an arbitrary `[min,max]` domain.
+- The interaction math lives in one pure, unit-tested module
+  (`frontend/src/lib/chartZoom.ts`: `clampWindow` / `zoomAtFraction` /
+  `panByFraction`), driven by two adapters so both chart systems behave
+  identically:
+  - `useChartZoom` hook + `ZoomableChart` wrapper for the Recharts charts
+    (controls a numeric `XAxis` `domain` + `allowDataOverflow`).
+  - `SvgZoomFrame` for MyNodeView's custom inline SVG charts (index-space
+    window; slices `bins` to the visible range).
+- **Each graph has its own independent zoom window** (`ZoomableBinChart` for the
+  custom-SVG charts): zooming one chart no longer moves the others.
+- Applied to: repeater telemetry history and neighbor-signal charts, the
+  contact activity + telemetry-history charts, the Settings > Statistics area
+  charts, and **all** My Node charts - bytes / packets / packets-by-type / SNR /
+  RSSI / noise-floor / airtime / battery (the line charts included).
+- **Airtime utilization chart now auto-scales its Y axis** to the visible peak
+  (nice 1/2/5x10^k bound, capped at 100%) instead of always showing a full
+  0-100% range, so low utilization is readable (`niceCeilPct`).
+- New i18n key `chart_zoom_hint` (EN/NL/DE) shown as the chart tooltip.
+- Gates green (tsc, eslint 0 errors, prettier, 1600 vitest incl. new
+  `chartZoom` + `SvgZoomFrame` tests, vite build). Runtime-verified in the live
+  build: wheel-zoom narrows a chart toward the cursor while its neighbours stay
+  put (independent windows), drag pans, double-click resets, the line charts
+  (SNR/RSSI/noise/airtime/battery) zoom, and the Airtime axis auto-scales
+  (e.g. 0-5% instead of 0-100%).
+- Not included (follow-up): the radar view (tracked separately).
+
 ## Update 2026-09-16 (Analyzer channel help text + neon-node parity, feat/analyzer-channel-help-text)
 
 ### Settings > Database (frontend)

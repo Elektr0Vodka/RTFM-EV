@@ -50,6 +50,7 @@
   },
   "a11y_view_contact_info_title": "View contact info",
   "a11y_view_info_for": "View info for {name}",
+  "chart_zoom_hint": "Scroll to zoom, drag to pan, double-click to reset",
   "chat_add_favorite_contact_desc": "Add to favorites. Favorite contacts stay loaded on the radio for ACK support.",
   "chat_cracker_status_idle": "(idle)",
   "chat_cracker_status_running": "(running)",

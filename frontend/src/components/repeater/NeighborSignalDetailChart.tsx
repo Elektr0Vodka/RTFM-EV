@@ -10,7 +10,11 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { useT } from '../../i18n';
+import { ZoomableChart } from '../charts/ZoomableChart';
+import type { ChartWindow } from '../../lib/chartZoom';
 import { mergeSignalSeries, type SnrPoint } from './neighborSignalUtils';
+
+const TIME_MIN_SPAN = 30; // seconds
 
 interface Props {
   name: string;
@@ -36,6 +40,17 @@ export function NeighborSignalDetailChart({ name, repeaterSamples, selfSamples }
 
   const total = repeaterSamples.length + selfSamples.length;
 
+  const full = useMemo<ChartWindow>(() => {
+    if (data.length === 0) return [0, 0];
+    let lo = data[0].observed_at;
+    let hi = data[0].observed_at;
+    for (const p of data) {
+      if (p.observed_at < lo) lo = p.observed_at;
+      if (p.observed_at > hi) hi = p.observed_at;
+    }
+    return [lo, hi];
+  }, [data]);
+
   return (
     <div className="rounded border border-border/70 bg-muted/10 p-2">
       <div className="mb-1 flex items-center justify-between">
@@ -47,56 +62,65 @@ export function NeighborSignalDetailChart({ name, repeaterSamples, selfSamples }
       {data.length === 0 ? (
         <p className="text-xs text-muted-foreground">{t('neighbor_signal_no_history')}</p>
       ) : (
-        <ResponsiveContainer width="100%" height={160}>
-          <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -12 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-            <XAxis
-              dataKey="observed_at"
-              type="number"
-              domain={['dataMin', 'dataMax']}
-              tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={formatTime}
-            />
-            <YAxis
-              tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-              tickLine={false}
-              axisLine={false}
-              width={34}
-              tickFormatter={(v: number) => `${v}`}
-            />
-            <RechartsTooltip
-              contentStyle={{
-                backgroundColor: 'hsl(var(--popover))',
-                border: '1px solid hsl(var(--border))',
-                borderRadius: '6px',
-                fontSize: '11px',
-                color: 'hsl(var(--popover-foreground))',
-              }}
-              labelFormatter={(l) => formatTime(Number(l))}
-            />
-            <Legend wrapperStyle={{ fontSize: '10px' }} />
-            <Line
-              type="monotone"
-              dataKey="repeater_snr"
-              name={t('neighbor_signal_series_repeater')}
-              stroke="#3b82f6"
-              strokeWidth={1.5}
-              dot={false}
-              connectNulls
-            />
-            <Line
-              type="monotone"
-              dataKey="self_snr"
-              name={t('neighbor_signal_series_self')}
-              stroke="#f59e0b"
-              strokeWidth={1.5}
-              dot={false}
-              connectNulls
-            />
-          </LineChart>
-        </ResponsiveContainer>
+        <ZoomableChart full={full} minSpan={TIME_MIN_SPAN} inset={{ left: 22, right: 8 }}>
+          {({ domain, isPanning }) => (
+            <ResponsiveContainer width="100%" height={160}>
+              <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -12 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <XAxis
+                  dataKey="observed_at"
+                  type="number"
+                  allowDataOverflow
+                  domain={domain}
+                  tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={formatTime}
+                />
+                <YAxis
+                  tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={34}
+                  tickFormatter={(v: number) => `${v}`}
+                />
+                {!isPanning && (
+                  <RechartsTooltip
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--popover))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      color: 'hsl(var(--popover-foreground))',
+                    }}
+                    labelFormatter={(l) => formatTime(Number(l))}
+                  />
+                )}
+                <Legend wrapperStyle={{ fontSize: '10px' }} />
+                <Line
+                  type="monotone"
+                  dataKey="repeater_snr"
+                  name={t('neighbor_signal_series_repeater')}
+                  stroke="#3b82f6"
+                  strokeWidth={1.5}
+                  dot={false}
+                  connectNulls
+                  isAnimationActive={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="self_snr"
+                  name={t('neighbor_signal_series_self')}
+                  stroke="#f59e0b"
+                  strokeWidth={1.5}
+                  dot={false}
+                  connectNulls
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </ZoomableChart>
       )}
     </div>
   );

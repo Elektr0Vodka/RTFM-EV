@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   AreaChart,
   Area,
@@ -16,7 +16,16 @@ import { Separator } from '../ui/separator';
 import { lppDisplayUnit } from './repeaterPaneShared';
 import { useDistanceUnit } from '../../contexts/DistanceUnitContext';
 import { useT, type TFn } from '../../i18n';
+import {
+  zoomAtFraction,
+  panByFraction,
+  WHEEL_IN,
+  WHEEL_OUT,
+  type ChartWindow,
+} from '../../lib/chartZoom';
 import type { TelemetryHistoryEntry, TelemetryLppSensor, Contact } from '../../types';
+
+const INDEX_MIN_SPAN = 2; // smallest zoom window, in samples
 
 const MAX_TRACKED = 8;
 
@@ -494,6 +503,62 @@ export function TelemetryHistoryPane({
     }
   };
 
+  // Reference-style wheel-zoom / drag-pan driving the existing brush window
+  // (index space). The pure math is shared with the other charts via chartZoom.
+  const zoomWrapRef = useRef<HTMLDivElement>(null);
+  const [isPanning, setIsPanning] = useState(false);
+  const viewRef = useRef<ChartWindow>([brushStart, brushEnd]);
+  viewRef.current = [brushStart, brushEnd];
+  const fullRef = useRef<ChartWindow>([0, lastIndex]);
+  fullRef.current = [0, lastIndex];
+
+  const applyWindow = (w: ChartWindow) => {
+    const s = Math.max(0, Math.round(w[0]));
+    const e = Math.min(lastIndex, Math.round(w[1]));
+    if (e - s < 1) return;
+    if (s <= 0 && e >= lastIndex) setBrushRange(null);
+    else setBrushRange({ start: s, end: e });
+  };
+
+  useEffect(() => {
+    const el = zoomWrapRef.current;
+    if (!el) return;
+    const onWheel = (ev: WheelEvent) => {
+      if (lastIndex < INDEX_MIN_SPAN) return;
+      ev.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const frac = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
+      const factor = ev.deltaY < 0 ? WHEEL_IN : WHEEL_OUT;
+      applyWindow(zoomAtFraction(viewRef.current, fullRef.current, frac, factor, INDEX_MIN_SPAN));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastIndex]);
+
+  const onZoomMouseDown = (e: React.MouseEvent) => {
+    if (lastIndex < INDEX_MIN_SPAN) return;
+    // Let the brush handle its own traveller drags.
+    if ((e.target as Element).closest?.('.recharts-brush')) return;
+    const el = zoomWrapRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const startX = e.clientX;
+    const startView = viewRef.current.slice() as ChartWindow;
+    setIsPanning(true);
+    const move = (ev: MouseEvent) => {
+      const deltaFrac = -((ev.clientX - startX) / rect.width);
+      applyWindow(panByFraction(startView, fullRef.current, deltaFrac, INDEX_MIN_SPAN));
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      setIsPanning(false);
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
+
   const formatSeriesValue = (key: string, value: number): string => {
     if (key === 'recv_error_pct') return `${cleanNumber(value)}%`;
     if (activeMetric === 'uptime_seconds') return formatUptime(value);
@@ -695,99 +760,112 @@ export function TelemetryHistoryPane({
         {entries.length === 0 ? (
           <p className="text-sm text-muted-foreground italic">{t('repeater_history_no_data')}</p>
         ) : (
-          <ResponsiveContainer width="100%" height={210}>
-            <AreaChart
-              data={chartData}
-              margin={{
-                top: 4,
-                right: rightKeys.length ? 8 : 4,
-                bottom: 0,
-                left: -8,
-              }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-              <XAxis
-                dataKey="timestamp"
-                type="number"
-                domain={['dataMin', 'dataMax']}
-                tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={formatTime}
-              />
-              <YAxis
-                yAxisId="left"
-                domain={leftDomain}
-                tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={(v) =>
-                  activeMetric === 'uptime_seconds' ? formatUptime(v) : v.toFixed(leftTickDecimals)
-                }
-              />
-              {rightKeys.length > 0 && (
+          <div
+            ref={zoomWrapRef}
+            onMouseDown={onZoomMouseDown}
+            onDoubleClick={() => setBrushRange(null)}
+            title={t('chart_zoom_hint')}
+            style={{ cursor: isPanning ? 'grabbing' : 'grab', touchAction: 'pan-y' }}
+          >
+            <ResponsiveContainer width="100%" height={210}>
+              <AreaChart
+                data={chartData}
+                margin={{
+                  top: 4,
+                  right: rightKeys.length ? 8 : 4,
+                  bottom: 0,
+                  left: -8,
+                }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <XAxis
+                  dataKey="timestamp"
+                  type="number"
+                  domain={['dataMin', 'dataMax']}
+                  tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={formatTime}
+                />
                 <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  domain={rightDomain}
+                  yAxisId="left"
+                  domain={leftDomain}
                   tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
                   tickLine={false}
                   axisLine={false}
                   tickFormatter={(v) =>
-                    activeMetric === 'recv_errors'
-                      ? `${v.toFixed(rightTickDecimals)}%`
-                      : v.toFixed(rightTickDecimals)
+                    activeMetric === 'uptime_seconds'
+                      ? formatUptime(v)
+                      : v.toFixed(leftTickDecimals)
                   }
                 />
-              )}
-              <RechartsTooltip
-                cursor={{
-                  stroke: 'hsl(var(--muted-foreground))',
-                  strokeWidth: 1,
-                  strokeDasharray: '3 3',
-                }}
-                content={renderTooltip}
-              />
-              {series.map((s) => (
-                <Area
-                  key={s.key}
-                  type="linear"
-                  dataKey={s.key}
-                  yAxisId={s.axis}
-                  connectNulls={false}
-                  stroke={s.color}
-                  fill={s.color}
-                  fillOpacity={s.line ? 0 : 0.15}
-                  strokeWidth={1.5}
-                  dot={{
-                    r: 4,
-                    fill: s.color,
-                    strokeWidth: 1.5,
-                    stroke: 'hsl(var(--popover))',
-                  }}
-                  activeDot={{
-                    r: 6,
-                    fill: s.color,
-                    strokeWidth: 2,
-                    stroke: 'hsl(var(--popover))',
-                  }}
-                />
-              ))}
-              {chartData.length > 2 && (
-                <Brush
-                  dataKey="timestamp"
-                  height={22}
-                  travellerWidth={8}
-                  stroke="hsl(var(--muted-foreground))"
-                  fill="hsl(var(--muted))"
-                  tickFormatter={(ts) => formatTime(Number(ts))}
-                  startIndex={brushStart}
-                  endIndex={brushEnd}
-                  onChange={handleBrushChange}
-                />
-              )}
-            </AreaChart>
-          </ResponsiveContainer>
+                {rightKeys.length > 0 && (
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    domain={rightDomain}
+                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) =>
+                      activeMetric === 'recv_errors'
+                        ? `${v.toFixed(rightTickDecimals)}%`
+                        : v.toFixed(rightTickDecimals)
+                    }
+                  />
+                )}
+                {!isPanning && (
+                  <RechartsTooltip
+                    cursor={{
+                      stroke: 'hsl(var(--muted-foreground))',
+                      strokeWidth: 1,
+                      strokeDasharray: '3 3',
+                    }}
+                    content={renderTooltip}
+                  />
+                )}
+                {series.map((s) => (
+                  <Area
+                    key={s.key}
+                    type="linear"
+                    dataKey={s.key}
+                    yAxisId={s.axis}
+                    isAnimationActive={false}
+                    connectNulls={false}
+                    stroke={s.color}
+                    fill={s.color}
+                    fillOpacity={s.line ? 0 : 0.15}
+                    strokeWidth={1.5}
+                    dot={{
+                      r: 4,
+                      fill: s.color,
+                      strokeWidth: 1.5,
+                      stroke: 'hsl(var(--popover))',
+                    }}
+                    activeDot={{
+                      r: 6,
+                      fill: s.color,
+                      strokeWidth: 2,
+                      stroke: 'hsl(var(--popover))',
+                    }}
+                  />
+                ))}
+                {chartData.length > 2 && (
+                  <Brush
+                    dataKey="timestamp"
+                    height={22}
+                    travellerWidth={8}
+                    stroke="hsl(var(--muted-foreground))"
+                    fill="hsl(var(--muted))"
+                    tickFormatter={(ts) => formatTime(Number(ts))}
+                    startIndex={brushStart}
+                    endIndex={brushEnd}
+                    onChange={handleBrushChange}
+                  />
+                )}
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         )}
       </div>
     </div>
