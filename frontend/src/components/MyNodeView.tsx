@@ -821,6 +821,7 @@ function niceCeilPct(v: number): number {
 }
 
 function AirtimeLineChart({ samples, t }: { samples: AirtimeSample[]; t: TFn }) {
+  const [hov, setHov] = useState<number | null>(null);
   if (samples.length < 2)
     return (
       <svg width="100%" viewBox={`0 0 ${CW} ${CH}`} style={{ display: 'block' }}>
@@ -841,6 +842,9 @@ function AirtimeLineChart({ samples, t }: { samples: AirtimeSample[]; t: TFn }) 
   const tMin = timestamps[0];
   const tMax = timestamps[timestamps.length - 1];
   const tRange = tMax - tMin || 1;
+  // Derive a window length from the visible span so the tooltip time matches the
+  // formatting the sibling charts use (this chart is not passed windowSeconds).
+  const windowSeconds = (tMax - tMin) / 1000;
   const yMin = 0;
   // Auto-scale to the visible peak so low utilization is readable, instead of
   // pinning the axis at a full 100%.
@@ -862,6 +866,17 @@ function AirtimeLineChart({ samples, t }: { samples: AirtimeSample[]; t: TFn }) 
   const txColor = 'hsl(var(--destructive))';
   const yLabels = [0, yMax / 2, yMax];
   const fmtPct = (v: number) => (yMax >= 10 ? String(Math.round(v)) : String(Number(v.toFixed(2))));
+
+  const hovZoneW = INNER_W / samples.length;
+  let tipX = 0;
+  let tipY = 0;
+  if (hov !== null) {
+    tipX = xPos(hov);
+    tipY = Math.min(yPos(samples[hov].rx_pct), yPos(samples[hov].tx_pct)) - 20;
+    if (tipX < PAD_L + 40) tipX = PAD_L + 40;
+    if (tipX > CW - 40) tipX = CW - 40;
+    if (tipY < 2) tipY = 2;
+  }
 
   return (
     <svg
@@ -910,6 +925,66 @@ function AirtimeLineChart({ samples, t }: { samples: AirtimeSample[]; t: TFn }) 
         strokeWidth="1.5"
         strokeLinejoin="round"
       />
+      {hov !== null && (
+        <>
+          <circle
+            cx={xPos(hov).toFixed(1)}
+            cy={yPos(samples[hov].rx_pct).toFixed(1)}
+            r="2.5"
+            fill={rxColor}
+            stroke="hsl(var(--background))"
+            strokeWidth="1"
+          />
+          <circle
+            cx={xPos(hov).toFixed(1)}
+            cy={yPos(samples[hov].tx_pct).toFixed(1)}
+            r="2.5"
+            fill={txColor}
+            stroke="hsl(var(--background))"
+            strokeWidth="1"
+          />
+          <g transform={`translate(${tipX.toFixed(1)},${tipY.toFixed(1)})`}>
+            <rect
+              x="-40"
+              y="-11"
+              width="80"
+              height="22"
+              rx="2"
+              fill="hsl(var(--popover))"
+              stroke="hsl(var(--border))"
+              strokeWidth="0.5"
+              style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.3))' }}
+            />
+            <text
+              textAnchor="middle"
+              y="1"
+              fontSize="8.5"
+              fontWeight="600"
+              fill="hsl(var(--popover-foreground))"
+            >
+              {t('node_chart_airtime_stat', {
+                rx: samples[hov].rx_pct.toFixed(1),
+                tx: samples[hov].tx_pct.toFixed(1),
+              })}
+            </text>
+            <text textAnchor="middle" fontSize="6.5" fill="hsl(var(--muted-foreground))" dy="-12">
+              {fmtTime(timestamps[hov], windowSeconds)}
+            </text>
+          </g>
+        </>
+      )}
+      {samples.map((_, i) => (
+        <rect
+          key={i}
+          x={(PAD_L + i * hovZoneW).toFixed(1)}
+          y="0"
+          width={hovZoneW.toFixed(1)}
+          height={`${INNER_H}`}
+          fill="transparent"
+          onMouseEnter={() => setHov(i)}
+          onMouseLeave={() => setHov(null)}
+        />
+      ))}
     </svg>
   );
 }

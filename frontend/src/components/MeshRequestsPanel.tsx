@@ -17,6 +17,7 @@
 
 import { useEffect, useState } from 'react';
 import { useT } from '../i18n';
+import { ZoomableBinChart } from './charts/ZoomableBinChart';
 import { type TimeWindow, relTime, StatTile, DistBars } from './meshHealthShared';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -64,8 +65,19 @@ const RESPONSE_COLOR = 'hsl(var(--info))';
 
 // ─── Volume over time (stacked flood/direct bars + responses line) ─────────────
 
+// fmtBucketTime picks time-only vs date+time formatting from the visible span, so
+// a zoomed-in window shows finer labels. Mirrors MyNodeView's fmtTime tiers.
+function fmtBucketTime(ms: number, spanSeconds: number): string {
+  const d = new Date(ms);
+  if (spanSeconds <= 3600) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (spanSeconds <= 7 * 24 * 3600)
+    return d.toLocaleDateString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
 function VolumeChart({ series }: { series: RequestTrafficBucket[] }) {
   const t = useT();
+  const [hov, setHov] = useState<number | null>(null);
   const W = 360;
   const H = 140;
   const pad = { top: 8, right: 8, bottom: 18, left: 24 };
@@ -81,12 +93,22 @@ function VolumeChart({ series }: { series: RequestTrafficBucket[] }) {
   const barW = Math.max(slot * 0.7, 1);
 
   const yOf = (v: number) => pad.top + ph - (v / maxVal) * ph;
+  const centerX = (i: number) => pad.left + i * slot + slot / 2;
 
-  const respPoints = series
-    .map((b, i) => `${pad.left + i * slot + slot / 2},${yOf(b.responses)}`)
-    .join(' ');
+  const respPoints = series.map((b, i) => `${centerX(i)},${yOf(b.responses)}`).join(' ');
 
   const yTicks = [0, Math.round(maxVal / 2), maxVal];
+
+  const spanSeconds = n > 1 ? series[n - 1].bucket_ts - series[0].bucket_ts : 0;
+
+  const TIP_W = 96;
+  const TIP_H = 48;
+  let tipX = 0;
+  if (hov !== null) {
+    tipX = centerX(hov);
+    if (tipX < pad.left + TIP_W / 2) tipX = pad.left + TIP_W / 2;
+    if (tipX > W - pad.right - TIP_W / 2) tipX = W - pad.right - TIP_W / 2;
+  }
 
   return (
     <svg
@@ -142,6 +164,71 @@ function VolumeChart({ series }: { series: RequestTrafficBucket[] }) {
           strokeLinejoin="round"
         />
       )}
+      {hov !== null && (
+        <>
+          <line
+            x1={centerX(hov)}
+            x2={centerX(hov)}
+            y1={pad.top}
+            y2={pad.top + ph}
+            stroke="hsl(var(--muted-foreground))"
+            strokeWidth={0.5}
+            strokeDasharray="2,2"
+          />
+          <circle
+            cx={centerX(hov)}
+            cy={yOf(series[hov].responses)}
+            r={2.5}
+            fill={RESPONSE_COLOR}
+            stroke="hsl(var(--background))"
+            strokeWidth={1}
+          />
+          <g transform={`translate(${tipX},${pad.top + 2})`}>
+            <rect
+              x={-TIP_W / 2}
+              y={0}
+              width={TIP_W}
+              height={TIP_H}
+              rx={2}
+              fill="hsl(var(--popover))"
+              stroke="hsl(var(--border))"
+              strokeWidth={0.5}
+              style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.3))' }}
+            />
+            <text
+              x={0}
+              y={11}
+              textAnchor="middle"
+              fontSize={7}
+              fontWeight={600}
+              fill="hsl(var(--popover-foreground))"
+            >
+              {fmtBucketTime(series[hov].bucket_ts * 1000, spanSeconds)}
+            </text>
+            <text x={-TIP_W / 2 + 6} y={23} fontSize={7.5} fill={FLOOD_COLOR}>
+              {t('mesh_health_req_tooltip_flood', { count: series[hov].flood })}
+            </text>
+            <text x={-TIP_W / 2 + 6} y={34} fontSize={7.5} fill={DIRECT_COLOR}>
+              {t('mesh_health_req_tooltip_direct', { count: series[hov].direct })}
+            </text>
+            <text x={-TIP_W / 2 + 6} y={45} fontSize={7.5} fill={RESPONSE_COLOR}>
+              {t('mesh_health_req_tooltip_responses', { count: series[hov].responses })}
+            </text>
+          </g>
+        </>
+      )}
+      {series.map((_, i) => (
+        <rect
+          key={i}
+          x={pad.left + i * slot}
+          y={pad.top}
+          width={slot}
+          height={ph}
+          fill="transparent"
+          onMouseEnter={() => setHov(i)}
+          onMouseLeave={() => setHov(null)}
+        />
+      ))}
     </svg>
   );
 }
@@ -307,7 +394,9 @@ export function MeshRequestsPanel({ selectedWindow, refreshKey, onLoadingChange 
               <LegendDot color={RESPONSE_COLOR} label={t('mesh_health_req_legend_responses')} />
             </div>
           </div>
-          <VolumeChart series={data.series} />
+          <ZoomableBinChart items={data.series} plotLeftFrac={24 / 360}>
+            {(s) => <VolumeChart series={s} />}
+          </ZoomableBinChart>
         </div>
       )}
 
