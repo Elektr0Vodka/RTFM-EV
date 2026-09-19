@@ -82,6 +82,7 @@ const baseSettings: AppSettings = {
     rooms: 'recent',
     sensors: 'recent',
   },
+  packet_feed_sort: 'oldest',
   discovery_blocked_types: [],
   tracked_telemetry_repeaters: [],
   tracked_telemetry_contacts: [],

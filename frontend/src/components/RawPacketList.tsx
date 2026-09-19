@@ -12,6 +12,11 @@ interface RawPacketListProps {
   /** When true (default), the feed sticks to the newest packet. */
   autoScroll?: boolean;
   /**
+   * When true, order newest packet first (top). Default false = oldest first
+   * (bottom), the historical behavior.
+   */
+  newestFirst?: boolean;
+  /**
    * Observation keys (see getRawPacketObservationKey) of packets heard directly
    * (decoded, 0 hops). Rendered with a "Direct" marker to flag a nearby sender.
    */
@@ -71,6 +76,7 @@ export function RawPacketList({
   channels,
   onPacketClick,
   autoScroll = true,
+  newestFirst = false,
   directPacketKeys,
 }: RawPacketListProps) {
   const t = useT();
@@ -85,19 +91,26 @@ export function RawPacketList({
     }));
   }, [decoderOptions, packets]);
 
-  // Sort packets by timestamp ascending (oldest first)
+  // Sort packets by timestamp: ascending (oldest first) by default, descending
+  // (newest first) when newestFirst is set.
   const sortedPackets = useMemo(
-    () => [...decodedPackets].sort((a, b) => a.packet.timestamp - b.packet.timestamp),
-    [decodedPackets]
+    () =>
+      [...decodedPackets].sort((a, b) =>
+        newestFirst
+          ? b.packet.timestamp - a.packet.timestamp
+          : a.packet.timestamp - b.packet.timestamp
+      ),
+    [decodedPackets, newestFirst]
   );
 
-  // Stick to the newest packet while autoscroll is on. Toggling it back on also
-  // jumps to the bottom immediately (autoScroll is a dependency).
+  // Stick to the newest packet while autoscroll is on. The newest packet is at
+  // the bottom for oldest-first and at the top for newest-first, so scroll to
+  // the matching edge. Toggling autoscroll or direction re-runs this effect.
   useEffect(() => {
     if (autoScroll && listRef.current) {
-      listRef.current.scrollTop = listRef.current.scrollHeight;
+      listRef.current.scrollTop = newestFirst ? 0 : listRef.current.scrollHeight;
     }
-  }, [packets, autoScroll]);
+  }, [packets, autoScroll, newestFirst]);
 
   if (packets.length === 0) {
     return (

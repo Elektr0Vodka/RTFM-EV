@@ -614,7 +614,11 @@ This is intentional. In the sidebar, unread direct messages for actual contact c
 
 ### RawPacketList autoscroll
 
-`RawPacketList` sticks to the latest packet on every update when its `autoScroll` prop is true (the default). `RawPacketFeedView` exposes an "Autoscroll" checkbox next to the type filters (default ticked, session-only - intentionally not persisted) so users can pause scrolling to correlate older packets. Toggling it back on jumps to the bottom immediately (`autoScroll` is an effect dependency).
+`RawPacketList` sticks to the latest packet on every update when its `autoScroll` prop is true (the default). `RawPacketFeedView` exposes an "Autoscroll" checkbox next to the type filters (default ticked, session-only - intentionally not persisted) so users can pause scrolling to correlate older packets. Toggling it back on jumps to the newest packet immediately (`autoScroll` is an effect dependency).
+
+### RawPacketFeed sort order
+
+`RawPacketFeedView` has a "Sort order" `<select>` (Oldest first / Newest first) next to the Filters button. It drives `RawPacketList`'s `newestFirst` prop, which flips the timestamp sort. Autoscroll sticks to the newest packet's edge in either direction (bottom for oldest-first, top for newest-first). Unlike autoscroll, the choice is persisted server-side in `app_settings.packet_feed_sort` (`'oldest' | 'newest'`, default `'oldest'`) and threaded down from `App.tsx` via `conversationPaneProps` (`packetFeedSort` + `onSaveAppSettings`).
 
 ## Editing Checklist
 

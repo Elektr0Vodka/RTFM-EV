@@ -11,6 +11,24 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-19 (Packet feed sort order, feat/packet-feed-sort)
+
+### Raw Packet Feed (frontend + backend)
+- **The Raw Packet Feed has a Sort order control (Oldest first / Newest first).**
+  The feed previously always rendered oldest-first (newest at the bottom);
+  `RawPacketList` now takes a `newestFirst` prop and orders accordingly, and
+  autoscroll sticks to the newest packet's edge in either direction (bottom for
+  oldest-first, top for newest-first). A `<select>` in the feed header, next to
+  the Filters button, drives it. The choice is persisted server-side in
+  `app_settings.packet_feed_sort` (migration `_096`, `LATEST_SCHEMA_VERSION` 96;
+  defaults to `oldest`, preserving prior behavior) so it survives refreshes and
+  syncs across devices, following the `sidebar_favorite_sort_orders` pattern.
+  Unknown values are ignored on PATCH so a stale client can't corrupt the
+  setting. New i18n keys `packet_sort_label` / `packet_sort_oldest` /
+  `packet_sort_newest` (EN/NL/DE). Gates green (backend pytest incl. migration
+  096 + API round-trip / ruff; frontend tsc / eslint / prettier / vitest 1626 /
+  build).
+
 ## Update 2026-09-19 (Make the packet-feed Geiger sound audible, fix/geiger-sound-packet-feed)
 
 ### Signal audio (frontend)

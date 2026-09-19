@@ -299,6 +299,10 @@ class AppSettingsUpdate(BaseModel):
         default=None,
         description="Per-favorite-group sort order (recent/alpha) in the sidebar",
     )
+    packet_feed_sort: str | None = Field(
+        default=None,
+        description="Raw Packet Feed time-sort direction: 'oldest' or 'newest'",
+    )
     blocked_keys: list[str] | None = Field(
         default=None,
         description="Public keys whose messages are hidden from the UI",
@@ -648,6 +652,11 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
         kwargs["sidebar_hidden"] = update.sidebar_hidden
     if update.sidebar_favorite_sort_orders is not None:
         kwargs["sidebar_favorite_sort_orders"] = update.sidebar_favorite_sort_orders
+
+    # Packet-feed sort direction. Ignore unknown values so a stale client can't
+    # corrupt the setting (matches the telemetry-interval convention).
+    if update.packet_feed_sort is not None and update.packet_feed_sort in ("oldest", "newest"):
+        kwargs["packet_feed_sort"] = update.packet_feed_sort
 
     # Auto-add mentioned channels to the registry
     if update.auto_add_mentioned_channels is not None:

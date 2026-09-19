@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RawPacketFeedView } from '../components/RawPacketFeedView';
 import { resetRawPacketStore, seedRawPacketStore } from '../stores/rawPacketStore';
@@ -29,12 +29,22 @@ const COLLIDING_TEST_CHANNEL: Channel = {
 function renderView({
   packets = [],
   channels = [],
+  packetFeedSort = 'oldest',
+  onSaveAppSettings,
 }: {
   packets?: RawPacket[];
   channels?: Channel[];
+  packetFeedSort?: 'oldest' | 'newest';
+  onSaveAppSettings?: (update: { packet_feed_sort?: 'oldest' | 'newest' }) => void;
 } = {}) {
   seedRawPacketStore({ packets });
-  return render(<RawPacketFeedView channels={channels} />);
+  return render(
+    <RawPacketFeedView
+      channels={channels}
+      packetFeedSort={packetFeedSort}
+      onSaveAppSettings={onSaveAppSettings}
+    />
+  );
 }
 
 describe('RawPacketFeedView', () => {
@@ -65,6 +75,24 @@ describe('RawPacketFeedView', () => {
 
     fireEvent.click(autoscroll);
     expect((screen.getByLabelText('Autoscroll') as HTMLInputElement).checked).toBe(false);
+  });
+
+  describe('sort order', () => {
+    it('reflects the persisted sort direction and saves a change', () => {
+      const onSaveAppSettings = vi.fn();
+      renderView({ packetFeedSort: 'oldest', onSaveAppSettings });
+
+      const select = screen.getByLabelText('Sort order') as HTMLSelectElement;
+      expect(select.value).toBe('oldest');
+
+      fireEvent.change(select, { target: { value: 'newest' } });
+      expect(onSaveAppSettings).toHaveBeenCalledWith({ packet_feed_sort: 'newest' });
+    });
+
+    it('shows newest-first when that is the persisted choice', () => {
+      renderView({ packetFeedSort: 'newest' });
+      expect((screen.getByLabelText('Sort order') as HTMLSelectElement).value).toBe('newest');
+    });
   });
 
   describe('hex filter', () => {
