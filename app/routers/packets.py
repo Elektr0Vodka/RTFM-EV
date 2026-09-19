@@ -696,7 +696,9 @@ async def get_historical_stats(start_ts: int, end_ts: int) -> HistoricalStatsRes
     )
 
 
-# Advert-count thresholds for mesh-health alerts (adverts per window).
+# Flood-advert-count thresholds for mesh-health alerts (flood adverts per window).
+# Only flood-routed adverts count toward the warning level: direct adverts happen
+# far more often by default and do not carry the same mesh cost as a flooded one.
 MESH_HEALTH_HIGH_THRESHOLD = 8
 MESH_HEALTH_MEDIUM_THRESHOLD = 2
 
@@ -719,8 +721,8 @@ class MeshHealthAlert(BaseModel):
     level: str  # "HIGH" | "MEDIUM"
     public_key: str
     name: str | None
-    advert_count: int
-    adverts_per_hour: float
+    advert_count: int  # flood-routed adverts that triggered the warning
+    adverts_per_hour: float  # flood adverts per hour
 
 
 class MeshHealthResponse(BaseModel):
@@ -755,8 +757,10 @@ async def get_mesh_health(start_ts: int, end_ts: int) -> MeshHealthResponse:
     """Advert-frequency health for all contacts heard in the window.
 
     Advert counts use ``last_primary_seen`` so relay copies are not counted as
-    separate advert events. Contacts advertising too frequently are flagged
-    HIGH (> 8/window) or MEDIUM (> 2/window).
+    separate advert events. Only flood-routed adverts count toward the warning
+    level (direct adverts are expected and cheap); contacts flooding too
+    frequently are flagged HIGH (> 8/window) or MEDIUM (> 2/window). Direct and
+    total counts are still reported for context.
     """
     if end_ts <= start_ts:
         raise HTTPException(status_code=400, detail="end_ts must be greater than start_ts")
@@ -795,11 +799,12 @@ async def get_mesh_health(start_ts: int, end_ts: int) -> MeshHealthResponse:
             )
         )
 
-        adverts_per_hour = advert_count / max(window_hours, 0.01)
-        if advert_count > MESH_HEALTH_HIGH_THRESHOLD:
+        # Warnings key off flood-routed adverts only; direct adverts do not count.
+        flood_per_hour = flood / max(window_hours, 0.01)
+        if flood > MESH_HEALTH_HIGH_THRESHOLD:
             level = "HIGH"
             high_count += 1
-        elif advert_count > MESH_HEALTH_MEDIUM_THRESHOLD:
+        elif flood > MESH_HEALTH_MEDIUM_THRESHOLD:
             level = "MEDIUM"
             medium_count += 1
         else:
@@ -810,8 +815,8 @@ async def get_mesh_health(start_ts: int, end_ts: int) -> MeshHealthResponse:
                 level=level,
                 public_key=pk,
                 name=contact.name if contact else None,
-                advert_count=advert_count,
-                adverts_per_hour=round(adverts_per_hour, 2),
+                advert_count=flood,
+                adverts_per_hour=round(flood_per_hour, 2),
             )
         )
 
