@@ -14,6 +14,7 @@ import {
   Library,
   LockOpen,
   Logs,
+  History,
   Map,
   PanelLeftClose,
   PanelLeftOpen,
@@ -464,7 +465,8 @@ export function Sidebar({
       | 'node'
       | 'mesh-health'
       | 'mesh-trends'
-      | 'analyze',
+      | 'analyze'
+      | 'packet-history',
     id: string
   ) => activeConversation?.type === type && activeConversation?.id === id;
 
@@ -1264,6 +1266,20 @@ export function Sidebar({
             }),
           iconOnly,
         });
+      case 'packet-history':
+        return renderSidebarActionRow({
+          key: 'tool-packet-history',
+          active: isActive('packet-history', 'packet-history'),
+          icon: <History className="h-4 w-4" />,
+          label: t('nav_packet_history'),
+          onClick: () =>
+            handleSelectConversation({
+              type: 'packet-history',
+              id: 'packet-history',
+              name: t('nav_packet_history'),
+            }),
+          iconOnly,
+        });
       case 'analyze':
         return renderSidebarActionRow({
           key: 'tool-analyze',
@@ -1652,6 +1668,7 @@ export function Sidebar({
     'mesh-health': t('nav_mesh_health'),
     'mesh-trends': t('nav_mesh_trends'),
     raw: t('nav_packet_feed'),
+    'packet-history': t('nav_packet_history'),
     analyze: t('nav_analyze_packet'),
     map: t('nav_node_map'),
     visualizer: t('nav_mesh_visualizer'),

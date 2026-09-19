@@ -11,6 +11,38 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-19 (Packet History browser + raw-packet retention, feat/packet-history-browser)
+
+Closes #86.
+
+### Packet History (frontend)
+- **New "Packet History" tool under the Tools sidebar group** for browsing the
+  full persisted `raw_packets` history, styled like the live packet feed.
+  Preset windows (1 / 3 / 6 / 12 / 24 h, and the other shared presets) plus an
+  explicit date-to-date custom range via the shared `TimeRangeSelector`. New
+  `PacketHistoryView` + `usePacketHistory` hook; routing, sidebar row, and
+  EN/NL/DE i18n added mirroring the Mesh Trends / Analyze Packet views.
+- **Cursor paging** ("Load older") walks backward through history by `id`;
+  **server-side filters** (payload type, hop-byte width, hex substring) reuse
+  the feed's `usePacketFilters` + `PacketFilterModal` and apply across the whole
+  queried range. Presets are **live** (new packets append); a closed custom
+  range is a static historical view.
+- **Path-hex hops now resolve to contact names** (unique-prefix match only, raw
+  hex when ambiguous/unknown) in the packet feed, the history browser, and the
+  packet detail dialog via a shared `resolvePathHopNames` helper.
+- **Sort order control (Oldest / Newest first)** in the Packet History header,
+  mirroring the Raw Packet Feed's, server-persisted independently via a new
+  `packet_history_sort` setting (migration `_098`).
+
+### Raw-packet retention (backend)
+- **New `raw_packet_retention_days` setting** (Settings > Database), `0` = keep
+  forever (default). A positive value prunes `raw_packets` older than the window
+  daily (`raw_packet_pruner`, mirroring the advert pruner) and bounds how far
+  back the Packet History browser can reach. Migration `_097` adds the column.
+- **New `GET /api/packets/history`** endpoint: inclusive time window, `before_id`
+  cursor, and server-side `payload_types` / `hop_widths` / `hex` filters mapped
+  to the stored columns; leaves the feed-seeding `/packets/recent` untouched.
+
 ## Update 2026-09-19 (Packet feed sort order, feat/packet-feed-sort)
 
 ### Raw Packet Feed (frontend + backend)

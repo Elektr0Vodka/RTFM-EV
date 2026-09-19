@@ -1,10 +1,12 @@
 import logging
+import re
 import time
 from hashlib import sha256
 from sqlite3 import OperationalError
+from typing import Annotated
 
 import aiosqlite
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Response, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 
 from app.database import db
@@ -213,6 +215,135 @@ async def get_recent_packets(
         )
 
     return packets
+
+
+# Frontend KNOWN_PAYLOAD_TYPES bucket name -> stored payload_type column value.
+# The column stores PayloadType(...).name (see packet_processor.py / decoder.py).
+_PAYLOAD_TYPE_TO_ENUM: dict[str, str] = {
+    "Advert": "ADVERT",
+    "GroupText": "GROUP_TEXT",
+    "TextMessage": "TEXT_MESSAGE",
+    "Ack": "ACK",
+    "Request": "REQUEST",
+    "Response": "RESPONSE",
+    "Trace": "TRACE",
+    "Path": "PATH",
+    "Control": "CONTROL",
+}
+
+
+@router.get("/history")
+async def get_packet_history(
+    limit: int = 500,
+    after_ts: int | None = None,
+    before_ts: int | None = None,
+    before_id: int | None = None,
+    payload_types: Annotated[list[str] | None, Query()] = None,
+    hop_widths: Annotated[list[str] | None, Query()] = None,
+    hex: str | None = None,
+) -> dict:
+    """Page backward through persisted raw_packets for the history browser.
+
+    - after_ts / before_ts: inclusive Unix-second window
+    - before_id: cursor; returns rows with id < before_id (page backward)
+    - payload_types: frontend bucket names, mapped to stored enum names.
+      "Unknown" means the complement of the explicitly mapped names (incl. NULL).
+    - hop_widths: frontend hop-byte-width bucket names, mapped to hop_count /
+      hop_byte_width column predicates.
+    - hex: lowercase hex substring match on the packet bytes (mirrors the feed).
+
+    Returns ``{"packets": [...newest-first...], "next_cursor": <int|null>}``.
+    ``next_cursor`` is the smallest id in the page, or null when the page was
+    not full (no older rows).
+    """
+    limit = min(max(1, limit), 5000)
+
+    conditions: list[str] = []
+    params: list = []
+
+    if after_ts is not None:
+        conditions.append("timestamp >= ?")
+        params.append(after_ts)
+    if before_ts is not None:
+        conditions.append("timestamp <= ?")
+        params.append(before_ts)
+    if before_id is not None:
+        conditions.append("id < ?")
+        params.append(before_id)
+
+    # payload-type filter (bucket names -> enum names; "Unknown" = complement).
+    if payload_types:
+        wanted = set(payload_types)
+        enum_names = [_PAYLOAD_TYPE_TO_ENUM[b] for b in wanted if b in _PAYLOAD_TYPE_TO_ENUM]
+        clauses: list[str] = []
+        if enum_names:
+            clauses.append(f"payload_type IN ({','.join('?' * len(enum_names))})")
+            params.extend(enum_names)
+        if "Unknown" in wanted:
+            known = list(_PAYLOAD_TYPE_TO_ENUM.values())
+            clauses.append(
+                f"(payload_type IS NULL OR payload_type NOT IN ({','.join('?' * len(known))}))"
+            )
+            params.extend(known)
+        if clauses:
+            conditions.append("(" + " OR ".join(clauses) + ")")
+
+    # hop-width filter (bucket names -> hop_count / hop_byte_width predicates).
+    if hop_widths:
+        hw_clauses: list[str] = []
+        for bucket in hop_widths:
+            if bucket == "No path":
+                hw_clauses.append("(hop_count = 0 OR hop_count IS NULL)")
+            elif bucket == "1 byte / hop":
+                hw_clauses.append("(hop_count > 0 AND hop_byte_width = 1)")
+            elif bucket == "2 bytes / hop":
+                hw_clauses.append("(hop_count > 0 AND hop_byte_width = 2)")
+            elif bucket == "3 bytes / hop":
+                hw_clauses.append("(hop_count > 0 AND hop_byte_width = 3)")
+            elif bucket == "Unknown width":
+                hw_clauses.append(
+                    "(hop_count > 0 AND (hop_byte_width IS NULL OR hop_byte_width NOT IN (1,2,3)))"
+                )
+        if hw_clauses:
+            conditions.append("(" + " OR ".join(hw_clauses) + ")")
+
+    # hex substring filter (mirror the feed: lowercase includes()).
+    if hex is not None and hex != "":
+        cleaned = hex.strip().lower()
+        if not re.fullmatch(r"[0-9a-f]+", cleaned):
+            raise HTTPException(status_code=422, detail="hex must be hexadecimal")
+        conditions.append("instr(lower(hex(data)), ?) > 0")
+        params.append(cleaned)
+
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+    query = f"""
+        SELECT id, timestamp, data, message_id, rssi, snr, payload_type
+        FROM raw_packets
+        {where}
+        ORDER BY id DESC
+        LIMIT ?
+    """
+
+    async with db.readonly() as conn:
+        async with conn.execute(query, (*params, limit)) as cursor:
+            rows = await cursor.fetchall()
+
+    packets = [
+        {
+            "id": row["id"],
+            "observation_id": row["id"],
+            "timestamp": row["timestamp"],
+            "data": bytes(row["data"]).hex(),
+            "payload_type": row["payload_type"] or "Unknown",
+            "snr": row["snr"],
+            "rssi": row["rssi"],
+            "decrypted": row["message_id"] is not None,
+            "decrypted_info": None,
+        }
+        for row in rows
+    ]
+    next_cursor = packets[-1]["id"] if len(packets) == limit else None
+    return {"packets": packets, "next_cursor": next_cursor}
 
 
 class TimeseriesBin(BaseModel):

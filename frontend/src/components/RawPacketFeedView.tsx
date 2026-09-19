@@ -9,7 +9,7 @@ import { usePacketFilters } from '../hooks/usePacketFilters';
 import { PacketFilterModal } from './PacketFilterModal';
 import { getRawPacketObservationKey } from '../utils/rawPacketIdentity';
 import { Button } from './ui/button';
-import type { AppSettingsUpdate, Channel, RawPacket } from '../types';
+import type { AppSettingsUpdate, Channel, Contact, RawPacket } from '../types';
 import {
   KNOWN_PAYLOAD_TYPES,
   classifyDecodedHopByteWidth,
@@ -59,6 +59,7 @@ function summarizePacketForFeed(
 
 interface RawPacketFeedViewProps {
   channels: Channel[];
+  contacts?: Contact[];
   /** Persisted feed time-sort direction; defaults to oldest-first. */
   packetFeedSort?: 'oldest' | 'newest';
   /** Persist a settings change (used for the sort direction). */
@@ -67,6 +68,7 @@ interface RawPacketFeedViewProps {
 
 export function RawPacketFeedView({
   channels,
+  contacts,
   packetFeedSort = 'oldest',
   onSaveAppSettings,
 }: RawPacketFeedViewProps) {
@@ -270,6 +272,7 @@ export function RawPacketFeedView({
           <RawPacketList
             packets={filteredPackets}
             channels={channels}
+            contacts={contacts}
             onPacketClick={setSelectedPacket}
             autoScroll={autoScroll}
             newestFirst={packetFeedSort === 'newest'}
@@ -282,6 +285,7 @@ export function RawPacketFeedView({
         open={selectedPacket !== null}
         onOpenChange={(isOpen) => !isOpen && setSelectedPacket(null)}
         channels={channels}
+        contacts={contacts}
         source={
           selectedPacket
             ? { kind: 'packet', packet: selectedPacket }

@@ -8,6 +8,7 @@ function baseSettings(overrides: Partial<AppSettings> = {}): AppSettings {
   return {
     auto_decrypt_dm_on_advert: false,
     advert_retention_days: 30,
+    raw_packet_retention_days: 0,
     registry_sync_url: '',
     wordlist_sync_url: '',
     analyzer_sites: [],

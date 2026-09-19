@@ -716,6 +716,7 @@ export function App() {
     onChannelReferenceClick: handleChannelReferenceClick,
     registryNames,
     packetFeedSort: appSettings?.packet_feed_sort ?? 'oldest',
+    packetHistorySort: appSettings?.packet_history_sort ?? 'oldest',
     onSaveAppSettings: handleSaveAppSettings,
     autoAddMentionedChannels: appSettings?.auto_add_mentioned_channels ?? false,
     parsePubkeys: appSettings?.chat_parse_pubkeys ?? false,

@@ -336,6 +336,19 @@ describe('App startup hash resolution', () => {
     });
   });
 
+  it('restores the Packet History view from the URL hash even when channels are unavailable', async () => {
+    setHash('#packet-history');
+    mocks.api.getChannels.mockResolvedValue([]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      for (const node of screen.getAllByTestId('active-conversation')) {
+        expect(node).toHaveTextContent('packet-history:packet-history:');
+      }
+    });
+  });
+
   it('restores the Channel Registry view from the URL hash even when channels are unavailable', async () => {
     setHash('#channel-registry');
     mocks.api.getChannels.mockResolvedValue([]);

@@ -1252,6 +1252,11 @@ class AppSettings(BaseModel):
         default=30,
         description="Days of advert_events history to keep; older events are pruned daily",
     )
+    raw_packet_retention_days: int = Field(
+        default=0,
+        ge=0,
+        description="Days of raw_packets history to keep; 0 keeps forever. Pruned daily.",
+    )
     last_message_times: dict[str, int] = Field(
         default_factory=dict,
         description="Map of conversation state keys to last message timestamps",
@@ -1308,6 +1313,13 @@ class AppSettings(BaseModel):
         description=(
             "Raw Packet Feed time-sort direction: 'oldest' (oldest first, the "
             "historical default) or 'newest' (newest first)."
+        ),
+    )
+    packet_history_sort: Literal["oldest", "newest"] = Field(
+        default="oldest",
+        description=(
+            "Packet History view time-sort direction: 'oldest' (oldest first, "
+            "the default) or 'newest' (newest first). Independent from the feed."
         ),
     )
     discovery_blocked_types: list[int] = Field(

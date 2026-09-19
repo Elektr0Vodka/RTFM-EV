@@ -21,6 +21,7 @@ export type SidebarToolKey =
   | 'mesh-health'
   | 'mesh-trends'
   | 'raw'
+  | 'packet-history'
   | 'analyze'
   | 'map'
   | 'visualizer'
@@ -34,6 +35,7 @@ export const ALL_TOOL_KEYS: SidebarToolKey[] = [
   'mesh-health',
   'mesh-trends',
   'raw',
+  'packet-history',
   'analyze',
   'map',
   'visualizer',

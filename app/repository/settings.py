@@ -70,7 +70,8 @@ class AppSettingsRepository:
                    mention_sound_enabled, mention_sound_choice, mention_sound_volume,
                    sidebar_section_order, sidebar_tool_order, sidebar_favorites_order,
                    sidebar_hidden, sidebar_favorite_sort_orders,
-                   packet_feed_sort
+                   packet_feed_sort, packet_history_sort,
+                   raw_packet_retention_days
             FROM app_settings WHERE id = 1
             """
         ) as cursor:
@@ -163,6 +164,13 @@ class AppSettingsRepository:
             packet_feed_sort = "oldest"
         if packet_feed_sort not in ("oldest", "newest"):
             packet_feed_sort = "oldest"
+
+        try:
+            packet_history_sort = row["packet_history_sort"]
+        except (KeyError, IndexError):
+            packet_history_sort = "oldest"
+        if packet_history_sort not in ("oldest", "newest"):
+            packet_history_sort = "oldest"
 
         # Parse discovery_blocked_types JSON
         discovery_blocked_types: list[int] = []
@@ -317,6 +325,13 @@ class AppSettingsRepository:
         except (KeyError, TypeError, ValueError):
             advert_retention_days = 30
 
+        # Parse raw_packet_retention_days (migration _097; 0 = keep forever)
+        try:
+            raw_rp_retention = row["raw_packet_retention_days"]
+            raw_packet_retention_days = int(raw_rp_retention) if raw_rp_retention is not None else 0
+        except (KeyError, TypeError, ValueError):
+            raw_packet_retention_days = 0
+
         # Branding (migration _082). Guard against older/partial rows.
         try:
             brand_name = row["brand_name"] or ""
@@ -380,6 +395,7 @@ class AppSettingsRepository:
             max_radio_contacts=row["max_radio_contacts"],
             auto_decrypt_dm_on_advert=bool(row["auto_decrypt_dm_on_advert"]),
             advert_retention_days=advert_retention_days,
+            raw_packet_retention_days=raw_packet_retention_days,
             last_message_times=last_message_times,
             advert_interval=row["advert_interval"] or 0,
             last_advert_time=row["last_advert_time"] or 0,
@@ -424,6 +440,7 @@ class AppSettingsRepository:
             sidebar_hidden=sidebar_hidden,
             sidebar_favorite_sort_orders=sidebar_favorite_sort_orders,
             packet_feed_sort=packet_feed_sort,
+            packet_history_sort=packet_history_sort,
         )
 
     @staticmethod
@@ -433,6 +450,7 @@ class AppSettingsRepository:
         max_radio_contacts: int | None = None,
         auto_decrypt_dm_on_advert: bool | None = None,
         advert_retention_days: int | None = None,
+        raw_packet_retention_days: int | None = None,
         last_message_times: dict[str, int] | None = None,
         advert_interval: int | None = None,
         last_advert_time: int | None = None,
@@ -476,6 +494,7 @@ class AppSettingsRepository:
         sidebar_hidden: SidebarHidden | None = None,
         sidebar_favorite_sort_orders: SidebarFavoriteSortOrders | None = None,
         packet_feed_sort: str | None = None,
+        packet_history_sort: str | None = None,
     ) -> None:
         """Apply field updates using an already-acquired connection.
 
@@ -496,6 +515,10 @@ class AppSettingsRepository:
         if advert_retention_days is not None:
             updates.append("advert_retention_days = ?")
             params.append(advert_retention_days)
+
+        if raw_packet_retention_days is not None:
+            updates.append("raw_packet_retention_days = ?")
+            params.append(raw_packet_retention_days)
 
         if last_message_times is not None:
             updates.append("last_message_times = ?")
@@ -540,6 +563,10 @@ class AppSettingsRepository:
         if packet_feed_sort is not None:
             updates.append("packet_feed_sort = ?")
             params.append(packet_feed_sort)
+
+        if packet_history_sort is not None:
+            updates.append("packet_history_sort = ?")
+            params.append(packet_history_sort)
 
         if blocked_keys is not None:
             updates.append("blocked_keys = ?")
@@ -688,6 +715,7 @@ class AppSettingsRepository:
         max_radio_contacts: int | None = None,
         auto_decrypt_dm_on_advert: bool | None = None,
         advert_retention_days: int | None = None,
+        raw_packet_retention_days: int | None = None,
         last_message_times: dict[str, int] | None = None,
         advert_interval: int | None = None,
         last_advert_time: int | None = None,
@@ -731,6 +759,7 @@ class AppSettingsRepository:
         sidebar_hidden: SidebarHidden | None = None,
         sidebar_favorite_sort_orders: SidebarFavoriteSortOrders | None = None,
         packet_feed_sort: str | None = None,
+        packet_history_sort: str | None = None,
     ) -> AppSettings:
         """Update app settings. Only provided fields are updated."""
         async with db.tx() as conn:
@@ -739,6 +768,7 @@ class AppSettingsRepository:
                 max_radio_contacts=max_radio_contacts,
                 auto_decrypt_dm_on_advert=auto_decrypt_dm_on_advert,
                 advert_retention_days=advert_retention_days,
+                raw_packet_retention_days=raw_packet_retention_days,
                 last_message_times=last_message_times,
                 advert_interval=advert_interval,
                 last_advert_time=last_advert_time,
@@ -782,6 +812,7 @@ class AppSettingsRepository:
                 sidebar_hidden=sidebar_hidden,
                 sidebar_favorite_sort_orders=sidebar_favorite_sort_orders,
                 packet_feed_sort=packet_feed_sort,
+                packet_history_sort=packet_history_sort,
             )
             return await AppSettingsRepository._get_in_conn(conn)
 

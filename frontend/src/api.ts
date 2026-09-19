@@ -2,6 +2,7 @@ import type {
   AdvertLinkEdge,
   AppSettings,
   AppSettingsUpdate,
+  PacketHistoryResponse,
   UrlPreview,
   ExternalMapNode,
   ExternalMapStatus,
@@ -423,6 +424,8 @@ export const api = {
     const query = qs.toString();
     return fetchJson<RawPacket[]>(`/packets/recent${query ? `?${query}` : ''}`);
   },
+  getPacketHistory: (params: URLSearchParams) =>
+    fetchJson<PacketHistoryResponse>(`/packets/history?${params.toString()}`),
   getPacket: (packetId: number) => fetchJson<RawPacket>(`/packets/${packetId}`),
   getUndecryptedPacketCount: () => fetchJson<{ count: number }>('/packets/undecrypted/count'),
   decryptHistoricalPackets: (params: {

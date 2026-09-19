@@ -961,3 +961,27 @@ class TestOpenHopTokenMasking:
     async def test_token_set_flag_false_when_unset(self, test_db):
         settings = await AppSettingsRepository.get()
         assert settings.model_dump()["openhop_api_token_set"] is False
+
+
+class TestPacketHistorySortAndRetentionRouter:
+    """PATCH /settings must forward the Packet History browser settings through
+    the router's AppSettingsUpdate model + kwargs mapping (not just the repo)."""
+
+    @pytest.mark.asyncio
+    async def test_packet_history_sort_persists_via_router(self, test_db):
+        result = await update_settings(AppSettingsUpdate(packet_history_sort="newest"))
+        assert result.packet_history_sort == "newest"
+        assert (await AppSettingsRepository.get()).packet_history_sort == "newest"
+
+    @pytest.mark.asyncio
+    async def test_packet_history_sort_invalid_is_ignored(self, test_db):
+        result = await update_settings(AppSettingsUpdate(packet_history_sort="sideways"))
+        assert result.packet_history_sort == "oldest"
+
+    @pytest.mark.asyncio
+    async def test_raw_packet_retention_persists_via_router(self, test_db):
+        result = await update_settings(AppSettingsUpdate(raw_packet_retention_days=14))
+        assert result.raw_packet_retention_days == 14
+        # 0 = keep forever must be forwardable too.
+        result = await update_settings(AppSettingsUpdate(raw_packet_retention_days=0))
+        assert result.raw_packet_retention_days == 0

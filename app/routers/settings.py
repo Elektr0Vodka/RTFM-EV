@@ -263,6 +263,12 @@ class AppSettingsUpdate(BaseModel):
         le=365,
         description="Days of advert history to keep before daily pruning",
     )
+    raw_packet_retention_days: int | None = Field(
+        default=None,
+        ge=0,
+        le=365,
+        description="Days of raw_packets history to keep; 0 = keep forever. Pruned daily.",
+    )
     advert_interval: int | None = Field(
         default=None,
         ge=0,
@@ -302,6 +308,10 @@ class AppSettingsUpdate(BaseModel):
     packet_feed_sort: str | None = Field(
         default=None,
         description="Raw Packet Feed time-sort direction: 'oldest' or 'newest'",
+    )
+    packet_history_sort: str | None = Field(
+        default=None,
+        description="Packet History view time-sort direction: 'oldest' or 'newest'",
     )
     blocked_keys: list[str] | None = Field(
         default=None,
@@ -567,6 +577,8 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
 
     if update.advert_retention_days is not None:
         kwargs["advert_retention_days"] = update.advert_retention_days
+    if update.raw_packet_retention_days is not None:
+        kwargs["raw_packet_retention_days"] = update.raw_packet_retention_days
 
     if update.advert_interval is not None:
         # Enforce minimum 1-hour interval; 0 means disabled
@@ -657,6 +669,11 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
     # corrupt the setting (matches the telemetry-interval convention).
     if update.packet_feed_sort is not None and update.packet_feed_sort in ("oldest", "newest"):
         kwargs["packet_feed_sort"] = update.packet_feed_sort
+    if update.packet_history_sort is not None and update.packet_history_sort in (
+        "oldest",
+        "newest",
+    ):
+        kwargs["packet_history_sort"] = update.packet_history_sort
 
     # Auto-add mentioned channels to the registry
     if update.auto_add_mentioned_channels is not None:
