@@ -842,6 +842,29 @@ def _extract_temperature(data: dict) -> float | None:
     return None
 
 
+def _extract_voltage(data: dict) -> float | None:
+    """First scalar 'voltage' reading from a stored telemetry data blob's LPP sensors.
+
+    Contacts report battery voltage as an LPP 'voltage' sensor rather than the
+    top-level 'battery_volts' field that repeaters use, so the map overlay's
+    battery reading needs this fallback to surface known contact battery levels.
+    """
+    for entry in data.get("lpp_sensors") or []:
+        if entry.get("type_name") == "voltage":
+            value = entry.get("value")
+            if isinstance(value, (int, float)):
+                return float(value)
+    return None
+
+
+def _latest_battery_volts(data: dict) -> float | None:
+    """Battery voltage from the top-level field, falling back to an LPP 'voltage' sensor."""
+    value = data.get("battery_volts")
+    if isinstance(value, (int, float)):
+        return float(value)
+    return _extract_voltage(data)
+
+
 @router.get("/telemetry/latest", response_model=dict[str, LatestTelemetryEntry])
 async def get_latest_telemetry() -> dict[str, LatestTelemetryEntry]:
     """Latest stored telemetry per node (read-only): battery + temperature at a glance.
@@ -858,7 +881,7 @@ async def get_latest_telemetry() -> dict[str, LatestTelemetryEntry]:
     for pk, row in rep.items():
         out[pk] = LatestTelemetryEntry(
             timestamp=row["timestamp"],
-            battery_volts=row["data"].get("battery_volts"),
+            battery_volts=_latest_battery_volts(row["data"]),
             temperature=_extract_temperature(row["data"]),
             source="repeater",
         )
@@ -868,7 +891,7 @@ async def get_latest_telemetry() -> dict[str, LatestTelemetryEntry]:
             continue
         out[pk] = LatestTelemetryEntry(
             timestamp=row["timestamp"],
-            battery_volts=row["data"].get("battery_volts"),
+            battery_volts=_latest_battery_volts(row["data"]),
             temperature=_extract_temperature(row["data"]),
             source="contact",
         )

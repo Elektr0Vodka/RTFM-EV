@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 import { Popup as MlPopup, Marker as MlMarker, type Map as MlMap } from 'maplibre-gl';
 import { Zap, Clock, Globe, Radio, MapPinOff } from 'lucide-react';
 import type {
@@ -27,7 +28,8 @@ import { setMapLock2D } from '../map/engine/mapLock2D';
 import { setBuildings3D } from '../map/engine/buildings3D';
 import { createNodesLayer } from '../map/layers/nodesLayer';
 import { createNeonNodesOverlay, type NeonNodesOverlay } from '../map/layers/neonNodesLayer';
-import { createTelemetryLayer } from '../map/layers/telemetryLayer';
+import { createTelemetryLayer, telemetryPopupParts } from '../map/layers/telemetryLayer';
+import { TelemetryPopupChart } from './TelemetryPopupChart';
 import {
   getSavedNodeRoleColors,
   saveNodeRoleColors,
@@ -335,6 +337,12 @@ export function MapView({
   const nodesRef = useRef<ReturnType<typeof createNodesLayer> | null>(null);
   const neonOverlayRef = useRef<NeonNodesOverlay | null>(null);
   const telemetryRef = useRef<ReturnType<typeof createTelemetryLayer> | null>(null);
+  // Mirror of latestTelemetry so the node-click popup can read the latest known
+  // battery/temperature without rebuilding its callback on every refresh.
+  const latestTelemetryRef = useRef<Record<string, LatestTelemetry>>({});
+  // React roots mounted into the current contact popup (telemetry history chart);
+  // unmounted when the popup is replaced or closed.
+  const popupChartRootsRef = useRef<Root[]>([]);
   const roleColorsRef = useRef<NodeRoleColors>(roleColors);
   const packetOverlayRef = useRef<PacketDeckOverlay | null>(null);
   const timelineRef = useRef<PacketTimeline | null>(null);
@@ -649,8 +657,10 @@ export function MapView({
     nodesRef.current?.setLabelMode(labelMode);
   }, [labelMode]);
 
-  // Telemetry overlay: persist the toggle, show/hide the layer, and while on,
-  // fetch latest telemetry immediately and refresh on an interval.
+  // Telemetry: persist the overlay toggle and show/hide the layer. Latest
+  // readings are fetched once on mount (so the node-click popup can show known
+  // battery/temperature even when the overlay is off) and refreshed on an
+  // interval only while the overlay is on, to avoid constant polling.
   useEffect(() => {
     try {
       localStorage.setItem(MAP_TELEMETRY_STORAGE_KEY, telemetryOn ? '1' : '0');
@@ -658,7 +668,6 @@ export function MapView({
       /* ignore */
     }
     telemetryRef.current?.setVisible(telemetryOn);
-    if (!telemetryOn) return;
 
     const controller = new AbortController();
     let active = true;
@@ -669,11 +678,17 @@ export function MapView({
       } catch (err) {
         if (!isAbortError(err)) {
           // Non-fatal: keep the last values; the next tick retries.
-          console.warn('telemetry overlay fetch failed', err);
+          console.warn('telemetry fetch failed', err);
         }
       }
     };
     void load();
+    if (!telemetryOn) {
+      return () => {
+        active = false;
+        controller.abort();
+      };
+    }
     const id = window.setInterval(load, TELEMETRY_REFRESH_MS);
     return () => {
       active = false;
@@ -681,6 +696,11 @@ export function MapView({
       window.clearInterval(id);
     };
   }, [telemetryOn]);
+
+  // Keep a ref of the latest telemetry for the (imperatively built) popup.
+  useEffect(() => {
+    latestTelemetryRef.current = latestTelemetry;
+  }, [latestTelemetry]);
 
   // Persist per-role node colours and push them to the live layer + legend.
   useEffect(() => {
@@ -879,6 +899,56 @@ export function MapView({
       coords.textContent = loc ? `${loc.lat.toFixed(5)}, ${loc.lon.toFixed(5)}` : '';
       root.append(nameRow, heard, coords);
 
+      // Latest known battery/temperature as a small block, only when a reading
+      // exists for this node. Battery and temperature stack on their own lines;
+      // a toggle reveals the telemetry history line chart.
+      const latest = latestTelemetryRef.current[contact.public_key];
+      if (latest && (latest.battery_volts != null || latest.temperature != null)) {
+        const parts = telemetryPopupParts(latest, Date.now() / 1000);
+        const block = document.createElement('div');
+        block.className = 'mt-2 rounded border border-border/60 bg-muted/30 px-2 py-1.5 text-xs';
+        if (parts.stale) block.className += ' opacity-70';
+        if (parts.battery) {
+          const row = document.createElement('div');
+          row.textContent = t('map_telemetry_battery', { value: parts.battery });
+          block.appendChild(row);
+        }
+        if (parts.temperature) {
+          const row = document.createElement('div');
+          row.textContent = t('map_telemetry_temperature', { value: parts.temperature });
+          block.appendChild(row);
+        }
+        const age = document.createElement('div');
+        age.className = 'text-muted-foreground';
+        age.textContent = t('map_telemetry_age', { age: parts.age });
+        block.appendChild(age);
+
+        // History toggle: lazily mounts the telemetry history chart on first open.
+        const chartHost = document.createElement('div');
+        chartHost.style.display = 'none';
+        let chartRoot: Root | null = null;
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className =
+          'mt-1 text-primary underline bg-transparent border-0 p-0 cursor-pointer block';
+        toggle.textContent = t('map_telemetry_show_history');
+        toggle.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const willShow = chartHost.style.display === 'none';
+          chartHost.style.display = willShow ? '' : 'none';
+          toggle.textContent = willShow
+            ? t('map_telemetry_hide_history')
+            : t('map_telemetry_show_history');
+          if (willShow && !chartRoot) {
+            chartRoot = createRoot(chartHost);
+            chartRoot.render(<TelemetryPopupChart publicKey={contact.public_key} />);
+            popupChartRootsRef.current.push(chartRoot);
+          }
+        });
+        block.append(toggle, chartHost);
+        root.appendChild(block);
+      }
+
       if (contact.notes) {
         const notes = document.createElement('div');
         notes.className = 'text-xs mt-1 whitespace-pre-wrap break-words';
@@ -923,10 +993,18 @@ export function MapView({
       const loc = contact ? getEffectiveLocation(contact) : null;
       if (!map || !contact || !loc) return;
       popupRef.current?.remove();
-      popupRef.current = new MlPopup({ closeButton: true, offset: 12 })
+      const popup = new MlPopup({ closeButton: true, offset: 12, maxWidth: '300px' })
         .setLngLat([loc.lon, loc.lat])
         .setDOMContent(buildContactPopup(contact))
         .addTo(map);
+      // Unmount the popup's telemetry-history chart(s) when it closes. Deferred
+      // so the unmount never runs during React's render/commit phase.
+      popup.on('close', () => {
+        const roots = popupChartRootsRef.current;
+        popupChartRootsRef.current = [];
+        roots.forEach((r) => setTimeout(() => r.unmount(), 0));
+      });
+      popupRef.current = popup;
     },
     [contactByKey, buildContactPopup]
   );
