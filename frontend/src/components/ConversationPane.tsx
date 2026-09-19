@@ -37,6 +37,12 @@ const MyNodeView = lazy(() => import('./MyNodeView'));
 const MeshHealthView = lazy(() =>
   import('./MeshHealthView').then((m) => ({ default: m.MeshHealthView }))
 );
+const MeshTrendsView = lazy(() =>
+  import('./MeshTrendsView').then((m) => ({ default: m.MeshTrendsView }))
+);
+const AnalyzePacketView = lazy(() =>
+  import('./AnalyzePacketView').then((m) => ({ default: m.AnalyzePacketView }))
+);
 
 interface ConversationPaneProps {
   activeConversation: Conversation | null;
@@ -290,7 +296,23 @@ export function ConversationPane({
   }
 
   if (activeConversation.type === 'raw') {
-    return <RawPacketFeedView contacts={contacts} channels={channels} />;
+    return <RawPacketFeedView channels={channels} />;
+  }
+
+  if (activeConversation.type === 'mesh-trends') {
+    return (
+      <Suspense fallback={<LoadingPane label={t('common_loading_mesh_trends')} />}>
+        <MeshTrendsView contacts={contacts} />
+      </Suspense>
+    );
+  }
+
+  if (activeConversation.type === 'analyze') {
+    return (
+      <Suspense fallback={<LoadingPane label={t('common_loading_analyze_packet')} />}>
+        <AnalyzePacketView channels={channels} />
+      </Suspense>
+    );
   }
 
   if (activeConversation.type === 'search') {

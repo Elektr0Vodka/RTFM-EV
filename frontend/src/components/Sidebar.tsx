@@ -17,9 +17,11 @@ import {
   Map,
   PanelLeftClose,
   PanelLeftOpen,
+  ScanSearch,
   Search as SearchIcon,
   Settings2,
   SquarePen,
+  TrendingUp,
   X,
 } from 'lucide-react';
 import {
@@ -460,7 +462,9 @@ export function Sidebar({
       | 'trace'
       | 'channel-registry'
       | 'node'
-      | 'mesh-health',
+      | 'mesh-health'
+      | 'mesh-trends'
+      | 'analyze',
     id: string
   ) => activeConversation?.type === type && activeConversation?.id === id;
 
@@ -1232,6 +1236,20 @@ export function Sidebar({
             }),
           iconOnly,
         });
+      case 'mesh-trends':
+        return renderSidebarActionRow({
+          key: 'tool-mesh-trends',
+          active: isActive('mesh-trends', 'mesh-trends'),
+          icon: <TrendingUp className="h-4 w-4" />,
+          label: t('nav_mesh_trends'),
+          onClick: () =>
+            handleSelectConversation({
+              type: 'mesh-trends',
+              id: 'mesh-trends',
+              name: t('nav_mesh_trends'),
+            }),
+          iconOnly,
+        });
       case 'raw':
         return renderSidebarActionRow({
           key: 'tool-raw',
@@ -1243,6 +1261,20 @@ export function Sidebar({
               type: 'raw',
               id: 'raw',
               name: t('nav_raw_packet_feed_name'),
+            }),
+          iconOnly,
+        });
+      case 'analyze':
+        return renderSidebarActionRow({
+          key: 'tool-analyze',
+          active: isActive('analyze', 'analyze'),
+          icon: <ScanSearch className="h-4 w-4" />,
+          label: t('nav_analyze_packet'),
+          onClick: () =>
+            handleSelectConversation({
+              type: 'analyze',
+              id: 'analyze',
+              name: t('nav_analyze_packet'),
             }),
           iconOnly,
         });
@@ -1618,7 +1650,9 @@ export function Sidebar({
   const toolLabels: Record<SidebarToolKey, string> = {
     'my-node': t('nav_my_node'),
     'mesh-health': t('nav_mesh_health'),
+    'mesh-trends': t('nav_mesh_trends'),
     raw: t('nav_packet_feed'),
+    analyze: t('nav_analyze_packet'),
     map: t('nav_node_map'),
     visualizer: t('nav_mesh_visualizer'),
     trace: t('nav_trace'),

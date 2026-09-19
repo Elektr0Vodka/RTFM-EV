@@ -54,10 +54,14 @@ Shipped toward this so far:
   history (`_024`).
 - "My Node" and mesh-health views that read from this persisted history, including
   a TX/RX airtime utilization (%) chart on My Node.
-- One unified time-range selector across the My Node, mesh-health, map, and raw
-  packet feed views (`20m`-`30d` + custom, plus per-page extras), with the choice
-  remembered per page.
-- Raw Packet Feed stat breakdowns can be computed from the database over the
+- A "Mesh Trends" view that consolidates the analytical stats into two tabs: a
+  Historical tab (server-backed network/message/packet/MQTT/region-scope/noise-floor
+  breakdowns) and a Live tab (the session packet-stat breakdowns that used to live
+  in the raw packet feed).
+- One unified time-range selector across the My Node, mesh-health, map, and Mesh
+  Trends (Live tab) views (`20m`-`30d` + custom, plus per-page extras), with the
+  choice remembered per page.
+- Mesh Trends Live-tab stat breakdowns can be computed from the database over the
   selected range, backed by decoded packet fields persisted at ingest (`_089`),
   not only the in-memory session buffer.
 - In-app database backup: download a consistent SQLite snapshot, or write one to a

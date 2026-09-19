@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { ChannelCrypto, PayloadType } from '@michaelhart/meshcore-decoder';
 
 import type { Channel, RawPacket } from '../types';
@@ -793,25 +793,14 @@ export function RawPacketInspectionPanel({
   );
 }
 
-export function RawPacketInspectorDialog({
-  open,
-  onOpenChange,
-  channels,
-  source,
-  title,
-  description,
-  notice,
-  signalOverride,
-  container,
-}: RawPacketInspectorDialogProps) {
+/**
+ * The paste-a-hex-string inspector body, shared by the modal dialog and the
+ * standalone Analyze Packet tool view. Owns its own textarea state, so it resets
+ * whenever it is unmounted (the dialog unmounts its content when closed).
+ */
+export function RawPacketPasteInspector({ channels }: { channels: Channel[] }) {
   const t = useT();
   const [packetInput, setPacketInput] = useState('');
-
-  useEffect(() => {
-    if (!open || source.kind !== 'paste') {
-      setPacketInput('');
-    }
-  }, [open, source.kind]);
 
   const normalizedPacketInput = useMemo(() => normalizePacketHex(packetInput), [packetInput]);
   const packetInputError = useMemo(
@@ -826,6 +815,48 @@ export function RawPacketInspectorDialog({
     [normalizedPacketInput, packetInputError]
   );
 
+  return (
+    <>
+      <div className="border-b border-border px-4 py-3 pr-14">
+        <div className="flex flex-col gap-3">
+          <label className="text-sm font-medium text-foreground" htmlFor="raw-packet-input">
+            {t('packet_hex_input_label')}
+          </label>
+          <textarea
+            id="raw-packet-input"
+            value={packetInput}
+            onChange={(event) => setPacketInput(event.target.value)}
+            placeholder={t('packet_hex_input_placeholder')}
+            className="min-h-14 w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm text-foreground outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring"
+            spellCheck={false}
+          />
+          {packetInputError ? (
+            <div className="text-sm text-destructive">{packetInputError}</div>
+          ) : null}
+        </div>
+      </div>
+      {analyzedPacket ? (
+        <RawPacketInspectionPanel packet={analyzedPacket} channels={channels} />
+      ) : (
+        <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
+          {t('packet_paste_prompt')}
+        </div>
+      )}
+    </>
+  );
+}
+
+export function RawPacketInspectorDialog({
+  open,
+  onOpenChange,
+  channels,
+  source,
+  title,
+  description,
+  notice,
+  signalOverride,
+  container,
+}: RawPacketInspectorDialogProps) {
   let body: ReactNode;
   if (source.kind === 'packet') {
     body = (
@@ -836,35 +867,7 @@ export function RawPacketInspectorDialog({
       />
     );
   } else if (source.kind === 'paste') {
-    body = (
-      <>
-        <div className="border-b border-border px-4 py-3 pr-14">
-          <div className="flex flex-col gap-3">
-            <label className="text-sm font-medium text-foreground" htmlFor="raw-packet-input">
-              {t('packet_hex_input_label')}
-            </label>
-            <textarea
-              id="raw-packet-input"
-              value={packetInput}
-              onChange={(event) => setPacketInput(event.target.value)}
-              placeholder={t('packet_hex_input_placeholder')}
-              className="min-h-14 w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm text-foreground outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring"
-              spellCheck={false}
-            />
-            {packetInputError ? (
-              <div className="text-sm text-destructive">{packetInputError}</div>
-            ) : null}
-          </div>
-        </div>
-        {analyzedPacket ? (
-          <RawPacketInspectionPanel packet={analyzedPacket} channels={channels} />
-        ) : (
-          <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
-            {t('packet_paste_prompt')}
-          </div>
-        )}
-      </>
-    );
+    body = <RawPacketPasteInspector channels={channels} />;
   } else if (source.kind === 'loading') {
     body = (
       <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
