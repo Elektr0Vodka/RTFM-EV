@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useRawPackets } from '../stores/rawPacketStore';
 import {
@@ -14,16 +14,30 @@ export interface UseSignalAudioOptions {
   theme: SignalAudioTheme;
 }
 
+export interface UseSignalAudioState {
+  /**
+   * True when sound is enabled but the AudioContext has not resumed yet (browser
+   * autoplay policy: a user gesture is required). The UI can use this to prompt
+   * "click to enable sound". False when disabled or once audio is running.
+   */
+  needsGesture: boolean;
+}
+
 /**
  * Drives the signal-audio engine from the live raw-packet store: one click per newly
  * observed packet. The engine only creates an AudioContext once enabled (from a user
  * gesture), so this is inert while sound is off. The play baseline advances even while
  * muted, so turning sound on does not replay the buffered backlog.
  */
-export function useSignalAudio({ enabled, volume, theme }: UseSignalAudioOptions): void {
+export function useSignalAudio({
+  enabled,
+  volume,
+  theme,
+}: UseSignalAudioOptions): UseSignalAudioState {
   const engineRef = useRef<SignalAudioEngine | null>(null);
   const lastKeyRef = useRef<string | null>(null);
   const packets = useRawPackets();
+  const [running, setRunning] = useState(false);
 
   if (engineRef.current === null) {
     engineRef.current = createSignalAudioEngine();
@@ -65,8 +79,33 @@ export function useSignalAudio({ enabled, volume, theme }: UseSignalAudioOptions
     }
   }, [packets, enabled]);
 
+  // Reflect whether the context has actually resumed, so the UI can prompt for a
+  // gesture while sound is enabled but still suspended. Poll (cheaply) until it
+  // is running, then stop; reset when disabled.
+  useEffect(() => {
+    if (!enabled) {
+      setRunning(false);
+      return;
+    }
+    const check = () => engineRef.current?.isRunning() ?? false;
+    if (check()) {
+      setRunning(true);
+      return;
+    }
+    setRunning(false);
+    const id = setInterval(() => {
+      if (check()) {
+        setRunning(true);
+        clearInterval(id);
+      }
+    }, 400);
+    return () => clearInterval(id);
+  }, [enabled]);
+
   useEffect(() => {
     const engine = engineRef.current;
     return () => engine?.dispose();
   }, []);
+
+  return { needsGesture: enabled && !running };
 }

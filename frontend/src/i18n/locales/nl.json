@@ -1721,6 +1721,8 @@
   "packet_sound_theme_geiger": "Geiger",
   "packet_sound_theme_sonar": "Sonar",
   "packet_sound_theme_waterdrip": "Waterdruppel",
+  "packet_sound_needs_gesture": "Klik om geluid in te schakelen",
+  "packet_sound_needs_gesture_tip": "Je browser blokkeert audio totdat je met de pagina interacteert. Klik ergens (of wissel van thema) om het geluid te starten.",
   "packet_coverage_label": "Dekking",
   "packet_window_label": "Venster",
   "packet_stats_window_aria": "Statistiekenvenster",

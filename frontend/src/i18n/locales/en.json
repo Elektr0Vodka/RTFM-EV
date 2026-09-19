@@ -1720,6 +1720,8 @@
   "packet_sound_theme_geiger": "Geiger",
   "packet_sound_theme_sonar": "Sonar",
   "packet_sound_theme_waterdrip": "Water drip",
+  "packet_sound_needs_gesture": "Click to enable sound",
+  "packet_sound_needs_gesture_tip": "Your browser blocks audio until you interact with the page. Click anywhere (or change the theme) to start the sound.",
   "packet_coverage_label": "Coverage",
   "packet_window_label": "Window",
   "packet_stats_window_aria": "Stats window",
