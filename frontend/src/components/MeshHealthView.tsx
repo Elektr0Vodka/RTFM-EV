@@ -18,8 +18,9 @@ import { BASE_TIME_RANGES, type TimeRange } from '../utils/timeRanges';
 import { loadStoredTimeRange, saveStoredTimeRange } from '../utils/timeRangePreference';
 import { MeshAdvertsPanel } from './MeshAdvertsPanel';
 import { MeshRequestsPanel } from './MeshRequestsPanel';
+import { MeshPrefixCollisionsPanel } from './MeshPrefixCollisionsPanel';
 
-type MeshHealthTab = 'adverts' | 'requests';
+type MeshHealthTab = 'adverts' | 'requests' | 'prefix-collisions';
 
 // Mesh Health keeps 30m as a shorter extra and adopts the shared base set. The
 // panels fetch now-relative ranges from selectedWindow.hours, so a From/To
@@ -37,7 +38,9 @@ const MESH_HEALTH_TAB_KEY = 'rtfm-meshhealth-tab';
 // instead of snapping back to Adverts.
 function loadStoredTab(): MeshHealthTab {
   try {
-    return localStorage.getItem(MESH_HEALTH_TAB_KEY) === 'requests' ? 'requests' : 'adverts';
+    const v = localStorage.getItem(MESH_HEALTH_TAB_KEY);
+    if (v === 'requests' || v === 'prefix-collisions') return v;
+    return 'adverts';
   } catch {
     return 'adverts';
   }
@@ -57,11 +60,13 @@ function windowFromId(id: string): TimeWindow {
 interface Props {
   config: RadioConfig | null;
   onNavigateToMap?: (focusKey?: string) => void;
+  /** Opens a node's detail page (contact conversation) by public key. */
+  onOpenNode?: (publicKey: string, name: string | null) => void;
   /** Public key to scroll to and highlight when the Adverts view loads */
   focusKey?: string;
 }
 
-export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
+export function MeshHealthView({ config, onNavigateToMap, onOpenNode, focusKey }: Props) {
   const t = useT();
   const [selectedWindowId, setSelectedWindowId] = useState<string>(
     () => loadStoredTimeRange(MESH_HEALTH_WINDOW_KEY, DEFAULT_MESH_HEALTH_ID).id
@@ -97,6 +102,7 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
   const tabs: { key: MeshHealthTab; label: string }[] = [
     { key: 'adverts', label: t('mesh_health_tab_adverts') },
     { key: 'requests', label: t('mesh_health_tab_requests') },
+    { key: 'prefix-collisions', label: t('mesh_health_tab_prefix_collisions') },
   ];
 
   return (
@@ -148,20 +154,23 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
 
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-4xl space-y-4 p-4">
-          {/* Unified time-range selector (shared across tabs) */}
-          <TimeRangeSelector
-            value={selectedWindowId}
-            onChange={setSelectedWindowId}
-            extrasBefore={MESH_HEALTH_EXTRAS_BEFORE}
-            showCustom={false}
-            customStart=""
-            customEnd=""
-            onCustomStartChange={() => {}}
-            onCustomEndChange={() => {}}
-            onApplyCustom={() => {}}
-          />
+          {/* Unified time-range selector (shared by the window-scoped tabs). The
+              prefix-collisions tab is point-in-time, so it is hidden there. */}
+          {activeTab !== 'prefix-collisions' && (
+            <TimeRangeSelector
+              value={selectedWindowId}
+              onChange={setSelectedWindowId}
+              extrasBefore={MESH_HEALTH_EXTRAS_BEFORE}
+              showCustom={false}
+              customStart=""
+              customEnd=""
+              onCustomStartChange={() => {}}
+              onCustomEndChange={() => {}}
+              onApplyCustom={() => {}}
+            />
+          )}
 
-          {activeTab === 'adverts' ? (
+          {activeTab === 'adverts' && (
             <MeshAdvertsPanel
               config={config}
               selectedWindow={selectedWindow}
@@ -170,11 +179,19 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
               focusKey={focusKey}
               onLoadingChange={handleLoadingChange}
             />
-          ) : (
+          )}
+          {activeTab === 'requests' && (
             <MeshRequestsPanel
               selectedWindow={selectedWindow}
               refreshKey={refreshKey}
               onLoadingChange={handleLoadingChange}
+            />
+          )}
+          {activeTab === 'prefix-collisions' && (
+            <MeshPrefixCollisionsPanel
+              refreshKey={refreshKey}
+              onLoadingChange={handleLoadingChange}
+              onOpenNode={onOpenNode}
             />
           )}
         </div>
