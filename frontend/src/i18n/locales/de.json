@@ -1701,6 +1701,8 @@
   "packet_sound_theme_geiger": "Geiger",
   "packet_sound_theme_sonar": "Sonar",
   "packet_sound_theme_waterdrip": "Wassertropfen",
+  "packet_sound_needs_gesture": "Zum Aktivieren des Tons klicken",
+  "packet_sound_needs_gesture_tip": "Dein Browser blockiert Audio, bis du mit der Seite interagierst. Klicke irgendwo (oder wechsle das Thema), um den Ton zu starten.",
   "packet_coverage_label": "Abdeckung",
   "packet_window_label": "Zeitfenster",
   "packet_stats_window_aria": "Statistik-Zeitfenster",

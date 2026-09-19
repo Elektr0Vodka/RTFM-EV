@@ -132,6 +132,22 @@ describe('createSignalAudioEngine lifecycle', () => {
     expect(fake.ctx.close).toHaveBeenCalled();
     expect(engine.onPacket({ snrDb: 5, payloadType: 'ADVERT' })).toBe(false);
   });
+
+  it('isRunning reflects context state (false until the context has resumed)', () => {
+    // No context yet.
+    const suspended = makeFakeContext({ state: 'suspended' });
+    const e1 = engineWith(suspended);
+    expect(e1.isRunning()).toBe(false);
+    // Enabled but the fake context stays suspended (resume is async/no-op here).
+    e1.setEnabled(true);
+    expect(e1.isRunning()).toBe(false);
+
+    // A context that reports running -> isRunning true once enabled.
+    const running = makeFakeContext({ state: 'running' });
+    const e2 = engineWith(running);
+    e2.setEnabled(true);
+    expect(e2.isRunning()).toBe(true);
+  });
 });
 
 describe('onPacket', () => {

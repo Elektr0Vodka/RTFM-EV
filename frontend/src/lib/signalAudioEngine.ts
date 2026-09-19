@@ -55,6 +55,8 @@ export interface SignalAudioEngineDeps {
 export interface SignalAudioEngine {
   setEnabled(on: boolean): void;
   isEnabled(): boolean;
+  /** True once the AudioContext exists and has resumed (audio can be heard). */
+  isRunning(): boolean;
   setTheme(theme: SignalAudioTheme): void;
   getTheme(): SignalAudioTheme;
   setVolume(v: number): void;
@@ -194,6 +196,9 @@ export function createSignalAudioEngine(deps: SignalAudioEngineDeps = {}): Signa
     },
     isEnabled(): boolean {
       return enabled;
+    },
+    isRunning(): boolean {
+      return ctx !== null && ctx.state === 'running';
     },
     setTheme(t: SignalAudioTheme): void {
       if (t === 'geiger' || t === 'sonar' || t === 'waterdrip') theme = t;

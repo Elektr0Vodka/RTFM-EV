@@ -11,6 +11,18 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-19 (Signal-audio "click to enable sound" hint, fix/signal-audio-unlock-hint)
+
+### Raw Packet Feed (frontend)
+- **"Click to enable sound" hint** on the Raw Packet Feed. Browsers keep the
+  AudioContext suspended until the first user gesture, so with sound persisted on
+  the per-packet audio stayed silent after a fresh load until the user happened to
+  interact (e.g. changing the theme). `useSignalAudio` now reports `needsGesture`
+  (sound enabled but context not yet resumed) via a new tested `isRunning()` on
+  the audio engine, and the feed shows a small hint next to the sound controls
+  until the first interaction resumes audio. EN/NL/DE strings added. No behavior
+  change to the audio itself (the #141 geiger makeup-gain fix is unchanged).
+
 ## Update 2026-09-19 (Mesh Health warnings count flood adverts only, feat/mesh-health-flood-adverts)
 
 ### Mesh Health (backend + frontend)
