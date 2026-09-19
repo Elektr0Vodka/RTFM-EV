@@ -393,6 +393,41 @@ export function getEffectiveLocation(contact: {
   return null;
 }
 
+/** True when a contact can be placed on the map: it has a valid advertised or
+ *  manual-override location. */
+export function hasEffectiveLocation(contact: {
+  lat: number | null;
+  lon: number | null;
+  manual_lat?: number | null;
+  manual_lon?: number | null;
+}): boolean {
+  return getEffectiveLocation(contact) !== null;
+}
+
+/** Resolve a network-graph node id to coordinates for drawing links/paths.
+ *  'self' is the local node; otherwise a 12-char public-key prefix is matched
+ *  to a single contact and its effective location (advertised-wins,
+ *  manual-fallback) is used. Ambiguous or unlocated ids resolve to undefined. */
+export function resolveNodeCoord(
+  nodeId: string,
+  self: { lat: number; lon: number } | null,
+  prefixIndex: Map<
+    string,
+    Array<{
+      lat: number | null;
+      lon: number | null;
+      manual_lat?: number | null;
+      manual_lon?: number | null;
+    }>
+  >
+): { lat: number; lon: number } | undefined {
+  if (nodeId === 'self') return self ?? undefined;
+  const matches = prefixIndex.get(nodeId);
+  const c = matches && matches.length === 1 ? matches[0] : undefined;
+  if (!c) return undefined;
+  return getEffectiveLocation(c) ?? undefined;
+}
+
 /**
  * Format distance in human-readable form using the selected display unit.
  */

@@ -11,6 +11,35 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-19 (Manual location overrides show in paths, fix/manual-location-in-paths)
+
+### Map + advert-links (backend + frontend)
+- **A manual location override now places a node in the map's link/path layers,
+  not just as a marker.** A repeater/node with only a manual override (no
+  advertised GPS) already showed as a map marker (via `getEffectiveLocation`)
+  but was dropped from every path/link, because both link resolvers still read
+  the raw advertised `lat`/`lon`.
+- Backend: `AdvertLinksRepository.located_nodes()`
+  (`app/repository/advert_links.py`) now resolves the effective location
+  (advertised-wins, manual-fallback, `(0, 0)` treated as unset) via a new
+  `_effective_latlon` helper, so a manual-only contact is a valid advert-link
+  edge endpoint and `GET /packets/advert-links` draws edges to it.
+- Frontend: `MapView`'s link-coordinate resolver now delegates to a new pure
+  `resolveNodeCoord` in `utils/pathUtils.ts` (uses `getEffectiveLocation`
+  instead of raw `lat`/`lon`), so the liveness-links layer and packet-path
+  pulses include manual-only nodes.
+- Frontend: the "Discover nodes" packet-reveal path (`resolvePacketContacts` in
+  `MapView`) now gates on the effective location via a new `hasEffectiveLocation`
+  helper, so a manual-only node is revealed by packet playback in discovery mode
+  too (was advertised-only).
+- Tests: 4 new backend cases (`tests/test_advert_links_endpoint.py`, incl. an
+  endpoint test asserting a manual-only node is a drawn path edge endpoint) and
+  11 new frontend cases (`src/test/effectiveLocation.test.ts` for
+  `resolveNodeCoord`, `src/test/resolvePacketContacts.test.ts` for discovery
+  reveal).
+- Gates green: backend ruff / ruff format / pyright / pytest (2123); frontend
+  eslint (0 errors) / prettier / vitest (1613) / build.
+
 ## Update 2026-09-18 (Interactive chart zoom/pan, feat/chart-zoom-scaling)
 
 ### Time-series charts (frontend)
