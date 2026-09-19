@@ -236,36 +236,18 @@ export function MapControls(props: MapControlsProps) {
       id: 'layers',
       title: t('map_basemap_label'),
       body: (
-        <div role="radiogroup" aria-label={t('map_basemap_label')} className="space-y-1">
-          {basemaps.map((b) => {
-            const selected = b.id === selectedBasemapId;
-            return (
-              <button
-                key={b.id}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                className={
-                  'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm ' +
-                  (selected ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50')
-                }
-                onClick={() => {
-                  onSelectBasemap?.(b.id);
-                  setOpenPanel(null);
-                }}
-              >
-                <span
-                  aria-hidden
-                  className={
-                    'inline-block h-2.5 w-2.5 rounded-full border ' +
-                    (selected ? 'border-primary bg-primary' : 'border-muted-foreground')
-                  }
-                />
-                {t(b.label)}
-              </button>
-            );
-          })}
-        </div>
+        <select
+          aria-label={t('map_basemap_label')}
+          className="w-full rounded border border-border bg-background px-2 py-1.5 text-sm"
+          value={selectedBasemapId}
+          onChange={(e) => onSelectBasemap?.(e.target.value)}
+        >
+          {basemaps.map((b) => (
+            <option key={b.id} value={b.id}>
+              {t(b.label)}
+            </option>
+          ))}
+        </select>
       ),
     };
   }

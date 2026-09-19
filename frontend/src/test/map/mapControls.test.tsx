@@ -67,7 +67,7 @@ describe('MapControls', () => {
     const onSelectBasemap = vi.fn();
     renderControls({ onSelectBasemap });
     fireEvent.click(screen.getByRole('button', { name: 'Display' }));
-    fireEvent.click(screen.getByText('OpenFreeMap Positron'));
+    fireEvent.change(screen.getByLabelText('Basemap'), { target: { value: 'ofm-positron' } });
     expect(onSelectBasemap).toHaveBeenCalledWith('ofm-positron');
   });
 
