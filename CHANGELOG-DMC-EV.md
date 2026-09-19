@@ -11,6 +11,18 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-19 (Persist Mesh Health sub-tab, fix/mesh-health-tab-persist)
+
+### Mesh Health (frontend)
+- **Refreshing the Mesh Health page now keeps the Adverts/Requests sub-tab you
+  were on instead of snapping back to Adverts.** `MeshHealthView` held the
+  active tab in un-persisted `useState`; it now restores the last-used tab from
+  `localStorage` (`rtfm-meshhealth-tab`), mirroring how the time-window selector
+  already persists. A `focusKey` navigation (jump to a specific advert node)
+  still forces the Adverts tab. Runtime-verified in-browser (switch to Requests,
+  reload, stays on Requests); gates green (tsc / eslint / prettier / vitest 1623
+  / build).
+
 ## Update 2026-09-19 (Fix chart-hover crash on zoom, fix/chart-hover-stale-index)
 
 ### Charts (frontend)

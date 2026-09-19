@@ -31,6 +31,17 @@ const MESH_HEALTH_RANGES: TimeRange[] = [...MESH_HEALTH_EXTRAS_BEFORE, ...BASE_T
 const AUTO_REFRESH_IDS = new Set(['30m', '1h']);
 const DEFAULT_MESH_HEALTH_ID = '30m';
 const MESH_HEALTH_WINDOW_KEY = 'rtfm-meshhealth-window';
+const MESH_HEALTH_TAB_KEY = 'rtfm-meshhealth-tab';
+
+// Persist the Adverts/Requests sub-tab so a page refresh stays on the same panel
+// instead of snapping back to Adverts.
+function loadStoredTab(): MeshHealthTab {
+  try {
+    return localStorage.getItem(MESH_HEALTH_TAB_KEY) === 'requests' ? 'requests' : 'adverts';
+  } catch {
+    return 'adverts';
+  }
+}
 
 // Build the shared TimeWindow shape (consumed by the panels) from a range id.
 function windowFromId(id: string): TimeWindow {
@@ -56,7 +67,11 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
     () => loadStoredTimeRange(MESH_HEALTH_WINDOW_KEY, DEFAULT_MESH_HEALTH_ID).id
   );
   const selectedWindow = useMemo(() => windowFromId(selectedWindowId), [selectedWindowId]);
-  const [activeTab, setActiveTab] = useState<MeshHealthTab>('adverts');
+  // A focus target always belongs to the Adverts panel, so honor it over the
+  // stored tab; otherwise restore the last-used tab.
+  const [activeTab, setActiveTab] = useState<MeshHealthTab>(() =>
+    focusKey ? 'adverts' : loadStoredTab()
+  );
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -66,6 +81,14 @@ export function MeshHealthView({ config, onNavigateToMap, focusKey }: Props) {
       customEnd: '',
     });
   }, [selectedWindowId]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MESH_HEALTH_TAB_KEY, activeTab);
+    } catch {
+      /* ignore unavailable storage */
+    }
+  }, [activeTab]);
   const [loading, setLoading] = useState(false);
 
   // Panels report their own loading so the shared refresh spinner reflects it.
