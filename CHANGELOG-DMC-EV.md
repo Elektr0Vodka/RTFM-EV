@@ -67,6 +67,51 @@ the change. Upstream development is on hold; the fork is the active repository.
   (4). Gates green: eslint (0 errors) / prettier / tsc / vitest (1623) / build.
   Runtime-verified in the browser: hover tooltip on all three charts, 2-D zoom
   on the scatter, index zoom on the volume chart.
+## Update 2026-09-19 (Mesh Trends page consolidates stats, feat/mesh-trends-page)
+
+### New Mesh Trends Tools view (frontend, closes #83 and #84)
+
+- **Added a "Mesh Trends" view to the Tools sidebar** with two tabs, Live and
+  Historical (default Historical, remembered per-device in localStorage under
+  `rtfm-mesh-trends-tab`). It consolidates the two previously separate stats
+  surfaces:
+  - **Historical tab** hosts every block relocated from the removed Settings >
+    Statistics section (`MeshTrendsHistoricalPanel`): network / message / activity
+    counts, packet totals, per-broker MQTT stats, packets-per-hour (72h),
+    path-hash width (24h), region-scope adoption (24h), busiest channels, and the
+    noise-floor chart. Data still comes from `GET /api/statistics` (unchanged).
+  - **Live tab** hosts the session stats that used to be built into the raw packet
+    feed (`PacketFeedStatsPanel`): coverage, time-range selector, per-minute /
+    unique-source / decrypt-rate / path / neighbour tiles, the traffic timeline,
+    and the ranked type/route/hop/RSSI and neighbour lists. It reads the app-wide
+    `rawPacketStore` session, so it stays populated regardless of which view is
+    open.
+- **Removed the Statistics section from Settings** (`SettingsStatisticsSection`
+  deleted; `statistics` dropped from `SettingsSection`, the section order, labels,
+  icons, and the URL-hash settings-section list). Old `#settings/statistics`
+  deep-links now fall back to the default settings section.
+- **Slimmed the raw packet feed**: the Show/Hide stats drawer and the stats
+  `<aside>` are gone, and the recharts dependency and stat sub-components moved out
+  with them. The feed keeps its list, hex/hop-width Filters modal, per-packet
+  inspector, and signal audio.
+- **Promoted "Analyze Packet" to its own Tools view** (`AnalyzePacketView`),
+  placed after the packet feed. The paste-a-hex inspector body was extracted into
+  a shared `RawPacketPasteInspector` reused by both the standalone view and the
+  existing packet-detail dialog; the feed's Analyze button was removed.
+- Charts keep interactive zoom/pan/hover: the historical noise-floor and
+  packets-per-hour charts retain their `ZoomableChart` wrapping; ranked/categorical
+  bars keep hover only (no zoom).
+- Sidebar: two new reorderable/hideable tool rows (`mesh-trends`, `analyze`);
+  routing (`#mesh-trends`, `#analyze`) restores on refresh and back/forward.
+- i18n: added `nav_mesh_trends`, `nav_analyze_packet`, `mesh_trends_tab_live`,
+  `mesh_trends_tab_historical`, `common_loading_mesh_trends`,
+  `common_loading_analyze_packet` (EN/NL/DE); removed the now-unused
+  `settings_section_statistics`.
+- Tests: new `meshTrendsView`, `packetFeedStatsPanel`, and `analyzePacketView`
+  suites; the raw-feed and settings-modal suites were trimmed of the relocated
+  behaviour; startup-hash restore cases added for both new views.
+- Gates green (rebased on #137): frontend tsc / eslint (0 errors) / prettier /
+  vitest (1622) / build. No backend changes and no migration.
 
 ## Update 2026-09-19 (Manual location overrides show in paths, fix/manual-location-in-paths)
 

@@ -11,11 +11,11 @@ import {
   Area,
   Cell,
 } from 'recharts';
-import { Separator } from '../ui/separator';
-import { ZoomableChart } from '../charts/ZoomableChart';
-import { api } from '../../api';
-import { useT } from '../../i18n';
-import type { RegionScopeStats, StatisticsResponse } from '../../types';
+import { Separator } from './ui/separator';
+import { ZoomableChart } from './charts/ZoomableChart';
+import { api } from '../api';
+import { useT } from '../i18n';
+import type { RegionScopeStats, StatisticsResponse } from '../types';
 
 const INDEX_MIN_SPAN = 2; // smallest zoom window, in buckets
 
@@ -302,7 +302,7 @@ function NoiseFloorChart({
   );
 }
 
-export function SettingsStatisticsSection({ className }: { className?: string }) {
+export function MeshTrendsHistoricalPanel({ className }: { className?: string }) {
   const t = useT();
   const [stats, setStats] = useState<StatisticsResponse | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);

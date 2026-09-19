@@ -435,7 +435,9 @@ type ConversationType =
   | 'trace'
   | 'channel-registry'
   | 'node'
-  | 'mesh-health';
+  | 'mesh-health'
+  | 'mesh-trends'
+  | 'analyze';
 
 export interface Conversation {
   type: ConversationType;

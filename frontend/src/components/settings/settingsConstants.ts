@@ -1,5 +1,4 @@
 import {
-  BarChart3,
   Database,
   Info,
   Lightbulb,
@@ -19,7 +18,6 @@ export type SettingsSection =
   | 'database'
   | 'fanout'
   | 'openhop'
-  | 'statistics'
   | 'handy-info'
   | 'about';
 
@@ -30,7 +28,6 @@ export const SETTINGS_SECTION_ORDER: SettingsSection[] = [
   'openhop',
   'radio-app',
   'database',
-  'statistics',
   'handy-info',
   'about',
 ];
@@ -42,7 +39,6 @@ const SETTINGS_SECTION_LABEL_KEYS: Record<SettingsSection, string> = {
   database: 'settings_section_database',
   fanout: 'settings_section_fanout',
   openhop: 'settings_section_openhop',
-  statistics: 'settings_section_statistics',
   'handy-info': 'settings_section_handy_info',
   about: 'settings_section_about',
 };
@@ -58,7 +54,6 @@ export const SETTINGS_SECTION_ICONS: Record<SettingsSection, LucideIcon> = {
   database: Database,
   fanout: Share2,
   openhop: ShieldAlert,
-  statistics: BarChart3,
   'handy-info': Lightbulb,
   about: Info,
 };

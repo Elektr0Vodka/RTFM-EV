@@ -25,7 +25,6 @@ import { SettingsLocalSection } from './settings/SettingsLocalSection';
 import { SettingsRadioAppSection } from './settings/SettingsRadioAppSection';
 import { SettingsFanoutSection } from './settings/SettingsFanoutSection';
 import { SettingsDatabaseSection } from './settings/SettingsDatabaseSection';
-import { SettingsStatisticsSection } from './settings/SettingsStatisticsSection';
 import { SettingsAboutSection } from './settings/SettingsAboutSection';
 import { SettingsHandyInfoSection } from './settings/SettingsHandyInfoSection';
 import { SettingsOpenHopSection } from './settings/openhop/SettingsOpenHopSection';
@@ -128,7 +127,6 @@ export function SettingsModal(props: SettingsModalProps) {
     fanout: false,
     openhop: false,
     database: false,
-    statistics: false,
     'handy-info': false,
     about: false,
   });
@@ -345,15 +343,6 @@ export function SettingsModal(props: SettingsModalProps) {
                 onSaveAppSettings={onSaveAppSettings}
               />
             </div>
-          )}
-        </section>
-      )}
-
-      {shouldRenderSection('statistics') && (
-        <section className={sectionWrapperClass}>
-          {renderSectionHeader('statistics')}
-          {isSectionVisible('statistics') && (
-            <SettingsStatisticsSection className={sectionContentClass} />
           )}
         </section>
       )}

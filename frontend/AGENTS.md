@@ -122,8 +122,12 @@ frontend/src/
 │   ├── SettingsModal.tsx       # Layout shell - delegates to settings/ sections
 │   ├── SecurityWarningModal.tsx # Startup warning for trusted-network / bot execution posture
 │   ├── RawPacketList.tsx
-│   ├── RawPacketFeedView.tsx   # Live raw packet feed + session stats drawer
-│   ├── RawPacketDetailModal.tsx # On-demand packet inspector dialog
+│   ├── RawPacketFeedView.tsx   # Live raw packet feed (list + filters + inspector); stats moved to Mesh Trends
+│   ├── RawPacketDetailModal.tsx # On-demand packet inspector dialog + RawPacketPasteInspector (shared paste-hex body)
+│   ├── MeshTrendsView.tsx      # Tools view: Live / Historical tabs (consolidated stats)
+│   ├── PacketFeedStatsPanel.tsx # Live tab: session packet-stat breakdowns (reads rawPacketStore)
+│   ├── MeshTrendsHistoricalPanel.tsx # Historical tab: server-backed stats (GET /api/statistics)
+│   ├── AnalyzePacketView.tsx   # Tools view: standalone paste-a-hex packet inspector
 │   ├── MapView.tsx
 │   ├── TracePane.tsx           # Multi-hop route trace builder/results view
 │   ├── VisualizerView.tsx
@@ -155,7 +159,6 @@ frontend/src/
 │   │   ├── SettingsFanoutSection.tsx     # Fanout integrations: MQTT, bots, config CRUD
 │   │   ├── SettingsRadioAppSection.tsx    # Radio-App Management: tracked telemetry, contact management, blocked lists
 │   │   ├── SettingsDatabaseSection.tsx   # Database: DB size, storage cleanup, auto-decrypt
-│   │   ├── SettingsStatisticsSection.tsx # Read-only mesh network stats (incl. region-scope adoption)
 │   │   ├── SettingsAboutSection.tsx     # Version, author, license, links
 │   │   ├── ThemeSelector.tsx           # Color theme picker
 │   │   └── BulkDeleteContactsModal.tsx # Bulk contact deletion dialog
@@ -262,7 +265,7 @@ High-level state is delegated to hooks:
 
 `App.tsx` intentionally still does the final `AppShell` prop assembly. That composition layer is considered acceptable here because it keeps the shell contract visible in one place and avoids a prop-bundling hook with little original logic.
 
-**The overheard packet stream is the one piece of app state that deliberately does not live in React.** It is held in `stores/rawPacketStore.ts` and read through `useSyncExternalStore`, because it updates several times a second with every packet the node hears - far more often than anything else - and only four surfaces consume it (`MapView`, `VisualizerView`, `RawPacketFeedView`, `CrackerPanel`). Held in `App` state it re-rendered the entire tree, including `MessageList`, which is neither memoized nor cheap on a long history.
+**The overheard packet stream is the one piece of app state that deliberately does not live in React.** It is held in `stores/rawPacketStore.ts` and read through `useSyncExternalStore`, because it updates several times a second with every packet the node hears - far more often than anything else - and only a few surfaces consume it (`MapView`, `VisualizerView`, `RawPacketFeedView`, `CrackerPanel`, and `PacketFeedStatsPanel` on the Mesh Trends Live tab). Held in `App` state it re-rendered the entire tree, including `MessageList`, which is neither memoized nor cheap on a long history.
 
 That gives the store a load-bearing invariant: **no ancestor of `MessageList` may call `useRawPackets()` / `useRawPacketStatsSession()`.** Nothing about the prop signatures enforces it - an innocuous-looking subscription added to `App`, `AppShell`, or `ConversationPane` silently restores the original slowdown. `src/test/appPacketIsolation.test.tsx` pins it by mounting the real ancestor chain and asserting `MessageList` does not re-render when packets arrive; it carries a negative control so the assertion cannot pass vacuously. Reach for packets in a new view by subscribing in that view, never by lifting them up.
 
@@ -307,7 +310,7 @@ That gives the store a load-bearing invariant: **no ancestor of `MessageList` ma
   - `id`: backend storage row identity (payload-level dedup)
   - `observation_id`: realtime per-arrival identity (session fidelity)
 - Packet feed/visualizer render keys and dedup logic should use `observation_id` (fallback to `id` only for older payloads).
-- The dedicated raw packet feed view now includes a frontend-only stats drawer. It tracks a separate lightweight per-observation session history for charts/rankings, so its windows are not limited by the visible packet list cap. Coverage messaging should stay honest when detailed in-memory stats history has been trimmed or the selected window predates the current browser session.
+- The frontend-only packet stats live on the Mesh Trends "Live" tab (`PacketFeedStatsPanel`), not the raw packet feed. They track a separate lightweight per-observation session history (`rawPacketStore`) for charts/rankings, so windows are not limited by the visible packet list cap. Coverage messaging should stay honest when detailed in-memory stats history has been trimmed or the selected window predates the current browser session.
 
 ### Live packet map (`map/packets/`)
 
@@ -381,7 +384,7 @@ Supported routes:
 - `#contact/{publicKey}`
 - `#contact/{publicKey}/{label}`
 
-Where `{section}` is one of `radio`, `local`, `radio-app`, `database`, `fanout`, `statistics`, or `about`.
+Where `{section}` is one of `radio`, `local`, `radio-app`, `database`, `fanout`, `openhop`, `handy-info`, or `about`.
 
 Legacy name-based channel/contact hashes are still accepted for compatibility.
 
@@ -550,7 +553,7 @@ Key conventions documented in the reference:
 
 ### Region-scope adoption panel
 
-`SettingsStatisticsSection.tsx` renders `stats.region_scope_24h` via `RegionScopeStatsPanel`. Two presentation rules exist because regional adoption is currently very sparse, and both are deliberate:
+`MeshTrendsHistoricalPanel.tsx` (Mesh Trends "Historical" tab) renders `stats.region_scope_24h` via `RegionScopeStatsPanel`. Two presentation rules exist because regional adoption is currently very sparse, and both are deliberate:
 
 - **Fractions, not bare percentages.** "3 of 117" carries the sample size that "2.6%" hides.
 - **The traffic percentage is withheld** when the scoped count is at or below `false_positive_floor` (corrupt-capture noise) or when the share would round to `0.0%`. The floor caveat is always shown alongside a non-zero scoped count. The sender figure is never suppressed - it requires successful decryption and so carries no noise.

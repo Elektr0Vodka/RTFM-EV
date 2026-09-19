@@ -14,7 +14,9 @@ interface ParsedHashConversation {
     | 'trace'
     | 'channel-registry'
     | 'node'
-    | 'mesh-health';
+    | 'mesh-health'
+    | 'mesh-trends'
+    | 'analyze';
   /** Conversation identity token (channel key or contact public key, or legacy name token) */
   name: string;
   /** Optional human-readable label segment (ignored for identity resolution) */
@@ -32,7 +34,6 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
   'fanout',
   'openhop',
   'database',
-  'statistics',
   'about',
 ];
 
@@ -72,6 +73,14 @@ export function parseHashConversation(): ParsedHashConversation | null {
 
   if (hash === 'mesh-health') {
     return { type: 'mesh-health', name: 'mesh-health' };
+  }
+
+  if (hash === 'mesh-trends') {
+    return { type: 'mesh-trends', name: 'mesh-trends' };
+  }
+
+  if (hash === 'analyze') {
+    return { type: 'analyze', name: 'analyze' };
   }
 
   // Check for map focused on an arbitrary point: #map/at/<lat>,<lon>
@@ -201,6 +210,8 @@ export function getConversationHash(conv: Conversation | null): string {
   if (conv.type === 'channel-registry') return '#channel-registry';
   if (conv.type === 'node') return '#node';
   if (conv.type === 'mesh-health') return '#mesh-health';
+  if (conv.type === 'mesh-trends') return '#mesh-trends';
+  if (conv.type === 'analyze') return '#analyze';
 
   // Use immutable IDs for identity, append readable label for UX.
   if (conv.type === 'channel') {

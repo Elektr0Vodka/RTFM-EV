@@ -19,7 +19,9 @@ export const ALL_SECTION_KEYS: SidebarSectionKey[] = ['tools', 'favorites', 'cha
 export type SidebarToolKey =
   | 'my-node'
   | 'mesh-health'
+  | 'mesh-trends'
   | 'raw'
+  | 'analyze'
   | 'map'
   | 'visualizer'
   | 'trace'
@@ -30,7 +32,9 @@ export type SidebarToolKey =
 export const ALL_TOOL_KEYS: SidebarToolKey[] = [
   'my-node',
   'mesh-health',
+  'mesh-trends',
   'raw',
+  'analyze',
   'map',
   'visualizer',
   'trace',

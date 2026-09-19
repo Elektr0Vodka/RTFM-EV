@@ -124,6 +124,14 @@ vi.mock('../components/MeshHealthView', () => ({
   MeshHealthView: () => null,
 }));
 
+vi.mock('../components/MeshTrendsView', () => ({
+  MeshTrendsView: () => null,
+}));
+
+vi.mock('../components/AnalyzePacketView', () => ({
+  AnalyzePacketView: () => null,
+}));
+
 vi.mock('../components/ChannelRegistryView', () => ({
   default: () => null,
   notifyChannelFound: vi.fn(),
@@ -298,6 +306,32 @@ describe('App startup hash resolution', () => {
     await waitFor(() => {
       for (const node of screen.getAllByTestId('active-conversation')) {
         expect(node).toHaveTextContent('mesh-health:mesh-health:');
+      }
+    });
+  });
+
+  it('restores the Mesh Trends view from the URL hash even when channels are unavailable', async () => {
+    setHash('#mesh-trends');
+    mocks.api.getChannels.mockResolvedValue([]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      for (const node of screen.getAllByTestId('active-conversation')) {
+        expect(node).toHaveTextContent('mesh-trends:mesh-trends:');
+      }
+    });
+  });
+
+  it('restores the Analyze Packet view from the URL hash even when channels are unavailable', async () => {
+    setHash('#analyze');
+    mocks.api.getChannels.mockResolvedValue([]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      for (const node of screen.getAllByTestId('active-conversation')) {
+        expect(node).toHaveTextContent('analyze:analyze:');
       }
     });
   });
