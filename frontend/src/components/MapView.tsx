@@ -10,7 +10,12 @@ import type {
 } from '../types';
 import { api, isAbortError } from '../api';
 import { formatTime } from '../utils/messageParser';
-import { isValidLocation, getEffectiveLocation } from '../utils/pathUtils';
+import {
+  isValidLocation,
+  getEffectiveLocation,
+  resolveNodeCoord,
+  hasEffectiveLocation,
+} from '../utils/pathUtils';
 import { parsePacket } from '../utils/visualizerUtils';
 import { getRawPacketObservationKey } from '../utils/rawPacketIdentity';
 import { BASE_TIME_RANGES } from '../utils/timeRanges';
@@ -203,10 +208,14 @@ function localDateTimeToEpochSec(value: string): number | null {
 function resolveNameToGps(name: string, nameIndex: Map<string, Contact>): Contact | null {
   const c = nameIndex.get(name);
   if (!c) return null;
-  return isValidLocation(c.lat, c.lon) ? c : null;
+  return hasEffectiveLocation(c) ? c : null;
 }
 
-function resolvePacketContacts(
+// Which contacts a packet reveals in discovery mode. A contact is revealed only
+// when it can be placed on the map, using the effective location
+// (advertised-wins, manual-fallback) so a manual-only node is discoverable too.
+// Exported for unit testing.
+export function resolvePacketContacts(
   parsed: ReturnType<typeof parsePacket>,
   prefixIndex: Map<string, Contact[]>,
   nameIndex: Map<string, Contact>,
@@ -222,7 +231,7 @@ function resolvePacketContacts(
       : [];
   for (const prefix of sourcePrefixes) {
     const matches = prefixIndex.get(prefix);
-    if (matches?.length === 1 && isValidLocation(matches[0].lat, matches[0].lon)) {
+    if (matches?.length === 1 && hasEffectiveLocation(matches[0])) {
       keys.add(matches[0].public_key);
     }
   }
@@ -233,14 +242,14 @@ function resolvePacketContacts(
   for (const hop of parsed.pathBytes) {
     if (hop.length < 4) continue;
     const matches = prefixIndex.get(hop.toLowerCase());
-    if (matches?.length === 1 && isValidLocation(matches[0].lat, matches[0].lon)) {
+    if (matches?.length === 1 && hasEffectiveLocation(matches[0])) {
       keys.add(matches[0].public_key);
     }
   }
   if (myLatLon && config?.public_key) keys.add(config.public_key.toLowerCase());
   if (parsed.dstHash) {
     const matches = prefixIndex.get(parsed.dstHash.toLowerCase());
-    if (matches?.length === 1 && isValidLocation(matches[0].lat, matches[0].lon)) {
+    if (matches?.length === 1 && hasEffectiveLocation(matches[0])) {
       keys.add(matches[0].public_key);
     }
   }
@@ -444,16 +453,16 @@ export function MapView({
 
   // Resolve a graph node id to coordinates: 'self' is my node, otherwise a
   // 12-char public-key prefix matched to a single contact (see resolveNode in
-  // packetNetworkGraph.ts, which keys nodes by contactIndex.byPrefix12).
+  // packetNetworkGraph.ts, which keys nodes by contactIndex.byPrefix12). Uses
+  // the effective location so a node placed only by a manual override is still
+  // drawn into links and packet paths.
   const resolveLinkCoord = useCallback<ResolveCoord>(
-    (nodeId) => {
-      if (nodeId === 'self') return myLatLon ? { lat: myLatLon[0], lon: myLatLon[1] } : undefined;
-      const matches = prefixIndex.get(nodeId);
-      const c = matches && matches.length === 1 ? matches[0] : undefined;
-      return c && c.lat != null && c.lon != null && isValidLocation(c.lat, c.lon)
-        ? { lat: c.lat, lon: c.lon }
-        : undefined;
-    },
+    (nodeId) =>
+      resolveNodeCoord(
+        nodeId,
+        myLatLon ? { lat: myLatLon[0], lon: myLatLon[1] } : null,
+        prefixIndex
+      ),
     [prefixIndex, myLatLon]
   );
 

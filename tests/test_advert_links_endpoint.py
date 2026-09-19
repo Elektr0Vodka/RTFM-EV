@@ -85,6 +85,55 @@ class TestLocatedNodes:
         assert "bb00000000" not in by_pk
 
     @pytest.mark.asyncio
+    async def test_uses_manual_coordinates_when_advertised_missing(self, test_db):
+        # A contact with no advertised GPS but a manual location override must be
+        # placed at the manual coordinates so advert-link edges can reach it.
+        await ContactRepository.upsert(
+            ContactUpsert(
+                public_key="ee00000000", name="ManualOnly", manual_lat=51.5, manual_lon=4.5
+            )
+        )
+        nodes = await AdvertLinksRepository.located_nodes()
+        by_pk = {n.pubkey: n for n in nodes}
+        assert "ee00000000" in by_pk
+        assert by_pk["ee00000000"].kind == "contact"
+        assert by_pk["ee00000000"].lat == 51.5
+        assert by_pk["ee00000000"].lon == 4.5
+
+    @pytest.mark.asyncio
+    async def test_advertised_coordinates_win_over_manual_override(self, test_db):
+        # When both advertised and manual coordinates exist, the advertised
+        # (RF-truth) location wins.
+        await ContactRepository.upsert(
+            ContactUpsert(
+                public_key="ee11000000",
+                name="Both",
+                lat=52.0,
+                lon=5.0,
+                manual_lat=10.0,
+                manual_lon=10.0,
+            )
+        )
+        nodes = await AdvertLinksRepository.located_nodes()
+        by_pk = {n.pubkey: n for n in nodes}
+        assert "ee11000000" in by_pk
+        assert by_pk["ee11000000"].lat == 52.0
+        assert by_pk["ee11000000"].lon == 5.0
+
+    @pytest.mark.asyncio
+    async def test_excludes_zero_zero_manual_override(self, test_db):
+        # (0, 0) remains the "unset" sentinel even when it arrives via the manual
+        # override columns.
+        await ContactRepository.upsert(
+            ContactUpsert(
+                public_key="ee22000000", name="ZeroManual", manual_lat=0.0, manual_lon=0.0
+            )
+        )
+        nodes = await AdvertLinksRepository.located_nodes()
+        by_pk = {n.pubkey: n for n in nodes}
+        assert "ee22000000" not in by_pk
+
+    @pytest.mark.asyncio
     async def test_contact_wins_over_external_on_pubkey_collision(self, test_db):
         await ContactRepository.upsert(
             ContactUpsert(public_key="aa11000000", name="LocalRepeater", lat=1.0, lon=2.0)
@@ -160,6 +209,42 @@ class TestAdvertLinksEndpoint:
         assert e["ambiguous"] is False
         kinds = {e["a"]["kind"], e["b"]["kind"]}
         assert kinds == {"contact", "external"}
+
+    @pytest.mark.asyncio
+    async def test_manual_only_node_becomes_a_path_edge_endpoint(self, test_db, client):
+        # A repeater placed only by a manual override (no advertised GPS) must be
+        # a drawable endpoint of the advert-link path it participates in.
+        await ContactRepository.upsert(
+            ContactUpsert(
+                public_key="ff00000000", name="ManualRepeater", manual_lat=51.5, manual_lon=4.5
+            )
+        )
+        await ExternalMapRepository.replace_all(
+            [
+                ExternalMapNode(
+                    pubkey="aa11000000",
+                    name="R1",
+                    role="Repeater",
+                    lat=52.1,
+                    lon=5.0,
+                    last_seen=1,
+                    advert_count=3,
+                    mobile=False,
+                )
+            ],
+            source="test",
+            synced_at=1,
+        )
+        await _insert_advert_event(test_db, "ff00000000", "aa11", 2, 1, 9000)
+
+        response = await client.get("/api/packets/advert-links")
+        assert response.status_code == 200
+        edges = response.json()
+        assert len(edges) == 1
+        e = edges[0]
+        assert {e["a"]["pubkey"], e["b"]["pubkey"]} == {"ff00000000", "aa11000000"}
+        manual = e["a"] if e["a"]["pubkey"] == "ff00000000" else e["b"]
+        assert manual["lat"] == 51.5 and manual["lon"] == 4.5
 
     @pytest.mark.asyncio
     async def test_empty_when_no_events(self, test_db, client):
