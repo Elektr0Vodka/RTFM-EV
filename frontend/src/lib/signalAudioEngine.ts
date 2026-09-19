@@ -28,6 +28,12 @@ const BP_FREQ = 1800; // geiger bandpass centre (Hz), before SNR + jitter shapin
 const BP_Q = 1.6;
 const DECAY_S = 0.011; // geiger exponential decay to near-silence (~11 ms)
 const PEAK = 0.9; // geiger envelope peak before level jitter
+// The bandpass (BP_Q) on unit-variance white noise attenuates the click to ~0.2 of the
+// envelope target, so without makeup a PEAK-level click peaks around 0.08 at the output
+// and is inaudible next to the oscillator themes (sonar/waterdrip peak near 0.5). This
+// makeup gain lifts the envelope target to compensate, so the geiger tick lands at a
+// comparable peak level. Verified by rendering the graph in an OfflineAudioContext.
+const GEIGER_MAKEUP_GAIN = 5;
 
 export type SignalAudioTheme = 'geiger' | 'sonar' | 'waterdrip';
 
@@ -109,7 +115,7 @@ export function createSignalAudioEngine(deps: SignalAudioEngineDeps = {}): Signa
     bp.Q.value = BP_Q;
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, at);
-    g.gain.exponentialRampToValueAtTime(PEAK * level, at + 0.0005);
+    g.gain.exponentialRampToValueAtTime(PEAK * level * GEIGER_MAKEUP_GAIN, at + 0.0005);
     g.gain.exponentialRampToValueAtTime(0.0001, at + DECAY_S);
     src.connect(bp);
     bp.connect(g);

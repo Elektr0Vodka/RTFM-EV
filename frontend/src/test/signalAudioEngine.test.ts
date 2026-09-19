@@ -156,6 +156,22 @@ describe('onPacket', () => {
     expect(fake.created.oscillators).toHaveLength(0);
   });
 
+  it('geiger click applies makeup gain so the bandpassed noise is audible', () => {
+    const fake = makeFakeContext();
+    const engine = engineWith(fake); // random=0.5 fixes the jitter
+    engine.setTheme('geiger');
+    engine.setEnabled(true);
+    engine.onPacket({ snrDb: 0, payloadType: 'ADVERT' });
+    // gains[0] is the master; gains[1] is this click's envelope.
+    const clickGain = fake.created.gains[1];
+    const peakTarget = clickGain.gain.exponentialRampToValueAtTime.mock.calls[0][0] as number;
+    // A bandpass (Q=1.6) on unit-variance white noise attenuates the click to ~0.2 of
+    // the envelope target, so without makeup the click peaks near 0.08 and is inaudible
+    // next to the oscillator themes. The makeup gain lifts the envelope target well above
+    // 1 to compensate, matching the sonar/waterdrip peak level.
+    expect(peakTarget).toBeGreaterThan(3);
+  });
+
   it('geiger click centre frequency rises with SNR', () => {
     const fake = makeFakeContext();
     const engine = engineWith(fake);

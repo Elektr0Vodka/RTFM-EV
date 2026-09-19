@@ -11,6 +11,24 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-19 (Make the packet-feed Geiger sound audible, fix/geiger-sound-packet-feed)
+
+### Signal audio (frontend)
+- **The Geiger sound theme on the raw packet feed was effectively silent while
+  Sonar and Water drip were clearly audible.** The Geiger click is a short
+  band-passed white-noise burst; the band-pass filter (`Q = 1.6` at 1800 Hz) on
+  unit-variance noise attenuates the click to roughly a fifth of its envelope
+  target, so although the gain envelope aimed at `PEAK * level ≈ 0.8`, the actual
+  output peaked near 0.08 (vs ~0.48 for the oscillator themes) and was inaudible
+  at normal volume. `playGeiger` (`lib/signalAudioEngine.ts`) now applies a
+  `GEIGER_MAKEUP_GAIN` of 5 to the envelope target, bringing the click's peak to
+  ~0.50, matching Sonar/Water drip. Root cause and both levels measured by
+  rendering the exact node graph in an `OfflineAudioContext`; the pre-fix
+  live-injection path was verified in-browser (real WebSocket `raw_packet` frames
+  produce Geiger buffer-source clicks). New regression test asserts the Geiger
+  envelope target is lifted above 1. Gates green (tsc / eslint / prettier /
+  vitest 1623 / build).
+
 ## Update 2026-09-19 (Persist Mesh Health sub-tab, fix/mesh-health-tab-persist)
 
 ### Mesh Health (frontend)
