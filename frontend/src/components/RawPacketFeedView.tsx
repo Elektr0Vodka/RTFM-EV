@@ -80,6 +80,9 @@ export function RawPacketFeedView({
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   // Autoscroll defaults on; intentionally not persisted across refreshes.
   const [autoScroll, setAutoScroll] = useState(true);
+  // Pause snapshot: while set, the view is frozen to this list and incoming
+  // packets are only counted (not shown) until the user resumes. Session-only.
+  const [pausedSnapshot, setPausedSnapshot] = useState<RawPacket[] | null>(null);
   // Per-packet signal audio (Geiger / sonar). Persisted per-browser; off by default.
   const [soundOn, setSoundOn] = useState(getSavedSignalAudioOn);
   const [soundVolume, setSoundVolume] = useState(getSavedSignalAudioVolume);
@@ -150,6 +153,20 @@ export function RawPacketFeedView({
     filters.hexQuery,
     filters.hexInvalid,
   ]);
+
+  const paused = pausedSnapshot !== null;
+  const displayedPackets = paused ? pausedSnapshot : filteredPackets;
+  // How many matching packets have arrived since the feed was paused.
+  const pausedNewCount = useMemo(() => {
+    if (!pausedSnapshot) return 0;
+    const seen = new Set(pausedSnapshot.map(getRawPacketObservationKey));
+    let count = 0;
+    for (const packet of filteredPackets) {
+      if (!seen.has(getRawPacketObservationKey(packet))) count += 1;
+    }
+    return count;
+  }, [pausedSnapshot, filteredPackets]);
+  const togglePause = () => setPausedSnapshot((prev) => (prev ? null : filteredPackets));
 
   return (
     <>
@@ -267,27 +284,44 @@ export function RawPacketFeedView({
             <option value="oldest">{t('packet_sort_oldest')}</option>
             <option value="newest">{t('packet_sort_newest')}</option>
           </select>
-          <label className="ml-auto flex items-center gap-1 text-xs text-foreground cursor-pointer">
-            <input
-              type="checkbox"
-              checked={autoScroll}
-              onChange={(event) => setAutoScroll(event.target.checked)}
-              className="rounded"
-            />
-            {t('packet_autoscroll_label')}
-          </label>
+          <div className="ml-auto flex items-center gap-2">
+            <Button
+              type="button"
+              variant={paused ? 'default' : 'outline'}
+              size="sm"
+              onClick={togglePause}
+              aria-pressed={paused}
+            >
+              {paused ? t('packet_resume') : t('packet_pause')}
+            </Button>
+            {paused && pausedNewCount > 0 && (
+              <span className="rounded-full bg-primary px-1.5 text-[0.625rem] font-semibold text-primary-foreground tabular-nums">
+                {t('packet_paused_new', { count: pausedNewCount })}
+              </span>
+            )}
+            <label className="flex items-center gap-1 text-xs text-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoScroll}
+                onChange={(event) => setAutoScroll(event.target.checked)}
+                className="rounded"
+              />
+              {t('packet_autoscroll_label')}
+            </label>
+          </div>
         </div>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="min-h-0 min-w-0 flex-1">
           <RawPacketList
-            packets={filteredPackets}
+            packets={displayedPackets}
             channels={channels}
             contacts={contacts}
             onPacketClick={setSelectedPacket}
-            autoScroll={autoScroll}
+            autoScroll={autoScroll && !paused}
             newestFirst={packetFeedSort === 'newest'}
+            groupByContent={filters.groupByHash}
             directPacketKeys={directPacketKeys}
           />
         </div>

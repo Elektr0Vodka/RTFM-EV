@@ -1,9 +1,23 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RawPacketFeedView } from '../components/RawPacketFeedView';
 import { resetRawPacketStore, seedRawPacketStore } from '../stores/rawPacketStore';
 import type { Channel, RawPacket } from '../types';
+
+function feedPacket(id: number, data: string): RawPacket {
+  return {
+    id,
+    observation_id: id,
+    timestamp: 1_700_000_000 + id,
+    data,
+    decrypted: false,
+    payload_type: 'Unknown',
+    rssi: null,
+    snr: null,
+    decrypted_info: null,
+  };
+}
 
 const GROUP_TEXT_PACKET_HEX =
   '1500E69C7A89DD0AF6A2D69F5823B88F9720731E4B887C56932BF889255D8D926D99195927144323A42DD8A158F878B518B8304DF55E80501C7D02A9FFD578D3518283156BBA257BF8413E80A237393B2E4149BBBC864371140A9BBC4E23EB9BF203EF0D029214B3E3AAC3C0295690ACDB89A28619E7E5F22C83E16073AD679D25FA904D07E5ACF1DB5A7C77D7E1719FB9AE5BF55541EE0D7F59ED890E12CF0FEED6700818';
@@ -257,6 +271,33 @@ describe('RawPacketFeedView', () => {
       onlyHopWidth('1 byte / hop');
       expect(screen.queryByText('AABBCC')).not.toBeInTheDocument();
       expect(screen.getByText(/No packets received yet/i)).toBeInTheDocument();
+    });
+  });
+
+  describe('pause feed', () => {
+    it('freezes the visible list, buffers new packets behind a count, and resumes', () => {
+      renderView({ packets: [feedPacket(1, 'aa11'), feedPacket(2, 'bb22')] });
+
+      expect(screen.getByText('AA11')).toBeInTheDocument();
+      expect(screen.getByText('BB22')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
+
+      // A new packet arrives on the live store while paused.
+      act(() => {
+        seedRawPacketStore({
+          packets: [feedPacket(1, 'aa11'), feedPacket(2, 'bb22'), feedPacket(3, 'cc33')],
+        });
+      });
+
+      // The frozen list does not show it, but the badge counts it as waiting.
+      expect(screen.queryByText('CC33')).not.toBeInTheDocument();
+      expect(screen.getByText('1 new')).toBeInTheDocument();
+
+      // Resuming reveals the buffered packet and clears the badge.
+      fireEvent.click(screen.getByRole('button', { name: 'Resume' }));
+      expect(screen.getByText('CC33')).toBeInTheDocument();
+      expect(screen.queryByText('1 new')).not.toBeInTheDocument();
     });
   });
 

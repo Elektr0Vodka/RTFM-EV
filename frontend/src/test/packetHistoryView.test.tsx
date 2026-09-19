@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { PacketHistoryView } from '../components/PacketHistoryView';
+import { resetRawPacketStore, seedRawPacketStore } from '../stores/rawPacketStore';
 import { api } from '../api';
 
 vi.mock('../api', () => ({ api: { getPacketHistory: vi.fn() } }));
@@ -21,7 +22,10 @@ const row = (id: number, data: string) => ({
 });
 
 describe('PacketHistoryView', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetRawPacketStore();
+  });
 
   it('fetches history on mount and renders a row', async () => {
     getPacketHistory.mockResolvedValue({ packets: [row(1, 'ab')], next_cursor: null });
@@ -44,6 +48,40 @@ describe('PacketHistoryView', () => {
     getPacketHistory.mockResolvedValue({ packets: [], next_cursor: null });
     render(<PacketHistoryView contacts={[]} channels={[]} />);
     expect(await screen.findByText(/retention setting/i)).toBeInTheDocument();
+  });
+
+  it('pauses the live history feed, buffering new live packets behind a count', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    getPacketHistory.mockResolvedValue({ packets: [row(1, 'ab')], next_cursor: null });
+    render(<PacketHistoryView contacts={[]} channels={[]} />);
+    await screen.findByText('AB');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Pause' }));
+
+    // A fresh live packet lands inside the live window while paused.
+    act(() => {
+      seedRawPacketStore({
+        packets: [
+          {
+            id: 2,
+            observation_id: 2,
+            timestamp: now,
+            data: 'cd',
+            payload_type: 'ADVERT',
+            snr: null,
+            rssi: null,
+            decrypted: false,
+            decrypted_info: null,
+          },
+        ],
+      });
+    });
+
+    expect(screen.queryByText('CD')).not.toBeInTheDocument();
+    expect(screen.getByText('1 new')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Resume' }));
+    expect(screen.getByText('CD')).toBeInTheDocument();
   });
 
   it('persists the sort order via onSaveAppSettings', async () => {

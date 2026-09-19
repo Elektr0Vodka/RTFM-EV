@@ -612,9 +612,13 @@ PYTHONPATH=. uv run pytest tests/ -v
 
 This is intentional. In the sidebar, unread direct messages for actual contact conversations are treated as mention-equivalent for badge styling. That means both the Contacts section header and contact unread badges themselves use the highlighted mention-style colors for unread DMs, including when those contacts appear in Favorites. Repeaters do not inherit this rule, and channel badges still use mention styling only for real `@[name]` mentions.
 
-### RawPacketList autoscroll
+### RawPacketList autoscroll, pause, and fold
 
-`RawPacketList` sticks to the latest packet on every update when its `autoScroll` prop is true (the default). `RawPacketFeedView` exposes an "Autoscroll" checkbox next to the type filters (default ticked, session-only - intentionally not persisted) so users can pause scrolling to correlate older packets. Toggling it back on jumps to the newest packet immediately (`autoScroll` is an effect dependency).
+`RawPacketList` sticks to the latest packet on every update when its `autoScroll` prop is true (the default). Both packet tabs expose an "Autoscroll" checkbox (default ticked, session-only - intentionally not persisted). With `autoScroll` off in newest-first mode the list would otherwise keep pushing the read rows down as new packets prepend, so a `useLayoutEffect` compensates `scrollTop` by the height the list grew, holding the viewed rows in place (oldest-first needs none - new rows append below the fold). Toggling autoscroll back on jumps to the newest edge immediately.
+
+Both tabs also have a **Pause** button. Pausing snapshots the current list into view state and freezes the display; incoming packets keep flowing into the store but are only counted behind a "N new" badge until Resume. On Packet History the button is disabled outside a live preset and the snapshot is cleared when leaving live mode. Session-only.
+
+The Filters modal's **"Group repeats by content"** toggle drives `RawPacketList`'s `groupByContent` prop, which folds packets sharing content (same payload across different paths) into one row badged `×N`. The fold key comes from `utils/rawPacketContent.ts` (`getRawPacketContentKey` strips the routing path via `analyzeStructure` and caches per packet; `foldPacketsByContent` groups, representative = newest sighting).
 
 ### RawPacketFeed sort order
 

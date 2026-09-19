@@ -49,6 +49,9 @@ export function PacketHistoryView({
   const [selectedPacket, setSelectedPacket] = useState<RawPacket | null>(null);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
+  // Pause snapshot: while set, the live view is frozen to this list and new
+  // in-window packets are only counted until the user resumes. Session-only.
+  const [pausedSnapshot, setPausedSnapshot] = useState<RawPacket[] | null>(null);
   // Observation keys of packets checked for CSV export.
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set());
 
@@ -93,14 +96,34 @@ export function PacketHistoryView({
     enabled,
   });
 
-  // Selection is over currently-loaded rows; stale keys (from an earlier fetch)
+  // Pause only applies to the live stream; a fixed historical range never
+  // changes, so drop any snapshot when the view leaves live mode.
+  useEffect(() => {
+    if (!isLive) setPausedSnapshot(null);
+  }, [isLive]);
+
+  const paused = pausedSnapshot !== null;
+  const displayedRows = paused ? pausedSnapshot : rows;
+  // How many matching packets have arrived since the feed was paused.
+  const pausedNewCount = useMemo(() => {
+    if (!pausedSnapshot) return 0;
+    const seen = new Set(pausedSnapshot.map(getRawPacketObservationKey));
+    let count = 0;
+    for (const packet of rows) {
+      if (!seen.has(getRawPacketObservationKey(packet))) count += 1;
+    }
+    return count;
+  }, [pausedSnapshot, rows]);
+  const togglePause = () => setPausedSnapshot((prev) => (prev ? null : rows));
+
+  // Selection is over currently-visible rows; stale keys (from an earlier fetch)
   // simply match nothing here.
   const selectedPackets = useMemo(
-    () => rows.filter((p) => selectedKeys.has(getRawPacketObservationKey(p))),
-    [rows, selectedKeys]
+    () => displayedRows.filter((p) => selectedKeys.has(getRawPacketObservationKey(p))),
+    [displayedRows, selectedKeys]
   );
   const selectedCount = selectedPackets.length;
-  const allSelected = rows.length > 0 && selectedCount === rows.length;
+  const allSelected = displayedRows.length > 0 && selectedCount === displayedRows.length;
 
   const toggleSelect = useCallback((packet: RawPacket) => {
     const key = getRawPacketObservationKey(packet);
@@ -114,11 +137,11 @@ export function PacketHistoryView({
 
   const toggleSelectAll = useCallback(() => {
     setSelectedKeys((prev) =>
-      rows.length > 0 && prev.size >= rows.length
+      displayedRows.length > 0 && prev.size >= displayedRows.length
         ? new Set()
-        : new Set(rows.map(getRawPacketObservationKey))
+        : new Set(displayedRows.map(getRawPacketObservationKey))
     );
-  }, [rows]);
+  }, [displayedRows]);
 
   const exportCsv = useCallback(() => {
     if (selectedPackets.length === 0) return;
@@ -201,15 +224,16 @@ export function PacketHistoryView({
         </div>
         <div className="min-h-0 min-w-0 flex-1">
           <RawPacketList
-            packets={rows}
+            packets={displayedRows}
             channels={channels}
             contacts={contacts}
             onPacketClick={setSelectedPacket}
             selectable
             selectedKeys={selectedKeys}
             onToggleSelect={toggleSelect}
-            autoScroll={autoScroll}
+            autoScroll={autoScroll && !paused}
             newestFirst={packetHistorySort === 'newest'}
+            groupByContent={filters.groupByHash}
             showScrollToEnds
             showDate
           />
@@ -322,6 +346,21 @@ export function PacketHistoryView({
             <option value="oldest">{t('packet_sort_oldest')}</option>
             <option value="newest">{t('packet_sort_newest')}</option>
           </select>
+          <Button
+            type="button"
+            variant={paused ? 'default' : 'outline'}
+            size="sm"
+            onClick={togglePause}
+            aria-pressed={paused}
+            disabled={!isLive}
+          >
+            {paused ? t('packet_resume') : t('packet_pause')}
+          </Button>
+          {paused && pausedNewCount > 0 && (
+            <span className="rounded-full bg-primary px-1.5 text-[0.625rem] font-semibold text-primary-foreground tabular-nums">
+              {t('packet_paused_new', { count: pausedNewCount })}
+            </span>
+          )}
           <label className="flex items-center gap-1 text-xs text-foreground cursor-pointer">
             <input
               type="checkbox"

@@ -48,6 +48,34 @@ the change. Upstream development is on hold; the fork is the active repository.
   prefix-collision tests; frontend eslint / prettier / vitest incl. i18n parity /
   build) and runtime-verified in the local container.
 
+## Update 2026-09-20 (Packet pages: autoscroll hold, pause, fold repeats, packet-pages-auto-scroll)
+
+Applies to both packet tabs (Raw Packet Feed and Packet History), which share
+the `RawPacketList` component.
+
+### Raw Packet Feed + Packet History (frontend)
+- **Autoscroll off now holds your place.** With newest-first sort, new packets
+  are prepended at the top; the browser left `scrollTop` unchanged, so the rows
+  you were reading kept getting pushed down (the newest packet kept appearing in
+  view even with autoscroll off). `RawPacketList` now compensates `scrollTop` by
+  the height the list grew, in a `useLayoutEffect`, so the same rows stay put.
+  Oldest-first was already stable (new rows append below the fold) and is
+  unchanged.
+- **Pause button** on both tabs. Pausing freezes the visible list to a snapshot;
+  incoming packets keep buffering in the background and are counted behind a
+  "N new" badge, then revealed on Resume. On Packet History the button is only
+  active in a live preset (a fixed custom range never streams) and any snapshot
+  is dropped when leaving live mode. Session-only, not persisted. EN/NL/DE
+  strings added (`packet_pause`, `packet_resume`, `packet_paused_new`).
+- **"Group repeats by content" now works.** The Filters-modal toggle was
+  previously inert (state + badge only, never applied). It now collapses packets
+  that share content (the same packet heard across different paths) into one row,
+  badged with the number of copies (`×N`). The fold key is the path-independent
+  payload (header/path stripped via `analyzeStructure`), cached per packet;
+  undecodable frames only group with a byte-identical twin. New util
+  `utils/rawPacketContent.ts` (`getRawPacketContentKey`, `foldPacketsByContent`)
+  and a `groupByContent` prop on `RawPacketList`. EN/NL/DE `packet_fold_copies`.
+
 ## Update 2026-09-19 (Signal-audio "click to enable sound" hint, fix/signal-audio-unlock-hint)
 
 ### Raw Packet Feed (frontend)
