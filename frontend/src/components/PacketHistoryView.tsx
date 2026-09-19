@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Download, Search, X } from 'lucide-react';
 
 import { RawPacketList } from './RawPacketList';
 import { RawPacketInspectorDialog } from './RawPacketDetailModal';
@@ -9,13 +9,23 @@ import { Button } from './ui/button';
 import { usePacketFilters } from '../hooks/usePacketFilters';
 import { usePacketHistory } from '../hooks/usePacketHistory';
 import { useRawPackets } from '../stores/rawPacketStore';
-import { CUSTOM_RANGE_ID, resolveRange } from '../utils/timeRanges';
+import { ALL_TIME_RANGE, CUSTOM_RANGE_ID, resolveRange } from '../utils/timeRanges';
 import { loadStoredTimeRange, saveStoredTimeRange } from '../utils/timeRangePreference';
+import { getRawPacketObservationKey } from '../utils/rawPacketIdentity';
+import {
+  PACKET_CSV_COLUMN_KEYS,
+  buildPacketCsv,
+  packetCsvFilename,
+  type PacketCsvColumnKey,
+} from '../utils/packetCsv';
 import type { AppSettingsUpdate, Channel, Contact, RawPacket } from '../types';
 import { useT } from '../i18n';
 
 const WINDOW_KEY = 'rtfm-packet-history-window';
 const DEFAULT_WINDOW_ID = '24h';
+// "All time" is offered here (next to Custom) so search can reach the whole
+// database, not just a rolling window.
+const HISTORY_EXTRA_RANGES = [ALL_TIME_RANGE];
 
 interface PacketHistoryViewProps {
   contacts: Contact[];
@@ -39,6 +49,8 @@ export function PacketHistoryView({
   const [selectedPacket, setSelectedPacket] = useState<RawPacket | null>(null);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
+  // Observation keys of packets checked for CSV export.
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set());
 
   // Persisted time-range selection (window id + custom range), per page.
   const stored = useMemo(() => loadStoredTimeRange(WINDOW_KEY, DEFAULT_WINDOW_ID), []);
@@ -57,7 +69,12 @@ export function PacketHistoryView({
     const nowSec = Math.floor(Date.now() / 1000);
     const cs = customStart ? Math.floor(new Date(customStart).getTime() / 1000) : null;
     const ce = customEnd ? Math.floor(new Date(customEnd).getTime() / 1000) : null;
-    return resolveRange(windowId, { nowSec, customStartSec: cs, customEndSec: ce });
+    return resolveRange(windowId, {
+      nowSec,
+      customStartSec: cs,
+      customEndSec: ce,
+      extras: HISTORY_EXTRA_RANGES,
+    });
   }, [windowId, customStart, customEnd]);
 
   const enabled = range !== null;
@@ -75,6 +92,48 @@ export function PacketHistoryView({
     channels,
     enabled,
   });
+
+  // Selection is over currently-loaded rows; stale keys (from an earlier fetch)
+  // simply match nothing here.
+  const selectedPackets = useMemo(
+    () => rows.filter((p) => selectedKeys.has(getRawPacketObservationKey(p))),
+    [rows, selectedKeys]
+  );
+  const selectedCount = selectedPackets.length;
+  const allSelected = rows.length > 0 && selectedCount === rows.length;
+
+  const toggleSelect = useCallback((packet: RawPacket) => {
+    const key = getRawPacketObservationKey(packet);
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedKeys((prev) =>
+      rows.length > 0 && prev.size >= rows.length
+        ? new Set()
+        : new Set(rows.map(getRawPacketObservationKey))
+    );
+  }, [rows]);
+
+  const exportCsv = useCallback(() => {
+    if (selectedPackets.length === 0) return;
+    const headers = Object.fromEntries(
+      PACKET_CSV_COLUMN_KEYS.map((k) => [k, t(`packet_csv_${k}`)])
+    ) as Record<PacketCsvColumnKey, string>;
+    const csv = buildPacketCsv(selectedPackets, headers, { channels, contacts });
+    const blob = new Blob(['﻿', csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = packetCsvFilename(new Date());
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [selectedPackets, channels, contacts, t]);
 
   const renderBody = () => {
     if (!enabled) {
@@ -107,27 +166,52 @@ export function PacketHistoryView({
     }
     return (
       <div className="flex min-h-0 flex-1 flex-col">
-        {nextCursor !== null && (
-          <div className="border-b border-border p-2 text-center">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border p-2">
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={toggleSelectAll}>
+              {allSelected ? t('packet_deselect_all') : t('packet_select_all')}
+            </Button>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {t('packet_selected_count', { count: selectedCount })}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {nextCursor !== null && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={loadOlder}
+                disabled={loading}
+              >
+                {t('packet_history_load_older')}
+              </Button>
+            )}
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={loadOlder}
-              disabled={loading}
+              onClick={exportCsv}
+              disabled={selectedCount === 0}
             >
-              {t('packet_history_load_older')}
+              <Download className="h-3.5 w-3.5" />
+              {t('packet_export_csv')}
             </Button>
           </div>
-        )}
+        </div>
         <div className="min-h-0 min-w-0 flex-1">
           <RawPacketList
             packets={rows}
             channels={channels}
             contacts={contacts}
             onPacketClick={setSelectedPacket}
+            selectable
+            selectedKeys={selectedKeys}
+            onToggleSelect={toggleSelect}
             autoScroll={autoScroll}
             newestFirst={packetHistorySort === 'newest'}
+            showScrollToEnds
+            showDate
           />
         </div>
       </div>
@@ -154,6 +238,7 @@ export function PacketHistoryView({
           <TimeRangeSelector
             value={windowId}
             onChange={setWindowId}
+            extrasSpecial={HISTORY_EXTRA_RANGES}
             showCustom
             customStart={customStart}
             customEnd={customEnd}
@@ -166,6 +251,27 @@ export function PacketHistoryView({
         </div>
 
         <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={filters.searchQuery}
+              onChange={(event) => filters.setSearchQuery(event.target.value)}
+              placeholder={t('packet_search_placeholder')}
+              aria-label={t('packet_search_aria')}
+              className="w-48 rounded border border-input bg-background py-0.5 pl-7 pr-6 text-xs"
+            />
+            {filters.searchQuery !== '' && (
+              <button
+                type="button"
+                onClick={() => filters.setSearchQuery('')}
+                aria-label={t('packet_clear_search_aria')}
+                className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
           <div className="relative">
             <input
               type="text"

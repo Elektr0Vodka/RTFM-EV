@@ -84,7 +84,11 @@ export function RawPacketFeedView({
   const [soundOn, setSoundOn] = useState(getSavedSignalAudioOn);
   const [soundVolume, setSoundVolume] = useState(getSavedSignalAudioVolume);
   const [soundTheme, setSoundTheme] = useState<SignalAudioTheme>(getSavedSignalAudioTheme);
-  useSignalAudio({ enabled: soundOn, volume: soundVolume, theme: soundTheme });
+  const { needsGesture } = useSignalAudio({
+    enabled: soundOn,
+    volume: soundVolume,
+    theme: soundTheme,
+  });
 
   const handleToggleSound = () => {
     setSoundOn((prev) => {
@@ -193,6 +197,14 @@ export function RawPacketFeedView({
                   <option value="waterdrip">{t('packet_sound_theme_waterdrip')}</option>
                 </select>
               </>
+            )}
+            {needsGesture && (
+              <span
+                className="text-[0.6875rem] text-warning whitespace-nowrap"
+                title={t('packet_sound_needs_gesture_tip')}
+              >
+                {t('packet_sound_needs_gesture')}
+              </span>
             )}
           </div>
         </div>

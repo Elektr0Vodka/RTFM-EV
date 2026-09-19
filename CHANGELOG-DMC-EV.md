@@ -11,7 +11,7 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
-## Update 2026-09-19 (Mesh Health prefix-collisions tab, feat/mesh-health-prefix-collisions)
+## Update 2026-09-20 (Mesh Health prefix-collisions tab, feat/mesh-health-prefix-collisions)
 
 ### Mesh Health (backend + frontend)
 - **New "Prefix Collisions" tab on the Mesh Health page.** Lists local contacts
@@ -47,6 +47,56 @@ the change. Upstream development is on hold; the fork is the active repository.
   (EN/NL/DE). Gates green (backend ruff / ruff-format / pyright / pytest incl. new
   prefix-collision tests; frontend eslint / prettier / vitest incl. i18n parity /
   build) and runtime-verified in the local container.
+
+## Update 2026-09-19 (Signal-audio "click to enable sound" hint, fix/signal-audio-unlock-hint)
+
+### Raw Packet Feed (frontend)
+- **"Click to enable sound" hint** on the Raw Packet Feed. Browsers keep the
+  AudioContext suspended until the first user gesture, so with sound persisted on
+  the per-packet audio stayed silent after a fresh load until the user happened to
+  interact (e.g. changing the theme). `useSignalAudio` now reports `needsGesture`
+  (sound enabled but context not yet resumed) via a new tested `isRunning()` on
+  the audio engine, and the feed shows a small hint next to the sound controls
+  until the first interaction resumes audio. EN/NL/DE strings added. No behavior
+  change to the audio itself (the #141 geiger makeup-gain fix is unchanged).
+
+## Update 2026-09-19 (Packet History search + scroll controls, feat/packet-history-scroll-search)
+
+Builds on the Packet History browser (feat/packet-history-browser).
+
+### Packet History (frontend)
+- **Message search box** in the Packet History header, distinct from the
+  existing hex-on-bytes filter. Matches decrypted message content
+  (message text, sender name, channel name), case-insensitive, across the whole
+  queried range via a new `search` param on `GET /api/packets/history`. Live
+  presets also match appended live packets on the same fields (their WS
+  `decrypted_info`), so live and historical rows behave identically. Search
+  state is ephemeral (not persisted) and kept out of the Filters-modal badge.
+- **Floating "scroll to top / bottom" buttons** over the packet list, shown only
+  while the list overflows (each end hides when already there). Opt-in via a new
+  `showScrollToEnds` prop on `RawPacketList`, so the live feed is unaffected.
+  Buttons are one-shot scrolls and do not change the autoscroll checkbox.
+- **"All time" range option** (next to Custom) so search reaches the whole
+  database, not just a rolling window. Reuses the existing `time_range_all`
+  string and the resolver's no-lower-bound support (`ALL_TIME_RANGE`,
+  `startTs: 0`); scoped to the Packet History view via `extras`.
+- **Each row now shows the calendar date** alongside the time (the history view
+  can span days). Opt-in via a new `showDate` prop on `RawPacketList`, so the
+  live feed stays time-only.
+- **Row selection + CSV export.** A checkbox per row plus a Select all /
+  Deselect all toggle and a selected-count; an "Export CSV" button downloads the
+  selected packets (timestamp ISO + Unix, payload/route type, SNR, RSSI,
+  decrypted, decoded summary, resolved path, raw hex) via a new pure
+  `buildPacketCsv` helper (UTF-8 BOM, mirrors the telemetry CSV pattern).
+  Selection covers currently-loaded rows.
+
+### Packet History (backend)
+- **`GET /api/packets/history` gains a `search` param**: joins the linked
+  `messages` row (and `channels` for the channel name) and matches
+  `text` / `sender_name` / channel `name` (case-insensitive substring). Only
+  packets linked to a decrypted message can match; existing time-window, cursor
+  paging, and payload-type / hop-width / hex filters are preserved. No schema
+  change.
 
 ## Update 2026-09-19 (Mesh Health warnings count flood adverts only, feat/mesh-health-flood-adverts)
 
