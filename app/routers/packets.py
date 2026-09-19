@@ -27,6 +27,7 @@ from app.repository.advert_links import AdvertLinksRepository
 from app.repository.request_traffic import aggregate_request_traffic
 from app.services.advert_links import LocatedNode, resolve_advert_edges
 from app.services.messages import backfill_message_regions
+from app.services.prefix_collisions import compute_prefix_collisions
 from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.raw_feed_stats import compute_raw_feed_stats
 from app.websocket import broadcast_success
@@ -860,6 +861,50 @@ async def get_mesh_health(start_ts: int, end_ts: int) -> MeshHealthResponse:
         alerts=alerts,
         contacts=contacts,
     )
+
+
+class PrefixCollisionNode(BaseModel):
+    name: str | None
+    public_key: str
+    lat: float | None = None
+    lon: float | None = None
+
+
+class PrefixCollisionGroup(BaseModel):
+    prefix: str
+    count: int
+    max_distance_km: float | None = None
+    located_count: int = 0
+    assessment: str = "unknown"  # "local" | "regional" | "unknown"
+    nodes: list[PrefixCollisionNode]
+
+
+class PrefixCollisionWidth(BaseModel):
+    width: int
+    total_nodes: int
+    distinct_prefixes: int
+    colliding_prefixes: int
+    colliding_nodes: int
+    matrix: list[int]  # 256 entries: worst width-byte collision per first byte
+    groups: list[PrefixCollisionGroup]
+
+
+class PrefixCollisionsResponse(BaseModel):
+    widths: list[PrefixCollisionWidth]
+
+
+@router.get("/prefix-collisions", response_model=PrefixCollisionsResponse)
+async def get_prefix_collisions() -> PrefixCollisionsResponse:
+    """Public-key prefix collisions among local contacts at 1/2/3-byte widths.
+
+    A hop hash in an advert path is a prefix of a node's public key, so two
+    contacts sharing a prefix make that hop ambiguous. Point-in-time over the
+    contacts table (not window-scoped); prefix-only placeholder contacts are
+    excluded (full 64-hex keys only).
+    """
+    identities = await ContactRepository.full_key_identities()
+    widths = compute_prefix_collisions(identities)
+    return PrefixCollisionsResponse.model_validate({"widths": widths})
 
 
 @router.get("/snr-rssi-scatter")

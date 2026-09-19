@@ -205,3 +205,139 @@ describe('MeshHealthView Requests tab', () => {
     expect(screen.queryByText('Node A')).not.toBeInTheDocument();
   });
 });
+
+describe('MeshHealthView Prefix Collisions tab', () => {
+  const matrixWith = (idx: number, val: number) => {
+    const a = new Array(256).fill(0);
+    a[idx] = val;
+    return a;
+  };
+  const PREFIX_COLLISIONS = {
+    widths: [
+      {
+        width: 1,
+        total_nodes: 3,
+        distinct_prefixes: 1,
+        colliding_prefixes: 1,
+        colliding_nodes: 2,
+        matrix: matrixWith(0xaa, 2),
+        groups: [
+          {
+            prefix: 'aa',
+            count: 2,
+            max_distance_km: 5,
+            located_count: 2,
+            assessment: 'local',
+            nodes: [
+              { name: 'Alpha', public_key: 'aa11' + '0'.repeat(60), lat: 51.0, lon: 5.0 },
+              { name: 'Bravo', public_key: 'aa22' + '0'.repeat(60), lat: 51.0, lon: 5.07 },
+            ],
+          },
+        ],
+      },
+      {
+        width: 2,
+        total_nodes: 3,
+        distinct_prefixes: 2,
+        colliding_prefixes: 0,
+        colliding_nodes: 0,
+        matrix: new Array(256).fill(0),
+        groups: [],
+      },
+      {
+        width: 3,
+        total_nodes: 3,
+        distinct_prefixes: 3,
+        colliding_prefixes: 0,
+        colliding_nodes: 0,
+        matrix: new Array(256).fill(0),
+        groups: [],
+      },
+    ],
+  };
+
+  beforeEach(() => {
+    // A prior test persists its tab to localStorage; clear it so this suite
+    // starts deterministically on the Adverts tab.
+    localStorage.clear();
+    global.fetch = vi.fn((url: string) => {
+      if (String(url).includes('prefix-collisions')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(PREFIX_COLLISIONS),
+        } as Response);
+      }
+      if (String(url).includes('mesh-health')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(RESPONSE) } as Response);
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) } as Response);
+    }) as unknown as typeof fetch;
+  });
+
+  it('shows collisions for the default 1-byte width and switches widths', async () => {
+    render(<MeshHealthView config={null} />);
+    // Adverts loads first.
+    await waitFor(() => expect(screen.getByText('Node A')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Prefix Collisions' }));
+
+    // 1-byte group renders the shared prefix header; node rows are collapsed.
+    await waitFor(() => expect(screen.getByText('aa')).toBeInTheDocument());
+    expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
+    // The distance/assessment pill is shown on the collapsed header.
+    expect(screen.getByText(/Local/)).toBeInTheDocument();
+    expect(screen.getByText(/5 km apart/)).toBeInTheDocument();
+
+    // Expanding the group reveals both colliding node names + full public keys.
+    fireEvent.click(screen.getByText('aa'));
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
+    expect(screen.getByText('Bravo')).toBeInTheDocument();
+    expect(screen.getByText('aa11' + '0'.repeat(60))).toBeInTheDocument();
+    // Coordinates render next to a node.
+    expect(screen.getByText('(51.00, 5.00)')).toBeInTheDocument();
+
+    // Switching to 2 bytes shows the empty state (no collisions at that width).
+    fireEvent.click(screen.getByRole('button', { name: '2 bytes' }));
+    await waitFor(() =>
+      expect(screen.getByText('No prefix collisions at this width.')).toBeInTheDocument()
+    );
+  });
+
+  it('does not render the time-range selector on this tab', async () => {
+    render(<MeshHealthView config={null} />);
+    await waitFor(() => expect(screen.getByText('Node A')).toBeInTheDocument());
+    // Sanity: the 7d range button exists on the Adverts tab.
+    expect(screen.getByRole('button', { name: '7d' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Prefix Collisions' }));
+    await waitFor(() => expect(screen.getByText('aa')).toBeInTheDocument());
+    // The time-range selector (and its 7d button) is gone on this tab.
+    expect(screen.queryByRole('button', { name: '7d' })).not.toBeInTheDocument();
+  });
+
+  it('opens a node detail page when a colliding node is clicked', async () => {
+    const onOpenNode = vi.fn();
+    render(<MeshHealthView config={null} onOpenNode={onOpenNode} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Prefix Collisions' }));
+    await waitFor(() => expect(screen.getByText('aa')).toBeInTheDocument());
+
+    // Expand the group, then click the node name.
+    fireEvent.click(screen.getByText('aa'));
+    fireEvent.click(screen.getByText('Alpha'));
+    expect(onOpenNode).toHaveBeenCalledWith('aa11' + '0'.repeat(60), 'Alpha');
+  });
+
+  it('filters the list to a first byte when a matrix cell is clicked', async () => {
+    render(<MeshHealthView config={null} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Prefix Collisions' }));
+    await waitFor(() => expect(screen.getByText('aa')).toBeInTheDocument());
+
+    // Click the matrix cell for a first byte with no collisions (00) -> the
+    // colliding "aa" group is filtered out and the per-cell empty state shows.
+    fireEvent.click(screen.getByRole('button', { name: '00: 0' }));
+    await waitFor(() =>
+      expect(screen.getByText(/No prefix collisions in cell 00/)).toBeInTheDocument()
+    );
+    expect(screen.queryByText('aa')).not.toBeInTheDocument();
+  });
+});

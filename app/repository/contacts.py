@@ -313,6 +313,25 @@ class ContactRepository:
         return [ContactRepository._row_to_contact(row) for row in rows]
 
     @staticmethod
+    async def full_key_identities() -> list[tuple[str, str | None, float | None, float | None]]:
+        """(public_key, name, lat, lon) for every contact with a full 64-hex key.
+
+        Coordinates are the effective location (a manual override wins over the
+        advertised lat/lon). Prefix-only placeholder contacts (shorter keys) are
+        excluded so they do not create phantom prefix collisions in the Mesh
+        Health prefix-collision view.
+        """
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT public_key, name, "
+                "COALESCE(manual_lat, lat) AS eff_lat, "
+                "COALESCE(manual_lon, lon) AS eff_lon "
+                "FROM contacts WHERE LENGTH(public_key) = 64"
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [(row["public_key"], row["name"], row["eff_lat"], row["eff_lon"]) for row in rows]
+
+    @staticmethod
     async def get_repeaters_by_recent(limit: int = 8) -> list[Contact]:
         """Get repeater contacts ordered by most recently seen.
 

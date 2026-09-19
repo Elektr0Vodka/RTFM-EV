@@ -381,6 +381,13 @@ export function ConversationPane({
               ...(focusKey ? { mapFocusKey: focusKey } : {}),
             })
           }
+          onOpenNode={(publicKey: string, name: string | null) =>
+            onSelectConversation({
+              type: 'contact',
+              id: publicKey,
+              name: name ?? publicKey,
+            })
+          }
         />
       </Suspense>
     );

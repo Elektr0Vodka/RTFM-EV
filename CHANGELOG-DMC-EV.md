@@ -11,6 +11,43 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-20 (Mesh Health prefix-collisions tab, feat/mesh-health-prefix-collisions)
+
+### Mesh Health (backend + frontend)
+- **New "Prefix Collisions" tab on the Mesh Health page.** Lists local contacts
+  that share the same public-key prefix at 1-byte, 2-byte, and 3-byte widths (a
+  hop hash in an advert path is a prefix of a node's public key, so a shared
+  prefix makes that hop ambiguous to resolve). A width sub-selector pill (1b/2b/3b)
+  switches the view. The tab is contacts-only and point-in-time, so the shared
+  time-range selector is hidden while it is active. Layout follows the
+  ON8AR/CoreScope analyzer's collision view.
+- **First-byte usage matrix.** A 16x16 grid of the 256 possible first bytes, each
+  cell coloured by the worst collision within it at the selected width (available
+  / one node / possible conflict / collision). Clicking a cell filters the list
+  below to that first byte. Summary tiles show full-key node count, prefix space
+  used (distinct prefixes over 256^width), colliding prefixes, and nodes in
+  collisions.
+- **Collapsible collision list.** Each colliding prefix is a collapsed row (prefix
+  + node count) that expands to the clashing contacts and their coordinates. Each
+  contact is a link that opens its node detail page (contact conversation).
+- **Distance / risk assessment.** Each colliding prefix shows the farthest-apart
+  distance between its located nodes and a Local/Regional badge (a collision only
+  matters over RF when the nodes are physically close; heuristic threshold 50 km).
+  Nodes at exact (0,0) "null island" are treated as unlocated so they do not
+  inflate distances. Uses the effective location (manual override wins).
+- Backend: new read-only endpoint `GET /api/packets/prefix-collisions`
+  (`app/routers/packets.py`) backed by a pure grouping function
+  (`app/services/prefix_collisions.py`, returns per-width groups + a 256-entry
+  first-byte severity matrix + distinct-prefix count) and
+  `ContactRepository.full_key_identities` (full 64-hex keys only, so prefix-only
+  placeholder contacts do not create phantom collisions). Severity is count-based
+  (this fork does not track a node's configured hash size). No schema migration.
+- Frontend: new `MeshPrefixCollisionsPanel`; tab wired into `MeshHealthView`, node
+  navigation threaded through `ConversationPane` (`onOpenNode`), new i18n keys
+  (EN/NL/DE). Gates green (backend ruff / ruff-format / pyright / pytest incl. new
+  prefix-collision tests; frontend eslint / prettier / vitest incl. i18n parity /
+  build) and runtime-verified in the local container.
+
 ## Update 2026-09-19 (Signal-audio "click to enable sound" hint, fix/signal-audio-unlock-hint)
 
 ### Raw Packet Feed (frontend)
