@@ -62,10 +62,15 @@ Shipped toward this so far:
   `raw_packets` history in the style of the live feed, with preset windows
   (1/3/6/12/24h) and an explicit date-to-date range, cursor "Load older" paging,
   server-side payload-type/hop-width/hex filters, and live-append for open-ended
-  ranges (`GET /packets/history`). Path-hex hops resolve to known contact names
-  in the feed, history, and packet detail. How far back it reaches is bounded by
-  the raw-packet retention setting (Settings > Database, `0` = keep forever,
-  migration `_097`).
+  ranges (`GET /packets/history`). A message search box matches decrypted
+  message text/sender/channel across the whole range (pick the "All time" range
+  to search the entire database), floating scroll-to-top / scroll-to-bottom
+  buttons appear when the list overflows, each row shows its date and time, and
+  rows can be selected (with select/deselect-all) and exported to CSV. Path-hex
+  hops
+  resolve to known contact names in the feed, history, and packet detail. How
+  far back it reaches is bounded by the raw-packet retention setting (Settings >
+  Database, `0` = keep forever, migration `_097`).
 - One unified time-range selector across the My Node, mesh-health, map, and Mesh
   Trends (Live tab) views (`20m`-`30d` + custom, plus per-page extras), with the
   choice remembered per page.
