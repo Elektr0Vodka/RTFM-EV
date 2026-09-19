@@ -16,7 +16,8 @@ interface ParsedHashConversation {
     | 'node'
     | 'mesh-health'
     | 'mesh-trends'
-    | 'analyze';
+    | 'analyze'
+    | 'packet-history';
   /** Conversation identity token (channel key or contact public key, or legacy name token) */
   name: string;
   /** Optional human-readable label segment (ignored for identity resolution) */
@@ -81,6 +82,10 @@ export function parseHashConversation(): ParsedHashConversation | null {
 
   if (hash === 'analyze') {
     return { type: 'analyze', name: 'analyze' };
+  }
+
+  if (hash === 'packet-history') {
+    return { type: 'packet-history', name: 'packet-history' };
   }
 
   // Check for map focused on an arbitrary point: #map/at/<lat>,<lon>
@@ -212,6 +217,7 @@ export function getConversationHash(conv: Conversation | null): string {
   if (conv.type === 'mesh-health') return '#mesh-health';
   if (conv.type === 'mesh-trends') return '#mesh-trends';
   if (conv.type === 'analyze') return '#analyze';
+  if (conv.type === 'packet-history') return '#packet-history';
 
   // Use immutable IDs for identity, append readable label for UX.
   if (conv.type === 'channel') {

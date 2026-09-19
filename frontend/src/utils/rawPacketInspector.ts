@@ -14,6 +14,8 @@ export interface RawPacketSummary {
   summary: string;
   routeType: string;
   details?: string;
+  /** Per-hop path tokens (hex prefixes), oldest hop first; empty for 0-hop/invalid. */
+  pathTokens?: string[];
 }
 
 export interface PacketByteField {
@@ -242,7 +244,7 @@ export function decodePacketSummary(
         break;
     }
 
-    return { summary, routeType, details };
+    return { summary, routeType, details, pathTokens };
   } catch {
     return { summary: 'Decode error', routeType: 'Unknown' };
   }

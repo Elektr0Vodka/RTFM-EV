@@ -56,6 +56,8 @@ function resolveConversationFromHash(
       return { type: 'mesh-trends', id: 'mesh-trends', name: 'Mesh Trends' };
     case 'analyze':
       return { type: 'analyze', id: 'analyze', name: 'Analyze Packet' };
+    case 'packet-history':
+      return { type: 'packet-history', id: 'packet-history', name: 'Packet History' };
     case 'channel-registry':
       return { type: 'channel-registry', id: 'channel-registry', name: 'Channel Registry' };
     case 'channel': {
@@ -182,6 +184,15 @@ export function useConversationRouter({
     }
     if (hashConv?.type === 'analyze') {
       setActiveConversationState({ type: 'analyze', id: 'analyze', name: 'Analyze Packet' });
+      hasSetDefaultConversation.current = true;
+      return;
+    }
+    if (hashConv?.type === 'packet-history') {
+      setActiveConversationState({
+        type: 'packet-history',
+        id: 'packet-history',
+        name: 'Packet History',
+      });
       hasSetDefaultConversation.current = true;
       return;
     }

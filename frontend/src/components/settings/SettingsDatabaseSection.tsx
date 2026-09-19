@@ -41,6 +41,7 @@ export function SettingsDatabaseSection({
   const t = useT();
   const [retentionDays, setRetentionDays] = useState('14');
   const [advertRetention, setAdvertRetention] = useState('30');
+  const [rawPacketRetention, setRawPacketRetention] = useState('0');
   const [cleaning, setCleaning] = useState(false);
   const [purgingDecryptedRaw, setPurgingDecryptedRaw] = useState(false);
   const [autoDecryptOnAdvert, setAutoDecryptOnAdvert] = useState(false);
@@ -69,6 +70,7 @@ export function SettingsDatabaseSection({
     setBackupToPath(appSettings.backup_to_path_enabled ?? false);
     setBackupPath(appSettings.backup_destination_path ?? '');
     setAdvertRetention(String(appSettings.advert_retention_days ?? 30));
+    setRawPacketRetention(String(appSettings.raw_packet_retention_days ?? 0));
     setSyncUrl(appSettings.registry_sync_url ?? '');
     setWordlistSyncUrl(appSettings.wordlist_sync_url ?? '');
     setSyncedWordCount(loadSyncedWordlist().length);
@@ -376,6 +378,34 @@ export function SettingsDatabaseSection({
           />
           <p className="text-[0.8125rem] text-muted-foreground">
             {t('settings_db_advert_retention_help')}
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="raw-packet-retention-days" className="text-sm font-medium">
+            {t('settings_raw_packet_retention_label')}
+          </Label>
+          <Input
+            id="raw-packet-retention-days"
+            type="number"
+            min="0"
+            max="365"
+            value={rawPacketRetention}
+            onChange={(e) => setRawPacketRetention(e.target.value)}
+            onBlur={() => {
+              const days = parseInt(rawPacketRetention, 10);
+              if (isNaN(days) || days < 0 || days > 365) {
+                setRawPacketRetention(String(appSettings.raw_packet_retention_days ?? 0));
+                return;
+              }
+              void persistAppSettings({ raw_packet_retention_days: days }, () =>
+                setRawPacketRetention(String(appSettings.raw_packet_retention_days ?? 0))
+              );
+            }}
+            className="w-24"
+          />
+          <p className="text-[0.8125rem] text-muted-foreground">
+            {t('settings_raw_packet_retention_help')}
           </p>
         </div>
       </div>

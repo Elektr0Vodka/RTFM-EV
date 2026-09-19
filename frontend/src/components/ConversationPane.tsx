@@ -43,6 +43,9 @@ const MeshTrendsView = lazy(() =>
 const AnalyzePacketView = lazy(() =>
   import('./AnalyzePacketView').then((m) => ({ default: m.AnalyzePacketView }))
 );
+const PacketHistoryView = lazy(() =>
+  import('./PacketHistoryView').then((m) => ({ default: m.PacketHistoryView }))
+);
 
 interface ConversationPaneProps {
   activeConversation: Conversation | null;
@@ -123,6 +126,7 @@ interface ConversationPaneProps {
   blockedKeys?: string[];
   blockedNames?: string[];
   packetFeedSort?: 'oldest' | 'newest';
+  packetHistorySort?: 'oldest' | 'newest';
   onSaveAppSettings?: (update: import('../types').AppSettingsUpdate) => Promise<void> | void;
 }
 
@@ -222,6 +226,7 @@ export function ConversationPane({
   blockedKeys,
   blockedNames,
   packetFeedSort,
+  packetHistorySort,
   onSaveAppSettings,
 }: ConversationPaneProps) {
   const t = useT();
@@ -303,6 +308,7 @@ export function ConversationPane({
     return (
       <RawPacketFeedView
         channels={channels}
+        contacts={contacts}
         packetFeedSort={packetFeedSort}
         onSaveAppSettings={onSaveAppSettings}
       />
@@ -321,6 +327,19 @@ export function ConversationPane({
     return (
       <Suspense fallback={<LoadingPane label={t('common_loading_analyze_packet')} />}>
         <AnalyzePacketView channels={channels} />
+      </Suspense>
+    );
+  }
+
+  if (activeConversation.type === 'packet-history') {
+    return (
+      <Suspense fallback={<LoadingPane label={t('common_loading_packet_history')} />}>
+        <PacketHistoryView
+          contacts={contacts}
+          channels={channels}
+          packetHistorySort={packetHistorySort}
+          onSaveAppSettings={onSaveAppSettings}
+        />
       </Suspense>
     );
   }

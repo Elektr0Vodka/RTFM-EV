@@ -90,6 +90,7 @@ from app.services.advert_pruner import start_advert_prune, stop_advert_prune
 from app.services.external_map import start_external_map_sync, stop_external_map_sync
 from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.radio_stats import start_radio_stats_sampling, stop_radio_stats_sampling
+from app.services.raw_packet_pruner import start_raw_packet_prune, stop_raw_packet_prune
 from app.version_info import get_app_build_info
 
 setup_logging()
@@ -137,6 +138,9 @@ async def lifespan(app: FastAPI):
     # Daily prune of advert_events per the configured retention.
     start_advert_prune()
 
+    # Daily prune of raw_packets per the configured retention (0 = keep forever).
+    start_raw_packet_prune()
+
     # Always start connection monitor (even if initial connection failed)
     await radio_manager.start_connection_monitor()
 
@@ -167,6 +171,7 @@ async def lifespan(app: FastAPI):
     await stop_radio_stats_sampling()
     await stop_external_map_sync()
     await stop_advert_prune()
+    await stop_raw_packet_prune()
     await stop_periodic_advert()
     await stop_periodic_sync()
     await stop_telemetry_collect()

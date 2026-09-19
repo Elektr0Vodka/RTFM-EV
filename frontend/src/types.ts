@@ -437,7 +437,8 @@ type ConversationType =
   | 'node'
   | 'mesh-health'
   | 'mesh-trends'
-  | 'analyze';
+  | 'analyze'
+  | 'packet-history';
 
 export interface Conversation {
   type: ConversationType;
@@ -474,6 +475,13 @@ export interface RawPacket {
   transport_code?: number | null;
   /** Resolved region name for the transport code, if it matched a known region. */
   region?: string | null;
+}
+
+/** Response of GET /packets/history: a newest-first page plus a backward cursor. */
+export interface PacketHistoryResponse {
+  packets: RawPacket[];
+  /** Smallest id in this page; pass as before_id to load the next older page, or null at end. */
+  next_cursor: number | null;
 }
 
 /** OpenGraph-style link preview returned by the /unfurl endpoint. */
@@ -564,6 +572,8 @@ export interface AppSettings {
   max_radio_contacts: number;
   auto_decrypt_dm_on_advert: boolean;
   advert_retention_days: number;
+  /** Days of raw_packets history to keep; 0 = keep forever. Pruned daily. */
+  raw_packet_retention_days: number;
   last_message_times: Record<string, number>;
   advert_interval: number;
   last_advert_time: number;
@@ -577,6 +587,7 @@ export interface AppSettings {
   sidebar_hidden: SidebarHidden;
   sidebar_favorite_sort_orders: SidebarFavoriteSortOrders;
   packet_feed_sort: 'oldest' | 'newest';
+  packet_history_sort: 'oldest' | 'newest';
   discovery_blocked_types: number[];
   tracked_telemetry_repeaters: string[];
   tracked_telemetry_contacts: string[];
@@ -764,6 +775,7 @@ export interface AppSettingsUpdate {
   max_radio_contacts?: number;
   auto_decrypt_dm_on_advert?: boolean;
   advert_retention_days?: number;
+  raw_packet_retention_days?: number;
   advert_interval?: number;
   auto_resend_channel?: boolean;
   flood_scope?: string;
@@ -776,6 +788,7 @@ export interface AppSettingsUpdate {
   sidebar_hidden?: SidebarHidden;
   sidebar_favorite_sort_orders?: Partial<SidebarFavoriteSortOrders>;
   packet_feed_sort?: 'oldest' | 'newest';
+  packet_history_sort?: 'oldest' | 'newest';
   discovery_blocked_types?: number[];
   telemetry_interval_hours?: number;
   telemetry_routed_hourly?: boolean;

@@ -63,6 +63,7 @@ const baseSettings: AppSettings = {
   max_radio_contacts: 200,
   auto_decrypt_dm_on_advert: false,
   advert_retention_days: 30,
+  raw_packet_retention_days: 0,
   last_message_times: {},
 
   advert_interval: 0,
@@ -83,6 +84,7 @@ const baseSettings: AppSettings = {
     sensors: 'recent',
   },
   packet_feed_sort: 'oldest',
+  packet_history_sort: 'oldest',
   discovery_blocked_types: [],
   tracked_telemetry_repeaters: [],
   tracked_telemetry_contacts: [],

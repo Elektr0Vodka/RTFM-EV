@@ -1,7 +1,8 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { ChannelCrypto, PayloadType } from '@michaelhart/meshcore-decoder';
 
-import type { Channel, RawPacket } from '../types';
+import type { Channel, Contact, RawPacket } from '../types';
+import { resolvePathHopNames } from '../utils/pathHopNames';
 import { cn } from '@/lib/utils';
 import {
   createDecoderOptions,
@@ -50,6 +51,8 @@ interface RawPacketInspectorDialogProps {
   description: string;
   notice?: ReactNode;
   signalOverride?: SignalOverride;
+  /** Known contacts, used to resolve path-hop hex prefixes to names. */
+  contacts?: Contact[];
   /** Portal target; see `DialogContent`. Needed when a host pane uses `requestFullscreen()`. */
   container?: HTMLElement | null;
 }
@@ -58,6 +61,7 @@ interface RawPacketInspectionPanelProps {
   packet: RawPacket;
   signalOverride?: SignalOverride;
   channels: Channel[];
+  contacts?: Contact[];
 }
 
 interface FieldPaletteEntry {
@@ -397,7 +401,7 @@ function FullPacketHex({
   );
 }
 
-function renderFieldValue(field: PacketByteField) {
+function renderFieldValue(field: PacketByteField, contacts?: Contact[]) {
   if (field.name !== 'Path Data') {
     return field.value.toUpperCase();
   }
@@ -411,13 +415,21 @@ function renderFieldValue(field: PacketByteField) {
     return field.value.toUpperCase();
   }
 
+  // Resolve each hop hex prefix to a known contact name (unique match only).
+  const resolved = resolvePathHopNames(parts, contacts ?? []);
+
   return (
     <span className="inline-flex flex-wrap justify-start gap-x-1 sm:justify-end">
-      {parts.map((part, index) => {
-        const isLast = index === parts.length - 1;
+      {resolved.map((hop, index) => {
+        const isLast = index === resolved.length - 1;
+        const label = hop.resolved ? hop.name : hop.hex;
         return (
-          <span key={`${field.id}-${part}-${index}`} className="whitespace-nowrap">
-            {isLast ? part : `${part} →`}
+          <span
+            key={`${field.id}-${hop.hex}-${index}`}
+            className={cn('whitespace-nowrap', hop.resolved && 'text-primary')}
+            title={hop.resolved ? hop.hex : undefined}
+          >
+            {isLast ? label : `${label} →`}
           </span>
         );
       })}
@@ -460,11 +472,13 @@ function FieldBox({
   palette,
   active,
   onHoverField,
+  contacts,
 }: {
   field: PacketByteField;
   palette: FieldPaletteEntry;
   active: boolean;
   onHoverField: (fieldId: string | null) => void;
+  contacts?: Contact[];
 }) {
   const t = useT();
   return (
@@ -489,7 +503,7 @@ function FieldBox({
             field.name === 'Path Data' ? 'break-normal' : 'break-all'
           )}
         >
-          {renderFieldValue(field)}
+          {renderFieldValue(field, contacts)}
         </div>
       </div>
 
@@ -575,12 +589,14 @@ function FieldSection({
   colorMap,
   hoveredFieldId,
   onHoverField,
+  contacts,
 }: {
   title: string;
   fields: PacketByteField[];
   colorMap: Map<string, FieldPaletteEntry>;
   hoveredFieldId: string | null;
   onHoverField: (fieldId: string | null) => void;
+  contacts?: Contact[];
 }) {
   const t = useT();
   return (
@@ -597,6 +613,7 @@ function FieldSection({
               palette={colorMap.get(field.id) ?? FIELD_PALETTE[0]}
               active={hoveredFieldId === field.id}
               onHoverField={onHoverField}
+              contacts={contacts}
             />
           ))}
         </div>
@@ -609,6 +626,7 @@ export function RawPacketInspectionPanel({
   packet,
   channels,
   signalOverride,
+  contacts,
 }: RawPacketInspectionPanelProps) {
   const t = useT();
   const decoderOptions = useMemo(() => createDecoderOptions(channels), [channels]);
@@ -779,6 +797,7 @@ export function RawPacketInspectionPanel({
           colorMap={colorMap}
           hoveredFieldId={hoveredFieldId}
           onHoverField={setHoveredFieldId}
+          contacts={contacts}
         />
 
         <FieldSection
@@ -787,6 +806,7 @@ export function RawPacketInspectionPanel({
           colorMap={colorMap}
           hoveredFieldId={hoveredFieldId}
           onHoverField={setHoveredFieldId}
+          contacts={contacts}
         />
       </div>
     </div>
@@ -855,6 +875,7 @@ export function RawPacketInspectorDialog({
   description,
   notice,
   signalOverride,
+  contacts,
   container,
 }: RawPacketInspectorDialogProps) {
   let body: ReactNode;
@@ -864,6 +885,7 @@ export function RawPacketInspectorDialog({
         packet={source.packet}
         channels={channels}
         signalOverride={signalOverride}
+        contacts={contacts}
       />
     );
   } else if (source.kind === 'paste') {

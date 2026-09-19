@@ -217,6 +217,17 @@ class RawPacketRepository:
         return rowcount
 
     @staticmethod
+    async def prune_older_than(cutoff_ts: int) -> int:
+        """Delete ALL raw_packets with timestamp < cutoff_ts (decrypted and
+        undecrypted alike). Returns rows deleted. Used by the retention task;
+        the history browser's reachable horizon equals the configured window."""
+        async with db.tx() as conn:
+            async with conn.execute(
+                "DELETE FROM raw_packets WHERE timestamp < ?", (cutoff_ts,)
+            ) as cursor:
+                return cursor.rowcount
+
+    @staticmethod
     async def purge_linked_to_messages() -> int:
         """Delete raw packets that are already linked to a stored message."""
         async with db.tx() as conn:

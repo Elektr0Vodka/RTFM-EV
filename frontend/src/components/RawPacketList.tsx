@@ -1,13 +1,16 @@
 import { useEffect, useRef, useMemo } from 'react';
-import type { Channel, RawPacket } from '../types';
+import type { Channel, Contact, RawPacket } from '../types';
 import { getRawPacketObservationKey } from '../utils/rawPacketIdentity';
 import { createDecoderOptions, decodePacketSummary } from '../utils/rawPacketInspector';
+import { resolvePathHopNames } from '../utils/pathHopNames';
 import { cn } from '@/lib/utils';
 import { useT } from '../i18n';
 
 interface RawPacketListProps {
   packets: RawPacket[];
   channels?: Channel[];
+  /** Known contacts, used to resolve path-hop hex prefixes to names. */
+  contacts?: Contact[];
   onPacketClick?: (packet: RawPacket) => void;
   /** When true (default), the feed sticks to the newest packet. */
   autoScroll?: boolean;
@@ -74,6 +77,7 @@ function getRouteTypeLabel(routeType: string): string {
 export function RawPacketList({
   packets,
   channels,
+  contacts,
   onPacketClick,
   autoScroll = true,
   newestFirst = false,
@@ -176,6 +180,26 @@ export function RawPacketList({
             {(packet.snr !== null || packet.rssi !== null) && (
               <div className="text-[0.6875rem] text-muted-foreground mt-0.5 tabular-nums">
                 {formatSignalInfo(packet)}
+              </div>
+            )}
+
+            {/* Resolved path: hop hex prefixes with known contacts named. */}
+            {decoded.pathTokens && decoded.pathTokens.length > 0 && (
+              <div className="mt-1 flex flex-wrap items-center gap-1 text-[0.625rem]">
+                {resolvePathHopNames(decoded.pathTokens, contacts ?? []).map((hop, i) => (
+                  <span
+                    key={`${hop.hex}-${i}`}
+                    title={hop.resolved ? hop.hex : undefined}
+                    className={cn(
+                      'max-w-[10rem] truncate rounded px-1 py-0.5 font-mono',
+                      hop.resolved
+                        ? 'bg-primary/15 text-primary'
+                        : 'bg-background/60 text-muted-foreground'
+                    )}
+                  >
+                    {hop.resolved ? hop.name : hop.hex.toUpperCase()}
+                  </span>
+                ))}
               </div>
             )}
 
