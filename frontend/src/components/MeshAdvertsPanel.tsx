@@ -827,6 +827,9 @@ export function MeshAdvertsPanel({
             <span className="text-sm font-semibold text-destructive">
               {t('mesh_health_high_alert_heading')}
             </span>
+            <span className="text-[10px] text-destructive/70">
+              · {t('mesh_health_stat_sub_last_window', { window: selectedWindow.label })}
+            </span>
             <span className="ml-auto text-[10px] text-destructive/70">
               {t('mesh_health_alert_node_count', { count: highAlerts.length })}
             </span>
@@ -855,6 +858,9 @@ export function MeshAdvertsPanel({
             <AlertTriangle className="h-3.5 w-3.5 text-yellow-600 dark:text-yellow-400" />
             <span className="text-sm font-semibold text-yellow-700 dark:text-yellow-300">
               {t('mesh_health_medium_alert_heading')}
+            </span>
+            <span className="text-[10px] text-yellow-600/70 dark:text-yellow-400/70">
+              · {t('mesh_health_stat_sub_last_window', { window: selectedWindow.label })}
             </span>
             <span className="ml-auto text-[10px] text-yellow-600/70 dark:text-yellow-400/70">
               {t('mesh_health_alert_node_count', { count: mediumAlerts.length })}
@@ -970,8 +976,10 @@ export function MeshAdvertsPanel({
               <tbody>
                 {paginated.map((n) => {
                   const shortId = n.public_key.slice(0, 4).toUpperCase();
-                  const isHighAlert = n.advert_count > 8;
-                  const isMedAlert = !isHighAlert && n.advert_count > 2;
+                  // Only flood-routed adverts drive the warning highlight; direct
+                  // adverts are expected and do not count toward the alert level.
+                  const isHighAlert = n.flood_count > 8;
+                  const isMedAlert = !isHighAlert && n.flood_count > 2;
                   const isFocused = focusKey === n.public_key;
                   return (
                     <tr
@@ -990,9 +998,6 @@ export function MeshAdvertsPanel({
                       <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
                         {n.direct_count}
                       </td>
-                      <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
-                        {n.flood_count}
-                      </td>
                       <td className="px-2 py-1.5 text-right tabular-nums">
                         <span
                           className={
@@ -1003,8 +1008,11 @@ export function MeshAdvertsPanel({
                                 : 'text-muted-foreground'
                           }
                         >
-                          {n.advert_count}
+                          {n.flood_count}
                         </span>
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
+                        {n.advert_count}
                       </td>
                       <td className="px-2 py-1.5 text-right text-muted-foreground tabular-nums">
                         {n.last_seen != null ? relTime(n.last_seen, t) : '-'}

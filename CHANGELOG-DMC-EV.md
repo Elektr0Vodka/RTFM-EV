@@ -11,6 +11,29 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-19 (Mesh Health warnings count flood adverts only, feat/mesh-health-flood-adverts)
+
+### Mesh Health (backend + frontend)
+- **Mesh Health advert warnings now count flood-routed adverts only.** Previously
+  the HIGH (> 8/window) / MEDIUM (> 2/window) thresholds were evaluated against a
+  contact's total advert count (direct + flood). Direct adverts (heard at zero
+  hops) are expected and happen far more often by default, so they no longer
+  raise a warning. `get_mesh_health` (`app/routers/packets.py`) now tests the
+  `flood` count against the same thresholds, and each `MeshHealthAlert`'s
+  `advert_count` / `adverts_per_hour` report the flood-advert figure that
+  triggered it (direct and total counts are still returned per contact for
+  context). In `MeshAdvertsPanel`, the alert-row highlight is driven by
+  `flood_count` and moved onto the Flood column; the Total column is now plain.
+  Threshold/alert wording updated to say "flood adverts" (EN/NL/DE). No schema
+  change. Gates green (backend pytest incl. mesh-health endpoints / ruff;
+  frontend tsc / eslint / prettier / vitest / build).
+- **The HIGH / MEDIUM alert headings now show the active time window** (e.g.
+  "· last 24h"), reusing the existing `mesh_health_stat_sub_last_window` string.
+  The alert counts and adverts/hour are computed over the window selected at the
+  top of the page, but that window was only echoed in the summary tiles, not next
+  to the alerts, so users could not tell what span a rate like "0.1/hr" covered.
+  Frontend-only, no new i18n keys.
+
 ## Update 2026-09-19 (Basemap picker as a dropdown, feat/map-layer-dropdown)
 
 ### Node Map (frontend)

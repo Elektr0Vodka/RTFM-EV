@@ -17,14 +17,15 @@ async def _contact(pubkey: str, last_seen: int, lat=None, lon=None):
 
 class TestMeshHealth:
     @pytest.mark.asyncio
-    async def test_direct_flood_split_and_alert(self, test_db, client):
+    async def test_flood_adverts_drive_alert(self, test_db, client):
         from app.repository.advert_events import AdvertEventRepository
 
         start, end = 1700000000, 1700003600  # 1h window
         pubkey = "aa" * 32
         await _contact(pubkey, start + 10)
-        # 3 direct transmissions + 1 flood-only -> direct 3, flood 1, total 4 -> MEDIUM (>2).
-        for i, txid in enumerate((1, 2, 3)):
+        # 5 direct transmissions + 3 flood -> direct 5, flood 3, total 8.
+        # Only the 3 flood adverts count toward the warning -> MEDIUM (flood > 2).
+        for i, txid in enumerate((1, 2, 3, 4, 5)):
             await AdvertEventRepository.record(
                 transmission_id=txid,
                 public_key=pubkey,
@@ -32,26 +33,58 @@ class TestMeshHealth:
                 path_len=0,
                 path_hex="",
             )
-        await AdvertEventRepository.record(
-            transmission_id=4,
-            public_key=pubkey,
-            timestamp=start + 20,
-            path_len=2,
-            path_hex="bbbbcccc",
-        )
+        for i, txid in enumerate((6, 7, 8)):
+            await AdvertEventRepository.record(
+                transmission_id=txid,
+                public_key=pubkey,
+                timestamp=start + 20 + i,
+                path_len=2,
+                path_hex="bbbbcccc",
+            )
 
         resp = await client.get(f"/api/packets/mesh-health?start_ts={start}&end_ts={end}")
         assert resp.status_code == 200
         body = resp.json()
         assert body["total_contacts"] == 1
         c = next(x for x in body["contacts"] if x["public_key"] == pubkey)
-        assert c["direct_count"] == 3
-        assert c["flood_count"] == 1
-        assert c["advert_count"] == 4
+        assert c["direct_count"] == 5
+        assert c["flood_count"] == 3
+        assert c["advert_count"] == 8
         assert c["min_path_len"] == 0
         assert body["medium_alert_count"] == 1
         assert body["high_alert_count"] == 0
         assert body["alerts"][0]["level"] == "MEDIUM"
+        # The alert reports the flood-advert count that triggered it, not the total.
+        assert body["alerts"][0]["advert_count"] == 3
+
+    @pytest.mark.asyncio
+    async def test_direct_only_never_alerts(self, test_db, client):
+        from app.repository.advert_events import AdvertEventRepository
+
+        start, end = 1700000000, 1700003600  # 1h window
+        pubkey = "cc" * 32
+        await _contact(pubkey, start + 10)
+        # 12 direct adverts, zero flood -> above every total-based threshold, but
+        # direct adverts do not count toward warnings, so no alert fires.
+        for i in range(12):
+            await AdvertEventRepository.record(
+                transmission_id=100 + i,
+                public_key=pubkey,
+                timestamp=start + 10 + i,
+                path_len=0,
+                path_hex="",
+            )
+
+        resp = await client.get(f"/api/packets/mesh-health?start_ts={start}&end_ts={end}")
+        assert resp.status_code == 200
+        body = resp.json()
+        c = next(x for x in body["contacts"] if x["public_key"] == pubkey)
+        assert c["direct_count"] == 12
+        assert c["flood_count"] == 0
+        assert c["advert_count"] == 12
+        assert body["high_alert_count"] == 0
+        assert body["medium_alert_count"] == 0
+        assert body["alerts"] == []
 
     @pytest.mark.asyncio
     async def test_rejects_bad_range(self, test_db, client):

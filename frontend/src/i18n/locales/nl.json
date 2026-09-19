@@ -303,7 +303,7 @@
   "mesh_health_stat_contacts_heard": "Gehoorde Contacten",
   "mesh_health_stat_sub_last_window": "laatste {window}",
   "mesh_health_stat_high_alerts_label": "HOGE Meldingen",
-  "mesh_health_stat_sub_threshold_adverts": "> {threshold} advertenties",
+  "mesh_health_stat_sub_threshold_adverts": "> {threshold} flood-adverts",
   "mesh_health_stat_medium_alerts_label": "GEMIDDELDE Meldingen",
   "mesh_health_stat_window_hours": "{hours}u",
   "mesh_health_hop_distance_heading": "Hop-afstand",
@@ -317,13 +317,13 @@
   },
   "mesh_health_heatmap_heading": "Activiteit per Dag & Uur",
   "mesh_health_relay_pairs_heading": "Belangrijkste Relaisparen (meest voorkomende opeenvolgende hops in advertentiepaden)",
-  "mesh_health_high_alert_heading": "HOOG - Te Frequent Adverteren",
+  "mesh_health_high_alert_heading": "HOOG - Te Frequent Flood-adverteren",
   "mesh_health_alert_node_count": {
     "one": "{count} node",
     "other": "{count} nodes"
   },
-  "mesh_health_medium_alert_heading": "GEMIDDELD - Boven Normale Advertentiefrequentie",
-  "mesh_health_no_alerts_message": "Geen meldingen over advertentiefrequentie in de laatste {window}. Het mesh lijkt gezond.",
+  "mesh_health_medium_alert_heading": "GEMIDDELD - Boven Normale Flood-advertfrequentie",
+  "mesh_health_no_alerts_message": "Geen meldingen over flood-advertfrequentie in de laatste {window}. Het mesh lijkt gezond.",
   "mesh_health_contacts_table_heading": "Alle Gehoorde Geadverteerde Contacten (In Geselecteerde Periode)",
   "mesh_health_contacts_summary": {
     "one": "{count} node · laatste {window}",
@@ -351,8 +351,8 @@
   "mesh_health_pagination_next": "Volgende ›",
   "mesh_health_no_contacts_message": "Geen contacten gehoord in de laatste {window}.",
   "mesh_health_alert_advert_count": {
-    "one": "{count} advertentie",
-    "other": "{count} advertenties"
+    "one": "{count} flood-advert",
+    "other": "{count} flood-adverts"
   },
   "mesh_health_alert_adverts_per_hour": "{value}/u",
   "mesh_health_show_on_map_title": "Op kaart tonen",

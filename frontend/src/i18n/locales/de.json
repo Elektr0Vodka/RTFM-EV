@@ -303,7 +303,7 @@
   "mesh_health_stat_contacts_heard": "Gehörte Kontakte",
   "mesh_health_stat_sub_last_window": "letzte {window}",
   "mesh_health_stat_high_alerts_label": "HOHE Warnungen",
-  "mesh_health_stat_sub_threshold_adverts": "> {threshold} Adverts",
+  "mesh_health_stat_sub_threshold_adverts": "> {threshold} Flood-Adverts",
   "mesh_health_stat_medium_alerts_label": "MITTLERE Warnungen",
   "mesh_health_stat_window_hours": "{hours}h",
   "mesh_health_hop_distance_heading": "Hop-Entfernung",
@@ -317,13 +317,13 @@
   },
   "mesh_health_heatmap_heading": "Aktivität nach Tag & Stunde",
   "mesh_health_relay_pairs_heading": "Häufigste Relaispaare (häufigste aufeinanderfolgende Hops in Advert-Pfaden)",
-  "mesh_health_high_alert_heading": "HOCH - Zu häufiges Advertising",
+  "mesh_health_high_alert_heading": "HOCH - Zu häufiges Flood-Advertising",
   "mesh_health_alert_node_count": {
     "one": "{count} Knoten",
     "other": "{count} Knoten"
   },
-  "mesh_health_medium_alert_heading": "MITTEL - Über normaler Advert-Rate",
-  "mesh_health_no_alerts_message": "Keine Advert-Frequenzwarnungen in den letzten {window}. Das Mesh sieht gesund aus.",
+  "mesh_health_medium_alert_heading": "MITTEL - Über normaler Flood-Advert-Rate",
+  "mesh_health_no_alerts_message": "Keine Flood-Advert-Frequenzwarnungen in den letzten {window}. Das Mesh sieht gesund aus.",
   "mesh_health_contacts_table_heading": "Alle gehörten beworbenen Kontakte (im ausgewählten Zeitraum)",
   "mesh_health_contacts_summary": {
     "one": "{count} Knoten · letzte {window}",
@@ -351,8 +351,8 @@
   "mesh_health_pagination_next": "Weiter ›",
   "mesh_health_no_contacts_message": "Keine Kontakte in den letzten {window} gehört.",
   "mesh_health_alert_advert_count": {
-    "one": "{count} Advert",
-    "other": "{count} Adverts"
+    "one": "{count} Flood-Advert",
+    "other": "{count} Flood-Adverts"
   },
   "mesh_health_alert_adverts_per_hour": "{value}/Std",
   "mesh_health_show_on_map_title": "Auf Karte anzeigen",
