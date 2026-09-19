@@ -24,11 +24,15 @@ export interface PacketFilters {
   enabledHopWidths: Set<string>;
   hexFilter: string;
   groupByHash: boolean;
+  /** Raw message-content search input (decoded text/sender/channel). */
+  searchQuery: string;
 
   allTypesEnabled: boolean;
   allHopWidthsEnabled: boolean;
   hexQuery: string;
   hexInvalid: boolean;
+  /** Trimmed search query; empty string means "no search". */
+  searchTerm: string;
   activeFilterCount: number;
 
   toggleAll: () => void;
@@ -39,6 +43,7 @@ export interface PacketFilters {
   onlyHopWidth: (bucket: string) => void;
   setHexFilter: (value: string) => void;
   setGroupByHash: (value: boolean) => void;
+  setSearchQuery: (value: string) => void;
   reset: () => void;
 }
 
@@ -49,6 +54,7 @@ export function usePacketFilters(): PacketFilters {
   );
   const [hexFilter, setHexFilter] = useState('');
   const [groupByHash, setGroupByHash] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const allTypesEnabled = enabledTypes.size === KNOWN_PAYLOAD_TYPES.length;
   const allHopWidthsEnabled = enabledHopWidths.size === HOP_BYTE_WIDTH_BUCKETS.length;
@@ -57,6 +63,8 @@ export function usePacketFilters(): PacketFilters {
     () => normalizeHexQuery(hexFilter),
     [hexFilter]
   );
+
+  const searchTerm = searchQuery.trim();
 
   const activeFilterCount =
     KNOWN_PAYLOAD_TYPES.length -
@@ -104,6 +112,7 @@ export function usePacketFilters(): PacketFilters {
     setEnabledHopWidths(new Set(HOP_BYTE_WIDTH_BUCKETS));
     setHexFilter('');
     setGroupByHash(false);
+    setSearchQuery('');
   }, []);
 
   return {
@@ -111,10 +120,12 @@ export function usePacketFilters(): PacketFilters {
     enabledHopWidths,
     hexFilter,
     groupByHash,
+    searchQuery,
     allTypesEnabled,
     allHopWidthsEnabled,
     hexQuery,
     hexInvalid,
+    searchTerm,
     activeFilterCount,
     toggleAll,
     toggleType,
@@ -124,6 +135,7 @@ export function usePacketFilters(): PacketFilters {
     onlyHopWidth,
     setHexFilter,
     setGroupByHash,
+    setSearchQuery,
     reset,
   };
 }

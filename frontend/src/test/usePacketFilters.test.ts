@@ -42,14 +42,26 @@ describe('usePacketFilters', () => {
     expect(result.current.activeFilterCount).toBe(3);
   });
 
-  it('reset restores defaults', () => {
+  it('exposes a trimmed searchTerm and keeps search out of activeFilterCount', () => {
+    const { result } = renderHook(() => usePacketFilters());
+    act(() => result.current.setSearchQuery('  alice  '));
+    expect(result.current.searchQuery).toBe('  alice  ');
+    expect(result.current.searchTerm).toBe('alice');
+    // Search has its own visible input + clear, so it is not counted here.
+    expect(result.current.activeFilterCount).toBe(0);
+  });
+
+  it('reset restores defaults including search', () => {
     const { result } = renderHook(() => usePacketFilters());
     act(() => result.current.onlyType(KNOWN_PAYLOAD_TYPES[0]));
     act(() => result.current.setHexFilter('ff'));
     act(() => result.current.setGroupByHash(true));
+    act(() => result.current.setSearchQuery('alice'));
     act(() => result.current.reset());
     expect(result.current.activeFilterCount).toBe(0);
     expect(result.current.groupByHash).toBe(false);
     expect(result.current.hexFilter).toBe('');
+    expect(result.current.searchQuery).toBe('');
+    expect(result.current.searchTerm).toBe('');
   });
 });

@@ -241,6 +241,7 @@ async def get_packet_history(
     payload_types: Annotated[list[str] | None, Query()] = None,
     hop_widths: Annotated[list[str] | None, Query()] = None,
     hex: str | None = None,
+    search: str | None = None,
 ) -> dict:
     """Page backward through persisted raw_packets for the history browser.
 
@@ -251,6 +252,9 @@ async def get_packet_history(
     - hop_widths: frontend hop-byte-width bucket names, mapped to hop_count /
       hop_byte_width column predicates.
     - hex: lowercase hex substring match on the packet bytes (mirrors the feed).
+    - search: case-insensitive substring over decrypted message content
+      (message text, sender name, channel name). Only packets linked to a
+      decrypted message can match; others are excluded while a term is active.
 
     Returns ``{"packets": [...newest-first...], "next_cursor": <int|null>}``.
     ``next_cursor`` is the smallest id in the page, or null when the page was
@@ -260,15 +264,18 @@ async def get_packet_history(
 
     conditions: list[str] = []
     params: list = []
+    # Joins are added only when the message-content search is active, so the
+    # common paging path stays a plain single-table scan.
+    joins = ""
 
     if after_ts is not None:
-        conditions.append("timestamp >= ?")
+        conditions.append("rp.timestamp >= ?")
         params.append(after_ts)
     if before_ts is not None:
-        conditions.append("timestamp <= ?")
+        conditions.append("rp.timestamp <= ?")
         params.append(before_ts)
     if before_id is not None:
-        conditions.append("id < ?")
+        conditions.append("rp.id < ?")
         params.append(before_id)
 
     # payload-type filter (bucket names -> enum names; "Unknown" = complement).
@@ -277,12 +284,12 @@ async def get_packet_history(
         enum_names = [_PAYLOAD_TYPE_TO_ENUM[b] for b in wanted if b in _PAYLOAD_TYPE_TO_ENUM]
         clauses: list[str] = []
         if enum_names:
-            clauses.append(f"payload_type IN ({','.join('?' * len(enum_names))})")
+            clauses.append(f"rp.payload_type IN ({','.join('?' * len(enum_names))})")
             params.extend(enum_names)
         if "Unknown" in wanted:
             known = list(_PAYLOAD_TYPE_TO_ENUM.values())
             clauses.append(
-                f"(payload_type IS NULL OR payload_type NOT IN ({','.join('?' * len(known))}))"
+                f"(rp.payload_type IS NULL OR rp.payload_type NOT IN ({','.join('?' * len(known))}))"
             )
             params.extend(known)
         if clauses:
@@ -293,16 +300,17 @@ async def get_packet_history(
         hw_clauses: list[str] = []
         for bucket in hop_widths:
             if bucket == "No path":
-                hw_clauses.append("(hop_count = 0 OR hop_count IS NULL)")
+                hw_clauses.append("(rp.hop_count = 0 OR rp.hop_count IS NULL)")
             elif bucket == "1 byte / hop":
-                hw_clauses.append("(hop_count > 0 AND hop_byte_width = 1)")
+                hw_clauses.append("(rp.hop_count > 0 AND rp.hop_byte_width = 1)")
             elif bucket == "2 bytes / hop":
-                hw_clauses.append("(hop_count > 0 AND hop_byte_width = 2)")
+                hw_clauses.append("(rp.hop_count > 0 AND rp.hop_byte_width = 2)")
             elif bucket == "3 bytes / hop":
-                hw_clauses.append("(hop_count > 0 AND hop_byte_width = 3)")
+                hw_clauses.append("(rp.hop_count > 0 AND rp.hop_byte_width = 3)")
             elif bucket == "Unknown width":
                 hw_clauses.append(
-                    "(hop_count > 0 AND (hop_byte_width IS NULL OR hop_byte_width NOT IN (1,2,3)))"
+                    "(rp.hop_count > 0 AND "
+                    "(rp.hop_byte_width IS NULL OR rp.hop_byte_width NOT IN (1,2,3)))"
                 )
         if hw_clauses:
             conditions.append("(" + " OR ".join(hw_clauses) + ")")
@@ -312,15 +320,33 @@ async def get_packet_history(
         cleaned = hex.strip().lower()
         if not re.fullmatch(r"[0-9a-f]+", cleaned):
             raise HTTPException(status_code=422, detail="hex must be hexadecimal")
-        conditions.append("instr(lower(hex(data)), ?) > 0")
+        conditions.append("instr(lower(hex(rp.data)), ?) > 0")
         params.append(cleaned)
+
+    # message-content search: case-insensitive substring over the linked
+    # message's text / sender name / channel name. Requires joining messages
+    # (1:1 via message_id) and channels (1:1 via conversation_key), so no row
+    # multiplication. Packets with no linked message never match (LEFT JOIN
+    # yields NULLs, and instr(NULL, ...) is NULL -> not > 0).
+    if search is not None and search.strip() != "":
+        needle = search.strip().lower()
+        joins = (
+            " LEFT JOIN messages m ON rp.message_id = m.id"
+            " LEFT JOIN channels ch ON m.conversation_key = ch.key"
+        )
+        conditions.append(
+            "(instr(lower(m.text), ?) > 0"
+            " OR instr(lower(m.sender_name), ?) > 0"
+            " OR instr(lower(ch.name), ?) > 0)"
+        )
+        params.extend([needle, needle, needle])
 
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     query = f"""
-        SELECT id, timestamp, data, message_id, rssi, snr, payload_type
-        FROM raw_packets
+        SELECT rp.id, rp.timestamp, rp.data, rp.message_id, rp.rssi, rp.snr, rp.payload_type
+        FROM raw_packets rp{joins}
         {where}
-        ORDER BY id DESC
+        ORDER BY rp.id DESC
         LIMIT ?
     """
 
