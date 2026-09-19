@@ -14,6 +14,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronUp, ChevronsUpDown, Map } from 'lucide-react';
 import type { RadioConfig } from '../types';
 import { useT } from '../i18n';
+import { SvgZoomBox } from './charts/SvgZoomBox';
+import type { ChartBox } from '../lib/chartZoom2d';
 import { type TimeWindow, relTime, StatTile, DistBars } from './meshHealthShared';
 
 // ─── Extra analytics types ───────────────────────────────────────────────────
@@ -126,7 +128,20 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
 
 function ScatterPlot({ points }: { points: ScatterPoint[] }) {
   const t = useT();
+  const [view, setView] = useState<ChartBox | null>(null);
+  const [hov, setHov] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const clipId = useRef(`scatter-clip-${Math.random().toString(36).slice(2)}`).current;
+
+  // Reset zoom when the point set changes (window selector / refresh): old domain
+  // bounds no longer describe the new cloud.
+  useEffect(() => {
+    setView(null);
+    setHov(null);
+  }, [points.length]);
+
   if (!points.length) return null;
+
   const W = 360,
     H = 180;
   const pad = { top: 8, right: 10, bottom: 28, left: 34 };
@@ -140,86 +155,168 @@ function ScatterPlot({ points }: { points: ScatterPoint[] }) {
   const minS = Math.min(...snrs),
     maxS = Math.max(...snrs, minS + 1);
 
-  const xOf = (r: number) => pad.left + ((r - minR) / (maxR - minR)) * pw;
-  const yOf = (s: number) => pad.top + ph - ((s - minS) / (maxS - minS)) * ph;
+  const full: ChartBox = { x: [minR, maxR], y: [minS, maxS] };
+  const box = view ?? full;
 
-  // X-axis ticks
-  const xTicks = [minR, Math.round((minR + maxR) / 2), maxR];
-  const yTicks = [minS, Math.round((minS + maxS) / 2), maxS];
+  const xOf = (r: number) => pad.left + ((r - box.x[0]) / (box.x[1] - box.x[0])) * pw;
+  const yOf = (s: number) => pad.top + ph - ((s - box.y[0]) / (box.y[1] - box.y[0])) * ph;
+
+  // Ticks follow the current (possibly zoomed) box.
+  const xTicks = [box.x[0], (box.x[0] + box.x[1]) / 2, box.x[1]];
+  const yTicks = [box.y[0], (box.y[0] + box.y[1]) / 2, box.y[1]];
+  const fmtTick = (v: number) => (Math.abs(v) >= 10 ? String(Math.round(v)) : v.toFixed(1));
+
+  const plotFrac = { left: pad.left / W, top: pad.top / H, width: pw / W, height: ph / H };
+
+  // Nearest-point-in-pixel-space hover: convert the cursor to viewBox units and
+  // pick the closest point within a small radius.
+  const onMove = (e: React.MouseEvent) => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const vx = ((e.clientX - rect.left) / rect.width) * W;
+    const vy = ((e.clientY - rect.top) / rect.height) * H;
+    let best = -1;
+    let bestD = 64; // (8px)^2 threshold in viewBox units
+    for (let i = 0; i < points.length; i++) {
+      const dx = xOf(points[i].rssi) - vx;
+      const dy = yOf(points[i].snr) - vy;
+      const d = dx * dx + dy * dy;
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    setHov(best >= 0 ? best : null);
+  };
+
+  const TIP_W = 88;
+  let tipX = 0;
+  let tipY = 0;
+  if (hov !== null) {
+    tipX = xOf(points[hov].rssi);
+    tipY = yOf(points[hov].snr) - 16;
+    if (tipX < pad.left + TIP_W / 2) tipX = pad.left + TIP_W / 2;
+    if (tipX > W - pad.right - TIP_W / 2) tipX = W - pad.right - TIP_W / 2;
+    if (tipY < pad.top + 12) tipY = yOf(points[hov].snr) + 20;
+  }
 
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      className="w-full h-auto"
-      role="img"
-      aria-label={t('mesh_health_scatter_aria_label')}
-    >
-      {/* Grid lines */}
-      {yTicks.map((s) => (
-        <g key={s}>
-          <line
-            x1={pad.left}
-            x2={W - pad.right}
-            y1={yOf(s)}
-            y2={yOf(s)}
-            stroke="hsl(var(--border))"
-            strokeWidth={0.5}
-          />
+    <SvgZoomBox full={full} view={box} onChange={setView} plotFrac={plotFrac}>
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full h-auto"
+        role="img"
+        aria-label={t('mesh_health_scatter_aria_label')}
+        style={{ display: 'block', cursor: 'grab' }}
+        onMouseMove={onMove}
+        onMouseLeave={() => setHov(null)}
+      >
+        <defs>
+          <clipPath id={clipId}>
+            <rect x={pad.left} y={pad.top} width={pw} height={ph} />
+          </clipPath>
+        </defs>
+        {/* Grid lines */}
+        {yTicks.map((s, i) => (
+          <g key={`y${i}`}>
+            <line
+              x1={pad.left}
+              x2={W - pad.right}
+              y1={yOf(s)}
+              y2={yOf(s)}
+              stroke="hsl(var(--border))"
+              strokeWidth={0.5}
+            />
+            <text
+              x={pad.left - 3}
+              y={yOf(s) + 3}
+              textAnchor="end"
+              fontSize={8}
+              fill="hsl(var(--muted-foreground))"
+            >
+              {fmtTick(s)}
+            </text>
+          </g>
+        ))}
+        {xTicks.map((r, i) => (
           <text
-            x={pad.left - 3}
-            y={yOf(s) + 3}
-            textAnchor="end"
+            key={`x${i}`}
+            x={xOf(r)}
+            y={H - 4}
+            textAnchor="middle"
             fontSize={8}
             fill="hsl(var(--muted-foreground))"
           >
-            {s}
+            {fmtTick(r)}
           </text>
-        </g>
-      ))}
-      {xTicks.map((r) => (
+        ))}
+        {/* Axis labels */}
         <text
-          key={r}
-          x={xOf(r)}
-          y={H - 4}
+          x={W / 2}
+          y={H - 1}
           textAnchor="middle"
-          fontSize={8}
+          fontSize={7}
           fill="hsl(var(--muted-foreground))"
         >
-          {r}
+          {t('mesh_health_axis_rssi_dbm')}
         </text>
-      ))}
-      {/* Axis labels */}
-      <text
-        x={W / 2}
-        y={H - 1}
-        textAnchor="middle"
-        fontSize={7}
-        fill="hsl(var(--muted-foreground))"
-      >
-        {t('mesh_health_axis_rssi_dbm')}
-      </text>
-      <text
-        x={9}
-        y={H / 2}
-        textAnchor="middle"
-        fontSize={7}
-        fill="hsl(var(--muted-foreground))"
-        transform={`rotate(-90, 9, ${H / 2})`}
-      >
-        {t('mesh_health_axis_snr_db')}
-      </text>
-      {/* Points */}
-      {points.map((p, i) => (
-        <circle
-          key={i}
-          cx={xOf(p.rssi)}
-          cy={yOf(p.snr)}
-          r={1.8}
-          fill="#2563eb"
-          fillOpacity={0.45}
-        />
-      ))}
-    </svg>
+        <text
+          x={9}
+          y={H / 2}
+          textAnchor="middle"
+          fontSize={7}
+          fill="hsl(var(--muted-foreground))"
+          transform={`rotate(-90, 9, ${H / 2})`}
+        >
+          {t('mesh_health_axis_snr_db')}
+        </text>
+        {/* Points (clipped to the plot so zoom/pan doesn't spill over the axes) */}
+        <g clipPath={`url(#${clipId})`}>
+          {points.map((p, i) => (
+            <circle
+              key={i}
+              cx={xOf(p.rssi)}
+              cy={yOf(p.snr)}
+              r={i === hov ? 3 : 1.8}
+              fill="#2563eb"
+              fillOpacity={i === hov ? 0.95 : 0.45}
+              stroke={i === hov ? 'hsl(var(--background))' : undefined}
+              strokeWidth={i === hov ? 1 : undefined}
+            />
+          ))}
+        </g>
+        {hov !== null && (
+          <g transform={`translate(${tipX},${tipY})`}>
+            <rect
+              x={-TIP_W / 2}
+              y={-9}
+              width={TIP_W}
+              height={18}
+              rx={2}
+              fill="hsl(var(--popover))"
+              stroke="hsl(var(--border))"
+              strokeWidth={0.5}
+              style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.3))' }}
+            />
+            <text
+              textAnchor="middle"
+              y={3}
+              fontSize={8}
+              fontWeight={600}
+              fill="hsl(var(--popover-foreground))"
+            >
+              {t('mesh_health_scatter_tooltip', {
+                rssi: points[hov].rssi,
+                snr: points[hov].snr,
+              })}
+            </text>
+          </g>
+        )}
+      </svg>
+    </SvgZoomBox>
   );
 }
 

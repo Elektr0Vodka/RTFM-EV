@@ -11,6 +11,37 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-19 (Chart hover tooltips + Mesh Health zoom, claude/airtime-graph-hover-info-c79e8b)
+
+### Charts (frontend)
+- **Airtime utilization chart (My Node) now shows a hover tooltip.** It was the
+  only My Node chart without one; `AirtimeLineChart` (`components/MyNodeView.tsx`)
+  gained per-sample hover zones + a tooltip showing `RX x% / TX y%` and the
+  sample time, with RX/TX marker dots, matching the sibling charts. Zoom already
+  worked (it was already wrapped in `ZoomableBinChart`).
+- **Mesh Health "Request volume over time" chart is now hoverable and
+  zoomable.** `VolumeChart` (`components/MeshRequestsPanel.tsx`) gained per-bucket
+  hover zones + a tooltip (bucket time + Flood/Direct/Resp counts), and the call
+  site now wraps it in the existing `ZoomableBinChart` for per-graph wheel-zoom /
+  drag-pan / dbl-click reset (index-window, same as the My Node charts).
+- **Mesh Health "SNR vs RSSI" scatter is now hoverable and 2-D zoomable.**
+  `ScatterPlot` (`components/MeshAdvertsPanel.tsx`) gained nearest-point hover
+  (highlight + `RSSI r / SNR s` tooltip) and true 2-D zoom/pan (wheel zooms both
+  axes about the cursor, drag pans, dbl-click resets), clamped to the full data
+  extent and clipped to the plot rect.
+- **New shared zoom primitives** (the existing 1-D index-window core cannot
+  express a point-cloud zoom): pure `lib/chartZoom2d.ts` (domain box +
+  `clampBox` / `zoomBoxAtPoint` / `panBox`, composing the tested 1-D
+  `chartZoom.ts` per axis) and a React wrapper `components/charts/SvgZoomBox.tsx`
+  (the 2-D analogue of `SvgZoomFrame`).
+- i18n: new tooltip keys in EN/NL/DE (`mesh_health_scatter_tooltip`,
+  `mesh_health_req_tooltip_flood` / `_direct` / `_responses`); the Airtime
+  tooltip reuses `node_chart_airtime_stat`.
+- Tests: `src/test/chartZoom2d.test.ts` (6) and `src/test/svgZoomBox.test.tsx`
+  (4). Gates green: eslint (0 errors) / prettier / tsc / vitest (1623) / build.
+  Runtime-verified in the browser: hover tooltip on all three charts, 2-D zoom
+  on the scatter, index zoom on the volume chart.
+
 ## Update 2026-09-19 (Manual location overrides show in paths, fix/manual-location-in-paths)
 
 ### Map + advert-links (backend + frontend)
