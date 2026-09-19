@@ -1,6 +1,7 @@
 import type { Map as MlMap, ExpressionSpecification } from 'maplibre-gl';
 import type { Contact, LatestTelemetry } from '../../types';
 import { mvToPercent } from '../../utils/batteryDisplay';
+import { NODE_LABEL_FONT } from './nodesLayer';
 
 // Opt-in map overlay: a battery icon (coloured by level) + a temperature/age
 // badge per node, fed by GET /contacts/telemetry/latest. It sits ABOVE the node
@@ -10,6 +11,13 @@ import { mvToPercent } from '../../utils/batteryDisplay';
 
 export const STALE_SEC = 24 * 3600;
 export const TELEMETRY_MIN_ZOOM = 10;
+
+// The badge hangs below the node circle: the battery glyph sits just under the
+// node, with the temperature text stacked beneath the glyph. ICON_OFFSET_PX is
+// in pixels (icon anchored at its top); TEXT_OFFSET_EM is in ems of the text
+// size, chosen to clear the glyph so the two never overlap.
+const ICON_OFFSET_PX: [number, number] = [0, 14];
+const TEXT_OFFSET_EM: [number, number] = [0, 2.9];
 
 const SOURCE_ID = 'rt-telemetry';
 const LAYER_ID = 'rt-telemetry-badges';
@@ -34,6 +42,21 @@ export function ageStr(sec: number): string {
   return `${Math.round(sec / 86400)}d`;
 }
 
+/** Value strings for a node-popup telemetry summary, or null when unknown.
+ *  Labels/i18n are applied by the caller; this stays pure and testable. */
+export function telemetryPopupParts(
+  latest: LatestTelemetry,
+  nowSec: number
+): { battery: string | null; temperature: string | null; age: string; stale: boolean } {
+  const battery =
+    latest.battery_volts != null
+      ? `${mvToPercent(latest.battery_volts * 1000)}% (${latest.battery_volts.toFixed(2)}V)`
+      : null;
+  const temperature = latest.temperature != null ? `${Math.round(latest.temperature)}°` : null;
+  const ageSec = Math.max(0, Math.round(nowSec - latest.timestamp));
+  return { battery, temperature, age: ageStr(ageSec), stale: ageSec > STALE_SEC };
+}
+
 export function buildTelemetryFeatures(
   contacts: Contact[],
   latest: Record<string, LatestTelemetry>,
@@ -50,8 +73,10 @@ export function buildTelemetryFeatures(
 
     const battLevel = hasBattery ? batteryLevelBucket(t.battery_volts as number) : -1;
     const ageSec = Math.max(0, Math.round(nowSec - t.timestamp));
-    const tempLabel = hasTemp ? `${Math.round(t.temperature as number)}°` : '';
-    const label = [tempLabel, ageStr(ageSec)].filter(Boolean).join(' · ');
+    // The badge sits under the node: battery glyph on top, temperature below it.
+    // Age is not shown on the map (it lives in the click popup); staleness is
+    // still conveyed by the faded opacity.
+    const label = hasTemp ? `${Math.round(t.temperature as number)}°` : '';
 
     features.push({
       type: 'Feature' as const,
@@ -162,13 +187,20 @@ export function createTelemetryLayer(map: MlMap, opts: TelemetryLayerOptions = {
           'icon-image': iconImageExpr(),
           'icon-size': 1,
           'icon-allow-overlap': true,
+          // Battery glyph hangs just below the node circle.
+          'icon-anchor': 'top',
+          'icon-offset': ICON_OFFSET_PX,
           'text-field': ['get', 'label'],
           'text-size': 10,
-          'text-offset': [1.1, 0],
-          'text-anchor': 'left',
+          // Temperature text sits below the glyph, centered under the node.
+          'text-anchor': 'top',
+          'text-offset': TEXT_OFFSET_EM,
           'text-allow-overlap': false,
           'text-optional': true,
-          'text-font': ['Noto Sans Regular', 'Open Sans Regular', 'sans-serif'],
+          // Single font, not a stack: a multi-font stack 404s on the basemap
+          // glyph servers and drops the whole symbol (icon included). See the
+          // NODE_LABEL_FONT comment in nodesLayer.ts.
+          'text-font': NODE_LABEL_FONT,
         },
         paint: {
           'icon-opacity': staleOpacityExpr(),

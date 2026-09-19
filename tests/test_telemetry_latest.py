@@ -92,6 +92,29 @@ class TestLatestTelemetryEndpoint:
         assert body[KEY_B]["battery_volts"] is None
 
     @pytest.mark.asyncio
+    async def test_contact_battery_from_lpp_voltage_sensor(self, test_db, client):
+        # Contacts report battery as an LPP 'voltage' sensor, not a top-level
+        # battery_volts field; the endpoint should surface it.
+        await _insert_contact(KEY_A)
+        now = int(time.time())
+        await ContactTelemetryRepository.record(
+            KEY_A,
+            now - 60,
+            {
+                "lpp_sensors": [
+                    {"channel": 1, "type_name": "temperature", "value": 18.0},
+                    {"channel": 2, "type_name": "voltage", "value": 3.82},
+                ]
+            },
+        )
+
+        response = await client.get("/api/contacts/telemetry/latest")
+        assert response.status_code == 200
+        body = response.json()
+        assert body[KEY_A]["battery_volts"] == 3.82
+        assert body[KEY_A]["temperature"] == 18.0
+
+    @pytest.mark.asyncio
     async def test_key_collision_prefers_newer_reading(self, test_db, client):
         # Same key in both tables: contact reading is newer, so it wins.
         await _insert_contact(KEY_C)

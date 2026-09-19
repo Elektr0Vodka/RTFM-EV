@@ -3,6 +3,7 @@ import {
   buildTelemetryFeatures,
   batteryLevelBucket,
   ageStr,
+  telemetryPopupParts,
   STALE_SEC,
 } from '../../map/layers/telemetryLayer';
 import { CONTACT_TYPE_CLIENT, type Contact, type LatestTelemetry } from '../../types';
@@ -44,6 +45,34 @@ describe('ageStr', () => {
     expect(ageStr(300)).toBe('5m');
     expect(ageStr(3 * 3600)).toBe('3h');
     expect(ageStr(2 * 86400)).toBe('2d');
+  });
+});
+
+describe('telemetryPopupParts', () => {
+  it('formats battery (percent + volts), temperature, and age', () => {
+    const parts = telemetryPopupParts(
+      { timestamp: now - 300, battery_volts: 4.05, temperature: 21.4, source: 'repeater' },
+      now
+    );
+    expect(parts.battery).toBe('90% (4.05V)');
+    expect(parts.temperature).toBe('21°');
+    expect(parts.age).toBe('5m');
+    expect(parts.stale).toBe(false);
+  });
+
+  it('nulls out missing metrics and flags stale readings', () => {
+    const parts = telemetryPopupParts(
+      {
+        timestamp: now - STALE_SEC - 10,
+        battery_volts: null,
+        temperature: null,
+        source: 'contact',
+      },
+      now
+    );
+    expect(parts.battery).toBeNull();
+    expect(parts.temperature).toBeNull();
+    expect(parts.stale).toBe(true);
   });
 });
 

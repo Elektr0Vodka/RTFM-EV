@@ -75,6 +75,41 @@ the `RawPacketList` component.
   undecodable frames only group with a byte-identical twin. New util
   `utils/rawPacketContent.ts` (`getRawPacketContentKey`, `foldPacketsByContent`)
   and a `groupByContent` prop on `RawPacketList`. EN/NL/DE `packet_fold_copies`.
+## Update 2026-09-20 (Telemetry overlay fix + node battery/temperature block, fix/telemetry-layer-map)
+
+### Node Map telemetry overlay (frontend)
+- **Fixed: the telemetry overlay rendered nothing.** The battery/temperature
+  badge layer used a 3-font `text-font` stack (`Noto Sans Regular, Open Sans
+  Regular, sans-serif`). MapLibre requests one combined glyph pbf for the whole
+  stack, which 404s on the OpenFreeMap/Nova glyph servers, and a missing glyph
+  drops the entire symbol (icon included), so no badge ever painted. Now uses the
+  single-font `NODE_LABEL_FONT` constant, the same fix already applied to node
+  labels in PR #117.
+- **Badge repositioned under the node**: the battery glyph now hangs just below
+  the node circle with the temperature stacked beneath it (was overlapping the
+  node with the text off to the side). Age moved off the badge into the popup;
+  staleness is still shown by the faded opacity.
+- **Telemetry loads regardless of the overlay toggle** so the popup can show
+  known readings even when the overlay is off (fetched once on map load; the
+  interval refresh still only runs while the overlay is on).
+
+### Node click popup (frontend)
+- **Compact telemetry block** in the node-click popup, shown only when a reading
+  is known: battery (percent + volts) and temperature on their own lines, plus a
+  relative "telemetry N ago" line.
+- **"Show history" toggle** that reveals a compact telemetry history line chart
+  (`TelemetryPopupChart`) with a per-metric selector (voltage, temperature, …),
+  matching the detail-pane chart style. Fetched read-only via
+  `GET /contacts/{key}/telemetry-history` (no radio request); mounted into the
+  MapLibre popup via `createRoot` and unmounted on popup close.
+
+### Latest telemetry endpoint (backend)
+- **Contact battery now surfaced** from telemetry. `GET /contacts/telemetry/latest`
+  read `battery_volts` only from the top-level field, which contacts never set
+  (they report battery as an LPP `voltage` sensor), so contact battery was always
+  `null`. Added `_extract_voltage` / `_latest_battery_volts` to fall back to the
+  LPP `voltage` sensor, mirroring `_extract_temperature`. Repeaters keep their
+  existing top-level `battery_volts`.
 
 ## Update 2026-09-19 (Signal-audio "click to enable sound" hint, fix/signal-audio-unlock-hint)
 
