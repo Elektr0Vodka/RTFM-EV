@@ -11,6 +11,20 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-19 (Fix chart-hover crash on zoom, fix/chart-hover-stale-index)
+
+### Charts (frontend)
+- **Fix a crash that blanked the whole page when zooming/panning the Request
+  volume chart (Mesh Health) or the Airtime chart (My Node) after hovering.**
+  Both charts keep the hovered index in state; zoom/pan hands the chart a shorter
+  sliced array, so the retained index pointed past the end and `series[hov]` /
+  `samples[hov]` was `undefined`, throwing `Cannot read properties of undefined`
+  and unmounting the app. Both now read the hovered item defensively (`hov <
+  length ? arr[hov] : null`) and skip the tooltip when the index is stale, the
+  same guard the sibling charts already use. Runtime-verified in-browser
+  (hover + repeated zoom in/out + drag-pan + double-click reset, no crash);
+  gates green (tsc / eslint / prettier / vitest 1623 / build).
+
 ## Update 2026-09-19 (Chart hover tooltips + Mesh Health zoom, claude/airtime-graph-hover-info-c79e8b)
 
 ### Charts (frontend)

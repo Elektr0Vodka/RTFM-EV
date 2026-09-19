@@ -101,11 +101,16 @@ function VolumeChart({ series }: { series: RequestTrafficBucket[] }) {
 
   const spanSeconds = n > 1 ? series[n - 1].bucket_ts - series[0].bucket_ts : 0;
 
+  // Guard the hovered bucket: after a zoom/pan the sliced `series` shrinks while
+  // `hov` (set on a prior hover) can still point past the new end, so read it
+  // defensively instead of `series[hov]` directly (which crashed the page).
+  const hb = hov !== null && hov < series.length ? series[hov] : null;
+
   const TIP_W = 96;
   const TIP_H = 48;
   let tipX = 0;
-  if (hov !== null) {
-    tipX = centerX(hov);
+  if (hb !== null) {
+    tipX = centerX(hov as number);
     if (tipX < pad.left + TIP_W / 2) tipX = pad.left + TIP_W / 2;
     if (tipX > W - pad.right - TIP_W / 2) tipX = W - pad.right - TIP_W / 2;
   }
@@ -164,11 +169,11 @@ function VolumeChart({ series }: { series: RequestTrafficBucket[] }) {
           strokeLinejoin="round"
         />
       )}
-      {hov !== null && (
+      {hb !== null && (
         <>
           <line
-            x1={centerX(hov)}
-            x2={centerX(hov)}
+            x1={centerX(hov as number)}
+            x2={centerX(hov as number)}
             y1={pad.top}
             y2={pad.top + ph}
             stroke="hsl(var(--muted-foreground))"
@@ -176,8 +181,8 @@ function VolumeChart({ series }: { series: RequestTrafficBucket[] }) {
             strokeDasharray="2,2"
           />
           <circle
-            cx={centerX(hov)}
-            cy={yOf(series[hov].responses)}
+            cx={centerX(hov as number)}
+            cy={yOf(hb.responses)}
             r={2.5}
             fill={RESPONSE_COLOR}
             stroke="hsl(var(--background))"
@@ -203,16 +208,16 @@ function VolumeChart({ series }: { series: RequestTrafficBucket[] }) {
               fontWeight={600}
               fill="hsl(var(--popover-foreground))"
             >
-              {fmtBucketTime(series[hov].bucket_ts * 1000, spanSeconds)}
+              {fmtBucketTime(hb.bucket_ts * 1000, spanSeconds)}
             </text>
             <text x={-TIP_W / 2 + 6} y={23} fontSize={7.5} fill={FLOOD_COLOR}>
-              {t('mesh_health_req_tooltip_flood', { count: series[hov].flood })}
+              {t('mesh_health_req_tooltip_flood', { count: hb.flood })}
             </text>
             <text x={-TIP_W / 2 + 6} y={34} fontSize={7.5} fill={DIRECT_COLOR}>
-              {t('mesh_health_req_tooltip_direct', { count: series[hov].direct })}
+              {t('mesh_health_req_tooltip_direct', { count: hb.direct })}
             </text>
             <text x={-TIP_W / 2 + 6} y={45} fontSize={7.5} fill={RESPONSE_COLOR}>
-              {t('mesh_health_req_tooltip_responses', { count: series[hov].responses })}
+              {t('mesh_health_req_tooltip_responses', { count: hb.responses })}
             </text>
           </g>
         </>
