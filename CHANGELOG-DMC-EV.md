@@ -11,6 +11,19 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-19 (Basemap picker as a dropdown, feat/map-layer-dropdown)
+
+### Node Map (frontend)
+- **The Display FAB's basemap picker is now a dropdown instead of a vertical
+  radio list.** With 13 basemaps the list dominated the Display panel; the
+  `layers` section in `MapControls` now renders a native `<select>` (styled like
+  the playback-bar lookback control) in place of the `radiogroup` of buttons.
+  Selecting an option calls the same `onSelectBasemap` and switches the basemap;
+  no state, persistence, or basemap definitions changed. The picker no longer
+  auto-closes the panel on selection (native select behavior). Runtime-verified
+  in-browser (Nova to Satellite (Esri) switches the map). Gates green (tsc /
+  eslint / prettier / vitest 18 in mapControls / build).
+
 ## Update 2026-09-19 (Packet History browser + raw-packet retention, feat/packet-history-browser)
 
 Closes #86.
