@@ -576,6 +576,7 @@ export interface AppSettings {
   sidebar_favorites_order: string[];
   sidebar_hidden: SidebarHidden;
   sidebar_favorite_sort_orders: SidebarFavoriteSortOrders;
+  packet_feed_sort: 'oldest' | 'newest';
   discovery_blocked_types: number[];
   tracked_telemetry_repeaters: string[];
   tracked_telemetry_contacts: string[];
@@ -774,6 +775,7 @@ export interface AppSettingsUpdate {
   sidebar_favorites_order?: string[];
   sidebar_hidden?: SidebarHidden;
   sidebar_favorite_sort_orders?: Partial<SidebarFavoriteSortOrders>;
+  packet_feed_sort?: 'oldest' | 'newest';
   discovery_blocked_types?: number[];
   telemetry_interval_hours?: number;
   telemetry_routed_hourly?: boolean;

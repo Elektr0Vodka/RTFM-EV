@@ -520,6 +520,33 @@ class TestDebugEndpoint:
         response = await client.get("/api/settings")
         assert response.json()["sidebar_favorite_sort_orders"]["channels"] == "alpha"
 
+    @pytest.mark.asyncio
+    async def test_packet_feed_sort_round_trip(self, test_db, client):
+        """Packet-feed sort defaults to 'oldest' and persists 'newest' via PATCH."""
+        response = await client.get("/api/settings")
+        assert response.status_code == 200
+        assert response.json()["packet_feed_sort"] == "oldest"
+
+        response = await client.patch("/api/settings", json={"packet_feed_sort": "newest"})
+        assert response.status_code == 200
+        assert response.json()["packet_feed_sort"] == "newest"
+
+        # Persisted across a fresh GET.
+        response = await client.get("/api/settings")
+        assert response.json()["packet_feed_sort"] == "newest"
+
+    @pytest.mark.asyncio
+    async def test_packet_feed_sort_ignores_invalid_value(self, test_db, client):
+        """An unknown sort value is ignored so a stale client can't corrupt the setting."""
+        response = await client.patch("/api/settings", json={"packet_feed_sort": "newest"})
+        assert response.status_code == 200
+        assert response.json()["packet_feed_sort"] == "newest"
+
+        response = await client.patch("/api/settings", json={"packet_feed_sort": "bogus"})
+        assert response.status_code == 200
+        # Left unchanged at the previous valid value.
+        assert response.json()["packet_feed_sort"] == "newest"
+
 
 class TestRadioDisconnectedHandler:
     """Test that RadioDisconnectedError maps to 423."""

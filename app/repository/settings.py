@@ -69,7 +69,8 @@ class AppSettingsRepository:
                    openhop_api_url, openhop_api_token,
                    mention_sound_enabled, mention_sound_choice, mention_sound_volume,
                    sidebar_section_order, sidebar_tool_order, sidebar_favorites_order,
-                   sidebar_hidden, sidebar_favorite_sort_orders
+                   sidebar_hidden, sidebar_favorite_sort_orders,
+                   packet_feed_sort
             FROM app_settings WHERE id = 1
             """
         ) as cursor:
@@ -153,6 +154,15 @@ class AppSettingsRepository:
                 )
         except (json.JSONDecodeError, TypeError, KeyError, ValueError):
             sidebar_favorite_sort_orders = SidebarFavoriteSortOrders()
+
+        # Packet-feed sort direction; tolerate a missing column (partial migration
+        # snapshot) and coerce anything unexpected to the default.
+        try:
+            packet_feed_sort = row["packet_feed_sort"]
+        except (KeyError, IndexError):
+            packet_feed_sort = "oldest"
+        if packet_feed_sort not in ("oldest", "newest"):
+            packet_feed_sort = "oldest"
 
         # Parse discovery_blocked_types JSON
         discovery_blocked_types: list[int] = []
@@ -413,6 +423,7 @@ class AppSettingsRepository:
             sidebar_favorites_order=sidebar_favorites_order,
             sidebar_hidden=sidebar_hidden,
             sidebar_favorite_sort_orders=sidebar_favorite_sort_orders,
+            packet_feed_sort=packet_feed_sort,
         )
 
     @staticmethod
@@ -464,6 +475,7 @@ class AppSettingsRepository:
         sidebar_favorites_order: list[str] | None = None,
         sidebar_hidden: SidebarHidden | None = None,
         sidebar_favorite_sort_orders: SidebarFavoriteSortOrders | None = None,
+        packet_feed_sort: str | None = None,
     ) -> None:
         """Apply field updates using an already-acquired connection.
 
@@ -524,6 +536,10 @@ class AppSettingsRepository:
         if sidebar_favorite_sort_orders is not None:
             updates.append("sidebar_favorite_sort_orders = ?")
             params.append(json.dumps(sidebar_favorite_sort_orders.model_dump()))
+
+        if packet_feed_sort is not None:
+            updates.append("packet_feed_sort = ?")
+            params.append(packet_feed_sort)
 
         if blocked_keys is not None:
             updates.append("blocked_keys = ?")
@@ -714,6 +730,7 @@ class AppSettingsRepository:
         sidebar_favorites_order: list[str] | None = None,
         sidebar_hidden: SidebarHidden | None = None,
         sidebar_favorite_sort_orders: SidebarFavoriteSortOrders | None = None,
+        packet_feed_sort: str | None = None,
     ) -> AppSettings:
         """Update app settings. Only provided fields are updated."""
         async with db.tx() as conn:
@@ -764,6 +781,7 @@ class AppSettingsRepository:
                 sidebar_favorites_order=sidebar_favorites_order,
                 sidebar_hidden=sidebar_hidden,
                 sidebar_favorite_sort_orders=sidebar_favorite_sort_orders,
+                packet_feed_sort=packet_feed_sort,
             )
             return await AppSettingsRepository._get_in_conn(conn)
 

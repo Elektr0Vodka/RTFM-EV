@@ -9,7 +9,7 @@ import { usePacketFilters } from '../hooks/usePacketFilters';
 import { PacketFilterModal } from './PacketFilterModal';
 import { getRawPacketObservationKey } from '../utils/rawPacketIdentity';
 import { Button } from './ui/button';
-import type { Channel, RawPacket } from '../types';
+import type { AppSettingsUpdate, Channel, RawPacket } from '../types';
 import {
   KNOWN_PAYLOAD_TYPES,
   classifyDecodedHopByteWidth,
@@ -59,9 +59,17 @@ function summarizePacketForFeed(
 
 interface RawPacketFeedViewProps {
   channels: Channel[];
+  /** Persisted feed time-sort direction; defaults to oldest-first. */
+  packetFeedSort?: 'oldest' | 'newest';
+  /** Persist a settings change (used for the sort direction). */
+  onSaveAppSettings?: (update: AppSettingsUpdate) => Promise<void> | void;
 }
 
-export function RawPacketFeedView({ channels }: RawPacketFeedViewProps) {
+export function RawPacketFeedView({
+  channels,
+  packetFeedSort = 'oldest',
+  onSaveAppSettings,
+}: RawPacketFeedViewProps) {
   const t = useT();
   const packets = useRawPackets();
   const [selectedPacket, setSelectedPacket] = useState<RawPacket | null>(null);
@@ -232,6 +240,19 @@ export function RawPacketFeedView({ channels }: RawPacketFeedViewProps) {
               </span>
             )}
           </Button>
+          <select
+            value={packetFeedSort}
+            onChange={(event) =>
+              onSaveAppSettings?.({
+                packet_feed_sort: event.target.value as 'oldest' | 'newest',
+              })
+            }
+            aria-label={t('packet_sort_label')}
+            className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground"
+          >
+            <option value="oldest">{t('packet_sort_oldest')}</option>
+            <option value="newest">{t('packet_sort_newest')}</option>
+          </select>
           <label className="ml-auto flex items-center gap-1 text-xs text-foreground cursor-pointer">
             <input
               type="checkbox"
@@ -251,6 +272,7 @@ export function RawPacketFeedView({ channels }: RawPacketFeedViewProps) {
             channels={channels}
             onPacketClick={setSelectedPacket}
             autoScroll={autoScroll}
+            newestFirst={packetFeedSort === 'newest'}
             directPacketKeys={directPacketKeys}
           />
         </div>

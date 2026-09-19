@@ -122,6 +122,8 @@ interface ConversationPaneProps {
   onClearRepeaterAutoLogin: () => void;
   blockedKeys?: string[];
   blockedNames?: string[];
+  packetFeedSort?: 'oldest' | 'newest';
+  onSaveAppSettings?: (update: import('../types').AppSettingsUpdate) => Promise<void> | void;
 }
 
 function LoadingPane({ label }: { label: string }) {
@@ -219,6 +221,8 @@ export function ConversationPane({
   onClearRepeaterAutoLogin,
   blockedKeys,
   blockedNames,
+  packetFeedSort,
+  onSaveAppSettings,
 }: ConversationPaneProps) {
   const t = useT();
   const [roomAuthenticated, setRoomAuthenticated] = useState(false);
@@ -296,7 +300,13 @@ export function ConversationPane({
   }
 
   if (activeConversation.type === 'raw') {
-    return <RawPacketFeedView channels={channels} />;
+    return (
+      <RawPacketFeedView
+        channels={channels}
+        packetFeedSort={packetFeedSort}
+        onSaveAppSettings={onSaveAppSettings}
+      />
+    );
   }
 
   if (activeConversation.type === 'mesh-trends') {

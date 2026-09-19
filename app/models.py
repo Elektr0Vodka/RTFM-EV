@@ -1303,6 +1303,13 @@ class AppSettings(BaseModel):
         default_factory=SidebarFavoriteSortOrders,
         description="Per-favorite-group sort order (recent/alpha) in the sidebar.",
     )
+    packet_feed_sort: Literal["oldest", "newest"] = Field(
+        default="oldest",
+        description=(
+            "Raw Packet Feed time-sort direction: 'oldest' (oldest first, the "
+            "historical default) or 'newest' (newest first)."
+        ),
+    )
     discovery_blocked_types: list[int] = Field(
         default_factory=list,
         description=(
