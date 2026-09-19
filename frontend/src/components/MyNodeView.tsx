@@ -868,11 +868,15 @@ function AirtimeLineChart({ samples, t }: { samples: AirtimeSample[]; t: TFn }) 
   const fmtPct = (v: number) => (yMax >= 10 ? String(Math.round(v)) : String(Number(v.toFixed(2))));
 
   const hovZoneW = INNER_W / samples.length;
+  // Guard the hovered sample: after a zoom/pan the sliced `samples` shrinks while
+  // `hov` (set on a prior hover) can still point past the new end, so read it
+  // defensively instead of `samples[hov]` directly (which crashed the page).
+  const hs = hov !== null && hov < samples.length ? samples[hov] : null;
   let tipX = 0;
   let tipY = 0;
-  if (hov !== null) {
-    tipX = xPos(hov);
-    tipY = Math.min(yPos(samples[hov].rx_pct), yPos(samples[hov].tx_pct)) - 20;
+  if (hs !== null) {
+    tipX = xPos(hov as number);
+    tipY = Math.min(yPos(hs.rx_pct), yPos(hs.tx_pct)) - 20;
     if (tipX < PAD_L + 40) tipX = PAD_L + 40;
     if (tipX > CW - 40) tipX = CW - 40;
     if (tipY < 2) tipY = 2;
@@ -925,19 +929,19 @@ function AirtimeLineChart({ samples, t }: { samples: AirtimeSample[]; t: TFn }) 
         strokeWidth="1.5"
         strokeLinejoin="round"
       />
-      {hov !== null && (
+      {hs !== null && (
         <>
           <circle
-            cx={xPos(hov).toFixed(1)}
-            cy={yPos(samples[hov].rx_pct).toFixed(1)}
+            cx={xPos(hov as number).toFixed(1)}
+            cy={yPos(hs.rx_pct).toFixed(1)}
             r="2.5"
             fill={rxColor}
             stroke="hsl(var(--background))"
             strokeWidth="1"
           />
           <circle
-            cx={xPos(hov).toFixed(1)}
-            cy={yPos(samples[hov].tx_pct).toFixed(1)}
+            cx={xPos(hov as number).toFixed(1)}
+            cy={yPos(hs.tx_pct).toFixed(1)}
             r="2.5"
             fill={txColor}
             stroke="hsl(var(--background))"
@@ -963,12 +967,12 @@ function AirtimeLineChart({ samples, t }: { samples: AirtimeSample[]; t: TFn }) 
               fill="hsl(var(--popover-foreground))"
             >
               {t('node_chart_airtime_stat', {
-                rx: samples[hov].rx_pct.toFixed(1),
-                tx: samples[hov].tx_pct.toFixed(1),
+                rx: hs.rx_pct.toFixed(1),
+                tx: hs.tx_pct.toFixed(1),
               })}
             </text>
             <text textAnchor="middle" fontSize="6.5" fill="hsl(var(--muted-foreground))" dy="-12">
-              {fmtTime(timestamps[hov], windowSeconds)}
+              {fmtTime(timestamps[hov as number], windowSeconds)}
             </text>
           </g>
         </>
