@@ -1,7 +1,8 @@
-import { useEffect, useRef, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useMemo, useState } from 'react';
 import { ChevronsDown, ChevronsUp } from 'lucide-react';
 import type { Channel, Contact, RawPacket } from '../types';
 import { getRawPacketObservationKey } from '../utils/rawPacketIdentity';
+import { foldPacketsByContent } from '../utils/rawPacketContent';
 import { createDecoderOptions, decodePacketSummary } from '../utils/rawPacketInspector';
 import { resolvePathHopNames } from '../utils/pathHopNames';
 import { cn } from '@/lib/utils';
@@ -25,6 +26,12 @@ interface RawPacketListProps {
    * (decoded, 0 hops). Rendered with a "Direct" marker to flag a nearby sender.
    */
   directPacketKeys?: Set<string>;
+  /**
+   * When true, collapse packets that share content (the same packet heard across
+   * different paths) into one row, badged with the number of copies. Off by
+   * default so the raw stream shows every reception.
+   */
+  groupByContent?: boolean;
   /**
    * When true, render floating "scroll to top / bottom" buttons over the list,
    * shown only while the list overflows. Off by default so other consumers
@@ -105,6 +112,7 @@ export function RawPacketList({
   onPacketClick,
   autoScroll = true,
   newestFirst = false,
+  groupByContent = false,
   directPacketKeys,
   showScrollToEnds = false,
   showDate = false,
@@ -118,13 +126,28 @@ export function RawPacketList({
   const [canScrollDown, setCanScrollDown] = useState(false);
   const decoderOptions = useMemo(() => createDecoderOptions(channels), [channels]);
 
+  // When folding, collapse same-content packets to one representative row and
+  // remember each group's copy count (keyed by the representative's observation
+  // key). Otherwise every reception is its own row with an implicit count of 1.
+  const { basePackets, copyCounts } = useMemo(() => {
+    if (!groupByContent) {
+      return { basePackets: packets, copyCounts: null as Map<string, number> | null };
+    }
+    const folded = foldPacketsByContent(packets);
+    const counts = new Map<string, number>();
+    for (const group of folded) {
+      counts.set(getRawPacketObservationKey(group.packet), group.count);
+    }
+    return { basePackets: folded.map((group) => group.packet), copyCounts: counts };
+  }, [groupByContent, packets]);
+
   // Decode all packets (memoized to avoid re-decoding on every render)
   const decodedPackets = useMemo(() => {
-    return packets.map((packet) => ({
+    return basePackets.map((packet) => ({
       packet,
       decoded: decodePacketSummary(packet, decoderOptions),
     }));
-  }, [decoderOptions, packets]);
+  }, [decoderOptions, basePackets]);
 
   // Sort packets by timestamp: ascending (oldest first) by default, descending
   // (newest first) when newestFirst is set.
@@ -138,13 +161,26 @@ export function RawPacketList({
     [decodedPackets, newestFirst]
   );
 
-  // Stick to the newest packet while autoscroll is on. The newest packet is at
-  // the bottom for oldest-first and at the top for newest-first, so scroll to
-  // the matching edge. Toggling autoscroll or direction re-runs this effect.
-  useEffect(() => {
-    if (autoScroll && listRef.current) {
-      listRef.current.scrollTop = newestFirst ? 0 : listRef.current.scrollHeight;
+  // Keep the viewport anchored as the packet set changes.
+  // - Autoscroll on: stick to the newest packet. It sits at the bottom for
+  //   oldest-first and at the top for newest-first, so scroll to that edge.
+  // - Autoscroll off with newest-first: new packets are prepended at the top,
+  //   which would otherwise push the rows the user is reading downward (they
+  //   keep seeing new packets appear even with autoscroll off). Compensate by
+  //   the height the list grew so the same rows stay in place. Oldest-first
+  //   needs no compensation because new rows append below the current view.
+  // Runs before paint (useLayoutEffect) so the adjustment is never visible.
+  const prevScrollHeightRef = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    if (autoScroll) {
+      el.scrollTop = newestFirst ? 0 : el.scrollHeight;
+    } else if (newestFirst && prevScrollHeightRef.current !== null) {
+      const delta = el.scrollHeight - prevScrollHeightRef.current;
+      if (delta !== 0) el.scrollTop += delta;
     }
+    prevScrollHeightRef.current = el.scrollHeight;
   }, [packets, autoScroll, newestFirst]);
 
   // Track whether the list overflows and where the viewport sits, so the
@@ -194,6 +230,7 @@ export function RawPacketList({
     >
       {sortedPackets.map(({ packet, decoded }) => {
         const isDirect = directPacketKeys?.has(getRawPacketObservationKey(packet)) ?? false;
+        const copies = copyCounts?.get(getRawPacketObservationKey(packet)) ?? 1;
         const cardContent = (
           <>
             <div className="flex items-center gap-2">
@@ -204,6 +241,16 @@ export function RawPacketList({
               >
                 {getRouteTypeLabel(decoded.routeType)}
               </span>
+
+              {/* Copy count when folding repeats of the same content together */}
+              {copies > 1 && (
+                <span
+                  className="text-[0.625rem] font-mono px-1.5 py-0.5 rounded bg-primary/15 text-primary"
+                  title={t('packet_fold_copies', { count: copies })}
+                >
+                  ×{copies}
+                </span>
+              )}
 
               {/* Direct (0-hop) marker: sender is within direct radio range */}
               {isDirect && (

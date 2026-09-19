@@ -126,6 +126,35 @@ describe('RawPacketList', () => {
     }
   });
 
+  it('folds same-content packets into one row with a copy count when groupByContent is set', () => {
+    const packets = [
+      createPacket({ id: 1, observation_id: 1, timestamp: 100, data: 'aaaa' }),
+      createPacket({ id: 2, observation_id: 2, timestamp: 200, data: 'aaaa' }),
+      createPacket({ id: 3, observation_id: 3, timestamp: 150, data: 'bbbb' }),
+    ];
+
+    render(<RawPacketList packets={packets} groupByContent />);
+
+    // The two 'aaaa' copies collapse into a single row...
+    expect(screen.getAllByText('AAAA')).toHaveLength(1);
+    expect(screen.getByText('BBBB')).toBeInTheDocument();
+    // ...carrying a "heard twice" copy badge; the singleton has none.
+    expect(screen.getByText('×2')).toBeInTheDocument();
+    expect(screen.queryByText('×1')).not.toBeInTheDocument();
+  });
+
+  it('does not fold packets when groupByContent is off (default)', () => {
+    const packets = [
+      createPacket({ id: 1, observation_id: 1, data: 'aaaa' }),
+      createPacket({ id: 2, observation_id: 2, data: 'aaaa' }),
+    ];
+
+    render(<RawPacketList packets={packets} />);
+
+    expect(screen.getAllByText('AAAA')).toHaveLength(2);
+    expect(screen.queryByText('×2')).not.toBeInTheDocument();
+  });
+
   it('renders a selection checkbox per row and toggles selection when selectable', () => {
     const onToggleSelect = vi.fn();
     const packets = [
@@ -149,6 +178,38 @@ describe('RawPacketList', () => {
   it('renders no selection checkboxes unless selectable', () => {
     render(<RawPacketList packets={[createPacket()]} />);
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  });
+
+  it('holds the viewed packets in place on prepend in newest-first when autoScroll is off', () => {
+    let scrollHeight = 500;
+    Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
+      configurable: true,
+      get: () => scrollHeight,
+    });
+    try {
+      const { container, rerender } = render(
+        <RawPacketList packets={[createPacket({ id: 1 })]} autoScroll={false} newestFirst />
+      );
+      const list = container.querySelector('.overflow-y-auto') as HTMLElement;
+      // User is 100px down from the newest (top) packet, reading older rows.
+      list.scrollTop = 100;
+
+      // A new packet arrives and is prepended at the top, growing the list 80px.
+      scrollHeight = 580;
+      rerender(
+        <RawPacketList
+          packets={[createPacket({ id: 1 }), createPacket({ id: 2 })]}
+          autoScroll={false}
+          newestFirst
+        />
+      );
+
+      // scrollTop is compensated by the +80 delta so the same rows stay in view
+      // instead of the newest packet shoving them down.
+      expect(list.scrollTop).toBe(180);
+    } finally {
+      delete (HTMLElement.prototype as { scrollHeight?: number }).scrollHeight;
+    }
   });
 
   it('sticks to the bottom on new packets when autoScroll is on, and holds when off', () => {

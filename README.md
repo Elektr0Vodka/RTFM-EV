@@ -66,8 +66,12 @@ Shipped toward this so far:
   message text/sender/channel across the whole range (pick the "All time" range
   to search the entire database), floating scroll-to-top / scroll-to-bottom
   buttons appear when the list overflows, each row shows its date and time, and
-  rows can be selected (with select/deselect-all) and exported to CSV. Path-hex
-  hops
+  rows can be selected (with select/deselect-all) and exported to CSV. Both
+  packet tabs can be paused (the view freezes while new packets keep buffering
+  behind a "N new" badge) and can fold repeats of the same packet heard across
+  different paths into one row badged with the copy count, and with autoscroll
+  off they hold your scroll position instead of jumping to the newest packet.
+  Path-hex hops
   resolve to known contact names in the feed, history, and packet detail. How
   far back it reaches is bounded by the raw-packet retention setting (Settings >
   Database, `0` = keep forever, migration `_097`).
