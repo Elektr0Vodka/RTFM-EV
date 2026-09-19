@@ -52,9 +52,17 @@ export function usePacketHistory({
       enabledTypes: filters.enabledTypes,
       enabledHopWidths: filters.enabledHopWidths,
       hexQuery: filters.hexQuery,
+      searchTerm: filters.searchTerm,
       limit: PAGE_LIMIT,
     }),
-    [startTs, endTs, filters.enabledTypes, filters.enabledHopWidths, filters.hexQuery]
+    [
+      startTs,
+      endTs,
+      filters.enabledTypes,
+      filters.enabledHopWidths,
+      filters.hexQuery,
+      filters.searchTerm,
+    ]
   );
 
   // Fresh fetch whenever the range or filters change.

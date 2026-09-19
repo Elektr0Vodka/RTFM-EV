@@ -11,30 +11,34 @@ describe('buildHistoryParams', () => {
       enabledTypes: new Set(KNOWN_PAYLOAD_TYPES),
       enabledHopWidths: new Set(HOP_BYTE_WIDTH_BUCKETS),
       hexQuery: '',
+      searchTerm: '',
       limit: 500,
     });
     expect(p.getAll('payload_types')).toEqual([]);
     expect(p.getAll('hop_widths')).toEqual([]);
     expect(p.get('hex')).toBeNull();
+    expect(p.get('search')).toBeNull();
     expect(p.get('after_ts')).toBe('100');
     expect(p.get('before_ts')).toBe('200');
     expect(p.get('limit')).toBe('500');
     expect(p.get('before_id')).toBeNull();
   });
 
-  it('sends only the enabled subset plus cursor and hex', () => {
+  it('sends only the enabled subset plus cursor, hex, and search', () => {
     const p = buildHistoryParams({
       startTs: 0,
       endTs: 10,
       enabledTypes: new Set(['Advert']),
       enabledHopWidths: new Set(['No path']),
       hexQuery: 'abcd',
+      searchTerm: 'alice',
       limit: 500,
       beforeId: 42,
     });
     expect(p.getAll('payload_types')).toEqual(['Advert']);
     expect(p.getAll('hop_widths')).toEqual(['No path']);
     expect(p.get('hex')).toBe('abcd');
+    expect(p.get('search')).toBe('alice');
     expect(p.get('before_id')).toBe('42');
   });
 
@@ -45,6 +49,7 @@ describe('buildHistoryParams', () => {
       enabledTypes: new Set(KNOWN_PAYLOAD_TYPES),
       enabledHopWidths: new Set(HOP_BYTE_WIDTH_BUCKETS),
       hexQuery: '',
+      searchTerm: '',
       limit: 500,
     });
     expect(p.get('after_ts')).toBe('100');

@@ -23,6 +23,33 @@ const allEnabled = {
 const pkt = (id: number, timestamp: number, data = 'aa'): RawPacket =>
   ({ id, timestamp, data, payload_type: 'ADVERT', snr: null, rssi: null }) as unknown as RawPacket;
 
+// All axes enabled but an active message search term.
+const withSearch = {
+  enabledTypes: new Set<string>(),
+  enabledHopWidths: new Set<string>(),
+  hexQuery: '',
+  hexInvalid: false,
+  searchTerm: 'alice',
+  allTypesEnabled: true,
+  allHopWidthsEnabled: true,
+} as unknown as PacketFilters;
+
+const pktDecoded = (
+  id: number,
+  timestamp: number,
+  info: { sender?: string | null; channel_name?: string | null; message?: string | null } | null
+): RawPacket =>
+  ({
+    id,
+    timestamp,
+    data: 'aa',
+    payload_type: 'GROUP_DATA',
+    snr: null,
+    rssi: null,
+    decrypted: info !== null,
+    decrypted_info: info,
+  }) as unknown as RawPacket;
+
 describe('usePacketHistory', () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -81,6 +108,26 @@ describe('usePacketHistory', () => {
     await waitFor(() => expect(result.current.rows.some((r) => r.id === 10)).toBe(true));
     const ids = result.current.rows.map((r) => r.id);
     expect(ids).toEqual([9, 10]); // dup 9 not repeated, 11 excluded (out of window)
+  });
+
+  it('live-append respects the message search term via decrypted_info', async () => {
+    getPacketHistory.mockResolvedValue({ packets: [], next_cursor: null });
+    const live = [
+      pktDecoded(10, 100, { sender: 'Alice', channel_name: null, message: 'hi' }),
+      pktDecoded(11, 110, { sender: 'Bob', channel_name: null, message: 'yo' }),
+      pktDecoded(12, 120, null), // undecrypted: cannot match a search term
+    ];
+    const { result } = renderHook(() =>
+      usePacketHistory({
+        startTs: 0,
+        endTs: 300,
+        filters: withSearch,
+        isLive: true,
+        livePackets: live,
+      })
+    );
+    await waitFor(() => expect(result.current.rows.some((r) => r.id === 10)).toBe(true));
+    expect(result.current.rows.map((r) => r.id)).toEqual([10]);
   });
 
   it('does not live-append when not live', async () => {

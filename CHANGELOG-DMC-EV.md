@@ -23,6 +23,44 @@ the change. Upstream development is on hold; the fork is the active repository.
   until the first interaction resumes audio. EN/NL/DE strings added. No behavior
   change to the audio itself (the #141 geiger makeup-gain fix is unchanged).
 
+## Update 2026-09-19 (Packet History search + scroll controls, feat/packet-history-scroll-search)
+
+Builds on the Packet History browser (feat/packet-history-browser).
+
+### Packet History (frontend)
+- **Message search box** in the Packet History header, distinct from the
+  existing hex-on-bytes filter. Matches decrypted message content
+  (message text, sender name, channel name), case-insensitive, across the whole
+  queried range via a new `search` param on `GET /api/packets/history`. Live
+  presets also match appended live packets on the same fields (their WS
+  `decrypted_info`), so live and historical rows behave identically. Search
+  state is ephemeral (not persisted) and kept out of the Filters-modal badge.
+- **Floating "scroll to top / bottom" buttons** over the packet list, shown only
+  while the list overflows (each end hides when already there). Opt-in via a new
+  `showScrollToEnds` prop on `RawPacketList`, so the live feed is unaffected.
+  Buttons are one-shot scrolls and do not change the autoscroll checkbox.
+- **"All time" range option** (next to Custom) so search reaches the whole
+  database, not just a rolling window. Reuses the existing `time_range_all`
+  string and the resolver's no-lower-bound support (`ALL_TIME_RANGE`,
+  `startTs: 0`); scoped to the Packet History view via `extras`.
+- **Each row now shows the calendar date** alongside the time (the history view
+  can span days). Opt-in via a new `showDate` prop on `RawPacketList`, so the
+  live feed stays time-only.
+- **Row selection + CSV export.** A checkbox per row plus a Select all /
+  Deselect all toggle and a selected-count; an "Export CSV" button downloads the
+  selected packets (timestamp ISO + Unix, payload/route type, SNR, RSSI,
+  decrypted, decoded summary, resolved path, raw hex) via a new pure
+  `buildPacketCsv` helper (UTF-8 BOM, mirrors the telemetry CSV pattern).
+  Selection covers currently-loaded rows.
+
+### Packet History (backend)
+- **`GET /api/packets/history` gains a `search` param**: joins the linked
+  `messages` row (and `channels` for the channel name) and matches
+  `text` / `sender_name` / channel `name` (case-insensitive substring). Only
+  packets linked to a decrypted message can match; existing time-window, cursor
+  paging, and payload-type / hop-width / hex filters are preserved. No schema
+  change.
+
 ## Update 2026-09-19 (Mesh Health warnings count flood adverts only, feat/mesh-health-flood-adverts)
 
 ### Mesh Health (backend + frontend)

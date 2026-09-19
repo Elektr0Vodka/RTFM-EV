@@ -10,8 +10,28 @@ const KNOWN_PAYLOAD_TYPE_SET = new Set<string>(KNOWN_PAYLOAD_TYPES);
 /** The subset of PacketFilters the client-side predicate needs. */
 export type PacketFilterPredicateInput = Pick<
   PacketFilters,
-  'enabledTypes' | 'enabledHopWidths' | 'hexQuery' | 'allTypesEnabled' | 'allHopWidthsEnabled'
+  | 'enabledTypes'
+  | 'enabledHopWidths'
+  | 'hexQuery'
+  | 'searchTerm'
+  | 'allTypesEnabled'
+  | 'allHopWidthsEnabled'
 >;
+
+/**
+ * Match a live packet against the message-content search term. Mirrors the
+ * server-side history search (message text / sender / channel), but reads the
+ * live packet's WS-provided `decrypted_info`. A packet with no decrypted_info
+ * (or no field containing the term) does not match while a term is active.
+ */
+function matchesSearchTerm(packet: RawPacket, term: string): boolean {
+  const needle = term.toLowerCase();
+  const info = packet.decrypted_info;
+  if (!info) return false;
+  return [info.message, info.sender, info.channel_name].some(
+    (field) => field != null && field.toLowerCase().includes(needle)
+  );
+}
 
 /**
  * Client-side equivalent of the server-side history filters, used to decide
@@ -26,6 +46,9 @@ export function matchesPacketFilters(
   channels?: Channel[]
 ): boolean {
   if (filters.hexQuery !== '' && !packet.data.toLowerCase().includes(filters.hexQuery)) {
+    return false;
+  }
+  if (filters.searchTerm && !matchesSearchTerm(packet, filters.searchTerm)) {
     return false;
   }
   if (filters.allTypesEnabled && filters.allHopWidthsEnabled) return true;

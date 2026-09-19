@@ -6,6 +6,8 @@ export interface HistoryParamInput {
   enabledTypes: Set<string>;
   enabledHopWidths: Set<string>;
   hexQuery: string;
+  /** Trimmed message-content search term; empty string means "no search". */
+  searchTerm: string;
   limit: number;
   beforeId?: number | null;
 }
@@ -29,5 +31,6 @@ export function buildHistoryParams(input: HistoryParamInput): URLSearchParams {
     for (const width of input.enabledHopWidths) p.append('hop_widths', width);
   }
   if (input.hexQuery !== '') p.set('hex', input.hexQuery);
+  if (input.searchTerm) p.set('search', input.searchTerm);
   return p;
 }

@@ -81,6 +81,76 @@ describe('RawPacketList', () => {
     }
   });
 
+  it('renders no scroll-to-end buttons unless showScrollToEnds is set', () => {
+    render(<RawPacketList packets={[createPacket()]} />);
+    expect(screen.queryByRole('button', { name: 'Scroll to top' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Scroll to bottom' })).not.toBeInTheDocument();
+  });
+
+  it('shows scroll-to-end buttons only on overflow and scrolls to each end', () => {
+    Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
+      configurable: true,
+      get: () => 1000,
+    });
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+      configurable: true,
+      get: () => 100,
+    });
+    try {
+      const { container } = render(
+        <RawPacketList
+          packets={[createPacket({ id: 1 }), createPacket({ id: 2 })]}
+          autoScroll={false}
+          showScrollToEnds
+        />
+      );
+      const list = container.querySelector('.overflow-y-auto') as HTMLElement;
+
+      // At the top, only "scroll to bottom" is offered.
+      expect(screen.getByRole('button', { name: 'Scroll to bottom' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Scroll to top' })).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Scroll to bottom' }));
+      expect(list.scrollTop).toBe(1000);
+
+      // Scrolled into the middle: both ends become reachable.
+      list.scrollTop = 500;
+      fireEvent.scroll(list);
+      expect(screen.getByRole('button', { name: 'Scroll to top' })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Scroll to top' }));
+      expect(list.scrollTop).toBe(0);
+    } finally {
+      delete (HTMLElement.prototype as { scrollHeight?: number }).scrollHeight;
+      delete (HTMLElement.prototype as { clientHeight?: number }).clientHeight;
+    }
+  });
+
+  it('renders a selection checkbox per row and toggles selection when selectable', () => {
+    const onToggleSelect = vi.fn();
+    const packets = [
+      createPacket({ id: 1, observation_id: 11 }),
+      createPacket({ id: 2, observation_id: 22 }),
+    ];
+    render(
+      <RawPacketList
+        packets={packets}
+        selectable
+        selectedKeys={new Set()}
+        onToggleSelect={onToggleSelect}
+      />
+    );
+    const boxes = screen.getAllByRole('checkbox', { name: 'Select packet for export' });
+    expect(boxes).toHaveLength(2);
+    fireEvent.click(boxes[0]);
+    expect(onToggleSelect).toHaveBeenCalledWith(packets[0]);
+  });
+
+  it('renders no selection checkboxes unless selectable', () => {
+    render(<RawPacketList packets={[createPacket()]} />);
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  });
+
   it('sticks to the bottom on new packets when autoScroll is on, and holds when off', () => {
     Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
       configurable: true,

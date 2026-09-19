@@ -9,6 +9,13 @@ export interface TimeRange {
 
 export const CUSTOM_RANGE_ID = 'custom';
 
+/**
+ * "All time" range (no lower bound): resolves to {startTs: 0, endTs: now}. Not
+ * part of BASE_TIME_RANGES; opt in per view via `extras`/`extrasSpecial` (used
+ * by the Packet History view so search can reach the whole database).
+ */
+export const ALL_TIME_RANGE: TimeRange = { id: 'all', labelKey: 'time_range_all', seconds: null };
+
 export const BASE_TIME_RANGES: TimeRange[] = [
   { id: '20m', labelKey: 'time_range_20m', seconds: 20 * 60 },
   { id: '1h', labelKey: 'time_range_1h', seconds: 60 * 60 },
