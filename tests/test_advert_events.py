@@ -39,6 +39,17 @@ class TestAdvertEventRecord:
         assert rows[0]["direct_count"] == 2
         assert rows[0]["flood_count"] == 1
         assert rows[0]["min_path_len"] == 0
+        # path_hex "cccc" over path_len 1 -> 2 bytes per hop.
+        assert rows[0]["hop_width"] == 2
+
+    @pytest.mark.asyncio
+    async def test_hop_width_none_for_direct_only(self, test_db):
+        pk = "ff" * 32
+        await AdvertEventRepository.record(
+            transmission_id=200, public_key=pk, timestamp=100, path_len=0, path_hex=""
+        )
+        rows = await AdvertEventRepository.mesh_health_rows(0, 1000)
+        assert rows[0]["hop_width"] is None
 
     @pytest.mark.asyncio
     async def test_window_filtering(self, test_db):

@@ -106,6 +106,8 @@ interface Props {
   /** Incremented by the shell's refresh button to force a re-fetch. */
   refreshKey: number;
   onNavigateToMap?: (focusKey?: string) => void;
+  /** Opens a node's detail page (contact conversation) by public key. */
+  onOpenNode?: (publicKey: string, name: string | null) => void;
   /** Public key to scroll to and highlight when the view loads */
   focusKey?: string;
   /** Reports loading state up to the shell so the refresh spinner can reflect it. */
@@ -460,6 +462,7 @@ export function MeshAdvertsPanel({
   selectedWindow,
   refreshKey,
   onNavigateToMap,
+  onOpenNode,
   focusKey,
   onLoadingChange,
 }: Props) {
@@ -992,8 +995,20 @@ export function MeshAdvertsPanel({
                       <td className="px-2 py-1.5 font-mono text-[10px] text-muted-foreground">
                         {shortId}
                       </td>
-                      <td className="px-2 py-1.5 font-medium text-foreground max-w-[180px] truncate">
-                        {n.name ?? n.public_key.slice(0, 12)}
+                      <td className="px-2 py-1.5 font-medium max-w-[180px] truncate">
+                        {onOpenNode ? (
+                          <button
+                            onClick={() => onOpenNode(n.public_key, n.name)}
+                            className="max-w-full truncate text-left text-primary hover:underline"
+                            title={n.name ?? n.public_key}
+                          >
+                            {n.name ?? n.public_key.slice(0, 12)}
+                          </button>
+                        ) : (
+                          <span className="text-foreground">
+                            {n.name ?? n.public_key.slice(0, 12)}
+                          </span>
+                        )}
                       </td>
                       <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
                         {n.direct_count}
