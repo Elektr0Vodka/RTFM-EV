@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createSignalAudioEngine, MIN_GAP_MS, MIN_SPACING_S } from '../lib/signalAudioEngine';
+import {
+  createSignalAudioEngine,
+  MIN_GAP_MS,
+  MIN_SPACING_S,
+  MIN_LEAD_S,
+} from '../lib/signalAudioEngine';
 
 // A recording fake AudioContext: every node factory returns a plain object that
 // records the params/connections/scheduling the engine performs, so the synthesis
@@ -251,6 +256,17 @@ describe('onPacket', () => {
     const ackStart = fake.created.oscillators[1].frequency.setValueAtTime.mock
       .calls[0][0] as number;
     expect(traceStart).toBeLessThan(ackStart);
+  });
+
+  it('schedules a lone click just ahead of currentTime (Firefox renders past-dated envelopes inconsistently)', () => {
+    const fake = makeFakeContext();
+    const engine = engineWith(fake);
+    engine.setTheme('geiger');
+    engine.setEnabled(true);
+    fake.ctx.currentTime = 5;
+    engine.onPacket({ snrDb: 0, payloadType: 'ADVERT' });
+    const startedAt = fake.created.bufferSources[0].startedAt as number;
+    expect(startedAt).toBeGreaterThanOrEqual(5 + MIN_LEAD_S - 1e-9);
   });
 
   it('spaces near-simultaneous clicks apart on the audio clock', () => {

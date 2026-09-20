@@ -23,6 +23,14 @@ import {
 export const MIN_GAP_MS = 45; // wall-clock coalesce window for the Tx chirp
 export const MIN_SPACING_S = 0.02; // >= 20 ms between clicks so near-simultaneous ticks stay distinct
 export const MAX_LEAD_S = 0.25; // never schedule a click more than this far ahead of now
+// Always schedule a click a hair in the future rather than exactly at currentTime. A click
+// laid down at currentTime races the audio render quantum: by the time the audio thread
+// processes it, currentTime has already advanced past it, and its whole gain envelope
+// (setValueAtTime + attack ramp) is then in the past. Chrome recomputes the ramp and plays
+// it anyway; Firefox collapses the envelope and drops the click, so sparse packets (each
+// scheduled at currentTime) play inconsistently. This lead keeps the envelope in the future.
+// 20 ms is inaudible latency.
+export const MIN_LEAD_S = 0.02;
 
 const BP_FREQ = 1800; // geiger bandpass centre (Hz), before SNR + jitter shaping
 const BP_Q = 1.6;
@@ -217,8 +225,9 @@ export function createSignalAudioEngine(deps: SignalAudioEngineDeps = {}): Signa
       if (!enabled || !ctx) return false;
       const now = ctx.currentTime;
       // Space distinct ticks apart, but never queue more than MAX_LEAD ahead: an extreme
-      // burst overlaps into a roar instead of lagging, and nothing is dropped.
-      const at = Math.min(Math.max(now, nextAt), now + MAX_LEAD_S);
+      // burst overlaps into a roar instead of lagging, and nothing is dropped. The MIN_LEAD
+      // floor keeps even a lone click just ahead of currentTime so Firefox renders it.
+      const at = Math.min(Math.max(now + MIN_LEAD_S, nextAt), now + MAX_LEAD_S);
       if (theme === 'sonar') playSonar(cue, at);
       else if (theme === 'waterdrip') playWaterDrip(cue, at);
       else playGeiger(cue, at);
