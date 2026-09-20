@@ -1,13 +1,19 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { Popup as MlPopup, Marker as MlMarker, type Map as MlMap } from 'maplibre-gl';
-import { Zap, Clock, Globe, Radio, MapPinOff } from 'lucide-react';
+import { Zap, Clock, Globe, Radio, MapPinOff, Boxes } from 'lucide-react';
 import type {
   AdvertLinkEdge,
   Contact,
   ExternalMapNode,
   LatestTelemetry,
   RadioConfig,
+} from '../types';
+import {
+  CONTACT_TYPE_CLIENT,
+  CONTACT_TYPE_REPEATER,
+  CONTACT_TYPE_ROOM,
+  CONTACT_TYPE_SENSOR,
 } from '../types';
 import { api, isAbortError } from '../api';
 import { formatTime } from '../utils/messageParser';
@@ -52,6 +58,12 @@ import { createLinksLayer, type ResolveCoord } from '../map/layers/linksLayer';
 import { createAdvertLinksLayer } from '../map/layers/advertLinksLayer';
 import { createExternalNodesLayer, type ExternalNodeProps } from '../map/layers/externalNodesLayer';
 import { isContactVisibleForFilters, type HeardFilterMode } from '../map/heardFilter';
+import {
+  ROLE_FILTER_TYPES,
+  isRoleVisibleForFilter,
+  parseHiddenRoles,
+  serializeHiddenRoles,
+} from '../map/roleFilter';
 import { computeWrongLocationKeys } from '../map/wrongLocation';
 import {
   buildPacketNetworkContext,
@@ -94,6 +106,9 @@ const MAP_SINCE_CUSTOM_KEY = 'remoteterm-map-since-custom';
 const HEARD_FILTER_MODES = ['all', 'hide', 'only'] as const satisfies readonly HeardFilterMode[];
 const DEFAULT_HEARD_MODE: HeardFilterMode = 'all';
 const MAP_HEARD_STORAGE_KEY = 'remoteterm-map-heard';
+
+// --- Node role filter (repeater / room / companion / sensor toggles) ---
+const MAP_HIDDEN_ROLES_STORAGE_KEY = 'remoteterm-map-hidden-roles';
 
 const MAP_NODE_SCALE_STORAGE_KEY = 'remoteterm-map-node-scale';
 
@@ -150,6 +165,14 @@ function getSavedHeardMode(): HeardFilterMode {
     /* ignore */
   }
   return DEFAULT_HEARD_MODE;
+}
+
+function getSavedHiddenRoles(): Set<number> {
+  try {
+    return parseHiddenRoles(localStorage.getItem(MAP_HIDDEN_ROLES_STORAGE_KEY));
+  } catch {
+    return new Set();
+  }
 }
 
 function getSavedNodeScale(): number {
@@ -275,6 +298,7 @@ export function MapView({
   const rawPackets = useRawPackets();
   const [sinceId, setSinceId] = useState<MapSinceId>(getSavedSinceId);
   const [heardFilter, setHeardFilter] = useState<HeardFilterMode>(getSavedHeardMode);
+  const [hiddenRoles, setHiddenRoles] = useState<Set<number>>(getSavedHiddenRoles);
   const [hideWrongLocation, setHideWrongLocation] = useState<boolean>(getSavedHideWrongLocation);
   const [customSince, setCustomSince] = useState(() => {
     try {
@@ -612,6 +636,14 @@ export function MapView({
 
   useEffect(() => {
     try {
+      localStorage.setItem(MAP_HIDDEN_ROLES_STORAGE_KEY, serializeHiddenRoles(hiddenRoles));
+    } catch {
+      /* ignore */
+    }
+  }, [hiddenRoles]);
+
+  useEffect(() => {
+    try {
       localStorage.setItem(MAP_HIDE_WRONG_LOCATION_STORAGE_KEY, hideWrongLocation ? '1' : '0');
     } catch {
       /* ignore */
@@ -742,6 +774,11 @@ export function MapView({
       hideWrongLocation &&
       c.public_key !== focusedKey &&
       wrongLocationKeys.has(c.public_key.toLowerCase());
+    // Role toggles hide whole node roles (repeater/room/companion/sensor). The
+    // focused node is exempt, like the heard filter, so a searched/selected node
+    // is never silently removed by a role being switched off.
+    const isRoleVisible = (c: Contact) =>
+      c.public_key === focusedKey || isRoleVisibleForFilter(c.type, hiddenRoles);
     // Project the effective location (advertised-wins, manual-fallback) onto
     // lat/lon so a node with only manual coordinates is placed and rendered by
     // the standard downstream consumers that read c.lat / c.lon.
@@ -753,7 +790,11 @@ export function MapView({
     if (showPackets && discoveryMode) {
       return contacts
         .filter(
-          (c) => discoveredKeys.has(c.public_key) && !isBlocked(c) && !isHiddenForWrongLocation(c)
+          (c) =>
+            discoveredKeys.has(c.public_key) &&
+            !isBlocked(c) &&
+            !isHiddenForWrongLocation(c) &&
+            isRoleVisible(c)
         )
         .map(withEffectiveCoords)
         .filter((c): c is Contact => c !== null);
@@ -768,7 +809,8 @@ export function MapView({
             isFocused: c.public_key === focusedKey,
             isWithinSinceWindow: isWithinSinceWindow(c.last_seen),
           }) &&
-          !isHiddenForWrongLocation(c)
+          !isHiddenForWrongLocation(c) &&
+          isRoleVisible(c)
       )
       .map(withEffectiveCoords)
       .filter((c): c is Contact => c !== null);
@@ -776,6 +818,7 @@ export function MapView({
     contacts,
     focusedKey,
     heardFilter,
+    hiddenRoles,
     isWithinSinceWindow,
     showPackets,
     discoveryMode,
@@ -1448,6 +1491,37 @@ export function MapView({
         <p className="text-xs text-muted-foreground">{t('map_heard_help')}</p>
       </div>
     );
+    const roleOptions: { type: number; labelKey: string }[] = [
+      { type: CONTACT_TYPE_REPEATER, labelKey: 'map_type_repeater' },
+      { type: CONTACT_TYPE_ROOM, labelKey: 'map_type_room' },
+      { type: CONTACT_TYPE_CLIENT, labelKey: 'map_type_client' },
+      { type: CONTACT_TYPE_SENSOR, labelKey: 'map_type_sensor' },
+    ];
+    const toggleRole = (type: number) =>
+      setHiddenRoles((prev) => {
+        const next = new Set(prev);
+        if (next.has(type)) next.delete(type);
+        else next.add(type);
+        return next;
+      });
+    const hiddenRoleCount = ROLE_FILTER_TYPES.filter((type) => hiddenRoles.has(type)).length;
+    const rolesPanel = (
+      <div className="space-y-2">
+        <div role="group" aria-label={t('map_roles_label')} className="flex flex-col gap-1">
+          {roleOptions.map((o) => (
+            <label key={o.type} className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={!hiddenRoles.has(o.type)}
+                onChange={() => toggleRole(o.type)}
+              />
+              {t(o.labelKey)}
+            </label>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">{t('map_roles_help')}</p>
+      </div>
+    );
     // Show the active timeframe on the Since FAB itself (compact preset code
     // like "7d"/"All", or a clock icon for a custom range).
     const sinceValueText =
@@ -1482,6 +1556,15 @@ export function MapView({
         )}`,
         icon: <Radio size={20} aria-hidden />,
         panel: heardPanel,
+      },
+      {
+        id: 'roles',
+        label:
+          hiddenRoleCount > 0
+            ? `${t('map_roles_label')} (${ROLE_FILTER_TYPES.length - hiddenRoleCount}/${ROLE_FILTER_TYPES.length})`
+            : t('map_roles_label'),
+        icon: <Boxes size={20} aria-hidden />,
+        panel: rolesPanel,
       },
       {
         id: 'external',
@@ -1521,6 +1604,7 @@ export function MapView({
     t,
     sinceId,
     heardFilter,
+    hiddenRoles,
     customSince,
     showPackets,
     discoveryMode,

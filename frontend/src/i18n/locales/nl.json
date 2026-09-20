@@ -1951,6 +1951,8 @@
   "map_heard_hide": "Nooit-gehoord verbergen",
   "map_heard_only": "Alleen nooit-gehoord",
   "map_heard_help": "Nooit-gehoorde nodes komen uit de contactenlijst van je radio, niet waargenomen door deze server.",
+  "map_roles_label": "Node-rollen",
+  "map_roles_help": "Toon of verberg nodes op rol. Uitgevinkte rollen worden verborgen op de kaart.",
   "map_shared_location": "Gedeelde locatie",
   "map_contact_count": {
     "one": "{count} contact",
