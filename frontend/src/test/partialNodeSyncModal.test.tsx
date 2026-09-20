@@ -68,6 +68,79 @@ describe('PartialNodeSyncModal', () => {
     );
   });
 
+  it('auto-checks an ambiguous row whose best candidate is within 15km of the path', async () => {
+    const preview: PartialResolutionPreview = {
+      external_count: 5,
+      reason: null,
+      unmatched: [],
+      resolutions: [
+        {
+          prefix_hex: 'cc',
+          seen_as: 'path',
+          candidate_count: 2,
+          candidates: [
+            {
+              pubkey: 'cc' + '11'.repeat(31),
+              name: 'Near',
+              lat: 52,
+              lon: 4,
+              confidence: 0.3,
+              distance_km: 10,
+            },
+            {
+              pubkey: 'cc' + '22'.repeat(31),
+              name: 'NearAlt',
+              lat: 52,
+              lon: 4,
+              confidence: 0.2,
+              distance_km: 40,
+            },
+          ],
+        },
+        {
+          prefix_hex: 'dd',
+          seen_as: 'path',
+          candidate_count: 2,
+          candidates: [
+            {
+              pubkey: 'dd' + '11'.repeat(31),
+              name: 'Far',
+              lat: 48,
+              lon: 2,
+              confidence: 0.2,
+              distance_km: 100,
+            },
+            {
+              pubkey: 'dd' + '22'.repeat(31),
+              name: 'FarAlt',
+              lat: 48,
+              lon: 2,
+              confidence: 0.1,
+              distance_km: 200,
+            },
+          ],
+        },
+      ],
+    };
+    vi.mocked(api.previewPartialResolutions).mockResolvedValue(preview);
+    render(<PartialNodeSyncModal open onClose={() => {}} />);
+    await screen.findByText('cc');
+
+    fireEvent.click(screen.getByRole('button', { name: /apply/i }));
+
+    await waitFor(() =>
+      expect(api.applyPartialResolutions).toHaveBeenCalledWith([
+        {
+          prefix_hex: 'cc',
+          resolved_pubkey: 'cc' + '11'.repeat(31),
+          resolved_name: 'Near',
+          confidence: 0.3,
+          candidate_count: 2,
+        },
+      ])
+    );
+  });
+
   it('shows the reason when the external cache is empty', async () => {
     vi.mocked(api.previewPartialResolutions).mockResolvedValue({
       external_count: 0,

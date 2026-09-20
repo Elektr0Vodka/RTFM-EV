@@ -4,7 +4,21 @@ import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { toast } from '../ui/sonner';
 import { useT } from '../../i18n';
-import type { PartialResolutionPreview, PartialResolutionApplyItem } from '../../types';
+import type {
+  PartialResolutionPreview,
+  PartialResolutionApplyItem,
+  PartialResolutionProposal,
+} from '../../types';
+
+// A row is pre-selected when its best candidate sits within this many km of the
+// prefix's located path-neighbours (a close, likely-correct match).
+const AUTO_CHECK_WITHIN_KM = 15;
+
+function shouldAutoCheck(r: PartialResolutionProposal): boolean {
+  if (r.candidate_count === 1) return true;
+  const best = r.candidates[0];
+  return best?.distance_km != null && best.distance_km <= AUTO_CHECK_WITHIN_KM;
+}
 
 interface PartialNodeSyncModalProps {
   open: boolean;
@@ -36,10 +50,10 @@ export function PartialNodeSyncModal({ open, onClose }: PartialNodeSyncModalProp
       .then((res) => {
         if (cancelled) return;
         setPreview(res);
-        // Default: unambiguous (single-candidate) rows checked; ambiguous opt-in.
-        setChecked(
-          new Set(res.resolutions.filter((r) => r.candidate_count === 1).map((r) => r.prefix_hex))
-        );
+        // Default: check a row when it is unambiguous (single candidate) or its
+        // best candidate sits within AUTO_CHECK_WITHIN_KM of the path neighbours.
+        // Other ambiguous rows stay opt-in.
+        setChecked(new Set(res.resolutions.filter(shouldAutoCheck).map((r) => r.prefix_hex)));
         setChosen({});
       })
       .catch((err) => {

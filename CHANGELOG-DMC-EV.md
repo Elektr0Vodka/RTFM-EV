@@ -11,6 +11,25 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-20 (Partial-node resolution: promote on apply, contact-info-desktop-layout follow-up)
+
+### Partial-node resolution (backend + frontend)
+Follow-up to #152.
+- **Applying a resolution now promotes the node to a full contact** so its
+  resolved name/location apply live across the app (sidebar, map, paths), instead
+  of only showing on the contact info page. `POST /api/partial-resolutions/apply`
+  records the soft link (provenance / map disambiguation), creates the full
+  contact from the external-map node, runs `promote_prefix_contacts_for_contact`
+  to merge the placeholder in, and broadcasts `contact` / `contact_resolved` WS
+  events (live, no restart). Returns `{applied, promoted}`.
+- **Resolved name/location go in the advertised fields**, so once the node is
+  heard advertising over RF with a different name, the normal radio-sync path
+  overwrites the guess. An already-existing full contact is never overwritten.
+- **Review modal**: a row is now pre-checked when its best candidate is within
+  15 km of the prefix's located path-neighbours (a close, likely-correct match),
+  in addition to unambiguous single-candidate rows.
+- `ExternalMapRepository.get(pubkey)` added.
+
 ## Update 2026-09-20 (Full-page desktop contact info, contact-info-desktop-layout)
 
 ### Contact info (frontend)
