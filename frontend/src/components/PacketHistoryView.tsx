@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, Search, X } from 'lucide-react';
+import { Download, RefreshCw, Search, X } from 'lucide-react';
 
 import { RawPacketList } from './RawPacketList';
 import { RawPacketInspectorDialog } from './RawPacketDetailModal';
@@ -8,7 +8,6 @@ import { TimeRangeSelector } from './TimeRangeSelector';
 import { Button } from './ui/button';
 import { usePacketFilters } from '../hooks/usePacketFilters';
 import { usePacketHistory } from '../hooks/usePacketHistory';
-import { useRawPackets } from '../stores/rawPacketStore';
 import { ALL_TIME_RANGE, CUSTOM_RANGE_ID, resolveRange } from '../utils/timeRanges';
 import { loadStoredTimeRange, saveStoredTimeRange } from '../utils/timeRangePreference';
 import { getRawPacketObservationKey } from '../utils/rawPacketIdentity';
@@ -44,14 +43,13 @@ export function PacketHistoryView({
 }: PacketHistoryViewProps) {
   const t = useT();
   const filters = usePacketFilters();
-  const livePackets = useRawPackets();
 
   const [selectedPacket, setSelectedPacket] = useState<RawPacket | null>(null);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
-  // Pause snapshot: while set, the live view is frozen to this list and new
-  // in-window packets are only counted until the user resumes. Session-only.
-  const [pausedSnapshot, setPausedSnapshot] = useState<RawPacket[] | null>(null);
+  // Manual refresh: bumping this re-anchors presets to "now" and re-queries,
+  // mirroring the Mesh Health refresh model (no live streaming, no pause).
+  const [refreshKey, setRefreshKey] = useState(0);
   // Observation keys of packets checked for CSV export.
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set());
 
@@ -65,7 +63,8 @@ export function PacketHistoryView({
     saveStoredTimeRange(WINDOW_KEY, { id: windowId, customStart, customEnd });
   }, [windowId, customStart, customEnd]);
 
-  // Presets track "now" (live); a custom range is a fixed historical window.
+  // Presets are rolling windows relative to "now" (re-anchored on refresh); a
+  // custom range is a fixed historical window.
   const isLive = windowId !== CUSTOM_RANGE_ID;
 
   const range = useMemo(() => {
@@ -78,52 +77,30 @@ export function PacketHistoryView({
       customEndSec: ce,
       extras: HISTORY_EXTRA_RANGES,
     });
-  }, [windowId, customStart, customEnd]);
+    // refreshKey re-anchors preset windows to the current time on manual refresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [windowId, customStart, customEnd, refreshKey]);
 
   const enabled = range !== null;
   const startTs = range?.startTs ?? 0;
-  // For live presets the upper bound is open-ended so incoming packets are not
-  // clipped; historical custom ranges use their fixed end.
-  const endTs = isLive ? Number.MAX_SAFE_INTEGER : (range?.endTs ?? 0);
+  const endTs = range?.endTs ?? 0;
 
   const { rows, loading, error, nextCursor, loadOlder } = usePacketHistory({
     startTs,
     endTs,
     filters,
-    isLive,
-    livePackets,
-    channels,
     enabled,
+    refreshToken: refreshKey,
   });
-
-  // Pause only applies to the live stream; a fixed historical range never
-  // changes, so drop any snapshot when the view leaves live mode.
-  useEffect(() => {
-    if (!isLive) setPausedSnapshot(null);
-  }, [isLive]);
-
-  const paused = pausedSnapshot !== null;
-  const displayedRows = paused ? pausedSnapshot : rows;
-  // How many matching packets have arrived since the feed was paused.
-  const pausedNewCount = useMemo(() => {
-    if (!pausedSnapshot) return 0;
-    const seen = new Set(pausedSnapshot.map(getRawPacketObservationKey));
-    let count = 0;
-    for (const packet of rows) {
-      if (!seen.has(getRawPacketObservationKey(packet))) count += 1;
-    }
-    return count;
-  }, [pausedSnapshot, rows]);
-  const togglePause = () => setPausedSnapshot((prev) => (prev ? null : rows));
 
   // Selection is over currently-visible rows; stale keys (from an earlier fetch)
   // simply match nothing here.
   const selectedPackets = useMemo(
-    () => displayedRows.filter((p) => selectedKeys.has(getRawPacketObservationKey(p))),
-    [displayedRows, selectedKeys]
+    () => rows.filter((p) => selectedKeys.has(getRawPacketObservationKey(p))),
+    [rows, selectedKeys]
   );
   const selectedCount = selectedPackets.length;
-  const allSelected = displayedRows.length > 0 && selectedCount === displayedRows.length;
+  const allSelected = rows.length > 0 && selectedCount === rows.length;
 
   const toggleSelect = useCallback((packet: RawPacket) => {
     const key = getRawPacketObservationKey(packet);
@@ -137,11 +114,11 @@ export function PacketHistoryView({
 
   const toggleSelectAll = useCallback(() => {
     setSelectedKeys((prev) =>
-      displayedRows.length > 0 && prev.size >= displayedRows.length
+      rows.length > 0 && prev.size >= rows.length
         ? new Set()
-        : new Set(displayedRows.map(getRawPacketObservationKey))
+        : new Set(rows.map(getRawPacketObservationKey))
     );
-  }, [displayedRows]);
+  }, [rows]);
 
   const exportCsv = useCallback(() => {
     if (selectedPackets.length === 0) return;
@@ -224,14 +201,14 @@ export function PacketHistoryView({
         </div>
         <div className="min-h-0 min-w-0 flex-1">
           <RawPacketList
-            packets={displayedRows}
+            packets={rows}
             channels={channels}
             contacts={contacts}
             onPacketClick={setSelectedPacket}
             selectable
             selectedKeys={selectedKeys}
             onToggleSelect={toggleSelect}
-            autoScroll={autoScroll && !paused}
+            autoScroll={autoScroll}
             newestFirst={packetHistorySort === 'newest'}
             groupByContent={filters.groupByHash}
             showScrollToEnds
@@ -348,19 +325,14 @@ export function PacketHistoryView({
           </select>
           <Button
             type="button"
-            variant={paused ? 'default' : 'outline'}
+            variant="outline"
             size="sm"
-            onClick={togglePause}
-            aria-pressed={paused}
-            disabled={!isLive}
+            onClick={() => setRefreshKey((k) => k + 1)}
+            disabled={loading}
           >
-            {paused ? t('packet_resume') : t('packet_pause')}
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+            {t('repeater_refresh')}
           </Button>
-          {paused && pausedNewCount > 0 && (
-            <span className="rounded-full bg-primary px-1.5 text-[0.625rem] font-semibold text-primary-foreground tabular-nums">
-              {t('packet_paused_new', { count: pausedNewCount })}
-            </span>
-          )}
           <label className="flex items-center gap-1 text-xs text-foreground cursor-pointer">
             <input
               type="checkbox"
