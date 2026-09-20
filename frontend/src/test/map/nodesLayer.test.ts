@@ -4,10 +4,18 @@ import {
   circleRadiusExpr,
   recencyTier,
   observedIdTag,
+  labelSortKey,
+  nodeLabelLayout,
   LABEL_MIN_ZOOM,
   NODE_LABEL_FONT,
 } from '../../map/layers/nodesLayer';
-import { CONTACT_TYPE_REPEATER, CONTACT_TYPE_CLIENT, type Contact } from '../../types';
+import {
+  CONTACT_TYPE_REPEATER,
+  CONTACT_TYPE_ROOM,
+  CONTACT_TYPE_SENSOR,
+  CONTACT_TYPE_CLIENT,
+  type Contact,
+} from '../../types';
 
 const now = 1_000_000; // seconds
 const contact = (over: Partial<Contact>): Contact => ({
@@ -111,6 +119,52 @@ describe('buildNodeFeatures label property', () => {
       'tag'
     );
     expect(fc.features[0].properties.label).toBe('0123');
+  });
+});
+
+describe('labelSortKey (label collision priority)', () => {
+  it('ranks repeaters ahead of rooms, sensors, then companions (lower wins)', () => {
+    // MapLibre places the lowest symbol-sort-key first; with text-allow-overlap
+    // off, the first-placed label wins the collision. So a repeater must have a
+    // strictly lower key than a nearby companion to win the cluster label.
+    expect(labelSortKey(CONTACT_TYPE_REPEATER)).toBeLessThan(labelSortKey(CONTACT_TYPE_ROOM));
+    expect(labelSortKey(CONTACT_TYPE_ROOM)).toBeLessThan(labelSortKey(CONTACT_TYPE_SENSOR));
+    expect(labelSortKey(CONTACT_TYPE_SENSOR)).toBeLessThan(labelSortKey(CONTACT_TYPE_CLIENT));
+  });
+
+  it('gives repeaters the lowest key of all roles', () => {
+    const repeater = labelSortKey(CONTACT_TYPE_REPEATER);
+    for (const t of [CONTACT_TYPE_ROOM, CONTACT_TYPE_SENSOR, CONTACT_TYPE_CLIENT, 99]) {
+      expect(repeater).toBeLessThan(labelSortKey(t));
+    }
+  });
+});
+
+describe('buildNodeFeatures sortKey property', () => {
+  it('attaches the role sort key so repeaters win label collisions', () => {
+    const fc = buildNodeFeatures(
+      [
+        contact({ public_key: 'r', type: CONTACT_TYPE_REPEATER }),
+        contact({ public_key: 'c', type: CONTACT_TYPE_CLIENT }),
+      ],
+      now
+    );
+    const rep = fc.features.find((f) => f.properties.id === 'r')!;
+    const cli = fc.features.find((f) => f.properties.id === 'c')!;
+    expect(rep.properties.sortKey).toBe(labelSortKey(CONTACT_TYPE_REPEATER));
+    expect(cli.properties.sortKey).toBe(labelSortKey(CONTACT_TYPE_CLIENT));
+    expect(rep.properties.sortKey).toBeLessThan(cli.properties.sortKey);
+  });
+});
+
+describe('nodeLabelLayout', () => {
+  it('drives label placement priority off the per-feature sortKey', () => {
+    const layout = nodeLabelLayout();
+    // Sort key must reference the feature property, and overlap must stay off,
+    // otherwise the sort key has no effect on which label survives a collision.
+    expect(layout['symbol-sort-key']).toEqual(['get', 'sortKey']);
+    expect(layout['text-allow-overlap']).toBe(false);
+    expect(layout['text-font']).toBe(NODE_LABEL_FONT);
   });
 });
 

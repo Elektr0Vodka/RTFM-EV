@@ -7,6 +7,7 @@ import {
   formatDistance,
   formatRouteLabel,
   getEffectiveContactRoute,
+  getEffectiveLocation,
 } from '../utils/pathUtils';
 import { getMapFocusHash } from '../utils/urlHash';
 import { handleKeyboardActivate } from '../utils/a11y';
@@ -59,10 +60,13 @@ export function ContactStatusInfo({ contact, ourLat, ourLon }: ContactStatusInfo
     </span>
   );
 
-  if (isValidLocation(contact.lat, contact.lon)) {
+  // Use the effective location (advertised-wins, manual-fallback) so a node
+  // placed only by a manual override still shows its coordinates in the header.
+  const effectiveLocation = getEffectiveLocation(contact);
+  if (effectiveLocation) {
     const distFromUs =
       ourLat != null && ourLon != null && isValidLocation(ourLat, ourLon)
-        ? calculateDistance(ourLat, ourLon, contact.lat, contact.lon)
+        ? calculateDistance(ourLat, ourLon, effectiveLocation.lat, effectiveLocation.lon)
         : null;
     parts.push(
       <span key="coords">
@@ -81,7 +85,7 @@ export function ContactStatusInfo({ contact, ourLat, ourLon }: ContactStatusInfo
           }}
           title={t('contact_view_on_map')}
         >
-          {contact.lat!.toFixed(3)}, {contact.lon!.toFixed(3)}
+          {effectiveLocation.lat.toFixed(3)}, {effectiveLocation.lon.toFixed(3)}
         </span>
         {distFromUs !== null && ` (${formatDistance(distFromUs, distanceUnit)})`}
       </span>

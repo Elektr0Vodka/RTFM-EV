@@ -669,6 +669,44 @@ describe('resolvePath', () => {
     expect(result.hops[2].prefix).toBe('3C');
     expect(result.hops[3].prefix).toBe('4D');
   });
+
+  it('places a hop at its manual location when it has no advertised coordinates', () => {
+    // A repeater with a manual-only override was previously dropped from the
+    // path/route because resolvePath read the raw (null) advertised coords.
+    const manualOnly = createContact({
+      public_key: '3C' + 'C'.repeat(62),
+      name: 'ManualRepeater',
+      type: CONTACT_TYPE_REPEATER,
+      lat: null,
+      lon: null,
+      manual_lat: 40.78,
+      manual_lon: -73.98,
+    });
+    const result = resolvePath('3C', sender, [manualOnly], config);
+
+    expect(result.hops).toHaveLength(1);
+    expect(result.hops[0].matches).toHaveLength(1);
+    expect(result.hops[0].matches[0].lat).toBe(40.78);
+    expect(result.hops[0].matches[0].lon).toBe(-73.98);
+    // With the node now placed, the distance from the located sender resolves.
+    expect(result.hops[0].distanceFromPrev).not.toBeNull();
+  });
+
+  it('keeps advertised coordinates when a hop has both advertised and manual', () => {
+    // Decision: manual only fills gaps; advertised wins when present.
+    const both = createContact({
+      public_key: '4D' + 'D'.repeat(62),
+      type: CONTACT_TYPE_REPEATER,
+      lat: 40.75,
+      lon: -74.0,
+      manual_lat: 10,
+      manual_lon: 10,
+    });
+    const result = resolvePath('4D', sender, [both], config);
+
+    expect(result.hops[0].matches[0].lat).toBe(40.75);
+    expect(result.hops[0].matches[0].lon).toBe(-74.0);
+  });
 });
 
 describe('isValidLocation', () => {

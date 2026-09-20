@@ -2,10 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { api } from '../api';
 import type { PacketFilters } from './usePacketFilters';
-import type { Channel, RawPacket } from '../types';
-import { getRawPacketObservationKey } from '../utils/rawPacketIdentity';
+import type { RawPacket } from '../types';
 import { buildHistoryParams } from '../utils/packetHistoryQuery';
-import { matchesPacketFilters } from '../utils/packetFilterPredicate';
 
 const PAGE_LIMIT = 500;
 
@@ -13,13 +11,11 @@ interface UsePacketHistoryArgs {
   startTs: number;
   endTs: number;
   filters: PacketFilters;
-  /** When true, in-window live packets that pass the filter are appended. */
-  isLive: boolean;
-  /** The live packet buffer (e.g. from useRawPackets). */
-  livePackets: RawPacket[];
-  channels?: Channel[];
   /** When false, no fetch runs and rows stay empty (e.g. custom range not set). */
   enabled?: boolean;
+  /** Bump to force a re-query without changing the range or filters (manual
+   *  refresh). Presets should also re-anchor their window to "now" on refresh. */
+  refreshToken?: number;
 }
 
 export interface UsePacketHistoryResult {
@@ -34,10 +30,8 @@ export function usePacketHistory({
   startTs,
   endTs,
   filters,
-  isLive,
-  livePackets,
-  channels,
   enabled = true,
+  refreshToken = 0,
 }: UsePacketHistoryArgs): UsePacketHistoryResult {
   const [rows, setRows] = useState<RawPacket[]>([]);
   const [nextCursor, setNextCursor] = useState<number | null>(null);
@@ -89,7 +83,7 @@ export function usePacketHistory({
       .finally(() => {
         if (id === reqId.current) setLoading(false);
       });
-  }, [baseInput, filters.hexInvalid, enabled]);
+  }, [baseInput, filters.hexInvalid, enabled, refreshToken]);
 
   const loadOlder = useCallback(async () => {
     if (nextCursor == null) return;
@@ -107,19 +101,5 @@ export function usePacketHistory({
     }
   }, [baseInput, nextCursor]);
 
-  // Live-append: in-window, filter-passing packets not already loaded.
-  const displayed = useMemo(() => {
-    if (!isLive) return rows;
-    const seen = new Set(rows.map(getRawPacketObservationKey));
-    const extra = livePackets.filter(
-      (p) =>
-        p.timestamp >= startTs &&
-        p.timestamp <= endTs &&
-        !seen.has(getRawPacketObservationKey(p)) &&
-        matchesPacketFilters(p, filters, channels)
-    );
-    return extra.length > 0 ? [...rows, ...extra] : rows;
-  }, [rows, isLive, livePackets, startTs, endTs, filters, channels]);
-
-  return { rows: displayed, loading, error, nextCursor, loadOlder };
+  return { rows, loading, error, nextCursor, loadOlder };
 }

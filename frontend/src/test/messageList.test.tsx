@@ -920,3 +920,53 @@ describe('MessageList entity parsing', () => {
     expect(onCoordinateClick).toHaveBeenCalledWith(52.724169, 6.997483, '');
   });
 });
+
+describe('MessageList path modal sender location', () => {
+  const SENDER_KEY = 'ab'.repeat(32);
+
+  function makeSenderContact(overrides: Partial<Contact> = {}): Contact {
+    return {
+      public_key: SENDER_KEY,
+      name: 'Bob',
+      type: 1, // companion (not a room), so getSenderInfo uses the contact coords
+      flags: 0,
+      direct_path: null,
+      direct_path_len: 0,
+      direct_path_hash_mode: 0,
+      last_advert: null,
+      lat: null,
+      lon: null,
+      manual_lat: null,
+      manual_lon: null,
+      last_seen: 1700000000,
+      on_radio: false,
+      favorite: false,
+      radio_policy: 'auto',
+      last_contacted: null,
+      last_read_at: null,
+      first_seen: null,
+      ...overrides,
+    };
+  }
+
+  const privMessage = createMessage({
+    type: 'PRIV',
+    conversation_key: SENDER_KEY,
+    text: 'hi',
+    sender_name: null,
+    sender_key: null,
+    paths: [{ path: '1A', received_at: 1700000000, path_len: 1 }],
+  });
+
+  it('shows the sender manual location in the path modal when advertised coords are missing', async () => {
+    render(
+      <MessageList
+        messages={[privMessage]}
+        contacts={[makeSenderContact({ lat: null, lon: null, manual_lat: 51.5, manual_lon: 4.25 })]}
+        loading={false}
+      />
+    );
+    await userEvent.click(screen.getByTitle('View message path'));
+    expect(screen.getByText('(51.5000, 4.2500)')).toBeInTheDocument();
+  });
+});

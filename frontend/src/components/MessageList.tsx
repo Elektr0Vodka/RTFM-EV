@@ -46,7 +46,7 @@ import {
   isMessageHiddenByHopWidth,
   type SenderInfo,
 } from '../utils/pathUtils';
-import { getDirectContactRoute } from '../utils/pathUtils';
+import { getDirectContactRoute, getEffectiveLocation } from '../utils/pathUtils';
 import { classifyMessageScope, formatTransportCode } from '../utils/messageScope';
 import {
   getSavedHiddenHopWidths,
@@ -1303,6 +1303,12 @@ export function MessageList({
     contact: Contact | null,
     parsedSender: string | null
   ): SenderInfo => {
+    // Use the effective location (advertised-wins, manual-fallback) so a sender
+    // placed only by a manual override still appears on the path/route screens.
+    const effLatLon = (c: Contact): { lat: number | null; lon: number | null } => {
+      const loc = getEffectiveLocation(c);
+      return { lat: loc?.lat ?? null, lon: loc?.lon ?? null };
+    };
     if (
       msg.type === 'PRIV' &&
       contact?.type === CONTACT_TYPE_ROOM &&
@@ -1317,8 +1323,7 @@ export function MessageList({
         return {
           name: authorContact.name || msg.sender_name || authorContact.public_key.slice(0, 12),
           publicKeyOrPrefix: authorContact.public_key,
-          lat: authorContact.lat,
-          lon: authorContact.lon,
+          ...effLatLon(authorContact),
           pathHashMode: directRoute?.path_hash_mode ?? null,
         };
       }
@@ -1335,8 +1340,7 @@ export function MessageList({
       return {
         name: contact.name || contact.public_key.slice(0, 12),
         publicKeyOrPrefix: contact.public_key,
-        lat: contact.lat,
-        lon: contact.lon,
+        ...effLatLon(contact),
         pathHashMode: directRoute?.path_hash_mode ?? null,
       };
     }
@@ -1351,8 +1355,7 @@ export function MessageList({
         return {
           name: senderContact.name || senderName || senderContact.public_key.slice(0, 12),
           publicKeyOrPrefix: senderContact.public_key,
-          lat: senderContact.lat,
-          lon: senderContact.lon,
+          ...effLatLon(senderContact),
           pathHashMode: directRoute?.path_hash_mode ?? null,
         };
       }
@@ -1378,8 +1381,7 @@ export function MessageList({
         return {
           name: parsedSender,
           publicKeyOrPrefix: senderContact.public_key,
-          lat: senderContact.lat,
-          lon: senderContact.lon,
+          ...effLatLon(senderContact),
           pathHashMode: directRoute?.path_hash_mode ?? null,
         };
       }

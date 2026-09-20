@@ -393,6 +393,17 @@ export function getEffectiveLocation(contact: {
   return null;
 }
 
+/** Return a contact with its effective location projected onto lat/lon. When the
+ *  effective location already equals the advertised coords (or the contact has
+ *  no location at all) the original object is returned unchanged; otherwise a
+ *  shallow clone is returned so the shared contact is never mutated. */
+export function withEffectiveContactCoords<T extends Contact>(contact: T): T {
+  const loc = getEffectiveLocation(contact);
+  if (!loc) return contact;
+  if (contact.lat === loc.lat && contact.lon === loc.lon) return contact;
+  return { ...contact, lat: loc.lat, lon: loc.lon };
+}
+
 /** True when a contact can be placed on the map: it has a valid advertised or
  *  manual-override location. */
 export function hasEffectiveLocation(contact: {
@@ -641,7 +652,11 @@ export function resolvePath(
   let prevHopUncertain = !isValidLocation(sender.lat, sender.lon);
 
   for (const prefix of hopPrefixes) {
-    const matches = findContactsByPrefix(prefix, contacts, true);
+    // Project each match's effective location (advertised-wins, manual-fallback)
+    // onto lat/lon on a shallow clone, so downstream distance calc, the path
+    // list and the route map place a node that only has a manual override
+    // instead of dropping it. The shared contact objects are never mutated.
+    const matches = findContactsByPrefix(prefix, contacts, true).map(withEffectiveContactCoords);
     const sortedMatches = sortContactsByDistance(matches, prevLat, prevLon);
 
     // Calculate distance from previous hop

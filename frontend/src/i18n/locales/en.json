@@ -1950,6 +1950,8 @@
   "map_heard_hide": "Hide never-heard",
   "map_heard_only": "Only never-heard",
   "map_heard_help": "Never-heard nodes come from your radio's contact list, not observed by this server.",
+  "map_roles_label": "Node roles",
+  "map_roles_help": "Show or hide nodes by role. Unchecked roles are hidden from the map.",
   "map_shared_location": "Shared location",
   "map_contact_count": {
     "one": "{count} contact",

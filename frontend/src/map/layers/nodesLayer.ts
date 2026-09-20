@@ -1,4 +1,4 @@
-import type { Map as MlMap, ExpressionSpecification } from 'maplibre-gl';
+import type { Map as MlMap, ExpressionSpecification, SymbolLayerSpecification } from 'maplibre-gl';
 import {
   CONTACT_TYPE_CLIENT,
   CONTACT_TYPE_REPEATER,
@@ -69,6 +69,39 @@ function nodeLabel(c: Contact, mode: NodeLabelMode): string {
   return '';
 }
 
+// Label collision priority. MapLibre places the LOWEST `symbol-sort-key` first,
+// and with `text-allow-overlap: false` the first-placed label wins when two
+// labels would overlap. So a lower key = higher priority. Repeaters must beat
+// nearby companions when a cluster can only show one name (the #reported bug:
+// a repeater like nl-aer-openhop losing its label to a co-located cp call).
+const LABEL_SORT_RANK: Record<number, number> = {
+  [CONTACT_TYPE_REPEATER]: 0,
+  [CONTACT_TYPE_ROOM]: 1,
+  [CONTACT_TYPE_SENSOR]: 2,
+  [CONTACT_TYPE_CLIENT]: 3,
+};
+
+export function labelSortKey(type: number): number {
+  return LABEL_SORT_RANK[type] ?? 4;
+}
+
+// Layout for the rt-node-labels symbol layer. Extracted so the collision
+// priority (symbol-sort-key) is unit-testable. `symbol-sort-key` places lower
+// values first; with `text-allow-overlap: false` the first-placed label wins,
+// so repeaters (lowest sortKey) keep their name in a cluster over companions.
+export function nodeLabelLayout(): NonNullable<SymbolLayerSpecification['layout']> {
+  return {
+    'text-field': ['get', 'label'],
+    'text-size': 11,
+    'text-offset': [0, 1.1],
+    'text-anchor': 'top',
+    'text-allow-overlap': false,
+    'text-optional': true,
+    'text-font': NODE_LABEL_FONT,
+    'symbol-sort-key': ['get', 'sortKey'],
+  };
+}
+
 export function circleColorExpr(): ExpressionSpecification {
   const out: unknown[] = ['match', ['get', 'tier']];
   (Object.keys(NODE_RECENCY_COLORS) as RecencyTier[]).forEach((k) =>
@@ -107,6 +140,7 @@ export function buildNodeFeatures(
         label: nodeLabel(c, labelMode),
         type: c.type,
         repeater: c.type === CONTACT_TYPE_REPEATER,
+        sortKey: labelSortKey(c.type),
         tier: recencyTier(c.last_seen, nowSec),
       },
     }));
@@ -162,15 +196,7 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
         type: 'symbol',
         source: 'rt-nodes',
         minzoom: LABEL_MIN_ZOOM,
-        layout: {
-          'text-field': ['get', 'label'],
-          'text-size': 11,
-          'text-offset': [0, 1.1],
-          'text-anchor': 'top',
-          'text-allow-overlap': false,
-          'text-optional': true,
-          'text-font': NODE_LABEL_FONT,
-        },
+        layout: nodeLabelLayout(),
         paint: {
           // Outlined label: near-white fill with a dark halo reads on both
           // light and dark basemaps without needing theme detection. Empty

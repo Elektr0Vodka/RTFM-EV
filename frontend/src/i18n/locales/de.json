@@ -1951,6 +1951,8 @@
   "map_heard_hide": "Nie gehörte ausblenden",
   "map_heard_only": "Nur nie gehörte",
   "map_heard_help": "Nie gehörte Knoten stammen aus der Kontaktliste deines Funkgeräts und wurden nicht von diesem Server empfangen.",
+  "map_roles_label": "Knotenrollen",
+  "map_roles_help": "Knoten nach Rolle ein- oder ausblenden. Abgewählte Rollen werden auf der Karte ausgeblendet.",
   "map_shared_location": "Geteilter Standort",
   "map_contact_count": {
     "one": "{count} Kontakt",

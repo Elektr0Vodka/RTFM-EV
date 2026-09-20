@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { PacketHistoryView } from '../components/PacketHistoryView';
-import { resetRawPacketStore, seedRawPacketStore } from '../stores/rawPacketStore';
+import { resetRawPacketStore } from '../stores/rawPacketStore';
 import { api } from '../api';
 
 vi.mock('../api', () => ({ api: { getPacketHistory: vi.fn() } }));
@@ -50,38 +50,26 @@ describe('PacketHistoryView', () => {
     expect(await screen.findByText(/retention setting/i)).toBeInTheDocument();
   });
 
-  it('pauses the live history feed, buffering new live packets behind a count', async () => {
-    const now = Math.floor(Date.now() / 1000);
+  it('has no pause/resume control (the feed is query + manual refresh only)', async () => {
     getPacketHistory.mockResolvedValue({ packets: [row(1, 'ab')], next_cursor: null });
     render(<PacketHistoryView contacts={[]} channels={[]} />);
     await screen.findByText('AB');
+    expect(screen.queryByRole('button', { name: 'Pause' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Resume' })).not.toBeInTheDocument();
+  });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Pause' }));
+  it('re-queries the window when the Refresh button is clicked', async () => {
+    getPacketHistory
+      .mockResolvedValueOnce({ packets: [row(1, 'ab')], next_cursor: null })
+      .mockResolvedValueOnce({ packets: [row(1, 'ab'), row(2, 'cd')], next_cursor: null });
+    render(<PacketHistoryView contacts={[]} channels={[]} />);
+    await screen.findByText('AB');
+    expect(getPacketHistory).toHaveBeenCalledTimes(1);
 
-    // A fresh live packet lands inside the live window while paused.
-    act(() => {
-      seedRawPacketStore({
-        packets: [
-          {
-            id: 2,
-            observation_id: 2,
-            timestamp: now,
-            data: 'cd',
-            payload_type: 'ADVERT',
-            snr: null,
-            rssi: null,
-            decrypted: false,
-            decrypted_info: null,
-          },
-        ],
-      });
-    });
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh' }));
 
-    expect(screen.queryByText('CD')).not.toBeInTheDocument();
-    expect(screen.getByText('1 new')).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole('button', { name: 'Resume' }));
-    expect(screen.getByText('CD')).toBeInTheDocument();
+    await waitFor(() => expect(getPacketHistory).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('CD')).toBeInTheDocument();
   });
 
   it('persists the sort order via onSaveAppSettings', async () => {
