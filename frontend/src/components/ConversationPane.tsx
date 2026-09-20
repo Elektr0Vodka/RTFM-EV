@@ -24,6 +24,7 @@ import {
   isUnknownFullKeyContact,
 } from '../utils/pubkey';
 import { useT } from '../i18n';
+import { useIsMobile } from '../map/controls/breakpoints';
 
 const RepeaterDashboard = lazy(() =>
   import('./RepeaterDashboard').then((m) => ({ default: m.RepeaterDashboard }))
@@ -45,6 +46,9 @@ const AnalyzePacketView = lazy(() =>
 );
 const PacketHistoryView = lazy(() =>
   import('./PacketHistoryView').then((m) => ({ default: m.PacketHistoryView }))
+);
+const ContactInfoView = lazy(() =>
+  import('./ContactInfoView').then((m) => ({ default: m.ContactInfoView }))
 );
 
 interface ConversationPaneProps {
@@ -128,6 +132,17 @@ interface ConversationPaneProps {
   packetFeedSort?: 'oldest' | 'newest';
   packetHistorySort?: 'oldest' | 'newest';
   onSaveAppSettings?: (update: import('../types').AppSettingsUpdate) => Promise<void> | void;
+  /** Handlers the desktop full-page contact-info view needs beyond the ones
+   *  ConversationPane already receives (contacts/config/favorite/blocked/analyzer). */
+  contactInfoViewProps?: {
+    onNavigateToChannel?: (channelKey: string) => void;
+    onSearchMessagesByKey?: (publicKey: string) => void;
+    onToggleBlockedKey?: (key: string) => void;
+    onToggleBlockedName?: (name: string) => void;
+    trackedTelemetryContacts?: string[];
+    onToggleTrackedTelemetryContact?: (publicKey: string) => Promise<void>;
+    onOpenConversation?: (publicKey: string) => void;
+  };
 }
 
 function LoadingPane({ label }: { label: string }) {
@@ -228,8 +243,10 @@ export function ConversationPane({
   packetFeedSort,
   packetHistorySort,
   onSaveAppSettings,
+  contactInfoViewProps,
 }: ConversationPaneProps) {
   const t = useT();
+  const isMobile = useIsMobile();
   const [roomAuthenticated, setRoomAuthenticated] = useState(false);
   const activeContactIsRepeater = useMemo(() => {
     if (!activeConversation || activeConversation.type !== 'contact') return false;
@@ -391,6 +408,56 @@ export function ConversationPane({
         />
       </Suspense>
     );
+  }
+
+  // Desktop full-page contact info: the dedicated `contact-info` route, and the
+  // desktop convergence where a repeater/room `#contact/...` link lands on the
+  // combined info + embedded login/dashboard page (mobile keeps the standalone
+  // dashboard/panel below).
+  const showContactInfoView =
+    activeConversation.type === 'contact-info' ||
+    (!isMobile &&
+      activeConversation.type === 'contact' &&
+      (activeContactIsRepeater || activeContactIsRoom));
+
+  if (showContactInfoView) {
+    return (
+      <Suspense fallback={<LoadingPane label={t('common_loading')} />}>
+        <ContactInfoView
+          publicKey={activeConversation.id}
+          contacts={contacts}
+          config={config}
+          onBack={() => window.history.back()}
+          onToggleFavorite={onToggleFavorite}
+          analyzerSites={analyzerSites}
+          onOpenContactInfo={onOpenContactInfo}
+          blockedKeys={blockedKeys}
+          blockedNames={blockedNames}
+          radioLat={config?.lat ?? null}
+          radioLon={config?.lon ?? null}
+          radioName={config?.name ?? null}
+          notificationsSupported={notificationsSupported}
+          notificationsEnabled={notificationsEnabled}
+          notificationsPermission={notificationsPermission}
+          onToggleNotifications={onToggleNotifications}
+          onTrace={onTrace}
+          onPathDiscovery={onPathDiscovery}
+          onDeleteContact={onDeleteContact}
+          trackedTelemetryRepeaters={trackedTelemetryRepeaters}
+          onToggleTrackedTelemetry={onToggleTrackedTelemetry}
+          onSeedKnownRegions={onSeedKnownRegions}
+          repeaterAutoLoginKey={repeaterAutoLoginKey}
+          onClearRepeaterAutoLogin={onClearRepeaterAutoLogin}
+          {...contactInfoViewProps}
+        />
+      </Suspense>
+    );
+  }
+
+  // `contact-info` is always handled by showContactInfoView above; this guard
+  // narrows the union so the chat fall-through below only sees chat types.
+  if (activeConversation.type === 'contact-info') {
+    return null;
   }
 
   if (activeContactIsRepeater) {

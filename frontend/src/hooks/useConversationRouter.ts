@@ -64,11 +64,12 @@ function resolveConversationFromHash(
       const channel = resolveChannelFromHashToken(hashConv.name, channels);
       return channel ? { type: 'channel', id: channel.key, name: channel.name } : null;
     }
-    case 'contact': {
+    case 'contact':
+    case 'contact-info': {
       const contact = resolveContactFromHashToken(hashConv.name, contacts);
       return contact
         ? {
-            type: 'contact',
+            type: hashConv.type,
             id: contact.public_key,
             name: getContactDisplayName(contact.name, contact.public_key, contact.last_advert),
           }
@@ -235,7 +236,7 @@ export function useConversationRouter({
     }
 
     // Contact hash - wait for phase 2
-    if (hashConv?.type === 'contact') return;
+    if (hashConv?.type === 'contact' || hashConv?.type === 'contact-info') return;
 
     // No hash: optionally restore last-viewed conversation if enabled on this device.
     if (!hashConv && getReopenLastConversationEnabled()) {
@@ -276,13 +277,13 @@ export function useConversationRouter({
     if (hasSetDefaultConversation.current || activeConversation) return;
 
     const hashConv = parseHashSettingsSection() ? null : parseHashConversation();
-    if (hashConv?.type === 'contact') {
+    if (hashConv?.type === 'contact' || hashConv?.type === 'contact-info') {
       if (!contactsLoaded) return;
 
       const contact = resolveContactFromHashToken(hashConv.name, contacts);
       if (contact) {
         setActiveConversationState({
-          type: 'contact',
+          type: hashConv.type,
           id: contact.public_key,
           name: getContactDisplayName(contact.name, contact.public_key, contact.last_advert),
         });

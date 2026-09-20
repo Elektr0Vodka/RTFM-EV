@@ -427,6 +427,7 @@ export interface ResendChannelMessageResponse {
 
 type ConversationType =
   | 'contact'
+  | 'contact-info'
   | 'channel'
   | 'raw'
   | 'map'

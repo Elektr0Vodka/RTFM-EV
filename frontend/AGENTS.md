@@ -70,7 +70,7 @@ frontend/src/
 │   └── useRememberedServerPassword.ts # Browser-local repeater/room password persistence
 ├── components/
 │   ├── AppShell.tsx            # App-shell layout: status, sidebar, search/settings panes, cracker, modals, security warning
-│   ├── ConversationPane.tsx    # Active conversation surface selection (map/raw/trace/repeater/room/chat/empty)
+│   ├── ConversationPane.tsx    # Active conversation surface selection (map/raw/trace/repeater/room/chat/contact-info/empty)
 │   ├── visualizer/
 │   │   ├── useVisualizerData3D.ts   # Packet→graph data pipeline, repeat aggregation, simulation state
 │   │   ├── useVisualizer3DScene.ts  # Three.js scene lifecycle, buffers, hover/pin interaction
@@ -137,7 +137,9 @@ frontend/src/
 │   ├── CrackerPanel.tsx       # Browser channel finder; wordlist = bundled ENGLISH_WORDLIST + remote sync + registry names ("Sync from channels" button, meshcore-wordlist-registry-cache)
 │   ├── BotCodeEditor.tsx
 │   ├── ContactAvatar.tsx
-│   ├── ContactInfoPane.tsx     # Contact detail sheet (stats, name history, paths)
+│   ├── ContactInfoPane.tsx     # Contact detail sheet (mobile; wraps ContactInfoBody)
+│   ├── ContactInfoBody.tsx     # Shared contact-info section stack (region-aware: Sheet + full page)
+│   ├── ContactInfoView.tsx     # Desktop full-page contact info (3 columns + minimizable repeater/room login)
 │   ├── ContactStatusInfo.tsx   # Contact status info component
 │   ├── ContactPathDiscoveryModal.tsx # Forward/return path discovery dialog
 │   ├── ContactRoutingOverrideModal.tsx # Manual direct-route override editor
@@ -478,6 +480,17 @@ Effective map location is resolved by `getEffectiveLocation` in `utils/pathUtils
 
 State: `useConversationNavigation` controls open/close via `infoPaneContactKey`. Live contact data from WebSocket updates is preferred over the initial detail snapshot.
 
+### Desktop full-page view vs. mobile Sheet
+
+`handleOpenContactInfo` (`useConversationNavigation`) forks on `useIsMobile()` (`max-width: 768px`, from `map/controls/breakpoints.ts`):
+
+- **Mobile** keeps the `ContactInfoPane` Sheet (right drawer) described above, via `infoPaneContactKey`.
+- **Desktop** navigates to a routed full-page view: a new `contact-info` conversation type (`#contact-info/<pubkey>/<label>`, wired through `urlHash.ts` and `useConversationRouter` phase-2 resolution like `#contact`). `ConversationPane` renders `ContactInfoView`, which centres in a max-width container and lays the sections out in three curated columns (Identity & actions / Your data & telemetry / Network & activity).
+
+The section stack is shared: `ContactInfoBody` (region-aware: `all` for the Sheet's single column, `identity`/`data`/`network` for the desktop columns) is rendered by both `ContactInfoPane` and `ContactInfoView`. Both load data through the shared `useContactInfoData(contactKey)` hook. `ContactInfoBody` exports `contactTypeLabel` and the name-only helpers the pane still uses.
+
+On desktop, a repeater (`type=2`) or room (`type=3`) `#contact/<pubkey>` link also renders `ContactInfoView` (desktop convergence in `ConversationPane`), so shared links no longer dead-end on a bare login. The login/dashboard is embedded inline as a minimizable region (`RepeaterDashboardBody` for repeaters, `RoomServerPanel` for rooms). Mobile keeps the standalone `RepeaterDashboard` / `RoomServerPanel` surfaces.
+
 ## Channel Info Pane
 
 Clicking a channel name in `ChatHeader` opens a `ChannelInfoPane` sheet (right drawer) showing channel details fetched from `GET /api/channels/{key}/detail`:
@@ -492,7 +505,7 @@ State: `useConversationNavigation` controls open/close via `infoPaneChannelKey`.
 
 ## Repeater Dashboard
 
-For repeater contacts (`type=2`), `ConversationPane.tsx` renders `RepeaterDashboard` instead of the normal chat UI (ChatHeader + MessageList + MessageInput).
+For repeater contacts (`type=2`) on **mobile**, `ConversationPane.tsx` renders `RepeaterDashboard` instead of the normal chat UI (ChatHeader + MessageList + MessageInput). On **desktop** the dashboard is embedded (minimizable) inside the full-page `ContactInfoView` instead - see "Desktop full-page view vs. mobile Sheet". The header (name/pubkey/status/actions) lives in `RepeaterDashboard`; the login form + pane grid live in `RepeaterDashboardBody`, which both the standalone view and the embedded region reuse.
 
 **Login**: `RepeaterLogin` component - password or guest login via `POST /api/contacts/{key}/repeater/login`. The frontend sends exactly one request; the backend internally escalates a timed-out login to one flood retry (see `app/AGENTS.md` § "Server login route escalation"), so a single call may take up to two response windows. Do not add a client-side login retry loop on top - a `LOGIN_FAILED` result means the password was refused, not that the route needs another attempt.
 
@@ -506,7 +519,7 @@ All state is managed by `useRepeaterDashboard` hook. State resets on conversatio
 
 ## Room Server Panel
 
-For room contacts (`type=3`), `ConversationPane.tsx` keeps the normal chat surface but inserts `RoomServerPanel` above it. That panel handles room-server login/status messaging and gates room chat behind the room-authenticated state when required.
+For room contacts (`type=3`) on **mobile**, `ConversationPane.tsx` keeps the normal chat surface but inserts `RoomServerPanel` above it. That panel handles room-server login/status messaging and gates room chat behind the room-authenticated state when required. On **desktop**, the room lands on the full-page `ContactInfoView` with `RoomServerPanel` embedded in the minimizable login region (see "Desktop full-page view vs. mobile Sheet").
 
 `ServerLoginStatusBanner` is shared between repeater and room login surfaces for inline status/error display.
 

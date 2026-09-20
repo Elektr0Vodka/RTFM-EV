@@ -33,6 +33,32 @@ vi.mock('../components/RepeaterDashboard', () => ({
   RepeaterDashboard: () => <div data-testid="repeater-dashboard" />,
 }));
 
+vi.mock('../components/ContactInfoView', () => ({
+  ContactInfoView: ({ publicKey }: { publicKey: string }) => (
+    <div data-testid="contact-info-view" data-public-key={publicKey} />
+  ),
+}));
+
+// useIsMobile reads window.matchMedia. The standalone repeater/room dashboards
+// only render on mobile now (desktop converges to ContactInfoView), so the
+// suite defaults to a mobile viewport and opts specific tests into desktop.
+function setViewport(isMobile: boolean) {
+  Object.defineProperty(globalThis, 'matchMedia', {
+    configurable: true,
+    writable: true,
+    value: (query: string) => ({
+      matches: isMobile,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  });
+}
+
 vi.mock('../components/RoomServerPanel', () => ({
   RoomServerPanel: ({
     contact,
@@ -177,6 +203,8 @@ describe('ConversationPane', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.messageList.mockImplementation(() => <div data-testid="message-list" />);
+    // Standalone dashboards render on mobile; desktop convergence tests opt out.
+    setViewport(true);
   });
 
   it('renders the empty state when no conversation is active', () => {
@@ -220,6 +248,55 @@ describe('ConversationPane', () => {
     );
 
     expect(await screen.findByTestId('repeater-dashboard')).toBeInTheDocument();
+    expect(screen.queryByTestId('message-list')).not.toBeInTheDocument();
+  });
+
+  it('converges a desktop repeater contact onto the full-page contact info view', async () => {
+    setViewport(false);
+    render(
+      <ConversationPane
+        {...createProps({
+          activeConversation: { type: 'contact', id: 'bb'.repeat(32), name: 'Repeater' },
+          contacts: [
+            {
+              public_key: 'bb'.repeat(32),
+              name: 'Repeater',
+              type: 2,
+              flags: 0,
+              direct_path: null,
+              direct_path_len: 0,
+              direct_path_hash_mode: 0,
+              last_advert: null,
+              lat: null,
+              lon: null,
+              last_seen: null,
+              on_radio: false,
+              favorite: false,
+              radio_policy: 'auto',
+              last_contacted: null,
+              last_read_at: null,
+              first_seen: null,
+            },
+          ],
+        })}
+      />
+    );
+
+    expect(await screen.findByTestId('contact-info-view')).toBeInTheDocument();
+    expect(screen.queryByTestId('repeater-dashboard')).not.toBeInTheDocument();
+  });
+
+  it('renders the full-page contact info view for the contact-info route', async () => {
+    render(
+      <ConversationPane
+        {...createProps({
+          activeConversation: { type: 'contact-info', id: 'ee'.repeat(32), name: 'Alice' },
+        })}
+      />
+    );
+
+    const view = await screen.findByTestId('contact-info-view');
+    expect(view).toHaveAttribute('data-public-key', 'ee'.repeat(32));
     expect(screen.queryByTestId('message-list')).not.toBeInTheDocument();
   });
 

@@ -1,30 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 
-import { api } from '../api';
 import { toast } from './ui/sonner';
-import { Button } from './ui/button';
 import { Bell, Info, Route, Star, Trash2 } from 'lucide-react';
 import { DirectTraceIcon } from './DirectTraceIcon';
-import { RepeaterLogin } from './RepeaterLogin';
-import { ServerLoginStatusBanner } from './ServerLoginStatusBanner';
-import { useRememberedServerPassword } from '../hooks/useRememberedServerPassword';
-import { useRepeaterDashboard } from '../hooks/useRepeaterDashboard';
 import { handleKeyboardActivate } from '../utils/a11y';
-import { isValidLocation } from '../utils/pathUtils';
 import { ContactStatusInfo } from './ContactStatusInfo';
-import type { Contact, Conversation, PathDiscoveryResponse, TelemetryHistoryEntry } from '../types';
+import type { Contact, Conversation, PathDiscoveryResponse } from '../types';
 import { cn } from '../lib/utils';
-import { TelemetryPane } from './repeater/RepeaterTelemetryPane';
-import { NeighborsPane } from './repeater/RepeaterNeighborsPane';
-import { AclPane } from './repeater/RepeaterAclPane';
-import { NodeInfoPane } from './repeater/RepeaterNodeInfoPane';
-import { RadioSettingsPane } from './repeater/RepeaterRadioSettingsPane';
-import { LppTelemetryPane } from './repeater/RepeaterLppTelemetryPane';
-import { OwnerInfoPane } from './repeater/RepeaterOwnerInfoPane';
-import { RegionsPane } from './repeater/RepeaterRegionsPane';
-import { ActionsPane } from './repeater/RepeaterActionsPane';
-import { ConsolePane } from './repeater/RepeaterConsolePane';
-import { TelemetryHistoryPane } from './repeater/RepeaterTelemetryHistoryPane';
+import { RepeaterDashboardBody } from './repeater/RepeaterDashboardBody';
 import { ContactPathDiscoveryModal } from './ContactPathDiscoveryModal';
 import { useT } from '../i18n';
 
@@ -79,83 +62,7 @@ export function RepeaterDashboard({
   const t = useT();
   const [pathDiscoveryOpen, setPathDiscoveryOpen] = useState(false);
   const contact = contacts.find((c) => c.public_key === conversation.id) ?? null;
-  const hasAdvertLocation = isValidLocation(contact?.lat ?? null, contact?.lon ?? null);
-  const {
-    loggedIn,
-    loginLoading,
-    loginError,
-    lastLoginAttempt,
-    paneData,
-    paneStates,
-    consoleHistory,
-    consoleLoading,
-    login,
-    loginAsGuest,
-    refreshPane,
-    loadAll,
-    sendConsoleCommand,
-    sendZeroHopAdvert,
-    sendFloodAdvert,
-    rebootRepeater,
-    syncClock,
-  } = useRepeaterDashboard(conversation, { hasAdvertLocation });
-  const { password, setPassword, rememberPassword, setRememberPassword, persistAfterLogin } =
-    useRememberedServerPassword('repeater', conversation.id);
-
-  // Telemetry history: preload from stored data, refresh from live status
-  const [telemetryHistory, setTelemetryHistory] = useState<TelemetryHistoryEntry[]>([]);
-  const telemetryHistorySourceRef = useRef<'none' | 'preload' | 'live'>('none');
-  const telemetryHistoryRequestRef = useRef(0);
-
-  useEffect(() => {
-    telemetryHistoryRequestRef.current += 1;
-    telemetryHistorySourceRef.current = 'none';
-    setTelemetryHistory([]);
-
-    if (!loggedIn) return;
-
-    const requestId = telemetryHistoryRequestRef.current;
-    api
-      .repeaterTelemetryHistory(conversation.id)
-      .then((history) => {
-        if (telemetryHistoryRequestRef.current !== requestId) return;
-        if (telemetryHistorySourceRef.current === 'live') return;
-        telemetryHistorySourceRef.current = 'preload';
-        setTelemetryHistory(history);
-      })
-      .catch(() => {});
-  }, [loggedIn, conversation.id]);
-
-  // When a live status fetch returns embedded telemetry_history, replace local state
-  useEffect(() => {
-    const liveHistory = paneData.status?.telemetry_history;
-    if (!liveHistory) return;
-    telemetryHistorySourceRef.current = 'live';
-    setTelemetryHistory(liveHistory);
-  }, [paneData.status?.telemetry_history]);
-
-  // Command palette "ACL login + load all" auto-action
-  const autoLoginConsumedRef = useRef(false);
-  useEffect(() => {
-    if (!autoLoginAndLoadAll || autoLoginConsumedRef.current) return;
-    autoLoginConsumedRef.current = true;
-    onAutoLoginConsumed?.();
-    void loginAsGuest().then(() => loadAll());
-  }, [autoLoginAndLoadAll, onAutoLoginConsumed, loginAsGuest, loadAll]);
-
   const isFav = contact?.favorite ?? false;
-
-  const handleRepeaterLogin = async (nextPassword: string) => {
-    await login(nextPassword);
-    persistAfterLogin(nextPassword);
-  };
-  const handleRepeaterGuestLogin = async () => {
-    await loginAsGuest();
-    persistAfterLogin('');
-  };
-
-  // Loading all panes indicator
-  const anyLoading = Object.values(paneStates).some((s) => s.loading);
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -211,17 +118,6 @@ export function RepeaterDashboard({
           </div>
         )}
         <div className="flex items-center gap-0.5">
-          {loggedIn && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={loadAll}
-              disabled={anyLoading}
-              className="h-7 px-2 text-[0.6875rem] leading-none border-success text-success hover:bg-success/10 hover:text-success sm:h-8 sm:px-3 sm:text-xs"
-            >
-              {anyLoading ? t('common_loading') : t('repeater_load_all')}
-            </Button>
-          )}
           {contact && (
             <button
               className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -307,130 +203,15 @@ export function RepeaterDashboard({
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto p-4">
-        {!loggedIn ? (
-          <RepeaterLogin
-            repeaterName={conversation.name}
-            loading={loginLoading}
-            error={loginError}
-            password={password}
-            onPasswordChange={setPassword}
-            rememberPassword={rememberPassword}
-            onRememberPasswordChange={setRememberPassword}
-            onLogin={handleRepeaterLogin}
-            onLoginAsGuest={handleRepeaterGuestLogin}
-          />
-        ) : (
-          <div className="space-y-4">
-            <ServerLoginStatusBanner
-              attempt={lastLoginAttempt}
-              loading={loginLoading}
-              canRetryPassword={password.trim().length > 0}
-              onRetryPassword={() => handleRepeaterLogin(password)}
-              onRetryBlank={handleRepeaterGuestLogin}
-              blankRetryLabel={t('repeater_retry_existing_access_login')}
-            />
-            {/* Top row: Telemetry + Radio Settings | Node Info + Neighbors */}
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-stretch">
-              <div className="flex flex-col gap-4">
-                <NodeInfoPane
-                  data={paneData.nodeInfo}
-                  state={paneStates.nodeInfo}
-                  onRefresh={() => refreshPane('nodeInfo')}
-                  disabled={anyLoading}
-                />
-                <TelemetryPane
-                  data={paneData.status}
-                  state={paneStates.status}
-                  onRefresh={() => refreshPane('status')}
-                  disabled={anyLoading}
-                />
-                <RadioSettingsPane
-                  data={paneData.radioSettings}
-                  state={paneStates.radioSettings}
-                  onRefresh={() => refreshPane('radioSettings')}
-                  disabled={anyLoading}
-                  advertData={paneData.advertIntervals}
-                  advertState={paneStates.advertIntervals}
-                  onRefreshAdvert={() => refreshPane('advertIntervals')}
-                />
-                <LppTelemetryPane
-                  data={paneData.lppTelemetry}
-                  state={paneStates.lppTelemetry}
-                  onRefresh={() => refreshPane('lppTelemetry')}
-                  disabled={anyLoading}
-                />
-              </div>
-              <div className="flex min-h-0 flex-col gap-4">
-                <NeighborsPane
-                  data={paneData.neighbors}
-                  state={paneStates.neighbors}
-                  onRefresh={() => refreshPane('neighbors')}
-                  disabled={anyLoading}
-                  repeaterContact={contact}
-                  contacts={contacts}
-                  nodeInfo={paneData.nodeInfo}
-                  nodeInfoState={paneStates.nodeInfo}
-                  repeaterName={conversation.name}
-                />
-              </div>
-            </div>
-
-            {/* Remaining panes: ACL + Regions | Owner Info + Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex flex-col gap-4">
-                <AclPane
-                  data={paneData.acl}
-                  state={paneStates.acl}
-                  onRefresh={() => refreshPane('acl')}
-                  disabled={anyLoading}
-                />
-                <RegionsPane
-                  data={paneData.regions}
-                  state={paneStates.regions}
-                  onRefresh={() => refreshPane('regions')}
-                  disabled={anyLoading}
-                  onSeedKnownRegions={onSeedKnownRegions}
-                />
-              </div>
-              <div className="flex flex-col gap-4">
-                <OwnerInfoPane
-                  data={paneData.ownerInfo}
-                  state={paneStates.ownerInfo}
-                  onRefresh={() => refreshPane('ownerInfo')}
-                  disabled={anyLoading}
-                  publicKey={conversation.id}
-                  onSaveOwnerInfo={async (pk, info) => {
-                    await api.updateContactAnnotations(pk, { owner_info: info });
-                    await refreshPane('ownerInfo');
-                  }}
-                />
-                <ActionsPane
-                  onSendZeroHopAdvert={sendZeroHopAdvert}
-                  onSendFloodAdvert={sendFloodAdvert}
-                  onSyncClock={syncClock}
-                  onReboot={rebootRepeater}
-                  consoleLoading={consoleLoading}
-                />
-              </div>
-            </div>
-
-            {/* Console - full width */}
-            <ConsolePane
-              history={consoleHistory}
-              loading={consoleLoading}
-              onSend={sendConsoleCommand}
-            />
-
-            {/* Telemetry history chart - full width, below console */}
-            <TelemetryHistoryPane
-              entries={telemetryHistory}
-              publicKey={conversation.id}
-              contacts={contacts}
-              trackedTelemetryRepeaters={trackedTelemetryRepeaters}
-              onToggleTrackedTelemetry={onToggleTrackedTelemetry}
-            />
-          </div>
-        )}
+        <RepeaterDashboardBody
+          conversation={conversation}
+          contacts={contacts}
+          trackedTelemetryRepeaters={trackedTelemetryRepeaters}
+          onToggleTrackedTelemetry={onToggleTrackedTelemetry}
+          onSeedKnownRegions={onSeedKnownRegions}
+          autoLoginAndLoadAll={autoLoginAndLoadAll}
+          onAutoLoginConsumed={onAutoLoginConsumed}
+        />
       </div>
     </div>
   );

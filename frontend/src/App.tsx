@@ -350,6 +350,7 @@ export function App() {
     handleOpenSearchWithQuery,
   } = useConversationNavigation({
     channels,
+    contacts,
     handleSelectConversation,
   });
 
@@ -797,6 +798,24 @@ export function App() {
     onClearRepeaterAutoLogin: () => setRepeaterAutoLoginKey(null),
     blockedKeys: appSettings?.blocked_keys,
     blockedNames: appSettings?.blocked_names,
+    contactInfoViewProps: {
+      onNavigateToChannel: handleNavigateToChannel,
+      onSearchMessagesByKey: (publicKey: string) => {
+        handleOpenSearchWithQuery(`user:${publicKey}`);
+      },
+      onToggleBlockedKey: handleBlockKey,
+      onToggleBlockedName: handleBlockName,
+      trackedTelemetryContacts: appSettings?.tracked_telemetry_contacts ?? [],
+      onToggleTrackedTelemetryContact: handleToggleTrackedTelemetryContact,
+      onOpenConversation: (publicKey: string) => {
+        const target = contacts.find((c) => c.public_key === publicKey);
+        handleSelectConversationWithTargetReset({
+          type: 'contact',
+          id: publicKey,
+          name: getContactDisplayName(target?.name ?? null, publicKey, target?.last_advert ?? null),
+        });
+      },
+    },
   };
   const searchProps = {
     contacts,

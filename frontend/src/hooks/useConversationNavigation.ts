@@ -1,10 +1,13 @@
 import { useCallback, useState, type Dispatch, type SetStateAction } from 'react';
 
 import type { SearchNavigateTarget } from '../components/SearchView';
-import type { Channel, Conversation } from '../types';
+import type { Channel, Contact, Conversation } from '../types';
+import { useIsMobile } from '../map/controls/breakpoints';
+import { getContactDisplayName } from '../utils/pubkey';
 
 interface UseConversationNavigationArgs {
   channels: Channel[];
+  contacts: Contact[];
   handleSelectConversation: (conv: Conversation) => void;
 }
 
@@ -30,8 +33,10 @@ interface UseConversationNavigationResult {
 
 export function useConversationNavigation({
   channels,
+  contacts,
   handleSelectConversation,
 }: UseConversationNavigationArgs): UseConversationNavigationResult {
+  const isMobile = useIsMobile();
   const [targetMessageId, setTargetMessageId] = useState<number | null>(null);
   const [infoPaneContactKey, setInfoPaneContactKey] = useState<string | null>(null);
   const [infoPaneFromChannel, setInfoPaneFromChannel] = useState(false);
@@ -41,10 +46,29 @@ export function useConversationNavigation({
     nonce: number;
   } | null>(null);
 
-  const handleOpenContactInfo = useCallback((publicKey: string, fromChannel?: boolean) => {
-    setInfoPaneContactKey(publicKey);
-    setInfoPaneFromChannel(fromChannel ?? false);
-  }, []);
+  const handleOpenContactInfo = useCallback(
+    (publicKey: string, fromChannel?: boolean) => {
+      // Desktop: open the routed full-page contact-info view. Mobile: keep the
+      // side-panel overlay unchanged.
+      if (!isMobile) {
+        const contact = contacts.find((c) => c.public_key === publicKey) ?? null;
+        handleSelectConversation({
+          type: 'contact-info',
+          id: publicKey,
+          name: getContactDisplayName(
+            contact?.name ?? null,
+            publicKey,
+            contact?.last_advert ?? null
+          ),
+        });
+        setInfoPaneContactKey(null);
+        return;
+      }
+      setInfoPaneContactKey(publicKey);
+      setInfoPaneFromChannel(fromChannel ?? false);
+    },
+    [isMobile, contacts, handleSelectConversation]
+  );
 
   const handleCloseContactInfo = useCallback(() => {
     setInfoPaneContactKey(null);

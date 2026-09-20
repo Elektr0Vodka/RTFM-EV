@@ -500,6 +500,39 @@ describe('App startup hash resolution', () => {
     expect(window.location.hash).toBe('');
   });
 
+  it('resolves a contact-info hash to the full-page view once contacts load', async () => {
+    const aliceContact = {
+      public_key: 'b'.repeat(64),
+      name: 'Alice',
+      type: 1,
+      flags: 0,
+      direct_path: null,
+      direct_path_len: -1,
+      direct_path_hash_mode: 0,
+      last_advert: null,
+      lat: null,
+      lon: null,
+      last_seen: null,
+      on_radio: false,
+      favorite: false,
+      radio_policy: 'auto',
+      last_contacted: null,
+      last_read_at: null,
+      first_seen: null,
+    };
+
+    setHash(`#contact-info/${aliceContact.public_key}/Alice`);
+    mocks.api.getContacts.mockResolvedValue([aliceContact]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      for (const node of screen.getAllByTestId('active-conversation')) {
+        expect(node).toHaveTextContent(`contact-info:${aliceContact.public_key}:Alice`);
+      }
+    });
+  });
+
   describe('Browser back/forward navigation', () => {
     it('navigates to a channel conversation when popstate fires', async () => {
       const opsChannel = {
@@ -579,6 +612,51 @@ describe('App startup hash resolution', () => {
       await waitFor(() => {
         for (const node of screen.getAllByTestId('active-conversation')) {
           expect(node).toHaveTextContent(`contact:${aliceContact.public_key}:Alice`);
+        }
+      });
+    });
+
+    it('navigates to the contact-info view when popstate fires with a contact-info hash', async () => {
+      const aliceContact = {
+        public_key: 'b'.repeat(64),
+        name: 'Alice',
+        type: 1,
+        flags: 0,
+        direct_path: null,
+        direct_path_len: -1,
+        last_advert: null,
+        lat: null,
+        lon: null,
+        last_seen: null,
+        on_radio: false,
+        favorite: false,
+        radio_policy: 'auto',
+        last_contacted: null,
+        last_read_at: null,
+        first_seen: null,
+      };
+
+      setHash('');
+      mocks.api.getContacts.mockResolvedValue([aliceContact]);
+
+      render(<App />);
+
+      await waitFor(() => {
+        for (const node of screen.getAllByTestId('active-conversation')) {
+          expect(node).toHaveTextContent(`channel:${publicChannel.key}:Public`);
+        }
+      });
+
+      await act(async () => {});
+
+      act(() => {
+        setHash(`#contact-info/${aliceContact.public_key}/Alice`);
+        window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+      });
+
+      await waitFor(() => {
+        for (const node of screen.getAllByTestId('active-conversation')) {
+          expect(node).toHaveTextContent(`contact-info:${aliceContact.public_key}:Alice`);
         }
       });
     });
