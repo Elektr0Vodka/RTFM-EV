@@ -11,6 +11,26 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-20 (Signal-audio Firefox playback fix, sound-behavior-localhost)
+
+### Packet-feed sound (frontend)
+- **Fixed inconsistent packet-feed sound in Firefox.** Each incoming packet's
+  click was scheduled at exactly `AudioContext.currentTime` (zero lead) whenever
+  packets arrived sparsely (one at a time, the common case). A click laid down at
+  `currentTime` races the audio render quantum: by the time the audio thread
+  processes it, `currentTime` has advanced past it and its whole gain envelope is
+  in the past. Chrome recomputes the ramp and plays it anyway; Firefox collapses
+  the envelope and drops the click, so playback was intermittent. `onPacket` now
+  floors the scheduling time at `currentTime + MIN_LEAD_S` (20 ms, inaudible), so
+  every click's envelope stays in the future. Applies to all three themes
+  (geiger/sonar/waterdrip), which share the same scheduling path. No backend
+  change, no migration, no new strings.
+  Verified: Chrome baseline instrumented live on `http://127.0.0.1:8000/#raw`
+  (context running, clicks fired per packet, scheduling lead measured at 0 ms
+  before the fix); 15 vitest cases pass (new guard on the minimum lead); lint,
+  prettier, and build clean. NOT VERIFIED in Firefox (no Firefox automation
+  available).
+
 ## Update 2026-09-20 (Partial-node resolution: promote on apply, contact-info-desktop-layout follow-up)
 
 ### Partial-node resolution (backend + frontend)
