@@ -111,6 +111,29 @@ class ExternalMapRepository:
         return [(row["pubkey"], row["name"], row["lat"], row["lon"]) for row in rows]
 
     @staticmethod
+    async def get(pubkey: str) -> ExternalMapNode | None:
+        """Return one cached node by full pubkey, or ``None``."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT pubkey, name, role, lat, lon, last_seen, advert_count, mobile "
+                "FROM external_map_nodes WHERE pubkey = ?",
+                (pubkey.lower(),),
+            ) as cursor:
+                row = await cursor.fetchone()
+        if row is None:
+            return None
+        return ExternalMapNode(
+            pubkey=row["pubkey"],
+            name=row["name"],
+            role=row["role"],
+            lat=row["lat"],
+            lon=row["lon"],
+            last_seen=row["last_seen"],
+            advert_count=row["advert_count"],
+            mobile=bool(row["mobile"]),
+        )
+
+    @staticmethod
     async def status() -> tuple[int, int | None]:
         """Return ``(count, last_synced_at)`` for the cached node set."""
         async with db.readonly() as conn:

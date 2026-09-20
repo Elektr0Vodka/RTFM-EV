@@ -503,7 +503,7 @@ export const api = {
   previewPartialResolutions: () =>
     fetchJson<PartialResolutionPreview>('/partial-resolutions/preview'),
   applyPartialResolutions: (selections: PartialResolutionApplyItem[]) =>
-    fetchJson<{ applied: number }>('/partial-resolutions/apply', {
+    fetchJson<{ applied: number; promoted: number }>('/partial-resolutions/apply', {
       method: 'POST',
       body: JSON.stringify({ selections }),
     }),

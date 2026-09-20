@@ -320,22 +320,29 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `POST /packets/maintenance`
 
 ### Partial-node resolution
-Soft, reversible links from a pubkey *prefix* to a full pubkey, matched against
-the external-map cache, for partial nodes (prefix-only placeholder contacts and
-1/2/3-byte hop hashes seen in paths but never heard via a full advert). Stored in
-`partial_node_resolutions` (keyed by `prefix_hex`); the `contacts` table is never
-written. Scoring is pure (`app/services/partial_resolution.py`): a unique
-candidate is high-confidence; ambiguous candidates rank by prefix width, candidate
-count, and distance from the prefix's located path-neighbours.
+Resolves partial nodes (prefix-only placeholder contacts and 1/2/3-byte hop hashes
+seen in paths but never heard via a full advert) against the external-map cache.
+A soft link (prefix -> full pubkey) is stored in `partial_node_resolutions` (keyed
+by `prefix_hex`) for provenance and advert-links map disambiguation. Scoring is
+pure (`app/services/partial_resolution.py`): a unique candidate is high-confidence;
+ambiguous candidates rank by prefix width, candidate count, and distance from the
+prefix's located path-neighbours.
 - `GET /partial-resolutions/preview` - scan + propose matches (read-only; returns a
   `reason` when the external-map cache is empty)
-- `POST /partial-resolutions/apply` - persist the user-selected soft links
+- `POST /partial-resolutions/apply` - for each selection: record the soft link,
+  then **promote** the node to a full contact so its info applies live. It creates
+  the full contact from the external-map node (name/location go in the *advertised*
+  fields, so a later RF advert overwrites the guess; an already-existing contact is
+  left untouched), runs `promote_prefix_contacts_for_contact` to merge the
+  placeholder in, and broadcasts `contact` / `contact_resolved` WS events. Returns
+  `{applied, promoted}`.
 - `GET /partial-resolutions` - list current soft links
-- `DELETE /partial-resolutions/{prefix_hex}` - clear one
-Read-time enrichment consumes these: ContactInfoPane display + analyzer button for
-resolved prefix-only contacts, the advert-links resolver (`resolve_advert_edges`'s
-`confirmed` arg disambiguates a hop to the chosen node), and a Prefix Collisions
-tab badge.
+- `DELETE /partial-resolutions/{prefix_hex}` - clear one soft link (does not
+  un-promote a contact already created)
+Read-time enrichment also consumes the soft links: `ContactInfoBody` display +
+analyzer button for still-unpromoted prefix-only contacts, the advert-links
+resolver (`resolve_advert_edges`'s `confirmed` arg disambiguates a hop to the
+chosen node), and a Prefix Collisions tab badge.
 
 ### Read state
 - `GET /read-state/unreads` - counts, mention flags, `last_message_times`, `last_read_ats`, and `first_unread_ids`

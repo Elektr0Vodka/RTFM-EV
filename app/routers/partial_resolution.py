@@ -1,9 +1,11 @@
 """Endpoints for soft resolution of partial-node identities.
 
 Matches partial pubkey prefixes (prefix-only placeholder contacts and hop hashes
-seen in paths) against the already-synced external-map cache, lets the user
-review the proposals, and persists reversible soft resolution links. Never
-writes into the authoritative ``contacts`` table.
+seen in paths) against the already-synced external-map cache and lets the user
+review the proposals. Applying a proposal records a reversible soft link (for
+provenance and advert-links map disambiguation) and promotes the node to a full
+contact so its resolved name/location apply live across the app. The resolved
+name/location go in the advertised fields, so a later RF advert overwrites them.
 """
 
 import logging
@@ -11,15 +13,37 @@ import logging
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from app.models import PartialNodeResolution
+from app.models import ContactUpsert, PartialNodeResolution
 from app.repository import ContactRepository
 from app.repository.advert_links import AdvertLinksRepository
 from app.repository.external_map import ExternalMapRepository
 from app.repository.partial_resolution import PartialResolutionRepository
+from app.routers.contacts import _broadcast_contact_resolution, _broadcast_contact_update
+from app.services.contact_reconciliation import promote_prefix_contacts_for_contact
 from app.services.partial_resolution import Candidate, compute_preview
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/partial-resolutions", tags=["partial-resolutions"])
+
+# MeshCore contact types.
+_CONTACT_TYPE_CLIENT = 1
+_CONTACT_TYPE_REPEATER = 2
+_CONTACT_TYPE_ROOM = 3
+_CONTACT_TYPE_SENSOR = 4
+
+
+def _role_to_contact_type(role: str) -> int:
+    """Map an external-map role string to a MeshCore contact type (0 = unknown)."""
+    r = (role or "").lower()
+    if "repeat" in r:
+        return _CONTACT_TYPE_REPEATER
+    if "room" in r:
+        return _CONTACT_TYPE_ROOM
+    if "sensor" in r:
+        return _CONTACT_TYPE_SENSOR
+    if "client" in r or "companion" in r or "chat" in r:
+        return _CONTACT_TYPE_CLIENT
+    return 0
 
 
 class PreviewCandidate(BaseModel):
@@ -59,6 +83,7 @@ class ApplyRequest(BaseModel):
 
 class ApplyResponse(BaseModel):
     applied: int
+    promoted: int
 
 
 class DeleteResponse(BaseModel):
@@ -125,8 +150,16 @@ async def preview() -> PreviewResponse:
 
 @router.post("/apply", response_model=ApplyResponse)
 async def apply(request: ApplyRequest) -> ApplyResponse:
-    """Persist the user-selected soft resolution links."""
+    """Apply the user-selected resolutions.
+
+    For each selection: record the soft link (provenance + map disambiguation),
+    ensure a full contact exists for the resolved pubkey (created from the
+    external-map node's name/location in the *advertised* fields, so a later RF
+    advert overwrites the guess), then promote any prefix-only placeholder into
+    it. Broadcasts contact updates so the change applies live without a refresh.
+    """
     applied = 0
+    promoted_total = 0
     for item in request.selections:
         await PartialResolutionRepository.upsert(
             prefix_hex=item.prefix_hex,
@@ -136,7 +169,37 @@ async def apply(request: ApplyRequest) -> ApplyResponse:
             candidate_count=item.candidate_count,
         )
         applied += 1
-    return ApplyResponse(applied=applied)
+
+        resolved = item.resolved_pubkey.lower()
+        if len(resolved) != 64:
+            continue  # cannot promote without a full key
+
+        # Create the full contact only if it does not already exist, so a real
+        # advert-heard contact is never overwritten by a guessed name.
+        existing = await ContactRepository.get_by_key(resolved)
+        if existing is None:
+            ext = await ExternalMapRepository.get(resolved)
+            await ContactRepository.upsert(
+                ContactUpsert(
+                    public_key=resolved,
+                    name=(ext.name or None) if ext else item.resolved_name,
+                    type=_role_to_contact_type(ext.role) if ext else 0,
+                    lat=ext.lat if ext else None,
+                    lon=ext.lon if ext else None,
+                    on_radio=False,
+                )
+            )
+
+        promoted = await promote_prefix_contacts_for_contact(public_key=resolved, log=logger)
+        promoted_total += len(promoted)
+
+        stored = await ContactRepository.get_by_key(resolved)
+        if stored is not None:
+            await _broadcast_contact_update(stored)
+            if promoted:
+                await _broadcast_contact_resolution(promoted, stored)
+
+    return ApplyResponse(applied=applied, promoted=promoted_total)
 
 
 @router.get("", response_model=list[PartialNodeResolution])
