@@ -74,6 +74,14 @@ describe('MeshHealthView Adverts tab (default)', () => {
     expect(within(row).getByText('1')).toBeInTheDocument();
     expect(within(row).getByText('4')).toBeInTheDocument();
   });
+
+  it('opens a node detail page when a contact name is clicked', async () => {
+    const onOpenNode = vi.fn();
+    render(<MeshHealthView config={null} onOpenNode={onOpenNode} />);
+    await waitFor(() => expect(screen.getByText('Node A')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Node A' }));
+    expect(onOpenNode).toHaveBeenCalledWith('ab'.repeat(32), 'Node A');
+  });
 });
 
 describe('MeshHealthView flood-driven warning highlight', () => {
