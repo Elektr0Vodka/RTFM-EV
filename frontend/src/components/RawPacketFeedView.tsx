@@ -87,18 +87,28 @@ export function RawPacketFeedView({
   const [soundOn, setSoundOn] = useState(getSavedSignalAudioOn);
   const [soundVolume, setSoundVolume] = useState(getSavedSignalAudioVolume);
   const [soundTheme, setSoundTheme] = useState<SignalAudioTheme>(getSavedSignalAudioTheme);
-  const { needsGesture } = useSignalAudio({
+  const { needsGesture, resume: resumeSignalAudio } = useSignalAudio({
     enabled: soundOn,
     volume: soundVolume,
     theme: soundTheme,
   });
 
   const handleToggleSound = () => {
-    setSoundOn((prev) => {
-      const next = !prev;
-      setSavedSignalAudioOn(next);
-      return next;
-    });
+    // Sound is on but the context has not resumed yet (needs a gesture, e.g. sound was
+    // persisted on across a reload in Firefox): treat this click as "enable now" and
+    // resume, rather than turning sound off. This makes the existing toggle the reliable
+    // enable action without needing a separate prompt.
+    if (soundOn && needsGesture) {
+      resumeSignalAudio();
+      return;
+    }
+    const next = !soundOn;
+    // Resume the AudioContext synchronously in this click handler when turning sound on.
+    // Firefox only starts a context from within the gesture; deferring to an effect leaves
+    // it suspended and silent.
+    if (next) resumeSignalAudio();
+    setSoundOn(next);
+    setSavedSignalAudioOn(next);
   };
   const handleSoundVolumeChange = (value: number) => {
     setSoundVolume(value);
@@ -216,12 +226,14 @@ export function RawPacketFeedView({
               </>
             )}
             {needsGesture && (
-              <span
-                className="text-[0.6875rem] text-warning whitespace-nowrap"
+              <button
+                type="button"
+                onClick={resumeSignalAudio}
+                className="text-[0.6875rem] text-warning whitespace-nowrap underline underline-offset-2 hover:text-warning/80"
                 title={t('packet_sound_needs_gesture_tip')}
               >
                 {t('packet_sound_needs_gesture')}
-              </span>
+              </button>
             )}
           </div>
         </div>

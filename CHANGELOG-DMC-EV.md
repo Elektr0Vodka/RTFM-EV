@@ -11,6 +11,45 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-21 (Signal-audio: make packet-feed sound work in Firefox, sound-behavior-localhost)
+
+### Packet-feed sound (frontend)
+Follow-up to #154 (which added a 20 ms scheduling lead but was never verified in
+Firefox). Packet-feed sound was still silent/erratic in Firefox on all three
+themes; now fixed and verified live in Firefox. Root causes, each Firefox-specific
+(Chrome tolerated all of them, which is why it always worked there):
+- **Main-thread stall dropped clicks.** A packet arrives over the WebSocket and is
+  played from inside a React re-render of the feed, which stalls the main thread.
+  Firefox does not commit a scheduled `AudioBufferSource`/`AudioParam` event until
+  the JS task yields; if the scheduled time has already passed by then, it silently
+  drops the click. The 20 ms lead was far too small to survive a render stall.
+  `MIN_LEAD_S` is now **250 ms** (and `MAX_LEAD_S` 600 ms for burst headroom) — the
+  tick lands ~250 ms after the packet, imperceptible for an ambient sound, and
+  survives the stall. This is why the standalone reference app (plain JS, no heavy
+  re-render) worked with near-zero lead but this one did not.
+- **Context created at page load was delivered silent.** When sound was persisted
+  on, the engine created its `AudioContext` at load (no user gesture); Firefox
+  keeps such a context silent even after it later resumes. `setEnabled()` no longer
+  creates the context; a new `resume()` method creates + resumes it, called only
+  from a real user gesture (the Sound toggle, the "click to enable sound" hint, or
+  the first pointer/key event). The hint is now an actual button, and clicking the
+  Sound button while it is on-but-suspended resumes rather than toggling off.
+- **NaN SNR threw and aborted the click.** A non-finite `snr` produced a non-finite
+  bandpass frequency; Firefox throws on assigning a non-finite `AudioParam.value`
+  (Chrome ignores it), aborting the click. `snrNorm` now treats any non-finite SNR
+  as the floor, covering geiger/sonar/waterdrip.
+- **No scheduling into a suspended context.** `onPacket` drops the click (and nudges
+  a resume) when the context is not `running`, instead of queuing against a frozen
+  clock and flushing a "machine-gun" burst when it resumes.
+
+The geiger tick keeps its original sharp envelope (exponential ~11 ms decay,
+matching DutchMeshCore-Observers); the ramps render reliably once scheduled the
+250 ms ahead. No backend change, no migration, no new i18n strings.
+Verified live in Firefox on `http://127.0.0.1:8000/#raw`: all three themes tick
+per packet; isolated each root cause with in-page Web Audio measurements (master
+output peaked at ~0 under a simulated stall with 20 ms lead, ~1.7 with 250 ms).
+61 signal-audio vitest cases plus lint, prettier, and build clean.
+
 ## Update 2026-09-20 (Signal-audio Firefox playback fix, sound-behavior-localhost)
 
 ### Packet-feed sound (frontend)

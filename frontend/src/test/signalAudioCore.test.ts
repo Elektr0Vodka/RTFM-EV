@@ -34,6 +34,14 @@ describe('snrToPitch', () => {
   it('clamps SNR above the high bound', () => {
     expect(snrToPitch(100)).toBeCloseTo(1200);
   });
+
+  it('treats a non-finite SNR as the low bound (never returns NaN)', () => {
+    // A NaN/Infinity result would be assigned to an AudioParam frequency, which throws in
+    // Firefox (aborting the sound). Guard so real packets with a bad snr stay audible.
+    expect(snrToPitch(NaN)).toBeCloseTo(300);
+    expect(snrToPitch(Infinity)).toBeCloseTo(300);
+    expect(Number.isFinite(snrToPitch(NaN))).toBe(true);
+  });
 });
 
 describe('snrPitchFactor', () => {
@@ -51,6 +59,11 @@ describe('snrPitchFactor', () => {
 
   it('treats a null SNR as the low bound', () => {
     expect(snrPitchFactor(null)).toBeCloseTo(0.85);
+  });
+
+  it('treats a non-finite SNR as the low bound (never returns NaN)', () => {
+    expect(snrPitchFactor(NaN)).toBeCloseTo(0.85);
+    expect(Number.isFinite(snrPitchFactor(NaN))).toBe(true);
   });
 });
 
