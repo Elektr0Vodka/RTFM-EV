@@ -6,6 +6,9 @@ import type {
   UrlPreview,
   ExternalMapNode,
   ExternalMapStatus,
+  PartialResolutionPreview,
+  PartialResolutionApplyItem,
+  PartialNodeResolution,
   BulkCreateHashtagChannelsResult,
   ChannelImportResult,
   Channel,
@@ -495,6 +498,20 @@ export const api = {
     });
     return fetchJson<ExternalMapNode[]>(`/external-map/nodes?${qs.toString()}`, { signal });
   },
+
+  // Partial-node resolution (soft prefix -> full-pubkey links from the external map)
+  previewPartialResolutions: () =>
+    fetchJson<PartialResolutionPreview>('/partial-resolutions/preview'),
+  applyPartialResolutions: (selections: PartialResolutionApplyItem[]) =>
+    fetchJson<{ applied: number }>('/partial-resolutions/apply', {
+      method: 'POST',
+      body: JSON.stringify({ selections }),
+    }),
+  listPartialResolutions: () => fetchJson<PartialNodeResolution[]>('/partial-resolutions'),
+  deletePartialResolution: (prefixHex: string) =>
+    fetchJson<{ deleted: boolean }>(`/partial-resolutions/${encodeURIComponent(prefixHex)}`, {
+      method: 'DELETE',
+    }),
 
   // Chat link preview (unfurl)
   unfurl: (url: string, signal?: AbortSignal) =>

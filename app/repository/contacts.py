@@ -332,6 +332,20 @@ class ContactRepository:
         return [(row["public_key"], row["name"], row["eff_lat"], row["eff_lon"]) for row in rows]
 
     @staticmethod
+    async def prefix_only_keys() -> list[str]:
+        """Public keys of prefix-only placeholder contacts (shorter than 64 hex).
+
+        These are partial identities we hold but have never heard a full advert
+        for, so they are candidates for soft resolution against the external map.
+        """
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT public_key FROM contacts WHERE LENGTH(public_key) < 64"
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [row["public_key"] for row in rows]
+
+    @staticmethod
     async def get_repeaters_by_recent(limit: int = 8) -> list[Contact]:
         """Get repeater contacts ordered by most recently seen.
 

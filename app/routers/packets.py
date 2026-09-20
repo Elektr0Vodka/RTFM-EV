@@ -24,6 +24,7 @@ from app.repository import (
     RequestTrafficRepository,
 )
 from app.repository.advert_links import AdvertLinksRepository
+from app.repository.partial_resolution import PartialResolutionRepository
 from app.repository.request_traffic import aggregate_request_traffic
 from app.services.advert_links import LocatedNode, resolve_advert_edges
 from app.services.messages import backfill_message_regions
@@ -1087,7 +1088,12 @@ async def get_advert_links(limit: int = 5000) -> list[AdvertLinkEdge]:
     if self_node is not None:
         node_by_pk[self_node.pubkey] = self_node
 
-    edges = resolve_advert_edges(rows, located, self_node)
+    # User-confirmed soft resolutions disambiguate hop hashes to a chosen node.
+    confirmed = {
+        r.prefix_hex: r.resolved_pubkey for r in await PartialResolutionRepository.list_all()
+    }
+
+    edges = resolve_advert_edges(rows, located, self_node, confirmed=confirmed)
 
     def to_node(pubkey: str) -> AdvertLinkNode:
         n = node_by_pk[pubkey]
