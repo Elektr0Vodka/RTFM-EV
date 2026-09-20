@@ -50,6 +50,52 @@ per packet; isolated each root cause with in-page Web Audio measurements (master
 output peaked at ~0 under a simulated stall with 20 ms lead, ~1.7 with 250 ms).
 61 signal-audio vitest cases plus lint, prettier, and build clean.
 
+## Update 2026-09-21 (Discord issues: Packet History refresh, manual location surfaces, map role filter + label priority)
+
+### Packet History (frontend)
+- **Removed pause/resume; the view is now query + manual refresh, like Mesh
+  Health.** The type/path filters were applied *before* the pause snapshot gate
+  while "group repeats" was applied *after* it (inside `RawPacketList`), so
+  changing type/path while paused had no visible effect but group-repeats did.
+  Pause is gone entirely: the view queries the selected time window and a
+  **Refresh** button (`repeater_refresh`, spinner while loading) re-anchors preset
+  windows to "now" and re-queries. Live WebSocket auto-append was dropped, so
+  filter changes always re-apply immediately. `usePacketHistory` lost its
+  `isLive` / `livePackets` / `channels` inputs and gained a `refreshToken`; the
+  live **Raw Packet Feed** keeps its Pause button unchanged. No backend change,
+  no migration, no new strings (`packet_pause` / `packet_resume` remain in use by
+  the Raw Packet Feed).
+
+### Manual location display (frontend)
+- **A manual location override now shows on the message-path screen, the route
+  map, and the contact header**, not only the node map. Those three surfaces read
+  the raw advertised `lat`/`lon` (null for a manual-only node, so the node was
+  dropped); they now use the existing `getEffectiveLocation` resolver.
+  `resolvePath` projects effective coordinates onto each hop match, `getSenderInfo`
+  resolves the sender endpoint's coordinates, and `ContactStatusInfo` renders the
+  effective location. Precedence is unchanged (advertised wins; manual only fills
+  gaps), so the node map is unaffected.
+
+### Node map (frontend)
+- **Role filter.** A new "Node roles" toggle in the map Filters panel shows/hides
+  local nodes by role (repeater / room / companion / sensor), mirroring the
+  existing "heard" filter; the focused node is exempt. Persisted per browser
+  (`remoteterm-map-hidden-roles`). New strings `map_roles_label` / `map_roles_help`
+  (EN/NL/DE).
+- **Label priority.** The node-label symbol layer had no `symbol-sort-key`, so a
+  clustered companion could win the label over a nearby repeater. Labels now sort
+  repeater < room < sensor < companion, so repeaters keep their name in a cluster.
+
+Verified: full frontend gate green (`tsc`, `eslint` 0 errors, `prettier` on
+changed files, `vite build`, 1725 vitest incl. new coverage for each fix).
+Live-verified on the local container (`http://127.0.0.1:8000`): Packet History
+has no pause control and re-queries on Refresh, with a type-filter change
+applying to the list immediately; the map Node roles filter hides nodes by role
+(unchecking Repeater + Client left only Room/Sensor); a temporary manual
+override showed in the contact header (`52.457, 4.765`) and was then reverted;
+the live map's `rt-node-labels` layer carries `symbol-sort-key: ['get','sortKey']`
+with `text-allow-overlap` off, so repeaters win label collisions.
+
 ## Update 2026-09-20 (Signal-audio Firefox playback fix, sound-behavior-localhost)
 
 ### Packet-feed sound (frontend)
