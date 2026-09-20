@@ -10,6 +10,7 @@ import { lppDisplayUnit } from '../repeater/repeaterPaneShared';
 import { useDistanceUnit } from '../../contexts/DistanceUnitContext';
 import { BulkDeleteContactsModal } from './BulkDeleteContactsModal';
 import { BulkDeleteChannelsModal } from './BulkDeleteChannelsModal';
+import { PartialNodeSyncModal } from './PartialNodeSyncModal';
 import type {
   AppSettings,
   AppSettingsUpdate,
@@ -57,6 +58,7 @@ export function SettingsRadioAppSection({
   const [discoveryBlockedTypes, setDiscoveryBlockedTypes] = useState<number[]>([]);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleteChannelsOpen, setBulkDeleteChannelsOpen] = useState(false);
+  const [partialSyncOpen, setPartialSyncOpen] = useState(false);
 
   const [latestTelemetry, setLatestTelemetry] = useState<
     Record<string, TelemetryHistoryEntry | null>
@@ -603,6 +605,17 @@ export function SettingsRadioAppSection({
             channels={channels}
             onDeleted={(keys) => onBulkDeleteChannels?.(keys)}
           />
+        </div>
+
+        <div className="space-y-3">
+          <h4 className="text-sm font-semibold">{t('partial_sync_settings_label')}</h4>
+          <p className="text-[0.8125rem] text-muted-foreground">
+            {t('partial_sync_settings_desc')}
+          </p>
+          <Button variant="outline" className="w-full" onClick={() => setPartialSyncOpen(true)}>
+            {t('partial_sync_settings_button')}
+          </Button>
+          <PartialNodeSyncModal open={partialSyncOpen} onClose={() => setPartialSyncOpen(false)} />
         </div>
       </div>
     </div>

@@ -97,6 +97,20 @@ class ExternalMapRepository:
         ]
 
     @staticmethod
+    async def all_identities() -> list[tuple[str, str, float, float]]:
+        """``(pubkey, name, lat, lon)`` for every cached node.
+
+        Used to match partial-node prefixes against the full external directory.
+        All rows have coordinates (the table only stores located nodes).
+        """
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT pubkey, name, lat, lon FROM external_map_nodes"
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [(row["pubkey"], row["name"], row["lat"], row["lon"]) for row in rows]
+
+    @staticmethod
     async def status() -> tuple[int, int | None]:
         """Return ``(count, last_synced_at)`` for the cached node set."""
         async with db.readonly() as conn:

@@ -18,6 +18,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { ChevronRight, X } from 'lucide-react';
+import { api } from '../api';
 import { useT } from '../i18n';
 import { StatTile } from './meshHealthShared';
 
@@ -122,6 +123,8 @@ export function MeshPrefixCollisionsPanel({ refreshKey, onLoadingChange, onOpenN
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   // A clicked matrix cell filters the group list to that first byte (0..255).
   const [selectedByte, setSelectedByte] = useState<number | null>(null);
+  // Prefixes that have a soft resolution (a partial node linked to a full pubkey).
+  const [resolvedPrefixes, setResolvedPrefixes] = useState<Set<string>>(new Set());
 
   const toggleGroup = (prefix: string) =>
     setExpanded((prev) => {
@@ -164,6 +167,21 @@ export function MeshPrefixCollisionsPanel({ refreshKey, onLoadingChange, onOpenN
       cancelled = true;
     };
   }, [refreshKey, t]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .listPartialResolutions()
+      .then((rows) => {
+        if (!cancelled) setResolvedPrefixes(new Set(rows.map((r) => r.prefix_hex)));
+      })
+      .catch(() => {
+        if (!cancelled) setResolvedPrefixes(new Set());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshKey]);
 
   const active = useMemo(
     () => data?.widths.find((w) => w.width === selectedWidth) ?? null,
@@ -325,6 +343,14 @@ export function MeshPrefixCollisionsPanel({ refreshKey, onLoadingChange, onOpenN
                     </span>
                   </span>
                   <span className="flex items-center gap-2">
+                    {resolvedPrefixes.has(g.prefix) && (
+                      <span
+                        className="rounded-sm bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary"
+                        title={t('partial_sync_collision_badge_title')}
+                      >
+                        {t('partial_sync_collision_badge')}
+                      </span>
+                    )}
                     <AssessmentPill group={g} />
                     <span className="text-[11px] tabular-nums text-muted-foreground">
                       {g.count} {t('mesh_health_pc_col_nodes')}

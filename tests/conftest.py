@@ -63,6 +63,7 @@ async def test_db():
         mention_sound,
         messages,
         noise_floor,
+        partial_resolution,
         raw_packets,
         repeater_telemetry,
         request_traffic,
@@ -94,6 +95,7 @@ async def test_db():
         wordlists,
         request_traffic,
         mention_sound,
+        partial_resolution,
         raw_feed_stats,
     ]
     originals = [(mod, mod.db) for mod in submodules]

@@ -38,6 +38,44 @@ the change. Upstream development is on hold; the fork is the active repository.
   `useConversationNavigation` (which forks on `useIsMobile()`). No backend
   change, no migration. New i18n keys in EN/NL/DE.
 
+## Update 2026-09-20 (Sync node info for partial IDs, node-info-sync-partial-ids)
+
+### Partial-node resolution (backend + frontend)
+- **New "Sync partial nodes" tool** in Settings > Radio-App Management. It matches
+  nodes we only hold partial info for (prefix-only placeholder contacts, and
+  1/2/3-byte hop hashes seen in advert paths but never heard through a full
+  advert) against the already-synced external-map cache, and lets the user review
+  and edit the proposed matches before anything is saved. Confirmed matches are
+  stored as reversible **soft resolution links** (prefix -> full pubkey); the
+  authoritative `contacts` table is never written.
+- **Review modal** (`PartialNodeSyncModal`): one row per resolvable prefix with a
+  confidence badge and "seen as" (placeholder / path / both). Unambiguous
+  (single-candidate) rows are checked by default; ambiguous rows show a candidate
+  dropdown and are opt-in. Unmatched prefixes are listed in a collapsed group.
+  Apply persists only the checked rows.
+- **Scoring** (`app/services/partial_resolution.py`, pure): a unique candidate is
+  high-confidence (0.8/0.9/1.0 for 1/2/3-byte prefixes); ambiguous candidates are
+  ranked and scored by prefix width, candidate count, and distance from the
+  prefix's located path-neighbours (the located nodes adjacent to it in the advert
+  paths where it appears).
+- **Read-time enrichment (soft links shown, never as advert-heard identity):**
+  - `ContactInfoBody` (the shared contact-info body used by both the mobile
+    `ContactInfoPane` sheet and the desktop `ContactInfoView`) shows the
+    soft-resolved node for a prefix-only contact with a "Clear resolution" control,
+    and the external-analyzer lookup button (previously hidden for prefix-only
+    contacts) now appears once resolved, using the resolved full pubkey.
+  - The advert-links map resolver (`resolve_advert_edges`) uses a confirmed soft
+    link to disambiguate an ambiguous hop to the chosen node (non-ambiguous).
+  - The Mesh Health Prefix Collisions tab badges a group whose prefix has a soft
+    resolution.
+- Backend: migration `_099_create_partial_node_resolutions` (new
+  `partial_node_resolutions` table, keyed by `prefix_hex`; `LATEST_SCHEMA_VERSION`
+  -> 99), `PartialResolutionRepository`, router
+  `app/routers/partial_resolution.py` (`GET /api/partial-resolutions/preview`,
+  `POST /apply`, `GET`, `DELETE /{prefix_hex}`), plus
+  `ExternalMapRepository.all_identities` and `ContactRepository.prefix_only_keys`.
+- i18n: new `partial_sync_*` keys in EN/NL/DE.
+
 ## Update 2026-09-20 (Mesh Health prefix-collisions tab, feat/mesh-health-prefix-collisions)
 
 ### Mesh Health (backend + frontend)

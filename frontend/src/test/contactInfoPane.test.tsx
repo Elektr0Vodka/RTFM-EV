@@ -18,6 +18,8 @@ vi.mock('../api', () => ({
     getContactAnalytics,
     contactTelemetryHistory,
     updateContactAnnotations,
+    listPartialResolutions: vi.fn().mockResolvedValue([]),
+    deletePartialResolution: vi.fn().mockResolvedValue({ deleted: true }),
   },
   isAbortError: () => false,
 }));

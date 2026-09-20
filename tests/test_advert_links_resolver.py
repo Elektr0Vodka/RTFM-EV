@@ -67,6 +67,25 @@ def test_ambiguous_one_byte_hop_picks_nearest_to_previous():
     assert origin_edges[0].ambiguous is True
 
 
+def test_confirmed_soft_link_overrides_nearest_for_ambiguous_hop():
+    # Hop "aa" matches R1, R2, FAR. Distance alone would pick R1 (nearest to
+    # ORIGIN). A confirmed soft link "aa" -> R2 wins instead, and the edge is not
+    # marked ambiguous because the user confirmed it.
+    rows = [
+        AdvertPathRow(
+            public_key="ff00000000", path_hex="aa", hop_width=1, min_path_len=1, first_seen=3000
+        )
+    ]
+    edges = resolve_advert_edges(rows, [ORIGIN, R1, R2, FAR], SELF, confirmed={"aa": "aa22000000"})
+    origin_edges = [e for e in edges if "ff00000000" in (e.a_pubkey, e.b_pubkey)]
+    assert len(origin_edges) == 1
+    other = [p for p in (origin_edges[0].a_pubkey, origin_edges[0].b_pubkey) if p != "ff00000000"][
+        0
+    ]
+    assert other == "aa22000000"
+    assert origin_edges[0].ambiguous is False
+
+
 def test_unresolvable_hop_breaks_chain_and_drops_tail():
     # First hop "aa11" resolves to R1; second hop "bbbb" matches nothing.
     # Expect origin->R1 only; no R1->self (chain broke before the end).

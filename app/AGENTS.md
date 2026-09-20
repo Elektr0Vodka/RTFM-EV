@@ -319,6 +319,24 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `POST /packets/decrypt/historical`
 - `POST /packets/maintenance`
 
+### Partial-node resolution
+Soft, reversible links from a pubkey *prefix* to a full pubkey, matched against
+the external-map cache, for partial nodes (prefix-only placeholder contacts and
+1/2/3-byte hop hashes seen in paths but never heard via a full advert). Stored in
+`partial_node_resolutions` (keyed by `prefix_hex`); the `contacts` table is never
+written. Scoring is pure (`app/services/partial_resolution.py`): a unique
+candidate is high-confidence; ambiguous candidates rank by prefix width, candidate
+count, and distance from the prefix's located path-neighbours.
+- `GET /partial-resolutions/preview` - scan + propose matches (read-only; returns a
+  `reason` when the external-map cache is empty)
+- `POST /partial-resolutions/apply` - persist the user-selected soft links
+- `GET /partial-resolutions` - list current soft links
+- `DELETE /partial-resolutions/{prefix_hex}` - clear one
+Read-time enrichment consumes these: ContactInfoPane display + analyzer button for
+resolved prefix-only contacts, the advert-links resolver (`resolve_advert_edges`'s
+`confirmed` arg disambiguates a hop to the chosen node), and a Prefix Collisions
+tab badge.
+
 ### Read state
 - `GET /read-state/unreads` - counts, mention flags, `last_message_times`, `last_read_ats`, and `first_unread_ids`
 - `POST /read-state/mark-all-read`

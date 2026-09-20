@@ -54,6 +54,7 @@ import type {
   ContactAnalyticsHourlyBucket,
   ContactAnalyticsWeeklyBucket,
   LppSensor,
+  PartialNodeResolution,
   RadioConfig,
   TelemetryHistoryEntry,
   TelemetryLppSensor,
@@ -169,6 +170,45 @@ export function ContactInfoBody({
 
   const show = (group: 'identity' | 'data' | 'network') => region === 'all' || region === group;
 
+  // For a prefix-only contact, look up any soft resolution (a reversible link to a
+  // full pubkey matched from the external map). It enriches the display without
+  // ever having been written into the contact itself.
+  const [softResolution, setSoftResolution] = useState<PartialNodeResolution | null>(null);
+  const contactKey = contact.public_key;
+  const contactIsPrefixOnly = isPrefixOnlyContact(contactKey);
+  useEffect(() => {
+    if (!contactIsPrefixOnly) {
+      setSoftResolution(null);
+      return;
+    }
+    let cancelled = false;
+    const prefix = contactKey.toLowerCase();
+    api
+      .listPartialResolutions()
+      .then((rows) => {
+        if (!cancelled) setSoftResolution(rows.find((r) => r.prefix_hex === prefix) ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setSoftResolution(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [contactKey, contactIsPrefixOnly]);
+
+  const handleClearSoftResolution = useCallback(async () => {
+    if (!softResolution) return;
+    try {
+      await api.deletePartialResolution(softResolution.prefix_hex);
+      setSoftResolution(null);
+      toast.success(t('partial_sync_resolved_cleared'));
+    } catch (err) {
+      toast.error(t('partial_sync_toast_failed'), {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    }
+  }, [softResolution, t]);
+
   const effectiveLocation = getEffectiveLocation(contact);
   const distFromUs =
     effectiveLocation && config && isValidLocation(config.lat, config.lon)
@@ -181,7 +221,12 @@ export function ContactInfoBody({
       ? formatPathHashMode(effectiveRoute.pathHashMode, t)
       : null;
   const learnedRouteLabel = directRoute ? formatRouteLabel(directRoute.path_len, true) : null;
-  const isPrefixOnlyResolvedContact = isPrefixOnlyContact(contact.public_key);
+  const isPrefixOnlyResolvedContact = contactIsPrefixOnly;
+  // The pubkey to hand an analyzer lookup: the contact's own full key, or, for a
+  // prefix-only contact, the soft-resolved full key (when one exists).
+  const analyzerLookupKey = isPrefixOnlyResolvedContact
+    ? (softResolution?.resolved_pubkey ?? null)
+    : contact.public_key;
   const isUnknownFullKeyResolvedContact =
     !isPrefixOnlyResolvedContact &&
     isUnknownFullKeyContact(contact.public_key, contact.last_advert);
@@ -410,10 +455,36 @@ export function ContactInfoBody({
         </div>
       )}
 
-      {show('identity') && !isPrefixOnlyResolvedContact && analyzerSites.length > 0 && (
+      {show('identity') && isPrefixOnlyResolvedContact && softResolution && (
+        <div className="px-5 py-3 border-b border-border space-y-1">
+          <div className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
+            {t('partial_sync_resolved_label')}
+          </div>
+          <div className="text-sm">
+            <span className="font-medium">
+              {softResolution.resolved_name || softResolution.resolved_pubkey.slice(0, 12)}
+            </span>
+            <span className="ml-2 font-mono text-xs text-muted-foreground">
+              {softResolution.resolved_pubkey.slice(0, 16)}
+            </span>
+          </div>
+          <div className="text-[0.6875rem] text-muted-foreground">
+            {t('partial_sync_resolved_soft_note')}
+          </div>
+          <button
+            type="button"
+            className="text-xs text-muted-foreground hover:text-primary underline"
+            onClick={handleClearSoftResolution}
+          >
+            {t('partial_sync_resolved_clear')}
+          </button>
+        </div>
+      )}
+
+      {show('identity') && analyzerLookupKey && analyzerSites.length > 0 && (
         <div className="px-5 py-3 border-b border-border space-y-2">
           {analyzerSites.map((site) => {
-            const url = buildNodeLookupUrl(site, contact.public_key);
+            const url = buildNodeLookupUrl(site, analyzerLookupKey);
             if (!url) return null;
             return (
               <button

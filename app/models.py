@@ -1519,6 +1519,25 @@ class ExternalMapNode(BaseModel):
     mobile: bool = False
 
 
+class PartialNodeResolution(BaseModel):
+    """A soft, reversible link from a pubkey prefix to a full pubkey.
+
+    Matched from the external-map cache for a partial node (a prefix-only
+    placeholder contact, or a hop hash seen in paths). Display-only enrichment; it
+    never writes into the authoritative ``contacts`` table.
+    """
+
+    prefix_hex: str
+    resolved_pubkey: str
+    resolved_name: str | None = None
+    source: str = "external_map"
+    confidence: float = 0.0
+    candidate_count: int = 0
+    resolved_by: str = "user"
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
 class AdvertLinkNode(BaseModel):
     """A resolved GPS endpoint of an advert-truth map edge."""
 

@@ -95,15 +95,24 @@ def _resolve_hop(
     hop_hex: str,
     prev: LocatedNode | None,
     index: dict[str, list[LocatedNode]],
+    confirmed: dict[str, str] | None = None,
 ) -> tuple[LocatedNode | None, bool]:
     """Resolve a single hop prefix.
 
     Returns ``(node, ambiguous)``. ``node`` is None when the prefix matches no
-    located node, or matches several with no prior anchor to disambiguate.
+    located node, or matches several with no prior anchor to disambiguate. A
+    ``confirmed`` soft link (prefix -> full pubkey) wins over the distance guess
+    when its pubkey is among the candidates, and is treated as unambiguous.
     """
     candidates = index.get(hop_hex.lower(), [])
     if not candidates:
         return None, False
+    if confirmed is not None:
+        want = confirmed.get(hop_hex.lower())
+        if want is not None:
+            match = next((c for c in candidates if c.pubkey == want), None)
+            if match is not None:
+                return match, False
     if len(candidates) == 1:
         return candidates[0], False
     if prev is None:
@@ -116,8 +125,15 @@ def resolve_advert_edges(
     rows: list[AdvertPathRow],
     located: list[LocatedNode],
     self_node: LocatedNode | None,
+    confirmed: dict[str, str] | None = None,
 ) -> list[ResolvedEdge]:
-    """Resolve advert paths into aggregated undirected GPS edges."""
+    """Resolve advert paths into aggregated undirected GPS edges.
+
+    ``confirmed`` optionally maps a hop prefix (lowercase hex) to a
+    user-confirmed full pubkey (a soft resolution); such a hop resolves to that
+    node instead of the distance-based guess.
+    """
+    confirmed = {k.lower(): v.lower() for k, v in (confirmed or {}).items()}
     index = build_prefix_index(located)
     by_key: dict[tuple[str, str, int], dict] = {}
 
@@ -154,7 +170,7 @@ def resolve_advert_edges(
         prev = origin
         broke = False
         for hop in hops:
-            node, ambiguous = _resolve_hop(hop, prev, index)
+            node, ambiguous = _resolve_hop(hop, prev, index, confirmed)
             if node is None:
                 broke = True
                 break

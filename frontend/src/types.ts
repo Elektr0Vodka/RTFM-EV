@@ -772,6 +772,53 @@ export interface ExternalMapStatus {
   interval_hours: number;
 }
 
+// Partial-node resolution: soft links from a pubkey prefix to a full pubkey,
+// matched against the external-map cache. Display-only; never writes contacts.
+export type PartialResolutionSeenAs = 'placeholder' | 'path' | 'both';
+
+export interface PartialResolutionCandidate {
+  pubkey: string;
+  name: string | null;
+  lat: number | null;
+  lon: number | null;
+  confidence: number;
+  distance_km: number | null;
+}
+
+export interface PartialResolutionProposal {
+  prefix_hex: string;
+  seen_as: PartialResolutionSeenAs;
+  candidate_count: number;
+  candidates: PartialResolutionCandidate[];
+}
+
+export interface PartialResolutionPreview {
+  external_count: number;
+  reason: string | null;
+  resolutions: PartialResolutionProposal[];
+  unmatched: string[];
+}
+
+export interface PartialResolutionApplyItem {
+  prefix_hex: string;
+  resolved_pubkey: string;
+  resolved_name: string | null;
+  confidence: number;
+  candidate_count: number;
+}
+
+export interface PartialNodeResolution {
+  prefix_hex: string;
+  resolved_pubkey: string;
+  resolved_name: string | null;
+  source: string;
+  confidence: number;
+  candidate_count: number;
+  resolved_by: string;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
 export interface AppSettingsUpdate {
   max_radio_contacts?: number;
   auto_decrypt_dm_on_advert?: boolean;

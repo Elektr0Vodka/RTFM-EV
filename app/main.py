@@ -71,6 +71,7 @@ from app.routers import (
     messages,
     openhop,
     packets,
+    partial_resolution,
     push,
     radio,
     read_state,
@@ -245,6 +246,7 @@ app.include_router(settings.router, prefix="/api")
 app.include_router(registry.router, prefix="/api")
 app.include_router(regions.router, prefix="/api")
 app.include_router(external_map.router, prefix="/api")
+app.include_router(partial_resolution.router, prefix="/api")
 app.include_router(openhop.router, prefix="/api")
 app.include_router(statistics.router, prefix="/api")
 app.include_router(unfurl.router, prefix="/api")
