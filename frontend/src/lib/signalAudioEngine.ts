@@ -22,19 +22,24 @@ import {
 
 export const MIN_GAP_MS = 45; // wall-clock coalesce window for the Tx chirp
 export const MIN_SPACING_S = 0.02; // >= 20 ms between clicks so near-simultaneous ticks stay distinct
-export const MAX_LEAD_S = 0.25; // never schedule a click more than this far ahead of now
-// Always schedule a click a hair in the future rather than exactly at currentTime. A click
-// laid down at currentTime races the audio render quantum: by the time the audio thread
-// processes it, currentTime has already advanced past it, and its whole gain envelope
-// (setValueAtTime + attack ramp) is then in the past. Chrome recomputes the ramp and plays
-// it anyway; Firefox collapses the envelope and drops the click, so sparse packets (each
-// scheduled at currentTime) play inconsistently. This lead keeps the envelope in the future.
-// 20 ms is inaudible latency.
-export const MIN_LEAD_S = 0.02;
+export const MAX_LEAD_S = 0.6; // never schedule a click more than this far ahead of now
+// Schedule every click well ahead of currentTime. A packet arrives over the WebSocket and is
+// played from inside a React re-render of the feed; that render stalls the main thread, and
+// Firefox does not commit a scheduled AudioBufferSource/AudioParam event until the JS task
+// yields. If `at` has already passed by then, Firefox silently drops the click (Chrome plays
+// it regardless). Measured in Firefox: with a 20 ms lead a click after a ~120 ms stall was
+// silent; with a 250 ms lead it played. The lead must exceed the worst-case render stall.
+// 250 ms latency is imperceptible for these ambient packet ticks. This is why the standalone
+// reference app (plain JS, no heavy re-render) works with near-zero lead but this one needs it.
+export const MIN_LEAD_S = 0.25;
 
 const BP_FREQ = 1800; // geiger bandpass centre (Hz), before SNR + jitter shaping
 const BP_Q = 1.6;
-const DECAY_S = 0.011; // geiger exponential decay to near-silence (~11 ms)
+// Geiger exponential decay to near-silence (~11 ms): the crisp reference "tick". The gain
+// ramps ARE reliable in Firefox once the click is scheduled far enough ahead (see
+// MIN_LEAD_S) -- the earlier silence was the scheduling race, not the ramp, so this keeps
+// the original sharp envelope.
+const DECAY_S = 0.011;
 const PEAK = 0.9; // geiger envelope peak before level jitter
 // The bandpass (BP_Q) on unit-variance white noise attenuates the click to ~0.2 of the
 // envelope target, so without makeup a PEAK-level click peaks around 0.08 at the output
@@ -63,6 +68,11 @@ export interface SignalAudioEngineDeps {
 export interface SignalAudioEngine {
   setEnabled(on: boolean): void;
   isEnabled(): boolean;
+  /**
+   * Enable audio and create/resume the AudioContext. MUST be called from a user gesture
+   * (Firefox only resumes within the gesture's transient activation).
+   */
+  resume(): void;
   /** True once the AudioContext exists and has resumed (audio can be heard). */
   isRunning(): boolean;
   setTheme(theme: SignalAudioTheme): void;
@@ -124,6 +134,10 @@ export function createSignalAudioEngine(deps: SignalAudioEngineDeps = {}): Signa
     bp.frequency.value = BP_FREQ * snrPitchFactor(cue.snrDb) * pitch;
     bp.Q.value = BP_Q;
     const g = ctx.createGain();
+    // The crisp reference tick: near-instant exponential attack, exponential decay to
+    // near-silence over DECAY_S (~11 ms). These ramps render reliably in both browsers now
+    // that the click is scheduled MIN_LEAD_S ahead (the earlier Firefox silence was the
+    // scheduling race under a main-thread stall, not the ramp itself).
     g.gain.setValueAtTime(0.0001, at);
     g.gain.exponentialRampToValueAtTime(PEAK * level * GEIGER_MAKEUP_GAIN, at + 0.0005);
     g.gain.exponentialRampToValueAtTime(0.0001, at + DECAY_S);
@@ -200,10 +214,18 @@ export function createSignalAudioEngine(deps: SignalAudioEngineDeps = {}): Signa
   return {
     setEnabled(on: boolean): void {
       enabled = !!on;
-      if (enabled) ensure();
+      // Do NOT create or resume the AudioContext here. In Firefox a context created outside
+      // a user gesture (e.g. at page load when sound was persisted on) is delivered silent
+      // even after it later resumes -- only a context born inside a user gesture produces
+      // audio. Context creation therefore happens exclusively in resume(), which callers
+      // invoke from a real gesture (the sound toggle, or the first pointer/key event).
     },
     isEnabled(): boolean {
       return enabled;
+    },
+    resume(): void {
+      enabled = true;
+      ensure();
     },
     isRunning(): boolean {
       return ctx !== null && ctx.state === 'running';
@@ -223,6 +245,15 @@ export function createSignalAudioEngine(deps: SignalAudioEngineDeps = {}): Signa
     },
     onPacket(cue: PacketCue): boolean {
       if (!enabled || !ctx) return false;
+      // Only schedule into a running context. A suspended context (Firefox keeps it
+      // suspended until it actually resumes, even after a toggle gesture) has a frozen
+      // clock: clicks laid down now are (a) inaudible and (b) pile up against the frozen
+      // currentTime, then all fire at once when it resumes -- the "machine-gun" burst. Try
+      // to nudge it awake and drop this click rather than queue it into the frozen timeline.
+      if (ctx.state !== 'running') {
+        if (ctx.state === 'suspended' && typeof ctx.resume === 'function') void ctx.resume();
+        return false;
+      }
       const now = ctx.currentTime;
       // Space distinct ticks apart, but never queue more than MAX_LEAD ahead: an extreme
       // burst overlaps into a roar instead of lagging, and nothing is dropped. The MIN_LEAD

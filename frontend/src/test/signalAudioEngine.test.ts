@@ -57,7 +57,10 @@ function makeFakeContext(overrides: Partial<{ state: string; sampleRate: number 
     buffers: [] as FakeBuffer[],
   };
   const ctx = {
-    state: overrides.state ?? 'suspended',
+    // Default to 'running': onPacket only schedules into a resumed context, so the
+    // playback tests model an already-resumed context. Tests that exercise the
+    // suspended state (autoplay gating) pass { state: 'suspended' } explicitly.
+    state: overrides.state ?? 'running',
     sampleRate: overrides.sampleRate ?? 48000,
     currentTime: 0,
     destination: { id: 'destination' },
@@ -118,12 +121,24 @@ function engineWith(fake: ReturnType<typeof makeFakeContext>, now: () => number 
 }
 
 describe('createSignalAudioEngine lifecycle', () => {
-  it('creates and resumes the context on setEnabled(true)', () => {
+  it('does NOT create the context on setEnabled(true) (must wait for a gesture)', () => {
+    // A context created outside a user gesture is silent in Firefox, so enabling alone must
+    // not create it: only resume() (called from a gesture) does.
     const fake = makeFakeContext({ state: 'suspended' });
     const make = vi.fn(() => fake.ctx as unknown as AudioContext);
     const engine = createSignalAudioEngine({ makeContext: make, now: () => 0 });
     expect(engine.isEnabled()).toBe(false);
     engine.setEnabled(true);
+    expect(engine.isEnabled()).toBe(true);
+    expect(make).not.toHaveBeenCalled();
+    expect(engine.isRunning()).toBe(false);
+  });
+
+  it('creates and resumes the context on resume() (the gesture entry point)', () => {
+    const fake = makeFakeContext({ state: 'suspended' });
+    const make = vi.fn(() => fake.ctx as unknown as AudioContext);
+    const engine = createSignalAudioEngine({ makeContext: make, now: () => 0 });
+    engine.resume();
     expect(engine.isEnabled()).toBe(true);
     expect(make).toHaveBeenCalledTimes(1);
     expect(fake.ctx.resume).toHaveBeenCalled();
@@ -132,7 +147,7 @@ describe('createSignalAudioEngine lifecycle', () => {
   it('closes the context on dispose and stops playing', () => {
     const fake = makeFakeContext();
     const engine = engineWith(fake);
-    engine.setEnabled(true);
+    engine.resume();
     engine.dispose();
     expect(fake.ctx.close).toHaveBeenCalled();
     expect(engine.onPacket({ snrDb: 5, payloadType: 'ADVERT' })).toBe(false);
@@ -143,14 +158,14 @@ describe('createSignalAudioEngine lifecycle', () => {
     const suspended = makeFakeContext({ state: 'suspended' });
     const e1 = engineWith(suspended);
     expect(e1.isRunning()).toBe(false);
-    // Enabled but the fake context stays suspended (resume is async/no-op here).
-    e1.setEnabled(true);
+    // Resumed but the fake context stays suspended (resume is async/no-op here).
+    e1.resume();
     expect(e1.isRunning()).toBe(false);
 
-    // A context that reports running -> isRunning true once enabled.
+    // A context that reports running -> isRunning true once resumed.
     const running = makeFakeContext({ state: 'running' });
     const e2 = engineWith(running);
-    e2.setEnabled(true);
+    e2.resume();
     expect(e2.isRunning()).toBe(true);
   });
 });
@@ -164,11 +179,25 @@ describe('onPacket', () => {
     expect(fake.created.oscillators).toHaveLength(0);
   });
 
+  it('does not schedule into a suspended context, but nudges it to resume', () => {
+    // Firefox can keep the context suspended after the enable gesture. Scheduling into
+    // its frozen clock is inaudible and piles up into a burst on resume, so onPacket must
+    // drop the click (and try to wake the context) rather than queue it.
+    const fake = makeFakeContext({ state: 'suspended' });
+    const engine = engineWith(fake);
+    engine.setTheme('geiger');
+    engine.resume();
+    expect(engine.onPacket({ snrDb: 0, payloadType: 'ADVERT' })).toBe(false);
+    expect(fake.created.bufferSources).toHaveLength(0);
+    expect(fake.created.oscillators).toHaveLength(0);
+    expect(fake.ctx.resume).toHaveBeenCalled();
+  });
+
   it('geiger theme synthesizes a noise-burst click (buffer source -> bandpass -> gain)', () => {
     const fake = makeFakeContext();
     const engine = engineWith(fake);
     engine.setTheme('geiger');
-    engine.setEnabled(true);
+    engine.resume();
     expect(engine.onPacket({ snrDb: 5, payloadType: 'ADVERT' })).toBe(true);
     expect(fake.created.bufferSources).toHaveLength(1);
     expect(fake.created.filters).toHaveLength(1);
@@ -181,7 +210,7 @@ describe('onPacket', () => {
     const fake = makeFakeContext();
     const engine = engineWith(fake); // random=0.5 fixes the jitter
     engine.setTheme('geiger');
-    engine.setEnabled(true);
+    engine.resume();
     engine.onPacket({ snrDb: 0, payloadType: 'ADVERT' });
     // gains[0] is the master; gains[1] is this click's envelope.
     const clickGain = fake.created.gains[1];
@@ -197,7 +226,7 @@ describe('onPacket', () => {
     const fake = makeFakeContext();
     const engine = engineWith(fake);
     engine.setTheme('geiger');
-    engine.setEnabled(true);
+    engine.resume();
     engine.onPacket({ snrDb: -20, payloadType: 'ADVERT' });
     engine.onPacket({ snrDb: 10, payloadType: 'ADVERT' });
     const lowFreq = fake.created.filters[0].frequency.value;
@@ -209,7 +238,7 @@ describe('onPacket', () => {
     const fake = makeFakeContext();
     const engine = engineWith(fake);
     engine.setTheme('sonar');
-    engine.setEnabled(true);
+    engine.resume();
     expect(engine.onPacket({ snrDb: 10, payloadType: 'ADVERT' })).toBe(true);
     expect(fake.created.oscillators).toHaveLength(1);
     expect(fake.created.oscillators[0].type).toBe('sine');
@@ -221,7 +250,7 @@ describe('onPacket', () => {
     const fake = makeFakeContext();
     const engine = engineWith(fake);
     engine.setTheme('waterdrip');
-    engine.setEnabled(true);
+    engine.resume();
     expect(engine.onPacket({ snrDb: 0, payloadType: 'ADVERT' })).toBe(true);
     expect(fake.created.oscillators).toHaveLength(1);
     expect(fake.created.oscillators[0].type).toBe('sine');
@@ -235,7 +264,7 @@ describe('onPacket', () => {
     const fake = makeFakeContext();
     const engine = engineWith(fake);
     engine.setTheme('waterdrip');
-    engine.setEnabled(true);
+    engine.resume();
     engine.onPacket({ snrDb: 0, payloadType: 'ADVERT' });
     const freq = fake.created.oscillators[0].frequency;
     const start = freq.setValueAtTime.mock.calls[0][0] as number;
@@ -247,7 +276,7 @@ describe('onPacket', () => {
     const fake = makeFakeContext();
     const engine = engineWith(fake);
     engine.setTheme('waterdrip');
-    engine.setEnabled(true);
+    engine.resume();
     // Same SNR + fixed jitter, so only the per-type base frequency differs.
     engine.onPacket({ snrDb: 0, payloadType: 'TRACE' }); // deepest
     engine.onPacket({ snrDb: 0, payloadType: 'ACK' }); // tightest plink
@@ -262,7 +291,7 @@ describe('onPacket', () => {
     const fake = makeFakeContext();
     const engine = engineWith(fake);
     engine.setTheme('geiger');
-    engine.setEnabled(true);
+    engine.resume();
     fake.ctx.currentTime = 5;
     engine.onPacket({ snrDb: 0, payloadType: 'ADVERT' });
     const startedAt = fake.created.bufferSources[0].startedAt as number;
@@ -273,7 +302,7 @@ describe('onPacket', () => {
     const fake = makeFakeContext();
     const engine = engineWith(fake);
     engine.setTheme('geiger');
-    engine.setEnabled(true);
+    engine.resume();
     fake.ctx.currentTime = 0;
     engine.onPacket({ snrDb: 0, payloadType: 'ADVERT' });
     engine.onPacket({ snrDb: 0, payloadType: 'ADVERT' });
@@ -287,7 +316,7 @@ describe('setVolume', () => {
   it('clamps to 0..1 and writes the master gain', () => {
     const fake = makeFakeContext();
     const engine = engineWith(fake);
-    engine.setEnabled(true);
+    engine.resume();
     engine.setVolume(2);
     expect(engine.getVolume()).toBe(1);
     engine.setVolume(-1);
@@ -304,7 +333,7 @@ describe('onTx', () => {
     const fake = makeFakeContext();
     let t = 1000;
     const engine = engineWith(fake, () => t);
-    engine.setEnabled(true);
+    engine.resume();
     expect(engine.onTx({ kind: 'trace' })).toBe(true);
     expect(fake.created.oscillators).toHaveLength(1);
     expect(fake.created.oscillators[0].type).toBe('triangle');

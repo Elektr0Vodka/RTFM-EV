@@ -16,7 +16,12 @@ function clamp01(x: number): number {
 }
 
 function snrNorm(snr: number | null): number {
-  const value = snr == null ? SNR_LO : snr;
+  // Treat null AND any non-finite value (NaN/Infinity) as the floor. A NaN snr would
+  // otherwise propagate to an AudioParam frequency, and Firefox THROWS when a non-finite
+  // value is assigned to AudioParam.value (Chrome silently ignores it), aborting the click
+  // so it is silent. Real packets can carry a non-numeric/absent snr, so guard here at the
+  // source -- this covers geiger (snrPitchFactor) and sonar/waterdrip (snrToPitch) alike.
+  const value = snr == null || !Number.isFinite(snr) ? SNR_LO : snr;
   return clamp01((value - SNR_LO) / (SNR_HI - SNR_LO));
 }
 

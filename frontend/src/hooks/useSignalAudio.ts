@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useRawPackets } from '../stores/rawPacketStore';
 import {
@@ -21,6 +21,13 @@ export interface UseSignalAudioState {
    * "click to enable sound". False when disabled or once audio is running.
    */
   needsGesture: boolean;
+  /**
+   * Create and resume the AudioContext now. MUST be called synchronously from a user
+   * gesture handler (e.g. the sound-toggle onClick): Firefox only resumes a context from
+   * within the gesture's transient activation, so resuming later from an effect leaves it
+   * suspended (silent). Safe to call repeatedly.
+   */
+  resume: () => void;
 }
 
 /**
@@ -55,11 +62,12 @@ export function useSignalAudio({
     engineRef.current?.setTheme(theme);
   }, [theme]);
 
-  // Browser autoplay policy: if sound was persisted on from a prior visit, the context
-  // cannot resume until the user interacts. Resume on the first gesture.
+  // Browser autoplay policy: if sound was persisted on from a prior visit, the context is
+  // not created until the user interacts (creating it at load yields a silent context in
+  // Firefox). Create + resume it inside the first gesture.
   useEffect(() => {
     if (!enabled) return;
-    const unlock = () => engineRef.current?.setEnabled(true);
+    const unlock = () => engineRef.current?.resume();
     window.addEventListener('pointerdown', unlock, { once: true });
     window.addEventListener('keydown', unlock, { once: true });
     return () => {
@@ -107,5 +115,13 @@ export function useSignalAudio({
     return () => engine?.dispose();
   }, []);
 
-  return { needsGesture: enabled && !running };
+  // Called synchronously from the toggle's click handler so the context is created and
+  // resumed inside the user gesture (Firefox requirement): a context created outside a
+  // gesture is delivered silent. engine.resume() marks the engine enabled and creates +
+  // resumes the context.
+  const resume = useCallback(() => {
+    engineRef.current?.resume();
+  }, []);
+
+  return { needsGesture: enabled && !running, resume };
 }
