@@ -11,6 +11,7 @@ import {
   parseHashSettingsSection,
   getSettingsHash,
   getMapFocusHash,
+  getConversationHash,
   resolveChannelFromHashToken,
   resolveContactFromHashToken,
 } from '../utils/urlHash';
@@ -329,5 +330,35 @@ describe('getMapFocusHash', () => {
     const result = getMapFocusHash('AB CD/12');
 
     expect(result).toBe('#map/focus/AB%20CD%2F12');
+  });
+});
+
+describe('contact-info hash', () => {
+  let originalHash: string;
+
+  beforeEach(() => {
+    originalHash = window.location.hash;
+  });
+
+  afterEach(() => {
+    window.location.hash = originalHash;
+  });
+
+  it('parses a contact-info hash to its token', () => {
+    window.location.hash = '#contact-info/ABCDEF/Node%20One';
+
+    expect(parseHashConversation()).toMatchObject({ type: 'contact-info', name: 'ABCDEF' });
+  });
+
+  it('still parses a plain contact hash', () => {
+    window.location.hash = '#contact/DEADBEEF';
+
+    expect(parseHashConversation()).toMatchObject({ type: 'contact', name: 'DEADBEEF' });
+  });
+
+  it('builds a contact-info hash with label', () => {
+    expect(getConversationHash({ type: 'contact-info', id: 'ABCDEF', name: 'Node One' })).toBe(
+      '#contact-info/ABCDEF/Node%20One'
+    );
   });
 });

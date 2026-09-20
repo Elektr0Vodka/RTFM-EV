@@ -7,6 +7,7 @@ interface ParsedHashConversation {
   type:
     | 'channel'
     | 'contact'
+    | 'contact-info'
     | 'raw'
     | 'map'
     | 'visualizer'
@@ -114,7 +115,7 @@ export function parseHashConversation(): ParsedHashConversation | null {
 
   const type = hash.slice(0, slashIndex);
   const value = hash.slice(slashIndex + 1);
-  if (!(type === 'channel' || type === 'contact') || !value) {
+  if (!(type === 'channel' || type === 'contact' || type === 'contact-info') || !value) {
     return null;
   }
 
@@ -223,6 +224,9 @@ export function getConversationHash(conv: Conversation | null): string {
   if (conv.type === 'channel') {
     const label = conv.name.startsWith('#') ? conv.name.slice(1) : conv.name;
     return `#channel/${encodeURIComponent(conv.id)}/${encodeURIComponent(label)}`;
+  }
+  if (conv.type === 'contact-info') {
+    return `#contact-info/${encodeURIComponent(conv.id)}/${encodeURIComponent(conv.name)}`;
   }
   return `#contact/${encodeURIComponent(conv.id)}/${encodeURIComponent(conv.name)}`;
 }

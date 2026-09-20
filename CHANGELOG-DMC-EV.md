@@ -11,6 +11,33 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-20 (Full-page desktop contact info, contact-info-desktop-layout)
+
+### Contact info (frontend)
+- **Full-page contact info on desktop.** Opening a contact's info on a desktop
+  viewport (`min-width: 769px`) now navigates to a routed full-page view
+  (`#contact-info/<pubkey>/<label>`) instead of the narrow 400px right-side
+  panel, which wasted most of a wide screen. The page centres in a max-width
+  container and lays the sections out in three curated columns: "Identity &
+  actions", "Your data & telemetry", and "Network & activity". Mobile
+  (`max-width: 768px`) is unchanged and keeps the existing side-panel Sheet.
+- **Repeater/room links no longer dead-end on a login screen.** On desktop, a
+  shared `#contact/<pubkey>` link for a repeater or room server now lands on the
+  combined full-page info view rather than the bare `RepeaterDashboard` /
+  `RoomServerPanel` login. The login + dashboard is embedded inline as a
+  **minimizable** region at the top of the page (expanded by default; a slim bar
+  when collapsed). Regular-client and sensor links are unaffected; their DM chat
+  is unchanged.
+- Internals: the pane's section stack was extracted into a shared
+  `ContactInfoBody` (region-aware) used by both the mobile `ContactInfoPane`
+  Sheet and the new desktop `ContactInfoView`; a shared `useContactInfoData`
+  hook loads analytics + telemetry for both. The repeater dashboard body was
+  extracted into `RepeaterDashboardBody` so the standalone view (mobile) and the
+  embedded region share one implementation. New `contact-info` conversation type
+  + hash route wired through `urlHash`, `useConversationRouter`, and
+  `useConversationNavigation` (which forks on `useIsMobile()`). No backend
+  change, no migration. New i18n keys in EN/NL/DE.
+
 ## Update 2026-09-20 (Mesh Health prefix-collisions tab, feat/mesh-health-prefix-collisions)
 
 ### Mesh Health (backend + frontend)
