@@ -521,6 +521,7 @@ class HistoricalNeighbor(BaseModel):
     lon: float | None
     min_path_len: int | None
     best_rssi: float | None = None
+    best_snr: float | None = None
 
 
 class HistoricalBusiestChannel(BaseModel):
@@ -619,7 +620,8 @@ async def get_historical_stats(start_ts: int, end_ts: int) -> HistoricalStatsRes
                 COALESCE(SUM(cap.heard_count), 0) AS heard_count,
                 MIN(cap.first_seen) AS first_seen,
                 MIN(cap.path_len) AS min_path_len,
-                MAX(cap.best_rssi) AS best_rssi
+                MAX(cap.best_rssi) AS best_rssi,
+                MAX(cap.best_snr) AS best_snr
             FROM contacts c
             LEFT JOIN contact_advert_paths cap ON cap.public_key = c.public_key
                 AND cap.last_seen >= ? AND cap.last_seen < ?
@@ -644,6 +646,7 @@ async def get_historical_stats(start_ts: int, end_ts: int) -> HistoricalStatsRes
                     lon=row["lon"],
                     min_path_len=row["min_path_len"],
                     best_rssi=float(row["best_rssi"]) if row["best_rssi"] is not None else None,
+                    best_snr=float(row["best_snr"]) if row["best_snr"] is not None else None,
                 )
                 for row in rows
             ]

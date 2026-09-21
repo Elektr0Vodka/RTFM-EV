@@ -124,6 +124,7 @@ class TestHistoricalStats:
         assert pubkey in by_count
         assert by_count[pubkey]["heard_count"] >= 1
         assert by_count[pubkey]["best_rssi"] == -55.0
+        assert by_count[pubkey]["best_snr"] == 9.0
 
         by_signal = {n["public_key"]: n for n in body["neighbors_by_signal"]}
         assert pubkey in by_signal

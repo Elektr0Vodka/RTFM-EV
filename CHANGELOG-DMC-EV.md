@@ -136,6 +136,49 @@ with `text-allow-overlap` off, so repeaters win label collisions.
   `onOpenNode`); ruff check/format, pyright, eslint, prettier, and build all
   clean. NOT VERIFIED at runtime in the live container.
 
+## Update 2026-09-21 (Directly-heard radar on My Node)
+
+### My Node radar (frontend + backend)
+- **Added a "Directly heard radar" card to the My Node page.** A dependency-free
+  Canvas 2D polar plot of the directly-heard (0-hop) located nodes, placed by
+  great-circle bearing (N = up) and log-scaled distance from the radio's own
+  position (`config.lat`/`config.lon`). Dot colour encodes best SNR
+  (green high to red low, grey when unknown), dot size scales with reception
+  count, with log rings + km labels, an N/E/S/W compass, a hover tooltip
+  (name, best SNR, receptions, distance @ bearing), and a legend. Ported and
+  trimmed from the DutchMeshCore-Observers link-quality radar; the
+  source/neighbour-topic filter, neighbour halo, and relayed-fade were dropped
+  because every plotted node is directly heard.
+- **Two-level zoom.** A range-zoom (data scale, 1x to 8x) via +/- buttons or
+  Shift+wheel, plus a viewport pan/zoom (drag to pan, wheel to magnify about the
+  cursor, double-click to reset). Wheel-zoom is bound as a native non-passive
+  listener (React's `onWheel` is passive, so `preventDefault` there is ignored and
+  the page would scroll on every zoom step). New modules under
+  `frontend/src/components/mynode/radar/` (`signalCore.ts`, `radar.ts`,
+  `radarData.ts`, `DirectRadar.tsx`); the pure geometry/helpers are unit-tested,
+  the canvas draw path is browser-verified.
+- **Data source.** Reuses the existing `/api/packets/historical-stats`
+  `neighbors_by_count` (already 0-hop), which the page fetches for every window
+  (the live 20m window refreshes on the page clock), so there is no extra
+  request. The endpoint now also returns `best_snr` on `neighbors_by_count`
+  (surfacing the existing `contact_advert_paths.best_snr` column, no migration)
+  so the radar can colour by SNR.
+- **Theme-aware.** The canvas palette is resolved from the app's theme tokens at
+  render time and repaints on theme change; SNR colours stay theme-independent.
+  New i18n keys added to en/nl/de.
+- Verified: backend `ruff check` / `ruff format --check` / `pyright` clean and
+  `pytest tests/test_packets_signal_endpoints.py` (7 passed, incl. new `best_snr`
+  assertion); frontend `lint` / `prettier` / `build` clean and `test:run`
+  (1727 passed, incl. new radar unit tests and i18n parity). Runtime-verified
+  live on `http://127.0.0.1:8000/#node` after rebuilding the local container:
+  the radar rendered 11 real directly-heard neighbours coloured by SNR, the +
+  range-zoom rescaled the rings (1.0x to 2.3x), the hover tooltip showed the
+  per-node stats, and the canvas repainted correctly when switching between the
+  dark and light themes. Wheel over the canvas was confirmed to zoom without
+  scrolling the page (scroll position unchanged). Drag-pan, double-click reset,
+  and the live 20m auto-refresh were NOT explicitly click-tested in the browser
+  (the underlying view-transform helpers are unit-tested).
+
 ## Update 2026-09-20 (Signal-audio Firefox playback fix, sound-behavior-localhost)
 
 ### Packet-feed sound (frontend)
