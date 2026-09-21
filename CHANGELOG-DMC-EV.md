@@ -11,6 +11,25 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-21 (Packet History: fix the "Request" type filter)
+
+### Packet ingest + Packet History (backend)
+- **Fixed REQUEST packets being stored as `"Unknown"`**, which made the Packet
+  History "Request" type filter return no rows while the "Unknown" bucket
+  surfaced them (reported by Richard). `raw_packets.payload_type` is written
+  from `PayloadType.name` guarded on `if payload_type`, but
+  `PayloadType.REQUEST` is `0x00` (falsy), so every request was labelled
+  `"Unknown"`; the guard is now `is not None`. REQUEST is the only value-0 type,
+  which is why no other type was affected. Adds migration `_101`, which
+  re-decodes existing `"Unknown"` rows with the same ingest parser and relabels
+  the ones that decode to REQUEST (genuinely unparseable rows stay `"Unknown"`),
+  so historical requests become filterable too. `LATEST_SCHEMA_VERSION` bumped
+  to `101`.
+  Verified: backend CI gate in the Linux container (ruff, ruff format, pyright
+  0 errors, pytest 2197 pass), incl. a new `process_raw_packet` REQUEST test
+  and `test_migration_101` (relabel-only-requests + idempotent + skip-when-
+  absent).
+
 ## Update 2026-09-21 (Rooms: keep the chat view on desktop)
 
 ### Rooms (frontend)
