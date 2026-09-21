@@ -32,6 +32,27 @@ the change. Upstream development is on hold; the fork is the active repository.
   suite 1752) + build; and live in the browser (toggling the control issues
   `PATCH /settings {"packet_group_by_content": true/false}`).
 
+## Update 2026-09-21 (Mesh Health: contacts table above alerts + search)
+
+### Mesh Health (frontend)
+- **Moved the "All Advertised Contacts Heard" table above the Flooding Adverts
+  alerts** (reported by Richard): the HIGH/MEDIUM flood-advert alert lists can
+  grow very long and pushed the contacts table far down the page. The alert
+  blocks (and their "no alerts" empty state) now render *after* the contacts
+  table, so the table stays reachable regardless of alert volume. The
+  analytics charts above the table are unchanged.
+- **Added a search box to the advertised-contacts table.** Free-text filter
+  over the contact name and public key (case-insensitive); the summary count,
+  pagination and page-size dropdown all follow the filtered set, and a
+  no-matches message shows when nothing matches. New i18n keys
+  `mesh_health_contacts_search_placeholder` / `mesh_health_contacts_no_matches`
+  in EN/NL/DE.
+  Verified: frontend vitest (`meshHealthView.test.tsx` 15/15 incl. new search,
+  no-matches, and table-above-alerts DOM-order tests; full suite 1753),
+  eslint/prettier/build clean, and live in the browser on the 7d window (real
+  HIGH+MEDIUM alerts render below the table; typing a contact name filters
+  50 rows to 1; gibberish shows the no-matches message).
+
 ## Update 2026-09-21 (Packet History: fix the "Request" type filter)
 
 ### Packet ingest + Packet History (backend)
