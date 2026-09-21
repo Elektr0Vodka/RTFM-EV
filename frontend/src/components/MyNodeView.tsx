@@ -34,6 +34,8 @@ import {
 } from '../utils/timeRanges';
 import { loadStoredTimeRange, saveStoredTimeRange } from '../utils/timeRangePreference';
 import { ZoomableBinChart } from './charts/ZoomableBinChart';
+import { DirectRadar } from './mynode/radar/DirectRadar';
+import { toRadarData } from './mynode/radar/radarData';
 
 // MeshCore node types (contact.type): translation key per mesh vocabulary label.
 const NODE_TYPE_KEYS: Record<number, string> = {
@@ -1642,6 +1644,14 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
   const [historicalStatsError, setHistoricalStatsError] = useState<string | null>(null);
   const [statsSource, setStatsSource] = useState<'session' | 'db'>('session');
 
+  // Radar data: the historical-stats neighbours (already 0-hop / directly heard)
+  // plotted from the radio's own location. Reuses the historicalStats fetch above
+  // (refreshed for every window, live 20m included), so there is no extra request.
+  const radarData = useMemo(
+    () => toRadarData(historicalStats?.neighbors_by_count ?? [], config),
+    [historicalStats, config]
+  );
+
   // Noise floor
   const [noiseFloorSamples, setNoiseFloorSamples] = useState<NoiseFloorSample[]>([]);
   const [noiseFloorSupported] = useState<boolean | null>(null);
@@ -2517,6 +2527,18 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                 </div>
               </div>
             )}
+
+            {/* ── Directly heard radar ── */}
+            <div className="rounded-lg border border-border bg-card overflow-hidden">
+              <div className="border-b border-border px-3 py-2 flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold text-foreground">
+                  {t('node_radar_title')}
+                </span>
+              </div>
+              <div className="p-3">
+                <DirectRadar data={radarData} />
+              </div>
+            </div>
 
             {/* ── Neighbors ── */}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
