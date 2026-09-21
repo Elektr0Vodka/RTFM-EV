@@ -1,3 +1,5 @@
+import { formatDateTime } from './dateTimeFormat';
+
 /**
  * Parse sender from channel message text.
  * Channel messages have format "sender: message".
@@ -54,14 +56,14 @@ export function formatTime(timestamp: number): string {
   const now = new Date();
   const isToday = date.toDateString() === now.toDateString();
 
-  const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  const time = formatDateTime(date, { hour: '2-digit', minute: '2-digit' });
 
   if (isToday) {
     return time;
   }
 
   // Show short date for older messages
-  const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  const dateStr = formatDateTime(date, { month: 'short', day: 'numeric' });
   return `${dateStr} ${time}`;
 }
 

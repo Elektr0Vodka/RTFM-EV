@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { useT } from '../../i18n';
+import { formatDateTime } from '../../utils/dateTimeFormat';
 import { ZoomableChart } from '../charts/ZoomableChart';
 import type { ChartWindow } from '../../lib/chartZoom';
 import { mergeSignalSeries, type SnrPoint } from './neighborSignalUtils';
@@ -23,7 +24,7 @@ interface Props {
 }
 
 function formatTime(ts: number): string {
-  return new Date(ts * 1000).toLocaleString([], {
+  return formatDateTime(new Date(ts * 1000), {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',

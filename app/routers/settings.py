@@ -317,6 +317,10 @@ class AppSettingsUpdate(BaseModel):
         default=None,
         description="Mesh Health contacts-table page size: 0 (all) or 10/25/50/100",
     )
+    date_time_format: str | None = Field(
+        default=None,
+        description="UI date/time format: 'auto', '12h_mdy', or '24h_dmy'",
+    )
     blocked_keys: list[str] | None = Field(
         default=None,
         description="Public keys whose messages are hidden from the UI",
@@ -688,6 +692,13 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
         100,
     ):
         kwargs["mesh_health_page_size"] = update.mesh_health_page_size
+    # UI date/time format. Ignore unknown values so a stale client can't corrupt it.
+    if update.date_time_format is not None and update.date_time_format in (
+        "auto",
+        "12h_mdy",
+        "24h_dmy",
+    ):
+        kwargs["date_time_format"] = update.date_time_format
 
     # Auto-add mentioned channels to the registry
     if update.auto_add_mentioned_channels is not None:

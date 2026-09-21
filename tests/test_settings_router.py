@@ -136,6 +136,26 @@ class TestUpdateSettings:
         assert fresh.show_mention_ticker is False
 
     @pytest.mark.asyncio
+    async def test_date_time_format_defaults_auto(self, test_db):
+        result = await update_settings(AppSettingsUpdate())
+        assert result.date_time_format == "auto"
+
+    @pytest.mark.asyncio
+    async def test_date_time_format_round_trip(self, test_db):
+        """The UI date/time format is forwarded and persisted."""
+        result = await update_settings(AppSettingsUpdate(date_time_format="24h_dmy"))
+        assert result.date_time_format == "24h_dmy"
+
+        fresh = await AppSettingsRepository.get()
+        assert fresh.date_time_format == "24h_dmy"
+
+    @pytest.mark.asyncio
+    async def test_date_time_format_ignores_unknown_value(self, test_db):
+        """A stale/rogue client value is ignored, leaving the default."""
+        result = await update_settings(AppSettingsUpdate(date_time_format="nonsense"))
+        assert result.date_time_format == "auto"
+
+    @pytest.mark.asyncio
     async def test_chat_entity_settings_defaults(self, test_db):
         result = await update_settings(AppSettingsUpdate())
         assert result.chat_parse_pubkeys is False

@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from '../ui/dialog';
 import { api, isAbortError } from '../../api';
+import { formatDateTime } from '../../utils/dateTimeFormat';
 import { RADIO_PRESETS } from '../../utils/radioPresets';
 import { stripRegionScopePrefix } from '../../utils/regionScope';
 import { allDutchScopes } from '../../lib/dutchGeo';
@@ -807,17 +808,14 @@ export function SettingsRadioSection({
     const a = document.createElement('a');
     a.href = url;
     const safeName = (config.name || 'radio').replace(/[^a-zA-Z0-9_-]/g, '_');
-    const timestamp = new Date()
-      .toLocaleString(undefined, {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
-      })
-      .replace(/[/:, ]+/g, '-');
+    const timestamp = formatDateTime(new Date(), {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).replace(/[/:, ]+/g, '-');
     a.download = `${safeName}-${suffix}-${timestamp}.json`;
     a.click();
     URL.revokeObjectURL(url);
@@ -1189,7 +1187,14 @@ export function SettingsRadioSection({
             {presetInfo ? `${presetInfo} ` : ''}
             {t('settings_radio_presets_synced_count', {
               count: presetList.length,
-              date: new Date(presetSyncedAt * 1000).toLocaleString(),
+              date: formatDateTime(new Date(presetSyncedAt * 1000), {
+                year: 'numeric',
+                month: 'numeric',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                second: '2-digit',
+              }),
             })}
           </p>
         )}
@@ -1733,7 +1738,14 @@ export function SettingsRadioSection({
             {externalMapStatus && externalMapStatus.last_synced_at
               ? t('settings_external_map_status', {
                   count: externalMapStatus.count,
-                  when: new Date(externalMapStatus.last_synced_at * 1000).toLocaleString(),
+                  when: formatDateTime(new Date(externalMapStatus.last_synced_at * 1000), {
+                    year: 'numeric',
+                    month: 'numeric',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    second: '2-digit',
+                  }),
                 })
               : t('settings_external_map_never_synced')}
           </p>

@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { api } from '../../api';
 import { getContactDisplayName } from '../../utils/pubkey';
+import { formatDateTime } from '../../utils/dateTimeFormat';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
@@ -27,7 +28,7 @@ type SortField = 'name' | 'type' | 'key' | 'first_seen' | 'last_seen';
 type SortDir = 'asc' | 'desc';
 
 function formatDate(ts: number): string {
-  return new Date(ts * 1000).toLocaleDateString([], {
+  return formatDateTime(new Date(ts * 1000), {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

@@ -8,6 +8,7 @@ import { useT } from '../../i18n';
 import { usePush } from '../../contexts/PushSubscriptionContext';
 import type { AppSettings, AppSettingsUpdate, Channel, Contact } from '../../types';
 import { getContactDisplayName } from '../../utils/pubkey';
+import { formatDateTime } from '../../utils/dateTimeFormat';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
 import { Input } from '../ui/input';
@@ -192,7 +193,11 @@ function PushDeviceManagement({
                   <span className="text-xs text-muted-foreground">
                     {sub.last_success_at
                       ? t('settings_push_last_push', {
-                          date: new Date(sub.last_success_at * 1000).toLocaleDateString(),
+                          date: formatDateTime(new Date(sub.last_success_at * 1000), {
+                            year: 'numeric',
+                            month: 'numeric',
+                            day: 'numeric',
+                          }),
                         })
                       : t('settings_push_never_pushed')}
                     {sub.failure_count > 0 &&
@@ -429,6 +434,29 @@ export function SettingsLocalSection({
         </select>
         <p className="text-[0.8125rem] text-muted-foreground">
           {t('settings_distance_units_description')}
+        </p>
+      </div>
+
+      <Separator />
+
+      <div className="space-y-3">
+        <Label htmlFor="date-time-format">{t('settings_date_time_format_label')}</Label>
+        <select
+          id="date-time-format"
+          value={appSettings?.date_time_format ?? 'auto'}
+          onChange={(event) =>
+            onSaveAppSettings?.({
+              date_time_format: event.target.value as 'auto' | '12h_mdy' | '24h_dmy',
+            })
+          }
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+        >
+          <option value="auto">{t('settings_date_time_format_auto')}</option>
+          <option value="12h_mdy">{t('settings_date_time_format_12h_mdy')}</option>
+          <option value="24h_dmy">{t('settings_date_time_format_24h_dmy')}</option>
+        </select>
+        <p className="text-[0.8125rem] text-muted-foreground">
+          {t('settings_date_time_format_description')}
         </p>
       </div>
 

@@ -1329,6 +1329,14 @@ class AppSettings(BaseModel):
             "table. 0 = show all (no pagination); otherwise 10/25/50/100."
         ),
     )
+    date_time_format: Literal["auto", "12h_mdy", "24h_dmy"] = Field(
+        default="auto",
+        description=(
+            "UI date/time format: 'auto' follows the UI language (EN -> 12h + "
+            "mm/dd/yyyy, NL/DE -> 24h + dd/mm/yyyy), '12h_mdy' forces 12-hour + "
+            "mm/dd/yyyy, '24h_dmy' forces 24-hour + dd/mm/yyyy."
+        ),
+    )
     discovery_blocked_types: list[int] = Field(
         default_factory=list,
         description=(

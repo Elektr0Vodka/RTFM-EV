@@ -20,6 +20,7 @@ import type {
 import { mvToPercent } from '../utils/batteryDisplay';
 import { api } from '../api';
 import { buildRawPacketStatsSnapshot } from '../utils/rawPacketStats';
+import { formatDateTime } from '../utils/dateTimeFormat';
 import { useRawPackets, useRawPacketStatsSession } from '../stores/rawPacketStore';
 import { getContactDisplayName } from '../utils/pubkey';
 import { handleKeyboardActivate } from '../utils/a11y';
@@ -150,11 +151,10 @@ function relTime(unixSec: number | null | undefined, t: TFn): string {
 
 function fmtTime(ms: number, windowSeconds: number): string {
   const d = new Date(ms);
-  if (windowSeconds <= 3600)
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (windowSeconds <= 3600) return formatDateTime(d, { hour: '2-digit', minute: '2-digit' });
   if (windowSeconds <= 7 * 24 * 3600)
-    return d.toLocaleDateString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return formatDateTime(d, { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+  return formatDateTime(d, { month: 'short', day: 'numeric' });
 }
 
 function hexBytes(hex: string): number {
@@ -205,8 +205,8 @@ function fmtWindowLabel(windowKey: string, customStart: string, customEnd: strin
     return t('node_window_last', { label: windowLabel(windowKey, t) });
   }
   if (customStart && customEnd) {
-    const s = new Date(customStart).toLocaleDateString([], { month: 'short', day: 'numeric' });
-    const e = new Date(customEnd).toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const s = formatDateTime(new Date(customStart), { month: 'short', day: 'numeric' });
+    const e = formatDateTime(new Date(customEnd), { month: 'short', day: 'numeric' });
     return `${s} – ${e}`;
   }
   return t('node_window_custom_range');

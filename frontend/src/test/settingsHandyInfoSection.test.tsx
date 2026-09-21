@@ -42,6 +42,7 @@ function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings {
     packet_feed_sort: 'oldest',
     packet_history_sort: 'oldest',
     mesh_health_page_size: 50,
+    date_time_format: 'auto',
     discovery_blocked_types: [],
     tracked_telemetry_repeaters: [],
     tracked_telemetry_contacts: [],
