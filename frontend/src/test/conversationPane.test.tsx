@@ -387,6 +387,57 @@ describe('ConversationPane', () => {
     });
   });
 
+  it('keeps a desktop room contact on the chat view, not the full-page contact info', async () => {
+    // Regression: PR #151 diverted rooms to the full-page contact-info view on
+    // desktop, which has no message composer or favorite star. A room is a group
+    // chat and must render the chat path (login panel + composer) on desktop too.
+    setViewport(false);
+    render(
+      <ConversationPane
+        {...createProps({
+          activeConversation: {
+            type: 'contact',
+            id: 'cc'.repeat(32),
+            name: 'Ops Board',
+          },
+          contacts: [
+            {
+              public_key: 'cc'.repeat(32),
+              name: 'Ops Board',
+              type: 3,
+              flags: 0,
+              direct_path: null,
+              direct_path_len: -1,
+              direct_path_hash_mode: -1,
+              last_advert: null,
+              lat: null,
+              lon: null,
+              last_seen: null,
+              on_radio: false,
+              favorite: false,
+              radio_policy: 'auto',
+              last_contacted: null,
+              last_read_at: null,
+              first_seen: null,
+            },
+          ],
+        })}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('room-server-panel')).toBeInTheDocument();
+      expect(screen.getByTestId('chat-header')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('contact-info-view')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Authenticate room' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('message-input')).toBeInTheDocument();
+    });
+  });
+
   it('remounts the room panel when switching between room servers', async () => {
     const roomA = 'cc'.repeat(32);
     const roomB = 'dd'.repeat(32);
