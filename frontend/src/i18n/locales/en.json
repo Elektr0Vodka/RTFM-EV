@@ -832,6 +832,7 @@
   "settings_local_label_description": "Display a colored banner at the top of the page to identify this instance.",
   "settings_distance_units_label": "Distance Units",
   "settings_distance_units_description": "Controls how distances are shown throughout the app.",
+  "date_field_open_calendar": "Open calendar",
   "settings_date_time_format_label": "Date & Time Format",
   "settings_date_time_format_description": "Controls how dates and times are shown throughout the app.",
   "settings_date_time_format_auto": "Automatic (follow language)",

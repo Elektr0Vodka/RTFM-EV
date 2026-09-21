@@ -11,6 +11,28 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-21 (Date pickers follow the date/time format setting)
+
+### Date/time inputs (frontend)
+- **The date-picker inputs now follow the date/time format setting.** Native
+  `<input type="date"/datetime-local">` widgets always render in the browser
+  locale (mm/dd/yyyy + AM/PM on a US browser) and can't be reformatted by the
+  page, so the Node-map "Custom" range filter, the channel-registry Last Heard /
+  Added fields, the shared `TimeRangeSelector` (Packet History / Mesh Trends
+  custom range) and the bulk-delete filters ignored `date_time_format`
+  (reported by Richard/Mike). New dependency-free `DateTimeField` component: a
+  text field formatted and parsed per the setting (dd/mm/yyyy vs mm/dd/yyyy,
+  24h vs 12h) with a calendar button that opens the native picker via
+  `showPicker()` and a hidden native input holding the canonical value, so the
+  value contract is unchanged (`YYYY-MM-DD` / `YYYY-MM-DDTHH:mm`). The field
+  subscribes to format changes (`useSyncExternalStore`, new
+  `subscribeActiveDateTimeFormat`) so it reflows without a reload. New i18n key
+  `date_field_open_calendar` in EN/NL/DE.
+  Verified: frontend vitest (`dateFieldFormat` 11 + `DateTimeField` 5; full
+  suite 1779) + build + eslint/prettier; and live in the browser under
+  `24h_dmy` (registry Added shows `21/09/2026`, map Custom placeholder
+  `dd/mm/yyyy HH:mm`).
+
 ## Update 2026-09-21 (Date & time format setting)
 
 ### UI date/time format (backend + frontend)

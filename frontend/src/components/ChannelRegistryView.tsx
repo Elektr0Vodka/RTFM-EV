@@ -41,6 +41,7 @@ import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import { DateTimeField } from './DateTimeField';
 import { cn } from '@/lib/utils';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -574,20 +575,20 @@ function EditChannelModal({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className={labelCls}>{t('channel_registry_last_heard_label')}</Label>
-              <Input
-                type="date"
+              <DateTimeField
+                mode="date"
                 className={inputCls}
                 value={form.lastHeard}
-                onChange={(e) => setForm((f) => ({ ...f, lastHeard: e.target.value }))}
+                onChange={(v) => setForm((f) => ({ ...f, lastHeard: v }))}
               />
             </div>
             <div className="space-y-1">
               <Label className={labelCls}>{t('channel_registry_added_label')}</Label>
-              <Input
-                type="date"
+              <DateTimeField
+                mode="date"
                 className={inputCls}
                 value={form.added}
-                onChange={(e) => setForm((f) => ({ ...f, added: e.target.value }))}
+                onChange={(v) => setForm((f) => ({ ...f, added: v }))}
               />
             </div>
           </div>
