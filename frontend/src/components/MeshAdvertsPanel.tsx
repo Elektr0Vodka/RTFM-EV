@@ -481,6 +481,7 @@ export function MeshAdvertsPanel({
   const [sortKey, setSortKey] = useState<SortKey>('advert_count');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [page, setPage] = useState(0);
+  const [search, setSearch] = useState('');
 
   const lastFetchRef = useRef<number>(0);
   const focusRowRef = useRef<HTMLTableRowElement>(null);
@@ -563,10 +564,10 @@ export function MeshAdvertsPanel({
     return () => clearInterval(id);
   }, [selectedWindow, fetchHealth]);
 
-  // Reset page when sort or page size changes
+  // Reset page when sort, page size, or the search query changes
   useEffect(() => {
     setPage(0);
-  }, [sortKey, sortDir, pageSize]);
+  }, [sortKey, sortDir, pageSize, search]);
 
   // Scroll to focused node after data loads (only once per focusKey)
   useEffect(() => {
@@ -637,13 +638,22 @@ export function MeshAdvertsPanel({
     return arr;
   }, [contactsWithDist, sortKey, sortDir]);
 
+  // Free-text filter over the sorted rows (name or public key, case-insensitive).
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return sorted;
+    return sorted.filter(
+      (n) => (n.name ?? '').toLowerCase().includes(q) || n.public_key.toLowerCase().includes(q)
+    );
+  }, [sorted, search]);
+
   // pageSize 0 means "show all": one page holding every contact.
   const showAll = pageSize <= 0;
-  const effectivePageSize = showAll ? Math.max(sorted.length, 1) : pageSize;
-  const totalPages = showAll ? 1 : Math.max(1, Math.ceil(sorted.length / effectivePageSize));
+  const effectivePageSize = showAll ? Math.max(filtered.length, 1) : pageSize;
+  const totalPages = showAll ? 1 : Math.max(1, Math.ceil(filtered.length / effectivePageSize));
   const paginated = showAll
-    ? sorted
-    : sorted.slice(page * effectivePageSize, (page + 1) * effectivePageSize);
+    ? filtered
+    : filtered.slice(page * effectivePageSize, (page + 1) * effectivePageSize);
 
   const highAlerts = data?.alerts.filter((a) => a.level === 'HIGH') ?? [];
   const mediumAlerts = data?.alerts.filter((a) => a.level === 'MEDIUM') ?? [];
@@ -833,77 +843,8 @@ export function MeshAdvertsPanel({
         </div>
       )}
 
-      {/* HIGH alerts */}
-      {highAlerts.length > 0 && (
-        <div className="rounded-lg border border-destructive/40 bg-card overflow-hidden">
-          <div className="border-b border-destructive/30 bg-destructive/10 px-3 py-2 flex items-center gap-2">
-            <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
-            <span className="text-sm font-semibold text-destructive">
-              {t('mesh_health_high_alert_heading')}
-            </span>
-            <span className="text-[10px] text-destructive/70">
-              · {t('mesh_health_stat_sub_last_window', { window: selectedWindow.label })}
-            </span>
-            <span className="ml-auto text-[10px] text-destructive/70">
-              {t('mesh_health_alert_node_count', { count: highAlerts.length })}
-            </span>
-          </div>
-          <div className="divide-y divide-border">
-            {highAlerts.map((a) => {
-              const contact = data?.contacts.find((c) => c.public_key === a.public_key);
-              return (
-                <AlertRow
-                  key={a.public_key}
-                  alert={a}
-                  lat={contact?.lat}
-                  lon={contact?.lon}
-                  onNavigateToMap={onNavigateToMap}
-                />
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* MEDIUM alerts */}
-      {mediumAlerts.length > 0 && (
-        <div className="rounded-lg border border-yellow-500/40 bg-card overflow-hidden">
-          <div className="border-b border-yellow-500/30 bg-yellow-500/10 px-3 py-2 flex items-center gap-2">
-            <AlertTriangle className="h-3.5 w-3.5 text-yellow-600 dark:text-yellow-400" />
-            <span className="text-sm font-semibold text-yellow-700 dark:text-yellow-300">
-              {t('mesh_health_medium_alert_heading')}
-            </span>
-            <span className="text-[10px] text-yellow-600/70 dark:text-yellow-400/70">
-              · {t('mesh_health_stat_sub_last_window', { window: selectedWindow.label })}
-            </span>
-            <span className="ml-auto text-[10px] text-yellow-600/70 dark:text-yellow-400/70">
-              {t('mesh_health_alert_node_count', { count: mediumAlerts.length })}
-            </span>
-          </div>
-          <div className="divide-y divide-border">
-            {mediumAlerts.map((a) => {
-              const contact = data?.contacts.find((c) => c.public_key === a.public_key);
-              return (
-                <AlertRow
-                  key={a.public_key}
-                  alert={a}
-                  lat={contact?.lat}
-                  lon={contact?.lon}
-                  onNavigateToMap={onNavigateToMap}
-                />
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {data && data.alerts.length === 0 && (
-        <div className="rounded-lg border border-border bg-card px-4 py-6 text-center text-sm text-muted-foreground">
-          {t('mesh_health_no_alerts_message', { window: selectedWindow.label })}
-        </div>
-      )}
-
-      {/* Full contacts table */}
+      {/* Full contacts table (kept above the flood-advert alerts so a long
+          alert list never pushes the table off-screen) */}
       {data && data.contacts.length > 0 && (
         <div className="rounded-lg border border-border bg-card overflow-hidden">
           <div className="border-b border-border px-3 py-2 flex flex-wrap items-center justify-between gap-2">
@@ -911,9 +852,17 @@ export function MeshAdvertsPanel({
               {t('mesh_health_contacts_table_heading')}
             </span>
             <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t('mesh_health_contacts_search_placeholder')}
+                aria-label={t('mesh_health_contacts_search_placeholder')}
+                className="h-7 w-40 rounded-md border border-input bg-background px-2 text-[11px] text-foreground placeholder:text-muted-foreground"
+              />
               <span className="text-[10px] text-muted-foreground">
                 {t('mesh_health_contacts_summary', {
-                  count: sorted.length,
+                  count: filtered.length,
                   window: selectedWindow.label,
                 })}
                 {totalPages > 1 &&
@@ -1101,6 +1050,16 @@ export function MeshAdvertsPanel({
                     </tr>
                   );
                 })}
+                {paginated.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={10}
+                      className="px-3 py-6 text-center text-sm text-muted-foreground"
+                    >
+                      {t('mesh_health_contacts_no_matches', { query: search.trim() })}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -1111,8 +1070,8 @@ export function MeshAdvertsPanel({
               <span className="text-[10px] text-muted-foreground">
                 {t('mesh_health_pagination_range', {
                   start: page * effectivePageSize + 1,
-                  end: Math.min((page + 1) * effectivePageSize, sorted.length),
-                  total: sorted.length,
+                  end: Math.min((page + 1) * effectivePageSize, filtered.length),
+                  total: filtered.length,
                 })}
               </span>
               <div className="flex items-center gap-1">
@@ -1162,6 +1121,76 @@ export function MeshAdvertsPanel({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* HIGH alerts */}
+      {highAlerts.length > 0 && (
+        <div className="rounded-lg border border-destructive/40 bg-card overflow-hidden">
+          <div className="border-b border-destructive/30 bg-destructive/10 px-3 py-2 flex items-center gap-2">
+            <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+            <span className="text-sm font-semibold text-destructive">
+              {t('mesh_health_high_alert_heading')}
+            </span>
+            <span className="text-[10px] text-destructive/70">
+              · {t('mesh_health_stat_sub_last_window', { window: selectedWindow.label })}
+            </span>
+            <span className="ml-auto text-[10px] text-destructive/70">
+              {t('mesh_health_alert_node_count', { count: highAlerts.length })}
+            </span>
+          </div>
+          <div className="divide-y divide-border">
+            {highAlerts.map((a) => {
+              const contact = data?.contacts.find((c) => c.public_key === a.public_key);
+              return (
+                <AlertRow
+                  key={a.public_key}
+                  alert={a}
+                  lat={contact?.lat}
+                  lon={contact?.lon}
+                  onNavigateToMap={onNavigateToMap}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* MEDIUM alerts */}
+      {mediumAlerts.length > 0 && (
+        <div className="rounded-lg border border-yellow-500/40 bg-card overflow-hidden">
+          <div className="border-b border-yellow-500/30 bg-yellow-500/10 px-3 py-2 flex items-center gap-2">
+            <AlertTriangle className="h-3.5 w-3.5 text-yellow-600 dark:text-yellow-400" />
+            <span className="text-sm font-semibold text-yellow-700 dark:text-yellow-300">
+              {t('mesh_health_medium_alert_heading')}
+            </span>
+            <span className="text-[10px] text-yellow-600/70 dark:text-yellow-400/70">
+              · {t('mesh_health_stat_sub_last_window', { window: selectedWindow.label })}
+            </span>
+            <span className="ml-auto text-[10px] text-yellow-600/70 dark:text-yellow-400/70">
+              {t('mesh_health_alert_node_count', { count: mediumAlerts.length })}
+            </span>
+          </div>
+          <div className="divide-y divide-border">
+            {mediumAlerts.map((a) => {
+              const contact = data?.contacts.find((c) => c.public_key === a.public_key);
+              return (
+                <AlertRow
+                  key={a.public_key}
+                  alert={a}
+                  lat={contact?.lat}
+                  lon={contact?.lon}
+                  onNavigateToMap={onNavigateToMap}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {data && data.alerts.length === 0 && (
+        <div className="rounded-lg border border-border bg-card px-4 py-6 text-center text-sm text-muted-foreground">
+          {t('mesh_health_no_alerts_message', { window: selectedWindow.label })}
         </div>
       )}
 

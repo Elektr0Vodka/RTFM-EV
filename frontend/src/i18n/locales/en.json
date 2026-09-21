@@ -334,6 +334,8 @@
   "mesh_health_medium_alert_heading": "MEDIUM - Above Normal Flood Advert Rate",
   "mesh_health_no_alerts_message": "No flood advert frequency alerts in the last {window}. Mesh looks healthy.",
   "mesh_health_contacts_table_heading": "All Advertised Contacts Heard (In Selected Time-Span)",
+  "mesh_health_contacts_search_placeholder": "Search name or key...",
+  "mesh_health_contacts_no_matches": "No advertised contacts match \"{query}\".",
   "mesh_health_contacts_summary": {
     "one": "{count} node · last {window}",
     "other": "{count} nodes · last {window}"
