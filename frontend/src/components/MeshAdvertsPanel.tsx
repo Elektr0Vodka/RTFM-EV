@@ -12,7 +12,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronUp, ChevronsUpDown, Map } from 'lucide-react';
-import type { RadioConfig } from '../types';
+import type { AppSettingsUpdate, RadioConfig } from '../types';
 import { useT } from '../i18n';
 import { SvgZoomBox } from './charts/SvgZoomBox';
 import type { ChartBox } from '../lib/chartZoom2d';
@@ -96,8 +96,6 @@ type SortKey =
   | 'hash_mode';
 type SortDir = 'asc' | 'desc';
 
-const PAGE_SIZE = 50;
-
 // ─── Props ──────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -112,7 +110,13 @@ interface Props {
   focusKey?: string;
   /** Reports loading state up to the shell so the refresh spinner can reflect it. */
   onLoadingChange?: (loading: boolean) => void;
+  /** Server-persisted page size for the contacts table; 0 = show all. */
+  pageSize?: number;
+  onSaveAppSettings?: (update: AppSettingsUpdate) => Promise<void> | void;
 }
+
+/** Allowed page sizes for the contacts table; 0 = show all (no pagination). */
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 0] as const;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -465,6 +469,8 @@ export function MeshAdvertsPanel({
   onOpenNode,
   focusKey,
   onLoadingChange,
+  pageSize = 50,
+  onSaveAppSettings,
 }: Props) {
   const t = useT();
   const [data, setData] = useState<MeshHealthResponse | null>(null);
@@ -557,10 +563,10 @@ export function MeshAdvertsPanel({
     return () => clearInterval(id);
   }, [selectedWindow, fetchHealth]);
 
-  // Reset page when sort changes
+  // Reset page when sort or page size changes
   useEffect(() => {
     setPage(0);
-  }, [sortKey, sortDir]);
+  }, [sortKey, sortDir, pageSize]);
 
   // Scroll to focused node after data loads (only once per focusKey)
   useEffect(() => {
@@ -631,8 +637,13 @@ export function MeshAdvertsPanel({
     return arr;
   }, [contactsWithDist, sortKey, sortDir]);
 
-  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
-  const paginated = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  // pageSize 0 means "show all": one page holding every contact.
+  const showAll = pageSize <= 0;
+  const effectivePageSize = showAll ? Math.max(sorted.length, 1) : pageSize;
+  const totalPages = showAll ? 1 : Math.max(1, Math.ceil(sorted.length / effectivePageSize));
+  const paginated = showAll
+    ? sorted
+    : sorted.slice(page * effectivePageSize, (page + 1) * effectivePageSize);
 
   const highAlerts = data?.alerts.filter((a) => a.level === 'HIGH') ?? [];
   const mediumAlerts = data?.alerts.filter((a) => a.level === 'MEDIUM') ?? [];
@@ -895,18 +906,35 @@ export function MeshAdvertsPanel({
       {/* Full contacts table */}
       {data && data.contacts.length > 0 && (
         <div className="rounded-lg border border-border bg-card overflow-hidden">
-          <div className="border-b border-border px-3 py-2 flex items-center justify-between gap-2">
+          <div className="border-b border-border px-3 py-2 flex flex-wrap items-center justify-between gap-2">
             <span className="text-sm font-semibold text-foreground">
               {t('mesh_health_contacts_table_heading')}
             </span>
-            <span className="text-[10px] text-muted-foreground">
-              {t('mesh_health_contacts_summary', {
-                count: sorted.length,
-                window: selectedWindow.label,
-              })}
-              {totalPages > 1 &&
-                t('mesh_health_page_indicator', { page: page + 1, total: totalPages })}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-muted-foreground">
+                {t('mesh_health_contacts_summary', {
+                  count: sorted.length,
+                  window: selectedWindow.label,
+                })}
+                {totalPages > 1 &&
+                  t('mesh_health_page_indicator', { page: page + 1, total: totalPages })}
+              </span>
+              <select
+                value={pageSize}
+                onChange={(e) =>
+                  onSaveAppSettings?.({ mesh_health_page_size: Number(e.target.value) })
+                }
+                aria-label={t('mesh_health_page_size_label')}
+                title={t('mesh_health_page_size_label')}
+                className="h-7 rounded-md border border-input bg-background px-1.5 text-[11px] text-foreground"
+              >
+                {PAGE_SIZE_OPTIONS.map((n) => (
+                  <option key={n} value={n}>
+                    {n === 0 ? t('mesh_health_page_size_all') : n}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -1082,8 +1110,8 @@ export function MeshAdvertsPanel({
             <div className="border-t border-border px-3 py-2 flex items-center justify-between gap-2">
               <span className="text-[10px] text-muted-foreground">
                 {t('mesh_health_pagination_range', {
-                  start: page * PAGE_SIZE + 1,
-                  end: Math.min((page + 1) * PAGE_SIZE, sorted.length),
+                  start: page * effectivePageSize + 1,
+                  end: Math.min((page + 1) * effectivePageSize, sorted.length),
                   total: sorted.length,
                 })}
               </span>

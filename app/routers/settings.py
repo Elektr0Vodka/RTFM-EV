@@ -313,6 +313,10 @@ class AppSettingsUpdate(BaseModel):
         default=None,
         description="Packet History view time-sort direction: 'oldest' or 'newest'",
     )
+    mesh_health_page_size: int | None = Field(
+        default=None,
+        description="Mesh Health contacts-table page size: 0 (all) or 10/25/50/100",
+    )
     blocked_keys: list[str] | None = Field(
         default=None,
         description="Public keys whose messages are hidden from the UI",
@@ -674,6 +678,16 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
         "newest",
     ):
         kwargs["packet_history_sort"] = update.packet_history_sort
+    # Mesh Health page size. Ignore unknown values so a stale client can't
+    # corrupt the setting (0 = show all).
+    if update.mesh_health_page_size is not None and update.mesh_health_page_size in (
+        0,
+        10,
+        25,
+        50,
+        100,
+    ):
+        kwargs["mesh_health_page_size"] = update.mesh_health_page_size
 
     # Auto-add mentioned channels to the registry
     if update.auto_add_mentioned_channels is not None:

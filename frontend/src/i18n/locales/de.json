@@ -330,6 +330,8 @@
     "other": "{count} Knoten · letzte {window}"
   },
   "mesh_health_page_indicator": " · Seite {page} von {total}",
+  "mesh_health_page_size_label": "Max. Zeilen anzeigen",
+  "mesh_health_page_size_all": "Alle",
   "mesh_health_col_id": "ID",
   "mesh_health_col_adverts": "Adverts",
   "mesh_health_col_direct": "Direkt",

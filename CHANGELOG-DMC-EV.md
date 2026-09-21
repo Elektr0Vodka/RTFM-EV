@@ -11,6 +11,24 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-21 (Mesh Health contacts table: page-size dropdown)
+
+### Mesh Health (backend + frontend)
+- **"Show max rows" page-size dropdown** on the "All Advertised Contacts Heard"
+  block (10/25/50/100/All, default 50). The table already had a client-side
+  pager that only appeared past 50 rows; the dropdown drives it and `All`
+  (value `0`) shows every contact on one page with the pager hidden. The choice
+  persists server-side in a new `app_settings.mesh_health_page_size` column
+  (migration `_100`, `int`, `0` = all, default `50`), validated in the settings
+  router (unknown values ignored) and threaded from `App.tsx`
+  (`meshHealthPageSize` + `onSaveAppSettings`) → `MeshHealthView` →
+  `MeshAdvertsPanel`, mirroring `packet_feed_sort`/`packet_history_sort`. New
+  i18n keys `mesh_health_page_size_label`/`_all` in EN/NL/DE.
+  Verified: backend pytest (new migration `_100` test, settings round-trip +
+  router validation tests; 215 pass across api/settings/migrations), frontend
+  vitest (new dropdown test + 5 updated AppSettings fixtures; 141 pass across the
+  touched suites), i18n parity, ruff/pyright/eslint/prettier/build all clean.
+
 ## Update 2026-09-21 (Signal-audio: make packet-feed sound work in Firefox, sound-behavior-localhost)
 
 ### Packet-feed sound (frontend)

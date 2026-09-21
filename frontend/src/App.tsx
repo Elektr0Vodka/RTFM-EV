@@ -718,6 +718,7 @@ export function App() {
     registryNames,
     packetFeedSort: appSettings?.packet_feed_sort ?? 'oldest',
     packetHistorySort: appSettings?.packet_history_sort ?? 'oldest',
+    meshHealthPageSize: appSettings?.mesh_health_page_size ?? 50,
     onSaveAppSettings: handleSaveAppSettings,
     autoAddMentionedChannels: appSettings?.auto_add_mentioned_channels ?? false,
     parsePubkeys: appSettings?.chat_parse_pubkeys ?? false,

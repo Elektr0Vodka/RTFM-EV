@@ -1322,6 +1322,13 @@ class AppSettings(BaseModel):
             "the default) or 'newest' (newest first). Independent from the feed."
         ),
     )
+    mesh_health_page_size: int = Field(
+        default=50,
+        description=(
+            "Rows per page for the Mesh Health 'All Advertised Contacts Heard' "
+            "table. 0 = show all (no pagination); otherwise 10/25/50/100."
+        ),
+    )
     discovery_blocked_types: list[int] = Field(
         default_factory=list,
         description=(

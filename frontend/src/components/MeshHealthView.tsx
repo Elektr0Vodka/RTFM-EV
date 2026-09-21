@@ -16,6 +16,7 @@ import { type TimeWindow } from './meshHealthShared';
 import { TimeRangeSelector } from './TimeRangeSelector';
 import { BASE_TIME_RANGES, type TimeRange } from '../utils/timeRanges';
 import { loadStoredTimeRange, saveStoredTimeRange } from '../utils/timeRangePreference';
+import type { AppSettingsUpdate } from '../types';
 import { MeshAdvertsPanel } from './MeshAdvertsPanel';
 import { MeshRequestsPanel } from './MeshRequestsPanel';
 import { MeshPrefixCollisionsPanel } from './MeshPrefixCollisionsPanel';
@@ -64,9 +65,19 @@ interface Props {
   onOpenNode?: (publicKey: string, name: string | null) => void;
   /** Public key to scroll to and highlight when the Adverts view loads */
   focusKey?: string;
+  /** Server-persisted page size for the Adverts contacts table; 0 = show all. */
+  pageSize?: number;
+  onSaveAppSettings?: (update: AppSettingsUpdate) => Promise<void> | void;
 }
 
-export function MeshHealthView({ config, onNavigateToMap, onOpenNode, focusKey }: Props) {
+export function MeshHealthView({
+  config,
+  onNavigateToMap,
+  onOpenNode,
+  focusKey,
+  pageSize = 50,
+  onSaveAppSettings,
+}: Props) {
   const t = useT();
   const [selectedWindowId, setSelectedWindowId] = useState<string>(
     () => loadStoredTimeRange(MESH_HEALTH_WINDOW_KEY, DEFAULT_MESH_HEALTH_ID).id
@@ -179,6 +190,8 @@ export function MeshHealthView({ config, onNavigateToMap, onOpenNode, focusKey }
               onOpenNode={onOpenNode}
               focusKey={focusKey}
               onLoadingChange={handleLoadingChange}
+              pageSize={pageSize}
+              onSaveAppSettings={onSaveAppSettings}
             />
           )}
           {activeTab === 'requests' && (
