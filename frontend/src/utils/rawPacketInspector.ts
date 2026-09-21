@@ -9,6 +9,7 @@ import {
 } from '@michaelhart/meshcore-decoder';
 
 import type { Channel, RawPacket } from '../types';
+import { formatDateTime } from './dateTimeFormat';
 
 export interface RawPacketSummary {
   summary: string;
@@ -93,7 +94,14 @@ function getPathTokens(decoded: DecodedPacket): string[] {
 }
 
 function formatUnixTimestamp(timestamp: number): string {
-  return `${timestamp} (${new Date(timestamp * 1000).toLocaleString()})`;
+  return `${timestamp} (${formatDateTime(new Date(timestamp * 1000), {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  })})`;
 }
 
 function createPacketField(

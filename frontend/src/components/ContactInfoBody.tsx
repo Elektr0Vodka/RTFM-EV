@@ -35,6 +35,7 @@ import {
 import { isPublicChannelKey } from '../utils/publicChannel';
 import { buildNodeLookupUrl } from '../utils/analyzerLink';
 import { getMapFocusHash } from '../utils/urlHash';
+import { formatDateTime } from '../utils/dateTimeFormat';
 import { handleKeyboardActivate } from '../utils/a11y';
 import { useT, type TFn } from '../i18n';
 import { ZoomableChart } from './charts/ZoomableChart';
@@ -760,10 +761,9 @@ export function ActivityChartsSection({
             ]}
             valueFormatter={(value) => value.toFixed(value % 1 === 0 ? 0 : 1)}
             tickFormatter={(bucket) =>
-              new Date(bucket.bucket_start * 1000).toLocaleTimeString([], {
+              formatDateTime(new Date(bucket.bucket_start * 1000), {
                 hour: '2-digit',
                 minute: '2-digit',
-                hour12: false,
               })
             }
           />
@@ -780,7 +780,7 @@ export function ActivityChartsSection({
             series={[{ key: 'message_count', color: '#16a34a', label: t('contact_messages') }]}
             valueFormatter={(value) => value.toFixed(0)}
             tickFormatter={(bucket) =>
-              new Date(bucket.bucket_start * 1000).toLocaleDateString([], {
+              formatDateTime(new Date(bucket.bucket_start * 1000), {
                 month: 'short',
                 day: 'numeric',
               })
@@ -1475,7 +1475,14 @@ function ContactTelemetrySection({
                               <RechartsTooltip
                                 {...TOOLTIP_STYLE}
                                 labelFormatter={(timestamp) =>
-                                  new Date(Number(timestamp) * 1000).toLocaleString()
+                                  formatDateTime(new Date(Number(timestamp) * 1000), {
+                                    year: 'numeric',
+                                    month: 'numeric',
+                                    day: 'numeric',
+                                    hour: 'numeric',
+                                    minute: '2-digit',
+                                    second: '2-digit',
+                                  })
                                 }
                               />
                             )}

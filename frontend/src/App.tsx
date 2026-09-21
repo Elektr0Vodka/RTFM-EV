@@ -40,6 +40,8 @@ import { shouldAutoFocusInput } from './utils/autoFocusInput';
 import { computeRegionSeed } from './lib/regionSeed';
 import { loadRegistry, recordMention, saveRegistry } from './lib/channelManager';
 import { buildNameSet } from './lib/hashtagChannelState';
+import { useLocale } from './i18n';
+import { resolveDateTimeFormat, setActiveDateTimeFormat } from './utils/dateTimeFormat';
 
 interface ChannelUnreadMarker {
   channelId: string;
@@ -186,6 +188,12 @@ export function App() {
     handleToggleTrackedTelemetry,
     handleToggleTrackedTelemetryContact,
   } = useAppSettings();
+
+  // Keep the app-wide date/time format in sync with the setting + UI language.
+  // A pure derivation done in render so descendants read the current format on
+  // their next render (App re-renders when the setting or locale changes).
+  const { locale: uiLocale } = useLocale();
+  setActiveDateTimeFormat(resolveDateTimeFormat(appSettings?.date_time_format ?? 'auto', uiLocale));
 
   // Mention/DM notification sound. Plays via the websocket message path below.
   const { notifyMentionSound } = useMentionSound({

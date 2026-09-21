@@ -591,6 +591,8 @@ export interface AppSettings {
   packet_history_sort: 'oldest' | 'newest';
   /** Mesh Health contacts-table page size; 0 = show all. */
   mesh_health_page_size: number;
+  /** UI date/time format: follow the UI language, or force 12h/24h + date order. */
+  date_time_format: 'auto' | '12h_mdy' | '24h_dmy';
   /** Last-selected 'Group repeats by content' packet-filter toggle (shared by both packet views). */
   packet_group_by_content: boolean;
   discovery_blocked_types: number[];
@@ -842,6 +844,7 @@ export interface AppSettingsUpdate {
   packet_feed_sort?: 'oldest' | 'newest';
   packet_history_sort?: 'oldest' | 'newest';
   mesh_health_page_size?: number;
+  date_time_format?: 'auto' | '12h_mdy' | '24h_dmy';
   packet_group_by_content?: boolean;
   discovery_blocked_types?: number[];
   telemetry_interval_hours?: number;

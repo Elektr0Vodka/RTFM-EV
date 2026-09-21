@@ -3,6 +3,7 @@ import { ChannelCrypto, PayloadType } from '@michaelhart/meshcore-decoder';
 
 import type { Channel, Contact, RawPacket } from '../types';
 import { resolvePathHopNames } from '../utils/pathHopNames';
+import { formatDateTime } from '../utils/dateTimeFormat';
 import { cn } from '@/lib/utils';
 import {
   createDecoderOptions,
@@ -129,7 +130,7 @@ const FIELD_PALETTE: FieldPaletteEntry[] = [
 ];
 
 function formatTimestamp(timestamp: number): string {
-  return new Date(timestamp * 1000).toLocaleString([], {
+  return formatDateTime(new Date(timestamp * 1000), {
     year: 'numeric',
     month: 'short',
     day: 'numeric',

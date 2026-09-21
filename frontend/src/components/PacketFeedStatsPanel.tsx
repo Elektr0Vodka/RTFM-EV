@@ -33,6 +33,7 @@ import {
 } from '../utils/rawPacketStats';
 import { useRawPacketStatsSession } from '../stores/rawPacketStore';
 import { getContactDisplayName } from '../utils/pubkey';
+import { formatDateTime } from '../utils/dateTimeFormat';
 import { cn } from '@/lib/utils';
 import { useT, type TFn } from '../i18n';
 
@@ -121,7 +122,7 @@ const EMPTY_HISTORICAL: RawFeedHistoricalStats = {
 };
 
 function formatTimestamp(timestampMs: number): string {
-  return new Date(timestampMs).toLocaleString([], {
+  return formatDateTime(new Date(timestampMs), {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -412,7 +413,7 @@ function NeighborList({
                     : mode === 'signal'
                       ? t('packet_neighbor_best_signal', { rssi: formatRssi(item.bestRssi) })
                       : t('packet_neighbor_last_seen', {
-                          time: new Date(item.lastSeen * 1000).toLocaleTimeString([], {
+                          time: formatDateTime(new Date(item.lastSeen * 1000), {
                             hour: '2-digit',
                             minute: '2-digit',
                           }),

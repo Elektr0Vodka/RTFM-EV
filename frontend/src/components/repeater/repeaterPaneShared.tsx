@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { useT, type TFn } from '../../i18n';
+import { formatDateTime } from '../../utils/dateTimeFormat';
 import type { LppSensor, PaneState } from '../../types';
 
 // --- Shared Icons ---
@@ -108,7 +109,7 @@ function formatFetchedRelative(fetchedAt: number, t: TFn): string {
 }
 
 function formatFetchedTime(fetchedAt: number): string {
-  return new Date(fetchedAt).toLocaleTimeString([], {
+  return formatDateTime(new Date(fetchedAt), {
     hour: 'numeric',
     minute: '2-digit',
     second: '2-digit',
@@ -148,7 +149,14 @@ export function RepeaterPane({
           {fetchedAt && (
             <p
               className="text-[0.6875rem] text-muted-foreground"
-              title={new Date(fetchedAt).toLocaleString()}
+              title={formatDateTime(new Date(fetchedAt), {
+                year: 'numeric',
+                month: 'numeric',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                second: '2-digit',
+              })}
             >
               {t('repeater_fetched_at', {
                 time: formatFetchedTime(fetchedAt),

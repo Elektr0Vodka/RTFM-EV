@@ -15,6 +15,7 @@ import { Separator } from './ui/separator';
 import { ZoomableChart } from './charts/ZoomableChart';
 import { api } from '../api';
 import { useT } from '../i18n';
+import { formatDateTime as formatDateTimePref } from '../utils/dateTimeFormat';
 import type { RegionScopeStats, StatisticsResponse } from '../types';
 
 const INDEX_MIN_SPAN = 2; // smallest zoom window, in buckets
@@ -115,20 +116,19 @@ const TOOLTIP_STYLE = {
 } as const;
 
 function formatTime(ts: number): string {
-  return new Date(ts * 1000).toLocaleTimeString([], {
+  return formatDateTimePref(new Date(ts * 1000), {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    hour12: false,
   });
 }
 
 function formatDateTime(ts: number): string {
   const d = new Date(ts * 1000);
   return (
-    d.toLocaleDateString([], { month: 'short', day: 'numeric' }) +
+    formatDateTimePref(d, { month: 'short', day: 'numeric' }) +
     ' ' +
-    d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+    formatDateTimePref(d, { hour: '2-digit', minute: '2-digit' })
   );
 }
 
@@ -701,12 +701,13 @@ export function MeshTrendsHistoricalPanel({ className }: { className?: string })
                       <>
                         {' '}
                         {t('settings_statistics_noise_floor_at_time', {
-                          time: new Date(
-                            stats.noise_floor_24h.latest_timestamp * 1000
-                          ).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          }),
+                          time: formatDateTimePref(
+                            new Date(stats.noise_floor_24h.latest_timestamp * 1000),
+                            {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            }
+                          ),
                         })}
                       </>
                     )}

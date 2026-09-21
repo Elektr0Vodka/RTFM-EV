@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { Separator } from '../ui/separator';
 import { lppDisplayUnit } from './repeaterPaneShared';
+import { formatDateTime } from '../../utils/dateTimeFormat';
 import { useDistanceUnit } from '../../contexts/DistanceUnitContext';
 import { useT, type TFn } from '../../i18n';
 import {
@@ -92,7 +93,7 @@ const TOOLTIP_STYLE = {
 } as const;
 
 function formatTime(ts: number): string {
-  return new Date(ts * 1000).toLocaleString([], {
+  return formatDateTime(new Date(ts * 1000), {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',

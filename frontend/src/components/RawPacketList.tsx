@@ -5,6 +5,7 @@ import { getRawPacketObservationKey } from '../utils/rawPacketIdentity';
 import { foldPacketsByContent } from '../utils/rawPacketContent';
 import { createDecoderOptions, decodePacketSummary } from '../utils/rawPacketInspector';
 import { resolvePathHopNames } from '../utils/pathHopNames';
+import { formatDateTime } from '../utils/dateTimeFormat';
 import { cn } from '@/lib/utils';
 import { useT } from '../i18n';
 
@@ -54,12 +55,12 @@ interface RawPacketListProps {
 
 function formatTime(timestamp: number): string {
   const date = new Date(timestamp * 1000);
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return formatDateTime(date, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 function formatDate(timestamp: number): string {
   const date = new Date(timestamp * 1000);
-  return date.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
+  return formatDateTime(date, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 function formatSignalInfo(packet: RawPacket): string {

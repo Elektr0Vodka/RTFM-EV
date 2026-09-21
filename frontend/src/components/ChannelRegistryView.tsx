@@ -35,6 +35,7 @@ import {
 import { api } from '../api';
 import { buildAutoFillFromGeo, isVeiligheidsregio, matchDutchChannel } from '../lib/dutchGeo';
 import { useT, type TFn } from '../i18n';
+import { formatDateTime } from '../utils/dateTimeFormat';
 import type { Channel } from '../types';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
@@ -70,7 +71,7 @@ function fmtDatetime(iso: string | null, t: TFn): string {
   if (diffH < 24) return t('channel_registry_hours_ago', { count: diffH });
   const diffD = Math.floor(diffH / 24);
   if (diffD < 30) return t('channel_registry_days_ago', { count: diffD });
-  return d.toLocaleDateString();
+  return formatDateTime(d, { year: 'numeric', month: 'numeric', day: 'numeric' });
 }
 
 const SOURCE_LABEL_KEYS: Record<RegistryChannel['source'], string> = {

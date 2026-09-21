@@ -11,6 +11,33 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-21 (Date & time format setting)
+
+### UI date/time format (backend + frontend)
+- **New "Date & Time Format" setting** (requested by Richard) with three
+  choices: `auto` (follow the UI language: EN -> 12-hour + mm/dd/yyyy, NL/DE ->
+  24-hour + dd/mm/yyyy), `12h_mdy` (force 12-hour + mm/dd/yyyy), and `24h_dmy`
+  (force 24-hour + dd/mm/yyyy). Default `auto`. Lives in Settings -> Local and
+  persists in a new `app_settings.date_time_format` column (migration `_103`,
+  TEXT, default `'auto'`), validated in the settings router (unknown values
+  ignored). `LATEST_SCHEMA_VERSION` bumped to `103`.
+- **Unified all ad-hoc date/time formatting** behind one central formatter,
+  `frontend/src/utils/dateTimeFormat.ts` (`formatDateTime(value, options)`).
+  Date/time rendering was previously scattered across ~17 files that mixed
+  hardcoded 24-hour, browser-locale, and inconsistent date order; ~32 `toLocale*`
+  date calls now route through the central formatter so the single setting
+  governs the whole UI. `App.tsx` keeps the active format in sync (a pure
+  derivation from the setting + UI language, done in render); number formatting
+  (counts/bytes) is left untouched. New i18n keys `settings_date_time_format_*`
+  in EN/NL/DE.
+  Verified: backend CI gate in the Linux container (ruff, ruff format, pyright
+  0 errors, pytest 2201) incl. a settings round-trip test, a router test, and
+  `test_migration_103`; frontend `tsc` clean, full vitest suite (1757, incl. new
+  resolver/formatter tests) + build, eslint clean; and live in the browser
+  (switching the UI language flips the same packet timestamps between
+  "06:12:56 PM" and "18:12:56", both directions; the Settings control fires
+  `PATCH /settings {"date_time_format":"24h_dmy"}`).
+
 ## Update 2026-09-21 (Packet filters: remember "Group repeats by content")
 
 ### Packet filters (backend + frontend)

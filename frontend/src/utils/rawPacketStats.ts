@@ -2,6 +2,7 @@ import { MeshCoreDecoder, PayloadType, Utils } from '@michaelhart/meshcore-decod
 
 import type { RawFeedHistoricalStats, RawPacket } from '../types';
 import { getRawPacketObservationKey } from './rawPacketIdentity';
+import { formatDateTime } from './dateTimeFormat';
 
 export const RAW_PACKET_STATS_WINDOWS = ['1m', '5m', '10m', '30m', 'session'] as const;
 export type RawPacketStatsWindow = (typeof RAW_PACKET_STATS_WINDOWS)[number];
@@ -355,7 +356,7 @@ function median(values: number[]): number | null {
 }
 
 function formatTimelineLabel(timestamp: number): string {
-  return new Date(timestamp * 1000).toLocaleTimeString([], {
+  return formatDateTime(new Date(timestamp * 1000), {
     hour: '2-digit',
     minute: '2-digit',
   });

@@ -17,6 +17,7 @@
 
 import { useEffect, useState } from 'react';
 import { useT } from '../i18n';
+import { formatDateTime } from '../utils/dateTimeFormat';
 import { ZoomableBinChart } from './charts/ZoomableBinChart';
 import { type TimeWindow, relTime, StatTile, DistBars } from './meshHealthShared';
 
@@ -69,10 +70,10 @@ const RESPONSE_COLOR = 'hsl(var(--info))';
 // a zoomed-in window shows finer labels. Mirrors MyNodeView's fmtTime tiers.
 function fmtBucketTime(ms: number, spanSeconds: number): string {
   const d = new Date(ms);
-  if (spanSeconds <= 3600) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (spanSeconds <= 3600) return formatDateTime(d, { hour: '2-digit', minute: '2-digit' });
   if (spanSeconds <= 7 * 24 * 3600)
-    return d.toLocaleDateString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return formatDateTime(d, { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+  return formatDateTime(d, { month: 'short', day: 'numeric' });
 }
 
 function VolumeChart({ series }: { series: RequestTrafficBucket[] }) {
