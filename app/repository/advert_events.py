@@ -59,6 +59,7 @@ class AdvertEventRepository:
                     MIN(ae.first_seen) AS first_seen,
                     MAX(ae.first_seen) AS last_event,
                     MIN(ae.min_path_len) AS min_path_len,
+                    MAX(ae.hop_width) AS hop_width,
                     SUM(CASE WHEN ae.min_path_len = 0 THEN 1 ELSE 0 END) AS direct_count,
                     SUM(CASE WHEN ae.min_path_len > 0 THEN 1 ELSE 0 END) AS flood_count
                 FROM advert_events ae
@@ -74,6 +75,10 @@ class AdvertEventRepository:
                 "first_seen": r["first_seen"],
                 "last_event": r["last_event"],
                 "min_path_len": r["min_path_len"],
+                # Bytes-per-hop of the advert path (1/2/3). Direct-only contacts
+                # have no path, so this is None. Hop width is a mesh-wide setting
+                # per node, so any non-null observation is representative.
+                "hop_width": r["hop_width"],
                 "direct_count": int(r["direct_count"]),
                 "flood_count": int(r["flood_count"]),
             }

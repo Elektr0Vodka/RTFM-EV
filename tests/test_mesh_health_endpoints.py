@@ -51,6 +51,8 @@ class TestMeshHealth:
         assert c["flood_count"] == 3
         assert c["advert_count"] == 8
         assert c["min_path_len"] == 0
+        # Flood path_hex "bbbbcccc" over path_len 2 -> 2 bytes/hop -> hash_mode 1.
+        assert c["hash_mode"] == 1
         assert body["medium_alert_count"] == 1
         assert body["high_alert_count"] == 0
         assert body["alerts"][0]["level"] == "MEDIUM"
@@ -82,6 +84,8 @@ class TestMeshHealth:
         assert c["direct_count"] == 12
         assert c["flood_count"] == 0
         assert c["advert_count"] == 12
+        # Direct-only contacts carry no path, so hop width is unknown.
+        assert c["hash_mode"] is None
         assert body["high_alert_count"] == 0
         assert body["medium_alert_count"] == 0
         assert body["alerts"] == []

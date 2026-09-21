@@ -811,6 +811,11 @@ async def get_mesh_health(start_ts: int, end_ts: int) -> MeshHealthResponse:
         first_seen = row["first_seen"]
         if first_seen is not None and first_seen < start_ts:
             first_seen = start_ts
+        # advert_events.hop_width is the byte count per hop (1/2/3); the frontend
+        # hash_mode is 0-based (0=1-byte, 1=2-byte, 2=3-byte). Direct-only
+        # contacts carry no path, so hop_width is None -> hash_mode stays unknown.
+        hop_width = row["hop_width"]
+        hash_mode = (hop_width - 1) if hop_width is not None else None
         contacts.append(
             MeshHealthContact(
                 public_key=pk,
@@ -823,7 +828,7 @@ async def get_mesh_health(start_ts: int, end_ts: int) -> MeshHealthResponse:
                 lat=contact.lat if contact else None,
                 lon=contact.lon if contact else None,
                 min_path_len=row["min_path_len"],
-                hash_mode=None,
+                hash_mode=hash_mode,
             )
         )
 

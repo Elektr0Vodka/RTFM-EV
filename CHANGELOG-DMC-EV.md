@@ -114,6 +114,28 @@ override showed in the contact header (`52.457, 4.765`) and was then reverted;
 the live map's `rt-node-labels` layer carries `symbol-sort-key: ['get','sortKey']`
 with `text-allow-overlap` off, so repeaters win label collisions.
 
+## Update 2026-09-21 (Mesh Health contacts table: Mode column + clickable names)
+
+### Mesh Health (backend + frontend)
+- **Mode column now shows the real hop-address width** in the "All Advertised
+  Contacts Heard" table instead of always `?`. The `/api/packets/mesh-health`
+  endpoint hardcoded `hash_mode=None`; it now derives it from
+  `advert_events.hop_width` (already recorded per transmission as bytes-per-hop).
+  `AdvertEventRepository.mesh_health_rows` aggregates `MAX(hop_width)` per contact
+  (hop width is a mesh-wide per-node setting, so any non-null observation is
+  representative), and the endpoint maps byte-count (1/2/3) to the frontend's
+  0-based `hash_mode` (0/1/2). Direct-only contacts carry no path, so their Mode
+  stays `?` (honest: hop width is unknown without a flood path).
+- **Contact names in the table are now clickable**, opening the node's detail
+  page, matching the Prefix Collisions tab. `MeshAdvertsPanel` takes the existing
+  `onOpenNode` handler (already wired through `MeshHealthView`) and renders the
+  name as a link button when provided. No schema change, no migration, no new
+  strings.
+  Verified: 14 backend pytest (2 new: `hop_width` surfaced/None-for-direct,
+  `hash_mode` on endpoint), 11 frontend vitest (1 new: name click calls
+  `onOpenNode`); ruff check/format, pyright, eslint, prettier, and build all
+  clean. NOT VERIFIED at runtime in the live container.
+
 ## Update 2026-09-20 (Signal-audio Firefox playback fix, sound-behavior-localhost)
 
 ### Packet-feed sound (frontend)

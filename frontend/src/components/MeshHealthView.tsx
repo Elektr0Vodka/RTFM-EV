@@ -187,6 +187,7 @@ export function MeshHealthView({
               selectedWindow={selectedWindow}
               refreshKey={refreshKey}
               onNavigateToMap={onNavigateToMap}
+              onOpenNode={onOpenNode}
               focusKey={focusKey}
               onLoadingChange={handleLoadingChange}
               pageSize={pageSize}
