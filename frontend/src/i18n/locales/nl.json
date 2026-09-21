@@ -330,6 +330,8 @@
     "other": "{count} nodes · laatste {window}"
   },
   "mesh_health_page_indicator": " · pagina {page} van {total}",
+  "mesh_health_page_size_label": "Max rijen tonen",
+  "mesh_health_page_size_all": "Alle",
   "mesh_health_col_id": "ID",
   "mesh_health_col_adverts": "Advertenties",
   "mesh_health_col_direct": "Direct",

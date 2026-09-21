@@ -71,6 +71,7 @@ class AppSettingsRepository:
                    sidebar_section_order, sidebar_tool_order, sidebar_favorites_order,
                    sidebar_hidden, sidebar_favorite_sort_orders,
                    packet_feed_sort, packet_history_sort,
+                   mesh_health_page_size,
                    raw_packet_retention_days
             FROM app_settings WHERE id = 1
             """
@@ -171,6 +172,15 @@ class AppSettingsRepository:
             packet_history_sort = "oldest"
         if packet_history_sort not in ("oldest", "newest"):
             packet_history_sort = "oldest"
+
+        # Mesh Health contacts-table page size; tolerate a missing column and
+        # coerce anything outside the allowed set (0=all, 10/25/50/100) to 50.
+        try:
+            mesh_health_page_size = row["mesh_health_page_size"]
+        except (KeyError, IndexError):
+            mesh_health_page_size = 50
+        if mesh_health_page_size not in (0, 10, 25, 50, 100):
+            mesh_health_page_size = 50
 
         # Parse discovery_blocked_types JSON
         discovery_blocked_types: list[int] = []
@@ -441,6 +451,7 @@ class AppSettingsRepository:
             sidebar_favorite_sort_orders=sidebar_favorite_sort_orders,
             packet_feed_sort=packet_feed_sort,
             packet_history_sort=packet_history_sort,
+            mesh_health_page_size=mesh_health_page_size,
         )
 
     @staticmethod
@@ -495,6 +506,7 @@ class AppSettingsRepository:
         sidebar_favorite_sort_orders: SidebarFavoriteSortOrders | None = None,
         packet_feed_sort: str | None = None,
         packet_history_sort: str | None = None,
+        mesh_health_page_size: int | None = None,
     ) -> None:
         """Apply field updates using an already-acquired connection.
 
@@ -567,6 +579,10 @@ class AppSettingsRepository:
         if packet_history_sort is not None:
             updates.append("packet_history_sort = ?")
             params.append(packet_history_sort)
+
+        if mesh_health_page_size is not None:
+            updates.append("mesh_health_page_size = ?")
+            params.append(mesh_health_page_size)
 
         if blocked_keys is not None:
             updates.append("blocked_keys = ?")
@@ -760,6 +776,7 @@ class AppSettingsRepository:
         sidebar_favorite_sort_orders: SidebarFavoriteSortOrders | None = None,
         packet_feed_sort: str | None = None,
         packet_history_sort: str | None = None,
+        mesh_health_page_size: int | None = None,
     ) -> AppSettings:
         """Update app settings. Only provided fields are updated."""
         async with db.tx() as conn:
@@ -813,6 +830,7 @@ class AppSettingsRepository:
                 sidebar_favorite_sort_orders=sidebar_favorite_sort_orders,
                 packet_feed_sort=packet_feed_sort,
                 packet_history_sort=packet_history_sort,
+                mesh_health_page_size=mesh_health_page_size,
             )
             return await AppSettingsRepository._get_in_conn(conn)
 

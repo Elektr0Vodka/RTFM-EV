@@ -329,6 +329,8 @@
     "other": "{count} nodes · last {window}"
   },
   "mesh_health_page_indicator": " · page {page} of {total}",
+  "mesh_health_page_size_label": "Show max rows",
+  "mesh_health_page_size_all": "All",
   "mesh_health_col_id": "ID",
   "mesh_health_col_adverts": "Adverts",
   "mesh_health_col_direct": "Direct",

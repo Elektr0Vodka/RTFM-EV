@@ -985,3 +985,17 @@ class TestPacketHistorySortAndRetentionRouter:
         # 0 = keep forever must be forwardable too.
         result = await update_settings(AppSettingsUpdate(raw_packet_retention_days=0))
         assert result.raw_packet_retention_days == 0
+
+    @pytest.mark.asyncio
+    async def test_mesh_health_page_size_persists_via_router(self, test_db):
+        result = await update_settings(AppSettingsUpdate(mesh_health_page_size=25))
+        assert result.mesh_health_page_size == 25
+        assert (await AppSettingsRepository.get()).mesh_health_page_size == 25
+        # 0 = show all must be forwardable too.
+        result = await update_settings(AppSettingsUpdate(mesh_health_page_size=0))
+        assert result.mesh_health_page_size == 0
+
+    @pytest.mark.asyncio
+    async def test_mesh_health_page_size_invalid_is_ignored(self, test_db):
+        result = await update_settings(AppSettingsUpdate(mesh_health_page_size=999))
+        assert result.mesh_health_page_size == 50

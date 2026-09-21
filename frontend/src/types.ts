@@ -589,6 +589,8 @@ export interface AppSettings {
   sidebar_favorite_sort_orders: SidebarFavoriteSortOrders;
   packet_feed_sort: 'oldest' | 'newest';
   packet_history_sort: 'oldest' | 'newest';
+  /** Mesh Health contacts-table page size; 0 = show all. */
+  mesh_health_page_size: number;
   discovery_blocked_types: number[];
   tracked_telemetry_repeaters: string[];
   tracked_telemetry_contacts: string[];
@@ -837,6 +839,7 @@ export interface AppSettingsUpdate {
   sidebar_favorite_sort_orders?: Partial<SidebarFavoriteSortOrders>;
   packet_feed_sort?: 'oldest' | 'newest';
   packet_history_sort?: 'oldest' | 'newest';
+  mesh_health_page_size?: number;
   discovery_blocked_types?: number[];
   telemetry_interval_hours?: number;
   telemetry_routed_hourly?: boolean;

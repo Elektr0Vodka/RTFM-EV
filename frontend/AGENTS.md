@@ -638,6 +638,10 @@ The Filters modal's **"Group repeats by content"** toggle drives `RawPacketList`
 
 `RawPacketFeedView` has a "Sort order" `<select>` (Oldest first / Newest first) next to the Filters button. It drives `RawPacketList`'s `newestFirst` prop, which flips the timestamp sort. Autoscroll sticks to the newest packet's edge in either direction (bottom for oldest-first, top for newest-first). Unlike autoscroll, the choice is persisted server-side in `app_settings.packet_feed_sort` (`'oldest' | 'newest'`, default `'oldest'`) and threaded down from `App.tsx` via `conversationPaneProps` (`packetFeedSort` + `onSaveAppSettings`).
 
+### Mesh Health contacts-table page size
+
+`MeshAdvertsPanel`'s "All Advertised Contacts Heard" table has a "Show max rows" `<select>` (10/25/50/100/All) in the block header. It drives the existing client-side pager; `All` (value `0`) renders every row and hides the pager. The choice is persisted server-side in `app_settings.mesh_health_page_size` (`int`, `0` = all, default `50`) and threaded from `App.tsx` via `conversationPaneProps` (`meshHealthPageSize` + `onSaveAppSettings`) → `MeshHealthView` (`pageSize`) → `MeshAdvertsPanel`. Same convention as `packet_feed_sort` above.
+
 ## Editing Checklist
 
 1. Run `npm run format` (Prettier) before committing; `format:check` is a CI gate. See Testing for the Windows CRLF caveat.

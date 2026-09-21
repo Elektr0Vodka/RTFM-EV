@@ -74,6 +74,22 @@ describe('MeshHealthView Adverts tab (default)', () => {
     expect(within(row).getByText('1')).toBeInTheDocument();
     expect(within(row).getByText('4')).toBeInTheDocument();
   });
+
+  it('renders the page-size dropdown and persists a change server-side', async () => {
+    const onSaveAppSettings = vi.fn();
+    render(<MeshHealthView config={null} pageSize={50} onSaveAppSettings={onSaveAppSettings} />);
+    await waitFor(() => expect(screen.getByText('Node A')).toBeInTheDocument());
+    const select = screen.getByLabelText('Show max rows') as HTMLSelectElement;
+    expect(select.value).toBe('50');
+    // Options include the sizes plus "All" (value 0).
+    expect(within(select).getByRole('option', { name: 'All' })).toBeInTheDocument();
+
+    fireEvent.change(select, { target: { value: '25' } });
+    expect(onSaveAppSettings).toHaveBeenCalledWith({ mesh_health_page_size: 25 });
+
+    fireEvent.change(select, { target: { value: '0' } });
+    expect(onSaveAppSettings).toHaveBeenCalledWith({ mesh_health_page_size: 0 });
+  });
 });
 
 describe('MeshHealthView flood-driven warning highlight', () => {
