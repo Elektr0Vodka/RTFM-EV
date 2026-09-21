@@ -419,14 +419,14 @@ export function ConversationPane({
   }
 
   // Desktop full-page contact info: the dedicated `contact-info` route, and the
-  // desktop convergence where a repeater/room `#contact/...` link lands on the
+  // desktop convergence where a repeater `#contact/...` link lands on the
   // combined info + embedded login/dashboard page (mobile keeps the standalone
-  // dashboard/panel below).
+  // dashboard/panel below). Rooms are group chats, so they stay on the chat
+  // path (login panel + message list + composer + favourite star) and are only
+  // shown in the full-page view via the explicit `contact-info` route.
   const showContactInfoView =
     activeConversation.type === 'contact-info' ||
-    (!isMobile &&
-      activeConversation.type === 'contact' &&
-      (activeContactIsRepeater || activeContactIsRoom));
+    (!isMobile && activeConversation.type === 'contact' && activeContactIsRepeater);
 
   if (showContactInfoView) {
     return (
