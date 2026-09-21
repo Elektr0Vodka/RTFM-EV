@@ -11,6 +11,24 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-21 (Rooms: keep the chat view on desktop)
+
+### Rooms (frontend)
+- **Fixed a regression from #151** where opening a room on desktop routed it to
+  the full-page contact-info view, which has no message composer and no
+  favourite star. After logging into a room you could neither see nor use the
+  message input, and the header star was gone (DMs were unaffected, and mobile
+  was fine because the diversion was desktop-only). Rooms are group chats, so
+  they now stay on the normal chat path on desktop too (login panel → message
+  list → composer, plus the `ChatHeader` favourite star); repeaters still
+  converge onto the full-page dashboard as before, and a room's full-page
+  contact-info page is still reachable via the explicit info action. One-line
+  change in `ConversationPane` (`showContactInfoView` no longer diverts rooms)
+  plus a desktop-room regression test.
+  Verified: frontend vitest (`conversationPane.test.tsx` 13/13 incl. the new
+  desktop-room test), eslint/prettier/build clean, and live in the browser
+  (desktop room opens the chat view with the favourite star, not the info page).
+
 ## Update 2026-09-21 (Mesh Health contacts table: page-size dropdown)
 
 ### Mesh Health (backend + frontend)
