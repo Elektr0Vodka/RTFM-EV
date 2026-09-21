@@ -36,6 +36,7 @@ import { createNodesLayer } from '../map/layers/nodesLayer';
 import { createNeonNodesOverlay, type NeonNodesOverlay } from '../map/layers/neonNodesLayer';
 import { createTelemetryLayer, telemetryPopupParts } from '../map/layers/telemetryLayer';
 import { TelemetryPopupChart } from './TelemetryPopupChart';
+import { DateTimeField } from './DateTimeField';
 import {
   getSavedNodeRoleColors,
   saveNodeRoleColors,
@@ -1372,15 +1373,15 @@ export function MapView({
         </div>
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           {t('map_custom_button')}
-          <input
-            type="datetime-local"
+          <DateTimeField
+            mode="datetime"
             value={customSince}
             aria-label={t('map_since_custom_input_aria')}
-            onChange={(e) => {
-              setCustomSince(e.target.value);
+            onChange={(v) => {
+              setCustomSince(v);
               setSinceId('custom');
             }}
-            className="rounded border border-border bg-background px-2 py-1 text-sm"
+            className="rounded border border-border bg-background px-2 py-1 pr-7 text-sm"
           />
         </label>
       </div>

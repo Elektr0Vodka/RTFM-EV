@@ -1,5 +1,6 @@
 import { useT } from '../i18n';
 import { BASE_TIME_RANGES, CUSTOM_RANGE_ID, type TimeRange } from '../utils/timeRanges';
+import { DateTimeField } from './DateTimeField';
 
 interface TimeRangeSelectorProps {
   value: string;
@@ -74,18 +75,18 @@ export function TimeRangeSelector({
       {showCustom && value === CUSTOM_RANGE_ID && (
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <span className="text-xs text-muted-foreground">{t('time_range_from')}</span>
-          <input
-            type="datetime-local"
+          <DateTimeField
+            mode="datetime"
             value={customStart}
-            onChange={(e) => onCustomStartChange(e.target.value)}
-            className="rounded border border-input bg-background px-2 py-0.5 text-xs text-foreground"
+            onChange={onCustomStartChange}
+            className="rounded border border-input bg-background px-2 py-0.5 pr-6 text-xs text-foreground"
           />
           <span className="text-xs text-muted-foreground">{t('time_range_to')}</span>
-          <input
-            type="datetime-local"
+          <DateTimeField
+            mode="datetime"
             value={customEnd}
-            onChange={(e) => onCustomEndChange(e.target.value)}
-            className="rounded border border-input bg-background px-2 py-0.5 text-xs text-foreground"
+            onChange={onCustomEndChange}
+            className="rounded border border-input bg-background px-2 py-0.5 pr-6 text-xs text-foreground"
           />
           {customStart && customEnd && (
             <button

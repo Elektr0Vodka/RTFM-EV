@@ -57,9 +57,25 @@ export function resolveDateTimeFormat(
 // English resolution so isolated renders (e.g. tests) are deterministic.
 let activeFormat: ResolvedDateTimeFormat = resolveDateTimeFormat('auto', 'en');
 
+const listeners = new Set<() => void>();
+
+/**
+ * Subscribe to active-format changes. Used with `useSyncExternalStore` so a
+ * component (e.g. the date picker) re-renders when the setting changes without a
+ * page reload. Returns an unsubscribe function.
+ */
+export function subscribeActiveDateTimeFormat(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
 /** Set the active format. Called by App as the setting / UI locale changes. */
 export function setActiveDateTimeFormat(fmt: ResolvedDateTimeFormat): void {
+  // No-op when unchanged so the snapshot reference stays stable (avoids
+  // `useSyncExternalStore` loops) and subscribers only fire on real changes.
+  if (activeFormat.hour12 === fmt.hour12 && activeFormat.locale === fmt.locale) return;
   activeFormat = fmt;
+  for (const listener of listeners) listener();
 }
 
 /** The current active format (for callers that need the raw {hour12, locale}). */

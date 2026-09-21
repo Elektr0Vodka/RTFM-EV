@@ -3,7 +3,7 @@ import { api } from '../../api';
 import { getContactDisplayName } from '../../utils/pubkey';
 import { formatDateTime } from '../../utils/dateTimeFormat';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
+import { DateTimeField } from '../DateTimeField';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { toast } from '../ui/sonner';
 import { useT, type TFn } from '../../i18n';
@@ -298,22 +298,22 @@ export function BulkDeleteContactsModal({
                   <label className="text-xs text-muted-foreground">
                     {t('bulkdelete_filter_created_after')}
                   </label>
-                  <Input
-                    type="datetime-local"
+                  <DateTimeField
+                    mode="datetime"
                     value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-48 h-8 text-sm"
+                    onChange={setStartDate}
+                    className="w-48 h-8 pr-7 text-sm"
                   />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">
                     {t('bulkdelete_filter_created_before')}
                   </label>
-                  <Input
-                    type="datetime-local"
+                  <DateTimeField
+                    mode="datetime"
                     value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-48 h-8 text-sm"
+                    onChange={setEndDate}
+                    className="w-48 h-8 pr-7 text-sm"
                   />
                 </div>
               </div>
@@ -322,22 +322,22 @@ export function BulkDeleteContactsModal({
                   <label className="text-xs text-muted-foreground">
                     {t('bulkdelete_filter_last_heard_after')}
                   </label>
-                  <Input
-                    type="datetime-local"
+                  <DateTimeField
+                    mode="datetime"
                     value={lastHeardAfter}
-                    onChange={(e) => setLastHeardAfter(e.target.value)}
-                    className="w-48 h-8 text-sm"
+                    onChange={setLastHeardAfter}
+                    className="w-48 h-8 pr-7 text-sm"
                   />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">
                     {t('bulkdelete_filter_last_heard_before')}
                   </label>
-                  <Input
-                    type="datetime-local"
+                  <DateTimeField
+                    mode="datetime"
                     value={lastHeardBefore}
-                    onChange={(e) => setLastHeardBefore(e.target.value)}
-                    className="w-48 h-8 text-sm"
+                    onChange={setLastHeardBefore}
+                    className="w-48 h-8 pr-7 text-sm"
                   />
                 </div>
               </div>

@@ -833,6 +833,7 @@
   "settings_local_label_description": "Toon een gekleurde banner bovenaan de pagina om deze installatie te identificeren.",
   "settings_distance_units_label": "Afstandseenheden",
   "settings_distance_units_description": "Bepaalt hoe afstanden in de hele app worden weergegeven.",
+  "date_field_open_calendar": "Kalender openen",
   "settings_date_time_format_label": "Datum- en tijdnotatie",
   "settings_date_time_format_description": "Bepaalt hoe datums en tijden in de hele app worden weergegeven.",
   "settings_date_time_format_auto": "Automatisch (volg taal)",
