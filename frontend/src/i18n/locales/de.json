@@ -335,6 +335,8 @@
   "mesh_health_medium_alert_heading": "MITTEL - Über normaler Flood-Advert-Rate",
   "mesh_health_no_alerts_message": "Keine Flood-Advert-Frequenzwarnungen in den letzten {window}. Das Mesh sieht gesund aus.",
   "mesh_health_contacts_table_heading": "Alle gehörten beworbenen Kontakte (im ausgewählten Zeitraum)",
+  "mesh_health_contacts_search_placeholder": "Name oder Schlüssel suchen...",
+  "mesh_health_contacts_no_matches": "Keine beworbenen Kontakte stimmen mit \"{query}\" überein.",
   "mesh_health_contacts_summary": {
     "one": "{count} Knoten · letzte {window}",
     "other": "{count} Knoten · letzte {window}"

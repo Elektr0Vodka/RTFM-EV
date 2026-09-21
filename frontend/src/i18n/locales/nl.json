@@ -335,6 +335,8 @@
   "mesh_health_medium_alert_heading": "GEMIDDELD - Boven Normale Flood-advertfrequentie",
   "mesh_health_no_alerts_message": "Geen meldingen over flood-advertfrequentie in de laatste {window}. Het mesh lijkt gezond.",
   "mesh_health_contacts_table_heading": "Alle Gehoorde Geadverteerde Contacten (In Geselecteerde Periode)",
+  "mesh_health_contacts_search_placeholder": "Zoek op naam of sleutel...",
+  "mesh_health_contacts_no_matches": "Geen geadverteerde contacten komen overeen met \"{query}\".",
   "mesh_health_contacts_summary": {
     "one": "{count} node · laatste {window}",
     "other": "{count} nodes · laatste {window}"
