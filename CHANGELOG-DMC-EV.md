@@ -11,6 +11,21 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-21 (Airtime chart x-axis dates)
+
+### My Node airtime chart (frontend)
+- **The Airtime utilization chart now shows an x-axis date/time scale like the
+  other My Node charts** (reported by Richard). The chart alone omitted the
+  bottom axis line and time labels, and it derived its tooltip time format from
+  the visible data span instead of the selected window, so at wider ranges it
+  had no dates and formatted times inconsistently with the sibling charts.
+  `AirtimeLineChart` now takes the same `windowSeconds` prop the noise-floor /
+  battery charts use and renders the baseline plus three `fmtTime` labels, so
+  the axis matches across ranges. No backend or data change.
+  Verified: eslint + prettier + `tsc --noEmit` clean; live in the browser via
+  the dev server against the running backend (labels present and correctly
+  formatted at 12h "Mon 10:09 AM", 24h "Sun 10:18 PM", 7d "Fri 12:06 PM").
+
 ## Update 2026-09-21 (Date pickers follow the date/time format setting)
 
 ### Date/time inputs (frontend)

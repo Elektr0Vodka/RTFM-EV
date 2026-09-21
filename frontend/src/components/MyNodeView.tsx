@@ -822,7 +822,15 @@ function niceCeilPct(v: number): number {
   return Math.min(100, nf * base);
 }
 
-function AirtimeLineChart({ samples, t }: { samples: AirtimeSample[]; t: TFn }) {
+function AirtimeLineChart({
+  samples,
+  windowSeconds,
+  t,
+}: {
+  samples: AirtimeSample[];
+  windowSeconds: number;
+  t: TFn;
+}) {
   const [hov, setHov] = useState<number | null>(null);
   if (samples.length < 2)
     return (
@@ -844,9 +852,6 @@ function AirtimeLineChart({ samples, t }: { samples: AirtimeSample[]; t: TFn }) 
   const tMin = timestamps[0];
   const tMax = timestamps[timestamps.length - 1];
   const tRange = tMax - tMin || 1;
-  // Derive a window length from the visible span so the tooltip time matches the
-  // formatting the sibling charts use (this chart is not passed windowSeconds).
-  const windowSeconds = (tMax - tMin) / 1000;
   const yMin = 0;
   // Auto-scale to the visible peak so low utilization is readable, instead of
   // pinning the axis at a full 100%.
@@ -979,6 +984,26 @@ function AirtimeLineChart({ samples, t }: { samples: AirtimeSample[]; t: TFn }) 
           </g>
         </>
       )}
+      <line
+        x1={PAD_L}
+        x2={CW}
+        y1={INNER_H}
+        y2={INNER_H}
+        stroke="hsl(var(--border))"
+        strokeWidth="0.5"
+      />
+      {[0, Math.floor(samples.length / 2), samples.length - 1].map((i) => (
+        <text
+          key={`x${i}`}
+          x={xPos(i).toFixed(1)}
+          y={CH - 2}
+          textAnchor={i === 0 ? 'start' : i === samples.length - 1 ? 'end' : 'middle'}
+          fontSize="7"
+          fill="hsl(var(--muted-foreground))"
+        >
+          {fmtTime(timestamps[i], windowSeconds)}
+        </text>
+      ))}
       {samples.map((_, i) => (
         <rect
           key={i}
@@ -2194,7 +2219,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                     })}
                   >
                     <ZoomableBinChart items={airtimeSamples} plotLeftFrac={binPlotLeftFrac}>
-                      {(s) => <AirtimeLineChart samples={s} t={t} />}
+                      {(s) => <AirtimeLineChart samples={s} windowSeconds={windowSeconds} t={t} />}
                     </ZoomableBinChart>
                     <div className="mt-1 flex flex-wrap gap-2 px-1">
                       <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
