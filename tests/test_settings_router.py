@@ -136,6 +136,20 @@ class TestUpdateSettings:
         assert fresh.show_mention_ticker is False
 
     @pytest.mark.asyncio
+    async def test_packet_group_by_content_defaults_off(self, test_db):
+        result = await update_settings(AppSettingsUpdate())
+        assert result.packet_group_by_content is False
+
+    @pytest.mark.asyncio
+    async def test_packet_group_by_content_round_trip(self, test_db):
+        """The shared 'group repeats by content' toggle is forwarded and persisted."""
+        result = await update_settings(AppSettingsUpdate(packet_group_by_content=True))
+        assert result.packet_group_by_content is True
+
+        fresh = await AppSettingsRepository.get()
+        assert fresh.packet_group_by_content is True
+
+    @pytest.mark.asyncio
     async def test_chat_entity_settings_defaults(self, test_db):
         result = await update_settings(AppSettingsUpdate())
         assert result.chat_parse_pubkeys is False

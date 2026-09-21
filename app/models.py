@@ -1329,6 +1329,13 @@ class AppSettings(BaseModel):
             "table. 0 = show all (no pagination); otherwise 10/25/50/100."
         ),
     )
+    packet_group_by_content: bool = Field(
+        default=False,
+        description=(
+            "Last-selected 'Group repeats by content' packet-filter toggle, "
+            "shared by the Raw Packet Feed and Packet History views."
+        ),
+    )
     discovery_blocked_types: list[int] = Field(
         default_factory=list,
         description=(

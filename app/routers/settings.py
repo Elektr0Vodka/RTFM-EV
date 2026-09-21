@@ -317,6 +317,10 @@ class AppSettingsUpdate(BaseModel):
         default=None,
         description="Mesh Health contacts-table page size: 0 (all) or 10/25/50/100",
     )
+    packet_group_by_content: bool | None = Field(
+        default=None,
+        description="Last-selected 'Group repeats by content' packet-filter toggle",
+    )
     blocked_keys: list[str] | None = Field(
         default=None,
         description="Public keys whose messages are hidden from the UI",
@@ -688,6 +692,9 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
         100,
     ):
         kwargs["mesh_health_page_size"] = update.mesh_health_page_size
+    # Packet-filter 'Group repeats by content' toggle (shared by both packet views).
+    if update.packet_group_by_content is not None:
+        kwargs["packet_group_by_content"] = update.packet_group_by_content
 
     # Auto-add mentioned channels to the registry
     if update.auto_add_mentioned_channels is not None:
