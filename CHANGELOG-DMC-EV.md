@@ -18,19 +18,38 @@ the change. Upstream development is on hold; the fork is the active repository.
   across sessions (requested by Richard). Previously it was session-only and
   reset to off on every reload; the other filter toggles already default on and
   are unchanged. The last selection persists server-side in a new
-  `app_settings.packet_group_by_content` column (migration `_101`, INTEGER 0/1,
+  `app_settings.packet_group_by_content` column (migration `_102`, INTEGER 0/1,
   default `0`), validated/forwarded through the settings router and threaded
   from `App.tsx` (`packetGroupByContent` + `onSaveAppSettings`) →
   `ConversationPane` → both the Raw Packet Feed and Packet History views, which
   share one `usePacketFilters` hook. The hook now takes an initial value (synced
   once app settings load) and a change callback that persists the toggle,
-  mirroring `packet_feed_sort`. `LATEST_SCHEMA_VERSION` bumped to `101`.
+  mirroring `packet_feed_sort`. `LATEST_SCHEMA_VERSION` bumped to `102`.
   Verified: backend CI gate in the Linux container (ruff, ruff format, pyright
   0 errors, pytest 2199 pass) incl. a settings round-trip test, a router
-  round-trip test, and `test_migration_101`; frontend vitest (new
+  round-trip test, and `test_migration_102`; frontend vitest (new
   `usePacketFilters` init/persist tests, 5 AppSettings fixtures updated; full
   suite 1752) + build; and live in the browser (toggling the control issues
   `PATCH /settings {"packet_group_by_content": true/false}`).
+
+## Update 2026-09-21 (Packet History: fix the "Request" type filter)
+
+### Packet ingest + Packet History (backend)
+- **Fixed REQUEST packets being stored as `"Unknown"`**, which made the Packet
+  History "Request" type filter return no rows while the "Unknown" bucket
+  surfaced them (reported by Richard). `raw_packets.payload_type` is written
+  from `PayloadType.name` guarded on `if payload_type`, but
+  `PayloadType.REQUEST` is `0x00` (falsy), so every request was labelled
+  `"Unknown"`; the guard is now `is not None`. REQUEST is the only value-0 type,
+  which is why no other type was affected. Adds migration `_101`, which
+  re-decodes existing `"Unknown"` rows with the same ingest parser and relabels
+  the ones that decode to REQUEST (genuinely unparseable rows stay `"Unknown"`),
+  so historical requests become filterable too. `LATEST_SCHEMA_VERSION` bumped
+  to `101`.
+  Verified: backend CI gate in the Linux container (ruff, ruff format, pyright
+  0 errors, pytest 2197 pass), incl. a new `process_raw_packet` REQUEST test
+  and `test_migration_101` (relabel-only-requests + idempotent + skip-when-
+  absent).
 
 ## Update 2026-09-21 (Rooms: keep the chat view on desktop)
 

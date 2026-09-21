@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from app.decoder import parse_packet
+from app.decoder import PayloadType, parse_packet
 from app.packet_processor import process_raw_packet
 from app.repository.contacts import ContactAdvertPathRepository, ContactRepository
 from app.repository.raw_packets import RawPacketRepository
@@ -100,6 +100,27 @@ class TestPipelinePersistsSignal:
         assert decoded["hop_count"] == expected["hop_count"]
         assert decoded["hop_byte_width"] == expected["hop_byte_width"]
         assert decoded["path_signature"] == expected["path_signature"]
+
+    @pytest.mark.asyncio
+    async def test_process_raw_packet_stores_request_type(self, test_db, captured_broadcasts):
+        """A REQUEST packet must be stored as "REQUEST", not "Unknown".
+
+        `PayloadType.REQUEST` is 0x00 and therefore falsy, so the old
+        `payload_type.name if payload_type else "Unknown"` guard mislabelled
+        every request as "Unknown" - which made the Packet History "Request"
+        filter return nothing while "Unknown" surfaced them.
+        """
+        # header 0x01 -> route FLOOD, payload_type REQUEST(0); zero-hop path byte
+        # 0x00; one payload byte. parse_packet(...) decodes this as REQUEST.
+        request_packet = bytes.fromhex("0100aa")
+        assert parse_packet(request_packet).payload_type is PayloadType.REQUEST
+        _, mock_broadcast = captured_broadcasts
+
+        with patch("app.packet_processor.broadcast_event", mock_broadcast):
+            result = await process_raw_packet(request_packet, timestamp=1700000000)
+
+        row = await _row(test_db, result["packet_id"])
+        assert row["payload_type"] == "REQUEST"
 
 
 async def _path_signal(test_db, public_key: str):
