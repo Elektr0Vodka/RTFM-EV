@@ -31,7 +31,9 @@ interface PacketHistoryViewProps {
   channels: Channel[];
   /** Persisted history-view time-sort direction; defaults to oldest-first. */
   packetHistorySort?: 'oldest' | 'newest';
-  /** Persist a settings change (used for the sort direction). */
+  /** Persisted 'Group repeats by content' toggle; defaults to off. */
+  packetGroupByContent?: boolean;
+  /** Persist a settings change (used for the sort direction and group toggle). */
   onSaveAppSettings?: (update: AppSettingsUpdate) => Promise<void> | void;
 }
 
@@ -39,10 +41,14 @@ export function PacketHistoryView({
   contacts,
   channels,
   packetHistorySort = 'oldest',
+  packetGroupByContent = false,
   onSaveAppSettings,
 }: PacketHistoryViewProps) {
   const t = useT();
-  const filters = usePacketFilters();
+  const filters = usePacketFilters({
+    initialGroupByHash: packetGroupByContent,
+    onGroupByHashChange: (value) => onSaveAppSettings?.({ packet_group_by_content: value }),
+  });
 
   const [selectedPacket, setSelectedPacket] = useState<RawPacket | null>(null);
   const [filterModalOpen, setFilterModalOpen] = useState(false);

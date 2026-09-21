@@ -131,6 +131,7 @@ interface ConversationPaneProps {
   blockedNames?: string[];
   packetFeedSort?: 'oldest' | 'newest';
   packetHistorySort?: 'oldest' | 'newest';
+  packetGroupByContent?: boolean;
   meshHealthPageSize?: number;
   onSaveAppSettings?: (update: import('../types').AppSettingsUpdate) => Promise<void> | void;
   /** Handlers the desktop full-page contact-info view needs beyond the ones
@@ -243,6 +244,7 @@ export function ConversationPane({
   blockedNames,
   packetFeedSort,
   packetHistorySort,
+  packetGroupByContent,
   meshHealthPageSize,
   onSaveAppSettings,
   contactInfoViewProps,
@@ -329,6 +331,7 @@ export function ConversationPane({
         channels={channels}
         contacts={contacts}
         packetFeedSort={packetFeedSort}
+        packetGroupByContent={packetGroupByContent}
         onSaveAppSettings={onSaveAppSettings}
       />
     );
@@ -357,6 +360,7 @@ export function ConversationPane({
           contacts={contacts}
           channels={channels}
           packetHistorySort={packetHistorySort}
+          packetGroupByContent={packetGroupByContent}
           onSaveAppSettings={onSaveAppSettings}
         />
       </Suspense>
