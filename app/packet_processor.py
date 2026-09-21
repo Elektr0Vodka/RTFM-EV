@@ -307,7 +307,9 @@ async def process_raw_packet(
     # letting the signal metadata (rssi/snr/payload_type) persist on raw_packets.
     packet_info = parse_packet(raw_bytes)
     payload_type = packet_info.payload_type if packet_info else None
-    payload_type_name = payload_type.name if payload_type else "Unknown"
+    # `PayloadType.REQUEST` is 0x00, which is falsy: a bare `if payload_type`
+    # misclassifies every REQUEST packet as "Unknown". Guard on `is not None`.
+    payload_type_name = payload_type.name if payload_type is not None else "Unknown"
 
     decoded_fields = decoded_stat_fields(packet_info)
     packet_id, is_new_packet = await RawPacketRepository.create(
