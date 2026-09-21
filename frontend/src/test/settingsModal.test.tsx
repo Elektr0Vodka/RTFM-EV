@@ -87,6 +87,7 @@ const baseSettings: AppSettings = {
   packet_history_sort: 'oldest',
   mesh_health_page_size: 50,
   date_time_format: 'auto',
+  packet_group_by_content: false,
   discovery_blocked_types: [],
   tracked_telemetry_repeaters: [],
   tracked_telemetry_contacts: [],

@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { usePacketFilters } from '../hooks/usePacketFilters';
 import { HOP_BYTE_WIDTH_BUCKETS, KNOWN_PAYLOAD_TYPES } from '../utils/rawPacketStats';
@@ -49,6 +49,31 @@ describe('usePacketFilters', () => {
     expect(result.current.searchTerm).toBe('alice');
     // Search has its own visible input + clear, so it is not counted here.
     expect(result.current.activeFilterCount).toBe(0);
+  });
+
+  it('initializes groupByHash from the persisted value and adopts later changes', () => {
+    const { result, rerender } = renderHook(
+      ({ initial }: { initial: boolean }) => usePacketFilters({ initialGroupByHash: initial }),
+      { initialProps: { initial: true } }
+    );
+    // Starts from the persisted "on" value.
+    expect(result.current.groupByHash).toBe(true);
+    // Adopts a later change (e.g. app settings loading in).
+    rerender({ initial: false });
+    expect(result.current.groupByHash).toBe(false);
+  });
+
+  it('persists group-by-content changes via onGroupByHashChange', () => {
+    const onChange = vi.fn();
+    const { result } = renderHook(() =>
+      usePacketFilters({ initialGroupByHash: false, onGroupByHashChange: onChange })
+    );
+    act(() => result.current.setGroupByHash(true));
+    expect(result.current.groupByHash).toBe(true);
+    expect(onChange).toHaveBeenCalledWith(true);
+    // reset also persists the toggle back to off.
+    act(() => result.current.reset());
+    expect(onChange).toHaveBeenLastCalledWith(false);
   });
 
   it('reset restores defaults including search', () => {

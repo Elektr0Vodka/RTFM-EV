@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { HOP_BYTE_WIDTH_BUCKETS, KNOWN_PAYLOAD_TYPES } from '../utils/rawPacketStats';
 
@@ -47,14 +47,40 @@ export interface PacketFilters {
   reset: () => void;
 }
 
-export function usePacketFilters(): PacketFilters {
+export interface UsePacketFiltersOptions {
+  /**
+   * Server-persisted initial value for the "Group repeats by content" toggle.
+   * Kept in sync when it changes (e.g. once app settings load), so the last
+   * selection is remembered across sessions.
+   */
+  initialGroupByHash?: boolean;
+  /** Called whenever the group-by-content toggle changes, to persist it. */
+  onGroupByHashChange?: (value: boolean) => void;
+}
+
+export function usePacketFilters(options: UsePacketFiltersOptions = {}): PacketFilters {
+  const { initialGroupByHash = false, onGroupByHashChange } = options;
   const [enabledTypes, setEnabledTypes] = useState<Set<string>>(() => new Set(KNOWN_PAYLOAD_TYPES));
   const [enabledHopWidths, setEnabledHopWidths] = useState<Set<string>>(
     () => new Set(HOP_BYTE_WIDTH_BUCKETS)
   );
   const [hexFilter, setHexFilter] = useState('');
-  const [groupByHash, setGroupByHash] = useState(false);
+  const [groupByHash, setGroupByHashState] = useState(initialGroupByHash);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Adopt the persisted value once app settings load (or change elsewhere).
+  useEffect(() => {
+    setGroupByHashState(initialGroupByHash);
+  }, [initialGroupByHash]);
+
+  // Update local state and persist the new value.
+  const setGroupByHash = useCallback(
+    (value: boolean) => {
+      setGroupByHashState(value);
+      onGroupByHashChange?.(value);
+    },
+    [onGroupByHashChange]
+  );
 
   const allTypesEnabled = enabledTypes.size === KNOWN_PAYLOAD_TYPES.length;
   const allHopWidthsEnabled = enabledHopWidths.size === HOP_BYTE_WIDTH_BUCKETS.length;
@@ -113,7 +139,7 @@ export function usePacketFilters(): PacketFilters {
     setHexFilter('');
     setGroupByHash(false);
     setSearchQuery('');
-  }, []);
+  }, [setGroupByHash]);
 
   return {
     enabledTypes,

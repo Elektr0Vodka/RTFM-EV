@@ -321,6 +321,10 @@ class AppSettingsUpdate(BaseModel):
         default=None,
         description="UI date/time format: 'auto', '12h_mdy', or '24h_dmy'",
     )
+    packet_group_by_content: bool | None = Field(
+        default=None,
+        description="Last-selected 'Group repeats by content' packet-filter toggle",
+    )
     blocked_keys: list[str] | None = Field(
         default=None,
         description="Public keys whose messages are hidden from the UI",
@@ -699,6 +703,9 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
         "24h_dmy",
     ):
         kwargs["date_time_format"] = update.date_time_format
+    # Packet-filter 'Group repeats by content' toggle (shared by both packet views).
+    if update.packet_group_by_content is not None:
+        kwargs["packet_group_by_content"] = update.packet_group_by_content
 
     # Auto-add mentioned channels to the registry
     if update.auto_add_mentioned_channels is not None:

@@ -71,7 +71,7 @@ class AppSettingsRepository:
                    sidebar_section_order, sidebar_tool_order, sidebar_favorites_order,
                    sidebar_hidden, sidebar_favorite_sort_orders,
                    packet_feed_sort, packet_history_sort,
-                   mesh_health_page_size, date_time_format,
+                   mesh_health_page_size, date_time_format, packet_group_by_content,
                    raw_packet_retention_days
             FROM app_settings WHERE id = 1
             """
@@ -189,6 +189,11 @@ class AppSettingsRepository:
             date_time_format = "auto"
         if date_time_format not in ("auto", "12h_mdy", "24h_dmy"):
             date_time_format = "auto"
+        # Packet-filter 'Group repeats by content' toggle; tolerate a missing column.
+        try:
+            packet_group_by_content = bool(row["packet_group_by_content"])
+        except (KeyError, IndexError):
+            packet_group_by_content = False
 
         # Parse discovery_blocked_types JSON
         discovery_blocked_types: list[int] = []
@@ -461,6 +466,7 @@ class AppSettingsRepository:
             packet_history_sort=packet_history_sort,
             mesh_health_page_size=mesh_health_page_size,
             date_time_format=date_time_format,
+            packet_group_by_content=packet_group_by_content,
         )
 
     @staticmethod
@@ -517,6 +523,7 @@ class AppSettingsRepository:
         packet_history_sort: str | None = None,
         mesh_health_page_size: int | None = None,
         date_time_format: str | None = None,
+        packet_group_by_content: bool | None = None,
     ) -> None:
         """Apply field updates using an already-acquired connection.
 
@@ -597,6 +604,9 @@ class AppSettingsRepository:
         if date_time_format is not None:
             updates.append("date_time_format = ?")
             params.append(date_time_format)
+        if packet_group_by_content is not None:
+            updates.append("packet_group_by_content = ?")
+            params.append(1 if packet_group_by_content else 0)
 
         if blocked_keys is not None:
             updates.append("blocked_keys = ?")
@@ -792,6 +802,7 @@ class AppSettingsRepository:
         packet_history_sort: str | None = None,
         mesh_health_page_size: int | None = None,
         date_time_format: str | None = None,
+        packet_group_by_content: bool | None = None,
     ) -> AppSettings:
         """Update app settings. Only provided fields are updated."""
         async with db.tx() as conn:
@@ -847,6 +858,7 @@ class AppSettingsRepository:
                 packet_history_sort=packet_history_sort,
                 mesh_health_page_size=mesh_health_page_size,
                 date_time_format=date_time_format,
+                packet_group_by_content=packet_group_by_content,
             )
             return await AppSettingsRepository._get_in_conn(conn)
 

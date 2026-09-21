@@ -100,6 +100,78 @@ describe('MeshHealthView Adverts tab (default)', () => {
   });
 });
 
+describe('MeshHealthView Adverts contacts search + layout order', () => {
+  const TWO_CONTACTS = {
+    ...RESPONSE,
+    total_contacts: 2,
+    contacts: [
+      RESPONSE.contacts[0],
+      { ...RESPONSE.contacts[0], public_key: 'cd'.repeat(32), name: 'Node B' },
+    ],
+  };
+
+  const WITH_ALERT = {
+    ...RESPONSE,
+    high_alert_count: 1,
+    alerts: [
+      {
+        level: 'HIGH',
+        public_key: 'ab'.repeat(32),
+        name: 'Node A',
+        advert_count: 9,
+        adverts_per_hour: 18,
+      },
+    ],
+  };
+
+  function mockMeshHealth(body: unknown) {
+    global.fetch = vi.fn((url: string) => {
+      if (String(url).includes('mesh-health')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(body) } as Response);
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) } as Response);
+    }) as unknown as typeof fetch;
+  }
+
+  it('filters the advertised-contacts table by the search box', async () => {
+    mockMeshHealth(TWO_CONTACTS);
+    render(<MeshHealthView config={null} />);
+    await waitFor(() => expect(screen.getByText('Node A')).toBeInTheDocument());
+    expect(screen.getByText('Node B')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Search name or key...'), {
+      target: { value: 'Node B' },
+    });
+
+    expect(screen.queryByText('Node A')).not.toBeInTheDocument();
+    expect(screen.getByText('Node B')).toBeInTheDocument();
+  });
+
+  it('shows a no-matches message when the search matches nothing', async () => {
+    mockMeshHealth(TWO_CONTACTS);
+    render(<MeshHealthView config={null} />);
+    await waitFor(() => expect(screen.getByText('Node A')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText('Search name or key...'), {
+      target: { value: 'zzz-nothing' },
+    });
+
+    expect(screen.getByText(/No advertised contacts match/)).toBeInTheDocument();
+  });
+
+  it('renders the advertised-contacts table above the flooding-advert alerts', async () => {
+    mockMeshHealth(WITH_ALERT);
+    render(<MeshHealthView config={null} />);
+    const tableHeading = await screen.findByText(/All Advertised Contacts Heard/);
+    const alertHeading = await screen.findByText(/Flooding Adverts Too Frequently/);
+    // The contacts table must appear before the alerts in the DOM so a long
+    // alert list never pushes it off-screen.
+    expect(
+      tableHeading.compareDocumentPosition(alertHeading) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+});
+
 describe('MeshHealthView flood-driven warning highlight', () => {
   // direct 2, flood 9, total 11: flood alone exceeds the HIGH threshold (8).
   const FLOOD_HEAVY = {

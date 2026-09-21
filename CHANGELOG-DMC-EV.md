@@ -38,6 +38,48 @@ the change. Upstream development is on hold; the fork is the active repository.
   "06:12:56 PM" and "18:12:56", both directions; the Settings control fires
   `PATCH /settings {"date_time_format":"24h_dmy"}`).
 
+## Update 2026-09-21 (Packet filters: remember "Group repeats by content")
+
+### Packet filters (backend + frontend)
+- **The "Group repeats by content" packet-filter toggle is now remembered**
+  across sessions (requested by Richard). Previously it was session-only and
+  reset to off on every reload; the other filter toggles already default on and
+  are unchanged. The last selection persists server-side in a new
+  `app_settings.packet_group_by_content` column (migration `_102`, INTEGER 0/1,
+  default `0`), validated/forwarded through the settings router and threaded
+  from `App.tsx` (`packetGroupByContent` + `onSaveAppSettings`) →
+  `ConversationPane` → both the Raw Packet Feed and Packet History views, which
+  share one `usePacketFilters` hook. The hook now takes an initial value (synced
+  once app settings load) and a change callback that persists the toggle,
+  mirroring `packet_feed_sort`. `LATEST_SCHEMA_VERSION` bumped to `102`.
+  Verified: backend CI gate in the Linux container (ruff, ruff format, pyright
+  0 errors, pytest 2199 pass) incl. a settings round-trip test, a router
+  round-trip test, and `test_migration_102`; frontend vitest (new
+  `usePacketFilters` init/persist tests, 5 AppSettings fixtures updated; full
+  suite 1752) + build; and live in the browser (toggling the control issues
+  `PATCH /settings {"packet_group_by_content": true/false}`).
+
+## Update 2026-09-21 (Mesh Health: contacts table above alerts + search)
+
+### Mesh Health (frontend)
+- **Moved the "All Advertised Contacts Heard" table above the Flooding Adverts
+  alerts** (reported by Richard): the HIGH/MEDIUM flood-advert alert lists can
+  grow very long and pushed the contacts table far down the page. The alert
+  blocks (and their "no alerts" empty state) now render *after* the contacts
+  table, so the table stays reachable regardless of alert volume. The
+  analytics charts above the table are unchanged.
+- **Added a search box to the advertised-contacts table.** Free-text filter
+  over the contact name and public key (case-insensitive); the summary count,
+  pagination and page-size dropdown all follow the filtered set, and a
+  no-matches message shows when nothing matches. New i18n keys
+  `mesh_health_contacts_search_placeholder` / `mesh_health_contacts_no_matches`
+  in EN/NL/DE.
+  Verified: frontend vitest (`meshHealthView.test.tsx` 15/15 incl. new search,
+  no-matches, and table-above-alerts DOM-order tests; full suite 1753),
+  eslint/prettier/build clean, and live in the browser on the 7d window (real
+  HIGH+MEDIUM alerts render below the table; typing a contact name filters
+  50 rows to 1; gibberish shows the no-matches message).
+
 ## Update 2026-09-21 (Packet History: fix the "Request" type filter)
 
 ### Packet ingest + Packet History (backend)

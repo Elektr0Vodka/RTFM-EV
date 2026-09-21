@@ -593,6 +593,8 @@ export interface AppSettings {
   mesh_health_page_size: number;
   /** UI date/time format: follow the UI language, or force 12h/24h + date order. */
   date_time_format: 'auto' | '12h_mdy' | '24h_dmy';
+  /** Last-selected 'Group repeats by content' packet-filter toggle (shared by both packet views). */
+  packet_group_by_content: boolean;
   discovery_blocked_types: number[];
   tracked_telemetry_repeaters: string[];
   tracked_telemetry_contacts: string[];
@@ -843,6 +845,7 @@ export interface AppSettingsUpdate {
   packet_history_sort?: 'oldest' | 'newest';
   mesh_health_page_size?: number;
   date_time_format?: 'auto' | '12h_mdy' | '24h_dmy';
+  packet_group_by_content?: boolean;
   discovery_blocked_types?: number[];
   telemetry_interval_hours?: number;
   telemetry_routed_hourly?: boolean;

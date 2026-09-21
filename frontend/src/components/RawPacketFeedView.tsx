@@ -62,7 +62,9 @@ interface RawPacketFeedViewProps {
   contacts?: Contact[];
   /** Persisted feed time-sort direction; defaults to oldest-first. */
   packetFeedSort?: 'oldest' | 'newest';
-  /** Persist a settings change (used for the sort direction). */
+  /** Persisted 'Group repeats by content' toggle; defaults to off. */
+  packetGroupByContent?: boolean;
+  /** Persist a settings change (used for the sort direction and group toggle). */
   onSaveAppSettings?: (update: AppSettingsUpdate) => Promise<void> | void;
 }
 
@@ -70,13 +72,18 @@ export function RawPacketFeedView({
   channels,
   contacts,
   packetFeedSort = 'oldest',
+  packetGroupByContent = false,
   onSaveAppSettings,
 }: RawPacketFeedViewProps) {
   const t = useT();
   const packets = useRawPackets();
   const [selectedPacket, setSelectedPacket] = useState<RawPacket | null>(null);
-  // Payload-type / hop-width / hex / group filter state (session-only).
-  const filters = usePacketFilters();
+  // Payload-type / hop-width / hex filters are session-only; the group-by-content
+  // toggle is remembered server-side (last selection).
+  const filters = usePacketFilters({
+    initialGroupByHash: packetGroupByContent,
+    onGroupByHashChange: (value) => onSaveAppSettings?.({ packet_group_by_content: value }),
+  });
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   // Autoscroll defaults on; intentionally not persisted across refreshes.
   const [autoScroll, setAutoScroll] = useState(true);

@@ -1337,6 +1337,13 @@ class AppSettings(BaseModel):
             "mm/dd/yyyy, '24h_dmy' forces 24-hour + dd/mm/yyyy."
         ),
     )
+    packet_group_by_content: bool = Field(
+        default=False,
+        description=(
+            "Last-selected 'Group repeats by content' packet-filter toggle, "
+            "shared by the Raw Packet Feed and Packet History views."
+        ),
+    )
     discovery_blocked_types: list[int] = Field(
         default_factory=list,
         description=(
