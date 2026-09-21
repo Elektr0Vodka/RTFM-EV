@@ -18,9 +18,9 @@ the change. Upstream development is on hold; the fork is the active repository.
   choices: `auto` (follow the UI language: EN -> 12-hour + mm/dd/yyyy, NL/DE ->
   24-hour + dd/mm/yyyy), `12h_mdy` (force 12-hour + mm/dd/yyyy), and `24h_dmy`
   (force 24-hour + dd/mm/yyyy). Default `auto`. Lives in Settings -> Local and
-  persists in a new `app_settings.date_time_format` column (migration `_101`,
+  persists in a new `app_settings.date_time_format` column (migration `_103`,
   TEXT, default `'auto'`), validated in the settings router (unknown values
-  ignored). `LATEST_SCHEMA_VERSION` bumped to `101`.
+  ignored). `LATEST_SCHEMA_VERSION` bumped to `103`.
 - **Unified all ad-hoc date/time formatting** behind one central formatter,
   `frontend/src/utils/dateTimeFormat.ts` (`formatDateTime(value, options)`).
   Date/time rendering was previously scattered across ~17 files that mixed
@@ -32,11 +32,30 @@ the change. Upstream development is on hold; the fork is the active repository.
   in EN/NL/DE.
   Verified: backend CI gate in the Linux container (ruff, ruff format, pyright
   0 errors, pytest 2201) incl. a settings round-trip test, a router test, and
-  `test_migration_101`; frontend `tsc` clean, full vitest suite (1757, incl. new
+  `test_migration_103`; frontend `tsc` clean, full vitest suite (1757, incl. new
   resolver/formatter tests) + build, eslint clean; and live in the browser
   (switching the UI language flips the same packet timestamps between
   "06:12:56 PM" and "18:12:56", both directions; the Settings control fires
   `PATCH /settings {"date_time_format":"24h_dmy"}`).
+
+## Update 2026-09-21 (Packet History: fix the "Request" type filter)
+
+### Packet ingest + Packet History (backend)
+- **Fixed REQUEST packets being stored as `"Unknown"`**, which made the Packet
+  History "Request" type filter return no rows while the "Unknown" bucket
+  surfaced them (reported by Richard). `raw_packets.payload_type` is written
+  from `PayloadType.name` guarded on `if payload_type`, but
+  `PayloadType.REQUEST` is `0x00` (falsy), so every request was labelled
+  `"Unknown"`; the guard is now `is not None`. REQUEST is the only value-0 type,
+  which is why no other type was affected. Adds migration `_101`, which
+  re-decodes existing `"Unknown"` rows with the same ingest parser and relabels
+  the ones that decode to REQUEST (genuinely unparseable rows stay `"Unknown"`),
+  so historical requests become filterable too. `LATEST_SCHEMA_VERSION` bumped
+  to `101`.
+  Verified: backend CI gate in the Linux container (ruff, ruff format, pyright
+  0 errors, pytest 2197 pass), incl. a new `process_raw_packet` REQUEST test
+  and `test_migration_101` (relabel-only-requests + idempotent + skip-when-
+  absent).
 
 ## Update 2026-09-21 (Rooms: keep the chat view on desktop)
 
