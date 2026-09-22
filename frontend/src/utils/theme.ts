@@ -204,6 +204,16 @@ export function applyTheme(themeId: string): void {
   // active theme, so this must run after data-theme is set above.
   applyCrt();
 
+  // Match native UI (date/time picker popups, spin buttons, scrollbars) to the
+  // theme's lightness so they don't render as a white panel on a dark theme.
+  // isDarkTheme() reads the computed --background, which reflects the data-theme
+  // attribute set above.
+  try {
+    document.documentElement.style.colorScheme = isDarkTheme() ? 'dark' : 'light';
+  } catch {
+    // style may be unavailable in exotic environments
+  }
+
   // The active phosphor is derived from the theme, so a theme change can change
   // the map tint colour. Notify CRT listeners (e.g. the map) to re-render.
   if (typeof window !== 'undefined') {

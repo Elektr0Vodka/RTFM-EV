@@ -1921,6 +1921,7 @@
   "map_preset_all": "Alle",
   "map_custom_button": "Benutzerdefiniert",
   "map_since_custom_input_aria": "Knoten anzeigen, gehört seit (Ortszeit)",
+  "map_since_custom_until_input_aria": "Knoten anzeigen, gehört bis (Ortszeit)",
   "map_clear_button": "Löschen",
   "map_visualize_packets_label": "Pakete visualisieren",
   "map_playback_group_aria": "Paket-Wiedergabesteuerung",
