@@ -61,6 +61,27 @@ the change. Upstream development is on hold; the fork is the active repository.
   `resolveHomeView` / last-view round-trip and a `SettingsMapSection` component
   test (mode switch, home-camera save, map-click sets coordinates).
 
+## Update 2026-09-22 (Fix zoom crash on the remaining My Node charts)
+
+### Charts (frontend)
+- **Fix the crash that blanked the whole page when zooming/panning the Bytes
+  Received, Packets Received, Noise Floor or Battery charts on My Node after
+  hovering.** This is the same stale-hover-index bug that #138 fixed for the
+  Airtime and Request-volume charts, but three sibling charts were missed. Each
+  chart keeps its hovered index in state; a zoom/pan hands it a shorter sliced
+  array (via `ZoomableBinChart`), so the retained index pointed past the new end
+  and `bins[hov].time` (a `TypeError`) or `fmtTime(timestamps[hov])` (a
+  `RangeError: Invalid time value` from `new Date(undefined)`) threw and
+  unmounted the app. `BarChart`, `NoiseFloorLineChart` and `BatteryLineChart`
+  now read the hovered item defensively (`hov < length ? arr[hov] : null`) and
+  skip the tooltip when the index is stale, matching the guard the already-fixed
+  charts use. Added a regression test
+  (`myNodeChartsStaleHover.test.tsx`) that hovers the last bucket then shrinks
+  the array. Verified: new test red before the fix / green after; full gates
+  green (eslint / prettier / vitest 1782 / build); runtime-verified in the
+  browser against the running backend (hover + repeated wheel-zoom on the Bytes,
+  Noise Floor and Battery charts, no crash, no console exception).
+
 ## Update 2026-09-21 (Airtime chart x-axis dates)
 
 ### My Node airtime chart (frontend)
