@@ -8,6 +8,19 @@ export const LINK_FRESH_MS = 60_000;
 export const LINK_DIM_MS = 900_000;
 export const LINK_FLOOR = 0.15;
 
+/** User-selectable packet-arc lifetimes (full opacity, then fade to the floor,
+ *  then gone). The default matches the original fixed LINK_DIM_MS. */
+export const ARC_FADE_PRESETS_MS = [
+  1_000, 2_000, 5_000, 10_000, 30_000, 60_000, 120_000, 300_000, 900_000, 1_800_000, 3_600_000,
+] as const;
+export const DEFAULT_ARC_FADE_MS = LINK_DIM_MS;
+
+/** Full-opacity window for a given arc lifetime, keeping the original
+ *  LINK_FRESH_MS : LINK_DIM_MS proportion (60s of 15 min). */
+export function arcFreshMs(fadeMs: number): number {
+  return (fadeMs * LINK_FRESH_MS) / LINK_DIM_MS;
+}
+
 export const SPEEDS = [0.5, 1, 2, 4, 8] as const;
 export const BUFFER_MAX_MS = 12_000;
 

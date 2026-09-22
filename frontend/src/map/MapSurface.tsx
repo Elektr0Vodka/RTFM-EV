@@ -1,6 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Map as MlMap, type StyleSpecification } from 'maplibre-gl';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Map as MlMap, setWorkerUrl, type StyleSpecification } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+// MapLibre 6 loads its worker from a file beside its own module, which does not
+// exist once Vite has bundled it into a hashed chunk (no tiles or GeoJSON ever
+// load, the map stays blank). Let Vite bundle the worker and point MapLibre at it.
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { useT } from '../i18n';
 import { useIsDarkTheme } from '../hooks/useIsDarkTheme';
 import { cn } from '../lib/utils';
@@ -28,6 +32,8 @@ import { setBuildings3D } from './engine/buildings3D';
 import { isWebglAvailable } from './engine/webgl';
 import { MapControls, type FabConfig, type ExtraFab } from './controls/MapControls';
 
+setWorkerUrl(maplibreWorkerUrl);
+
 export interface MapSurfaceProps {
   fabs: FabConfig;
   initialCenter?: [number, number];
@@ -50,6 +56,8 @@ export interface MapSurfaceProps {
   onLabelMode?: (mode: 'off' | 'name' | 'tag') => void;
   arcWidthScale?: number;
   onArcWidthScale?: (v: number) => void;
+  arcFadeMs?: number;
+  onArcFadeMs?: (ms: number) => void;
   linkWidthScale?: number;
   onLinkWidthScale?: (v: number) => void;
   neonNodes?: boolean;
@@ -119,6 +127,15 @@ export function MapSurface(props: MapSurfaceProps) {
   const mapRef = useRef<MlMap | null>(null);
   const webglOk = useRef(isWebglAvailable());
   const [selectedBasemapId, setSelectedBasemapId] = useState<string>(() => getSavedBasemapId());
+  // The overlay re-apply callback changes identity whenever its inputs change
+  // (every few seconds while live packets run). Keep it in a ref so a new
+  // callback never re-applies the basemap: after a raster fallback that retried
+  // the vector style, timed out again, and looped (black map, endless setStyle).
+  const reapplyRef = useRef(onBasemapReapply);
+  useEffect(() => {
+    reapplyRef.current = onBasemapReapply;
+  }, [onBasemapReapply]);
+  const reapplyOverlays = useCallback(() => reapplyRef.current?.(), []);
 
   // Create the map once.
   useEffect(() => {
@@ -138,7 +155,15 @@ export function MapSurface(props: MapSurfaceProps) {
     map.on('load', () => {
       setMapLock2D(map, !tilt3D);
       if (entry.kind === 'vector-recolor') {
-        applyBasemap(map, entry, { reapplyOverlays: onBasemapReapply, theme });
+        applyBasemap(map, entry, {
+          reapplyOverlays,
+          theme,
+          buildingsOn: buildings,
+          onBuildings: setBuildings3D,
+        });
+      } else if (buildings) {
+        // Restore a remembered 3D-buildings toggle on first load.
+        void setBuildings3D(map, true, theme);
       }
       onReady?.(map);
     });
@@ -183,12 +208,12 @@ export function MapSurface(props: MapSurfaceProps) {
     // applyBasemap no-ops when the entry's signature is unchanged, so a tintSig
     // bump on a non-Nova basemap costs nothing.
     applyBasemap(map, resolveBasemapEntry(selectedBasemapId), {
-      reapplyOverlays: onBasemapReapply,
+      reapplyOverlays,
       theme,
       buildingsOn: buildings,
       onBuildings: setBuildings3D,
     });
-  }, [selectedBasemapId, onBasemapReapply, theme, buildings, tintSig]);
+  }, [selectedBasemapId, reapplyOverlays, theme, buildings, tintSig]);
 
   if (!webglOk.current) {
     return (
@@ -224,6 +249,8 @@ export function MapSurface(props: MapSurfaceProps) {
         onNodeScale={props.onNodeScale}
         arcWidthScale={props.arcWidthScale}
         onArcWidthScale={props.onArcWidthScale}
+        arcFadeMs={props.arcFadeMs}
+        onArcFadeMs={props.onArcFadeMs}
         linkWidthScale={props.linkWidthScale}
         onLinkWidthScale={props.onLinkWidthScale}
         neonNodes={props.neonNodes}

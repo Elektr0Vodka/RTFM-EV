@@ -32,6 +32,16 @@ function stubMap() {
       once['idle'] = [];
       cbs.forEach((cb) => cb());
     },
+    loaded: false,
+    isStyleLoaded() {
+      return this.loaded;
+    },
+    areTilesLoaded() {
+      return this.loaded;
+    },
+    fireRender() {
+      (on['render'] || []).slice().forEach((cb) => cb());
+    },
     _cartoSetTiles: cartoSetTiles,
   };
 }
@@ -70,6 +80,27 @@ describe('applyBasemap raster fallback', () => {
     const map = stubMap();
     applyBasemap(map as any, getBasemap('ofm-positron'), {});
     expect(map.setStyle).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(VECTOR_LOAD_TIMEOUT_MS + 1);
+    expect(map._cartoSetTiles).toHaveBeenCalledWith(getBasemap('lightgray').tiles);
+  });
+
+  it('does not fall back when a loaded style keeps rendering and never goes idle', () => {
+    // The live packet overlay repaints every frame, so `idle` never fires.
+    vi.useFakeTimers();
+    const map = stubMap();
+    applyBasemap(map as any, getBasemap('ofm-positron'), {});
+    map.fireRender(); // still loading: must not settle
+    map.loaded = true;
+    map.fireRender();
+    vi.advanceTimersByTime(VECTOR_LOAD_TIMEOUT_MS + 1);
+    expect(map._cartoSetTiles).not.toHaveBeenCalled();
+  });
+
+  it('still falls back when frames render but tiles never finish loading', () => {
+    vi.useFakeTimers();
+    const map = stubMap();
+    applyBasemap(map as any, getBasemap('ofm-positron'), {});
+    map.fireRender();
     vi.advanceTimersByTime(VECTOR_LOAD_TIMEOUT_MS + 1);
     expect(map._cartoSetTiles).toHaveBeenCalledWith(getBasemap('lightgray').tiles);
   });

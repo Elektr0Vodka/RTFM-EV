@@ -67,7 +67,7 @@ export function PlaybackBar({
 
   return (
     <div
-      className="pointer-events-auto flex items-center gap-2 rounded-lg border border-border bg-background/90 px-3 py-2 shadow-lg backdrop-blur"
+      className="pointer-events-auto flex items-center gap-2 rounded-lg border border-border bg-background/90 px-3 py-2 shadow-lg"
       role="group"
       aria-label={t('map_playback_group_aria')}
       onKeyDown={onKeyDown}

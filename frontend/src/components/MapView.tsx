@@ -50,8 +50,13 @@ import {
   type PlaybackController,
   type PlaybackSnapshot,
 } from '../map/packets/playbackController';
-import { PlaybackBar } from '../map/controls/PlaybackBar';
-import { BUFFER_MAX_MS } from '../map/packets/packetAnimMath';
+import { LOOKBACK_OPTIONS, PlaybackBar } from '../map/controls/PlaybackBar';
+import { isBool, isNumberIn, isOneOf, usePersistedMapSetting } from '../map/usePersistedMapSetting';
+import {
+  ARC_FADE_PRESETS_MS,
+  BUFFER_MAX_MS,
+  DEFAULT_ARC_FADE_MS,
+} from '../map/packets/packetAnimMath';
 import { MapLegend } from '../map/controls/legend/MapLegend';
 import { PacketLegend } from '../map/controls/legend/PacketLegend';
 import { createClickAudio, type ClickAudio } from '../map/packets/clickAudio';
@@ -129,6 +134,7 @@ const MAP_NODE_SCALE_STORAGE_KEY = 'remoteterm-map-node-scale';
 
 // --- Line / arc thickness (multipliers, 0.5-4x) ---
 const MAP_ARC_WIDTH_STORAGE_KEY = 'remoteterm-map-arc-width';
+const MAP_ARC_FADE_STORAGE_KEY = 'remoteterm-map-arc-fade';
 const MAP_LINK_WIDTH_STORAGE_KEY = 'remoteterm-map-link-width';
 
 // --- Neon node rendering (deck.gl halo+core nodes vs the flat GL circles) ---
@@ -209,6 +215,17 @@ function getSavedWidthScale(key: string): number {
     /* ignore */
   }
   return 1;
+}
+
+/** Packet-arc lifetime, restricted to the offered presets. */
+function getSavedArcFadeMs(): number {
+  try {
+    const v = Number(localStorage.getItem(MAP_ARC_FADE_STORAGE_KEY));
+    if ((ARC_FADE_PRESETS_MS as readonly number[]).includes(v)) return v;
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_ARC_FADE_MS;
 }
 
 function getSavedNeonOn(): boolean {
@@ -334,15 +351,35 @@ export function MapView({
     }
   });
   const [nowSec, setNowSec] = useState(() => Date.now() / 1000);
-  const [showPackets, setShowPackets] = useState(false);
-  const [discoveryMode, setDiscoveryMode] = useState(false);
+  const [showPackets, setShowPackets] = usePersistedMapSetting(
+    'remoteterm-map-show-packets',
+    false,
+    isBool
+  );
+  const [discoveryMode, setDiscoveryMode] = usePersistedMapSetting(
+    'remoteterm-map-discovery',
+    false,
+    isBool
+  );
   const [discoveredKeys, setDiscoveredKeys] = useState<Set<string>>(new Set());
-  const [pulsesOn, setPulsesOn] = useState(true);
-  const [glowOn, setGlowOn] = useState(true);
-  const [bufferMs, setBufferMs] = useState(0);
-  const [lookbackMs, setLookbackMs] = useState(DEFAULT_LOOKBACK_MS);
-  const [soundOn, setSoundOn] = useState(false);
-  const [volume, setVolume] = useState(0.3);
+  const [pulsesOn, setPulsesOn] = usePersistedMapSetting('remoteterm-map-pulses', true, isBool);
+  const [glowOn, setGlowOn] = usePersistedMapSetting('remoteterm-map-glow', true, isBool);
+  const [bufferMs, setBufferMs] = usePersistedMapSetting(
+    'remoteterm-map-packet-buffer',
+    0,
+    isNumberIn(0, BUFFER_MAX_MS)
+  );
+  const [lookbackMs, setLookbackMs] = usePersistedMapSetting(
+    'remoteterm-map-lookback',
+    DEFAULT_LOOKBACK_MS,
+    isOneOf(LOOKBACK_OPTIONS.map((o) => o.ms))
+  );
+  const [soundOn, setSoundOn] = usePersistedMapSetting('remoteterm-map-sound', false, isBool);
+  const [volume, setVolume] = usePersistedMapSetting(
+    'remoteterm-map-volume',
+    0.3,
+    isNumberIn(0, 1)
+  );
   const [playSnap, setPlaySnap] = useState<PlaybackSnapshot>({
     mode: 'live',
     currentMs: 0,
@@ -353,9 +390,14 @@ export function MapView({
     minMs: 0,
     maxMs: 0,
   });
-  const [tilt3D, setTilt3D] = useState(false);
-  const [buildings, setBuildings] = useState(false);
+  const [tilt3D, setTilt3D] = usePersistedMapSetting('remoteterm-map-tilt-3d', false, isBool);
+  const [buildings, setBuildings] = usePersistedMapSetting(
+    'remoteterm-map-buildings',
+    false,
+    isBool
+  );
   const [nodeScale, setNodeScale] = useState(getSavedNodeScale);
+  const [arcFadeMs, setArcFadeMs] = useState(getSavedArcFadeMs);
   const [arcWidthScale, setArcWidthScale] = useState(() =>
     getSavedWidthScale(MAP_ARC_WIDTH_STORAGE_KEY)
   );
@@ -367,11 +409,23 @@ export function MapView({
   const [labelMode, setLabelMode] = useState<NodeLabelMode>(getSavedLabelMode);
   const [telemetryOn, setTelemetryOn] = useState<boolean>(getSavedTelemetryOn);
   const [latestTelemetry, setLatestTelemetry] = useState<Record<string, LatestTelemetry>>({});
-  const [linksOn, setLinksOn] = useState(false);
-  const [linkMode, setLinkMode] = useState<'liveness' | 'advert'>('liveness');
-  const [linkConfidence, setLinkConfidence] = useState<1 | 2 | 3>(2);
+  const [linksOn, setLinksOn] = usePersistedMapSetting('remoteterm-map-links', false, isBool);
+  const [linkMode, setLinkMode] = usePersistedMapSetting<'liveness' | 'advert'>(
+    'remoteterm-map-link-mode',
+    'liveness',
+    isOneOf(['liveness', 'advert'] as const)
+  );
+  const [linkConfidence, setLinkConfidence] = usePersistedMapSetting<1 | 2 | 3>(
+    'remoteterm-map-link-confidence',
+    2,
+    isOneOf([1, 2, 3] as const)
+  );
   const [advertEdges, setAdvertEdges] = useState<AdvertLinkEdge[]>([]);
-  const [showExternalNodes, setShowExternalNodes] = useState(false);
+  const [showExternalNodes, setShowExternalNodes] = usePersistedMapSetting(
+    'remoteterm-map-external-nodes',
+    false,
+    isBool
+  );
   const [externalNodes, setExternalNodes] = useState<ExternalMapNode[]>([]);
   const [viewBounds, setViewBounds] = useState<{
     west: number;
@@ -383,6 +437,7 @@ export function MapView({
   const seenObservationsRef = useRef(new Set<string>());
   const pulsesOnRef = useRef(pulsesOn);
   const glowOnRef = useRef(glowOn);
+  const arcFadeMsRef = useRef(arcFadeMs);
   const mapRef = useRef<MlMap | null>(null);
   const nodesRef = useRef<ReturnType<typeof createNodesLayer> | null>(null);
   const neonOverlayRef = useRef<NeonNodesOverlay | null>(null);
@@ -549,6 +604,15 @@ export function MapView({
   useEffect(() => {
     glowOnRef.current = glowOn;
   }, [glowOn]);
+  // Persist the packet-arc lifetime; the animation loop reads it via the ref.
+  useEffect(() => {
+    arcFadeMsRef.current = arcFadeMs;
+    try {
+      localStorage.setItem(MAP_ARC_FADE_STORAGE_KEY, String(arcFadeMs));
+    } catch {
+      /* ignore */
+    }
+  }, [arcFadeMs]);
   useEffect(() => {
     clickAudioRef.current?.setEnabled(soundOn);
   }, [soundOn]);
@@ -947,7 +1011,7 @@ export function MapView({
       timelineRef.current?.reset();
       controllerRef.current?.goLive();
     }
-  }, [showPackets]);
+  }, [showPackets, setDiscoveryMode]);
 
   // Build a themed popup DOM node for a contact.
   const buildContactPopup = useCallback(
@@ -1362,6 +1426,7 @@ export function MapView({
           tl.stateAsOf(snap.currentMs, {
             pulses: pulsesOnRef.current,
             glows: glowOnRef.current,
+            fadeMs: arcFadeMsRef.current,
           })
         );
         // Mirror the snapshot to React for the PlaybackBar, throttled so the
@@ -1711,6 +1776,14 @@ export function MapView({
     soundOn,
     volume,
     hideWrongLocation,
+    setBufferMs,
+    setDiscoveryMode,
+    setGlowOn,
+    setPulsesOn,
+    setShowExternalNodes,
+    setShowPackets,
+    setSoundOn,
+    setVolume,
   ]);
 
   const theme: 'light' | 'dark' = dark ? 'dark' : 'light';
@@ -1747,6 +1820,8 @@ export function MapView({
         onNodeScale={setNodeScale}
         arcWidthScale={arcWidthScale}
         onArcWidthScale={setArcWidthScale}
+        arcFadeMs={arcFadeMs}
+        onArcFadeMs={setArcFadeMs}
         linkWidthScale={linkWidthScale}
         onLinkWidthScale={setLinkWidthScale}
         neonNodes={neonNodes}

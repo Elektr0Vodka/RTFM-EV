@@ -4,8 +4,10 @@ import type { ArcDatum, GlowDatum, PacketRenderModel, PulseDatum } from '../pack
 
 // Single deck.gl overlay that renders the live packet visualization (arcs +
 // pulses + glow) in both flat 2D and tilted 3D. Interleaved with the MapLibre
-// scene via MapLibreOverlay, so it shares one WebGL context and tilts with the
-// camera. deck.gl is fetched lazily on first use (reusing tracesDeck's loader).
+// scene via deck.gl's MapLibreOverlay (the @deck.gl/maplibre adapter; the older
+// @deck.gl/mapbox MapboxOverlay reads map.transform, which MapLibre 6 removed,
+// and its exception kills MapLibre's render loop). deck.gl is fetched lazily on
+// first use (reusing tracesDeck's loader).
 
 const rnd = (x: number): number => Math.round(x);
 const rgba = (c: [number, number, number], a: number): [number, number, number, number] => [
@@ -78,6 +80,23 @@ export function buildPacketLayers(
   return [arcs, pulseHalo, pulseCore, glow];
 }
 
+/** Undo luma.gl's hooks on a WebGL context that MapLibre also draws with.
+ *  Interleaved deck.gl makes luma.gl install caching wrappers for state setters,
+ *  getters and useProgram as own properties of the context object, and park its
+ *  device on `gl.luma` / `gl.lumaState`. After a context loss the GPU state is
+ *  reset but that cache is not, so wrapped calls (MapLibre's too) are silently
+ *  skipped and the map renders transparent; a second device would wrap the
+ *  wrappers and make it worse. Removing the own-property wrappers restores the
+ *  prototype methods; the rebuilt overlay then installs fresh hooks. */
+export function resetLumaOnContext(gl: WebGL2RenderingContext): void {
+  const g = gl as unknown as Record<string, unknown>;
+  for (const key of Object.getOwnPropertyNames(g)) {
+    if (typeof g[key] === 'function') delete g[key];
+  }
+  delete g.luma;
+  delete g.lumaState;
+}
+
 export interface PacketDeckOverlay {
   setModel(m: PacketRenderModel): void;
   setArcWidthScale(scale: number): void;
@@ -100,6 +119,34 @@ export function createPacketDeckOverlay(map: MlMap): PacketDeckOverlay {
     overlay.setProps({ layers: buildPacketLayers(deckMod, model, arcWidthScale) });
     repaint();
   };
+
+  // A GPU reset (seen in Chrome) loses every WebGL context on the page. MapLibre
+  // restores its own; deck.gl's canvas stays lost. Rebuild the overlay once the
+  // map's context is back so packets reappear on their own. luma.gl caches its
+  // device (with compiled programs) on the context object, which survives the
+  // loss, so drop that cache too or the rebuild reuses dead programs.
+  const onContextRestored = (): void => {
+    if (destroyed || !overlay) return;
+    try {
+      (map as unknown as { removeControl: (c: unknown) => void }).removeControl(overlay);
+    } catch {
+      /* the lost custom layer may already be gone */
+    }
+    try {
+      const canvas = (map as unknown as { getCanvas?: () => HTMLCanvasElement }).getCanvas?.();
+      const gl = canvas?.getContext('webgl2');
+      if (gl) resetLumaOnContext(gl);
+    } catch {
+      /* best effort */
+    }
+    overlay = null;
+    loading = null;
+    ensure();
+  };
+  (map as unknown as { on?: (ev: string, cb: () => void) => void }).on?.(
+    'webglcontextrestored',
+    onContextRestored
+  );
 
   const ensure = (): void => {
     if (overlay || destroyed || loading) return;
@@ -137,6 +184,10 @@ export function createPacketDeckOverlay(map: MlMap): PacketDeckOverlay {
     },
     destroy(): void {
       destroyed = true;
+      (map as unknown as { off?: (ev: string, cb: () => void) => void }).off?.(
+        'webglcontextrestored',
+        onContextRestored
+      );
       if (overlay) {
         try {
           (map as unknown as { removeControl: (c: unknown) => void }).removeControl(overlay);

@@ -31,6 +31,7 @@ const renderControls = (props = {}) =>
   );
 
 beforeEach(() => {
+  localStorage.clear();
   mockCompact.mockReturnValue(false);
   mockMobile.mockReturnValue(false);
 });
@@ -49,6 +50,7 @@ describe('MapControls', () => {
     });
     expect(screen.getByRole('button', { name: 'Display' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Overlays' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Size & colors' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Search' })).toBeInTheDocument();
     // Individual panel FABs are folded into groups.
     expect(screen.queryByRole('button', { name: 'Legend' })).not.toBeInTheDocument();
@@ -72,10 +74,19 @@ describe('MapControls', () => {
   });
 
   it('stacks member sections inside the Display group panel', () => {
-    renderControls({ fabs: { layers: true, nodeSize: true } });
+    renderControls({ fabs: { layers: true, legend: true } });
     fireEvent.click(screen.getByRole('button', { name: 'Display' }));
     expect(screen.getByText('OpenFreeMap Positron')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /keep legend on screen/i })).toBeInTheDocument();
+  });
+
+  it('houses the size and colour settings in their own cogwheel FAB, not Display', () => {
+    renderControls({ fabs: { layers: true, nodeSize: true }, onRoleColorChange: vi.fn() });
+    fireEvent.click(screen.getByRole('button', { name: 'Display' }));
+    expect(screen.queryByLabelText('Node size')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Size & colors' }));
     expect(screen.getByLabelText('Node size')).toBeInTheDocument();
+    expect(screen.getByLabelText('Color for Client')).toBeInTheDocument();
   });
 
   it('gives every FAB a title tooltip', () => {
@@ -126,6 +137,23 @@ describe('MapControls', () => {
     expect(screen.queryByRole('radio', { name: /1b\+/ })).not.toBeInTheDocument();
   });
 
+  it('hides the link sub-options while links are disabled', () => {
+    renderControls({ fabs: { links: true }, linksOn: false, linkMode: 'advert' });
+    fireEvent.click(screen.getByRole('button', { name: 'Overlays' }));
+    expect(screen.getByRole('checkbox', { name: /links/i })).not.toBeChecked();
+    expect(screen.queryByRole('radio', { name: 'Liveness' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: /1b\+/ })).not.toBeInTheDocument();
+  });
+
+  it('reports a trail fade-out preset from the size & colors panel', () => {
+    const onArcFadeMs = vi.fn();
+    renderControls({ fabs: { nodeSize: true }, arcFadeMs: 900_000, onArcFadeMs });
+    fireEvent.click(screen.getByRole('button', { name: 'Size & colors' }));
+    expect(screen.getByText(/Trail fade-out: 15 min/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Trail fade-out'), { target: { value: '0' } });
+    expect(onArcFadeMs).toHaveBeenCalledWith(1_000);
+  });
+
   it('renders the confidence radios when link mode is advert', () => {
     renderControls({
       fabs: { links: true },
@@ -150,6 +178,15 @@ describe('MapControls', () => {
     expect(screen.queryByRole('button', { name: /close pinned legend/i })).not.toBeInTheDocument();
   });
 
+  it('remembers a pinned legend across remounts', () => {
+    const first = renderControls();
+    fireEvent.click(screen.getByRole('button', { name: 'Display' }));
+    fireEvent.click(screen.getByRole('button', { name: /keep legend on screen/i }));
+    first.unmount();
+    renderControls();
+    expect(screen.getByRole('button', { name: /close pinned legend/i })).toBeInTheDocument();
+  });
+
   it('opens a bottom sheet instead of an anchored panel on compact viewports', () => {
     mockCompact.mockReturnValue(true);
     renderControls();
@@ -163,7 +200,7 @@ describe('MapControls', () => {
   it('reports a per-role node colour change from the node-size panel', () => {
     const onRoleColorChange = vi.fn();
     renderControls({ fabs: { nodeSize: true }, onRoleColorChange });
-    fireEvent.click(screen.getByRole('button', { name: 'Display' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Size & colors' }));
     const clientColor = screen.getByLabelText('Color for Client') as HTMLInputElement;
     fireEvent.input(clientColor, { target: { value: '#ff0000' } });
     // CONTACT_TYPE_CLIENT === 1
@@ -173,14 +210,14 @@ describe('MapControls', () => {
   it('reports a reset of the node colours', () => {
     const onResetRoleColors = vi.fn();
     renderControls({ fabs: { nodeSize: true }, onRoleColorChange: vi.fn(), onResetRoleColors });
-    fireEvent.click(screen.getByRole('button', { name: 'Display' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Size & colors' }));
     fireEvent.click(screen.getByRole('button', { name: /reset/i }));
     expect(onResetRoleColors).toHaveBeenCalledTimes(1);
   });
 
   it('omits the colour pickers when no colour handler is provided', () => {
     renderControls({ fabs: { nodeSize: true } });
-    fireEvent.click(screen.getByRole('button', { name: 'Display' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Size & colors' }));
     expect(screen.queryByLabelText('Color for Client')).not.toBeInTheDocument();
   });
 

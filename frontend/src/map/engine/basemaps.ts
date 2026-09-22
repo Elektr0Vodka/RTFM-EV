@@ -280,31 +280,49 @@ const _recolorCache = new Map<string, Promise<StyleSpecification>>();
 // it does not within VECTOR_LOAD_TIMEOUT_MS, fall back to the tone-matched
 // keyless raster so the map never stays blank. Skipped on stub maps without an
 // `off` method (unit tests) and when timers are unavailable.
+//
+// `idle` alone is not enough: while something animates (the live packet
+// overlay repaints every frame) the map never goes idle, so the watchdog fired
+// on a healthy style, swapped to raster, and the next overlay re-apply swapped
+// back to vector: an endless loop of full style reloads (layers flashing, then
+// black). A rendered frame with the style and all tiles loaded also counts.
 function armRasterWatchdog(map: MlMap, entry: BasemapEntry, ctx: ApplyBasemapCtx): void {
   const m = map as unknown as {
+    on?: (ev: string, cb: () => void) => void;
     off?: (ev: string, cb: () => void) => void;
     once?: (ev: string, cb: () => void) => void;
+    isStyleLoaded?: () => boolean | void;
+    areTilesLoaded?: () => boolean;
   };
   if (typeof m.off !== 'function' || typeof m.once !== 'function') return;
   if (typeof setTimeout !== 'function') return;
   let settled = false;
-  const onIdle = () => {
-    if (settled) return;
-    settled = true;
-    clearTimeout(timer);
-  };
-  const timer = setTimeout(() => {
-    if (settled) return;
-    settled = true;
+  const detach = () => {
     try {
-      m.off?.('idle', onIdle);
+      m.off?.('idle', settle);
+      m.off?.('render', onRender);
     } catch {
       /* ignore */
     }
+  };
+  function settle() {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    detach();
+  }
+  function onRender() {
+    if (m.isStyleLoaded?.() && m.areTilesLoaded?.()) settle();
+  }
+  const timer = setTimeout(() => {
+    if (settled) return;
+    settled = true;
+    detach();
     _activeBasemap.delete(map);
     applyBasemap(map, rasterFallbackFor(entry), ctx);
   }, VECTOR_LOAD_TIMEOUT_MS);
-  m.once('idle', onIdle);
+  m.once('idle', settle);
+  m.on?.('render', onRender);
 }
 
 function recoloredStyle(entry: BasemapEntry): Promise<StyleSpecification> {

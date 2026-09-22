@@ -11,6 +11,74 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-22 (Map settings FAB, trail fade-out, remembered toggles)
+
+### Map controls (frontend)
+- **The map's size and colour settings now have their own cogwheel FAB
+  ("Size & colors").** Node size, neon nodes, packet-arc (trail) width, link
+  width and per-role node colours moved out of the Display (layers) FAB into a
+  new `style` group in `MapControls`, placed directly below Display. Display
+  keeps the basemap, labels and legend. New i18n key `map_group_style`.
+- **New "Trail fade-out" slider for live packet arcs** (in the cogwheel panel).
+  Presets 1, 2, 5, 10, 30s and 1, 2, 5, 15, 30, 60 min; default 15 min is the
+  previous fixed lifetime. The full-opacity window scales with it (1/15 of the lifetime, i.e.
+  60s at 15 min, as before). `packetTimeline.stateAsOf` takes a `fadeMs`
+  option. Arcs older than the replay look-back are still pruned regardless.
+  Stored per-browser (`remoteterm-map-arc-fade`). New i18n keys
+  `map_arc_fade_label`, `map_arc_fade_value_s`, `map_arc_fade_value_min`.
+- **Overlays FAB: link mode and confidence options are hidden while "Show
+  links" is off.**
+- **Map toggles are now remembered per-browser** (new
+  `usePersistedMapSetting` hook, JSON in localStorage, validated on read):
+  pinned legend and its dragged position, pulses, glow, smoothing, sound +
+  volume, discover nodes, replay look-back, links on/mode/confidence, external
+  nodes, 2D/3D tilt and 3D buildings. A remembered 3D buildings toggle is
+  re-applied on map load. A remembered legend position is clamped back inside a
+  smaller map. "Visualize packets" is remembered too.
+
+### Map filters (frontend)
+- **Fixed: "Heard by server: All" hid never-heard nodes.** The time filter was
+  applied to nodes with no `last_seen`, which always failed it, so "All" showed
+  the same set as "Hide never-heard". Never-heard nodes now skip the time window
+  whenever the heard filter admits them ("All" and "Only never-heard").
+
+### Map engine (frontend)
+- **MapLibre GL upgraded 4.7.1 -> 6.10.0** (latest). MapLibre 6 loads its tile
+  worker from a file beside its own module, which Vite's hashed chunks do not
+  provide (no tiles or GeoJSON ever loaded: blank map). `MapSurface` now bundles
+  the worker via `maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url` and calls
+  `setWorkerUrl` (type shim in `src/types/vite-worker-url.d.ts`; test mock gains
+  `setWorkerUrl`).
+- **Fixed a basemap reload loop.** The vector-style watchdog only accepted
+  MapLibre's `idle` event; with the packet overlay animating, the map is never
+  idle, so it fell back to raster after 8s and the next overlay re-apply swapped
+  back to vector, forever (layers flashing, then black). A rendered frame with
+  the style and all tiles loaded now also counts as healthy.
+- **Fixed a second basemap loop:** `MapSurface` re-applied the preferred
+  basemap whenever the overlay re-apply callback changed identity (every few
+  seconds with live packets on). After a raster fallback this retried the vector
+  style, timed out again and looped. The callback is now held in a ref, so only
+  a real basemap/theme/buildings/tint change re-applies the basemap.
+
+### Packet overlay (frontend)
+- **The live packet overlay uses deck.gl's `MapLibreOverlay` (interleaved).**
+  `@deck.gl/mapbox`'s `MapboxOverlay` cannot be used with MapLibre 6: it reads
+  `map.transform.height`, which MapLibre 6 removed, and the exception stops
+  MapLibre's render loop (black map).
+- **Self-heal after a WebGL context loss:** the overlay is rebuilt when the
+  map's context is restored. Before that, luma.gl's hooks are removed from the
+  shared context (`resetLumaOnContext`): luma.gl installs caching wrappers for
+  GL state setters/getters and `useProgram` directly on the context object, and
+  after a loss that stale cache made it skip MapLibre's own GL calls too, so the
+  whole map rendered transparent. Verified by forcing a loss with
+  `WEBGL_lose_context`: map and arcs recover.
+- The playback bar no longer uses `backdrop-blur` (it measurably increased GPU
+  resets in Chrome while the map animates).
+- **Chrome black-map loop resolved.** The loop (layers flashing, then black)
+  came from the two basemap reload loops above plus the stale luma.gl cache
+  after a context loss. Verified in Chrome (GTX 1080 Ti, ANGLE/D3D11): 60s with
+  packets on, ~60 fps, 0 context losses, 0 GL errors, live arcs drawn.
+
 ## Update 2026-09-22 (Map custom range: start + end)
 
 ### Map time filter (frontend)
