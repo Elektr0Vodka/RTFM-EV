@@ -67,6 +67,13 @@ import {
 } from '../map/roleFilter';
 import { computeWrongLocationKeys } from '../map/wrongLocation';
 import {
+  resolveHomeView,
+  readLastView,
+  writeLastView,
+  type MapHomeMode,
+  type MapHomeSettings,
+} from '../map/homeView';
+import {
   buildPacketNetworkContext,
   createPacketNetworkState,
   ensureSelfNode,
@@ -86,6 +93,11 @@ interface MapViewProps {
   focusedLatLon?: [number, number];
   focusedLabel?: string;
   sidebarOpen?: boolean;
+  /** Map startup camera mode (server-side app setting). Defaults to 'auto'. */
+  mapHomeMode?: MapHomeMode;
+  mapHomeLat?: number | null;
+  mapHomeLon?: number | null;
+  mapHomeZoom?: number | null;
 }
 
 // --- "Heard since" filter ---
@@ -293,6 +305,10 @@ export function MapView({
   focusedLatLon,
   focusedLabel,
   sidebarOpen,
+  mapHomeMode,
+  mapHomeLat,
+  mapHomeLon,
+  mapHomeZoom,
 }: MapViewProps) {
   const t = useT();
   const dark = useIsDarkTheme();
@@ -1085,6 +1101,23 @@ export function MapView({
     [t]
   );
 
+  // Latest map "home view" preference, read at fit time via a ref so the
+  // once-on-ready fit sees current values even though appSettings load async.
+  const homeSettingsRef = useRef<MapHomeSettings>({
+    mode: 'auto',
+    lat: null,
+    lon: null,
+    zoom: null,
+  });
+  useEffect(() => {
+    homeSettingsRef.current = {
+      mode: mapHomeMode ?? 'auto',
+      lat: mapHomeLat ?? null,
+      lon: mapHomeLon ?? null,
+      zoom: mapHomeZoom ?? null,
+    };
+  }, [mapHomeMode, mapHomeLat, mapHomeLon, mapHomeZoom]);
+
   // Initial camera fit / geolocate / focus (port of MapBoundsHandler).
   const fitInitialView = useCallback(
     (map: MlMap) => {
@@ -1095,6 +1128,15 @@ export function MapView({
       const focused = focusedKey ? contactByKey.get(focusedKey) : null;
       if (focused && focused.lat != null && focused.lon != null) {
         map.flyTo({ center: [focused.lon, focused.lat], zoom: 12, duration: 0 });
+        return;
+      }
+      // Home-view preference (fixed home or remember-last-position). Explicit
+      // node/coordinate focuses above still win; this sits above the geolocate
+      // + fit-all fallback below. Returns null in 'auto' mode or when its data
+      // is missing/invalid, in which case we fall through to the default fit.
+      const home = resolveHomeView(homeSettingsRef.current, readLastView());
+      if (home) {
+        map.flyTo({ center: home.center, zoom: home.zoom, duration: 0 });
         return;
       }
       const pts = mappableContacts.filter((c) => c.lat != null && c.lon != null);
@@ -1179,6 +1221,11 @@ export function MapView({
       onViewBounds(map.getBounds());
       map.on('moveend', () => {
         if (showExternalRef.current) onViewBounds(map.getBounds());
+        // Remember the camera for the "remember last position" startup mode.
+        // moveend fires once per gesture (not continuously), so a direct write
+        // is cheap and needs no debounce.
+        const c = map.getCenter();
+        writeLastView({ center: [c.lng, c.lat], zoom: map.getZoom() });
       });
       packetOverlayRef.current = createPacketDeckOverlay(map);
       packetOverlayRef.current.setArcWidthScale(arcWidthScale);

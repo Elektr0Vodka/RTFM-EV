@@ -78,6 +78,11 @@ Shipped toward this so far:
 - One unified time-range selector across the My Node, mesh-health, map, and Mesh
   Trends (Live tab) views (`20m`-`30d` + custom, plus per-page extras), with the
   choice remembered per page.
+- Configurable map start view (Settings > Map): open the map automatically
+  (geolocate then fit all nodes), at a fixed home location + zoom you pick on a
+  small in-settings map, or at your last position and zoom. The mode and home
+  coordinate are stored server-side (migration `_104`); the last position is
+  remembered per browser.
 - Mesh Trends Live-tab stat breakdowns can be computed from the database over the
   selected range, backed by decoded packet fields persisted at ingest (`_089`),
   not only the in-memory session buffer.

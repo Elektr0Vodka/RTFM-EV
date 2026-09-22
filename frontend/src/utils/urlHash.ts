@@ -33,6 +33,7 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
   'radio',
   'local',
   'radio-app',
+  'map',
   'fanout',
   'openhop',
   'database',
