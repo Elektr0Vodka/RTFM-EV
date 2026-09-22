@@ -1920,6 +1920,7 @@
   "map_preset_all": "All",
   "map_custom_button": "Custom",
   "map_since_custom_input_aria": "Show nodes heard since (local time)",
+  "map_since_custom_until_input_aria": "Show nodes heard until (local time)",
   "map_clear_button": "Clear",
   "map_visualize_packets_label": "Visualize packets",
   "map_playback_group_aria": "Packet playback controls",

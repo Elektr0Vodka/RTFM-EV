@@ -114,6 +114,8 @@ type MapSinceId = string;
 const DEFAULT_MAP_SINCE_ID: MapSinceId = '7d';
 const MAP_SINCE_STORAGE_KEY = 'remoteterm-map-since';
 const MAP_SINCE_CUSTOM_KEY = 'remoteterm-map-since-custom';
+// Optional upper bound for the custom range ("To"); empty = up to now.
+const MAP_SINCE_CUSTOM_UNTIL_KEY = 'remoteterm-map-since-custom-until';
 
 // --- "Heard by server" filter (contacts layer only) ---
 const HEARD_FILTER_MODES = ['all', 'hide', 'only'] as const satisfies readonly HeardFilterMode[];
@@ -320,6 +322,13 @@ export function MapView({
   const [customSince, setCustomSince] = useState(() => {
     try {
       return localStorage.getItem(MAP_SINCE_CUSTOM_KEY) ?? '';
+    } catch {
+      return '';
+    }
+  });
+  const [customUntil, setCustomUntil] = useState(() => {
+    try {
+      return localStorage.getItem(MAP_SINCE_CUSTOM_UNTIL_KEY) ?? '';
     } catch {
       return '';
     }
@@ -638,10 +647,11 @@ export function MapView({
     try {
       localStorage.setItem(MAP_SINCE_STORAGE_KEY, sinceId);
       localStorage.setItem(MAP_SINCE_CUSTOM_KEY, customSince);
+      localStorage.setItem(MAP_SINCE_CUSTOM_UNTIL_KEY, customUntil);
     } catch {
       /* ignore */
     }
-  }, [sinceId, customSince]);
+  }, [sinceId, customSince, customUntil]);
 
   useEffect(() => {
     try {
@@ -772,12 +782,26 @@ export function MapView({
     return nowSec - activeSincePreset.seconds;
   }, [sinceId, customSince, activeSincePreset, nowSec]);
 
+  // Optional upper bound for the custom range ("To"). Only custom mode has an
+  // end; presets are always open-ended (heard since ...). Empty = up to now.
+  const sinceUntilSec = useMemo(
+    () => (sinceId === 'custom' ? localDateTimeToEpochSec(customUntil) : null),
+    [sinceId, customUntil]
+  );
+
   const isWithinSinceWindow = useCallback(
     (lastSeen: number | null | undefined) => {
-      if (sinceCutoffSec == null) return true;
-      return lastSeen != null && lastSeen > sinceCutoffSec;
+      // Lower bound (From / preset): heard strictly after the cutoff.
+      if (sinceCutoffSec != null && !(lastSeen != null && lastSeen > sinceCutoffSec)) {
+        return false;
+      }
+      // Upper bound (To): heard at or before the end.
+      if (sinceUntilSec != null && !(lastSeen != null && lastSeen <= sinceUntilSec)) {
+        return false;
+      }
+      return true;
     },
-    [sinceCutoffSec]
+    [sinceCutoffSec, sinceUntilSec]
   );
 
   const mappableContacts = useMemo(() => {
@@ -1418,19 +1442,42 @@ export function MapView({
             </button>
           ))}
         </div>
-        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-          {t('map_custom_button')}
-          <DateTimeField
-            mode="datetime"
-            value={customSince}
-            aria-label={t('map_since_custom_input_aria')}
-            onChange={(v) => {
-              setCustomSince(v);
-              setSinceId('custom');
-            }}
-            className="rounded border border-border bg-background px-2 py-1 pr-7 text-sm"
-          />
-        </label>
+        {/* A <div>, not a <label>: wrapping the composite DateTimeField (text
+            field + calendar button + hidden native input) in a <label> mis-routes
+            clicks to the first input and breaks picking a date. Each field carries
+            its own aria-label. Both bounds are optional: empty From = no lower
+            bound, empty To = up to now. */}
+        <div className="flex flex-col gap-2 text-xs text-muted-foreground">
+          <span>{t('map_custom_button')}</span>
+          <div className="flex flex-col gap-1">
+            <span>{t('time_range_from')}</span>
+            <DateTimeField
+              mode="datetime"
+              fullWidth
+              value={customSince}
+              aria-label={t('map_since_custom_input_aria')}
+              onChange={(v) => {
+                setCustomSince(v);
+                setSinceId('custom');
+              }}
+              className="rounded border border-border bg-background px-2 py-1 pr-7 text-sm"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <span>{t('time_range_to')}</span>
+            <DateTimeField
+              mode="datetime"
+              fullWidth
+              value={customUntil}
+              aria-label={t('map_since_custom_until_input_aria')}
+              onChange={(v) => {
+                setCustomUntil(v);
+                setSinceId('custom');
+              }}
+              className="rounded border border-border bg-background px-2 py-1 pr-7 text-sm"
+            />
+          </div>
+        </div>
       </div>
     );
     const packetsPanel = (
@@ -1654,6 +1701,7 @@ export function MapView({
     heardFilter,
     hiddenRoles,
     customSince,
+    customUntil,
     showPackets,
     discoveryMode,
     showExternalNodes,

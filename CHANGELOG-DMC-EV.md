@@ -11,6 +11,45 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-22 (Map custom range: start + end)
+
+### Map time filter (frontend)
+- **The map's "Custom" time filter now takes a start and an end date instead of
+  a single "heard since".** The custom panel shows two fields, `From` and `To`
+  (reusing the existing `time_range_from` / `time_range_to` strings), each
+  optional: a `From` alone behaves like the old "heard since", a `To` alone
+  bounds the window above ("up to"), and both together select a window. Empty
+  means unbounded on that side. The node filter now applies both bounds to each
+  node's `last_seen` (`> From` and `<= To`); presets remain open-ended. The end
+  value persists per-browser (`remoteterm-map-since-custom-until`). New i18n key
+  `map_since_custom_until_input_aria` in EN/NL/DE.
+  Verified: build + `mapView`/i18n-parity tests green; live in the rebuilt
+  container via Chrome - both fields render and persist, and setting `To` to a
+  past date correctly clears the map (empty window shows no nodes).
+
+## Update 2026-09-22 (Date-field layout + native picker theming)
+
+### DateTimeField follow-ups (frontend)
+- **Channel-registry edit modal: the Last Heard / Added labels no longer sit
+  jammed against their inputs.** `DateTimeField` renders an inline field, so in
+  the modal's block layout the label flowed onto the same line. Added a
+  `fullWidth` prop that renders it as a block, full-width form field (label
+  above), matching the sibling inputs; the channel-registry date fields use it.
+- **Native date/time picker popups now follow the theme.** No `color-scheme` was
+  ever declared, so the browser's native calendar/spinner popups rendered as a
+  white panel on dark themes. `applyTheme` now sets
+  `document.documentElement.style.colorScheme` from `isDarkTheme()` (which reads
+  the computed `--background` lightness), so native controls match every theme.
+- **Map "Custom" range field: fixed being unable to pick a date.** The field was
+  wrapped in a native `<label>`, which wraps a single control - here it wrapped
+  the composite field (text input + calendar button + hidden native input) and
+  mis-routed clicks. Changed to a `<div>` (the field keeps its `aria-label`) and
+  made it full-width.
+  Verified: `tsc` build + `dateTimeField` tests green; live in the rebuilt
+  container via Chrome - channel-registry labels stack above full-width fields,
+  `color-scheme: dark` computed on the dark theme, the map field's wrapper is a
+  `<div>` and a picked value commits (`20/03/2026 09:15`).
+
 ## Update 2026-09-22 (Date input contrast across themes)
 
 ### DateTimeField styling (frontend)

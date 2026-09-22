@@ -577,6 +577,7 @@ function EditChannelModal({
               <Label className={labelCls}>{t('channel_registry_last_heard_label')}</Label>
               <DateTimeField
                 mode="date"
+                fullWidth
                 className={inputCls}
                 value={form.lastHeard}
                 onChange={(v) => setForm((f) => ({ ...f, lastHeard: v }))}
@@ -586,6 +587,7 @@ function EditChannelModal({
               <Label className={labelCls}>{t('channel_registry_added_label')}</Label>
               <DateTimeField
                 mode="date"
+                fullWidth
                 className={inputCls}
                 value={form.added}
                 onChange={(v) => setForm((f) => ({ ...f, added: v }))}

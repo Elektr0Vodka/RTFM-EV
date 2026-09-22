@@ -1921,6 +1921,7 @@
   "map_preset_all": "Alle",
   "map_custom_button": "Aangepast",
   "map_since_custom_input_aria": "Toon nodes gehoord sinds (lokale tijd)",
+  "map_since_custom_until_input_aria": "Toon nodes gehoord tot (lokale tijd)",
   "map_clear_button": "Wissen",
   "map_visualize_packets_label": "Pakketten visualiseren",
   "map_playback_group_aria": "Pakket-afspeelbediening",

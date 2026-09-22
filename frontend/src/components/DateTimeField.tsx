@@ -37,6 +37,9 @@ interface DateTimeFieldProps {
   min?: string;
   max?: string;
   disabled?: boolean;
+  /** Render as a block, full-width form field (label-above layout) instead of
+   *  the default inline field. */
+  fullWidth?: boolean;
 }
 
 /**
@@ -55,6 +58,7 @@ export function DateTimeField({
   min,
   max,
   disabled,
+  fullWidth,
 }: DateTimeFieldProps) {
   const t = useT();
   const nativeRef = useRef<HTMLInputElement>(null);
@@ -86,12 +90,12 @@ export function DateTimeField({
   };
 
   return (
-    <span className="relative inline-flex items-center">
+    <span className={cn('relative items-center', fullWidth ? 'flex w-full' : 'inline-flex')}>
       <input
         type="text"
         inputMode="numeric"
         id={id}
-        className={cn(BASE_FIELD_CLASS, className)}
+        className={cn(BASE_FIELD_CLASS, fullWidth && 'w-full', className)}
         value={focused ? text : display}
         placeholder={placeholder}
         aria-label={ariaLabel}
