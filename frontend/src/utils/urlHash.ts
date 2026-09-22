@@ -17,6 +17,7 @@ interface ParsedHashConversation {
     | 'node'
     | 'mesh-health'
     | 'mesh-trends'
+    | 'mesh-discovery'
     | 'analyze'
     | 'packet-history';
   /** Conversation identity token (channel key or contact public key, or legacy name token) */
@@ -80,6 +81,10 @@ export function parseHashConversation(): ParsedHashConversation | null {
 
   if (hash === 'mesh-trends') {
     return { type: 'mesh-trends', name: 'mesh-trends' };
+  }
+
+  if (hash === 'mesh-discovery') {
+    return { type: 'mesh-discovery', name: 'mesh-discovery' };
   }
 
   if (hash === 'analyze') {
@@ -218,6 +223,7 @@ export function getConversationHash(conv: Conversation | null): string {
   if (conv.type === 'node') return '#node';
   if (conv.type === 'mesh-health') return '#mesh-health';
   if (conv.type === 'mesh-trends') return '#mesh-trends';
+  if (conv.type === 'mesh-discovery') return '#mesh-discovery';
   if (conv.type === 'analyze') return '#analyze';
   if (conv.type === 'packet-history') return '#packet-history';
 

@@ -11,6 +11,20 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-23 (Mesh Discovery moves to Tools)
+
+### Mesh Discovery view (frontend)
+- **Mesh discovery is now its own page under Tools instead of a block in
+  Settings > Radio.** New `MeshDiscoveryView` (sidebar row "Mesh Discovery",
+  route `#mesh-discovery`, reorderable/hideable like the other tool rows) holds
+  the Discover Repeaters / Sensors / Both buttons and the last-sweep results,
+  unchanged in behaviour. The block is removed from Settings > Radio; region
+  discovery there still prefers repeaters from the last sweep, because the sweep
+  state stays in `useRadioControl`. New i18n keys `nav_mesh_discovery` and
+  `common_loading_mesh_discovery` in EN/NL/DE; the unused
+  `settings_radio_mesh_discovery_heading` is removed. No backend change, no
+  migration.
+
 ## Update 2026-09-22 (Map settings FAB, trail fade-out, remembered toggles)
 
 ### Map controls (frontend)

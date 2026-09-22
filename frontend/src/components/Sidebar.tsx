@@ -18,6 +18,7 @@ import {
   Map,
   PanelLeftClose,
   PanelLeftOpen,
+  Radar,
   ScanSearch,
   Search as SearchIcon,
   Settings2,
@@ -465,6 +466,7 @@ export function Sidebar({
       | 'node'
       | 'mesh-health'
       | 'mesh-trends'
+      | 'mesh-discovery'
       | 'analyze'
       | 'packet-history',
     id: string
@@ -1252,6 +1254,20 @@ export function Sidebar({
             }),
           iconOnly,
         });
+      case 'mesh-discovery':
+        return renderSidebarActionRow({
+          key: 'tool-mesh-discovery',
+          active: isActive('mesh-discovery', 'mesh-discovery'),
+          icon: <Radar className="h-4 w-4" />,
+          label: t('nav_mesh_discovery'),
+          onClick: () =>
+            handleSelectConversation({
+              type: 'mesh-discovery',
+              id: 'mesh-discovery',
+              name: t('nav_mesh_discovery'),
+            }),
+          iconOnly,
+        });
       case 'raw':
         return renderSidebarActionRow({
           key: 'tool-raw',
@@ -1667,6 +1683,7 @@ export function Sidebar({
     'my-node': t('nav_my_node'),
     'mesh-health': t('nav_mesh_health'),
     'mesh-trends': t('nav_mesh_trends'),
+    'mesh-discovery': t('nav_mesh_discovery'),
     raw: t('nav_packet_feed'),
     'packet-history': t('nav_packet_history'),
     analyze: t('nav_analyze_packet'),
