@@ -1,6 +1,6 @@
 # Sources of Truth
 
-Date: 2026-09-10
+Date: 2026-09-10 (updated 2026-09-22: OpenHop, EU analyzer API endpoints)
 
 Canonical upstreams for the firmware and tooling RTFM-EV interoperates with. When
 a plan or feature depends on a wire format, CLI verb, MQTT payload shape, or URL
@@ -8,8 +8,8 @@ scheme, verify it against the repo listed here (code is truth), not against
 secondhand summaries.
 
 All GitHub URLs below were verified from the `origin`/`upstream` remotes of local
-checkouts on 2026-09-10. Local paths are the machine this was authored on and may
-differ elsewhere.
+checkouts on 2026-09-10 (the OpenHop entries on 2026-09-22). Local paths are the
+machine this was authored on and may differ elsewhere.
 
 ## Firmware
 
@@ -43,6 +43,19 @@ differ elsewhere.
   Heltec / Seeed. Source of CAD and phone-GPS support that RTFM-EV features build on.
 - Related: standalone touch UI moved to https://github.com/ALLFATHER-BV/wadamesh.
 
+### OpenHop
+- Repos: https://github.com/openhop-dev/openhop_repeater (daemon) on
+  https://github.com/openhop-dev/openhop_core.
+- Local: `G:\Github\repositories\openhop-dev\openhop_repeater`,
+  `G:\Github\repositories\openhop-dev\openhop_core`.
+- Role: MeshCore-compatible repeater / room-server daemon (Python). Speaks the
+  companion protocol over TCP, so RTFM-EV can use it as the radio; detected by
+  device model prefix (`app/services/openhop.py`). Its REST API
+  (`repeater/web/api_endpoints.py`) backs the OpenHop management panes
+  (`app/services/openhop_api.py`) and the My Node TX/RX airtime chart via
+  `/api/airtime_chart_data`, because OpenHop's companion stats frame reports RX
+  airtime as 0.
+
 ### DMC OTA
 - Repo: https://github.com/Dutch-MeshCore/DutchMeshCore-OTA
 - Local: `G:\Github\repositories\Dutch-MeshCore\DutchMeshCore-OTA`.
@@ -65,6 +78,11 @@ differ elsewhere.
   (local `G:\Github\repositories\Elektr0Vodka\mccl`).
 - EU MeshCore Analyzer (map / mobile layout reference): https://github.com/EU-Meshcore-Analyzer/EU-Meshcore-Analyzer
   (local `G:\Github\repositories\Elektr0Vodka\EU-Meshcore-Analyzer`).
+  Its public API is also a runtime data source: `https://meshcore-analyzer.eu/api/nodes`
+  is the default `external_map_sync_url` (external node overlay on the map, and the
+  candidate source for partial-node resolution; `app/services/external_map.py`), and
+  `https://meshcore-analyzer.eu/api/regions/scopes` is the example
+  `region_sync_url` (default empty; `app/routers/regions.py`).
 - Cornmeister / Argus analyzer (node/packet lookup reference; Go): https://github.com/Elektr0Vodka/Argus-mesh-analyzer
   (local `G:\Github\repositories\Elektr0Vodka\cornmeister-mesh-analyzer`).
   Public site: https://cornmeister.nl (node URL scheme `#node?id=<64-hex>`).

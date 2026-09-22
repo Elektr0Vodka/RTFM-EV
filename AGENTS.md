@@ -21,7 +21,9 @@ A web interface for MeshCore mesh radio networks. The backend connects to a Mesh
 - `frontend/AGENTS.md` - Frontend (React, state management, WebSocket, components)
 
 **Interop references:**
-- `docs/sources-of-truth.md` - Canonical upstream repos for the firmware (official MeshCore, DMC Repeater / DMC-MQTT-Repeater, meshcomod) and tooling RTFM-EV interoperates with. Verify wire formats, CLI verbs, MQTT payloads, and URL schemes here.
+- `docs/sources-of-truth.md` - Canonical upstream repos for the firmware (official MeshCore, DMC Repeater / DMC-MQTT-Repeater, meshcomod, OpenHop) and tooling RTFM-EV interoperates with. Verify wire formats, CLI verbs, MQTT payloads, and URL schemes here.
+- `docs/parity-audit.md` - Parity/gap audit against the official app and DMC firmware, with the prioritized backlog status (§7).
+- `docs/agents/` - Agent workflow notes: pre-push CI checks (`ci-checks.md`), issue tracker, triage labels, and domain-doc conventions.
 - `docs/plans/` and `docs/superpowers/` - Local-only planning backlog and per-feature spec/plan notes. These are git-ignored (kept on disk, not tracked), so they are present only in local checkouts that have them.
 
 Ancillary AGENTS.md files which should generally not be reviewed unless specific work is being performed on those features include:
@@ -213,7 +215,7 @@ This message-layer echo/path handling is independent of raw-packet storage dedup
 │   │   ├── useWebSocket.ts # WebSocket hook
 │   │   └── components/
 │   │       ├── CrackerPanel.tsx  # WebGPU key cracking
-│   │       ├── MapView.tsx       # Leaflet map showing node locations
+│   │       ├── MapView.tsx       # MapLibre GL map showing node locations (engine/layers in src/map/)
 │   │       └── ...
 │   └── vite.config.ts
 ├── pkg/aur/                # AUR package files (PKGBUILD, systemd service, env, install hooks)
@@ -319,6 +321,8 @@ npm run test:run
 
 All endpoints are prefixed with `/api` (e.g., `/api/health`).
 
+This table is a representative subset, not the full route list (for example the backup, OpenHop, external-map, and most `/packets/*` analytics routes are omitted). See `app/AGENTS.md` for the fuller backend endpoint reference, and the live OpenAPI docs at `/docs` for every mounted route.
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/health` | Connection status, fanout statuses, bots_disabled flag |
@@ -378,10 +382,15 @@ All endpoints are prefixed with `/api` (e.g., `/api/health`).
 | POST | `/api/messages/channel` | Send channel message |
 | POST | `/api/messages/channel/{message_id}/resend` | Resend channel message (default: byte-perfect within 30s; `?new_timestamp=true`: fresh timestamp, no time limit, creates new message row) |
 | GET | `/api/packets/undecrypted/count` | Count of undecrypted packets |
+| GET | `/api/packets/history` | Packet History browser: pages backward through persisted raw packets (`before_id` cursor, type/hop-width/hex/message-text filters); reach bounded by `raw_packet_retention_days` |
+| GET | `/api/packets/prefix-collisions` | Public-key prefix collisions among full-key contacts at 1/2/3-byte widths (Mesh Health "Prefix Collisions" tab) |
 | GET | `/api/packets/{packet_id}` | Fetch one stored raw packet by row ID for on-demand inspection |
 | POST | `/api/packets/region-backfill` | Re-resolve region scope for stored channel messages with retained raw packets |
 | POST | `/api/packets/decrypt/historical` | Decrypt stored packets |
 | POST | `/api/packets/maintenance` | Delete old packets and vacuum |
+| GET | `/api/partial-resolutions/preview` | Propose matches for partial (prefix-only) nodes from the external-map cache (read-only) |
+| POST | `/api/partial-resolutions/apply` | Store the selected soft resolution links and promote resolved nodes to full contacts |
+| GET/DELETE | `/api/partial-resolutions`, `/api/partial-resolutions/{prefix_hex}` | List soft resolution links / clear one |
 | GET | `/api/read-state/unreads` | Server-computed unread counts, mentions, last message times, `last_read_ats` boundaries, and `first_unread_ids` (unread-divider anchor) |
 | POST | `/api/read-state/mark-all-read` | Mark all conversations as read |
 | GET | `/api/settings` | Get app settings |
@@ -522,9 +531,10 @@ mc.subscribe(EventType.ACK, handler)
 | `MESHCORE_LOAD_WITH_AUTOEVICT` | `false` | Enable autoevict contact loading: sets `AUTO_ADD_OVERWRITE_OLDEST` on the radio so adds never fail with TABLE_FULL, skips the removal phase during reconcile, and allows blind loading when `get_contacts` fails. Loaded contacts are not radio-favorited and may be evicted by new adverts when the table is full. |
 | `MESHCORE_SKIP_POST_CONNECT_SYNC` | `false` | Debug/diagnostic escape hatch: skip the contact/channel sync-and-offload, startup advertisement, and pending-message drain during post-connect setup, and do not start the periodic sync/advert/message-poll/telemetry background loops. Handler registration, key export, time sync, flood-scope apply, and auto message fetching still run. Useful when the radio's contact/channel state must be left untouched; not for normal operation. |
 | `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT` | `false` | Enable `GET /api/radio/private-key` to return the in-memory private key as hex. Disabled by default; only enable on a trusted network where you need to retrieve the key (e.g. for backup or migration). |
+| `MESHCORE_UPDATE_CHECK_ENABLED` | `true` | Check GitHub for a newer fork build and show the in-app update indicator (Settings > About also has a manual re-check). Set `false` to disable the outbound request. |
 | `MESHCORE_VAPID_SUBJECT` | `mailto:noreply@meshcore.local` | Subject (`sub`) claim for Web Push VAPID tokens; must be a `mailto:` or `https:` contact. Apple's push service (APNs) rejects the default `.local` domain with `403 BadJwtToken`, so iOS/Safari operators must set this to a real address. Google FCM (Chrome/Android) accepts the default. |
 
-**Note:** Runtime app settings are stored in the database (`app_settings` table), not environment variables. These include `max_radio_contacts`, `auto_decrypt_dm_on_advert`, `advert_interval`, `last_advert_time`, `last_message_times`, `flood_scope`, `known_regions`, `blocked_keys`, `blocked_names`, `discovery_blocked_types`, `tracked_telemetry_repeaters`, `tracked_telemetry_contacts`, `auto_resend_channel`, and `telemetry_interval_hours`. `max_radio_contacts` is the configured radio contact capacity baseline used by background maintenance: favorites reload first, non-favorite fill targets about 80% of that value, and full offload/reload triggers around 95% occupancy. They are configured via `GET/PATCH /api/settings`. MQTT, bot, webhook, Apprise, and SQS configs are stored in the `fanout_configs` table, managed via `/api/fanout`. If the radio's channel slots appear unstable or another client is mutating them underneath this app, operators can force the old always-reconfigure send path with `MESHCORE_FORCE_CHANNEL_SLOT_RECONFIGURE=true`.
+**Note:** Runtime app settings are stored in the database (`app_settings` table), not environment variables. These include `max_radio_contacts`, `auto_decrypt_dm_on_advert`, `advert_interval`, `last_advert_time`, `last_message_times`, `flood_scope`, `known_regions`, `blocked_keys`, `blocked_names`, `discovery_blocked_types`, `tracked_telemetry_repeaters`, `tracked_telemetry_contacts`, `auto_resend_channel`, and `telemetry_interval_hours`, plus the retention, sidebar, packet-view, map-home, date/time-format, chat-parsing, branding, backup, and OpenHop settings (full list in `app/AGENTS.md`). `max_radio_contacts` is the configured radio contact capacity baseline used by background maintenance: favorites reload first, non-favorite fill targets about 80% of that value, and full offload/reload triggers around 95% occupancy. They are configured via `GET/PATCH /api/settings`. MQTT, bot, webhook, Apprise, and SQS configs are stored in the `fanout_configs` table, managed via `/api/fanout`. If the radio's channel slots appear unstable or another client is mutating them underneath this app, operators can force the old always-reconfigure send path with `MESHCORE_FORCE_CHANNEL_SLOT_RECONFIGURE=true`.
 
 Byte-perfect channel retries are user-triggered via `POST /api/messages/channel/{message_id}/resend` and are allowed for 30 seconds after the original send.
 

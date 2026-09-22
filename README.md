@@ -12,6 +12,7 @@ Connect your radio over Serial, TCP, or BLE, and then you can:
 * Search for hashtag channel names for channels you don't have keys for yet
 * Parse entities in chat messages (optional, off by default): resolve public keys to a contact or external analyzer, turn GPS coordinates into a map card, and show clickable links with optional messenger-style previews (Settings > Local Configuration > "Chat parsing")
 * Play an optional notification sound on new @mentions and DMs, with a choice of bundled presets or your own uploaded sound, a volume control, and per-conversation muting (Settings > Local Configuration > "Mention & DM sound")
+* Choose how dates and times are shown: follow the UI language, or force 12-hour mm/dd/yyyy or 24-hour dd/mm/yyyy (Settings > Local Configuration > "Date & Time Format")
 * Forward packets, messages, and automatic repeater telemetry to MQTT, Home Assistant, LetsMesh, MeshRank, SQS, Apprise, etc.
 * Use the more recent 1.14+ firmwares which support multibyte pathing
 * Auto-detect [meshcomod (DMC-EV)](https://github.com/Elektr0Vodka/meshcomod) firmware and expose its extra device settings (CAD, GPS)
@@ -53,7 +54,13 @@ Shipped toward this so far:
 - Repeater and per-contact telemetry history (`_050`, `_062`) and contact name
   history (`_024`).
 - "My Node" and mesh-health views that read from this persisted history, including
-  a TX/RX airtime utilization (%) chart on My Node.
+  a TX/RX airtime utilization (%) chart on My Node and a "Directly heard radar"
+  card that plots 0-hop nodes by bearing and distance, coloured by best SNR.
+- A "Mesh Health" view with an Adverts panel (per-contact direct/flood advert
+  counts, a searchable and pageable contacts table, and HIGH/MEDIUM alerts that
+  count flood adverts only), a Requests panel (REQUEST/RESPONSE traffic heard by
+  this node), and a Prefix Collisions tab (contacts sharing a 1/2/3-byte key
+  prefix, a first-byte usage matrix, and a local/regional distance badge).
 - A "Mesh Trends" view that consolidates the analytical stats into two tabs: a
   Historical tab (server-backed network/message/packet/MQTT/region-scope/noise-floor
   breakdowns) and a Live tab (the session packet-stat breakdowns that used to live
@@ -61,16 +68,17 @@ Shipped toward this so far:
 - A "Packet History" view (Tools group) that browses the full persisted
   `raw_packets` history in the style of the live feed, with preset windows
   (1/3/6/12/24h) and an explicit date-to-date range, cursor "Load older" paging,
-  server-side payload-type/hop-width/hex filters, and live-append for open-ended
-  ranges (`GET /packets/history`). A message search box matches decrypted
+  server-side payload-type/hop-width/hex filters, and a Refresh button that
+  re-anchors preset windows to "now" and re-queries (`GET /packets/history`). A message search box matches decrypted
   message text/sender/channel across the whole range (pick the "All time" range
   to search the entire database), floating scroll-to-top / scroll-to-bottom
   buttons appear when the list overflows, each row shows its date and time, and
-  rows can be selected (with select/deselect-all) and exported to CSV. Both
-  packet tabs can be paused (the view freezes while new packets keep buffering
-  behind a "N new" badge) and can fold repeats of the same packet heard across
-  different paths into one row badged with the copy count, and with autoscroll
-  off they hold your scroll position instead of jumping to the newest packet.
+  rows can be selected (with select/deselect-all) and exported to CSV. The live
+  Raw Packet Feed can be paused (the view freezes while new packets keep
+  buffering behind a "N new" badge). Both packet tabs can fold repeats of the
+  same packet heard across different paths into one row badged with the copy
+  count, and with autoscroll off they hold your scroll position instead of
+  jumping to the newest packet.
   Path-hex hops
   resolve to known contact names in the feed, history, and packet detail. How
   far back it reaches is bounded by the raw-packet retention setting (Settings >
@@ -93,15 +101,15 @@ Shipped toward this so far:
 Direction still on the roadmap (planned, not yet built):
 
 - Configurable, per-data-class retention with an "analyzer mode" preset, so an
-  operator can retain long trends instead of the current aggressive caps.
+  operator can retain long trends instead of the current aggressive caps. Only
+  raw packets have a configurable retention setting today (see Packet History
+  above); other data classes still use their existing caps.
 - Historical device-info persistence: location and device-config history over time.
-- Database-backed history browsing, for example a packet-history browser over
-  arbitrary time ranges rather than only the live session buffer.
 - Multi-radio identity continuity, so a swapped or replaced feeding radio stays
   coherent in the long-lived record.
 
-This is a direction, not a finished feature set: the retention policy and the
-history-browsing UIs above are planned, not yet implemented.
+This is a direction, not a finished feature set: the items above are planned,
+not yet implemented.
 
 ## Requirements
 
@@ -349,6 +357,15 @@ RemoteTerm supports the [meshcomod](https://github.com/Elektr0Vodka/meshcomod) f
 - **GPS:** enable the on-board GPS receiver and set its reporting interval (0 to 86400 seconds).
 
 The panel is hidden entirely on non-meshcomod devices, and each control disables itself if the specific firmware build does not advertise support. No configuration is needed: detection is automatic from the radio's device info.
+
+## OpenHop node management
+
+RTFM-EV works with [OpenHop](https://github.com/openhop-dev/openhop_repeater) repeaters and room-servers (a Python MeshCore daemon) in two ways:
+
+- **As a radio.** OpenHop speaks the MeshCore companion protocol over TCP (default port 5000), so it can drive RTFM-EV as the connected radio with no OpenHop-specific setup: point the app at its host and port like any other TCP radio.
+- **As a managed node.** When a connected node is detected as OpenHop, an extra **OpenHop** section appears with management panes that the companion link and RF do not expose, organised in a two-row sub-nav: a **Node** row (Config, System, Update, CAD) and a **Mesh** row (Policy, Plugins, Transport keys, MQTT). These talk to OpenHop's REST API, so set the API URL and token in the OpenHop block under **Settings -> Radio** first (the token is write-only). Actions with real-world effect (firmware install, CAD threshold save, transport-key delete, MQTT config writes, "publish neighbours now") are confirmation-gated. With the API configured, the My Node airtime chart also reads TX/RX airtime from OpenHop's REST API, because OpenHop's companion stats frame always reports RX airtime as 0.
+
+As with the Meshcomod panel, everything is hidden on non-OpenHop devices and detection is automatic from the radio's device info.
 
 ## Languages
 
