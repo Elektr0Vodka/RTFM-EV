@@ -60,6 +60,12 @@ snapshot of it:
 
 Backup is on-demand only (no scheduled job) and does not include a restore flow.
 
+Raw packets are kept forever by default, so the database (and each backup) can keep
+growing. Set **Keep raw packet history (days)** in the
+same Settings database section to a positive value to have older raw packets
+pruned daily. That setting also bounds how far back the Packet History view can
+reach.
+
 **Restore (manual):** stop the server, replace `data/meshcore.db` with the backup
 file, delete `data/meshcore.db-wal` and `data/meshcore.db-shm` if present, then
 start the server again.
@@ -143,7 +149,8 @@ You can also navigate to `/api/debug` (or go to Settings -> About -> "Open debug
 
 ## Customisation And Branding
 
-Settings -> Customisation groups the appearance controls.
+The appearance controls live in Settings -> Local Configuration, under the
+Customisation heading and the branding block below it.
 
 - **Themes**: the swatch grid selects the colour theme (per-device). Four CRT
   phosphor themes sit in the grid alongside the rest: **CRT Green**, **CRT

@@ -5,12 +5,59 @@ This changelog covers work done in the **RTFM-EV** fork
 `jkingsman/Remote-Terminal-for-MeshCore`.
 
 - Fork base commit: `33b3b8d` (upstream `main`), 2026-07-26
-- Commits since fork: 251 total (181 non-merge)
-- Generated: 2026-09-10; updated 2026-09-14
+- Commits since fork: 301 total (231 non-merge), as of `462f3b8c` (#172)
+- Generated: 2026-09-10; updated 2026-09-23
 
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-23 (Docs refresh, docs/refresh-2026-09-22)
+
+### Documentation
+- **README: restored the "OpenHop node management" section.** It was added in
+  #122 and dropped by accident in #123 (whose branch predated #122). Restored
+  as written, plus a note that the My Node airtime chart reads TX/RX airtime
+  from OpenHop's REST API when it is configured (#127).
+- **README roadmap no longer lists the packet-history browser as planned.** It
+  shipped in #143. The closing line no longer calls the history-browsing UIs
+  unbuilt, and the retention item notes that only raw packets have a
+  configurable retention setting so far.
+- **README Packet History description corrected.** It still claimed live-append
+  and a pause button, both of which #156 removed. It now describes the Refresh
+  button and says only the Raw Packet Feed can be paused.
+- **README feature lists:** added the Date & Time Format setting (#164), the
+  Mesh Health view (Adverts, Requests, and Prefix Collisions tabs; #145, #148,
+  #157, #158, #162), and the My Node directly-heard radar (#159).
+- **`app/AGENTS.md`:** documented the undocumented `/packets/*` routes
+  (`recent`, `history`, `timeseries`, `historical-stats`, `mesh-health`,
+  `prefix-collisions`, `snr-rssi-scatter`, `hourly-heatmap`,
+  `reachability-rings`, `relay-pairs`, `advert-links`). Brought the
+  `app_settings` field list up to date with the `AppSettings` model. Noted
+  which files a new settings field has to touch.
+- **Root `AGENTS.md`:**
+  - The doc map now lists `docs/parity-audit.md` and `docs/agents/`.
+  - `MapView` is described as MapLibre, no longer Leaflet.
+  - The API table gained Packet History, prefix-collisions and
+    partial-resolution rows, plus a note that the table is a subset.
+  - Added the missing `MESHCORE_UPDATE_CHECK_ENABLED` env var.
+  - The settings note now points to the full field list.
+- **`README_ADVANCED.md`:**
+  - Corrected the Customisation settings path (it sits under Local
+    Configuration).
+  - Added a note on raw-packet retention next to the backup docs.
+- **`README_HA.md`:**
+  - Updated the setup path (Settings > MQTT & Automation).
+  - Completed the local-radio sensor list: battery, uptime, RSSI/SNR, airtime,
+    packet counts.
+  - Added the repeater RX Errors sensor and LPP sensors for repeaters.
+  - Corrected the telemetry-tracking location (Radio-App Management).
+- **`docs/sources-of-truth.md`:** added OpenHop (`openhop_repeater` /
+  `openhop_core`) and the EU analyzer's role as the default external-map and
+  partial-node source.
+- **`docs/parity-audit.md`:** reconciled to `3481d9f8`. N2 and X1 are now
+  marked shipped (they still said "PR open"). No other backlog item changed
+  status in #124-#170.
+- Refreshed the commit counts in this changelog's header.
 ## Update 2026-09-23 (Mesh Discovery moves to Tools)
 
 ### Mesh Discovery view (frontend)

@@ -10,7 +10,7 @@ RemoteTerm can publish mesh network data to Home Assistant via MQTT Discovery. D
 
 ## Setup
 
-1. In RemoteTerm, go to **Settings > Integrations > Add > Home Assistant MQTT Discovery**
+1. In RemoteTerm, go to **Settings > MQTT & Automation > Add Integration > Home Assistant MQTT Discovery**
 2. Enter your MQTT broker host and port (same broker HA is connected to)
 3. Optionally enter broker username/password and TLS settings
 4. Select contacts for GPS tracking and repeaters for telemetry (see below)
@@ -49,12 +49,20 @@ Always created. Updates every 60 seconds.
 |--------|------|-------------|
 | `binary_sensor.<radio_name>_connected` | Connectivity | Radio online/offline |
 | `sensor.<radio_name>_noise_floor` | Signal strength | Radio noise floor (dBm) |
+| `sensor.<radio_name>_battery` | Voltage | Radio battery (V) |
+| `sensor.<radio_name>_uptime` | Duration | Uptime (s) |
+| `sensor.<radio_name>_last_rssi` | Signal strength | Last received signal strength (dBm) |
+| `sensor.<radio_name>_last_snr` | -- | Last signal-to-noise ratio (dB) |
+| `sensor.<radio_name>_tx_airtime` | Duration | Cumulative TX airtime (s) |
+| `sensor.<radio_name>_rx_airtime` | Duration | Cumulative RX airtime (s) |
+| `sensor.<radio_name>_packets_received` | -- | Total packets received |
+| `sensor.<radio_name>_packets_sent` | -- | Total packets sent |
 
 ### Repeater Devices
 
 One device per tracked repeater selected in the HA integration. Updates when telemetry is collected (auto-collect cycle (~8 hours or variable in settings), or when you manually fetch from the repeater dashboard).
 
-Repeaters must first be added to the auto-telemetry tracking list in RemoteTerm's Radio settings section. Only auto-tracked repeaters appear in the HA integration's repeater picker.
+Repeaters must first be added to the auto-telemetry tracking list in RemoteTerm's **Settings > Radio-App Management** section. Only auto-tracked repeaters appear in the HA integration's repeater picker.
 
 | Entity | Type | Unit | Description |
 |--------|------|------|-------------|
@@ -64,7 +72,10 @@ Repeaters must first be added to the auto-telemetry tracking list in RemoteTerm'
 | `sensor.<repeater_name>_last_snr` | -- | dB | Last signal-to-noise ratio |
 | `sensor.<repeater_name>_packets_received` | -- | count | Total packets received |
 | `sensor.<repeater_name>_packets_sent` | -- | count | Total packets sent |
+| `sensor.<repeater_name>_rx_errors` | -- | count | Total receive errors |
 | `sensor.<repeater_name>_uptime` | Duration | s | Uptime since last reboot |
+
+If the repeater's telemetry also includes CayenneLPP readings, a numeric sensor is created per reading (same auto-detection as for contacts below).
 
 If RemoteTerm already has a cached telemetry snapshot for that repeater, it republishes it on startup so HA can populate the sensors immediately instead of waiting for the next collection cycle.
 
@@ -515,7 +526,7 @@ Runtime/state topics (where data is published):
 
 | Topic | Content | Update frequency |
 |-------|---------|-----------------|
-| `meshcore/{node_id}/health` | `{"connected": bool, "noise_floor_dbm": int}` | Every 60s |
+| `meshcore/{node_id}/health` | `{"connected": bool, "noise_floor_dbm": int, "battery_volts": float, ...}` (also `uptime_secs`, `last_rssi`, `last_snr`, `tx_air_secs`, `rx_air_secs`, `packets_recv`, `packets_sent`) | Every 60s |
 | `meshcore/{node_id}/telemetry` | `{"battery_volts": float, ...}` | ~8h or manual |
 | `meshcore/{node_id}/gps` | `{"latitude": float, "longitude": float, ...}` | On advert |
 | `meshcore/{node_id}/events/message` | `{"event_type": "message_received", ...}` | On message |
@@ -525,9 +536,9 @@ Discovery topics (entity registration, under `homeassistant/`):
 | Pattern | Entity type |
 |---------|------------|
 | `homeassistant/binary_sensor/meshcore_<node_id>/connected/config` | Radio connectivity |
-| `homeassistant/sensor/meshcore_<node_id>/noise_floor/config` | Noise floor sensor |
+| `homeassistant/sensor/meshcore_<node_id>/noise_floor/config` | Noise floor sensor (radio and repeaters) |
 | `homeassistant/sensor/meshcore_<node_id>/battery_voltage/config` | Repeater battery |
-| `homeassistant/sensor/meshcore_<node_id>/*/config` | Other repeater sensors |
+| `homeassistant/sensor/meshcore_<node_id>/*/config` | Other radio, repeater, and LPP sensors |
 | `homeassistant/device_tracker/meshcore_<node_id>/config` | Contact GPS tracker |
 | `homeassistant/event/meshcore_<node_id>/messages/config` | Message event entity |
 

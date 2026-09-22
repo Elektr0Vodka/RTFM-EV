@@ -314,6 +314,15 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 ### Packets
 - `GET /packets/undecrypted/count`
 - `POST /packets/region-backfill` - re-resolve region scope for stored channel messages that still have a retained raw packet (region is otherwise only tagged at ingest); returns `{scanned, scoped, named}`
+- `GET /packets/recent?limit&after_ts&before_ts` - recent raw packets, oldest-first, in the `raw_packet` broadcast shape (raw-feed DB history)
+- `GET /packets/history?limit&after_ts&before_ts&before_id&payload_types&hop_widths&hex&search` - Packet History browser: pages backward (newest-first) through persisted `raw_packets` with a `before_id` cursor; `search` matches decrypted message text / sender / channel name. Returns `{packets, next_cursor}`. Reach is bounded by `app_settings.raw_packet_retention_days` (`0` = keep forever)
+- `GET /packets/timeseries?start_ts&end_ts&bin_count` - time-binned packet counts, byte totals, signal averages, and type breakdowns for historical chart ranges
+- `GET /packets/historical-stats?start_ts&end_ts` - DB-computed aggregate stats for a window (My Node history)
+- `GET /packets/mesh-health?start_ts&end_ts` - per-contact advert frequency (direct/flood) for Mesh Health; HIGH/MEDIUM alerts are evaluated on the flood count only
+- `GET /packets/prefix-collisions` - public-key prefix collisions among full-key local contacts at 1/2/3-byte widths (Mesh Health "Prefix Collisions" tab). Point-in-time over contacts, not window-scoped. See `app/services/prefix_collisions.py`
+- `GET /packets/snr-rssi-scatter`, `GET /packets/hourly-heatmap`, `GET /packets/reachability-rings` - windowed signal scatter, 7x24 UTC packet heatmap, and unique contacts by minimum hop distance
+- `GET /packets/relay-pairs?limit` - most frequent consecutive node pairs across advert paths
+- `GET /packets/advert-links?limit` - resolved advert-path edges for the map link layer
 - `GET /packets/{packet_id}` - fetch one stored raw packet by row ID for on-demand inspection
 - `GET /packets/request-traffic` - single-node REQUEST/RESPONSE traffic in a window: totals (requests, anon, responses, flood/direct split), a time-bucketed series, and top src→dest 1-byte-hash pairs (Mesh Health "Requests" panel). Parses `raw_packets` filtered by `payload_type IN (REQUEST, ANON_REQUEST, RESPONSE)`; makes no answered/unanswered judgment (a single node cannot hear responses routed around it)
 - `POST /packets/decrypt/historical`
@@ -444,7 +453,22 @@ Repository writes should prefer typed models such as `ContactUpsert` over ad hoc
 - `tracked_telemetry_repeaters`, `tracked_telemetry_contacts`
 - `auto_resend_channel`
 - `auto_add_mentioned_channels` (when enabled, #hashtag channels referenced in chat are auto-recorded in the browser Channel Registry; registry-only, no followed channel is created)
-- `telemetry_interval_hours`
+- `telemetry_interval_hours`, `telemetry_routed_hourly` (poll tracked nodes with a direct/routed path hourly instead of on the normal interval)
+- `advert_retention_days` (days of `advert_events` kept), `raw_packet_retention_days` (days of `raw_packets` kept, `0` = forever; bounds Packet History); both pruned daily
+- `registry_sync_url` (remote `{name: key}` channel list synced into the registry), `analyzer_sites` (external analyzer link targets, incl. per-site `channel_url_template`), `handy_info` (user overlay for the Handy Info section)
+- `external_map_enabled`, `external_map_sync_url`, `external_map_sync_interval_hours` (external analyzer node-directory overlay on the map; also the candidate source for partial-node resolution)
+- `sidebar_hidden`, `sidebar_section_order`, `sidebar_tool_order`, `sidebar_favorites_order`, `sidebar_favorite_sort_orders` (sidebar customisation, persisted server-side)
+- `packet_feed_sort`, `packet_history_sort` (`oldest`/`newest`), `packet_group_by_content` (shared "Group repeats by content" toggle for Raw Packet Feed + Packet History)
+- `mesh_health_page_size` (Mesh Health contacts table rows per page; `0` = all)
+- `date_time_format` (`auto` / `12h_mdy` / `24h_dmy`; migration `_103`)
+- `map_home_mode` (`auto` / `home` / `last`), `map_home_lat`, `map_home_lon`, `map_home_zoom` (map start view; migration `_104`)
+- `show_mention_ticker`, `mention_sound_enabled`, `mention_sound_choice`, `mention_sound_volume`, `mention_sound_custom`
+- `chat_parse_pubkeys`, `chat_parse_coordinates`, `chat_url_previews`, `chat_linkify_urls` (chat entity parsing)
+- `backup_to_path_enabled`, `backup_destination_path` (server-side database backup)
+- `brand_name`, `brand_hidden`, `brand_icon` (navbar branding)
+- `openhop_api_url`, `openhop_api_token` (OpenHop REST API; the token is write-only and masked on read)
+
+A new `AppSettings` field needs the repository, the router's separate `AppSettingsUpdate` model and its kwargs, a migration, and the inline `AppSettings` test fixtures updated together.
 
 Note: MQTT, community MQTT, and bot configs were migrated to the `fanout_configs` table (migrations 36-38).
 

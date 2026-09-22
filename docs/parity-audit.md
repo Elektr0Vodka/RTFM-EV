@@ -1,7 +1,7 @@
 # RTFM-EV Parity & Gap Audit
 
 Date: 2026-09-10
-Status: backlog in progress (reconciled 2026-09-14). SHIPPED: N1, N2 (PR #24, merged), X1 (PR #41, merged), X2 core, X2b per-link signal history (PR #47). PARTIAL: L1 (region pills + sync shipped; DMC config-topic scope tree unbuilt), L2 (noise-floor viewer + Direct/Flood advert metrics shipped via PR #94; rx-error graphs still absent), L3 (neighbor/region publish shipped via PR #90; config-topic publish still pending), L4 (channel mute shipped; inline contact-sharing #347 unbuilt). See §7 for per-item status.
+Status: backlog in progress (reconciled 2026-09-22 against `main` at `3481d9f8`, PR #170; no §7 item changed status in PRs #124-#170). SHIPPED: N1 (PR #12, merged), N2 (PR #24, merged), X1 (PR #41, merged; later folded into community MQTT topic toggles, PR #60), X2 core, X2b per-link signal history (PR #47). PARTIAL: L1 (region pills + sync shipped; DMC config-topic scope tree unbuilt), L2 (noise-floor viewer + Direct/Flood advert metrics shipped via PR #94; rx-error graphs still absent), L3 (neighbor/region publish shipped via PR #90; config-topic publish still pending), L4 (channel mute shipped; inline contact-sharing #347 unbuilt). See §7 for per-item status.
 Author: Elektr0Vodka (with agent research)
 
 This is a living document. It compares the current RTFM-EV against two reference
@@ -69,7 +69,7 @@ Effort/risk are captured in §7, not the matrix, to keep the matrix scannable.
 
 Backend (`app/`, FastAPI + aiosqlite, custom per-version migrations; `_063`
 message region scope, `_064` Mention Ticker landed since - confirm current max
-before adding one):
+before adding one; it is `_104` as of 2026-09-22):
 - Connects to a companion radio via the `meshcore` Python lib (BLE / serial / TCP).
 - Multi-broker fanout via `fanout_configs` table; MQTT module types
   `mqtt_private`, `mqtt_community`, `mqtt_ha` (`app/fanout/*`, `app/routers/fanout.py`).
@@ -91,6 +91,9 @@ Frontend (`frontend/`, React 18 + TS + Vite, ~111 `.tsx`):
   hardcoded English, hand-rolled pluralization.
 
 ## 5. Feature matrix
+
+The matrix (like §4) is largely the 2026-09-10 snapshot; only the neighbor
+discovery rows were re-marked afterwards. §7 holds the current per-item status.
 
 ### Connectivity
 | Feature | Ref | RTFM-EV | Appl. | Notes |
@@ -214,17 +217,21 @@ Each "Now/Next" item gets its own brainstorm → spec → plan cycle.
 - **N1. Signal-storage foundation** - ✅ SHIPPED (PR #12, migrations `_065`/`_066`;
   `rssi/snr/payload_type` on `raw_packets`, `/api/packets/recent|timeseries`).
   Unblocked Phase-3 (packet-feed history, My Node, MeshHealth - all merged).
-- **N2. i18n (EN/NL/DE)** - ✅ IMPLEMENTED, PR #24 open + MERGEABLE (custom runtime
+- **N2. i18n (EN/NL/DE)** - ✅ SHIPPED, PR #24 merged (custom runtime
   in `frontend/src/i18n/`, EN/NL/DE catalogs, `no-literal-string` guard at error).
   NL/DE machine-drafted, native review still outstanding. Credit Marcel (§9).
 
 ### Next
-- **X1. MQTT export parity** - ✅ IMPLEMENTED, PR #41 open + MERGEABLE
-  (`feat/mqtt-dmc-observer-export`). New `mqtt_dmc_observer` fanout type: per-topic
+- **X1. MQTT export parity** - ✅ SHIPPED, PR #41 merged
+  (`feat/mqtt-dmc-observer-export`). It added a `mqtt_dmc_observer` fanout type: per-topic
   toggles (`status`/`packets` on, `raw` off), configurable status interval
   (1-60 min, clamp 1000-3600000 ms), faithful DMC firmware wire schema
   (`meshcore/{IATA}/{DEVICE}/{status|packets|raw}`, string SNR/RSSI, array path,
   `+00:00` timestamps, no LWT). Spec + plan under `docs/superpowers/`.
+  Superseded by PR #60: the standalone `mqtt_dmc_observer` type was removed and
+  the community MQTT module (`app/fanout/mqtt_community.py`) now carries per-topic
+  toggles (`publish_status`, `publish_packets`, `publish_telemetry`,
+  `publish_neighbors`, `publish_regions`) and `status_interval_ms`.
 - **X2. Neighbor discovery** - DONE. The core (query a repeater's neighbors via
   `REQ_TYPE_GET_NEIGHBOURS 0x06` / `CMD_SEND_BINARY_REQ 50`; neighbor list +
   per-link signal + neighbors-on-map) was already shipped upstream and predates
