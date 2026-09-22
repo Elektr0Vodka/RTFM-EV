@@ -325,6 +325,28 @@ class AppSettingsUpdate(BaseModel):
         default=None,
         description="Last-selected 'Group repeats by content' packet-filter toggle",
     )
+    map_home_mode: str | None = Field(
+        default=None,
+        description="Map startup camera mode: 'auto', 'home', or 'last'",
+    )
+    map_home_lat: float | None = Field(
+        default=None,
+        ge=-90,
+        le=90,
+        description="Home latitude for map_home_mode='home'",
+    )
+    map_home_lon: float | None = Field(
+        default=None,
+        ge=-180,
+        le=180,
+        description="Home longitude for map_home_mode='home'",
+    )
+    map_home_zoom: float | None = Field(
+        default=None,
+        ge=0,
+        le=22,
+        description="Home zoom level for map_home_mode='home'",
+    )
     blocked_keys: list[str] | None = Field(
         default=None,
         description="Public keys whose messages are hidden from the UI",
@@ -706,6 +728,18 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
     # Packet-filter 'Group repeats by content' toggle (shared by both packet views).
     if update.packet_group_by_content is not None:
         kwargs["packet_group_by_content"] = update.packet_group_by_content
+
+    # Map "home view" startup preference. Ignore an unknown mode so a stale
+    # client cannot corrupt the setting; lat/lon/zoom bounds are enforced by the
+    # AppSettingsUpdate field validators above.
+    if update.map_home_mode is not None and update.map_home_mode in ("auto", "home", "last"):
+        kwargs["map_home_mode"] = update.map_home_mode
+    if update.map_home_lat is not None:
+        kwargs["map_home_lat"] = update.map_home_lat
+    if update.map_home_lon is not None:
+        kwargs["map_home_lon"] = update.map_home_lon
+    if update.map_home_zoom is not None:
+        kwargs["map_home_zoom"] = update.map_home_zoom
 
     # Auto-add mentioned channels to the registry
     if update.auto_add_mentioned_channels is not None:

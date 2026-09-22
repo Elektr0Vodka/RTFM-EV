@@ -1344,6 +1344,33 @@ class AppSettings(BaseModel):
             "shared by the Raw Packet Feed and Packet History views."
         ),
     )
+    map_home_mode: Literal["auto", "home", "last"] = Field(
+        default="auto",
+        description=(
+            "How the map picks its initial camera on load: 'auto' (geolocate "
+            "then fit all nodes, the historical default), 'home' (fly to the "
+            "saved home coordinates + zoom) or 'last' (restore the last camera "
+            "the browser saved locally)."
+        ),
+    )
+    map_home_lat: float | None = Field(
+        default=None,
+        ge=-90,
+        le=90,
+        description="Home latitude for map_home_mode='home' (null = unset).",
+    )
+    map_home_lon: float | None = Field(
+        default=None,
+        ge=-180,
+        le=180,
+        description="Home longitude for map_home_mode='home' (null = unset).",
+    )
+    map_home_zoom: float | None = Field(
+        default=None,
+        ge=0,
+        le=22,
+        description="Home zoom level for map_home_mode='home' (null = unset).",
+    )
     discovery_blocked_types: list[int] = Field(
         default_factory=list,
         description=(

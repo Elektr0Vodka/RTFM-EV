@@ -23,6 +23,7 @@ import {
 import { SettingsRadioSection } from './settings/SettingsRadioSection';
 import { SettingsLocalSection } from './settings/SettingsLocalSection';
 import { SettingsRadioAppSection } from './settings/SettingsRadioAppSection';
+import { SettingsMapSection } from './settings/SettingsMapSection';
 import { SettingsFanoutSection } from './settings/SettingsFanoutSection';
 import { SettingsDatabaseSection } from './settings/SettingsDatabaseSection';
 import { SettingsAboutSection } from './settings/SettingsAboutSection';
@@ -124,6 +125,7 @@ export function SettingsModal(props: SettingsModalProps) {
     radio: false,
     local: false,
     'radio-app': false,
+    map: false,
     fanout: false,
     openhop: false,
     database: false,
@@ -285,6 +287,26 @@ export function SettingsModal(props: SettingsModalProps) {
                 onToggleTrackedTelemetry={onToggleTrackedTelemetry}
                 trackedTelemetryContacts={trackedTelemetryContacts}
                 onToggleTrackedTelemetryContact={onToggleTrackedTelemetryContact}
+                className={sectionContentClass}
+              />
+            ) : (
+              <div className={sectionContentClass}>
+                <div className="rounded-md border border-input bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                  {t('settings_loading_app_settings')}
+                </div>
+              </div>
+            ))}
+        </section>
+      )}
+
+      {shouldRenderSection('map') && (
+        <section className={sectionWrapperClass}>
+          {renderSectionHeader('map')}
+          {isSectionVisible('map') &&
+            (appSettings ? (
+              <SettingsMapSection
+                appSettings={appSettings}
+                onSaveAppSettings={onSaveAppSettings}
                 className={sectionContentClass}
               />
             ) : (

@@ -595,6 +595,14 @@ export interface AppSettings {
   date_time_format: 'auto' | '12h_mdy' | '24h_dmy';
   /** Last-selected 'Group repeats by content' packet-filter toggle (shared by both packet views). */
   packet_group_by_content: boolean;
+  /** How the map picks its initial camera on load. */
+  map_home_mode: 'auto' | 'home' | 'last';
+  /** Home latitude for map_home_mode='home' (null = unset). */
+  map_home_lat: number | null;
+  /** Home longitude for map_home_mode='home' (null = unset). */
+  map_home_lon: number | null;
+  /** Home zoom level for map_home_mode='home' (null = unset). */
+  map_home_zoom: number | null;
   discovery_blocked_types: number[];
   tracked_telemetry_repeaters: string[];
   tracked_telemetry_contacts: string[];
@@ -846,6 +854,10 @@ export interface AppSettingsUpdate {
   mesh_health_page_size?: number;
   date_time_format?: 'auto' | '12h_mdy' | '24h_dmy';
   packet_group_by_content?: boolean;
+  map_home_mode?: 'auto' | 'home' | 'last';
+  map_home_lat?: number | null;
+  map_home_lon?: number | null;
+  map_home_zoom?: number | null;
   discovery_blocked_types?: number[];
   telemetry_interval_hours?: number;
   telemetry_routed_hourly?: boolean;

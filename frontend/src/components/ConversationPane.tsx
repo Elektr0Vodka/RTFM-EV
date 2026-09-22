@@ -133,6 +133,10 @@ interface ConversationPaneProps {
   packetHistorySort?: 'oldest' | 'newest';
   packetGroupByContent?: boolean;
   meshHealthPageSize?: number;
+  mapHomeMode?: import('../map/homeView').MapHomeMode;
+  mapHomeLat?: number | null;
+  mapHomeLon?: number | null;
+  mapHomeZoom?: number | null;
   onSaveAppSettings?: (update: import('../types').AppSettingsUpdate) => Promise<void> | void;
   /** Handlers the desktop full-page contact-info view needs beyond the ones
    *  ConversationPane already receives (contacts/config/favorite/blocked/analyzer). */
@@ -246,6 +250,10 @@ export function ConversationPane({
   packetHistorySort,
   packetGroupByContent,
   meshHealthPageSize,
+  mapHomeMode,
+  mapHomeLat,
+  mapHomeLon,
+  mapHomeZoom,
   onSaveAppSettings,
   contactInfoViewProps,
 }: ConversationPaneProps) {
@@ -295,6 +303,10 @@ export function ConversationPane({
               focusedKey={activeConversation.mapFocusKey}
               focusedLatLon={activeConversation.mapFocusLatLon}
               focusedLabel={activeConversation.mapFocusLabel}
+              mapHomeMode={mapHomeMode}
+              mapHomeLat={mapHomeLat}
+              mapHomeLon={mapHomeLon}
+              mapHomeZoom={mapHomeZoom}
               config={config}
               blockedKeys={blockedKeys}
               blockedNames={blockedNames}

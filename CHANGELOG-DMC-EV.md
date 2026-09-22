@@ -11,6 +11,56 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-22 (Date input contrast across themes)
+
+### DateTimeField styling (frontend)
+- **The custom date/time inputs now render in full-contrast text in every
+  theme** (reported by Richard: the map's "Custom" range field looked "very
+  white" and felt like the date could only be set via the calendar, and the same
+  washed-out look appeared on the channel-registry edit modal). Root cause: the
+  shared `DateTimeField` applied only the caller's `className` to its visible
+  text field with no base styling, so callers under-styled it inconsistently -
+  the map field inherited `text-muted-foreground` from its filter label (low
+  contrast, and near-invisible typed text on the light themes), while the
+  channel-registry and bulk-delete fields had no border/background/text-color at
+  all. `DateTimeField` now applies a theme-aware base (`text-foreground`,
+  `bg-background`, `border-input`, muted placeholder, focus ring) merged via
+  `cn(BASE, className)` so callers still control layout (width/height/padding).
+  No behaviour or value-format change; the fix is in one shared component and
+  covers the map filter, channel registry, bulk-delete filters and
+  `TimeRangeSelector`.
+  Verified: eslint + prettier + `tsc` build + `test:run` (1797) green; live in
+  the rebuilt container across all themes (original/light/ios/paper-grove/the
+  four CRT phosphors/high-contrast/monochrome/windows-95) - computed field text
+  is now the `--foreground` token, not `--muted-foreground`, on both the map
+  "Custom" field and the channel-registry Last Heard / Added fields, with typed
+  values clearly visible.
+
+## Update 2026-09-22 (Map home location + zoom)
+
+### Map startup view (frontend + backend)
+- **New "Map" settings section to control where the map opens.** A `When the
+  map opens` dropdown offers three modes: `Automatic` (the historical
+  geolocate-then-fit-all-nodes behaviour), `Start at a fixed home location`, or
+  `Remember my last position`. In fixed-home mode a small interactive map panel
+  lets you click (or drag the marker) to set the home coordinates, with the
+  panel's own zoom captured as the starting zoom; editable latitude / longitude
+  / zoom fields stay in sync, and a `Save home location` button persists them.
+- The mode + home coordinate/zoom are stored server-side in `app_settings`
+  (migration `_104_add_map_home_view.py`: `map_home_mode`, `map_home_lat`,
+  `map_home_lon`, `map_home_zoom`), so they apply wherever you sign in. The
+  frequently-updated "last position" is saved per-browser in `localStorage`
+  (`remoteterm-map-last-view`), written on the map's `moveend`.
+- The startup decision is a pure `resolveHomeView(settings, lastView)` helper
+  (`frontend/src/map/homeView.ts`) wired into `MapView.fitInitialView` after the
+  explicit node/coordinate focus branches and before the geolocate + fit-all
+  fallback, so a deep-link to a node still wins and `auto` mode is unchanged.
+- New i18n keys `settings_section_map` + `settings_map_*` in EN/NL/DE.
+  Verified: backend ruff + pyright + full pytest (2219) green; frontend eslint,
+  prettier, `tsc` build and `test:run` (1797) green, including new unit tests for
+  `resolveHomeView` / last-view round-trip and a `SettingsMapSection` component
+  test (mode switch, home-camera save, map-click sets coordinates).
+
 ## Update 2026-09-22 (Fix zoom crash on the remaining My Node charts)
 
 ### Charts (frontend)

@@ -1,6 +1,7 @@
 import { useRef, useState, useSyncExternalStore } from 'react';
 import { Calendar } from 'lucide-react';
 
+import { cn } from '@/lib/utils';
 import { useT } from '../i18n';
 import { getActiveDateTimeFormat, subscribeActiveDateTimeFormat } from '../utils/dateTimeFormat';
 import {
@@ -9,6 +10,20 @@ import {
   parseFieldDisplay,
   type DateFieldMode,
 } from '../utils/dateFieldFormat';
+
+/**
+ * Theme-aware base styling for the visible text field. Kept here (not left to
+ * each caller) so the field is always readable in every theme: without an
+ * explicit `text-foreground`, the input inherits its parent's color, which is
+ * `text-muted-foreground` in some contexts (e.g. the map filter label) and made
+ * the field look washed-out / "very white". Callers add layout (width, height,
+ * padding, font-size) via `className`, which wins over these defaults through
+ * tailwind-merge.
+ */
+const BASE_FIELD_CLASS =
+  'rounded-md border border-input bg-background text-foreground ' +
+  'placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 ' +
+  'focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50';
 
 interface DateTimeFieldProps {
   /** 'date' -> value `YYYY-MM-DD`; 'datetime' -> value `YYYY-MM-DDTHH:mm`. */
@@ -76,7 +91,7 @@ export function DateTimeField({
         type="text"
         inputMode="numeric"
         id={id}
-        className={className}
+        className={cn(BASE_FIELD_CLASS, className)}
         value={focused ? text : display}
         placeholder={placeholder}
         aria-label={ariaLabel}

@@ -72,7 +72,8 @@ class AppSettingsRepository:
                    sidebar_hidden, sidebar_favorite_sort_orders,
                    packet_feed_sort, packet_history_sort,
                    mesh_health_page_size, date_time_format, packet_group_by_content,
-                   raw_packet_retention_days
+                   raw_packet_retention_days,
+                   map_home_mode, map_home_lat, map_home_lon, map_home_zoom
             FROM app_settings WHERE id = 1
             """
         ) as cursor:
@@ -194,6 +195,32 @@ class AppSettingsRepository:
             packet_group_by_content = bool(row["packet_group_by_content"])
         except (KeyError, IndexError):
             packet_group_by_content = False
+
+        # Map "home view" startup preference (migration _104). Tolerate a missing
+        # column and coerce an unknown mode back to 'auto'. Coordinates/zoom are
+        # nullable and left as None when unset or unparseable.
+        try:
+            map_home_mode = row["map_home_mode"]
+        except (KeyError, IndexError):
+            map_home_mode = "auto"
+        if map_home_mode not in ("auto", "home", "last"):
+            map_home_mode = "auto"
+
+        def _parse_optional_float(column: str) -> float | None:
+            try:
+                raw = row[column]
+            except (KeyError, IndexError):
+                return None
+            if raw is None:
+                return None
+            try:
+                return float(raw)
+            except (TypeError, ValueError):
+                return None
+
+        map_home_lat = _parse_optional_float("map_home_lat")
+        map_home_lon = _parse_optional_float("map_home_lon")
+        map_home_zoom = _parse_optional_float("map_home_zoom")
 
         # Parse discovery_blocked_types JSON
         discovery_blocked_types: list[int] = []
@@ -467,6 +494,10 @@ class AppSettingsRepository:
             mesh_health_page_size=mesh_health_page_size,
             date_time_format=date_time_format,
             packet_group_by_content=packet_group_by_content,
+            map_home_mode=map_home_mode,
+            map_home_lat=map_home_lat,
+            map_home_lon=map_home_lon,
+            map_home_zoom=map_home_zoom,
         )
 
     @staticmethod
@@ -524,6 +555,10 @@ class AppSettingsRepository:
         mesh_health_page_size: int | None = None,
         date_time_format: str | None = None,
         packet_group_by_content: bool | None = None,
+        map_home_mode: str | None = None,
+        map_home_lat: float | None = None,
+        map_home_lon: float | None = None,
+        map_home_zoom: float | None = None,
     ) -> None:
         """Apply field updates using an already-acquired connection.
 
@@ -607,6 +642,19 @@ class AppSettingsRepository:
         if packet_group_by_content is not None:
             updates.append("packet_group_by_content = ?")
             params.append(1 if packet_group_by_content else 0)
+
+        if map_home_mode is not None:
+            updates.append("map_home_mode = ?")
+            params.append(map_home_mode)
+        if map_home_lat is not None:
+            updates.append("map_home_lat = ?")
+            params.append(map_home_lat)
+        if map_home_lon is not None:
+            updates.append("map_home_lon = ?")
+            params.append(map_home_lon)
+        if map_home_zoom is not None:
+            updates.append("map_home_zoom = ?")
+            params.append(map_home_zoom)
 
         if blocked_keys is not None:
             updates.append("blocked_keys = ?")
@@ -803,6 +851,10 @@ class AppSettingsRepository:
         mesh_health_page_size: int | None = None,
         date_time_format: str | None = None,
         packet_group_by_content: bool | None = None,
+        map_home_mode: str | None = None,
+        map_home_lat: float | None = None,
+        map_home_lon: float | None = None,
+        map_home_zoom: float | None = None,
     ) -> AppSettings:
         """Update app settings. Only provided fields are updated."""
         async with db.tx() as conn:
@@ -859,6 +911,10 @@ class AppSettingsRepository:
                 mesh_health_page_size=mesh_health_page_size,
                 date_time_format=date_time_format,
                 packet_group_by_content=packet_group_by_content,
+                map_home_mode=map_home_mode,
+                map_home_lat=map_home_lat,
+                map_home_lon=map_home_lon,
+                map_home_zoom=map_home_zoom,
             )
             return await AppSettingsRepository._get_in_conn(conn)
 
