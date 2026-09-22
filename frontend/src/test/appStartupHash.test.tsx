@@ -128,6 +128,10 @@ vi.mock('../components/MeshTrendsView', () => ({
   MeshTrendsView: () => null,
 }));
 
+vi.mock('../components/MeshDiscoveryView', () => ({
+  MeshDiscoveryView: () => null,
+}));
+
 vi.mock('../components/AnalyzePacketView', () => ({
   AnalyzePacketView: () => null,
 }));
@@ -319,6 +323,19 @@ describe('App startup hash resolution', () => {
     await waitFor(() => {
       for (const node of screen.getAllByTestId('active-conversation')) {
         expect(node).toHaveTextContent('mesh-trends:mesh-trends:');
+      }
+    });
+  });
+
+  it('restores the Mesh Discovery view from the URL hash even when channels are unavailable', async () => {
+    setHash('#mesh-discovery');
+    mocks.api.getChannels.mockResolvedValue([]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      for (const node of screen.getAllByTestId('active-conversation')) {
+        expect(node).toHaveTextContent('mesh-discovery:mesh-discovery:');
       }
     });
   });

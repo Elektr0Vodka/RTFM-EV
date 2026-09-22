@@ -438,6 +438,7 @@ type ConversationType =
   | 'node'
   | 'mesh-health'
   | 'mesh-trends'
+  | 'mesh-discovery'
   | 'analyze'
   | 'packet-history';
 

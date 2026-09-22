@@ -11,7 +11,6 @@ import type {
   RadioConfig,
   RadioConfigUpdate,
   RadioDiscoveryResponse,
-  RadioDiscoveryTarget,
   RadioRegionDiscoveryResponse,
 } from '../types';
 import type { SettingsSection } from '../components/settings/settingsConstants';
@@ -139,8 +138,6 @@ function renderModal(overrides?: {
   onReconnect?: () => Promise<void>;
   onAdvertise?: (mode: RadioAdvertMode) => Promise<void>;
   meshDiscovery?: RadioDiscoveryResponse | null;
-  meshDiscoveryLoadingTarget?: RadioDiscoveryTarget | null;
-  onDiscoverMesh?: (target: RadioDiscoveryTarget) => Promise<void>;
   regionDiscovery?: RadioRegionDiscoveryResponse | null;
   contacts?: Contact[];
   trackedTelemetryRepeaters?: string[];
@@ -161,7 +158,6 @@ function renderModal(overrides?: {
   const onDisconnect = overrides?.onDisconnect ?? vi.fn(async () => {});
   const onReconnect = overrides?.onReconnect ?? vi.fn(async () => {});
   const onAdvertise = overrides?.onAdvertise ?? vi.fn(async (_mode: RadioAdvertMode) => {});
-  const onDiscoverMesh = overrides?.onDiscoverMesh ?? vi.fn(async () => {});
   const onDiscoverRegions = vi.fn(async () => {});
 
   const commonProps = {
@@ -179,8 +175,6 @@ function renderModal(overrides?: {
     onReconnect,
     onAdvertise,
     meshDiscovery: overrides?.meshDiscovery ?? null,
-    meshDiscoveryLoadingTarget: overrides?.meshDiscoveryLoadingTarget ?? null,
-    onDiscoverMesh,
     regionDiscovery: overrides?.regionDiscovery ?? null,
     regionDiscoveryLoading: false,
     onDiscoverRegions,
@@ -210,7 +204,6 @@ function renderModal(overrides?: {
     onDisconnect,
     onReconnect,
     onAdvertise,
-    onDiscoverMesh,
     onDiscoverRegions,
     view,
   };
@@ -362,41 +355,11 @@ describe('SettingsModal', () => {
     expect(screen.getByRole('button', { name: 'Reconnect' })).toBeInTheDocument();
   });
 
-  it('runs repeater mesh discovery from the radio tab', async () => {
-    const { onDiscoverMesh } = renderModal();
+  it('no longer shows the mesh discovery sweep in the radio tab', () => {
+    renderModal();
     openRadioSection();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Discover Repeaters' }));
-
-    await waitFor(() => {
-      expect(onDiscoverMesh).toHaveBeenCalledWith('repeaters');
-    });
-  });
-
-  it('renders mesh discovery results in the radio tab', () => {
-    renderModal({
-      meshDiscovery: {
-        target: 'all',
-        duration_seconds: 8,
-        results: [
-          {
-            public_key: '11'.repeat(32),
-            name: null,
-            node_type: 'repeater',
-            heard_count: 2,
-            local_snr: 7.5,
-            local_rssi: -101,
-            remote_snr: 4,
-          },
-        ],
-      },
-    });
-    openRadioSection();
-
-    expect(screen.getByText('Last sweep: 1 node')).toBeInTheDocument();
-    expect(screen.getByText('repeater')).toBeInTheDocument();
-    expect(screen.getByText('heard 2 times')).toBeInTheDocument();
-    expect(screen.getByText('8s listen window')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Discover Repeaters' })).not.toBeInTheDocument();
   });
 
   it('discovers regions using repeaters from the last mesh sweep', async () => {

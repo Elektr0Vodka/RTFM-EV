@@ -14,6 +14,8 @@ import type {
   Message,
   PathDiscoveryResponse,
   RadioConfig,
+  RadioDiscoveryResponse,
+  RadioDiscoveryTarget,
   RadioTraceHopRequest,
   RadioTraceResponse,
 } from '../types';
@@ -40,6 +42,9 @@ const MeshHealthView = lazy(() =>
 );
 const MeshTrendsView = lazy(() =>
   import('./MeshTrendsView').then((m) => ({ default: m.MeshTrendsView }))
+);
+const MeshDiscoveryView = lazy(() =>
+  import('./MeshDiscoveryView').then((m) => ({ default: m.MeshDiscoveryView }))
 );
 const AnalyzePacketView = lazy(() =>
   import('./AnalyzePacketView').then((m) => ({ default: m.AnalyzePacketView }))
@@ -137,6 +142,9 @@ interface ConversationPaneProps {
   mapHomeLat?: number | null;
   mapHomeLon?: number | null;
   mapHomeZoom?: number | null;
+  meshDiscovery?: RadioDiscoveryResponse | null;
+  meshDiscoveryLoadingTarget?: RadioDiscoveryTarget | null;
+  onDiscoverMesh?: (target: RadioDiscoveryTarget) => Promise<void>;
   onSaveAppSettings?: (update: import('../types').AppSettingsUpdate) => Promise<void> | void;
   /** Handlers the desktop full-page contact-info view needs beyond the ones
    *  ConversationPane already receives (contacts/config/favorite/blocked/analyzer). */
@@ -254,6 +262,9 @@ export function ConversationPane({
   mapHomeLat,
   mapHomeLon,
   mapHomeZoom,
+  meshDiscovery = null,
+  meshDiscoveryLoadingTarget = null,
+  onDiscoverMesh,
   onSaveAppSettings,
   contactInfoViewProps,
 }: ConversationPaneProps) {
@@ -353,6 +364,20 @@ export function ConversationPane({
     return (
       <Suspense fallback={<LoadingPane label={t('common_loading_mesh_trends')} />}>
         <MeshTrendsView contacts={contacts} />
+      </Suspense>
+    );
+  }
+
+  if (activeConversation.type === 'mesh-discovery') {
+    if (!onDiscoverMesh) return null;
+    return (
+      <Suspense fallback={<LoadingPane label={t('common_loading_mesh_discovery')} />}>
+        <MeshDiscoveryView
+          health={health}
+          meshDiscovery={meshDiscovery}
+          meshDiscoveryLoadingTarget={meshDiscoveryLoadingTarget}
+          onDiscoverMesh={onDiscoverMesh}
+        />
       </Suspense>
     );
   }

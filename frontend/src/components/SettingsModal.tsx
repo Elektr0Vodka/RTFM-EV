@@ -9,7 +9,6 @@ import type {
   RadioConfig,
   RadioConfigUpdate,
   RadioDiscoveryResponse,
-  RadioDiscoveryTarget,
   RadioRegionDiscoveryResponse,
 } from '../types';
 import type { LocalLabel } from '../utils/localLabel';
@@ -45,8 +44,6 @@ interface SettingsModalBaseProps {
   onReconnect: () => Promise<void>;
   onAdvertise: (mode: RadioAdvertMode) => Promise<void>;
   meshDiscovery: RadioDiscoveryResponse | null;
-  meshDiscoveryLoadingTarget: RadioDiscoveryTarget | null;
-  onDiscoverMesh: (target: RadioDiscoveryTarget) => Promise<void>;
   regionDiscovery: RadioRegionDiscoveryResponse | null;
   regionDiscoveryLoading: boolean;
   onDiscoverRegions: (publicKeys?: string[]) => Promise<void>;
@@ -90,8 +87,6 @@ export function SettingsModal(props: SettingsModalProps) {
     onReconnect,
     onAdvertise,
     meshDiscovery,
-    meshDiscoveryLoadingTarget,
-    onDiscoverMesh,
     regionDiscovery,
     regionDiscoveryLoading,
     onDiscoverRegions,
@@ -233,8 +228,6 @@ export function SettingsModal(props: SettingsModalProps) {
                 onReconnect={onReconnect}
                 onAdvertise={onAdvertise}
                 meshDiscovery={meshDiscovery}
-                meshDiscoveryLoadingTarget={meshDiscoveryLoadingTarget}
-                onDiscoverMesh={onDiscoverMesh}
                 regionDiscovery={regionDiscovery}
                 regionDiscoveryLoading={regionDiscoveryLoading}
                 onDiscoverRegions={onDiscoverRegions}
