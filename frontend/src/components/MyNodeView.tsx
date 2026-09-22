@@ -284,7 +284,7 @@ const INNER_H = CH - PAD_B;
 
 // ─── BarChart ──────────────────────────────────────────────────────────────
 
-function BarChart({
+export function BarChart({
   bins,
   valueKey,
   color = 'hsl(var(--primary))',
@@ -308,7 +308,11 @@ function BarChart({
   const gap = INNER_W / values.length;
   const yLabels = [0, Math.round(max / 2), max];
   const showIdx = [0, Math.floor(values.length / 2), values.length - 1];
-  const hovV = hov != null ? values[hov] : null;
+  // Guard the hovered bar: after a zoom/pan the sliced `bins` shrinks while
+  // `hov` (set on a prior hover) can still point past the new end, so read it
+  // defensively instead of `values[hov]` / `bins[hov]` directly (which crashed
+  // the page).
+  const hovV = hov != null && hov < values.length ? values[hov] : null;
   const hovX = hov != null ? PAD_L + hov * gap + gap / 2 : 0;
   let tipX = hovX;
   let tipY = INNER_H - (hovV != null ? Math.max(0, (hovV / max) * INNER_H) : 0) - 16;
@@ -1022,7 +1026,7 @@ function AirtimeLineChart({
 
 // ─── NoiseFloorLineChart ────────────────────────────────────────────────────
 
-function NoiseFloorLineChart({
+export function NoiseFloorLineChart({
   samples,
   windowSeconds,
   t,
@@ -1083,7 +1087,11 @@ function NoiseFloorLineChart({
   let tipX = 0,
     tipY = 0,
     tipVal: number | null = null;
-  if (hov !== null) {
+  // Guard the hovered sample: after a zoom/pan the sliced `samples` shrinks
+  // while `hov` (set on a prior hover) can still point past the new end, so
+  // leave the tooltip off unless the index is still in range (a stale
+  // `timestamps[hov]` fed `fmtTime` an invalid date, which crashed the page).
+  if (hov !== null && hov < values.length) {
     tipVal = values[hov];
     tipX = xPos(hov);
     tipY = yPos(tipVal) - 20;
@@ -1220,7 +1228,7 @@ function NoiseFloorLineChart({
 
 // ─── BatteryLineChart ───────────────────────────────────────────────────────
 
-function BatteryLineChart({
+export function BatteryLineChart({
   samples,
   windowSeconds,
   t,
@@ -1281,7 +1289,11 @@ function BatteryLineChart({
   let tipX = 0,
     tipY = 0,
     tipVal: number | null = null;
-  if (hov !== null) {
+  // Guard the hovered sample: after a zoom/pan the sliced `samples` shrinks
+  // while `hov` (set on a prior hover) can still point past the new end, so
+  // leave the tooltip off unless the index is still in range (a stale
+  // `timestamps[hov]` fed `fmtTime` an invalid date, which crashed the page).
+  if (hov !== null && hov < values.length) {
     tipVal = values[hov];
     tipX = xPos(hov);
     tipY = yPos(tipVal) - 20;
@@ -1351,10 +1363,10 @@ function BatteryLineChart({
       />
 
       {/* Hover dot */}
-      {hov !== null && (
+      {hov !== null && tipVal !== null && (
         <circle
           cx={xPos(hov).toFixed(1)}
-          cy={yPos(values[hov]).toFixed(1)}
+          cy={yPos(tipVal).toFixed(1)}
           r="3"
           fill={color}
           stroke="hsl(var(--popover))"
