@@ -1,5 +1,21 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
-import { Layers, Search, Building2, Rotate3d, Filter, Activity, Pin, X } from 'lucide-react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react';
+import {
+  Layers,
+  Search,
+  Building2,
+  Rotate3d,
+  Filter,
+  Activity,
+  Pin,
+  Settings,
+  X,
+} from 'lucide-react';
 import { useT } from '../../i18n';
 import {
   Sheet,
@@ -9,8 +25,10 @@ import {
   SheetDescription,
 } from '../../components/ui/sheet';
 import { useIsCompactMap, useIsMobile } from './breakpoints';
+import { isBool, usePersistedMapSetting } from '../usePersistedMapSetting';
 import { MapLegend } from './legend/MapLegend';
 import { NODE_ROLE_TYPES, DEFAULT_NODE_ROLE_COLORS } from '../layers/nodeRoleColors';
+import { ARC_FADE_PRESETS_MS, DEFAULT_ARC_FADE_MS } from '../packets/packetAnimMath';
 import {
   CONTACT_TYPE_CLIENT,
   CONTACT_TYPE_REPEATER,
@@ -55,6 +73,8 @@ export interface MapControlsProps {
   onNodeScale?: (v: number) => void;
   arcWidthScale?: number;
   onArcWidthScale?: (v: number) => void;
+  arcFadeMs?: number;
+  onArcFadeMs?: (ms: number) => void;
   linkWidthScale?: number;
   onLinkWidthScale?: (v: number) => void;
   neonNodes?: boolean;
@@ -83,6 +103,14 @@ const FAB_CLASS =
   'bg-card text-card-foreground shadow-lg transition-colors hover:border-foreground/40 ' +
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary';
 
+type PanelPos = { x: number; y: number };
+const DEFAULT_LEGEND_POS: PanelPos = { x: 64, y: 8 };
+const isPanelPos = (v: unknown): v is PanelPos =>
+  typeof v === 'object' &&
+  v !== null &&
+  Number.isFinite((v as PanelPos).x) &&
+  Number.isFinite((v as PanelPos).y);
+
 interface PanelDef {
   id: string;
   label: string;
@@ -97,19 +125,33 @@ function PinnedPanel({
   dragHint,
   closeLabel,
   initial,
+  onMoveEnd,
   onClose,
   children,
 }: {
   title: string;
   dragHint: string;
   closeLabel: string;
-  initial: { x: number; y: number };
+  initial: PanelPos;
+  onMoveEnd?: (pos: PanelPos) => void;
   onClose: () => void;
   children: ReactNode;
 }) {
   const cardRef = useRef<HTMLDivElement>(null);
   const grab = useRef<{ dx: number; dy: number } | null>(null);
   const [pos, setPos] = useState(initial);
+
+  // A remembered position may sit outside a smaller map; pull it back in.
+  useEffect(() => {
+    const card = cardRef.current;
+    const parent = card?.offsetParent as HTMLElement | null;
+    if (!card || !parent) return;
+    const maxX = Math.max(0, parent.clientWidth - card.offsetWidth);
+    const maxY = Math.max(0, parent.clientHeight - card.offsetHeight);
+    setPos((p) =>
+      p.x > maxX || p.y > maxY ? { x: Math.min(p.x, maxX), y: Math.min(p.y, maxY) } : p
+    );
+  }, []);
 
   const onPointerDown = (e: ReactPointerEvent) => {
     const card = cardRef.current;
@@ -134,6 +176,7 @@ function PinnedPanel({
     setPos({ x, y });
   };
   const onPointerUp = (e: ReactPointerEvent) => {
+    if (grab.current) onMoveEnd?.(pos);
     grab.current = null;
     (e.currentTarget as Element).releasePointerCapture?.(e.pointerId);
   };
@@ -176,7 +219,16 @@ export function MapControls(props: MapControlsProps) {
   // persistent sidebar, so the shift is gated on mobile, not the compact map.
   const isMobile = useIsMobile();
   const [openPanel, setOpenPanel] = useState<string | null>(null);
-  const [legendPinned, setLegendPinned] = useState(false);
+  const [legendPinned, setLegendPinned] = usePersistedMapSetting(
+    'remoteterm-map-legend-pinned',
+    false,
+    isBool
+  );
+  const [legendPos, setLegendPos] = usePersistedMapSetting<PanelPos>(
+    'remoteterm-map-legend-pos',
+    DEFAULT_LEGEND_POS,
+    isPanelPos
+  );
 
   const {
     fabs,
@@ -191,6 +243,8 @@ export function MapControls(props: MapControlsProps) {
     onNodeScale,
     arcWidthScale = 1,
     onArcWidthScale,
+    arcFadeMs = DEFAULT_ARC_FADE_MS,
+    onArcFadeMs,
     linkWidthScale = 1,
     onLinkWidthScale,
     neonNodes = false,
@@ -292,6 +346,25 @@ export function MapControls(props: MapControlsProps) {
                 value={arcWidthScale}
                 aria-label={t('map_arc_width_label')}
                 onChange={(e) => onArcWidthScale(Number(e.target.value))}
+              />
+            </label>
+          )}
+          {onArcFadeMs && (
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              <span>
+                {t('map_arc_fade_label')}:{' '}
+                {arcFadeMs < 60_000
+                  ? t('map_arc_fade_value_s', { seconds: Math.round(arcFadeMs / 1000) })
+                  : t('map_arc_fade_value_min', { minutes: Math.round(arcFadeMs / 60_000) })}
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={ARC_FADE_PRESETS_MS.length - 1}
+                step={1}
+                value={Math.max(0, (ARC_FADE_PRESETS_MS as readonly number[]).indexOf(arcFadeMs))}
+                aria-label={t('map_arc_fade_label')}
+                onChange={(e) => onArcFadeMs(ARC_FADE_PRESETS_MS[Number(e.target.value)])}
               />
             </label>
           )}
@@ -421,31 +494,33 @@ export function MapControls(props: MapControlsProps) {
             />
             {t('map_links_enable')}
           </label>
-          <div
-            role="radiogroup"
-            aria-label={t('map_links_mode_label')}
-            className="flex flex-col gap-1"
-          >
-            <span className="text-xs font-medium text-muted-foreground">
-              {t('map_links_mode_label')}
-            </span>
-            {(['liveness', 'advert'] as const).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                role="radio"
-                aria-checked={linkMode === mode}
-                className={
-                  'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm ' +
-                  (linkMode === mode ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50')
-                }
-                onClick={() => onLinkMode?.(mode)}
-              >
-                {mode === 'liveness' ? t('map_links_mode_liveness') : t('map_links_mode_advert')}
-              </button>
-            ))}
-          </div>
-          {linkMode === 'advert' && (
+          {linksOn && (
+            <div
+              role="radiogroup"
+              aria-label={t('map_links_mode_label')}
+              className="flex flex-col gap-1"
+            >
+              <span className="text-xs font-medium text-muted-foreground">
+                {t('map_links_mode_label')}
+              </span>
+              {(['liveness', 'advert'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  role="radio"
+                  aria-checked={linkMode === mode}
+                  className={
+                    'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm ' +
+                    (linkMode === mode ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50')
+                  }
+                  onClick={() => onLinkMode?.(mode)}
+                >
+                  {mode === 'liveness' ? t('map_links_mode_liveness') : t('map_links_mode_advert')}
+                </button>
+              ))}
+            </div>
+          )}
+          {linksOn && linkMode === 'advert' && (
             <div
               role="radiogroup"
               aria-label={t('map_links_confidence_label')}
@@ -505,7 +580,13 @@ export function MapControls(props: MapControlsProps) {
       id: 'display',
       label: t('map_group_display'),
       icon: <Layers size={20} aria-hidden />,
-      memberIds: ['layers', 'nodeSize', 'labelMode', 'legend'],
+      memberIds: ['layers', 'labelMode', 'legend'],
+    },
+    {
+      id: 'style',
+      label: t('map_group_style'),
+      icon: <Settings size={20} aria-hidden />,
+      memberIds: ['nodeSize'],
     },
     {
       id: 'filters',
@@ -667,7 +748,8 @@ export function MapControls(props: MapControlsProps) {
           title={t('map_legend')}
           dragHint={t('map_legend_drag_hint')}
           closeLabel={t('map_legend_unpin')}
-          initial={{ x: 64, y: 8 }}
+          initial={legendPos}
+          onMoveEnd={setLegendPos}
           onClose={() => setLegendPinned(false)}
         >
           {legendBody}

@@ -42,6 +42,17 @@ describe('isContactVisibleForFilters', () => {
     ).toBe(false);
   });
 
+  it('shows never-heard contacts in "all" mode even when the since window would exclude them', () => {
+    expect(
+      isContactVisibleForFilters({
+        ...base,
+        lastSeen: null,
+        mode: 'all',
+        isWithinSinceWindow: false,
+      })
+    ).toBe(true);
+  });
+
   it('always shows the focused contact, whatever the filter', () => {
     const modes: HeardFilterMode[] = ['all', 'hide', 'only'];
     for (const mode of modes) {

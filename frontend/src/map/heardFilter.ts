@@ -42,9 +42,10 @@ export interface ContactVisibilityInput {
  *
  * Rules:
  * - A focused contact is always shown, regardless of either filter.
- * - `only` mode bypasses the since window: never-heard contacts have no
- *   `last_seen` timestamp, so a relative window would otherwise hide all of
- *   them and make the mode look broken.
+ * - Never-heard contacts (no `last_seen`) bypass the since window whenever the
+ *   heard filter admits them (`all` and `only`): a time window cannot be
+ *   evaluated without a timestamp, and applying it anyway hid every
+ *   never-heard node, making `all` behave exactly like `hide`.
  * - Otherwise the since window applies as before.
  */
 export function isContactVisibleForFilters({
@@ -55,6 +56,6 @@ export function isContactVisibleForFilters({
 }: ContactVisibilityInput): boolean {
   if (isFocused) return true;
   if (!passesHeardFilter(lastSeen, mode)) return false;
-  if (mode === 'only') return true;
+  if (lastSeen == null) return true;
   return isWithinSinceWindow;
 }

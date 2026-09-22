@@ -90,12 +90,15 @@ export function mockMaplibreModule() {
       setDraggable: vi.fn().mockReturnThis(),
     };
   });
+  // MapSurface points MapLibre 6 at the Vite-bundled worker at module load.
+  const setWorkerUrl = vi.fn();
   return {
-    default: { Map: MapCtor, Popup, NavigationControl, Marker },
+    default: { Map: MapCtor, Popup, NavigationControl, Marker, setWorkerUrl },
     Map: MapCtor,
     Popup,
     NavigationControl,
     Marker,
+    setWorkerUrl,
     __stub: stub,
   };
 }

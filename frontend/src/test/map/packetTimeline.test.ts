@@ -169,6 +169,21 @@ describe('packetTimeline', () => {
     expect(old.pulses).toHaveLength(0);
   });
 
+  it('honours a custom arc fade-out time', () => {
+    const tl = makeTimeline();
+    tl.ingest([createPacket('dm-direct')]);
+    const heardMs = tl.range().maxMs;
+    const fadeMs = 60_000;
+    // Full for the first 1/15 (4s), fading after, gone at fadeMs.
+    expect(tl.stateAsOf(heardMs + 3_000, { fadeMs }).arcs[0].opacity).toBe(1);
+    const mid = tl.stateAsOf(heardMs + 30_000, { fadeMs }).arcs[0].opacity;
+    expect(mid).toBeLessThan(1);
+    expect(mid).toBeGreaterThan(0.15);
+    expect(tl.stateAsOf(heardMs + fadeMs + 1, { fadeMs }).arcs).toHaveLength(0);
+    // The same age is still full opacity under the default 15 min lifetime.
+    expect(tl.stateAsOf(heardMs + 30_000).arcs[0].opacity).toBe(1);
+  });
+
   it('dedupes repeated ingests of the same observation', () => {
     const tl = makeTimeline();
     tl.ingest([createPacket('dm-direct')]);

@@ -14,6 +14,7 @@ import {
   type PacketNetworkState,
 } from '../../networkGraph/packetNetworkGraph';
 import {
+  arcFreshMs,
   glowIntensity,
   hexToRgb,
   livenessOpacity,
@@ -21,7 +22,7 @@ import {
   pulseProgress,
   snrColor,
   GLOW_MS,
-  LINK_DIM_MS,
+  DEFAULT_ARC_FADE_MS,
 } from './packetAnimMath';
 
 export interface ArcDatum {
@@ -66,6 +67,8 @@ export interface TimelineDeps {
 export interface StateAsOfOptions {
   pulses?: boolean;
   glows?: boolean;
+  /** Arc lifetime in ms (full, fade to floor, then dropped). */
+  fadeMs?: number;
 }
 
 export interface PacketTimeline {
@@ -191,6 +194,8 @@ export function createPacketTimeline(deps: TimelineDeps): PacketTimeline {
     stateAsOf(currentMs: number, opts?: StateAsOfOptions): PacketRenderModel {
       const wantPulses = opts?.pulses ?? true;
       const wantGlows = opts?.glows ?? true;
+      const fadeMs = opts?.fadeMs ?? DEFAULT_ARC_FADE_MS;
+      const freshMs = arcFreshMs(fadeMs);
       const arcAcc = new Map<string, { heardMs: number; datum: ArcDatum }>();
       const pulses: PulseDatum[] = [];
       const glows: GlowDatum[] = [];
@@ -199,8 +204,8 @@ export function createPacketTimeline(deps: TimelineDeps): PacketTimeline {
         if (e.heardMs > currentMs) continue;
         const age = currentMs - e.heardMs;
 
-        if (age < LINK_DIM_MS) {
-          const opacity = livenessOpacity(age);
+        if (age < fadeMs) {
+          const opacity = livenessOpacity(age, freshMs, fadeMs);
           for (const s of e.segments) {
             const key = segKey(s.a, s.b);
             const prev = arcAcc.get(key);
