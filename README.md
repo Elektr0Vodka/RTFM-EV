@@ -1,4 +1,4 @@
-# RemoteTerm for MeshCore
+# RemoteTerm for MeshCore (RTFM-EV Fork)
 
 Backend server + browser interface for MeshCore mesh radio networks, providing a rich, web-based power-user management and messaging system through a companion radio.
 
