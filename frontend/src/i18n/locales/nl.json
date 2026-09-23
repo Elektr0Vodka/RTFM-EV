@@ -2721,6 +2721,8 @@
   "trace_key_prefix": "Sleutelprefix {hash}",
   "trace_key_prefix_combined": "{key} · sleutelprefix {hash}",
   "trace_local_radio_default": "Lokale radio",
+  "trace_map_aria_label": "Kaart met traceroute tussen nodes",
+  "trace_map_heading": "Kaart",
   "trace_meta_origin": "Oorsprong",
   "trace_meta_terminal": "Eindpunt",
   "trace_move_down_aria": "{name} omlaag verplaatsen",

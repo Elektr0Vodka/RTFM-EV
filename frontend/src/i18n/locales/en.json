@@ -2720,6 +2720,8 @@
   "trace_key_prefix": "Key prefix {hash}",
   "trace_key_prefix_combined": "{key} · key prefix {hash}",
   "trace_local_radio_default": "Local radio",
+  "trace_map_aria_label": "Map showing trace route between nodes",
+  "trace_map_heading": "Map",
   "trace_meta_origin": "Origin",
   "trace_meta_terminal": "Terminal",
   "trace_move_down_aria": "Move {name} down",

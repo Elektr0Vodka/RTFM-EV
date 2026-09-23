@@ -2721,6 +2721,8 @@
   "trace_key_prefix": "Schlüsselpräfix {hash}",
   "trace_key_prefix_combined": "{key} · Schlüsselpräfix {hash}",
   "trace_local_radio_default": "Lokales Funkgerät",
+  "trace_map_aria_label": "Karte mit Trace-Route zwischen Knoten",
+  "trace_map_heading": "Karte",
   "trace_meta_origin": "Ursprung",
   "trace_meta_terminal": "Ziel",
   "trace_move_down_aria": "{name} nach unten verschieben",
