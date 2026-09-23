@@ -156,6 +156,25 @@ class TestUpdateSettings:
         result = await update_settings(AppSettingsUpdate(date_time_format="nonsense"))
         assert result.date_time_format == "auto"
 
+    async def test_battery_chemistry_defaults_lipo(self, test_db):
+        result = await update_settings(AppSettingsUpdate())
+        assert result.battery_chemistry == "lipo"
+
+    @pytest.mark.asyncio
+    async def test_battery_chemistry_round_trip(self, test_db):
+        """The global default battery chemistry is forwarded and persisted."""
+        result = await update_settings(AppSettingsUpdate(battery_chemistry="lifepo4"))
+        assert result.battery_chemistry == "lifepo4"
+
+        fresh = await AppSettingsRepository.get()
+        assert fresh.battery_chemistry == "lifepo4"
+
+    @pytest.mark.asyncio
+    async def test_battery_chemistry_ignores_unknown_value(self, test_db):
+        """A stale/rogue client value is ignored, leaving the default."""
+        result = await update_settings(AppSettingsUpdate(battery_chemistry="nonsense"))
+        assert result.battery_chemistry == "lipo"
+
     async def test_packet_group_by_content_defaults_off(self, test_db):
         result = await update_settings(AppSettingsUpdate())
         assert result.packet_group_by_content is False

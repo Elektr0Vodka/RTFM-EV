@@ -1021,6 +1021,37 @@ class TestContactAnnotations:
         assert row["manual_lon"] == 5.0
 
     @pytest.mark.asyncio
+    async def test_set_battery_chemistry_override_and_clear(self, test_db, client):
+        """The per-node override is stored and null reverts to the global default."""
+        await _insert_contact(KEY_A)
+        resp = await client.post(
+            f"/api/contacts/{KEY_A}/annotations",
+            json={"battery_chemistry": "lifepo4"},
+        )
+        assert resp.status_code == 200
+        get = await client.get("/api/contacts")
+        row = next(c for c in get.json() if c["public_key"] == KEY_A)
+        assert row["battery_chemistry"] == "lifepo4"
+
+        clear = await client.post(
+            f"/api/contacts/{KEY_A}/annotations",
+            json={"battery_chemistry": None},
+        )
+        assert clear.status_code == 200
+        get = await client.get("/api/contacts")
+        row = next(c for c in get.json() if c["public_key"] == KEY_A)
+        assert row["battery_chemistry"] is None
+
+    @pytest.mark.asyncio
+    async def test_battery_chemistry_rejects_unknown_value(self, test_db, client):
+        await _insert_contact(KEY_A)
+        resp = await client.post(
+            f"/api/contacts/{KEY_A}/annotations",
+            json={"battery_chemistry": "alkaline"},
+        )
+        assert resp.status_code == 422
+
+    @pytest.mark.asyncio
     async def test_owner_key_must_reference_existing_contact(self, test_db, client):
         await _insert_contact(KEY_A)
         resp = await client.post(f"/api/contacts/{KEY_A}/annotations", json={"owner_key": KEY_C})

@@ -96,6 +96,7 @@ const baseSettings: AppSettings = {
   packet_history_sort: 'oldest',
   mesh_health_page_size: 50,
   date_time_format: 'auto',
+  battery_chemistry: 'lipo',
   packet_group_by_content: false,
   map_home_mode: 'auto',
   map_home_lat: null,

@@ -285,7 +285,7 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `DELETE /contacts/{public_key}`
 - `POST /contacts/{public_key}/mark-read`
 - `POST /contacts/{public_key}/command`
-- `POST /contacts/{public_key}/annotations` - set user annotations (`notes`, `owner_info`, `owner_key`, `manual_lat`, `manual_lon`); partial update, explicit `null` clears a field, `owner_key` must reference an existing contact (422 otherwise); broadcasts `contact`
+- `POST /contacts/{public_key}/annotations` - set user annotations (`notes`, `owner_info`, `owner_key`, `manual_lat`, `manual_lon`, `battery_chemistry`); partial update, explicit `null` clears a field (for `battery_chemistry`, reverting to the global default), `owner_key` must reference an existing contact (422 otherwise), `battery_chemistry` must be one of `lipo`/`lifepo4`/`lipo_hv`/`nmc` (422 otherwise); broadcasts `contact`
 - `POST /contacts/{public_key}/routing-override`
 - `GET /contacts/{public_key}/contact-uri` - the contact's `meshcore://` link via `export_contact(key)`: the radio returns the last raw advert it stored for that contact (404 when it has none, 502 if it returns another node's or an invalid advert). Nothing transmitted
 - `POST /contacts/{public_key}/telemetry-permissions` - body `{base, location, environment}` (all required); stores `telemetry_perms`, pushes the flag bits to the radio when the contact is loaded there (never adds it just for this), returns `applied_to_radio`; broadcasts `contact`
@@ -442,7 +442,7 @@ Client sends `"ping"` text; server replies `{"type":"pong"}`.
 ## Data Model Notes
 
 Main tables:
-- `contacts` (includes `first_seen` for contact age tracking and `direct_path_hash_mode` / `route_override_*` for DM routing; plus user-editable annotations `notes`, `owner_info`, `owner_key`, `manual_lat`, `manual_lon` - preserved through radio-sync upserts via `COALESCE`, never overwritten by adverts. `owner_key` references another contact; `manual_lat`/`manual_lon` are fallback coordinates used when the contact has no valid advertised location - by the frontend map/paths (`getEffectiveLocation`) and by the advert-links layer's `located_nodes()` query, which resolves the same advertised-wins/manual-fallback effective location so a manual-only node is still an edge endpoint)
+- `contacts` (includes `first_seen` for contact age tracking and `direct_path_hash_mode` / `route_override_*` for DM routing; plus user-editable annotations `notes`, `owner_info`, `owner_key`, `manual_lat`, `manual_lon` - preserved through radio-sync upserts via `COALESCE`, never overwritten by adverts. `owner_key` references another contact; `manual_lat`/`manual_lon` are fallback coordinates used when the contact has no valid advertised location - by the frontend map/paths (`getEffectiveLocation`) and by the advert-links layer's `located_nodes()` query, which resolves the same advertised-wins/manual-fallback effective location so a manual-only node is still an edge endpoint. `battery_chemistry`, migration `_108`, nullable, follows the `telemetry_perms` pattern: absent from the upsert's column list entirely, so radio-sync never touches it, only `set_annotations` does)
 - `channels`
   Includes optional `flood_scope_override` for channel-specific regional sends and optional `path_hash_mode_override` for per-channel path hop width.
 - `messages` (includes `sender_name`, `sender_key` for per-contact channel message attribution)
@@ -492,6 +492,7 @@ Repository writes should prefer typed models such as `ContactUpsert` over ad hoc
 - `packet_feed_sort`, `packet_history_sort` (`oldest`/`newest`), `packet_group_by_content` (shared "Group repeats by content" toggle for Raw Packet Feed + Packet History)
 - `mesh_health_page_size` (Mesh Health contacts table rows per page; `0` = all)
 - `date_time_format` (`auto` / `12h_mdy` / `24h_dmy`; migration `_103`)
+- `battery_chemistry` (`lipo` default / `lifepo4` / `lipo_hv` / `nmc`; global default for `mvToPercent` in `frontend/src/utils/batteryDisplay.ts`. A contact's own `battery_chemistry` column, migration `_108` and NULL = use this default, overrides it per node; see `ContactRepository._ANNOTATION_COLUMNS`)
 - `map_home_mode` (`auto` / `home` / `last`), `map_home_lat`, `map_home_lon`, `map_home_zoom` (map start view; migration `_104`)
 - `show_mention_ticker`, `mention_sound_enabled`, `mention_sound_choice`, `mention_sound_volume`, `mention_sound_custom`
 - `chat_parse_pubkeys`, `chat_parse_coordinates`, `chat_url_previews`, `chat_linkify_urls` (chat entity parsing)
