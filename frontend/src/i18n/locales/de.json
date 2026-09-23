@@ -457,6 +457,20 @@
   "toast_public_key_copied": "Öffentlicher Schlüssel kopiert!",
   "toast_reconnected": "Wiederverbunden",
   "toast_reconnection_failed": "Wiederverbindung fehlgeschlagen",
+  "toast_new_node_title": "Neuer Knoten: {name}",
+  "toast_new_node_body": "{type} - erstmals in diesem Mesh gehört",
+  "toast_new_node_batch_title": {
+    "one": "{count} neuer Knoten",
+    "other": "{count} neue Knoten"
+  },
+  "toast_new_node_batch_body": "Erstmals in diesem Mesh gehört",
+  "toast_new_node_notifications_unsupported_title": "Benachrichtigungen nicht verfügbar",
+  "toast_new_node_notifications_unsupported_desc": "Dieser Browser unterstützt keine Desktop-Benachrichtigungen.",
+  "toast_new_node_notifications_denied_title": "Benachrichtigungen blockiert",
+  "toast_new_node_notifications_denied_desc": "Desktop-Benachrichtigungen werden von deinem Browser blockiert. Erlaube Benachrichtigungen in den Browsereinstellungen und versuche es erneut.",
+  "toast_new_node_notifications_enabled_title": "Benachrichtigungen für neue Knoten aktiviert",
+  "toast_new_node_notifications_not_enabled_title": "Benachrichtigungen nicht aktiviert",
+  "toast_new_node_notifications_dismissed_desc": "Die Berechtigungsanfrage des Browsers wurde verworfen.",
   "a11y_acknowledged_echoes": {
     "one": "Bestätigt, {count} Echo - Pfade anzeigen",
     "other": "Bestätigt, {count} Echos - Pfade anzeigen"
@@ -543,6 +557,12 @@
   "settings_mention_sound_custom_none": "Kein eigener Ton hochgeladen",
   "settings_mention_sound_upload_error": "Hochladen des Tons fehlgeschlagen",
   "settings_mention_sound_too_large": "Tondatei darf höchstens 256 KB groß sein",
+  "settings_new_node_notifications_group_title": "Benachrichtigungen für neue Knoten",
+  "settings_new_node_notifications_enable_label": "Benachrichtigen, wenn ein neuer Knoten gehört wird",
+  "settings_new_node_notifications_enable_desc": "Zeigt eine Browser-Benachrichtigung, sobald diese App einen zuvor nie gesehenen Knoten hört. Erfordert ein geöffnetes Tab und ist auf Mobilgeräten nicht zuverlässig.",
+  "settings_new_node_notifications_unsupported_desc": "Dieser Browser unterstützt keine Desktop-Benachrichtigungen.",
+  "settings_new_node_notifications_denied_desc": "Desktop-Benachrichtigungen werden von deinem Browser blockiert. Erlaube Benachrichtigungen in den Browsereinstellungen und versuche es erneut.",
+  "settings_new_node_notifications_types_label": "Für diese Knotentypen benachrichtigen",
   "conversation_sound_mute": "Erwähnungston für diese Unterhaltung stummschalten",
   "conversation_sound_unmute": "Erwähnungston für diese Unterhaltung aktivieren",
   "settings_chat_group_title": "Chat-Erkennung",

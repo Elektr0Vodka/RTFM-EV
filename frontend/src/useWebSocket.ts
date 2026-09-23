@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import type { Channel, HealthStatus, Contact, Message, MessagePath, RawPacket } from './types';
-import { parseWsEvent } from './wsEvents';
+import { parseWsEvent, type NewNodePayload } from './wsEvents';
 
 interface ErrorEvent {
   message: string;
@@ -27,6 +27,7 @@ export interface UseWebSocketOptions {
     paths?: MessagePath[],
     packetId?: number | null
   ) => void;
+  onNewNode?: (payload: NewNodePayload) => void;
   onError?: (error: ErrorEvent) => void;
   onSuccess?: (success: SuccessEvent) => void;
   onReconnect?: () => void;
@@ -145,6 +146,9 @@ export function useWebSocket(options: UseWebSocketOptions) {
             );
             break;
           }
+          case 'new_node':
+            handlers.onNewNode?.(msg.data as NewNodePayload);
+            break;
           case 'error':
             handlers.onError?.(msg.data as ErrorEvent);
             break;

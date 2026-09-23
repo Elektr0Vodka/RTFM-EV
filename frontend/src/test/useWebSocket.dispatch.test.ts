@@ -166,6 +166,24 @@ describe('useWebSocket dispatch', () => {
     expect(onMessageAcked).toHaveBeenCalledWith(7, 2, undefined, 99);
   });
 
+  it('routes new_node event to onNewNode', () => {
+    const onNewNode = vi.fn();
+    renderHook(() => useWebSocket({ onNewNode }));
+
+    const newNodeData = {
+      batched: false,
+      count: 1,
+      public_key: 'aa'.repeat(32),
+      name: 'Alice',
+      type: 2,
+      types: { '2': 1 },
+    };
+    fireMessage({ type: 'new_node', data: newNodeData });
+
+    expect(onNewNode).toHaveBeenCalledOnce();
+    expect(onNewNode).toHaveBeenCalledWith(newNodeData);
+  });
+
   it('routes error event to onError', () => {
     const onError = vi.fn();
     renderHook(() => useWebSocket({ onError }));

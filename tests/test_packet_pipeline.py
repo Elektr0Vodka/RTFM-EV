@@ -280,6 +280,60 @@ class TestAdvertisementPipeline:
         assert advert_paths[0].path == ""
 
     @pytest.mark.asyncio
+    async def test_advertisement_notifies_new_node_for_first_ever_advert(
+        self, test_db, captured_broadcasts
+    ):
+        """A public key never stored before queues a new-node notification (plan 28 1.5)."""
+        from app.packet_processor import process_raw_packet
+
+        fixture = FIXTURES["advertisement_with_gps"]
+        packet_bytes = bytes.fromhex(fixture["raw_packet_hex"])
+        expected = fixture["expected_ws_event"]["data"]
+
+        broadcasts, mock_broadcast = captured_broadcasts
+
+        with (
+            patch("app.packet_processor.broadcast_event", mock_broadcast),
+            patch("app.packet_processor.notify_new_node") as mock_notify,
+        ):
+            await process_raw_packet(packet_bytes, timestamp=1700000000)
+
+        mock_notify.assert_called_once()
+        assert mock_notify.call_args.kwargs["public_key"] == expected["public_key"]
+        assert mock_notify.call_args.kwargs["contact_type"] == expected["type"]
+
+    @pytest.mark.asyncio
+    async def test_advertisement_does_not_notify_for_already_known_key(
+        self, test_db, captured_broadcasts
+    ):
+        """A repeat advert for an already-known contact is not a new node."""
+        from app.packet_processor import process_raw_packet
+
+        fixture = FIXTURES["advertisement_chat_node"]
+        packet_bytes = bytes.fromhex(fixture["raw_packet_hex"])
+        expected = fixture["expected_ws_event"]["data"]
+
+        await ContactRepository.upsert(
+            {
+                "public_key": expected["public_key"],
+                "name": "Existing",
+                "type": 0,
+                "lat": None,
+                "lon": None,
+            }
+        )
+
+        broadcasts, mock_broadcast = captured_broadcasts
+
+        with (
+            patch("app.packet_processor.broadcast_event", mock_broadcast),
+            patch("app.packet_processor.notify_new_node") as mock_notify,
+        ):
+            await process_raw_packet(packet_bytes, timestamp=1700000000)
+
+        mock_notify.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_advertisement_triggers_historical_decrypt_for_new_contact(
         self, test_db, captured_broadcasts
     ):

@@ -62,6 +62,12 @@ interface SettingsModalBaseProps {
   onToggleTrackedTelemetry?: (publicKey: string) => Promise<void>;
   trackedTelemetryContacts?: string[];
   onToggleTrackedTelemetryContact?: (publicKey: string) => Promise<void>;
+  newNodeNotificationsSupported?: boolean;
+  newNodeNotificationsPermission?: NotificationPermission | 'unsupported';
+  newNodeNotificationsEnabled?: boolean;
+  newNodeNotificationTypes?: number[];
+  onSetNewNodeNotificationsEnabled?: (enabled: boolean) => Promise<void>;
+  onSetNewNodeNotificationType?: (type: number, checked: boolean) => void;
 }
 
 export type SettingsModalProps = SettingsModalBaseProps &
@@ -105,6 +111,12 @@ export function SettingsModal(props: SettingsModalProps) {
     onToggleTrackedTelemetry,
     trackedTelemetryContacts,
     onToggleTrackedTelemetryContact,
+    newNodeNotificationsSupported,
+    newNodeNotificationsPermission,
+    newNodeNotificationsEnabled,
+    newNodeNotificationTypes,
+    onSetNewNodeNotificationsEnabled,
+    onSetNewNodeNotificationType,
   } = props;
   const externalSidebarNav = props.externalSidebarNav === true;
   const desktopSection = props.externalSidebarNav ? props.desktopSection : undefined;
@@ -255,6 +267,12 @@ export function SettingsModal(props: SettingsModalProps) {
               className={sectionContentClass}
               appSettings={appSettings}
               onSaveAppSettings={onSaveAppSettings}
+              newNodeNotificationsSupported={newNodeNotificationsSupported}
+              newNodeNotificationsPermission={newNodeNotificationsPermission}
+              newNodeNotificationsEnabled={newNodeNotificationsEnabled}
+              newNodeNotificationTypes={newNodeNotificationTypes}
+              onSetNewNodeNotificationsEnabled={onSetNewNodeNotificationsEnabled}
+              onSetNewNodeNotificationType={onSetNewNodeNotificationType}
             />
           )}
         </section>

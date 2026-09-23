@@ -7,6 +7,13 @@ import { MENTION_SOUND_PRESET_IDS, mentionSoundUrl } from '../../lib/mentionSoun
 import { useT } from '../../i18n';
 import { usePush } from '../../contexts/PushSubscriptionContext';
 import type { AppSettings, AppSettingsUpdate, Channel, Contact } from '../../types';
+import {
+  CONTACT_TYPE_CLIENT,
+  CONTACT_TYPE_REPEATER,
+  CONTACT_TYPE_ROOM,
+  CONTACT_TYPE_SENSOR,
+} from '../../types';
+import { contactTypeLabel } from '../ContactInfoBody';
 import { getContactDisplayName } from '../../utils/pubkey';
 import { formatDateTime } from '../../utils/dateTimeFormat';
 import { Button } from '../ui/button';
@@ -254,6 +261,12 @@ export function SettingsLocalSection({
   className,
   appSettings,
   onSaveAppSettings,
+  newNodeNotificationsSupported,
+  newNodeNotificationsPermission,
+  newNodeNotificationsEnabled,
+  newNodeNotificationTypes,
+  onSetNewNodeNotificationsEnabled,
+  onSetNewNodeNotificationType,
 }: {
   onLocalLabelChange?: (label: LocalLabel) => void;
   contacts?: Contact[];
@@ -261,6 +274,12 @@ export function SettingsLocalSection({
   className?: string;
   appSettings?: AppSettings | null;
   onSaveAppSettings?: (update: AppSettingsUpdate) => void;
+  newNodeNotificationsSupported?: boolean;
+  newNodeNotificationsPermission?: NotificationPermission | 'unsupported';
+  newNodeNotificationsEnabled?: boolean;
+  newNodeNotificationTypes?: number[];
+  onSetNewNodeNotificationsEnabled?: (enabled: boolean) => Promise<void>;
+  onSetNewNodeNotificationType?: (type: number, checked: boolean) => void;
 }) {
   const t = useT();
   const { distanceUnit, setDistanceUnit } = useDistanceUnit();
@@ -774,6 +793,62 @@ export function SettingsLocalSection({
               </div>
             </div>
           </div>
+
+          <div className="pt-1 text-[0.6875rem] font-medium uppercase tracking-wider text-muted-foreground">
+            {t('settings_new_node_notifications_group_title')}
+          </div>
+
+          <div className="flex items-start gap-3 rounded-md border border-border/60 p-3">
+            <Checkbox
+              id="new-node-notifications-enabled"
+              checked={newNodeNotificationsEnabled ?? false}
+              onCheckedChange={(checked) =>
+                void onSetNewNodeNotificationsEnabled?.(checked === true)
+              }
+              className="mt-0.5"
+            />
+            <div className="space-y-1">
+              <Label htmlFor="new-node-notifications-enabled">
+                {t('settings_new_node_notifications_enable_label')}
+              </Label>
+              <p className="text-[0.8125rem] text-muted-foreground">
+                {newNodeNotificationsSupported === false
+                  ? t('settings_new_node_notifications_unsupported_desc')
+                  : newNodeNotificationsPermission === 'denied'
+                    ? t('settings_new_node_notifications_denied_desc')
+                    : t('settings_new_node_notifications_enable_desc')}
+              </p>
+            </div>
+          </div>
+
+          {newNodeNotificationsEnabled ? (
+            <div className="space-y-2 rounded-md border border-border/60 p-3">
+              <span className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
+                {t('settings_new_node_notifications_types_label')}
+              </span>
+              <div className="flex flex-wrap gap-x-4 gap-y-2">
+                {[
+                  CONTACT_TYPE_CLIENT,
+                  CONTACT_TYPE_REPEATER,
+                  CONTACT_TYPE_ROOM,
+                  CONTACT_TYPE_SENSOR,
+                ].map((type) => (
+                  <div key={type} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`new-node-notifications-type-${type}`}
+                      checked={newNodeNotificationTypes?.includes(type) ?? false}
+                      onCheckedChange={(checked) =>
+                        onSetNewNodeNotificationType?.(type, checked === true)
+                      }
+                    />
+                    <Label htmlFor={`new-node-notifications-type-${type}`} className="font-normal">
+                      {contactTypeLabel(type, t)}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <div className="pt-1 text-[0.6875rem] font-medium uppercase tracking-wider text-muted-foreground">
             {t('settings_chat_group_title')}

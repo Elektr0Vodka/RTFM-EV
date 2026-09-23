@@ -134,6 +134,13 @@ async def lifespan(app: FastAPI):
     await ensure_default_channels()
     await start_radio_stats_sampling()
 
+    # Arm the new-node notification startup warm-up before the radio connects
+    # and starts syncing/hearing adverts, so an empty database suppresses the
+    # initial catch-up burst instead of notifying for every mesh node heard.
+    from app.services.new_node_notify import arm_startup_warmup
+
+    await arm_startup_warmup()
+
     # External-map node overlay sync loop (radio-independent; guarded by the
     # external_map_enabled / interval settings each tick).
     start_external_map_sync()

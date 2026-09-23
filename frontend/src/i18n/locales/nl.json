@@ -457,6 +457,20 @@
   "toast_public_key_copied": "Publieke sleutel gekopieerd!",
   "toast_reconnected": "Opnieuw verbonden",
   "toast_reconnection_failed": "Opnieuw verbinden mislukt",
+  "toast_new_node_title": "Nieuwe node: {name}",
+  "toast_new_node_body": "{type} - voor het eerst gehoord op dit mesh",
+  "toast_new_node_batch_title": {
+    "one": "{count} nieuwe node",
+    "other": "{count} nieuwe nodes"
+  },
+  "toast_new_node_batch_body": "Voor het eerst gehoord op dit mesh",
+  "toast_new_node_notifications_unsupported_title": "Meldingen niet beschikbaar",
+  "toast_new_node_notifications_unsupported_desc": "Deze browser ondersteunt geen bureaubladmeldingen.",
+  "toast_new_node_notifications_denied_title": "Meldingen geblokkeerd",
+  "toast_new_node_notifications_denied_desc": "Bureaubladmeldingen zijn geblokkeerd door je browser. Sta meldingen toe in de browserinstellingen en probeer het opnieuw.",
+  "toast_new_node_notifications_enabled_title": "Meldingen voor nieuwe nodes ingeschakeld",
+  "toast_new_node_notifications_not_enabled_title": "Meldingen niet ingeschakeld",
+  "toast_new_node_notifications_dismissed_desc": "Het browsertoestemmingsverzoek is genegeerd.",
   "a11y_acknowledged_echoes": {
     "one": "Bevestigd, {count} echo - paden bekijken",
     "other": "Bevestigd, {count} echo's - paden bekijken"
@@ -543,6 +557,12 @@
   "settings_mention_sound_custom_none": "Geen eigen geluid geüpload",
   "settings_mention_sound_upload_error": "Uploaden van geluid mislukt",
   "settings_mention_sound_too_large": "Geluidsbestand mag maximaal 256 KB zijn",
+  "settings_new_node_notifications_group_title": "Meldingen voor nieuwe nodes",
+  "settings_new_node_notifications_enable_label": "Melden wanneer een nieuwe node wordt gehoord",
+  "settings_new_node_notifications_enable_desc": "Toont een browsermelding de eerste keer dat deze app een node hoort die nog nooit eerder is gezien. Vereist dat het tabblad open blijft en is niet betrouwbaar op mobiel.",
+  "settings_new_node_notifications_unsupported_desc": "Deze browser ondersteunt geen bureaubladmeldingen.",
+  "settings_new_node_notifications_denied_desc": "Bureaubladmeldingen zijn geblokkeerd door je browser. Sta meldingen toe in de browserinstellingen en probeer het opnieuw.",
+  "settings_new_node_notifications_types_label": "Melden voor deze nodetypes",
   "conversation_sound_mute": "Vermeldingsgeluid voor dit gesprek dempen",
   "conversation_sound_unmute": "Vermeldingsgeluid voor dit gesprek inschakelen",
   "settings_chat_group_title": "Chatverwerking",

@@ -43,7 +43,8 @@ app/
 │   ├── radio_lifecycle.py       # Post-connect setup and reconnect/setup helpers
 │   ├── radio_commands.py        # Radio config/private-key command workflows
 │   ├── radio_stats.py           # In-memory local radio stats sampling and noise-floor history
-│   └── radio_runtime.py         # Router/dependency seam over the global RadioManager
+│   ├── radio_runtime.py         # Router/dependency seam over the global RadioManager
+│   └── new_node_notify.py       # New-node WS notification batching/warm-up (plan 28 item 1.5)
 ├── radio.py             # RadioManager transport/session state + lock management
 ├── radio_sync.py        # Polling, sync, periodic advertisement loop
 ├── decoder.py           # Packet parsing/decryption
@@ -226,6 +227,51 @@ Both traffic buckets come from one 24h raw-packet scan (`_packet_shape_24h`) sha
 - Controlled by `app_settings.advert_interval` (seconds).
 - `0` means disabled.
 - Last send time tracked in `app_settings.last_advert_time`.
+
+### New-node notifications
+
+`app/services/new_node_notify.py` decides whether and when to broadcast the WS
+`new_node` event for a public key never stored in `contacts` before (plan 28
+item 1.5). It does not touch contact storage; it is a pure notification-timing
+layer called from two independent "this contact is brand new" call sites,
+each of which checks `existing is None` against a fresh
+`ContactRepository.get_by_key` read immediately before creating the row:
+
+- `packet_processor._process_advertisement` - a genuine RF advert for a key
+  never seen before.
+- `event_handlers.on_new_contact` (MeshCore `EventType.NEW_CONTACT`) - the
+  radio's own auto-add from hearing an advert directly. This is distinct from
+  `sync_contacts_from_radio()`'s bulk startup pull, which upserts contacts
+  directly and never raises this event, so a fresh install's initial contact
+  sync does not trigger notifications on its own.
+
+A contact type with no user-facing notification checkbox (`0`/unknown) never
+queues. Notifiable types are `1`/`2`/`3`/`4` (Client/Repeater/Room/Sensor),
+matching `discovery_blocked_types`' codes.
+
+Rate limiting:
+
+- **Busy mesh batching.** Each queued node resets a quiet-period timer
+  (`BATCH_QUIET_SECONDS`, 3s); the batch flushes that long after the last new
+  node, or `BATCH_MAX_WAIT_SECONDS` (15s) after the first one, whichever comes
+  first. A batch of exactly one node broadcasts full contact detail
+  (`batched: false`, `public_key`/`name`/`type` set); more than one broadcasts
+  a count + per-type breakdown only (`batched: true`, those three fields
+  null, `types: {"2": 2, "4": 1}` etc.).
+- **Startup warm-up.** `arm_startup_warmup()` (called once from `main.py`'s
+  lifespan, after the DB connects and before the radio connects) checks
+  whether `contacts` was empty; if so, notifications are suppressed for
+  `STARTUP_WARMUP_SECONDS` (1 hour - deliberately generous, since existing
+  mesh nodes' advert intervals are commonly minutes to hours apart) so the
+  initial catch-up burst on a fresh install is silent. `suppress_for(seconds)`
+  is exposed for a future bulk-import flow that runs without a process
+  restart; no such endpoint exists today.
+
+The frontend applies its own per-browser filter on top of this (master
+enable + per-type checkboxes, both local-only/off by default, same model as
+the existing per-conversation browser-notification toggle) - the backend
+always broadcasts a truthful `new_node` event regardless of any browser's
+preference, the same way `message` broadcasts do.
 
 ### Fanout bus
 
@@ -433,6 +479,7 @@ chosen node), and a Prefix Collisions tab badge.
 - `contact_deleted` - contact removed from database (payload: `{ public_key }`)
 - `channel` - single channel upsert/update (payload: full `Channel`)
 - `channel_deleted` - channel removed from database (payload: `{ key }`)
+- `new_node` - a public key never stored before (first advert ever, or the radio's own NEW_CONTACT auto-add); batched into a summary on a busy mesh. See "New-node notifications" below
 - `error` - toast notification (reconnect failure, missing private key, stuck radio startup, etc.)
 - `success` - toast notification (historical decrypt complete, etc.)
 

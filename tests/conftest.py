@@ -47,6 +47,22 @@ def _reset_radio_stats_buffers():
     radio_stats._latest_stats.clear()
 
 
+@pytest.fixture(autouse=True)
+def _reset_new_node_notify_state():
+    """Reset new-node notification batching/warm-up state between tests.
+
+    ``app.services.new_node_notify`` holds module-level batch/warm-up state
+    (pending nodes, the debounce task, the warm-up deadline). Without a
+    reset, a pending batch or an armed warm-up from one test would bleed
+    into the next.
+    """
+    from app.services import new_node_notify
+
+    new_node_notify.reset_state()
+    yield
+    new_node_notify.reset_state()
+
+
 @pytest.fixture
 async def test_db():
     """Create an in-memory test database with schema + migrations."""

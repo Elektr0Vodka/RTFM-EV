@@ -15,6 +15,7 @@ import {
   useConversationNavigation,
   useRealtimeAppState,
   useBrowserNotifications,
+  useNewNodeNotifications,
   useMentionSound,
   useFaviconBadge,
   useUnreadTitle,
@@ -105,6 +106,15 @@ export function App() {
     toggleConversationNotifications,
     notifyIncomingMessage,
   } = useBrowserNotifications();
+  const {
+    newNodeNotificationsSupported,
+    newNodeNotificationsPermission,
+    newNodeNotificationsEnabled,
+    newNodeNotificationTypes,
+    setNewNodeNotificationsEnabled,
+    setNewNodeNotificationType,
+    handleNewNodeEvent,
+  } = useNewNodeNotifications();
   const pushSubscription = usePush();
   const {
     showNewMessage,
@@ -497,6 +507,7 @@ export function App() {
     removeConversationMessages,
     receiveMessageAck,
     notifyIncomingMessage,
+    notifyNewNode: handleNewNodeEvent,
     onChannelMention: handleChannelMention,
     notifyMentionSound,
   });
@@ -883,6 +894,12 @@ export function App() {
     onToggleTrackedTelemetry: handleToggleTrackedTelemetry,
     trackedTelemetryContacts: appSettings?.tracked_telemetry_contacts ?? [],
     onToggleTrackedTelemetryContact: handleToggleTrackedTelemetryContact,
+    newNodeNotificationsSupported,
+    newNodeNotificationsPermission,
+    newNodeNotificationsEnabled,
+    newNodeNotificationTypes,
+    onSetNewNodeNotificationsEnabled: setNewNodeNotificationsEnabled,
+    onSetNewNodeNotificationType: setNewNodeNotificationType,
   };
   const crackerProps = {
     channels,

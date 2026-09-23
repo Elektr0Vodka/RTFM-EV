@@ -1286,3 +1286,80 @@ class TestOnNewContact:
             assert contact is not None
             assert contact.name == "AllowedRepeater"
             mock_broadcast.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_notifies_new_node_for_never_before_seen_key(self, test_db):
+        """A public key never stored before queues a new-node notification (plan 28 1.5)."""
+        from app.event_handlers import on_new_contact
+
+        with (
+            patch("app.event_handlers.broadcast_event"),
+            patch("app.event_handlers.notify_new_node") as mock_notify,
+            patch("app.event_handlers.time") as mock_time,
+        ):
+            mock_time.time.return_value = 1700000000
+
+            class MockEvent:
+                payload = {
+                    "public_key": "11" * 32,
+                    "adv_name": "FreshNode",
+                    "type": 2,
+                    "flags": 0,
+                }
+
+            await on_new_contact(MockEvent())
+
+        mock_notify.assert_called_once_with(public_key="11" * 32, name="FreshNode", contact_type=2)
+
+    @pytest.mark.asyncio
+    async def test_does_not_notify_for_already_known_key(self, test_db):
+        """A public key already in the database is not treated as a new node."""
+        from app.event_handlers import on_new_contact
+
+        await ContactRepository.upsert({"public_key": "22" * 32, "name": "AlreadyKnown", "type": 2})
+
+        with (
+            patch("app.event_handlers.broadcast_event"),
+            patch("app.event_handlers.notify_new_node") as mock_notify,
+            patch("app.event_handlers.time") as mock_time,
+        ):
+            mock_time.time.return_value = 1700000000
+
+            class MockEvent:
+                payload = {
+                    "public_key": "22" * 32,
+                    "adv_name": "AlreadyKnown",
+                    "type": 2,
+                    "flags": 0,
+                }
+
+            await on_new_contact(MockEvent())
+
+        mock_notify.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_does_not_notify_when_blocked_by_discovery_type(self, test_db):
+        """A new contact skipped via discovery_blocked_types never queues a notification."""
+        from app.event_handlers import on_new_contact
+        from app.repository import AppSettingsRepository
+
+        await AppSettingsRepository.update(discovery_blocked_types=[1])
+
+        with (
+            patch("app.event_handlers.broadcast_event"),
+            patch("app.event_handlers.notify_new_node") as mock_notify,
+            patch("app.event_handlers.time") as mock_time,
+        ):
+            mock_time.time.return_value = 1700000000
+
+            class MockEvent:
+                payload = {
+                    "public_key": "33" * 32,
+                    "adv_name": "BlockedClient",
+                    "type": 1,
+                    "flags": 0,
+                }
+
+            await on_new_contact(MockEvent())
+
+        mock_notify.assert_not_called()
