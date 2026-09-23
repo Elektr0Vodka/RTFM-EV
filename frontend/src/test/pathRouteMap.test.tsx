@@ -142,6 +142,38 @@ describe('PathRouteMap', () => {
     expect(lastArg.features[0].properties.color).not.toBe(lastArg.features[1].properties.color);
   });
 
+  // The single-route line colour follows the basemap's tone, not the app theme:
+  // a near-white line vanishes on a light/coloured basemap in the dark UI.
+  function lastSingleLineColor(): string {
+    const calls = stub.getSource('pr-line')!.setData.mock.calls;
+    const lastArg = calls[calls.length - 1][0] as {
+      features: Array<{ properties: { color: string } }>;
+    };
+    return lastArg.features[0].properties.color;
+  }
+
+  it('draws a dark single-route line on a light basemap, even in the dark theme', () => {
+    // jsdom has no --background, so isDarkTheme() reports the dark theme here.
+    render(
+      <I18nProvider>
+        <PathRouteMap resolved={resolved} senderInfo={senderInfo} />
+      </I18nProvider>
+    );
+    stub.fire('load');
+    expect(lastSingleLineColor()).toBe('#1e293b');
+  });
+
+  it('draws a light single-route line on a dark basemap', () => {
+    localStorage.setItem('remoteterm-map-layer', 'darkgray');
+    render(
+      <I18nProvider>
+        <PathRouteMap resolved={resolved} senderInfo={senderInfo} />
+      </I18nProvider>
+    );
+    stub.fire('load');
+    expect(lastSingleLineColor()).toBe('#e2e8f0');
+  });
+
   it('shows the no-GPS fallback when nothing is located', () => {
     const noGps: ResolvedPath = {
       sender: { name: 'S', prefix: 'CD', lat: null, lon: null },

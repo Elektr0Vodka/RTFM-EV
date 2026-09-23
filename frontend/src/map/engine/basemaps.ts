@@ -14,7 +14,8 @@ export interface BasemapEntry {
   attribution: string;
   recolorId?: string;
   recolor?: (style: StyleSpecification) => StyleSpecification;
-  /** dark|light hint used to pick a default per theme (not auto-applied). */
+  /** dark|light hint: picks the tone-matched raster fallback and lets overlays
+   *  (e.g. the path route line) choose a contrasting colour. */
   tone?: 'dark' | 'light';
 }
 

@@ -14,6 +14,7 @@ export interface MiniMapProps {
   fabs?: FabConfig;
   onReady?: (map: MlMap) => void;
   onBasemapReapply?: () => void;
+  onBasemapTone?: (tone: 'light' | 'dark') => void;
   className?: string;
   ariaLabel?: string;
   children?: ReactNode;
@@ -30,6 +31,7 @@ export function MiniMap({
   fabs = { layers: true },
   onReady,
   onBasemapReapply,
+  onBasemapTone,
   className,
   ariaLabel,
   children,
@@ -71,6 +73,7 @@ export function MiniMap({
         initialZoom={zoom}
         onReady={handleReady}
         onBasemapReapply={onBasemapReapply}
+        onBasemapTone={onBasemapTone}
       >
         {children}
       </MapSurface>

@@ -11,6 +11,18 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-23 (Path route map line contrast, fix/path-route-map-line-contrast)
+
+### Map (frontend)
+- **Path route line follows the basemap, not the app theme.** The single-route
+  line in the Path Route Map was near-white whenever the app theme was dark,
+  so it was hard to see on light or coloured basemaps (Liberty, Positron,
+  OSM, topo). It now uses the selected basemap's tone: dark line on light
+  basemaps, the existing light line on dark basemaps (Nova, OFM Dark, Fiord,
+  dark gray, satellite). It updates live when the basemap is switched from
+  the Layers FAB. `MapSurface` / `MiniMap` gain an `onBasemapTone` callback.
+  Multi-route overlays keep their per-route colours.
+
 ## Update 2026-09-23 (Per-contact telemetry permissions, feat/per-contact-telemetry-perms)
 
 ### Contacts (backend)
