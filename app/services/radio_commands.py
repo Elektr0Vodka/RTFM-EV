@@ -23,6 +23,50 @@ class KeystoreRefreshError(RadioCommandServiceError):
     """Raised when server-side keystore refresh fails after import."""
 
 
+class RadioRepeatFrequencyError(RadioCommandServiceError):
+    """Raised when a radio update would leave client repeat on an unsupported freq."""
+
+
+def _freq_allowed_for_repeat(freq_mhz: float, allowed_freqs: list[dict] | None) -> bool:
+    """Return whether ``freq_mhz`` falls inside a known client-repeat frequency range.
+
+    ``allowed_freqs`` holds ``{"min": ..., "max": ...}`` entries in kHz, as
+    returned by ``get_allowed_repeat_freq()``. Returns False when the list is
+    missing or empty (unknown), so callers should only treat that as "blocked"
+    when they actually need the guarantee.
+    """
+    if not allowed_freqs:
+        return False
+    freq_khz = round(float(freq_mhz) * 1000)
+    for entry in allowed_freqs:
+        try:
+            lower = int(entry.get("min", 0))
+            upper = int(entry.get("max", 0))
+        except (TypeError, ValueError, AttributeError):
+            continue
+        if lower <= freq_khz <= upper:
+            return True
+    return False
+
+
+async def _query_client_repeat(mc, firmware_ver_code: int | None) -> bool | None:
+    """Re-query device info to read back the persisted client-repeat state.
+
+    Returns None when the firmware does not report it (fw ver < 9) or the
+    query fails; callers treat None as "unknown/unsupported", never as False.
+    """
+    if firmware_ver_code is None or firmware_ver_code < 9:
+        return None
+    try:
+        result = await mc.commands.send_device_query()
+    except Exception as exc:
+        logger.debug("Failed to re-query device info for client repeat: %s", exc)
+        return None
+    payload = result.payload if result is not None and isinstance(result.payload, dict) else {}
+    repeat = payload.get("repeat")
+    return repeat if isinstance(repeat, bool) else None
+
+
 async def apply_radio_config_update(
     mc,
     update,
@@ -30,6 +74,10 @@ async def apply_radio_config_update(
     path_hash_mode_supported: bool,
     set_path_hash_mode: Callable[[int], None],
     sync_radio_time_fn: Callable[[Any], Awaitable[Any]],
+    firmware_ver_code: int | None = None,
+    client_repeat: bool | None = None,
+    allowed_repeat_freqs: list[dict] | None = None,
+    set_client_repeat: Callable[[bool | None], None] | None = None,
 ) -> None:
     """Apply a validated radio-config update to the connected radio."""
     if update.advert_location_source is not None:
@@ -91,19 +139,49 @@ async def apply_radio_config_update(
         await mc.commands.set_tx_power(val=update.tx_power)
 
     if update.radio is not None:
+        supports_repeat = firmware_ver_code is not None and firmware_ver_code >= 9
+        repeat_kwargs: dict[str, int] = {}
+        if supports_repeat:
+            current_repeat = bool(client_repeat)
+            # Only block pre-emptively when we actually have a queried allow-list
+            # to check against; otherwise let the firmware's own validation run
+            # (surfaced as RadioCommandRejectedError below) rather than guessing.
+            if (
+                current_repeat
+                and allowed_repeat_freqs
+                and not _freq_allowed_for_repeat(update.radio.freq, allowed_repeat_freqs)
+            ):
+                raise RadioRepeatFrequencyError(
+                    "Client repeat is currently on and "
+                    f"{update.radio.freq:.3f} MHz is not an allowed repeat frequency. "
+                    "Disable client repeat before changing to this frequency, or pick "
+                    "a frequency the firmware allows for repeat."
+                )
+            # Firmware treats a missing repeat byte as 0 and persists that, so we
+            # must always send the current on-device value explicitly (fw >= 9).
+            repeat_kwargs["repeat"] = 1 if current_repeat else 0
+
         logger.info(
-            "Setting radio params: freq=%f MHz, bw=%f kHz, sf=%d, cr=%d",
+            "Setting radio params: freq=%f MHz, bw=%f kHz, sf=%d, cr=%d%s",
             update.radio.freq,
             update.radio.bw,
             update.radio.sf,
             update.radio.cr,
+            f", repeat={repeat_kwargs['repeat']}" if repeat_kwargs else "",
         )
-        await mc.commands.set_radio(
+        result = await mc.commands.set_radio(
             freq=update.radio.freq,
             bw=update.radio.bw,
             sf=update.radio.sf,
             cr=update.radio.cr,
+            **repeat_kwargs,
         )
+        if result is not None and result.type == EventType.ERROR:
+            raise RadioCommandRejectedError(f"Failed to set radio params: {result.payload}")
+
+        if supports_repeat and set_client_repeat is not None:
+            refreshed_repeat = await _query_client_repeat(mc, firmware_ver_code)
+            set_client_repeat(refreshed_repeat)
 
     if update.path_hash_mode is not None:
         if not path_hash_mode_supported:

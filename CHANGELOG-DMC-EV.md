@@ -11,6 +11,30 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-23 (Radio settings no longer reset client repeat, fix/radio-save-keeps-repeat, plan 29 Phase 0)
+
+### Radio (backend)
+- **Fix: saving Radio settings silently turned off client repeat.** `set_radio`
+  was always called without its optional repeat byte. Stock companion
+  firmware (fw ver 9+) treats a missing byte as 0 and always persists it, so
+  every Radio settings save turned off the off-grid "client repeat" mode,
+  even when another app had enabled it. RTFM-EV never enables client repeat
+  itself, but it must not fight another app's setting.
+- On connect (fw ver >= 9), RTFM-EV now reads the device's current client
+  repeat state and its allowed repeat frequencies (`get_allowed_repeat_freq`,
+  cached per connect) alongside the existing device-info query. Every
+  `PATCH /radio/config` radio-settings save now passes the current on-device
+  repeat value back to `set_radio` explicitly, then re-queries device info to
+  confirm what the firmware actually persisted. Firmware below version 9 is
+  unaffected (no repeat byte is sent, as before).
+- If client repeat is currently on and the requested frequency is not one the
+  firmware allows for repeat, the save is rejected with `409` instead of
+  either silently turning repeat off or getting a generic firmware error.
+- `GET /radio/config` now includes read-only `client_repeat_enabled` (`null`
+  when the firmware does not report support) and `client_repeat_allowed_freqs`
+  (kHz ranges, `null` if not queried), for this check and for a future
+  gated repeat toggle. No UI is added to enable repeat, and no code path
+  reachable from the UI sends `repeat=1`.
 ## Update 2026-09-23 (Repeater LPP telemetry tracking, fix/repeater-lpp-telemetry-tracking)
 
 ### Telemetry (backend + frontend)

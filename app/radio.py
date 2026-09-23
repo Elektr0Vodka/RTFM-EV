@@ -177,6 +177,10 @@ class RadioManager:
         self.max_channels: int = 40
         self.path_hash_mode: int = 0
         self.path_hash_mode_supported: bool = False
+        # Off-grid client-repeat state (fw ver >= 9). None = firmware does not
+        # report support (fw < 9); RTFM-EV never sets this to True itself.
+        self.client_repeat: bool | None = None
+        self.allowed_repeat_freqs: list[dict] | None = None
         self._channel_slot_by_key: OrderedDict[str, int] = OrderedDict()
         self._channel_key_by_slot: dict[int, str] = {}
         self._pending_message_channel_key_by_slot: dict[int, str] = {}
@@ -224,6 +228,8 @@ class RadioManager:
         self.max_channels = 40
         self.path_hash_mode = 0
         self.path_hash_mode_supported = False
+        self.client_repeat = None
+        self.allowed_repeat_freqs = None
         self.reset_channel_send_cache()
         self.clear_pending_message_channel_slots()
 

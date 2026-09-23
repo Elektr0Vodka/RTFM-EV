@@ -91,6 +91,8 @@ async def run_post_connect_setup(radio_manager) -> None:
                 radio_manager.max_channels = 40
                 radio_manager.path_hash_mode = 0
                 radio_manager.path_hash_mode_supported = False
+                radio_manager.client_repeat = None
+                radio_manager.allowed_repeat_freqs = None
                 try:
                     device_query = await mc.commands.send_device_query()
                     payload = (
@@ -121,10 +123,14 @@ async def run_post_connect_setup(radio_manager) -> None:
                         radio_manager.path_hash_mode = payload["path_hash_mode"]
                         radio_manager.path_hash_mode_supported = True
 
+                    if "repeat" in payload and isinstance(payload["repeat"], bool):
+                        radio_manager.client_repeat = payload["repeat"]
+
                     if _captured_frame:
                         # Raw-frame fallback / completion:
                         # byte 1 = fw_ver, byte 2 = max_contacts/2, byte 3 = max_channels,
-                        # bytes 8:20 = fw_build, 20:60 = model, 60:80 = ver, byte 81 = path_hash_mode
+                        # bytes 8:20 = fw_build, 20:60 = model, 60:80 = ver, byte 80 = repeat,
+                        # byte 81 = path_hash_mode
                         raw = _captured_frame[-1]
                         fw_ver = raw[1] if len(raw) > 1 else 0
                         if fw_ver >= 3:
@@ -140,6 +146,8 @@ async def run_post_connect_setup(radio_manager) -> None:
                                 radio_manager.device_model = _decode_fixed_string(raw, 20, 40)
                             if radio_manager.firmware_version is None:
                                 radio_manager.firmware_version = _decode_fixed_string(raw, 60, 20)
+                        if radio_manager.client_repeat is None and fw_ver >= 9 and len(raw) >= 81:
+                            radio_manager.client_repeat = raw[80] != 0
                         if (
                             not radio_manager.path_hash_mode_supported
                             and fw_ver >= 10
@@ -161,6 +169,31 @@ async def run_post_connect_setup(radio_manager) -> None:
                         logger.info("Path hash mode: %d (supported)", radio_manager.path_hash_mode)
                     else:
                         logger.debug("Firmware does not report path_hash_mode")
+                    if radio_manager.client_repeat is not None:
+                        logger.info(
+                            "Client repeat: %s (fw supports client repeat)",
+                            "on" if radio_manager.client_repeat else "off",
+                        )
+                    else:
+                        logger.debug("Firmware does not report client repeat state")
+                    if (
+                        radio_manager.firmware_ver_code is not None
+                        and radio_manager.firmware_ver_code >= 9
+                    ):
+                        try:
+                            freq_result = await mc.commands.get_allowed_repeat_freq()
+                            freq_payload = (
+                                freq_result.payload
+                                if freq_result is not None and isinstance(freq_result.payload, dict)
+                                else {}
+                            )
+                            freqs = freq_payload.get("freqs")
+                            if isinstance(freqs, list):
+                                radio_manager.allowed_repeat_freqs = freqs
+                        except Exception as exc:
+                            logger.debug(
+                                "Failed to query allowed client-repeat frequencies: %s", exc
+                            )
                     if radio_manager.device_info_loaded:
                         logger.info(
                             "Radio device info: model=%s build=%s version=%s max_contacts=%s max_channels=%d",

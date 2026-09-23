@@ -260,8 +260,8 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `GET /debug` - support snapshot with recent logs, live radio probe, slot/contact audits, and version/git info
 
 ### Radio
-- `GET /radio/config` - includes `path_hash_mode`, `path_hash_mode_supported`, advert-location on/off, and `multi_acks_enabled`
-- `PATCH /radio/config` - may update `path_hash_mode` (`0..2`) when firmware supports it, and `multi_acks_enabled`
+- `GET /radio/config` - includes `path_hash_mode`, `path_hash_mode_supported`, advert-location on/off, `multi_acks_enabled`, and read-only `client_repeat_enabled` (`null` if firmware doesn't report it, fw ver < 9) / `client_repeat_allowed_freqs` (kHz ranges from `get_allowed_repeat_freq`, cached per connect; `null` if not queried)
+- `PATCH /radio/config` - may update `path_hash_mode` (`0..2`) when firmware supports it, and `multi_acks_enabled`. A `radio` block update (fw ver >= 9) always re-sends the device's current client-repeat state to `set_radio` explicitly (firmware treats a missing repeat byte as 0 and persists that - see `app/services/radio_commands.py`), then re-queries device info; returns `409` if repeat is currently on and the new frequency isn't in the cached allowed-repeat-frequency list. RTFM-EV never sends `repeat=1` itself; there is no UI to enable it yet
 - `GET /radio/private-key` - export in-memory private key as hex (requires `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT=true`)
 - `PUT /radio/private-key`
 - `GET /radio/contact-uri` - this node's `meshcore://` contact link (`{uri, public_key}`) via `export_contact()` with no key (CMD_EXPORT_CONTACT). Local radio command, nothing transmitted; 502 if the radio returns no valid signed advert
