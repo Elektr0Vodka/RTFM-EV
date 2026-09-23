@@ -262,6 +262,28 @@ the change. Upstream development is on hold; the fork is the active repository.
   radio; a key with no stored advert (never heard, or pruned by retention) is
   left out of the response rather than erroring. Used by the GPX export so a
   page of nodes does not cost one radio round trip per node.
+## Update 2026-09-23 (Guessed locations map layer, feat/map-guessed-locations, plan 28 item 1.12)
+
+### Map (frontend)
+- **Guessed-locations layer.** A new "Guessed locations" section in the map
+  Overlays FAB (off by default, remembered per browser, shown from zoom 12+)
+  estimates a position for a node with no advertised or manual location: it
+  takes the node's own known advert paths, matches the hop nearest the origin
+  against located repeaters by 2- or 3-byte public-key prefix (1-byte hops are
+  skipped; they collide across too many nodes), drops anchor repeaters more
+  than 2x an estimated 15 km LoRa hop range apart from every other anchor, and
+  places the guess 330 m off a single anchor or 80-120 m off a weighted centre
+  of several, at an angle seeded from the node's public key so it stays put
+  across renders. Only nodes heard in the last 24h are guessed. Drawn as a
+  hollow "~" marker (never a filled circle, so it cannot be mistaken for a
+  real position); clicking it explains the position is a guess and names the
+  anchor repeater(s) and confidence. Guessed positions are never persisted,
+  never included in an export, and never sent anywhere. Ported in spirit from
+  meshcore-open's map screen (`lib/screens/map_screen.dart`, MIT); the
+  weighted-centre average is computed as a proper weighted mean (divided by
+  the sum of applied weights), fixing a bug in meshcore-open's own version
+  (divided by the anchor count instead), which otherwise pulls the estimate
+  toward (0, 0) as more anchors are combined. See `frontend/src/map/guessedLocations.ts`.
 
 ## Update 2026-09-23 (Shared-locations map layer + MGRS, feat/shared-locations-map-layer)
 

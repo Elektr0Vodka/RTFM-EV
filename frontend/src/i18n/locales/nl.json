@@ -2118,6 +2118,15 @@
   "map_shared_locations_hops": "Ontvangen via {count} hops",
   "map_shared_locations_open_in_chat": "Openen in chat",
   "map_shared_locations_open_osm": "Openen in OpenStreetMap",
+  "map_guessed_locations_label": "Geraden locaties",
+  "map_guessed_locations_enable": "Geraden posities tonen voor niet-gelokaliseerde nodes",
+  "map_guessed_locations_help": "Geschatte posities voor nodes zonder verzonden of handmatige locatie, gebaseerd op de dichtstbijzijnde gelokaliseerde repeater(s) in hun bekende advertentiepaden. Alleen zichtbaar vanaf zoomniveau 12, voor nodes gehoord in de laatste 24 uur. Nooit opgeslagen, geëxporteerd of ergens naartoe verzonden.",
+  "map_guessed_locations_count": "{count} geraden op de kaart.",
+  "map_guessed_locations_disclaimer": "Geraden positie, geen gerapporteerde. Kan onjuist zijn.",
+  "map_guessed_locations_anchor_one": "Geschat vanaf repeater: {name}",
+  "map_guessed_locations_anchor_many": "Geschat vanaf repeaters: {names}",
+  "map_guessed_locations_confidence_high": "Hogere betrouwbaarheid: 2+ consistente repeaters komen overeen",
+  "map_guessed_locations_confidence_low": "Lagere betrouwbaarheid: gebaseerd op één repeater",
   "map_contact_count": {
     "one": "{count} contact",
     "other": "{count} contacten"

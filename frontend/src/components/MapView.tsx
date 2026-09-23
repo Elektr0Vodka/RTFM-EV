@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { Popup as MlPopup, Marker as MlMarker, type Map as MlMap } from 'maplibre-gl';
-import { Zap, Clock, Globe, Radio, MapPinOff, Boxes, MapPin } from 'lucide-react';
+import { Zap, Clock, Globe, Radio, MapPinOff, Boxes, MapPin, HelpCircle } from 'lucide-react';
 import type {
   AdvertLinkEdge,
   Contact,
@@ -80,6 +80,7 @@ import {
 } from '../map/roleFilter';
 import { computeWrongLocationKeys } from '../map/wrongLocation';
 import { useSharedLocations } from '../map/useSharedLocations';
+import { useGuessedLocations } from '../map/useGuessedLocations';
 import { useDistanceUnit } from '../contexts/DistanceUnitContext';
 import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
 import type { SearchNavigateTarget } from './SearchView';
@@ -487,6 +488,11 @@ export function MapView({
   // Off = newest share per sender; on = every share in the window.
   const [sharedLocationsAll, setSharedLocationsAll] = usePersistedMapSetting(
     'remoteterm-map-shared-locations-all',
+    false,
+    isBool
+  );
+  const [showGuessedLocations, setShowGuessedLocations] = usePersistedMapSetting(
+    'remoteterm-map-guessed-locations',
     false,
     isBool
   );
@@ -1510,6 +1516,16 @@ export function MapView({
     onOpenContactInfo,
   });
 
+  const {
+    attach: attachGuessedLocations,
+    reattach: reattachGuessedLocations,
+    guesses: guessedLocations,
+  } = useGuessedLocations({
+    enabled: showGuessedLocations,
+    contacts,
+    nowSec,
+  });
+
   const handleReady = useCallback(
     (map: MlMap) => {
       mapRef.current = map;
@@ -1546,6 +1562,9 @@ export function MapView({
       telemetryRef.current = telemetry;
       // Chat location shares sit above the nodes so their pins stay clickable.
       attachSharedLocations(map);
+      // Guessed locations sit above real nodes too, and above shared-location
+      // pins, so a guess marker is never obscured by a real one.
+      attachGuessedLocations(map);
       // Report the viewport so the external overlay can fetch just what's shown.
       onViewBounds(map.getBounds());
       map.on('moveend', () => {
@@ -1627,6 +1646,7 @@ export function MapView({
     externalRef.current?.reattach();
     externalRef.current?.setData(visibleExternalRef.current);
     reattachSharedLocations();
+    reattachGuessedLocations();
   }, [
     mappableContacts,
     nowSec,
@@ -1635,6 +1655,7 @@ export function MapView({
     telemetryOn,
     latestTelemetry,
     reattachSharedLocations,
+    reattachGuessedLocations,
   ]);
 
   // Keep node data in sync.
@@ -2098,6 +2119,29 @@ export function MapView({
           </div>
         ),
       },
+      {
+        id: 'guessed-locations',
+        label: t('map_guessed_locations_label'),
+        icon: <HelpCircle size={20} aria-hidden />,
+        panel: (
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={showGuessedLocations}
+                onChange={(e) => setShowGuessedLocations(e.target.checked)}
+              />
+              {t('map_guessed_locations_enable')}
+            </label>
+            <p className="text-xs text-muted-foreground">{t('map_guessed_locations_help')}</p>
+            {showGuessedLocations && (
+              <p className="text-xs text-muted-foreground" aria-live="polite">
+                {t('map_guessed_locations_count', { count: guessedLocations.length })}
+              </p>
+            )}
+          </div>
+        ),
+      },
     ];
   }, [
     t,
@@ -2129,6 +2173,9 @@ export function MapView({
     sharedLocationsTruncated,
     setShowSharedLocations,
     setSharedLocationsAll,
+    showGuessedLocations,
+    guessedLocations.length,
+    setShowGuessedLocations,
   ]);
 
   const theme: 'light' | 'dark' = dark ? 'dark' : 'light';

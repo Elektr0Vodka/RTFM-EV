@@ -2118,6 +2118,15 @@
   "map_shared_locations_hops": "Über {count} Hops empfangen",
   "map_shared_locations_open_in_chat": "Im Chat öffnen",
   "map_shared_locations_open_osm": "In OpenStreetMap öffnen",
+  "map_guessed_locations_label": "Geschätzte Standorte",
+  "map_guessed_locations_enable": "Geschätzte Positionen für nicht lokalisierte Knoten anzeigen",
+  "map_guessed_locations_help": "Geschätzte Positionen für Knoten ohne gesendeten oder manuellen Standort, basierend auf dem/den nächstgelegenen lokalisierten Repeater(n) in ihren bekannten Advert-Pfaden. Nur ab Zoomstufe 12 sichtbar, für Knoten, die in den letzten 24 Stunden empfangen wurden. Wird nie gespeichert, exportiert oder irgendwohin gesendet.",
+  "map_guessed_locations_count": "{count} geschätzt auf der Karte.",
+  "map_guessed_locations_disclaimer": "Geschätzte Position, keine gemeldete. Kann ungenau sein.",
+  "map_guessed_locations_anchor_one": "Geschätzt anhand von Repeater: {name}",
+  "map_guessed_locations_anchor_many": "Geschätzt anhand von Repeatern: {names}",
+  "map_guessed_locations_confidence_high": "Höhere Zuverlässigkeit: 2+ übereinstimmende Repeater",
+  "map_guessed_locations_confidence_low": "Geringere Zuverlässigkeit: basiert auf einem einzelnen Repeater",
   "map_contact_count": {
     "one": "{count} Kontakt",
     "other": "{count} Kontakte"

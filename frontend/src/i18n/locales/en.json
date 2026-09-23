@@ -2117,6 +2117,15 @@
   "map_shared_locations_hops": "Received over {count} hops",
   "map_shared_locations_open_in_chat": "Open in chat",
   "map_shared_locations_open_osm": "Open in OpenStreetMap",
+  "map_guessed_locations_label": "Guessed locations",
+  "map_guessed_locations_enable": "Show guessed positions for unlocated nodes",
+  "map_guessed_locations_help": "Estimated positions for nodes with no advertised or manual location, based on the located repeater(s) nearest them in their known advert paths. Only shown at zoom 12+, for nodes heard in the last 24h. Never saved, exported or sent anywhere.",
+  "map_guessed_locations_count": "{count} guessed on the map.",
+  "map_guessed_locations_disclaimer": "Guessed position, not a reported one. May be inaccurate.",
+  "map_guessed_locations_anchor_one": "Estimated from repeater: {name}",
+  "map_guessed_locations_anchor_many": "Estimated from repeaters: {names}",
+  "map_guessed_locations_confidence_high": "Higher confidence: 2+ consistent repeaters agree",
+  "map_guessed_locations_confidence_low": "Lower confidence: based on a single repeater",
   "map_contact_count": {
     "one": "{count} contact",
     "other": "{count} contacts"
