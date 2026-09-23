@@ -63,6 +63,7 @@ from app.radio_sync import (
 from app.routers import (
     backup,
     channels,
+    communities,
     contacts,
     debug,
     external_map,
@@ -241,6 +242,7 @@ app.include_router(contacts.router, prefix="/api")
 app.include_router(repeaters.router, prefix="/api")
 app.include_router(rooms.router, prefix="/api")
 app.include_router(channels.router, prefix="/api")
+app.include_router(communities.router, prefix="/api")
 app.include_router(messages.router, prefix="/api")
 app.include_router(packets.router, prefix="/api")
 app.include_router(links.router, prefix="/api")

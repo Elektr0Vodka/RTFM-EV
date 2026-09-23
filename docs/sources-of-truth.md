@@ -97,6 +97,11 @@ machine this was authored on and may differ elsewhere.
 - Location-share wire format: meshcore-open `m:<lat>,<lon>|<label>|<flags>`
   (`lib/screens/map_screen.dart` `_formatMarkerMessage` / `parseMarkerText`,
   https://github.com/zjs81/meshcore-open).
+- Community key derivation and QR JSON: meshcore-open `lib/models/community.dart`
+  (channel names in `lib/screens/channels_screen.dart` and
+  `community_qr_scanner_screen.dart`), ported in `app/communities.py`. meshcore-open
+  ships no community test vectors; `tests/test_communities.py` computes them
+  independently.
 
 ## Maintenance
 Keep this file current when a firmware branch is renamed or a tooling repo moves.

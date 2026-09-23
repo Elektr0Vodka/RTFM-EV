@@ -31,7 +31,7 @@ app/
 ├── migrations/          # Schema migrations (SQLite user_version, per-version modules)
 ├── models.py            # Pydantic request/response models and typed write contracts (for example ContactUpsert)
 ├── version_info.py      # Unified version/build metadata resolution for debug + startup surfaces
-├── repository/          # Data access layer (contacts, channels, messages, raw_packets, settings, fanout, push_subscriptions, repeater_telemetry, contact_telemetry)
+├── repository/          # Data access layer (contacts, channels, communities, messages, raw_packets, settings, fanout, push_subscriptions, repeater_telemetry, contact_telemetry)
 ├── services/            # Shared orchestration/domain services
 │   ├── messages.py              # Shared message creation, dedup, ACK application
 │   ├── message_send.py          # Direct send, channel send, resend workflows
@@ -49,6 +49,7 @@ app/
 ├── decoder.py           # Packet parsing/decryption
 ├── contact_uri.py       # meshcore:// contact links: parse/validate (ADVERT + signature), format
 ├── smaz.py              # SMAZ "s:<base64>" message-body decode (port of meshcore-open smaz.dart)
+├── communities.py       # meshcore-open communities: HMAC-SHA256 channel keys from a 32-byte secret, QR JSON parse/format
 ├── packet_processor.py  # Raw packet pipeline, dedup, path handling
 ├── event_handlers.py    # MeshCore event subscriptions and ACK tracking
 ├── events.py            # Typed WS event payload serialization
@@ -318,6 +319,14 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `POST /channels/{key}/flood-scope-override`
 - `POST /channels/{key}/path-hash-mode-override`
 - `POST /channels/{key}/mark-read`
+
+### Communities
+meshcore-open communities (`app/communities.py`, port of `lib/models/community.dart`; router `app/routers/communities.py`; table `communities` from migration `_110`). A community is a 32-byte secret `K` plus a name. Keys: public channel `HMAC-SHA256(K, "channel:v1:__public__")[:16]`, hashtag channel `HMAC-SHA256(K, "channel:v1:" + normalized)[:16]` (strip one leading `#`, lowercase, trim), community ID `SHA256("community:v1" || K)` hex. Channel names `"<name> Public"` (cut to 32 UTF-8 bytes) and `"<name> #<tag>"` (400 when over 32 bytes). Channels are DB-only (`is_hashtag=false`, `on_radio=false`) like `POST /channels`; an existing key is left untouched. Nothing transmits. `K` is stored in `communities.secret` so hashtags can be added later; it is never logged and only `GET /communities/{id}/export` returns it (`Cache-Control: no-store`). It is also in DB backups.
+- `GET /communities` - joined communities with their derived channels (matched by key; hashtag channels by `"<name> #<tag>"` name plus key check). No secret
+- `POST /communities/join` - body `{payload, add_public_channel=true, try_historical=false}`; `payload` is the QR JSON `{"v":1,"type":"meshcore_community","name":...,"k":<base64url, 32 bytes>}` (padded or unpadded; a leading `#` in the name is dropped because meshcore_py re-derives the key of a channel whose name starts with `#`). Re-joining the same secret keeps the stored row (`already_joined`). 202 when a historical decrypt sweep starts
+- `POST /communities/{id}/hashtags` - body `{hashtag, try_historical=false}`: create `"<name> #<tag>"` with the community-derived key
+- `GET /communities/{id}/export` - `{id, name, payload}`: QR JSON including the secret (padded base64url, like meshcore-open)
+- `DELETE /communities/{id}` - forget the community and its secret; its channels stay
 
 ### Messages
 - `GET /messages` - list with filters; supports `q` (full-text search), `after`/`after_id` (forward cursor)
