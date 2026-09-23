@@ -297,18 +297,6 @@ export function RoomServerPanel({ contact, onAuthenticatedChange }: RoomServerPa
     return (
       <div className="flex-1 overflow-y-auto p-4">
         <div className="mx-auto flex w-full max-w-sm flex-col gap-4">
-          <div className="rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
-            {t('room_experimental_notice_before_link')}{' '}
-            <a
-              href="https://github.com/Elektr0Vodka/RTFM-EV/issues"
-              target="_blank"
-              rel="noreferrer"
-              className="font-medium underline underline-offset-2 hover:text-warning/80"
-            >
-              {t('room_experimental_notice_link_label')}
-            </a>
-            {t('room_experimental_notice_after_link')}
-          </div>
           <RepeaterLogin
             repeaterName={panelTitle}
             loading={loginLoading}
