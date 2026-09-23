@@ -2226,6 +2226,8 @@
   "link_detail_col_rssi": "RSSI",
   "map_fullscreen_enter": "Fullscreen",
   "map_fullscreen_exit": "Exit fullscreen",
+  "map_gpx_export": "Export GPX",
+  "map_gpx_manual_location": "manual location",
   "map_type_client": "Client",
   "map_type_repeater": "Repeater",
   "map_type_room": "Room",

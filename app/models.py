@@ -277,6 +277,26 @@ class ContactUriImportRequest(BaseModel):
     uri: str = Field(max_length=600, description="meshcore:// contact link")
 
 
+class ContactUriBatchRequest(BaseModel):
+    """Request to look up meshcore:// links for several contacts at once."""
+
+    public_keys: list[str] = Field(description="Contacts to look up a stored advert for")
+
+
+class ContactUriBatchResponse(BaseModel):
+    """meshcore:// links built from stored raw adverts, not the radio.
+
+    Read-only: sourced from the most recent retained advert transmission per
+    contact (``advert_events`` joined to ``raw_packets``). A key is omitted
+    when no raw advert is still stored for it (never heard, or pruned by
+    retention), so this never issues a per-node radio command.
+    """
+
+    links: dict[str, str] = Field(
+        description="Lowercase public_key -> meshcore:// link, only for keys that resolved"
+    )
+
+
 class ContactAnnotationsUpdate(BaseModel):
     """Partial update of user-editable contact annotations.
 

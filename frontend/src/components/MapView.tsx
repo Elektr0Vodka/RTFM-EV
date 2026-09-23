@@ -111,6 +111,8 @@ import {
   projectPacketNetwork,
 } from '../networkGraph/packetNetworkGraph';
 import type { ExtraFab, MapLinkMode } from '../map/controls/MapControls';
+import { buildNodesGpx, gpxExportFilename } from '../utils/gpxExport';
+import { contactTypeLabel } from './ContactInfoBody';
 
 interface MapViewProps {
   contacts: Contact[];
@@ -1755,6 +1757,40 @@ export function MapView({
     [mappableContacts, openContactPopup]
   );
 
+  // Export exactly the nodes the map currently shows under its active filters
+  // (role, heard/never-heard, time window, hide-wrong-location, etc). Reads the
+  // raw (pre-effective-location) contact objects so the manual-location note
+  // reflects whether the advertised position was actually usable, not the
+  // effective lat/lon already projected onto mappableContacts. Links are
+  // best-effort: a stored-advert lookup failure still downloads the GPX, just
+  // without meshcore:// links.
+  const handleExportGpx = useCallback(async () => {
+    const exportContacts = mappableContacts
+      .map((c) => contactByKey.get(c.public_key) ?? c)
+      .filter((c): c is Contact => c != null);
+
+    let links: Record<string, string> = {};
+    try {
+      const result = await api.bulkContactUris(exportContacts.map((c) => c.public_key));
+      links = result.links;
+    } catch (err) {
+      console.error('GPX export: could not look up contact links', err);
+    }
+
+    const gpx = buildNodesGpx(exportContacts, {
+      typeLabel: (type) => contactTypeLabel(type, t),
+      manualLocationLabel: t('map_gpx_manual_location'),
+      links,
+    });
+    const blob = new Blob([gpx], { type: 'application/gpx+xml;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = gpxExportFilename(new Date());
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [mappableContacts, contactByKey, t]);
+
   // Since-filter + packet toggles as extra FAB panels.
   const extraFabs: ExtraFab[] = useMemo(() => {
     const sincePanel = (
@@ -2111,6 +2147,7 @@ export function MapView({
           labelMode: true,
           telemetry: true,
           fullscreen: true,
+          gpxExport: true,
         }}
         onReady={handleReady}
         onBasemapReapply={handleBasemapReapply}
@@ -2166,6 +2203,7 @@ export function MapView({
         onToggleTelemetry={setTelemetryOn}
         sidebarOpen={sidebarOpen}
         onSearch={handleSearch}
+        onExportGpx={handleExportGpx}
         extraFabs={extraFabs}
         legendContent={
           showPackets ? <MapLegend roleColors={roleColors} extra={<PacketLegend />} /> : undefined

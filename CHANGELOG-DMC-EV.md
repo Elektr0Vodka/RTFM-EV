@@ -240,6 +240,28 @@ the change. Upstream development is on hold; the fork is the active repository.
   `read_gps_settings` / `apply_gps_update`, reused by both
   `GET`/`PATCH /radio/meshcomod` (unchanged behaviour) and the new
   `GET`/`PATCH /radio/gps` endpoints. No migration.
+## Update 2026-09-23 (GPX export, feat/map-gpx-export, plan 28 item 1.8)
+
+### Map (frontend)
+- **GPX export.** A new Export FAB on the map (download icon) exports the
+  nodes the map currently shows under its active filters (role, heard/never-
+  heard, time window, hide-wrong-location, blocked) as a GPX 1.1 waypoint
+  file, `rtfm-ev-nodes-<date>.gpx`. Each waypoint has the node's name, its
+  effective position (advertised, or its manual override when the advertised
+  one is missing or invalid, in which case the description notes "manual
+  location"), and a description with its type and public key, following
+  meshcore-open's `utils/gpx_export.dart`. No tracks, only waypoints; nodes
+  with no usable location are skipped.
+
+### Contacts (backend)
+- **`POST /contacts/bulk-contact-uris`**: builds `meshcore://` contact links
+  for several contacts at once from the most recently retained advert
+  transmission per key (`advert_events` joined to `raw_packets`), instead of
+  the existing per-contact `GET /contacts/{key}/contact-uri` which asks the
+  radio (`CMD_EXPORT_CONTACT`) for each one. Read-only and never touches the
+  radio; a key with no stored advert (never heard, or pruned by retention) is
+  left out of the response rather than erroring. Used by the GPX export so a
+  page of nodes does not cost one radio round trip per node.
 
 ## Update 2026-09-23 (Shared-locations map layer + MGRS, feat/shared-locations-map-layer)
 

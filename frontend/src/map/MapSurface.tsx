@@ -86,6 +86,7 @@ export interface MapSurfaceProps {
   onSearch?: (query: string) => void;
   legendContent?: ReactNode;
   extraFabs?: ExtraFab[];
+  onExportGpx?: () => void;
 }
 
 /** Synchronous initial style for map creation. A vector-recolor basemap cannot
@@ -317,6 +318,7 @@ export function MapSurface(props: MapSurfaceProps) {
         linkAgePanel={props.linkAgePanel}
         fullscreen={fullscreenEl != null}
         onToggleFullscreen={fullscreenSupported ? toggleFullscreen : undefined}
+        onExportGpx={props.onExportGpx}
         portalContainer={fullscreenEl}
         telemetryOn={props.telemetryOn}
         onToggleTelemetry={props.onToggleTelemetry}

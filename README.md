@@ -114,6 +114,12 @@ Shipped toward this so far:
   decimals, and MGRS references), newest per sender or every share. Clicking a
   pin shows who shared it, where and when, with "Open in chat". Local view only;
   never forwarded.
+- GPX export from the map (Export FAB, download icon): exports the nodes
+  currently shown under the map's active filters as GPX 1.1 waypoints
+  (`rtfm-ev-nodes-<date>.gpx`), including nodes placed only by a manual
+  location override (noted in the waypoint description). Each waypoint
+  includes a `meshcore://` contact link when a raw advert for that node is
+  still in the retained packet history; the link is left out otherwise.
 - MGRS support: upper-case MGRS references in chat (for example
   `31U FT 45332 73249`) become location cards when coordinate parsing is on, and
   Settings > Local > Coordinate format shows positions as decimal degrees

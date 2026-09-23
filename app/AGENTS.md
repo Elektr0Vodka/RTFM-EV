@@ -286,6 +286,7 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `GET /contacts/repeaters/advert-paths` - recent advert paths for all contacts
 - `POST /contacts`
 - `POST /contacts/bulk-delete`
+- `POST /contacts/bulk-contact-uris` - body `{public_keys}`: `meshcore://` links for several contacts at once (`{links: {public_key: uri}}`), built from the most recently retained advert transmission per key (`AdvertEventRepository.latest_raw_adverts`, `advert_events` joined to `raw_packets`) and validated the same way an imported link is (hex, ADVERT packet, Ed25519 signature). Unlike `GET /{public_key}/contact-uri` this never talks to the radio; a key with no stored advert (never heard, or pruned by retention) is left out of the response rather than erroring. Used by the map's GPX export
 - `POST /contacts/import-uri` - body `{uri}`: import a `meshcore://` contact link (`app/contact_uri.py`). The link is validated first (scheme, hex, <= 255 bytes, ADVERT packet, Ed25519 signature; 400 otherwise), then sent with `import_contact` (CMD_IMPORT_CONTACT; 422 if the radio rejects it). The firmware loops the advert back as if heard and ignores the forwarding decision, so nothing is transmitted. A new contact is stored with the advert's name, type and location but no `last_advert`/`last_seen` (not heard on RF); an existing contact is left unchanged. Broadcasts `contact`. `share_contact` (CMD 0x10, transmits) is deliberately not used anywhere
 - `DELETE /contacts/{public_key}`
 - `POST /contacts/{public_key}/mark-read`

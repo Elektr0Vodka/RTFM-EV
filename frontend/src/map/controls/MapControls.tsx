@@ -16,6 +16,7 @@ import {
   Settings,
   Maximize,
   Minimize,
+  Download,
   X,
 } from 'lucide-react';
 import { useT } from '../../i18n';
@@ -52,6 +53,7 @@ export interface FabConfig {
   labelMode?: boolean;
   telemetry?: boolean;
   fullscreen?: boolean;
+  gpxExport?: boolean;
 }
 
 export interface BasemapOption {
@@ -104,6 +106,8 @@ export interface MapControlsProps {
   fullscreen?: boolean;
   /** Omitted when the browser cannot go fullscreen; the FAB is then hidden. */
   onToggleFullscreen?: () => void;
+  /** Export the currently-filtered nodes as a GPX file. Omitted hides the FAB. */
+  onExportGpx?: () => void;
   /** Where the compact bottom sheet portals to (the fullscreen element, if any). */
   portalContainer?: HTMLElement | null;
   telemetryOn?: boolean;
@@ -281,6 +285,7 @@ export function MapControls(props: MapControlsProps) {
     onLinkMaxKm,
     fullscreen = false,
     onToggleFullscreen,
+    onExportGpx,
     portalContainer,
     telemetryOn = false,
     onToggleTelemetry,
@@ -701,12 +706,13 @@ export function MapControls(props: MapControlsProps) {
     });
   }
 
-  // Direct-toggle FABs (no panel).
+  // Direct-toggle FABs (no panel). `active` is omitted for a plain action
+  // button (nothing to show pressed) so it renders without aria-pressed.
   const toggles: {
     id: string;
     label: string;
     icon: ReactNode;
-    active: boolean;
+    active?: boolean;
     onClick: () => void;
   }[] = [];
   if (fabs.tilt) {
@@ -734,6 +740,14 @@ export function MapControls(props: MapControlsProps) {
       icon: fullscreen ? <Minimize size={20} aria-hidden /> : <Maximize size={20} aria-hidden />,
       active: fullscreen,
       onClick: onToggleFullscreen,
+    });
+  }
+  if (fabs.gpxExport && onExportGpx) {
+    toggles.push({
+      id: 'gpx-export',
+      label: t('map_gpx_export'),
+      icon: <Download size={20} aria-hidden />,
+      onClick: onExportGpx,
     });
   }
 
@@ -768,7 +782,7 @@ export function MapControls(props: MapControlsProps) {
               type="button"
               title={tg.label}
               aria-label={tg.label}
-              aria-pressed={tg.active}
+              aria-pressed={tg.active === undefined ? undefined : tg.active}
               className={FAB_CLASS + (tg.active ? ' border-primary text-primary' : '')}
               onClick={tg.onClick}
             >

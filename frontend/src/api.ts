@@ -190,6 +190,11 @@ export interface ContactUriResult {
   public_key: string;
 }
 
+/** meshcore:// links built from stored raw adverts (no radio command). */
+export interface ContactUriBatchResult {
+  links: Record<string, string>;
+}
+
 interface BackupSaveResult {
   path: string;
   size_bytes: number;
@@ -365,6 +370,12 @@ export const api = {
   getOwnContactUri: () => fetchJson<ContactUriResult>('/radio/contact-uri'),
   getContactUri: (publicKey: string) =>
     fetchJson<ContactUriResult>(`/contacts/${publicKey}/contact-uri`),
+  bulkContactUris: (publicKeys: string[]) =>
+    fetchJson<ContactUriBatchResult>('/contacts/bulk-contact-uris', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ public_keys: publicKeys }),
+    }),
   importContactUri: (uri: string) =>
     fetchJson<Contact>('/contacts/import-uri', {
       method: 'POST',
