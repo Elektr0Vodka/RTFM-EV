@@ -29,7 +29,7 @@ import {
 import {
   giphyUrlForId,
   isReactionPayload,
-  parseGif,
+  parseGifPayload,
   parseMeshCoreOneReaction,
   parseReaction,
   parseReactionV1,
@@ -246,7 +246,7 @@ function renderPayloadBody(
   onCoordinateClick?: (lat: number, lon: number, label: string) => void,
   reactionCtx?: ReactionTargetCtx
 ): ReactNode | null {
-  const gifId = parseGif(body);
+  const gifId = parseGifPayload(body);
   if (gifId) {
     return <GifPayload gifId={gifId} rawText={body} />;
   }
@@ -1607,7 +1607,17 @@ export function MessageList({
               msg.type === 'PRIV'
                 ? { sender: null, content: msg.text }
                 : parseSenderFromText(msg.text);
-            const previewUrl = showUrlPreviews ? firstUrlIn(content) : null;
+            // Computed once so the URL preview card below can be skipped when the
+            // rich-payload renderer already turned this message into a GIF (a
+            // Giphy URL form) or another card - it must not render twice.
+            const richPayload = renderRichPayloads
+              ? renderMeshcoreOpenPayload(content, radioName, hashtagCtx, onCoordinateClick, {
+                  messageId: msg.id,
+                  onJumpToMessage: jumpToMessage,
+                  analyzerLookup: reactionAnalyzerLookup,
+                })
+              : null;
+            const previewUrl = showUrlPreviews && !richPayload ? firstUrlIn(content) : null;
             const directSenderName =
               msg.type === 'PRIV' && isRoomServer ? msg.sender_name || null : null;
             const channelSenderName = msg.type === 'CHAN' ? msg.sender_name || sender : null;
@@ -1820,18 +1830,7 @@ export function MessageList({
                       </div>
                     )}
                     <div className="break-words whitespace-pre-wrap">
-                      {(renderRichPayloads &&
-                        renderMeshcoreOpenPayload(
-                          content,
-                          radioName,
-                          hashtagCtx,
-                          onCoordinateClick,
-                          {
-                            messageId: msg.id,
-                            onJumpToMessage: jumpToMessage,
-                            analyzerLookup: reactionAnalyzerLookup,
-                          }
-                        )) ||
+                      {richPayload ||
                         content.split('\n').map((line, i, arr) => (
                           <span key={i}>
                             {renderTokens(line, radioName, hashtagCtx, entityOpts, tokenDeps)}
