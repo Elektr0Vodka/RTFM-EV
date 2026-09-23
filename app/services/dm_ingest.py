@@ -22,6 +22,7 @@ from app.services.messages import (
     reconcile_duplicate_message,
     truncate_for_log,
 )
+from app.smaz import decode_message_text
 
 if TYPE_CHECKING:
     from app.decoder import DecryptedDirectMessage
@@ -161,6 +162,11 @@ async def _store_direct_message(
     contact_repository=ContactRepository,
     raw_packet_repository=RawPacketRepository,
 ) -> Message | None:
+    if not outgoing and txt_type != 1:
+        # Incoming SMAZ bodies ("s:<base64>") are stored decoded. Our own sends
+        # are never SMAZ, so outgoing echoes keep matching the stored row.
+        text = decode_message_text(text)
+
     async def store() -> Message | None:
         if linked_packet_dedup and packet_id is not None:
             linked_message_id = await raw_packet_repository.get_linked_message_id(packet_id)
