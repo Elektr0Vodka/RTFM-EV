@@ -132,6 +132,10 @@ Shipped toward this so far:
   defaults" puts back the previous caps. Defaults match the old behaviour, so an
   upgrade deletes nothing new. Pruning a message also deletes its raw packet.
   See `README_ADVANCED.md`.
+- Failed DMs are marked: when every retry of an outgoing DM runs out without an
+  ACK it shows "Failed" instead of `?` (stored, migration `_109`; an ACK within
+  30 s still flips it to delivered). A Retry row action sends a new copy that
+  replaces the failed bubble (`POST /api/messages/direct/{id}/resend`).
 
 Direction still on the roadmap (planned, not yet built):
 

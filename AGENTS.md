@@ -380,6 +380,7 @@ This table is a representative subset, not the full route list (for example the 
 | GET | `/api/messages/around/{id}` | Get messages around a specific message (for jump-to-message) |
 | POST | `/api/messages/direct` | Send direct message |
 | POST | `/api/messages/channel` | Send channel message |
+| POST | `/api/messages/direct/{message_id}/resend` | Retry a failed DM: sends a new copy (new timestamp/ACK code) and removes the failed row; only for DMs marked failed without an ACK |
 | POST | `/api/messages/channel/{message_id}/resend` | Resend channel message (default: byte-perfect within 30s; `?new_timestamp=true`: fresh timestamp, no time limit, creates new message row) |
 | GET | `/api/packets/undecrypted/count` | Count of undecrypted packets |
 | GET | `/api/packets/history` | Packet History browser: pages backward through persisted raw packets (`before_id` cursor, type/hop-width/hex/message-text filters); reach bounded by `raw_packet_retention_days` |

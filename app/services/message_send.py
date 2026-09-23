@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import HTTPException
 from meshcore import EventType
 
-from app.models import ResendChannelMessageResponse
+from app.models import ResendChannelMessageResponse, ResendDirectMessageResponse
 from app.radio import RadioOperationBusyError
 from app.region_scope import is_unscoped, normalize_region_scope
 from app.repository import (
@@ -514,7 +514,15 @@ async def _retry_direct_message_until_acked(
     wait_timeout_ms: int,
     sleep_fn,
     message_repository,
+    initial_ack_code: str | None = None,
 ) -> None:
+    """Retry an unacknowledged DM in the background, then mark it failed.
+
+    After the final attempt we wait one more ACK window. If no ACK arrived by
+    then, the message is marked failed (persisted and broadcast) and every ACK
+    code it was sent with stays matchable for a short grace window.
+    """
+    ack_codes: list[str] = [initial_ack_code] if initial_ack_code else []
     next_wait_timeout_ms = wait_timeout_ms
     attempt = 1
     while attempt < DM_SEND_MAX_ATTEMPTS:
@@ -613,6 +621,7 @@ async def _retry_direct_message_until_acked(
             attempt += 1
             continue
 
+        ack_codes.append(ack_code)
         next_wait_timeout_ms = _get_direct_message_retry_timeout_ms(result)
 
         ack_count = await _apply_direct_message_ack_tracking(
@@ -625,6 +634,37 @@ async def _retry_direct_message_until_acked(
             return
 
         attempt += 1
+
+    # Give the last attempt its full ACK window before calling it failed.
+    await sleep_fn((next_wait_timeout_ms / 1000) * DM_RETRY_WAIT_MARGIN)
+    if await _is_message_acked(message_id=message_id, message_repository=message_repository):
+        return
+    await _mark_direct_message_failed(
+        message_id=message_id,
+        ack_codes=ack_codes,
+        broadcast_fn=broadcast_fn,
+        message_repository=message_repository,
+    )
+
+
+async def _mark_direct_message_failed(
+    *,
+    message_id: int,
+    ack_codes: list[str],
+    broadcast_fn: BroadcastFn,
+    message_repository,
+) -> None:
+    failed_at = int(_time.time())
+    if not await message_repository.mark_failed(message_id, failed_at):
+        # Acked (or deleted) in the meantime; nothing to report.
+        return
+    dm_ack_tracker.track_failed_acks(ack_codes, message_id)
+    logger.info(
+        "Direct message %d marked failed after %d attempt(s) without an ACK",
+        message_id,
+        DM_SEND_MAX_ATTEMPTS,
+    )
+    broadcast_fn("message_failed", {"message_id": message_id, "failed_at": failed_at})
 
 
 async def send_direct_message_to_contact(
@@ -745,10 +785,64 @@ async def send_direct_message_to_contact(
                 wait_timeout_ms=retry_timeout_ms,
                 sleep_fn=retry_sleep_fn,
                 message_repository=message_repository,
+                initial_ack_code=ack_code,
             )
         )
 
     return message
+
+
+async def resend_direct_message_record(
+    *,
+    message,
+    contact,
+    radio_manager,
+    broadcast_fn: BroadcastFn,
+    track_pending_ack_fn: TrackAckFn,
+    now_fn: NowFn,
+    message_repository=MessageRepository,
+    contact_repository=ContactRepository,
+) -> ResendDirectMessageResponse:
+    """Send a failed DM again as a new message and remove the failed row.
+
+    The copy gets a fresh timestamp (so a new ACK code) and the normal
+    background retries. The failed row is only removed once the radio accepted
+    the new send; on any send error it stays as it was.
+    """
+    new_message = await send_direct_message_to_contact(
+        contact=contact,
+        text=message.text,
+        radio_manager=radio_manager,
+        broadcast_fn=broadcast_fn,
+        track_pending_ack_fn=track_pending_ack_fn,
+        now_fn=now_fn,
+        message_repository=message_repository,
+        contact_repository=contact_repository,
+    )
+
+    # The old copy is gone for good: stop matching its ACK codes.
+    dm_ack_tracker.clear_pending_acks_for_message(message.id)
+    await message_repository.delete_by_id(message.id)
+    broadcast_fn(
+        "message_deleted",
+        {
+            "message_id": message.id,
+            "type": message.type,
+            "conversation_key": message.conversation_key,
+        },
+    )
+    logger.info(
+        "Resent failed direct message %d as new message %d to %s",
+        message.id,
+        new_message.id,
+        contact.public_key[:12],
+    )
+    return ResendDirectMessageResponse(
+        status="ok",
+        message_id=new_message.id,
+        message=new_message,
+        replaced_message_id=message.id,
+    )
 
 
 async def _channel_echo_watchdog(

@@ -61,6 +61,10 @@ interface UseRealtimeAppStateArgs {
     paths?: MessagePath[],
     packetId?: number | null
   ) => void;
+  /** An outgoing DM ran out of retries without an ACK. */
+  receiveMessageFailed?: (messageId: number, failedAt: number) => void;
+  /** A message row was removed on the server (e.g. a failed DM replaced by a retry). */
+  removeMessage?: (messageId: number) => void;
   notifyIncomingMessage?: (msg: Message) => void;
   /** Fired for a new incoming channel message that @mentions the user while
    *  they are not viewing that channel - drives the mention ticker. */
@@ -120,6 +124,8 @@ export function useRealtimeAppState({
   renameConversationMessages,
   removeConversationMessages,
   receiveMessageAck,
+  receiveMessageFailed,
+  removeMessage,
   notifyIncomingMessage,
   onChannelMention,
   notifyMentionSound,
@@ -311,6 +317,12 @@ export function useRealtimeAppState({
       ) => {
         receiveMessageAck(messageId, ackCount, paths, packetId);
       },
+      onMessageFailed: (messageId: number, failedAt: number) => {
+        receiveMessageFailed?.(messageId, failedAt);
+      },
+      onMessageDeleted: (messageId: number) => {
+        removeMessage?.(messageId);
+      },
     }),
     [
       activeConversationRef,
@@ -328,6 +340,8 @@ export function useRealtimeAppState({
       prevHealthRef,
       recordMessageEvent,
       receiveMessageAck,
+      receiveMessageFailed,
+      removeMessage,
       observeMessage,
       refreshUnreads,
       reconcileOnReconnect,

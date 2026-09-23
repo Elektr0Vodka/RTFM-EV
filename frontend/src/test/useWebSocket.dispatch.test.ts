@@ -166,6 +166,21 @@ describe('useWebSocket dispatch', () => {
     expect(onMessageAcked).toHaveBeenCalledWith(7, 2, undefined, 99);
   });
 
+  it('routes message_failed and message_deleted to their handlers', () => {
+    const onMessageFailed = vi.fn();
+    const onMessageDeleted = vi.fn();
+    renderHook(() => useWebSocket({ onMessageFailed, onMessageDeleted }));
+
+    fireMessage({ type: 'message_failed', data: { message_id: 7, failed_at: 1700000100 } });
+    fireMessage({
+      type: 'message_deleted',
+      data: { message_id: 7, type: 'PRIV', conversation_key: 'ab' },
+    });
+
+    expect(onMessageFailed).toHaveBeenCalledWith(7, 1700000100);
+    expect(onMessageDeleted).toHaveBeenCalledWith(7);
+  });
+
   it('routes error event to onError', () => {
     const onError = vi.fn();
     renderHook(() => useWebSocket({ onError }));

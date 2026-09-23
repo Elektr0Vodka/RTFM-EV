@@ -25,4 +25,14 @@ describe('MessageRowActions', () => {
     expect(screen.queryByRole('button', { name: 'React' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Reply' })).toBeInTheDocument();
   });
+
+  it('renders Retry only when a retry handler is given and calls it', () => {
+    const onRetry = vi.fn();
+    const { rerender } = render(<MessageRowActions onReply={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+
+    rerender(<MessageRowActions onRetry={onRetry} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
 });

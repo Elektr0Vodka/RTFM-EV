@@ -970,3 +970,55 @@ describe('MessageList path modal sender location', () => {
     expect(screen.getByText('(51.5000, 4.2500)')).toBeInTheDocument();
   });
 });
+
+describe('MessageList failed direct messages', () => {
+  const dm = (overrides: Partial<Message> = {}) =>
+    createMessage({
+      id: 10,
+      type: 'PRIV',
+      conversation_key: 'ab'.repeat(32),
+      text: 'are you there?',
+      outgoing: true,
+      ...overrides,
+    });
+
+  it('shows a failed marker and a Retry action instead of the pending ?', async () => {
+    const onRetry = vi.fn();
+    render(
+      <MessageList
+        messages={[dm({ failed_at: 1700000100 })]}
+        contacts={[]}
+        loading={false}
+        onRetryDirectMessage={onRetry}
+      />
+    );
+
+    expect(screen.getByText(/Failed/)).toBeInTheDocument();
+    expect(screen.queryByTitle('No repeats heard yet')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(onRetry).toHaveBeenCalledWith(10);
+  });
+
+  it('keeps the pending ? and no Retry while the DM is not failed', () => {
+    render(
+      <MessageList messages={[dm()]} contacts={[]} loading={false} onRetryDirectMessage={vi.fn()} />
+    );
+
+    expect(screen.getByTitle('No repeats heard yet')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+  });
+
+  it('treats an acked DM as delivered even if a failed marker is still set', () => {
+    render(
+      <MessageList
+        messages={[dm({ acked: 1, failed_at: 1700000100 })]}
+        contacts={[]}
+        loading={false}
+        onRetryDirectMessage={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByText(/Failed/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+  });
+});

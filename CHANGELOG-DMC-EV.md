@@ -11,6 +11,37 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-23 (DM failed state + manual retry, plan 28 item 1.1, feat/dm-failed-retry)
+
+### Chat (frontend)
+- **Failed DMs.** An outgoing DM that got no ACK after all background retries
+  now shows a red "Failed" marker instead of a `?` that never goes away. A
+  late ACK (see below) turns it into a normal delivered tick.
+- **Retry.** A failed DM gets a Retry row action (next to React/Reply). It
+  sends the text again as a new message (new timestamp, new ACK code, the
+  usual retries) and the new bubble replaces the failed one, like
+  meshcore-open's resend. Retry transmits over RF. If the new send fails (for
+  example no radio), the failed bubble stays and an error toast shows.
+
+### Messages (backend)
+- **Failed marker.** New nullable `messages.failed_at` (migration `_109`;
+  `_108` is reserved by another branch, numbering is reconciled at merge).
+  After the last retry attempt the backend waits one more ACK window, then
+  sets `failed_at` (only on an outgoing row with no ACK) and broadcasts the
+  new WS event `message_failed` (`{message_id, failed_at}`). The `Message`
+  payload carries `failed_at`.
+- **Late ACK.** For 30 s after a DM is marked failed, every ACK code it was
+  sent with still matches (meshcore-open behaviour): the ACK counts, clears
+  `failed_at` and broadcasts `message_acked`. An ACK later than that is
+  treated as unmatched and the DM stays failed.
+- **`POST /api/messages/direct/{message_id}/resend`.** Only for an outgoing
+  DM marked failed with no ACK (409 otherwise, 400 for channel or incoming
+  messages). Sends a new copy through the normal DM send path, then deletes
+  the failed row and broadcasts the new WS event `message_deleted`
+  (`{message_id, type, conversation_key}`). The failed row is kept when the
+  new send fails. No new in-flight limit: a retry is one ordinary DM send.
+- DMs whose first send returns no expected ACK code (no retries are
+  scheduled) are not marked failed; they keep showing `?`.
 ## Update 2026-09-23 (Battery chemistry, feat/battery-chemistry, plan 28 item 1.9)
 
 ### Battery display (frontend)

@@ -88,6 +88,8 @@ interface MessageListProps {
   onReactToMessage?: (messageId: number, emoji: string) => void;
   /** Prefill the composer with a reply to a message. */
   onReplyToMessage?: (message: Message) => void;
+  /** Retry a failed outgoing DM (a new copy replaces the failed one). */
+  onRetryDirectMessage?: (messageId: number) => void | Promise<void>;
   onSenderClick?: (sender: string) => void;
   onLoadOlder?: () => void;
   onResendChannelMessage?: (messageId: number, newTimestamp?: boolean) => void;
@@ -116,6 +118,11 @@ interface MessageListProps {
   onLoadNewer?: () => void;
   onJumpToBottom?: () => void;
   preSorted?: boolean;
+}
+
+/** An outgoing DM that ran out of retries without an ACK can be retried by hand. */
+function isRetryable(msg: Message): boolean {
+  return msg.outgoing && msg.type === 'PRIV' && msg.acked === 0 && msg.failed_at != null;
 }
 
 // Renders a MeshCore Open GIF payload, falling back to the raw text on load error.
@@ -667,6 +674,7 @@ export function MessageList({
   onJumpToMessage,
   onReactToMessage,
   onReplyToMessage,
+  onRetryDirectMessage,
   onSenderClick,
   onLoadOlder,
   onResendChannelMessage,
@@ -1913,6 +1921,14 @@ export function MessageList({
                             {' '}
                             ?
                           </span>
+                        ) : msg.failed_at != null ? (
+                          <span
+                            className="msg-ack-failed font-semibold text-destructive"
+                            title={t('chat_message_failed_title')}
+                            aria-label={t('chat_message_failed_title')}
+                          >
+                            {` ✕ ${t('chat_message_failed')}`}
+                          </span>
                         ) : (
                           <span
                             className="msg-ack-pending text-muted-foreground"
@@ -1929,13 +1945,23 @@ export function MessageList({
                       </Suspense>
                     )}
                   </div>
-                  {msg.sender_timestamp != null && !isReactionPayload(content) && (
+                  {msg.sender_timestamp != null && !isReactionPayload(content) ? (
                     <MessageRowActions
                       onReact={
                         onReactToMessage ? (emoji) => onReactToMessage(msg.id, emoji) : undefined
                       }
                       onReply={onReplyToMessage ? () => onReplyToMessage(msg) : undefined}
+                      onRetry={
+                        isRetryable(msg) && onRetryDirectMessage
+                          ? () => onRetryDirectMessage(msg.id)
+                          : undefined
+                      }
                     />
+                  ) : (
+                    isRetryable(msg) &&
+                    onRetryDirectMessage && (
+                      <MessageRowActions onRetry={() => onRetryDirectMessage(msg.id)} />
+                    )
                   )}
                 </div>
               </div>

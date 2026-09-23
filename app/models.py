@@ -562,6 +562,13 @@ class Message(BaseModel):
         default=None,
         description="Resolved region name for the transport code, if it matched a known region",
     )
+    failed_at: int | None = Field(
+        default=None,
+        description=(
+            "Unix time an outgoing direct message was marked failed (all retries ran out "
+            "without an ACK). None when not failed; a late ACK clears it."
+        ),
+    )
 
 
 class MessagesAroundResponse(BaseModel):
@@ -638,6 +645,13 @@ class ResendChannelMessageResponse(BaseModel):
     status: str
     message_id: int
     message: Message | None = None
+
+
+class ResendDirectMessageResponse(BaseModel):
+    status: str
+    message_id: int = Field(description="ID of the new message row that was sent")
+    message: Message
+    replaced_message_id: int = Field(description="ID of the failed message row that was removed")
 
 
 class RawPacketDecryptedInfo(BaseModel):

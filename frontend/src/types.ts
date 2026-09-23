@@ -445,6 +445,8 @@ export interface Message {
   transport_code?: number | null;
   /** Resolved region name for the transport code, if it matched a known region. */
   region?: string | null;
+  /** Unix time an outgoing DM was marked failed (retries ran out, no ACK). Null when not failed. */
+  failed_at?: number | null;
 }
 
 export interface MessagesAroundResponse {
@@ -502,6 +504,15 @@ export interface ResendChannelMessageResponse {
   status: string;
   message_id: number;
   message?: Message;
+}
+
+export interface ResendDirectMessageResponse {
+  status: string;
+  /** ID of the new message that was sent. */
+  message_id: number;
+  message: Message;
+  /** ID of the failed message that was removed. */
+  replaced_message_id: number;
 }
 
 type ConversationType =

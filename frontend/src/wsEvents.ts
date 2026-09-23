@@ -7,6 +7,17 @@ export interface MessageAckedPayload {
   packet_id?: number | null;
 }
 
+export interface MessageFailedPayload {
+  message_id: number;
+  failed_at: number;
+}
+
+export interface MessageDeletedPayload {
+  message_id: number;
+  type: 'PRIV' | 'CHAN';
+  conversation_key: string;
+}
+
 export interface ContactDeletedPayload {
   public_key: string;
 }
@@ -35,6 +46,8 @@ export type KnownWsEvent =
   | { type: 'channel_deleted'; data: ChannelDeletedPayload }
   | { type: 'raw_packet'; data: RawPacket }
   | { type: 'message_acked'; data: MessageAckedPayload }
+  | { type: 'message_failed'; data: MessageFailedPayload }
+  | { type: 'message_deleted'; data: MessageDeletedPayload }
   | { type: 'error'; data: ToastPayload }
   | { type: 'success'; data: ToastPayload }
   | { type: 'pong'; data?: null };
@@ -68,6 +81,8 @@ export function parseWsEvent(raw: string): ParsedWsEvent {
     case 'channel_deleted':
     case 'raw_packet':
     case 'message_acked':
+    case 'message_failed':
+    case 'message_deleted':
     case 'error':
     case 'success':
       return {

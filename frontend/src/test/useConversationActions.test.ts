@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
     requestPathDiscovery: vi.fn(),
     requestTrace: vi.fn(),
     resendChannelMessage: vi.fn(),
+    resendDirectMessage: vi.fn(),
     sendChannelMessage: vi.fn(),
     sendDirectMessage: vi.fn(),
     setChannelFloodScopeOverride: vi.fn(),
@@ -115,6 +116,51 @@ describe('useConversationActions', () => {
     });
 
     expect(args.observeMessage).not.toHaveBeenCalled();
+  });
+
+  it('retrying a failed DM replaces the failed bubble with the new copy', async () => {
+    const dmKey = 'aa'.repeat(32);
+    const newCopy: Message = { ...sentMessage, id: 43, type: 'PRIV', conversation_key: dmKey };
+    mocks.api.resendDirectMessage.mockResolvedValue({
+      status: 'ok',
+      message_id: 43,
+      message: newCopy,
+      replaced_message_id: 41,
+    });
+    const contactConversation: Conversation = { type: 'contact', id: dmKey, name: 'Alice' };
+    const removeMessage = vi.fn();
+    const args = createArgs({
+      activeConversation: contactConversation,
+      activeConversationRef: { current: contactConversation },
+      removeMessage,
+    });
+    const { result } = renderHook(() => useConversationActions(args));
+
+    await act(async () => {
+      await result.current.handleRetryDirectMessage(41);
+    });
+
+    expect(mocks.api.resendDirectMessage).toHaveBeenCalledWith(41);
+    expect(removeMessage).toHaveBeenCalledWith(41);
+    expect(args.observeMessage).toHaveBeenCalledWith(newCopy);
+    expect(mocks.toast.success).toHaveBeenCalledWith('Message sent again');
+  });
+
+  it('a failed retry keeps the failed bubble and shows the error', async () => {
+    mocks.api.resendDirectMessage.mockRejectedValue(new Error('Radio not connected'));
+    const removeMessage = vi.fn();
+    const args = createArgs({ removeMessage });
+    const { result } = renderHook(() => useConversationActions(args));
+
+    await act(async () => {
+      await result.current.handleRetryDirectMessage(41);
+    });
+
+    expect(removeMessage).not.toHaveBeenCalled();
+    expect(args.observeMessage).not.toHaveBeenCalled();
+    expect(mocks.toast.error).toHaveBeenCalledWith('Retry failed', {
+      description: 'Radio not connected',
+    });
   });
 
   it('appends sender mentions into the message input', () => {
