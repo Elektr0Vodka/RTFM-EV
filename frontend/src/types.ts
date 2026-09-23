@@ -226,6 +226,8 @@ export interface Contact {
   on_radio: boolean;
   favorite: boolean;
   radio_policy: RadioPolicy;
+  /** App-set telemetry sharing bits (1 base, 2 location, 4 environment); null = never set in the app. */
+  telemetry_perms?: number | null;
   last_contacted: number | null;
   last_read_at: number | null;
   first_seen: number | null;
@@ -237,6 +239,12 @@ export interface Contact {
 }
 
 export type RadioPolicy = 'auto' | 'pinned' | 'excluded';
+
+export interface ContactTelemetryPermissions {
+  base: boolean;
+  location: boolean;
+  environment: boolean;
+}
 
 export interface ContactAnnotationsUpdate {
   notes?: string | null;

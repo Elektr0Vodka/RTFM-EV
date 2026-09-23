@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS contacts (
     last_read_at INTEGER,
     favorite INTEGER DEFAULT 0,
     radio_policy TEXT NOT NULL DEFAULT 'auto',
+    telemetry_perms INTEGER,
     notes TEXT,
     owner_info TEXT,
     owner_key TEXT,
