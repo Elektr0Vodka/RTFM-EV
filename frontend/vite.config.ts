@@ -1,6 +1,6 @@
 import fs from "fs"
 import path from "path"
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, searchForWorkspaceRoot, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // The chat emoji picker (frimousse) loads Emojibase data from
@@ -35,6 +35,14 @@ function emojibaseData(): Plugin {
   }
 }
 
+// Worktrees may link node_modules (junction/symlink) to a shared checkout. Vite
+// resolves the link to its real path, which then sits outside this project and
+// is denied for `?worker&url` imports (maplibre worker) unless allowed here.
+const FS_ALLOW = [
+  searchForWorkspaceRoot(__dirname),
+  fs.realpathSync(path.resolve(__dirname, 'node_modules')),
+]
+
 export default defineConfig({
   base: './',
   plugins: [react(), emojibaseData()],
@@ -66,6 +74,9 @@ export default defineConfig({
     },
     watch: {
       usePolling: true,
+    },
+    fs: {
+      allow: FS_ALLOW,
     },
   },
 })

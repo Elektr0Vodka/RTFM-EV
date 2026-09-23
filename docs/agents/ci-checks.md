@@ -75,6 +75,19 @@ npm run build          # tsc typecheck + vite build
 
 Fix prettier with `npx prettier --write <files>` (only the files you changed).
 
+Instead of `npm ci` per worktree you can link `frontend/node_modules` to the
+main checkout's install (PowerShell:
+`New-Item -ItemType Junction -Path frontend/node_modules -Target <main>/frontend/node_modules`).
+Only do this when the worktree's `frontend/package-lock.json` matches the main
+checkout's, and keep the main install current (`npm ci` in the main checkout
+after a lockfile change) or new dependencies will be missing. Never run
+`npm install` or `npm ci` in a linked worktree: it writes to the shared install.
+To switch back to a local install, remove only the link with
+`(Get-Item frontend/node_modules).Delete()`; `Remove-Item -Recurse` on a
+junction can delete the shared install's contents. `vite.config.ts` and
+`vitest.config.ts` allow the link's real path in `server.fs.allow`, which the
+maplibre `?worker&url` import needs.
+
 ## Quick gate before pushing
 
 Backend changed -> run the backend block. Frontend changed -> run the frontend
