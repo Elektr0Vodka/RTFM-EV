@@ -136,7 +136,7 @@ frontend/src/
 │   ├── PacketFeedStatsPanel.tsx # Live tab: session packet-stat breakdowns (reads rawPacketStore)
 │   ├── MeshTrendsHistoricalPanel.tsx # Historical tab: server-backed stats (GET /api/statistics)
 │   ├── AnalyzePacketView.tsx   # Tools view: standalone paste-a-hex packet inspector
-│   ├── MeshDiscoveryView.tsx   # Tools view: mesh discovery sweep (repeaters/sensors) + last-sweep results
+│   ├── MeshDiscoveryView.tsx   # Tools view: mesh discovery sweep (repeaters/sensors) + last-sweep results + repeater region discovery
 │   ├── MapView.tsx
 │   ├── TracePane.tsx           # Multi-hop route trace builder/results view
 │   ├── VisualizerView.tsx
@@ -166,7 +166,7 @@ frontend/src/
 │   ├── NeighborsMiniMap.tsx    # Leaflet mini-map for repeater neighbor locations
 │   ├── settings/
 │   │   ├── settingsConstants.ts          # Settings section type, ordering, labels
-│   │   ├── SettingsRadioSection.tsx      # Name, keys, advert interval, max contacts, radio preset, freq/bw/sf/cr, txPower, lat/lon, reboot, region discovery
+│   │   ├── SettingsRadioSection.tsx      # Name, keys, advert interval, max contacts, radio preset, freq/bw/sf/cr, txPower, lat/lon, reboot, known regions
 │   │   ├── SettingsLocalSection.tsx      # Browser-local settings: theme, relative font scale, local label, reopen last conversation
 │   │   ├── SettingsFanoutSection.tsx     # Fanout integrations: MQTT, bots, config CRUD
 │   │   ├── SettingsRadioAppSection.tsx    # Radio-App Management: tracked telemetry, contact management, blocked lists, partial-node sync
@@ -356,7 +356,7 @@ jsdom has no layout engine, so none of this is observable from the vitest suite 
 - `SettingsRadioSection.tsx` also exposes `multi_acks_enabled` as a checkbox for the radio's extra direct-ACK transmission behavior.
 - Advert-location control is intentionally only `off` vs `include node location`. Companion-radio firmware does not reliably distinguish saved coordinates from live GPS in this path.
 - The advert action is mode-aware: the radio settings section exposes both flood and zero-hop manual advert buttons, both routed through the same `onAdvertise(mode)` seam.
-- Mesh discovery (the Tools > Mesh Discovery view, `#mesh-discovery`) is limited to node classes that currently answer discovery control-data requests in firmware: repeaters and sensors. Sweep state lives in `useRadioControl`, so the last result survives navigation and Settings > Radio region discovery still prefers repeaters from it.
+- Mesh discovery (the Tools > Mesh Discovery view, `#mesh-discovery`) is limited to node classes that currently answer discovery control-data requests in firmware: repeaters and sensors. Sweep state lives in `useRadioControl`, so the last result survives navigation. The same view hosts repeater region discovery (formerly in Settings > Radio), which prefers repeaters from the last sweep and saves added regions straight to `known_regions`.
 - Frontend `path_len` fields are hop counts, not raw byte lengths; multibyte path rendering must use the accompanying metadata before splitting hop identifiers.
 
 ### Chart zoom/pan (`lib/chartZoom.ts`, `hooks/useChartZoom.ts`, `components/charts/`)

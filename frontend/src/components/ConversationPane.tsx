@@ -16,6 +16,7 @@ import type {
   RadioConfig,
   RadioDiscoveryResponse,
   RadioDiscoveryTarget,
+  RadioRegionDiscoveryResponse,
   RadioTraceHopRequest,
   RadioTraceResponse,
 } from '../types';
@@ -158,6 +159,9 @@ interface ConversationPaneProps {
   meshDiscovery?: RadioDiscoveryResponse | null;
   meshDiscoveryLoadingTarget?: RadioDiscoveryTarget | null;
   onDiscoverMesh?: (target: RadioDiscoveryTarget) => Promise<void>;
+  regionDiscovery?: RadioRegionDiscoveryResponse | null;
+  regionDiscoveryLoading?: boolean;
+  onDiscoverRegions?: (publicKeys?: string[]) => Promise<void>;
   onSaveAppSettings?: (update: import('../types').AppSettingsUpdate) => Promise<void> | void;
   /** Handlers the desktop full-page contact-info view needs beyond the ones
    *  ConversationPane already receives (contacts/config/favorite/blocked/analyzer). */
@@ -287,6 +291,9 @@ export function ConversationPane({
   meshDiscovery = null,
   meshDiscoveryLoadingTarget = null,
   onDiscoverMesh,
+  regionDiscovery = null,
+  regionDiscoveryLoading = false,
+  onDiscoverRegions,
   onSaveAppSettings,
   contactInfoViewProps,
 }: ConversationPaneProps) {
@@ -403,6 +410,10 @@ export function ConversationPane({
           meshDiscovery={meshDiscovery}
           meshDiscoveryLoadingTarget={meshDiscoveryLoadingTarget}
           onDiscoverMesh={onDiscoverMesh}
+          regionDiscovery={regionDiscovery}
+          regionDiscoveryLoading={regionDiscoveryLoading}
+          onDiscoverRegions={onDiscoverRegions}
+          onSeedKnownRegions={onSeedKnownRegions}
         />
       </Suspense>
     );

@@ -1246,7 +1246,7 @@
   "settings_radio_discover_regions_label": "Regio's ontdekken via repeaters",
   "settings_radio_asking_repeaters": "Repeaters worden bevraagd...",
   "settings_radio_discover_regions_button": "Regio's Ontdekken",
-  "settings_radio_discover_regions_desc": "Vraagt nabije repeaters welke regio's zij floodden, zodat je de lijst hierboven kunt vullen. Gebruikt repeaters van je laatste mesh-detectieronde indien beschikbaar, anders je meest recent geziene repeaters. Alleen repeaters binnen direct bereik antwoorden, en dit toont alleen flood-toegestane regio's (niet geblokkeerde).",
+  "settings_radio_discover_regions_desc": "Vraagt nabije repeaters welke regio's zij floodden, zodat je ze kunt toevoegen aan Bekende Regio's (Instellingen > Radio). Gebruikt repeaters van je laatste mesh-detectieronde indien beschikbaar, anders je meest recent geziene repeaters. Alleen repeaters binnen direct bereik antwoorden, en dit toont alleen flood-toegestane regio's (niet geblokkeerde).",
   "settings_radio_not_connected": "Radio niet verbonden",
   "settings_radio_repeaters_answered": {
     "one": "{answered}/{queried} repeater heeft geantwoord",

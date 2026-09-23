@@ -11,6 +11,18 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-23 (Region discovery moved to Mesh Discovery, feat/discover-regions-mesh-discovery)
+
+### Tools (frontend)
+- **Discover Regions moved from Settings > Radio to Tools > Mesh Discovery**,
+  below the sweep buttons and results. It still prefers repeaters from the
+  last mesh sweep, now shown on the same page. "Add to Known Regions" now
+  merges the discovered regions into `known_regions` and saves them
+  immediately (reusing the repeater Regions pane's seed path), since there
+  is no unsaved Known Regions field on that page to review first. The Known
+  Regions field, Dutch-scope seed and analyzer region sync stay in Settings >
+  Radio. No backend change.
+
 ## Update 2026-09-23 (Local message delete, plan 28 item 1.7, feat/local-message-delete)
 
 ### Messages (backend)
