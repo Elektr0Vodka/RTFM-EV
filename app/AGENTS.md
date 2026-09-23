@@ -47,6 +47,7 @@ app/
 ├── radio.py             # RadioManager transport/session state + lock management
 ├── radio_sync.py        # Polling, sync, periodic advertisement loop
 ├── decoder.py           # Packet parsing/decryption
+├── smaz.py              # SMAZ "s:<base64>" message-body decode (port of meshcore-open smaz.dart)
 ├── packet_processor.py  # Raw packet pipeline, dedup, path handling
 ├── event_handlers.py    # MeshCore event subscriptions and ACK tracking
 ├── events.py            # Typed WS event payload serialization
@@ -103,6 +104,7 @@ without going through `assert_public_http_url`.
 2. `on_rx_log_data` stores raw packet and tries decrypt/pipeline handling.
 3. Shared message-domain services create/update `messages` and shape WS payloads.
 4. Direct-message storage is centralized in `services/dm_ingest.py`; packet-processor DMs and `CONTACT_MSG_RECV` fallback events both route through that seam.
+5. Incoming SMAZ bodies (`s:<base64>`, sent compressed by meshcore-open) are decoded before storage by `app/smaz.py`: in `_store_direct_message` for incoming non-CLI DMs and in `create_message_from_decrypted` / `create_fallback_channel_message` for channel text (the part after `Sender: `). Stored text, mentions, reaction hashes and fanout all see the decoded text. A body is only decoded when it is valid base64/base64url, a complete stream, valid UTF-8, byte-identical to what the meshcore-open encoder produces, and shorter than the decoded text (the encoder only compresses when it saves bytes); anything else is stored unchanged. Outgoing echoes are never decoded. The raw-packet decoder (`decoder.py`, packet feed/analyzer views) still shows the `s:` form.
 
 ### Outgoing messages
 

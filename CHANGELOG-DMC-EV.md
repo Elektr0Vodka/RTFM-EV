@@ -11,6 +11,22 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-23 (SMAZ message decode, feat/smaz-decode)
+
+### Messages (backend)
+- **SMAZ-compressed messages are decoded on receive.** Another MeshCore
+  client (meshcore-open) can send DM and channel text as `s:<base64>` SMAZ.
+  These bodies are now decoded before storage (new `app/smaz.py`, a port of
+  meshcore-open `lib/helpers/smaz.dart`, MIT), for DMs (packet and
+  `CONTACT_MSG_RECV` fallback paths) and channel messages (packet, historical
+  decrypt and `CHANNEL_MSG_RECV` fallback paths), so mentions, unread mention
+  flags and reaction hashes work on the readable text. Base64 and base64url
+  (with or without padding) are accepted. To avoid rewriting ordinary text
+  such as `s:test`, a body is only decoded when it is exactly what the
+  meshcore-open encoder would send (canonical stream, valid UTF-8, shorter
+  than the decoded text); otherwise the original text is stored unchanged.
+  Outgoing echoes are not decoded. The backend does not send SMAZ.
+
 ## Update 2026-09-23 (Path route map line contrast, fix/path-route-map-line-contrast)
 
 ### Map (frontend)
