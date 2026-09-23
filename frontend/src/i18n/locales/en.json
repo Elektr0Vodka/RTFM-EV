@@ -1245,7 +1245,7 @@
   "settings_radio_discover_regions_label": "Discover regions from repeaters",
   "settings_radio_asking_repeaters": "Asking repeaters...",
   "settings_radio_discover_regions_button": "Discover Regions",
-  "settings_radio_discover_regions_desc": "Asks nearby repeaters which regions they flood, so you can populate the list above. Uses repeaters from your last mesh discovery sweep when available, otherwise your most recently seen repeaters. Only repeaters in direct range answer, and this only reveals flood-allowed regions (not blocked ones).",
+  "settings_radio_discover_regions_desc": "Asks nearby repeaters which regions they flood, so you can add them to Known Regions (Settings > Radio). Uses repeaters from your last mesh discovery sweep when available, otherwise your most recently seen repeaters. Only repeaters in direct range answer, and this only reveals flood-allowed regions (not blocked ones).",
   "settings_radio_not_connected": "Radio not connected",
   "settings_radio_repeaters_answered": {
     "one": "{answered}/{queried} repeater answered",

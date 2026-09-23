@@ -1246,7 +1246,7 @@
   "settings_radio_discover_regions_label": "Regionen von Repeatern ermitteln",
   "settings_radio_asking_repeaters": "Repeater werden befragt...",
   "settings_radio_discover_regions_button": "Regionen ermitteln",
-  "settings_radio_discover_regions_desc": "Fragt nahegelegene Repeater, welche Regionen sie fluten, damit du die obige Liste befüllen kannst. Nutzt Repeater aus deiner letzten Mesh-Erkennungsrunde, falls verfügbar, sonst deine zuletzt gesehenen Repeater. Nur Repeater in direkter Reichweite antworten, und dies zeigt nur flood-erlaubte Regionen (keine blockierten).",
+  "settings_radio_discover_regions_desc": "Fragt nahegelegene Repeater, welche Regionen sie fluten, damit du sie zu den bekannten Regionen (Einstellungen > Radio) hinzufügen kannst. Nutzt Repeater aus deiner letzten Mesh-Erkennungsrunde, falls verfügbar, sonst deine zuletzt gesehenen Repeater. Nur Repeater in direkter Reichweite antworten, und dies zeigt nur flood-erlaubte Regionen (keine blockierten).",
   "settings_radio_not_connected": "Funkgerät nicht verbunden",
   "settings_radio_repeaters_answered": {
     "one": "{answered}/{queried} Repeater hat geantwortet",

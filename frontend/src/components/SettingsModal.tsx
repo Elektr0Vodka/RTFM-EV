@@ -8,8 +8,6 @@ import type {
   RadioAdvertMode,
   RadioConfig,
   RadioConfigUpdate,
-  RadioDiscoveryResponse,
-  RadioRegionDiscoveryResponse,
 } from '../types';
 import type { LocalLabel } from '../utils/localLabel';
 import { useT } from '../i18n';
@@ -43,10 +41,6 @@ interface SettingsModalBaseProps {
   onDisconnect: () => Promise<void>;
   onReconnect: () => Promise<void>;
   onAdvertise: (mode: RadioAdvertMode) => Promise<void>;
-  meshDiscovery: RadioDiscoveryResponse | null;
-  regionDiscovery: RadioRegionDiscoveryResponse | null;
-  regionDiscoveryLoading: boolean;
-  onDiscoverRegions: (publicKeys?: string[]) => Promise<void>;
   onHealthRefresh: () => Promise<void>;
   onRefreshAppSettings: () => Promise<void>;
   onLocalLabelChange?: (label: LocalLabel) => void;
@@ -92,10 +86,6 @@ export function SettingsModal(props: SettingsModalProps) {
     onDisconnect,
     onReconnect,
     onAdvertise,
-    meshDiscovery,
-    regionDiscovery,
-    regionDiscoveryLoading,
-    onDiscoverRegions,
     onHealthRefresh,
     onRefreshAppSettings,
     onLocalLabelChange,
@@ -239,10 +229,6 @@ export function SettingsModal(props: SettingsModalProps) {
                 onDisconnect={onDisconnect}
                 onReconnect={onReconnect}
                 onAdvertise={onAdvertise}
-                meshDiscovery={meshDiscovery}
-                regionDiscovery={regionDiscovery}
-                regionDiscoveryLoading={regionDiscoveryLoading}
-                onDiscoverRegions={onDiscoverRegions}
                 onClose={onClose}
                 className={sectionContentClass}
               />
