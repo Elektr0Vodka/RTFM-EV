@@ -17,7 +17,8 @@ describe('getContactAvatar', () => {
 
   it('returns repeater avatar for type=2', () => {
     const avatar = getContactAvatar('Some Repeater', 'abc123def456', CONTACT_TYPE_REPEATER);
-    expect(avatar.text).toBe('🛜');
+    expect(avatar.icon).toBe('repeater');
+    expect(avatar.text).toBe('');
     expect(avatar.background).toBe('#444444');
     expect(avatar.textColor).toBe('#ffffff');
   });
@@ -25,14 +26,16 @@ describe('getContactAvatar', () => {
   it('repeater avatar ignores name', () => {
     const avatar1 = getContactAvatar('🚀 Rocket', 'abc123', CONTACT_TYPE_REPEATER);
     const avatar2 = getContactAvatar(null, 'xyz789', CONTACT_TYPE_REPEATER);
-    expect(avatar1.text).toBe('🛜');
-    expect(avatar2.text).toBe('🛜');
+    expect(avatar1.icon).toBe('repeater');
+    expect(avatar2.icon).toBe('repeater');
+    expect(avatar1.text).toBe(avatar2.text);
     expect(avatar1.background).toBe(avatar2.background);
   });
 
   it('returns room avatar for type=3', () => {
     const avatar = getContactAvatar('Ops Board', 'abc123def456', CONTACT_TYPE_ROOM);
-    expect(avatar.text).toBe('🛖');
+    expect(avatar.icon).toBe('room');
+    expect(avatar.text).toBe('');
     expect(avatar.background).toBe('#6b4f2a');
     expect(avatar.textColor).toBe('#ffffff');
   });
@@ -42,6 +45,8 @@ describe('getContactAvatar', () => {
     const avatar1 = getContactAvatar('John', 'abc123', 1);
     expect(avatar0.text).toBe('J');
     expect(avatar1.text).toBe('J');
+    expect(avatar0.icon).toBeUndefined();
+    expect(avatar1.icon).toBeUndefined();
   });
 
   it('extracts emoji from name', () => {

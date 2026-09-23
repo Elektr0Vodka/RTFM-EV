@@ -3,20 +3,27 @@
  *
  * Uses the contact's public key to generate a consistent background color,
  * and extracts initials or emoji from the name for display.
- * Repeaters (type=2) and room servers (type=3) always show a fixed glyph.
+ * Repeaters (type=2) and room servers (type=3) always show a fixed icon,
+ * rendered as SVG by ContactAvatar rather than an emoji: emoji glyphs depend on
+ * the OS emoji font, and 🛜 (Unicode 15) rendered as a missing-glyph box on
+ * older systems (issue #63).
  */
 
 import { CONTACT_TYPE_REPEATER, CONTACT_TYPE_ROOM } from '../types';
 
+export type ContactAvatarIcon = 'repeater' | 'room';
+
 // Fixed contact-type avatar styling
 const REPEATER_AVATAR = {
-  text: '🛜',
+  text: '',
+  icon: 'repeater' as ContactAvatarIcon,
   background: '#444444',
   textColor: '#ffffff',
 };
 
 const ROOM_AVATAR = {
-  text: '🛖',
+  text: '',
+  icon: 'room' as ContactAvatarIcon,
   background: '#6b4f2a',
   textColor: '#ffffff',
 };
@@ -119,6 +126,7 @@ export function getContactAvatar(
   text: string;
   background: string;
   textColor: string;
+  icon?: ContactAvatarIcon;
 } {
   if (contactType === CONTACT_TYPE_REPEATER) {
     return REPEATER_AVATAR;
