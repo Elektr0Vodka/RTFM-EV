@@ -10,6 +10,7 @@ from app.models import (
     ReactionTargetResponse,
     ReactRequest,
     ResendChannelMessageResponse,
+    ResendDirectMessageResponse,
     SendChannelMessageRequest,
     SendDirectMessageRequest,
     SharedLocationsResponse,
@@ -28,6 +29,7 @@ from app.repository import AmbiguousPublicKeyPrefixError, AppSettingsRepository,
 from app.services.message_send import (
     SCOPE_UNSET,
     resend_channel_message_record,
+    resend_direct_message_record,
     send_channel_message_to_channel,
     send_direct_message_to_contact,
 )
@@ -241,6 +243,55 @@ async def send_direct_message(request: SendDirectMessageRequest) -> Message:
     return await send_direct_message_to_contact(
         contact=db_contact,
         text=request.text,
+        radio_manager=radio_manager,
+        broadcast_fn=broadcast_event,
+        track_pending_ack_fn=track_pending_ack,
+        now_fn=time.time,
+        message_repository=MessageRepository,
+        contact_repository=ContactRepository,
+    )
+
+
+@router.post("/direct/{message_id}/resend", response_model=ResendDirectMessageResponse)
+async def resend_direct_message(message_id: int) -> ResendDirectMessageResponse:
+    """Retry a failed direct message.
+
+    Sends the text again as a new message (fresh timestamp, so a new ACK code,
+    with the normal background retries) and removes the failed row, like
+    meshcore-open's resend. Only allowed for an outgoing DM that was marked
+    failed and has no ACK. The failed row is kept if the new send fails.
+    """
+    radio_manager.require_connected()
+
+    from app.repository import ContactRepository
+
+    msg = await MessageRepository.get_by_id(message_id)
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    if not msg.outgoing:
+        raise HTTPException(status_code=400, detail="Can only resend outgoing messages")
+
+    if msg.type != "PRIV":
+        raise HTTPException(status_code=400, detail="Can only resend direct messages")
+
+    if msg.acked > 0 or msg.failed_at is None:
+        raise HTTPException(status_code=409, detail="Only failed direct messages can be retried")
+
+    db_contact = await ContactRepository.get_by_key(msg.conversation_key)
+    if not db_contact:
+        raise HTTPException(
+            status_code=404, detail=f"Contact not found in database: {msg.conversation_key}"
+        )
+    if len(db_contact.public_key) < 64:
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot send to an unresolved prefix-only contact until a full key is known",
+        )
+
+    return await resend_direct_message_record(
+        message=msg,
+        contact=db_contact,
         radio_manager=radio_manager,
         broadcast_fn=broadcast_event,
         track_pending_ack_fn=track_pending_ack,

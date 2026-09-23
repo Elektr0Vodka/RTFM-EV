@@ -77,6 +77,7 @@ import type {
   PathDiscoveryResponse,
   PushSubscriptionInfo,
   ResendChannelMessageResponse,
+  ResendDirectMessageResponse,
   RepeaterAclResponse,
   RepeaterAdvertIntervalsResponse,
   RepeaterLoginResponse,
@@ -534,6 +535,10 @@ export const api = {
       `/messages/channel/${messageId}/resend${newTimestamp ? '?new_timestamp=true' : ''}`,
       { method: 'POST' }
     ),
+  resendDirectMessage: (messageId: number) =>
+    fetchJson<ResendDirectMessageResponse>(`/messages/direct/${messageId}/resend`, {
+      method: 'POST',
+    }),
 
   // Packets
   getRecentPackets: (params?: { afterTs?: number; beforeTs?: number; limit?: number }) => {

@@ -377,6 +377,8 @@ export function App() {
     reloadCurrentConversation,
     observeMessage,
     receiveMessageAck,
+    receiveMessageFailed,
+    removeMessage,
     reconcileOnReconnect,
     renameConversationMessages,
     removeConversationMessages,
@@ -496,6 +498,8 @@ export function App() {
     renameConversationMessages,
     removeConversationMessages,
     receiveMessageAck,
+    receiveMessageFailed,
+    removeMessage,
     notifyIncomingMessage,
     onChannelMention: handleChannelMention,
     notifyMentionSound,
@@ -525,6 +529,7 @@ export function App() {
   const {
     handleSendMessage,
     handleResendChannelMessage,
+    handleRetryDirectMessage,
     handleReactToMessage,
     handleReplyToMessage,
     handleSetChannelFloodScopeOverride,
@@ -539,6 +544,7 @@ export function App() {
     setContacts,
     setChannels,
     observeMessage,
+    removeMessage,
     messageInputRef,
   });
   const handleCreateCrackedChannel = useCallback(
@@ -710,6 +716,7 @@ export function App() {
     onNavigateToUnread: (messageId: number) => setTargetMessageId(messageId),
     onJumpToMessage: (messageId: number) => setTargetMessageId(messageId),
     onReactToMessage: handleReactToMessage,
+    onRetryDirectMessage: handleRetryDirectMessage,
     onReplyToMessage: handleReplyToMessage,
     targetMessageId,
     hasNewerMessages,

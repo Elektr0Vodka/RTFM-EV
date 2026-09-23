@@ -1,23 +1,27 @@
 import { useState } from 'react';
-import { Reply, SmilePlus } from 'lucide-react';
+import { Reply, RotateCcw, SmilePlus } from 'lucide-react';
 
 import { useT } from '../i18n';
 
 // Same quick set other MeshCore clients lead with; one tap sends the reaction.
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '🎉', '👏', '🔥'];
 
-/** Hover actions for a chat message: react with an emoji, or reply. */
+/** Hover actions for a chat message: react with an emoji, reply, or retry a failed DM. */
 export function MessageRowActions({
   onReact,
   onReply,
+  onRetry,
 }: {
   onReact?: (emoji: string) => void;
   onReply?: () => void;
+  /** Only passed for a failed outgoing DM. Sends a new copy, so it transmits. */
+  onRetry?: () => void | Promise<void>;
 }) {
   const t = useT();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
-  if (!onReact && !onReply) return null;
+  if (!onReact && !onReply && !onRetry) return null;
 
   const buttonClass =
     'rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
@@ -34,6 +38,25 @@ export function MessageRowActions({
           onClick={() => setPickerOpen((open) => !open)}
         >
           <SmilePlus className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      )}
+      {onRetry && (
+        <button
+          type="button"
+          className={buttonClass}
+          aria-label={t('chat_retry_action')}
+          title={t('chat_retry_action')}
+          disabled={retrying}
+          onClick={async () => {
+            setRetrying(true);
+            try {
+              await onRetry();
+            } finally {
+              setRetrying(false);
+            }
+          }}
+        >
+          <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
       )}
       {onReply && (

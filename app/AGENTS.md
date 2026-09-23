@@ -113,7 +113,9 @@ without going through `assert_public_http_url`.
 2. Service-layer send workflows call MeshCore commands, persist outgoing messages, and wire ACK tracking.
 3. Endpoint broadcasts WS `message` event so all live clients update.
 4. ACK/repeat updates arrive later as `message_acked` events.
-5. Channel resend (`POST /messages/channel/{id}/resend`) strips the sender name prefix by exact match against the current radio name. This assumes the radio name hasn't changed between the original send and the resend. Name changes require an explicit radio config update and are rare, but the `new_timestamp=true` resend path has no time window, so a mismatch is possible if the name was changed between the original send and a later resend.
+5. DM failed state: `_retry_direct_message_until_acked` retries up to `DM_SEND_MAX_ATTEMPTS` (final attempt flood), then waits one more ACK window. With still no ACK it sets `messages.failed_at` (migration 109, `MessageRepository.mark_failed`, only when `outgoing = 1 AND acked = 0`) and broadcasts `message_failed`. Every ACK code the message was sent with stays matchable for `dm_ack_tracker.FAILED_ACK_GRACE_SECONDS` (30 s): a late ACK in that window goes through `apply_dm_ack_code` as usual, `increment_ack_count` clears `failed_at`, and `message_acked` flips the UI to delivered. A later ACK is buffered like any unmatched ACK and the message stays failed. DMs whose first send returned no `expected_ack` never schedule retries, so they are never marked failed.
+6. DM manual retry (`POST /messages/direct/{id}/resend`): only for an outgoing PRIV row with `failed_at` set and `acked = 0` (else 409). Sends the stored text again through `send_direct_message_to_contact` (fresh timestamp, new ACK code, normal background retries), then deletes the failed row and broadcasts `message_deleted`. If the new send fails the failed row stays. No byte-perfect DM resend exists.
+7. Channel resend (`POST /messages/channel/{id}/resend`) strips the sender name prefix by exact match against the current radio name. This assumes the radio name hasn't changed between the original send and the resend. Name changes require an explicit radio config update and are rare, but the `new_timestamp=true` resend path has no time window, so a mismatch is possible if the name was changed between the original send and a later resend.
 
 ### Connection lifecycle
 
@@ -325,6 +327,7 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `GET /messages/locations` - location shares in DM + channel messages received in `(since, until]`, newest first; `latest_per_sender` (default true) keeps one per sender (self / DM partner / channel sender key, else name). Parsing in `app/location_payloads.py` (meshcore-open `m:` marker, upper-case MGRS via `app/mgrs.py`, `lat, lon` with 4+ decimals); service `app/services/shared_locations.py` scans at most 20,000 newest rows (`truncated`). Local map only, never fanned out
 - `POST /messages/direct`
 - `POST /messages/channel`
+- `POST /messages/direct/{message_id}/resend` - retry a failed DM as a new message and remove the failed row (see Outgoing messages)
 - `POST /messages/channel/{message_id}/resend`
 - `GET /messages/{message_id}/reaction-target` - resolve an emoji reaction to the message it reacts to: same conversation, up to 7 days before (`app/reaction_payloads.py`). Dialects:
   - `@[Name]emoji\nhash` / `emoji\nhash`: SHA-256 of the target's body (without `Sender: `) + its sender timestamp (LE uint32), first 5 bytes as Crockford Base32. Checked against real traffic and a known-answer vector.
@@ -429,6 +432,8 @@ chosen node), and a Prefix Collisions tab badge.
 - `contact_resolved` - prefix contact reconciled to a full contact row (payload: `{ previous_public_key, contact }`)
 - `message` - new message (channel or DM, from packet processor or send endpoints)
 - `message_acked` - ACK/echo update for existing message (ack count + paths)
+- `message_failed` - outgoing DM ran out of retries without an ACK (payload: `{ message_id, failed_at }`)
+- `message_deleted` - message row removed, e.g. a failed DM replaced by a manual retry (payload: `{ message_id, type, conversation_key }`)
 - `raw_packet` - every incoming RF packet (for real-time packet feed UI)
 - `contact_deleted` - contact removed from database (payload: `{ public_key }`)
 - `channel` - single channel upsert/update (payload: full `Channel`)

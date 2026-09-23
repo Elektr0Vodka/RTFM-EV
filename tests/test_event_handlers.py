@@ -386,6 +386,7 @@ class TestContactMessageCLIFiltering:
             "packet_id",
             "transport_code",
             "region",
+            "failed_at",
         }
 
         with patch("app.event_handlers.broadcast_event") as mock_broadcast:

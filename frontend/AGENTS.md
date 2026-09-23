@@ -305,6 +305,7 @@ The "Contact link" tab only renders when `onImportContactUri` is passed (App wir
 - Backend also emits WS `message` for outgoing sends so other clients stay in sync.
 - ACK/repeat updates arrive as `message_acked` events.
 - Outgoing channel messages show a 30-second resend control; resend calls `POST /api/messages/channel/{message_id}/resend`.
+- Failed DMs: an outgoing DM with `failed_at` set and `acked === 0` shows a red "Failed" marker instead of the pending `?` (`acked > 0` always wins, so a late ACK shows as delivered). WS `message_failed` sets `failed_at` via `useConversationMessages.receiveMessageFailed`. `MessageRowActions` gets an `onRetry` (Retry button) only for such rows; `useConversationActions.handleRetryDirectMessage` calls `POST /api/messages/direct/{message_id}/resend`, removes the failed row (`removeMessage`) and adds the new copy. Other clients drop the failed row on WS `message_deleted`. Retry transmits over RF.
 - Conversation-scoped message caching now lives inside `useConversationMessages.ts` rather than a standalone `messageCache.ts` module. If you touch message timeline restore/dedup/reconnect behavior, start there.
 - `contact_resolved` is a real-time identity migration event, not just a contact-list update. Changes in that area need to consider active conversation state, cached messages, unread state keys, and reconnect reconciliation together.
 
@@ -378,7 +379,7 @@ jsdom has no layout engine, so none of this is observable from the vitest suite 
 - Auto reconnect (3s) with cleanup guard on unmount.
 - Heartbeat ping every 30s.
 - Incoming JSON is parsed through `wsEvents.ts`, which validates the top-level envelope and known event type strings, then casts payloads at the handler boundary. It does not schema-validate per-event payload shapes.
-- Event handlers: `health`, `message`, `contact`, `contact_resolved`, `channel`, `raw_packet`, `message_acked`, `contact_deleted`, `channel_deleted`, `error`, `success`, `pong` (ignored).
+- Event handlers: `health`, `message`, `contact`, `contact_resolved`, `channel`, `raw_packet`, `message_acked`, `message_failed`, `message_deleted`, `contact_deleted`, `channel_deleted`, `error`, `success`, `pong` (ignored).
 - For `raw_packet` events, use `observation_id` as event identity; `id` is a storage reference and may repeat.
 
 ## URL Hash Navigation (`utils/urlHash.ts`)
