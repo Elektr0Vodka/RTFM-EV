@@ -504,6 +504,7 @@ Repository writes should prefer typed models such as `ContactUpsert` over ad hoc
 - `registry_sync_url` (remote `{name: key}` channel list synced into the registry), `analyzer_sites` (external analyzer link targets, incl. per-site `channel_url_template`), `handy_info` (user overlay for the Handy Info section)
 - `external_map_enabled`, `external_map_sync_url`, `external_map_sync_interval_hours` (external analyzer node-directory overlay on the map; also the candidate source for partial-node resolution)
 - `sidebar_hidden`, `sidebar_section_order`, `sidebar_tool_order`, `sidebar_favorites_order`, `sidebar_favorite_sort_orders` (sidebar customisation, persisted server-side)
+- `contact_groups` (user-defined contact/channel groups, each `{id, name, contact_keys, channel_keys}`; full-list replace via `PATCH /settings`, same convention as the other sidebar arrays above; migration `_111`. Each group is its own sidebar section - its key is `sidebar_section_order`'s `group:<id>` entries, tolerated by that field's "unknown keys are dropped/appended" reconciliation without a schema change. Local only, never sent over RF)
 - `packet_feed_sort`, `packet_history_sort` (`oldest`/`newest`), `packet_group_by_content` (shared "Group repeats by content" toggle for Raw Packet Feed + Packet History)
 - `mesh_health_page_size` (Mesh Health contacts table rows per page; `0` = all)
 - `date_time_format` (`auto` / `12h_mdy` / `24h_dmy`; migration `_103`)

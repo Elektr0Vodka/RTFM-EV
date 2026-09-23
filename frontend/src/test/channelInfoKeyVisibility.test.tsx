@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ChannelInfoPane } from '../components/ChannelInfoPane';
-import type { Channel, ChannelDetail } from '../types';
+import type { Channel, ChannelDetail, ContactGroup } from '../types';
 
 // Mock the api module
 vi.mock('../api', () => ({
@@ -215,5 +216,102 @@ describe('ChannelInfoPane analyzer channel lookup', () => {
 
     await screen.findByText('Public');
     expect(screen.queryByText(/Open channel on/)).not.toBeInTheDocument();
+  });
+});
+
+describe('ChannelInfoPane group membership (plan 28 item 1.16)', () => {
+  it('lists existing groups and toggles this channel into one', async () => {
+    const user = userEvent.setup();
+    const key = 'FA'.repeat(16);
+    const channel = makeChannel(key, 'Ops', false);
+    mockGetChannelDetail.mockResolvedValue(makeDetail(channel));
+    const groups: ContactGroup[] = [
+      { id: 'grp-1', name: 'Field Team', contact_keys: [], channel_keys: [] },
+    ];
+    const onUpdateContactGroups = vi.fn();
+
+    render(
+      <ChannelInfoPane
+        {...baseProps}
+        channelKey={key}
+        channels={[channel]}
+        contactGroups={groups}
+        onUpdateContactGroups={onUpdateContactGroups}
+      />
+    );
+
+    const checkbox = await screen.findByRole('checkbox', { name: 'Field Team' });
+    expect(checkbox).not.toBeChecked();
+    await user.click(checkbox);
+
+    expect(onUpdateContactGroups).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'grp-1', channel_keys: [key] }),
+    ]);
+  });
+
+  it('shows an already-grouped channel as checked and removes it on uncheck', async () => {
+    const user = userEvent.setup();
+    const key = 'FB'.repeat(16);
+    const channel = makeChannel(key, 'Ops', false);
+    mockGetChannelDetail.mockResolvedValue(makeDetail(channel));
+    const groups: ContactGroup[] = [
+      { id: 'grp-1', name: 'Field Team', contact_keys: [], channel_keys: [key] },
+    ];
+    const onUpdateContactGroups = vi.fn();
+
+    render(
+      <ChannelInfoPane
+        {...baseProps}
+        channelKey={key}
+        channels={[channel]}
+        contactGroups={groups}
+        onUpdateContactGroups={onUpdateContactGroups}
+      />
+    );
+
+    const checkbox = await screen.findByRole('checkbox', { name: 'Field Team' });
+    expect(checkbox).toBeChecked();
+    await user.click(checkbox);
+
+    expect(onUpdateContactGroups).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'grp-1', channel_keys: [] }),
+    ]);
+  });
+
+  it('creates a new group and adds this channel to it in one step', async () => {
+    const user = userEvent.setup();
+    const key = 'FC'.repeat(16);
+    const channel = makeChannel(key, 'Ops', false);
+    mockGetChannelDetail.mockResolvedValue(makeDetail(channel));
+    const onUpdateContactGroups = vi.fn();
+
+    render(
+      <ChannelInfoPane
+        {...baseProps}
+        channelKey={key}
+        channels={[channel]}
+        contactGroups={[]}
+        onUpdateContactGroups={onUpdateContactGroups}
+      />
+    );
+
+    const input = await screen.findByPlaceholderText('New group name');
+    await user.type(input, 'Night Shift');
+    await user.click(screen.getByRole('button', { name: 'Create & add' }));
+
+    expect(onUpdateContactGroups).toHaveBeenCalledWith([
+      expect.objectContaining({ name: 'Night Shift', channel_keys: [key] }),
+    ]);
+  });
+
+  it('hides the Groups section when contactGroups is not supplied', async () => {
+    const key = 'FD'.repeat(16);
+    const channel = makeChannel(key, 'Ops', false);
+    mockGetChannelDetail.mockResolvedValue(makeDetail(channel));
+
+    render(<ChannelInfoPane {...baseProps} channelKey={key} channels={[channel]} />);
+
+    await screen.findByText('Ops');
+    expect(screen.queryByText('Groups')).not.toBeInTheDocument();
   });
 });

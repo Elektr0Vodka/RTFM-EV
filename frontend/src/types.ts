@@ -700,6 +700,19 @@ export interface SidebarFavoriteSortOrders {
   sensors: FavoriteSortOrder;
 }
 
+/**
+ * A user-defined group of contacts and/or channels. Rendered as its own
+ * collapsible sidebar section (see utils/sidebarLayout groupSectionKey).
+ * A contact/channel can belong to several groups; server-persisted so all
+ * browsers agree. Local only - never sent over RF.
+ */
+export interface ContactGroup {
+  id: string;
+  name: string;
+  contact_keys: string[];
+  channel_keys: string[];
+}
+
 export interface AppSettings {
   max_radio_contacts: number;
   auto_decrypt_dm_on_advert: boolean;
@@ -729,6 +742,7 @@ export interface AppSettings {
   sidebar_favorites_order: string[];
   sidebar_hidden: SidebarHidden;
   sidebar_favorite_sort_orders: SidebarFavoriteSortOrders;
+  contact_groups: ContactGroup[];
   packet_feed_sort: 'oldest' | 'newest';
   packet_history_sort: 'oldest' | 'newest';
   /** Mesh Health contacts-table page size; 0 = show all. */
@@ -1063,6 +1077,7 @@ export interface AppSettingsUpdate {
   sidebar_favorites_order?: string[];
   sidebar_hidden?: SidebarHidden;
   sidebar_favorite_sort_orders?: Partial<SidebarFavoriteSortOrders>;
+  contact_groups?: ContactGroup[];
   packet_feed_sort?: 'oldest' | 'newest';
   packet_history_sort?: 'oldest' | 'newest';
   mesh_health_page_size?: number;

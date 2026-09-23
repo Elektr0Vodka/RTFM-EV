@@ -51,6 +51,7 @@ function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings {
       rooms: 'recent',
       sensors: 'recent',
     },
+    contact_groups: [],
     packet_feed_sort: 'oldest',
     packet_history_sort: 'oldest',
     mesh_health_page_size: 50,

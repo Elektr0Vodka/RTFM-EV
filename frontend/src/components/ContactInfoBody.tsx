@@ -48,6 +48,7 @@ import { LppSensorRow, formatLppLabel } from './repeater/repeaterPaneShared';
 import { toast } from './ui/sonner';
 import { useDistanceUnit } from '../contexts/DistanceUnitContext';
 import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
+import { createContactGroup, toggleGroupMember } from '../utils/sidebarLayout';
 import { CONTACT_TYPE_REPEATER } from '../types';
 import type {
   AnalyzerSite,
@@ -57,6 +58,7 @@ import type {
   ContactAnalytics,
   ContactAnalyticsHourlyBucket,
   ContactAnalyticsWeeklyBucket,
+  ContactGroup,
   LppSensor,
   PartialNodeResolution,
   RadioConfig,
@@ -129,6 +131,10 @@ export interface ContactInfoBodyProps {
   analyzerSites?: AnalyzerSite[];
   onOpenContactInfo?: (publicKey: string) => void;
   onOpenConversation?: (publicKey: string) => void;
+  /** User-defined contact/channel groups (server-persisted); omit to hide the
+   *  Groups section entirely (e.g. when the caller has no settings loaded). */
+  contactGroups?: ContactGroup[];
+  onUpdateContactGroups?: (next: ContactGroup[]) => void | Promise<void>;
   /** Which region to render. 'all' = the full single-column stack (mobile Sheet);
    *  'identity' | 'data' | 'network' = only that column's sections (desktop). */
   region?: ContactInfoRegion;
@@ -166,6 +172,8 @@ export function ContactInfoBody({
   analyzerSites = [],
   onOpenContactInfo,
   onOpenConversation,
+  contactGroups,
+  onUpdateContactGroups,
   region = 'all',
   showHeader = true,
 }: ContactInfoBodyProps) {
@@ -388,6 +396,15 @@ export function ContactInfoBody({
             )}
           </button>
         </div>
+      )}
+
+      {show('identity') && contactGroups && onUpdateContactGroups && (
+        <ContactGroupsSection
+          t={t}
+          contactKey={contact.public_key}
+          contactGroups={contactGroups}
+          onUpdateContactGroups={onUpdateContactGroups}
+        />
       )}
 
       {show('data') && (
@@ -1002,6 +1019,86 @@ function NearbyRepeatersSection({
             </span>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Group membership editor shared by contact info (here) and channel info
+ * (ChannelInfoPane): a checkbox per existing group plus an inline "create a
+ * new group and add this item" row. Membership is a full-list toggle (see
+ * utils/sidebarLayout toggleGroupMember) handed to the caller, which persists
+ * it server-side (app_settings.contact_groups).
+ */
+function ContactGroupsSection({
+  t,
+  contactKey,
+  contactGroups,
+  onUpdateContactGroups,
+}: {
+  t: TFn;
+  contactKey: string;
+  contactGroups: ContactGroup[];
+  onUpdateContactGroups: (next: ContactGroup[]) => void | Promise<void>;
+}) {
+  const [newGroupName, setNewGroupName] = useState('');
+  const normalizedKey = contactKey.toLowerCase();
+
+  const createAndAdd = () => {
+    const name = newGroupName.trim();
+    if (!name) return;
+    const group = createContactGroup(name);
+    void onUpdateContactGroups(
+      toggleGroupMember([...contactGroups, group], group.id, 'contact', contactKey)
+    );
+    setNewGroupName('');
+  };
+
+  return (
+    <div className="px-5 py-3 border-b border-border">
+      <SectionLabel>{t('contact_groups_heading')}</SectionLabel>
+      {contactGroups.length === 0 ? (
+        <p className="text-xs text-muted-foreground mb-2">{t('nav_contact_groups_empty')}</p>
+      ) : (
+        <div className="space-y-1.5 mb-2">
+          {contactGroups.map((group) => (
+            <label key={group.id} className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={group.contact_keys.includes(normalizedKey)}
+                onChange={() =>
+                  void onUpdateContactGroups(
+                    toggleGroupMember(contactGroups, group.id, 'contact', contactKey)
+                  )
+                }
+                className="h-4 w-4 rounded border-input"
+              />
+              <span className="truncate">{group.name}</span>
+            </label>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-1.5">
+        <input
+          type="text"
+          value={newGroupName}
+          onChange={(e) => setNewGroupName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') createAndAdd();
+          }}
+          placeholder={t('nav_group_name_placeholder')}
+          aria-label={t('nav_group_name_placeholder')}
+          className="w-full text-sm rounded border border-border bg-background px-2 py-1"
+        />
+        <button
+          type="button"
+          className="text-xs px-2 py-1 rounded border border-border hover:bg-accent transition-colors whitespace-nowrap disabled:opacity-50"
+          disabled={!newGroupName.trim()}
+          onClick={createAndAdd}
+        >
+          {t('contact_group_create_and_add')}
+        </button>
       </div>
     </div>
   );

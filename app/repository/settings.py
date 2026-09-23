@@ -11,6 +11,7 @@ from app.models import (
     RETENTION_DEFAULTS,
     AnalyzerSite,
     AppSettings,
+    ContactGroup,
     HandyInfoSettings,
     MentionSoundMeta,
     SidebarFavoriteSortOrders,
@@ -71,7 +72,7 @@ class AppSettingsRepository:
                    openhop_api_url, openhop_api_token,
                    mention_sound_enabled, mention_sound_choice, mention_sound_volume,
                    sidebar_section_order, sidebar_tool_order, sidebar_favorites_order,
-                   sidebar_hidden, sidebar_favorite_sort_orders,
+                   sidebar_hidden, sidebar_favorite_sort_orders, contact_groups,
                    packet_feed_sort, packet_history_sort,
                    mesh_health_page_size, date_time_format, packet_group_by_content,
                    battery_chemistry,
@@ -170,6 +171,16 @@ class AppSettingsRepository:
                 )
         except (json.JSONDecodeError, TypeError, KeyError, ValueError):
             sidebar_favorite_sort_orders = SidebarFavoriteSortOrders()
+
+        # Parse contact_groups JSON array ([] or invalid -> no groups). Tolerate a
+        # missing column (partial migration snapshot).
+        contact_groups: list[ContactGroup] = []
+        try:
+            raw_groups = row["contact_groups"]
+            if raw_groups:
+                contact_groups = [ContactGroup.model_validate(g) for g in json.loads(raw_groups)]
+        except (json.JSONDecodeError, TypeError, KeyError, ValueError):
+            contact_groups = []
 
         # Packet-feed sort direction; tolerate a missing column (partial migration
         # snapshot) and coerce anything unexpected to the default.
@@ -521,6 +532,7 @@ class AppSettingsRepository:
             sidebar_favorites_order=sidebar_favorites_order,
             sidebar_hidden=sidebar_hidden,
             sidebar_favorite_sort_orders=sidebar_favorite_sort_orders,
+            contact_groups=contact_groups,
             packet_feed_sort=packet_feed_sort,
             packet_history_sort=packet_history_sort,
             mesh_health_page_size=mesh_health_page_size,
@@ -593,6 +605,7 @@ class AppSettingsRepository:
         sidebar_favorites_order: list[str] | None = None,
         sidebar_hidden: SidebarHidden | None = None,
         sidebar_favorite_sort_orders: SidebarFavoriteSortOrders | None = None,
+        contact_groups: list[ContactGroup] | None = None,
         packet_feed_sort: str | None = None,
         packet_history_sort: str | None = None,
         mesh_health_page_size: int | None = None,
@@ -683,6 +696,10 @@ class AppSettingsRepository:
         if sidebar_favorite_sort_orders is not None:
             updates.append("sidebar_favorite_sort_orders = ?")
             params.append(json.dumps(sidebar_favorite_sort_orders.model_dump()))
+
+        if contact_groups is not None:
+            updates.append("contact_groups = ?")
+            params.append(json.dumps([g.model_dump() for g in contact_groups]))
 
         if packet_feed_sort is not None:
             updates.append("packet_feed_sort = ?")
@@ -921,6 +938,7 @@ class AppSettingsRepository:
         sidebar_favorites_order: list[str] | None = None,
         sidebar_hidden: SidebarHidden | None = None,
         sidebar_favorite_sort_orders: SidebarFavoriteSortOrders | None = None,
+        contact_groups: list[ContactGroup] | None = None,
         packet_feed_sort: str | None = None,
         packet_history_sort: str | None = None,
         mesh_health_page_size: int | None = None,
@@ -992,6 +1010,7 @@ class AppSettingsRepository:
                 sidebar_favorites_order=sidebar_favorites_order,
                 sidebar_hidden=sidebar_hidden,
                 sidebar_favorite_sort_orders=sidebar_favorite_sort_orders,
+                contact_groups=contact_groups,
                 packet_feed_sort=packet_feed_sort,
                 packet_history_sort=packet_history_sort,
                 mesh_health_page_size=mesh_health_page_size,

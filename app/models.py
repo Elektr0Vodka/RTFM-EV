@@ -1383,6 +1383,28 @@ class SidebarFavoriteSortOrders(BaseModel):
 # batteryDisplay.ts for the per-chemistry math and sources.
 BATTERY_CHEMISTRIES: tuple[str, ...] = ("lipo", "lifepo4", "lipo_hv", "nmc")
 
+
+class ContactGroup(BaseModel):
+    """A user-defined group of contacts and/or channels.
+
+    Rendered as its own collapsible sidebar section, alongside the built-in
+    Favorites/Channels/Contacts sections (see ``SidebarHidden``/section order).
+    A contact or channel can belong to any number of groups. Membership removes
+    the item from its normal Channels/Contacts/Rooms/Repeaters section, the
+    same way marking something a favorite does (see the ``favorite`` flag on
+    Contact/Channel) - the group section becomes the item's only "leftover"
+    section unless it is also a favorite. Local-only: nothing about groups is
+    sent over RF.
+    """
+
+    id: str = Field(description="Stable client-generated identifier for this group")
+    name: str = Field(description="Display name shown as the section header")
+    contact_keys: list[str] = Field(
+        default_factory=list, description="Member contact public keys (lowercase hex)"
+    )
+    channel_keys: list[str] = Field(default_factory=list, description="Member channel keys")
+
+
 # Retention settings added in migrations _105 and _107 (0 = keep forever / no cap).
 # Defaults reproduce the pruning behavior from before that migration.
 RETENTION_DEFAULTS: dict[str, int] = {
@@ -1512,6 +1534,10 @@ class AppSettings(BaseModel):
     sidebar_favorite_sort_orders: SidebarFavoriteSortOrders = Field(
         default_factory=SidebarFavoriteSortOrders,
         description="Per-favorite-group sort order (recent/alpha) in the sidebar.",
+    )
+    contact_groups: list[ContactGroup] = Field(
+        default_factory=list,
+        description="User-defined contact/channel groups, each its own sidebar section.",
     )
     packet_feed_sort: Literal["oldest", "newest"] = Field(
         default="oldest",

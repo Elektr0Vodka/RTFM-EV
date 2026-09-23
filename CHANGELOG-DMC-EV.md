@@ -163,6 +163,30 @@ the change. Upstream development is on hold; the fork is the active repository.
   it. New dependencies: `uqr` (QR rendering, no dependencies) and
   `zxing-wasm` (QR scanning; its WASM is bundled with the app and loaded only
   when you scan, so no CDN is contacted).
+## Update 2026-09-23 (Contact groups, plan 28 item 1.16, feat/contact-groups)
+
+### Sidebar (frontend)
+- **User-defined contact/channel groups.** Create, rename and delete named
+  groups from the sidebar's Customize panel; a group can hold any mix of
+  contacts and channels, and an item can belong to several groups. Each group
+  renders as its own collapsible sidebar section (unread counts, new-item
+  badges, per-section "mark read" - same as the built-in sections) and slots
+  into the existing section reorder/hide/collapse system (drag order, hidden
+  overlay), so groups can be reordered alongside Tools/Favorites/Channels/
+  Contacts and hidden without deleting them. Membership is edited from the
+  contact info pane, the channel info pane, or the group's own checkbox list
+  in those panes (which also offers "create a new group and add this item"
+  inline). A grouped item drops out of its normal Channels/Contacts/Rooms/
+  Repeaters section, the same way a favorite does - the group is its
+  "leftover" section unless the item is also a favorite. Stored server-side
+  in `app_settings.contact_groups` so all browsers agree; section order,
+  hidden-entries and collapse state follow their existing storage (server for
+  order/hidden, client-local for collapse). Local only - nothing about groups
+  is sent over RF. Migration `_111` adds the `contact_groups` column.
+- New pure helpers in `frontend/src/utils/sidebarLayout.ts` for group section
+  keys and membership edits (`toggleGroupMember`, `createContactGroup`,
+  `renameContactGroup`, `deleteContactGroup`, `groupsContainingContact/
+  Channel`), covered directly in `frontend/src/test/sidebarLayout.test.ts`.
 
 ## Update 2026-09-23 (Shared-locations map layer + MGRS, feat/shared-locations-map-layer)
 

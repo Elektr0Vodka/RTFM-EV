@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import { ContactInfoPane } from '../components/ContactInfoPane';
-import type { Contact, ContactAnalytics } from '../types';
+import type { Contact, ContactAnalytics, ContactGroup } from '../types';
 
 const { getContactAnalytics, contactTelemetryHistory, updateContactAnnotations } = vi.hoisted(
   () => ({
@@ -360,5 +360,110 @@ describe('ContactInfoPane', () => {
     button.click();
 
     expect(baseProps.onSearchMessagesByKey).toHaveBeenCalledWith(contact.public_key);
+  });
+});
+
+describe('ContactInfoPane group membership (plan 28 item 1.16)', () => {
+  beforeEach(() => {
+    getContactAnalytics.mockReset();
+  });
+
+  it('lists existing groups and toggles this contact into one', async () => {
+    const user = userEvent.setup();
+    const contact = createContact();
+    getContactAnalytics.mockResolvedValue(createAnalytics(contact));
+    const groups: ContactGroup[] = [
+      { id: 'grp-1', name: 'Field Team', contact_keys: [], channel_keys: [] },
+    ];
+    const onUpdateContactGroups = vi.fn();
+
+    render(
+      <ContactInfoPane
+        {...baseProps}
+        contactKey={contact.public_key}
+        contactGroups={groups}
+        onUpdateContactGroups={onUpdateContactGroups}
+      />
+    );
+
+    const checkbox = await screen.findByRole('checkbox', { name: 'Field Team' });
+    expect(checkbox).not.toBeChecked();
+    await user.click(checkbox);
+
+    expect(onUpdateContactGroups).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: 'grp-1',
+        contact_keys: [contact.public_key.toLowerCase()],
+      }),
+    ]);
+  });
+
+  it('shows an already-grouped contact as checked and removes it on uncheck', async () => {
+    const user = userEvent.setup();
+    const contact = createContact();
+    getContactAnalytics.mockResolvedValue(createAnalytics(contact));
+    const groups: ContactGroup[] = [
+      {
+        id: 'grp-1',
+        name: 'Field Team',
+        contact_keys: [contact.public_key.toLowerCase()],
+        channel_keys: [],
+      },
+    ];
+    const onUpdateContactGroups = vi.fn();
+
+    render(
+      <ContactInfoPane
+        {...baseProps}
+        contactKey={contact.public_key}
+        contactGroups={groups}
+        onUpdateContactGroups={onUpdateContactGroups}
+      />
+    );
+
+    const checkbox = await screen.findByRole('checkbox', { name: 'Field Team' });
+    expect(checkbox).toBeChecked();
+    await user.click(checkbox);
+
+    expect(onUpdateContactGroups).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'grp-1', contact_keys: [] }),
+    ]);
+  });
+
+  it('creates a new group and adds this contact to it in one step', async () => {
+    const user = userEvent.setup();
+    const contact = createContact();
+    getContactAnalytics.mockResolvedValue(createAnalytics(contact));
+    const onUpdateContactGroups = vi.fn();
+
+    render(
+      <ContactInfoPane
+        {...baseProps}
+        contactKey={contact.public_key}
+        contactGroups={[]}
+        onUpdateContactGroups={onUpdateContactGroups}
+      />
+    );
+
+    const input = await screen.findByPlaceholderText('New group name');
+    await user.type(input, 'Night Shift');
+    await user.click(screen.getByRole('button', { name: 'Create & add' }));
+
+    expect(onUpdateContactGroups).toHaveBeenCalledWith([
+      expect.objectContaining({
+        name: 'Night Shift',
+        contact_keys: [contact.public_key.toLowerCase()],
+      }),
+    ]);
+  });
+
+  it('hides the Groups section when contactGroups is not supplied', async () => {
+    const contact = createContact();
+    getContactAnalytics.mockResolvedValue(createAnalytics(contact));
+
+    render(<ContactInfoPane {...baseProps} contactKey={contact.public_key} />);
+
+    await screen.findByText(contact.public_key);
+    expect(screen.queryByText('Groups')).not.toBeInTheDocument();
   });
 });
