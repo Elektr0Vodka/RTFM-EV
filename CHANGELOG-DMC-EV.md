@@ -42,6 +42,79 @@ the change. Upstream development is on hold; the fork is the active repository.
   new send fails. No new in-flight limit: a retry is one ordinary DM send.
 - DMs whose first send returns no expected ACK code (no retries are
   scheduled) are not marked failed; they keep showing `?`.
+## Update 2026-09-23 (Battery chemistry, feat/battery-chemistry, plan 28 item 1.9)
+
+### Battery display (frontend)
+- **Battery chemistry setting.** `frontend/src/utils/batteryDisplay.ts`
+  `mvToPercent` now supports four chemistries: LiPo keeps the existing real
+  discharge curve (Meshtastic OCV table); LiFePO4, LiPo HV and NMC use
+  meshcore-open's linear min-max mV ranges (`utils/battery_utils.dart`,
+  github.com/zjs81/meshcore-open, fetched and verified 2026-09-23:
+  2600-3650 / 3000-4350 / 3000-4200 mV) since no cited real discharge curve
+  was found for them. A global default lives in Settings > Local
+  Configuration > "Battery Chemistry" (server-side, `app_settings.
+  battery_chemistry`, so it is consistent across browsers rather than a
+  per-browser local preference like most settings on that page). Each
+  contact can override it in its contact info ("Battery chemistry", null =
+  use the global default). All three callers (status bar, My Node, and the
+  telemetry map layer) go through `mvToPercent`; the map layer resolves the
+  node's own override, the other two (this radio, no per-node concept) use
+  the global default.
+
+### Backend
+- New `app_settings.battery_chemistry` (`TEXT NOT NULL DEFAULT 'lipo'`) and
+  `contacts.battery_chemistry` (nullable `TEXT`, NULL = use the global
+  default, same convention as `telemetry_perms`) columns, migration `_108`.
+  `POST /contacts/{public_key}/annotations` accepts `battery_chemistry`
+  alongside the existing annotation fields (422 on an unrecognized value).
+## Update 2026-09-23 (Radio settings no longer reset client repeat, fix/radio-save-keeps-repeat, plan 29 Phase 0)
+
+### Radio (backend)
+- **Fix: saving Radio settings silently turned off client repeat.** `set_radio`
+  was always called without its optional repeat byte. Stock companion
+  firmware (fw ver 9+) treats a missing byte as 0 and always persists it, so
+  every Radio settings save turned off the off-grid "client repeat" mode,
+  even when another app had enabled it. RTFM-EV never enables client repeat
+  itself, but it must not fight another app's setting.
+- On connect (fw ver >= 9), RTFM-EV now reads the device's current client
+  repeat state and its allowed repeat frequencies (`get_allowed_repeat_freq`,
+  cached per connect) alongside the existing device-info query. Every
+  `PATCH /radio/config` radio-settings save now passes the current on-device
+  repeat value back to `set_radio` explicitly, then re-queries device info to
+  confirm what the firmware actually persisted. Firmware below version 9 is
+  unaffected (no repeat byte is sent, as before).
+- If client repeat is currently on and the requested frequency is not one the
+  firmware allows for repeat, the save is rejected with `409` instead of
+  either silently turning repeat off or getting a generic firmware error.
+- `GET /radio/config` now includes read-only `client_repeat_enabled` (`null`
+  when the firmware does not report support) and `client_repeat_allowed_freqs`
+  (kHz ranges, `null` if not queried), for this check and for a future
+  gated repeat toggle. No UI is added to enable repeat, and no code path
+  reachable from the UI sends `repeat=1`.
+## Update 2026-09-23 (Repeater LPP telemetry tracking, fix/repeater-lpp-telemetry-tracking)
+
+### Telemetry (backend + frontend)
+- **"Track Telemetry on Interval" works for repeaters.** On a repeater's
+  contact info page the LPP telemetry section's tracking button failed with
+  "Failed to update tracked contact telemetry", because the contact tracking
+  endpoint rejected repeaters with a 400. The endpoint now accepts any contact
+  type. This LPP list is separate from the repeater status list (Telemetry
+  History in the repeater dashboard), so a repeater on both lists is polled
+  once for status and once for LPP per cycle, and counts toward both caps and
+  the shared daily ceiling.
+- **Telemetry tracking errors show the server's reason.** Failed tracking
+  toggles now show the server's message (for example "Limit of 8 tracked
+  contacts reached") instead of a generic toast. `fetchJson` now uses
+  `detail.message` for structured error details instead of "[object Object]".
+
+### Home Assistant (backend)
+- **LPP-only repeater readings no longer blank the status sensors.** An LPP
+  reading for an HA-tracked repeater (the manual Request button, or LPP
+  interval tracking) sent `null` for battery, noise floor, packet counters and
+  the other status fields, which set those HA sensors to unknown until the
+  next status sample. Status fields missing from a snapshot are now left out
+  of the state payload, so HA keeps the last values. HA may log a template
+  warning per missing field.
 
 ## Update 2026-09-23 (Shared-locations map layer + MGRS, feat/shared-locations-map-layer)
 

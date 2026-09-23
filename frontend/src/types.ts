@@ -236,9 +236,14 @@ export interface Contact {
   owner_key?: string | null;
   manual_lat?: number | null;
   manual_lon?: number | null;
+  /** Per-node battery chemistry override; null = use the global default (Settings). */
+  battery_chemistry?: BatteryChemistry | null;
 }
 
 export type RadioPolicy = 'auto' | 'pinned' | 'excluded';
+
+/** Battery chemistry used to convert millivolts to a percentage (see utils/batteryDisplay.ts). */
+export type BatteryChemistry = 'lipo' | 'lifepo4' | 'lipo_hv' | 'nmc';
 
 export interface ContactTelemetryPermissions {
   base: boolean;
@@ -252,6 +257,7 @@ export interface ContactAnnotationsUpdate {
   owner_key?: string | null;
   manual_lat?: number | null;
   manual_lon?: number | null;
+  battery_chemistry?: BatteryChemistry | null;
 }
 
 export type RadioResidencyReason = 'pinned' | 'favorite' | 'recent-dm' | 'recent-advert';
@@ -690,6 +696,8 @@ export interface AppSettings {
   mesh_health_page_size: number;
   /** UI date/time format: follow the UI language, or force 12h/24h + date order. */
   date_time_format: 'auto' | '12h_mdy' | '24h_dmy';
+  /** Global default battery chemistry; a contact's own battery_chemistry overrides this. */
+  battery_chemistry: BatteryChemistry;
   /** Last-selected 'Group repeats by content' packet-filter toggle (shared by both packet views). */
   packet_group_by_content: boolean;
   /** How the map picks its initial camera on load. */
@@ -1020,6 +1028,7 @@ export interface AppSettingsUpdate {
   packet_history_sort?: 'oldest' | 'newest';
   mesh_health_page_size?: number;
   date_time_format?: 'auto' | '12h_mdy' | '24h_dmy';
+  battery_chemistry?: BatteryChemistry;
   packet_group_by_content?: boolean;
   map_home_mode?: 'auto' | 'home' | 'last';
   map_home_lat?: number | null;

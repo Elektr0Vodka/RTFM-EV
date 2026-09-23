@@ -1029,6 +1029,7 @@ function ContactAnnotations({
   const [manualLon, setManualLon] = useState(
     contact.manual_lon != null ? String(contact.manual_lon) : ''
   );
+  const [batteryChemistry, setBatteryChemistry] = useState(contact.battery_chemistry ?? '');
 
   // Re-seed local state when the pane switches contact or the row updates over WS.
   useEffect(() => {
@@ -1037,6 +1038,7 @@ function ContactAnnotations({
     setOwnerKey(contact.owner_key ?? '');
     setManualLat(contact.manual_lat != null ? String(contact.manual_lat) : '');
     setManualLon(contact.manual_lon != null ? String(contact.manual_lon) : '');
+    setBatteryChemistry(contact.battery_chemistry ?? '');
   }, [
     contact.public_key,
     contact.notes,
@@ -1044,6 +1046,7 @@ function ContactAnnotations({
     contact.owner_key,
     contact.manual_lat,
     contact.manual_lon,
+    contact.battery_chemistry,
   ]);
 
   const ownerContact = ownerKey ? (contacts.find((c) => c.public_key === ownerKey) ?? null) : null;
@@ -1213,6 +1216,35 @@ function ContactAnnotations({
             {t('common_clear')}
           </button>
         </div>
+      </div>
+
+      {/* Battery chemistry override (null = use the global default in Settings) */}
+      <div>
+        <label
+          htmlFor={`battery-chemistry-${contact.public_key}`}
+          className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium block mb-1"
+        >
+          {t('contact_battery_chemistry_label')}
+        </label>
+        <select
+          id={`battery-chemistry-${contact.public_key}`}
+          className="w-full text-sm rounded border border-border bg-background p-2"
+          value={batteryChemistry}
+          onChange={(e) => {
+            const value = e.target.value as '' | 'lipo' | 'lifepo4' | 'lipo_hv' | 'nmc';
+            setBatteryChemistry(value);
+            save({ battery_chemistry: value === '' ? null : value });
+          }}
+        >
+          <option value="">{t('contact_battery_chemistry_global_default')}</option>
+          <option value="lipo">{t('settings_battery_chemistry_lipo')}</option>
+          <option value="lifepo4">{t('settings_battery_chemistry_lifepo4')}</option>
+          <option value="lipo_hv">{t('settings_battery_chemistry_lipo_hv')}</option>
+          <option value="nmc">{t('settings_battery_chemistry_nmc')}</option>
+        </select>
+        <p className="text-xs text-muted-foreground mt-1">
+          {t('contact_battery_chemistry_description')}
+        </p>
       </div>
     </div>
   );

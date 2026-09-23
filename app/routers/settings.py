@@ -7,6 +7,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from app.models import (
+    BATTERY_CHEMISTRIES,
     CONTACT_TYPE_REPEATER,
     RETENTION_DEFAULTS,
     AnalyzerSite,
@@ -381,6 +382,10 @@ class AppSettingsUpdate(BaseModel):
     date_time_format: str | None = Field(
         default=None,
         description="UI date/time format: 'auto', '12h_mdy', or '24h_dmy'",
+    )
+    battery_chemistry: str | None = Field(
+        default=None,
+        description="Global default battery chemistry: 'lipo', 'lifepo4', 'lipo_hv', or 'nmc'",
     )
     packet_group_by_content: bool | None = Field(
         default=None,
@@ -790,6 +795,10 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
         "24h_dmy",
     ):
         kwargs["date_time_format"] = update.date_time_format
+    # Global default battery chemistry. Ignore an unknown value so a stale client
+    # can't corrupt it; a contact's own battery_chemistry overrides this per-node.
+    if update.battery_chemistry is not None and update.battery_chemistry in BATTERY_CHEMISTRIES:
+        kwargs["battery_chemistry"] = update.battery_chemistry
     # Packet-filter 'Group repeats by content' toggle (shared by both packet views).
     if update.packet_group_by_content is not None:
         kwargs["packet_group_by_content"] = update.packet_group_by_content
@@ -1133,15 +1142,11 @@ async def toggle_tracked_telemetry_contact(
             ),
         )
 
-    # Validate contact exists and is not a repeater (repeaters use tracked_telemetry_repeaters)
+    # Any contact type may be tracked here, repeaters included: this list
+    # collects LPP telemetry, independent of the repeater status list.
     contact = await ContactRepository.get_by_key(key)
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
-    if contact.type == CONTACT_TYPE_REPEATER:
-        raise HTTPException(
-            status_code=400,
-            detail="Repeaters use the dedicated repeater telemetry tracking list",
-        )
 
     if len(current) >= MAX_TRACKED_TELEMETRY_CONTACTS:
         names = await _resolve_names(current)
