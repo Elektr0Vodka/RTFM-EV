@@ -18,6 +18,7 @@ Connect your radio over Serial, TCP, or BLE, and then you can:
 * Forward packets, messages, and automatic repeater telemetry to MQTT, Home Assistant, LetsMesh, MeshRank, SQS, Apprise, etc.
 * Use the more recent 1.14+ firmwares which support multibyte pathing
 * Auto-detect [meshcomod (DMC-EV)](https://github.com/Elektr0Vodka/meshcomod) firmware and expose its extra device settings (CAD, GPS)
+* Toggle the on-board GPS receiver on any radio that reports it, including stock MeshCore companion firmware (Settings > Radio)
 * Visualize the mesh as a map or node set, view repeater stats, and more!
 
 For advanced setup and troubleshooting see [README_ADVANCED.md](README_ADVANCED.md). If you plan to contribute, read [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -387,6 +388,8 @@ RemoteTerm supports the [meshcomod](https://github.com/Elektr0Vodka/meshcomod) f
 - **GPS:** enable the on-board GPS receiver and set its reporting interval (0 to 86400 seconds).
 
 The panel is hidden entirely on non-meshcomod devices, and each control disables itself if the specific firmware build does not advertise support. No configuration is needed: detection is automatic from the radio's device info.
+
+GPS is also available on **stock** MeshCore companion firmware builds: the `gps` custom var is part of the base companion protocol (gated by the firmware's own GPS build flag and physical GPS detection), not a meshcomod-only extra. Any connected radio that reports the var shows a standalone GPS section under **Settings -> Radio** (hidden on meshcomod radios, which keep the combined control above instead of showing GPS twice).
 
 ## OpenHop node management
 

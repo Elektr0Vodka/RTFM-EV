@@ -4,12 +4,14 @@ import pytest
 from meshcore import EventType
 
 from app.services.meshcomod import (
+    apply_gps_update,
     apply_meshcomod_update,
     build_set_tuning_frame,
     capture_tuning_frame,
     clamp_gps_interval,
     is_meshcomod,
     parse_tuning_response,
+    read_gps_settings,
     read_meshcomod_settings,
 )
 from app.services.radio_commands import RadioCommandRejectedError
@@ -135,3 +137,49 @@ class TestApplyMeshcomod:
         await apply_meshcomod_update(mc, gps_enabled=True, gps_interval=999999)
         mc.commands.set_custom_var.assert_any_await("gps", "1")
         mc.commands.set_custom_var.assert_any_await("gps_interval", "86400")
+
+
+class TestReadGpsSettings:
+    """The `gps` custom var is generic (stock firmware, not just meshcomod)."""
+
+    @pytest.mark.asyncio
+    async def test_supported_and_enabled(self):
+        mc = _mock_mc(custom_vars={"gps": "1", "gps_interval": "600"})
+        data = await read_gps_settings(mc)
+        assert data == {"gps_supported": True, "gps_enabled": True, "gps_interval": 600}
+
+    @pytest.mark.asyncio
+    async def test_supported_and_disabled(self):
+        mc = _mock_mc(custom_vars={"gps": "0", "gps_interval": "0"})
+        data = await read_gps_settings(mc)
+        assert data == {"gps_supported": True, "gps_enabled": False, "gps_interval": 0}
+
+    @pytest.mark.asyncio
+    async def test_not_reported_by_radio(self):
+        mc = _mock_mc(custom_vars={"some_other_var": "1"})
+        data = await read_gps_settings(mc)
+        assert data == {"gps_supported": False, "gps_enabled": None, "gps_interval": None}
+
+
+class TestApplyGpsUpdate:
+    @pytest.mark.asyncio
+    async def test_sets_vars_and_clamps(self):
+        mc = _mock_mc()
+        await apply_gps_update(mc, gps_enabled=True, gps_interval=999999)
+        mc.commands.set_custom_var.assert_any_await("gps", "1")
+        mc.commands.set_custom_var.assert_any_await("gps_interval", "86400")
+
+    @pytest.mark.asyncio
+    async def test_noop_when_nothing_provided(self):
+        mc = _mock_mc()
+        await apply_gps_update(mc)
+        mc.commands.set_custom_var.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_raises_on_error(self):
+        mc = _mock_mc()
+        mc.commands.set_custom_var = AsyncMock(
+            return_value=_event(EventType.ERROR, {"reason": "x"})
+        )
+        with pytest.raises(RadioCommandRejectedError):
+            await apply_gps_update(mc, gps_enabled=True)

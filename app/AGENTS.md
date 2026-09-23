@@ -265,6 +265,7 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `GET /radio/private-key` - export in-memory private key as hex (requires `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT=true`)
 - `PUT /radio/private-key`
 - `GET /radio/contact-uri` - this node's `meshcore://` contact link (`{uri, public_key}`) via `export_contact()` with no key (CMD_EXPORT_CONTACT). Local radio command, nothing transmitted; 502 if the radio returns no valid signed advert
+- `GET /radio/gps`, `PATCH /radio/gps` - GPS on/off + report interval via the generic custom-vars commands (`app/services/meshcomod.py` `read_gps_settings`/`apply_gps_update`). Not meshcomod-gated: the `gps` custom var is part of the stock MeshCore companion firmware too (`ENV_INCLUDE_GPS` build flag + runtime GPS detection), so this works for any radio that reports it. `GET/PATCH /radio/meshcomod` reuse the same helpers for its combined CAD+GPS response
 - `POST /radio/advertise` - manual advert send; request body may set `mode` to `flood` or `zero_hop` (defaults to `flood`)
 - `POST /radio/discover` - short mesh discovery sweep for nearby repeaters/sensors
 - `POST /radio/discover-regions` - sweep nearby repeaters via the guest anon regions request; aggregates flood-allowed region names into a deduped union for merging into `known_regions` (direct-routed, so only in-range repeaters answer; optional `public_keys`, else recent repeaters)

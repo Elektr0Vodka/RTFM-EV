@@ -34,6 +34,8 @@ import type {
   RetentionStats,
   MeshcomodConfig,
   MeshcomodConfigUpdate,
+  GpsConfig,
+  GpsConfigUpdate,
   Message,
   OpenHopStatus,
   OpenHopEnvelope,
@@ -214,6 +216,12 @@ export const api = {
   getMeshcomodConfig: () => fetchJson<MeshcomodConfig>('/radio/meshcomod'),
   updateMeshcomodConfig: (update: MeshcomodConfigUpdate) =>
     fetchJson<MeshcomodConfig>('/radio/meshcomod', {
+      method: 'PATCH',
+      body: JSON.stringify(update),
+    }),
+  getGpsConfig: () => fetchJson<GpsConfig>('/radio/gps'),
+  updateGpsConfig: (update: GpsConfigUpdate) =>
+    fetchJson<GpsConfig>('/radio/gps', {
       method: 'PATCH',
       body: JSON.stringify(update),
     }),

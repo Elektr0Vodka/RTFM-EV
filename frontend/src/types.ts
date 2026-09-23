@@ -66,6 +66,22 @@ export interface MeshcomodConfigUpdate {
   gps_interval?: number;
 }
 
+/**
+ * GPS state via the generic custom-vars protocol. Unlike MeshcomodConfig this
+ * is not specific to the meshcomod DMC/DMC-EV fork: any radio (stock firmware
+ * included) that reports the `gps` custom var can use it.
+ */
+export interface GpsConfig {
+  gps_supported: boolean;
+  gps_enabled: boolean | null;
+  gps_interval: number | null;
+}
+
+export interface GpsConfigUpdate {
+  gps_enabled?: boolean;
+  gps_interval?: number;
+}
+
 export type RadioDiscoveryTarget = 'repeaters' | 'sensors' | 'all';
 
 export interface RadioDiscoveryResult {

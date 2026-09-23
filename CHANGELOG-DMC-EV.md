@@ -11,6 +11,23 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-23 (GPS toggle on stock firmware, plan 28 item 1.10, feat/gps-toggle-stock-fw)
+
+### Radio settings (backend + frontend)
+- **`GET`/`PATCH /radio/gps`.** The GPS on/off toggle no longer requires
+  meshcomod DMC/DMC-EV firmware: the `gps` custom var (read/written via the
+  generic `CMD_GET_CUSTOM_VARS` / `CMD_SET_CUSTOM_VAR` commands) is part of
+  the stock MeshCore companion firmware protocol too, gated at build time by
+  `ENV_INCLUDE_GPS` and at runtime by physical GPS detection. Settings > Radio
+  now shows a GPS section (enable + interval) for any connected radio that
+  reports the var, whether or not it is meshcomod. Meshcomod radios keep
+  their existing combined CAD/GPS control in the Meshcomod section unchanged;
+  the new section stays hidden for them to avoid showing GPS twice.
+- `app/services/meshcomod.py` GPS read/apply logic split into
+  `read_gps_settings` / `apply_gps_update`, reused by both
+  `GET`/`PATCH /radio/meshcomod` (unchanged behaviour) and the new
+  `GET`/`PATCH /radio/gps` endpoints. No migration.
+
 ## Update 2026-09-23 (Shared-locations map layer + MGRS, feat/shared-locations-map-layer)
 
 ### Map (frontend)
