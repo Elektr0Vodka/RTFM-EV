@@ -74,4 +74,13 @@ describe('buildPacketLayers', () => {
     const w2 = arcScaled.props.getWidth as (d: (typeof model.arcs)[0]) => number;
     expect(w2(model.arcs[0])).toBe(6); // width 3 * 2
   });
+
+  it('uses deck.gl 9 depth parameters: arcs depth-tested, markers always on top', () => {
+    const layers = buildPacketLayers(fakeDeck(), model) as unknown as FakeLayer[];
+    const byId = Object.fromEntries(layers.map((l) => [l.props.id, l.props.parameters]));
+    expect(byId['pkt-arcs']).toEqual({ depthCompare: 'less-equal' });
+    for (const id of ['pkt-pulse-halo', 'pkt-pulse-core', 'pkt-glow']) {
+      expect(byId[id]).toEqual({ depthCompare: 'always', depthWriteEnabled: false });
+    }
+  });
 });

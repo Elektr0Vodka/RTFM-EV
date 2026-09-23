@@ -46,18 +46,30 @@ async function vectorSourceDef(): Promise<unknown> {
   return p;
 }
 
-// Overlay layers (node icons, labels, external nodes) that must draw ABOVE the
-// 3D buildings, so a node icon sitting inside a building footprint stays
-// visible instead of being covered by the extrusion. Listed bottom-most first;
-// we anchor the buildings layer just below the lowest one that exists. MapLibre
-// draws later layers on top, so every overlay above the anchor renders over the
-// buildings.
-const OVERLAY_ANCHORS = ['rt-external', 'rt-nodes', 'rt-node-labels'];
+// Overlay layers (node icons, labels, telemetry badges, external nodes) that
+// must draw ABOVE the 3D buildings, so a node icon sitting inside a building
+// footprint stays visible instead of being covered by the extrusion. We anchor
+// the buildings layer just below whichever of them is lowest in the current
+// layer order. The order is read from the map, not assumed: rt-external is
+// re-added last after every basemap switch, so it is not always the bottom one.
+const OVERLAY_ANCHORS = ['rt-external', 'rt-nodes', 'rt-node-labels', 'rt-telemetry-badges'];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function overlayAnchor(m: any): string | undefined {
-  for (const id of OVERLAY_ANCHORS) if (m.getLayer(id)) return id;
-  return undefined;
+  const present = OVERLAY_ANCHORS.filter((id) => m.getLayer(id));
+  if (present.length === 0) return undefined;
+  const order: string[] | undefined = m.getLayersOrder?.();
+  if (!order) return present[0];
+  let best: string | undefined;
+  let bestIdx = Infinity;
+  for (const id of present) {
+    const idx = order.indexOf(id);
+    if (idx >= 0 && idx < bestIdx) {
+      best = id;
+      bestIdx = idx;
+    }
+  }
+  return best ?? present[0];
 }
 
 export async function ensureBuildingsSource(map: MlMap): Promise<string> {

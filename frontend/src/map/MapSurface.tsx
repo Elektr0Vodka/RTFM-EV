@@ -125,7 +125,10 @@ export function MapSurface(props: MapSurfaceProps) {
   const theme: 'light' | 'dark' = dark ? 'dark' : 'light';
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
-  const webglOk = useRef(isWebglAvailable());
+  // Lazy initialiser: probe once per mount. `useRef(isWebglAvailable())` ran the
+  // probe (a new WebGL context) on every render, and the live packet overlay
+  // re-renders several times a second; Chrome then force-lost the map's context.
+  const [webglOk] = useState(isWebglAvailable);
   const [selectedBasemapId, setSelectedBasemapId] = useState<string>(() => getSavedBasemapId());
   // The overlay re-apply callback changes identity whenever its inputs change
   // (every few seconds while live packets run). Keep it in a ref so a new
@@ -139,7 +142,7 @@ export function MapSurface(props: MapSurfaceProps) {
 
   // Create the map once.
   useEffect(() => {
-    if (!webglOk.current || !containerRef.current) return;
+    if (!webglOk || !containerRef.current) return;
     const entry = resolveBasemapEntry(selectedBasemapId);
     const map = new MlMap({
       container: containerRef.current,
@@ -215,7 +218,7 @@ export function MapSurface(props: MapSurfaceProps) {
     });
   }, [selectedBasemapId, reapplyOverlays, theme, buildings, tintSig]);
 
-  if (!webglOk.current) {
+  if (!webglOk) {
     return (
       <div
         className={cn(

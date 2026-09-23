@@ -11,6 +11,44 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-23 (Map: Chrome blackout, neon nodes, 3D buildings)
+
+### Map
+- **Chrome: the map no longer goes black for a few seconds with packet
+  visualization on.** `MapSurface` ran its WebGL availability probe on every
+  render (`useRef(isWebglAvailable())`), and each probe created a new WebGL
+  context. The live packet overlay re-renders several times a second, so Chrome
+  hit its per-page WebGL context limit. It then force-lost the oldest context,
+  which was the map's, roughly every 6 seconds. The probe now runs once per
+  mount and releases its context straight away (`WEBGL_lose_context`).
+- **Neon nodes and packet visualization now work together.** deck.gl's
+  `MapLibreOverlay` allows one interleaved overlay per map. The packet overlay
+  and the neon nodes each created their own, so whichever attached second threw
+  and was silently dropped. Neon only showed up by chance while the map kept
+  losing its WebGL context, and stopped showing once that was fixed. Both now
+  draw through one shared overlay per map (`map/layers/sharedDeckOverlay.ts`),
+  neon under the packets. The shared overlay also re-adds its MapLibre layer
+  group once the style has loaded: deck skips that step while a basemap style
+  is still loading and never retries. After a WebGL context restore, every
+  slot's layers are rebuilt fresh, so neon nodes come back too.
+- **Nodes inside a 3D building's footprint are no longer hidden by it.** With
+  3D buildings on, the building extrusions were inserted above the node
+  layers. The anchor list assumed `rt-external` was the lowest overlay, but it
+  is re-added last on every basemap switch. The extrusion now goes below
+  whichever node overlay is lowest in the actual layer order. Neon nodes were
+  hidden for a second reason: deck.gl 9 ignores the legacy
+  `depthTest`/`depthMask` layer parameters, so they were depth-tested against
+  the buildings. They now use `depthCompare: 'always'` (same for packet pulses
+  and glow).
+- **Neon nodes and packet arcs land on the roof.** A node inside a building
+  footprint is lifted to that building's roof height (plus 1 m), and packet
+  arcs, pulses and glows that start or end there follow it, so arcs land on
+  the node instead of disappearing into the building. Heights come from the
+  rendered building layer (`map/engine/buildingHeights.ts`), so they apply once
+  the buildings for that area are drawn (zoom 12 and up). The flat node
+  circles cannot be raised in MapLibre; they stay at ground level but draw
+  above the buildings.
+
 ## Update 2026-09-23 (Chat: full emoji library)
 
 ### Chat (frontend)

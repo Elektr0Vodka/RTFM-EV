@@ -124,4 +124,30 @@ describe('buildNeonNodeLayers', () => {
     // repeater default stroke #f8fafc -> [248,250,252]
     expect(line(data[1]).slice(0, 3)).toEqual([248, 250, 252]);
   });
+
+  it('places nodes at the given height and re-evaluates positions on a new version', () => {
+    const heights = { at: (lon: number) => (lon === 5 ? 12 : 0), version: 3 };
+    const layers = buildNeonNodeLayers(
+      fakeDeck(),
+      data,
+      1,
+      undefined,
+      heights
+    ) as unknown as FakeLayer[];
+    for (const l of layers) {
+      const pos = l.props.getPosition as (d: NeonNodeDatum) => number[];
+      expect(pos(data[0])).toEqual([5, 52, 12]);
+      expect(pos(data[1])).toEqual([6, 53, 0]);
+      expect((l.props.updateTriggers as Record<string, unknown>).getPosition).toBe(3);
+    }
+  });
+
+  // deck.gl 9 takes WebGPU-style parameters; the legacy depthTest/depthMask
+  // names are ignored, which let 3D buildings hide the nodes.
+  it('draws over buildings using deck.gl 9 depth parameters', () => {
+    const layers = buildNeonNodeLayers(fakeDeck(), data) as unknown as FakeLayer[];
+    for (const l of layers) {
+      expect(l.props.parameters).toEqual({ depthCompare: 'always', depthWriteEnabled: false });
+    }
+  });
 });
