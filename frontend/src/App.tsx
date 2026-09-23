@@ -684,6 +684,7 @@ export function App() {
   };
   const conversationPaneProps = {
     activeConversation,
+    onNavigateToMessage: handleNavigateToMessage,
     contacts,
     channels,
     config,

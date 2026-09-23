@@ -32,6 +32,12 @@ import {
   setSavedDistanceUnit,
 } from '../../utils/distanceUnits';
 import { useDistanceUnit } from '../../contexts/DistanceUnitContext';
+import {
+  COORDINATE_FORMATS,
+  setSavedCoordinateFormat,
+  useCoordinateFormat,
+  type CoordinateFormat,
+} from '../../utils/coordinateFormat';
 import { useRichPayloads } from '../../contexts/RichPayloadContext';
 import { setSavedRenderRichPayloads } from '../../utils/richPayloadPreference';
 import { usePathHopWidth } from '../../contexts/PathHopWidthContext';
@@ -68,6 +74,12 @@ import {
 } from '../../utils/statusDotPulse';
 
 /** Resolve a state key like "contact-abc123" or "channel-def456" to a display name. */
+const COORDINATE_FORMAT_LABEL_KEYS: Record<CoordinateFormat, string> = {
+  decimal: 'settings_coordinate_format_decimal',
+  dms: 'settings_coordinate_format_dms',
+  mgrs: 'settings_coordinate_format_mgrs',
+};
+
 function resolveConversationName(
   stateKey: string,
   contacts: Contact[],
@@ -252,6 +264,7 @@ export function SettingsLocalSection({
 }) {
   const t = useT();
   const { distanceUnit, setDistanceUnit } = useDistanceUnit();
+  const coordinateFormat = useCoordinateFormat();
   const { renderRichPayloads, setRenderRichPayloads } = useRichPayloads();
   const { showPathHopWidth, setShowPathHopWidth } = usePathHopWidth();
   const { showLocationPreview, setShowLocationPreview } = useLocationPreview();
@@ -434,6 +447,27 @@ export function SettingsLocalSection({
         </select>
         <p className="text-[0.8125rem] text-muted-foreground">
           {t('settings_distance_units_description')}
+        </p>
+      </div>
+
+      <Separator />
+
+      <div className="space-y-3">
+        <Label htmlFor="coordinate-format">{t('settings_coordinate_format_label')}</Label>
+        <select
+          id="coordinate-format"
+          value={coordinateFormat}
+          onChange={(event) => setSavedCoordinateFormat(event.target.value as CoordinateFormat)}
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+        >
+          {COORDINATE_FORMATS.map((format) => (
+            <option key={format} value={format}>
+              {t(COORDINATE_FORMAT_LABEL_KEYS[format])}
+            </option>
+          ))}
+        </select>
+        <p className="text-[0.8125rem] text-muted-foreground">
+          {t('settings_coordinate_format_description')}
         </p>
       </div>
 

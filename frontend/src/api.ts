@@ -63,6 +63,7 @@ import type {
   OpenHopMqttConfigBody,
   MessagesAroundResponse,
   ReactionTargetResponse,
+  SharedLocationsResponse,
   RawPacket,
   RadioAdvertMode,
   RadioConfig,
@@ -487,6 +488,22 @@ export const api = {
     }),
   getReactionTarget: (messageId: number) =>
     fetchJson<ReactionTargetResponse>(`/messages/${messageId}/reaction-target`),
+  /** Location shares in chat messages received in (since, until]; newest first. */
+  getSharedLocations: (
+    params: { since?: number; until?: number; latestPerSender?: boolean },
+    signal?: AbortSignal
+  ) => {
+    const qs = new URLSearchParams();
+    if (params.since !== undefined) qs.set('since', String(params.since));
+    if (params.until !== undefined) qs.set('until', String(params.until));
+    if (params.latestPerSender !== undefined) {
+      qs.set('latest_per_sender', String(params.latestPerSender));
+    }
+    const query = qs.toString();
+    return fetchJson<SharedLocationsResponse>(`/messages/locations${query ? `?${query}` : ''}`, {
+      signal,
+    });
+  },
   getMessagesAround: (
     messageId: number,
     type?: 'PRIV' | 'CHAN',

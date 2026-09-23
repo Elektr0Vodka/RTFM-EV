@@ -2,6 +2,7 @@
 // absolute [start, end) offsets into the input text. Used by tokenizeMessageText.
 
 import { findLinkedChannelReferences } from './messageParser';
+import { findMgrsReferences } from './mgrsText';
 
 export interface PubkeyMatch {
   value: string;
@@ -15,6 +16,8 @@ export interface CoordinateMatch {
   start: number;
   end: number;
   raw: string;
+  /** True for an MGRS reference (lat/lon is the centre of its grid square). */
+  mgrs?: boolean;
 }
 
 // Exactly 64 hex chars not adjacent to more hex (so a 128-hex blob is not two keys).
@@ -45,7 +48,18 @@ export function findCoordinates(text: string): CoordinateMatch[] {
     if (lat < -90 || lat > 90 || lon < -180 || lon > 180) continue;
     out.push({ lat, lon, start: m.index, end: m.index + m[0].length, raw: m[0] });
   }
-  return out;
+  // MGRS references never overlap a decimal pair (they have no decimal point).
+  for (const ref of findMgrsReferences(text)) {
+    out.push({
+      lat: ref.lat,
+      lon: ref.lon,
+      start: ref.start,
+      end: ref.end,
+      raw: ref.raw,
+      mgrs: true,
+    });
+  }
+  return out.sort((a, b) => a.start - b.start);
 }
 
 export type ChatToken =
@@ -54,7 +68,7 @@ export type ChatToken =
   | { kind: 'url'; value: string }
   | { kind: 'hashtag'; label: string }
   | { kind: 'pubkey'; value: string }
-  | { kind: 'coordinate'; lat: number; lon: number; raw: string };
+  | { kind: 'coordinate'; lat: number; lon: number; raw: string; mgrs?: boolean };
 
 export interface TokenizeOptions {
   parsePubkeys: boolean;
@@ -114,7 +128,7 @@ export function tokenizeMessageText(text: string, opts: TokenizeOptions): ChatTo
         start: c.start,
         end: c.end,
         priority: 2,
-        make: () => ({ kind: 'coordinate', lat: c.lat, lon: c.lon, raw: c.raw }),
+        make: () => ({ kind: 'coordinate', lat: c.lat, lon: c.lon, raw: c.raw, mgrs: c.mgrs }),
       });
     }
   }

@@ -641,6 +641,49 @@ class MessageRepository:
         return [MessageRepository._row_to_message(row) for row in rows]
 
     @staticmethod
+    async def get_received_window(
+        since: int | None,
+        until: int | None,
+        limit: int,
+        blocked_keys: list[str] | None = None,
+        blocked_names: list[str] | None = None,
+    ) -> list[tuple["Message", str | None]]:
+        """Messages of every conversation received in (since, until], newest first.
+
+        Each comes with its conversation's name (channel name or contact name,
+        None when unknown). Lower bound exclusive, upper inclusive (the map's
+        window convention). ``packet_id`` is not looked up.
+        """
+        query = (
+            "SELECT messages.*, COALESCE(channels.name, contacts.name) AS conversation_name "
+            "FROM messages "
+            "LEFT JOIN contacts ON messages.type = 'PRIV' "
+            "AND messages.conversation_key = contacts.public_key "
+            "LEFT JOIN channels ON messages.type = 'CHAN' "
+            "AND messages.conversation_key = channels.key "
+            "WHERE 1=1"
+        )
+        params: list[Any] = []
+        blocked_clause, blocked_params = MessageRepository._build_blocked_incoming_clause(
+            "messages", blocked_keys, blocked_names
+        )
+        if blocked_clause:
+            query += f" AND {blocked_clause}"
+            params.extend(blocked_params)
+        if since is not None:
+            query += " AND messages.received_at > ?"
+            params.append(since)
+        if until is not None:
+            query += " AND messages.received_at <= ?"
+            params.append(until)
+        query += " ORDER BY messages.received_at DESC, messages.id DESC LIMIT ?"
+        params.append(limit)
+        async with db.readonly() as conn:
+            async with conn.execute(query, params) as cursor:
+                rows = await cursor.fetchall()
+        return [(MessageRepository._row_to_message(row), row["conversation_name"]) for row in rows]
+
+    @staticmethod
     async def delete_by_id(message_id: int) -> None:
         """Delete a message row by ID."""
         async with db.tx() as conn:

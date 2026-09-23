@@ -590,6 +590,44 @@ class ReactionTargetResponse(BaseModel):
     )
 
 
+class SharedLocation(BaseModel):
+    """A location shared in a chat message (map shared-locations layer)."""
+
+    message_id: int
+    type: str = Field(description="PRIV or CHAN")
+    conversation_key: str = Field(description="Contact pubkey for PRIV, channel key for CHAN")
+    conversation_name: str | None = Field(
+        default=None, description="Channel name or contact name, when known"
+    )
+    sender_key: str | None = None
+    sender_name: str | None = Field(
+        default=None, description="Channel sender name (from the text), or the stored sender name"
+    )
+    outgoing: bool = False
+    received_at: int
+    sender_timestamp: int | None = None
+    lat: float
+    lon: float
+    format: Literal["marker", "mgrs", "decimal"] = Field(
+        description="marker: meshcore-open m: payload; mgrs: MGRS reference; decimal: lat, lon pair"
+    )
+    raw: str = Field(description="The matched text")
+    label: str = Field(default="", description="Marker label (marker format only)")
+    flags: str = Field(default="", description="Marker flags, e.g. poi (marker format only)")
+    precision_m: float | None = Field(
+        default=None, description="MGRS grid-square size in metres; None for exact points"
+    )
+    paths: list[MessagePath] | None = None
+
+
+class SharedLocationsResponse(BaseModel):
+    locations: list[SharedLocation] = Field(description="Newest first")
+    scanned: int = Field(description="Messages examined in the window")
+    truncated: bool = Field(
+        description="True when the window held more messages than the scan limit (oldest skipped)"
+    )
+
+
 class ResendChannelMessageResponse(BaseModel):
     status: str
     message_id: int
