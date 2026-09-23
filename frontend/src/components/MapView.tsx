@@ -32,6 +32,7 @@ import { useT } from '../i18n';
 import { MapSurface } from '../map/MapSurface';
 import { setMapLock2D } from '../map/engine/mapLock2D';
 import { setBuildings3D } from '../map/engine/buildings3D';
+import { createBuildingHeights, type BuildingHeights } from '../map/engine/buildingHeights';
 import { createNodesLayer } from '../map/layers/nodesLayer';
 import { createNeonNodesOverlay, type NeonNodesOverlay } from '../map/layers/neonNodesLayer';
 import { createTelemetryLayer, telemetryPopupParts } from '../map/layers/telemetryLayer';
@@ -139,6 +140,8 @@ const MAP_LINK_WIDTH_STORAGE_KEY = 'remoteterm-map-link-width';
 
 // --- Neon node rendering (deck.gl halo+core nodes vs the flat GL circles) ---
 const MAP_NEON_NODES_STORAGE_KEY = 'remoteterm-map-neon-nodes';
+// Roof-height lookups run at most this often (map moves, tile loads, data).
+const HEIGHT_REFRESH_MS = 300;
 
 // --- Node labels (off / advert name / observed-width ID tag) ---
 const MAP_LABEL_MODE_STORAGE_KEY = 'remoteterm-map-label-mode';
@@ -441,6 +444,32 @@ export function MapView({
   const mapRef = useRef<MlMap | null>(null);
   const nodesRef = useRef<ReturnType<typeof createNodesLayer> | null>(null);
   const neonOverlayRef = useRef<NeonNodesOverlay | null>(null);
+  // Roof heights under nodes while 3D buildings are drawn, so neon nodes and the
+  // packet arcs landing on them sit on the roof instead of inside the building.
+  const buildingHeightsRef = useRef<BuildingHeights | null>(null);
+  const heightsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mappableContactsRef = useRef<Contact[]>([]);
+  // Re-read roof heights for the on-screen nodes. Throttled rather than
+  // debounced: tile loads fire sourcedata continuously while panning.
+  const scheduleHeightRefresh = useCallback(() => {
+    if (heightsTimerRef.current) return;
+    heightsTimerRef.current = setTimeout(() => {
+      heightsTimerRef.current = null;
+      const bh = buildingHeightsRef.current;
+      if (!bh) return;
+      const points: Array<[number, number]> = [];
+      for (const c of mappableContactsRef.current) {
+        if (c.lat != null && c.lon != null) points.push([c.lon, c.lat]);
+      }
+      try {
+        if (bh.refresh(points)) {
+          neonOverlayRef.current?.setHeights({ at: bh.heightAt, version: bh.version() });
+        }
+      } catch {
+        /* map torn down mid-refresh */
+      }
+    }, HEIGHT_REFRESH_MS);
+  }, []);
   const telemetryRef = useRef<ReturnType<typeof createTelemetryLayer> | null>(null);
   // Mirror of latestTelemetry so the node-click popup can read the latest known
   // battery/temperature without rebuilding its callback on every refresh.
@@ -1300,6 +1329,8 @@ export function MapView({
       neon.setData(mappableContacts, nowSec);
       neon.setVisible(neonNodes);
       neonOverlayRef.current = neon;
+      buildingHeightsRef.current = createBuildingHeights(map);
+      map.on('sourcedata', scheduleHeightRefresh);
       const telemetry = createTelemetryLayer(map);
       telemetry.ensure();
       telemetry.setData(mappableContacts, latestTelemetry, nowSec);
@@ -1309,6 +1340,7 @@ export function MapView({
       onViewBounds(map.getBounds());
       map.on('moveend', () => {
         if (showExternalRef.current) onViewBounds(map.getBounds());
+        scheduleHeightRefresh();
         // Remember the camera for the "remember last position" startup mode.
         // moveend fires once per gesture (not continuously), so a direct write
         // is cheap and needs no debounce.
@@ -1373,7 +1405,9 @@ export function MapView({
   useEffect(() => {
     nodesRef.current?.setData(mappableContacts, nowSec);
     neonOverlayRef.current?.setData(mappableContacts, nowSec);
-  }, [mappableContacts, nowSec]);
+    mappableContactsRef.current = mappableContacts;
+    scheduleHeightRefresh();
+  }, [mappableContacts, nowSec, scheduleHeightRefresh]);
 
   // Toggle between the flat GL circle nodes and the deck.gl neon overlay.
   useEffect(() => {
@@ -1427,6 +1461,7 @@ export function MapView({
             pulses: pulsesOnRef.current,
             glows: glowOnRef.current,
             fadeMs: arcFadeMsRef.current,
+            heightAt: buildingHeightsRef.current?.heightAt,
           })
         );
         // Mirror the snapshot to React for the PlaybackBar, throttled so the
@@ -1454,6 +1489,7 @@ export function MapView({
     return () => {
       packetOverlayRef.current?.destroy();
       neonOverlayRef.current?.destroy();
+      if (heightsTimerRef.current) clearTimeout(heightsTimerRef.current);
       clickAudioRef.current?.destroy();
       popupRef.current?.remove();
       externalPopupRef.current?.remove();
@@ -1814,7 +1850,7 @@ export function MapView({
         onToggleBuildings={(on) => {
           setBuildings(on);
           const map = mapRef.current;
-          if (map) void setBuildings3D(map, on, theme);
+          if (map) void setBuildings3D(map, on, theme).then(scheduleHeightRefresh);
         }}
         nodeScale={nodeScale}
         onNodeScale={setNodeScale}

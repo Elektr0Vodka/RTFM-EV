@@ -1,13 +1,14 @@
 import type { Map as MlMap } from 'maplibre-gl';
 import { loadDeck } from './tracesDeck';
+import { acquireDeckSlot, type DeckSlot } from './sharedDeckOverlay';
 import type { ArcDatum, GlowDatum, PacketRenderModel, PulseDatum } from '../packets/packetTimeline';
 
-// Single deck.gl overlay that renders the live packet visualization (arcs +
-// pulses + glow) in both flat 2D and tilted 3D. Interleaved with the MapLibre
-// scene via deck.gl's MapLibreOverlay (the @deck.gl/maplibre adapter; the older
-// @deck.gl/mapbox MapboxOverlay reads map.transform, which MapLibre 6 removed,
-// and its exception kills MapLibre's render loop). deck.gl is fetched lazily on
-// first use (reusing tracesDeck's loader).
+// deck.gl layers for the live packet visualization (arcs + pulses + glow) in
+// both flat 2D and tilted 3D. They draw in the map's shared interleaved deck.gl
+// overlay (sharedDeckOverlay, deck.gl's @deck.gl/maplibre MapLibreOverlay; the
+// older @deck.gl/mapbox MapboxOverlay reads map.transform, which MapLibre 6
+// removed, and its exception kills MapLibre's render loop). deck.gl is fetched
+// lazily on first use (reusing tracesDeck's loader).
 
 const rnd = (x: number): number => Math.round(x);
 const rgba = (c: [number, number, number], a: number): [number, number, number, number] => [
@@ -41,7 +42,8 @@ export function buildPacketLayers(
     updateTriggers: { getWidth: arcWidthScale },
     getHeight: 0.3,
     widthUnits: 'pixels',
-    parameters: { depthTest: true },
+    // deck.gl 9 parameter names; the legacy depthTest/depthMask are ignored.
+    parameters: { depthCompare: 'less-equal' },
   });
 
   const pulseHalo = new ScatterplotLayer({
@@ -52,7 +54,7 @@ export function buildPacketLayers(
     radiusUnits: 'pixels',
     getFillColor: (d: PulseDatum) => rgba(d.color, rnd(80 * (0.35 + 0.65 * d.k))),
     billboard: true,
-    parameters: { depthTest: false, depthMask: false },
+    parameters: { depthCompare: 'always', depthWriteEnabled: false },
   });
 
   const pulseCore = new ScatterplotLayer({
@@ -63,7 +65,7 @@ export function buildPacketLayers(
     radiusUnits: 'pixels',
     getFillColor: (d: PulseDatum) => rgba(d.color, 255),
     billboard: true,
-    parameters: { depthTest: false, depthMask: false },
+    parameters: { depthCompare: 'always', depthWriteEnabled: false },
   });
 
   const glow = new ScatterplotLayer({
@@ -74,27 +76,10 @@ export function buildPacketLayers(
     radiusUnits: 'pixels',
     getFillColor: (d: GlowDatum) => rgba(d.color, rnd(200 * d.intensity)),
     billboard: true,
-    parameters: { depthTest: false, depthMask: false },
+    parameters: { depthCompare: 'always', depthWriteEnabled: false },
   });
 
   return [arcs, pulseHalo, pulseCore, glow];
-}
-
-/** Undo luma.gl's hooks on a WebGL context that MapLibre also draws with.
- *  Interleaved deck.gl makes luma.gl install caching wrappers for state setters,
- *  getters and useProgram as own properties of the context object, and park its
- *  device on `gl.luma` / `gl.lumaState`. After a context loss the GPU state is
- *  reset but that cache is not, so wrapped calls (MapLibre's too) are silently
- *  skipped and the map renders transparent; a second device would wrap the
- *  wrappers and make it worse. Removing the own-property wrappers restores the
- *  prototype methods; the rebuilt overlay then installs fresh hooks. */
-export function resetLumaOnContext(gl: WebGL2RenderingContext): void {
-  const g = gl as unknown as Record<string, unknown>;
-  for (const key of Object.getOwnPropertyNames(g)) {
-    if (typeof g[key] === 'function') delete g[key];
-  }
-  delete g.luma;
-  delete g.lumaState;
 }
 
 export interface PacketDeckOverlay {
@@ -105,60 +90,22 @@ export interface PacketDeckOverlay {
 }
 
 export function createPacketDeckOverlay(map: MlMap): PacketDeckOverlay {
-  let overlay: { setProps: (p: Record<string, unknown>) => void } | null = null;
-  let deckMod: typeof import('deck.gl') | null = null;
+  let slot: DeckSlot | null = null;
   let model: PacketRenderModel = { arcs: [], pulses: [], glows: [] };
   let arcWidthScale = 1;
   let destroyed = false;
   let loading: Promise<void> | null = null;
 
-  const repaint = () => (map as unknown as { triggerRepaint?: () => void }).triggerRepaint?.();
-
-  const apply = (): void => {
-    if (!overlay || !deckMod) return;
-    overlay.setProps({ layers: buildPacketLayers(deckMod, model, arcWidthScale) });
-    repaint();
-  };
-
-  // A GPU reset (seen in Chrome) loses every WebGL context on the page. MapLibre
-  // restores its own; deck.gl's canvas stays lost. Rebuild the overlay once the
-  // map's context is back so packets reappear on their own. luma.gl caches its
-  // device (with compiled programs) on the context object, which survives the
-  // loss, so drop that cache too or the rebuild reuses dead programs.
-  const onContextRestored = (): void => {
-    if (destroyed || !overlay) return;
-    try {
-      (map as unknown as { removeControl: (c: unknown) => void }).removeControl(overlay);
-    } catch {
-      /* the lost custom layer may already be gone */
-    }
-    try {
-      const canvas = (map as unknown as { getCanvas?: () => HTMLCanvasElement }).getCanvas?.();
-      const gl = canvas?.getContext('webgl2');
-      if (gl) resetLumaOnContext(gl);
-    } catch {
-      /* best effort */
-    }
-    overlay = null;
-    loading = null;
-    ensure();
-  };
-  (map as unknown as { on?: (ev: string, cb: () => void) => void }).on?.(
-    'webglcontextrestored',
-    onContextRestored
-  );
+  const apply = (): void => slot?.refresh();
 
   const ensure = (): void => {
-    if (overlay || destroyed || loading) return;
+    if (slot || destroyed || loading) return;
     loading = loadDeck()
       .then((deck) => {
         if (destroyed) return;
-        deckMod = deck;
-        overlay = new deck.MapLibreOverlay({ interleaved: true, layers: [] }) as unknown as {
-          setProps: (p: Record<string, unknown>) => void;
-        };
-        (map as unknown as { addControl: (c: unknown) => void }).addControl(overlay);
-        apply();
+        slot = acquireDeckSlot(map, 'packets', deck, () =>
+          buildPacketLayers(deck, model, arcWidthScale)
+        );
       })
       .catch(() => {
         loading = null;
@@ -168,34 +115,21 @@ export function createPacketDeckOverlay(map: MlMap): PacketDeckOverlay {
   return {
     setModel(m: PacketRenderModel): void {
       model = m;
-      if (overlay) apply();
+      if (slot) apply();
       else ensure();
     },
     setArcWidthScale(scale: number): void {
       arcWidthScale = scale;
-      if (overlay) apply();
+      if (slot) apply();
     },
     clear(): void {
       model = { arcs: [], pulses: [], glows: [] };
-      if (overlay) {
-        overlay.setProps({ layers: [] });
-        repaint();
-      }
+      slot?.refresh();
     },
     destroy(): void {
       destroyed = true;
-      (map as unknown as { off?: (ev: string, cb: () => void) => void }).off?.(
-        'webglcontextrestored',
-        onContextRestored
-      );
-      if (overlay) {
-        try {
-          (map as unknown as { removeControl: (c: unknown) => void }).removeControl(overlay);
-        } catch {
-          /* control may already be gone with the map */
-        }
-        overlay = null;
-      }
+      slot?.release();
+      slot = null;
     },
   };
 }

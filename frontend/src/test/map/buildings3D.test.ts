@@ -68,4 +68,40 @@ describe('setBuildings3D', () => {
     await setBuildings3D(map, true, 'dark');
     expect(map.moveLayer).toHaveBeenCalledWith('buildings-3d', 'rt-nodes');
   });
+
+  // rt-external is added after the node layers (it is re-added last on every
+  // basemap switch), so anchoring on it put the extrusions above the nodes.
+  it('anchors below the lowest overlay by actual layer order', async () => {
+    const order = ['water', 'rt-nodes', 'rt-node-labels', 'rt-telemetry-badges', 'rt-external'];
+    const map = {
+      getSource: vi.fn((id: string) => (id === 'openmaptiles' ? {} : undefined)),
+      getLayer: vi.fn((id: string) => (order.includes(id) ? {} : undefined)),
+      getLayersOrder: vi.fn(() => order),
+      addLayer: vi.fn(),
+      getPitch: vi.fn(() => 45),
+      easeTo: vi.fn(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+    await setBuildings3D(map, true, 'dark');
+    expect(map.addLayer).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'buildings-3d' }),
+      'rt-nodes'
+    );
+  });
+
+  it('re-seats an extrusion that sits above the nodes', async () => {
+    const order = ['rt-nodes', 'rt-node-labels', 'buildings-3d', 'rt-external'];
+    const map = {
+      getSource: vi.fn((id: string) => (id === 'openmaptiles' ? {} : undefined)),
+      getLayer: vi.fn((id: string) => (order.includes(id) ? {} : undefined)),
+      getLayersOrder: vi.fn(() => order),
+      moveLayer: vi.fn(),
+      setPaintProperty: vi.fn(),
+      getPitch: vi.fn(() => 45),
+      easeTo: vi.fn(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+    await setBuildings3D(map, true, 'dark');
+    expect(map.moveLayer).toHaveBeenCalledWith('buildings-3d', 'rt-nodes');
+  });
 });

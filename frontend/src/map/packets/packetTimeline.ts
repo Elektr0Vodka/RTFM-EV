@@ -26,7 +26,7 @@ import {
 } from './packetAnimMath';
 
 export interface ArcDatum {
-  s: [number, number, number]; // [lon, lat, 0]
+  s: [number, number, number]; // [lon, lat, height m]
   t: [number, number, number];
   color: [number, number, number]; // SNR colour
   opacity: number; // 0..1 freshness
@@ -69,6 +69,9 @@ export interface StateAsOfOptions {
   glows?: boolean;
   /** Arc lifetime in ms (full, fade to floor, then dropped). */
   fadeMs?: number;
+  /** Height in metres at a node position (e.g. a roof under 3D buildings).
+   *  Arc ends, pulses and glows are lifted to it; default is ground level. */
+  heightAt?: (lon: number, lat: number) => number;
 }
 
 export interface PacketTimeline {
@@ -104,15 +107,26 @@ function segKey(a: [number, number], b: [number, number]): string {
   return ka < kb ? `${ka}|${kb}` : `${kb}|${ka}`;
 }
 
+const GROUND = (): number => 0;
+
 /** Position of the pulse head along a multi-segment path, equal time per
- *  segment, riding each segment's bow via pulsePosition. */
-function headPos(segments: Segment[], t: number): [number, number, number] {
+ *  segment, riding each segment's bow via pulsePosition. The bow sits on the
+ *  straight line between the two end heights, as deck.gl's ArcLayer draws it. */
+function headPos(
+  segments: Segment[],
+  t: number,
+  heightAt: (lon: number, lat: number) => number
+): [number, number, number] {
   const n = segments.length;
   const scaled = Math.min(Math.max(t, 0), 0.999999) * n;
   const idx = Math.min(Math.floor(scaled), n - 1);
   const local = scaled - idx;
   const seg = segments[idx];
-  return pulsePosition(seg.a, seg.b, local);
+  const pos = pulsePosition(seg.a, seg.b, local);
+  const ha = heightAt(seg.a[0], seg.a[1]);
+  const hb = heightAt(seg.b[0], seg.b[1]);
+  pos[2] += ha + (hb - ha) * local;
+  return pos;
 }
 
 export function createPacketTimeline(deps: TimelineDeps): PacketTimeline {
@@ -195,6 +209,7 @@ export function createPacketTimeline(deps: TimelineDeps): PacketTimeline {
       const wantPulses = opts?.pulses ?? true;
       const wantGlows = opts?.glows ?? true;
       const fadeMs = opts?.fadeMs ?? DEFAULT_ARC_FADE_MS;
+      const heightAt = opts?.heightAt ?? GROUND;
       const freshMs = arcFreshMs(fadeMs);
       const arcAcc = new Map<string, { heardMs: number; datum: ArcDatum }>();
       const pulses: PulseDatum[] = [];
@@ -213,8 +228,8 @@ export function createPacketTimeline(deps: TimelineDeps): PacketTimeline {
               arcAcc.set(key, {
                 heardMs: e.heardMs,
                 datum: {
-                  s: [s.a[0], s.a[1], 0],
-                  t: [s.b[0], s.b[1], 0],
+                  s: [s.a[0], s.a[1], heightAt(s.a[0], s.a[1])],
+                  t: [s.b[0], s.b[1], heightAt(s.b[0], s.b[1])],
                   color: e.snrCol,
                   opacity,
                   width: s.witnessed ? 3 : 1.5,
@@ -229,7 +244,7 @@ export function createPacketTimeline(deps: TimelineDeps): PacketTimeline {
           const p = pulseProgress(e.heardMs, currentMs);
           if (p > 0 && p < 1) {
             pulses.push({
-              pos: headPos(e.segments, p),
+              pos: headPos(e.segments, p, heightAt),
               color: e.typeCol,
               k: Math.sin(Math.PI * p),
             });
@@ -238,7 +253,7 @@ export function createPacketTimeline(deps: TimelineDeps): PacketTimeline {
 
         if (wantGlows && e.glowPos && age >= 0 && age < GLOW_MS) {
           glows.push({
-            pos: [e.glowPos[0], e.glowPos[1], 0],
+            pos: [e.glowPos[0], e.glowPos[1], heightAt(e.glowPos[0], e.glowPos[1])],
             color: e.typeCol,
             intensity: glowIntensity(age),
           });

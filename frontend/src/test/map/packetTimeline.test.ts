@@ -203,4 +203,25 @@ describe('packetTimeline', () => {
     expect(arcs[0].s).not.toEqual([0, 0, 0]);
     expect(arcs[0].t).not.toEqual([0, 0, 0]);
   });
+
+  it('lifts arc ends, pulses and glows to the height at each node', () => {
+    const tl = makeTimeline();
+    tl.ingest([createPacket('dm-direct')]);
+    const heardMs = tl.range().maxMs;
+    const base = tl.stateAsOf(heardMs);
+    const [s, t] = [base.arcs[0].s, base.arcs[0].t];
+    const heightAt = (lon: number, lat: number) =>
+      lon === s[0] && lat === s[1] ? 20 : lon === t[0] && lat === t[1] ? 8 : 0;
+
+    const lifted = tl.stateAsOf(heardMs, { heightAt });
+    expect(lifted.arcs[0].s).toEqual([s[0], s[1], 20]);
+    expect(lifted.arcs[0].t).toEqual([t[0], t[1], 8]);
+    const glow = lifted.glows[0].pos;
+    expect(glow[2]).toBe(heightAt(glow[0], glow[1]));
+
+    // Mid-flight the pulse rides the same bow, raised by the interpolated ends.
+    const mid = tl.stateAsOf(heardMs + PULSE_MS / 2);
+    const midLifted = tl.stateAsOf(heardMs + PULSE_MS / 2, { heightAt });
+    expect(midLifted.pulses[0].pos[2]).toBeCloseTo(mid.pulses[0].pos[2] + (20 + 8) / 2, 6);
+  });
 });

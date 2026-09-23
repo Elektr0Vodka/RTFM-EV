@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resetLumaOnContext } from '../../map/layers/packetDeckOverlay';
+import { resetLumaOnContext } from '../../map/layers/sharedDeckOverlay';
 
 describe('resetLumaOnContext', () => {
   it('removes luma.gl own-property wrappers and state, keeping prototype methods', () => {
