@@ -7,6 +7,7 @@ import aiosqlite
 
 from app.database import db
 from app.models import (
+    BATTERY_CHEMISTRIES,
     RETENTION_DEFAULTS,
     AnalyzerSite,
     AppSettings,
@@ -73,6 +74,7 @@ class AppSettingsRepository:
                    sidebar_hidden, sidebar_favorite_sort_orders,
                    packet_feed_sort, packet_history_sort,
                    mesh_health_page_size, date_time_format, packet_group_by_content,
+                   battery_chemistry,
                    raw_packet_retention_days,
                    retention_prune_interval_hours,
                    telemetry_retention_days,
@@ -201,6 +203,15 @@ class AppSettingsRepository:
             date_time_format = "auto"
         if date_time_format not in ("auto", "12h_mdy", "24h_dmy"):
             date_time_format = "auto"
+
+        # Global default battery chemistry; tolerate a missing column and coerce
+        # an unknown value back to 'lipo' (migration _108).
+        try:
+            battery_chemistry = row["battery_chemistry"]
+        except (KeyError, IndexError):
+            battery_chemistry = "lipo"
+        if battery_chemistry not in BATTERY_CHEMISTRIES:
+            battery_chemistry = "lipo"
         # Packet-filter 'Group repeats by content' toggle; tolerate a missing column.
         try:
             packet_group_by_content = bool(row["packet_group_by_content"])
@@ -514,6 +525,7 @@ class AppSettingsRepository:
             packet_history_sort=packet_history_sort,
             mesh_health_page_size=mesh_health_page_size,
             date_time_format=date_time_format,
+            battery_chemistry=battery_chemistry,
             packet_group_by_content=packet_group_by_content,
             map_home_mode=map_home_mode,
             map_home_lat=map_home_lat,
@@ -585,6 +597,7 @@ class AppSettingsRepository:
         packet_history_sort: str | None = None,
         mesh_health_page_size: int | None = None,
         date_time_format: str | None = None,
+        battery_chemistry: str | None = None,
         packet_group_by_content: bool | None = None,
         map_home_mode: str | None = None,
         map_home_lat: float | None = None,
@@ -686,6 +699,11 @@ class AppSettingsRepository:
         if date_time_format is not None:
             updates.append("date_time_format = ?")
             params.append(date_time_format)
+
+        if battery_chemistry is not None:
+            updates.append("battery_chemistry = ?")
+            params.append(battery_chemistry)
+
         if packet_group_by_content is not None:
             updates.append("packet_group_by_content = ?")
             params.append(1 if packet_group_by_content else 0)
@@ -907,6 +925,7 @@ class AppSettingsRepository:
         packet_history_sort: str | None = None,
         mesh_health_page_size: int | None = None,
         date_time_format: str | None = None,
+        battery_chemistry: str | None = None,
         packet_group_by_content: bool | None = None,
         map_home_mode: str | None = None,
         map_home_lat: float | None = None,
@@ -977,6 +996,7 @@ class AppSettingsRepository:
                 packet_history_sort=packet_history_sort,
                 mesh_health_page_size=mesh_health_page_size,
                 date_time_format=date_time_format,
+                battery_chemistry=battery_chemistry,
                 packet_group_by_content=packet_group_by_content,
                 map_home_mode=map_home_mode,
                 map_home_lat=map_home_lat,

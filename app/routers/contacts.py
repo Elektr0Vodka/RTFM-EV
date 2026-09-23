@@ -734,10 +734,13 @@ async def set_contact_routing_override(
 
 @router.post("/{public_key}/annotations")
 async def set_contact_annotations(public_key: str, request: ContactAnnotationsUpdate) -> dict:
-    """Update user-editable annotations (notes, owner info, owner pubkey, manual GPS).
+    """Update user-editable annotations (notes, owner info, owner pubkey, manual GPS,
+    battery chemistry override).
 
     Only fields explicitly present in the request body are changed; a field sent
     as ``null`` clears it. ``owner_key`` must reference an existing contact.
+    Clearing ``battery_chemistry`` (null) reverts the node to the global default
+    in Settings.
     """
     contact = await _resolve_contact_or_404(public_key)
 

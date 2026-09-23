@@ -37,6 +37,13 @@ describe('batteryLevelBucket', () => {
     expect(batteryLevelBucket(3.7)).toBeGreaterThanOrEqual(1);
     expect(batteryLevelBucket(3.7)).toBeLessThanOrEqual(3);
   });
+
+  it('uses the given chemistry override instead of the global default', () => {
+    // 3.0V is 0% on the default LiPo curve (table floor) but mid-range for LiFePO4
+    // (2600-3650mV linear), so the override must change the bucket.
+    expect(batteryLevelBucket(3.0)).toBe(0);
+    expect(batteryLevelBucket(3.0, 'lifepo4')).toBeGreaterThan(0);
+  });
 });
 
 describe('ageStr', () => {
@@ -73,6 +80,20 @@ describe('telemetryPopupParts', () => {
     expect(parts.battery).toBeNull();
     expect(parts.temperature).toBeNull();
     expect(parts.stale).toBe(true);
+  });
+
+  it('applies a chemistry override to the battery percentage', () => {
+    const lipo = telemetryPopupParts(
+      { timestamp: now, battery_volts: 3.0, temperature: null, source: 'repeater' },
+      now
+    );
+    const lifepo4 = telemetryPopupParts(
+      { timestamp: now, battery_volts: 3.0, temperature: null, source: 'repeater' },
+      now,
+      'lifepo4'
+    );
+    expect(lipo.battery).toBe('0% (3.00V)');
+    expect(lifepo4.battery).not.toBe(lipo.battery);
   });
 });
 
@@ -115,5 +136,23 @@ describe('buildTelemetryFeatures', () => {
     expect(byId.nodata).toBeUndefined(); // neither battery nor temp
     expect(byId.zz).toBeUndefined(); // no telemetry reading
     expect(byId.nocoord).toBeUndefined(); // no coordinates
+  });
+
+  it("uses each contact's own battery_chemistry override, not the global default", () => {
+    const sameVolts: Record<string, LatestTelemetry> = {
+      aa: { timestamp: now - 60, battery_volts: 3.0, temperature: null, source: 'repeater' },
+      bb: { timestamp: now - 60, battery_volts: 3.0, temperature: null, source: 'repeater' },
+    };
+    const fc = buildTelemetryFeatures(
+      [
+        contact({ public_key: 'aa', battery_chemistry: null }), // global default (lipo)
+        contact({ public_key: 'bb', battery_chemistry: 'lifepo4' }),
+      ],
+      sameVolts,
+      now
+    );
+    const byId = Object.fromEntries(fc.features.map((f) => [f.properties.id, f.properties]));
+    expect(byId.aa.battLevel).toBe(0); // 3.0V is the LiPo table floor
+    expect(byId.bb.battLevel).toBeGreaterThan(0); // mid-range on the LiFePO4 curve
   });
 });

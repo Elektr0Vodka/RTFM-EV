@@ -11,6 +11,32 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-23 (Battery chemistry, feat/battery-chemistry, plan 28 item 1.9)
+
+### Battery display (frontend)
+- **Battery chemistry setting.** `frontend/src/utils/batteryDisplay.ts`
+  `mvToPercent` now supports four chemistries: LiPo keeps the existing real
+  discharge curve (Meshtastic OCV table); LiFePO4, LiPo HV and NMC use
+  meshcore-open's linear min-max mV ranges (`utils/battery_utils.dart`,
+  github.com/zjs81/meshcore-open, fetched and verified 2026-09-23:
+  2600-3650 / 3000-4350 / 3000-4200 mV) since no cited real discharge curve
+  was found for them. A global default lives in Settings > Local
+  Configuration > "Battery Chemistry" (server-side, `app_settings.
+  battery_chemistry`, so it is consistent across browsers rather than a
+  per-browser local preference like most settings on that page). Each
+  contact can override it in its contact info ("Battery chemistry", null =
+  use the global default). All three callers (status bar, My Node, and the
+  telemetry map layer) go through `mvToPercent`; the map layer resolves the
+  node's own override, the other two (this radio, no per-node concept) use
+  the global default.
+
+### Backend
+- New `app_settings.battery_chemistry` (`TEXT NOT NULL DEFAULT 'lipo'`) and
+  `contacts.battery_chemistry` (nullable `TEXT`, NULL = use the global
+  default, same convention as `telemetry_perms`) columns, migration `_108`.
+  `POST /contacts/{public_key}/annotations` accepts `battery_chemistry`
+  alongside the existing annotation fields (422 on an unrecognized value).
+
 ## Update 2026-09-23 (Shared-locations map layer + MGRS, feat/shared-locations-map-layer)
 
 ### Map (frontend)

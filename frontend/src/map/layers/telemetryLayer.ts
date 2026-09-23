@@ -1,5 +1,5 @@
 import type { Map as MlMap, ExpressionSpecification } from 'maplibre-gl';
-import type { Contact, LatestTelemetry } from '../../types';
+import type { BatteryChemistry, Contact, LatestTelemetry } from '../../types';
 import { mvToPercent } from '../../utils/batteryDisplay';
 import { NODE_LABEL_FONT } from './nodesLayer';
 
@@ -24,9 +24,9 @@ const LAYER_ID = 'rt-telemetry-badges';
 
 const BATTERY_LEVELS = [0, 1, 2, 3, 4] as const;
 
-/** Map battery volts to a 0..4 level bucket (0 empty, 4 full) via the mV OCV curve. */
-export function batteryLevelBucket(volts: number): number {
-  const pct = mvToPercent(volts * 1000); // batteryDisplay expects millivolts
+/** Map battery volts to a 0..4 level bucket (0 empty, 4 full) via the node's chemistry curve. */
+export function batteryLevelBucket(volts: number, chemistry?: BatteryChemistry | null): number {
+  const pct = mvToPercent(volts * 1000, chemistry); // batteryDisplay expects millivolts
   if (pct < 10) return 0;
   if (pct < 30) return 1;
   if (pct < 55) return 2;
@@ -46,11 +46,12 @@ export function ageStr(sec: number): string {
  *  Labels/i18n are applied by the caller; this stays pure and testable. */
 export function telemetryPopupParts(
   latest: LatestTelemetry,
-  nowSec: number
+  nowSec: number,
+  chemistry?: BatteryChemistry | null
 ): { battery: string | null; temperature: string | null; age: string; stale: boolean } {
   const battery =
     latest.battery_volts != null
-      ? `${mvToPercent(latest.battery_volts * 1000)}% (${latest.battery_volts.toFixed(2)}V)`
+      ? `${mvToPercent(latest.battery_volts * 1000, chemistry)}% (${latest.battery_volts.toFixed(2)}V)`
       : null;
   const temperature = latest.temperature != null ? `${Math.round(latest.temperature)}°` : null;
   const ageSec = Math.max(0, Math.round(nowSec - latest.timestamp));
@@ -71,7 +72,9 @@ export function buildTelemetryFeatures(
     const hasTemp = t.temperature != null;
     if (!hasBattery && !hasTemp) continue;
 
-    const battLevel = hasBattery ? batteryLevelBucket(t.battery_volts as number) : -1;
+    const battLevel = hasBattery
+      ? batteryLevelBucket(t.battery_volts as number, c.battery_chemistry)
+      : -1;
     const ageSec = Math.max(0, Math.round(nowSec - t.timestamp));
     // The badge sits under the node: battery glyph on top, temperature below it.
     // Age is not shown on the map (it lives in the click popup); staleness is

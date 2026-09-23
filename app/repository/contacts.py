@@ -208,6 +208,9 @@ class ContactRepository:
             owner_key=row["owner_key"] if "owner_key" in available_columns else None,
             manual_lat=row["manual_lat"] if "manual_lat" in available_columns else None,
             manual_lon=row["manual_lon"] if "manual_lon" in available_columns else None,
+            battery_chemistry=(
+                row["battery_chemistry"] if "battery_chemistry" in available_columns else None
+            ),
         )
 
     @staticmethod
@@ -475,7 +478,14 @@ class ContactRepository:
             ):
                 pass
 
-    _ANNOTATION_COLUMNS = ("notes", "owner_info", "owner_key", "manual_lat", "manual_lon")
+    _ANNOTATION_COLUMNS = (
+        "notes",
+        "owner_info",
+        "owner_key",
+        "manual_lat",
+        "manual_lon",
+        "battery_chemistry",
+    )
 
     @staticmethod
     async def set_annotations(public_key: str, changes: dict) -> None:
