@@ -25,6 +25,10 @@ from app.models import (
     RepeaterRadioSettingsResponse,
     RepeaterRegionEntry,
     RepeaterRegionsResponse,
+    RepeaterSettingSetRequest,
+    RepeaterSettingSetResponse,
+    RepeaterSettingsReadRequest,
+    RepeaterSettingsReadResponse,
     RepeaterSignalSample,
     RepeaterStatusResponse,
     SelfSignalSample,
@@ -45,6 +49,7 @@ from app.routers.server_control import (
     require_server_capable_contact,
     send_contact_cli_command,
 )
+from app.services import repeater_settings
 from app.services.radio_runtime import radio_runtime as radio_manager
 
 logger = logging.getLogger(__name__)
@@ -449,6 +454,83 @@ async def repeater_radio_settings(public_key: str) -> RepeaterRadioSettingsRespo
         if dc.startswith("??") or dc.lower().startswith("error"):
             results["duty_cycle_limit"] = None
     return RepeaterRadioSettingsResponse(**results)
+
+
+@router.post("/{public_key}/repeater/settings/read", response_model=RepeaterSettingsReadResponse)
+async def repeater_settings_read(
+    public_key: str, request: RepeaterSettingsReadRequest
+) -> RepeaterSettingsReadResponse:
+    """Read allow-listed editor settings via ``get <verb>`` (admin login needed).
+
+    Only allow-listed keys are read. Error sentinels (unknown config on older
+    firmware, unsupported hardware) come back as None.
+    """
+    keys = request.settings if request.settings is not None else list(repeater_settings.SETTINGS)
+    try:
+        specs = [(key, repeater_settings.get_spec(key)) for key in keys]
+    except repeater_settings.SettingValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    radio_manager.require_connected()
+    contact = await _resolve_contact_or_404(public_key)
+    _require_repeater(contact)
+
+    results = await _batch_cli_fetch(
+        contact,
+        "repeater_settings_read",
+        [(f"get {spec.verb}", key) for key, spec in specs],
+    )
+    values = {
+        key: (None if repeater_settings.is_error_reply(text) else text)
+        for key, text in results.items()
+    }
+    return RepeaterSettingsReadResponse(values=values)
+
+
+@router.post("/{public_key}/repeater/settings/set", response_model=RepeaterSettingSetResponse)
+async def repeater_settings_set(
+    public_key: str, request: RepeaterSettingSetRequest
+) -> RepeaterSettingSetResponse:
+    """Send ONE allow-listed ``set`` over RF, then read it back with ``get``.
+
+    The setting and value are validated against the allow-list before anything
+    touches the radio; an invalid request is rejected with 400 and nothing is
+    sent. The read-back always runs (even when the set reply was an error or
+    was missed) so the caller sees the value the repeater actually holds.
+    """
+    try:
+        spec, value, command = repeater_settings.build_set_command(request.setting, request.value)
+    except repeater_settings.SettingValidationError as exc:
+        raise HTTPException(
+            status_code=400, detail=f"Invalid setting '{request.setting}': {exc}"
+        ) from exc
+
+    radio_manager.require_connected()
+    contact = await _resolve_contact_or_404(public_key)
+    _require_repeater(contact)
+
+    results = await _batch_cli_fetch(
+        contact,
+        "repeater_settings_set",
+        [(command, "set_reply"), (f"get {spec.verb}", "readback")],
+    )
+    set_reply = results.get("set_reply")
+    readback = results.get("readback")
+    status = repeater_settings.classify_result(spec, value, set_reply, readback)
+    logger.info(
+        "Repeater %s setting %s: %s",
+        contact.public_key[:12],
+        spec.verb,
+        status,
+    )
+    return RepeaterSettingSetResponse(
+        setting=request.setting,
+        value=value,
+        set_reply=set_reply,
+        readback=readback,
+        status=status,
+        reboot_required=spec.reboot_required,
+    )
 
 
 @router.post(

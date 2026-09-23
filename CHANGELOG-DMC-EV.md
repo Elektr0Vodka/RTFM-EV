@@ -11,6 +11,38 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-23 (Structured repeater settings editor, plan 28 item 1.2, feat/repeater-settings-editor)
+
+### Repeater dashboard (frontend)
+- **Settings Editor pane.** A new full-width pane on the repeater dashboard
+  lists an allow-listed set of repeater settings (name, lat/lon, owner info,
+  guest password, radio f/bw/sf/cr, TX power, duty cycle, RX boosted gain,
+  interference threshold, AGC reset interval, repeat, allow read-only, max
+  flood hops, multi ACKs, loop detection, path hash mode, flood/direct TX
+  delay, local and flood advert intervals) with an Edit button per row.
+  Current values come from the panes that already read them, or from "Read
+  current values" (`get` only). Every change is confirmed on its own: the
+  dialog shows the setting, the current value, the new value and the exact
+  CLI command before anything is sent. After sending, the result shows the
+  read-back and flags a mismatch, a firmware rejection, or a missing
+  read-back. Radio f/bw/sf/cr is one `set radio f,bw,sf,cr` command behind a
+  strong confirm: its Edit button stays locked until the current radio values
+  have been read (so the form never starts from guessed defaults), the user
+  must type the repeater name, and the dialog warns
+  that a wrong value strands the repeater off-air and that the firmware only
+  applies it after a reboot (the editor never reboots). `prv.key` and the
+  admin password are not editable. The raw CLI console is unchanged.
+
+### Repeaters (backend)
+- `POST /api/contacts/{key}/repeater/settings/set` sends ONE allow-listed
+  `set <verb> <value>` and then `get <verb>`, returning the read-back and a
+  status (`ok`, `mismatch`, `rejected`, `unverified`). Setting names and
+  values are validated server-side (`app/services/repeater_settings.py`,
+  ranges from the stock `CommonCLI.cpp`) before the radio is touched;
+  anything else is a 400 and nothing is sent.
+  `POST /api/contacts/{key}/repeater/settings/read` reads allow-listed
+  settings with `get` only. No migration.
+
 ## Update 2026-09-23 (Shared-locations map layer + MGRS, feat/shared-locations-map-layer)
 
 ### Map (frontend)

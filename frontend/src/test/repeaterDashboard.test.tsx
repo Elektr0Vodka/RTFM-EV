@@ -45,6 +45,8 @@ const mockHook: {
   sendFloodAdvert: vi.fn(),
   rebootRepeater: vi.fn(),
   syncClock: vi.fn(),
+  readSettings: vi.fn(),
+  applySetting: vi.fn(),
 };
 
 vi.mock('../hooks/useRepeaterDashboard', () => ({
@@ -501,9 +503,10 @@ describe('RepeaterDashboard', () => {
 
     render(<RepeaterDashboard {...defaultProps} />);
 
-    const formatted = screen.getByText('910.525 MHz, BW 62.5 kHz, SF7, CR5');
-    expect(formatted).toBeInTheDocument();
-    expect(formatted).toHaveAttribute('title', '910.5250244,62.5,7,5');
+    // The Settings Editor row shows the same formatted tuple, so look the
+    // Radio Settings row up by its raw-tuple tooltip.
+    const formatted = screen.getByTitle('910.5250244,62.5,7,5');
+    expect(formatted).toHaveTextContent('910.525 MHz, BW 62.5 kHz, SF7, CR5');
   });
 
   it('shows fetched time and relative age when pane data has been loaded', () => {

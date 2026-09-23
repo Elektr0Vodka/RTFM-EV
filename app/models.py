@@ -803,6 +803,47 @@ class RepeaterRadioSettingsResponse(BaseModel):
     flood_max: str | None = Field(default=None, description="Max flood hops")
 
 
+class RepeaterSettingSetRequest(BaseModel):
+    """One structured ``set`` for the repeater settings editor (allow-listed)."""
+
+    setting: str = Field(description="Allow-listed setting key, e.g. 'tx' or 'radio'")
+    value: str = Field(description="New value as text; validated server-side")
+
+
+class RepeaterSettingSetResponse(BaseModel):
+    """Result of one ``set`` followed by a ``get`` read-back."""
+
+    setting: str = Field(description="Setting key")
+    value: str = Field(description="Normalized value that was sent")
+    set_reply: str | None = Field(
+        default=None, description="Firmware reply to the set (None when no reply was heard)"
+    )
+    readback: str | None = Field(
+        default=None, description="Reply to the get read-back (None when no reply was heard)"
+    )
+    status: Literal["ok", "mismatch", "rejected", "unverified"] = Field(
+        description=(
+            "ok: read-back matches; mismatch: read-back differs; rejected: firmware "
+            "answered the set with an error; unverified: no read-back heard"
+        )
+    )
+    reboot_required: bool = Field(
+        default=False, description="True when the firmware only applies it after a reboot"
+    )
+
+
+class RepeaterSettingsReadRequest(BaseModel):
+    """Which allow-listed settings to read; omit for all of them."""
+
+    settings: list[str] | None = Field(default=None, description="Setting keys to read")
+
+
+class RepeaterSettingsReadResponse(BaseModel):
+    """Current values of allow-listed settings (None when not heard or unsupported)."""
+
+    values: dict[str, str | None] = Field(default_factory=dict)
+
+
 class RepeaterAdvertIntervalsResponse(BaseModel):
     """Advertisement intervals from a repeater."""
 

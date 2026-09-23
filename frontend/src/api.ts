@@ -88,6 +88,8 @@ import type {
   ContactAnnotationsUpdate,
   RepeaterRadioSettingsResponse,
   RepeaterRegionsResponse,
+  RepeaterSettingSetResponse,
+  RepeaterSettingsReadResponse,
   RepeaterStatusResponse,
   TelemetryHistoryEntry,
   TelemetrySchedule,
@@ -1006,6 +1008,18 @@ export const api = {
   repeaterRadioSettings: (publicKey: string) =>
     fetchJson<RepeaterRadioSettingsResponse>(`/contacts/${publicKey}/repeater/radio-settings`, {
       method: 'POST',
+    }),
+  // Structured settings editor. Each set is ONE CLI message over RF; the
+  // server validates against an allow-list and reads the value back.
+  repeaterSettingsRead: (publicKey: string, settings?: string[]) =>
+    fetchJson<RepeaterSettingsReadResponse>(`/contacts/${publicKey}/repeater/settings/read`, {
+      method: 'POST',
+      body: JSON.stringify({ settings: settings ?? null }),
+    }),
+  repeaterSettingSet: (publicKey: string, setting: string, value: string) =>
+    fetchJson<RepeaterSettingSetResponse>(`/contacts/${publicKey}/repeater/settings/set`, {
+      method: 'POST',
+      body: JSON.stringify({ setting, value }),
     }),
   repeaterAdvertIntervals: (publicKey: string) =>
     fetchJson<RepeaterAdvertIntervalsResponse>(`/contacts/${publicKey}/repeater/advert-intervals`, {

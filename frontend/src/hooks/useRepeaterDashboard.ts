@@ -14,6 +14,8 @@ import type {
   RepeaterOwnerInfoResponse,
   RepeaterLppTelemetryResponse,
   RepeaterRegionsResponse,
+  RepeaterSettingSetResponse,
+  RepeaterSettingsReadResponse,
   CommandResponse,
 } from '../types';
 import {
@@ -33,7 +35,7 @@ interface ConsoleEntry {
   outgoing: boolean;
 }
 
-interface PaneData {
+export interface PaneData {
   status: RepeaterStatusResponse | null;
   nodeInfo: RepeaterNodeInfoResponse | null;
   neighbors: RepeaterNeighborsResponse | null;
@@ -202,6 +204,59 @@ export interface UseRepeaterDashboardResult {
   sendFloodAdvert: () => Promise<void>;
   rebootRepeater: () => Promise<void>;
   syncClock: () => Promise<void>;
+  /** Read allow-listed editor settings (`get` only). Throws on request failure. */
+  readSettings: (settings?: string[]) => Promise<RepeaterSettingsReadResponse>;
+  /** Send ONE allow-listed `set` over RF + read-back. Throws on request failure. */
+  applySetting: (setting: string, value: string) => Promise<RepeaterSettingSetResponse>;
+}
+
+/**
+ * Mirror an editor read-back into the read-only pane that shows the same
+ * setting, so those rows stay in step without another RF round trip.
+ */
+export function applyReadbackToPaneData(
+  data: PaneData,
+  setting: string,
+  readback: string
+): PaneData {
+  const patchRadio = (field: keyof RepeaterRadioSettingsResponse, value: string) =>
+    data.radioSettings
+      ? { ...data, radioSettings: { ...data.radioSettings, [field]: value } }
+      : data;
+  const patchAdvert = (field: keyof RepeaterAdvertIntervalsResponse) =>
+    data.advertIntervals
+      ? { ...data, advertIntervals: { ...data.advertIntervals, [field]: readback } }
+      : data;
+  const patchNode = (field: keyof RepeaterNodeInfoResponse) =>
+    data.nodeInfo ? { ...data, nodeInfo: { ...data.nodeInfo, [field]: readback } } : data;
+  switch (setting) {
+    case 'radio':
+      return patchRadio('radio', readback);
+    case 'tx':
+      return patchRadio('tx_power', readback);
+    case 'dutycycle':
+      return patchRadio('duty_cycle_limit', readback);
+    case 'repeat':
+      return patchRadio('repeat_enabled', readback);
+    case 'flood.max':
+      return patchRadio('flood_max', readback);
+    case 'advert.interval':
+      return patchAdvert('advert_interval');
+    case 'flood.advert.interval':
+      return patchAdvert('flood_advert_interval');
+    case 'name':
+      return patchNode('name');
+    case 'lat':
+      return patchNode('lat');
+    case 'lon':
+      return patchNode('lon');
+    case 'guest.password':
+      return data.ownerInfo
+        ? { ...data, ownerInfo: { ...data.ownerInfo, guest_password: readback } }
+        : data;
+    default:
+      return data;
+  }
 }
 
 interface UseRepeaterDashboardOptions {
@@ -507,6 +562,39 @@ export function useRepeaterDashboard(
     await sendConsoleCommand(`time ${epochSeconds}`);
   }, [sendConsoleCommand]);
 
+  const readSettings = useCallback(
+    async (settings?: string[]) => {
+      const publicKey = getPublicKey();
+      if (!publicKey) throw new Error('No repeater selected');
+      return api.repeaterSettingsRead(publicKey, settings);
+    },
+    [getPublicKey]
+  );
+
+  const applySetting = useCallback(
+    async (setting: string, value: string) => {
+      const publicKey = getPublicKey();
+      if (!publicKey) throw new Error('No repeater selected');
+      const conversationId = publicKey;
+      const result = await api.repeaterSettingSet(publicKey, setting, value);
+      const readback = result.readback;
+      if (
+        readback != null &&
+        result.status !== 'unverified' &&
+        mountedRef.current &&
+        activeIdRef.current === conversationId
+      ) {
+        const next = applyReadbackToPaneData(paneDataRef.current, setting, readback);
+        if (next !== paneDataRef.current) {
+          paneDataRef.current = next;
+          setPaneData(next);
+        }
+      }
+      return result;
+    },
+    [getPublicKey]
+  );
+
   return {
     loggedIn,
     loginLoading,
@@ -525,5 +613,7 @@ export function useRepeaterDashboard(
     sendFloodAdvert,
     rebootRepeater,
     syncClock,
+    readSettings,
+    applySetting,
   };
 }
