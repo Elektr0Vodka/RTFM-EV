@@ -215,12 +215,19 @@ def _assign_lpp_keys(lpp_sensors: list[dict]) -> list[tuple[dict, str, int]]:
 
 
 def _repeater_telemetry_payload(data: dict[str, Any]) -> dict[str, Any]:
-    """Build the flat HA state payload for a repeater telemetry snapshot."""
+    """Build the flat HA state payload for a repeater telemetry snapshot.
+
+    Status fields absent from the snapshot are omitted, not sent as null. An
+    LPP-only snapshot (manual or scheduled LPP request) carries no status
+    fields; a null would render as "None" and set HA's status sensors to
+    unknown, while an absent key renders empty, which HA ignores for numeric
+    sensors, keeping the last status values.
+    """
     payload: dict[str, Any] = {}
     for sensor in _REPEATER_SENSORS:
         field = sensor["field"]
-        if field is not None:
-            payload[field] = data.get(field)
+        if field is not None and field in data:
+            payload[field] = data[field]
 
     for sensor, key, _ in _assign_lpp_keys(data.get("lpp_sensors", []) or []):
         payload[key] = sensor.get("value")
