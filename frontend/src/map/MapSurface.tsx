@@ -28,6 +28,7 @@ import {
   getCrtMapTint,
 } from '../utils/crt';
 import { setMapLock2D } from './engine/mapLock2D';
+import { transformTileRequest } from './engine/tileProxy';
 import { setBuildings3D } from './engine/buildings3D';
 import { isWebglAvailable } from './engine/webgl';
 import {
@@ -86,6 +87,7 @@ export interface MapSurfaceProps {
   onSearch?: (query: string) => void;
   legendContent?: ReactNode;
   extraFabs?: ExtraFab[];
+  onExportGpx?: () => void;
 }
 
 /** Synchronous initial style for map creation. A vector-recolor basemap cannot
@@ -187,6 +189,8 @@ export function MapSurface(props: MapSurfaceProps) {
       center: initialCenter,
       zoom: initialZoom,
       attributionControl: { compact: true },
+      // Route allow-listed basemap requests through the backend tile cache when on.
+      transformRequest: transformTileRequest,
     });
     mapRef.current = map;
     if (entry.kind === 'vector-recolor') markBasemapApplied(map, rasterFallbackFor(entry));
@@ -317,6 +321,7 @@ export function MapSurface(props: MapSurfaceProps) {
         linkAgePanel={props.linkAgePanel}
         fullscreen={fullscreenEl != null}
         onToggleFullscreen={fullscreenSupported ? toggleFullscreen : undefined}
+        onExportGpx={props.onExportGpx}
         portalContainer={fullscreenEl}
         telemetryOn={props.telemetryOn}
         onToggleTelemetry={props.onToggleTelemetry}

@@ -13,8 +13,22 @@ import {
   loadRailCollapsed,
   saveRailCollapsed,
   resetSidebarLayout,
+  groupSectionKey,
+  isGroupSectionKey,
+  groupIdFromSectionKey,
+  createContactGroup,
+  renameContactGroup,
+  deleteContactGroup,
+  toggleGroupMember,
+  groupsContainingContact,
+  groupsContainingChannel,
+  isContactGrouped,
+  isChannelGrouped,
+  loadGroupCollapsed,
+  saveGroupCollapsed,
   type SidebarToolKey,
 } from '../utils/sidebarLayout';
+import type { ContactGroup } from '../types';
 
 describe('sidebarLayout server-order reconcilers', () => {
   beforeEach(() => localStorage.clear());
@@ -54,6 +68,38 @@ describe('sidebarLayout server-order reconcilers', () => {
 
   it('falls back to defaults on a non-array server value', () => {
     expect(resolveSectionOrder('{not an array')).toEqual(ALL_SECTION_KEYS);
+  });
+});
+
+describe('contact group section keys', () => {
+  it('builds and parses a group section key', () => {
+    expect(groupSectionKey('abc123')).toBe('group:abc123');
+    expect(isGroupSectionKey('group:abc123')).toBe(true);
+    expect(isGroupSectionKey('channels')).toBe(false);
+    expect(groupIdFromSectionKey('group:abc123')).toBe('abc123');
+  });
+
+  it('appends group section keys as valid, newly-added entries with no stored order', () => {
+    const order = resolveSectionOrder(undefined, ['grp-1', 'grp-2']);
+    expect(order).toEqual([...ALL_SECTION_KEYS, 'group:grp-1', 'group:grp-2']);
+  });
+
+  it('keeps a group key already in the stored order, in place', () => {
+    const order = resolveSectionOrder(
+      ['group:grp-1', 'tools', 'favorites', 'channels', 'contacts'],
+      ['grp-1']
+    );
+    expect(order[0]).toBe('group:grp-1');
+    expect(order).toHaveLength(5);
+  });
+
+  it('drops a group key for a group that no longer exists', () => {
+    const order = resolveSectionOrder(
+      ['group:deleted', 'tools', 'favorites', 'channels', 'contacts'],
+      []
+    );
+    expect(order).not.toContain('group:deleted');
+    expect(order).toEqual(ALL_SECTION_KEYS);
   });
 });
 
@@ -161,4 +207,95 @@ describe('sidebarLayout rail collapse (client-local)', () => {
 
   const tk: SidebarToolKey = 'cracker';
   it('has cracker as a valid tool key', () => expect(ALL_TOOL_KEYS).toContain(tk));
+});
+
+describe('contact groups: pure state-transition helpers', () => {
+  const makeGroup = (overrides: Partial<ContactGroup> = {}): ContactGroup => ({
+    id: 'grp-1',
+    name: 'Field team',
+    contact_keys: [],
+    channel_keys: [],
+    ...overrides,
+  });
+
+  it('creates a group with a fresh id and a trimmed name', () => {
+    const g = createContactGroup('  Backups  ');
+    expect(g.name).toBe('Backups');
+    expect(g.contact_keys).toEqual([]);
+    expect(g.channel_keys).toEqual([]);
+    expect(g.id).toBeTruthy();
+
+    const g2 = createContactGroup('Backups');
+    expect(g2.id).not.toBe(g.id);
+  });
+
+  it('renames a group by id, trimming the name, and ignores a blank name', () => {
+    const groups = [makeGroup()];
+    const renamed = renameContactGroup(groups, 'grp-1', '  Renamed  ');
+    expect(renamed[0].name).toBe('Renamed');
+
+    const unchanged = renameContactGroup(groups, 'grp-1', '   ');
+    expect(unchanged).toBe(groups);
+
+    const untouched = renameContactGroup(groups, 'grp-missing', 'X');
+    expect(untouched[0].name).toBe('Field team');
+  });
+
+  it('deletes a group by id', () => {
+    const groups = [makeGroup(), makeGroup({ id: 'grp-2', name: 'Backups' })];
+    expect(deleteContactGroup(groups, 'grp-1')).toEqual([groups[1]]);
+    expect(deleteContactGroup(groups, 'grp-missing')).toHaveLength(2);
+  });
+
+  it('toggles contact membership on and off, lowercasing the key', () => {
+    const groups = [makeGroup()];
+    const added = toggleGroupMember(groups, 'grp-1', 'contact', 'ABCDEF01');
+    expect(added[0].contact_keys).toEqual(['abcdef01']);
+
+    const removed = toggleGroupMember(added, 'grp-1', 'contact', 'abcdef01');
+    expect(removed[0].contact_keys).toEqual([]);
+  });
+
+  it('toggles channel membership independently of contact membership', () => {
+    const groups = [makeGroup()];
+    const added = toggleGroupMember(groups, 'grp-1', 'channel', 'chan-key-1');
+    expect(added[0].channel_keys).toEqual(['chan-key-1']);
+    expect(added[0].contact_keys).toEqual([]);
+  });
+
+  it('finds groups containing a contact/channel, case-insensitively for contacts', () => {
+    const groups = [
+      makeGroup({ contact_keys: ['abcdef01'], channel_keys: ['chan-1'] }),
+      makeGroup({ id: 'grp-2', name: 'Other', contact_keys: [], channel_keys: [] }),
+    ];
+    expect(groupsContainingContact(groups, 'ABCDEF01')).toEqual([groups[0]]);
+    expect(groupsContainingChannel(groups, 'chan-1')).toEqual([groups[0]]);
+    expect(isContactGrouped(groups, 'abcdef01')).toBe(true);
+    expect(isContactGrouped(groups, 'nope')).toBe(false);
+    expect(isChannelGrouped(groups, 'chan-1')).toBe(true);
+    expect(isChannelGrouped(groups, 'nope')).toBe(false);
+  });
+
+  it('one item can belong to several groups at once', () => {
+    const groups = [
+      makeGroup({ id: 'grp-1', contact_keys: ['abcdef01'] }),
+      makeGroup({ id: 'grp-2', name: 'Other', contact_keys: ['abcdef01'] }),
+    ];
+    expect(groupsContainingContact(groups, 'abcdef01')).toHaveLength(2);
+  });
+});
+
+describe('sidebarLayout group collapse state (client-local)', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('defaults to an empty object and round-trips', () => {
+    expect(loadGroupCollapsed()).toEqual({});
+    saveGroupCollapsed({ 'grp-1': true });
+    expect(loadGroupCollapsed()).toEqual({ 'grp-1': true });
+  });
+
+  it('tolerates corrupt storage', () => {
+    localStorage.setItem('remoteterm-sidebar-group-collapse-state', 'not json');
+    expect(loadGroupCollapsed()).toEqual({});
+  });
 });

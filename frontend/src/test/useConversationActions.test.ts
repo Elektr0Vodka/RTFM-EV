@@ -71,6 +71,7 @@ function createArgs(overrides: Partial<Parameters<typeof useConversationActions>
     observeMessage: vi.fn(() => ({ added: true, activeConversation: true })),
     messageInputRef: { current: { appendText: vi.fn(), focus: vi.fn() } },
     removeMessage: vi.fn(),
+    markConversationUnreadFromMessage: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
@@ -379,5 +380,60 @@ describe('useConversationActions reactions and replies', () => {
     });
 
     expect(appendText).toHaveBeenCalledWith('@[Bob]\n>hello mesh\n');
+  });
+
+  it('marks a channel message unread from here', async () => {
+    const markConversationUnreadFromMessage = vi.fn().mockResolvedValue(undefined);
+    const args = createArgs({ markConversationUnreadFromMessage });
+    const { result } = renderHook(() => useConversationActions(args));
+
+    const incoming = { ...sentMessage, id: 55, outgoing: false };
+
+    await act(async () => {
+      await result.current.handleMarkUnreadFromMessage(incoming);
+    });
+
+    expect(markConversationUnreadFromMessage).toHaveBeenCalledWith({
+      type: 'channel',
+      id: publicChannel.key,
+      messageId: 55,
+    });
+    expect(mocks.toast.success).toHaveBeenCalled();
+  });
+
+  it('marks a contact (PRIV) message unread from here', async () => {
+    const markConversationUnreadFromMessage = vi.fn().mockResolvedValue(undefined);
+    const args = createArgs({ markConversationUnreadFromMessage });
+    const { result } = renderHook(() => useConversationActions(args));
+
+    const incoming: Message = {
+      ...sentMessage,
+      id: 56,
+      type: 'PRIV',
+      conversation_key: 'aa'.repeat(32),
+      outgoing: false,
+    };
+
+    await act(async () => {
+      await result.current.handleMarkUnreadFromMessage(incoming);
+    });
+
+    expect(markConversationUnreadFromMessage).toHaveBeenCalledWith({
+      type: 'contact',
+      id: 'aa'.repeat(32),
+      messageId: 56,
+    });
+  });
+
+  it('shows an error toast when marking unread fails', async () => {
+    const markConversationUnreadFromMessage = vi.fn().mockRejectedValue(new Error('nope'));
+    const args = createArgs({ markConversationUnreadFromMessage });
+    const { result } = renderHook(() => useConversationActions(args));
+
+    await act(async () => {
+      await result.current.handleMarkUnreadFromMessage({ ...sentMessage, outgoing: false });
+    });
+
+    expect(mocks.toast.error).toHaveBeenCalled();
   });
 });

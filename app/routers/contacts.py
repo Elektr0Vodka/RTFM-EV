@@ -26,11 +26,14 @@ from app.models import (
     ContactTelemetryPermissionsRequest,
     ContactTelemetryResponse,
     ContactUpsert,
+    ContactUriBatchRequest,
+    ContactUriBatchResponse,
     ContactUriImportRequest,
     ContactUriResponse,
     CreateContactRequest,
     LatestTelemetryEntry,
     LppSensor,
+    MarkUnreadRequest,
     NearestRepeater,
     PathDiscoveryResponse,
     PathDiscoveryRoute,
@@ -41,6 +44,7 @@ from app.models import (
 from app.packet_processor import start_historical_dm_decryption
 from app.path_utils import parse_explicit_hop_route
 from app.repository import (
+    AdvertEventRepository,
     AmbiguousPublicKeyPrefixError,
     AppSettingsRepository,
     ContactAdvertPathRepository,
@@ -473,6 +477,38 @@ async def mark_contact_read(public_key: str) -> dict:
     return {"status": "ok", "public_key": contact.public_key}
 
 
+@router.post("/{public_key}/mark-unread")
+async def mark_contact_unread(public_key: str, body: MarkUnreadRequest) -> dict:
+    """Mark a contact conversation as unread from a given message onward.
+
+    Sets last_read_at to just before the message's received_at, so that
+    message and every incoming message after it count as unread again.
+    """
+    contact = await _resolve_contact_or_404(public_key)
+
+    message = await MessageRepository.get_by_id(body.message_id)
+    if (
+        not message
+        or message.type != "PRIV"
+        or message.conversation_key.lower() != contact.public_key.lower()
+    ):
+        raise HTTPException(status_code=404, detail="Message not found in this conversation")
+    if message.outgoing:
+        raise HTTPException(status_code=400, detail="Cannot mark an outgoing message as unread")
+
+    timestamp = message.received_at - 1
+    updated = await ContactRepository.update_last_read_at(contact.public_key, timestamp)
+    if not updated:
+        raise HTTPException(status_code=500, detail="Failed to update read state")
+
+    return {
+        "status": "ok",
+        "public_key": contact.public_key,
+        "message_id": message.id,
+        "last_read_at": timestamp,
+    }
+
+
 class BulkDeleteRequest(BaseModel):
     public_keys: list[str] = Field(description="Public keys to delete")
 
@@ -509,6 +545,32 @@ async def bulk_delete_contacts(request: BulkDeleteRequest) -> dict:
 
     logger.info("Bulk deleted %d/%d contacts", deleted, len(request.public_keys))
     return {"deleted": deleted}
+
+
+@router.post("/bulk-contact-uris", response_model=ContactUriBatchResponse)
+async def get_bulk_contact_uris(request: ContactUriBatchRequest) -> ContactUriBatchResponse:
+    """Build meshcore:// links for several contacts from stored raw adverts.
+
+    Unlike ``GET /{public_key}/contact-uri``, this never talks to the radio: it
+    looks up the most recently retained advert transmission per key
+    (``advert_events`` joined to ``raw_packets``) and validates it the same way
+    an imported link is validated (hex, ADVERT packet, Ed25519 signature). A
+    key is left out of the response when no raw advert is stored for it (never
+    heard, or pruned by retention) rather than causing an error, so callers
+    (for example a GPX export of many nodes at once) can simply omit the link
+    for those.
+    """
+    raw_by_key = await AdvertEventRepository.latest_raw_adverts(request.public_keys)
+    links: dict[str, str] = {}
+    for key, raw in raw_by_key.items():
+        try:
+            card = parse_contact_uri(format_contact_uri(raw))
+        except ContactUriError:
+            continue
+        if card.public_key != key:
+            continue
+        links[key] = format_contact_uri(card.raw)
+    return ContactUriBatchResponse(links=links)
 
 
 @router.delete("/{public_key}")

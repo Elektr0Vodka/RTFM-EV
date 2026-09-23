@@ -1,4 +1,5 @@
 import type { Map as MlMap } from 'maplibre-gl';
+import { proxiedUrl } from './tileProxy';
 
 // Ported from EU-Meshcore-Analyzer web/js/lib/maplibre-basemap.js. 3D building
 // extrusions on the OpenMapTiles `building` source-layer. Works over a vector OR
@@ -29,7 +30,7 @@ let _vectorSourceDef: Promise<unknown> | null = null;
 async function vectorSourceDef(): Promise<unknown> {
   if (_vectorSourceDef) return _vectorSourceDef;
   const p = (async () => {
-    const res = await fetch('https://tiles.openfreemap.org/styles/positron');
+    const res = await fetch(proxiedUrl('https://tiles.openfreemap.org/styles/positron'));
     if (!res.ok) throw new Error('OpenFreeMap style ' + res.status);
     const style = await res.json();
     const entry = Object.values(style.sources || {}).find(

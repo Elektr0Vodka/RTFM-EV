@@ -83,6 +83,7 @@ interface ConversationPaneProps {
   onDeleteMessage?: (message: Message) => void;
   /** Retry a failed outgoing DM (sends a new copy that replaces it). */
   onRetryDirectMessage?: (messageId: number) => void | Promise<void>;
+  onMarkUnreadFromMessage?: (message: Message) => void;
   targetMessageId: number | null;
   hasNewerMessages: boolean;
   loadingNewer: boolean;
@@ -167,6 +168,8 @@ interface ConversationPaneProps {
     onToggleBlockedName?: (name: string) => void;
     trackedTelemetryContacts?: string[];
     onToggleTrackedTelemetryContact?: (publicKey: string) => Promise<void>;
+    contactGroups?: import('../types').ContactGroup[];
+    onUpdateContactGroups?: (next: import('../types').ContactGroup[]) => void | Promise<void>;
     onOpenConversation?: (publicKey: string) => void;
   };
 }
@@ -216,6 +219,7 @@ export function ConversationPane({
   onReplyToMessage,
   onDeleteMessage,
   onRetryDirectMessage,
+  onMarkUnreadFromMessage,
   targetMessageId,
   hasNewerMessages,
   loadingNewer,
@@ -649,6 +653,7 @@ export function ConversationPane({
           onRetryDirectMessage={
             activeConversation.type === 'contact' ? onRetryDirectMessage : undefined
           }
+          onMarkUnreadFromMessage={onMarkUnreadFromMessage}
           onDismissUnreadMarker={
             activeConversation.type === 'channel' ? onDismissUnreadMarker : undefined
           }

@@ -66,6 +66,22 @@ export interface MeshcomodConfigUpdate {
   gps_interval?: number;
 }
 
+/**
+ * GPS state via the generic custom-vars protocol. Unlike MeshcomodConfig this
+ * is not specific to the meshcomod DMC/DMC-EV fork: any radio (stock firmware
+ * included) that reports the `gps` custom var can use it.
+ */
+export interface GpsConfig {
+  gps_supported: boolean;
+  gps_enabled: boolean | null;
+  gps_interval: number | null;
+}
+
+export interface GpsConfigUpdate {
+  gps_enabled?: boolean;
+  gps_interval?: number;
+}
+
 export type RadioDiscoveryTarget = 'repeaters' | 'sensors' | 'all';
 
 export interface RadioDiscoveryResult {
@@ -389,6 +405,45 @@ export interface ChannelImportResult {
   message: string;
 }
 
+export interface CommunityChannel {
+  key: string;
+  name: string;
+  kind: 'public' | 'hashtag';
+}
+
+/** A joined meshcore-open community. Never carries the secret (see CommunityExport). */
+export interface Community {
+  id: string;
+  short_id: string;
+  name: string;
+  created_at: number;
+  public_channel_key: string;
+  channels: CommunityChannel[];
+}
+
+export interface CommunityJoinResult {
+  community: Community;
+  already_joined: boolean;
+  created_channels: Channel[];
+  decrypt_started: boolean;
+  decrypt_total_packets: number;
+}
+
+export interface CommunityHashtagResult {
+  channel: Channel;
+  created: boolean;
+  community: Community;
+  decrypt_started: boolean;
+  decrypt_total_packets: number;
+}
+
+/** QR JSON payload including the community secret. Treat like a password. */
+export interface CommunityExport {
+  id: string;
+  name: string;
+  payload: string;
+}
+
 export interface PathHashWidthStats {
   total_packets: number;
   single_byte: number;
@@ -586,6 +641,78 @@ export interface UrlPreview {
   site_name?: string | null;
 }
 
+/** One upstream basemap source known to the backend tile cache (/tiles/config). */
+export interface TileCacheSource {
+  id: string;
+  label: string;
+  /** Upstream URL prefixes the map rewrites to /api/tiles/proxy/{id}/... */
+  client_prefixes: string[];
+  /** False when the source's terms forbid caching: it is always fetched directly. */
+  proxy: boolean;
+  /** True only when the source's tile policy allows bulk (area) download. */
+  predownload: boolean;
+  max_zoom: number;
+  policy_url: string;
+}
+
+export interface TileCacheConfig {
+  enabled: boolean;
+  max_size_mb: number;
+  max_age_days: number;
+  limits: {
+    min_size_mb: number;
+    max_size_mb: number;
+    min_age_days: number;
+    max_age_days: number;
+    predownload_min_zoom: number;
+    predownload_max_zoom: number;
+    predownload_max_tiles: number;
+    predownload_concurrency: number;
+  };
+  sources: TileCacheSource[];
+}
+
+export interface TileCacheConfigUpdate {
+  enabled?: boolean;
+  max_size_mb?: number;
+  max_age_days?: number;
+}
+
+export interface TileCacheStats {
+  entries: number;
+  bytes: number;
+  max_bytes: number;
+  per_source: Record<string, { entries: number; bytes: number }>;
+}
+
+export interface TileAreaRequest {
+  source: string;
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+  min_zoom: number;
+  max_zoom: number;
+}
+
+export interface TileAreaEstimate {
+  tiles: number;
+  max_tiles: number;
+  allowed: boolean;
+  reason?: string | null;
+}
+
+export interface TileDownloadStatus {
+  state: 'idle' | 'running' | 'done' | 'cancelled' | 'error';
+  source: string | null;
+  total: number;
+  done: number;
+  failed: number;
+  started_at: number | null;
+  finished_at: number | null;
+  error: string | null;
+}
+
 /** A user-configured external analyzer site for client-side node/packet lookups. */
 export interface AnalyzerSite {
   name: string;
@@ -661,6 +788,19 @@ export interface SidebarFavoriteSortOrders {
   sensors: FavoriteSortOrder;
 }
 
+/**
+ * A user-defined group of contacts and/or channels. Rendered as its own
+ * collapsible sidebar section (see utils/sidebarLayout groupSectionKey).
+ * A contact/channel can belong to several groups; server-persisted so all
+ * browsers agree. Local only - never sent over RF.
+ */
+export interface ContactGroup {
+  id: string;
+  name: string;
+  contact_keys: string[];
+  channel_keys: string[];
+}
+
 export interface AppSettings {
   max_radio_contacts: number;
   auto_decrypt_dm_on_advert: boolean;
@@ -690,6 +830,7 @@ export interface AppSettings {
   sidebar_favorites_order: string[];
   sidebar_hidden: SidebarHidden;
   sidebar_favorite_sort_orders: SidebarFavoriteSortOrders;
+  contact_groups: ContactGroup[];
   packet_feed_sort: 'oldest' | 'newest';
   packet_history_sort: 'oldest' | 'newest';
   /** Mesh Health contacts-table page size; 0 = show all. */
@@ -1024,6 +1165,7 @@ export interface AppSettingsUpdate {
   sidebar_favorites_order?: string[];
   sidebar_hidden?: SidebarHidden;
   sidebar_favorite_sort_orders?: Partial<SidebarFavoriteSortOrders>;
+  contact_groups?: ContactGroup[];
   packet_feed_sort?: 'oldest' | 'newest';
   packet_history_sort?: 'oldest' | 'newest';
   mesh_health_page_size?: number;
@@ -1191,6 +1333,21 @@ export interface RepeaterRadioSettingsResponse {
   duty_cycle_limit: string | null;
   repeat_enabled: string | null;
   flood_max: string | null;
+}
+
+/** Result of one structured `set` + `get` read-back from the settings editor. */
+export interface RepeaterSettingSetResponse {
+  setting: string;
+  /** Normalized value that was sent. */
+  value: string;
+  set_reply: string | null;
+  readback: string | null;
+  status: 'ok' | 'mismatch' | 'rejected' | 'unverified';
+  reboot_required: boolean;
+}
+
+export interface RepeaterSettingsReadResponse {
+  values: Record<string, string | null>;
 }
 
 export interface RepeaterAdvertIntervalsResponse {

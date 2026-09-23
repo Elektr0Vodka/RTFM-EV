@@ -277,6 +277,26 @@ class ContactUriImportRequest(BaseModel):
     uri: str = Field(max_length=600, description="meshcore:// contact link")
 
 
+class ContactUriBatchRequest(BaseModel):
+    """Request to look up meshcore:// links for several contacts at once."""
+
+    public_keys: list[str] = Field(description="Contacts to look up a stored advert for")
+
+
+class ContactUriBatchResponse(BaseModel):
+    """meshcore:// links built from stored raw adverts, not the radio.
+
+    Read-only: sourced from the most recent retained advert transmission per
+    contact (``advert_events`` joined to ``raw_packets``). A key is omitted
+    when no raw advert is still stored for it (never heard, or pruned by
+    retention), so this never issues a per-node radio command.
+    """
+
+    links: dict[str, str] = Field(
+        description="Lowercase public_key -> meshcore:// link, only for keys that resolved"
+    )
+
+
 class ContactAnnotationsUpdate(BaseModel):
     """Partial update of user-editable contact annotations.
 
@@ -823,6 +843,47 @@ class RepeaterRadioSettingsResponse(BaseModel):
     flood_max: str | None = Field(default=None, description="Max flood hops")
 
 
+class RepeaterSettingSetRequest(BaseModel):
+    """One structured ``set`` for the repeater settings editor (allow-listed)."""
+
+    setting: str = Field(description="Allow-listed setting key, e.g. 'tx' or 'radio'")
+    value: str = Field(description="New value as text; validated server-side")
+
+
+class RepeaterSettingSetResponse(BaseModel):
+    """Result of one ``set`` followed by a ``get`` read-back."""
+
+    setting: str = Field(description="Setting key")
+    value: str = Field(description="Normalized value that was sent")
+    set_reply: str | None = Field(
+        default=None, description="Firmware reply to the set (None when no reply was heard)"
+    )
+    readback: str | None = Field(
+        default=None, description="Reply to the get read-back (None when no reply was heard)"
+    )
+    status: Literal["ok", "mismatch", "rejected", "unverified"] = Field(
+        description=(
+            "ok: read-back matches; mismatch: read-back differs; rejected: firmware "
+            "answered the set with an error; unverified: no read-back heard"
+        )
+    )
+    reboot_required: bool = Field(
+        default=False, description="True when the firmware only applies it after a reboot"
+    )
+
+
+class RepeaterSettingsReadRequest(BaseModel):
+    """Which allow-listed settings to read; omit for all of them."""
+
+    settings: list[str] | None = Field(default=None, description="Setting keys to read")
+
+
+class RepeaterSettingsReadResponse(BaseModel):
+    """Current values of allow-listed settings (None when not heard or unsupported)."""
+
+    values: dict[str, str | None] = Field(default_factory=dict)
+
+
 class RepeaterAdvertIntervalsResponse(BaseModel):
     """Advertisement intervals from a repeater."""
 
@@ -1223,6 +1284,12 @@ class RadioPresetsStore(BaseModel):
     source_url: str = Field(default="", description="Upstream URL the presets came from")
 
 
+class MarkUnreadRequest(BaseModel):
+    """Request to mark a conversation unread from a specific message onward."""
+
+    message_id: int = Field(description="ID of the incoming message to mark unread, inclusive")
+
+
 class UnreadCounts(BaseModel):
     """Aggregated unread counts, mention flags, and last message times for all conversations."""
 
@@ -1383,6 +1450,28 @@ class SidebarFavoriteSortOrders(BaseModel):
 # batteryDisplay.ts for the per-chemistry math and sources.
 BATTERY_CHEMISTRIES: tuple[str, ...] = ("lipo", "lifepo4", "lipo_hv", "nmc")
 
+
+class ContactGroup(BaseModel):
+    """A user-defined group of contacts and/or channels.
+
+    Rendered as its own collapsible sidebar section, alongside the built-in
+    Favorites/Channels/Contacts sections (see ``SidebarHidden``/section order).
+    A contact or channel can belong to any number of groups. Membership removes
+    the item from its normal Channels/Contacts/Rooms/Repeaters section, the
+    same way marking something a favorite does (see the ``favorite`` flag on
+    Contact/Channel) - the group section becomes the item's only "leftover"
+    section unless it is also a favorite. Local-only: nothing about groups is
+    sent over RF.
+    """
+
+    id: str = Field(description="Stable client-generated identifier for this group")
+    name: str = Field(description="Display name shown as the section header")
+    contact_keys: list[str] = Field(
+        default_factory=list, description="Member contact public keys (lowercase hex)"
+    )
+    channel_keys: list[str] = Field(default_factory=list, description="Member channel keys")
+
+
 # Retention settings added in migrations _105 and _107 (0 = keep forever / no cap).
 # Defaults reproduce the pruning behavior from before that migration.
 RETENTION_DEFAULTS: dict[str, int] = {
@@ -1512,6 +1601,10 @@ class AppSettings(BaseModel):
     sidebar_favorite_sort_orders: SidebarFavoriteSortOrders = Field(
         default_factory=SidebarFavoriteSortOrders,
         description="Per-favorite-group sort order (recent/alpha) in the sidebar.",
+    )
+    contact_groups: list[ContactGroup] = Field(
+        default_factory=list,
+        description="User-defined contact/channel groups, each its own sidebar section.",
     )
     packet_feed_sort: Literal["oldest", "newest"] = Field(
         default="oldest",

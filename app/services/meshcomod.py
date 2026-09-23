@@ -84,6 +84,49 @@ async def capture_tuning_frame(mc) -> bytes | None:
     return holder["frame"]
 
 
+async def read_gps_settings(mc) -> dict:
+    """Read GPS state via the generic custom-vars commands.
+
+    The `gps` custom var is part of the stock MeshCore companion firmware
+    (CMD_GET_CUSTOM_VARS / CMD_SET_CUSTOM_VAR), gated at build time by
+    ENV_INCLUDE_GPS and at runtime by physical GPS detection, not specific to
+    the meshcomod DMC/DMC-EV fork. This works against any radio that reports
+    the var.
+    """
+    vars_event = await mc.commands.get_custom_vars()
+    res = vars_event.payload if vars_event is not None else {}
+    gps_supported = "gps" in res
+    gps_enabled = res.get("gps") == "1" if gps_supported else None
+    gps_interval = int(res.get("gps_interval", "0") or 0) if gps_supported else None
+
+    return {
+        "gps_supported": gps_supported,
+        "gps_enabled": gps_enabled,
+        "gps_interval": gps_interval,
+    }
+
+
+async def apply_gps_update(
+    mc,
+    *,
+    gps_enabled: bool | None = None,
+    gps_interval: int | None = None,
+) -> None:
+    """Apply any provided GPS custom-var settings to the connected radio."""
+    if gps_enabled is not None:
+        logger.info("Setting GPS enabled to %s", gps_enabled)
+        result = await mc.commands.set_custom_var("gps", "1" if gps_enabled else "0")
+        if result is not None and result.type == EventType.ERROR:
+            raise RadioCommandRejectedError(f"Failed to set GPS enable: {result.payload}")
+
+    if gps_interval is not None:
+        clamped = clamp_gps_interval(gps_interval)
+        logger.info("Setting GPS interval to %d seconds", clamped)
+        result = await mc.commands.set_custom_var("gps_interval", str(clamped))
+        if result is not None and result.type == EventType.ERROR:
+            raise RadioCommandRejectedError(f"Failed to set GPS interval: {result.payload}")
+
+
 async def read_meshcomod_settings(mc) -> dict:
     """Read CAD (via raw frame capture) and GPS (via custom vars) state."""
     frame = await capture_tuning_frame(mc)
@@ -94,18 +137,12 @@ async def read_meshcomod_settings(mc) -> dict:
         cad_enabled = None
     cad_supported = cad_enabled is not None
 
-    vars_event = await mc.commands.get_custom_vars()
-    res = vars_event.payload if vars_event is not None else {}
-    gps_supported = "gps" in res
-    gps_enabled = res.get("gps") == "1" if gps_supported else None
-    gps_interval = int(res.get("gps_interval", "0") or 0) if gps_supported else None
+    gps = await read_gps_settings(mc)
 
     return {
         "cad_supported": cad_supported,
         "cad_enabled": bool(cad_enabled) if cad_supported else None,
-        "gps_supported": gps_supported,
-        "gps_enabled": gps_enabled,
-        "gps_interval": gps_interval,
+        **gps,
     }
 
 
@@ -129,15 +166,4 @@ async def apply_meshcomod_update(
         if result is not None and result.type == EventType.ERROR:
             raise RadioCommandRejectedError(f"Failed to set CAD: {result.payload}")
 
-    if gps_enabled is not None:
-        logger.info("Setting GPS enabled to %s", gps_enabled)
-        result = await mc.commands.set_custom_var("gps", "1" if gps_enabled else "0")
-        if result is not None and result.type == EventType.ERROR:
-            raise RadioCommandRejectedError(f"Failed to set GPS enable: {result.payload}")
-
-    if gps_interval is not None:
-        clamped = clamp_gps_interval(gps_interval)
-        logger.info("Setting GPS interval to %d seconds", clamped)
-        result = await mc.commands.set_custom_var("gps_interval", str(clamped))
-        if result is not None and result.type == EventType.ERROR:
-            raise RadioCommandRejectedError(f"Failed to set GPS interval: {result.payload}")
+    await apply_gps_update(mc, gps_enabled=gps_enabled, gps_interval=gps_interval)

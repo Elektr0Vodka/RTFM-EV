@@ -13,6 +13,7 @@ import { NeighborsPane } from './RepeaterNeighborsPane';
 import { AclPane } from './RepeaterAclPane';
 import { NodeInfoPane } from './RepeaterNodeInfoPane';
 import { RadioSettingsPane } from './RepeaterRadioSettingsPane';
+import { SettingsEditorPane } from './RepeaterSettingsEditorPane';
 import { LppTelemetryPane } from './RepeaterLppTelemetryPane';
 import { OwnerInfoPane } from './RepeaterOwnerInfoPane';
 import { RegionsPane } from './RepeaterRegionsPane';
@@ -67,6 +68,8 @@ export function RepeaterDashboardBody({
     sendFloodAdvert,
     rebootRepeater,
     syncClock,
+    readSettings,
+    applySetting,
   } = useRepeaterDashboard(conversation, { hasAdvertLocation });
   const { password, setPassword, rememberPassword, setRememberPassword, persistAfterLogin } =
     useRememberedServerPassword('repeater', conversation.id);
@@ -205,6 +208,22 @@ export function RepeaterDashboardBody({
           />
         </div>
       </div>
+
+      {/* Structured settings editor - full width. Each change is one CLI set
+          over RF, confirmed per change and read back. */}
+      <SettingsEditorPane
+        seed={{
+          radioSettings: paneData.radioSettings,
+          advertIntervals: paneData.advertIntervals,
+          nodeInfo: paneData.nodeInfo,
+          ownerInfo: paneData.ownerInfo,
+        }}
+        repeaterName={conversation.name || conversation.id.slice(0, 12)}
+        confirmPhrase={conversation.name?.trim() || conversation.id.slice(0, 12)}
+        onRead={readSettings}
+        onApply={applySetting}
+        disabled={anyLoading || consoleLoading}
+      />
 
       {/* Remaining panes: ACL + Regions | Owner Info + Actions */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -360,6 +360,8 @@ This table is a representative subset, not the full route list (for example the 
 | POST | `/api/contacts/{public_key}/repeater/radio-settings` | Fetch repeater radio config via CLI |
 | POST | `/api/contacts/{public_key}/repeater/regions` | Fetch repeater region hierarchy via CLI, falling back to the guest anon flood-allowed region names (`source`: `cli` or `anon`) |
 | POST | `/api/contacts/{public_key}/repeater/advert-intervals` | Fetch advert intervals |
+| POST | `/api/contacts/{public_key}/repeater/settings/read` | Read allow-listed editor settings via CLI `get` |
+| POST | `/api/contacts/{public_key}/repeater/settings/set` | Send one allow-listed CLI `set` over RF, then read it back (400 for anything off the allow-list) |
 | POST | `/api/contacts/{public_key}/repeater/owner-info` | Fetch owner info |
 | GET | `/api/contacts/{public_key}/repeater/telemetry-history` | Stored telemetry history for a repeater (read-only, no radio access) |
 | POST | `/api/contacts/{public_key}/telemetry` | Fetch CayenneLPP telemetry from any contact (single attempt, 10s timeout) |

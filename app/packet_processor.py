@@ -59,6 +59,7 @@ from app.services.messages import (
 from app.services.messages import (
     create_message_from_decrypted as _create_message_from_decrypted,
 )
+from app.services.new_node_notify import notify_new_node
 from app.services.packet_decoded_fields import decoded_stat_fields
 from app.websocket import broadcast_error, broadcast_event
 
@@ -681,6 +682,14 @@ async def _process_advertisement(
     # Upsert the contact BEFORE recording advert paths so the parent row
     # exists when foreign key enforcement is enabled.
     await ContactRepository.upsert(contact_upsert)
+
+    if existing is None:
+        # First advert ever heard for this public key (plan 28 item 1.5).
+        notify_new_node(
+            public_key=advert.public_key.lower(),
+            name=advert.name or "",
+            contact_type=contact_type,
+        )
 
     # Keep recent unique advert paths for all contacts (count is a setting).
     advert_paths_per_contact = (await AppSettingsRepository.get()).advert_paths_per_contact

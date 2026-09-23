@@ -137,6 +137,246 @@ the change. Upstream development is on hold; the fork is the active repository.
   next status sample. Status fields missing from a snapshot are now left out
   of the state payload, so HA keeps the last values. HA may log a template
   warning per missing field.
+## Update 2026-09-23 (Communities, feat/communities, plan 28 item 1.3)
+
+### Channels (backend)
+- **meshcore-open communities.** New `app/communities.py` ports
+  meshcore-open's `models/community.dart`: from a community's 32-byte secret
+  it derives the public channel key (`HMAC-SHA256(K, "channel:v1:__public__")`,
+  first 16 bytes), community hashtag keys (`"channel:v1:" + tag`, tag
+  normalized as in meshcore-open) and the community ID. New endpoints under
+  `/api/communities`: join from the QR JSON
+  (`{"v":1,"type":"meshcore_community","name":...,"k":...}`), add a hashtag
+  channel (`"<name> #<tag>"`), export, forget. Channels are created in the
+  database only, like any other channel; nothing is transmitted. Plain
+  `#hashtag` channels still use `sha256(name)`.
+- **Community secret stored.** Migration `_110` adds a `communities` table
+  that keeps the secret so hashtag channels can be added later. The secret is
+  never logged, is not in the list endpoint, and is only returned by the
+  export endpoint. It is included in database backups.
+
+### Channels (frontend)
+- **Communities tab** in Channels > Import / Export: join by pasting the
+  JSON, scanning the QR code with a camera, or uploading a QR image; add
+  community hashtag channels; export the community as JSON or a QR code (copy,
+  JSON download, PNG download). The export is only fetched when you ask for
+  it. New dependencies: `uqr` (QR rendering, no dependencies) and
+  `zxing-wasm` (QR scanning; its WASM is bundled with the app and loaded only
+  when you scan, so no CDN is contacted).
+## Update 2026-09-23 (Contact groups, plan 28 item 1.16, feat/contact-groups)
+
+### Sidebar (frontend)
+- **User-defined contact/channel groups.** Create, rename and delete named
+  groups from the sidebar's Customize panel; a group can hold any mix of
+  contacts and channels, and an item can belong to several groups. Each group
+  renders as its own collapsible sidebar section (unread counts, new-item
+  badges, per-section "mark read" - same as the built-in sections) and slots
+  into the existing section reorder/hide/collapse system (drag order, hidden
+  overlay), so groups can be reordered alongside Tools/Favorites/Channels/
+  Contacts and hidden without deleting them. Membership is edited from the
+  contact info pane, the channel info pane, or the group's own checkbox list
+  in those panes (which also offers "create a new group and add this item"
+  inline). A grouped item drops out of its normal Channels/Contacts/Rooms/
+  Repeaters section, the same way a favorite does - the group is its
+  "leftover" section unless the item is also a favorite. Stored server-side
+  in `app_settings.contact_groups` so all browsers agree; section order,
+  hidden-entries and collapse state follow their existing storage (server for
+  order/hidden, client-local for collapse). Local only - nothing about groups
+  is sent over RF. Migration `_111` adds the `contact_groups` column.
+- New pure helpers in `frontend/src/utils/sidebarLayout.ts` for group section
+  keys and membership edits (`toggleGroupMember`, `createContactGroup`,
+  `renameContactGroup`, `deleteContactGroup`, `groupsContainingContact/
+  Channel`), covered directly in `frontend/src/test/sidebarLayout.test.ts`.
+## Update 2026-09-23 (Mark unread, plan 28 item 1.6, feat/mark-unread)
+
+### Chat (backend)
+- **Mark unread from here.** New `POST /api/contacts/{public_key}/mark-unread`
+  and `POST /api/channels/{key}/mark-unread` (`{message_id}`) set
+  `last_read_at` to just before the given message's `received_at`, so that
+  message and every incoming message after it count as unread again. Read
+  state stays server-side and shared across browsers, same as mark-read. The
+  message must be an incoming message in that conversation (400/404
+  otherwise).
+
+### Chat (frontend)
+- **"Mark unread from here" message action.** A new envelope icon next to
+  React/Reply on hover marks the conversation unread from that message
+  onward. The sidebar badge, unread count and first-unread divider
+  (`first_unread_ids`) reflect it on the next refresh, and it persists across
+  reloads and other browsers, since it is server-side.
+- **Fix: the manual unread mark no longer gets wiped while still viewing the
+  conversation.** The app auto-marks the open conversation as read on every
+  `/unreads` refresh (WS reconnect, mute toggle, etc.), which would otherwise
+  immediately undo a "mark unread from here" done on the currently open
+  conversation. That auto re-mark is now suppressed for the conversation just
+  marked unread until the user actually leaves and returns to it (a real
+  navigation), at which point it reads as normal again, same as any other
+  unread conversation.
+## Update 2026-09-23 (GIF URL forms, feat/gif-url-forms, plan 28 item 1.4)
+
+### Chat and display (frontend)
+- **Giphy URL forms for MeshCore Open GIFs.** A whole-message
+  `media.giphy.com/media/<id>/giphy.gif` or `giphy.com/gifs/[title-]<id>` link
+  (with or without `https://`) now renders as an inline GIF the same way
+  `g:<id>` already does, matching the two extra forms meshcore-open's
+  `GifHelper.parseGif` accepts besides its own picker's `g:<id>`. Gated by the
+  same Settings > Local > "Render MeshCore Open GIFs & Reactions" toggle
+  (off by default); with it off, the message renders as a plain link/URL
+  preview as before. No picker, no Giphy API key and no send-side conversion
+  (deferred; see plan 28 item 1.4).
+## Update 2026-09-23 (GPS toggle on stock firmware, plan 28 item 1.10, feat/gps-toggle-stock-fw)
+
+### Radio settings (backend + frontend)
+- **`GET`/`PATCH /radio/gps`.** The GPS on/off toggle no longer requires
+  meshcomod DMC/DMC-EV firmware: the `gps` custom var (read/written via the
+  generic `CMD_GET_CUSTOM_VARS` / `CMD_SET_CUSTOM_VAR` commands) is part of
+  the stock MeshCore companion firmware protocol too, gated at build time by
+  `ENV_INCLUDE_GPS` and at runtime by physical GPS detection. Settings > Radio
+  now shows a GPS section (enable + interval) for any connected radio that
+  reports the var, whether or not it is meshcomod. Meshcomod radios keep
+  their existing combined CAD/GPS control in the Meshcomod section unchanged;
+  the new section stays hidden for them to avoid showing GPS twice.
+- `app/services/meshcomod.py` GPS read/apply logic split into
+  `read_gps_settings` / `apply_gps_update`, reused by both
+  `GET`/`PATCH /radio/meshcomod` (unchanged behaviour) and the new
+  `GET`/`PATCH /radio/gps` endpoints. No migration.
+## Update 2026-09-23 (GPX export, feat/map-gpx-export, plan 28 item 1.8)
+
+### Map (frontend)
+- **GPX export.** A new Export FAB on the map (download icon) exports the
+  nodes the map currently shows under its active filters (role, heard/never-
+  heard, time window, hide-wrong-location, blocked) as a GPX 1.1 waypoint
+  file, `rtfm-ev-nodes-<date>.gpx`. Each waypoint has the node's name, its
+  effective position (advertised, or its manual override when the advertised
+  one is missing or invalid, in which case the description notes "manual
+  location"), and a description with its type and public key, following
+  meshcore-open's `utils/gpx_export.dart`. No tracks, only waypoints; nodes
+  with no usable location are skipped.
+
+### Contacts (backend)
+- **`POST /contacts/bulk-contact-uris`**: builds `meshcore://` contact links
+  for several contacts at once from the most recently retained advert
+  transmission per key (`advert_events` joined to `raw_packets`), instead of
+  the existing per-contact `GET /contacts/{key}/contact-uri` which asks the
+  radio (`CMD_EXPORT_CONTACT`) for each one. Read-only and never touches the
+  radio; a key with no stored advert (never heard, or pruned by retention) is
+  left out of the response rather than erroring. Used by the GPX export so a
+  page of nodes does not cost one radio round trip per node.
+## Update 2026-09-23 (Guessed locations map layer, feat/map-guessed-locations, plan 28 item 1.12)
+
+### Map (frontend)
+- **Guessed-locations layer.** A new "Guessed locations" section in the map
+  Overlays FAB (off by default, remembered per browser, shown from zoom 12+)
+  estimates a position for a node with no advertised or manual location: it
+  takes the node's own known advert paths, matches the hop nearest the origin
+  against located repeaters by 2- or 3-byte public-key prefix (1-byte hops are
+  skipped; they collide across too many nodes), drops anchor repeaters more
+  than 2x an estimated 15 km LoRa hop range apart from every other anchor, and
+  places the guess 330 m off a single anchor or 80-120 m off a weighted centre
+  of several, at an angle seeded from the node's public key so it stays put
+  across renders. Only nodes heard in the last 24h are guessed. Drawn as a
+  hollow "~" marker (never a filled circle, so it cannot be mistaken for a
+  real position); clicking it explains the position is a guess and names the
+  anchor repeater(s) and confidence. Guessed positions are never persisted,
+  never included in an export, and never sent anywhere. Ported in spirit from
+  meshcore-open's map screen (`lib/screens/map_screen.dart`, MIT); the
+  weighted-centre average is computed as a proper weighted mean (divided by
+  the sum of applied weights), fixing a bug in meshcore-open's own version
+  (divided by the anchor count instead), which otherwise pulls the estimate
+  toward (0, 0) as more anchors are combined. See `frontend/src/map/guessedLocations.ts`.
+## Update 2026-09-23 (Trace on a map, plan 28 item 1.14, feat/trace-on-map)
+
+### Map (frontend)
+- **Trace results on a map.** The Trace page's results panel now shows a small
+  map above the hop list: each hop is placed at its known location (advertised
+  or manual override, same as the rest of the map), the route line follows
+  the basemap tone like the message-path map (PR #183), and hovering a hop
+  marker shows its name and SNR. A hop with no known location is skipped on
+  the map (the list still shows it); the line segment bridging the gap to the
+  next located hop is drawn dashed instead of implying a direct hop. New
+  `TraceRouteMap.tsx` component and `utils/traceMapUtils.ts` (pure location
+  resolution and segment building, unit tested). Shared marker/colour helpers
+  moved from `PathRouteMap.tsx` into `map/routeMapVisuals.ts` so both map
+  embeds draw hops the same way; no behaviour change for message-path maps.
+  No backend change: `/radio/trace` already returns per-hop SNR.
+## Update 2026-09-23 (New-node notifications, feat/new-node-notifications, plan 28 item 1.5)
+
+### Notifications (backend + frontend)
+- **New-node browser notifications.** An optional browser notification for the
+  first time this app ever hears a public key: `app/services/new_node_notify.py`
+  detects it on the advert packet path (`packet_processor._process_advertisement`)
+  and the radio's own NEW_CONTACT auto-add (`event_handlers.on_new_contact`),
+  broadcasting a WS `new_node` event. On a busy mesh, nodes heard within a
+  3-second quiet window (capped at 15 seconds total) are batched into one
+  summary notification instead of one per node. Notifications are suppressed
+  for an hour after startup when the contacts table was empty (fresh install
+  or restored DB), so the initial catch-up burst does not fire a wall of
+  notifications for nodes that are only new to this install, not to the mesh.
+- **Settings > Local Configuration > "New node notifications"** (off by
+  default): a master enable checkbox plus per-node-type checkboxes (Client,
+  Repeater, Room, Sensor - the same type names shown elsewhere in the app),
+  gated on the browser's own `Notification` permission. Local-only preference
+  (`localStorage`, same model as the existing per-conversation browser
+  notification toggle); no server setting or Web Push involved. Clicking a
+  single-node notification opens that contact; clicking a batch summary opens
+  the default view where the sidebar/contacts are visible.
+## Update 2026-09-23 (Structured repeater settings editor, plan 28 item 1.2, feat/repeater-settings-editor)
+
+### Repeater dashboard (frontend)
+- **Settings Editor pane.** A new full-width pane on the repeater dashboard
+  lists an allow-listed set of repeater settings (name, lat/lon, owner info,
+  guest password, radio f/bw/sf/cr, TX power, duty cycle, RX boosted gain,
+  interference threshold, AGC reset interval, repeat, allow read-only, max
+  flood hops, multi ACKs, loop detection, path hash mode, flood/direct TX
+  delay, local and flood advert intervals) with an Edit button per row.
+  Current values come from the panes that already read them, or from "Read
+  current values" (`get` only). Every change is confirmed on its own: the
+  dialog shows the setting, the current value, the new value and the exact
+  CLI command before anything is sent. After sending, the result shows the
+  read-back and flags a mismatch, a firmware rejection, or a missing
+  read-back. Radio f/bw/sf/cr is one `set radio f,bw,sf,cr` command behind a
+  strong confirm: its Edit button stays locked until the current radio values
+  have been read (so the form never starts from guessed defaults), the user
+  must type the repeater name, and the dialog warns
+  that a wrong value strands the repeater off-air and that the firmware only
+  applies it after a reboot (the editor never reboots). `prv.key` and the
+  admin password are not editable. The raw CLI console is unchanged.
+
+### Repeaters (backend)
+- `POST /api/contacts/{key}/repeater/settings/set` sends ONE allow-listed
+  `set <verb> <value>` and then `get <verb>`, returning the read-back and a
+  status (`ok`, `mismatch`, `rejected`, `unverified`). Setting names and
+  values are validated server-side (`app/services/repeater_settings.py`,
+  ranges from the stock `CommonCLI.cpp`) before the radio is touched;
+  anything else is a 400 and nothing is sent.
+  `POST /api/contacts/{key}/repeater/settings/read` reads allow-listed
+  settings with `get` only. No migration.
+## Update 2026-09-23 (Backend map tile cache, plan 28 item 1.13, feat/backend-tile-cache)
+
+### Map (backend + frontend)
+- **Backend tile cache.** Settings > Map > Map tile cache (off by default).
+  When on, the browser sends map requests for allow-listed sources to
+  `/api/tiles/proxy/{source}/{path}`; the server fetches them from the fixed
+  upstream, stores the tiles that were viewed on disk under
+  `<data dir>/tile_cache/` and serves them to every browser. Cached areas keep
+  working when the internet is down (a stale tile is served when the upstream
+  cannot be reached); uncached tiles fail as before. Freshness follows the
+  upstream `Cache-Control` / `Expires` headers with conditional revalidation,
+  size is capped (default 1024 MB, least recently used evicted first) and
+  entries expire after a max age (default 365 days). The settings show per
+  source stats and a "Clear cache" button.
+- **Per-source policy.** OpenFreeMap (vector styles, tiles, sprites, glyphs),
+  OpenStreetMap and OpenTopoMap are proxied and cached for viewed tiles only,
+  with a contactable User-Agent. Esri stays direct and is never fetched by the
+  server (its terms forbid storing basemap data). Area pre-download exists in
+  the backend but is off for every current source, because each of their
+  terms forbids bulk or automated downloading; the UI says so instead of
+  showing the download form.
+- **Safety.** The server only ever contacts the fixed upstream host of an
+  allow-listed source, and the client-supplied path must match that source's
+  path patterns (tile coordinates are range-checked). Fetches are pinned to a
+  validated public IP, the same approach as the chat link-preview fetch. No
+  migration: settings live in `<data dir>/tile_cache/config.json`.
 
 ## Update 2026-09-23 (Shared-locations map layer + MGRS, feat/shared-locations-map-layer)
 

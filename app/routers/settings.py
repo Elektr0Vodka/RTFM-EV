@@ -12,6 +12,7 @@ from app.models import (
     RETENTION_DEFAULTS,
     AnalyzerSite,
     AppSettings,
+    ContactGroup,
     HandyInfoCustomEntry,
     HandyInfoOverride,
     HandyInfoSettings,
@@ -366,6 +367,10 @@ class AppSettingsUpdate(BaseModel):
     sidebar_favorite_sort_orders: SidebarFavoriteSortOrders | None = Field(
         default=None,
         description="Per-favorite-group sort order (recent/alpha) in the sidebar",
+    )
+    contact_groups: list[ContactGroup] | None = Field(
+        default=None,
+        description="User-defined contact/channel groups (full-list replace)",
     )
     packet_feed_sort: str | None = Field(
         default=None,
@@ -768,6 +773,29 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
         kwargs["sidebar_hidden"] = update.sidebar_hidden
     if update.sidebar_favorite_sort_orders is not None:
         kwargs["sidebar_favorite_sort_orders"] = update.sidebar_favorite_sort_orders
+
+    # User-defined contact/channel groups (full-list replace, same convention as
+    # the other sidebar arrays above). Normalize ids/names and lowercase contact
+    # keys; drop entries with a blank id or name rather than 400-ing so a stale
+    # client can't brick the settings save.
+    if update.contact_groups is not None:
+        cleaned_groups: list[ContactGroup] = []
+        seen_group_ids: set[str] = set()
+        for group in update.contact_groups:
+            group_id = group.id.strip()
+            name = group.name.strip()
+            if not group_id or not name or group_id in seen_group_ids:
+                continue
+            seen_group_ids.add(group_id)
+            cleaned_groups.append(
+                ContactGroup(
+                    id=group_id,
+                    name=name,
+                    contact_keys=sorted({k.lower() for k in group.contact_keys if k}),
+                    channel_keys=sorted({k for k in group.channel_keys if k}),
+                )
+            )
+        kwargs["contact_groups"] = cleaned_groups
 
     # Packet-feed sort direction. Ignore unknown values so a stale client can't
     # corrupt the setting (matches the telemetry-interval convention).

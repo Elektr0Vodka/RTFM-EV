@@ -8,6 +8,12 @@ import type {
   AppSettingsUpdate,
   PacketHistoryResponse,
   UrlPreview,
+  TileAreaEstimate,
+  TileAreaRequest,
+  TileCacheConfig,
+  TileCacheConfigUpdate,
+  TileCacheStats,
+  TileDownloadStatus,
   ExternalMapNode,
   ExternalMapStatus,
   PartialResolutionPreview,
@@ -15,6 +21,10 @@ import type {
   PartialNodeResolution,
   BulkCreateHashtagChannelsResult,
   ChannelImportResult,
+  Community,
+  CommunityExport,
+  CommunityHashtagResult,
+  CommunityJoinResult,
   Channel,
   ChannelDetail,
   CommandResponse,
@@ -34,6 +44,8 @@ import type {
   RetentionStats,
   MeshcomodConfig,
   MeshcomodConfigUpdate,
+  GpsConfig,
+  GpsConfigUpdate,
   Message,
   OpenHopStatus,
   OpenHopEnvelope,
@@ -89,6 +101,8 @@ import type {
   ContactAnnotationsUpdate,
   RepeaterRadioSettingsResponse,
   RepeaterRegionsResponse,
+  RepeaterSettingSetResponse,
+  RepeaterSettingsReadResponse,
   RepeaterStatusResponse,
   TelemetryHistoryEntry,
   TelemetrySchedule,
@@ -184,6 +198,11 @@ export interface ContactUriResult {
   public_key: string;
 }
 
+/** meshcore:// links built from stored raw adverts (no radio command). */
+export interface ContactUriBatchResult {
+  links: Record<string, string>;
+}
+
 interface BackupSaveResult {
   path: string;
   size_bytes: number;
@@ -218,6 +237,12 @@ export const api = {
   getMeshcomodConfig: () => fetchJson<MeshcomodConfig>('/radio/meshcomod'),
   updateMeshcomodConfig: (update: MeshcomodConfigUpdate) =>
     fetchJson<MeshcomodConfig>('/radio/meshcomod', {
+      method: 'PATCH',
+      body: JSON.stringify(update),
+    }),
+  getGpsConfig: () => fetchJson<GpsConfig>('/radio/gps'),
+  updateGpsConfig: (update: GpsConfigUpdate) =>
+    fetchJson<GpsConfig>('/radio/gps', {
       method: 'PATCH',
       body: JSON.stringify(update),
     }),
@@ -353,6 +378,12 @@ export const api = {
   getOwnContactUri: () => fetchJson<ContactUriResult>('/radio/contact-uri'),
   getContactUri: (publicKey: string) =>
     fetchJson<ContactUriResult>(`/contacts/${publicKey}/contact-uri`),
+  bulkContactUris: (publicKeys: string[]) =>
+    fetchJson<ContactUriBatchResult>('/contacts/bulk-contact-uris', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ public_keys: publicKeys }),
+    }),
   importContactUri: (uri: string) =>
     fetchJson<Contact>('/contacts/import-uri', {
       method: 'POST',
@@ -362,6 +393,14 @@ export const api = {
     fetchJson<{ status: string; public_key: string }>(`/contacts/${publicKey}/mark-read`, {
       method: 'POST',
     }),
+  markContactUnread: (publicKey: string, messageId: number) =>
+    fetchJson<{ status: string; public_key: string; message_id: number; last_read_at: number }>(
+      `/contacts/${publicKey}/mark-unread`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ message_id: messageId }),
+      }
+    ),
   sendRepeaterCommand: (publicKey: string, command: string) =>
     fetchJson<CommandResponse>(`/contacts/${publicKey}/command`, {
       method: 'POST',
@@ -441,10 +480,39 @@ export const api = {
     return res.json() as Promise<ChannelImportResult>;
   },
   getChannelDetail: (key: string) => fetchJson<ChannelDetail>(`/channels/${key}/detail`),
+
+  // Communities (meshcore-open shared-secret channels)
+  getCommunities: () => fetchJson<Community[]>('/communities'),
+  joinCommunity: (payload: string, addPublicChannel: boolean, tryHistorical: boolean) =>
+    fetchJson<CommunityJoinResult>('/communities/join', {
+      method: 'POST',
+      body: JSON.stringify({
+        payload,
+        add_public_channel: addPublicChannel,
+        try_historical: tryHistorical,
+      }),
+    }),
+  addCommunityHashtag: (communityId: string, hashtag: string, tryHistorical: boolean) =>
+    fetchJson<CommunityHashtagResult>(`/communities/${communityId}/hashtags`, {
+      method: 'POST',
+      body: JSON.stringify({ hashtag, try_historical: tryHistorical }),
+    }),
+  exportCommunity: (communityId: string) =>
+    fetchJson<CommunityExport>(`/communities/${communityId}/export`, { cache: 'no-store' }),
+  deleteCommunity: (communityId: string) =>
+    fetchJson<{ status: string }>(`/communities/${communityId}`, { method: 'DELETE' }),
   markChannelRead: (key: string) =>
     fetchJson<{ status: string; key: string }>(`/channels/${key}/mark-read`, {
       method: 'POST',
     }),
+  markChannelUnread: (key: string, messageId: number) =>
+    fetchJson<{ status: string; key: string; message_id: number; last_read_at: number }>(
+      `/channels/${key}/mark-unread`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ message_id: messageId }),
+      }
+    ),
   setChannelFloodScopeOverride: (key: string, floodScopeOverride: string) =>
     fetchJson<Channel>(`/channels/${key}/flood-scope-override`, {
       method: 'POST',
@@ -652,6 +720,28 @@ export const api = {
   // Chat link preview (unfurl)
   unfurl: (url: string, signal?: AbortSignal) =>
     fetchJson<UrlPreview>(`/unfurl?url=${encodeURIComponent(url)}`, { signal }),
+
+  // Backend map tile cache (Settings > Map)
+  getTileCacheConfig: () => fetchJson<TileCacheConfig>('/tiles/config'),
+  updateTileCacheConfig: (update: TileCacheConfigUpdate) =>
+    fetchJson<TileCacheConfig>('/tiles/config', {
+      method: 'PATCH',
+      body: JSON.stringify(update),
+    }),
+  getTileCacheStats: () => fetchJson<TileCacheStats>('/tiles/stats'),
+  clearTileCache: () => fetchJson<TileCacheStats>('/tiles/cache', { method: 'DELETE' }),
+  estimateTileDownload: (area: TileAreaRequest) =>
+    fetchJson<TileAreaEstimate>('/tiles/download/estimate', {
+      method: 'POST',
+      body: JSON.stringify(area),
+    }),
+  startTileDownload: (area: TileAreaRequest) =>
+    fetchJson<TileDownloadStatus>('/tiles/download', {
+      method: 'POST',
+      body: JSON.stringify(area),
+    }),
+  getTileDownload: () => fetchJson<TileDownloadStatus>('/tiles/download'),
+  cancelTileDownload: () => fetchJson<TileDownloadStatus>('/tiles/download', { method: 'DELETE' }),
 
   // App Settings
   getSettings: () => fetchJson<AppSettings>('/settings'),
@@ -1018,6 +1108,18 @@ export const api = {
   repeaterRadioSettings: (publicKey: string) =>
     fetchJson<RepeaterRadioSettingsResponse>(`/contacts/${publicKey}/repeater/radio-settings`, {
       method: 'POST',
+    }),
+  // Structured settings editor. Each set is ONE CLI message over RF; the
+  // server validates against an allow-list and reads the value back.
+  repeaterSettingsRead: (publicKey: string, settings?: string[]) =>
+    fetchJson<RepeaterSettingsReadResponse>(`/contacts/${publicKey}/repeater/settings/read`, {
+      method: 'POST',
+      body: JSON.stringify({ settings: settings ?? null }),
+    }),
+  repeaterSettingSet: (publicKey: string, setting: string, value: string) =>
+    fetchJson<RepeaterSettingSetResponse>(`/contacts/${publicKey}/repeater/settings/set`, {
+      method: 'POST',
+      body: JSON.stringify({ setting, value }),
     }),
   repeaterAdvertIntervals: (publicKey: string) =>
     fetchJson<RepeaterAdvertIntervalsResponse>(`/contacts/${publicKey}/repeater/advert-intervals`, {

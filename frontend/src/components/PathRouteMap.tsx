@@ -5,6 +5,7 @@ import type { ResolvedPath, SenderInfo } from '../utils/pathUtils';
 import { useT } from '../i18n';
 import { MiniMap } from '../map/MiniMap';
 import { getBasemap, getSavedBasemapId } from '../map/engine/basemaps';
+import { RECEIVER_COLOR, SENDER_COLOR, getHopColor, markerEl } from '../map/routeMapVisuals';
 
 interface PathRouteMapProps {
   /** Single resolved route (legacy callers). Ignored when `routes` is given. */
@@ -21,17 +22,6 @@ interface PathRouteMapProps {
   fill?: boolean;
 }
 
-// Colors for hop markers (indexed by hop number - 1)
-const HOP_COLORS = [
-  '#f97316', // Hop 1: orange
-  '#eab308', // Hop 2: yellow
-  '#22c55e', // Hop 3: green
-  '#06b6d4', // Hop 4: cyan
-  '#ec4899', // Hop 5: pink
-  '#f43f5e', // Hop 6: rose
-  '#a855f7', // Hop 7: purple
-  '#64748b', // Hop 8: slate
-];
 // Distinct line colours per overlaid route (indexed by route number - 1).
 const ROUTE_LINE_COLORS = [
   '#3b82f6', // blue
@@ -43,26 +33,9 @@ const ROUTE_LINE_COLORS = [
   '#eab308', // yellow
   '#ef4444', // red
 ];
-const SENDER_COLOR = '#3b82f6'; // blue
-const RECEIVER_COLOR = '#8b5cf6'; // violet
-
-function getHopColor(hopIndex: number): string {
-  return HOP_COLORS[hopIndex % HOP_COLORS.length];
-}
 
 function getRouteColor(routeIndex: number): string {
   return ROUTE_LINE_COLORS[routeIndex % ROUTE_LINE_COLORS.length];
-}
-
-function markerEl(label: string, color: string, title: string): HTMLElement {
-  const el = document.createElement('div');
-  el.title = title;
-  el.textContent = label;
-  el.style.cssText =
-    'width:24px;height:24px;border-radius:50%;color:#fff;display:flex;align-items:center;' +
-    'justify-content:center;font-size:11px;font-weight:700;border:2px solid rgba(255,255,255,0.8);' +
-    `box-shadow:0 1px 4px rgba(0,0,0,0.4);background:${color};`;
-  return el;
 }
 
 interface MarkerSpec {

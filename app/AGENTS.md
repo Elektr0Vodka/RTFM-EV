@@ -31,7 +31,7 @@ app/
 ├── migrations/          # Schema migrations (SQLite user_version, per-version modules)
 ├── models.py            # Pydantic request/response models and typed write contracts (for example ContactUpsert)
 ├── version_info.py      # Unified version/build metadata resolution for debug + startup surfaces
-├── repository/          # Data access layer (contacts, channels, messages, raw_packets, settings, fanout, push_subscriptions, repeater_telemetry, contact_telemetry)
+├── repository/          # Data access layer (contacts, channels, communities, messages, raw_packets, settings, fanout, push_subscriptions, repeater_telemetry, contact_telemetry)
 ├── services/            # Shared orchestration/domain services
 │   ├── messages.py              # Shared message creation, dedup, ACK application
 │   ├── message_send.py          # Direct send, channel send, resend workflows
@@ -43,12 +43,14 @@ app/
 │   ├── radio_lifecycle.py       # Post-connect setup and reconnect/setup helpers
 │   ├── radio_commands.py        # Radio config/private-key command workflows
 │   ├── radio_stats.py           # In-memory local radio stats sampling and noise-floor history
-│   └── radio_runtime.py         # Router/dependency seam over the global RadioManager
+│   ├── radio_runtime.py         # Router/dependency seam over the global RadioManager
+│   └── new_node_notify.py       # New-node WS notification batching/warm-up (plan 28 item 1.5)
 ├── radio.py             # RadioManager transport/session state + lock management
 ├── radio_sync.py        # Polling, sync, periodic advertisement loop
 ├── decoder.py           # Packet parsing/decryption
 ├── contact_uri.py       # meshcore:// contact links: parse/validate (ADVERT + signature), format
 ├── smaz.py              # SMAZ "s:<base64>" message-body decode (port of meshcore-open smaz.dart)
+├── communities.py       # meshcore-open communities: HMAC-SHA256 channel keys from a 32-byte secret, QR JSON parse/format
 ├── packet_processor.py  # Raw packet pipeline, dedup, path handling
 ├── event_handlers.py    # MeshCore event subscriptions and ACK tracking
 ├── events.py            # Typed WS event payload serialization
@@ -81,6 +83,7 @@ app/
     ├── repeaters.py
     ├── statistics.py
     ├── unfurl.py           # GET /api/unfurl: SSRF-guarded link-preview fetch for chat
+    ├── tiles.py            # /api/tiles: allow-listed map tile caching proxy + settings
     ├── push.py
     └── ws.py
 ```
@@ -96,6 +99,24 @@ http(s) scheme and rejects any host resolving to a private / loopback / link-loc
 response size and time, sends no cookies, parses metadata with the stdlib
 `html.parser`, and caches results in-process. Never fetch untrusted chat URLs
 without going through `assert_public_http_url`.
+
+### Map tile cache (`/api/tiles`)
+
+`services/tile_cache.py` holds the source allow-list (`SOURCES`). Each source has
+a fixed `upstream_base`, the client URL prefixes the browser rewrites, regex
+`path_patterns`, and `proxy` / `predownload` flags with the policy URL that
+justifies them. `GET /api/tiles/proxy/{source}/{path}` only serves a path that
+fully matches one of that source's patterns, rebuilds the upstream URL
+server-side (the client never picks the host), and fetches it pinned to an IP
+checked by `url_safety.resolve_public_ip`. With the cache disabled it answers
+307 to the upstream. Tiles are stored under `<data dir>/tile_cache/tiles/` with
+their freshness metadata; settings are `<data dir>/tile_cache/config.json` (no
+DB table). `GET/PATCH /api/tiles/config`, `GET /api/tiles/stats`,
+`DELETE /api/tiles/cache`, and `/api/tiles/download[/estimate]` for area
+pre-download, which `check_predownload` refuses unless the source has
+`predownload=True` (none does today). Adding a source: record its tile-usage
+policy verdict in the comment above `SOURCES` first; never set `predownload`
+for a source whose terms forbid bulk downloading.
 
 ## Core Runtime Flows
 
@@ -149,6 +170,7 @@ without going through `assert_public_http_url`.
 - Server is source of truth (`contacts.last_read_at`, `channels.last_read_at`).
 - `GET /api/read-state/unreads` returns counts, mention flags, `last_message_times`, `last_read_ats`, and `first_unread_ids`.
 - `first_unread_ids` maps stateKey -> id of the oldest unread message, so the client can anchor the unread divider (and jump to it) without paging back through history. It is computed with `ROW_NUMBER() OVER (PARTITION BY type, conversation_key ORDER BY received_at, id)` - deliberately not `MIN(received_at)` with a bare id, because sender timestamps are whole seconds and same-second ties are routine, and not `MIN(id)`, because historical decryption inserts old messages with new ids.
+- `POST /contacts/{public_key}/mark-unread` and `POST /channels/{key}/mark-unread` (`{message_id}`) mark a conversation unread from a given message onward, by setting `last_read_at = message.received_at - 1`. The message must be an incoming (`outgoing = 0`) message belonging to that conversation (404/400 otherwise). Same server-side, shared-across-browsers model as mark-read.
 
 ### DM ingest + ACKs
 
@@ -229,6 +251,51 @@ Both traffic buckets come from one 24h raw-packet scan (`_packet_shape_24h`) sha
 - `0` means disabled.
 - Last send time tracked in `app_settings.last_advert_time`.
 
+### New-node notifications
+
+`app/services/new_node_notify.py` decides whether and when to broadcast the WS
+`new_node` event for a public key never stored in `contacts` before (plan 28
+item 1.5). It does not touch contact storage; it is a pure notification-timing
+layer called from two independent "this contact is brand new" call sites,
+each of which checks `existing is None` against a fresh
+`ContactRepository.get_by_key` read immediately before creating the row:
+
+- `packet_processor._process_advertisement` - a genuine RF advert for a key
+  never seen before.
+- `event_handlers.on_new_contact` (MeshCore `EventType.NEW_CONTACT`) - the
+  radio's own auto-add from hearing an advert directly. This is distinct from
+  `sync_contacts_from_radio()`'s bulk startup pull, which upserts contacts
+  directly and never raises this event, so a fresh install's initial contact
+  sync does not trigger notifications on its own.
+
+A contact type with no user-facing notification checkbox (`0`/unknown) never
+queues. Notifiable types are `1`/`2`/`3`/`4` (Client/Repeater/Room/Sensor),
+matching `discovery_blocked_types`' codes.
+
+Rate limiting:
+
+- **Busy mesh batching.** Each queued node resets a quiet-period timer
+  (`BATCH_QUIET_SECONDS`, 3s); the batch flushes that long after the last new
+  node, or `BATCH_MAX_WAIT_SECONDS` (15s) after the first one, whichever comes
+  first. A batch of exactly one node broadcasts full contact detail
+  (`batched: false`, `public_key`/`name`/`type` set); more than one broadcasts
+  a count + per-type breakdown only (`batched: true`, those three fields
+  null, `types: {"2": 2, "4": 1}` etc.).
+- **Startup warm-up.** `arm_startup_warmup()` (called once from `main.py`'s
+  lifespan, after the DB connects and before the radio connects) checks
+  whether `contacts` was empty; if so, notifications are suppressed for
+  `STARTUP_WARMUP_SECONDS` (1 hour - deliberately generous, since existing
+  mesh nodes' advert intervals are commonly minutes to hours apart) so the
+  initial catch-up burst on a fresh install is silent. `suppress_for(seconds)`
+  is exposed for a future bulk-import flow that runs without a process
+  restart; no such endpoint exists today.
+
+The frontend applies its own per-browser filter on top of this (master
+enable + per-type checkboxes, both local-only/off by default, same model as
+the existing per-conversation browser-notification toggle) - the backend
+always broadcasts a truthful `new_node` event regardless of any browser's
+preference, the same way `message` broadcasts do.
+
 ### Fanout bus
 
 - All external integrations (MQTT, bots, webhooks, Apprise, SQS) are managed through the fanout bus (`app/fanout/`).
@@ -267,6 +334,7 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `GET /radio/private-key` - export in-memory private key as hex (requires `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT=true`)
 - `PUT /radio/private-key`
 - `GET /radio/contact-uri` - this node's `meshcore://` contact link (`{uri, public_key}`) via `export_contact()` with no key (CMD_EXPORT_CONTACT). Local radio command, nothing transmitted; 502 if the radio returns no valid signed advert
+- `GET /radio/gps`, `PATCH /radio/gps` - GPS on/off + report interval via the generic custom-vars commands (`app/services/meshcomod.py` `read_gps_settings`/`apply_gps_update`). Not meshcomod-gated: the `gps` custom var is part of the stock MeshCore companion firmware too (`ENV_INCLUDE_GPS` build flag + runtime GPS detection), so this works for any radio that reports it. `GET/PATCH /radio/meshcomod` reuse the same helpers for its combined CAD+GPS response
 - `POST /radio/advertise` - manual advert send; request body may set `mode` to `flood` or `zero_hop` (defaults to `flood`)
 - `POST /radio/discover` - short mesh discovery sweep for nearby repeaters/sensors
 - `POST /radio/discover-regions` - sweep nearby repeaters via the guest anon regions request; aggregates flood-allowed region names into a deduped union for merging into `known_regions` (direct-routed, so only in-range repeaters answer; optional `public_keys`, else recent repeaters)
@@ -283,9 +351,11 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `GET /contacts/repeaters/advert-paths` - recent advert paths for all contacts
 - `POST /contacts`
 - `POST /contacts/bulk-delete`
+- `POST /contacts/bulk-contact-uris` - body `{public_keys}`: `meshcore://` links for several contacts at once (`{links: {public_key: uri}}`), built from the most recently retained advert transmission per key (`AdvertEventRepository.latest_raw_adverts`, `advert_events` joined to `raw_packets`) and validated the same way an imported link is (hex, ADVERT packet, Ed25519 signature). Unlike `GET /{public_key}/contact-uri` this never talks to the radio; a key with no stored advert (never heard, or pruned by retention) is left out of the response rather than erroring. Used by the map's GPX export
 - `POST /contacts/import-uri` - body `{uri}`: import a `meshcore://` contact link (`app/contact_uri.py`). The link is validated first (scheme, hex, <= 255 bytes, ADVERT packet, Ed25519 signature; 400 otherwise), then sent with `import_contact` (CMD_IMPORT_CONTACT; 422 if the radio rejects it). The firmware loops the advert back as if heard and ignores the forwarding decision, so nothing is transmitted. A new contact is stored with the advert's name, type and location but no `last_advert`/`last_seen` (not heard on RF); an existing contact is left unchanged. Broadcasts `contact`. `share_contact` (CMD 0x10, transmits) is deliberately not used anywhere
 - `DELETE /contacts/{public_key}`
 - `POST /contacts/{public_key}/mark-read`
+- `POST /contacts/{public_key}/mark-unread` - `{message_id}`, marks unread from that message onward
 - `POST /contacts/{public_key}/command`
 - `POST /contacts/{public_key}/annotations` - set user annotations (`notes`, `owner_info`, `owner_key`, `manual_lat`, `manual_lon`, `battery_chemistry`); partial update, explicit `null` clears a field (for `battery_chemistry`, reverting to the global default), `owner_key` must reference an existing contact (422 otherwise), `battery_chemistry` must be one of `lipo`/`lifepo4`/`lipo_hv`/`nmc` (422 otherwise); broadcasts `contact`
 - `POST /contacts/{public_key}/routing-override`
@@ -302,6 +372,8 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `POST /contacts/{public_key}/repeater/radio-settings`
 - `POST /contacts/{public_key}/repeater/regions` - CLI region hierarchy, falling back to the guest anon flood-allowed names (`source`: `cli` or `anon`)
 - `POST /contacts/{public_key}/repeater/advert-intervals`
+- `POST /contacts/{public_key}/repeater/settings/read` - `get` of allow-listed editor settings (`{settings?: [...]}`; omit for all); error sentinels come back as null
+- `POST /contacts/{public_key}/repeater/settings/set` - ONE allow-listed `set <verb> <value>` over RF then `get <verb>` read-back; returns `status` `ok`/`mismatch`/`rejected`/`unverified` + `reboot_required`. Allow-list + value ranges live in `app/services/repeater_settings.py` (from the stock `CommonCLI.cpp`); anything off-list or out of range is a 400 before the radio is touched. `prv.key` and the admin `password` are deliberately not on the list.
 - `POST /contacts/{public_key}/repeater/owner-info` - also auto-fills the contact's stored `owner_info` when empty (never overwrites) and returns `stored_owner_info` + `owner_info_updated`
 - `GET /contacts/{public_key}/repeater/telemetry-history` - stored telemetry history for a repeater (read-only, no radio access)
 - `POST /contacts/{public_key}/telemetry` - on-demand CayenneLPP telemetry from any contact (persists in `contact_telemetry_history`)
@@ -320,6 +392,15 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `POST /channels/{key}/flood-scope-override`
 - `POST /channels/{key}/path-hash-mode-override`
 - `POST /channels/{key}/mark-read`
+- `POST /channels/{key}/mark-unread` - `{message_id}`, marks unread from that message onward
+
+### Communities
+meshcore-open communities (`app/communities.py`, port of `lib/models/community.dart`; router `app/routers/communities.py`; table `communities` from migration `_110`). A community is a 32-byte secret `K` plus a name. Keys: public channel `HMAC-SHA256(K, "channel:v1:__public__")[:16]`, hashtag channel `HMAC-SHA256(K, "channel:v1:" + normalized)[:16]` (strip one leading `#`, lowercase, trim), community ID `SHA256("community:v1" || K)` hex. Channel names `"<name> Public"` (cut to 32 UTF-8 bytes) and `"<name> #<tag>"` (400 when over 32 bytes). Channels are DB-only (`is_hashtag=false`, `on_radio=false`) like `POST /channels`; an existing key is left untouched. Nothing transmits. `K` is stored in `communities.secret` so hashtags can be added later; it is never logged and only `GET /communities/{id}/export` returns it (`Cache-Control: no-store`). It is also in DB backups.
+- `GET /communities` - joined communities with their derived channels (matched by key; hashtag channels by `"<name> #<tag>"` name plus key check). No secret
+- `POST /communities/join` - body `{payload, add_public_channel=true, try_historical=false}`; `payload` is the QR JSON `{"v":1,"type":"meshcore_community","name":...,"k":<base64url, 32 bytes>}` (padded or unpadded; a leading `#` in the name is dropped because meshcore_py re-derives the key of a channel whose name starts with `#`). Re-joining the same secret keeps the stored row (`already_joined`). 202 when a historical decrypt sweep starts
+- `POST /communities/{id}/hashtags` - body `{hashtag, try_historical=false}`: create `"<name> #<tag>"` with the community-derived key
+- `GET /communities/{id}/export` - `{id, name, payload}`: QR JSON including the secret (padded base64url, like meshcore-open)
+- `DELETE /communities/{id}` - forget the community and its secret; its channels stay
 
 ### Messages
 - `GET /messages` - list with filters; supports `q` (full-text search), `after`/`after_id` (forward cursor)
@@ -439,6 +520,7 @@ chosen node), and a Prefix Collisions tab badge.
 - `channel` - single channel upsert/update (payload: full `Channel`)
 - `channel_deleted` - channel removed from database (payload: `{ key }`)
 - `message_deleted` - message row removed: a local delete (one event per row, so a deleted reaction gets its own event alongside its target) or a failed DM replaced by a manual retry (payload: `{ message_id, type, conversation_key }`)
+- `new_node` - a public key never stored before (first advert ever, or the radio's own NEW_CONTACT auto-add); batched into a summary on a busy mesh. See "New-node notifications" below
 - `error` - toast notification (reconnect failure, missing private key, stuck radio startup, etc.)
 - `success` - toast notification (historical decrypt complete, etc.)
 
@@ -495,6 +577,7 @@ Repository writes should prefer typed models such as `ContactUpsert` over ad hoc
 - `registry_sync_url` (remote `{name: key}` channel list synced into the registry), `analyzer_sites` (external analyzer link targets, incl. per-site `channel_url_template`), `handy_info` (user overlay for the Handy Info section)
 - `external_map_enabled`, `external_map_sync_url`, `external_map_sync_interval_hours` (external analyzer node-directory overlay on the map; also the candidate source for partial-node resolution)
 - `sidebar_hidden`, `sidebar_section_order`, `sidebar_tool_order`, `sidebar_favorites_order`, `sidebar_favorite_sort_orders` (sidebar customisation, persisted server-side)
+- `contact_groups` (user-defined contact/channel groups, each `{id, name, contact_keys, channel_keys}`; full-list replace via `PATCH /settings`, same convention as the other sidebar arrays above; migration `_111`. Each group is its own sidebar section - its key is `sidebar_section_order`'s `group:<id>` entries, tolerated by that field's "unknown keys are dropped/appended" reconciliation without a schema change. Local only, never sent over RF)
 - `packet_feed_sort`, `packet_history_sort` (`oldest`/`newest`), `packet_group_by_content` (shared "Group repeats by content" toggle for Raw Packet Feed + Packet History)
 - `mesh_health_page_size` (Mesh Health contacts table rows per page; `0` = all)
 - `date_time_format` (`auto` / `12h_mdy` / `24h_dmy`; migration `_103`)

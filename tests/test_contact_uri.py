@@ -259,3 +259,68 @@ class TestImportContactUri:
 
         assert response.status_code == 422
         assert await ContactRepository.get_by_key(REAL_KEY) is None
+
+
+class TestBulkContactUris:
+    """POST /contacts/bulk-contact-uris: links from stored adverts, never the radio."""
+
+    @pytest.mark.asyncio
+    async def test_returns_link_from_stored_advert_no_radio_call(self, test_db, client):
+        from app.repository.advert_events import AdvertEventRepository
+        from app.repository.raw_packets import RawPacketRepository
+
+        packet_id, _ = await RawPacketRepository.create(data=REAL_ADVERT_PACKET, timestamp=100)
+        await AdvertEventRepository.record(
+            transmission_id=packet_id,
+            public_key=REAL_KEY,
+            timestamp=100,
+            path_len=0,
+            path_hex="",
+        )
+        with patch("app.routers.contacts.radio_manager") as mock_rm:
+            response = await client.post(
+                "/api/contacts/bulk-contact-uris", json={"public_keys": [REAL_KEY]}
+            )
+            mock_rm.radio_operation.assert_not_called()
+            mock_rm.require_connected.assert_not_called()
+
+        assert response.status_code == 200
+        assert response.json() == {"links": {REAL_KEY: REAL_URI}}
+
+    @pytest.mark.asyncio
+    async def test_omits_key_never_heard(self, test_db, client):
+        response = await client.post(
+            "/api/contacts/bulk-contact-uris", json={"public_keys": [REAL_KEY, "cc" * 32]}
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {"links": {}}
+
+    @pytest.mark.asyncio
+    async def test_omits_key_whose_stored_bytes_are_corrupted(self, test_db, client):
+        from app.repository.advert_events import AdvertEventRepository
+        from app.repository.raw_packets import RawPacketRepository
+
+        corrupted = _flip(REAL_ADVERT_PACKET, 42)
+        packet_id, _ = await RawPacketRepository.create(data=corrupted, timestamp=100)
+        await AdvertEventRepository.record(
+            transmission_id=packet_id,
+            public_key=REAL_KEY,
+            timestamp=100,
+            path_len=0,
+            path_hex="",
+        )
+
+        response = await client.post(
+            "/api/contacts/bulk-contact-uris", json={"public_keys": [REAL_KEY]}
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {"links": {}}
+
+    @pytest.mark.asyncio
+    async def test_empty_request_returns_empty_map(self, test_db, client):
+        response = await client.post("/api/contacts/bulk-contact-uris", json={"public_keys": []})
+
+        assert response.status_code == 200
+        assert response.json() == {"links": {}}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Plus, X } from 'lucide-react';
 
 import type {
@@ -26,6 +26,10 @@ import {
 import { Input } from './ui/input';
 import { cn } from '@/lib/utils';
 import { useT, type TFn } from '../i18n';
+
+const TraceRouteMap = lazy(() =>
+  import('./TraceRouteMap').then((m) => ({ default: m.TraceRouteMap }))
+);
 
 type TraceSortMode = 'alpha' | 'recent' | 'distance' | 'traced';
 type CustomHopBytes = 1 | 2 | 4;
@@ -896,6 +900,20 @@ export function TracePane({ contacts, config, onRunTracePath }: TracePaneProps) 
                 {error ? (
                   <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                     {error}
+                  </div>
+                ) : null}
+                {result ? (
+                  <div className="space-y-1.5">
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {t('trace_map_heading')}
+                    </h4>
+                    <Suspense
+                      fallback={
+                        <div className="h-[220px] rounded border border-border bg-muted/30 animate-pulse" />
+                      }
+                    >
+                      <TraceRouteMap nodes={resultNodes} contacts={repeaters} config={config} />
+                    </Suspense>
                   </div>
                 ) : null}
                 {result

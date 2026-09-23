@@ -63,6 +63,7 @@ from app.radio_sync import (
 from app.routers import (
     backup,
     channels,
+    communities,
     contacts,
     debug,
     external_map,
@@ -83,6 +84,7 @@ from app.routers import (
     rooms,
     settings,
     statistics,
+    tiles,
     unfurl,
     update_status,
     wordlists,
@@ -133,6 +135,13 @@ async def lifespan(app: FastAPI):
 
     await ensure_default_channels()
     await start_radio_stats_sampling()
+
+    # Arm the new-node notification startup warm-up before the radio connects
+    # and starts syncing/hearing adverts, so an empty database suppresses the
+    # initial catch-up burst instead of notifying for every mesh node heard.
+    from app.services.new_node_notify import arm_startup_warmup
+
+    await arm_startup_warmup()
 
     # External-map node overlay sync loop (radio-independent; guarded by the
     # external_map_enabled / interval settings each tick).
@@ -241,6 +250,7 @@ app.include_router(contacts.router, prefix="/api")
 app.include_router(repeaters.router, prefix="/api")
 app.include_router(rooms.router, prefix="/api")
 app.include_router(channels.router, prefix="/api")
+app.include_router(communities.router, prefix="/api")
 app.include_router(messages.router, prefix="/api")
 app.include_router(packets.router, prefix="/api")
 app.include_router(links.router, prefix="/api")
@@ -254,6 +264,7 @@ app.include_router(partial_resolution.router, prefix="/api")
 app.include_router(openhop.router, prefix="/api")
 app.include_router(statistics.router, prefix="/api")
 app.include_router(unfurl.router, prefix="/api")
+app.include_router(tiles.router, prefix="/api")
 app.include_router(push.router, prefix="/api")
 app.include_router(wordlists.router, prefix="/api")
 app.include_router(ws.router, prefix="/api")

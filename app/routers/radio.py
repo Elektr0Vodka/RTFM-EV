@@ -39,8 +39,10 @@ from app.services.contact_reconciliation import (
     reconcile_contact_messages,
 )
 from app.services.meshcomod import (
+    apply_gps_update,
     apply_meshcomod_update,
     is_meshcomod,
+    read_gps_settings,
     read_meshcomod_settings,
 )
 from app.services.radio_commands import (
@@ -195,6 +197,17 @@ class MeshcomodConfigResponse(BaseModel):
 
 class MeshcomodConfigUpdate(BaseModel):
     cad_enabled: bool | None = None
+    gps_enabled: bool | None = None
+    gps_interval: int | None = Field(default=None, ge=0, le=86400)
+
+
+class GpsConfigResponse(BaseModel):
+    gps_supported: bool = False
+    gps_enabled: bool | None = None
+    gps_interval: int | None = None
+
+
+class GpsConfigUpdate(BaseModel):
     gps_enabled: bool | None = None
     gps_interval: int | None = Field(default=None, ge=0, le=86400)
 
@@ -539,6 +552,35 @@ async def update_radio_config(update: RadioConfigUpdate) -> RadioConfigResponse:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     return await get_radio_config()
+
+
+@router.get("/gps", response_model=GpsConfigResponse)
+async def get_gps_config() -> GpsConfigResponse:
+    """Read GPS custom-var state from the connected radio.
+
+    Not gated on meshcomod: the `gps` custom var is part of the stock MeshCore
+    companion firmware protocol, so any radio that reports it can use this.
+    """
+    radio_manager.require_connected()
+    async with radio_manager.radio_operation("get_gps_config") as mc:
+        data = await read_gps_settings(mc)
+    return GpsConfigResponse(**data)
+
+
+@router.patch("/gps", response_model=GpsConfigResponse)
+async def update_gps_config(update: GpsConfigUpdate) -> GpsConfigResponse:
+    """Update GPS custom-var state. Only provided fields are applied."""
+    radio_manager.require_connected()
+    async with radio_manager.radio_operation("update_gps_config") as mc:
+        try:
+            await apply_gps_update(
+                mc,
+                gps_enabled=update.gps_enabled,
+                gps_interval=update.gps_interval,
+            )
+        except RadioCommandRejectedError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return await get_gps_config()
 
 
 def _require_meshcomod() -> None:
