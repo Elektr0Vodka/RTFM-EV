@@ -351,6 +351,32 @@ the change. Upstream development is on hold; the fork is the active repository.
   anything else is a 400 and nothing is sent.
   `POST /api/contacts/{key}/repeater/settings/read` reads allow-listed
   settings with `get` only. No migration.
+## Update 2026-09-23 (Backend map tile cache, plan 28 item 1.13, feat/backend-tile-cache)
+
+### Map (backend + frontend)
+- **Backend tile cache.** Settings > Map > Map tile cache (off by default).
+  When on, the browser sends map requests for allow-listed sources to
+  `/api/tiles/proxy/{source}/{path}`; the server fetches them from the fixed
+  upstream, stores the tiles that were viewed on disk under
+  `<data dir>/tile_cache/` and serves them to every browser. Cached areas keep
+  working when the internet is down (a stale tile is served when the upstream
+  cannot be reached); uncached tiles fail as before. Freshness follows the
+  upstream `Cache-Control` / `Expires` headers with conditional revalidation,
+  size is capped (default 1024 MB, least recently used evicted first) and
+  entries expire after a max age (default 365 days). The settings show per
+  source stats and a "Clear cache" button.
+- **Per-source policy.** OpenFreeMap (vector styles, tiles, sprites, glyphs),
+  OpenStreetMap and OpenTopoMap are proxied and cached for viewed tiles only,
+  with a contactable User-Agent. Esri stays direct and is never fetched by the
+  server (its terms forbid storing basemap data). Area pre-download exists in
+  the backend but is off for every current source, because each of their
+  terms forbids bulk or automated downloading; the UI says so instead of
+  showing the download form.
+- **Safety.** The server only ever contacts the fixed upstream host of an
+  allow-listed source, and the client-supplied path must match that source's
+  path patterns (tile coordinates are range-checked). Fetches are pinned to a
+  validated public IP, the same approach as the chat link-preview fetch. No
+  migration: settings live in `<data dir>/tile_cache/config.json`.
 
 ## Update 2026-09-23 (Shared-locations map layer + MGRS, feat/shared-locations-map-layer)
 

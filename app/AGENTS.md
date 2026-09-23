@@ -83,6 +83,7 @@ app/
     ├── repeaters.py
     ├── statistics.py
     ├── unfurl.py           # GET /api/unfurl: SSRF-guarded link-preview fetch for chat
+    ├── tiles.py            # /api/tiles: allow-listed map tile caching proxy + settings
     ├── push.py
     └── ws.py
 ```
@@ -98,6 +99,24 @@ http(s) scheme and rejects any host resolving to a private / loopback / link-loc
 response size and time, sends no cookies, parses metadata with the stdlib
 `html.parser`, and caches results in-process. Never fetch untrusted chat URLs
 without going through `assert_public_http_url`.
+
+### Map tile cache (`/api/tiles`)
+
+`services/tile_cache.py` holds the source allow-list (`SOURCES`). Each source has
+a fixed `upstream_base`, the client URL prefixes the browser rewrites, regex
+`path_patterns`, and `proxy` / `predownload` flags with the policy URL that
+justifies them. `GET /api/tiles/proxy/{source}/{path}` only serves a path that
+fully matches one of that source's patterns, rebuilds the upstream URL
+server-side (the client never picks the host), and fetches it pinned to an IP
+checked by `url_safety.resolve_public_ip`. With the cache disabled it answers
+307 to the upstream. Tiles are stored under `<data dir>/tile_cache/tiles/` with
+their freshness metadata; settings are `<data dir>/tile_cache/config.json` (no
+DB table). `GET/PATCH /api/tiles/config`, `GET /api/tiles/stats`,
+`DELETE /api/tiles/cache`, and `/api/tiles/download[/estimate]` for area
+pre-download, which `check_predownload` refuses unless the source has
+`predownload=True` (none does today). Adding a source: record its tile-usage
+policy verdict in the comment above `SOURCES` first; never set `predownload`
+for a source whose terms forbid bulk downloading.
 
 ## Core Runtime Flows
 

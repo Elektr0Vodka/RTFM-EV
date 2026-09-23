@@ -8,6 +8,12 @@ import type {
   AppSettingsUpdate,
   PacketHistoryResponse,
   UrlPreview,
+  TileAreaEstimate,
+  TileAreaRequest,
+  TileCacheConfig,
+  TileCacheConfigUpdate,
+  TileCacheStats,
+  TileDownloadStatus,
   ExternalMapNode,
   ExternalMapStatus,
   PartialResolutionPreview,
@@ -714,6 +720,28 @@ export const api = {
   // Chat link preview (unfurl)
   unfurl: (url: string, signal?: AbortSignal) =>
     fetchJson<UrlPreview>(`/unfurl?url=${encodeURIComponent(url)}`, { signal }),
+
+  // Backend map tile cache (Settings > Map)
+  getTileCacheConfig: () => fetchJson<TileCacheConfig>('/tiles/config'),
+  updateTileCacheConfig: (update: TileCacheConfigUpdate) =>
+    fetchJson<TileCacheConfig>('/tiles/config', {
+      method: 'PATCH',
+      body: JSON.stringify(update),
+    }),
+  getTileCacheStats: () => fetchJson<TileCacheStats>('/tiles/stats'),
+  clearTileCache: () => fetchJson<TileCacheStats>('/tiles/cache', { method: 'DELETE' }),
+  estimateTileDownload: (area: TileAreaRequest) =>
+    fetchJson<TileAreaEstimate>('/tiles/download/estimate', {
+      method: 'POST',
+      body: JSON.stringify(area),
+    }),
+  startTileDownload: (area: TileAreaRequest) =>
+    fetchJson<TileDownloadStatus>('/tiles/download', {
+      method: 'POST',
+      body: JSON.stringify(area),
+    }),
+  getTileDownload: () => fetchJson<TileDownloadStatus>('/tiles/download'),
+  cancelTileDownload: () => fetchJson<TileDownloadStatus>('/tiles/download', { method: 'DELETE' }),
 
   // App Settings
   getSettings: () => fetchJson<AppSettings>('/settings'),

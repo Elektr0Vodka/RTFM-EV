@@ -84,6 +84,7 @@ from app.routers import (
     rooms,
     settings,
     statistics,
+    tiles,
     unfurl,
     update_status,
     wordlists,
@@ -263,6 +264,7 @@ app.include_router(partial_resolution.router, prefix="/api")
 app.include_router(openhop.router, prefix="/api")
 app.include_router(statistics.router, prefix="/api")
 app.include_router(unfurl.router, prefix="/api")
+app.include_router(tiles.router, prefix="/api")
 app.include_router(push.router, prefix="/api")
 app.include_router(wordlists.router, prefix="/api")
 app.include_router(ws.router, prefix="/api")

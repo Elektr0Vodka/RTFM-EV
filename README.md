@@ -133,6 +133,12 @@ Shipped toward this so far:
   `31U FT 45332 73249`) become location cards when coordinate parsing is on, and
   Settings > Local > Coordinate format shows positions as decimal degrees
   (default), degrees/minutes/seconds, or MGRS.
+- Backend map tile cache (Settings > Map > Map tile cache, off by default): the
+  server caches the map tiles that were viewed (OpenFreeMap, OpenStreetMap,
+  OpenTopoMap) on disk under `data/tile_cache/`, shared by every browser, so
+  already-viewed areas keep working without internet. Size cap (default 1 GB)
+  and max age (default 365 days) are configurable. Esri layers are never cached
+  (their terms forbid it), and no source allows area pre-download.
 - Mesh Trends Live-tab stat breakdowns can be computed from the database over the
   selected range, backed by decoded packet fields persisted at ingest (`_089`),
   not only the in-memory session buffer.
