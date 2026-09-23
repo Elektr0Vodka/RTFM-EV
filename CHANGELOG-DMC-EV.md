@@ -11,6 +11,22 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-23 (Trace on a map, plan 28 item 1.14, feat/trace-on-map)
+
+### Map (frontend)
+- **Trace results on a map.** The Trace page's results panel now shows a small
+  map above the hop list: each hop is placed at its known location (advertised
+  or manual override, same as the rest of the map), the route line follows
+  the basemap tone like the message-path map (PR #183), and hovering a hop
+  marker shows its name and SNR. A hop with no known location is skipped on
+  the map (the list still shows it); the line segment bridging the gap to the
+  next located hop is drawn dashed instead of implying a direct hop. New
+  `TraceRouteMap.tsx` component and `utils/traceMapUtils.ts` (pure location
+  resolution and segment building, unit tested). Shared marker/colour helpers
+  moved from `PathRouteMap.tsx` into `map/routeMapVisuals.ts` so both map
+  embeds draw hops the same way; no behaviour change for message-path maps.
+  No backend change: `/radio/trace` already returns per-hop SNR.
+
 ## Update 2026-09-23 (Shared-locations map layer + MGRS, feat/shared-locations-map-layer)
 
 ### Map (frontend)

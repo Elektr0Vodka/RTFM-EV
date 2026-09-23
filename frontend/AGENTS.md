@@ -86,6 +86,7 @@ frontend/src/
 │   ├── mgrsText.ts             # findMgrsReferences: upper-case MGRS in text → lat/lon (mgrs npm); mirrors app/location_payloads.py
 │   ├── coordinateFormat.ts     # Coordinate display format (decimal/dms/mgrs, localStorage + useCoordinateFormat) + formatCoordinates
 │   ├── pathUtils.ts            # Distance/validation helpers for paths + map
+│   ├── traceMapUtils.ts        # Pure helpers: trace-result node locations + solid/dashed map segments (TraceRouteMap)
 │   ├── pubkey.ts               # getContactDisplayName (12-char prefix fallback)
 │   ├── contactAvatar.ts        # Avatar color derivation from public key
 │   ├── rawPacketIdentity.ts    # observation_id vs id dedup helpers
@@ -138,6 +139,7 @@ frontend/src/
 │   ├── PacketVisualizer3D.tsx
 │   ├── PathModal.tsx
 │   ├── PathRouteMap.tsx
+│   ├── TraceRouteMap.tsx        # Draws a TracePane result on a map (hops at known/manual locations, dashed gap over skipped hops, SNR tooltip); shares marker/colour helpers with PathRouteMap via map/routeMapVisuals.ts
 │   ├── CrackerPanel.tsx       # Browser channel finder; wordlist = bundled ENGLISH_WORDLIST + remote sync + registry names ("Sync from channels" button, meshcore-wordlist-registry-cache)
 │   ├── BotCodeEditor.tsx
 │   ├── ContactAvatar.tsx
@@ -218,6 +220,7 @@ frontend/src/
     ├── sidebar.test.tsx
     ├── statusBar.test.tsx
     ├── tracePane.test.tsx
+    ├── traceMapUtils.test.ts
     ├── unreadCounts.test.ts
     ├── urlHash.test.ts
     ├── appSearchJump.test.tsx
@@ -424,6 +427,16 @@ It falls back to a 12-char prefix when `name` is missing.
 ### `utils/pathUtils.ts`
 
 Distance/validation helpers used by path + map UI.
+
+### `utils/traceMapUtils.ts`
+
+Pure helpers for `TraceRouteMap.tsx`: `resolveTraceNodeLocations` places each
+trace node ('local' at the radio config's location, 'repeater' at its matching
+contact's effective location via `getEffectiveLocation`, 'custom' hex hops
+never located), `buildTraceMapSegments` turns the located nodes into line
+segments and marks a segment `dashed` when it bridges one or more skipped
+(unlocated) hops. No component or maplibre dependency, so these are unit
+tested directly (`test/traceMapUtils.test.ts`).
 
 ### Time-range selection (`components/TimeRangeSelector.tsx`, `utils/timeRanges.ts`, `utils/timeRangePreference.ts`)
 
