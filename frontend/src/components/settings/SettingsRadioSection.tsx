@@ -7,6 +7,7 @@ import { Separator } from '../ui/separator';
 import { toast } from '../ui/sonner';
 import { Checkbox } from '../ui/checkbox';
 import { MeshcomodSettings } from './MeshcomodSettings';
+import { GpsSettings } from './GpsSettings';
 import { OpenHopSettings } from './OpenHopSettings';
 import { ContactLinkShare } from '../ContactLinkShare';
 import { useT } from '../../i18n';
@@ -1888,6 +1889,7 @@ export function SettingsRadioSection({
         </div>
 
         <MeshcomodSettings health={health} />
+        <GpsSettings health={health} />
 
         <OpenHopSettings
           health={health}
