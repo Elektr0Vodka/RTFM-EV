@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Marker as MlMarker, type Map as MlMap } from 'maplibre-gl';
 import { isValidLocation } from '../utils/pathUtils';
 import type { ResolvedPath, SenderInfo } from '../utils/pathUtils';
-import { useIsDarkTheme } from '../hooks';
 import { useT } from '../i18n';
 import { MiniMap } from '../map/MiniMap';
+import { getBasemap, getSavedBasemapId } from '../map/engine/basemaps';
 
 interface PathRouteMapProps {
   /** Single resolved route (legacy callers). Ignored when `routes` is given. */
@@ -116,8 +116,14 @@ export function PathRouteMap({
   fill = false,
 }: PathRouteMapProps) {
   const t = useT();
-  const dark = useIsDarkTheme();
-  const singleLineColor = dark ? '#e2e8f0' : '#1e293b';
+  // Contrast with the basemap, not the app theme: the dark UI can show a light
+  // or coloured basemap, where a near-white line is hard to see. Seeded from the
+  // saved basemap because the map's load handler keeps the first render's
+  // drawRoute; later switches arrive through onBasemapTone.
+  const [basemapTone, setBasemapTone] = useState<'light' | 'dark'>(
+    () => getBasemap(getSavedBasemapId()).tone ?? 'dark'
+  );
+  const singleLineColor = basemapTone === 'dark' ? '#e2e8f0' : '#1e293b';
   const mapRef = useRef<MlMap | null>(null);
   const markersRef = useRef<MlMarker[]>([]);
 
@@ -273,6 +279,7 @@ export function PathRouteMap({
           fitMaxZoom={14}
           zoom={10}
           onReady={handleReady}
+          onBasemapTone={setBasemapTone}
           onBasemapReapply={() => {
             if (mapRef.current) drawRoute(mapRef.current);
           }}

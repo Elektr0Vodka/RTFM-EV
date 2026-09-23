@@ -40,6 +40,9 @@ export interface MapSurfaceProps {
   initialZoom?: number;
   onReady?: (map: MlMap) => void;
   onBasemapReapply?: () => void;
+  /** Called with the selected basemap's tone on mount and on every basemap
+   *  switch, so overlays can pick a colour that contrasts with the map. */
+  onBasemapTone?: (tone: 'light' | 'dark') => void;
   className?: string;
   children?: ReactNode;
   // Control passthrough to MapControls.
@@ -117,6 +120,7 @@ export function MapSurface(props: MapSurfaceProps) {
     initialZoom = 7,
     onReady,
     onBasemapReapply,
+    onBasemapTone,
     className,
     children,
     tilt3D = false,
@@ -243,6 +247,12 @@ export function MapSurface(props: MapSurfaceProps) {
       onBuildings: setBuildings3D,
     });
   }, [selectedBasemapId, reapplyOverlays, theme, buildings, tintSig]);
+
+  // Report the basemap tone (raster fallbacks are tone-matched, so it holds
+  // even when a vector style falls back).
+  useEffect(() => {
+    onBasemapTone?.(getBasemap(selectedBasemapId).tone ?? 'dark');
+  }, [selectedBasemapId, onBasemapTone]);
 
   if (!webglOk) {
     return (
