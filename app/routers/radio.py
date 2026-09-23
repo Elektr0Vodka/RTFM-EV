@@ -10,10 +10,12 @@ from fastapi import APIRouter, HTTPException
 from meshcore import EventType
 from pydantic import BaseModel, Field
 
+from app.contact_uri import ContactUriError, card_from_export_result, format_contact_uri
 from app.models import (
     CONTACT_TYPE_REPEATER,
     Contact,
     ContactUpsert,
+    ContactUriResponse,
     RadioContactOccupancy,
     RadioDiscoveryRequest,
     RadioDiscoveryResponse,
@@ -581,6 +583,23 @@ async def set_private_key(update: PrivateKeyUpdate) -> dict:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     return {"status": "ok"}
+
+
+@router.get("/contact-uri", response_model=ContactUriResponse)
+async def get_own_contact_uri() -> ContactUriResponse:
+    """Return this node's meshcore:// contact link (CMD_EXPORT_CONTACT with no key).
+
+    A local radio command: the radio builds and signs its own advert and hands
+    it back over the serial link. Nothing is transmitted.
+    """
+    radio_manager.require_connected()
+    async with radio_manager.radio_operation("export_own_contact_uri") as mc:
+        result = await mc.commands.export_contact()
+    try:
+        card = card_from_export_result(result)
+    except ContactUriError as exc:
+        raise HTTPException(status_code=502, detail=f"Radio export failed: {exc}") from exc
+    return ContactUriResponse(uri=format_contact_uri(card.raw), public_key=card.public_key)
 
 
 @router.post("/advertise")

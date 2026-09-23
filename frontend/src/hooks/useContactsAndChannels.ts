@@ -64,6 +64,21 @@ export function useContactsAndChannels({
     [fetchAllContacts, setActiveConversation]
   );
 
+  const handleImportContactUri = useCallback(
+    async (uri: string) => {
+      const imported = await api.importContactUri(uri);
+      const data = await fetchAllContacts();
+      setContacts(data);
+
+      setActiveConversation({
+        type: 'contact',
+        id: imported.public_key,
+        name: getContactDisplayName(imported.name, imported.public_key, imported.last_advert),
+      });
+    },
+    [fetchAllContacts, setActiveConversation]
+  );
+
   const handleCreateChannel = useCallback(
     async (name: string, key: string, tryHistorical: boolean) => {
       const created = await api.createChannel(name, key);
@@ -206,6 +221,7 @@ export function useContactsAndChannels({
     fetchAllContacts,
     fetchUndecryptedCount: fetchUndecryptedCountInternal,
     handleCreateContact,
+    handleImportContactUri,
     handleCreateChannel,
     handleCreateHashtagChannel,
     handleBulkCreateHashtagChannels,

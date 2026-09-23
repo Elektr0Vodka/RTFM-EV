@@ -17,7 +17,13 @@ import { toast } from './ui/sonner';
 import { useT, useLocale, type TFn } from '../i18n';
 import { formatNumber } from '../utils/localeFormat';
 
-type Tab = 'new-contact' | 'new-channel' | 'hashtag' | 'bulk-hashtag';
+type Tab = 'new-contact' | 'contact-link' | 'new-channel' | 'hashtag' | 'bulk-hashtag';
+
+const TAB_GRID_COLS: Record<number, string> = {
+  3: 'grid-cols-3',
+  4: 'grid-cols-4',
+  5: 'grid-cols-5',
+};
 
 interface BulkParseResult {
   channelNames: string[];
@@ -51,6 +57,8 @@ interface NewMessageModalProps {
   onCreateChannel: (name: string, key: string, tryHistorical: boolean) => Promise<void>;
   onCreateHashtagChannel: (name: string, tryHistorical: boolean) => Promise<void>;
   onBulkAddHashtagChannels: (channelNames: string[], tryHistorical: boolean) => Promise<void>;
+  /** Import a contact from a meshcore:// link. The tab is hidden when omitted. */
+  onImportContactUri?: (uri: string) => Promise<void>;
 }
 
 function validateHashtagName(channelName: string, permitExtended: boolean, t: TFn): string | null {
@@ -114,6 +122,7 @@ export function NewMessageModal({
   onCreateChannel,
   onCreateHashtagChannel,
   onBulkAddHashtagChannels,
+  onImportContactUri,
 }: NewMessageModalProps) {
   const t = useT();
   const { locale } = useLocale();
@@ -121,6 +130,7 @@ export function NewMessageModal({
   const [name, setName] = useState('');
   const [contactType, setContactType] = useState(1);
   const [contactKey, setContactKey] = useState('');
+  const [contactUri, setContactUri] = useState('');
   const [channelKey, setChannelKey] = useState('');
   const [bulkChannelText, setBulkChannelText] = useState('');
   const [tryHistorical, setTryHistorical] = useState(false);
@@ -134,6 +144,7 @@ export function NewMessageModal({
     setName('');
     setContactType(1);
     setContactKey('');
+    setContactUri('');
     setChannelKey('');
     setBulkChannelText('');
     setTryHistorical(false);
@@ -199,6 +210,13 @@ export function NewMessageModal({
           return;
         }
         await onCreateContact(name.trim(), contactKey.trim(), tryHistorical, contactType);
+      } else if (tab === 'contact-link') {
+        const uri = contactUri.trim();
+        if (!onImportContactUri || !uri.toLowerCase().startsWith('meshcore://')) {
+          setError(t('chat_import_contact_link_invalid'));
+          return;
+        }
+        await onImportContactUri(uri);
       } else if (tab === 'new-channel') {
         if (!name.trim() || !channelKey.trim()) {
           setError(t('chat_channel_name_and_key_required'));
@@ -268,7 +286,8 @@ export function NewMessageModal({
     }
   };
 
-  const showHistoricalOption = undecryptedCount > 0;
+  const showHistoricalOption = undecryptedCount > 0 && tab !== 'contact-link';
+  const tabCount = 3 + (showBulkAddChannelTab ? 1 : 0) + (onImportContactUri ? 1 : 0);
 
   return (
     <Dialog
@@ -285,6 +304,7 @@ export function NewMessageModal({
           <DialogTitle>{t('chat_new_conversation')}</DialogTitle>
           <DialogDescription className="sr-only">
             {tab === 'new-contact' && t('chat_new_contact_description')}
+            {tab === 'contact-link' && t('chat_import_contact_link_help')}
             {tab === 'new-channel' && t('chat_new_channel_description')}
             {tab === 'hashtag' && t('chat_new_hashtag_description')}
             {tab === 'bulk-hashtag' && t('chat_bulk_hashtag_description')}
@@ -299,12 +319,11 @@ export function NewMessageModal({
           }}
           className="w-full"
         >
-          <TabsList
-            className={
-              showBulkAddChannelTab ? 'grid w-full grid-cols-4' : 'grid w-full grid-cols-3'
-            }
-          >
+          <TabsList className={`grid w-full ${TAB_GRID_COLS[tabCount]}`}>
             <TabsTrigger value="new-contact">{t('common_contact')}</TabsTrigger>
+            {onImportContactUri && (
+              <TabsTrigger value="contact-link">{t('contact_link_label')}</TabsTrigger>
+            )}
             <TabsTrigger value="new-channel">{t('chat_private_channel')}</TabsTrigger>
             <TabsTrigger value="hashtag">{t('chat_hashtag_channel')}</TabsTrigger>
             {showBulkAddChannelTab && (
@@ -345,6 +364,21 @@ export function NewMessageModal({
               </select>
             </div>
           </TabsContent>
+
+          {onImportContactUri && (
+            <TabsContent value="contact-link" className="mt-4 space-y-2">
+              <Label htmlFor="contact-link">{t('contact_link_label')}</Label>
+              <textarea
+                id="contact-link"
+                value={contactUri}
+                onChange={(e) => setContactUri(e.target.value)}
+                placeholder={t('chat_import_contact_link_placeholder')}
+                spellCheck={false}
+                className="min-h-24 w-full break-all rounded-md border border-input bg-background px-3 py-2 font-mono text-xs shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <p className="text-xs text-muted-foreground">{t('chat_import_contact_link_help')}</p>
+            </TabsContent>
+          )}
 
           <TabsContent value="new-channel" className="mt-4 space-y-4">
             <div className="space-y-2">
@@ -504,10 +538,14 @@ export function NewMessageModal({
             {loading
               ? tab === 'bulk-hashtag'
                 ? t('common_adding')
-                : t('common_creating')
+                : tab === 'contact-link'
+                  ? t('common_importing')
+                  : t('common_creating')
               : tab === 'bulk-hashtag'
                 ? t('chat_add_channels')
-                : t('common_create')}
+                : tab === 'contact-link'
+                  ? t('common_import')
+                  : t('common_create')}
           </Button>
         </DialogFooter>
       </DialogContent>

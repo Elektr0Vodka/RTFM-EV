@@ -8,6 +8,7 @@ import { toast } from '../ui/sonner';
 import { Checkbox } from '../ui/checkbox';
 import { MeshcomodSettings } from './MeshcomodSettings';
 import { OpenHopSettings } from './OpenHopSettings';
+import { ContactLinkShare } from '../ContactLinkShare';
 import { useT } from '../../i18n';
 import {
   Dialog,
@@ -1083,6 +1084,8 @@ export function SettingsRadioSection({
         <Label htmlFor="public-key">{t('common_public_key')}</Label>
         <Input id="public-key" value={config.public_key} disabled className="font-mono text-xs" />
       </div>
+
+      <ContactLinkShare key={config.public_key} load={() => api.getOwnContactUri()} />
 
       <div className="space-y-2">
         <Label htmlFor="private-key">{t('settings_radio_private_key_label')}</Label>
