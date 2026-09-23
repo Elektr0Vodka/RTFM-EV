@@ -146,6 +146,15 @@
   }
 }
 
+/* The chat emoji picker (frimousse) renders emojis with its own font stack,
+   set inline on its root, which lacks the flag polyfill font above. Prepend it
+   so country flags render as flags instead of two-letter codes. */
+[frimousse-list] {
+  --frimousse-emoji-font:
+    'Twemoji Country Flags', 'Apple Color Emoji', 'Noto Color Emoji', 'Twemoji Mozilla',
+    'Android Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', EmojiSymbols, sans-serif;
+}
+
 /* Custom scrollbar - thin, unobtrusive, matches palette */
 ::-webkit-scrollbar {
   width: 6px;

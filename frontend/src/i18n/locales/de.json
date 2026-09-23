@@ -57,7 +57,18 @@
   "chat_cracker_status_running": "(läuft)",
   "chat_desktop_notifications_legacy": "Desktop-Benachrichtigungen (veraltet)",
   "chat_direct_trace_description": "Direct Trace. Sendet eine direkte Trace-Probe an diesen Kontakt und zeigt Hin- und Rück-SNR an",
+  "chat_emoji_bytes": {
+    "one": "{count} Byte",
+    "other": "{count} Bytes"
+  },
+  "chat_emoji_hint": "Zeige auf ein Emoji, um die Bytekosten zu sehen",
+  "chat_emoji_load_failed": "Emojis konnten nicht geladen werden",
+  "chat_emoji_loading": "Emojis werden geladen...",
+  "chat_emoji_no_results": "Kein Emoji gefunden",
   "chat_emoji_picker": "Emoji-Auswahl",
+  "chat_emoji_recent": "Zuletzt verwendet",
+  "chat_emoji_search": "Emoji suchen",
+  "chat_emoji_skin_tone": "Hautfarbe",
   "chat_manage_web_push_devices_in": "Geräte mit aktiviertem Web Push verwalten in",
   "chat_mark_all_read": "Alle als gelesen markieren",
   "chat_mute_channel": "Kanal stummschalten",
