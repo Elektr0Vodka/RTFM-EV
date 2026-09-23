@@ -8,6 +8,12 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from meshcore import EventType
 from pydantic import BaseModel, Field
 
+from app.contact_uri import (
+    ContactUriError,
+    card_from_export_result,
+    format_contact_uri,
+    parse_contact_uri,
+)
 from app.models import (
     Contact,
     ContactActiveRoom,
@@ -20,6 +26,8 @@ from app.models import (
     ContactTelemetryPermissionsRequest,
     ContactTelemetryResponse,
     ContactUpsert,
+    ContactUriImportRequest,
+    ContactUriResponse,
     CreateContactRequest,
     LatestTelemetryEntry,
     LppSensor,
@@ -370,6 +378,87 @@ async def create_contact(
     await _broadcast_contact_update(stored)
     await _broadcast_contact_resolution(promoted_keys, stored)
     return stored
+
+
+@router.post("/import-uri", response_model=Contact)
+async def import_contact_uri(request: ContactUriImportRequest) -> Contact:
+    """Import a contact from a meshcore:// link (CMD_IMPORT_CONTACT).
+
+    The link is validated (hex, ADVERT packet, Ed25519 signature) before the
+    radio sees it. The firmware loops the advert back as if it had been heard
+    and ignores the forwarding decision, so nothing is transmitted. A new
+    contact is also stored in the app; an existing one is left as it is.
+    """
+    try:
+        card = parse_contact_uri(request.uri)
+    except ContactUriError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    radio_manager.require_connected()
+    async with radio_manager.radio_operation("import_contact_uri") as mc:
+        result = await mc.commands.import_contact(card.raw)
+    if result is None or result.type == EventType.ERROR:
+        detail = result.payload if result is not None else "no response"
+        raise HTTPException(status_code=422, detail=f"Radio rejected the contact: {detail}")
+
+    public_key = card.public_key
+    promoted_keys: list[str] = []
+    existing = await ContactRepository.get_by_key(public_key)
+    if existing is None:
+        # Not heard on RF, so no last_advert/last_seen: the card only seeds the contact.
+        await ContactRepository.upsert(
+            ContactUpsert(
+                public_key=public_key,
+                name=card.advert.name,
+                type=card.advert.device_role,
+                lat=card.advert.lat,
+                lon=card.advert.lon,
+            )
+        )
+        logger.info("Imported contact %s from link", public_key[:12])
+        promoted_keys = await promote_prefix_contacts_for_contact(
+            public_key=public_key,
+            log=logger,
+        )
+        await record_contact_name_and_reconcile(
+            public_key=public_key,
+            contact_name=card.advert.name,
+            timestamp=int(time.time()),
+            log=logger,
+        )
+
+    stored = await ContactRepository.get_by_key(public_key)
+    if stored is None:
+        raise HTTPException(status_code=500, detail="Contact was imported but could not be loaded")
+    await _broadcast_contact_update(stored)
+    if promoted_keys:
+        await _broadcast_contact_resolution(promoted_keys, stored)
+    return stored
+
+
+@router.get("/{public_key}/contact-uri", response_model=ContactUriResponse)
+async def get_contact_uri(public_key: str) -> ContactUriResponse:
+    """Return a contact's meshcore:// link (CMD_EXPORT_CONTACT with its key).
+
+    The radio returns the last advert it stored for that contact, so this only
+    works for contacts the radio has heard or imported. Nothing is transmitted.
+    """
+    contact = await _resolve_contact_or_404(public_key)
+    radio_manager.require_connected()
+    async with radio_manager.radio_operation("export_contact_uri") as mc:
+        result = await mc.commands.export_contact(contact.public_key)
+    if result is None or result.type == EventType.ERROR:
+        raise HTTPException(
+            status_code=404,
+            detail="The radio has no stored advert for this contact",
+        )
+    try:
+        card = card_from_export_result(result)
+    except ContactUriError as exc:
+        raise HTTPException(status_code=502, detail=f"Radio export failed: {exc}") from exc
+    if card.public_key != contact.public_key.lower():
+        raise HTTPException(status_code=502, detail="Radio returned another node's advert")
+    return ContactUriResponse(uri=format_contact_uri(card.raw), public_key=card.public_key)
 
 
 @router.post("/{public_key}/mark-read")
