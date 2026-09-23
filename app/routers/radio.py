@@ -47,6 +47,7 @@ from app.services.radio_commands import (
     KeystoreRefreshError,
     PathHashModeUnsupportedError,
     RadioCommandRejectedError,
+    RadioRepeatFrequencyError,
     apply_radio_config_update,
     import_private_key_and_refresh_keystore,
 )
@@ -95,6 +96,13 @@ class RadioSettings(BaseModel):
     cr: int = Field(description="Coding rate (1-4)")
 
 
+class RadioRepeatFreqRange(BaseModel):
+    """A frequency range (kHz) the firmware allows for off-grid client repeat."""
+
+    min_khz: int
+    max_khz: int
+
+
 class RadioConfigResponse(BaseModel):
     public_key: str = Field(description="Public key (64-char hex)")
     name: str
@@ -128,6 +136,21 @@ class RadioConfigResponse(BaseModel):
     telemetry_mode_env: int = Field(
         default=0,
         description="Environment sensor sharing mode (0=deny, 1=per-contact, 2=allow-all)",
+    )
+    client_repeat_enabled: bool | None = Field(
+        default=None,
+        description=(
+            "Whether the radio's off-grid client-repeat mode is currently enabled. "
+            "Read-only here; None means the connected firmware does not report "
+            "support (fw ver < 9). RTFM-EV never enables this itself."
+        ),
+    )
+    client_repeat_allowed_freqs: list[RadioRepeatFreqRange] | None = Field(
+        default=None,
+        description=(
+            "Frequency ranges (kHz) the firmware allows for client repeat, queried "
+            "once per connect. None if not queried or unsupported."
+        ),
     )
 
 
@@ -394,6 +417,16 @@ async def get_radio_config() -> RadioConfigResponse:
     adv_loc_policy = info.get("adv_loc_policy", 1)
     advert_location_source: AdvertLocationSource = "off" if adv_loc_policy == 0 else "current"
 
+    allowed_freqs = radio_manager.allowed_repeat_freqs
+    client_repeat_allowed_freqs = (
+        [
+            RadioRepeatFreqRange(min_khz=int(item.get("min", 0)), max_khz=int(item.get("max", 0)))
+            for item in allowed_freqs
+        ]
+        if allowed_freqs is not None
+        else None
+    )
+
     return RadioConfigResponse(
         public_key=info.get("public_key", ""),
         name=info.get("name", ""),
@@ -414,6 +447,8 @@ async def get_radio_config() -> RadioConfigResponse:
         telemetry_mode_base=info.get("telemetry_mode_base", 0),
         telemetry_mode_loc=info.get("telemetry_mode_loc", 0),
         telemetry_mode_env=info.get("telemetry_mode_env", 0),
+        client_repeat_enabled=radio_manager.client_repeat,
+        client_repeat_allowed_freqs=client_repeat_allowed_freqs,
     )
 
 
@@ -491,9 +526,15 @@ async def update_radio_config(update: RadioConfigUpdate) -> RadioConfigResponse:
                 path_hash_mode_supported=radio_manager.path_hash_mode_supported,
                 set_path_hash_mode=lambda mode: setattr(radio_manager, "path_hash_mode", mode),
                 sync_radio_time_fn=sync_radio_time,
+                firmware_ver_code=radio_manager.firmware_ver_code,
+                client_repeat=radio_manager.client_repeat,
+                allowed_repeat_freqs=radio_manager.allowed_repeat_freqs,
+                set_client_repeat=lambda value: setattr(radio_manager, "client_repeat", value),
             )
         except PathHashModeUnsupportedError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RadioRepeatFrequencyError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         except RadioCommandRejectedError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
