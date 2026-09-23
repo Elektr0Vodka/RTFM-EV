@@ -463,6 +463,20 @@
   "toast_public_key_copied": "Public key copied!",
   "toast_reconnected": "Reconnected",
   "toast_reconnection_failed": "Reconnection failed",
+  "toast_new_node_title": "New node: {name}",
+  "toast_new_node_body": "{type} - first heard on this mesh",
+  "toast_new_node_batch_title": {
+    "one": "{count} new node",
+    "other": "{count} new nodes"
+  },
+  "toast_new_node_batch_body": "First heard on this mesh",
+  "toast_new_node_notifications_unsupported_title": "Notifications unavailable",
+  "toast_new_node_notifications_unsupported_desc": "This browser does not support desktop notifications.",
+  "toast_new_node_notifications_denied_title": "Notifications blocked",
+  "toast_new_node_notifications_denied_desc": "Desktop notifications are blocked by your browser. Allow notifications in browser settings, then try again.",
+  "toast_new_node_notifications_enabled_title": "New node notifications enabled",
+  "toast_new_node_notifications_not_enabled_title": "Notifications not enabled",
+  "toast_new_node_notifications_dismissed_desc": "The browser permission request was dismissed.",
   "a11y_acknowledged_echoes": {
     "one": "Acknowledged, {count} echo - view paths",
     "other": "Acknowledged, {count} echoes - view paths"
@@ -551,6 +565,12 @@
   "settings_mention_sound_custom_none": "No custom sound uploaded",
   "settings_mention_sound_upload_error": "Failed to upload sound",
   "settings_mention_sound_too_large": "Sound file must be 256 KB or smaller",
+  "settings_new_node_notifications_group_title": "New node notifications",
+  "settings_new_node_notifications_enable_label": "Notify when a new node is heard",
+  "settings_new_node_notifications_enable_desc": "Show a browser notification the first time this app hears a node it has never seen before. Requires the tab to stay open, and is not reliable on mobile.",
+  "settings_new_node_notifications_unsupported_desc": "This browser does not support desktop notifications.",
+  "settings_new_node_notifications_denied_desc": "Desktop notifications are blocked by your browser. Allow notifications in browser settings, then try again.",
+  "settings_new_node_notifications_types_label": "Notify for these node types",
   "conversation_sound_mute": "Mute mention sound for this conversation",
   "conversation_sound_unmute": "Unmute mention sound for this conversation",
   "settings_chat_group_title": "Chat parsing",

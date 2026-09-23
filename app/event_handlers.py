@@ -20,6 +20,7 @@ from app.services.dm_ingest import (
     resolve_direct_message_sender_metadata,
     resolve_fallback_direct_message_context,
 )
+from app.services.new_node_notify import notify_new_node
 from app.websocket import broadcast_event
 
 if TYPE_CHECKING:
@@ -262,7 +263,19 @@ async def on_new_contact(event: "Event") -> None:
     # the air (adverts, messages, path updates). Contacts synced from the
     # radio's internal DB without any RF activity stay NULL until a real
     # RF observation fills them in.
+    is_new = existing is None
     await ContactRepository.upsert(contact_upsert)
+
+    if is_new:
+        # The radio auto-added this contact from hearing its advert directly
+        # (plan 28 item 1.5). This is distinct from sync_contacts_from_radio's
+        # bulk startup pull, which upserts directly and never reaches here.
+        notify_new_node(
+            public_key=public_key.lower(),
+            name=contact_upsert.name or "",
+            contact_type=contact_type,
+        )
+
     promoted_keys = await promote_prefix_contacts_for_contact(
         public_key=public_key,
         log=logger,

@@ -169,7 +169,8 @@ describe('useWebSocket dispatch', () => {
   it('routes message_failed and message_deleted to their handlers', () => {
     const onMessageFailed = vi.fn();
     const onMessageDeleted = vi.fn();
-    renderHook(() => useWebSocket({ onMessageFailed, onMessageDeleted }));
+    const onNewNode = vi.fn();
+    renderHook(() => useWebSocket({ onMessageFailed, onMessageDeleted, onNewNode }));
 
     fireMessage({ type: 'message_failed', data: { message_id: 7, failed_at: 1700000100 } });
     fireMessage({
@@ -179,6 +180,26 @@ describe('useWebSocket dispatch', () => {
 
     expect(onMessageFailed).toHaveBeenCalledWith(7, 1700000100);
     expect(onMessageDeleted).toHaveBeenCalledWith(7);
+    // Each event reaches only its own handler (no switch fall-through).
+    expect(onNewNode).not.toHaveBeenCalled();
+  });
+
+  it('routes new_node event to onNewNode', () => {
+    const onNewNode = vi.fn();
+    renderHook(() => useWebSocket({ onNewNode }));
+
+    const newNodeData = {
+      batched: false,
+      count: 1,
+      public_key: 'aa'.repeat(32),
+      name: 'Alice',
+      type: 2,
+      types: { '2': 1 },
+    };
+    fireMessage({ type: 'new_node', data: newNodeData });
+
+    expect(onNewNode).toHaveBeenCalledOnce();
+    expect(onNewNode).toHaveBeenCalledWith(newNodeData);
   });
 
   it('routes error event to onError', () => {

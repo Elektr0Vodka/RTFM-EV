@@ -234,6 +234,27 @@ describe('useRealtimeAppState', () => {
     expect(args.notifyIncomingMessage).toHaveBeenCalledWith(incomingDm);
   });
 
+  it('forwards a new_node WS event to notifyNewNode', () => {
+    const notifyNewNode = vi.fn();
+    const { args } = createRealtimeArgs({ notifyNewNode });
+    const { result } = renderHook(() => useRealtimeAppState(args));
+
+    const payload = {
+      batched: false,
+      count: 1,
+      public_key: 'aa'.repeat(32),
+      name: 'Alice',
+      type: 2,
+      types: { '2': 1 },
+    };
+
+    act(() => {
+      result.current.onNewNode?.(payload);
+    });
+
+    expect(notifyNewNode).toHaveBeenCalledWith(payload);
+  });
+
   it('deleting the active contact clears it and marks fallback recovery pending', () => {
     const pendingDeleteFallbackRef = { current: false };
     const activeConversationRef = {

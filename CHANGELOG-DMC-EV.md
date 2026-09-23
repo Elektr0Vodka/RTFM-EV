@@ -299,6 +299,27 @@ the change. Upstream development is on hold; the fork is the active repository.
   moved from `PathRouteMap.tsx` into `map/routeMapVisuals.ts` so both map
   embeds draw hops the same way; no behaviour change for message-path maps.
   No backend change: `/radio/trace` already returns per-hop SNR.
+## Update 2026-09-23 (New-node notifications, feat/new-node-notifications, plan 28 item 1.5)
+
+### Notifications (backend + frontend)
+- **New-node browser notifications.** An optional browser notification for the
+  first time this app ever hears a public key: `app/services/new_node_notify.py`
+  detects it on the advert packet path (`packet_processor._process_advertisement`)
+  and the radio's own NEW_CONTACT auto-add (`event_handlers.on_new_contact`),
+  broadcasting a WS `new_node` event. On a busy mesh, nodes heard within a
+  3-second quiet window (capped at 15 seconds total) are batched into one
+  summary notification instead of one per node. Notifications are suppressed
+  for an hour after startup when the contacts table was empty (fresh install
+  or restored DB), so the initial catch-up burst does not fire a wall of
+  notifications for nodes that are only new to this install, not to the mesh.
+- **Settings > Local Configuration > "New node notifications"** (off by
+  default): a master enable checkbox plus per-node-type checkboxes (Client,
+  Repeater, Room, Sensor - the same type names shown elsewhere in the app),
+  gated on the browser's own `Notification` permission. Local-only preference
+  (`localStorage`, same model as the existing per-conversation browser
+  notification toggle); no server setting or Web Push involved. Clicking a
+  single-node notification opens that contact; clicking a batch summary opens
+  the default view where the sidebar/contacts are visible.
 
 ## Update 2026-09-23 (Shared-locations map layer + MGRS, feat/shared-locations-map-layer)
 

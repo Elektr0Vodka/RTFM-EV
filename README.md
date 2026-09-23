@@ -16,6 +16,7 @@ Connect your radio over Serial, TCP, or BLE, and then you can:
 * Search for hashtag channel names for channels you don't have keys for yet
 * Parse entities in chat messages (optional, off by default): resolve public keys to a contact or external analyzer, turn GPS coordinates into a map card, and show clickable links with optional messenger-style previews (Settings > Local Configuration > "Chat parsing")
 * Play an optional notification sound on new @mentions and DMs, with a choice of bundled presets or your own uploaded sound, a volume control, and per-conversation muting (Settings > Local Configuration > "Mention & DM sound")
+* Get a browser notification the first time the app hears a node it has never seen before, filterable by node type (client, repeater, room, sensor) and batched into a summary on a busy mesh (Settings > Local Configuration > "New node notifications", off by default)
 * Choose how dates and times are shown: follow the UI language, or force 12-hour mm/dd/yyyy or 24-hour dd/mm/yyyy (Settings > Local Configuration > "Date & Time Format")
 * Set a battery chemistry (LiPo, LiFePO4, LiPo HV, or NMC) for accurate battery percentages: a global default (Settings > Local Configuration > "Battery Chemistry") with a per-node override in that node's contact info
 * Forward packets, messages, and automatic repeater telemetry to MQTT, Home Assistant, LetsMesh, MeshRank, SQS, Apprise, etc.

@@ -64,6 +64,7 @@ frontend/src/
 │   ├── useConversationRouter.ts    # URL hash → active conversation routing
 │   ├── useContactsAndChannels.ts   # Contact/channel loading, creation, deletion
 │   ├── useBrowserNotifications.ts  # Per-conversation browser notification preferences + dispatch
+│   ├── useNewNodeNotifications.ts  # New-node browser notification preference (master + per-type) + WS event dispatch
 │   ├── usePushSubscription.ts      # Web Push subscription lifecycle, per-conversation filters
 │   ├── useFaviconBadge.ts          # Browser tab title + favicon (unread badge, brand name/icon)
 │   ├── useEntranceSettled.ts       # Defers entrance animation work until layout settles
@@ -388,6 +389,7 @@ jsdom has no layout engine, so none of this is observable from the vitest suite 
 - Incoming JSON is parsed through `wsEvents.ts`, which validates the top-level envelope and known event type strings, then casts payloads at the handler boundary. It does not schema-validate per-event payload shapes.
 - Event handlers: `health`, `message`, `contact`, `contact_resolved`, `channel`, `raw_packet`, `message_acked`, `message_deleted`, `contact_deleted`, `channel_deleted`, `error`, `success`, `pong` (ignored).
 - Event handlers: `health`, `message`, `contact`, `contact_resolved`, `channel`, `raw_packet`, `message_acked`, `message_failed`, `message_deleted`, `contact_deleted`, `channel_deleted`, `error`, `success`, `pong` (ignored).
+- Event handlers: `health`, `message`, `contact`, `contact_resolved`, `channel`, `raw_packet`, `message_acked`, `new_node`, `contact_deleted`, `channel_deleted`, `error`, `success`, `pong` (ignored).
 - For `raw_packet` events, use `observation_id` as event identity; `id` is a storage reference and may repeat.
 
 ## URL Hash Navigation (`utils/urlHash.ts`)
@@ -588,6 +590,39 @@ Web Push allows notifications even when the browser tab is closed. Requires HTTP
 - **Settings > Local**: `PushDeviceManagement` component shows subscription status, lists all registered devices with test/delete buttons. Uses `usePushSubscription` hook directly.
 - Auto-generates device labels from User-Agent (e.g., "Chrome on macOS").
 - `PushSubscriptionInfo` type in `types.ts`; API methods in `api.ts`.
+
+## New-Node Notifications
+
+Browser notification only (no Web Push) for the WS `new_node` event (plan 28
+item 1.5) - a public key never stored before, or a batched summary on a busy
+mesh (see `app/AGENTS.md` "New-node notifications" for the backend
+batching/warm-up).
+
+- **`useNewNodeNotifications` hook**: local-only preference, off by default,
+  same storage model as `useBrowserNotifications`' per-conversation toggle
+  (`localStorage`, gated on the `Notification` permission, no server
+  `app_settings` field). Stores `{ enabled, types }` under
+  `meshcore_new_node_notifications_settings`; `types` is contact type codes
+  (1=Client, 2=Repeater, 3=Room, 4=Sensor) to notify for, defaulting to all
+  four once enabled.
+- **Wiring**: `App.tsx` calls the hook once and threads `handleNewNodeEvent`
+  into `useRealtimeAppState`'s `notifyNewNode`, which fires on every WS
+  `new_node` event exactly like `notifyIncomingMessage` does for `message`.
+  The backend always broadcasts truthfully regardless of any browser's
+  preference; this hook does the per-browser filtering and notification
+  construction.
+- **Single vs batch**: a single-node payload (`batched: false`) shows the
+  contact name/type and clicking deep-links to `#contact/<key>/<label>` (same
+  pattern as `useBrowserNotifications`' message deep link). A batched payload
+  (`batched: true`) sums only the counts for the browser's enabled types from
+  `types` (a per-type breakdown) - if that sum is zero the notification is
+  suppressed entirely; otherwise it shows a plural "N new nodes" summary and
+  clicking clears the hash (opens the default view with the sidebar/contacts
+  visible) rather than deep-linking to one contact.
+- **Settings > Local**: a "New node notifications" group (`SettingsLocalSection.tsx`,
+  reusing `contactTypeLabel` from `ContactInfoBody.tsx` for the four type
+  checkboxes) sits next to the mention-sound group. Enabling requests the
+  `Notification` permission the same way the per-conversation toggle does.
 
 ## Styling
 
