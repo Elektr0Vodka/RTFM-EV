@@ -171,6 +171,23 @@ describe('fetchJson (via api methods)', () => {
 
       await expect(api.getHealth()).rejects.toThrow('{"error": "validation failed"}');
     });
+
+    it('uses detail.message when detail is a structured object', async () => {
+      installMockFetch();
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        statusText: 'Conflict',
+        text: () =>
+          Promise.resolve(
+            '{"detail": {"message": "Limit of 8 tracked contacts reached", "names": {}}}'
+          ),
+      });
+
+      await expect(api.toggleTrackedTelemetryContact('aa')).rejects.toThrow(
+        'Limit of 8 tracked contacts reached'
+      );
+    });
   });
 
   describe('Content-Type header', () => {

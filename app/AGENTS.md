@@ -234,7 +234,7 @@ Both traffic buckets come from one 24h raw-packet scan (`_packet_shape_24h`) sha
 - `broadcast_event()` in `websocket.py` dispatches to the fanout manager for `message`, `raw_packet`, and `contact` events.
 - `on_message` and `on_raw` are scope-gated. `on_contact`, `on_telemetry`, and `on_health` are dispatched to all modules unconditionally (modules filter internally).
 - Repeater telemetry broadcasts are emitted after `RepeaterTelemetryRepository.record()` in both `radio_sync.py` (auto-collect) and `routers/repeaters.py` (manual fetch). Contact LPP telemetry is similarly recorded to `ContactTelemetryRepository` and dispatched to fanout.
-- The telemetry collection loop in `radio_sync.py` is unified: it iterates over both `tracked_telemetry_repeaters` and `tracked_telemetry_contacts`, dispatching to `_collect_repeater_telemetry` (type 2) or `_collect_contact_telemetry` (others). The daily check ceiling uses the combined count.
+- The telemetry collection loop in `radio_sync.py` is unified: it iterates over both `tracked_telemetry_repeaters` and `tracked_telemetry_contacts`, dispatching by list, not contact type: repeater-list entries go to `_collect_repeater_telemetry` (status) and contact-list entries to `_collect_contact_telemetry` (LPP). The contact list accepts any contact type, repeaters included, so a repeater can be on both lists and is then polled for status and LPP separately. The daily check ceiling uses the combined count.
 - The 60-second radio stats sampling loop in `radio_stats.py` dispatches an enriched health snapshot (radio identity + full stats) to all fanout modules after each sample.
 - Community MQTT publishes raw packets only, but its derived `path` field for direct packets is emitted as comma-separated hop identifiers, not flat path bytes.
 - See `app/fanout/AGENTS_fanout.md` for full architecture details and event payload shapes.
@@ -260,8 +260,8 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `GET /debug` - support snapshot with recent logs, live radio probe, slot/contact audits, and version/git info
 
 ### Radio
-- `GET /radio/config` - includes `path_hash_mode`, `path_hash_mode_supported`, advert-location on/off, and `multi_acks_enabled`
-- `PATCH /radio/config` - may update `path_hash_mode` (`0..2`) when firmware supports it, and `multi_acks_enabled`
+- `GET /radio/config` - includes `path_hash_mode`, `path_hash_mode_supported`, advert-location on/off, `multi_acks_enabled`, and read-only `client_repeat_enabled` (`null` if firmware doesn't report it, fw ver < 9) / `client_repeat_allowed_freqs` (kHz ranges from `get_allowed_repeat_freq`, cached per connect; `null` if not queried)
+- `PATCH /radio/config` - may update `path_hash_mode` (`0..2`) when firmware supports it, and `multi_acks_enabled`. A `radio` block update (fw ver >= 9) always re-sends the device's current client-repeat state to `set_radio` explicitly (firmware treats a missing repeat byte as 0 and persists that - see `app/services/radio_commands.py`), then re-queries device info; returns `409` if repeat is currently on and the new frequency isn't in the cached allowed-repeat-frequency list. RTFM-EV never sends `repeat=1` itself; there is no UI to enable it yet
 - `GET /radio/private-key` - export in-memory private key as hex (requires `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT=true`)
 - `PUT /radio/private-key`
 - `GET /radio/contact-uri` - this node's `meshcore://` contact link (`{uri, public_key}`) via `export_contact()` with no key (CMD_EXPORT_CONTACT). Local radio command, nothing transmitted; 502 if the radio returns no valid signed advert
@@ -389,7 +389,7 @@ chosen node), and a Prefix Collisions tab badge.
 - `POST /settings/blocked-names/toggle`
 - `POST /settings/tracked-telemetry/toggle`
 - `GET /settings/tracked-telemetry/schedule` - current telemetry scheduling derivation, interval options, and next-run-at timestamp
-- `POST /settings/tracked-telemetry-contacts/toggle` - toggle tracked LPP telemetry for any contact (max 8)
+- `POST /settings/tracked-telemetry-contacts/toggle` - toggle tracked LPP telemetry for any contact, repeaters included (max 8)
 - `GET /settings/tracked-telemetry-contacts/schedule` - contact telemetry scheduling (shared ceiling with repeaters)
 - `POST /settings/muted-channels/toggle`
 

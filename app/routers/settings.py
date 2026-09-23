@@ -1142,15 +1142,11 @@ async def toggle_tracked_telemetry_contact(
             ),
         )
 
-    # Validate contact exists and is not a repeater (repeaters use tracked_telemetry_repeaters)
+    # Any contact type may be tracked here, repeaters included: this list
+    # collects LPP telemetry, independent of the repeater status list.
     contact = await ContactRepository.get_by_key(key)
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
-    if contact.type == CONTACT_TYPE_REPEATER:
-        raise HTTPException(
-            status_code=400,
-            detail="Repeaters use the dedicated repeater telemetry tracking list",
-        )
 
     if len(current) >= MAX_TRACKED_TELEMETRY_CONTACTS:
         names = await _resolve_names(current)

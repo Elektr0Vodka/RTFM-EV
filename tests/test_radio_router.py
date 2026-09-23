@@ -23,6 +23,7 @@ from app.routers.radio import (
     RadioConfigResponse,
     RadioConfigUpdate,
     RadioDiscoveryRequest,
+    RadioRepeatFreqRange,
     RadioSettings,
     _dedupe_region_names,
     disconnect_radio,
@@ -147,6 +148,39 @@ class TestGetRadioConfig:
                 await get_radio_config()
 
         assert exc.value.status_code == 423
+
+    @pytest.mark.asyncio
+    async def test_exposes_client_repeat_state_and_allowed_freqs(self):
+        mc = _mock_meshcore_with_info()
+        with (
+            patch("app.routers.radio.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "client_repeat", True),
+            patch.object(
+                radio_manager,
+                "allowed_repeat_freqs",
+                [{"min": 433000, "max": 433000}, {"min": 869495, "max": 869495}],
+            ),
+        ):
+            response = await get_radio_config()
+
+        assert response.client_repeat_enabled is True
+        assert response.client_repeat_allowed_freqs == [
+            RadioRepeatFreqRange(min_khz=433000, max_khz=433000),
+            RadioRepeatFreqRange(min_khz=869495, max_khz=869495),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_client_repeat_state_defaults_to_none_when_unsupported(self):
+        mc = _mock_meshcore_with_info()
+        with (
+            patch("app.routers.radio.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "client_repeat", None),
+            patch.object(radio_manager, "allowed_repeat_freqs", None),
+        ):
+            response = await get_radio_config()
+
+        assert response.client_repeat_enabled is None
+        assert response.client_repeat_allowed_freqs is None
 
 
 class TestUpdateRadioConfig:
@@ -289,6 +323,108 @@ class TestUpdateRadioConfig:
         assert exc.value.status_code == 422
         assert "Failed to set path hash mode" in str(exc.value.detail)
         assert radio_manager.path_hash_mode == 0
+        mc.commands.send_appstart.assert_not_awaited()
+
+
+class TestUpdateRadioConfigPreservesClientRepeat:
+    """Plan 29 Phase 0 bug fix: saving radio settings must not silently turn
+    off a client-repeat state enabled by another app. See
+    app/services/radio_commands.py::apply_radio_config_update.
+    """
+
+    @pytest.mark.asyncio
+    async def test_sends_current_repeat_state_to_firmware_when_fw9_plus(self):
+        mc = _mock_meshcore_with_info()
+        mc.commands.set_radio = AsyncMock(return_value=_radio_result())
+        mc.commands.send_device_query = AsyncMock(
+            return_value=_radio_result(payload={"repeat": True})
+        )
+        expected = RadioConfigResponse(
+            public_key="aa" * 32,
+            name="NodeA",
+            lat=10.0,
+            lon=20.0,
+            tx_power=17,
+            max_tx_power=22,
+            radio=RadioSettings(freq=869.495, bw=62.5, sf=7, cr=5),
+        )
+
+        with (
+            patch("app.routers.radio.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch.object(radio_manager, "firmware_ver_code", 9),
+            patch.object(radio_manager, "client_repeat", True),
+            patch.object(radio_manager, "allowed_repeat_freqs", [{"min": 869495, "max": 869495}]),
+            patch("app.routers.radio.sync_radio_time", new_callable=AsyncMock),
+            patch(
+                "app.routers.radio.get_radio_config", new_callable=AsyncMock, return_value=expected
+            ),
+        ):
+            result = await update_radio_config(
+                RadioConfigUpdate(radio=RadioSettings(freq=869.495, bw=62.5, sf=7, cr=5))
+            )
+
+        mc.commands.set_radio.assert_awaited_once_with(freq=869.495, bw=62.5, sf=7, cr=5, repeat=1)
+        mc.commands.send_device_query.assert_awaited_once()
+        assert result == expected
+
+    @pytest.mark.asyncio
+    async def test_omits_repeat_kwarg_below_fw9(self):
+        mc = _mock_meshcore_with_info()
+        mc.commands.set_radio = AsyncMock(return_value=_radio_result())
+        expected = RadioConfigResponse(
+            public_key="aa" * 32,
+            name="NodeA",
+            lat=10.0,
+            lon=20.0,
+            tx_power=17,
+            max_tx_power=22,
+            radio=RadioSettings(freq=910.525, bw=62.5, sf=7, cr=5),
+        )
+
+        with (
+            patch("app.routers.radio.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch.object(radio_manager, "firmware_ver_code", 8),
+            patch.object(radio_manager, "client_repeat", None),
+            patch.object(radio_manager, "allowed_repeat_freqs", None),
+            patch("app.routers.radio.sync_radio_time", new_callable=AsyncMock),
+            patch(
+                "app.routers.radio.get_radio_config", new_callable=AsyncMock, return_value=expected
+            ),
+        ):
+            await update_radio_config(
+                RadioConfigUpdate(radio=RadioSettings(freq=910.525, bw=62.5, sf=7, cr=5))
+            )
+
+        mc.commands.set_radio.assert_awaited_once_with(freq=910.525, bw=62.5, sf=7, cr=5)
+
+    @pytest.mark.asyncio
+    async def test_returns_409_when_repeat_on_and_new_frequency_not_allowed(self):
+        mc = _mock_meshcore_with_info()
+
+        with (
+            patch("app.routers.radio.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch.object(radio_manager, "firmware_ver_code", 9),
+            patch.object(radio_manager, "client_repeat", True),
+            patch.object(
+                radio_manager,
+                "allowed_repeat_freqs",
+                [
+                    {"min": 433000, "max": 433000},
+                    {"min": 869495, "max": 869495},
+                    {"min": 918000, "max": 918000},
+                ],
+            ),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await update_radio_config(
+                    RadioConfigUpdate(radio=RadioSettings(freq=869.618, bw=250.0, sf=8, cr=5))
+                )
+
+        assert exc.value.status_code == 409
+        mc.commands.set_radio.assert_not_awaited()
         mc.commands.send_appstart.assert_not_awaited()
 
 
