@@ -117,7 +117,7 @@ frontend/src/
 │   ├── StatusBar.tsx
 │   ├── Sidebar.tsx
 │   ├── ChatHeader.tsx          # Conversation header (trace, favorite, delete)
-│   ├── MessageList.tsx        # Message rows; #hashtag refs styled by state (followed/known/unknown) with an inline "+" to capture unknowns into the registry (auto-capture via app_settings.auto_add_mentioned_channels); hover React/Reply (MessageRowActions) and reaction-target links (ReactionTargetLink)
+│   ├── MessageList.tsx        # Message rows; #hashtag refs styled by state (followed/known/unknown) with an inline "+" to capture unknowns into the registry (auto-capture via app_settings.auto_add_mentioned_channels); hover React/Reply/Mark-unread (MessageRowActions) and reaction-target links (ReactionTargetLink)
 │   ├── MessageInput.tsx
 │   ├── NewMessageModal.tsx     # Contact / Contact link (meshcore:// import) / channel tabs
 │   ├── ContactLinkShare.tsx    # On-demand meshcore:// link with copy (contact info + Settings > Radio)
@@ -266,7 +266,7 @@ High-level state is delegated to hooks:
 - `useConversationNavigation`: search target, conversation selection reset, and info-pane state
 - `useConversationActions`: send/resend/trace/path-discovery/block handlers and channel override updates
 - `useConversationMessages`: conversation switch loading, embedded conversation-scoped cache, jump-target loading, pagination, dedup/update helpers, reconnect reconciliation, and pending ACK buffering
-- `useUnreadCounts`: unread counters, mention tracking, recent-sort timestamps, server `last_read_ats`, and `first_unread_ids` (the unread-divider anchor)
+- `useUnreadCounts`: unread counters, mention tracking, recent-sort timestamps, server `last_read_ats`, `first_unread_ids` (the unread-divider anchor), and `markConversationUnreadFromMessage` ("mark unread from here")
 - `useRealtimeAppState`: typed WS event application, reconnect recovery, cache/unread coordination
 - `useRepeaterDashboard`: repeater dashboard state (login, pane data/retries, console, actions)
 
@@ -468,6 +468,8 @@ Note: MQTT, bot, and community MQTT settings were migrated to the `fanout_config
 The unread divider is anchored to `first_unread_ids` - the id of the oldest unread message per conversation - not to a timestamp. `MessageList` locates it with `findIndex(msg.id === unreadMarkerMessageId)`, which returns `-1` when that message is not in the loaded window; that is the signal to offer "Jump to unread" (routed through the `targetMessageId`/`getMessagesAround` path) rather than render a divider. Locating by timestamp instead would return index 0 whenever the boundary sits further back than the loaded window, silently placing the divider on the wrong message.
 
 Counts are incremented live over WebSocket while `first_unread_ids` only arrives with a full `/read-state/unreads` fetch, so `useUnreadCounts.incrementUnread` seeds the boundary itself on the read→unread transition. A channel going unread while the app is open would otherwise have a count but no boundary, and no divider at all.
+
+**Mark unread from here**: a message-row action (`MessageRowActions`, envelope icon, incoming messages only) calls `useUnreadCounts.markConversationUnreadFromMessage`, which hits `api.markContactUnread`/`api.markChannelUnread` (`POST .../mark-unread {message_id}`) and then resyncs via `refreshUnreads`. Decision: read state stays server-side and shared across browsers, consistent with mark-read. Because the app auto-re-marks the active conversation as read on every `/unreads` refresh (WS reconnect, mute toggle, `channelsLen`/`contactsLen` change - see `fetchUnreads`), marking the *currently open* conversation unread would otherwise be wiped out on the very next such refresh. `useUnreadCounts` suppresses that auto re-mark for the conversation just marked unread (`suppressAutoReadKeyRef`) until the user genuinely navigates away and back to it (`prevActiveKeyRef` distinguishes a real navigation from an incidental re-render with a new `activeConversation` object for the same conversation) - at that point it is treated as read again, like any other conversation. There is no sidebar-level "mark unread" (no context-menu pattern exists in `Sidebar.tsx` to hang it off); only the per-message row action exists.
 
 ## Contact Info Pane
 

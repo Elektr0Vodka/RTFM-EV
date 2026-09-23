@@ -331,6 +331,101 @@ class TestChannelDetail:
         assert senders[1]["message_count"] == 1
 
 
+class TestMarkUnread:
+    """Test POST /api/channels/{key}/mark-unread."""
+
+    CHANNEL_KEY = "1122334411223344112233441122334"
+
+    async def _seed_channel(self):
+        await ChannelRepository.upsert(key=self.CHANNEL_KEY, name="#test-unread", is_hashtag=True)
+
+    @pytest.mark.asyncio
+    async def test_mark_unread_from_message_sets_last_read_at_before_it(self, test_db, client):
+        await self._seed_channel()
+        await ChannelRepository.update_last_read_at(self.CHANNEL_KEY, 5000)
+
+        msg_id = await MessageRepository.create(
+            msg_type="CHAN",
+            text="Alice: hi",
+            conversation_key=self.CHANNEL_KEY,
+            received_at=2000,
+            sender_name="Alice",
+        )
+
+        response = await client.post(
+            f"/api/channels/{self.CHANNEL_KEY}/mark-unread", json={"message_id": msg_id}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ok"
+        assert data["message_id"] == msg_id
+        assert data["last_read_at"] == 1999
+
+        channel = await ChannelRepository.get_by_key(self.CHANNEL_KEY)
+        assert channel.last_read_at == 1999
+
+        unreads = await MessageRepository.get_unread_counts()
+        assert unreads["counts"].get(f"channel-{self.CHANNEL_KEY}") == 1
+        assert unreads["first_unread_ids"].get(f"channel-{self.CHANNEL_KEY}") == msg_id
+
+    @pytest.mark.asyncio
+    async def test_mark_unread_rejects_outgoing_message(self, test_db, client):
+        await self._seed_channel()
+
+        msg_id = await MessageRepository.create(
+            msg_type="CHAN",
+            text="Me: hi",
+            conversation_key=self.CHANNEL_KEY,
+            received_at=2000,
+            outgoing=True,
+        )
+
+        response = await client.post(
+            f"/api/channels/{self.CHANNEL_KEY}/mark-unread", json={"message_id": msg_id}
+        )
+
+        assert response.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_mark_unread_rejects_message_from_other_channel(self, test_db, client):
+        await self._seed_channel()
+        other_key = "5566778855667788556677885566778"
+        await ChannelRepository.upsert(key=other_key, name="#other", is_hashtag=True)
+
+        msg_id = await MessageRepository.create(
+            msg_type="CHAN",
+            text="Bob: hi",
+            conversation_key=other_key,
+            received_at=2000,
+            sender_name="Bob",
+        )
+
+        response = await client.post(
+            f"/api/channels/{self.CHANNEL_KEY}/mark-unread", json={"message_id": msg_id}
+        )
+
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_mark_unread_unknown_message_returns_404(self, test_db, client):
+        await self._seed_channel()
+
+        response = await client.post(
+            f"/api/channels/{self.CHANNEL_KEY}/mark-unread", json={"message_id": 999999}
+        )
+
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_mark_unread_channel_not_found(self, test_db, client):
+        response = await client.post(
+            "/api/channels/FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF/mark-unread", json={"message_id": 1}
+        )
+
+        assert response.status_code == 404
+
+
 class TestChannelExportImport:
     @pytest.mark.asyncio
     async def test_export_all_lists_name_and_key(self, test_db, client):

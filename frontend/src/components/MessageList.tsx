@@ -88,6 +88,8 @@ interface MessageListProps {
   onReactToMessage?: (messageId: number, emoji: string) => void;
   /** Prefill the composer with a reply to a message. */
   onReplyToMessage?: (message: Message) => void;
+  /** Mark the conversation unread from (and including) this message. */
+  onMarkUnreadFromMessage?: (message: Message) => void;
   onSenderClick?: (sender: string) => void;
   onLoadOlder?: () => void;
   onResendChannelMessage?: (messageId: number, newTimestamp?: boolean) => void;
@@ -667,6 +669,7 @@ export function MessageList({
   onJumpToMessage,
   onReactToMessage,
   onReplyToMessage,
+  onMarkUnreadFromMessage,
   onSenderClick,
   onLoadOlder,
   onResendChannelMessage,
@@ -1935,6 +1938,11 @@ export function MessageList({
                         onReactToMessage ? (emoji) => onReactToMessage(msg.id, emoji) : undefined
                       }
                       onReply={onReplyToMessage ? () => onReplyToMessage(msg) : undefined}
+                      onMarkUnread={
+                        onMarkUnreadFromMessage && !msg.outgoing
+                          ? () => onMarkUnreadFromMessage(msg)
+                          : undefined
+                      }
                     />
                   )}
                 </div>

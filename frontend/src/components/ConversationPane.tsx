@@ -80,6 +80,7 @@ interface ConversationPaneProps {
   onJumpToMessage?: (messageId: number) => void;
   onReactToMessage?: (messageId: number, emoji: string) => void;
   onReplyToMessage?: (message: Message) => void;
+  onMarkUnreadFromMessage?: (message: Message) => void;
   targetMessageId: number | null;
   hasNewerMessages: boolean;
   loadingNewer: boolean;
@@ -211,6 +212,7 @@ export function ConversationPane({
   onJumpToMessage,
   onReactToMessage,
   onReplyToMessage,
+  onMarkUnreadFromMessage,
   targetMessageId,
   hasNewerMessages,
   loadingNewer,
@@ -640,6 +642,7 @@ export function ConversationPane({
           onJumpToMessage={onJumpToMessage}
           onReactToMessage={onReactToMessage}
           onReplyToMessage={onReplyToMessage}
+          onMarkUnreadFromMessage={onMarkUnreadFromMessage}
           onDismissUnreadMarker={
             activeConversation.type === 'channel' ? onDismissUnreadMarker : undefined
           }

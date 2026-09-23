@@ -20,6 +20,12 @@ vi.mock('../api', () => ({
     markChannelRead: vi.fn().mockResolvedValue({ status: 'ok', key: '' }),
     markContactRead: vi.fn().mockResolvedValue({ status: 'ok', public_key: '' }),
     markAllRead: vi.fn().mockResolvedValue({ status: 'ok' }),
+    markChannelUnread: vi
+      .fn()
+      .mockResolvedValue({ status: 'ok', key: '', message_id: 0, last_read_at: 0 }),
+    markContactUnread: vi
+      .fn()
+      .mockResolvedValue({ status: 'ok', public_key: '', message_id: 0, last_read_at: 0 }),
   },
 }));
 
@@ -92,6 +98,8 @@ async function getMockedApi() {
     markChannelRead: vi.mocked(api.markChannelRead),
     markContactRead: vi.mocked(api.markContactRead),
     markAllRead: vi.mocked(api.markAllRead),
+    markChannelUnread: vi.mocked(api.markChannelUnread),
+    markContactUnread: vi.mocked(api.markContactUnread),
   };
 }
 
@@ -110,6 +118,18 @@ describe('useUnreadCounts', () => {
     mocks.markChannelRead.mockResolvedValue({ status: 'ok', key: '' });
     mocks.markContactRead.mockResolvedValue({ status: 'ok', public_key: '' });
     mocks.markAllRead.mockResolvedValue({ status: 'ok', timestamp: 0 });
+    mocks.markChannelUnread.mockResolvedValue({
+      status: 'ok',
+      key: '',
+      message_id: 0,
+      last_read_at: 0,
+    });
+    mocks.markContactUnread.mockResolvedValue({
+      status: 'ok',
+      public_key: '',
+      message_id: 0,
+      last_read_at: 0,
+    });
   });
 
   afterEach(() => {
@@ -579,5 +599,116 @@ describe('useUnreadCounts', () => {
     expect(result.current.unreadCounts[getStateKey('contact', CONTACT_KEY)]).toBeUndefined();
     expect(result.current.mentions[getStateKey('contact', CONTACT_KEY)]).toBeUndefined();
     expect(mocks.markContactRead).toHaveBeenCalledWith(CONTACT_KEY);
+  });
+
+  describe('markConversationUnreadFromMessage', () => {
+    it('calls the contact mark-unread API and resyncs unreads', async () => {
+      const mocks = await getMockedApi();
+      const contacts = [makeContact(CONTACT_KEY)];
+      const otherConv: Conversation = { type: 'contact', id: 'someone-else', name: 'Other' };
+
+      const { result } = renderWith({ contacts, activeConversation: otherConv });
+      await act(async () => {
+        await vi.waitFor(() => expect(mocks.getUnreads).toHaveBeenCalled());
+      });
+
+      mocks.getUnreads.mockResolvedValueOnce({
+        counts: { [getStateKey('contact', CONTACT_KEY)]: 3 },
+        mentions: {},
+        last_message_times: {},
+        first_unread_ids: { [getStateKey('contact', CONTACT_KEY)]: 42 },
+        last_read_ats: {},
+      });
+
+      await act(async () => {
+        await result.current.markConversationUnreadFromMessage({
+          type: 'contact',
+          id: CONTACT_KEY,
+          messageId: 42,
+        });
+      });
+
+      expect(mocks.markContactUnread).toHaveBeenCalledWith(CONTACT_KEY, 42);
+      expect(result.current.unreadCounts[getStateKey('contact', CONTACT_KEY)]).toBe(3);
+      expect(result.current.firstUnreadIds[getStateKey('contact', CONTACT_KEY)]).toBe(42);
+    });
+
+    it('calls the channel mark-unread API', async () => {
+      const mocks = await getMockedApi();
+      const channels = [makeChannel(CHANNEL_KEY, 'Test')];
+
+      const { result } = renderWith({ channels });
+      await act(async () => {
+        await vi.waitFor(() => expect(mocks.getUnreads).toHaveBeenCalled());
+      });
+
+      await act(async () => {
+        await result.current.markConversationUnreadFromMessage({
+          type: 'channel',
+          id: CHANNEL_KEY,
+          messageId: 7,
+        });
+      });
+
+      expect(mocks.markChannelUnread).toHaveBeenCalledWith(CHANNEL_KEY, 7);
+    });
+
+    it('suppresses the auto re-mark-read for the still-open conversation until it is revisited', async () => {
+      const mocks = await getMockedApi();
+      const contacts = [makeContact(CONTACT_KEY)];
+      const activeConv: Conversation = { type: 'contact', id: CONTACT_KEY, name: 'Test' };
+
+      const { result, rerender } = renderWith({ contacts, activeConversation: activeConv });
+      await act(async () => {
+        await vi.waitFor(() => expect(mocks.markContactRead).toHaveBeenCalledWith(CONTACT_KEY));
+      });
+      mocks.markContactRead.mockClear();
+
+      // Mark unread from a message while still viewing this conversation.
+      await act(async () => {
+        await result.current.markConversationUnreadFromMessage({
+          type: 'contact',
+          id: CONTACT_KEY,
+          messageId: 10,
+        });
+      });
+      // The mark-unread flow itself resyncs via fetchUnreads, which must not
+      // immediately re-mark the conversation read again.
+      expect(mocks.markContactRead).not.toHaveBeenCalled();
+
+      // Simulate something else triggering a refresh while still active
+      // (e.g. a WS reconnect) - still must not re-mark it read.
+      await act(async () => {
+        await result.current.refreshUnreads();
+      });
+      expect(mocks.markContactRead).not.toHaveBeenCalled();
+
+      // Re-render with the *same* activeConversation object identity changed
+      // (e.g. a contacts list refresh) - still suppressed, since this is not
+      // a real navigation.
+      rerender({
+        channels: [],
+        contacts,
+        activeConversation: { type: 'contact', id: CONTACT_KEY, name: 'Test Renamed' },
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(mocks.markContactRead).not.toHaveBeenCalled();
+
+      // Leave the conversation...
+      rerender({ channels: [], contacts, activeConversation: null });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(mocks.markContactRead).not.toHaveBeenCalled();
+
+      // ...and return: this is a genuine navigation, so the normal
+      // mark-read-on-view behavior resumes.
+      rerender({ channels: [], contacts, activeConversation: activeConv });
+      await act(async () => {
+        await vi.waitFor(() => expect(mocks.markContactRead).toHaveBeenCalledWith(CONTACT_KEY));
+      });
+    });
   });
 });

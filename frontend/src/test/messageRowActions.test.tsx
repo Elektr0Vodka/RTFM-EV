@@ -25,4 +25,16 @@ describe('MessageRowActions', () => {
     expect(screen.queryByRole('button', { name: 'React' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Reply' })).toBeInTheDocument();
   });
+
+  it('marks unread on click', () => {
+    const onMarkUnread = vi.fn();
+    render(<MessageRowActions onMarkUnread={onMarkUnread} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Mark unread from here' }));
+    expect(onMarkUnread).toHaveBeenCalledTimes(1);
+  });
+
+  it('omits the mark-unread action when no handler is given', () => {
+    render(<MessageRowActions onReply={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'Mark unread from here' })).toBeNull();
+  });
 });
