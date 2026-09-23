@@ -36,6 +36,11 @@ interface UseUnreadCountsResult {
   removeConversationState: (stateKey: string) => void;
   markAllRead: () => void;
   markConversationsRead: (items: { type: 'channel' | 'contact'; id: string }[]) => void;
+  markConversationUnreadFromMessage: (args: {
+    type: 'channel' | 'contact';
+    id: string;
+    messageId: number;
+  }) => Promise<void>;
   refreshUnreads: () => Promise<void>;
 }
 
@@ -55,6 +60,21 @@ export function useUnreadCounts(
   // every conversation switch).
   const activeConvRef = useRef(activeConversation);
   activeConvRef.current = activeConversation;
+
+  // stateKey of a conversation that was just "marked unread from here" while
+  // it is still the open/active conversation. The app normally re-marks the
+  // active conversation as read every time it re-fetches unreads (WS
+  // reconnect, mute toggle, etc.) - see fetchUnreads below - which would
+  // otherwise immediately undo the manual unread mark. While a key is
+  // suppressed here, that auto re-mark-read is skipped for it. Suppression is
+  // lifted the next time the user actually navigates away and back to that
+  // conversation (see the activeConversation effect below), which is the
+  // point where "viewing it again" should legitimately clear the unread mark.
+  const suppressAutoReadKeyRef = useRef<string | null>(null);
+  // stateKey of the conversation the previous run of the activeConversation
+  // effect saw, used to tell a genuine navigation apart from an incidental
+  // re-render with a new activeConversation object for the same conversation.
+  const prevActiveKeyRef = useRef<string | null>(null);
 
   // Apply unreads data to state, filtering out the active conversation
   // (the user is already viewing it, so its count should stay at 0).
@@ -88,6 +108,8 @@ export function useUnreadCounts(
   // Fetch unreads from the server-side endpoint.
   // Also re-marks the active conversation as read so the server's last_read_at
   // stays current (otherwise subsequent fetches would re-report the same unreads).
+  // Skipped when the active conversation was just "marked unread from here" -
+  // otherwise this would immediately undo that manual mark.
   const fetchUnreads = useCallback(async () => {
     try {
       applyUnreads(await api.getUnreads());
@@ -95,9 +117,12 @@ export function useUnreadCounts(
       console.error('Failed to fetch unreads:', err);
     }
     const ac = activeConvRef.current;
-    if (ac?.type === 'channel') {
+    if (!isUnreadTrackedConversation(ac)) return;
+    const key = getStateKey(ac.type, ac.id);
+    if (suppressAutoReadKeyRef.current === key) return;
+    if (ac.type === 'channel') {
       api.markChannelRead(ac.id).catch(() => {});
-    } else if (ac?.type === 'contact') {
+    } else {
       api.markContactRead(ac.id).catch(() => {});
     }
   }, [applyUnreads]);
@@ -127,10 +152,31 @@ export function useUnreadCounts(
   }, [channelsLen, contactsLen, fetchUnreads]);
 
   // Mark conversation as read when user views it
-  // Calls server API to persist read state across devices
+  // Calls server API to persist read state across devices.
+  //
+  // Guarded so this only runs on a genuine navigation into the conversation
+  // (prevActiveKeyRef changes), not on every re-render that produces a new
+  // activeConversation object for the *same* conversation (e.g. a contact
+  // list refresh). Without that guard, a conversation the user just "marked
+  // unread from here" while still viewing it would be re-marked read on the
+  // very next unrelated re-render. Leaving the conversation and coming back
+  // is a real navigation, so it still clears the manual unread mark, same as
+  // opening any other unread conversation.
   useEffect(() => {
-    if (isUnreadTrackedConversation(activeConversation)) {
-      const key = getStateKey(activeConversation.type, activeConversation.id);
+    const key = isUnreadTrackedConversation(activeConversation)
+      ? getStateKey(activeConversation.type, activeConversation.id)
+      : null;
+    const isNavigation = prevActiveKeyRef.current !== key;
+    prevActiveKeyRef.current = key;
+
+    if (isUnreadTrackedConversation(activeConversation) && key) {
+      if (isNavigation && suppressAutoReadKeyRef.current === key) {
+        suppressAutoReadKeyRef.current = null;
+      } else if (!isNavigation && suppressAutoReadKeyRef.current === key) {
+        // Re-render of the same conversation while its unread mark is
+        // suppressed: skip re-marking it read.
+        return;
+      }
 
       // Update local state immediately for responsive UI
       setUnreadCounts((prev) => {
@@ -325,6 +371,49 @@ export function useUnreadCounts(
     []
   );
 
+  // Mark a conversation unread from a specific message onward ("mark unread
+  // from here"). The server moves last_read_at to just before that message,
+  // so it and every incoming message after it count as unread again.
+  //
+  // If this is the currently open conversation, suppresses the auto
+  // re-mark-read that a later /unreads refresh would otherwise perform for
+  // it (see fetchUnreads and the activeConversation effect above) - without
+  // this, the unread mark would be wiped out the moment anything else
+  // triggers a refresh (WS reconnect, mute toggle, etc.) while the user is
+  // still looking at the conversation. Decision: least-surprising fix is to
+  // hold the suppression only until the user actually leaves and returns to
+  // the conversation, at which point it is treated as read again, same as
+  // any other unread conversation.
+  const markConversationUnreadFromMessage = useCallback(
+    async ({
+      type,
+      id,
+      messageId,
+    }: {
+      type: 'channel' | 'contact';
+      id: string;
+      messageId: number;
+    }) => {
+      const key = getStateKey(type, id);
+
+      if (type === 'channel') {
+        await api.markChannelUnread(id, messageId);
+      } else {
+        await api.markContactUnread(id, messageId);
+      }
+
+      const ac = activeConvRef.current;
+      if (isUnreadTrackedConversation(ac) && getStateKey(ac.type, ac.id) === key) {
+        suppressAutoReadKeyRef.current = key;
+      }
+
+      // Resync counts/first_unread_ids/last_read_ats from the server rather
+      // than guessing the new unread count locally.
+      await fetchUnreads();
+    },
+    [fetchUnreads]
+  );
+
   return {
     unreadCounts,
     mentions,
@@ -336,6 +425,7 @@ export function useUnreadCounts(
     removeConversationState,
     markAllRead,
     markConversationsRead,
+    markConversationUnreadFromMessage,
     refreshUnreads: fetchUnreads,
   };
 }

@@ -18,6 +18,11 @@ interface UseConversationActionsArgs {
   /** Drop a message locally: a local delete, or a failed DM replaced by its retry. */
   removeMessage: (messageId: number) => void;
   messageInputRef: RefObject<MessageInputHandle | null>;
+  markConversationUnreadFromMessage: (args: {
+    type: 'channel' | 'contact';
+    id: string;
+    messageId: number;
+  }) => Promise<void>;
 }
 
 interface UseConversationActionsResult {
@@ -36,6 +41,7 @@ interface UseConversationActionsResult {
   handleReactToMessage: (messageId: number, emoji: string) => Promise<void>;
   handleReplyToMessage: (message: Message) => void;
   handleDeleteMessage: (message: Message) => Promise<void>;
+  handleMarkUnreadFromMessage: (message: Message) => Promise<void>;
   handleInsertLocation: (lat: number, lon: number, label: string) => void;
   handleTrace: () => Promise<void>;
   handlePathDiscovery: (publicKey: string) => Promise<PathDiscoveryResponse>;
@@ -49,6 +55,7 @@ export function useConversationActions({
   observeMessage,
   removeMessage,
   messageInputRef,
+  markConversationUnreadFromMessage,
 }: UseConversationActionsArgs): UseConversationActionsResult {
   const t = useT();
   const mergeChannelIntoList = useCallback(
@@ -215,6 +222,25 @@ export function useConversationActions({
     [removeMessage, t]
   );
 
+  const handleMarkUnreadFromMessage = useCallback(
+    async (message: Message) => {
+      const type = message.type === 'CHAN' ? 'channel' : 'contact';
+      try {
+        await markConversationUnreadFromMessage({
+          type,
+          id: message.conversation_key,
+          messageId: message.id,
+        });
+        toast.success(t('chat_mark_unread_success'));
+      } catch (err) {
+        toast.error(t('chat_mark_unread_failed'), {
+          description: err instanceof Error ? err.message : undefined,
+        });
+      }
+    },
+    [markConversationUnreadFromMessage, t]
+  );
+
   const handleInsertLocation = useCallback(
     (lat: number, lon: number, label: string) => {
       messageInputRef.current?.appendText(`${buildMarkerPayload(lat, lon, label)} `);
@@ -258,6 +284,7 @@ export function useConversationActions({
     handleReactToMessage,
     handleReplyToMessage,
     handleDeleteMessage,
+    handleMarkUnreadFromMessage,
     handleInsertLocation,
     handleTrace,
     handlePathDiscovery,

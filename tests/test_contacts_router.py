@@ -431,6 +431,96 @@ class TestMarkRead:
         assert response.status_code == 404
 
 
+class TestMarkUnread:
+    """Test POST /api/contacts/{public_key}/mark-unread."""
+
+    @pytest.mark.asyncio
+    async def test_mark_unread_from_message_sets_last_read_at_before_it(self, test_db, client):
+        await _insert_contact(KEY_A)
+        await ContactRepository.update_last_read_at(KEY_A, 5000)
+
+        msg_id = await MessageRepository.create(
+            msg_type="PRIV",
+            text="hi",
+            conversation_key=KEY_A,
+            sender_timestamp=2000,
+            received_at=2000,
+            sender_key=KEY_A,
+        )
+
+        response = await client.post(
+            f"/api/contacts/{KEY_A}/mark-unread", json={"message_id": msg_id}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ok"
+        assert data["message_id"] == msg_id
+        assert data["last_read_at"] == 1999
+
+        contact = await ContactRepository.get_by_key(KEY_A)
+        assert contact.last_read_at == 1999
+
+        unreads = await MessageRepository.get_unread_counts()
+        assert unreads["counts"].get(f"contact-{KEY_A.lower()}") == 1
+        assert unreads["first_unread_ids"].get(f"contact-{KEY_A.lower()}") == msg_id
+
+    @pytest.mark.asyncio
+    async def test_mark_unread_rejects_outgoing_message(self, test_db, client):
+        await _insert_contact(KEY_A)
+
+        msg_id = await MessageRepository.create(
+            msg_type="PRIV",
+            text="hi",
+            conversation_key=KEY_A,
+            sender_timestamp=2000,
+            received_at=2000,
+            outgoing=True,
+        )
+
+        response = await client.post(
+            f"/api/contacts/{KEY_A}/mark-unread", json={"message_id": msg_id}
+        )
+
+        assert response.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_mark_unread_rejects_message_from_other_conversation(self, test_db, client):
+        await _insert_contact(KEY_A)
+        await _insert_contact(KEY_B, "Bob")
+
+        msg_id = await MessageRepository.create(
+            msg_type="PRIV",
+            text="hi",
+            conversation_key=KEY_B,
+            sender_timestamp=2000,
+            received_at=2000,
+            sender_key=KEY_B,
+        )
+
+        response = await client.post(
+            f"/api/contacts/{KEY_A}/mark-unread", json={"message_id": msg_id}
+        )
+
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_mark_unread_unknown_message_returns_404(self, test_db, client):
+        await _insert_contact(KEY_A)
+
+        response = await client.post(
+            f"/api/contacts/{KEY_A}/mark-unread", json={"message_id": 999999}
+        )
+
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_mark_unread_contact_not_found(self, test_db, client):
+        response = await client.post(f"/api/contacts/{KEY_A}/mark-unread", json={"message_id": 1})
+
+        assert response.status_code == 404
+
+
 class TestDeleteContact:
     """Test DELETE /api/contacts/{public_key}."""
 

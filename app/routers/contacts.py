@@ -31,6 +31,7 @@ from app.models import (
     CreateContactRequest,
     LatestTelemetryEntry,
     LppSensor,
+    MarkUnreadRequest,
     NearestRepeater,
     PathDiscoveryResponse,
     PathDiscoveryRoute,
@@ -471,6 +472,38 @@ async def mark_contact_read(public_key: str) -> dict:
         raise HTTPException(status_code=500, detail="Failed to update read state")
 
     return {"status": "ok", "public_key": contact.public_key}
+
+
+@router.post("/{public_key}/mark-unread")
+async def mark_contact_unread(public_key: str, body: MarkUnreadRequest) -> dict:
+    """Mark a contact conversation as unread from a given message onward.
+
+    Sets last_read_at to just before the message's received_at, so that
+    message and every incoming message after it count as unread again.
+    """
+    contact = await _resolve_contact_or_404(public_key)
+
+    message = await MessageRepository.get_by_id(body.message_id)
+    if (
+        not message
+        or message.type != "PRIV"
+        or message.conversation_key.lower() != contact.public_key.lower()
+    ):
+        raise HTTPException(status_code=404, detail="Message not found in this conversation")
+    if message.outgoing:
+        raise HTTPException(status_code=400, detail="Cannot mark an outgoing message as unread")
+
+    timestamp = message.received_at - 1
+    updated = await ContactRepository.update_last_read_at(contact.public_key, timestamp)
+    if not updated:
+        raise HTTPException(status_code=500, detail="Failed to update read state")
+
+    return {
+        "status": "ok",
+        "public_key": contact.public_key,
+        "message_id": message.id,
+        "last_read_at": timestamp,
+    }
 
 
 class BulkDeleteRequest(BaseModel):

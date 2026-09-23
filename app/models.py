@@ -1223,6 +1223,12 @@ class RadioPresetsStore(BaseModel):
     source_url: str = Field(default="", description="Upstream URL the presets came from")
 
 
+class MarkUnreadRequest(BaseModel):
+    """Request to mark a conversation unread from a specific message onward."""
+
+    message_id: int = Field(description="ID of the incoming message to mark unread, inclusive")
+
+
 class UnreadCounts(BaseModel):
     """Aggregated unread counts, mention flags, and last message times for all conversations."""
 

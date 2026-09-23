@@ -366,6 +366,14 @@ export const api = {
     fetchJson<{ status: string; public_key: string }>(`/contacts/${publicKey}/mark-read`, {
       method: 'POST',
     }),
+  markContactUnread: (publicKey: string, messageId: number) =>
+    fetchJson<{ status: string; public_key: string; message_id: number; last_read_at: number }>(
+      `/contacts/${publicKey}/mark-unread`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ message_id: messageId }),
+      }
+    ),
   sendRepeaterCommand: (publicKey: string, command: string) =>
     fetchJson<CommandResponse>(`/contacts/${publicKey}/command`, {
       method: 'POST',
@@ -470,6 +478,14 @@ export const api = {
     fetchJson<{ status: string; key: string }>(`/channels/${key}/mark-read`, {
       method: 'POST',
     }),
+  markChannelUnread: (key: string, messageId: number) =>
+    fetchJson<{ status: string; key: string; message_id: number; last_read_at: number }>(
+      `/channels/${key}/mark-unread`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ message_id: messageId }),
+      }
+    ),
   setChannelFloodScopeOverride: (key: string, floodScopeOverride: string) =>
     fetchJson<Channel>(`/channels/${key}/flood-scope-override`, {
       method: 'POST',

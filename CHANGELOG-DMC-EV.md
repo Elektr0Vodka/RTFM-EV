@@ -187,6 +187,31 @@ the change. Upstream development is on hold; the fork is the active repository.
   keys and membership edits (`toggleGroupMember`, `createContactGroup`,
   `renameContactGroup`, `deleteContactGroup`, `groupsContainingContact/
   Channel`), covered directly in `frontend/src/test/sidebarLayout.test.ts`.
+## Update 2026-09-23 (Mark unread, plan 28 item 1.6, feat/mark-unread)
+
+### Chat (backend)
+- **Mark unread from here.** New `POST /api/contacts/{public_key}/mark-unread`
+  and `POST /api/channels/{key}/mark-unread` (`{message_id}`) set
+  `last_read_at` to just before the given message's `received_at`, so that
+  message and every incoming message after it count as unread again. Read
+  state stays server-side and shared across browsers, same as mark-read. The
+  message must be an incoming message in that conversation (400/404
+  otherwise).
+
+### Chat (frontend)
+- **"Mark unread from here" message action.** A new envelope icon next to
+  React/Reply on hover marks the conversation unread from that message
+  onward. The sidebar badge, unread count and first-unread divider
+  (`first_unread_ids`) reflect it on the next refresh, and it persists across
+  reloads and other browsers, since it is server-side.
+- **Fix: the manual unread mark no longer gets wiped while still viewing the
+  conversation.** The app auto-marks the open conversation as read on every
+  `/unreads` refresh (WS reconnect, mute toggle, etc.), which would otherwise
+  immediately undo a "mark unread from here" done on the currently open
+  conversation. That auto re-mark is now suppressed for the conversation just
+  marked unread until the user actually leaves and returns to it (a real
+  navigation), at which point it reads as normal again, same as any other
+  unread conversation.
 
 ## Update 2026-09-23 (Shared-locations map layer + MGRS, feat/shared-locations-map-layer)
 

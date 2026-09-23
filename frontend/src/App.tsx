@@ -449,6 +449,7 @@ export function App() {
     removeConversationState,
     markAllRead,
     markConversationsRead,
+    markConversationUnreadFromMessage,
     refreshUnreads,
   } = useUnreadCounts(channels, contacts, activeConversation);
   useFaviconBadge(unreadCounts, mentions, channels, appSettings?.brand_icon || undefined);
@@ -555,6 +556,7 @@ export function App() {
     handleReactToMessage,
     handleReplyToMessage,
     handleDeleteMessage,
+    handleMarkUnreadFromMessage,
     handleSetChannelFloodScopeOverride,
     handleSetChannelPathHashModeOverride,
     handleSenderClick,
@@ -569,6 +571,7 @@ export function App() {
     observeMessage,
     removeMessage,
     messageInputRef,
+    markConversationUnreadFromMessage,
   });
   const handleCreateCrackedChannel = useCallback(
     async (name: string, key: string) => {
@@ -743,6 +746,7 @@ export function App() {
     onRetryDirectMessage: handleRetryDirectMessage,
     onReplyToMessage: handleReplyToMessage,
     onDeleteMessage: handleDeleteMessage,
+    onMarkUnreadFromMessage: handleMarkUnreadFromMessage,
     targetMessageId,
     hasNewerMessages,
     loadingNewer,

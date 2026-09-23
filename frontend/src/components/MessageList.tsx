@@ -92,6 +92,8 @@ interface MessageListProps {
   onDeleteMessage?: (message: Message) => void;
   /** Retry a failed outgoing DM (a new copy replaces the failed one). */
   onRetryDirectMessage?: (messageId: number) => void | Promise<void>;
+  /** Mark the conversation unread from (and including) this message. */
+  onMarkUnreadFromMessage?: (message: Message) => void;
   onSenderClick?: (sender: string) => void;
   onLoadOlder?: () => void;
   onResendChannelMessage?: (messageId: number, newTimestamp?: boolean) => void;
@@ -678,6 +680,7 @@ export function MessageList({
   onReplyToMessage,
   onDeleteMessage,
   onRetryDirectMessage,
+  onMarkUnreadFromMessage,
   onSenderClick,
   onLoadOlder,
   onResendChannelMessage,
@@ -1967,6 +1970,14 @@ export function MessageList({
                     onRetry={
                       isRetryable(msg) && onRetryDirectMessage
                         ? () => onRetryDirectMessage(msg.id)
+                        : undefined
+                    }
+                    onMarkUnread={
+                      msg.sender_timestamp != null &&
+                      !isReactionPayload(content) &&
+                      !msg.outgoing &&
+                      onMarkUnreadFromMessage
+                        ? () => onMarkUnreadFromMessage(msg)
                         : undefined
                     }
                     onDelete={onDeleteMessage ? () => onDeleteMessage(msg) : undefined}

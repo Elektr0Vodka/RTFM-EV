@@ -13,7 +13,13 @@ from app.channel_constants import (
     is_public_channel_name,
 )
 from app.decoder import parse_packet, try_decrypt_packet_with_channel_key
-from app.models import Channel, ChannelDetail, ChannelMessageCounts, ChannelTopSender
+from app.models import (
+    Channel,
+    ChannelDetail,
+    ChannelMessageCounts,
+    ChannelTopSender,
+    MarkUnreadRequest,
+)
 from app.packet_processor import create_message_from_decrypted
 from app.region_scope import UNSCOPED_OVERRIDE_MARKER, is_unscoped, normalize_region_scope
 from app.repository import ChannelRepository, MessageRepository, RawPacketRepository
@@ -358,6 +364,40 @@ async def mark_channel_read(key: str) -> dict:
         raise HTTPException(status_code=500, detail="Failed to update read state")
 
     return {"status": "ok", "key": channel.key}
+
+
+@router.post("/{key}/mark-unread")
+async def mark_channel_unread(key: str, body: MarkUnreadRequest) -> dict:
+    """Mark a channel as unread from a given message onward.
+
+    Sets last_read_at to just before the message's received_at, so that
+    message and every incoming message after it count as unread again.
+    """
+    channel = await ChannelRepository.get_by_key(key)
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+
+    message = await MessageRepository.get_by_id(body.message_id)
+    if (
+        not message
+        or message.type != "CHAN"
+        or message.conversation_key.upper() != channel.key.upper()
+    ):
+        raise HTTPException(status_code=404, detail="Message not found in this channel")
+    if message.outgoing:
+        raise HTTPException(status_code=400, detail="Cannot mark an outgoing message as unread")
+
+    timestamp = message.received_at - 1
+    updated = await ChannelRepository.update_last_read_at(key, timestamp)
+    if not updated:
+        raise HTTPException(status_code=500, detail="Failed to update read state")
+
+    return {
+        "status": "ok",
+        "key": channel.key,
+        "message_id": message.id,
+        "last_read_at": timestamp,
+    }
 
 
 @router.post("/{key}/flood-scope-override", response_model=Channel)

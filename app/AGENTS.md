@@ -150,6 +150,7 @@ without going through `assert_public_http_url`.
 - Server is source of truth (`contacts.last_read_at`, `channels.last_read_at`).
 - `GET /api/read-state/unreads` returns counts, mention flags, `last_message_times`, `last_read_ats`, and `first_unread_ids`.
 - `first_unread_ids` maps stateKey -> id of the oldest unread message, so the client can anchor the unread divider (and jump to it) without paging back through history. It is computed with `ROW_NUMBER() OVER (PARTITION BY type, conversation_key ORDER BY received_at, id)` - deliberately not `MIN(received_at)` with a bare id, because sender timestamps are whole seconds and same-second ties are routine, and not `MIN(id)`, because historical decryption inserts old messages with new ids.
+- `POST /contacts/{public_key}/mark-unread` and `POST /channels/{key}/mark-unread` (`{message_id}`) mark a conversation unread from a given message onward, by setting `last_read_at = message.received_at - 1`. The message must be an incoming (`outgoing = 0`) message belonging to that conversation (404/400 otherwise). Same server-side, shared-across-browsers model as mark-read.
 
 ### DM ingest + ACKs
 
@@ -287,6 +288,7 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `POST /contacts/import-uri` - body `{uri}`: import a `meshcore://` contact link (`app/contact_uri.py`). The link is validated first (scheme, hex, <= 255 bytes, ADVERT packet, Ed25519 signature; 400 otherwise), then sent with `import_contact` (CMD_IMPORT_CONTACT; 422 if the radio rejects it). The firmware loops the advert back as if heard and ignores the forwarding decision, so nothing is transmitted. A new contact is stored with the advert's name, type and location but no `last_advert`/`last_seen` (not heard on RF); an existing contact is left unchanged. Broadcasts `contact`. `share_contact` (CMD 0x10, transmits) is deliberately not used anywhere
 - `DELETE /contacts/{public_key}`
 - `POST /contacts/{public_key}/mark-read`
+- `POST /contacts/{public_key}/mark-unread` - `{message_id}`, marks unread from that message onward
 - `POST /contacts/{public_key}/command`
 - `POST /contacts/{public_key}/annotations` - set user annotations (`notes`, `owner_info`, `owner_key`, `manual_lat`, `manual_lon`, `battery_chemistry`); partial update, explicit `null` clears a field (for `battery_chemistry`, reverting to the global default), `owner_key` must reference an existing contact (422 otherwise), `battery_chemistry` must be one of `lipo`/`lifepo4`/`lipo_hv`/`nmc` (422 otherwise); broadcasts `contact`
 - `POST /contacts/{public_key}/routing-override`
@@ -321,6 +323,7 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `POST /channels/{key}/flood-scope-override`
 - `POST /channels/{key}/path-hash-mode-override`
 - `POST /channels/{key}/mark-read`
+- `POST /channels/{key}/mark-unread` - `{message_id}`, marks unread from that message onward
 
 ### Communities
 meshcore-open communities (`app/communities.py`, port of `lib/models/community.dart`; router `app/routers/communities.py`; table `communities` from migration `_110`). A community is a 32-byte secret `K` plus a name. Keys: public channel `HMAC-SHA256(K, "channel:v1:__public__")[:16]`, hashtag channel `HMAC-SHA256(K, "channel:v1:" + normalized)[:16]` (strip one leading `#`, lowercase, trim), community ID `SHA256("community:v1" || K)` hex. Channel names `"<name> Public"` (cut to 32 UTF-8 bytes) and `"<name> #<tag>"` (400 when over 32 bytes). Channels are DB-only (`is_hashtag=false`, `on_radio=false`) like `POST /channels`; an existing key is left untouched. Nothing transmits. `K` is stored in `communities.secret` so hashtags can be added later; it is never logged and only `GET /communities/{id}/export` returns it (`Cache-Control: no-store`). It is also in DB backups.
