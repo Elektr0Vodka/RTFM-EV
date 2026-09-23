@@ -18,11 +18,14 @@ import {
   Map,
   PanelLeftClose,
   PanelLeftOpen,
+  Pencil,
+  Plus,
   Radar,
   ScanSearch,
   Search as SearchIcon,
   Settings2,
   SquarePen,
+  Trash2,
   TrendingUp,
   X,
 } from 'lucide-react';
@@ -31,6 +34,7 @@ import {
   CONTACT_TYPE_REPEATER,
   type Contact,
   type Channel,
+  type ContactGroup,
   type Conversation,
 } from '../types';
 import { SegmentedPills, type SegmentedOption, type SegmentedUnread } from './ui/segmented';
@@ -64,9 +68,18 @@ import {
   loadRailCollapsed,
   saveRailCollapsed,
   resetSidebarLayout,
-  ALL_SECTION_KEYS,
   ALL_TOOL_KEYS,
   ALL_FAVORITE_GROUP_KEYS,
+  groupSectionKey,
+  isGroupSectionKey,
+  groupIdFromSectionKey,
+  createContactGroup,
+  renameContactGroup,
+  deleteContactGroup,
+  isContactGrouped,
+  isChannelGrouped,
+  loadGroupCollapsed,
+  saveGroupCollapsed,
   type SidebarSectionKey,
   type SidebarToolKey,
   type FavoriteGroupKey,
@@ -226,13 +239,16 @@ interface SidebarProps {
   sidebarFavoriteSortOrders?: Partial<SidebarFavoriteSortOrders>;
   /** Hidden Customize-sidebar entries (server-persisted). */
   sidebarHidden?: { sections: string[]; tools: string[]; favorites: string[] };
-  /** Persist a sidebar order/visibility change to the backend. */
+  /** User-defined contact/channel groups (server-persisted), each its own section. */
+  contactGroups?: ContactGroup[];
+  /** Persist a sidebar order/visibility change (or a contact-groups edit) to the backend. */
   onSaveSidebarOrder?: (update: {
     sidebar_section_order?: string[];
     sidebar_tool_order?: string[];
     sidebar_favorites_order?: string[];
     sidebar_favorite_sort_orders?: Partial<SidebarFavoriteSortOrders>;
     sidebar_hidden?: { sections: string[]; tools: string[]; favorites: string[] };
+    contact_groups?: ContactGroup[];
   }) => void | Promise<void>;
   /** When true (mobile drawer mount), pin the rail open and hide the rail toggle. */
   forceExpanded?: boolean;
@@ -271,6 +287,7 @@ export function Sidebar({
   sidebarFavoritesOrder = [],
   sidebarFavoriteSortOrders,
   sidebarHidden,
+  contactGroups = [],
   onSaveSidebarOrder,
   forceExpanded = false,
 }: SidebarProps) {
@@ -314,11 +331,12 @@ export function Sidebar({
 
   // Layout customisation preferences. Section/tool/favorites orders are
   // server-persisted (see App -> appSettings); rail collapse stays client-local.
+  const groupIds = useMemo(() => contactGroups.map((g) => g.id), [contactGroups]);
   const [toolOrder, setToolOrder] = useState<SidebarToolKey[]>(() =>
     resolveToolOrder(sidebarToolOrder)
   );
   const [sectionOrder, setSectionOrder] = useState<SidebarSectionKey[]>(() =>
-    resolveSectionOrder(sidebarSectionOrder)
+    resolveSectionOrder(sidebarSectionOrder, groupIds)
   );
   const [favoritesOrder, setFavoritesOrder] = useState<FavoriteGroupKey[]>(() =>
     resolveFavoritesOrder(sidebarFavoritesOrder)
@@ -328,15 +346,23 @@ export function Sidebar({
   );
   const [hidden, setHidden] = useState<SidebarHidden>(() => resolveHidden(sidebarHidden));
   const [railCollapsed, setRailCollapsed] = useState<boolean>(loadRailCollapsed);
+  // Per-group collapse state (client-local, like every other section).
+  const [groupCollapsed, setGroupCollapsed] = useState<Record<string, boolean>>(loadGroupCollapsed);
+  // Inline rename/create UI state for the Customize panel's "Contact groups" list.
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [groupNameDraft, setGroupNameDraft] = useState('');
+  const [newGroupName, setNewGroupName] = useState('');
 
-  // Re-sync local order state when the server value changes (e.g. after fetch or
-  // a PATCH round-trip). JSON compare avoids clobbering an identical value.
+  // Re-sync local order state when the server value (or the set of groups)
+  // changes, e.g. after fetch, a PATCH round-trip, or a group being created or
+  // deleted. JSON compare avoids clobbering an identical value.
   useEffect(() => {
     setSectionOrder((prev) => {
-      const next = resolveSectionOrder(sidebarSectionOrder);
+      const next = resolveSectionOrder(sidebarSectionOrder, groupIds);
       return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
     });
-  }, [sidebarSectionOrder]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sidebarSectionOrder, groupIds.join(',')]);
   useEffect(() => {
     setToolOrder((prev) => {
       const next = resolveToolOrder(sidebarToolOrder);
@@ -408,9 +434,34 @@ export function Sidebar({
     setHidden(next);
     void onSaveSidebarOrder?.({ sidebar_hidden: next });
   };
+  const handleCreateGroup = () => {
+    const name = newGroupName.trim();
+    if (!name) return;
+    const next = [...contactGroups, createContactGroup(name)];
+    setNewGroupName('');
+    void onSaveSidebarOrder?.({ contact_groups: next });
+  };
+  const handleRenameGroup = (id: string, name: string) => {
+    const next = renameContactGroup(contactGroups, id, name);
+    setEditingGroupId(null);
+    void onSaveSidebarOrder?.({ contact_groups: next });
+  };
+  const handleDeleteGroup = (id: string, name: string) => {
+    if (!window.confirm(t('nav_group_delete_confirm', { name }))) return;
+    const next = deleteContactGroup(contactGroups, id);
+    void onSaveSidebarOrder?.({ contact_groups: next });
+  };
+  const handleToggleGroupCollapse = (id: string) => {
+    setGroupCollapsed((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      saveGroupCollapsed(next);
+      return next;
+    });
+  };
+
   const handleResetLayout = () => {
     resetSidebarLayout();
-    setSectionOrder([...ALL_SECTION_KEYS]);
+    setSectionOrder(resolveSectionOrder([], groupIds));
     setToolOrder([...ALL_TOOL_KEYS]);
     setFavoritesOrder([...ALL_FAVORITE_GROUP_KEYS]);
     const clearedSortOrders = resolveFavoriteSortOrders({});
@@ -718,6 +769,13 @@ export function Sidebar({
       : visible;
   }, [sortedRepeaters, query, isContactBlocked]);
 
+  // Combined, already search+block-filtered contact pool (every type) used to
+  // resolve a custom group's contact members regardless of their pill/type.
+  const allFilteredContactsPool = useMemo(
+    () => [...filteredNonRepeaterContacts, ...filteredRooms, ...filteredRepeaters],
+    [filteredNonRepeaterContacts, filteredRooms, filteredRepeaters]
+  );
+
   // Expand sections while searching; restore prior collapse state when search ends.
   useEffect(() => {
     if (isSearching) {
@@ -850,10 +908,22 @@ export function Sidebar({
       ...filteredRooms,
       ...filteredRepeaters,
     ].filter((c) => c.favorite);
-    const nonFavChannels = filteredChannels.filter((c) => !c.favorite);
-    const nonFavContacts = filteredNonRepeaterContacts.filter((c) => !c.favorite);
-    const nonFavRooms = filteredRooms.filter((c) => !c.favorite);
-    const nonFavRepeaters = filteredRepeaters.filter((c) => !c.favorite);
+    // A grouped item drops out of its normal section the same way a favorite
+    // does (see ContactGroup docs) - the group section becomes its "leftover"
+    // section unless it is also a favorite, in which case it keeps showing
+    // there too. Favorites themselves are unaffected by grouping.
+    const nonFavChannels = filteredChannels.filter(
+      (c) => !c.favorite && !isChannelGrouped(contactGroups, c.key)
+    );
+    const nonFavContacts = filteredNonRepeaterContacts.filter(
+      (c) => !c.favorite && !isContactGrouped(contactGroups, c.public_key)
+    );
+    const nonFavRooms = filteredRooms.filter(
+      (c) => !c.favorite && !isContactGrouped(contactGroups, c.public_key)
+    );
+    const nonFavRepeaters = filteredRepeaters.filter(
+      (c) => !c.favorite && !isContactGrouped(contactGroups, c.public_key)
+    );
 
     const items: FavoriteItem[] = [
       ...favChannels.map((channel) => ({ type: 'channel' as const, channel })),
@@ -890,6 +960,7 @@ export function Sidebar({
     filteredRepeaters,
     favoriteSortOrders,
     sortFavoriteItemsByOrder,
+    contactGroups,
   ]);
 
   const buildChannelRow = (channel: Channel, keyPrefix: string): ConversationRow => ({
@@ -1529,8 +1600,53 @@ export function Sidebar({
     );
   };
 
+  // Renders one user-defined contact group as its own collapsible section.
+  // Members are resolved from the already search/block-filtered pools so a
+  // group section respects the same search and blocking as every other
+  // section; a group with no visible members (all filtered out, or the
+  // group's members were removed) simply doesn't render.
+  const renderGroupSection = (group: ContactGroup): React.ReactNode => {
+    const groupChannelRows = filteredChannels
+      .filter((c) => group.channel_keys.includes(c.key))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((c) => buildChannelRow(c, `grp-${group.id}-chan`));
+    const groupContactRows = allFilteredContactsPool
+      .filter((c) => group.contact_keys.includes(c.public_key.toLowerCase()))
+      .sort((a, b) => (a.name || a.public_key).localeCompare(b.name || b.public_key))
+      .map((c) => buildContactRow(c, `grp-${group.id}-contact`));
+    const rows = [...groupChannelRows, ...groupContactRows];
+    if (rows.length === 0) return null;
+
+    const collapsed = groupCollapsed[group.id] ?? false;
+    const unread = getSectionUnreadCount(rows);
+    const mention = sectionHasMention(rows);
+    const newCount = countNew(identitiesOf(rows));
+
+    return (
+      <div key={`sec-${groupSectionKey(group.id)}`}>
+        {renderSectionHeader(
+          group.name,
+          collapsed,
+          () => handleToggleGroupCollapse(group.id),
+          null,
+          unread,
+          mention,
+          null,
+          rows.length,
+          newCount,
+          unread > 0 || newCount > 0 ? () => clearSection(rows) : null
+        )}
+        {(isSearching || !collapsed) && rows.map((row) => renderConversationRow(row))}
+      </div>
+    );
+  };
+
   const renderSection = (key: SidebarSectionKey): React.ReactNode => {
     if (hiddenSectionSet.has(key)) return null;
+    if (isGroupSectionKey(key)) {
+      const group = contactGroups.find((g) => g.id === groupIdFromSectionKey(key));
+      return group ? renderGroupSection(group) : null;
+    }
     switch (key) {
       case 'tools':
         return toolRows.length > 0 ? (
@@ -1673,11 +1789,12 @@ export function Sidebar({
     }
   };
 
-  const sectionLabels: Record<SidebarSectionKey, string> = {
+  const sectionLabels: Record<string, string> = {
     tools: t('nav_tools_heading'),
     favorites: t('nav_favorites_heading'),
     channels: t('nav_channels_heading'),
     contacts: t('nav_contacts_heading'),
+    ...Object.fromEntries(contactGroups.map((g) => [groupSectionKey(g.id), g.name])),
   };
   const toolLabels: Record<SidebarToolKey, string> = {
     'my-node': t('nav_my_node'),
@@ -1829,6 +1946,86 @@ export function Sidebar({
                       showLabel={t('nav_show_entry')}
                       hideLabel={t('nav_hide_entry')}
                     />
+                  </div>
+                  <div>
+                    <div className="text-[0.625rem] uppercase tracking-wider text-muted-foreground mb-1.5">
+                      {t('nav_contact_groups_heading')}
+                    </div>
+                    {contactGroups.length === 0 && (
+                      <p className="text-xs text-muted-foreground mb-1.5">
+                        {t('nav_contact_groups_empty')}
+                      </p>
+                    )}
+                    <ul className="space-y-1 mb-1.5" role="list">
+                      {contactGroups.map((group) => (
+                        <li
+                          key={group.id}
+                          className="flex items-center gap-2 rounded px-2 py-1.5 bg-background border border-border"
+                        >
+                          {editingGroupId === group.id ? (
+                            <Input
+                              autoFocus
+                              value={groupNameDraft}
+                              onChange={(e) => setGroupNameDraft(e.target.value)}
+                              onBlur={() => handleRenameGroup(group.id, groupNameDraft)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleRenameGroup(group.id, groupNameDraft);
+                                if (e.key === 'Escape') setEditingGroupId(null);
+                              }}
+                              className="h-7 text-[13px] flex-1"
+                              aria-label={t('nav_group_rename_label', { name: group.name })}
+                            />
+                          ) : (
+                            <span className="text-[13px] flex-1 truncate">{group.name}</span>
+                          )}
+                          <button
+                            type="button"
+                            className="p-0.5 rounded text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            onClick={() => {
+                              setEditingGroupId(group.id);
+                              setGroupNameDraft(group.name);
+                            }}
+                            aria-label={t('nav_group_rename_label', { name: group.name })}
+                            title={t('nav_group_rename_label', { name: group.name })}
+                          >
+                            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                          <button
+                            type="button"
+                            className="p-0.5 rounded text-muted-foreground hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            onClick={() => handleDeleteGroup(group.id, group.name)}
+                            aria-label={t('nav_group_delete_label', { name: group.name })}
+                            title={t('nav_group_delete_label', { name: group.name })}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        value={newGroupName}
+                        onChange={(e) => setNewGroupName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleCreateGroup();
+                        }}
+                        placeholder={t('nav_group_name_placeholder')}
+                        aria-label={t('nav_group_name_placeholder')}
+                        className="h-7 text-[13px] flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2"
+                        onClick={handleCreateGroup}
+                        disabled={!newGroupName.trim()}
+                        aria-label={t('nav_group_create')}
+                        title={t('nav_group_create')}
+                      >
+                        <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                      </Button>
+                    </div>
                   </div>
                   <Button
                     variant="outline"

@@ -521,6 +521,62 @@ class TestDebugEndpoint:
         assert response.json()["sidebar_favorite_sort_orders"]["channels"] == "alpha"
 
     @pytest.mark.asyncio
+    async def test_contact_groups_round_trip(self, test_db, client):
+        """Contact groups default to [] and persist (full-list replace) via PATCH."""
+        response = await client.get("/api/settings")
+        assert response.status_code == 200
+        assert response.json()["contact_groups"] == []
+
+        response = await client.patch(
+            "/api/settings",
+            json={
+                "contact_groups": [
+                    {
+                        "id": "grp-1",
+                        "name": "  Field team  ",
+                        "contact_keys": ["ABCDEF01", "abcdef01"],
+                        "channel_keys": ["chan-key-1"],
+                    },
+                    {
+                        "id": "grp-2",
+                        "name": "Backups",
+                        "contact_keys": [],
+                        "channel_keys": [],
+                    },
+                ]
+            },
+        )
+        assert response.status_code == 200
+        groups = response.json()["contact_groups"]
+        assert len(groups) == 2
+        assert groups[0]["id"] == "grp-1"
+        # Name is trimmed; contact keys are lowercased and deduped.
+        assert groups[0]["name"] == "Field team"
+        assert groups[0]["contact_keys"] == ["abcdef01"]
+        assert groups[0]["channel_keys"] == ["chan-key-1"]
+        assert groups[1]["id"] == "grp-2"
+
+        # Persisted across a fresh GET.
+        response = await client.get("/api/settings")
+        groups = response.json()["contact_groups"]
+        assert [g["id"] for g in groups] == ["grp-1", "grp-2"]
+
+        # A blank id or name is dropped rather than rejected.
+        response = await client.patch(
+            "/api/settings",
+            json={
+                "contact_groups": [
+                    {"id": "", "name": "No id", "contact_keys": [], "channel_keys": []},
+                    {"id": "grp-3", "name": "  ", "contact_keys": [], "channel_keys": []},
+                    {"id": "grp-4", "name": "Kept", "contact_keys": [], "channel_keys": []},
+                ]
+            },
+        )
+        assert response.status_code == 200
+        groups = response.json()["contact_groups"]
+        assert [g["id"] for g in groups] == ["grp-4"]
+
+    @pytest.mark.asyncio
     async def test_packet_feed_sort_round_trip(self, test_db, client):
         """Packet-feed sort defaults to 'oldest' and persists 'newest' via PATCH."""
         response = await client.get("/api/settings")

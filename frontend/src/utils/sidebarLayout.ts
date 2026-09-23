@@ -1,4 +1,4 @@
-import type { FavoriteSortOrder, SidebarFavoriteSortOrders } from '../types';
+import type { ContactGroup, FavoriteSortOrder, SidebarFavoriteSortOrders } from '../types';
 
 // Sidebar layout preferences (section order, tool order, favorites-group order,
 // favorites-group sort orders, rail collapse).
@@ -11,9 +11,28 @@ import type { FavoriteSortOrder, SidebarFavoriteSortOrders } from '../types';
 // preference), as does the legacy section/tool localStorage until migrated.
 
 // Reorderable list sections (Mark-All-Read is a pinned action row, not reorderable).
-export type SidebarSectionKey = 'tools' | 'favorites' | 'channels' | 'contacts';
+// A user-defined contact group also becomes a reorderable section, keyed
+// `group:<id>` so it slots into the same order/hide/collapse machinery as the
+// four built-in sections below (see groupSectionKey/isGroupSectionKey).
+export type SidebarSectionKey = 'tools' | 'favorites' | 'channels' | 'contacts' | `group:${string}`;
 
 export const ALL_SECTION_KEYS: SidebarSectionKey[] = ['tools', 'favorites', 'channels', 'contacts'];
+
+const GROUP_SECTION_PREFIX = 'group:';
+
+/** Section key for a user-defined contact group's sidebar section. */
+export function groupSectionKey(groupId: string): SidebarSectionKey {
+  return `${GROUP_SECTION_PREFIX}${groupId}`;
+}
+
+export function isGroupSectionKey(key: string): boolean {
+  return key.startsWith(GROUP_SECTION_PREFIX);
+}
+
+/** Extracts the group id from a `group:<id>` section key. */
+export function groupIdFromSectionKey(key: string): string {
+  return key.slice(GROUP_SECTION_PREFIX.length);
+}
 
 // Tool rows, keyed to match the existing render in Sidebar.tsx.
 export type SidebarToolKey =
@@ -91,8 +110,19 @@ function saveJson(key: string, value: unknown): void {
 
 // Server-value reconcilers: turn the app_settings order (possibly empty/unset,
 // stale, or containing unknown keys) into a valid, complete order.
-export function resolveSectionOrder(serverValue: unknown): SidebarSectionKey[] {
-  return reconcile<SidebarSectionKey>(serverValue, ALL_SECTION_KEYS);
+//
+// `groupIds` are the current user-defined contact groups: their section keys
+// are valid alongside the four built-in ones, and any not yet in the stored
+// order are appended (same "append newly-added keys" rule as the built-ins),
+// so a freshly-created group shows up without needing a manual reorder. A
+// group deleted since the order was last saved is silently dropped, same as
+// any other unknown key.
+export function resolveSectionOrder(
+  serverValue: unknown,
+  groupIds: string[] = []
+): SidebarSectionKey[] {
+  const all: SidebarSectionKey[] = [...ALL_SECTION_KEYS, ...groupIds.map(groupSectionKey)];
+  return reconcile<SidebarSectionKey>(serverValue, all);
 }
 export function resolveToolOrder(serverValue: unknown): SidebarToolKey[] {
   return reconcile<SidebarToolKey>(serverValue, ALL_TOOL_KEYS);
@@ -182,4 +212,104 @@ export function resetSidebarLayout(): void {
   } catch {
     // Ignore.
   }
+}
+
+// Per-group collapse state (which group sections are collapsed), keyed by
+// group id. Client-local, same as every other section's collapse state.
+const GROUP_COLLAPSE_KEY = 'remoteterm-sidebar-group-collapse-state';
+
+export function loadGroupCollapsed(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(GROUP_COLLAPSE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object') return {};
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>).filter(([, v]) => typeof v === 'boolean')
+    ) as Record<string, boolean>;
+  } catch {
+    return {};
+  }
+}
+
+export function saveGroupCollapsed(state: Record<string, boolean>): void {
+  saveJson(GROUP_COLLAPSE_KEY, state);
+}
+
+// --- Contact groups: pure state-transition helpers -------------------------
+//
+// Groups are stored server-side (app_settings.contact_groups) as a full list;
+// every mutation below takes the current list and returns the next one, ready
+// to hand to a full-list PATCH (see App.tsx handleSaveAppSettings). Keeping
+// these pure and side-effect-free makes them independently testable and lets
+// the same logic be shared by the Sidebar customize panel, ContactInfoBody
+// and ChannelInfoPane.
+
+function genGroupId(): string {
+  const c = globalThis.crypto as Crypto | undefined;
+  if (c && typeof c.randomUUID === 'function') return c.randomUUID();
+  return `grp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+/** Builds a new, empty group with a fresh id and a trimmed name. */
+export function createContactGroup(name: string): ContactGroup {
+  return { id: genGroupId(), name: name.trim(), contact_keys: [], channel_keys: [] };
+}
+
+export function renameContactGroup(
+  groups: ContactGroup[],
+  groupId: string,
+  name: string
+): ContactGroup[] {
+  const trimmed = name.trim();
+  if (!trimmed) return groups;
+  return groups.map((g) => (g.id === groupId ? { ...g, name: trimmed } : g));
+}
+
+export function deleteContactGroup(groups: ContactGroup[], groupId: string): ContactGroup[] {
+  return groups.filter((g) => g.id !== groupId);
+}
+
+/** Adds a member if absent, removes it if present. Contact keys are lowercased. */
+export function toggleGroupMember(
+  groups: ContactGroup[],
+  groupId: string,
+  kind: 'contact' | 'channel',
+  key: string
+): ContactGroup[] {
+  const normalized = kind === 'contact' ? key.toLowerCase() : key;
+  return groups.map((g) => {
+    if (g.id !== groupId) return g;
+    const field = kind === 'contact' ? 'contact_keys' : 'channel_keys';
+    const current = g[field];
+    const next = current.includes(normalized)
+      ? current.filter((k) => k !== normalized)
+      : [...current, normalized];
+    return { ...g, [field]: next };
+  });
+}
+
+/** Groups a contact currently belongs to (by lowercase public key). */
+export function groupsContainingContact(
+  groups: ContactGroup[],
+  contactKey: string
+): ContactGroup[] {
+  const key = contactKey.toLowerCase();
+  return groups.filter((g) => g.contact_keys.includes(key));
+}
+
+/** Groups a channel currently belongs to (by channel key). */
+export function groupsContainingChannel(
+  groups: ContactGroup[],
+  channelKey: string
+): ContactGroup[] {
+  return groups.filter((g) => g.channel_keys.includes(channelKey));
+}
+
+export function isContactGrouped(groups: ContactGroup[], contactKey: string): boolean {
+  return groupsContainingContact(groups, contactKey).length > 0;
+}
+
+export function isChannelGrouped(groups: ContactGroup[], channelKey: string): boolean {
+  return groupsContainingChannel(groups, channelKey).length > 0;
 }

@@ -13,7 +13,7 @@ import {
   MostActiveChannelsSection,
   InfoItem,
 } from './ContactInfoBody';
-import type { AnalyzerSite, Contact, RadioConfig } from '../types';
+import type { AnalyzerSite, Contact, ContactGroup, RadioConfig } from '../types';
 
 interface ContactInfoPaneProps {
   contactKey: string | null;
@@ -32,6 +32,8 @@ interface ContactInfoPaneProps {
   trackedTelemetryContacts?: string[];
   onToggleTrackedTelemetryContact?: (publicKey: string) => Promise<void>;
   analyzerSites?: AnalyzerSite[];
+  contactGroups?: ContactGroup[];
+  onUpdateContactGroups?: (next: ContactGroup[]) => void | Promise<void>;
   onOpenContactInfo?: (publicKey: string) => void;
   onOpenConversation?: (publicKey: string) => void;
 }
@@ -53,6 +55,8 @@ export function ContactInfoPane({
   trackedTelemetryContacts = [],
   onToggleTrackedTelemetryContact,
   analyzerSites = [],
+  contactGroups,
+  onUpdateContactGroups,
   onOpenContactInfo,
   onOpenConversation,
 }: ContactInfoPaneProps) {
@@ -200,6 +204,8 @@ export function ContactInfoPane({
               trackedTelemetryContacts={trackedTelemetryContacts}
               onToggleTrackedTelemetryContact={onToggleTrackedTelemetryContact}
               analyzerSites={analyzerSites}
+              contactGroups={contactGroups}
+              onUpdateContactGroups={onUpdateContactGroups}
               onOpenContactInfo={onOpenContactInfo}
               onOpenConversation={onOpenConversation}
               region="all"

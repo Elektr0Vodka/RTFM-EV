@@ -17,6 +17,7 @@ import { CONTACT_TYPE_REPEATER, CONTACT_TYPE_ROOM } from '../types';
 import type {
   AnalyzerSite,
   Contact,
+  ContactGroup,
   Conversation,
   PathDiscoveryResponse,
   RadioConfig,
@@ -37,6 +38,8 @@ export interface ContactInfoViewProps {
   trackedTelemetryContacts?: string[];
   onToggleTrackedTelemetryContact?: (publicKey: string) => Promise<void>;
   analyzerSites?: AnalyzerSite[];
+  contactGroups?: ContactGroup[];
+  onUpdateContactGroups?: (next: ContactGroup[]) => void | Promise<void>;
   onOpenContactInfo?: (publicKey: string) => void;
   onOpenConversation?: (publicKey: string) => void;
 
@@ -80,6 +83,8 @@ export function ContactInfoView({
   trackedTelemetryContacts = [],
   onToggleTrackedTelemetryContact,
   analyzerSites = [],
+  contactGroups,
+  onUpdateContactGroups,
   onOpenContactInfo,
   onOpenConversation,
   radioLat = null,
@@ -152,6 +157,8 @@ export function ContactInfoView({
     trackedTelemetryContacts,
     onToggleTrackedTelemetryContact,
     analyzerSites,
+    contactGroups,
+    onUpdateContactGroups,
     onOpenContactInfo,
     onOpenConversation,
     showHeader: false,

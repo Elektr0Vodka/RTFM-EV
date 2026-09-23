@@ -9,7 +9,14 @@ import { useEntranceSettled } from '../hooks/useEntranceSettled';
 import { useT, type TFn } from '../i18n';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './ui/sheet';
 import { toast } from './ui/sonner';
-import type { AnalyzerSite, Channel, ChannelDetail, PathHashWidthStats } from '../types';
+import { createContactGroup, toggleGroupMember } from '../utils/sidebarLayout';
+import type {
+  AnalyzerSite,
+  Channel,
+  ChannelDetail,
+  ContactGroup,
+  PathHashWidthStats,
+} from '../types';
 
 interface ChannelInfoPaneProps {
   channelKey: string | null;
@@ -17,6 +24,10 @@ interface ChannelInfoPaneProps {
   channels: Channel[];
   onToggleFavorite: (type: 'channel' | 'contact', id: string) => void;
   analyzerSites?: AnalyzerSite[];
+  /** User-defined contact/channel groups (server-persisted); omit to hide the
+   *  Groups section entirely (e.g. when the caller has no settings loaded). */
+  contactGroups?: ContactGroup[];
+  onUpdateContactGroups?: (next: ContactGroup[]) => void | Promise<void>;
 }
 
 export function ChannelInfoPane({
@@ -25,6 +36,8 @@ export function ChannelInfoPane({
   channels,
   onToggleFavorite,
   analyzerSites = [],
+  contactGroups,
+  onUpdateContactGroups,
 }: ChannelInfoPaneProps) {
   const t = useT();
   const [detail, setDetail] = useState<ChannelDetail | null>(null);
@@ -164,6 +177,16 @@ export function ChannelInfoPane({
               </button>
             </div>
 
+            {/* Groups */}
+            {contactGroups && onUpdateContactGroups && (
+              <ChannelGroupsSection
+                t={t}
+                channelKey={channel.key}
+                contactGroups={contactGroups}
+                onUpdateContactGroups={onUpdateContactGroups}
+              />
+            )}
+
             {/* Open this channel on external analyzer(s). Hidden when no site has
                 a channel template. Opens a third-party site in a new tab; see the
                 privacy note in the analyzer-sites settings editor. */}
@@ -266,6 +289,80 @@ export function ChannelInfoPane({
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+/** Group membership editor for a channel - see the contact-side counterpart
+ *  in ContactInfoBody.tsx (ContactGroupsSection) for the shared design note. */
+function ChannelGroupsSection({
+  t,
+  channelKey,
+  contactGroups,
+  onUpdateContactGroups,
+}: {
+  t: TFn;
+  channelKey: string;
+  contactGroups: ContactGroup[];
+  onUpdateContactGroups: (next: ContactGroup[]) => void | Promise<void>;
+}) {
+  const [newGroupName, setNewGroupName] = useState('');
+
+  const createAndAdd = () => {
+    const name = newGroupName.trim();
+    if (!name) return;
+    const group = createContactGroup(name);
+    void onUpdateContactGroups(
+      toggleGroupMember([...contactGroups, group], group.id, 'channel', channelKey)
+    );
+    setNewGroupName('');
+  };
+
+  return (
+    <div className="px-5 py-3 border-b border-border">
+      <SectionLabel>{t('channel_groups_heading')}</SectionLabel>
+      {contactGroups.length === 0 ? (
+        <p className="text-xs text-muted-foreground mb-2">{t('nav_contact_groups_empty')}</p>
+      ) : (
+        <div className="space-y-1.5 mb-2">
+          {contactGroups.map((group) => (
+            <label key={group.id} className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={group.channel_keys.includes(channelKey)}
+                onChange={() =>
+                  void onUpdateContactGroups(
+                    toggleGroupMember(contactGroups, group.id, 'channel', channelKey)
+                  )
+                }
+                className="h-4 w-4 rounded border-input"
+              />
+              <span className="truncate">{group.name}</span>
+            </label>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-1.5">
+        <input
+          type="text"
+          value={newGroupName}
+          onChange={(e) => setNewGroupName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') createAndAdd();
+          }}
+          placeholder={t('nav_group_name_placeholder')}
+          aria-label={t('nav_group_name_placeholder')}
+          className="w-full text-sm rounded border border-border bg-background px-2 py-1"
+        />
+        <button
+          type="button"
+          className="text-xs px-2 py-1 rounded border border-border hover:bg-accent transition-colors whitespace-nowrap disabled:opacity-50"
+          disabled={!newGroupName.trim()}
+          onClick={createAndAdd}
+        >
+          {t('channel_group_create_and_add')}
+        </button>
+      </div>
+    </div>
   );
 }
 

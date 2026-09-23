@@ -164,6 +164,8 @@ interface ConversationPaneProps {
     onToggleBlockedName?: (name: string) => void;
     trackedTelemetryContacts?: string[];
     onToggleTrackedTelemetryContact?: (publicKey: string) => Promise<void>;
+    contactGroups?: import('../types').ContactGroup[];
+    onUpdateContactGroups?: (next: import('../types').ContactGroup[]) => void | Promise<void>;
     onOpenConversation?: (publicKey: string) => void;
   };
 }

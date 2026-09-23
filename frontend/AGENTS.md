@@ -102,7 +102,7 @@ frontend/src/
 │   ├── lastViewedConversation.ts   # localStorage for last-viewed conversation
 │   ├── contactMerge.ts            # Merge WS contact updates into list
 │   ├── localLabel.ts              # Local label (text + color) in localStorage
-│   ├── sidebarLayout.ts           # Sidebar order reconcilers (section/tool/favorites-group orders + per-favorite-group sort orders + hidden-entry overlay persist server-side in app_settings, reversing migration _051; rail-collapse stays localStorage) + one-time legacy-order migration helpers
+│   ├── sidebarLayout.ts           # Sidebar order reconcilers (section/tool/favorites-group orders + per-favorite-group sort orders + hidden-entry overlay persist server-side in app_settings, reversing migration _051; rail-collapse and per-group collapse stay localStorage) + one-time legacy-order migration helpers + contact-group pure helpers (create/rename/delete/toggle membership, `group:<id>` section keys)
 │   ├── radioPresets.ts            # LoRa radio preset configurations
 │   ├── publicChannel.ts           # Public-channel resolution helpers for routing/hash defaults
 │   ├── fontScale.ts               # Browser-local relative font scale persistence/application
@@ -115,7 +115,7 @@ frontend/src/
 │   └── statusDotPulse.ts          # Status dot pulse animation helpers
 ├── components/
 │   ├── StatusBar.tsx
-│   ├── Sidebar.tsx
+│   ├── Sidebar.tsx             # Conversation list; Customize panel (section/tool/favorites-group reorder+hide) + Contact Groups (create/rename/delete); each contact_group renders as its own reorderable/hideable/collapsible section (see sidebarLayout.ts)
 │   ├── ChatHeader.tsx          # Conversation header (trace, favorite, delete)
 │   ├── MessageList.tsx        # Message rows; #hashtag refs styled by state (followed/known/unknown) with an inline "+" to capture unknowns into the registry (auto-capture via app_settings.auto_add_mentioned_channels); hover React/Reply (MessageRowActions) and reaction-target links (ReactionTargetLink)
 │   ├── MessageInput.tsx

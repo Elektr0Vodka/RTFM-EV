@@ -34,7 +34,13 @@ import { buildMentionEvent, type MentionEvent } from './components/MentionTicker
 import { getStateKey } from './utils/conversationState';
 import { isConversationSoundMuted, toggleConversationSoundMuted } from './lib/mentionSoundMute';
 import { getContactDisplayName } from './utils/pubkey';
-import type { BulkCreateHashtagChannelsResult, Channel, Conversation, Message } from './types';
+import type {
+  BulkCreateHashtagChannelsResult,
+  Channel,
+  ContactGroup,
+  Conversation,
+  Message,
+} from './types';
 import { CONTACT_TYPE_REPEATER, CONTACT_TYPE_ROOM } from './types';
 import { shouldAutoFocusInput } from './utils/autoFocusInput';
 import { computeRegionSeed } from './lib/regionSeed';
@@ -321,6 +327,16 @@ export function App() {
       }
     },
     [setContacts, setChannels]
+  );
+
+  // Full-list replace for user-defined contact/channel groups (server-persisted
+  // in app_settings.contact_groups). Membership edits, create/rename/delete all
+  // funnel through here from the sidebar, ContactInfoBody and ChannelInfoPane -
+  // each computes the "next" array with the pure helpers in utils/sidebarLayout
+  // and hands it to this single PATCH, matching the other sidebar arrays.
+  const handleUpdateContactGroups = useCallback(
+    (next: ContactGroup[]) => handleSaveAppSettings({ contact_groups: next }),
+    [handleSaveAppSettings]
   );
 
   // useConversationRouter is called second - it receives channels/contacts as inputs
@@ -677,6 +693,7 @@ export function App() {
     sidebarFavoritesOrder: appSettings?.sidebar_favorites_order ?? [],
     sidebarFavoriteSortOrders: appSettings?.sidebar_favorite_sort_orders,
     sidebarHidden: appSettings?.sidebar_hidden,
+    contactGroups: appSettings?.contact_groups ?? [],
     onSaveSidebarOrder: handleSaveAppSettings,
   };
   const bulkAddChannelResultModalProps = {
@@ -831,6 +848,8 @@ export function App() {
       onToggleBlockedName: handleBlockName,
       trackedTelemetryContacts: appSettings?.tracked_telemetry_contacts ?? [],
       onToggleTrackedTelemetryContact: handleToggleTrackedTelemetryContact,
+      contactGroups: appSettings?.contact_groups ?? [],
+      onUpdateContactGroups: handleUpdateContactGroups,
       onOpenConversation: (publicKey: string) => {
         const target = contacts.find((c) => c.public_key === publicKey);
         handleSelectConversationWithTargetReset({
@@ -919,6 +938,8 @@ export function App() {
     trackedTelemetryContacts: appSettings?.tracked_telemetry_contacts ?? [],
     onToggleTrackedTelemetryContact: handleToggleTrackedTelemetryContact,
     analyzerSites: appSettings?.analyzer_sites ?? [],
+    contactGroups: appSettings?.contact_groups ?? [],
+    onUpdateContactGroups: handleUpdateContactGroups,
     onOpenContactInfo: handleOpenContactInfo,
     onOpenConversation: (publicKey: string) => {
       const target = contacts.find((c) => c.public_key === publicKey);
@@ -936,6 +957,8 @@ export function App() {
     channels,
     onToggleFavorite: handleToggleFavorite,
     analyzerSites: appSettings?.analyzer_sites ?? [],
+    contactGroups: appSettings?.contact_groups ?? [],
+    onUpdateContactGroups: handleUpdateContactGroups,
   };
 
   // Connect to WebSocket
