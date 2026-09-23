@@ -11,6 +11,13 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-24 (Room server alpha notice removed)
+
+### Rooms (frontend)
+- **Removed the "experimental, public alpha" warning** shown above the room
+  server login form, along with its `room_experimental_notice_*` i18n keys
+  (EN/NL/DE). Room server login and behaviour are unchanged.
+
 ## Update 2026-09-23 (Region discovery moved to Mesh Discovery, feat/discover-regions-mesh-discovery)
 
 ### Tools (frontend)
