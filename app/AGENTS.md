@@ -334,7 +334,7 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `GET /packets/prefix-collisions` - public-key prefix collisions among full-key local contacts at 1/2/3-byte widths (Mesh Health "Prefix Collisions" tab). Point-in-time over contacts, not window-scoped. See `app/services/prefix_collisions.py`
 - `GET /packets/snr-rssi-scatter`, `GET /packets/hourly-heatmap`, `GET /packets/reachability-rings` - windowed signal scatter, 7x24 UTC packet heatmap, and unique contacts by minimum hop distance
 - `GET /packets/relay-pairs?limit` - most frequent consecutive node pairs across advert paths
-- `GET /packets/advert-links?limit` - resolved advert-path edges for the map link layer
+- `GET /packets/advert-links?limit&heard_only&max_km` - resolved advert-path edges for the map link layer. `heard_only=true` resolves hops only against contacts with `last_seen` set (no never-heard contacts, no analyzer-only `external_map_nodes`); `max_km` (> 0) drops candidates farther than that from the previous hop (breaking the chain) and any longer direct/tail edge. The map's link layer uses both; the wrong-location filter fetches without them
 - `GET /packets/{packet_id}` - fetch one stored raw packet by row ID for on-demand inspection
 - `GET /packets/request-traffic` - single-node REQUEST/RESPONSE traffic in a window: totals (requests, anon, responses, flood/direct split), a time-bucketed series, and top src→dest 1-byte-hash pairs (Mesh Health "Requests" panel). Parses `raw_packets` filtered by `payload_type IN (REQUEST, ANON_REQUEST, RESPONSE)`; makes no answered/unanswered judgment (a single node cannot hear responses routed around it)
 - `POST /packets/decrypt/historical`

@@ -248,8 +248,17 @@ export const api = {
     fetchJson<ContactAdvertPathSummary[]>(
       `/contacts/repeaters/advert-paths?limit_per_repeater=${limitPerRepeater}`
     ),
-  getAdvertLinks: (signal?: AbortSignal) =>
-    fetchJson<AdvertLinkEdge[]>('/packets/advert-links', { signal }),
+  /** Resolved advert-path edges. `heardOnly` resolves hops only against
+   *  contacts this server has heard; `maxKm` (> 0) drops longer edges. */
+  getAdvertLinks: (signal?: AbortSignal, opts: { heardOnly?: boolean; maxKm?: number } = {}) => {
+    const qs = new URLSearchParams();
+    if (opts.heardOnly) qs.set('heard_only', 'true');
+    if (opts.maxKm != null && opts.maxKm > 0) qs.set('max_km', String(opts.maxKm));
+    const query = qs.toString();
+    return fetchJson<AdvertLinkEdge[]>(`/packets/advert-links${query ? `?${query}` : ''}`, {
+      signal,
+    });
+  },
   getContactAnalytics: (params: { publicKey?: string; name?: string }, signal?: AbortSignal) => {
     const searchParams = new URLSearchParams();
     if (params.publicKey) searchParams.set('public_key', params.publicKey);

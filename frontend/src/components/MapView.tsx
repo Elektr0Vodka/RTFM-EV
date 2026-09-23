@@ -54,6 +54,12 @@ import {
 import { LOOKBACK_OPTIONS, PlaybackBar } from '../map/controls/PlaybackBar';
 import { isBool, isNumberIn, isOneOf, usePersistedMapSetting } from '../map/usePersistedMapSetting';
 import {
+  LINK_MAX_KM_STORAGE_KEY,
+  LINK_MAX_KM_UPPER,
+  heardContactsOnly,
+  isWithinLinkRange,
+} from '../map/linkDistance';
+import {
   ARC_FADE_PRESETS_MS,
   BUFFER_MAX_MS,
   DEFAULT_ARC_FADE_MS,
@@ -423,7 +429,16 @@ export function MapView({
     2,
     isOneOf([1, 2, 3] as const)
   );
+  // Max link length in km (0 = no limit), applied to both link modes.
+  const [linkMaxKm, setLinkMaxKm] = usePersistedMapSetting(
+    LINK_MAX_KM_STORAGE_KEY,
+    0,
+    isNumberIn(0, LINK_MAX_KM_UPPER)
+  );
   const [advertEdges, setAdvertEdges] = useState<AdvertLinkEdge[]>([]);
+  // Unfiltered edges (all located nodes, no length cap) for the wrong-location
+  // filter, which needs the implausibly long edges to spot bad coordinates.
+  const [wrongLocationEdges, setWrongLocationEdges] = useState<AdvertLinkEdge[]>([]);
   const [showExternalNodes, setShowExternalNodes] = usePersistedMapSetting(
     'remoteterm-map-external-nodes',
     false,
@@ -593,6 +608,21 @@ export function MapView({
     [contacts, config]
   );
 
+  // Liveness links resolve hops only against contacts this server has heard, so
+  // a hop hash cannot land on a never-heard node far outside radio range. The
+  // packet overlay keeps the full context above.
+  const heardLinkContext = useMemo(
+    () =>
+      buildPacketNetworkContext({
+        contacts: heardContactsOnly(contacts),
+        config: config ?? null,
+        repeaterAdvertPaths: [],
+        splitAmbiguousByTraffic: false,
+        useAdvertPathHints: false,
+      }),
+    [contacts, config]
+  );
+
   // Resolve a graph node id to coordinates: 'self' is my node, otherwise a
   // 12-char public-key prefix matched to a single contact (see resolveNode in
   // packetNetworkGraph.ts, which keys nodes by contactIndex.byPrefix12). Uses
@@ -616,8 +646,13 @@ export function MapView({
       showAmbiguousPaths: false,
       collapseLikelyKnownSiblingRepeaters: false,
     });
-    layer.setData(Array.from(projection.links.values()), resolveLinkCoord);
-  }, [linksOn, resolveLinkCoord]);
+    const links = Array.from(projection.links.values()).filter((link) => {
+      const a = resolveLinkCoord(link.sourceId);
+      const b = resolveLinkCoord(link.targetId);
+      return !a || !b || isWithinLinkRange(a, b, linkMaxKm);
+    });
+    layer.setData(links, resolveLinkCoord);
+  }, [linksOn, resolveLinkCoord, linkMaxKm]);
 
   // Keep refs in sync so the packet timeline (created once) always resolves with
   // the latest coordinate resolver and network context without being rebuilt.
@@ -669,38 +704,59 @@ export function MapView({
       const key = getRawPacketObservationKey(pkt);
       if (linkProcessedRef.current.has(key)) continue;
       linkProcessedRef.current.add(key);
-      ingestPacketIntoPacketNetwork(state, linkContext, pkt);
+      ingestPacketIntoPacketNetwork(state, heardLinkContext, pkt);
     }
     if (linkProcessedRef.current.size > 2000) {
       linkProcessedRef.current = new Set(Array.from(linkProcessedRef.current).slice(-1000));
     }
     refreshLinks();
-  }, [rawPackets, linksOn, linkContext, refreshLinks, config]);
+  }, [rawPackets, linksOn, heardLinkContext, refreshLinks, config]);
 
-  // Fetch resolved advert-truth edges when links are shown in advert mode, or
-  // when the wrong-location filter needs them to measure neighbour distances.
+  // Fetch resolved advert-truth edges when links are shown in advert mode. Hops
+  // resolve only against heard contacts, capped at the max link distance. The
+  // fetch is debounced so typing a distance does not fire one request per key.
   useEffect(() => {
-    const needEdges = (linksOn && linkMode === 'advert') || hideWrongLocation;
-    if (!needEdges) return;
+    if (!linksOn || linkMode !== 'advert') return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      api
+        .getAdvertLinks(controller.signal, { heardOnly: true, maxKm: linkMaxKm })
+        .then(setAdvertEdges)
+        .catch((err) => {
+          if (!isAbortError(err)) console.error('Advert links fetch failed', err);
+        });
+    }, 300);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [linksOn, linkMode, linkMaxKm]);
+
+  // The wrong-location filter measures neighbour distances on the unfiltered
+  // edge set (all located nodes, no cap), as before the heard-only change.
+  useEffect(() => {
+    if (!hideWrongLocation) return;
     const controller = new AbortController();
     api
       .getAdvertLinks(controller.signal)
-      .then(setAdvertEdges)
+      .then(setWrongLocationEdges)
       .catch((err) => {
         if (!isAbortError(err)) console.error('Advert links fetch failed', err);
       });
     return () => controller.abort();
-  }, [linksOn, linkMode, hideWrongLocation]);
+  }, [hideWrongLocation]);
 
   // Pubkeys hidden by the wrong-location filter (empty unless the toggle is on).
   const wrongLocationKeys = useMemo(
-    () => (hideWrongLocation ? computeWrongLocationKeys(advertEdges) : new Set<string>()),
-    [hideWrongLocation, advertEdges]
+    () => (hideWrongLocation ? computeWrongLocationKeys(wrongLocationEdges) : new Set<string>()),
+    [hideWrongLocation, wrongLocationEdges]
   );
 
   // Paint advert edges (filtered by the confidence selector) and switch which
-  // links layer is visible based on the mode.
-  useEffect(() => {
+  // links layer is visible based on the mode. Also called once the layers exist
+  // (map load) and after a basemap swap re-adds them: the edge fetch can resolve
+  // before either, and state alone would not re-run this.
+  const paintLinks = useCallback(() => {
     const liveness = linksLayerRef.current;
     const advert = advertLinksLayerRef.current;
     if (!linksOn) {
@@ -725,6 +781,11 @@ export function MapView({
       refreshLinks();
     }
   }, [linksOn, linkMode, linkConfidence, advertEdges, refreshLinks, wrongLocationKeys]);
+  const paintLinksRef = useRef(paintLinks);
+  useEffect(() => {
+    paintLinksRef.current = paintLinks;
+    paintLinks();
+  }, [paintLinks]);
 
   const threeDaysAgoSec = useMemo(() => Date.now() / 1000 - THREE_DAYS_SEC, []);
   const activeSincePreset = MAP_SINCE_PRESETS.find((p) => p.id === sinceId) ?? null;
@@ -1357,6 +1418,7 @@ export function MapView({
       advertLinks.ensure();
       advertLinks.setWidthScale(linkWidthScale);
       advertLinksLayerRef.current = advertLinks;
+      paintLinksRef.current();
       fitInitialView(map);
       if (focusedLatLon) {
         const el = document.createElement('div');
@@ -1396,10 +1458,10 @@ export function MapView({
     // A basemap setStyle drops custom sources/layers; re-add and re-feed links.
     linksLayerRef.current?.reattach();
     advertLinksLayerRef.current?.reattach();
-    refreshLinks();
+    paintLinksRef.current();
     externalRef.current?.reattach();
     externalRef.current?.setData(visibleExternalRef.current);
-  }, [mappableContacts, nowSec, nodeScale, labelMode, telemetryOn, latestTelemetry, refreshLinks]);
+  }, [mappableContacts, nowSec, nodeScale, labelMode, telemetryOn, latestTelemetry]);
 
   // Keep node data in sync.
   useEffect(() => {
@@ -1837,6 +1899,7 @@ export function MapView({
           links: true,
           labelMode: true,
           telemetry: true,
+          fullscreen: true,
         }}
         onReady={handleReady}
         onBasemapReapply={handleBasemapReapply}
@@ -1873,6 +1936,8 @@ export function MapView({
         onLinkMode={setLinkMode}
         linkConfidence={linkConfidence}
         onLinkConfidence={setLinkConfidence}
+        linkMaxKm={linkMaxKm}
+        onLinkMaxKm={setLinkMaxKm}
         telemetryOn={telemetryOn}
         onToggleTelemetry={setTelemetryOn}
         sidebarOpen={sidebarOpen}

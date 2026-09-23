@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import { act, render, waitFor } from '@testing-library/react';
 
 vi.mock('maplibre-gl', async () => {
   const { mockMaplibreModule } = await import('./mocks/maplibre');
@@ -8,9 +8,15 @@ vi.mock('maplibre-gl', async () => {
 vi.mock('../map/engine/webgl', () => ({ isWebglAvailable: () => true }));
 
 import * as maplibre from 'maplibre-gl';
+import { api } from '../api';
 import { I18nProvider } from '../i18n/I18nProvider';
 import { MapView } from '../components/MapView';
-import { CONTACT_TYPE_CLIENT, CONTACT_TYPE_REPEATER, type Contact } from '../types';
+import {
+  CONTACT_TYPE_CLIENT,
+  CONTACT_TYPE_REPEATER,
+  type AdvertLinkEdge,
+  type Contact,
+} from '../types';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const stub = (maplibre as any).__stub as {
@@ -49,6 +55,8 @@ function lastNodeFeatureCollection() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.restoreAllMocks();
+  localStorage.clear();
   localStorage.setItem('remoteterm-map-layer', 'light');
   localStorage.setItem('remoteterm-map-since', 'all');
 });
@@ -123,6 +131,42 @@ describe('MapView (MapLibre)', () => {
         (c: unknown[]) => c[0] === 'click' && c[1] === 'rt-nodes'
       );
       expect(clickBound).toBe(true);
+    });
+  });
+
+  it('paints advert links fetched before the map finished loading', async () => {
+    // Links remembered on, in advert mode: the edge fetch starts on mount and
+    // can resolve before MapLibre fires `load` (when the layer is created).
+    localStorage.setItem('remoteterm-map-links', 'true');
+    localStorage.setItem('remoteterm-map-link-mode', '"advert"');
+    localStorage.setItem('remoteterm-map-link-confidence', '1');
+    const edge: AdvertLinkEdge = {
+      a: { pubkey: 'aa', lat: 52, lon: 5, kind: 'contact' },
+      b: { pubkey: 'bb', lat: 52.1, lon: 5.2, kind: 'contact' },
+      hop_width: 2,
+      count: 1,
+      last_seen: now,
+      ambiguous: false,
+    };
+    const fetchEdges = vi.spyOn(api, 'getAdvertLinks').mockResolvedValue([edge]);
+    render(
+      <I18nProvider>
+        <MapView contacts={[contact({ public_key: 'aa' })]} />
+      </I18nProvider>
+    );
+    await waitFor(() => expect(fetchEdges).toHaveBeenCalled(), { timeout: 2000 });
+    // Let the resolved edges land in state before the map loads.
+    await act(async () => {
+      await Promise.resolve();
+    });
+    stub.fire('load');
+    await waitFor(() => {
+      const src = stub.getSource('rt-advert-links');
+      expect(src).toBeDefined();
+      const calls = (src!.setData as any).mock.calls;
+      expect(calls.length).toBeGreaterThan(0);
+      const fc = calls[calls.length - 1][0] as { features: unknown[] };
+      expect(fc.features).toHaveLength(1);
     });
   });
 });

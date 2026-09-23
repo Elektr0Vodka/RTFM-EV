@@ -68,6 +68,8 @@ export interface MapSurfaceProps {
   onLinkMode?: (mode: 'liveness' | 'advert') => void;
   linkConfidence?: 1 | 2 | 3;
   onLinkConfidence?: (level: 1 | 2 | 3) => void;
+  linkMaxKm?: number;
+  onLinkMaxKm?: (km: number) => void;
   telemetryOn?: boolean;
   onToggleTelemetry?: (on: boolean) => void;
   sidebarOpen?: boolean;
@@ -139,6 +141,30 @@ export function MapSurface(props: MapSurfaceProps) {
     reapplyRef.current = onBasemapReapply;
   }, [onBasemapReapply]);
   const reapplyOverlays = useCallback(() => reapplyRef.current?.(), []);
+
+  // Browser fullscreen for the whole map surface (map, overlays and FABs). The
+  // FAB is offered only where the Fullscreen API works (not on iPhone Safari).
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [fullscreenEl, setFullscreenEl] = useState<HTMLElement | null>(null);
+  const fullscreenSupported =
+    typeof document !== 'undefined' && document.fullscreenEnabled === true;
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const onChange = () => {
+      const root = rootRef.current;
+      setFullscreenEl(root && document.fullscreenElement === root ? root : null);
+    };
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+  const toggleFullscreen = useCallback(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const request = document.fullscreenElement
+      ? document.exitFullscreen()
+      : root.requestFullscreen();
+    request.catch((err: unknown) => console.warn('Map fullscreen toggle failed', err));
+  }, []);
 
   // Create the map once.
   useEffect(() => {
@@ -232,7 +258,7 @@ export function MapSurface(props: MapSurfaceProps) {
   }
 
   return (
-    <div className={cn('relative h-full w-full', className)}>
+    <div ref={rootRef} className={cn('relative h-full w-full', className)}>
       {/* Fill the parent for real: maplibre-gl.css forces `.maplibregl-map`
           to position:relative, which cancels an `absolute inset-0` container
           and collapses its height to 0. Use h-full/w-full so the height
@@ -269,6 +295,11 @@ export function MapSurface(props: MapSurfaceProps) {
         onLinkMode={props.onLinkMode}
         linkConfidence={props.linkConfidence}
         onLinkConfidence={props.onLinkConfidence}
+        linkMaxKm={props.linkMaxKm}
+        onLinkMaxKm={props.onLinkMaxKm}
+        fullscreen={fullscreenEl != null}
+        onToggleFullscreen={fullscreenSupported ? toggleFullscreen : undefined}
+        portalContainer={fullscreenEl}
         telemetryOn={props.telemetryOn}
         onToggleTelemetry={props.onToggleTelemetry}
         sidebarOpen={props.sidebarOpen}

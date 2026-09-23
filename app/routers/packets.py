@@ -1082,15 +1082,25 @@ def _self_located_node() -> LocatedNode | None:
 
 
 @router.get("/advert-links", response_model=list[AdvertLinkEdge])
-async def get_advert_links(limit: int = 5000) -> list[AdvertLinkEdge]:
+async def get_advert_links(
+    limit: int = 5000,
+    heard_only: Annotated[
+        bool, Query(description="Resolve hops only against contacts heard over RF")
+    ] = False,
+    max_km: Annotated[
+        float | None, Query(gt=0, description="Drop edges longer than this many kilometres")
+    ] = None,
+) -> list[AdvertLinkEdge]:
     """Resolved advert-path edges for the map link layer (truth).
 
     Each edge is an undirected RF link derived from stored advert paths, carrying
     hop_width (confidence), count, last_seen (recency), and an ambiguous flag.
-    Hop hashes are resolved against local contacts UNION analyzer nodes.
+    Hop hashes are resolved against local contacts UNION analyzer nodes, or only
+    against heard contacts when ``heard_only`` is set. ``max_km`` caps edge
+    length so a hop cannot resolve to a node beyond radio range.
     """
     rows = await AdvertLinksRepository.recent_events(limit=min(max(limit, 1), 20000))
-    located = await AdvertLinksRepository.located_nodes()
+    located = await AdvertLinksRepository.located_nodes(heard_only=heard_only)
     self_node = _self_located_node()
     node_by_pk = {n.pubkey: n for n in located}
     if self_node is not None:
@@ -1101,7 +1111,7 @@ async def get_advert_links(limit: int = 5000) -> list[AdvertLinkEdge]:
         r.prefix_hex: r.resolved_pubkey for r in await PartialResolutionRepository.list_all()
     }
 
-    edges = resolve_advert_edges(rows, located, self_node, confirmed=confirmed)
+    edges = resolve_advert_edges(rows, located, self_node, confirmed=confirmed, max_edge_km=max_km)
 
     def to_node(pubkey: str) -> AdvertLinkNode:
         n = node_by_pk[pubkey]
