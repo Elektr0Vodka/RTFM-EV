@@ -353,6 +353,8 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `POST /contacts/{public_key}/repeater/radio-settings`
 - `POST /contacts/{public_key}/repeater/regions` - CLI region hierarchy, falling back to the guest anon flood-allowed names (`source`: `cli` or `anon`)
 - `POST /contacts/{public_key}/repeater/advert-intervals`
+- `POST /contacts/{public_key}/repeater/settings/read` - `get` of allow-listed editor settings (`{settings?: [...]}`; omit for all); error sentinels come back as null
+- `POST /contacts/{public_key}/repeater/settings/set` - ONE allow-listed `set <verb> <value>` over RF then `get <verb>` read-back; returns `status` `ok`/`mismatch`/`rejected`/`unverified` + `reboot_required`. Allow-list + value ranges live in `app/services/repeater_settings.py` (from the stock `CommonCLI.cpp`); anything off-list or out of range is a 400 before the radio is touched. `prv.key` and the admin `password` are deliberately not on the list.
 - `POST /contacts/{public_key}/repeater/owner-info` - also auto-fills the contact's stored `owner_info` when empty (never overwrites) and returns `stored_owner_info` + `owner_info_updated`
 - `GET /contacts/{public_key}/repeater/telemetry-history` - stored telemetry history for a repeater (read-only, no radio access)
 - `POST /contacts/{public_key}/telemetry` - on-demand CayenneLPP telemetry from any contact (persists in `contact_telemetry_history`)

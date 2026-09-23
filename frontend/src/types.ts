@@ -1263,6 +1263,21 @@ export interface RepeaterRadioSettingsResponse {
   flood_max: string | null;
 }
 
+/** Result of one structured `set` + `get` read-back from the settings editor. */
+export interface RepeaterSettingSetResponse {
+  setting: string;
+  /** Normalized value that was sent. */
+  value: string;
+  set_reply: string | null;
+  readback: string | null;
+  status: 'ok' | 'mismatch' | 'rejected' | 'unverified';
+  reboot_required: boolean;
+}
+
+export interface RepeaterSettingsReadResponse {
+  values: Record<string, string | null>;
+}
+
 export interface RepeaterAdvertIntervalsResponse {
   advert_interval: string | null;
   flood_advert_interval: string | null;
