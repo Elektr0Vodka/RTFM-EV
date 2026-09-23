@@ -569,6 +569,78 @@ export interface UrlPreview {
   site_name?: string | null;
 }
 
+/** One upstream basemap source known to the backend tile cache (/tiles/config). */
+export interface TileCacheSource {
+  id: string;
+  label: string;
+  /** Upstream URL prefixes the map rewrites to /api/tiles/proxy/{id}/... */
+  client_prefixes: string[];
+  /** False when the source's terms forbid caching: it is always fetched directly. */
+  proxy: boolean;
+  /** True only when the source's tile policy allows bulk (area) download. */
+  predownload: boolean;
+  max_zoom: number;
+  policy_url: string;
+}
+
+export interface TileCacheConfig {
+  enabled: boolean;
+  max_size_mb: number;
+  max_age_days: number;
+  limits: {
+    min_size_mb: number;
+    max_size_mb: number;
+    min_age_days: number;
+    max_age_days: number;
+    predownload_min_zoom: number;
+    predownload_max_zoom: number;
+    predownload_max_tiles: number;
+    predownload_concurrency: number;
+  };
+  sources: TileCacheSource[];
+}
+
+export interface TileCacheConfigUpdate {
+  enabled?: boolean;
+  max_size_mb?: number;
+  max_age_days?: number;
+}
+
+export interface TileCacheStats {
+  entries: number;
+  bytes: number;
+  max_bytes: number;
+  per_source: Record<string, { entries: number; bytes: number }>;
+}
+
+export interface TileAreaRequest {
+  source: string;
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+  min_zoom: number;
+  max_zoom: number;
+}
+
+export interface TileAreaEstimate {
+  tiles: number;
+  max_tiles: number;
+  allowed: boolean;
+  reason?: string | null;
+}
+
+export interface TileDownloadStatus {
+  state: 'idle' | 'running' | 'done' | 'cancelled' | 'error';
+  source: string | null;
+  total: number;
+  done: number;
+  failed: number;
+  started_at: number | null;
+  finished_at: number | null;
+  error: string | null;
+}
+
 /** A user-configured external analyzer site for client-side node/packet lookups. */
 export interface AnalyzerSite {
   name: string;

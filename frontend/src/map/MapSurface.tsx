@@ -28,6 +28,7 @@ import {
   getCrtMapTint,
 } from '../utils/crt';
 import { setMapLock2D } from './engine/mapLock2D';
+import { transformTileRequest } from './engine/tileProxy';
 import { setBuildings3D } from './engine/buildings3D';
 import { isWebglAvailable } from './engine/webgl';
 import {
@@ -187,6 +188,8 @@ export function MapSurface(props: MapSurfaceProps) {
       center: initialCenter,
       zoom: initialZoom,
       attributionControl: { compact: true },
+      // Route allow-listed basemap requests through the backend tile cache when on.
+      transformRequest: transformTileRequest,
     });
     mapRef.current = map;
     if (entry.kind === 'vector-recolor') markBasemapApplied(map, rasterFallbackFor(entry));

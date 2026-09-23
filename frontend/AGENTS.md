@@ -495,6 +495,8 @@ Effective map location is resolved by `getEffectiveLocation` in `utils/pathUtils
 
 The shared-locations overlay (`map/useSharedLocations.ts` + `map/layers/sharedLocationsLayer.ts`) fetches `GET /messages/locations` for the map window (`sinceCutoffSec`/`sinceUntilSec`) while its FAB toggle is on (`remoteterm-map-shared-locations`, plus `-all` for every share). `MapView` calls `attach(map)` in `handleReady` and `reattach()` in `handleBasemapReapply`; the pin popup's "Open in chat" uses `onNavigateToMessage` (threaded `App` → `ConversationPane` → `MapView`, same target shape as search). Position text in map popups, contact info, chat location cards and the location picker goes through `formatCoordinates(lat, lon, useCoordinateFormat())`; wire formats (`buildMarkerPayload`) stay decimal.
 
+Backend tile cache routing lives in `map/engine/tileProxy.ts`. `main.tsx` calls `loadTileProxyConfig()` once (`GET /tiles/config`); `SettingsTileCacheSection` calls `setTileProxyConfig` after every save so a toggle takes effect without a reload. `MapSurface` passes `transformTileRequest` as MapLibre's `transformRequest`, and the two direct style fetches (`basemaps.ts` recolour, `buildings3D.ts`) go through `proxiedUrl`. Only URLs starting with a `client_prefixes` entry of a `proxy: true` source are rewritten (to `./api/tiles/proxy/<source>/<path>`); anything with a query string, and every Esri URL, stays direct. The server's allow-list is the single source of truth; do not hard-code prefixes in the frontend.
+
 State: `useConversationNavigation` controls open/close via `infoPaneContactKey`. Live contact data from WebSocket updates is preferred over the initial detail snapshot.
 
 ### Desktop full-page view vs. mobile Sheet

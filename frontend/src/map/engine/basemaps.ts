@@ -1,5 +1,6 @@
 import type { StyleSpecification, Map as MlMap } from 'maplibre-gl';
 import { recolorNovaDark, recolorNovaTinted } from './novaRecolor';
+import { proxiedUrl } from './tileProxy';
 
 export type BasemapKind = 'vector' | 'vector-recolor' | 'raster';
 
@@ -330,7 +331,7 @@ function recoloredStyle(entry: BasemapEntry): Promise<StyleSpecification> {
   const key = entry.styleUrl + '#' + (entry.recolorId || 'recolor');
   let p = _recolorCache.get(key);
   if (p) return p;
-  p = fetch(String(entry.styleUrl))
+  p = fetch(proxiedUrl(String(entry.styleUrl)))
     .then((r) => {
       if (!r.ok) throw new Error('style ' + r.status);
       return r.json();
