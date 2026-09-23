@@ -11,6 +11,19 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-23 (Repeater and room avatars no longer depend on emoji fonts)
+
+### Contact avatars (frontend)
+- **Repeater and room-server avatars are now SVG icons, not emoji (fixes
+  #63).** Repeaters used 🛜 (Unicode 15, 2022) and rooms 🛖 (Unicode 13). On a
+  system whose emoji font predates Unicode 15, every repeater avatar showed a
+  missing-glyph box with the hex code `01F6DC` in it. The avatars now draw
+  lucide's `RadioTower` (repeaters) and `House` (rooms) icons, on the same grey
+  and brown backgrounds as before, so they look the same on every OS.
+  `getContactAvatar` returns a new `icon` field (`'repeater'` / `'room'`) that
+  `ContactAvatar` renders. Other contacts keep their initials or emoji, since
+  those come from the contact's own name. No backend change, no migration.
+
 ## Update 2026-09-23 (Docs refresh, docs/refresh-2026-09-22)
 
 ### Documentation
