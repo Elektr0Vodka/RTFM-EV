@@ -332,7 +332,12 @@ describe('MessageInput', () => {
         await user.type(getInput(), 'hello');
         await user.click(getEmojiToggle());
         await screen.findByRole('gridcell', { name: /grinning face/i });
-        await user.type(screen.getByRole('searchbox', { name: 'Search emoji' }), 'zzzzqq{Enter}');
+        const search = screen.getByRole('searchbox', { name: 'Search emoji' });
+        await user.type(search, 'zzzzqq');
+        // frimousse filters asynchronously; press Enter only once the empty
+        // state is shown, otherwise Enter can hit the stale unfiltered list.
+        await screen.findByText('No emoji found');
+        await user.type(search, '{Enter}');
         expect(onSend).not.toHaveBeenCalled();
         expect(getInput().value).toBe('hello');
       });
@@ -344,8 +349,16 @@ describe('MessageInput', () => {
         await user.type(getInput(), 'hello');
         await user.click(getEmojiToggle());
         await screen.findByRole('gridcell', { name: /grinning face/i });
-        await user.type(screen.getByRole('searchbox', { name: 'Search emoji' }), 'grinning{Enter}');
-        expect(getInput().value).toBe('hello😀');
+        const search = screen.getByRole('searchbox', { name: 'Search emoji' });
+        // 🔥 is not the first emoji unfiltered, so this only passes if Enter
+        // picks from the filtered list. Wait for the filter to apply first.
+        await user.type(search, 'fire');
+        await vi.waitFor(() =>
+          expect(screen.queryByRole('gridcell', { name: /grinning face/i })).toBeNull()
+        );
+        await screen.findByRole('gridcell', { name: /^fire$/i });
+        await user.type(search, '{Enter}');
+        expect(getInput().value).toBe('hello🔥');
         expect(onSend).not.toHaveBeenCalled();
       });
 
