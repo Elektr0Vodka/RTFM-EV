@@ -67,6 +67,7 @@ async def test_db():
         raw_packets,
         repeater_telemetry,
         request_traffic,
+        retention,
         settings,
         wordlists,
     )
@@ -94,6 +95,7 @@ async def test_db():
         external_map,
         wordlists,
         request_traffic,
+        retention,
         mention_sound,
         partial_resolution,
         raw_feed_stats,

@@ -139,7 +139,7 @@ class TestAdvertPruner:
     async def test_prune_once_uses_setting(self, test_db):
         import time as _time
 
-        from app.services import advert_pruner
+        from app.services import retention_pruner
 
         pk = "ee" * 32
         now = int(_time.time())
@@ -151,7 +151,7 @@ class TestAdvertPruner:
         )
 
         # Retention default is 30 days -> the 40-day-old event is pruned.
-        deleted = await advert_pruner.prune_once()
+        deleted = (await retention_pruner.prune_once())["advert_events"]
         assert deleted == 1
         rows = await AdvertEventRepository.mesh_health_rows(0, now + 10)
         assert rows[0]["direct_count"] == 1

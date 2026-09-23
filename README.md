@@ -82,7 +82,7 @@ Shipped toward this so far:
   Path-hex hops
   resolve to known contact names in the feed, history, and packet detail. How
   far back it reaches is bounded by the raw-packet retention setting (Settings >
-  Database, `0` = keep forever, migration `_097`).
+  Database > Data retention, `0` = keep forever).
 - One unified time-range selector across the My Node, mesh-health, map, and Mesh
   Trends (Live tab) views (`20m`-`30d` + custom, plus per-page extras), with the
   choice remembered per page.
@@ -97,13 +97,19 @@ Shipped toward this so far:
 - In-app database backup: download a consistent SQLite snapshot, or write one to a
   configured server-side path, from the Settings database section (migration
   `_084`). See `README_ADVANCED.md` for the manual restore procedure.
+- Configurable, per-data-class retention (Settings > Database > Data retention,
+  migration `_105`). Raw packets, messages, advert events, repeater/contact
+  telemetry (days plus a rows-per-node cap), link signal, noise floor, battery,
+  airtime, and advert paths per contact each have their own setting, with `0` =
+  keep forever. One prune service runs on a configurable interval (default every
+  24 h) and there is a "Prune now" button, plus per-class row counts and oldest
+  entry. A "Keep everything (analyzer)" button turns every limit off; "Restore
+  defaults" puts back the previous caps. Defaults match the old behaviour, so an
+  upgrade deletes nothing new. Pruning a message also deletes its raw packet.
+  See `README_ADVANCED.md`.
 
 Direction still on the roadmap (planned, not yet built):
 
-- Configurable, per-data-class retention with an "analyzer mode" preset, so an
-  operator can retain long trends instead of the current aggressive caps. Only
-  raw packets have a configurable retention setting today (see Packet History
-  above); other data classes still use their existing caps.
 - Historical device-info persistence: location and device-config history over time.
 - Multi-radio identity continuity, so a swapped or replaced feeding radio stays
   coherent in the long-lived record.

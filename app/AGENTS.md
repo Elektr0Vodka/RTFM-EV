@@ -369,6 +369,10 @@ chosen node), and a Prefix Collisions tab badge.
 - `GET /settings/tracked-telemetry-contacts/schedule` - contact telemetry scheduling (shared ceiling with repeaters)
 - `POST /settings/muted-channels/toggle`
 
+### Retention
+- `GET /retention/stats?messages_days` - per-class row count + oldest timestamp (`app/repository/retention.py`), prune-service interval / last run / next run / last result; `messages_days` adds `messages_would_delete` (preview for the UI confirm)
+- `POST /retention/prune` - run `retention_pruner.prune_once()` now; returns rows deleted per class
+
 ### Fanout
 - `GET /fanout` - list all fanout configs
 - `POST /fanout` - create new fanout config
@@ -420,13 +424,15 @@ Main tables:
 - `messages` (includes `sender_name`, `sender_key` for per-contact channel message attribution)
 - `raw_packets` (includes signal columns `rssi`/`snr`/`payload_type` and decoded-stat columns `route_type`/`hop_count`/`hop_byte_width`/`path_signature`, parsed from the packet header at ingest and backfilled by migration 089; used by `/packets/raw-feed-stats` for historical breakdowns)
 - `airtime_history` (60s samples of the local radio's cumulative `tx_air_secs`/`rx_air_secs`; utilization % is derived at query time. Sibling of the in-memory `noise_floor_samples`/`battery_history` pattern in `app/services/radio_stats.py`)
-- `contact_advert_paths` (recent unique advertisement paths per contact, keyed by contact + path bytes + hop count)
+- `contact_advert_paths` (recent unique advertisement paths per contact, keyed by contact + path bytes + hop count; count per contact is `advert_paths_per_contact`)
 - `contact_name_history` (tracks name changes over time)
 - `repeater_telemetry_history` (time-series telemetry snapshots for tracked repeaters)
 - `contact_telemetry_history` (time-series LPP telemetry snapshots for tracked contacts; same schema as repeater table)
 - `fanout_configs` (MQTT, bot, webhook, Apprise, SQS integration configs)
 - `push_subscriptions` (Web Push browser subscriptions with delivery metadata; UNIQUE on endpoint)
 - `app_settings` (includes `vapid_private_key` and `vapid_public_key` for Web Push VAPID signing)
+
+Retention: every history table above is pruned only by `app/services/retention_pruner.py` (one loop, ticks every 60 s, runs when `retention_prune_interval_hours` has elapsed), using the per-class settings listed under Settings. Repositories do not prune on insert, except the `contact_advert_paths` trim in `record_observation`. SQL lives in `app/repository/retention.py`. After a run that deleted rows it calls `PRAGMA incremental_vacuum` (the DB uses `auto_vacuum=INCREMENTAL`). The manual `POST /packets/maintenance` cleanup is separate and unchanged.
 
 Contact route state is canonicalized on the backend:
 - stored route inputs: `direct_path`, `direct_path_len`, `direct_path_hash_mode`, `direct_path_updated_at`, plus optional `route_override_*`
@@ -454,7 +460,7 @@ Repository writes should prefer typed models such as `ContactUpsert` over ad hoc
 - `auto_resend_channel`
 - `auto_add_mentioned_channels` (when enabled, #hashtag channels referenced in chat are auto-recorded in the browser Channel Registry; registry-only, no followed channel is created)
 - `telemetry_interval_hours`, `telemetry_routed_hourly` (poll tracked nodes with a direct/routed path hourly instead of on the normal interval)
-- `advert_retention_days` (days of `advert_events` kept), `raw_packet_retention_days` (days of `raw_packets` kept, `0` = forever; bounds Packet History); both pruned daily
+- Retention (all `0` = keep forever / no cap; enforced by `services/retention_pruner.py` every `retention_prune_interval_hours`, default 24): `raw_packet_retention_days` (default 0; bounds Packet History), `advert_retention_days` (30), `telemetry_retention_days` (30) + `telemetry_max_rows_per_node` (1000) for both telemetry tables, `link_signal_retention_days` (30), `noise_floor_retention_days` / `battery_retention_days` / `airtime_retention_days` (0), `message_retention_days` (0; deletes the message's linked `raw_packets` first), `advert_paths_per_contact` (10; trimmed on insert and by the pruner, also the contact-analytics read limit). The newer fields are migration `_105`; `RETENTION_DEFAULTS` in `models.py` holds their defaults
 - `registry_sync_url` (remote `{name: key}` channel list synced into the registry), `analyzer_sites` (external analyzer link targets, incl. per-site `channel_url_template`), `handy_info` (user overlay for the Handy Info section)
 - `external_map_enabled`, `external_map_sync_url`, `external_map_sync_interval_hours` (external analyzer node-directory overlay on the map; also the candidate source for partial-node resolution)
 - `sidebar_hidden`, `sidebar_section_order`, `sidebar_tool_order`, `sidebar_favorites_order`, `sidebar_favorite_sort_orders` (sidebar customisation, persisted server-side)

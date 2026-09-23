@@ -32,6 +32,7 @@ from app.packet_processor import start_historical_dm_decryption
 from app.path_utils import parse_explicit_hop_route
 from app.repository import (
     AmbiguousPublicKeyPrefixError,
+    AppSettingsRepository,
     ContactAdvertPathRepository,
     ContactNameHistoryRepository,
     ContactRepository,
@@ -133,7 +134,10 @@ async def _build_keyed_contact_analytics(contact: Contact) -> ContactAnalytics:
     dm_count = await MessageRepository.count_dm_messages(contact.public_key)
     chan_count = await MessageRepository.count_channel_messages_by_sender(contact.public_key)
     active_rooms_raw = await MessageRepository.get_most_active_rooms(contact.public_key)
-    advert_paths = await ContactAdvertPathRepository.get_recent_for_contact(contact.public_key)
+    advert_paths = await ContactAdvertPathRepository.get_recent_for_contact(
+        contact.public_key,
+        limit=(await AppSettingsRepository.get()).advert_paths_per_contact,
+    )
     hourly_activity, weekly_activity = await MessageRepository.get_contact_activity_series(
         contact.public_key
     )

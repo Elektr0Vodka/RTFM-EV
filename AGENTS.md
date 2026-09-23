@@ -403,6 +403,8 @@ This table is a representative subset, not the full route list (for example the 
 | POST | `/api/settings/tracked-telemetry-contacts/toggle` | Toggle tracked LPP telemetry for any contact |
 | GET | `/api/settings/tracked-telemetry-contacts/schedule` | Contact telemetry scheduling derivation (shared ceiling with repeaters) |
 | POST | `/api/settings/muted-channels/toggle` | Toggle muted status for a channel |
+| GET | `/api/retention/stats` | Per-class row count and oldest entry, prune-service status; `messages_days` previews message deletions |
+| POST | `/api/retention/prune` | Run the retention prune now; returns rows deleted per class |
 | GET | `/api/fanout` | List all fanout configs |
 | POST | `/api/fanout` | Create new fanout config |
 | PATCH | `/api/fanout/{id}` | Update fanout config (triggers module reload) |

@@ -7,6 +7,7 @@ import aiosqlite
 
 from app.database import db
 from app.models import (
+    RETENTION_DEFAULTS,
     AnalyzerSite,
     AppSettings,
     HandyInfoSettings,
@@ -73,6 +74,15 @@ class AppSettingsRepository:
                    packet_feed_sort, packet_history_sort,
                    mesh_health_page_size, date_time_format, packet_group_by_content,
                    raw_packet_retention_days,
+                   retention_prune_interval_hours,
+                   telemetry_retention_days,
+                   telemetry_max_rows_per_node,
+                   link_signal_retention_days,
+                   advert_paths_per_contact,
+                   noise_floor_retention_days,
+                   battery_retention_days,
+                   airtime_retention_days,
+                   message_retention_days,
                    map_home_mode, map_home_lat, map_home_lon, map_home_zoom
             FROM app_settings WHERE id = 1
             """
@@ -382,6 +392,15 @@ class AppSettingsRepository:
         except (KeyError, TypeError, ValueError):
             raw_packet_retention_days = 0
 
+        # Per-class retention settings (migration _105; 0 = keep forever / no cap).
+        retention: dict[str, int] = {}
+        for name, default in RETENTION_DEFAULTS.items():
+            try:
+                value = row[name]
+                retention[name] = int(value) if value is not None else default
+            except (IndexError, KeyError, TypeError, ValueError):
+                retention[name] = default
+
         # Branding (migration _082). Guard against older/partial rows.
         try:
             brand_name = row["brand_name"] or ""
@@ -446,6 +465,7 @@ class AppSettingsRepository:
             auto_decrypt_dm_on_advert=bool(row["auto_decrypt_dm_on_advert"]),
             advert_retention_days=advert_retention_days,
             raw_packet_retention_days=raw_packet_retention_days,
+            **retention,
             last_message_times=last_message_times,
             advert_interval=row["advert_interval"] or 0,
             last_advert_time=row["last_advert_time"] or 0,
@@ -508,6 +528,15 @@ class AppSettingsRepository:
         auto_decrypt_dm_on_advert: bool | None = None,
         advert_retention_days: int | None = None,
         raw_packet_retention_days: int | None = None,
+        retention_prune_interval_hours: int | None = None,
+        telemetry_retention_days: int | None = None,
+        telemetry_max_rows_per_node: int | None = None,
+        link_signal_retention_days: int | None = None,
+        advert_paths_per_contact: int | None = None,
+        noise_floor_retention_days: int | None = None,
+        battery_retention_days: int | None = None,
+        airtime_retention_days: int | None = None,
+        message_retention_days: int | None = None,
         last_message_times: dict[str, int] | None = None,
         advert_interval: int | None = None,
         last_advert_time: int | None = None,
@@ -583,6 +612,21 @@ class AppSettingsRepository:
         if raw_packet_retention_days is not None:
             updates.append("raw_packet_retention_days = ?")
             params.append(raw_packet_retention_days)
+
+        for name, value in (
+            ("retention_prune_interval_hours", retention_prune_interval_hours),
+            ("telemetry_retention_days", telemetry_retention_days),
+            ("telemetry_max_rows_per_node", telemetry_max_rows_per_node),
+            ("link_signal_retention_days", link_signal_retention_days),
+            ("advert_paths_per_contact", advert_paths_per_contact),
+            ("noise_floor_retention_days", noise_floor_retention_days),
+            ("battery_retention_days", battery_retention_days),
+            ("airtime_retention_days", airtime_retention_days),
+            ("message_retention_days", message_retention_days),
+        ):
+            if value is not None:
+                updates.append(f"{name} = ?")
+                params.append(value)
 
         if last_message_times is not None:
             updates.append("last_message_times = ?")
@@ -804,6 +848,15 @@ class AppSettingsRepository:
         auto_decrypt_dm_on_advert: bool | None = None,
         advert_retention_days: int | None = None,
         raw_packet_retention_days: int | None = None,
+        retention_prune_interval_hours: int | None = None,
+        telemetry_retention_days: int | None = None,
+        telemetry_max_rows_per_node: int | None = None,
+        link_signal_retention_days: int | None = None,
+        advert_paths_per_contact: int | None = None,
+        noise_floor_retention_days: int | None = None,
+        battery_retention_days: int | None = None,
+        airtime_retention_days: int | None = None,
+        message_retention_days: int | None = None,
         last_message_times: dict[str, int] | None = None,
         advert_interval: int | None = None,
         last_advert_time: int | None = None,
@@ -864,6 +917,15 @@ class AppSettingsRepository:
                 auto_decrypt_dm_on_advert=auto_decrypt_dm_on_advert,
                 advert_retention_days=advert_retention_days,
                 raw_packet_retention_days=raw_packet_retention_days,
+                retention_prune_interval_hours=retention_prune_interval_hours,
+                telemetry_retention_days=telemetry_retention_days,
+                telemetry_max_rows_per_node=telemetry_max_rows_per_node,
+                link_signal_retention_days=link_signal_retention_days,
+                advert_paths_per_contact=advert_paths_per_contact,
+                noise_floor_retention_days=noise_floor_retention_days,
+                battery_retention_days=battery_retention_days,
+                airtime_retention_days=airtime_retention_days,
+                message_retention_days=message_retention_days,
                 last_message_times=last_message_times,
                 advert_interval=advert_interval,
                 last_advert_time=last_advert_time,
