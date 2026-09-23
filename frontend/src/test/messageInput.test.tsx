@@ -6,7 +6,11 @@
  */
 
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+import emojibaseData from 'emojibase-data/en/data.json';
+import emojibaseMessages from 'emojibase-data/en/messages.json';
 
 import { MessageInput } from '../components/MessageInput';
 import { toast } from '../components/ui/sonner';
@@ -190,6 +194,25 @@ describe('MessageInput', () => {
   });
 
   describe('emoji picker', () => {
+    // The picker loads self-hosted Emojibase data on open. By default keep that
+    // request pending so tests don't depend on the data (jsdom can't lay out
+    // frimousse's virtualized list anyway).
+    let fetchMock: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+      fetchMock = vi.fn(() => new Promise<Response>(() => {}));
+      vi.stubGlobal('fetch', fetchMock);
+      // jsdom has no canvas; frimousse's emoji-support probe then falls back.
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      vi.restoreAllMocks();
+    });
+
     function getEmojiToggle() {
       return screen.getByRole('button', { name: /emoji picker/i }) as HTMLButtonElement;
     }
@@ -204,23 +227,147 @@ describe('MessageInput', () => {
       expect(screen.queryByRole('dialog', { name: /emoji picker/i })).toBeNull();
     });
 
-    it('opens the picker on toggle click', () => {
+    it('opens the picker with search and skin tone controls', () => {
       renderInput({ conversationType: 'contact' });
       fireEvent.click(getEmojiToggle());
       expect(screen.getByRole('dialog', { name: /emoji picker/i })).toBeTruthy();
+      expect(screen.getByRole('searchbox', { name: 'Search emoji' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Skin tone' })).toBeTruthy();
+      expect(screen.getByText('Loading emojis...')).toBeTruthy();
     });
 
-    it('inserts the chosen emoji into the input and updates the byte counter', () => {
+    it('loads emoji data from the app itself, not a CDN', async () => {
+      renderInput({ conversationType: 'contact' });
+      fireEvent.click(getEmojiToggle());
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
+      for (const [url] of fetchMock.mock.calls) {
+        expect(String(url)).toMatch(/^\.\/emojibase-data\/en\//);
+      }
+    });
+
+    it('shows an error when the emoji data cannot be loaded', async () => {
+      fetchMock.mockImplementation(() => Promise.reject(new TypeError('Failed to fetch')));
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      renderInput({ conversationType: 'contact' });
+      fireEvent.click(getEmojiToggle());
+      expect(await screen.findByText('Could not load emojis')).toBeTruthy();
+      consoleError.mockRestore();
+    });
+
+    it('inserts a recent emoji into the input and updates the byte counter', () => {
+      localStorage.setItem('remoteterm-recent-emojis', JSON.stringify(['👍', '🔥']));
       renderInput({ conversationType: 'contact' });
       const input = getInput();
       fireEvent.change(input, { target: { value: 'hi' } });
       input.setSelectionRange(2, 2); // caret at end, as after typing
       fireEvent.click(getEmojiToggle());
+      expect(screen.getByText('Recent')).toBeTruthy();
       // Pick the 👍 emoji (4 bytes in UTF-8)
       fireEvent.click(screen.getByRole('button', { name: '👍' }));
       expect(getInput().value).toBe('hi👍');
       // "hi" (2) + "👍" (4) = 6 bytes
       expect(screen.getByText(/6\/156/)).toBeTruthy();
+    });
+
+    it('shows the byte cost of a hovered recent emoji', () => {
+      localStorage.setItem('remoteterm-recent-emojis', JSON.stringify(['👍🏽']));
+      renderInput({ conversationType: 'contact' });
+      fireEvent.click(getEmojiToggle());
+      expect(screen.getByText('Hover an emoji to see its byte cost')).toBeTruthy();
+      fireEvent.mouseEnter(screen.getByRole('button', { name: '👍🏽' }));
+      expect(screen.getByText('8 bytes')).toBeTruthy();
+    });
+
+    it('moves a picked emoji to the front of the recent list', () => {
+      localStorage.setItem('remoteterm-recent-emojis', JSON.stringify(['👍', '🔥']));
+      renderInput({ conversationType: 'contact' });
+      fireEvent.click(getEmojiToggle());
+      fireEvent.click(screen.getByRole('button', { name: '🔥' }));
+      expect(JSON.parse(localStorage.getItem('remoteterm-recent-emojis') ?? '[]')).toEqual([
+        '🔥',
+        '👍',
+      ]);
+    });
+
+    // Regression: clicking an emoji (or pressing Enter in the picker) must never
+    // submit the composer form. That would transmit the message over RF.
+    describe('never sends from inside the picker', () => {
+      function serveEmojiData() {
+        const data = emojibaseData.filter((e) => ['😀', '👍', '🔥'].includes(e.emoji));
+        fetchMock.mockImplementation((url: string) =>
+          Promise.resolve(
+            new Response(JSON.stringify(url.endsWith('messages.json') ? emojibaseMessages : data), {
+              headers: { 'Content-Type': 'application/json' },
+            })
+          )
+        );
+      }
+
+      it('every button in the picker is a non-submit button', async () => {
+        serveEmojiData();
+        renderInput({ conversationType: 'contact' });
+        fireEvent.click(getEmojiToggle());
+        const dialog = screen.getByRole('dialog', { name: /emoji picker/i });
+        await screen.findByRole('gridcell', { name: /grinning face/i });
+        const buttons = dialog.querySelectorAll('button');
+        expect(buttons.length).toBeGreaterThan(1);
+        for (const b of buttons) expect(b.type).toBe('button');
+      });
+
+      it('clicking an emoji in the list inserts it without sending', async () => {
+        serveEmojiData();
+        const user = userEvent.setup();
+        renderInput({ conversationType: 'contact' });
+        await user.type(getInput(), 'hi');
+        await user.click(getEmojiToggle());
+        await user.click(await screen.findByRole('gridcell', { name: /grinning face/i }));
+        expect(getInput().value).toBe('hi😀');
+        expect(onSend).not.toHaveBeenCalled();
+      });
+
+      it('Enter in the search box with no results does not send', async () => {
+        serveEmojiData();
+        const user = userEvent.setup();
+        renderInput({ conversationType: 'contact' });
+        await user.type(getInput(), 'hello');
+        await user.click(getEmojiToggle());
+        await screen.findByRole('gridcell', { name: /grinning face/i });
+        await user.type(screen.getByRole('searchbox', { name: 'Search emoji' }), 'zzzzqq{Enter}');
+        expect(onSend).not.toHaveBeenCalled();
+        expect(getInput().value).toBe('hello');
+      });
+
+      it('Enter in the search box with a match inserts that emoji without sending', async () => {
+        serveEmojiData();
+        const user = userEvent.setup();
+        renderInput({ conversationType: 'contact' });
+        await user.type(getInput(), 'hello');
+        await user.click(getEmojiToggle());
+        await screen.findByRole('gridcell', { name: /grinning face/i });
+        await user.type(screen.getByRole('searchbox', { name: 'Search emoji' }), 'grinning{Enter}');
+        expect(getInput().value).toBe('hello😀');
+        expect(onSend).not.toHaveBeenCalled();
+      });
+
+      it('Enter in the search box while data is loading does not send', async () => {
+        const user = userEvent.setup();
+        renderInput({ conversationType: 'contact' });
+        await user.type(getInput(), 'hello');
+        await user.click(getEmojiToggle());
+        await user.type(screen.getByRole('searchbox', { name: 'Search emoji' }), '{Enter}');
+        expect(onSend).not.toHaveBeenCalled();
+        expect(getInput().value).toBe('hello');
+      });
+    });
+
+    it('hides the recent row while searching', () => {
+      localStorage.setItem('remoteterm-recent-emojis', JSON.stringify(['👍']));
+      renderInput({ conversationType: 'contact' });
+      fireEvent.click(getEmojiToggle());
+      fireEvent.change(screen.getByRole('searchbox', { name: 'Search emoji' }), {
+        target: { value: 'dog' },
+      });
+      expect(screen.queryByText('Recent')).toBeNull();
     });
   });
 

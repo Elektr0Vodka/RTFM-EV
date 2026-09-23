@@ -10,11 +10,14 @@ import { applyCrt } from './utils/crt';
 import { applyFontScale, getSavedFontScale } from './utils/fontScale';
 import { PushSubscriptionProvider } from './contexts/PushSubscriptionContext';
 import { I18nProvider } from './i18n';
+import { setCountryFlagFontActive } from './utils/countryFlagFont';
 
 // Inject the bundled Twemoji flag font on browsers that support color emoji but
 // not regional-indicator flags (Windows/Chromium). No-op on macOS/Linux/Firefox.
 // Served locally from public/fonts, so it stays offline with no CDN dependency.
-polyfillCountryFlagEmojis('Twemoji Country Flags', './fonts/TwemojiCountryFlags.woff2');
+setCountryFlagFontActive(
+  polyfillCountryFlagEmojis('Twemoji Country Flags', './fonts/TwemojiCountryFlags.woff2')
+);
 
 // Apply saved theme before first render
 applyTheme(getSavedTheme());

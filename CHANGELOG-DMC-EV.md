@@ -11,6 +11,40 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-23 (Chat: full emoji library)
+
+### Chat (frontend)
+- **The composer's emoji picker now has the full emoji library.** All Emojibase
+  categories (Smileys & emotion through Flags), replacing the fixed set of 40.
+  Built on `frimousse` (a small React picker with no built-in styling) and
+  `emojibase-data`, styled with the app's theme tokens.
+  - Search, with category names and search terms in the app language (EN/NL/DE).
+  - Skin tone selector, remembered per browser.
+  - A "Recent" row with the last 16 emojis used, per browser. It is hidden while
+    searching.
+  - A footer with the hovered emoji's name and UTF-8 byte cost, since LoRa
+    messages are byte-limited (e.g. 👍 = 4 bytes, 👍🏽 = 8, a flag = 8).
+- **No wasted bytes on emoji.** Emojibase spells ~500 emojis with a trailing
+  U+FE0F variation selector (3 bytes). For the 152 whose base character already
+  renders as emoji by default (👍 👎 ✋ ⛳ …) it is redundant and is now dropped,
+  so 👍 costs 4 bytes instead of 7. It is kept where it matters: text-default
+  characters such as ❤️ and keycap/ZWJ sequences.
+- **No CDN requests.** frimousse loads its data from jsDelivr by default. A small
+  Vite plugin now serves the en/nl/de data files from the installed package in
+  dev and copies them into `dist/emojibase-data/` at build time. Only the active
+  language is fetched (~100 KB gzipped), the first time the picker opens.
+- **Country flags on Windows.** frimousse's own flag-support check uses a font
+  stack without the app's "Twemoji Country Flags" polyfill, so on Windows
+  Chromium it dropped all 259 country flags. When the polyfill is active the
+  flags are now added back, and the picker's emoji font includes the polyfill
+  font so they render as flags.
+- **The picker can never send a message.** Emoji buttons are explicitly
+  `type="button"`, and the composer ignores form submits while focus is inside
+  the picker (Enter in the search box with no results or while loading would
+  otherwise trigger implicit form submission). Regression tests cover clicking
+  an emoji, Enter with and without a search match, and Enter while loading.
+
+
 ## Update 2026-09-23 (Repeater and room avatars no longer depend on emoji fonts)
 
 ### Contact avatars (frontend)

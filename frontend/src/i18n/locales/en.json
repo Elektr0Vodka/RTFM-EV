@@ -56,7 +56,18 @@
   "chat_cracker_status_running": "(running)",
   "chat_desktop_notifications_legacy": "Desktop notifications (legacy)",
   "chat_direct_trace_description": "Direct Trace. Send a direct trace probe to this contact and display out and back SNR",
+  "chat_emoji_bytes": {
+    "one": "{count} byte",
+    "other": "{count} bytes"
+  },
+  "chat_emoji_hint": "Hover an emoji to see its byte cost",
+  "chat_emoji_load_failed": "Could not load emojis",
+  "chat_emoji_loading": "Loading emojis...",
+  "chat_emoji_no_results": "No emoji found",
   "chat_emoji_picker": "Emoji picker",
+  "chat_emoji_recent": "Recent",
+  "chat_emoji_search": "Search emoji",
+  "chat_emoji_skin_tone": "Skin tone",
   "chat_manage_web_push_devices_in": "Manage Web Push enabled devices in",
   "chat_mark_all_read": "Mark all as read",
   "chat_mute_channel": "Mute channel",

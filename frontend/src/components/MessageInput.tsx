@@ -12,6 +12,7 @@ import {
 } from 'react';
 import { Smile } from 'lucide-react';
 import { Button } from './ui/button';
+import { EmojiPicker } from './EmojiPicker';
 import { toast } from './ui/sonner';
 import { cn } from '@/lib/utils';
 import {
@@ -33,52 +34,6 @@ const CHANNEL_DANGER_BUFFER = 8; // Red zone starts this many bytes before hard 
 
 const textEncoder = new TextEncoder();
 const RADIO_NO_RESPONSE_SNIPPET = 'no response was heard back';
-
-// Curated set of common emojis for the quick picker. Kept small and
-// dependency-free (no emoji-picker library) since LoRa messages are short and
-// byte-constrained; a compact grid covers the everyday cases.
-const QUICK_EMOJIS = [
-  '😀',
-  '😁',
-  '😂',
-  '🤣',
-  '😊',
-  '😉',
-  '😍',
-  '😘',
-  '😎',
-  '🤔',
-  '😐',
-  '😴',
-  '😢',
-  '😭',
-  '😡',
-  '🥳',
-  '👍',
-  '👎',
-  '👌',
-  '🙏',
-  '👏',
-  '💪',
-  '🤝',
-  '✌️',
-  '❤️',
-  '🔥',
-  '⭐',
-  '✨',
-  '🎉',
-  '💯',
-  '✅',
-  '❌',
-  '📡',
-  '📻',
-  '🛰️',
-  '🔋',
-  '⚡',
-  '🗺️',
-  '📍',
-  '🚀',
-];
 
 /** Get UTF-8 byte length of a string (LoRa packets are byte-constrained, not character-constrained). */
 function byteLen(s: string): number {
@@ -112,6 +67,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const [emojiOpen, setEmojiOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
 
   /** Resize textarea to fit content, clamped between 1 row and ~6 rows. */
   const autoResize = useCallback(() => {
@@ -222,6 +178,9 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const handleSubmit = useCallback(
     async (e: FormEvent) => {
       e.preventDefault();
+      // Never send from inside the emoji picker: Enter in its search box (e.g.
+      // with no results, or while loading) triggers implicit form submission.
+      if (pickerRef.current?.contains(document.activeElement)) return;
       const trimmed = text.trim();
       if (!trimmed || sending || disabled) return;
 
@@ -340,21 +299,12 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
           {emojiOpen && (
             <div
+              ref={pickerRef}
               role="dialog"
               aria-label={t('chat_emoji_picker')}
-              className="absolute bottom-full right-0 mb-2 z-50 grid grid-cols-8 gap-0.5 rounded-md border border-border bg-card p-2 shadow-lg"
+              className="absolute bottom-full right-0 mb-2 z-50 overflow-hidden rounded-md border border-border bg-card shadow-lg"
             >
-              {QUICK_EMOJIS.map((emoji) => (
-                <button
-                  key={emoji}
-                  type="button"
-                  onClick={() => insertEmoji(emoji)}
-                  aria-label={emoji}
-                  className="flex h-8 w-8 items-center justify-center rounded-sm text-xl leading-none hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <span aria-hidden="true">{emoji}</span>
-                </button>
-              ))}
+              <EmojiPicker onSelect={insertEmoji} />
             </div>
           )}
         </div>
