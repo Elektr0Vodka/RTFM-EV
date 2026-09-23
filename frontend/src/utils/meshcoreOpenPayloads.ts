@@ -8,6 +8,15 @@
  *   g:<gifId>        Giphy GIF        -> https://media.giphy.com/media/<id>/giphy.gif
  *   r:<hash>:<index> Emoji reaction   -> <index> picks an emoji from a fixed list
  *
+ * A GIF can also arrive as a whole-message Giphy URL instead of `g:<id>` (the
+ * meshcore-open picker inserts `g:<id>`, but its `GifHelper.parseGif` also
+ * accepts these, so a pasted Giphy link from another client still renders):
+ *
+ *   media.giphy.com/media/<id>/giphy.gif
+ *   giphy.com/gifs/[<title>-]<id>
+ *
+ * with an optional `http://`/`https://` scheme. See parseGifUrl below.
+ *
  * Formats and the emoji table are ported verbatim from meshcore-open:
  *   lib/helpers/gif_helper.dart
  *   lib/helpers/reaction_helper.dart
@@ -90,6 +99,38 @@ export function parseGif(text: string): string | null {
 /** Build the Giphy media URL for a GIF id. */
 export function giphyUrlForId(gifId: string): string {
   return `https://media.giphy.com/media/${gifId}/giphy.gif`;
+}
+
+// The direct media URL: an optional scheme, then media.giphy.com/media/<id>/giphy.gif.
+const GIF_MEDIA_URL_PATTERN =
+  /^(?:https?:\/\/)?media\.giphy\.com\/media\/([A-Za-z0-9_-]+)\/giphy\.gif$/;
+
+// The Giphy page URL: an optional scheme, then giphy.com/gifs/, an optional
+// "title-" prefix (Giphy page slugs are "<title>-<id>"), the id, and an
+// optional trailing slash. The id itself cannot contain dashes, so a greedy
+// "anything-" prefix backtracks to the last dash in the path segment.
+const GIF_PAGE_URL_PATTERN = /^(?:https?:\/\/)?giphy\.com\/gifs\/(?:[^/?]*-)?([A-Za-z0-9_]+)\/?$/;
+
+/**
+ * Parse a whole-message Giphy URL in either form meshcore-open's `parseGif`
+ * accepts besides `g:<id>` (see the module doc comment). Returns the Giphy
+ * GIF id, or null if the (trimmed) text does not match either form.
+ */
+export function parseGifUrl(text: string): string | null {
+  const trimmed = text.trim();
+  const media = GIF_MEDIA_URL_PATTERN.exec(trimmed);
+  if (media) return media[1];
+  const page = GIF_PAGE_URL_PATTERN.exec(trimmed);
+  return page ? page[1] : null;
+}
+
+/**
+ * Parse any whole-message GIF payload meshcore-open's `parseGif` accepts:
+ * `g:<id>` or one of the two Giphy URL forms. Returns the Giphy GIF id, or
+ * null if the (trimmed) text does not match any of them.
+ */
+export function parseGifPayload(text: string): string | null {
+  return parseGif(text) ?? parseGifUrl(text);
 }
 
 // --- Reaction (r:<hash>:<index>) ---

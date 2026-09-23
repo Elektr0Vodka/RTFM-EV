@@ -212,6 +212,18 @@ the change. Upstream development is on hold; the fork is the active repository.
   marked unread until the user actually leaves and returns to it (a real
   navigation), at which point it reads as normal again, same as any other
   unread conversation.
+## Update 2026-09-23 (GIF URL forms, feat/gif-url-forms, plan 28 item 1.4)
+
+### Chat and display (frontend)
+- **Giphy URL forms for MeshCore Open GIFs.** A whole-message
+  `media.giphy.com/media/<id>/giphy.gif` or `giphy.com/gifs/[title-]<id>` link
+  (with or without `https://`) now renders as an inline GIF the same way
+  `g:<id>` already does, matching the two extra forms meshcore-open's
+  `GifHelper.parseGif` accepts besides its own picker's `g:<id>`. Gated by the
+  same Settings > Local > "Render MeshCore Open GIFs & Reactions" toggle
+  (off by default); with it off, the message renders as a plain link/URL
+  preview as before. No picker, no Giphy API key and no send-side conversion
+  (deferred; see plan 28 item 1.4).
 
 ## Update 2026-09-23 (Shared-locations map layer + MGRS, feat/shared-locations-map-layer)
 
