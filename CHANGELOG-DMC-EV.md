@@ -11,6 +11,48 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-23 (Configurable data retention, feat/data-retention-policy)
+
+### Retention (backend)
+- **Every stored history class now has its own retention setting.** Migration
+  `_105` adds `retention_prune_interval_hours` (24), `telemetry_retention_days`
+  (30), `telemetry_max_rows_per_node` (1000), `link_signal_retention_days` (30),
+  `advert_paths_per_contact` (10), `noise_floor_retention_days`,
+  `battery_retention_days`, `airtime_retention_days` and
+  `message_retention_days` (all 0 = keep forever). The existing
+  `raw_packet_retention_days` and `advert_retention_days` now both accept 0-3650
+  (advert `0` now means keep forever instead of "treated as 30"). The defaults
+  are the caps that were hard-coded before, so an upgrade deletes nothing new.
+- **One prune service replaces the scattered prune points.** New
+  `app/services/retention_pruner.py` (SQL in `app/repository/retention.py`)
+  replaces `advert_pruner.py` and `raw_packet_pruner.py`, the prune-on-insert in
+  the two telemetry repositories and the hourly `link_signal` prunes in
+  `packet_processor.py` / `radio_sync.py`. It ticks every minute, runs when the
+  configured interval has elapsed, isolates failures per class, and calls
+  `PRAGMA incremental_vacuum` after a run that deleted rows. Limits are now
+  enforced per run instead of per insert.
+- **Message retention deletes the message's raw packet too**, in the same
+  transaction, so historical decryption cannot bring a pruned message back.
+- **Noise floor, battery and airtime history can now be pruned.** Before this
+  nothing ever deleted them.
+- New `GET /api/retention/stats` (row count and oldest entry per class, last /
+  next run, preview of messages a given retention would delete) and
+  `POST /api/retention/prune` (run now).
+
+### Settings > Database (frontend)
+- **"Mesh health history" is replaced by a "Data retention" section**
+  (`SettingsRetentionSection.tsx`): one row per data class with row count, oldest
+  entry and its limit input(s), the prune interval, a "Prune now" button, and
+  "Keep everything (analyzer)" / "Restore defaults" buttons (both confirm first).
+  Enabling or lowering message retention asks for confirmation and shows how
+  many messages the next run deletes. New `settings_retention_*` i18n keys in
+  EN/NL/DE; the five old mesh-history retention keys are removed.
+
+### Documentation
+- README: the per-class retention roadmap item moved to "Shipped".
+  README_ADVANCED: new "Data retention" section. `app/AGENTS.md` and root
+  `AGENTS.md`: retention settings, service, and endpoints.
+
 ## Update 2026-09-23 (Map: Chrome blackout, neon nodes, 3D buildings)
 
 ### Map

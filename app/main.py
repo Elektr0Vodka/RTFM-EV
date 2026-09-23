@@ -78,6 +78,7 @@ from app.routers import (
     regions,
     registry,
     repeaters,
+    retention,
     rooms,
     settings,
     statistics,
@@ -87,11 +88,10 @@ from app.routers import (
     ws,
 )
 from app.security import add_optional_basic_auth_middleware
-from app.services.advert_pruner import start_advert_prune, stop_advert_prune
 from app.services.external_map import start_external_map_sync, stop_external_map_sync
 from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.radio_stats import start_radio_stats_sampling, stop_radio_stats_sampling
-from app.services.raw_packet_pruner import start_raw_packet_prune, stop_raw_packet_prune
+from app.services.retention_pruner import start_retention_prune, stop_retention_prune
 from app.version_info import get_app_build_info
 
 setup_logging()
@@ -136,11 +136,8 @@ async def lifespan(app: FastAPI):
     # external_map_enabled / interval settings each tick).
     start_external_map_sync()
 
-    # Daily prune of advert_events per the configured retention.
-    start_advert_prune()
-
-    # Daily prune of raw_packets per the configured retention (0 = keep forever).
-    start_raw_packet_prune()
+    # Per-class retention pruning on the configured interval (Settings > Database).
+    start_retention_prune()
 
     # Always start connection monitor (even if initial connection failed)
     await radio_manager.start_connection_monitor()
@@ -171,8 +168,7 @@ async def lifespan(app: FastAPI):
     await stop_message_polling()
     await stop_radio_stats_sampling()
     await stop_external_map_sync()
-    await stop_advert_prune()
-    await stop_raw_packet_prune()
+    await stop_retention_prune()
     await stop_periodic_advert()
     await stop_periodic_sync()
     await stop_telemetry_collect()
@@ -243,6 +239,7 @@ app.include_router(messages.router, prefix="/api")
 app.include_router(packets.router, prefix="/api")
 app.include_router(read_state.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
+app.include_router(retention.router, prefix="/api")
 app.include_router(registry.router, prefix="/api")
 app.include_router(regions.router, prefix="/api")
 app.include_router(external_map.router, prefix="/api")

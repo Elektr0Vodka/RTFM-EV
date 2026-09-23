@@ -183,6 +183,26 @@ export interface MaintenanceResult {
   vacuumed: boolean;
 }
 
+export interface RetentionClassStats {
+  key: string;
+  rows: number;
+  oldest_ts: number | null;
+}
+
+export interface RetentionStats {
+  classes: RetentionClassStats[];
+  interval_hours: number;
+  last_run_at: number | null;
+  next_run_at: number | null;
+  last_result: Record<string, number>;
+  messages_would_delete: number | null;
+}
+
+export interface RetentionPruneResult {
+  deleted: Record<string, number>;
+  ran_at: number;
+}
+
 export interface Contact {
   public_key: string;
   name: string | null;
@@ -574,8 +594,18 @@ export interface AppSettings {
   max_radio_contacts: number;
   auto_decrypt_dm_on_advert: boolean;
   advert_retention_days: number;
-  /** Days of raw_packets history to keep; 0 = keep forever. Pruned daily. */
+  /** Days of raw_packets history to keep; 0 = keep forever. */
   raw_packet_retention_days: number;
+  /** Per-class retention (migration _105). Days/rows: 0 = keep forever / no cap. */
+  retention_prune_interval_hours: number;
+  telemetry_retention_days: number;
+  telemetry_max_rows_per_node: number;
+  link_signal_retention_days: number;
+  advert_paths_per_contact: number;
+  noise_floor_retention_days: number;
+  battery_retention_days: number;
+  airtime_retention_days: number;
+  message_retention_days: number;
   last_message_times: Record<string, number>;
   advert_interval: number;
   last_advert_time: number;
@@ -839,6 +869,15 @@ export interface AppSettingsUpdate {
   auto_decrypt_dm_on_advert?: boolean;
   advert_retention_days?: number;
   raw_packet_retention_days?: number;
+  retention_prune_interval_hours?: number;
+  telemetry_retention_days?: number;
+  telemetry_max_rows_per_node?: number;
+  link_signal_retention_days?: number;
+  advert_paths_per_contact?: number;
+  noise_floor_retention_days?: number;
+  battery_retention_days?: number;
+  airtime_retention_days?: number;
+  message_retention_days?: number;
   advert_interval?: number;
   auto_resend_channel?: boolean;
   flood_scope?: string;

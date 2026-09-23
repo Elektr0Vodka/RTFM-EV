@@ -25,6 +25,8 @@ import type {
   FanoutConfig,
   HealthStatus,
   MaintenanceResult,
+  RetentionPruneResult,
+  RetentionStats,
   MeshcomodConfig,
   MeshcomodConfigUpdate,
   Message,
@@ -452,6 +454,13 @@ export const api = {
         }),
       }),
     }),
+
+  // Retention
+  getRetentionStats: (messagesDays?: number) =>
+    fetchJson<RetentionStats>(
+      `/retention/stats${messagesDays !== undefined ? `?messages_days=${messagesDays}` : ''}`
+    ),
+  runRetentionPrune: () => fetchJson<RetentionPruneResult>('/retention/prune', { method: 'POST' }),
 
   // Backup
   downloadBackupUrl: () => `${API_BASE}/backup/download`,

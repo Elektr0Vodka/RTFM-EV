@@ -2182,12 +2182,6 @@ async def _run_telemetry_cycle(
         len(candidates),
     )
 
-    # Bound neighbor-signal history growth once per cycle (X2b).
-    try:
-        await LinkSignalRepository.prune()
-    except Exception as e:  # noqa: BLE001 - best-effort maintenance
-        logger.debug("Neighbor signal prune failed: %s", e)
-
 
 async def _sleep_until_next_utc_top_of_hour() -> None:
     """Sleep until the next UTC top-of-hour (or a minimum of 1 second)."""

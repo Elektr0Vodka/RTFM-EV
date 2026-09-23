@@ -970,9 +970,14 @@ class TestAdvertRetentionSetting:
         from pydantic import ValidationError
 
         with pytest.raises(ValidationError):
-            AppSettingsUpdate(advert_retention_days=0)
+            AppSettingsUpdate(advert_retention_days=-1)
         with pytest.raises(ValidationError):
-            AppSettingsUpdate(advert_retention_days=366)
+            AppSettingsUpdate(advert_retention_days=3651)
+
+    @pytest.mark.asyncio
+    async def test_zero_keeps_forever(self, test_db):
+        result = await update_settings(AppSettingsUpdate(advert_retention_days=0))
+        assert result.advert_retention_days == 0
 
 
 class TestOpenHopTokenMasking:

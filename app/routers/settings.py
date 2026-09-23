@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.models import (
     CONTACT_TYPE_REPEATER,
+    RETENTION_DEFAULTS,
     AnalyzerSite,
     AppSettings,
     HandyInfoCustomEntry,
@@ -259,15 +260,69 @@ class AppSettingsUpdate(BaseModel):
     )
     advert_retention_days: int | None = Field(
         default=None,
-        ge=1,
-        le=365,
-        description="Days of advert history to keep before daily pruning",
+        ge=0,
+        le=3650,
+        description="Days of advert history to keep; 0 = keep forever",
     )
     raw_packet_retention_days: int | None = Field(
         default=None,
         ge=0,
-        le=365,
-        description="Days of raw_packets history to keep; 0 = keep forever. Pruned daily.",
+        le=3650,
+        description="Days of raw_packets history to keep; 0 = keep forever",
+    )
+    retention_prune_interval_hours: int | None = Field(
+        default=None,
+        ge=1,
+        le=168,
+        description="Hours between retention prune runs",
+    )
+    telemetry_retention_days: int | None = Field(
+        default=None,
+        ge=0,
+        le=3650,
+        description="Days of repeater/contact telemetry history to keep; 0 = keep forever",
+    )
+    telemetry_max_rows_per_node: int | None = Field(
+        default=None,
+        ge=0,
+        le=100000,
+        description="Telemetry history rows kept per node; 0 = no cap",
+    )
+    link_signal_retention_days: int | None = Field(
+        default=None,
+        ge=0,
+        le=3650,
+        description="Days of per-link signal history to keep; 0 = keep forever",
+    )
+    advert_paths_per_contact: int | None = Field(
+        default=None,
+        ge=1,
+        le=100,
+        description="Most recent unique advert paths kept per contact",
+    )
+    noise_floor_retention_days: int | None = Field(
+        default=None,
+        ge=0,
+        le=3650,
+        description="Days of noise-floor samples to keep; 0 = keep forever",
+    )
+    battery_retention_days: int | None = Field(
+        default=None,
+        ge=0,
+        le=3650,
+        description="Days of battery samples to keep; 0 = keep forever",
+    )
+    airtime_retention_days: int | None = Field(
+        default=None,
+        ge=0,
+        le=3650,
+        description="Days of airtime samples to keep; 0 = keep forever",
+    )
+    message_retention_days: int | None = Field(
+        default=None,
+        ge=0,
+        le=3650,
+        description="Days of messages (and their linked raw packets) to keep; 0 = keep forever",
     )
     advert_interval: int | None = Field(
         default=None,
@@ -613,6 +668,10 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
         kwargs["advert_retention_days"] = update.advert_retention_days
     if update.raw_packet_retention_days is not None:
         kwargs["raw_packet_retention_days"] = update.raw_packet_retention_days
+    for name in RETENTION_DEFAULTS:
+        value = getattr(update, name)
+        if value is not None:
+            kwargs[name] = value
 
     if update.advert_interval is not None:
         # Enforce minimum 1-hour interval; 0 means disabled

@@ -1234,6 +1234,21 @@ class SidebarFavoriteSortOrders(BaseModel):
     sensors: str = Field(default="recent")
 
 
+# Retention settings added in migration _105 (0 = keep forever / no cap).
+# Defaults reproduce the pruning behavior from before that migration.
+RETENTION_DEFAULTS: dict[str, int] = {
+    "retention_prune_interval_hours": 24,
+    "telemetry_retention_days": 30,
+    "telemetry_max_rows_per_node": 1000,
+    "link_signal_retention_days": 30,
+    "advert_paths_per_contact": 10,
+    "noise_floor_retention_days": 0,
+    "battery_retention_days": 0,
+    "airtime_retention_days": 0,
+    "message_retention_days": 0,
+}
+
+
 class AppSettings(BaseModel):
     """Application settings stored in the database."""
 
@@ -1250,12 +1265,48 @@ class AppSettings(BaseModel):
     )
     advert_retention_days: int = Field(
         default=30,
-        description="Days of advert_events history to keep; older events are pruned daily",
+        description="Days of advert_events history to keep; 0 keeps forever",
     )
     raw_packet_retention_days: int = Field(
         default=0,
         ge=0,
-        description="Days of raw_packets history to keep; 0 keeps forever. Pruned daily.",
+        description="Days of raw_packets history to keep; 0 keeps forever",
+    )
+    retention_prune_interval_hours: int = Field(
+        default=24,
+        description="Hours between runs of the retention prune service",
+    )
+    telemetry_retention_days: int = Field(
+        default=30,
+        description="Days of repeater/contact telemetry history to keep; 0 keeps forever",
+    )
+    telemetry_max_rows_per_node: int = Field(
+        default=1000,
+        description="Telemetry history rows kept per node (newest first); 0 = no cap",
+    )
+    link_signal_retention_days: int = Field(
+        default=30,
+        description="Days of per-link signal history to keep; 0 keeps forever",
+    )
+    advert_paths_per_contact: int = Field(
+        default=10,
+        description="Most recent unique advert paths kept per contact",
+    )
+    noise_floor_retention_days: int = Field(
+        default=0,
+        description="Days of noise-floor samples to keep; 0 keeps forever",
+    )
+    battery_retention_days: int = Field(
+        default=0,
+        description="Days of local battery samples to keep; 0 keeps forever",
+    )
+    airtime_retention_days: int = Field(
+        default=0,
+        description="Days of local airtime samples to keep; 0 keeps forever",
+    )
+    message_retention_days: int = Field(
+        default=0,
+        description=("Days of messages to keep (with their linked raw packets); 0 keeps forever"),
     )
     last_message_times: dict[str, int] = Field(
         default_factory=dict,

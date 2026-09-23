@@ -61,14 +61,50 @@ snapshot of it:
 Backup is on-demand only (no scheduled job) and does not include a restore flow.
 
 Raw packets are kept forever by default, so the database (and each backup) can keep
-growing. Set **Keep raw packet history (days)** in the
-same Settings database section to a positive value to have older raw packets
-pruned daily. That setting also bounds how far back the Packet History view can
-reach.
+growing. See **Data retention** below to prune older data automatically.
 
 **Restore (manual):** stop the server, replace `data/meshcore.db` with the backup
 file, delete `data/meshcore.db-wal` and `data/meshcore.db-shm` if present, then
 start the server again.
+
+## Data retention
+
+Settings > Database > **Data retention** controls how long each kind of stored
+history is kept. Every value is a number of days, and `0` means keep forever.
+
+| Data | Default | Notes |
+|---|---|---|
+| Raw packets | 0 (forever) | Also bounds how far back Packet History reaches |
+| Messages | 0 (forever) | Pruning a message also deletes its stored raw packet, so it cannot be decrypted back |
+| Advert events (Mesh Health) | 30 | Bounds the Mesh Health time windows |
+| Repeater and contact telemetry | 30 days, 1000 rows per node | Rows per node keeps the newest; `0` = no cap |
+| Link signal history | 30 | |
+| Noise floor, battery, airtime (My Node) | 0 (forever) | About one sample per minute each |
+| Advert paths | 10 per contact | Most recent unique paths; minimum 1 |
+
+How it runs:
+
+- One prune service applies all settings. It runs about a minute after the server
+  starts and then every **Prune every** hours (default 24, range 1-168). A changed
+  interval takes effect within a minute.
+- **Prune now** runs it immediately. Each row shows the current row count and the
+  age of the oldest entry.
+- Lowering a value deletes the older data on the next run. Raising it does not bring
+  deleted data back.
+- Limits are enforced per run, not per insert, so a table can briefly hold up to one
+  interval of data beyond its limit.
+- Setting a message retention above 0, or lowering it, asks for confirmation and
+  shows how many messages the next run will delete.
+- **Keep everything (analyzer)** sets every limit to 0. **Restore defaults** puts the
+  table above back; that re-enables the 30-day limits and deletes older rows on the
+  next run.
+- After a run that deleted rows the server returns the freed space to the operating
+  system (`PRAGMA incremental_vacuum`).
+
+The defaults match the behaviour before these settings existed, so upgrading does
+not delete anything that was kept before. The manual **Storage Cleanup** tools in
+the same section are unchanged. API: `GET /api/retention/stats`,
+`POST /api/retention/prune`; settings via `PATCH /api/settings`.
 
 ## Contact Loading Issues
 
