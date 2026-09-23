@@ -92,6 +92,11 @@ Shipped toward this so far:
   small in-settings map, or at your last position and zoom. The mode and home
   coordinate are stored server-side (migration `_104`); the last position is
   remembered per browser.
+- Map links are drawn only through nodes this server has heard over RF (never-heard
+  contacts and analyzer-only nodes are skipped), with an optional max link
+  distance in km (map Overlays > Links, per browser; usually the RF range of your
+  frequency and preset). A fullscreen button on the map toggles browser
+  fullscreen where the browser supports it.
 - Mesh Trends Live-tab stat breakdowns can be computed from the database over the
   selected range, backed by decoded packet fields persisted at ingest (`_089`),
   not only the in-memory session buffer.

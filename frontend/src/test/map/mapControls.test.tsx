@@ -239,4 +239,55 @@ describe('MapControls', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Name' }));
     expect(onLabelMode).toHaveBeenCalledWith('name');
   });
+
+  it('reports a max link distance and clears it back to no limit', () => {
+    const onLinkMaxKm = vi.fn();
+    renderControls({ fabs: { links: true }, linksOn: true, linkMaxKm: 150, onLinkMaxKm });
+    fireEvent.click(screen.getByRole('button', { name: 'Overlays' }));
+    const input = screen.getByLabelText('Max link distance (km)');
+    expect(input).toHaveValue(150);
+    fireEvent.change(input, { target: { value: '75' } });
+    expect(onLinkMaxKm).toHaveBeenLastCalledWith(75);
+    fireEvent.change(input, { target: { value: '' } });
+    expect(onLinkMaxKm).toHaveBeenLastCalledWith(0);
+  });
+
+  it('shows an empty max link distance when there is no limit', () => {
+    renderControls({ fabs: { links: true }, linksOn: true, linkMaxKm: 0, onLinkMaxKm: vi.fn() });
+    fireEvent.click(screen.getByRole('button', { name: 'Overlays' }));
+    expect(screen.getByLabelText('Max link distance (km)')).toHaveValue(null);
+  });
+
+  it('hides the max link distance while links are disabled', () => {
+    renderControls({ fabs: { links: true }, linksOn: false, onLinkMaxKm: vi.fn() });
+    fireEvent.click(screen.getByRole('button', { name: 'Overlays' }));
+    expect(screen.queryByLabelText('Max link distance (km)')).not.toBeInTheDocument();
+  });
+
+  it('renders a fullscreen FAB that toggles and reflects the state', () => {
+    const onToggleFullscreen = vi.fn();
+    const { rerender } = renderControls({ fabs: { fullscreen: true }, onToggleFullscreen });
+    const enter = screen.getByRole('button', { name: 'Fullscreen' });
+    expect(enter).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(enter);
+    expect(onToggleFullscreen).toHaveBeenCalledTimes(1);
+    rerender(
+      <I18nProvider>
+        <MapControls
+          fabs={{ fullscreen: true }}
+          fullscreen
+          onToggleFullscreen={onToggleFullscreen}
+        />
+      </I18nProvider>
+    );
+    expect(screen.getByRole('button', { name: 'Exit fullscreen' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+  });
+
+  it('omits the fullscreen FAB when the browser cannot go fullscreen', () => {
+    renderControls({ fabs: { fullscreen: true } });
+    expect(screen.queryByRole('button', { name: 'Fullscreen' })).not.toBeInTheDocument();
+  });
 });

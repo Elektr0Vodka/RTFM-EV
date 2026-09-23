@@ -11,6 +11,36 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-23 (Map links: heard-only, max distance, fullscreen)
+
+### Map links (backend)
+- **Advert-path links no longer resolve through never-heard nodes.**
+  `GET /api/packets/advert-links` gains `heard_only` (resolve hops only against
+  contacts with `last_seen` set, skipping never-heard contacts and analyzer-only
+  `external_map_nodes`) and `max_km` (a hop candidate farther than this from the
+  previous hop is not a match, so the chain breaks; direct and tail edges to self
+  longer than this are dropped). Both default off, so the API is unchanged for
+  other callers. Fixes links drawn from the Netherlands to the UK.
+
+### Map (frontend)
+- The map link layer requests `heard_only=true` plus the user's max distance.
+  The wrong-location filter keeps its own unfiltered fetch, so its detection is
+  unchanged.
+- Liveness links resolve hops only against heard contacts (the packet overlay
+  keeps the full contact set) and drop links longer than the max distance.
+- New **Max link distance (km)** field in Overlays > Links (per browser, empty =
+  no limit), usually the RF range of your frequency and preset.
+- New **Fullscreen** FAB that toggles browser fullscreen for the whole map
+  surface; hidden where the Fullscreen API is unavailable (iPhone Safari). The
+  compact bottom sheet portals into the fullscreen element so panels stay
+  visible.
+- **Fix: map links now draw on page load.** With links remembered on, the edge
+  fetch could resolve before the map finished loading, and nothing re-painted
+  the link layer once it was created, so no links showed until a link option
+  was changed. A basemap swap (including the initial vector-basemap upgrade)
+  also re-added the advert-links layer empty. `MapView` now paints the current
+  links as soon as the layers exist and again after every basemap re-apply.
+
 ## Update 2026-09-23 (Protocol and messaging fixes, fix/protocol-messaging-bugs)
 
 ### Security

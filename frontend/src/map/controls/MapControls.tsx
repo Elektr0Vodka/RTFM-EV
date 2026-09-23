@@ -14,6 +14,8 @@ import {
   Activity,
   Pin,
   Settings,
+  Maximize,
+  Minimize,
   X,
 } from 'lucide-react';
 import { useT } from '../../i18n';
@@ -29,6 +31,7 @@ import { isBool, usePersistedMapSetting } from '../usePersistedMapSetting';
 import { MapLegend } from './legend/MapLegend';
 import { NODE_ROLE_TYPES, DEFAULT_NODE_ROLE_COLORS } from '../layers/nodeRoleColors';
 import { ARC_FADE_PRESETS_MS, DEFAULT_ARC_FADE_MS } from '../packets/packetAnimMath';
+import { LINK_MAX_KM_UPPER } from '../linkDistance';
 import {
   CONTACT_TYPE_CLIENT,
   CONTACT_TYPE_REPEATER,
@@ -46,6 +49,7 @@ export interface FabConfig {
   links?: boolean;
   labelMode?: boolean;
   telemetry?: boolean;
+  fullscreen?: boolean;
 }
 
 export interface BasemapOption {
@@ -90,6 +94,14 @@ export interface MapControlsProps {
   onLinkMode?: (mode: 'liveness' | 'advert') => void;
   linkConfidence?: 1 | 2 | 3;
   onLinkConfidence?: (level: 1 | 2 | 3) => void;
+  /** Max link length in km; 0 = no limit. */
+  linkMaxKm?: number;
+  onLinkMaxKm?: (km: number) => void;
+  fullscreen?: boolean;
+  /** Omitted when the browser cannot go fullscreen; the FAB is then hidden. */
+  onToggleFullscreen?: () => void;
+  /** Where the compact bottom sheet portals to (the fullscreen element, if any). */
+  portalContainer?: HTMLElement | null;
   telemetryOn?: boolean;
   onToggleTelemetry?: (on: boolean) => void;
   sidebarOpen?: boolean;
@@ -260,6 +272,11 @@ export function MapControls(props: MapControlsProps) {
     onLinkMode,
     linkConfidence = 2,
     onLinkConfidence,
+    linkMaxKm = 0,
+    onLinkMaxKm,
+    fullscreen = false,
+    onToggleFullscreen,
+    portalContainer,
     telemetryOn = false,
     onToggleTelemetry,
     sidebarOpen = false,
@@ -548,6 +565,27 @@ export function MapControls(props: MapControlsProps) {
               ))}
             </div>
           )}
+          {linksOn && onLinkMaxKm && (
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              <span className="font-medium">{t('map_links_max_km_label')}</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={LINK_MAX_KM_UPPER}
+                step={1}
+                value={linkMaxKm > 0 ? linkMaxKm : ''}
+                placeholder={t('map_links_max_km_placeholder')}
+                aria-label={t('map_links_max_km_label')}
+                className="w-full rounded border border-border bg-background px-2 py-1.5 text-sm text-foreground"
+                onChange={(e) => {
+                  const km = e.target.value === '' ? 0 : Number(e.target.value);
+                  if (Number.isFinite(km) && km >= 0 && km <= LINK_MAX_KM_UPPER) onLinkMaxKm(km);
+                }}
+              />
+              <span>{t('map_links_max_km_hint')}</span>
+            </label>
+          )}
         </div>
       ),
     };
@@ -677,6 +715,15 @@ export function MapControls(props: MapControlsProps) {
       onClick: () => onToggleBuildings?.(!buildings),
     });
   }
+  if (fabs.fullscreen && onToggleFullscreen) {
+    toggles.push({
+      id: 'fullscreen',
+      label: fullscreen ? t('map_fullscreen_exit') : t('map_fullscreen_enter'),
+      icon: fullscreen ? <Minimize size={20} aria-hidden /> : <Maximize size={20} aria-hidden />,
+      active: fullscreen,
+      onClick: onToggleFullscreen,
+    });
+  }
 
   const activePanel = panels.find((p) => p.id === openPanel) ?? null;
 
@@ -732,7 +779,11 @@ export function MapControls(props: MapControlsProps) {
       {/* Compact: bottom sheet host. */}
       {compact && (
         <Sheet open={activePanel != null} onOpenChange={(o) => !o && setOpenPanel(null)}>
-          <SheetContent side="bottom" className="max-h-[70vh] overflow-y-auto">
+          <SheetContent
+            side="bottom"
+            className="max-h-[70vh] overflow-y-auto"
+            container={portalContainer}
+          >
             <SheetHeader>
               <SheetTitle>{activePanel?.label ?? t('map_controls_title')}</SheetTitle>
               <SheetDescription className="sr-only">{t('map_controls_title')}</SheetDescription>

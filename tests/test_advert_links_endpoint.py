@@ -171,6 +171,37 @@ class TestRecentEvents:
         assert rows[0].hop_width == 2 and rows[0].public_key == "ff00000000"
 
 
+class TestLocatedNodesHeardOnly:
+    @pytest.mark.asyncio
+    async def test_heard_only_excludes_never_heard_contacts_and_external_nodes(self, test_db):
+        await ContactRepository.upsert(
+            ContactUpsert(public_key="ff00000000", name="Heard", lat=52.0, lon=5.0, last_seen=100)
+        )
+        await ContactRepository.upsert(
+            ContactUpsert(public_key="dd00000000", name="NeverHeard", lat=52.2, lon=5.1)
+        )
+        await ExternalMapRepository.replace_all(
+            [
+                ExternalMapNode(
+                    pubkey="aa11000000",
+                    name="R1",
+                    role="Repeater",
+                    lat=52.1,
+                    lon=5.0,
+                    last_seen=1,
+                    advert_count=3,
+                    mobile=False,
+                )
+            ],
+            source="test",
+            synced_at=1,
+        )
+        all_pks = {n.pubkey for n in await AdvertLinksRepository.located_nodes()}
+        assert all_pks == {"ff00000000", "dd00000000", "aa11000000"}
+        heard_pks = {n.pubkey for n in await AdvertLinksRepository.located_nodes(heard_only=True)}
+        assert heard_pks == {"ff00000000"}
+
+
 class TestAdvertLinksEndpoint:
     @pytest.mark.asyncio
     async def test_returns_resolved_edges_without_radio(self, test_db, client):
@@ -251,3 +282,52 @@ class TestAdvertLinksEndpoint:
         response = await client.get("/api/packets/advert-links")
         assert response.status_code == 200
         assert response.json() == []
+
+    @pytest.mark.asyncio
+    async def test_heard_only_and_max_km_query_params(self, test_db, client):
+        # Origin (heard) advertises via a unique 2-byte hop that is either an
+        # analyzer-only node (never heard) or a heard contact far away.
+        await ContactRepository.upsert(
+            ContactUpsert(public_key="ff00000000", name="Origin", lat=52.0, lon=5.0, last_seen=1)
+        )
+        await ContactRepository.upsert(
+            ContactUpsert(public_key="bb22000000", name="Far", lat=51.5, lon=-0.1, last_seen=1)
+        )
+        await ExternalMapRepository.replace_all(
+            [
+                ExternalMapNode(
+                    pubkey="aa11000000",
+                    name="R1",
+                    role="Repeater",
+                    lat=52.1,
+                    lon=5.0,
+                    last_seen=1,
+                    advert_count=3,
+                    mobile=False,
+                )
+            ],
+            source="test",
+            synced_at=1,
+        )
+        await _insert_advert_event(test_db, "ff00000000", "aa11", 2, 1, 9000)
+        await _insert_advert_event(test_db, "ff00000000", "bb22", 2, 1, 9001)
+
+        def pairs(resp):
+            return {frozenset((e["a"]["pubkey"], e["b"]["pubkey"])) for e in resp.json()}
+
+        everything = await client.get("/api/packets/advert-links")
+        assert pairs(everything) == {
+            frozenset(("ff00000000", "aa11000000")),
+            frozenset(("ff00000000", "bb22000000")),
+        }
+        heard = await client.get("/api/packets/advert-links?heard_only=true")
+        assert pairs(heard) == {frozenset(("ff00000000", "bb22000000"))}
+        # Origin (NL) to Far (London) is ~360 km; a 200 km cap drops it.
+        capped = await client.get("/api/packets/advert-links?heard_only=true&max_km=200")
+        assert capped.status_code == 200
+        assert capped.json() == []
+
+    @pytest.mark.asyncio
+    async def test_rejects_non_positive_max_km(self, test_db, client):
+        response = await client.get("/api/packets/advert-links?max_km=0")
+        assert response.status_code == 422

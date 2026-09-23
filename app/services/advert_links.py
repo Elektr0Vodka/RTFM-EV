@@ -15,6 +15,10 @@ one located node; 1b hops often match several. We resolve each path by walking
 from the origin anchor inward, disambiguating a multi-match hop by choosing the
 candidate nearest to the previously-resolved node. A hop matching no located
 node breaks the chain there (the tail is dropped, no self edge).
+
+An optional maximum edge length (km) treats any candidate farther than that
+from the previously-resolved node as not matching, so a physically impossible
+RF hop breaks the chain instead of drawing a link across the sea.
 """
 
 from __future__ import annotations
@@ -96,6 +100,7 @@ def _resolve_hop(
     prev: LocatedNode | None,
     index: dict[str, list[LocatedNode]],
     confirmed: dict[str, str] | None = None,
+    max_edge_km: float | None = None,
 ) -> tuple[LocatedNode | None, bool]:
     """Resolve a single hop prefix.
 
@@ -103,8 +108,14 @@ def _resolve_hop(
     located node, or matches several with no prior anchor to disambiguate. A
     ``confirmed`` soft link (prefix -> full pubkey) wins over the distance guess
     when its pubkey is among the candidates, and is treated as unambiguous.
+    With ``max_edge_km`` and a prior anchor, candidates farther than that from
+    the anchor are dropped before matching.
     """
     candidates = index.get(hop_hex.lower(), [])
+    if max_edge_km is not None and prev is not None:
+        candidates = [
+            c for c in candidates if haversine_km(prev.lat, prev.lon, c.lat, c.lon) <= max_edge_km
+        ]
     if not candidates:
         return None, False
     if confirmed is not None:
@@ -126,12 +137,17 @@ def resolve_advert_edges(
     located: list[LocatedNode],
     self_node: LocatedNode | None,
     confirmed: dict[str, str] | None = None,
+    max_edge_km: float | None = None,
 ) -> list[ResolvedEdge]:
     """Resolve advert paths into aggregated undirected GPS edges.
 
     ``confirmed`` optionally maps a hop prefix (lowercase hex) to a
     user-confirmed full pubkey (a soft resolution); such a hop resolves to that
     node instead of the distance-based guess.
+
+    ``max_edge_km`` optionally caps the length of any edge: a hop with no
+    candidate within range of the previous node breaks the chain, and a
+    direct or tail edge to self longer than the cap is dropped.
     """
     confirmed = {k.lower(): v.lower() for k, v in (confirmed or {}).items()}
     index = build_prefix_index(located)
@@ -139,6 +155,8 @@ def resolve_advert_edges(
 
     def add_edge(a: LocatedNode, b: LocatedNode, width: int, ambiguous: bool, seen: int) -> None:
         if a.pubkey == b.pubkey:
+            return
+        if max_edge_km is not None and haversine_km(a.lat, a.lon, b.lat, b.lon) > max_edge_km:
             return
         lo, hi = sorted((a.pubkey, b.pubkey))
         key = (lo, hi, width)
@@ -170,7 +188,7 @@ def resolve_advert_edges(
         prev = origin
         broke = False
         for hop in hops:
-            node, ambiguous = _resolve_hop(hop, prev, index, confirmed)
+            node, ambiguous = _resolve_hop(hop, prev, index, confirmed, max_edge_km)
             if node is None:
                 broke = True
                 break

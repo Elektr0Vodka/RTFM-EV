@@ -128,3 +128,43 @@ def test_no_self_node_omits_self_edges_but_keeps_hop_chain():
     edges = resolve_advert_edges(rows, [ORIGIN, R1], None)
     keys = {_edge_key(e) for e in edges}
     assert keys == {(("aa11000000", "ff00000000"), 2)}  # origin -> hop only
+
+
+def test_max_edge_km_skips_out_of_range_candidate_for_ambiguous_hop():
+    # Hop "aa" matches R1 (~11 km from ORIGIN) and FAR (~4600 km). With a cap the
+    # far candidate is not a match at all, so R1 resolves unambiguously.
+    rows = [
+        AdvertPathRow(
+            public_key="ff00000000", path_hex="aa", hop_width=1, min_path_len=1, first_seen=8000
+        )
+    ]
+    edges = resolve_advert_edges(rows, [ORIGIN, R1, FAR], SELF, max_edge_km=50)
+    keys = {_edge_key(e) for e in edges}
+    assert keys == {
+        (("aa11000000", "ff00000000"), 1),
+        (("aa11000000", "ee00000000"), 1),
+    }
+    assert all(e.ambiguous is False for e in edges)
+
+
+def test_max_edge_km_breaks_chain_when_only_candidate_is_out_of_range():
+    # Hop "aa99" matches only FAR. Out of range of ORIGIN => no match => the
+    # chain breaks and no edge (not even hop -> self) is drawn.
+    rows = [
+        AdvertPathRow(
+            public_key="ff00000000", path_hex="aa99", hop_width=2, min_path_len=1, first_seen=8100
+        )
+    ]
+    assert resolve_advert_edges(rows, [ORIGIN, FAR], SELF, max_edge_km=50) == []
+    # Without a cap the same path resolves across the long gap.
+    assert len(resolve_advert_edges(rows, [ORIGIN, FAR], SELF)) == 2
+
+
+def test_max_edge_km_drops_long_direct_edge():
+    rows = [
+        AdvertPathRow(
+            public_key="aa99000000", path_hex="", hop_width=None, min_path_len=0, first_seen=8200
+        )
+    ]
+    assert resolve_advert_edges(rows, [FAR], SELF, max_edge_km=50) == []
+    assert len(resolve_advert_edges(rows, [FAR], SELF, max_edge_km=10000)) == 1
