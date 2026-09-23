@@ -110,6 +110,13 @@ Shipped toward this so far:
   decimals, and MGRS references), newest per sender or every share. Clicking a
   pin shows who shared it, where and when, with "Open in chat". Local view only;
   never forwarded.
+- Guessed-locations map layer (map Overlays > Guessed locations, off by
+  default, per browser, zoom 12+): an estimated position for a node with no
+  advertised or manual location, heard in the last 24h, based on the located
+  repeater(s) nearest it in its own known advert paths. Drawn as a hollow "~"
+  marker, distinct from real (filled) node markers; clicking it explains it is
+  a guess and names the anchor repeater(s). Never saved, exported or sent
+  anywhere.
 - MGRS support: upper-case MGRS references in chat (for example
   `31U FT 45332 73249`) become location cards when coordinate parsing is on, and
   Settings > Local > Coordinate format shows positions as decimal degrees
