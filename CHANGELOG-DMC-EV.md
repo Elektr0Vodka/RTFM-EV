@@ -35,6 +35,30 @@ the change. Upstream development is on hold; the fork is the active repository.
   (kHz ranges, `null` if not queried), for this check and for a future
   gated repeat toggle. No UI is added to enable repeat, and no code path
   reachable from the UI sends `repeat=1`.
+## Update 2026-09-23 (Repeater LPP telemetry tracking, fix/repeater-lpp-telemetry-tracking)
+
+### Telemetry (backend + frontend)
+- **"Track Telemetry on Interval" works for repeaters.** On a repeater's
+  contact info page the LPP telemetry section's tracking button failed with
+  "Failed to update tracked contact telemetry", because the contact tracking
+  endpoint rejected repeaters with a 400. The endpoint now accepts any contact
+  type. This LPP list is separate from the repeater status list (Telemetry
+  History in the repeater dashboard), so a repeater on both lists is polled
+  once for status and once for LPP per cycle, and counts toward both caps and
+  the shared daily ceiling.
+- **Telemetry tracking errors show the server's reason.** Failed tracking
+  toggles now show the server's message (for example "Limit of 8 tracked
+  contacts reached") instead of a generic toast. `fetchJson` now uses
+  `detail.message` for structured error details instead of "[object Object]".
+
+### Home Assistant (backend)
+- **LPP-only repeater readings no longer blank the status sensors.** An LPP
+  reading for an HA-tracked repeater (the manual Request button, or LPP
+  interval tracking) sent `null` for battery, noise floor, packet counters and
+  the other status fields, which set those HA sensors to unknown until the
+  next status sample. Status fields missing from a snapshot are now left out
+  of the state payload, so HA keeps the last values. HA may log a template
+  warning per missing field.
 
 ## Update 2026-09-23 (Shared-locations map layer + MGRS, feat/shared-locations-map-layer)
 

@@ -1029,3 +1029,45 @@ class TestMqttHaTelemetryWithLpp:
         assert payload["battery_volts"] == 4.1
         # No lpp keys
         assert not any(k.startswith("lpp_") for k in payload)
+
+    @pytest.mark.asyncio
+    async def test_on_telemetry_lpp_only_repeater_snapshot_omits_status_fields(self):
+        """An LPP-only snapshot for a tracked repeater (manual or scheduled LPP
+        request) must not publish status fields. A JSON null renders as "None",
+        which HA stores as unknown; an absent key renders empty, which HA
+        ignores for numeric sensors, so the last status values are kept."""
+        key = "ccdd11223344"
+        nid = _node_id(key)
+        mod = MqttHaModule("test", _base_config(tracked_repeaters=[key]))
+        mod._publisher = MagicMock()
+        mod._publisher.connected = True
+        mod._publisher.publish = AsyncMock()
+        mod._discovery_topics = [
+            f"homeassistant/sensor/meshcore_{nid}/lpp_voltage_ch1/config",
+        ]
+
+        await mod.on_telemetry(
+            {
+                "public_key": key,
+                "name": "Rpt",
+                "timestamp": 1700000000,
+                "lpp_sensors": [{"channel": 1, "type_name": "voltage", "value": 4.34}],
+            }
+        )
+
+        payload = mod._publisher.publish.call_args[0][1]
+        assert payload == {"lpp_voltage_ch1": 4.34}
+
+
+class TestRepeaterTelemetryPayload:
+    def test_omits_status_fields_absent_from_snapshot(self):
+        payload = _repeater_telemetry_payload(
+            {"lpp_sensors": [{"channel": 1, "type_name": "temperature", "value": 35.0}]}
+        )
+        assert payload == {"lpp_temperature_ch1": 35.0}
+
+    def test_keeps_explicit_null_status_field(self):
+        """A status snapshot that carries a field as None (e.g. recv_errors on
+        firmware without it) still publishes it, as before."""
+        payload = _repeater_telemetry_payload({"battery_volts": 4.1, "recv_errors": None})
+        assert payload == {"battery_volts": 4.1, "recv_errors": None}

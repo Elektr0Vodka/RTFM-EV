@@ -234,7 +234,7 @@ Both traffic buckets come from one 24h raw-packet scan (`_packet_shape_24h`) sha
 - `broadcast_event()` in `websocket.py` dispatches to the fanout manager for `message`, `raw_packet`, and `contact` events.
 - `on_message` and `on_raw` are scope-gated. `on_contact`, `on_telemetry`, and `on_health` are dispatched to all modules unconditionally (modules filter internally).
 - Repeater telemetry broadcasts are emitted after `RepeaterTelemetryRepository.record()` in both `radio_sync.py` (auto-collect) and `routers/repeaters.py` (manual fetch). Contact LPP telemetry is similarly recorded to `ContactTelemetryRepository` and dispatched to fanout.
-- The telemetry collection loop in `radio_sync.py` is unified: it iterates over both `tracked_telemetry_repeaters` and `tracked_telemetry_contacts`, dispatching to `_collect_repeater_telemetry` (type 2) or `_collect_contact_telemetry` (others). The daily check ceiling uses the combined count.
+- The telemetry collection loop in `radio_sync.py` is unified: it iterates over both `tracked_telemetry_repeaters` and `tracked_telemetry_contacts`, dispatching by list, not contact type: repeater-list entries go to `_collect_repeater_telemetry` (status) and contact-list entries to `_collect_contact_telemetry` (LPP). The contact list accepts any contact type, repeaters included, so a repeater can be on both lists and is then polled for status and LPP separately. The daily check ceiling uses the combined count.
 - The 60-second radio stats sampling loop in `radio_stats.py` dispatches an enriched health snapshot (radio identity + full stats) to all fanout modules after each sample.
 - Community MQTT publishes raw packets only, but its derived `path` field for direct packets is emitted as comma-separated hop identifiers, not flat path bytes.
 - See `app/fanout/AGENTS_fanout.md` for full architecture details and event payload shapes.
@@ -389,7 +389,7 @@ chosen node), and a Prefix Collisions tab badge.
 - `POST /settings/blocked-names/toggle`
 - `POST /settings/tracked-telemetry/toggle`
 - `GET /settings/tracked-telemetry/schedule` - current telemetry scheduling derivation, interval options, and next-run-at timestamp
-- `POST /settings/tracked-telemetry-contacts/toggle` - toggle tracked LPP telemetry for any contact (max 8)
+- `POST /settings/tracked-telemetry-contacts/toggle` - toggle tracked LPP telemetry for any contact, repeaters included (max 8)
 - `GET /settings/tracked-telemetry-contacts/schedule` - contact telemetry scheduling (shared ceiling with repeaters)
 - `POST /settings/muted-channels/toggle`
 
