@@ -2192,6 +2192,8 @@
   "link_detail_col_rssi": "RSSI",
   "map_fullscreen_enter": "Volledig scherm",
   "map_fullscreen_exit": "Volledig scherm verlaten",
+  "map_gpx_export": "GPX exporteren",
+  "map_gpx_manual_location": "handmatige locatie",
   "map_type_client": "Client",
   "map_type_repeater": "Repeater",
   "map_type_room": "Room",

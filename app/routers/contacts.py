@@ -26,6 +26,8 @@ from app.models import (
     ContactTelemetryPermissionsRequest,
     ContactTelemetryResponse,
     ContactUpsert,
+    ContactUriBatchRequest,
+    ContactUriBatchResponse,
     ContactUriImportRequest,
     ContactUriResponse,
     CreateContactRequest,
@@ -41,6 +43,7 @@ from app.models import (
 from app.packet_processor import start_historical_dm_decryption
 from app.path_utils import parse_explicit_hop_route
 from app.repository import (
+    AdvertEventRepository,
     AmbiguousPublicKeyPrefixError,
     AppSettingsRepository,
     ContactAdvertPathRepository,
@@ -509,6 +512,32 @@ async def bulk_delete_contacts(request: BulkDeleteRequest) -> dict:
 
     logger.info("Bulk deleted %d/%d contacts", deleted, len(request.public_keys))
     return {"deleted": deleted}
+
+
+@router.post("/bulk-contact-uris", response_model=ContactUriBatchResponse)
+async def get_bulk_contact_uris(request: ContactUriBatchRequest) -> ContactUriBatchResponse:
+    """Build meshcore:// links for several contacts from stored raw adverts.
+
+    Unlike ``GET /{public_key}/contact-uri``, this never talks to the radio: it
+    looks up the most recently retained advert transmission per key
+    (``advert_events`` joined to ``raw_packets``) and validates it the same way
+    an imported link is validated (hex, ADVERT packet, Ed25519 signature). A
+    key is left out of the response when no raw advert is stored for it (never
+    heard, or pruned by retention) rather than causing an error, so callers
+    (for example a GPX export of many nodes at once) can simply omit the link
+    for those.
+    """
+    raw_by_key = await AdvertEventRepository.latest_raw_adverts(request.public_keys)
+    links: dict[str, str] = {}
+    for key, raw in raw_by_key.items():
+        try:
+            card = parse_contact_uri(format_contact_uri(raw))
+        except ContactUriError:
+            continue
+        if card.public_key != key:
+            continue
+        links[key] = format_contact_uri(card.raw)
+    return ContactUriBatchResponse(links=links)
 
 
 @router.delete("/{public_key}")
