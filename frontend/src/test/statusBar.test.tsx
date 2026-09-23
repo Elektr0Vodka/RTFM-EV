@@ -152,9 +152,9 @@ describe('StatusBar', () => {
     expect(document.documentElement.dataset.theme).toBe('cyberpunk');
   });
 
-  it('renders the default RemoteTerm wordmark when unset', () => {
+  it('renders the default RTFM-EV wordmark when unset', () => {
     render(<StatusBar health={baseHealth} config={null} onSettingsClick={vi.fn()} />);
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('RemoteTerm');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('RTFM-EV');
   });
 
   it('renders a custom brand name', () => {

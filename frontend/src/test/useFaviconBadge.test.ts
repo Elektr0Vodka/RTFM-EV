@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   buildBadgedFaviconSvg,
+  buildBrandIconSvg,
   deriveFaviconBadgeState,
   getFavoriteUnreadCount,
   getUnreadTitle,
@@ -68,7 +69,7 @@ describe('useFaviconBadge', () => {
       <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
       <link rel="shortcut icon" href="/favicon.ico" />
     `;
-    document.title = 'RemoteTerm for MeshCore';
+    document.title = 'RTFM-EV';
     objectUrlCounter = 0;
     fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -162,7 +163,7 @@ describe('useFaviconBadge', () => {
         [makeChannel('fav-chan', true)]
       )
     ).toBe(10);
-    expect(getUnreadTitle({}, [], [])).toBe('RemoteTerm for MeshCore');
+    expect(getUnreadTitle({}, [], [])).toBe('RTFM-EV');
     expect(
       getUnreadTitle(
         {
@@ -172,7 +173,7 @@ describe('useFaviconBadge', () => {
         [],
         [makeChannel('fav-chan', true)]
       )
-    ).toBe('(7) RemoteTerm');
+    ).toBe('(7) RTFM-EV');
     expect(
       getUnreadTitle(
         {
@@ -181,7 +182,7 @@ describe('useFaviconBadge', () => {
         [],
         [makeChannel('fav-chan', true)]
       )
-    ).toBe('(99+) RemoteTerm');
+    ).toBe('(99+) RTFM-EV');
   });
 
   it('switches between the base favicon and generated blob badges', async () => {
@@ -274,7 +275,7 @@ describe('useFaviconBadge', () => {
       }
     );
 
-    expect(document.title).toBe('RemoteTerm for MeshCore');
+    expect(document.title).toBe('RTFM-EV');
 
     rerender({
       unreadCounts: {
@@ -285,10 +286,68 @@ describe('useFaviconBadge', () => {
       currentChannels: channels,
     });
 
-    expect(document.title).toBe('(4) RemoteTerm');
+    expect(document.title).toBe('(4) RTFM-EV');
 
     unmount();
 
-    expect(document.title).toBe('RemoteTerm for MeshCore');
+    expect(document.title).toBe('RTFM-EV');
+  });
+  it('uses the custom brand name in the page title', () => {
+    const channels = [makeChannel('fav-chan', true)];
+    expect(getUnreadTitle({}, [], channels, 'My Mesh')).toBe('My Mesh');
+    expect(getUnreadTitle({}, [], channels, '   ')).toBe('RTFM-EV');
+    expect(
+      getUnreadTitle({ [getStateKey('channel', 'fav-chan')]: 3 }, [], channels, 'My Mesh')
+    ).toBe('(3) My Mesh');
+
+    const { rerender } = renderHook(
+      ({ brandName }: { brandName?: string }) => useUnreadTitle({}, [], channels, brandName),
+      { initialProps: { brandName: 'My Mesh' } as { brandName?: string } }
+    );
+    expect(document.title).toBe('My Mesh');
+
+    rerender({ brandName: undefined });
+    expect(document.title).toBe('RTFM-EV');
+  });
+
+  it('wraps a brand icon data URL in an escaped svg image', () => {
+    const svg = buildBrandIconSvg('data:image/svg+xml;utf8,<svg a="b&c"></svg>');
+    expect(svg).toContain(
+      'href="data:image/svg+xml;utf8,&lt;svg a=&quot;b&amp;c&quot;&gt;&lt;/svg&gt;"'
+    );
+    expect(svg).toContain('viewBox="0 0 1000 1000"');
+  });
+
+  it('uses the custom brand icon as the favicon and badges it', async () => {
+    const brandIcon = 'data:image/png;base64,AAAA';
+    const channels = [makeChannel('fav-chan', true)];
+    const { rerender } = renderHook(
+      ({ unreadCounts }: { unreadCounts: Record<string, number> }) =>
+        useFaviconBadge(unreadCounts, {}, channels, brandIcon),
+      { initialProps: { unreadCounts: {} as Record<string, number> } }
+    );
+
+    await waitFor(() => {
+      expect(getIconHref('icon')).toBe(brandIcon);
+      expect(getIconHref('shortcut icon')).toBe(brandIcon);
+    });
+    expect(document.head.querySelector<HTMLLinkElement>('link[rel="icon"]')?.type).toBe(
+      'image/png'
+    );
+
+    rerender({ unreadCounts: { [getStateKey('channel', 'fav-chan')]: 1 } });
+
+    await waitFor(() => {
+      expect(getIconHref('icon')).toBe('blob:generated-1');
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    const blob = createObjectURLMock.mock.calls[0][0] as Blob;
+    const text = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.readAsText(blob);
+    });
+    expect(text).toContain(`href="${brandIcon}"`);
+    expect(text).toContain('fill="#16a34a"');
   });
 });

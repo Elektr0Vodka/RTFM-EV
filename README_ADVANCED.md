@@ -202,10 +202,16 @@ Customisation heading and the branding block below it.
   Dark map basemap to match the active phosphor (applies only while a CRT theme
   is selected and Nova Dark is the chosen map layer). CRT choices are per-device
   (stored in the browser), like the theme selection.
-- **Branding**: rename the top-bar "RemoteTerm" wordmark, hide it, or upload a
+- **Branding**: rename the top-bar "RTFM-EV" wordmark, hide it, or upload a
   custom icon (PNG/SVG/ICO/JPEG, up to 128 KB). Branding is stored server-side,
   so it is shared across every device that connects to the instance. Leaving the
-  name empty restores "RemoteTerm"; removing the icon restores the built-in logo.
+  name empty restores "RTFM-EV"; removing the icon restores the built-in logo.
+  The browser tab title and favicon follow the same name and icon (the unread
+  badge is drawn over a custom icon too); hiding the navbar name does not hide
+  it from the tab title. The name is also used for the installed-app (PWA)
+  name and the iOS home-screen title; the installed-app icon stays the
+  built-in logo. Already-installed apps may keep the old name until the
+  browser refreshes the manifest or the app is reinstalled.
 
 ## Development Notes
 
