@@ -65,7 +65,7 @@ frontend/src/
 │   ├── useContactsAndChannels.ts   # Contact/channel loading, creation, deletion
 │   ├── useBrowserNotifications.ts  # Per-conversation browser notification preferences + dispatch
 │   ├── usePushSubscription.ts      # Web Push subscription lifecycle, per-conversation filters
-│   ├── useFaviconBadge.ts          # Browser tab unread badge state
+│   ├── useFaviconBadge.ts          # Browser tab title + favicon (unread badge, brand name/icon)
 │   ├── useEntranceSettled.ts       # Defers entrance animation work until layout settles
 │   └── useRememberedServerPassword.ts # Browser-local repeater/room password persistence
 ├── components/

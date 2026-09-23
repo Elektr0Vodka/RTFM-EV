@@ -1,8 +1,10 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app import frontend_static
 from app.frontend_static import (
     ASSET_CACHE_CONTROL,
+    DEFAULT_APP_NAME,
     FRONTEND_BUILD_INSTRUCTIONS,
     INDEX_CACHE_CONTROL,
     STATIC_FILE_CACHE_CONTROL,
@@ -69,6 +71,9 @@ def test_valid_dist_serves_static_and_spa_fallback(tmp_path):
         assert manifest["scope"] == "http://testserver/"
         assert manifest["id"] == "http://testserver/"
         assert manifest["display"] == "standalone"
+        # No database in this test, so the brand lookup falls back to the default.
+        assert manifest["name"] == DEFAULT_APP_NAME
+        assert manifest["short_name"] == DEFAULT_APP_NAME
         icon_srcs = {icon["src"] for icon in manifest["icons"]}
         assert "http://testserver/web-app-manifest-192x192.png" in icon_srcs
         assert "http://testserver/web-app-manifest-512x512.png" in icon_srcs
@@ -198,3 +203,63 @@ def test_first_available_uses_prebuilt_when_dist_missing(tmp_path):
         response = client.get("/")
         assert response.status_code == 200
         assert "prebuilt" in response.text
+
+
+BRANDED_INDEX = (
+    "<html><head>"
+    '<meta name="apple-mobile-web-app-title" content="RTFM-EV" />'
+    "<title>RTFM-EV</title>"
+    "</head><body>index page</body></html>"
+)
+
+
+def test_brand_name_applies_to_index_and_manifest(tmp_path, monkeypatch):
+    async def fake_brand_name() -> str:
+        return 'Mesh "HQ" <&>'
+
+    monkeypatch.setattr(frontend_static, "_get_brand_name", fake_brand_name)
+    app = FastAPI()
+    dist_dir = tmp_path / "frontend" / "dist"
+    dist_dir.mkdir(parents=True)
+    (dist_dir / "index.html").write_text(BRANDED_INDEX)
+
+    assert register_frontend_static_routes(app, dist_dir) is True
+
+    escaped = "Mesh &quot;HQ&quot; &lt;&amp;&gt;"
+    with TestClient(app) as client:
+        for path in ("/", "/index.html", "/channel/some-route"):
+            response = client.get(path)
+            assert response.status_code == 200
+            assert response.headers["cache-control"] == INDEX_CACHE_CONTROL
+            assert f"<title>{escaped}</title>" in response.text
+            assert f'content="{escaped}"' in response.text
+            assert "index page" in response.text
+
+        manifest = client.get("/site.webmanifest").json()
+        assert manifest["name"] == 'Mesh "HQ" <&>'
+        assert manifest["short_name"] == 'Mesh "HQ" <&>'
+
+
+def test_empty_brand_name_serves_index_unchanged(tmp_path, monkeypatch):
+    async def fake_brand_name() -> str:
+        return ""
+
+    monkeypatch.setattr(frontend_static, "_get_brand_name", fake_brand_name)
+    app = FastAPI()
+    dist_dir = tmp_path / "frontend" / "dist"
+    dist_dir.mkdir(parents=True)
+    (dist_dir / "index.html").write_text(BRANDED_INDEX)
+
+    assert register_frontend_static_routes(app, dist_dir) is True
+
+    with TestClient(app) as client:
+        assert client.get("/").text == BRANDED_INDEX
+        assert client.get("/site.webmanifest").json()["name"] == DEFAULT_APP_NAME
+
+
+async def test_get_brand_name_reads_settings(test_db):
+    from app.repository.settings import AppSettingsRepository
+
+    assert await frontend_static._get_brand_name() == ""
+    await AppSettingsRepository.update(brand_name="  MeshHQ  ")
+    assert await frontend_static._get_brand_name() == "MeshHQ"

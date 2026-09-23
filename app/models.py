@@ -1603,7 +1603,7 @@ class AppSettings(BaseModel):
     )
     brand_name: str = Field(
         default="",
-        description="Custom navbar wordmark; empty falls back to the built-in 'RemoteTerm'",
+        description="Custom navbar wordmark; empty falls back to the built-in 'RTFM-EV'",
     )
     brand_hidden: bool = Field(
         default=False,

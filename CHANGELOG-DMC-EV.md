@@ -23,6 +23,26 @@ the change. Upstream development is on hold; the fork is the active repository.
   (next to the workspace root, which stays allowed). No effect on a normal
   in-place install or the production build.
 
+## Update 2026-09-23 (Browser tab and PWA follow branding, feat/tab-branding-rtfm-ev)
+
+### Chat / UI
+- **The browser tab title and favicon now follow the custom branding.** A set
+  brand name becomes the tab title (unread form `(3) My Mesh`); a set brand
+  icon replaces the favicon, with the green/red unread badge drawn over it.
+  Hiding the navbar name does not change the tab title.
+- **The default name is now "RTFM-EV"** instead of "RemoteTerm for MeshCore" /
+  "RemoteTerm" / "MCTerm", in the tab title, the navbar wordmark, the
+  branding name placeholder and the iOS home-screen title.
+
+### Backend
+- **The served `index.html` and `site.webmanifest` use the brand name.**
+  `app/frontend_static.py` rewrites `<title>` and `apple-mobile-web-app-title`
+  in `index.html` when a brand name is set (so the tab shows it before the app
+  loads and "Add to Home Screen" picks it up), and uses it for the manifest
+  `name`/`short_name` and screenshot labels. Without a brand name, or when
+  settings cannot be read, both fall back to `DEFAULT_APP_NAME` ("RTFM-EV").
+  Manifest icons are unchanged (the built-in PNGs).
+
 ## Update 2026-09-23 (Map links: heard-only, max distance, fullscreen)
 
 ### Map links (backend)

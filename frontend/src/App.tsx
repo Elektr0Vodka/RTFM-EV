@@ -426,8 +426,8 @@ export function App() {
     markConversationsRead,
     refreshUnreads,
   } = useUnreadCounts(channels, contacts, activeConversation);
-  useFaviconBadge(unreadCounts, mentions, channels);
-  useUnreadTitle(unreadCounts, contacts, channels);
+  useFaviconBadge(unreadCounts, mentions, channels, appSettings?.brand_icon || undefined);
+  useUnreadTitle(unreadCounts, contacts, channels, appSettings?.brand_name || undefined);
 
   const handleToggleMute = useCallback(
     async (key: string) => {

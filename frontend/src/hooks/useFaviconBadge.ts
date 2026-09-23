@@ -3,8 +3,9 @@ import { useEffect, useMemo, useRef } from 'react';
 import type { Channel, Contact } from '../types';
 import { getStateKey } from '../utils/conversationState';
 
-const APP_TITLE = 'RemoteTerm for MeshCore';
-const UNREAD_APP_TITLE = 'RemoteTerm';
+// Tab title when no custom brand name is set. Keep in sync with <title> in
+// index.html and DEFAULT_APP_NAME in app/frontend_static.py.
+const APP_TITLE = 'RTFM-EV';
 const BASE_FAVICON_PATH = './favicon.svg';
 const GREEN_BADGE_FILL = '#16a34a';
 const RED_BADGE_FILL = '#dc2626';
@@ -60,15 +61,17 @@ export function getFavoriteUnreadCount(
 export function getUnreadTitle(
   unreadCounts: Record<string, number>,
   contacts: Contact[],
-  channels: Channel[]
+  channels: Channel[],
+  brandName?: string
 ): string {
+  const customName = brandName?.trim();
   const unreadCount = getFavoriteUnreadCount(unreadCounts, contacts, channels);
   if (unreadCount <= 0) {
-    return APP_TITLE;
+    return customName || APP_TITLE;
   }
 
   const label = unreadCount > 99 ? '99+' : String(unreadCount);
-  return `(${label}) ${UNREAD_APP_TITLE}`;
+  return `(${label}) ${customName || APP_TITLE}`;
 }
 
 export function deriveFaviconBadgeState(
@@ -100,6 +103,30 @@ export function buildBadgedFaviconSvg(baseSvg: string, badgeFill: string): strin
   return `${baseSvg.slice(0, closingTagIndex)}${badge}</svg>`;
 }
 
+function escapeXmlAttribute(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/** Wrap a custom brand icon (any image data URL) in a 1000x1000 SVG so the
+ * unread badge can be drawn over it the same way as over the built-in logo. */
+export function buildBrandIconSvg(iconDataUrl: string): string {
+  return (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000">' +
+    `<image href="${escapeXmlAttribute(iconDataUrl)}" width="1000" height="1000" preserveAspectRatio="xMidYMid meet"/>` +
+    '</svg>'
+  );
+}
+
+function getDataUrlMime(dataUrl: string): string {
+  const comma = dataUrl.indexOf(',');
+  const header = comma >= 0 ? dataUrl.slice(5, comma) : '';
+  return header.split(';', 1)[0].trim().toLowerCase();
+}
+
 async function loadBaseFaviconSvg(): Promise<string> {
   if (!baseFaviconSvgPromise) {
     baseFaviconSvgPromise = fetch(BASE_FAVICON_PATH, { cache: 'force-cache' })
@@ -118,7 +145,11 @@ async function loadBaseFaviconSvg(): Promise<string> {
   return baseFaviconSvgPromise;
 }
 
-function upsertFaviconLinks(rel: 'icon' | 'shortcut icon', href: string): void {
+function upsertFaviconLinks(
+  rel: 'icon' | 'shortcut icon',
+  href: string,
+  type = 'image/svg+xml'
+): void {
   const links = Array.from(document.head.querySelectorAll<HTMLLinkElement>(`link[rel="${rel}"]`));
   const targets = links.length > 0 ? links : [document.createElement('link')];
 
@@ -127,24 +158,25 @@ function upsertFaviconLinks(rel: 'icon' | 'shortcut icon', href: string): void {
       link.rel = rel;
       document.head.appendChild(link);
     }
-    link.type = 'image/svg+xml';
+    link.type = type;
     link.href = href;
   }
 }
 
-function applyFaviconHref(href: string): void {
-  upsertFaviconLinks('icon', href);
-  upsertFaviconLinks('shortcut icon', href);
+function applyFaviconHref(href: string, type?: string): void {
+  upsertFaviconLinks('icon', href, type);
+  upsertFaviconLinks('shortcut icon', href, type);
 }
 
 export function useUnreadTitle(
   unreadCounts: Record<string, number>,
   contacts: Contact[],
-  channels: Channel[]
+  channels: Channel[],
+  brandName?: string
 ): void {
   const title = useMemo(
-    () => getUnreadTitle(unreadCounts, contacts, channels),
-    [contacts, channels, unreadCounts]
+    () => getUnreadTitle(unreadCounts, contacts, channels, brandName),
+    [contacts, channels, unreadCounts, brandName]
   );
 
   useEffect(() => {
@@ -159,7 +191,8 @@ export function useUnreadTitle(
 export function useFaviconBadge(
   unreadCounts: Record<string, number>,
   mentions: Record<string, boolean>,
-  channels: Channel[]
+  channels: Channel[],
+  brandIcon?: string
 ): void {
   const objectUrlRef = useRef<string | null>(null);
   const badgeState = useMemo(
@@ -173,15 +206,25 @@ export function useFaviconBadge(
       objectUrlRef.current = null;
     }
 
+    const customIcon = brandIcon?.trim() || null;
+
     if (badgeState === 'none') {
-      applyFaviconHref(BASE_FAVICON_PATH);
+      if (customIcon) {
+        applyFaviconHref(customIcon, getDataUrlMime(customIcon) || undefined);
+      } else {
+        applyFaviconHref(BASE_FAVICON_PATH);
+      }
       return;
     }
 
     const badgeFill = badgeState === 'red' ? RED_BADGE_FILL : GREEN_BADGE_FILL;
     let cancelled = false;
 
-    void loadBaseFaviconSvg()
+    const baseSvgPromise = customIcon
+      ? Promise.resolve(buildBrandIconSvg(customIcon))
+      : loadBaseFaviconSvg();
+
+    void baseSvgPromise
       .then((baseSvg) => {
         if (cancelled) {
           return;
@@ -197,7 +240,11 @@ export function useFaviconBadge(
       })
       .catch(() => {
         if (!cancelled) {
-          applyFaviconHref(BASE_FAVICON_PATH);
+          if (customIcon) {
+            applyFaviconHref(customIcon, getDataUrlMime(customIcon) || undefined);
+          } else {
+            applyFaviconHref(BASE_FAVICON_PATH);
+          }
         }
       });
 
@@ -208,5 +255,5 @@ export function useFaviconBadge(
         objectUrlRef.current = null;
       }
     };
-  }, [badgeState]);
+  }, [badgeState, brandIcon]);
 }
