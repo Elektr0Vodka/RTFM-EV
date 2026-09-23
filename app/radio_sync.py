@@ -39,6 +39,7 @@ from app.services.contact_reconciliation import (
 )
 from app.services.messages import create_fallback_channel_message
 from app.services.radio_runtime import radio_runtime as radio_manager
+from app.services.room_status import room_status_fields
 from app.telemetry_interval import clamp_telemetry_interval
 from app.websocket import broadcast_error, broadcast_event
 
@@ -1902,7 +1903,6 @@ async def _collect_repeater_telemetry(mc: MeshCore, contact: Contact) -> bool:
         "packets_received": status.get("nb_recv", 0),
         "packets_sent": status.get("nb_sent", 0),
         "airtime_seconds": status.get("airtime", 0),
-        "rx_airtime_seconds": status.get("rx_airtime", 0),
         "uptime_seconds": status.get("uptime", 0),
         "sent_flood": status.get("sent_flood", 0),
         "sent_direct": status.get("sent_direct", 0),
@@ -1912,6 +1912,7 @@ async def _collect_repeater_telemetry(mc: MeshCore, contact: Contact) -> bool:
         "direct_dups": status.get("direct_dups", 0),
         "full_events": status.get("full_evts", 0),
         "recv_errors": status.get("recv_errors"),
+        **room_status_fields(contact.type, status),
     }
 
     # Best-effort LPP sensor fetch - failure here does not fail the overall

@@ -753,6 +753,7 @@ class TestMessagesEndpoint:
             patch("app.routers.messages.MessageRepository") as mock_msg_repo,
         ):
             mock_msg_repo.get_by_content = AsyncMock(return_value=None)
+            mock_msg_repo.has_recent_outgoing_dm = AsyncMock(return_value=False)
             # Simulate duplicate - create returns None
             mock_msg_repo.create = AsyncMock(return_value=None)
 
@@ -1196,6 +1197,43 @@ class TestReadStateEndpoints:
 
         assert f"channel-{chan_key}" not in result["counts"]
         assert result["first_unread_ids"].get(f"channel-{chan_key}") is None
+
+    @pytest.mark.asyncio
+    async def test_get_unreads_reactions_are_not_mentions(self, test_db):
+        """A channel reaction names its target ("@[Name]emoji\\nhash") but is not a mention."""
+        react_key = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA2"
+        mention_key = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA3"
+        for key, name in ((react_key, "#react"), (mention_key, "#mention")):
+            await ChannelRepository.upsert(key=key, name=name)
+            await ChannelRepository.update_last_read_at(key, 1000)
+
+        await MessageRepository.create(
+            msg_type="CHAN",
+            text="Bob: @[TestUser]👍\nABCD1234",
+            received_at=1001,
+            conversation_key=react_key,
+            sender_timestamp=1001,
+        )
+        await MessageRepository.create(
+            msg_type="CHAN",
+            text="Carol: @[TestUser] r:1a2b:00",
+            received_at=1002,
+            conversation_key=react_key,
+            sender_timestamp=1002,
+        )
+        await MessageRepository.create(
+            msg_type="CHAN",
+            text="Bob: @[TestUser] look\nat this",
+            received_at=1003,
+            conversation_key=mention_key,
+            sender_timestamp=1003,
+        )
+
+        result = await MessageRepository.get_unread_counts("TestUser")
+
+        assert result["counts"][f"channel-{react_key}"] == 2
+        assert f"channel-{react_key}" not in result["mentions"]
+        assert result["mentions"][f"channel-{mention_key}"] is True
 
     @pytest.mark.asyncio
     async def test_get_unreads_no_name_skips_mentions(self, test_db):

@@ -315,6 +315,27 @@ async def on_ack(event: "Event") -> None:
         logger.debug("ACK code %s does not match any pending messages", ack_code)
 
 
+def _make_contact_deleted_handler(meshcore):
+    """Build the CONTACT_DELETED (0x8F) handler bound to this MeshCore instance.
+
+    With the radio's overwrite-oldest preference on (``MESHCORE_LOAD_WITH_AUTOEVICT``,
+    see ``radio_sync._enable_autoevict_on_radio``, or set by another client), the
+    radio evicts contacts on its own and pushes 0x8F. The library dispatches the
+    event but never prunes
+    ``mc._contacts``; without this, ``get_contact_by_key_prefix()`` keeps
+    finding the evicted contact and the reload path skips ``add_contact()``.
+    """
+
+    def on_contact_deleted(event: "Event") -> None:
+        public_key = str(event.payload.get("pubkey") or "").lower()
+        if not public_key:
+            return
+        if meshcore._contacts.pop(public_key, None) is not None:
+            logger.info("Radio evicted contact %s; dropped from library cache", public_key[:12])
+
+    return on_contact_deleted
+
+
 def register_event_handlers(meshcore) -> None:
     """Register event handlers with the MeshCore instance.
 
@@ -343,4 +364,7 @@ def register_event_handlers(meshcore) -> None:
     _active_subscriptions.append(meshcore.subscribe(EventType.PATH_UPDATE, on_path_update))
     _active_subscriptions.append(meshcore.subscribe(EventType.NEW_CONTACT, on_new_contact))
     _active_subscriptions.append(meshcore.subscribe(EventType.ACK, on_ack))
+    _active_subscriptions.append(
+        meshcore.subscribe(EventType.CONTACT_DELETED, _make_contact_deleted_handler(meshcore))
+    )
     logger.info("Event handlers registered")

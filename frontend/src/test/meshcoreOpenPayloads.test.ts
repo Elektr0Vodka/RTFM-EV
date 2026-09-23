@@ -6,6 +6,8 @@
 
 import { describe, it, expect } from 'vitest';
 import {
+  parseReactionV1,
+  isReactionPayload,
   REACTION_EMOJIS,
   giphyUrlForId,
   parseGif,
@@ -158,5 +160,25 @@ describe('parseMeshCoreOneReaction', () => {
     expect(parseMeshCoreOneReaction('\u{1F44D} b45pc4ek')).toBeNull(); // single line
     expect(parseMeshCoreOneReaction('\u{1F44D}@[Bob]\nb45pc4ek\nmore')).toBeNull();
     expect(parseMeshCoreOneReaction('r:1a2b:00')).toBeNull();
+  });
+});
+
+describe('parseReactionV1 (older meshcore-open clients)', () => {
+  it('parses r:<millis>_<nameHash>_<textHash>:<emoji>', () => {
+    expect(parseReactionV1('r:1700000000123_12345_67890:👍')).toEqual({
+      emoji: '👍',
+      targetHash: '1700000000123_12345_67890',
+    });
+  });
+
+  it('rejects non-emoji and malformed ids', () => {
+    expect(parseReactionV1('r:1700000000123_12345_67890:ok')).toBeNull();
+    expect(parseReactionV1('r:17000_12345:👍')).toBeNull();
+    expect(parseReactionV1('r:1a2b:00')).toBeNull();
+  });
+
+  it('counts as a reaction payload, also behind a reply prefix', () => {
+    expect(isReactionPayload('r:1700000000123_12345_67890:👍')).toBe(true);
+    expect(isReactionPayload('@[Me] r:1700000000123_12345_67890:👍')).toBe(true);
   });
 });

@@ -120,6 +120,19 @@ export function parseReaction(text: string): ParsedReaction | null {
   return { emoji: REACTION_EMOJIS[index], targetHash: match[1] };
 }
 
+// --- meshcore-open v1 reaction (r:<millis>_<nameHash>_<textHash>:<emoji>) ---
+//
+// Sent by meshcore-open clients from before the r:<hash>:<index> format. The
+// hashes are Dart String.hashCode values; the backend resolves the target.
+const REACTION_V1_PATTERN = /^r:(\d{1,16}_\d{1,10}_\d{1,10}):(\S+)$/u;
+
+/** Parse an older meshcore-open reaction, or null. */
+export function parseReactionV1(text: string): ParsedReaction | null {
+  const match = REACTION_V1_PATTERN.exec(text.trim());
+  if (!match || !EMOJI_START.test(match[2])) return null;
+  return { emoji: match[2], targetHash: match[1] };
+}
+
 // --- MeshCore One reaction ({emoji}@[{sender}]\n{hash}) ---
 
 // MeshCore One (github.com/Avi0n/MeshCoreOne, docs/Reactions.md) speaks a
@@ -131,9 +144,9 @@ export function parseReaction(text: string): ParsedReaction | null {
 //
 // A newer MC1 build swaps the first line to "@[{targetSenderName}]{emoji}", so
 // both orders are accepted. <hash> is 8 Crockford Base32 chars (SHA-256 of the
-// target text + its sender timestamp, first 5 bytes) - like the meshcore-open
-// hash it is not resolved back to the target message here. There is no wire
-// representation for removing a reaction.
+// target text + its sender timestamp, first 5 bytes). It is not resolved here:
+// the backend resolves it (GET /messages/{id}/reaction-target, rendered by
+// ReactionTargetLink). There is no wire representation for removing a reaction.
 
 // Crockford Base32 is case-insensitive and normalizes I/L -> 1 and O -> 0, so
 // every letter but U can appear in a received hash.
@@ -187,6 +200,21 @@ export function splitReplyMention(text: string): SplitReplyMention | null {
   const match = REPLY_MENTION_PREFIX.exec(text.trim());
   if (!match) return null;
   return { mention: match[1], body: match[2] };
+}
+
+/**
+ * True when the message body is a reaction in either dialect, whole or
+ * reply-prefixed. A channel reaction carries "@[TargetName]", so callers use
+ * this to keep reactions from counting as @mentions.
+ */
+export function isReactionPayload(body: string): boolean {
+  const isReaction = (text: string) =>
+    parseReaction(text) !== null ||
+    parseReactionV1(text) !== null ||
+    parseMeshCoreOneReaction(text) !== null;
+  if (isReaction(body)) return true;
+  const split = splitReplyMention(body);
+  return split !== null && isReaction(split.body);
 }
 
 // --- Location marker (m:<lat>,<lon>|<label>|<flags>) ---

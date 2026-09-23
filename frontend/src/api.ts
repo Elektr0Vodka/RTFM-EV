@@ -57,6 +57,7 @@ import type {
   OpenHopMqttStatus,
   OpenHopMqttConfigBody,
   MessagesAroundResponse,
+  ReactionTargetResponse,
   RawPacket,
   RadioAdvertMode,
   RadioConfig,
@@ -389,6 +390,13 @@ export const api = {
     const query = searchParams.toString();
     return fetchJson<Message[]>(`/messages${query ? `?${query}` : ''}`, { signal });
   },
+  reactToMessage: (messageId: number, emoji: string) =>
+    fetchJson<Message>(`/messages/${messageId}/react`, {
+      method: 'POST',
+      body: JSON.stringify({ emoji }),
+    }),
+  getReactionTarget: (messageId: number) =>
+    fetchJson<ReactionTargetResponse>(`/messages/${messageId}/reaction-target`),
   getMessagesAround: (
     messageId: number,
     type?: 'PRIV' | 'CHAN',

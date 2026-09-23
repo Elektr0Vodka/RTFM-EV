@@ -18,7 +18,7 @@ import type {
   RadioConfig,
   RawPacket,
 } from '../types';
-import { buildNodeLookupUrl } from '../utils/analyzerLink';
+import { buildChannelLookupUrl, buildNodeLookupUrl } from '../utils/analyzerLink';
 import { CONTACT_TYPE_ROOM } from '../types';
 import { api } from '../api';
 import {
@@ -28,9 +28,11 @@ import {
 } from '../utils/messageParser';
 import {
   giphyUrlForId,
+  isReactionPayload,
   parseGif,
   parseMeshCoreOneReaction,
   parseReaction,
+  parseReactionV1,
   splitReplyMention,
   parseMarker,
   type ParsedMarker,
@@ -57,6 +59,8 @@ import {
 import { ContactAvatar } from './ContactAvatar';
 import { PathModal } from './PathModal';
 import { RawPacketInspectorDialog } from './RawPacketDetailModal';
+import { MessageRowActions } from './MessageRowActions';
+import { ReactionTargetLink, type ReactionAnalyzerLookup } from './ReactionTargetLink';
 import { toast } from './ui/sonner';
 import { handleKeyboardActivate } from '../utils/a11y';
 import { classifyHashtag, buildNameSet, type HashtagState } from '../lib/hashtagChannelState';
@@ -77,6 +81,12 @@ interface MessageListProps {
   onDismissUnreadMarker?: () => void;
   /** Called when the unread boundary is not in loaded history and must be jumped to. */
   onNavigateToUnread?: (messageId: number) => void;
+  /** Scroll to (loading around if needed) a message in this conversation. */
+  onJumpToMessage?: (messageId: number) => void;
+  /** Send an emoji reaction to a message. */
+  onReactToMessage?: (messageId: number, emoji: string) => void;
+  /** Prefill the composer with a reply to a message. */
+  onReplyToMessage?: (message: Message) => void;
   onSenderClick?: (sender: string) => void;
   onLoadOlder?: () => void;
   onResendChannelMessage?: (messageId: number, newTimestamp?: boolean) => void;
@@ -216,17 +226,38 @@ function MarkerMessage({
 }
 
 // Render a bare payload body (no reply prefix) into its rich node, or null.
+/** Lets a hash-addressed reaction resolve and link to the message it reacts to. */
+interface ReactionTargetCtx {
+  messageId: number;
+  onJumpToMessage?: (messageId: number) => void;
+  analyzerLookup?: ReactionAnalyzerLookup;
+}
+
 function renderPayloadBody(
   body: string,
-  onCoordinateClick?: (lat: number, lon: number, label: string) => void
+  onCoordinateClick?: (lat: number, lon: number, label: string) => void,
+  reactionCtx?: ReactionTargetCtx
 ): ReactNode | null {
   const gifId = parseGif(body);
   if (gifId) {
     return <GifPayload gifId={gifId} rawText={body} />;
   }
-  const reaction = parseReaction(body) ?? parseMeshCoreOneReaction(body);
+  // Every dialect is resolvable by the backend (meshcore-open r: v3/v1 and
+  // the @[Name]emoji + hash-line form), so all of them get a target link.
+  const reaction = parseReaction(body) ?? parseReactionV1(body) ?? parseMeshCoreOneReaction(body);
   if (reaction) {
-    return <ReactionPayload emoji={reaction.emoji} targetSender={reaction.targetSender} />;
+    return (
+      <span className="inline-flex flex-wrap items-center gap-1.5">
+        <ReactionPayload emoji={reaction.emoji} targetSender={reaction.targetSender} />
+        {reactionCtx && (
+          <ReactionTargetLink
+            messageId={reactionCtx.messageId}
+            onJump={reactionCtx.onJumpToMessage}
+            analyzerLookup={reactionCtx.analyzerLookup}
+          />
+        )}
+      </span>
+    );
   }
   const marker = parseMarker(body);
   if (marker) {
@@ -257,14 +288,15 @@ function renderMeshcoreOpenPayload(
   content: string,
   radioName: string | undefined,
   ctx: HashtagRenderCtx,
-  onCoordinateClick?: (lat: number, lon: number, label: string) => void
+  onCoordinateClick?: (lat: number, lon: number, label: string) => void,
+  reactionCtx?: ReactionTargetCtx
 ): ReactNode | null {
-  const whole = renderPayloadBody(content, onCoordinateClick);
+  const whole = renderPayloadBody(content, onCoordinateClick, reactionCtx);
   if (whole) return whole;
 
   const split = splitReplyMention(content);
   if (split) {
-    const body = renderPayloadBody(split.body, onCoordinateClick);
+    const body = renderPayloadBody(split.body, onCoordinateClick, reactionCtx);
     if (body) {
       // Preserve the reply mention (rendered as a normal @[Name] mention) so the
       // GIF/reaction still reads as a reply to that person.
@@ -623,6 +655,9 @@ export function MessageList({
   unreadMarkerMessageId,
   onDismissUnreadMarker,
   onNavigateToUnread,
+  onJumpToMessage,
+  onReactToMessage,
+  onReplyToMessage,
   onSenderClick,
   onLoadOlder,
   onResendChannelMessage,
@@ -861,6 +896,19 @@ export function MessageList({
     () => ({ parsePubkeys, parseCoordinates, linkifyUrls }),
     [parsePubkeys, parseCoordinates, linkifyUrls]
   );
+  // Where to look for a reaction target this client never received: the
+  // channel page on the first analyzer site with a usable channel template.
+  const reactionAnalyzerLookup = useMemo<ReactionAnalyzerLookup | undefined>(() => {
+    const first = messages[0];
+    if (!first || first.type !== 'CHAN') return undefined;
+    const channel = channels.find((c) => c.key === first.conversation_key);
+    if (!channel) return undefined;
+    for (const site of analyzerSites) {
+      const url = buildChannelLookupUrl(site, channel);
+      if (url) return { url, siteName: site.name };
+    }
+    return undefined;
+  }, [messages, channels, analyzerSites]);
   const tokenDeps = useMemo<TokenDeps>(
     () => ({ contacts, onOpenContactInfo, onCoordinateClick, analyzerSites }),
     [contacts, onOpenContactInfo, onCoordinateClick, analyzerSites]
@@ -1036,6 +1084,22 @@ export function MessageList({
 
     prevMessagesLengthRef.current = messages.length;
   }, [messages, sortedMessages.length, scrollToIndex, requestBottomScroll, targetMessageId]);
+
+  // Jump from a reaction to the message it reacts to. A target that is already
+  // loaded is scrolled to here: routing it through targetMessageId would clear the
+  // list for an around-load that the immediate "target reached" then cancels.
+  const jumpToMessage = useCallback(
+    (messageId: number) => {
+      const index = sortedMessages.findIndex((msg) => msg.id === messageId);
+      if (index !== -1) {
+        scrollToIndex(index, 'center');
+        setHighlightedMessageId(messageId);
+        return;
+      }
+      onJumpToMessage?.(messageId);
+    },
+    [sortedMessages, scrollToIndex, onJumpToMessage]
+  );
 
   // Scroll to target message and highlight it
   useLayoutEffect(() => {
@@ -1659,7 +1723,7 @@ export function MessageList({
                 <div
                   data-message-id={msg.id}
                   className={cn(
-                    'flex items-start max-w-[85%]',
+                    'group flex items-start max-w-[85%]',
                     msg.outgoing && 'flex-row-reverse self-end',
                     isFirstInGroup && !isFirstMessage && 'mt-3'
                   )}
@@ -1752,7 +1816,12 @@ export function MessageList({
                           content,
                           radioName,
                           hashtagCtx,
-                          onCoordinateClick
+                          onCoordinateClick,
+                          {
+                            messageId: msg.id,
+                            onJumpToMessage: jumpToMessage,
+                            analyzerLookup: reactionAnalyzerLookup,
+                          }
                         )) ||
                         content.split('\n').map((line, i, arr) => (
                           <span key={i}>
@@ -1851,6 +1920,14 @@ export function MessageList({
                       </Suspense>
                     )}
                   </div>
+                  {msg.sender_timestamp != null && !isReactionPayload(content) && (
+                    <MessageRowActions
+                      onReact={
+                        onReactToMessage ? (emoji) => onReactToMessage(msg.id, emoji) : undefined
+                      }
+                      onReply={onReplyToMessage ? () => onReplyToMessage(msg) : undefined}
+                    />
+                  )}
                 </div>
               </div>
             );

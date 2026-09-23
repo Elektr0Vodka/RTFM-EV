@@ -11,6 +11,74 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-23 (Protocol and messaging fixes, fix/protocol-messaging-bugs)
+
+### Security
+- **Remote CLI secrets no longer reach the logs.** `password <pw>`,
+  `set guest.password <pw>` and `set prv.key <hex>` are masked in the command
+  log lines. Replies to secret-bearing commands are logged as `***`; the
+  firmware echoes the new admin password back in its reply. The meshcore
+  library's own `send_cmd` debug line is filtered too. The log ring buffer is
+  served by `/api/debug`, which users paste into bug reports.
+  (`app/log_redaction.py`)
+
+### Repeaters and rooms
+- **CLI replies are matched to the command that caused them.** Each command is
+  sent with a rotating `XX|` tag. Repeater/room firmware and OpenHop reflect it
+  back, so a late reply to an earlier command is dropped and no longer shown as
+  the answer to the current one. Untagged replies from older firmware are still
+  accepted.
+- **Room status no longer shows a meaningless RX airtime.** Room firmware
+  reports two counters in that slot: posts, and post pushes to members. The
+  Telemetry pane now shows those for room servers. Tracked room telemetry
+  stores them the same way.
+
+### Messaging
+- **Same text to two contacts in the same second no longer shares a delivery
+  code.** The firmware DM ACK code does not include the recipient, so the
+  second DM overwrote the first's pending ACK. The first DM then never showed as
+  delivered. DM timestamps are now unique per text across all recipients.
+- **Reactions no longer count as @mentions.** A channel reaction names its
+  target (`@[Name]👍` plus a hash line). The mention badge, sound, ticker and
+  server unread-mention flag now skip reactions in both dialects.
+- **React and reply from the chat.** Hovering a message shows React (quick
+  emoji set) and Reply. Both use the plaintext format other MeshCore clients
+  already send, so they read correctly there:
+  - a reaction is `@[Sender]emoji` plus a hash line on channels, `emoji` plus
+    the hash in DMs; it goes out through the normal send path (new
+    `POST /messages/{id}/react`);
+  - Reply fills the composer with `@[Name]`, a `>` line quoting the first 10
+    characters, and a new line for your text.
+- **Received reactions link to the message they are for.** The 8-character
+  hash is resolved to the target message: SHA-256 of the target's body and
+  sender timestamp, checked against real channel traffic (new
+  `GET /messages/{id}/reaction-target`). The reaction shows a quoted snippet
+  that jumps to that message. If it never reached this radio, the reaction
+  says so and links to the channel on the first configured analyzer with a
+  channel link. Builds on the reaction display from #38. This works for
+  meshcore-open reactions too: the current `r:<hash>:<index>` form (Dart
+  `String.hashCode`, 16-bit, so the newest match wins) and the older
+  `r:<millis>_<nameHash>_<textHash>:<emoji>` form, which used to show as raw
+  text and is now recognised as a reaction.
+- **Web Push respects the block lists.** Blocked contacts and blocked channel
+  sender names no longer trigger push notifications.
+- **Composer warns earlier on long channel messages.** Above 139 bytes of
+  `name: text`, the message needs another encryption block. The radio then
+  stops forwarding repeats of it to the app after about 4 path bytes (region
+  scoped) or 8 (unscoped). The red zone now starts there with "repeats of this
+  message may not show up here".
+
+### Radio
+- **Contacts evicted by the radio are reloaded.** With overwrite-oldest on
+  (`MESHCORE_LOAD_WITH_AUTOEVICT` or set by another client), the radio's
+  "contact deleted" push now removes the contact from the library cache, so the
+  next sync or send loads it again instead of assuming it is still there.
+
+### Database
+- **Startup warns when the database is newer than the app.** After a
+  downgrade, or a restore of a backup from a newer build, the migration runner
+  now logs a warning instead of silently continuing.
+
 ## Update 2026-09-23 (Configurable data retention, feat/data-retention-policy)
 
 ### Retention (backend)

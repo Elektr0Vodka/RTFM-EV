@@ -62,3 +62,21 @@ describe('messageContainsMention', () => {
     expect(messageContainsMention('@[Alice] and @[Bob] should see this', 'Charlie')).toBe(false);
   });
 });
+
+describe('messageContainsMention ignores reactions', () => {
+  it('does not treat a channel reaction ("@[Name]emoji\nhash") as a mention', () => {
+    expect(messageContainsMention('Bob: @[Alice]👍\nABCD1234', 'Alice')).toBe(false);
+  });
+
+  it('does not treat the emoji-first reaction order as a mention', () => {
+    expect(messageContainsMention('Bob: 🔥@[Alice]\nABCD1234', 'Alice')).toBe(false);
+  });
+
+  it('does not treat a reply-prefixed r: reaction as a mention', () => {
+    expect(messageContainsMention('Bob: @[Alice] r:1a2b:00', 'Alice')).toBe(false);
+  });
+
+  it('still treats an ordinary two-line message with a mention as a mention', () => {
+    expect(messageContainsMention('Bob: @[Alice] look\nat this', 'Alice')).toBe(true);
+  });
+});

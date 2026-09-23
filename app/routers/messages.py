@@ -7,9 +7,21 @@ from app.event_handlers import track_pending_ack
 from app.models import (
     Message,
     MessagesAroundResponse,
+    ReactionTargetResponse,
+    ReactRequest,
     ResendChannelMessageResponse,
     SendChannelMessageRequest,
     SendDirectMessageRequest,
+)
+from app.reaction_payloads import (
+    build_reaction_text,
+    channel_sender,
+    is_reaction_text,
+    is_valid_reaction_emoji,
+    message_body,
+    parse_any_reaction,
+    parse_hash_reaction,
+    reaction_matches,
 )
 from app.repository import AmbiguousPublicKeyPrefixError, AppSettingsRepository, MessageRepository
 from app.services.message_send import (
@@ -23,6 +35,11 @@ from app.websocket import broadcast_error, broadcast_event
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/messages", tags=["messages"])
+
+# How far back to look for a reaction's target message, and slack for a
+# target stored slightly after its reaction (out-of-order mesh delivery).
+REACTION_TARGET_WINDOW_SECONDS = 7 * 86400
+REACTION_TARGET_CLOCK_SLACK_SECONDS = 300
 
 
 @router.get("/around/{message_id}", response_model=MessagesAroundResponse)
@@ -45,6 +62,88 @@ async def get_messages_around(
         blocked_names=blocked_names,
     )
     return MessagesAroundResponse(messages=messages, has_older=has_older, has_newer=has_newer)
+
+
+@router.get("/{message_id}/reaction-target", response_model=ReactionTargetResponse)
+async def get_reaction_target(message_id: int) -> ReactionTargetResponse:
+    """Resolve an emoji reaction to the message it reacts to.
+
+    Handles ``<emoji>@[Name]\\n<hash>`` / ``<emoji>\\n<hash>`` and meshcore-open's
+    ``r:`` (v3 index and v1) reactions. The target is searched in the same
+    conversation, received up to ``REACTION_TARGET_WINDOW_SECONDS`` before the
+    reaction. meshcore-open v3 hashes are only 16 bits, so the newest match wins.
+    """
+    reaction = await MessageRepository.get_by_id(message_id)
+    if reaction is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+    parsed = parse_any_reaction(reaction.text, reaction.type)
+    if parsed is None:
+        raise HTTPException(status_code=400, detail="Message is not a reaction")
+
+    candidates = await MessageRepository.get_conversation_window(
+        msg_type=reaction.type,
+        conversation_key=reaction.conversation_key,
+        since=reaction.received_at - REACTION_TARGET_WINDOW_SECONDS,
+        until=reaction.received_at + REACTION_TARGET_CLOCK_SLACK_SECONDS,
+        exclude_id=reaction.id,
+    )
+    is_channel = reaction.type == "CHAN"
+    target = next(
+        (
+            msg
+            for msg in candidates
+            if msg.sender_timestamp is not None
+            and not is_reaction_text(msg.text)
+            and reaction_matches(
+                parsed,
+                body=message_body(msg.text, msg.type),
+                sender_name=channel_sender(msg.text) if is_channel else msg.sender_name,
+                sender_timestamp=msg.sender_timestamp,
+                is_channel=is_channel,
+            )
+        ),
+        None,
+    )
+    return ReactionTargetResponse(
+        dialect=parsed.kind,
+        emoji=parsed.emoji,
+        target_hash=parsed.target_hash,
+        target_sender=parsed.target_sender,
+        target=target,
+    )
+
+
+@router.post("/{message_id}/react", response_model=Message)
+async def react_to_message(message_id: int, request: ReactRequest) -> Message:
+    """Send an emoji reaction to a stored message, as an ordinary mesh message.
+
+    Wire format (interoperable with other clients that resolve reactions by
+    hash): ``@[TargetSender]emoji\\nhash`` on channels, ``emoji\\nhash`` in DMs.
+    """
+    target = await MessageRepository.get_by_id(message_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if not is_valid_reaction_emoji(request.emoji):
+        raise HTTPException(status_code=400, detail="Reaction must be a single emoji")
+    if target.sender_timestamp is None:
+        raise HTTPException(status_code=400, detail="Message has no sender timestamp")
+    if parse_hash_reaction(target.text, target.type) is not None or is_reaction_text(target.text):
+        raise HTTPException(status_code=400, detail="Cannot react to a reaction")
+
+    body = message_body(target.text, target.type)
+    if target.type == "CHAN":
+        sender = channel_sender(target.text)
+        if sender is None:
+            raise HTTPException(status_code=400, detail="Cannot tell who sent this message")
+        text = build_reaction_text(request.emoji, body, target.sender_timestamp, sender)
+        return await send_channel_message(
+            SendChannelMessageRequest(channel_key=target.conversation_key, text=text)
+        )
+
+    text = build_reaction_text(request.emoji, body, target.sender_timestamp, None)
+    return await send_direct_message(
+        SendDirectMessageRequest(destination=target.conversation_key, text=text)
+    )
 
 
 @router.get("", response_model=list[Message])

@@ -1,4 +1,5 @@
 import { formatDateTime } from './dateTimeFormat';
+import { isReactionPayload } from './meshcoreOpenPayloads';
 
 /**
  * Parse sender from channel message text.
@@ -67,9 +68,13 @@ export function formatTime(timestamp: number): string {
   return `${dateStr} ${time}`;
 }
 
-/** Check if a message text contains a mention of the given name in @[name] format. */
+/**
+ * Check if a message text contains a mention of the given name in @[name] format.
+ * Reactions are not mentions, even though a channel reaction names its target.
+ */
 export function messageContainsMention(text: string, name: string | null): boolean {
   if (!name) return false;
+  if (isReactionPayload(parseSenderFromText(text).content)) return false;
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const mentionPattern = new RegExp(`@\\[${escaped}\\]`, 'i');
   return mentionPattern.test(text);

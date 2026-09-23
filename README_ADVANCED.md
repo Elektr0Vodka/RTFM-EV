@@ -126,6 +126,7 @@ Setting `MESHCORE_LOAD_WITH_AUTOEVICT=true` enables an alternative contact loadi
 - Contact adds never fail - the radio always makes room by evicting stale contacts
 - The app can load contacts even when it can't enumerate the radio's existing contact table (e.g., on slow BLE connections)
 - No contact removal step is needed during reconciliation
+- When the radio evicts a contact it reports it, and the app forgets that contact was loaded, so the next sync or send loads it again
 
 **Trade-off:** Contacts loaded by the app are not marked as radio-side favorites, so they are eviction candidates if the radio receives a new advertisement while full. In practice, freshly-loaded contacts have a recent `lastmod` timestamp and will be among the last to be evicted. If you disconnect the radio from RemoteTerm and use it standalone, your contacts will not be protected from eviction by newer advertisements.
 
