@@ -17,6 +17,7 @@ from app.models import (
     ContactRadioPolicyRequest,
     ContactRadioResidency,
     ContactRoutingOverrideRequest,
+    ContactTelemetryPermissionsRequest,
     ContactTelemetryResponse,
     ContactUpsert,
     CreateContactRequest,
@@ -27,6 +28,7 @@ from app.models import (
     PathDiscoveryRoute,
     TelemetryHistoryEntry,
     TraceResponse,
+    apply_telemetry_perms,
 )
 from app.packet_processor import start_historical_dm_decryption
 from app.path_utils import parse_explicit_hop_route
@@ -698,6 +700,64 @@ async def set_contact_radio_policy(public_key: str, request: ContactRadioPolicyR
         "status": "ok",
         "public_key": contact.public_key,
         "radio_policy": request.policy,
+    }
+
+
+@router.post("/{public_key}/telemetry-permissions")
+async def set_contact_telemetry_permissions(
+    public_key: str, request: ContactTelemetryPermissionsRequest
+) -> dict:
+    """Set which telemetry this radio shares with a contact.
+
+    The app value is authoritative: it is stored, pushed now when the contact
+    is loaded on the radio, applied whenever the contact is loaded later, and
+    re-applied when a radio contact snapshot shows different bits. A contact
+    that is not on the radio is not added just for this.
+    """
+    contact = await _resolve_contact_or_404(public_key)
+    perms = request.to_perms()
+    await ContactRepository.set_telemetry_perms(contact.public_key, perms)
+
+    applied_to_radio = False
+    if radio_manager.is_connected:
+        try:
+            async with radio_manager.radio_operation("set_contact_telemetry_permissions") as mc:
+                radio_contact = mc.get_contact_by_key_prefix(contact.public_key[:12])
+                if radio_contact:
+                    # Build on the radio's own flags so its favourite bit is untouched.
+                    flags = apply_telemetry_perms(int(radio_contact.get("flags") or 0), perms)
+                    result = await mc.commands.change_contact_flags(radio_contact, flags)
+                    applied_to_radio = result is not None and result.type != EventType.ERROR
+                    if applied_to_radio:
+                        await ContactRepository.set_flags(contact.public_key, flags)
+                    if not applied_to_radio:
+                        logger.warning(
+                            "Radio rejected telemetry permissions for %s: %s",
+                            contact.public_key[:12],
+                            result.payload if result is not None else None,
+                        )
+        except Exception:
+            logger.warning(
+                "Failed to push telemetry permissions to radio for %s",
+                contact.public_key[:12],
+                exc_info=True,
+            )
+
+    logger.info(
+        "Set telemetry permissions for %s: 0x%02x (on radio now: %s)",
+        contact.public_key[:12],
+        perms,
+        applied_to_radio,
+    )
+    updated = await ContactRepository.get_by_key(contact.public_key)
+    if updated:
+        await _broadcast_contact_update(updated)
+
+    return {
+        "status": "ok",
+        "public_key": contact.public_key,
+        "telemetry_perms": perms,
+        "applied_to_radio": applied_to_radio,
     }
 
 

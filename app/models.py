@@ -10,6 +10,19 @@ from app.path_utils import normalize_contact_route, normalize_route_override
 # Corrupted radio data can produce values outside this range.
 _VALID_CONTACT_TYPES = frozenset({0, 1, 2, 3, 4})
 
+# Firmware TELEM_PERM_* bits (SensorManager.h): 0x01 base/battery, 0x02 location,
+# 0x04 environment. Companion firmware reads them from contact.flags >> 1, since
+# flags bit 0 is the radio favourite bit (companion_radio MyMesh.cpp).
+TELEMETRY_PERM_BASE = 0x01
+TELEMETRY_PERM_LOCATION = 0x02
+TELEMETRY_PERM_ENVIRONMENT = 0x04
+TELEMETRY_PERM_MASK = 0x07
+
+
+def apply_telemetry_perms(flags: int, perms: int) -> int:
+    """Return radio contact flags with the telemetry permission bits set to ``perms``."""
+    return (flags & ~(TELEMETRY_PERM_MASK << 1)) | ((perms & TELEMETRY_PERM_MASK) << 1)
+
 
 class ContactRoute(BaseModel):
     """A normalized contact route."""
@@ -27,7 +40,8 @@ class ContactUpsert(BaseModel):
     public_key: str = Field(description="Public key (64-char hex)")
     name: str | None = None
     type: int = 0
-    flags: int = 0
+    # None = keep the stored flags (they carry per-contact telemetry permissions)
+    flags: int | None = None
     direct_path: str | None = None
     direct_path_len: int | None = None
     direct_path_hash_mode: int | None = None
@@ -118,6 +132,8 @@ class Contact(BaseModel):
     on_radio: bool = False
     favorite: bool = False
     radio_policy: Literal["auto", "pinned", "excluded"] = "auto"
+    # App-set TELEM_PERM_* bits; None = never set in the app (radio flags rule)
+    telemetry_perms: int | None = None
     last_contacted: int | None = None  # Last time we sent/received a message
     last_read_at: int | None = None  # Server-side read state tracking
     first_seen: int | None = None
@@ -211,11 +227,14 @@ class Contact(BaseModel):
         than our database schema (name, direct_path, etc.).
         """
         effective_path, effective_path_len, effective_path_hash_mode = self.effective_route_tuple()
+        flags = self.flags
+        if self.telemetry_perms is not None:
+            flags = apply_telemetry_perms(flags, self.telemetry_perms)
         return {
             "public_key": self.public_key,
             "adv_name": self.name or "",
             "type": self.type,
-            "flags": self.flags,
+            "flags": flags,
             "out_path": effective_path,
             "out_path_len": effective_path_len,
             "out_path_hash_mode": effective_path_hash_mode,
@@ -267,6 +286,25 @@ class ContactRoutingOverrideRequest(BaseModel):
             "comma-separated 1/2/3-byte hop hex values"
         )
     )
+
+
+class ContactTelemetryPermissionsRequest(BaseModel):
+    """Per-contact telemetry sharing permissions.
+
+    Only takes effect for a category whose radio-wide telemetry mode is
+    per-contact (Settings > Radio).
+    """
+
+    base: bool = Field(description="Share base telemetry (battery)")
+    location: bool = Field(description="Share location")
+    environment: bool = Field(description="Share environment sensor readings")
+
+    def to_perms(self) -> int:
+        return (
+            (TELEMETRY_PERM_BASE if self.base else 0)
+            | (TELEMETRY_PERM_LOCATION if self.location else 0)
+            | (TELEMETRY_PERM_ENVIRONMENT if self.environment else 0)
+        )
 
 
 class ContactRadioPolicyRequest(BaseModel):

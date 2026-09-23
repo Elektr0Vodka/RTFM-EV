@@ -11,6 +11,32 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-23 (Per-contact telemetry permissions, feat/per-contact-telemetry-perms)
+
+### Contacts (backend)
+- **Contact flags are no longer wiped by adverts.** Every advert, DM
+  placeholder, discovery and manual-create upsert wrote `flags = 0`, because
+  `ContactUpsert.flags` defaulted to 0 and the upsert SQL did
+  `flags = excluded.flags`. `ContactUpsert.flags` is now optional and `None`
+  keeps the stored value. A radio contact snapshot still writes the radio's
+  flags.
+- **Per-contact telemetry permissions.** New
+  `POST /api/contacts/{key}/telemetry-permissions` (`{base, location,
+  environment}`) stores the choice in the new nullable
+  `contacts.telemetry_perms` column (migration `_106`). The bits follow the
+  companion firmware: `contact.flags` bit 0 is the radio favourite bit and the
+  `TELEM_PERM_*` bits sit at `flags >> 1`. The app value wins: it is pushed with
+  `change_contact_flags` when the contact is loaded on the radio (the contact
+  is never added just for this), `Contact.to_radio_dict()` applies it whenever
+  the contact is loaded later, and each radio contact snapshot re-pushes it if
+  the radio's bits differ (for example after the radio auto-adds the contact
+  with default flags).
+
+### Contacts (frontend)
+- **Telemetry sharing toggles in contact info** (Battery / Location /
+  Environment, under Radio residency). These only take effect for categories
+  set to Per-Contact in Settings > Radio, which the hint says. Strings in
+  EN/NL/DE.
 ## Update 2026-09-23 (Shared node_modules in worktrees, fix/vite-shared-node-modules)
 
 ### Tooling / CI

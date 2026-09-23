@@ -19,6 +19,7 @@ import type {
   ContactAdvertPathSummary,
   LatestTelemetry,
   ContactRadioResidency,
+  ContactTelemetryPermissions,
   ContactTelemetryResponse,
   RadioContactOccupancy,
   RadioPolicy,
@@ -312,6 +313,16 @@ export const api = {
         body: JSON.stringify({ policy }),
       }
     ),
+  setContactTelemetryPermissions: (publicKey: string, perms: ContactTelemetryPermissions) =>
+    fetchJson<{
+      status: string;
+      public_key: string;
+      telemetry_perms: number;
+      applied_to_radio: boolean;
+    }>(`/contacts/${publicKey}/telemetry-permissions`, {
+      method: 'POST',
+      body: JSON.stringify(perms),
+    }),
 
   // Channels
   getChannels: () => fetchJson<Channel[]>('/channels'),

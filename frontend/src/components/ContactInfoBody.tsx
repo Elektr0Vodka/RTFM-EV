@@ -42,6 +42,7 @@ import { ZoomableChart } from './charts/ZoomableChart';
 import type { ChartWindow } from '../lib/chartZoom';
 import { ContactAvatar } from './ContactAvatar';
 import { ContactRadioResidencyControl } from './ContactRadioResidencyControl';
+import { ContactTelemetryPermissionsControl } from './ContactTelemetryPermissionsControl';
 import { LppSensorRow, formatLppLabel } from './repeater/repeaterPaneShared';
 import { toast } from './ui/sonner';
 import { useDistanceUnit } from '../contexts/DistanceUnitContext';
@@ -398,6 +399,10 @@ export function ContactInfoBody({
 
       {show('identity') && !isPrefixOnlyResolvedContact && (
         <ContactRadioResidencyControl contact={contact} />
+      )}
+
+      {show('identity') && !isPrefixOnlyResolvedContact && (
+        <ContactTelemetryPermissionsControl contact={contact} />
       )}
 
       {show('identity') && (onToggleBlockedKey || onToggleBlockedName) && (
