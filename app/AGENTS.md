@@ -322,6 +322,7 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 ### Messages
 - `GET /messages` - list with filters; supports `q` (full-text search), `after`/`after_id` (forward cursor)
 - `GET /messages/around/{message_id}` - context messages around a target (for jump-to-message navigation)
+- `GET /messages/locations` - location shares in DM + channel messages received in `(since, until]`, newest first; `latest_per_sender` (default true) keeps one per sender (self / DM partner / channel sender key, else name). Parsing in `app/location_payloads.py` (meshcore-open `m:` marker, upper-case MGRS via `app/mgrs.py`, `lat, lon` with 4+ decimals); service `app/services/shared_locations.py` scans at most 20,000 newest rows (`truncated`). Local map only, never fanned out
 - `POST /messages/direct`
 - `POST /messages/channel`
 - `POST /messages/channel/{message_id}/resend`

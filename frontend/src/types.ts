@@ -459,6 +459,39 @@ export interface ReactionTargetResponse {
   target: Message | null;
 }
 
+/** GET /messages/locations: a location shared in a chat message. */
+export interface SharedLocation {
+  message_id: number;
+  type: 'PRIV' | 'CHAN';
+  conversation_key: string;
+  /** Channel name or contact name, when known. */
+  conversation_name: string | null;
+  sender_key: string | null;
+  sender_name: string | null;
+  outgoing: boolean;
+  received_at: number;
+  sender_timestamp: number | null;
+  lat: number;
+  lon: number;
+  /** marker: meshcore-open m: payload; mgrs: MGRS reference; decimal: lat, lon pair. */
+  format: 'marker' | 'mgrs' | 'decimal';
+  /** The matched text. */
+  raw: string;
+  label: string;
+  flags: string;
+  /** MGRS grid-square size in metres; null for exact points. */
+  precision_m: number | null;
+  paths: MessagePath[] | null;
+}
+
+export interface SharedLocationsResponse {
+  /** Newest first. */
+  locations: SharedLocation[];
+  scanned: number;
+  /** True when the window held more messages than the server scans. */
+  truncated: boolean;
+}
+
 export interface ResendChannelMessageResponse {
   status: string;
   message_id: number;

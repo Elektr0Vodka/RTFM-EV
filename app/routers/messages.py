@@ -12,6 +12,7 @@ from app.models import (
     ResendChannelMessageResponse,
     SendChannelMessageRequest,
     SendDirectMessageRequest,
+    SharedLocationsResponse,
 )
 from app.reaction_payloads import (
     build_reaction_text,
@@ -31,6 +32,7 @@ from app.services.message_send import (
     send_direct_message_to_contact,
 )
 from app.services.radio_runtime import radio_runtime as radio_manager
+from app.services.shared_locations import collect_shared_locations
 from app.websocket import broadcast_error, broadcast_event
 
 logger = logging.getLogger(__name__)
@@ -62,6 +64,28 @@ async def get_messages_around(
         blocked_names=blocked_names,
     )
     return MessagesAroundResponse(messages=messages, has_older=has_older, has_newer=has_newer)
+
+
+@router.get("/locations", response_model=SharedLocationsResponse)
+async def list_shared_locations(
+    since: int | None = Query(
+        default=None, description="Only messages received after this Unix time (exclusive)"
+    ),
+    until: int | None = Query(
+        default=None, description="Only messages received at or before this Unix time"
+    ),
+    latest_per_sender: bool = Query(
+        default=True, description="Keep only the newest share per sender"
+    ),
+) -> SharedLocationsResponse:
+    """Location shares found in chat messages (DMs and channels), newest first.
+
+    Recognizes meshcore-open ``m:`` markers, MGRS references and ``lat, lon``
+    pairs with 4+ decimals. For the local map view only; never forwarded.
+    """
+    return await collect_shared_locations(
+        since=since, until=until, latest_per_sender=latest_per_sender
+    )
 
 
 @router.get("/{message_id}/reaction-target", response_model=ReactionTargetResponse)

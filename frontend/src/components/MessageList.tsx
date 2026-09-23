@@ -65,6 +65,7 @@ import { toast } from './ui/sonner';
 import { handleKeyboardActivate } from '../utils/a11y';
 import { classifyHashtag, buildNameSet, type HashtagState } from '../lib/hashtagChannelState';
 import { tokenizeMessageText, type ChatToken, type TokenizeOptions } from '../utils/chatEntities';
+import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { cn } from '@/lib/utils';
 import { useT } from '../i18n';
@@ -172,19 +173,26 @@ const UrlPreviewCard = lazy(() =>
 // the inline-preview preference is on, a small map preview is shown below.
 function MarkerMessage({
   marker,
+  sourceText,
   onCoordinateClick,
 }: {
   marker: ParsedMarker;
+  /** Original text when it differs from the shown position (an MGRS reference). */
+  sourceText?: string;
   onCoordinateClick?: (lat: number, lon: number, label: string) => void;
 }) {
   const t = useT();
   const { showLocationPreview } = useLocationPreview();
-  const coords = `${marker.lat.toFixed(6)}, ${marker.lon.toFixed(6)}`;
+  const coordinateFormat = useCoordinateFormat();
+  const coords = formatCoordinates(marker.lat, marker.lon, coordinateFormat, 6);
   const inner = (
     <>
       <MapPin className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
       <span className="flex flex-col text-left">
         {marker.label && <span className="font-medium leading-tight">{marker.label}</span>}
+        {sourceText && sourceText !== coords && (
+          <span className="font-mono text-xs leading-tight">{sourceText}</span>
+        )}
         <span className="font-mono text-xs text-muted-foreground">{coords}</span>
       </span>
     </>
@@ -490,6 +498,7 @@ function renderToken(
         <MarkerMessage
           key={`coord-${i}`}
           marker={{ lat: tok.lat, lon: tok.lon, label: '', flags: '' }}
+          sourceText={tok.mgrs ? tok.raw : undefined}
           onCoordinateClick={deps.onCoordinateClick}
         />
       );

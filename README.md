@@ -104,6 +104,16 @@ Shipped toward this so far:
   with its traffic trend, signal trend (links to your own node) and recent
   packets. History is kept 365 days by default (`link_edge_retention_days`,
   migration `_107`).
+- Shared-locations map layer (map Overlays > Shared locations, off by default,
+  per browser): pins for location shares sent in channels and DMs within the
+  map's time window (meshcore-open `m:` markers, `lat, lon` pairs with 4+
+  decimals, and MGRS references), newest per sender or every share. Clicking a
+  pin shows who shared it, where and when, with "Open in chat". Local view only;
+  never forwarded.
+- MGRS support: upper-case MGRS references in chat (for example
+  `31U FT 45332 73249`) become location cards when coordinate parsing is on, and
+  Settings > Local > Coordinate format shows positions as decimal degrees
+  (default), degrees/minutes/seconds, or MGRS.
 - Mesh Trends Live-tab stat breakdowns can be computed from the database over the
   selected range, backed by decoded packet fields persisted at ingest (`_089`),
   not only the in-memory session buffer.

@@ -47,6 +47,7 @@ import { ContactLinkShare } from './ContactLinkShare';
 import { LppSensorRow, formatLppLabel } from './repeater/repeaterPaneShared';
 import { toast } from './ui/sonner';
 import { useDistanceUnit } from '../contexts/DistanceUnitContext';
+import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
 import { CONTACT_TYPE_REPEATER } from '../types';
 import type {
   AnalyzerSite,
@@ -170,6 +171,7 @@ export function ContactInfoBody({
 }: ContactInfoBodyProps) {
   const t = useT();
   const { distanceUnit } = useDistanceUnit();
+  const coordinateFormat = useCoordinateFormat();
 
   const show = (group: 'identity' | 'data' | 'network') => region === 'all' || region === group;
 
@@ -348,7 +350,7 @@ export function ContactInfoBody({
             }}
             title={t('contact_view_on_map')}
           >
-            {effectiveLocation.lat.toFixed(5)}, {effectiveLocation.lon.toFixed(5)}
+            {formatCoordinates(effectiveLocation.lat, effectiveLocation.lon, coordinateFormat)}
           </span>
         </div>
       )}
@@ -1246,6 +1248,7 @@ function ContactTelemetrySection({
   onToggleTracked?: (publicKey: string) => Promise<void>;
 }) {
   const { distanceUnit } = useDistanceUnit();
+  const coordinateFormat = useCoordinateFormat();
   const [expanded, setExpanded] = useState(true);
   const [mapExpanded, setMapExpanded] = useState(false);
   const [chartExpanded, setChartExpanded] = useState(false);
@@ -1395,9 +1398,12 @@ function ContactTelemetrySection({
                     ) : (
                       <ChevronRight className="h-3 w-3" />
                     )}
-                    {t('contact_gps_coords', {
-                      lat: gpsValue!.latitude.toFixed(5),
-                      lon: gpsValue!.longitude.toFixed(5),
+                    {t('contact_gps_position', {
+                      position: formatCoordinates(
+                        gpsValue!.latitude,
+                        gpsValue!.longitude,
+                        coordinateFormat
+                      ),
                     })}
                   </button>
                   {mapExpanded && (

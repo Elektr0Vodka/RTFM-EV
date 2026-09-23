@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { Popup as MlPopup, Marker as MlMarker, type Map as MlMap } from 'maplibre-gl';
-import { Zap, Clock, Globe, Radio, MapPinOff, Boxes } from 'lucide-react';
+import { Zap, Clock, Globe, Radio, MapPinOff, Boxes, MapPin } from 'lucide-react';
 import type {
   AdvertLinkEdge,
   Contact,
@@ -79,6 +79,10 @@ import {
   serializeHiddenRoles,
 } from '../map/roleFilter';
 import { computeWrongLocationKeys } from '../map/wrongLocation';
+import { useSharedLocations } from '../map/useSharedLocations';
+import { useDistanceUnit } from '../contexts/DistanceUnitContext';
+import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
+import type { SearchNavigateTarget } from './SearchView';
 import {
   LINK_AGE_CUSTOM_ID,
   LINK_AGE_FOLLOW_KEY,
@@ -126,6 +130,8 @@ interface MapViewProps {
   mapHomeLat?: number | null;
   mapHomeLon?: number | null;
   mapHomeZoom?: number | null;
+  /** Open a chat message (shared-locations popup "Open in chat"). */
+  onNavigateToMessage?: (target: SearchNavigateTarget) => void;
 }
 
 // --- "Heard since" filter ---
@@ -348,6 +354,7 @@ export function MapView({
   mapHomeLat,
   mapHomeLon,
   mapHomeZoom,
+  onNavigateToMessage,
 }: MapViewProps) {
   const t = useT();
   const dark = useIsDarkTheme();
@@ -470,6 +477,22 @@ export function MapView({
     isBool
   );
   const [externalNodes, setExternalNodes] = useState<ExternalMapNode[]>([]);
+  const [showSharedLocations, setShowSharedLocations] = usePersistedMapSetting(
+    'remoteterm-map-shared-locations',
+    false,
+    isBool
+  );
+  // Off = newest share per sender; on = every share in the window.
+  const [sharedLocationsAll, setSharedLocationsAll] = usePersistedMapSetting(
+    'remoteterm-map-shared-locations-all',
+    false,
+    isBool
+  );
+  const { distanceUnit } = useDistanceUnit();
+  const coordinateFormat = useCoordinateFormat();
+  // Popups are built imperatively; they read the display format at open time.
+  const coordinateFormatRef = useRef(coordinateFormat);
+  coordinateFormatRef.current = coordinateFormat;
   const [viewBounds, setViewBounds] = useState<{
     west: number;
     south: number;
@@ -1203,7 +1226,9 @@ export function MapView({
       const loc = getEffectiveLocation(contact);
       const coords = document.createElement('div');
       coords.className = 'text-xs text-muted-foreground mt-1 font-mono';
-      coords.textContent = loc ? `${loc.lat.toFixed(5)}, ${loc.lon.toFixed(5)}` : '';
+      coords.textContent = loc
+        ? formatCoordinates(loc.lat, loc.lon, coordinateFormatRef.current, 5)
+        : '';
       root.append(nameRow, heard, coords);
 
       // Latest known battery/temperature as a small block, only when a reading
@@ -1337,7 +1362,7 @@ export function MapView({
       });
       const coords = document.createElement('div');
       coords.className = 'text-xs text-muted-foreground/80 mt-1 font-mono';
-      coords.textContent = `${props.lat.toFixed(5)}, ${props.lon.toFixed(5)}`;
+      coords.textContent = formatCoordinates(props.lat, props.lon, coordinateFormatRef.current, 5);
       el.append(name, source, heard, coords);
       externalPopupRef.current?.remove();
       externalPopupRef.current = new MlPopup({ closeButton: true, offset: 10 })
@@ -1465,6 +1490,24 @@ export function MapView({
     []
   );
 
+  const {
+    attach: attachSharedLocations,
+    reattach: reattachSharedLocations,
+    locations: sharedLocations,
+    truncated: sharedLocationsTruncated,
+  } = useSharedLocations({
+    enabled: showSharedLocations,
+    latestPerSender: !sharedLocationsAll,
+    since: sinceCutoffSec,
+    until: sinceUntilSec,
+    contacts,
+    config,
+    distanceUnit,
+    coordinateFormat,
+    onNavigateToMessage,
+    onOpenContactInfo,
+  });
+
   const handleReady = useCallback(
     (map: MlMap) => {
       mapRef.current = map;
@@ -1499,6 +1542,8 @@ export function MapView({
       telemetry.setData(mappableContacts, latestTelemetry, nowSec);
       telemetry.setVisible(telemetryOn);
       telemetryRef.current = telemetry;
+      // Chat location shares sit above the nodes so their pins stay clickable.
+      attachSharedLocations(map);
       // Report the viewport so the external overlay can fetch just what's shown.
       onViewBounds(map.getBounds());
       map.on('moveend', () => {
@@ -1540,7 +1585,12 @@ export function MapView({
         title.textContent = focusedLabel || t('map_shared_location');
         const coords = document.createElement('div');
         coords.className = 'text-xs text-muted-foreground mt-1 font-mono';
-        coords.textContent = `${focusedLatLon[0].toFixed(6)}, ${focusedLatLon[1].toFixed(6)}`;
+        coords.textContent = formatCoordinates(
+          focusedLatLon[0],
+          focusedLatLon[1],
+          coordinateFormatRef.current,
+          6
+        );
         el.append(title, coords);
         const popup = new MlPopup({ offset: 12 }).setDOMContent(el);
         focusMarkerRef.current = new MlMarker({ color: '#ef4444' })
@@ -1574,7 +1624,16 @@ export function MapView({
     paintLinksRef.current();
     externalRef.current?.reattach();
     externalRef.current?.setData(visibleExternalRef.current);
-  }, [mappableContacts, nowSec, nodeScale, labelMode, telemetryOn, latestTelemetry]);
+    reattachSharedLocations();
+  }, [
+    mappableContacts,
+    nowSec,
+    nodeScale,
+    labelMode,
+    telemetryOn,
+    latestTelemetry,
+    reattachSharedLocations,
+  ]);
 
   // Keep node data in sync.
   useEffect(() => {
@@ -1970,6 +2029,39 @@ export function MapView({
           </div>
         ),
       },
+      {
+        id: 'shared-locations',
+        label: t('map_shared_locations_label'),
+        icon: <MapPin size={20} aria-hidden />,
+        panel: (
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={showSharedLocations}
+                onChange={(e) => setShowSharedLocations(e.target.checked)}
+              />
+              {t('map_shared_locations_enable')}
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={sharedLocationsAll}
+                disabled={!showSharedLocations}
+                onChange={(e) => setSharedLocationsAll(e.target.checked)}
+              />
+              {t('map_shared_locations_all')}
+            </label>
+            <p className="text-xs text-muted-foreground">{t('map_shared_locations_help')}</p>
+            {showSharedLocations && (
+              <p className="text-xs text-muted-foreground" aria-live="polite">
+                {t('map_shared_locations_count', { count: sharedLocations.length })}
+                {sharedLocationsTruncated && ` ${t('map_shared_locations_truncated')}`}
+              </p>
+            )}
+          </div>
+        ),
+      },
     ];
   }, [
     t,
@@ -1995,6 +2087,12 @@ export function MapView({
     setShowPackets,
     setSoundOn,
     setVolume,
+    showSharedLocations,
+    sharedLocationsAll,
+    sharedLocations.length,
+    sharedLocationsTruncated,
+    setShowSharedLocations,
+    setSharedLocationsAll,
   ]);
 
   const theme: 'light' | 'dark' = dark ? 'dark' : 'light';

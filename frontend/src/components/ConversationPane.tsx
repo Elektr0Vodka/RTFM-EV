@@ -27,6 +27,7 @@ import {
 } from '../utils/pubkey';
 import { useT } from '../i18n';
 import { useIsMobile } from '../map/controls/breakpoints';
+import type { SearchNavigateTarget } from './SearchView';
 
 const RepeaterDashboard = lazy(() =>
   import('./RepeaterDashboard').then((m) => ({ default: m.RepeaterDashboard }))
@@ -118,6 +119,8 @@ interface ConversationPaneProps {
   onHashtagAdded?: (channelName: string) => void;
   onInsertLocation?: (lat: number, lon: number, label: string) => void;
   onCoordinateClick?: (lat: number, lon: number, label: string) => void;
+  /** Open a chat message by id (map shared-locations popup). */
+  onNavigateToMessage?: (target: SearchNavigateTarget) => void;
   onLoadOlder: () => Promise<void>;
   onResendChannelMessage: (messageId: number, newTimestamp?: boolean) => Promise<void>;
   onTargetReached: () => void;
@@ -241,6 +244,7 @@ export function ConversationPane({
   onHashtagAdded,
   onInsertLocation,
   onCoordinateClick,
+  onNavigateToMessage,
   onLoadOlder,
   onResendChannelMessage,
   onTargetReached,
@@ -345,6 +349,7 @@ export function ConversationPane({
               onOpenLink={(a, b) =>
                 onSelectConversation({ type: 'link', id: `${a}~${b}`, name: 'Link' })
               }
+              onNavigateToMessage={onNavigateToMessage}
             />
           </Suspense>
         </div>

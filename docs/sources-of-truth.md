@@ -89,6 +89,14 @@ machine this was authored on and may differ elsewhere.
 - mc-radar analyzer: https://mc-radar.woodwar.com (node URL scheme `/node/<64-hex>`).
 - collector-wardrive (wardrive ingest reference): local
   `G:\Github\repositories\Dutch-MeshCore\collector-wardrive`.
+- MGRS conversion: the `mgrs` npm package (proj4js, MIT),
+  https://github.com/proj4js/mgrs, v2.2.0. The frontend uses it directly;
+  `app/mgrs.py` ports its inverse (`decode` + `UTMtoLL` + `toPoint`), and
+  `tests/test_mgrs.py` holds vectors generated with that package. Keep both
+  sides on the same version.
+- Location-share wire format: meshcore-open `m:<lat>,<lon>|<label>|<flags>`
+  (`lib/screens/map_screen.dart` `_formatMarkerMessage` / `parseMarkerText`,
+  https://github.com/zjs81/meshcore-open).
 
 ## Maintenance
 Keep this file current when a firmware branch is renamed or a tooling repo moves.

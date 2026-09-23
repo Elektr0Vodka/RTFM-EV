@@ -11,6 +11,51 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-23 (Shared-locations map layer + MGRS, feat/shared-locations-map-layer)
+
+### Map (frontend)
+- **Shared-locations layer.** A new "Shared locations" section in the map
+  Overlays FAB (off by default, remembered per browser) shows location shares
+  from chat as amber pins (teal for meshcore-open `poi` markers), for the
+  map's time window (presets or the custom From/To range). By default only
+  the newest share per sender is shown; "Every share" shows all of them. DMs
+  and channels both count, and so do your own shares. Clicking a pin opens a
+  popup with the label, who shared it, the channel or DM, the receive time,
+  the coordinates, the format, the distance from your node, the hop count, a
+  Details link for known contacts, "Open in chat" (jumps to the message) and
+  an OpenStreetMap link. An MGRS share also shows the text as sent and its
+  grid square (outlined on the map from 10 m up).
+
+### Chat and display (frontend)
+- **MGRS references in chat.** With coordinate parsing on, an upper-case MGRS
+  reference such as `31U FT 45332 73249` (or `31UFT45337324`; 2-5 digits per
+  half) becomes a location card like a `lat, lon` pair, showing the original
+  reference above the converted position. Conversion uses the `mgrs` npm
+  package (proj4js, MIT). Lower case is not matched, since it also matches
+  short hex strings.
+- **Coordinate format setting.** Settings > Local > Coordinate format:
+  Decimal (default, unchanged), degrees/minutes/seconds, or MGRS. It applies
+  to the map node/external/focus popups, the shared-location popup, the
+  contact info location and telemetry GPS rows, chat location cards and the
+  Share location picker. Stored per browser. Shares you send still use
+  decimal degrees. The i18n key `contact_gps_coords` is replaced by
+  `contact_gps_position`.
+
+### Messages (backend)
+- **`GET /api/messages/locations`** (`since`, `until`, `latest_per_sender`,
+  default true): location shares in stored DM and channel messages received in
+  `(since, until]`, newest first, with the conversation name, sender, format,
+  label/flags, MGRS precision and paths. Recognizes meshcore-open
+  `m:<lat>,<lon>|<label>|<flags>` markers, upper-case MGRS references, and
+  `lat, lon` pairs with at least 4 decimals on both numbers (so "1.5, 2.5"
+  is not a location). It does not depend on `chat_parse_coordinates`. Blocked
+  keys and names are skipped. At most the newest 20,000 messages in the
+  window are scanned (`truncated` says so). For the local map only; nothing
+  is forwarded to fanout or MQTT. No migration.
+- New `app/location_payloads.py` (share parsing) and `app/mgrs.py` (MGRS to
+  lat/lon, a port of the `mgrs` npm package's inverse, tested against vectors
+  generated with that package).
+
 ## Update 2026-09-23 (Map link age + per-link traffic history, feat/map-link-age-history)
 
 ### Map (backend)

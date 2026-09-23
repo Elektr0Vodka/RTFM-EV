@@ -82,7 +82,9 @@ frontend/src/
 │   ├── urlHash.ts              # Hash parsing and encoding
 │   ├── conversationState.ts    # State keys, in-memory + localStorage helpers
 │   ├── messageParser.ts        # Sender/hashtag/mention parsing helpers used by the tokenizer
-│   ├── chatEntities.ts         # tokenizeMessageText: text → ordered mention/url/hashtag/pubkey/coordinate tokens (pubkey/coord/url gated by app_settings.chat_*)
+│   ├── chatEntities.ts         # tokenizeMessageText: text → ordered mention/url/hashtag/pubkey/coordinate tokens (pubkey/coord/url gated by app_settings.chat_*); coordinates include MGRS (mgrsText.ts)
+│   ├── mgrsText.ts             # findMgrsReferences: upper-case MGRS in text → lat/lon (mgrs npm); mirrors app/location_payloads.py
+│   ├── coordinateFormat.ts     # Coordinate display format (decimal/dms/mgrs, localStorage + useCoordinateFormat) + formatCoordinates
 │   ├── pathUtils.ts            # Distance/validation helpers for paths + map
 │   ├── pubkey.ts               # getContactDisplayName (12-char prefix fallback)
 │   ├── contactAvatar.ts        # Avatar color derivation from public key
@@ -490,6 +492,8 @@ Clicking a contact's avatar in `ChatHeader` or `MessageList` opens a `ContactInf
 Map links have three modes (`MapLinkMode` in `map/controls/MapControls.tsx`): `liveness` (client-side from live packets), `advert` (`/packets/advert-links`) and `traffic` (`/packets/traffic-links`, the per-packet edge log). The two server modes share the `map/layers/advertLinksLayer.ts` controller (traffic uses id prefix `rt-traffic-links` and a green line) and a link-age window from `map/linkAge.ts`: it follows the node "Heard since" window unless the user turns that off in `LinkAgeControl` and picks an own preset or From/To (persisted keys `remoteterm-map-link-age-*`). Clicking a server link opens a popup (`map/linkPopup.ts`) whose "Details" calls `onOpenLink` (threaded `ConversationPane` -> `MapView`) to open `#link/<a>/<b>`. The layer click listeners are bound once in `handleReady`, so they call the latest popup handler through a ref.
 
 Effective map location is resolved by `getEffectiveLocation` in `utils/pathUtils.ts` (advertised coords win when valid, else manual coords). `MapView` projects it onto contacts so a manual-only node is mappable; the node popup shows a notes snippet, owner link, and a "Details" button that opens `ContactInfoPane` (`onOpenContactInfo`, threaded `App` → `ConversationPane` → `MapView`). Link/path drawing uses the same effective location: `resolveNodeCoord` (also in `utils/pathUtils.ts`) resolves a graph node id to coordinates for the liveness-links layer and packet-path pulses, so a manual-only node is drawn into paths too (not just placed as a marker). Discovery mode's packet-reveal gate (`resolvePacketContacts`) uses `hasEffectiveLocation` for the same reason, so a manual-only node is revealed by packet playback.
+
+The shared-locations overlay (`map/useSharedLocations.ts` + `map/layers/sharedLocationsLayer.ts`) fetches `GET /messages/locations` for the map window (`sinceCutoffSec`/`sinceUntilSec`) while its FAB toggle is on (`remoteterm-map-shared-locations`, plus `-all` for every share). `MapView` calls `attach(map)` in `handleReady` and `reattach()` in `handleBasemapReapply`; the pin popup's "Open in chat" uses `onNavigateToMessage` (threaded `App` → `ConversationPane` → `MapView`, same target shape as search). Position text in map popups, contact info, chat location cards and the location picker goes through `formatCoordinates(lat, lon, useCoordinateFormat())`; wire formats (`buildMarkerPayload`) stay decimal.
 
 State: `useConversationNavigation` controls open/close via `infoPaneContactKey`. Live contact data from WebSocket updates is preferred over the initial detail snapshot.
 
