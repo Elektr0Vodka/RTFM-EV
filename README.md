@@ -5,6 +5,7 @@ Backend server + browser interface for MeshCore mesh radio networks, providing a
 Connect your radio over Serial, TCP, or BLE, and then you can:
 
 * Send and receive DMs and channel messages (SMAZ-compressed `s:` messages from other MeshCore clients are shown decoded)
+* Share and import contacts as `meshcore://` links (the format other MeshCore clients use): Settings > Radio and contact info show your node's or a contact's link, and the new-conversation dialog imports a pasted link
 * React to and reply to messages from the chat (hover a message). Reactions and replies use the plaintext format other MeshCore clients understand. A received reaction shows which message it is for and jumps to it. If that message never reached your radio, it links to the channel on your first configured analyzer that has a channel link. Received reactions show as reactions when Settings > Local Configuration > "Render MeshCore Open GIFs & Reactions" is on
 * Cache all received packets, decrypting as you gain keys
 * Run multiple Python bots that can analyze messages and respond to DMs and channels

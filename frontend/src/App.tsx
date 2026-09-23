@@ -249,6 +249,7 @@ export function App() {
     fetchAllContacts,
     fetchUndecryptedCount,
     handleCreateContact,
+    handleImportContactUri,
     handleCreateChannel,
     handleCreateHashtagChannel,
     handleBulkCreateHashtagChannels,
@@ -894,6 +895,7 @@ export function App() {
     onCreateChannel: handleCreateChannel,
     onCreateHashtagChannel: handleCreateHashtagChannel,
     onBulkAddHashtagChannels: handleBulkAddChannels,
+    onImportContactUri: handleImportContactUri,
   };
   const contactInfoPaneProps = {
     contactKey: infoPaneContactKey,

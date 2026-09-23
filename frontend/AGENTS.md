@@ -117,7 +117,8 @@ frontend/src/
 │   ├── ChatHeader.tsx          # Conversation header (trace, favorite, delete)
 │   ├── MessageList.tsx        # Message rows; #hashtag refs styled by state (followed/known/unknown) with an inline "+" to capture unknowns into the registry (auto-capture via app_settings.auto_add_mentioned_channels); hover React/Reply (MessageRowActions) and reaction-target links (ReactionTargetLink)
 │   ├── MessageInput.tsx
-│   ├── NewMessageModal.tsx
+│   ├── NewMessageModal.tsx     # Contact / Contact link (meshcore:// import) / channel tabs
+│   ├── ContactLinkShare.tsx    # On-demand meshcore:// link with copy (contact info + Settings > Radio)
 │   ├── SearchView.tsx          # Full-text message search pane
 │   ├── SettingsModal.tsx       # Layout shell - delegates to settings/ sections
 │   ├── SecurityWarningModal.tsx # Startup warning for trusted-network / bot execution posture
@@ -293,6 +294,8 @@ That gives the store a load-bearing invariant: **no ancestor of `MessageList` ma
 ### New Message modal
 
 `NewMessageModal` resets form state on close. The component instance persists across open/close cycles for smooth animations.
+
+The "Contact link" tab only renders when `onImportContactUri` is passed (App wires `handleImportContactUri` from `useContactsAndChannels`). It checks the `meshcore://` prefix locally, then `api.importContactUri` (`POST /contacts/import-uri`) does the real validation (hex, ADVERT, signature) and the radio import; the backend error is shown inline and the dialog stays open. On success the contact list is refetched and the imported contact's conversation opens. The historical-decrypt checkbox is hidden on this tab.
 
 ### Message behavior
 
@@ -480,6 +483,7 @@ Clicking a contact's avatar in `ChatHeader` or `MessageList` opens a `ContactInf
 - Nearest repeaters (resolved from first-hop path prefixes)
 - Recent advert paths (informational only; not part of DM route selection)
 - User annotations (`ContactAnnotations` section): notes, owner info (free text), an owner pubkey pointer (validated against known contacts; the owner name links to open the DM conversation via `onOpenConversation`), an "Owned nodes" reverse list (contacts whose `owner_key` equals this contact, opened via `onOpenContactInfo`), and manual fallback GPS. All save via `api.updateContactAnnotations` (`POST /contacts/{key}/annotations`); the live `contact` WS update reseeds the fields.
+- Contact link (`ContactLinkShare`, below telemetry sharing): "Show contact link" calls `api.getContactUri` (`GET /contacts/{key}/contact-uri`, read from the radio's stored advert) only when clicked, then shows the `meshcore://` link read-only with a copy button; the backend error (for example no stored advert) is shown inline. Settings > Radio > Identity uses the same component with `api.getOwnContactUri` (`GET /radio/contact-uri`). No QR code: the frontend has no QR dependency.
 - Telemetry sharing (`ContactTelemetryPermissionsControl`, under radio residency): Battery / Location / Environment toggles that save via `api.setContactTelemetryPermissions` (`POST /contacts/{key}/telemetry-permissions`). Shows `telemetry_perms` when set in the app, else the radio's `(flags >> 1) & 7`; optimistic, reverts on error, and toasts when the contact is not on the radio yet.
 
 Effective map location is resolved by `getEffectiveLocation` in `utils/pathUtils.ts` (advertised coords win when valid, else manual coords). `MapView` projects it onto contacts so a manual-only node is mappable; the node popup shows a notes snippet, owner link, and a "Details" button that opens `ContactInfoPane` (`onOpenContactInfo`, threaded `App` → `ConversationPane` → `MapView`). Link/path drawing uses the same effective location: `resolveNodeCoord` (also in `utils/pathUtils.ts`) resolves a graph node id to coordinates for the liveness-links layer and packet-path pulses, so a manual-only node is drawn into paths too (not just placed as a marker). Discovery mode's packet-reveal gate (`resolvePacketContacts`) uses `hasEffectiveLocation` for the same reason, so a manual-only node is revealed by packet playback.

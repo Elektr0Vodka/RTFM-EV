@@ -47,6 +47,7 @@ app/
 ├── radio.py             # RadioManager transport/session state + lock management
 ├── radio_sync.py        # Polling, sync, periodic advertisement loop
 ├── decoder.py           # Packet parsing/decryption
+├── contact_uri.py       # meshcore:// contact links: parse/validate (ADVERT + signature), format
 ├── smaz.py              # SMAZ "s:<base64>" message-body decode (port of meshcore-open smaz.dart)
 ├── packet_processor.py  # Raw packet pipeline, dedup, path handling
 ├── event_handlers.py    # MeshCore event subscriptions and ACK tracking
@@ -263,6 +264,7 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `PATCH /radio/config` - may update `path_hash_mode` (`0..2`) when firmware supports it, and `multi_acks_enabled`
 - `GET /radio/private-key` - export in-memory private key as hex (requires `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT=true`)
 - `PUT /radio/private-key`
+- `GET /radio/contact-uri` - this node's `meshcore://` contact link (`{uri, public_key}`) via `export_contact()` with no key (CMD_EXPORT_CONTACT). Local radio command, nothing transmitted; 502 if the radio returns no valid signed advert
 - `POST /radio/advertise` - manual advert send; request body may set `mode` to `flood` or `zero_hop` (defaults to `flood`)
 - `POST /radio/discover` - short mesh discovery sweep for nearby repeaters/sensors
 - `POST /radio/discover-regions` - sweep nearby repeaters via the guest anon regions request; aggregates flood-allowed region names into a deduped union for merging into `known_regions` (direct-routed, so only in-range repeaters answer; optional `public_keys`, else recent repeaters)
@@ -279,11 +281,13 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `GET /contacts/repeaters/advert-paths` - recent advert paths for all contacts
 - `POST /contacts`
 - `POST /contacts/bulk-delete`
+- `POST /contacts/import-uri` - body `{uri}`: import a `meshcore://` contact link (`app/contact_uri.py`). The link is validated first (scheme, hex, <= 255 bytes, ADVERT packet, Ed25519 signature; 400 otherwise), then sent with `import_contact` (CMD_IMPORT_CONTACT; 422 if the radio rejects it). The firmware loops the advert back as if heard and ignores the forwarding decision, so nothing is transmitted. A new contact is stored with the advert's name, type and location but no `last_advert`/`last_seen` (not heard on RF); an existing contact is left unchanged. Broadcasts `contact`. `share_contact` (CMD 0x10, transmits) is deliberately not used anywhere
 - `DELETE /contacts/{public_key}`
 - `POST /contacts/{public_key}/mark-read`
 - `POST /contacts/{public_key}/command`
 - `POST /contacts/{public_key}/annotations` - set user annotations (`notes`, `owner_info`, `owner_key`, `manual_lat`, `manual_lon`); partial update, explicit `null` clears a field, `owner_key` must reference an existing contact (422 otherwise); broadcasts `contact`
 - `POST /contacts/{public_key}/routing-override`
+- `GET /contacts/{public_key}/contact-uri` - the contact's `meshcore://` link via `export_contact(key)`: the radio returns the last raw advert it stored for that contact (404 when it has none, 502 if it returns another node's or an invalid advert). Nothing transmitted
 - `POST /contacts/{public_key}/telemetry-permissions` - body `{base, location, environment}` (all required); stores `telemetry_perms`, pushes the flag bits to the radio when the contact is loaded there (never adds it just for this), returns `applied_to_radio`; broadcasts `contact`
 - `POST /contacts/{public_key}/trace`
 - `POST /contacts/{public_key}/path-discovery` - discover forward/return paths, persist the learned direct route, and sync it back to the radio best-effort

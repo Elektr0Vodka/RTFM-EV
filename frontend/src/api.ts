@@ -157,6 +157,12 @@ interface DecryptResult {
   message: string;
 }
 
+/** meshcore:// contact link exported from the radio. */
+export interface ContactUriResult {
+  uri: string;
+  public_key: string;
+}
+
 interface BackupSaveResult {
   path: string;
   size_bytes: number;
@@ -282,6 +288,14 @@ export const api = {
     fetchJson<Contact>('/contacts', {
       method: 'POST',
       body: JSON.stringify({ public_key: publicKey, name, type, try_historical: tryHistorical }),
+    }),
+  getOwnContactUri: () => fetchJson<ContactUriResult>('/radio/contact-uri'),
+  getContactUri: (publicKey: string) =>
+    fetchJson<ContactUriResult>(`/contacts/${publicKey}/contact-uri`),
+  importContactUri: (uri: string) =>
+    fetchJson<Contact>('/contacts/import-uri', {
+      method: 'POST',
+      body: JSON.stringify({ uri }),
     }),
   markContactRead: (publicKey: string) =>
     fetchJson<{ status: string; public_key: string }>(`/contacts/${publicKey}/mark-read`, {

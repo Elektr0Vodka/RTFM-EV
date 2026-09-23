@@ -262,6 +262,19 @@ class CreateContactRequest(BaseModel):
     )
 
 
+class ContactUriResponse(BaseModel):
+    """A meshcore:// contact link exported from the radio."""
+
+    uri: str = Field(description="meshcore:// + lowercase hex of the raw advert packet")
+    public_key: str = Field(description="Public key of the node the link describes")
+
+
+class ContactUriImportRequest(BaseModel):
+    """Request to import a contact from a meshcore:// link."""
+
+    uri: str = Field(max_length=600, description="meshcore:// contact link")
+
+
 class ContactAnnotationsUpdate(BaseModel):
     """Partial update of user-editable contact annotations.
 

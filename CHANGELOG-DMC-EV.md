@@ -27,6 +27,26 @@ the change. Upstream development is on hold; the fork is the active repository.
   than the decoded text); otherwise the original text is stored unchanged.
   Outgoing echoes are not decoded. The backend does not send SMAZ.
 
+## Update 2026-09-23 (meshcore:// contact links, feat/meshcore-contact-uri)
+
+### Contacts (backend)
+- **Export and import `meshcore://` contact links.** The link format is
+  `meshcore://` plus the lowercase hex of a raw advert packet, the same as
+  another MeshCore client (meshcore-open) and the companion firmware's
+  CMD_EXPORT_CONTACT use. New endpoints: `GET /api/radio/contact-uri` (this
+  node), `GET /api/contacts/{key}/contact-uri` (a contact; needs an advert
+  stored on the radio) and `POST /api/contacts/import-uri`. Imported links are
+  checked (hex, ADVERT packet, Ed25519 signature) before the radio sees them.
+  Export and import are local radio commands; nothing is transmitted.
+  `share_contact` (which transmits) is not used.
+
+### Contacts (frontend)
+- **Contact link in contact info and Settings > Radio.** "Show contact link"
+  reads the link from the radio and shows it with a copy button. The
+  new-conversation dialog has a "Contact link" tab to import a pasted
+  `meshcore://` link. No QR code (the frontend has no QR dependency). Strings
+  in EN/NL/DE.
+
 ## Update 2026-09-23 (Path route map line contrast, fix/path-route-map-line-contrast)
 
 ### Map (frontend)

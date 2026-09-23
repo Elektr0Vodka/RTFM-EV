@@ -43,6 +43,7 @@ import type { ChartWindow } from '../lib/chartZoom';
 import { ContactAvatar } from './ContactAvatar';
 import { ContactRadioResidencyControl } from './ContactRadioResidencyControl';
 import { ContactTelemetryPermissionsControl } from './ContactTelemetryPermissionsControl';
+import { ContactLinkShare } from './ContactLinkShare';
 import { LppSensorRow, formatLppLabel } from './repeater/repeaterPaneShared';
 import { toast } from './ui/sonner';
 import { useDistanceUnit } from '../contexts/DistanceUnitContext';
@@ -403,6 +404,15 @@ export function ContactInfoBody({
 
       {show('identity') && !isPrefixOnlyResolvedContact && (
         <ContactTelemetryPermissionsControl contact={contact} />
+      )}
+
+      {show('identity') && !isPrefixOnlyResolvedContact && (
+        <ContactLinkShare
+          key={contact.public_key}
+          load={() => api.getContactUri(contact.public_key)}
+          hint={t('contact_link_contact_hint')}
+          className="px-5 py-3 border-b border-border"
+        />
       )}
 
       {show('identity') && (onToggleBlockedKey || onToggleBlockedName) && (
