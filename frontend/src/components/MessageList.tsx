@@ -88,6 +88,8 @@ interface MessageListProps {
   onReactToMessage?: (messageId: number, emoji: string) => void;
   /** Prefill the composer with a reply to a message. */
   onReplyToMessage?: (message: Message) => void;
+  /** Hard-delete a message (row + linked raw packet + any reactions to it). */
+  onDeleteMessage?: (message: Message) => void;
   /** Retry a failed outgoing DM (a new copy replaces the failed one). */
   onRetryDirectMessage?: (messageId: number) => void | Promise<void>;
   onSenderClick?: (sender: string) => void;
@@ -674,6 +676,7 @@ export function MessageList({
   onJumpToMessage,
   onReactToMessage,
   onReplyToMessage,
+  onDeleteMessage,
   onRetryDirectMessage,
   onSenderClick,
   onLoadOlder,
@@ -1945,24 +1948,29 @@ export function MessageList({
                       </Suspense>
                     )}
                   </div>
-                  {msg.sender_timestamp != null && !isReactionPayload(content) ? (
-                    <MessageRowActions
-                      onReact={
-                        onReactToMessage ? (emoji) => onReactToMessage(msg.id, emoji) : undefined
-                      }
-                      onReply={onReplyToMessage ? () => onReplyToMessage(msg) : undefined}
-                      onRetry={
-                        isRetryable(msg) && onRetryDirectMessage
-                          ? () => onRetryDirectMessage(msg.id)
-                          : undefined
-                      }
-                    />
-                  ) : (
-                    isRetryable(msg) &&
-                    onRetryDirectMessage && (
-                      <MessageRowActions onRetry={() => onRetryDirectMessage(msg.id)} />
-                    )
-                  )}
+                  {/* Renders nothing when no action applies to this row. */}
+                  <MessageRowActions
+                    onReact={
+                      msg.sender_timestamp != null &&
+                      !isReactionPayload(content) &&
+                      onReactToMessage
+                        ? (emoji) => onReactToMessage(msg.id, emoji)
+                        : undefined
+                    }
+                    onReply={
+                      msg.sender_timestamp != null &&
+                      !isReactionPayload(content) &&
+                      onReplyToMessage
+                        ? () => onReplyToMessage(msg)
+                        : undefined
+                    }
+                    onRetry={
+                      isRetryable(msg) && onRetryDirectMessage
+                        ? () => onRetryDirectMessage(msg.id)
+                        : undefined
+                    }
+                    onDelete={onDeleteMessage ? () => onDeleteMessage(msg) : undefined}
+                  />
                 </div>
               </div>
             );

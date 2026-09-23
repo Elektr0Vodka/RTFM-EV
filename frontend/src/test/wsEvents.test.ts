@@ -75,6 +75,20 @@ describe('wsEvents', () => {
     });
   });
 
+  it('parses message_deleted events', () => {
+    const event = parseWsEvent(
+      JSON.stringify({
+        type: 'message_deleted',
+        data: { id: 42, type: 'CHAN', conversation_key: 'bb' },
+      })
+    );
+
+    expect(event).toEqual({
+      type: 'message_deleted',
+      data: { id: 42, type: 'CHAN', conversation_key: 'bb' },
+    });
+  });
+
   it('returns unknown events with rawType preserved', () => {
     const event = parseWsEvent(JSON.stringify({ type: 'mystery', data: { ok: true } }));
 

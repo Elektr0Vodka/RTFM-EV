@@ -348,6 +348,46 @@ describe('pagination bookkeeping is independent of path hop-width', () => {
   });
 });
 
+describe('ConversationMessageCache.removeMessage', () => {
+  it('removes a message from whichever cached conversation holds it', () => {
+    conversationMessageCache.set('conv-delete-a', {
+      messages: [createMessage({ id: 101 }), createMessage({ id: 102, text: 'second' })],
+      hasOlderMessages: false,
+    });
+
+    conversationMessageCache.removeMessage(101);
+
+    expect(conversationMessageCache.get('conv-delete-a')?.messages.map((m) => m.id)).toEqual([102]);
+  });
+
+  it('is a no-op when the message id is not cached anywhere', () => {
+    conversationMessageCache.set('conv-delete-b', {
+      messages: [createMessage({ id: 201 })],
+      hasOlderMessages: false,
+    });
+
+    conversationMessageCache.removeMessage(999999);
+
+    expect(conversationMessageCache.get('conv-delete-b')?.messages.map((m) => m.id)).toEqual([201]);
+  });
+
+  it('lets a later message with the same content key be re-added after removal', () => {
+    const msg = createMessage({ id: 301, text: 'duplicate-prone' });
+    conversationMessageCache.set('conv-delete-c', {
+      messages: [msg],
+      hasOlderMessages: false,
+    });
+
+    conversationMessageCache.removeMessage(301);
+    const added = conversationMessageCache.addMessage(
+      'conv-delete-c',
+      createMessage({ id: 302, text: 'duplicate-prone' })
+    );
+
+    expect(added).toBe(true);
+  });
+});
+
 describe('failed direct messages', () => {
   it('cache marks a message failed and removes a replaced one', () => {
     const failed = createMessage({

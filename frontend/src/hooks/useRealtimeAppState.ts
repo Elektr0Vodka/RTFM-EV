@@ -322,6 +322,10 @@ export function useRealtimeAppState({
       },
       onMessageDeleted: (messageId: number) => {
         removeMessage?.(messageId);
+        // Deleting an unread message changes its conversation's count (and
+        // possibly the first-unread boundary); re-fetch the server-computed
+        // totals rather than reproduce that logic here.
+        void refreshUnreads();
       },
     }),
     [

@@ -117,7 +117,7 @@ frontend/src/
 │   ├── StatusBar.tsx
 │   ├── Sidebar.tsx
 │   ├── ChatHeader.tsx          # Conversation header (trace, favorite, delete)
-│   ├── MessageList.tsx        # Message rows; #hashtag refs styled by state (followed/known/unknown) with an inline "+" to capture unknowns into the registry (auto-capture via app_settings.auto_add_mentioned_channels); hover React/Reply (MessageRowActions) and reaction-target links (ReactionTargetLink)
+│   ├── MessageList.tsx        # Message rows; #hashtag refs styled by state (followed/known/unknown) with an inline "+" to capture unknowns into the registry (auto-capture via app_settings.auto_add_mentioned_channels); hover React/Reply/Delete (MessageRowActions) and reaction-target links (ReactionTargetLink)
 │   ├── MessageInput.tsx
 │   ├── NewMessageModal.tsx     # Contact / Contact link (meshcore:// import) / channel tabs
 │   ├── ContactLinkShare.tsx    # On-demand meshcore:// link with copy (contact info + Settings > Radio)
@@ -308,6 +308,7 @@ The "Contact link" tab only renders when `onImportContactUri` is passed (App wir
 - Failed DMs: an outgoing DM with `failed_at` set and `acked === 0` shows a red "Failed" marker instead of the pending `?` (`acked > 0` always wins, so a late ACK shows as delivered). WS `message_failed` sets `failed_at` via `useConversationMessages.receiveMessageFailed`. `MessageRowActions` gets an `onRetry` (Retry button) only for such rows; `useConversationActions.handleRetryDirectMessage` calls `POST /api/messages/direct/{message_id}/resend`, removes the failed row (`removeMessage`) and adds the new copy. Other clients drop the failed row on WS `message_deleted`. Retry transmits over RF.
 - Conversation-scoped message caching now lives inside `useConversationMessages.ts` rather than a standalone `messageCache.ts` module. If you touch message timeline restore/dedup/reconnect behavior, start there.
 - `contact_resolved` is a real-time identity migration event, not just a contact-list update. Changes in that area need to consider active conversation state, cached messages, unread state keys, and reconnect reconciliation together.
+- Deleting a message (`MessageRowActions` "Delete", after a `window.confirm`) calls `DELETE /api/messages/{id}` then removes it locally via `useConversationMessages`' `removeMessage` (active list + `conversationMessageCache`, any conversation). The backend's `message_deleted` WS event drives the same removal in every other open tab and re-fetches unread counts (`refreshUnreads`) rather than reproducing the count/first-unread-boundary math client-side. Local only; nothing is sent over RF.
 
 ### Visualizer behavior
 
@@ -379,6 +380,7 @@ jsdom has no layout engine, so none of this is observable from the vitest suite 
 - Auto reconnect (3s) with cleanup guard on unmount.
 - Heartbeat ping every 30s.
 - Incoming JSON is parsed through `wsEvents.ts`, which validates the top-level envelope and known event type strings, then casts payloads at the handler boundary. It does not schema-validate per-event payload shapes.
+- Event handlers: `health`, `message`, `contact`, `contact_resolved`, `channel`, `raw_packet`, `message_acked`, `message_deleted`, `contact_deleted`, `channel_deleted`, `error`, `success`, `pong` (ignored).
 - Event handlers: `health`, `message`, `contact`, `contact_resolved`, `channel`, `raw_packet`, `message_acked`, `message_failed`, `message_deleted`, `contact_deleted`, `channel_deleted`, `error`, `success`, `pong` (ignored).
 - For `raw_packet` events, use `observation_id` as event identity; `id` is a storage reference and may repeat.
 

@@ -15,8 +15,8 @@ interface UseConversationActionsArgs {
   setContacts: React.Dispatch<React.SetStateAction<Contact[]>>;
   setChannels: React.Dispatch<React.SetStateAction<Channel[]>>;
   observeMessage: (msg: Message) => { added: boolean; activeConversation: boolean };
-  /** Drop a message from the open conversation (a failed DM replaced by its retry). */
-  removeMessage?: (messageId: number) => void;
+  /** Drop a message locally: a local delete, or a failed DM replaced by its retry. */
+  removeMessage: (messageId: number) => void;
   messageInputRef: RefObject<MessageInputHandle | null>;
 }
 
@@ -35,6 +35,7 @@ interface UseConversationActionsResult {
   handleSenderClick: (sender: string) => void;
   handleReactToMessage: (messageId: number, emoji: string) => Promise<void>;
   handleReplyToMessage: (message: Message) => void;
+  handleDeleteMessage: (message: Message) => Promise<void>;
   handleInsertLocation: (lat: number, lon: number, label: string) => void;
   handleTrace: () => Promise<void>;
   handlePathDiscovery: (publicKey: string) => Promise<PathDiscoveryResponse>;
@@ -197,6 +198,23 @@ export function useConversationActions({
     [activeConversationRef, messageInputRef]
   );
 
+  const handleDeleteMessage = useCallback(
+    async (message: Message) => {
+      if (!window.confirm(t('chat_delete_message_confirm'))) return;
+      try {
+        await api.deleteMessage(message.id);
+        // The backend also broadcasts message_deleted over WS (for other open
+        // tabs); remove it here too so this tab updates without waiting on it.
+        removeMessage(message.id);
+      } catch (err) {
+        toast.error(t('chat_delete_message_failed'), {
+          description: err instanceof Error ? err.message : undefined,
+        });
+      }
+    },
+    [removeMessage, t]
+  );
+
   const handleInsertLocation = useCallback(
     (lat: number, lon: number, label: string) => {
       messageInputRef.current?.appendText(`${buildMarkerPayload(lat, lon, label)} `);
@@ -239,6 +257,7 @@ export function useConversationActions({
     handleSenderClick,
     handleReactToMessage,
     handleReplyToMessage,
+    handleDeleteMessage,
     handleInsertLocation,
     handleTrace,
     handlePathDiscovery,

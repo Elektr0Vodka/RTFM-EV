@@ -11,6 +11,28 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-23 (Local message delete, plan 28 item 1.7, feat/local-message-delete)
+
+### Messages (backend)
+- **`DELETE /api/messages/{id}`**: hard-deletes the message row and its linked
+  raw packet in one transaction (mirroring the retention pruner's message
+  prune), so historical decryption cannot recreate it, and also deletes any
+  stored reaction that resolves to that message. Local only - nothing is
+  sent over RF. If the message is an outgoing DM whose background retry loop
+  is still in flight (`app/services/message_send.py`), the retry is stopped
+  instead of sending again for a message that no longer exists. Broadcasts a
+  new `message_deleted` WS event per deleted row. New
+  `MessageRepository.delete_with_raw_packets` and deleted-message tracking in
+  `app/services/dm_ack_tracker.py`. No migration.
+
+### Chat (frontend)
+- **Delete action.** Hovering a message row now shows a Delete action next
+  to React/Reply. Unlike React/Reply it is available on every message
+  (including reactions and messages with no sender timestamp), and asks for
+  confirmation first since deletion is irreversible. Removes the message
+  from the active conversation and any cached one; other open tabs update
+  over the `message_deleted` WS event, and unread counts are re-fetched so
+  they stay correct.
 ## Update 2026-09-23 (DM failed state + manual retry, plan 28 item 1.1, feat/dm-failed-retry)
 
 ### Chat (frontend)

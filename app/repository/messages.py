@@ -719,6 +719,30 @@ class MessageRepository:
                 pass
 
     @staticmethod
+    async def delete_with_raw_packets(message_ids: list[int]) -> tuple[int, int]:
+        """Hard-delete messages and their linked raw packets in one transaction.
+
+        Mirrors ``RetentionRepository.prune_messages_older_than``: the linked raw
+        packets go first, in the same transaction, so historical decryption cannot
+        recreate a deleted message from its stored packet. Returns
+        ``(messages_deleted, raw_packets_deleted)``.
+        """
+        if not message_ids:
+            return 0, 0
+        placeholders = ",".join("?" for _ in message_ids)
+        async with db.tx() as conn:
+            async with conn.execute(
+                f"DELETE FROM raw_packets WHERE message_id IN ({placeholders})",
+                message_ids,
+            ) as cursor:
+                raw_deleted = cursor.rowcount
+            async with conn.execute(
+                f"DELETE FROM messages WHERE id IN ({placeholders})",
+                message_ids,
+            ) as cursor:
+                return cursor.rowcount, raw_deleted
+
+    @staticmethod
     async def stream_chan_messages_with_raw(
         batch_size: int = 500,
     ) -> "AsyncIterator[tuple[int, bytes]]":

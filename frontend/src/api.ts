@@ -490,6 +490,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ emoji }),
     }),
+  deleteMessage: (messageId: number) =>
+    fetchJson<{ status: string; deleted: number }>(`/messages/${messageId}`, {
+      method: 'DELETE',
+    }),
   getReactionTarget: (messageId: number) =>
     fetchJson<ReactionTargetResponse>(`/messages/${messageId}/reaction-target`),
   /** Location shares in chat messages received in (since, until]; newest first. */

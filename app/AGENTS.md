@@ -335,6 +335,7 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
   - meshcore-open v1 `r:<millis>_<nameHash>_<textHash>:<emoji>` (clients before 2026-01-29): full Dart hashes of the sender name and body.
   - A target with a leading `@[Name] ` reply prefix is also tried with it stripped (meshcore-open hashes replies that way). `target` is null when it was never received; 400 for non-reactions
 - `POST /messages/{message_id}/react` - body `{emoji}`; sends a reaction in that same wire format through the normal channel/DM send path (so it is stored, echo-tracked and shown like any sent message). 400 for non-emoji, a reaction target, or a channel row without a sender
+- `DELETE /messages/{message_id}` - hard-deletes the message row, its linked raw packet, and any stored reaction that resolves to it (`_find_reactions_targeting`, the inverse of the reaction-target search window), all in one transaction (`MessageRepository.delete_with_raw_packets`, mirroring the retention pruner's message prune). Local only, nothing sent over RF. If the message is an outgoing DM with a background retry still in flight (`services/message_send.py`), the retry is stopped via `services/dm_ack_tracker.mark_message_deleted`. Broadcasts one `message_deleted` WS event per deleted row. 404 if the message does not exist
 
 ### Packets
 - `GET /packets/undecrypted/count`
@@ -433,11 +434,11 @@ chosen node), and a Prefix Collisions tab badge.
 - `message` - new message (channel or DM, from packet processor or send endpoints)
 - `message_acked` - ACK/echo update for existing message (ack count + paths)
 - `message_failed` - outgoing DM ran out of retries without an ACK (payload: `{ message_id, failed_at }`)
-- `message_deleted` - message row removed, e.g. a failed DM replaced by a manual retry (payload: `{ message_id, type, conversation_key }`)
 - `raw_packet` - every incoming RF packet (for real-time packet feed UI)
 - `contact_deleted` - contact removed from database (payload: `{ public_key }`)
 - `channel` - single channel upsert/update (payload: full `Channel`)
 - `channel_deleted` - channel removed from database (payload: `{ key }`)
+- `message_deleted` - message row removed: a local delete (one event per row, so a deleted reaction gets its own event alongside its target) or a failed DM replaced by a manual retry (payload: `{ message_id, type, conversation_key }`)
 - `error` - toast notification (reconnect failure, missing private key, stuck radio startup, etc.)
 - `success` - toast notification (historical decrypt complete, etc.)
 
