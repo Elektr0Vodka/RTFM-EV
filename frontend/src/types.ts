@@ -389,6 +389,45 @@ export interface ChannelImportResult {
   message: string;
 }
 
+export interface CommunityChannel {
+  key: string;
+  name: string;
+  kind: 'public' | 'hashtag';
+}
+
+/** A joined meshcore-open community. Never carries the secret (see CommunityExport). */
+export interface Community {
+  id: string;
+  short_id: string;
+  name: string;
+  created_at: number;
+  public_channel_key: string;
+  channels: CommunityChannel[];
+}
+
+export interface CommunityJoinResult {
+  community: Community;
+  already_joined: boolean;
+  created_channels: Channel[];
+  decrypt_started: boolean;
+  decrypt_total_packets: number;
+}
+
+export interface CommunityHashtagResult {
+  channel: Channel;
+  created: boolean;
+  community: Community;
+  decrypt_started: boolean;
+  decrypt_total_packets: number;
+}
+
+/** QR JSON payload including the community secret. Treat like a password. */
+export interface CommunityExport {
+  id: string;
+  name: string;
+  payload: string;
+}
+
 export interface PathHashWidthStats {
   total_packets: number;
   single_byte: number;

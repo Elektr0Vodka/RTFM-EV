@@ -137,6 +137,32 @@ the change. Upstream development is on hold; the fork is the active repository.
   next status sample. Status fields missing from a snapshot are now left out
   of the state payload, so HA keeps the last values. HA may log a template
   warning per missing field.
+## Update 2026-09-23 (Communities, feat/communities, plan 28 item 1.3)
+
+### Channels (backend)
+- **meshcore-open communities.** New `app/communities.py` ports
+  meshcore-open's `models/community.dart`: from a community's 32-byte secret
+  it derives the public channel key (`HMAC-SHA256(K, "channel:v1:__public__")`,
+  first 16 bytes), community hashtag keys (`"channel:v1:" + tag`, tag
+  normalized as in meshcore-open) and the community ID. New endpoints under
+  `/api/communities`: join from the QR JSON
+  (`{"v":1,"type":"meshcore_community","name":...,"k":...}`), add a hashtag
+  channel (`"<name> #<tag>"`), export, forget. Channels are created in the
+  database only, like any other channel; nothing is transmitted. Plain
+  `#hashtag` channels still use `sha256(name)`.
+- **Community secret stored.** Migration `_110` adds a `communities` table
+  that keeps the secret so hashtag channels can be added later. The secret is
+  never logged, is not in the list endpoint, and is only returned by the
+  export endpoint. It is included in database backups.
+
+### Channels (frontend)
+- **Communities tab** in Channels > Import / Export: join by pasting the
+  JSON, scanning the QR code with a camera, or uploading a QR image; add
+  community hashtag channels; export the community as JSON or a QR code (copy,
+  JSON download, PNG download). The export is only fetched when you ask for
+  it. New dependencies: `uqr` (QR rendering, no dependencies) and
+  `zxing-wasm` (QR scanning; its WASM is bundled with the app and loaded only
+  when you scan, so no CDN is contacted).
 
 ## Update 2026-09-23 (Shared-locations map layer + MGRS, feat/shared-locations-map-layer)
 

@@ -49,6 +49,10 @@ API_TAGS_METADATA: list[dict[str, Any]] = [
         "description": "Channel creation, metadata, read state, flood scope, and path-hash overrides.",
     },
     {
+        "name": "communities",
+        "description": "meshcore-open communities: join by QR JSON, derive community channels, export.",
+    },
+    {
         "name": "messages",
         "description": "Message history, direct sends, channel sends, and channel resend workflows.",
     },

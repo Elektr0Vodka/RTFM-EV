@@ -15,6 +15,10 @@ import type {
   PartialNodeResolution,
   BulkCreateHashtagChannelsResult,
   ChannelImportResult,
+  Community,
+  CommunityExport,
+  CommunityHashtagResult,
+  CommunityJoinResult,
   Channel,
   ChannelDetail,
   CommandResponse,
@@ -441,6 +445,27 @@ export const api = {
     return res.json() as Promise<ChannelImportResult>;
   },
   getChannelDetail: (key: string) => fetchJson<ChannelDetail>(`/channels/${key}/detail`),
+
+  // Communities (meshcore-open shared-secret channels)
+  getCommunities: () => fetchJson<Community[]>('/communities'),
+  joinCommunity: (payload: string, addPublicChannel: boolean, tryHistorical: boolean) =>
+    fetchJson<CommunityJoinResult>('/communities/join', {
+      method: 'POST',
+      body: JSON.stringify({
+        payload,
+        add_public_channel: addPublicChannel,
+        try_historical: tryHistorical,
+      }),
+    }),
+  addCommunityHashtag: (communityId: string, hashtag: string, tryHistorical: boolean) =>
+    fetchJson<CommunityHashtagResult>(`/communities/${communityId}/hashtags`, {
+      method: 'POST',
+      body: JSON.stringify({ hashtag, try_historical: tryHistorical }),
+    }),
+  exportCommunity: (communityId: string) =>
+    fetchJson<CommunityExport>(`/communities/${communityId}/export`, { cache: 'no-store' }),
+  deleteCommunity: (communityId: string) =>
+    fetchJson<{ status: string }>(`/communities/${communityId}`, { method: 'DELETE' }),
   markChannelRead: (key: string) =>
     fetchJson<{ status: string; key: string }>(`/channels/${key}/mark-read`, {
       method: 'POST',
