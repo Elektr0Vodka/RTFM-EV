@@ -380,6 +380,7 @@ export function App() {
     reconcileOnReconnect,
     renameConversationMessages,
     removeConversationMessages,
+    removeMessage,
     clearConversationMessages,
   } = useConversationMessages(activeConversation, targetMessageId);
   removeConversationMessagesRef.current = removeConversationMessages;
@@ -496,6 +497,7 @@ export function App() {
     renameConversationMessages,
     removeConversationMessages,
     receiveMessageAck,
+    removeMessage,
     notifyIncomingMessage,
     onChannelMention: handleChannelMention,
     notifyMentionSound,
@@ -527,6 +529,7 @@ export function App() {
     handleResendChannelMessage,
     handleReactToMessage,
     handleReplyToMessage,
+    handleDeleteMessage,
     handleSetChannelFloodScopeOverride,
     handleSetChannelPathHashModeOverride,
     handleSenderClick,
@@ -540,6 +543,7 @@ export function App() {
     setChannels,
     observeMessage,
     messageInputRef,
+    removeMessage,
   });
   const handleCreateCrackedChannel = useCallback(
     async (name: string, key: string) => {
@@ -711,6 +715,7 @@ export function App() {
     onJumpToMessage: (messageId: number) => setTargetMessageId(messageId),
     onReactToMessage: handleReactToMessage,
     onReplyToMessage: handleReplyToMessage,
+    onDeleteMessage: handleDeleteMessage,
     targetMessageId,
     hasNewerMessages,
     loadingNewer,

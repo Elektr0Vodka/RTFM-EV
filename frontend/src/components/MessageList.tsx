@@ -88,6 +88,8 @@ interface MessageListProps {
   onReactToMessage?: (messageId: number, emoji: string) => void;
   /** Prefill the composer with a reply to a message. */
   onReplyToMessage?: (message: Message) => void;
+  /** Hard-delete a message (row + linked raw packet + any reactions to it). */
+  onDeleteMessage?: (message: Message) => void;
   onSenderClick?: (sender: string) => void;
   onLoadOlder?: () => void;
   onResendChannelMessage?: (messageId: number, newTimestamp?: boolean) => void;
@@ -667,6 +669,7 @@ export function MessageList({
   onJumpToMessage,
   onReactToMessage,
   onReplyToMessage,
+  onDeleteMessage,
   onSenderClick,
   onLoadOlder,
   onResendChannelMessage,
@@ -1929,12 +1932,23 @@ export function MessageList({
                       </Suspense>
                     )}
                   </div>
-                  {msg.sender_timestamp != null && !isReactionPayload(content) && (
+                  {(msg.sender_timestamp != null || onDeleteMessage) && (
                     <MessageRowActions
                       onReact={
-                        onReactToMessage ? (emoji) => onReactToMessage(msg.id, emoji) : undefined
+                        msg.sender_timestamp != null &&
+                        !isReactionPayload(content) &&
+                        onReactToMessage
+                          ? (emoji) => onReactToMessage(msg.id, emoji)
+                          : undefined
                       }
-                      onReply={onReplyToMessage ? () => onReplyToMessage(msg) : undefined}
+                      onReply={
+                        msg.sender_timestamp != null &&
+                        !isReactionPayload(content) &&
+                        onReplyToMessage
+                          ? () => onReplyToMessage(msg)
+                          : undefined
+                      }
+                      onDelete={onDeleteMessage ? () => onDeleteMessage(msg) : undefined}
                     />
                   )}
                 </div>

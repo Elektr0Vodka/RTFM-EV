@@ -27,6 +27,7 @@ export interface UseWebSocketOptions {
     paths?: MessagePath[],
     packetId?: number | null
   ) => void;
+  onMessageDeleted?: (messageId: number, type: 'PRIV' | 'CHAN', conversationKey: string) => void;
   onError?: (error: ErrorEvent) => void;
   onSuccess?: (success: SuccessEvent) => void;
   onReconnect?: () => void;
@@ -142,6 +143,19 @@ export function useWebSocket(options: UseWebSocketOptions) {
               ackData.ack_count,
               ackData.paths,
               ackData.packet_id
+            );
+            break;
+          }
+          case 'message_deleted': {
+            const deletedData = msg.data as {
+              id: number;
+              type: 'PRIV' | 'CHAN';
+              conversation_key: string;
+            };
+            handlers.onMessageDeleted?.(
+              deletedData.id,
+              deletedData.type,
+              deletedData.conversation_key
             );
             break;
           }

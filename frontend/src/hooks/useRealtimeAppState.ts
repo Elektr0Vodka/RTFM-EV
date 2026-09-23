@@ -61,6 +61,8 @@ interface UseRealtimeAppStateArgs {
     paths?: MessagePath[],
     packetId?: number | null
   ) => void;
+  /** Remove a locally deleted message (own tab's action, or another tab's via WS). */
+  removeMessage: (messageId: number) => void;
   notifyIncomingMessage?: (msg: Message) => void;
   /** Fired for a new incoming channel message that @mentions the user while
    *  they are not viewing that channel - drives the mention ticker. */
@@ -120,6 +122,7 @@ export function useRealtimeAppState({
   renameConversationMessages,
   removeConversationMessages,
   receiveMessageAck,
+  removeMessage,
   notifyIncomingMessage,
   onChannelMention,
   notifyMentionSound,
@@ -311,6 +314,13 @@ export function useRealtimeAppState({
       ) => {
         receiveMessageAck(messageId, ackCount, paths, packetId);
       },
+      onMessageDeleted: (messageId: number) => {
+        removeMessage(messageId);
+        // Deleting an unread message changes its conversation's count (and
+        // possibly the first-unread boundary); re-fetch the server-computed
+        // totals rather than reproduce that logic here.
+        void refreshUnreads();
+      },
     }),
     [
       activeConversationRef,
@@ -328,6 +338,7 @@ export function useRealtimeAppState({
       prevHealthRef,
       recordMessageEvent,
       receiveMessageAck,
+      removeMessage,
       observeMessage,
       refreshUnreads,
       reconcileOnReconnect,

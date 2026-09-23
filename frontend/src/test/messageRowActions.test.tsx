@@ -25,4 +25,16 @@ describe('MessageRowActions', () => {
     expect(screen.queryByRole('button', { name: 'React' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Reply' })).toBeInTheDocument();
   });
+
+  it('deletes on click', () => {
+    const onDelete = vi.fn();
+    render(<MessageRowActions onDelete={onDelete} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(onDelete).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders nothing when it has no handlers at all', () => {
+    const { container } = render(<MessageRowActions />);
+    expect(container).toBeEmptyDOMElement();
+  });
 });

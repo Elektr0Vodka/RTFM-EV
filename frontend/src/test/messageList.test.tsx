@@ -970,3 +970,53 @@ describe('MessageList path modal sender location', () => {
     expect(screen.getByText('(51.5000, 4.2500)')).toBeInTheDocument();
   });
 });
+
+describe('MessageList delete action', () => {
+  it('calls onDeleteMessage with the message when Delete is clicked', async () => {
+    const onDeleteMessage = vi.fn();
+    const msg = createMessage();
+    render(
+      <MessageList
+        messages={[msg]}
+        contacts={[]}
+        loading={false}
+        onDeleteMessage={onDeleteMessage}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(onDeleteMessage).toHaveBeenCalledWith(msg);
+  });
+
+  it('shows Delete even for a message with no sender_timestamp, without React/Reply', () => {
+    render(
+      <MessageList
+        messages={[createMessage({ sender_timestamp: null })]}
+        contacts={[]}
+        loading={false}
+        onReactToMessage={vi.fn()}
+        onReplyToMessage={vi.fn()}
+        onDeleteMessage={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'React' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reply' })).not.toBeInTheDocument();
+  });
+
+  it('renders no row actions when onDeleteMessage is not provided and the message is a reaction', () => {
+    render(
+      <MessageList
+        messages={[createMessage({ text: 'Alice: \u{1F44D}\nabcdefgh' })]}
+        contacts={[]}
+        loading={false}
+        onReactToMessage={vi.fn()}
+        onReplyToMessage={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'React' })).not.toBeInTheDocument();
+  });
+});

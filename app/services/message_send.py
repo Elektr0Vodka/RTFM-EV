@@ -519,6 +519,12 @@ async def _retry_direct_message_until_acked(
     attempt = 1
     while attempt < DM_SEND_MAX_ATTEMPTS:
         await sleep_fn((next_wait_timeout_ms / 1000) * DM_RETRY_WAIT_MARGIN)
+        if dm_ack_tracker.is_message_deleted(message_id):
+            logger.debug(
+                "Background DM retry for message %d stopped: message was deleted",
+                message_id,
+            )
+            return
         if await _is_message_acked(message_id=message_id, message_repository=message_repository):
             return
 

@@ -96,6 +96,7 @@ function createRealtimeArgs(overrides: Partial<Parameters<typeof useRealtimeAppS
       renameConversationMessages: vi.fn(),
       removeConversationMessages: vi.fn(),
       receiveMessageAck: vi.fn(),
+      removeMessage: vi.fn(),
       notifyIncomingMessage: vi.fn(),
       ...overrides,
     },
@@ -257,6 +258,18 @@ describe('useRealtimeAppState', () => {
     expect(args.removeConversationMessages).toHaveBeenCalledWith(incomingDm.conversation_key);
     expect(args.setActiveConversation).toHaveBeenCalledWith(null);
     expect(pendingDeleteFallbackRef.current).toBe(true);
+  });
+
+  it('a deleted message is removed locally and unread totals are re-fetched', () => {
+    const { args } = createRealtimeArgs();
+    const { result } = renderHook(() => useRealtimeAppState(args));
+
+    act(() => {
+      result.current.onMessageDeleted?.(incomingDm.id, 'PRIV', incomingDm.conversation_key);
+    });
+
+    expect(args.removeMessage).toHaveBeenCalledWith(incomingDm.id);
+    expect(args.refreshUnreads).toHaveBeenCalledTimes(1);
   });
 
   it('resolves a prefix-only contact into a full key and updates active conversation state', () => {

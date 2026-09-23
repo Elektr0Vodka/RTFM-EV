@@ -7,6 +7,7 @@ import type { Channel, Contact, Conversation, Message, PathDiscoveryResponse } f
 const mocks = vi.hoisted(() => ({
   api: {
     reactToMessage: vi.fn(),
+    deleteMessage: vi.fn(),
     requestPathDiscovery: vi.fn(),
     requestTrace: vi.fn(),
     resendChannelMessage: vi.fn(),
@@ -68,6 +69,7 @@ function createArgs(overrides: Partial<Parameters<typeof useConversationActions>
     setChannels: vi.fn(),
     observeMessage: vi.fn(() => ({ added: true, activeConversation: true })),
     messageInputRef: { current: { appendText: vi.fn(), focus: vi.fn() } },
+    removeMessage: vi.fn(),
     ...overrides,
   };
 }
@@ -272,6 +274,51 @@ describe('useConversationActions reactions and replies', () => {
     });
 
     expect(mocks.toast.error).toHaveBeenCalled();
+  });
+
+  it('deletes a message after confirmation and removes it locally', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mocks.api.deleteMessage.mockResolvedValue({ status: 'ok', deleted: 1 });
+    const args = createArgs();
+    const { result } = renderHook(() => useConversationActions(args));
+
+    await act(async () => {
+      await result.current.handleDeleteMessage(sentMessage);
+    });
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(mocks.api.deleteMessage).toHaveBeenCalledWith(sentMessage.id);
+    expect(args.removeMessage).toHaveBeenCalledWith(sentMessage.id);
+    confirmSpy.mockRestore();
+  });
+
+  it('does not call the API when the delete confirmation is declined', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const args = createArgs();
+    const { result } = renderHook(() => useConversationActions(args));
+
+    await act(async () => {
+      await result.current.handleDeleteMessage(sentMessage);
+    });
+
+    expect(mocks.api.deleteMessage).not.toHaveBeenCalled();
+    expect(args.removeMessage).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it('shows an error toast and does not remove the message when delete fails', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mocks.api.deleteMessage.mockRejectedValue(new Error('radio busy'));
+    const args = createArgs();
+    const { result } = renderHook(() => useConversationActions(args));
+
+    await act(async () => {
+      await result.current.handleDeleteMessage(sentMessage);
+    });
+
+    expect(mocks.toast.error).toHaveBeenCalled();
+    expect(args.removeMessage).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
   });
 
   it('prefills a channel reply with the sender mention and a quote', () => {

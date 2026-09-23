@@ -112,6 +112,20 @@ export class ConversationMessageCache {
     this.cache.delete(id);
   }
 
+  /** Remove one message (by id) from whichever cached conversation holds it. */
+  removeMessage(messageId: number): void {
+    for (const [id, entry] of this.cache.entries()) {
+      const index = entry.messages.findIndex((message) => message.id === messageId);
+      if (index < 0) continue;
+      const removed = entry.messages[index];
+      const messages = entry.messages.filter((message) => message.id !== messageId);
+      const contentKeys = new Set(entry.contentKeys);
+      contentKeys.delete(getMessageContentKey(removed));
+      this.cache.set(id, { messages, hasOlderMessages: entry.hasOlderMessages, contentKeys });
+      return;
+    }
+  }
+
   rename(oldId: string, newId: string): void {
     if (oldId === newId) return;
     const oldEntry = this.cache.get(oldId);
@@ -271,6 +285,8 @@ interface UseConversationMessagesResult {
   reconcileOnReconnect: () => void;
   renameConversationMessages: (oldId: string, newId: string) => void;
   removeConversationMessages: (conversationId: string) => void;
+  /** Remove one deleted message from the active list and any cached conversation. */
+  removeMessage: (messageId: number) => void;
   clearConversationMessages: () => void;
 }
 
@@ -908,6 +924,19 @@ export function useConversationMessages(
     conversationMessageCache.remove(conversationId);
   }, []);
 
+  // Remove one deleted message. It may be in the active conversation's loaded
+  // list, in a cached (non-active) conversation, or both are checked since the
+  // caller does not know which; either lookup is a cheap in-memory scan.
+  const removeMessage = useCallback((messageId: number) => {
+    pendingAcksRef.current.delete(messageId);
+    const removed = messagesRef.current.find((m) => m.id === messageId);
+    if (removed) {
+      seenMessageContent.current.delete(getMessageContentKey(removed));
+      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    }
+    conversationMessageCache.removeMessage(messageId);
+  }, []);
+
   const clearConversationMessages = useCallback(() => {
     conversationMessageCache.clear();
   }, []);
@@ -928,6 +957,7 @@ export function useConversationMessages(
     reconcileOnReconnect,
     renameConversationMessages,
     removeConversationMessages,
+    removeMessage,
     clearConversationMessages,
   };
 }

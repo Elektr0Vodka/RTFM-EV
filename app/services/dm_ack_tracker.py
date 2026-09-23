@@ -7,9 +7,15 @@ logger = logging.getLogger(__name__)
 
 PendingAck = tuple[int, float, int]
 BUFFERED_ACK_TTL_SECONDS = 30.0
+# How long a "deleted" mark is kept around. Background DM retries finish well
+# inside this window (see DM_SEND_MAX_ATTEMPTS in message_send.py); the mark
+# only needs to outlive a retry loop that is already in flight when the delete
+# happens.
+DELETED_MESSAGE_TTL_SECONDS = 300.0
 
 _pending_acks: dict[str, PendingAck] = {}
 _buffered_acks: dict[str, float] = {}
+_deleted_message_ids: dict[int, float] = {}
 
 
 def track_pending_ack(expected_ack: str, message_id: int, timeout_ms: int) -> bool:
@@ -63,6 +69,8 @@ def cleanup_expired_acks() -> None:
         del _buffered_acks[code]
         logger.debug("Expired buffered ACK %s", code)
 
+    cleanup_expired_deleted_marks()
+
 
 def pop_pending_ack(ack_code: str) -> int | None:
     """Claim the tracked message ID for an ACK code if present."""
@@ -83,3 +91,31 @@ def clear_pending_acks_for_message(message_id: int) -> None:
     for code in sibling_codes:
         del _pending_acks[code]
         logger.debug("Cleared sibling pending ACK %s for message %d", code, message_id)
+
+
+def mark_message_deleted(message_id: int) -> None:
+    """Record that a message row was deleted so background DM retries stop.
+
+    Local message delete never sends anything over RF; this only prevents the
+    background retry loop in ``message_send.py`` from continuing to send the
+    text again for a message that no longer exists.
+    """
+    _deleted_message_ids[message_id] = time.time()
+    logger.debug("Marked message %d deleted for retry cancellation", message_id)
+
+
+def is_message_deleted(message_id: int) -> bool:
+    """True if ``message_id`` was deleted while a background retry was pending."""
+    return message_id in _deleted_message_ids
+
+
+def cleanup_expired_deleted_marks() -> None:
+    """Remove deleted-message marks older than their TTL."""
+    now = time.time()
+    expired = [
+        message_id
+        for message_id, marked_at in _deleted_message_ids.items()
+        if now - marked_at > DELETED_MESSAGE_TTL_SECONDS
+    ]
+    for message_id in expired:
+        del _deleted_message_ids[message_id]

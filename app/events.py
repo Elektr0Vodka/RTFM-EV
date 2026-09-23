@@ -22,6 +22,7 @@ WsEventType = Literal[
     "channel_deleted",
     "raw_packet",
     "message_acked",
+    "message_deleted",
     "error",
     "success",
 ]
@@ -29,6 +30,12 @@ WsEventType = Literal[
 
 class ContactDeletedPayload(TypedDict):
     public_key: str
+
+
+class MessageDeletedPayload(TypedDict):
+    id: int
+    type: str
+    conversation_key: str
 
 
 class ContactResolvedPayload(TypedDict):
@@ -62,6 +69,7 @@ _PAYLOAD_ADAPTERS: dict[WsEventType, TypeAdapter[Any]] = {
     "channel_deleted": TypeAdapter(ChannelDeletedPayload),
     "raw_packet": TypeAdapter(RawPacketBroadcast),
     "message_acked": TypeAdapter(MessageAckedPayload),
+    "message_deleted": TypeAdapter(MessageDeletedPayload),
     "error": TypeAdapter(ToastPayload),
     "success": TypeAdapter(ToastPayload),
 }

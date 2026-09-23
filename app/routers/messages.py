@@ -25,6 +25,7 @@ from app.reaction_payloads import (
     reaction_matches,
 )
 from app.repository import AmbiguousPublicKeyPrefixError, AppSettingsRepository, MessageRepository
+from app.services import dm_ack_tracker
 from app.services.message_send import (
     SCOPE_UNSET,
     resend_channel_message_record,
@@ -168,6 +169,79 @@ async def react_to_message(message_id: int, request: ReactRequest) -> Message:
     return await send_direct_message(
         SendDirectMessageRequest(destination=target.conversation_key, text=text)
     )
+
+
+async def _find_reactions_targeting(target: Message) -> list[Message]:
+    """Messages in the same conversation that resolve ``target`` as their reaction target.
+
+    Mirrors ``get_reaction_target``'s window, inverted: a reaction to ``target``
+    can arrive up to ``REACTION_TARGET_WINDOW_SECONDS`` after it, or up to
+    ``REACTION_TARGET_CLOCK_SLACK_SECONDS`` before it (out-of-order delivery).
+    """
+    if target.sender_timestamp is None:
+        # None of the reaction dialects can name a target with no sender timestamp.
+        return []
+
+    is_channel = target.type == "CHAN"
+    target_body = message_body(target.text, target.type)
+    target_sender = channel_sender(target.text) if is_channel else target.sender_name
+
+    candidates = await MessageRepository.get_conversation_window(
+        msg_type=target.type,
+        conversation_key=target.conversation_key,
+        since=target.received_at - REACTION_TARGET_CLOCK_SLACK_SECONDS,
+        until=target.received_at + REACTION_TARGET_WINDOW_SECONDS,
+        exclude_id=target.id,
+    )
+    matches: list[Message] = []
+    for candidate in candidates:
+        parsed = parse_any_reaction(candidate.text, candidate.type)
+        if parsed is None:
+            continue
+        if reaction_matches(
+            parsed,
+            body=target_body,
+            sender_name=target_sender,
+            sender_timestamp=target.sender_timestamp,
+            is_channel=is_channel,
+        ):
+            matches.append(candidate)
+    return matches
+
+
+@router.delete("/{message_id}")
+async def delete_message(message_id: int) -> dict:
+    """Hard-delete a message: its row, its linked raw packet, and any stored
+    reactions that resolve to it, all in one transaction.
+
+    Local only - nothing is sent over RF. If the message is an outgoing DM with
+    a background retry still in flight, the retry is stopped so it does not
+    keep sending after the message is gone.
+    """
+    message = await MessageRepository.get_by_id(message_id)
+    if message is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    reactions = await _find_reactions_targeting(message)
+    to_delete = [message, *reactions]
+
+    for msg in to_delete:
+        if msg.outgoing and msg.type == "PRIV":
+            dm_ack_tracker.mark_message_deleted(msg.id)
+            dm_ack_tracker.clear_pending_acks_for_message(msg.id)
+
+    deleted, _raw_deleted = await MessageRepository.delete_with_raw_packets(
+        [msg.id for msg in to_delete]
+    )
+    logger.info("Deleted message %d (%d reaction(s) also removed)", message_id, len(reactions))
+
+    for msg in to_delete:
+        broadcast_event(
+            "message_deleted",
+            {"id": msg.id, "type": msg.type, "conversation_key": msg.conversation_key},
+        )
+
+    return {"status": "ok", "deleted": deleted}
 
 
 @router.get("", response_model=list[Message])

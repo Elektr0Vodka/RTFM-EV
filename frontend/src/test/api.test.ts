@@ -306,6 +306,20 @@ describe('fetchJson (via api methods)', () => {
       expect(options.method).toBe('DELETE');
     });
 
+    it('sends DELETE for deleteMessage', async () => {
+      installMockFetch();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ status: 'ok', deleted: 1 }),
+      });
+
+      await api.deleteMessage(42);
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe('./api/messages/42');
+      expect(options.method).toBe('DELETE');
+    });
+
     it('sends POST with flood mode for sendAdvertisement', async () => {
       installMockFetch();
       mockFetch.mockResolvedValueOnce({
