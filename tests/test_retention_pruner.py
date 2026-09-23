@@ -169,3 +169,21 @@ async def test_status_and_is_due(test_db):
     assert retention_pruner.is_due(1_000_000 + 23 * 3600, 24) is False
     assert retention_pruner.is_due(1_000_000 + 24 * 3600, 24) is True
     assert retention_pruner.is_due(1_000_000 + 3600, 1) is True
+
+
+@pytest.mark.asyncio
+async def test_prunes_old_link_edge_events(test_db):
+    now = 10 * DAY
+    async with test_db.tx() as conn:
+        for pid, ts in ((1, now - 5 * DAY), (2, now - 1 * DAY)):
+            await conn.execute(
+                "INSERT INTO link_edge_events (raw_packet_id, ts, a_pubkey, b_pubkey, "
+                "hop_width, confidence) VALUES (?, ?, 'a', 'b', 1, 'unique')",
+                (pid, ts),
+            )
+    await AppSettingsRepository.update(link_edge_retention_days=2)
+    result = await retention_pruner.prune_once(now)
+    assert result.get("link_edges") == 1
+    async with test_db.readonly() as conn:
+        async with conn.execute("SELECT raw_packet_id FROM link_edge_events") as cur:
+            assert [r[0] for r in await cur.fetchall()] == [2]

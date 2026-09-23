@@ -98,6 +98,12 @@ Shipped toward this so far:
   distance in km (map Overlays > Links, per browser; usually the RF range of your
   frequency and preset). A fullscreen button on the map toggles browser
   fullscreen where the browser supports it.
+- Map link history: an "All traffic" link mode built from every flood packet the
+  node hears (not only adverts), a link-age window that follows the map's time
+  filter or its own range, and clickable links. A link's popup leads to a page
+  with its traffic trend, signal trend (links to your own node) and recent
+  packets. History is kept 365 days by default (`link_edge_retention_days`,
+  migration `_107`).
 - Mesh Trends Live-tab stat breakdowns can be computed from the database over the
   selected range, backed by decoded packet fields persisted at ingest (`_089`),
   not only the in-memory session buffer.
@@ -106,8 +112,9 @@ Shipped toward this so far:
   `_084`). See `README_ADVANCED.md` for the manual restore procedure.
 - Configurable, per-data-class retention (Settings > Database > Data retention,
   migration `_105`). Raw packets, messages, advert events, repeater/contact
-  telemetry (days plus a rows-per-node cap), link signal, noise floor, battery,
-  airtime, and advert paths per contact each have their own setting, with `0` =
+  telemetry (days plus a rows-per-node cap), link signal, map link traffic
+  history, noise floor, battery, airtime, and advert paths per contact each have
+  their own setting, with `0` =
   keep forever. One prune service runs on a configurable interval (default every
   24 h) and there is a "Prune now" button, plus per-class row counts and oldest
   entry. A "Keep everything (analyzer)" button turns every limit off; "Restore

@@ -30,7 +30,12 @@ import {
 import { setMapLock2D } from './engine/mapLock2D';
 import { setBuildings3D } from './engine/buildings3D';
 import { isWebglAvailable } from './engine/webgl';
-import { MapControls, type FabConfig, type ExtraFab } from './controls/MapControls';
+import {
+  MapControls,
+  type FabConfig,
+  type ExtraFab,
+  type MapLinkMode,
+} from './controls/MapControls';
 
 setWorkerUrl(maplibreWorkerUrl);
 
@@ -67,12 +72,14 @@ export interface MapSurfaceProps {
   onToggleNeon?: (on: boolean) => void;
   linksOn?: boolean;
   onToggleLinks?: (on: boolean) => void;
-  linkMode?: 'liveness' | 'advert';
-  onLinkMode?: (mode: 'liveness' | 'advert') => void;
+  linkMode?: MapLinkMode;
+  onLinkMode?: (mode: MapLinkMode) => void;
   linkConfidence?: 1 | 2 | 3;
   onLinkConfidence?: (level: 1 | 2 | 3) => void;
   linkMaxKm?: number;
   onLinkMaxKm?: (km: number) => void;
+  /** Link-age control for the server-backed link modes. */
+  linkAgePanel?: ReactNode;
   telemetryOn?: boolean;
   onToggleTelemetry?: (on: boolean) => void;
   sidebarOpen?: boolean;
@@ -307,6 +314,7 @@ export function MapSurface(props: MapSurfaceProps) {
         onLinkConfidence={props.onLinkConfidence}
         linkMaxKm={props.linkMaxKm}
         onLinkMaxKm={props.onLinkMaxKm}
+        linkAgePanel={props.linkAgePanel}
         fullscreen={fullscreenEl != null}
         onToggleFullscreen={fullscreenSupported ? toggleFullscreen : undefined}
         portalContainer={fullscreenEl}

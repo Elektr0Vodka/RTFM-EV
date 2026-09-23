@@ -13,7 +13,15 @@ export interface AdvertArcCollection {
   type: 'FeatureCollection';
   features: {
     type: 'Feature';
-    properties: { opacity: number; width: number; ambiguous: 0 | 1 };
+    properties: {
+      opacity: number;
+      width: number;
+      ambiguous: 0 | 1;
+      a: string;
+      b: string;
+      count: number;
+      last_seen: number;
+    };
     geometry: { type: 'LineString'; coordinates: [number, number][] };
   }[];
 }
@@ -27,6 +35,10 @@ export function buildAdvertArcs(edges: AdvertLinkEdge[], now: number): AdvertArc
         opacity: livenessOpacity(e.last_seen * 1000, now),
         width: widthForHop(e.hop_width),
         ambiguous: e.ambiguous ? 1 : 0,
+        a: e.a.pubkey,
+        b: e.b.pubkey,
+        count: e.count,
+        last_seen: e.last_seen,
       },
       geometry: {
         type: 'LineString',
@@ -54,15 +66,29 @@ export function advertWidthExpr(scale: number): unknown {
   return scale === 1 ? ['get', 'width'] : ['*', ['get', 'width'], scale];
 }
 
-const SOURCE_ID = 'rt-advert-links';
-const SOLID_LAYER = 'rt-advert-links-solid';
-const DASHED_LAYER = 'rt-advert-links-dashed';
-const LINE_COLOR = '#58a6ff';
+export interface LinkClickInfo {
+  a: string;
+  b: string;
+  count: number;
+  lastSeen: number;
+  coords: [number, number][];
+}
 
-/** GL layer for advert-truth edges. Two line sub-layers share one source so
- *  ambiguous edges can be dashed (line-dasharray is not data-driven). Width is
- *  data-driven by confidence, opacity by recency. Hidden until shown. */
-export function createAdvertLinksLayer(map: MlMap): AdvertLinksLayerController {
+export interface AdvertLinksLayerOptions {
+  /** Source/layer id prefix; lets a second instance (traffic mode) coexist. */
+  idPrefix?: string;
+  color?: string;
+  onClick?: (info: LinkClickInfo, lngLat: [number, number]) => void;
+}
+
+/** GL layer for server-resolved edges (advert paths or the traffic edge log).
+ *  Two line sub-layers share one source so ambiguous edges can be dashed
+ *  (line-dasharray is not data-driven). Width is data-driven by confidence,
+ *  opacity by recency. Hidden until shown. */
+export function createAdvertLinksLayer(
+  map: MlMap,
+  opts: AdvertLinksLayerOptions = {}
+): AdvertLinksLayerController {
   const m = map as unknown as {
     getSource: (id: string) => { setData: (d: AdvertArcCollection) => void } | undefined;
     getLayer: (id: string) => unknown;
@@ -70,9 +96,18 @@ export function createAdvertLinksLayer(map: MlMap): AdvertLinksLayerController {
     addLayer: (layer: unknown, before?: string) => void;
     setLayoutProperty: (id: string, prop: string, value: unknown) => void;
     setPaintProperty: (id: string, prop: string, value: unknown) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    on: (type: string, layer: string, cb: (e: any) => void) => void;
+    getCanvas: () => HTMLCanvasElement;
   };
+  const prefix = opts.idPrefix ?? 'rt-advert-links';
+  const SOURCE_ID = prefix;
+  const SOLID_LAYER = `${prefix}-solid`;
+  const DASHED_LAYER = `${prefix}-dashed`;
+  const LINE_COLOR = opts.color ?? '#58a6ff';
   let visible = false;
   let widthScale = 1;
+  let listenersBound = false;
 
   function ensureLayers(): void {
     if (!m.getSource(SOURCE_ID)) {
@@ -117,6 +152,33 @@ export function createAdvertLinksLayer(map: MlMap): AdvertLinksLayerController {
         },
         before
       );
+    }
+    if (!listenersBound && opts.onClick) {
+      listenersBound = true;
+      for (const id of [SOLID_LAYER, DASHED_LAYER]) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        m.on('click', id, (e: any) => {
+          const f = e.features?.[0];
+          const p = f?.properties;
+          if (!p || !opts.onClick) return;
+          opts.onClick(
+            {
+              a: String(p.a),
+              b: String(p.b),
+              count: Number(p.count),
+              lastSeen: Number(p.last_seen),
+              coords: (f.geometry?.coordinates ?? []) as [number, number][],
+            },
+            [e.lngLat.lng, e.lngLat.lat]
+          );
+        });
+        m.on('mouseenter', id, () => {
+          m.getCanvas().style.cursor = 'pointer';
+        });
+        m.on('mouseleave', id, () => {
+          m.getCanvas().style.cursor = '';
+        });
+      }
     }
   }
 

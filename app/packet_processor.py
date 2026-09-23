@@ -52,6 +52,7 @@ from app.services.contact_reconciliation import (
     record_contact_name_and_reconcile,
 )
 from app.services.dm_ack_apply import apply_dm_ack_code
+from app.services.link_edges import record_packet_edges
 from app.services.messages import (
     create_dm_message_from_decrypted as _create_dm_message_from_decrypted,
 )
@@ -323,6 +324,8 @@ async def process_raw_packet(
         hop_byte_width=decoded_fields["hop_byte_width"],
         path_signature=decoded_fields["path_signature"],
     )
+    # Per-copy link edge log (map traffic links + link history). Never raises.
+    await record_packet_edges(packet_id, ts, packet_info, snr, rssi)
     raw_hex = raw_bytes.hex()
 
     if packet_info is None and len(raw_bytes) > 2:

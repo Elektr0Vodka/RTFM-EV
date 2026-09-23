@@ -480,7 +480,8 @@ type ConversationType =
   | 'mesh-trends'
   | 'mesh-discovery'
   | 'analyze'
-  | 'packet-history';
+  | 'packet-history'
+  | 'link';
 
 export interface Conversation {
   type: ConversationType;
@@ -626,6 +627,7 @@ export interface AppSettings {
   battery_retention_days: number;
   airtime_retention_days: number;
   message_retention_days: number;
+  link_edge_retention_days: number;
   last_message_times: Record<string, number>;
   advert_interval: number;
   last_advert_time: number;
@@ -830,6 +832,66 @@ export interface AdvertLinkEdge {
   ambiguous: boolean;
 }
 
+/** Link from the per-packet edge log, aggregated over the requested window. */
+export interface TrafficLinkEdge extends AdvertLinkEdge {
+  first_seen: number;
+}
+
+export interface LinkEndpoint {
+  pubkey: string;
+  name: string | null;
+  kind: 'self' | 'contact' | 'external' | 'unknown';
+  lat: number | null;
+  lon: number | null;
+}
+
+export interface LinkSummary {
+  a: LinkEndpoint;
+  b: LinkEndpoint;
+  distance_km: number | null;
+  involves_self: boolean;
+  total_packets: number;
+  first_seen: number | null;
+  last_seen: number | null;
+  by_hop_width: Record<string, number>;
+  by_confidence: Record<string, number>;
+  by_payload_type: Record<string, number>;
+}
+
+export interface LinkTrafficPoint {
+  bucket: number;
+  payload_type: string;
+  count: number;
+}
+
+export interface LinkSignalPoint {
+  bucket: number;
+  samples: number;
+  snr_avg: number | null;
+  snr_min: number | null;
+  snr_max: number | null;
+  rssi_avg: number | null;
+  rssi_min: number | null;
+  rssi_max: number | null;
+}
+
+export interface LinkTimeseries {
+  bucket_seconds: number;
+  traffic: LinkTrafficPoint[];
+  signal: LinkSignalPoint[];
+}
+
+export interface LinkPacketRow {
+  raw_packet_id: number;
+  ts: number;
+  payload_type: string | null;
+  route_type: string | null;
+  hop_width: number;
+  confidence: 'unique' | 'confirmed' | 'nearest';
+  snr: number | null;
+  rssi: number | null;
+}
+
 export interface ExternalMapStatus {
   enabled: boolean;
   count: number;
@@ -898,6 +960,7 @@ export interface AppSettingsUpdate {
   battery_retention_days?: number;
   airtime_retention_days?: number;
   message_retention_days?: number;
+  link_edge_retention_days?: number;
   advert_interval?: number;
   auto_resend_channel?: boolean;
   flood_scope?: string;

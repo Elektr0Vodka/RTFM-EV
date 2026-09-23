@@ -67,6 +67,7 @@ const baseSettings: AppSettings = {
   telemetry_retention_days: 30,
   telemetry_max_rows_per_node: 1000,
   link_signal_retention_days: 30,
+  link_edge_retention_days: 365,
   advert_paths_per_contact: 10,
   noise_floor_retention_days: 0,
   battery_retention_days: 0,

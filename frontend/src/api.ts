@@ -1,5 +1,9 @@
 import type {
   AdvertLinkEdge,
+  LinkPacketRow,
+  LinkSummary,
+  LinkTimeseries,
+  TrafficLinkEdge,
   AppSettings,
   AppSettingsUpdate,
   PacketHistoryResponse,
@@ -102,6 +106,18 @@ import type {
 } from './types';
 
 const API_BASE = './api';
+
+type LinkWindow = { since?: number | null; until?: number | null };
+
+function setWindow(qs: URLSearchParams, w: LinkWindow): void {
+  if (w.since != null) qs.set('since', String(Math.floor(w.since)));
+  if (w.until != null) qs.set('until', String(Math.floor(w.until)));
+}
+
+function withQuery(path: string, qs: URLSearchParams): string {
+  const query = qs.toString();
+  return query ? `${path}?${query}` : path;
+}
 
 /** Error thrown by API calls, carrying the HTTP status so callers can tell
  * retryable failures from ones the mesh already answered (e.g. 422 timeouts). */
@@ -256,15 +272,55 @@ export const api = {
       `/contacts/repeaters/advert-paths?limit_per_repeater=${limitPerRepeater}`
     ),
   /** Resolved advert-path edges. `heardOnly` resolves hops only against
-   *  contacts this server has heard; `maxKm` (> 0) drops longer edges. */
-  getAdvertLinks: (signal?: AbortSignal, opts: { heardOnly?: boolean; maxKm?: number } = {}) => {
+   *  contacts this server has heard; `maxKm` (> 0) drops longer edges;
+   *  `since`/`until` limit the adverts used (unix seconds). */
+  getAdvertLinks: (
+    signal?: AbortSignal,
+    opts: { heardOnly?: boolean; maxKm?: number } & LinkWindow = {}
+  ) => {
     const qs = new URLSearchParams();
     if (opts.heardOnly) qs.set('heard_only', 'true');
     if (opts.maxKm != null && opts.maxKm > 0) qs.set('max_km', String(opts.maxKm));
-    const query = qs.toString();
-    return fetchJson<AdvertLinkEdge[]>(`/packets/advert-links${query ? `?${query}` : ''}`, {
-      signal,
-    });
+    setWindow(qs, opts);
+    return fetchJson<AdvertLinkEdge[]>(withQuery('/packets/advert-links', qs), { signal });
+  },
+  /** Links from all flood traffic (edge log), aggregated over the window. */
+  getTrafficLinks: (
+    signal?: AbortSignal,
+    opts: { heardOnly?: boolean; maxKm?: number } & LinkWindow = {}
+  ) => {
+    const qs = new URLSearchParams();
+    if (opts.heardOnly) qs.set('heard_only', 'true');
+    if (opts.maxKm != null && opts.maxKm > 0) qs.set('max_km', String(opts.maxKm));
+    setWindow(qs, opts);
+    return fetchJson<TrafficLinkEdge[]>(withQuery('/packets/traffic-links', qs), { signal });
+  },
+  getLinkSummary: (a: string, b: string, w: LinkWindow = {}, signal?: AbortSignal) => {
+    const qs = new URLSearchParams();
+    setWindow(qs, w);
+    return fetchJson<LinkSummary>(withQuery(`/links/${a}/${b}/summary`, qs), { signal });
+  },
+  getLinkTimeseries: (
+    a: string,
+    b: string,
+    w: LinkWindow & { bucket?: 'hour' | 'day' } = {},
+    signal?: AbortSignal
+  ) => {
+    const qs = new URLSearchParams();
+    setWindow(qs, w);
+    if (w.bucket) qs.set('bucket', w.bucket);
+    return fetchJson<LinkTimeseries>(withQuery(`/links/${a}/${b}/timeseries`, qs), { signal });
+  },
+  getLinkPackets: (
+    a: string,
+    b: string,
+    opts: { limit?: number; before?: number | null } = {},
+    signal?: AbortSignal
+  ) => {
+    const qs = new URLSearchParams();
+    if (opts.limit != null) qs.set('limit', String(opts.limit));
+    if (opts.before != null) qs.set('before', String(opts.before));
+    return fetchJson<LinkPacketRow[]>(withQuery(`/links/${a}/${b}/packets`, qs), { signal });
   },
   getContactAnalytics: (params: { publicKey?: string; name?: string }, signal?: AbortSignal) => {
     const searchParams = new URLSearchParams();

@@ -11,7 +11,13 @@ from pydantic import BaseModel, Field
 
 from app.database import db
 from app.decoder import parse_packet, try_decrypt_packet_with_channel_key
-from app.models import AdvertLinkEdge, AdvertLinkNode, RawPacketDecryptedInfo, RawPacketDetail
+from app.models import (
+    AdvertLinkEdge,
+    AdvertLinkNode,
+    RawPacketDecryptedInfo,
+    RawPacketDetail,
+    TrafficLinkEdge,
+)
 from app.packet_processor import create_message_from_decrypted, run_historical_dm_decryption
 from app.region_resolver import resolve_region
 from app.repository import (
@@ -24,9 +30,10 @@ from app.repository import (
     RequestTrafficRepository,
 )
 from app.repository.advert_links import AdvertLinksRepository
+from app.repository.link_edges import LinkEdgesRepository
 from app.repository.partial_resolution import PartialResolutionRepository
 from app.repository.request_traffic import aggregate_request_traffic
-from app.services.advert_links import LocatedNode, resolve_advert_edges
+from app.services.advert_links import LocatedNode, haversine_km, resolve_advert_edges
 from app.services.messages import backfill_message_regions
 from app.services.prefix_collisions import compute_prefix_collisions
 from app.services.radio_runtime import radio_runtime as radio_manager
@@ -1090,6 +1097,12 @@ async def get_advert_links(
     max_km: Annotated[
         float | None, Query(gt=0, description="Drop edges longer than this many kilometres")
     ] = None,
+    since: Annotated[
+        int | None, Query(ge=0, description="Only adverts at/after this unix time")
+    ] = None,
+    until: Annotated[
+        int | None, Query(ge=0, description="Only adverts at/before this unix time")
+    ] = None,
 ) -> list[AdvertLinkEdge]:
     """Resolved advert-path edges for the map link layer (truth).
 
@@ -1099,7 +1112,9 @@ async def get_advert_links(
     against heard contacts when ``heard_only`` is set. ``max_km`` caps edge
     length so a hop cannot resolve to a node beyond radio range.
     """
-    rows = await AdvertLinksRepository.recent_events(limit=min(max(limit, 1), 20000))
+    rows = await AdvertLinksRepository.recent_events(
+        limit=min(max(limit, 1), 20000), since=since, until=until
+    )
     located = await AdvertLinksRepository.located_nodes(heard_only=heard_only)
     self_node = _self_located_node()
     node_by_pk = {n.pubkey: n for n in located}
@@ -1128,6 +1143,48 @@ async def get_advert_links(
         )
         for e in edges
     ]
+
+
+@router.get("/traffic-links", response_model=list[TrafficLinkEdge])
+async def get_traffic_links(
+    since: Annotated[int | None, Query(ge=0, description="Window start (unix seconds)")] = None,
+    until: Annotated[int | None, Query(ge=0, description="Window end (unix seconds)")] = None,
+    heard_only: Annotated[
+        bool, Query(description="Only draw links whose endpoints this server heard over RF")
+    ] = False,
+    max_km: Annotated[
+        float | None, Query(gt=0, description="Drop edges longer than this many kilometres")
+    ] = None,
+) -> list[TrafficLinkEdge]:
+    """Links from the per-packet edge log (all flood traffic), aggregated over
+    the window. Edges whose endpoints have no current location are omitted."""
+    rows = await LinkEdgesRepository.window_edges(since, until)
+    located = await AdvertLinksRepository.located_nodes(heard_only=heard_only)
+    node_by_pk = {n.pubkey: n for n in located}
+    self_node = _self_located_node()
+    if self_node is not None:
+        node_by_pk[self_node.pubkey] = self_node
+
+    out: list[TrafficLinkEdge] = []
+    for r in rows:
+        a = node_by_pk.get(r.a_pubkey)
+        b = node_by_pk.get(r.b_pubkey)
+        if a is None or b is None:
+            continue
+        if max_km is not None and haversine_km(a.lat, a.lon, b.lat, b.lon) > max_km:
+            continue
+        out.append(
+            TrafficLinkEdge(
+                a=AdvertLinkNode(pubkey=a.pubkey, lat=a.lat, lon=a.lon, kind=a.kind),
+                b=AdvertLinkNode(pubkey=b.pubkey, lat=b.lat, lon=b.lon, kind=b.kind),
+                hop_width=r.hop_width,
+                count=r.count,
+                first_seen=r.first_seen,
+                last_seen=r.last_seen,
+                ambiguous=not r.confident,
+            )
+        )
+    return out
 
 
 class RequestTrafficTotals(BaseModel):

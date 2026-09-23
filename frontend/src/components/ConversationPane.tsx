@@ -52,6 +52,9 @@ const AnalyzePacketView = lazy(() =>
 const PacketHistoryView = lazy(() =>
   import('./PacketHistoryView').then((m) => ({ default: m.PacketHistoryView }))
 );
+const LinkDetailView = lazy(() =>
+  import('./LinkDetailView').then((m) => ({ default: m.LinkDetailView }))
+);
 const ContactInfoView = lazy(() =>
   import('./ContactInfoView').then((m) => ({ default: m.ContactInfoView }))
 );
@@ -339,6 +342,9 @@ export function ConversationPane({
                 })
               }
               onOpenContactInfo={(publicKey) => onOpenContactInfo(publicKey)}
+              onOpenLink={(a, b) =>
+                onSelectConversation({ type: 'link', id: `${a}~${b}`, name: 'Link' })
+              }
             />
           </Suspense>
         </div>
@@ -392,6 +398,21 @@ export function ConversationPane({
     return (
       <Suspense fallback={<LoadingPane label={t('common_loading_analyze_packet')} />}>
         <AnalyzePacketView channels={channels} />
+      </Suspense>
+    );
+  }
+
+  if (activeConversation.type === 'link') {
+    const [a, b] = activeConversation.id.split('~');
+    return (
+      <Suspense fallback={<LoadingPane label={t('common_loading_link_detail')} />}>
+        <LinkDetailView
+          a={a}
+          b={b}
+          channels={channels}
+          onBack={() => window.history.back()}
+          onOpenContactInfo={onOpenContactInfo}
+        />
       </Suspense>
     );
   }

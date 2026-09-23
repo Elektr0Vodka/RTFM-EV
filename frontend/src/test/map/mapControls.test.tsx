@@ -291,3 +291,37 @@ describe('MapControls', () => {
     expect(screen.queryByRole('button', { name: 'Fullscreen' })).not.toBeInTheDocument();
   });
 });
+
+describe('MapControls traffic link mode', () => {
+  it('offers the traffic mode and shows confidence + link age panel for it', () => {
+    const onLinkMode = vi.fn();
+    renderControls({
+      fabs: { links: true },
+      linksOn: true,
+      linkMode: 'traffic',
+      onLinkMode,
+      linkConfidence: 2,
+      linkAgePanel: <div data-testid="link-age-panel" />,
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Overlays' }));
+    expect(screen.getByRole('radio', { name: 'All traffic' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    );
+    expect(screen.getByRole('radio', { name: /1b\+/ })).toBeInTheDocument();
+    expect(screen.getByTestId('link-age-panel')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: 'Liveness' }));
+    expect(onLinkMode).toHaveBeenCalledWith('liveness');
+  });
+
+  it('hides the link age panel in liveness mode', () => {
+    renderControls({
+      fabs: { links: true },
+      linksOn: true,
+      linkMode: 'liveness',
+      linkAgePanel: <div data-testid="link-age-panel" />,
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Overlays' }));
+    expect(screen.queryByTestId('link-age-panel')).not.toBeInTheDocument();
+  });
+});

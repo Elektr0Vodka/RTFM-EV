@@ -8,6 +8,7 @@ import type {
   ExternalMapNode,
   LatestTelemetry,
   RadioConfig,
+  TrafficLinkEdge,
 } from '../types';
 import {
   CONTACT_TYPE_CLIENT,
@@ -68,7 +69,7 @@ import { MapLegend } from '../map/controls/legend/MapLegend';
 import { PacketLegend } from '../map/controls/legend/PacketLegend';
 import { createClickAudio, type ClickAudio } from '../map/packets/clickAudio';
 import { createLinksLayer, type ResolveCoord } from '../map/layers/linksLayer';
-import { createAdvertLinksLayer } from '../map/layers/advertLinksLayer';
+import { createAdvertLinksLayer, type LinkClickInfo } from '../map/layers/advertLinksLayer';
 import { createExternalNodesLayer, type ExternalNodeProps } from '../map/layers/externalNodesLayer';
 import { isContactVisibleForFilters, type HeardFilterMode } from '../map/heardFilter';
 import {
@@ -78,6 +79,19 @@ import {
   serializeHiddenRoles,
 } from '../map/roleFilter';
 import { computeWrongLocationKeys } from '../map/wrongLocation';
+import {
+  LINK_AGE_CUSTOM_ID,
+  LINK_AGE_FOLLOW_KEY,
+  LINK_AGE_FROM_KEY,
+  LINK_AGE_PRESET_KEY,
+  LINK_AGE_UNTIL_KEY,
+  isRelativeLinkAge,
+  isStr,
+  localDateTimeToEpochSec,
+  resolveLinkWindow,
+} from '../map/linkAge';
+import { LinkAgeControl } from '../map/controls/LinkAgeControl';
+import { buildLinkPopup } from '../map/linkPopup';
 import {
   resolveHomeView,
   readLastView,
@@ -92,7 +106,7 @@ import {
   ingestPacketIntoPacketNetwork,
   projectPacketNetwork,
 } from '../networkGraph/packetNetworkGraph';
-import type { ExtraFab } from '../map/controls/MapControls';
+import type { ExtraFab, MapLinkMode } from '../map/controls/MapControls';
 
 interface MapViewProps {
   contacts: Contact[];
@@ -102,6 +116,8 @@ interface MapViewProps {
   blockedNames?: string[];
   onSelectContact?: (contact: Contact) => void;
   onOpenContactInfo?: (publicKey: string) => void;
+  /** Open the link detail page for the node pair (a, b). */
+  onOpenLink?: (a: string, b: string) => void;
   focusedLatLon?: [number, number];
   focusedLabel?: string;
   sidebarOpen?: boolean;
@@ -265,12 +281,6 @@ function getSavedTelemetryOn(): boolean {
   }
 }
 
-function localDateTimeToEpochSec(value: string): number | null {
-  if (!value) return null;
-  const ms = new Date(value).getTime();
-  return Number.isNaN(ms) ? null : ms / 1000;
-}
-
 function resolveNameToGps(name: string, nameIndex: Map<string, Contact>): Contact | null {
   const c = nameIndex.get(name);
   if (!c) return null;
@@ -330,6 +340,7 @@ export function MapView({
   blockedNames,
   onSelectContact,
   onOpenContactInfo,
+  onOpenLink,
   focusedLatLon,
   focusedLabel,
   sidebarOpen,
@@ -419,10 +430,10 @@ export function MapView({
   const [telemetryOn, setTelemetryOn] = useState<boolean>(getSavedTelemetryOn);
   const [latestTelemetry, setLatestTelemetry] = useState<Record<string, LatestTelemetry>>({});
   const [linksOn, setLinksOn] = usePersistedMapSetting('remoteterm-map-links', false, isBool);
-  const [linkMode, setLinkMode] = usePersistedMapSetting<'liveness' | 'advert'>(
+  const [linkMode, setLinkMode] = usePersistedMapSetting<MapLinkMode>(
     'remoteterm-map-link-mode',
     'liveness',
-    isOneOf(['liveness', 'advert'] as const)
+    isOneOf(['liveness', 'advert', 'traffic'] as const)
   );
   const [linkConfidence, setLinkConfidence] = usePersistedMapSetting<1 | 2 | 3>(
     'remoteterm-map-link-confidence',
@@ -436,6 +447,20 @@ export function MapView({
     isNumberIn(0, LINK_MAX_KM_UPPER)
   );
   const [advertEdges, setAdvertEdges] = useState<AdvertLinkEdge[]>([]);
+  // Link age: follow the node "Heard since" window unless overridden.
+  const [linkAgeFollow, setLinkAgeFollow] = usePersistedMapSetting(
+    LINK_AGE_FOLLOW_KEY,
+    true,
+    isBool
+  );
+  const [linkAgePreset, setLinkAgePreset] = usePersistedMapSetting(
+    LINK_AGE_PRESET_KEY,
+    DEFAULT_MAP_SINCE_ID,
+    isOneOf([...MAP_SINCE_PRESETS.map((p) => p.id), LINK_AGE_CUSTOM_ID])
+  );
+  const [linkAgeFrom, setLinkAgeFrom] = usePersistedMapSetting(LINK_AGE_FROM_KEY, '', isStr);
+  const [linkAgeUntil, setLinkAgeUntil] = usePersistedMapSetting(LINK_AGE_UNTIL_KEY, '', isStr);
+  const [trafficEdges, setTrafficEdges] = useState<TrafficLinkEdge[]>([]);
   // Unfiltered edges (all located nodes, no length cap) for the wrong-location
   // filter, which needs the implausibly long edges to spot bad coordinates.
   const [wrongLocationEdges, setWrongLocationEdges] = useState<AdvertLinkEdge[]>([]);
@@ -504,6 +529,8 @@ export function MapView({
   if (!clickAudioRef.current) clickAudioRef.current = createClickAudio();
   const linksLayerRef = useRef<ReturnType<typeof createLinksLayer> | null>(null);
   const advertLinksLayerRef = useRef<ReturnType<typeof createAdvertLinksLayer> | null>(null);
+  const trafficLinksLayerRef = useRef<ReturnType<typeof createAdvertLinksLayer> | null>(null);
+  const linkPopupRef = useRef<MlPopup | null>(null);
   const linkStateRef = useRef(createPacketNetworkState(config?.name || 'Me'));
   const linkProcessedRef = useRef(new Set<string>());
   const popupRef = useRef<MlPopup | null>(null);
@@ -712,26 +739,6 @@ export function MapView({
     refreshLinks();
   }, [rawPackets, linksOn, heardLinkContext, refreshLinks, config]);
 
-  // Fetch resolved advert-truth edges when links are shown in advert mode. Hops
-  // resolve only against heard contacts, capped at the max link distance. The
-  // fetch is debounced so typing a distance does not fire one request per key.
-  useEffect(() => {
-    if (!linksOn || linkMode !== 'advert') return;
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => {
-      api
-        .getAdvertLinks(controller.signal, { heardOnly: true, maxKm: linkMaxKm })
-        .then(setAdvertEdges)
-        .catch((err) => {
-          if (!isAbortError(err)) console.error('Advert links fetch failed', err);
-        });
-    }, 300);
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [linksOn, linkMode, linkMaxKm]);
-
   // The wrong-location filter measures neighbour distances on the unfiltered
   // edge set (all located nodes, no cap), as before the heard-only change.
   useEffect(() => {
@@ -759,28 +766,42 @@ export function MapView({
   const paintLinks = useCallback(() => {
     const liveness = linksLayerRef.current;
     const advert = advertLinksLayerRef.current;
+    const traffic = trafficLinksLayerRef.current;
+    const keep = (e: AdvertLinkEdge) =>
+      e.hop_width >= linkConfidence &&
+      !wrongLocationKeys.has(e.a.pubkey.toLowerCase()) &&
+      !wrongLocationKeys.has(e.b.pubkey.toLowerCase());
     if (!linksOn) {
       liveness?.hide();
       advert?.hide();
+      traffic?.hide();
       return;
     }
     if (linkMode === 'advert') {
       liveness?.hide();
-      advert?.setData(
-        advertEdges.filter(
-          (e) =>
-            e.hop_width >= linkConfidence &&
-            !wrongLocationKeys.has(e.a.pubkey.toLowerCase()) &&
-            !wrongLocationKeys.has(e.b.pubkey.toLowerCase())
-        )
-      );
+      traffic?.hide();
+      advert?.setData(advertEdges.filter(keep));
       advert?.show();
+    } else if (linkMode === 'traffic') {
+      liveness?.hide();
+      advert?.hide();
+      traffic?.setData(trafficEdges.filter(keep));
+      traffic?.show();
     } else {
       advert?.hide();
+      traffic?.hide();
       liveness?.show();
       refreshLinks();
     }
-  }, [linksOn, linkMode, linkConfidence, advertEdges, refreshLinks, wrongLocationKeys]);
+  }, [
+    linksOn,
+    linkMode,
+    linkConfidence,
+    advertEdges,
+    trafficEdges,
+    refreshLinks,
+    wrongLocationKeys,
+  ]);
   const paintLinksRef = useRef(paintLinks);
   useEffect(() => {
     paintLinksRef.current = paintLinks;
@@ -791,11 +812,12 @@ export function MapView({
   const activeSincePreset = MAP_SINCE_PRESETS.find((p) => p.id === sinceId) ?? null;
   const sinceIsRelative = activeSincePreset != null && activeSincePreset.seconds != null;
 
+  const linkAgeIsRelative = isRelativeLinkAge(linkAgeFollow, linkAgePreset, MAP_SINCE_PRESETS);
   useEffect(() => {
-    if (!sinceIsRelative) return;
+    if (!sinceIsRelative && !linkAgeIsRelative) return;
     const timer = setInterval(() => setNowSec(Date.now() / 1000), MAP_SINCE_TICK_MS);
     return () => clearInterval(timer);
-  }, [sinceIsRelative]);
+  }, [sinceIsRelative, linkAgeIsRelative]);
 
   useEffect(() => {
     try {
@@ -858,6 +880,7 @@ export function MapView({
     }
     linksLayerRef.current?.setWidthScale(linkWidthScale);
     advertLinksLayerRef.current?.setWidthScale(linkWidthScale);
+    trafficLinksLayerRef.current?.setWidthScale(linkWidthScale);
   }, [linkWidthScale]);
 
   // Persist the label mode and push it to the live layer.
@@ -957,6 +980,52 @@ export function MapView({
     },
     [sinceCutoffSec, sinceUntilSec]
   );
+
+  // Window for the server-backed link layers (advert + traffic modes).
+  const linkWindow = useMemo(
+    () =>
+      resolveLinkWindow({
+        follow: linkAgeFollow,
+        nodeWindow: {
+          since: sinceCutoffSec == null ? null : Math.floor(sinceCutoffSec),
+          until: sinceUntilSec == null ? null : Math.floor(sinceUntilSec),
+        },
+        presetId: linkAgePreset,
+        presets: MAP_SINCE_PRESETS,
+        customFrom: linkAgeFrom,
+        customUntil: linkAgeUntil,
+        nowSec,
+      }),
+    [linkAgeFollow, sinceCutoffSec, sinceUntilSec, linkAgePreset, linkAgeFrom, linkAgeUntil, nowSec]
+  );
+
+  // Fetch server-resolved edges for the active server-backed mode. Hops
+  // resolve only against heard contacts, capped at the max link distance and
+  // limited to the link window. Debounced so typing a distance does not fire
+  // one request per key.
+  useEffect(() => {
+    if (!linksOn || linkMode === 'liveness') return;
+    const controller = new AbortController();
+    const opts = {
+      heardOnly: true,
+      maxKm: linkMaxKm,
+      since: linkWindow.since,
+      until: linkWindow.until,
+    };
+    const timer = window.setTimeout(() => {
+      const request =
+        linkMode === 'advert'
+          ? api.getAdvertLinks(controller.signal, opts).then(setAdvertEdges)
+          : api.getTrafficLinks(controller.signal, opts).then(setTrafficEdges);
+      request.catch((err) => {
+        if (!isAbortError(err)) console.error('Map links fetch failed', err);
+      });
+    }, 300);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [linksOn, linkMode, linkMaxKm, linkWindow.since, linkWindow.until]);
 
   const mappableContacts = useMemo(() => {
     const isBlocked = (c: Contact) =>
@@ -1279,6 +1348,39 @@ export function MapView({
     [t]
   );
 
+  const openLinkPopup = useCallback(
+    (info: LinkClickInfo, lngLat: [number, number]) => {
+      const map = mapRef.current;
+      if (!map) return;
+      const selfKey = config?.public_key?.toLowerCase();
+      const nameFor = (pk: string) =>
+        contactByKey.get(pk)?.name ??
+        (selfKey && pk === selfKey ? config?.name : undefined) ??
+        pk.slice(0, 8);
+      linkPopupRef.current?.remove();
+      linkPopupRef.current = new MlPopup({ closeButton: true, offset: 8 })
+        .setLngLat(lngLat)
+        .setDOMContent(
+          buildLinkPopup(info, {
+            t,
+            nameFor,
+            formatTime,
+            onDetails: (a, b) => {
+              linkPopupRef.current?.remove();
+              onOpenLink?.(a, b);
+            },
+          })
+        )
+        .addTo(map);
+    },
+    [config, contactByKey, t, onOpenLink]
+  );
+  // handleReady binds layer listeners once, so clicks read the latest callback.
+  const openLinkPopupRef = useRef(openLinkPopup);
+  useEffect(() => {
+    openLinkPopupRef.current = openLinkPopup;
+  }, [openLinkPopup]);
+
   // Latest map "home view" preference, read at fit time via a ref so the
   // once-on-ready fit sees current values even though appSettings load async.
   const homeSettingsRef = useRef<MapHomeSettings>({
@@ -1414,10 +1516,20 @@ export function MapView({
       links.ensure();
       links.setWidthScale(linkWidthScale);
       linksLayerRef.current = links;
-      const advertLinks = createAdvertLinksLayer(map);
+      const onLinkClick = (info: LinkClickInfo, at: [number, number]) =>
+        openLinkPopupRef.current(info, at);
+      const advertLinks = createAdvertLinksLayer(map, { onClick: onLinkClick });
       advertLinks.ensure();
       advertLinks.setWidthScale(linkWidthScale);
       advertLinksLayerRef.current = advertLinks;
+      const trafficLinks = createAdvertLinksLayer(map, {
+        idPrefix: 'rt-traffic-links',
+        color: '#3fb950',
+        onClick: onLinkClick,
+      });
+      trafficLinks.ensure();
+      trafficLinks.setWidthScale(linkWidthScale);
+      trafficLinksLayerRef.current = trafficLinks;
       paintLinksRef.current();
       fitInitialView(map);
       if (focusedLatLon) {
@@ -1458,6 +1570,7 @@ export function MapView({
     // A basemap setStyle drops custom sources/layers; re-add and re-feed links.
     linksLayerRef.current?.reattach();
     advertLinksLayerRef.current?.reattach();
+    trafficLinksLayerRef.current?.reattach();
     paintLinksRef.current();
     externalRef.current?.reattach();
     externalRef.current?.setData(visibleExternalRef.current);
@@ -1938,6 +2051,19 @@ export function MapView({
         onLinkConfidence={setLinkConfidence}
         linkMaxKm={linkMaxKm}
         onLinkMaxKm={setLinkMaxKm}
+        linkAgePanel={
+          <LinkAgeControl
+            follow={linkAgeFollow}
+            onFollow={setLinkAgeFollow}
+            presets={MAP_SINCE_PRESETS}
+            presetId={linkAgePreset}
+            onPreset={setLinkAgePreset}
+            customFrom={linkAgeFrom}
+            onCustomFrom={setLinkAgeFrom}
+            customUntil={linkAgeUntil}
+            onCustomUntil={setLinkAgeUntil}
+          />
+        }
         telemetryOn={telemetryOn}
         onToggleTelemetry={setTelemetryOn}
         sidebarOpen={sidebarOpen}

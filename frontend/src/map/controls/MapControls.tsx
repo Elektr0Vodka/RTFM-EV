@@ -39,6 +39,8 @@ import {
   CONTACT_TYPE_SENSOR,
 } from '../../types';
 
+export type MapLinkMode = 'liveness' | 'advert' | 'traffic';
+
 export interface FabConfig {
   layers?: boolean;
   legend?: boolean;
@@ -90,8 +92,10 @@ export interface MapControlsProps {
   onLabelMode?: (mode: 'off' | 'name' | 'tag') => void;
   linksOn?: boolean;
   onToggleLinks?: (on: boolean) => void;
-  linkMode?: 'liveness' | 'advert';
-  onLinkMode?: (mode: 'liveness' | 'advert') => void;
+  linkMode?: MapLinkMode;
+  onLinkMode?: (mode: MapLinkMode) => void;
+  /** Link-age control, shown for the server-backed link modes. */
+  linkAgePanel?: ReactNode;
   linkConfidence?: 1 | 2 | 3;
   onLinkConfidence?: (level: 1 | 2 | 3) => void;
   /** Max link length in km; 0 = no limit. */
@@ -270,6 +274,7 @@ export function MapControls(props: MapControlsProps) {
     onToggleLinks,
     linkMode = 'liveness',
     onLinkMode,
+    linkAgePanel,
     linkConfidence = 2,
     onLinkConfidence,
     linkMaxKm = 0,
@@ -520,7 +525,7 @@ export function MapControls(props: MapControlsProps) {
               <span className="text-xs font-medium text-muted-foreground">
                 {t('map_links_mode_label')}
               </span>
-              {(['liveness', 'advert'] as const).map((mode) => (
+              {(['liveness', 'advert', 'traffic'] as const).map((mode) => (
                 <button
                   key={mode}
                   type="button"
@@ -532,12 +537,18 @@ export function MapControls(props: MapControlsProps) {
                   }
                   onClick={() => onLinkMode?.(mode)}
                 >
-                  {mode === 'liveness' ? t('map_links_mode_liveness') : t('map_links_mode_advert')}
+                  {t(
+                    mode === 'liveness'
+                      ? 'map_links_mode_liveness'
+                      : mode === 'advert'
+                        ? 'map_links_mode_advert'
+                        : 'map_links_mode_traffic'
+                  )}
                 </button>
               ))}
             </div>
           )}
-          {linksOn && linkMode === 'advert' && (
+          {linksOn && linkMode !== 'liveness' && (
             <div
               role="radiogroup"
               aria-label={t('map_links_confidence_label')}
@@ -565,6 +576,7 @@ export function MapControls(props: MapControlsProps) {
               ))}
             </div>
           )}
+          {linksOn && linkMode !== 'liveness' && linkAgePanel}
           {linksOn && onLinkMaxKm && (
             <label className="flex flex-col gap-1 text-xs text-muted-foreground">
               <span className="font-medium">{t('map_links_max_km_label')}</span>

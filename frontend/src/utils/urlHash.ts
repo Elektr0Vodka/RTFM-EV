@@ -19,7 +19,8 @@ interface ParsedHashConversation {
     | 'mesh-trends'
     | 'mesh-discovery'
     | 'analyze'
-    | 'packet-history';
+    | 'packet-history'
+    | 'link';
   /** Conversation identity token (channel key or contact public key, or legacy name token) */
   name: string;
   /** Optional human-readable label segment (ignored for identity resolution) */
@@ -93,6 +94,15 @@ export function parseHashConversation(): ParsedHashConversation | null {
 
   if (hash === 'packet-history') {
     return { type: 'packet-history', name: 'packet-history' };
+  }
+
+  // Link detail page: #link/<pubkeyA>/<pubkeyB>
+  if (hash.startsWith('link/')) {
+    const [a, b] = hash.slice('link/'.length).split('/');
+    if (a && b) {
+      return { type: 'link', name: `${decodeURIComponent(a)}~${decodeURIComponent(b)}` };
+    }
+    return null;
   }
 
   // Check for map focused on an arbitrary point: #map/at/<lat>,<lon>
@@ -226,6 +236,10 @@ export function getConversationHash(conv: Conversation | null): string {
   if (conv.type === 'mesh-discovery') return '#mesh-discovery';
   if (conv.type === 'analyze') return '#analyze';
   if (conv.type === 'packet-history') return '#packet-history';
+  if (conv.type === 'link') {
+    const [a, b] = conv.id.split('~');
+    return `#link/${encodeURIComponent(a)}/${encodeURIComponent(b)}`;
+  }
 
   // Use immutable IDs for identity, append readable label for UX.
   if (conv.type === 'channel') {

@@ -1319,7 +1319,7 @@ class SidebarFavoriteSortOrders(BaseModel):
     sensors: str = Field(default="recent")
 
 
-# Retention settings added in migration _105 (0 = keep forever / no cap).
+# Retention settings added in migrations _105 and _107 (0 = keep forever / no cap).
 # Defaults reproduce the pruning behavior from before that migration.
 RETENTION_DEFAULTS: dict[str, int] = {
     "retention_prune_interval_hours": 24,
@@ -1331,6 +1331,7 @@ RETENTION_DEFAULTS: dict[str, int] = {
     "battery_retention_days": 0,
     "airtime_retention_days": 0,
     "message_retention_days": 0,
+    "link_edge_retention_days": 365,
 }
 
 
@@ -1392,6 +1393,10 @@ class AppSettings(BaseModel):
     message_retention_days: int = Field(
         default=0,
         description=("Days of messages to keep (with their linked raw packets); 0 keeps forever"),
+    )
+    link_edge_retention_days: int = Field(
+        default=365,
+        description="Days of per-packet map link history to keep; 0 keeps forever",
     )
     last_message_times: dict[str, int] = Field(
         default_factory=dict,
@@ -1741,6 +1746,71 @@ class AdvertLinkEdge(BaseModel):
     count: int
     last_seen: int
     ambiguous: bool
+
+
+class TrafficLinkEdge(AdvertLinkEdge):
+    """One undirected link from the per-packet edge log, aggregated over a window.
+
+    ``count`` is distinct packets; ``ambiguous`` is True when every sample in
+    the window was a distance-based (nearest) resolution.
+    """
+
+    first_seen: int
+
+
+class LinkEndpoint(BaseModel):
+    pubkey: str
+    name: str | None = None
+    kind: Literal["self", "contact", "external", "unknown"]
+    lat: float | None = None
+    lon: float | None = None
+
+
+class LinkSummary(BaseModel):
+    a: LinkEndpoint
+    b: LinkEndpoint
+    distance_km: float | None = None
+    involves_self: bool
+    total_packets: int
+    first_seen: int | None = None
+    last_seen: int | None = None
+    by_hop_width: dict[str, int]
+    by_confidence: dict[str, int]
+    by_payload_type: dict[str, int]
+
+
+class LinkTrafficPoint(BaseModel):
+    bucket: int
+    payload_type: str
+    count: int
+
+
+class LinkSignalPoint(BaseModel):
+    bucket: int
+    samples: int
+    snr_avg: float | None = None
+    snr_min: float | None = None
+    snr_max: float | None = None
+    rssi_avg: float | None = None
+    rssi_min: int | None = None
+    rssi_max: int | None = None
+
+
+class LinkTimeseries(BaseModel):
+    bucket_seconds: int
+    traffic: list[LinkTrafficPoint]
+    signal: list[LinkSignalPoint]
+
+
+class LinkPacketRow(BaseModel):
+    raw_packet_id: int
+    ts: int
+    payload_type: str | None = None
+    route_type: str | None = None
+    hop_width: int
+    confidence: str
+    snr: float | None = None
+    rssi: int | None = None
 
 
 class BusyChannel(BaseModel):
