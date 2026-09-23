@@ -62,7 +62,7 @@ app/
 ├── region_scope.py      # Normalize/validate regional flood-scope values
 ├── region_resolver.py   # Recompute transport codes per known region to name a packet's region
 ├── keystore.py          # Ephemeral private/public key storage for DM decryption
-├── frontend_static.py   # Mount/serve built frontend (production)
+├── frontend_static.py   # Mount/serve built frontend (production); applies brand_name to index.html title + site.webmanifest
 └── routers/
     ├── health.py
     ├── debug.py
@@ -483,7 +483,7 @@ Repository writes should prefer typed models such as `ContactUpsert` over ad hoc
 - `show_mention_ticker`, `mention_sound_enabled`, `mention_sound_choice`, `mention_sound_volume`, `mention_sound_custom`
 - `chat_parse_pubkeys`, `chat_parse_coordinates`, `chat_url_previews`, `chat_linkify_urls` (chat entity parsing)
 - `backup_to_path_enabled`, `backup_destination_path` (server-side database backup)
-- `brand_name`, `brand_hidden`, `brand_icon` (navbar branding)
+- `brand_name`, `brand_hidden`, `brand_icon` (navbar, browser tab title/favicon, PWA manifest name; default name "RTFM-EV")
 - `openhop_api_url`, `openhop_api_token` (OpenHop REST API; the token is write-only and masked on read)
 
 A new `AppSettings` field needs the repository, the router's separate `AppSettingsUpdate` model and its kwargs, a migration, and the inline `AppSettings` test fixtures updated together.

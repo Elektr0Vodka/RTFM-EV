@@ -523,7 +523,7 @@ class AppSettingsUpdate(BaseModel):
     )
     brand_name: str | None = Field(
         default=None,
-        description="Custom navbar wordmark (empty falls back to 'RemoteTerm')",
+        description="Custom navbar wordmark (empty falls back to 'RTFM-EV')",
     )
     brand_hidden: bool | None = Field(
         default=None,
