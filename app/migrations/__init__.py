@@ -43,15 +43,29 @@ async def run_migrations(conn: aiosqlite.Connection) -> int:
     version = await get_version(conn)
     applied = 0
 
+    migrations: list[tuple[int, str]] = []
     for module_info in sorted(pkgutil.iter_modules(__path__), key=lambda m: m.name):
         match = re.match(r"_(\d+)_", module_info.name)
-        if not match:
-            continue
-        num = int(match.group(1))
+        if match:
+            migrations.append((int(match.group(1)), module_info.name))
+
+    latest_known = max((num for num, _ in migrations), default=0)
+    if version > latest_known:
+        # Written by a newer build (downgrade, or a restored backup from a newer
+        # version). Nothing to apply, but queries here may not match that schema.
+        logger.warning(
+            "Database schema version %d is newer than this build supports (%d). "
+            "It was written by a newer version; some features may misbehave. "
+            "Upgrade the app or restore a backup made with this version.",
+            version,
+            latest_known,
+        )
+
+    for num, module_name in migrations:
         if num <= version:
             continue
-        logger.info("Applying migration %d: %s", num, module_info.name)
-        mod = importlib.import_module(f"{__name__}.{module_info.name}")
+        logger.info("Applying migration %d: %s", num, module_name)
+        mod = importlib.import_module(f"{__name__}.{module_name}")
         await mod.migrate(conn)
         await set_version(conn, num)
         applied += 1

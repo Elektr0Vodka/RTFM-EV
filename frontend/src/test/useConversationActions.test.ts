@@ -6,6 +6,7 @@ import type { Channel, Contact, Conversation, Message, PathDiscoveryResponse } f
 
 const mocks = vi.hoisted(() => ({
   api: {
+    reactToMessage: vi.fn(),
     requestPathDiscovery: vi.fn(),
     requestTrace: vi.fn(),
     resendChannelMessage: vi.fn(),
@@ -239,5 +240,51 @@ describe('useConversationActions', () => {
     expect(setContacts).toHaveBeenCalledTimes(1);
     const updater = setContacts.mock.calls[0][0] as (contacts: Contact[]) => Contact[];
     expect(updater([])).toEqual([discoveredContact]);
+  });
+});
+
+describe('useConversationActions reactions and replies', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('sends a reaction and adds it to the active conversation', async () => {
+    const reaction = { ...sentMessage, id: 77, text: 'Radio: @[Bob]👍\n3eykm5rn' };
+    mocks.api.reactToMessage.mockResolvedValue(reaction);
+    const args = createArgs();
+    const { result } = renderHook(() => useConversationActions(args));
+
+    await act(async () => {
+      await result.current.handleReactToMessage(42, '👍');
+    });
+
+    expect(mocks.api.reactToMessage).toHaveBeenCalledWith(42, '👍');
+    expect(args.observeMessage).toHaveBeenCalledWith(reaction);
+  });
+
+  it('shows an error toast when sending a reaction fails', async () => {
+    mocks.api.reactToMessage.mockRejectedValue(new Error('radio busy'));
+    const args = createArgs();
+    const { result } = renderHook(() => useConversationActions(args));
+
+    await act(async () => {
+      await result.current.handleReactToMessage(42, '👍');
+    });
+
+    expect(mocks.toast.error).toHaveBeenCalled();
+  });
+
+  it('prefills a channel reply with the sender mention and a quote', () => {
+    const appendText = vi.fn();
+    const args = createArgs({
+      messageInputRef: { current: { appendText, focus: vi.fn() } },
+    });
+    const { result } = renderHook(() => useConversationActions(args));
+
+    act(() => {
+      result.current.handleReplyToMessage({ ...sentMessage, text: 'Bob: hello mesh' });
+    });
+
+    expect(appendText).toHaveBeenCalledWith('@[Bob]\n>hello mesh\n');
   });
 });

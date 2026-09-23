@@ -150,6 +150,24 @@ describe('MessageInput', () => {
     });
   });
 
+  describe('channel repeat-visibility zone', () => {
+    // "MyNode: " is 8 bytes. Composed text over 139 bytes needs a 10th AES
+    // block, so the radio's RX log (176-byte frame) drops its repeats.
+    it('stays in the plain warning zone at 139 composed bytes', () => {
+      renderInput({ conversationType: 'channel', senderName: 'MyNode' });
+      fireEvent.change(getInput(), { target: { value: 'x'.repeat(131) } });
+      expect(screen.queryAllByText(/repeats of this message may not show up/)).toHaveLength(0);
+    });
+
+    it('warns that repeats may not show from 140 composed bytes', () => {
+      renderInput({ conversationType: 'channel', senderName: 'MyNode' });
+      fireEvent.change(getInput(), { target: { value: 'x'.repeat(132) } });
+      expect(screen.getAllByText(/repeats of this message may not show up/).length).toBeGreaterThan(
+        0
+      );
+    });
+  });
+
   describe('warning states', () => {
     it('shows warning text when exceeding DM warning threshold', () => {
       renderInput({ conversationType: 'contact' });

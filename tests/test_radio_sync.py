@@ -2107,6 +2107,46 @@ class TestCollectRepeaterTelemetryLpp:
         assert recorded_data["lpp_sensors"][1]["type_name"] == "humidity"
 
     @pytest.mark.asyncio
+    async def test_room_server_status_uses_room_layout(self):
+        """A tracked room server's 52-byte status carries post counters, not RX airtime."""
+        from app.radio_sync import _collect_repeater_telemetry
+
+        mc = MagicMock()
+        mc.commands.add_contact = AsyncMock()
+        mc.commands.req_status_sync = AsyncMock(
+            return_value={"bat": 4100, "rx_airtime": (3 << 16) | 12, "recv_errors": None}
+        )
+        mc.commands.req_telemetry_sync = AsyncMock(return_value=None)
+
+        contact = MagicMock()
+        contact.public_key = "aabbccddeeff11223344"
+        contact.name = "TestRoom"
+        contact.type = 3
+        contact.to_radio_dict.return_value = {}
+
+        recorded_data = {}
+
+        async def mock_record(public_key, timestamp, data):
+            recorded_data.update(data)
+
+        mock_fanout = MagicMock()
+        mock_fanout.broadcast_telemetry = AsyncMock()
+
+        with (
+            patch(
+                "app.radio_sync.RepeaterTelemetryRepository.record",
+                new_callable=AsyncMock,
+                side_effect=mock_record,
+            ),
+            patch("app.fanout.manager.fanout_manager", mock_fanout),
+        ):
+            assert await _collect_repeater_telemetry(mc, contact) is True
+
+        assert recorded_data["rx_airtime_seconds"] is None
+        assert recorded_data["room_posted"] == 12
+        assert recorded_data["room_post_pushes"] == 3
+
+    @pytest.mark.asyncio
     async def test_lpp_failure_does_not_fail_collection(self):
         from app.radio_sync import _collect_repeater_telemetry
 

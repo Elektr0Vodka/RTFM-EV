@@ -524,6 +524,8 @@ export function App() {
   const {
     handleSendMessage,
     handleResendChannelMessage,
+    handleReactToMessage,
+    handleReplyToMessage,
     handleSetChannelFloodScopeOverride,
     handleSetChannelPathHashModeOverride,
     handleSenderClick,
@@ -704,6 +706,9 @@ export function App() {
           )
         : undefined,
     onNavigateToUnread: (messageId: number) => setTargetMessageId(messageId),
+    onJumpToMessage: (messageId: number) => setTargetMessageId(messageId),
+    onReactToMessage: handleReactToMessage,
+    onReplyToMessage: handleReplyToMessage,
     targetMessageId,
     hasNewerMessages,
     loadingNewer,

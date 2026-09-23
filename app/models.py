@@ -513,6 +513,32 @@ class MessagesAroundResponse(BaseModel):
     has_newer: bool
 
 
+class ReactRequest(BaseModel):
+    """React to a stored message with one emoji."""
+
+    emoji: str = Field(min_length=1, max_length=16, description="A single emoji")
+
+
+class ReactionTargetResponse(BaseModel):
+    """The message an emoji reaction points at."""
+
+    dialect: Literal["hash", "open_v3", "open_v1"] = Field(
+        description="hash: @[Name]emoji + 8-char hash line; open_v3/open_v1: meshcore-open r: forms"
+    )
+    emoji: str | None = Field(
+        default=None, description="Reaction emoji; None for open_v3 (the client decodes the index)"
+    )
+    target_hash: str | None = Field(
+        default=None, description="Hash naming the target (None for open_v1, which hashes fields)"
+    )
+    target_sender: str | None = Field(
+        default=None, description="Sender name the channel reaction names"
+    )
+    target: Message | None = Field(
+        default=None, description="Matched message, or None when it was never received"
+    )
+
+
 class ResendChannelMessageResponse(BaseModel):
     status: str
     message_id: int
@@ -636,7 +662,9 @@ class RepeaterStatusResponse(BaseModel):
     packets_received: int = Field(description="Total packets received")
     packets_sent: int = Field(description="Total packets sent")
     airtime_seconds: int = Field(description="TX airtime in seconds")
-    rx_airtime_seconds: int = Field(description="RX airtime in seconds")
+    rx_airtime_seconds: int | None = Field(
+        description="RX airtime in seconds (None for room firmware, which does not report it)"
+    )
     uptime_seconds: int = Field(description="Uptime in seconds")
     sent_flood: int = Field(description="Flood packets sent")
     sent_direct: int = Field(description="Direct packets sent")
@@ -646,6 +674,12 @@ class RepeaterStatusResponse(BaseModel):
     direct_dups: int = Field(description="Duplicate direct packets")
     full_events: int = Field(description="Full event queue count")
     recv_errors: int | None = Field(default=None, description="Radio-level RX packet errors")
+    room_posted: int | None = Field(
+        default=None, description="Room server: messages posted (room firmware only)"
+    )
+    room_post_pushes: int | None = Field(
+        default=None, description="Room server: posts pushed to members (room firmware only)"
+    )
     telemetry_history: list[TelemetryHistoryEntry] = Field(
         default_factory=list, description="Recent telemetry history snapshots"
     )

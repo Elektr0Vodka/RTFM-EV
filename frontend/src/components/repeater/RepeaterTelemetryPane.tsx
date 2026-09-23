@@ -32,7 +32,10 @@ export function TelemetryPane({
 }) {
   const t = useT();
   const txPct = data ? formatAirtimePercent(data.airtime_seconds, data.uptime_seconds) : null;
-  const rxPct = data ? formatAirtimePercent(data.rx_airtime_seconds, data.uptime_seconds) : null;
+  const rxPct =
+    data && data.rx_airtime_seconds != null
+      ? formatAirtimePercent(data.rx_airtime_seconds, data.uptime_seconds)
+      : null;
   const rxPerMin = data ? formatPerMinute(data.packets_received, data.uptime_seconds) : null;
   const txPerMin = data ? formatPerMinute(data.packets_sent, data.uptime_seconds) : null;
 
@@ -58,15 +61,26 @@ export function TelemetryPane({
               </>
             }
           />
-          <KvRow
-            label={t('repeater_rx_airtime_label')}
-            value={
-              <>
-                {formatDuration(data.rx_airtime_seconds)}
-                {rxPct && <Secondary>({rxPct})</Secondary>}
-              </>
-            }
-          />
+          {data.rx_airtime_seconds != null && (
+            <KvRow
+              label={t('repeater_rx_airtime_label')}
+              value={
+                <>
+                  {formatDuration(data.rx_airtime_seconds)}
+                  {rxPct && <Secondary>({rxPct})</Secondary>}
+                </>
+              }
+            />
+          )}
+          {data.room_posted != null && (
+            <KvRow label={t('room_posted_label')} value={data.room_posted.toLocaleString()} />
+          )}
+          {data.room_post_pushes != null && (
+            <KvRow
+              label={t('room_post_pushes_label')}
+              value={data.room_post_pushes.toLocaleString()}
+            />
+          )}
           <Separator className="my-1" />
           <KvRow label={t('repeater_noise_floor_label')} value={`${data.noise_floor_dbm} dBm`} />
           <KvRow label={t('repeater_last_rssi_label')} value={`${data.last_rssi_dbm} dBm`} />

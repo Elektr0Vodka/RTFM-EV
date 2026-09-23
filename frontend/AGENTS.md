@@ -115,7 +115,7 @@ frontend/src/
 │   ├── StatusBar.tsx
 │   ├── Sidebar.tsx
 │   ├── ChatHeader.tsx          # Conversation header (trace, favorite, delete)
-│   ├── MessageList.tsx        # Message rows; #hashtag refs styled by state (followed/known/unknown) with an inline "+" to capture unknowns into the registry (auto-capture via app_settings.auto_add_mentioned_channels)
+│   ├── MessageList.tsx        # Message rows; #hashtag refs styled by state (followed/known/unknown) with an inline "+" to capture unknowns into the registry (auto-capture via app_settings.auto_add_mentioned_channels); hover React/Reply (MessageRowActions) and reaction-target links (ReactionTargetLink)
 │   ├── MessageInput.tsx
 │   ├── NewMessageModal.tsx
 │   ├── SearchView.tsx          # Full-text message search pane
@@ -628,7 +628,7 @@ PYTHONPATH=. uv run pytest tests/ -v
 
 ### Contacts use mention styling for unread DMs
 
-This is intentional. In the sidebar, unread direct messages for actual contact conversations are treated as mention-equivalent for badge styling. That means both the Contacts section header and contact unread badges themselves use the highlighted mention-style colors for unread DMs, including when those contacts appear in Favorites. Repeaters do not inherit this rule, and channel badges still use mention styling only for real `@[name]` mentions.
+This is intentional. In the sidebar, unread direct messages for actual contact conversations are treated as mention-equivalent for badge styling. That means both the Contacts section header and contact unread badges themselves use the highlighted mention-style colors for unread DMs, including when those contacts appear in Favorites. Repeaters do not inherit this rule, and channel badges still use mention styling only for real `@[name]` mentions. Reactions are not mentions even though a channel reaction names its target (`@[Name]👍` plus a hash line): `messageContainsMention` skips them via `isReactionPayload`, and the backend unread query does the same through the `is_reaction_text` SQL function (`app/reaction_payloads.py`).
 
 ### RawPacketList autoscroll, pause, and fold
 

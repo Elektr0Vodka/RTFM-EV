@@ -881,24 +881,24 @@ class TestEventHandlerRegistration:
 
         register_event_handlers(mock_meshcore)
 
-        # Should have 5 subscriptions (one per event type)
-        assert len(_active_subscriptions) == 5
-        assert mock_meshcore.subscribe.call_count == 5
+        # Should have 6 subscriptions (one per event type)
+        assert len(_active_subscriptions) == 6
+        assert mock_meshcore.subscribe.call_count == 6
 
     def test_register_handlers_twice_does_not_duplicate(self):
         """Calling register_event_handlers twice unsubscribes old handlers first."""
         mock_meshcore = MagicMock()
 
         # First call: create mock subscriptions
-        first_subs = [MagicMock() for _ in range(5)]
+        first_subs = [MagicMock() for _ in range(6)]
         mock_meshcore.subscribe.side_effect = first_subs
         register_event_handlers(mock_meshcore)
 
-        assert len(_active_subscriptions) == 5
+        assert len(_active_subscriptions) == 6
         first_sub_objects = list(_active_subscriptions)
 
         # Second call: create new mock subscriptions
-        second_subs = [MagicMock() for _ in range(5)]
+        second_subs = [MagicMock() for _ in range(6)]
         mock_meshcore.subscribe.side_effect = second_subs
         register_event_handlers(mock_meshcore)
 
@@ -906,8 +906,8 @@ class TestEventHandlerRegistration:
         for sub in first_sub_objects:
             sub.unsubscribe.assert_called_once()
 
-        # Should still have exactly 5 subscriptions (not 10)
-        assert len(_active_subscriptions) == 5
+        # Should still have exactly 6 subscriptions (not 12)
+        assert len(_active_subscriptions) == 6
 
         # New subscriptions should be the second batch
         for sub in second_subs:
@@ -928,8 +928,8 @@ class TestEventHandlerRegistration:
         # Stale subscriptions should have been unsubscribed
         assert stale_sub.unsubscribe.call_count == 2
 
-        # Should have exactly 5 fresh subscriptions
-        assert len(_active_subscriptions) == 5
+        # Should have exactly 6 fresh subscriptions
+        assert len(_active_subscriptions) == 6
 
     def test_register_handlers_survives_unsubscribe_exception(self):
         """If unsubscribe() throws, registration still completes successfully."""
@@ -951,8 +951,51 @@ class TestEventHandlerRegistration:
         bad_sub.unsubscribe.assert_called_once()
         good_sub.unsubscribe.assert_called_once()
 
-        # Should have exactly 5 fresh subscriptions
-        assert len(_active_subscriptions) == 5
+        # Should have exactly 6 fresh subscriptions
+        assert len(_active_subscriptions) == 6
+
+
+class TestOnContactDeleted:
+    """With overwrite-oldest on, the radio evicts contacts itself and pushes 0x8F.
+
+    The library never prunes its contact cache on that push, so without this
+    handler get_contact_by_key_prefix() keeps finding the evicted contact and
+    the reload path skips add_contact().
+    """
+
+    def _registered_callback(self, mock_meshcore, event_type):
+        for call in mock_meshcore.subscribe.call_args_list:
+            if call.args[0] == event_type:
+                return call.args[1]
+        raise AssertionError(f"no subscription for {event_type}")
+
+    def test_evicts_contact_from_library_cache(self):
+        from meshcore import EventType
+
+        key = "ab" * 32
+        other = "cd" * 32
+        mock_meshcore = MagicMock()
+        mock_meshcore._contacts = {key: {"public_key": key}, other: {"public_key": other}}
+
+        register_event_handlers(mock_meshcore)
+        callback = self._registered_callback(mock_meshcore, EventType.CONTACT_DELETED)
+        callback(MagicMock(payload={"pubkey": key.upper()}))
+
+        assert key not in mock_meshcore._contacts
+        assert other in mock_meshcore._contacts
+
+    def test_unknown_or_missing_key_is_ignored(self):
+        from meshcore import EventType
+
+        mock_meshcore = MagicMock()
+        mock_meshcore._contacts = {"ab" * 32: {}}
+
+        register_event_handlers(mock_meshcore)
+        callback = self._registered_callback(mock_meshcore, EventType.CONTACT_DELETED)
+        callback(MagicMock(payload={}))
+        callback(MagicMock(payload={"pubkey": "ef" * 32}))
+
+        assert list(mock_meshcore._contacts) == ["ab" * 32]
 
 
 class TestOnPathUpdate:

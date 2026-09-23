@@ -152,6 +152,7 @@ without going through `assert_public_http_url`.
 - DM retry timing follows the firmware-provided `suggested_timeout` from `PACKET_MSG_SENT`; do not replace it with a fixed app timeout unless you intentionally want more aggressive duplicate-prone retries.
 - Direct-message send behavior is intended to emulate `meshcore_py.commands.send_msg_with_retry(...)` when the radio provides an expected ACK code: stage the effective contact route on the radio, send, wait for ACK, and on the final retry force flood via `reset_path(...)`.
 - Non-final DM attempts use the contact's effective route (`override > direct > flood`). The final retry is intentionally sent as flood even when a routing override exists.
+- Outgoing DM sender timestamps are made unique per *text across all recipients* (`allocate_outgoing_sender_timestamp`): the firmware ACK code is sha256(timestamp, attempt, text, sender pubkey) and does not include the recipient, so the same text to two contacts in the same second would otherwise share an ACK code. Channel timestamps stay unique per channel.
 - DM ACK state is terminal on first ACK. Retry attempts may register multiple expected ACK codes for the same message, but sibling pending codes are cleared once one ACK wins so a DM should not accrue multiple delivery confirmations from retries.
 - ACKs are delivery state, not routing state. Bundled ACKs inside PATH packets still satisfy pending DM sends, but ACK history does not feed contact route learning.
 - DM ACKs are matched from two independent radio emissions, so confirmation does not depend on the radio surfacing a host control frame: (1) the `EventType.ACK`/`SEND_CONFIRMED` host frame via `event_handlers.on_ack`, and (2) the raw RF packet itself via `packet_processor.process_raw_packet`. The packet processor extracts ACK codes both from PATH-return packets (flood replies, ACK embedded in `extra`) and from standalone `PayloadType.ACK` packets (direct replies, 4-byte cleartext payload), feeding both into `apply_dm_ack_code`. This matters for companion firmwares (e.g. pyMC over TCP) that do not reliably emit a separate host ACK frame for direct-routed replies.
@@ -170,6 +171,11 @@ Escalating is still correct because the **server** side treats an inbound flood 
 Escalation is bounded to one extra attempt and only fires when:
 - the first attempt **timed out**. `LOGIN_FAILED` means the server heard us and refused, so the route is fine and retrying only hammers it with bad credentials; a send error is a local radio problem a different route will not fix.
 - the contact was **not already on flood** (`effective_route_source != "flood"`), since the retry would otherwise be byte-identical.
+
+### Remote CLI reply correlation and redaction
+
+- Every remote CLI command of 2+ characters is sent with a rotating `XX|` tag (two uppercase hex digits). Repeater/room `CommonCLI` (since Feb 2025) and OpenHop strip it and reflect it at the start of the reply. `fetch_contact_cli_response(expected_tag=...)` drops a reply that echoes a *different* tag (a late answer to an earlier command) and keeps waiting; untagged replies are still accepted for firmware without the echo. `extract_response_text` strips the tag before the `> ` prefix.
+- CLI commands and replies are logged through `app/log_redaction.py`: `password <pw>`, `set guest.password <pw>` and `set prv.key <hex>` are masked, and the reply to any command that reads or sets one of those secrets is logged as `***` (the firmware echoes the new admin password back). A filter on the `meshcore` logger masks the library's own `send_cmd` debug line. The API response itself is not redacted.
 
 The retry deliberately does not re-run `_ensure_on_radio` - re-adding the contact would restore the route just cleared. `reset_path` clears the route on the radio only; the stored contact route is untouched, so the next `add_contact` re-stages it. That mirrors the DM retry and keeps one bad login from discarding a route that may be fine.
 
@@ -290,7 +296,7 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `POST /contacts/{public_key}/telemetry` - on-demand CayenneLPP telemetry from any contact (persists in `contact_telemetry_history`)
 - `GET /contacts/{public_key}/telemetry-history` - stored LPP telemetry history for a contact (read-only)
 - `POST /contacts/{public_key}/room/login` - one attempt on the effective route, then one flood retry on timeout
-- `POST /contacts/{public_key}/room/status`
+- `POST /contacts/{public_key}/room/status` - room firmware's 52-byte status ends with `n_posted`/`n_post_push` (uint16 each) where repeaters have RX airtime; these map to `room_posted`/`room_post_pushes` and `rx_airtime_seconds` is null (`services/room_status.py`). A 56-byte frame (e.g. OpenHop) keeps the repeater layout
 - `POST /contacts/{public_key}/room/lpp-telemetry`
 - `POST /contacts/{public_key}/room/acl`
 
@@ -310,6 +316,12 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `POST /messages/direct`
 - `POST /messages/channel`
 - `POST /messages/channel/{message_id}/resend`
+- `GET /messages/{message_id}/reaction-target` - resolve an emoji reaction to the message it reacts to: same conversation, up to 7 days before (`app/reaction_payloads.py`). Dialects:
+  - `@[Name]emoji\nhash` / `emoji\nhash`: SHA-256 of the target's body (without `Sender: `) + its sender timestamp (LE uint32), first 5 bytes as Crockford Base32. Checked against real traffic and a known-answer vector.
+  - meshcore-open `r:<hash>:<index>`: Dart `String.hashCode & 0xFFFF` of `<ts><sender name><first 5 UTF-16 units of body>` (sender name left out for 1:1 DMs). Only 16 bits, so the newest match wins. The Dart hash is ported from the Dart SDK source; there is no real-traffic vector yet.
+  - meshcore-open v1 `r:<millis>_<nameHash>_<textHash>:<emoji>` (clients before 2026-01-29): full Dart hashes of the sender name and body.
+  - A target with a leading `@[Name] ` reply prefix is also tried with it stripped (meshcore-open hashes replies that way). `target` is null when it was never received; 400 for non-reactions
+- `POST /messages/{message_id}/react` - body `{emoji}`; sends a reaction in that same wire format through the normal channel/DM send path (so it is stored, echo-tracked and shown like any sent message). 400 for non-emoji, a reaction target, or a channel row without a sender
 
 ### Packets
 - `GET /packets/undecrypted/count`

@@ -149,6 +149,49 @@ class TestRoomStatus:
         assert response.packets_received == 80
         assert response.recv_direct == 73
         assert response.recv_errors == 7
+        # A 56-byte frame (repeater layout, e.g. OpenHop) keeps RX airtime.
+        assert response.rx_airtime_seconds == 240
+        assert response.room_posted is None
+
+    @pytest.mark.asyncio
+    async def test_room_firmware_status_maps_post_counters_not_rx_airtime(self, test_db):
+        """Room firmware's 52-byte ServerStats ends with uint16 n_posted and
+        uint16 n_post_push where the repeater frame has a uint32 RX airtime; the
+        library still decodes those 4 bytes as ``rx_airtime`` (little-endian)."""
+        mc = _mock_mc()
+        await _insert_contact(ROOM_KEY, name="Room Server", contact_type=3)
+        mc.commands.req_status_sync = AsyncMock(
+            return_value={
+                "bat": 4025,
+                "tx_queue_len": 0,
+                "noise_floor": -118,
+                "last_rssi": -82,
+                "last_snr": 6.0,
+                "nb_recv": 80,
+                "nb_sent": 40,
+                "airtime": 120,
+                "rx_airtime": (3 << 16) | 12,  # n_post_push=3, n_posted=12
+                "uptime": 600,
+                "sent_flood": 5,
+                "sent_direct": 35,
+                "recv_flood": 7,
+                "recv_direct": 73,
+                "flood_dups": 2,
+                "direct_dups": 1,
+                "full_evts": 0,
+                "recv_errors": None,  # 52-byte frame: no n_recv_errors
+            }
+        )
+
+        with (
+            patch("app.routers.rooms.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+        ):
+            response = await room_status(ROOM_KEY)
+
+        assert response.rx_airtime_seconds is None
+        assert response.room_posted == 12
+        assert response.room_post_pushes == 3
 
     @pytest.mark.asyncio
     async def test_room_status_timeout_returns_422(self, test_db):

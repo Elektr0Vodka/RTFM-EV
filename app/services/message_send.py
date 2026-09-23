@@ -69,6 +69,17 @@ _outgoing_timestamp_reservations_lock = asyncio.Lock()
 DM_SEND_MAX_ATTEMPTS = 3
 DEFAULT_DM_ACK_TIMEOUT_MS = 10000
 DM_RETRY_WAIT_MARGIN = 1.2
+# How far back to look for a same-text DM to another contact when picking a
+# timestamp. Only DMs whose ACK can still arrive matter; retries finish well
+# inside this window.
+DM_ACK_COLLISION_WINDOW_SECONDS = 600
+
+
+def _outgoing_reservation_key(
+    msg_type: str, conversation_key: str, text: str
+) -> OutgoingReservationKey:
+    # DM ACK codes ignore the recipient, so DM reservations are shared across contacts.
+    return (msg_type, "" if msg_type == "PRIV" else conversation_key, text)
 
 
 async def allocate_outgoing_sender_timestamp(
@@ -79,8 +90,14 @@ async def allocate_outgoing_sender_timestamp(
     text: str,
     requested_timestamp: int,
 ) -> int:
-    """Pick a sender timestamp that will not collide with an existing stored message."""
-    reservation_key = (msg_type, conversation_key, text)
+    """Pick a sender timestamp that will not collide with an existing stored message.
+
+    DMs are checked across all recipients: the firmware ACK code is
+    sha256(timestamp, attempt, text, sender pubkey) and does not include the
+    recipient, so the same text sent to two contacts in the same second would
+    otherwise share an ACK code.
+    """
+    reservation_key = _outgoing_reservation_key(msg_type, conversation_key, text)
     candidate = requested_timestamp
     while True:
         async with _outgoing_timestamp_reservations_lock:
@@ -98,6 +115,11 @@ async def allocate_outgoing_sender_timestamp(
             sender_timestamp=candidate,
         )
         if existing is not None:
+            candidate += 1
+            continue
+        if msg_type == "PRIV" and await message_repository.has_recent_outgoing_dm(
+            text, candidate, DM_ACK_COLLISION_WINDOW_SECONDS
+        ):
             candidate += 1
             continue
 
@@ -128,7 +150,7 @@ async def release_outgoing_sender_timestamp(
     text: str,
     sender_timestamp: int,
 ) -> None:
-    reservation_key = (msg_type, conversation_key, text)
+    reservation_key = _outgoing_reservation_key(msg_type, conversation_key, text)
     async with _outgoing_timestamp_reservations_lock:
         reserved = _pending_outgoing_timestamp_reservations.get(reservation_key)
         if not reserved:

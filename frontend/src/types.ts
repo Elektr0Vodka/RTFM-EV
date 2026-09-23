@@ -439,6 +439,18 @@ export interface MessagesAroundResponse {
   has_newer: boolean;
 }
 
+/** GET /messages/{id}/reaction-target: the message a reaction points at. */
+export interface ReactionTargetResponse {
+  dialect?: 'hash' | 'open_v3' | 'open_v1';
+  /** null for meshcore-open r:<hash>:<index> (the client decodes the index). */
+  emoji: string | null;
+  /** null for meshcore-open v1, which hashes fields instead. */
+  target_hash: string | null;
+  target_sender: string | null;
+  /** null when the target message was never received here. */
+  target: Message | null;
+}
+
 export interface ResendChannelMessageResponse {
   status: string;
   message_id: number;
@@ -987,7 +999,8 @@ export interface RepeaterStatusResponse {
   packets_received: number;
   packets_sent: number;
   airtime_seconds: number;
-  rx_airtime_seconds: number;
+  /** null for room firmware, which reports post counters instead. */
+  rx_airtime_seconds: number | null;
   uptime_seconds: number;
   sent_flood: number;
   sent_direct: number;
@@ -997,6 +1010,9 @@ export interface RepeaterStatusResponse {
   direct_dups: number;
   full_events: number;
   recv_errors: number | null;
+  /** Room firmware only: messages posted / posts pushed to members. */
+  room_posted?: number | null;
+  room_post_pushes?: number | null;
   telemetry_history: TelemetryHistoryEntry[];
 }
 

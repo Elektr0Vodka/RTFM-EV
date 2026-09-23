@@ -3,8 +3,11 @@ import { api } from '../api';
 import { toast } from '../components/ui/sonner';
 import type { MessageInputHandle } from '../components/MessageInput';
 import type { Channel, Contact, Conversation, Message, PathDiscoveryResponse } from '../types';
+import { useT } from '../i18n';
 import { mergeContactIntoList } from '../utils/contactMerge';
 import { buildMarkerPayload } from '../utils/meshcoreOpenPayloads';
+import { parseSenderFromText } from '../utils/messageParser';
+import { buildReplyText } from '../utils/replyText';
 
 interface UseConversationActionsArgs {
   activeConversation: Conversation | null;
@@ -27,6 +30,8 @@ interface UseConversationActionsResult {
     pathHashModeOverride: number | null
   ) => Promise<void>;
   handleSenderClick: (sender: string) => void;
+  handleReactToMessage: (messageId: number, emoji: string) => Promise<void>;
+  handleReplyToMessage: (message: Message) => void;
   handleInsertLocation: (lat: number, lon: number, label: string) => void;
   handleTrace: () => Promise<void>;
   handlePathDiscovery: (publicKey: string) => Promise<PathDiscoveryResponse>;
@@ -40,6 +45,7 @@ export function useConversationActions({
   observeMessage,
   messageInputRef,
 }: UseConversationActionsArgs): UseConversationActionsResult {
+  const t = useT();
   const mergeChannelIntoList = useCallback(
     (updated: Channel) => {
       setChannels((prev) => {
@@ -138,6 +144,35 @@ export function useConversationActions({
     [messageInputRef]
   );
 
+  const handleReactToMessage = useCallback(
+    async (messageId: number, emoji: string) => {
+      try {
+        const sent = await api.reactToMessage(messageId, emoji);
+        if (activeConversationRef.current?.id === sent.conversation_key) {
+          observeMessage(sent);
+        }
+      } catch (err) {
+        toast.error(t('chat_reaction_send_failed'), {
+          description: err instanceof Error ? err.message : undefined,
+        });
+      }
+    },
+    [activeConversationRef, observeMessage, t]
+  );
+
+  const handleReplyToMessage = useCallback(
+    (message: Message) => {
+      // Channels mention the original sender; DMs mention the contact, as other clients do.
+      const parsed = parseSenderFromText(message.text);
+      const isChannel = message.type === 'CHAN';
+      const mentionName = isChannel ? parsed.sender : activeConversationRef.current?.name;
+      if (!mentionName) return;
+      const body = isChannel ? parsed.content : message.text;
+      messageInputRef.current?.appendText(buildReplyText(mentionName, body));
+    },
+    [activeConversationRef, messageInputRef]
+  );
+
   const handleInsertLocation = useCallback(
     (lat: number, lon: number, label: string) => {
       messageInputRef.current?.appendText(`${buildMarkerPayload(lat, lon, label)} `);
@@ -177,6 +212,8 @@ export function useConversationActions({
     handleSetChannelFloodScopeOverride,
     handleSetChannelPathHashModeOverride,
     handleSenderClick,
+    handleReactToMessage,
+    handleReplyToMessage,
     handleInsertLocation,
     handleTrace,
     handlePathDiscovery,

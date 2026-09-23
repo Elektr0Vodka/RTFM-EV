@@ -66,6 +66,19 @@ def _build_payload(data: dict) -> str:
     )
 
 
+def _is_blocked(data: dict, blocked_keys: list[str], blocked_names: list[str]) -> bool:
+    """Same rule as the frontend's isMessageBlocked and the unread-count query."""
+    if blocked_keys:
+        keys = {k.lower() for k in blocked_keys}
+        if data.get("type") == "PRIV" and str(data.get("conversation_key", "")).lower() in keys:
+            return True
+        sender_key = data.get("sender_key")
+        if data.get("type") == "CHAN" and sender_key and str(sender_key).lower() in keys:
+            return True
+    sender_name = data.get("sender_name")
+    return bool(blocked_names and sender_name and sender_name in blocked_names)
+
+
 def _subscription_info(sub: dict) -> dict:
     """Build the subscription_info dict that pywebpush expects."""
     return {
@@ -101,6 +114,14 @@ class PushManager:
 
         if state_key not in push_conversations:
             return
+
+        # Skip blocked senders (contacts and channel sender names)
+        try:
+            settings = await AppSettingsRepository.get()
+            if _is_blocked(data, settings.blocked_keys, settings.blocked_names):
+                return
+        except Exception:
+            logger.debug("Push dispatch: failed to check block lists", exc_info=True)
 
         # Skip muted channels
         if data.get("type") == "CHAN" and data.get("conversation_key"):

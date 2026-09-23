@@ -622,6 +622,25 @@ class MessageRepository:
         return MessageRepository._row_to_message(row)
 
     @staticmethod
+    async def get_conversation_window(
+        msg_type: str,
+        conversation_key: str,
+        since: int,
+        until: int,
+        exclude_id: int | None = None,
+    ) -> list["Message"]:
+        """Messages of one conversation received in [since, until], newest first."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                f"SELECT {MessageRepository._message_select('messages')} FROM messages "
+                "WHERE type = ? AND conversation_key = ? AND received_at BETWEEN ? AND ? "
+                "AND id IS NOT ? ORDER BY received_at DESC, id DESC",
+                (msg_type, conversation_key, since, until, exclude_id),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [MessageRepository._row_to_message(row) for row in rows]
+
+    @staticmethod
     async def delete_by_id(message_id: int) -> None:
         """Delete a message row by ID."""
         async with db.tx() as conn:
@@ -707,6 +726,25 @@ class MessageRepository:
         return MessageRepository._row_to_message(row)
 
     @staticmethod
+    async def has_recent_outgoing_dm(text: str, sender_timestamp: int, window_seconds: int) -> bool:
+        """True if an outgoing DM to *any* contact used this text + timestamp recently.
+
+        Bounded by ``received_at`` so the (type, received_at, ...) index serves it
+        instead of scanning every stored DM.
+        """
+        async with db.readonly() as conn:
+            async with conn.execute(
+                """
+                SELECT 1 FROM messages
+                WHERE type = 'PRIV' AND received_at >= ? AND outgoing = 1
+                  AND text = ? AND sender_timestamp = ?
+                LIMIT 1
+                """,
+                (sender_timestamp - window_seconds, text, sender_timestamp),
+            ) as cursor:
+                return await cursor.fetchone() is not None
+
+    @staticmethod
     async def get_unread_counts(
         name: str | None = None,
         blocked_keys: list[str] | None = None,
@@ -754,7 +792,8 @@ class MessageRepository:
                 SELECT m.conversation_key,
                        COUNT(*) as unread_count,
                        SUM(CASE
-                               WHEN ? <> '' AND INSTR(LOWER(m.text), LOWER(?)) > 0 THEN 1
+                               WHEN ? <> '' AND INSTR(LOWER(m.text), LOWER(?)) > 0
+                                    AND NOT is_reaction_text(m.text) THEN 1
                                ELSE 0
                            END) > 0 as has_mention
                 FROM messages m
@@ -780,7 +819,8 @@ class MessageRepository:
                 SELECT m.conversation_key,
                        COUNT(*) as unread_count,
                        SUM(CASE
-                               WHEN ? <> '' AND INSTR(LOWER(m.text), LOWER(?)) > 0 THEN 1
+                               WHEN ? <> '' AND INSTR(LOWER(m.text), LOWER(?)) > 0
+                                    AND NOT is_reaction_text(m.text) THEN 1
                                ELSE 0
                            END) > 0 as has_mention
                 FROM messages m
