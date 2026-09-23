@@ -84,3 +84,11 @@ async def test_repository_update_leaves_other_fields_alone(test_db):
 def test_router_rejects_out_of_range(field, bad):
     with pytest.raises(ValidationError):
         AppSettingsUpdate(**{field: bad})
+
+
+@pytest.mark.asyncio
+async def test_link_edge_retention_default_and_update(test_db):
+    s = await AppSettingsRepository.get()
+    assert s.link_edge_retention_days == 365
+    s = await AppSettingsRepository.update(link_edge_retention_days=90)
+    assert s.link_edge_retention_days == 90

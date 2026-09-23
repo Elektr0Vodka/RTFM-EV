@@ -169,4 +169,46 @@ describe('MapView (MapLibre)', () => {
       expect(fc.features).toHaveLength(1);
     });
   });
+
+  it('fetches traffic links with the link-age override and binds link clicks', async () => {
+    localStorage.setItem('remoteterm-map-links', 'true');
+    localStorage.setItem('remoteterm-map-link-mode', '"traffic"');
+    localStorage.setItem('remoteterm-map-link-confidence', '1');
+    localStorage.setItem('remoteterm-map-link-age-follow', 'false');
+    localStorage.setItem('remoteterm-map-link-age-preset', '"24h"');
+    const edge = {
+      a: { pubkey: 'aa', lat: 52, lon: 5, kind: 'contact' as const },
+      b: { pubkey: 'bb', lat: 52.1, lon: 5.2, kind: 'contact' as const },
+      hop_width: 1,
+      count: 3,
+      first_seen: now - 100,
+      last_seen: now,
+      ambiguous: false,
+    };
+    const fetchTraffic = vi.spyOn(api, 'getTrafficLinks').mockResolvedValue([edge]);
+    const fetchAdvert = vi.spyOn(api, 'getAdvertLinks').mockResolvedValue([]);
+    render(
+      <I18nProvider>
+        <MapView contacts={[contact({ public_key: 'aa' })]} onOpenLink={vi.fn()} />
+      </I18nProvider>
+    );
+    stub.fire('load');
+    await waitFor(() => expect(fetchTraffic).toHaveBeenCalled(), { timeout: 2000 });
+    expect(fetchAdvert).not.toHaveBeenCalled();
+    const opts = fetchTraffic.mock.calls[0][1]!;
+    expect(opts.heardOnly).toBe(true);
+    expect(opts.until).toBeNull();
+    expect(Math.abs((opts.since as number) - (now - 86400))).toBeLessThan(120);
+    await waitFor(() => {
+      const src = stub.getSource('rt-traffic-links');
+      expect(src).toBeDefined();
+      const calls = (src!.setData as any).mock.calls;
+      const fc = calls[calls.length - 1][0] as { features: unknown[] };
+      expect(fc.features).toHaveLength(1);
+    });
+    const clickBound = stub.on.mock.calls.some(
+      (c: unknown[]) => c[0] === 'click' && c[1] === 'rt-traffic-links-solid'
+    );
+    expect(clickBound).toBe(true);
+  });
 });

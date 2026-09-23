@@ -11,6 +11,45 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-23 (Map link age + per-link traffic history, feat/map-link-age-history)
+
+### Map (backend)
+- **Per-packet link edge log.** Every received packet copy (duplicates
+  included) is resolved into undirected node-pair edges and stored in the new
+  `link_edge_events` table (migration `_107`). Only flood paths count, because
+  MeshCore forwarders append their hash to a flood path; direct paths are the
+  route still ahead and TRACE stores SNR bytes in the path. Only contacts can
+  be link endpoints: analyzer-only nodes never are (an analyzer node counts once
+  it is a contact, for example after an applied partial resolution), and
+  prefix-only placeholder contacts are skipped. Hops are resolved outward from
+  our own node, and inward from the origin for adverts from a contact. A hop is
+  accepted only when a confirmed soft resolution matches, when exactly one
+  contact (with or without a location) has the prefix, or when the nearest
+  located contact is at least 2x closer than the next. SNR/RSSI is stored on the last
+  hop into our node. See `app/services/traffic_links.py`.
+- **One-time backfill** of the edge log from packets stored before the upgrade
+  (first-copy path only; later copies were never stored), running in the
+  background after startup and resuming across restarts.
+- **New retention setting** `link_edge_retention_days` (default 365, `0` = keep
+  forever) in Settings > Database > Data retention.
+- **New endpoints:** `GET /api/packets/traffic-links?since&until&heard_only&max_km`
+  (links aggregated over a window) and `GET /api/links/{a}/{b}/summary`,
+  `/timeseries?bucket=hour|day`, `/packets?limit&before` (per-link history).
+  `GET /api/packets/advert-links` gains `since`/`until`.
+
+### Map (frontend)
+- **Link age selection.** The advert and traffic link modes follow the map's
+  node time filter by default; under Overlays > Links you can switch that off
+  and pick an own preset or From/To range (remembered per browser).
+- **"All traffic" link mode** (third mode next to Liveness and Advert paths),
+  drawn in green from the edge log.
+- **Clickable links.** Clicking an advert or traffic link opens a popup with the
+  endpoints, distance, packets in the window and last seen, plus "Details",
+  which opens a full page (`#link/<a>/<b>`) with summary cards, a traffic trend
+  stacked by packet type (hour/day buckets, zoom/pan), a signal trend for links
+  to your own node, and the recent packets (click one to inspect it). Strings in
+  EN/NL/DE.
+
 ## Update 2026-09-23 (SMAZ message decode, feat/smaz-decode)
 
 ### Messages (backend)

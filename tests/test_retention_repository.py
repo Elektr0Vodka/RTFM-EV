@@ -58,6 +58,12 @@ async def test_prune_older_than_each_age_table(test_db):
         await NoiseFloorRepository.insert(ts, -110)
         await BatteryHistoryRepository.insert(ts, 4100)
         await AirtimeHistoryRepository.insert(ts, 10, 20)
+        async with test_db.tx() as conn:
+            await conn.execute(
+                "INSERT INTO link_edge_events (raw_packet_id, ts, a_pubkey, b_pubkey, "
+                "hop_width, confidence) VALUES (?, ?, 'a', 'b', 1, 'unique')",
+                (ts, ts),
+            )
 
     cutoff = now - 30 * DAY
     for key in AGE_TABLES:

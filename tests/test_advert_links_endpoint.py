@@ -331,3 +331,17 @@ class TestAdvertLinksEndpoint:
     async def test_rejects_non_positive_max_km(self, test_db, client):
         response = await client.get("/api/packets/advert-links?max_km=0")
         assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_since_until_filter_events(self, test_db, client):
+        await ContactRepository.upsert(
+            ContactUpsert(public_key="ff00000000", name="Origin", lat=52.0, lon=5.0)
+        )
+        await ContactRepository.upsert(
+            ContactUpsert(public_key="aa11000000", name="R1", lat=52.1, lon=5.0)
+        )
+        await _insert_advert_event(test_db, "ff00000000", "aa", 1, 1, 100)
+        await _insert_advert_event(test_db, "ff00000000", "aa", 1, 1, 300)
+        edges = (await client.get("/api/packets/advert-links?since=200")).json()
+        assert [e["count"] for e in edges] == [1]
+        assert (await client.get("/api/packets/advert-links?until=50")).json() == []

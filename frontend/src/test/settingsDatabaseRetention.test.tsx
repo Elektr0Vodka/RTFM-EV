@@ -85,6 +85,13 @@ describe('Database settings: data retention', () => {
     expect((screen.getByLabelText('Prune every') as HTMLInputElement).value).toBe('24');
   });
 
+  it('renders the link traffic history retention input', () => {
+    renderSection();
+    expect(
+      (screen.getByLabelText('Link traffic history (map) (days)') as HTMLInputElement).value
+    ).toBe('365');
+  });
+
   it('shows row counts and summed telemetry stats from the server', async () => {
     renderSection();
     expect(await screen.findByText('Rows: 120 · oldest: 12 days ago')).toBeInTheDocument();

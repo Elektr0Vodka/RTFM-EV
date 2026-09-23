@@ -362,3 +362,31 @@ describe('contact-info hash', () => {
     );
   });
 });
+
+describe('link route', () => {
+  let originalHash: string;
+
+  beforeEach(() => {
+    originalHash = window.location.hash;
+  });
+
+  afterEach(() => {
+    window.location.hash = originalHash;
+  });
+
+  it('parses #link/<a>/<b>', () => {
+    window.location.hash = '#link/aa11/bb22';
+    expect(parseHashConversation()).toEqual({ type: 'link', name: 'aa11~bb22' });
+  });
+
+  it('rejects malformed link hashes', () => {
+    window.location.hash = '#link/aa11';
+    expect(parseHashConversation()).toBeNull();
+  });
+
+  it('builds the hash from a link conversation', () => {
+    expect(getConversationHash({ type: 'link', id: 'aa11~bb22', name: 'Link' })).toBe(
+      '#link/aa11/bb22'
+    );
+  });
+});

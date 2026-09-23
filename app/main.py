@@ -68,6 +68,7 @@ from app.routers import (
     external_map,
     fanout,
     health,
+    links,
     messages,
     openhop,
     packets,
@@ -89,6 +90,7 @@ from app.routers import (
 )
 from app.security import add_optional_basic_auth_middleware
 from app.services.external_map import start_external_map_sync, stop_external_map_sync
+from app.services.link_edge_backfill import start_link_edge_backfill, stop_link_edge_backfill
 from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.radio_stats import start_radio_stats_sampling, stop_radio_stats_sampling
 from app.services.retention_pruner import start_retention_prune, stop_retention_prune
@@ -139,6 +141,9 @@ async def lifespan(app: FastAPI):
     # Per-class retention pruning on the configured interval (Settings > Database).
     start_retention_prune()
 
+    # One-time link edge backfill from packets stored before migration _107.
+    start_link_edge_backfill()
+
     # Always start connection monitor (even if initial connection failed)
     await radio_manager.start_connection_monitor()
 
@@ -169,6 +174,7 @@ async def lifespan(app: FastAPI):
     await stop_radio_stats_sampling()
     await stop_external_map_sync()
     await stop_retention_prune()
+    await stop_link_edge_backfill()
     await stop_periodic_advert()
     await stop_periodic_sync()
     await stop_telemetry_collect()
@@ -237,6 +243,7 @@ app.include_router(rooms.router, prefix="/api")
 app.include_router(channels.router, prefix="/api")
 app.include_router(messages.router, prefix="/api")
 app.include_router(packets.router, prefix="/api")
+app.include_router(links.router, prefix="/api")
 app.include_router(read_state.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
 app.include_router(retention.router, prefix="/api")
