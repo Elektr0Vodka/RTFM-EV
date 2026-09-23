@@ -1,12 +1,26 @@
 import { defineConfig } from 'vitest/config';
+import { searchForWorkspaceRoot } from 'vite';
 import react from '@vitejs/plugin-react';
+import fs from 'fs';
 import path from 'path';
+
+// Same as vite.config.ts: allow a linked (shared) node_modules, whose real path
+// lies outside this project, so `?worker&url` imports are not denied.
+const FS_ALLOW = [
+  searchForWorkspaceRoot(__dirname),
+  fs.realpathSync(path.resolve(__dirname, 'node_modules')),
+];
 
 export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+    },
+  },
+  server: {
+    fs: {
+      allow: FS_ALLOW,
     },
   },
   test: {

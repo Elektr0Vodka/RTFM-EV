@@ -11,6 +11,18 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-23 (Shared node_modules in worktrees, fix/vite-shared-node-modules)
+
+### Tooling / CI
+- **A worktree whose `frontend/node_modules` is a junction or symlink to a
+  shared checkout now works with Vite and Vitest.** Vite resolved the link to
+  its real path, outside the worktree, and denied the maplibre
+  `maplibre-gl-worker.mjs?worker&url` import (`Denied ID`), so 17 test files
+  failed to load and the dev server errored. `vite.config.ts` and
+  `vitest.config.ts` now add the real `node_modules` path to `server.fs.allow`
+  (next to the workspace root, which stays allowed). No effect on a normal
+  in-place install or the production build.
+
 ## Update 2026-09-23 (Browser tab and PWA follow branding, feat/tab-branding-rtfm-ev)
 
 ### Chat / UI
