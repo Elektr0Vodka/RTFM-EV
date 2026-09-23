@@ -364,6 +364,7 @@ class MessageRepository:
         packet_id = None
         transport_code = None
         region = None
+        failed_at = None
         if hasattr(row, "keys"):
             row_keys = row.keys()
             if "packet_id" in row_keys:
@@ -372,6 +373,8 @@ class MessageRepository:
                 transport_code = row["transport_code"]
             if "region" in row_keys:
                 region = row["region"]
+            if "failed_at" in row_keys:
+                failed_at = row["failed_at"]
 
         return Message(
             id=row["id"],
@@ -390,6 +393,7 @@ class MessageRepository:
             packet_id=packet_id,
             transport_code=transport_code,
             region=region,
+            failed_at=failed_at,
         )
 
     @staticmethod
@@ -582,6 +586,9 @@ class MessageRepository:
     async def increment_ack_count(message_id: int) -> int:
         """Increment ack count and return the new value.
 
+        An ACK means the message was delivered, so this also clears a
+        ``failed_at`` marker (late ACK after the DM was marked failed).
+
         NOTE: ``RETURNING`` leaves the prepared statement active until the
         row is fetched, so we MUST consume it inside the ``async with``
         block. Without that, the commit at the end of ``db.tx()`` fails
@@ -589,11 +596,27 @@ class MessageRepository:
         """
         async with db.tx() as conn:
             async with conn.execute(
-                "UPDATE messages SET acked = acked + 1 WHERE id = ? RETURNING acked",
+                "UPDATE messages SET acked = acked + 1, failed_at = NULL WHERE id = ? "
+                "RETURNING acked",
                 (message_id,),
             ) as cursor:
                 row = await cursor.fetchone()
         return row["acked"] if row else 1
+
+    @staticmethod
+    async def mark_failed(message_id: int, failed_at: int) -> bool:
+        """Mark an unacknowledged outgoing message as failed.
+
+        Returns False (and changes nothing) when the row is gone, incoming, or
+        already acknowledged, so a racing ACK always wins.
+        """
+        async with db.tx() as conn:
+            async with conn.execute(
+                "UPDATE messages SET failed_at = ? WHERE id = ? AND outgoing = 1 AND acked = 0",
+                (failed_at, message_id),
+            ) as cursor:
+                rowcount = cursor.rowcount
+        return rowcount > 0
 
     @staticmethod
     async def get_ack_and_paths(message_id: int) -> tuple[int, list[MessagePath] | None]:

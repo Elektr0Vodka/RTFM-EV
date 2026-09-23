@@ -387,3 +387,31 @@ describe('ConversationMessageCache.removeMessage', () => {
     expect(added).toBe(true);
   });
 });
+
+describe('failed direct messages', () => {
+  it('cache marks a message failed and removes a replaced one', () => {
+    const failed = createMessage({
+      id: 501,
+      type: 'PRIV',
+      conversation_key: 'dm-f',
+      outgoing: true,
+    });
+    const other = createMessage({ id: 502, type: 'PRIV', conversation_key: 'dm-f', text: 'x' });
+    conversationMessageCache.set('dm-f', { messages: [failed, other], hasOlderMessages: false });
+
+    conversationMessageCache.updateFailed(501, 1700000100);
+    expect(conversationMessageCache.get('dm-f')?.messages[0].failed_at).toBe(1700000100);
+
+    conversationMessageCache.removeMessage(501);
+    expect(conversationMessageCache.get('dm-f')?.messages.map((m) => m.id)).toEqual([502]);
+    // Its content key is released, so a same-content copy could be cached again.
+    expect(conversationMessageCache.addMessage('dm-f', failed)).toBe(true);
+  });
+
+  it('reconcile picks up a failed marker that changed while disconnected', () => {
+    const current = [createMessage({ id: 1, outgoing: true, type: 'PRIV' })];
+    const fetched = [createMessage({ id: 1, outgoing: true, type: 'PRIV', failed_at: 1700000100 })];
+
+    expect(reconcileConversationMessages(current, fetched)).toEqual(fetched);
+  });
+});

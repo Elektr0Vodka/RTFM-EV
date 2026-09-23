@@ -108,22 +108,31 @@ export class ConversationMessageCache {
     }
   }
 
-  remove(id: string): void {
-    this.cache.delete(id);
-  }
-
-  /** Remove one message (by id) from whichever cached conversation holds it. */
-  removeMessage(messageId: number): void {
-    for (const [id, entry] of this.cache.entries()) {
+  /** Mark a cached outgoing message as failed (no ACK after all retries). */
+  updateFailed(messageId: number, failedAt: number): void {
+    for (const entry of this.cache.values()) {
       const index = entry.messages.findIndex((message) => message.id === messageId);
       if (index < 0) continue;
-      const removed = entry.messages[index];
-      const messages = entry.messages.filter((message) => message.id !== messageId);
-      const contentKeys = new Set(entry.contentKeys);
-      contentKeys.delete(getMessageContentKey(removed));
-      this.cache.set(id, { messages, hasOlderMessages: entry.hasOlderMessages, contentKeys });
+      const updated = [...entry.messages];
+      updated[index] = { ...entry.messages[index], failed_at: failedAt };
+      entry.messages = updated;
       return;
     }
+  }
+
+  /** Drop one message from whichever cached conversation holds it. */
+  removeMessage(messageId: number): void {
+    for (const entry of this.cache.values()) {
+      const message = entry.messages.find((m) => m.id === messageId);
+      if (!message) continue;
+      entry.messages = entry.messages.filter((m) => m.id !== messageId);
+      entry.contentKeys.delete(getMessageContentKey(message));
+      return;
+    }
+  }
+
+  remove(id: string): void {
+    this.cache.delete(id);
   }
 
   rename(oldId: string, newId: string): void {
@@ -168,7 +177,13 @@ export function reconcileConversationMessages(
 ): Message[] | null {
   const currentById = new Map<
     number,
-    { acked: number; pathsLen: number; text: string; packetId: number | null | undefined }
+    {
+      acked: number;
+      pathsLen: number;
+      text: string;
+      packetId: number | null | undefined;
+      failedAt: number | null;
+    }
   >();
   for (const message of current) {
     currentById.set(message.id, {
@@ -176,6 +191,7 @@ export function reconcileConversationMessages(
       pathsLen: message.paths?.length ?? 0,
       text: message.text,
       packetId: message.packet_id,
+      failedAt: message.failed_at ?? null,
     });
   }
 
@@ -187,7 +203,8 @@ export function reconcileConversationMessages(
       currentMessage.acked !== message.acked ||
       currentMessage.pathsLen !== (message.paths?.length ?? 0) ||
       currentMessage.text !== message.text ||
-      currentMessage.packetId !== message.packet_id
+      currentMessage.packetId !== message.packet_id ||
+      currentMessage.failedAt !== (message.failed_at ?? null)
     ) {
       needsUpdate = true;
       break;
@@ -282,11 +299,11 @@ interface UseConversationMessagesResult {
     paths?: MessagePath[],
     packetId?: number | null
   ) => void;
+  receiveMessageFailed: (messageId: number, failedAt: number) => void;
+  removeMessage: (messageId: number) => void;
   reconcileOnReconnect: () => void;
   renameConversationMessages: (oldId: string, newId: string) => void;
   removeConversationMessages: (conversationId: string) => void;
-  /** Remove one deleted message from the active list and any cached conversation. */
-  removeMessage: (messageId: number) => void;
   clearConversationMessages: () => void;
 }
 
@@ -886,6 +903,36 @@ export function useConversationMessages(
     [updateMessageAck]
   );
 
+  const receiveMessageFailed = useCallback(
+    (messageId: number, failedAt: number) => {
+      setMessages((prev) => {
+        const idx = prev.findIndex((m) => m.id === messageId);
+        // A message that was acked in the meantime is delivered, not failed.
+        if (idx < 0 || prev[idx].acked > 0) return prev;
+        const updated = [...prev];
+        updated[idx] = { ...prev[idx], failed_at: failedAt };
+        return updated;
+      });
+      conversationMessageCache.updateFailed(messageId, failedAt);
+    },
+    [setMessages]
+  );
+
+  const removeMessage = useCallback(
+    (messageId: number) => {
+      const removed = messagesRef.current.find((m) => m.id === messageId);
+      if (removed) {
+        seenMessageContent.current.delete(getMessageContentKey(removed));
+      }
+      setMessages((prev) =>
+        prev.some((m) => m.id === messageId) ? prev.filter((m) => m.id !== messageId) : prev
+      );
+      pendingAcksRef.current.delete(messageId);
+      conversationMessageCache.removeMessage(messageId);
+    },
+    [messagesRef, setMessages]
+  );
+
   const observeMessage = useCallback(
     (msg: Message): { added: boolean; activeConversation: boolean } => {
       const msgWithPendingAck = applyPendingAck(msg);
@@ -924,19 +971,6 @@ export function useConversationMessages(
     conversationMessageCache.remove(conversationId);
   }, []);
 
-  // Remove one deleted message. It may be in the active conversation's loaded
-  // list, in a cached (non-active) conversation, or both are checked since the
-  // caller does not know which; either lookup is a cheap in-memory scan.
-  const removeMessage = useCallback((messageId: number) => {
-    pendingAcksRef.current.delete(messageId);
-    const removed = messagesRef.current.find((m) => m.id === messageId);
-    if (removed) {
-      seenMessageContent.current.delete(getMessageContentKey(removed));
-      setMessages((prev) => prev.filter((m) => m.id !== messageId));
-    }
-    conversationMessageCache.removeMessage(messageId);
-  }, []);
-
   const clearConversationMessages = useCallback(() => {
     conversationMessageCache.clear();
   }, []);
@@ -954,10 +988,11 @@ export function useConversationMessages(
     reloadCurrentConversation,
     observeMessage,
     receiveMessageAck,
+    receiveMessageFailed,
+    removeMessage,
     reconcileOnReconnect,
     renameConversationMessages,
     removeConversationMessages,
-    removeMessage,
     clearConversationMessages,
   };
 }

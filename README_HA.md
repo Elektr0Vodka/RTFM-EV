@@ -77,6 +77,8 @@ Repeaters must first be added to the auto-telemetry tracking list in RemoteTerm'
 
 If the repeater's telemetry also includes CayenneLPP readings, a numeric sensor is created per reading (same auto-detection as for contacts below).
 
+An LPP-only reading for a repeater (the **Request** button on its contact info page, or LPP interval tracking) updates only the LPP sensors. The status sensors above keep their last values; HA may log a `Template variable warning` for each status field missing from that update.
+
 If RemoteTerm already has a cached telemetry snapshot for that repeater, it republishes it on startup so HA can populate the sensors immediately instead of waiting for the next collection cycle.
 
 ### Contact Devices

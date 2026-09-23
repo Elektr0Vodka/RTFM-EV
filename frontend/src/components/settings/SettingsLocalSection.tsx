@@ -576,6 +576,28 @@ export function SettingsLocalSection({
             </div>
           </div>
 
+          <div className="rounded-md border border-border/60 p-3 space-y-2">
+            <Label htmlFor="battery-chemistry">{t('settings_battery_chemistry_label')}</Label>
+            <select
+              id="battery-chemistry"
+              value={appSettings?.battery_chemistry ?? 'lipo'}
+              onChange={(event) =>
+                onSaveAppSettings?.({
+                  battery_chemistry: event.target.value as 'lipo' | 'lifepo4' | 'lipo_hv' | 'nmc',
+                })
+              }
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="lipo">{t('settings_battery_chemistry_lipo')}</option>
+              <option value="lifepo4">{t('settings_battery_chemistry_lifepo4')}</option>
+              <option value="lipo_hv">{t('settings_battery_chemistry_lipo_hv')}</option>
+              <option value="nmc">{t('settings_battery_chemistry_nmc')}</option>
+            </select>
+            <p className="text-[0.8125rem] text-muted-foreground">
+              {t('settings_battery_chemistry_description')}
+            </p>
+          </div>
+
           <div className="flex items-start gap-3 rounded-md border border-border/60 p-3">
             <Checkbox
               id="status-dot-pulse"

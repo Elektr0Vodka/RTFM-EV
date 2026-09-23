@@ -265,7 +265,7 @@ describe('useRealtimeAppState', () => {
     const { result } = renderHook(() => useRealtimeAppState(args));
 
     act(() => {
-      result.current.onMessageDeleted?.(incomingDm.id, 'PRIV', incomingDm.conversation_key);
+      result.current.onMessageDeleted?.(incomingDm.id);
     });
 
     expect(args.removeMessage).toHaveBeenCalledWith(incomingDm.id);

@@ -113,7 +113,9 @@ without going through `assert_public_http_url`.
 2. Service-layer send workflows call MeshCore commands, persist outgoing messages, and wire ACK tracking.
 3. Endpoint broadcasts WS `message` event so all live clients update.
 4. ACK/repeat updates arrive later as `message_acked` events.
-5. Channel resend (`POST /messages/channel/{id}/resend`) strips the sender name prefix by exact match against the current radio name. This assumes the radio name hasn't changed between the original send and the resend. Name changes require an explicit radio config update and are rare, but the `new_timestamp=true` resend path has no time window, so a mismatch is possible if the name was changed between the original send and a later resend.
+5. DM failed state: `_retry_direct_message_until_acked` retries up to `DM_SEND_MAX_ATTEMPTS` (final attempt flood), then waits one more ACK window. With still no ACK it sets `messages.failed_at` (migration 109, `MessageRepository.mark_failed`, only when `outgoing = 1 AND acked = 0`) and broadcasts `message_failed`. Every ACK code the message was sent with stays matchable for `dm_ack_tracker.FAILED_ACK_GRACE_SECONDS` (30 s): a late ACK in that window goes through `apply_dm_ack_code` as usual, `increment_ack_count` clears `failed_at`, and `message_acked` flips the UI to delivered. A later ACK is buffered like any unmatched ACK and the message stays failed. DMs whose first send returned no `expected_ack` never schedule retries, so they are never marked failed.
+6. DM manual retry (`POST /messages/direct/{id}/resend`): only for an outgoing PRIV row with `failed_at` set and `acked = 0` (else 409). Sends the stored text again through `send_direct_message_to_contact` (fresh timestamp, new ACK code, normal background retries), then deletes the failed row and broadcasts `message_deleted`. If the new send fails the failed row stays. No byte-perfect DM resend exists.
+7. Channel resend (`POST /messages/channel/{id}/resend`) strips the sender name prefix by exact match against the current radio name. This assumes the radio name hasn't changed between the original send and the resend. Name changes require an explicit radio config update and are rare, but the `new_timestamp=true` resend path has no time window, so a mismatch is possible if the name was changed between the original send and a later resend.
 
 ### Connection lifecycle
 
@@ -234,7 +236,7 @@ Both traffic buckets come from one 24h raw-packet scan (`_packet_shape_24h`) sha
 - `broadcast_event()` in `websocket.py` dispatches to the fanout manager for `message`, `raw_packet`, and `contact` events.
 - `on_message` and `on_raw` are scope-gated. `on_contact`, `on_telemetry`, and `on_health` are dispatched to all modules unconditionally (modules filter internally).
 - Repeater telemetry broadcasts are emitted after `RepeaterTelemetryRepository.record()` in both `radio_sync.py` (auto-collect) and `routers/repeaters.py` (manual fetch). Contact LPP telemetry is similarly recorded to `ContactTelemetryRepository` and dispatched to fanout.
-- The telemetry collection loop in `radio_sync.py` is unified: it iterates over both `tracked_telemetry_repeaters` and `tracked_telemetry_contacts`, dispatching to `_collect_repeater_telemetry` (type 2) or `_collect_contact_telemetry` (others). The daily check ceiling uses the combined count.
+- The telemetry collection loop in `radio_sync.py` is unified: it iterates over both `tracked_telemetry_repeaters` and `tracked_telemetry_contacts`, dispatching by list, not contact type: repeater-list entries go to `_collect_repeater_telemetry` (status) and contact-list entries to `_collect_contact_telemetry` (LPP). The contact list accepts any contact type, repeaters included, so a repeater can be on both lists and is then polled for status and LPP separately. The daily check ceiling uses the combined count.
 - The 60-second radio stats sampling loop in `radio_stats.py` dispatches an enriched health snapshot (radio identity + full stats) to all fanout modules after each sample.
 - Community MQTT publishes raw packets only, but its derived `path` field for direct packets is emitted as comma-separated hop identifiers, not flat path bytes.
 - See `app/fanout/AGENTS_fanout.md` for full architecture details and event payload shapes.
@@ -260,8 +262,8 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `GET /debug` - support snapshot with recent logs, live radio probe, slot/contact audits, and version/git info
 
 ### Radio
-- `GET /radio/config` - includes `path_hash_mode`, `path_hash_mode_supported`, advert-location on/off, and `multi_acks_enabled`
-- `PATCH /radio/config` - may update `path_hash_mode` (`0..2`) when firmware supports it, and `multi_acks_enabled`
+- `GET /radio/config` - includes `path_hash_mode`, `path_hash_mode_supported`, advert-location on/off, `multi_acks_enabled`, and read-only `client_repeat_enabled` (`null` if firmware doesn't report it, fw ver < 9) / `client_repeat_allowed_freqs` (kHz ranges from `get_allowed_repeat_freq`, cached per connect; `null` if not queried)
+- `PATCH /radio/config` - may update `path_hash_mode` (`0..2`) when firmware supports it, and `multi_acks_enabled`. A `radio` block update (fw ver >= 9) always re-sends the device's current client-repeat state to `set_radio` explicitly (firmware treats a missing repeat byte as 0 and persists that - see `app/services/radio_commands.py`), then re-queries device info; returns `409` if repeat is currently on and the new frequency isn't in the cached allowed-repeat-frequency list. RTFM-EV never sends `repeat=1` itself; there is no UI to enable it yet
 - `GET /radio/private-key` - export in-memory private key as hex (requires `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT=true`)
 - `PUT /radio/private-key`
 - `GET /radio/contact-uri` - this node's `meshcore://` contact link (`{uri, public_key}`) via `export_contact()` with no key (CMD_EXPORT_CONTACT). Local radio command, nothing transmitted; 502 if the radio returns no valid signed advert
@@ -285,7 +287,7 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `DELETE /contacts/{public_key}`
 - `POST /contacts/{public_key}/mark-read`
 - `POST /contacts/{public_key}/command`
-- `POST /contacts/{public_key}/annotations` - set user annotations (`notes`, `owner_info`, `owner_key`, `manual_lat`, `manual_lon`); partial update, explicit `null` clears a field, `owner_key` must reference an existing contact (422 otherwise); broadcasts `contact`
+- `POST /contacts/{public_key}/annotations` - set user annotations (`notes`, `owner_info`, `owner_key`, `manual_lat`, `manual_lon`, `battery_chemistry`); partial update, explicit `null` clears a field (for `battery_chemistry`, reverting to the global default), `owner_key` must reference an existing contact (422 otherwise), `battery_chemistry` must be one of `lipo`/`lifepo4`/`lipo_hv`/`nmc` (422 otherwise); broadcasts `contact`
 - `POST /contacts/{public_key}/routing-override`
 - `GET /contacts/{public_key}/contact-uri` - the contact's `meshcore://` link via `export_contact(key)`: the radio returns the last raw advert it stored for that contact (404 when it has none, 502 if it returns another node's or an invalid advert). Nothing transmitted
 - `POST /contacts/{public_key}/telemetry-permissions` - body `{base, location, environment}` (all required); stores `telemetry_perms`, pushes the flag bits to the radio when the contact is loaded there (never adds it just for this), returns `applied_to_radio`; broadcasts `contact`
@@ -325,6 +327,7 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `GET /messages/locations` - location shares in DM + channel messages received in `(since, until]`, newest first; `latest_per_sender` (default true) keeps one per sender (self / DM partner / channel sender key, else name). Parsing in `app/location_payloads.py` (meshcore-open `m:` marker, upper-case MGRS via `app/mgrs.py`, `lat, lon` with 4+ decimals); service `app/services/shared_locations.py` scans at most 20,000 newest rows (`truncated`). Local map only, never fanned out
 - `POST /messages/direct`
 - `POST /messages/channel`
+- `POST /messages/direct/{message_id}/resend` - retry a failed DM as a new message and remove the failed row (see Outgoing messages)
 - `POST /messages/channel/{message_id}/resend`
 - `GET /messages/{message_id}/reaction-target` - resolve an emoji reaction to the message it reacts to: same conversation, up to 7 days before (`app/reaction_payloads.py`). Dialects:
   - `@[Name]emoji\nhash` / `emoji\nhash`: SHA-256 of the target's body (without `Sender: `) + its sender timestamp (LE uint32), first 5 bytes as Crockford Base32. Checked against real traffic and a known-answer vector.
@@ -390,7 +393,7 @@ chosen node), and a Prefix Collisions tab badge.
 - `POST /settings/blocked-names/toggle`
 - `POST /settings/tracked-telemetry/toggle`
 - `GET /settings/tracked-telemetry/schedule` - current telemetry scheduling derivation, interval options, and next-run-at timestamp
-- `POST /settings/tracked-telemetry-contacts/toggle` - toggle tracked LPP telemetry for any contact (max 8)
+- `POST /settings/tracked-telemetry-contacts/toggle` - toggle tracked LPP telemetry for any contact, repeaters included (max 8)
 - `GET /settings/tracked-telemetry-contacts/schedule` - contact telemetry scheduling (shared ceiling with repeaters)
 - `POST /settings/muted-channels/toggle`
 
@@ -430,11 +433,12 @@ chosen node), and a Prefix Collisions tab badge.
 - `contact_resolved` - prefix contact reconciled to a full contact row (payload: `{ previous_public_key, contact }`)
 - `message` - new message (channel or DM, from packet processor or send endpoints)
 - `message_acked` - ACK/echo update for existing message (ack count + paths)
+- `message_failed` - outgoing DM ran out of retries without an ACK (payload: `{ message_id, failed_at }`)
 - `raw_packet` - every incoming RF packet (for real-time packet feed UI)
 - `contact_deleted` - contact removed from database (payload: `{ public_key }`)
 - `channel` - single channel upsert/update (payload: full `Channel`)
 - `channel_deleted` - channel removed from database (payload: `{ key }`)
-- `message_deleted` - message hard-deleted (payload: `{ id, type, conversation_key }`); one event per row, so a deleted reaction gets its own event alongside its target
+- `message_deleted` - message row removed: a local delete (one event per row, so a deleted reaction gets its own event alongside its target) or a failed DM replaced by a manual retry (payload: `{ message_id, type, conversation_key }`)
 - `error` - toast notification (reconnect failure, missing private key, stuck radio startup, etc.)
 - `success` - toast notification (historical decrypt complete, etc.)
 
@@ -444,7 +448,7 @@ Client sends `"ping"` text; server replies `{"type":"pong"}`.
 ## Data Model Notes
 
 Main tables:
-- `contacts` (includes `first_seen` for contact age tracking and `direct_path_hash_mode` / `route_override_*` for DM routing; plus user-editable annotations `notes`, `owner_info`, `owner_key`, `manual_lat`, `manual_lon` - preserved through radio-sync upserts via `COALESCE`, never overwritten by adverts. `owner_key` references another contact; `manual_lat`/`manual_lon` are fallback coordinates used when the contact has no valid advertised location - by the frontend map/paths (`getEffectiveLocation`) and by the advert-links layer's `located_nodes()` query, which resolves the same advertised-wins/manual-fallback effective location so a manual-only node is still an edge endpoint)
+- `contacts` (includes `first_seen` for contact age tracking and `direct_path_hash_mode` / `route_override_*` for DM routing; plus user-editable annotations `notes`, `owner_info`, `owner_key`, `manual_lat`, `manual_lon` - preserved through radio-sync upserts via `COALESCE`, never overwritten by adverts. `owner_key` references another contact; `manual_lat`/`manual_lon` are fallback coordinates used when the contact has no valid advertised location - by the frontend map/paths (`getEffectiveLocation`) and by the advert-links layer's `located_nodes()` query, which resolves the same advertised-wins/manual-fallback effective location so a manual-only node is still an edge endpoint. `battery_chemistry`, migration `_108`, nullable, follows the `telemetry_perms` pattern: absent from the upsert's column list entirely, so radio-sync never touches it, only `set_annotations` does)
 - `channels`
   Includes optional `flood_scope_override` for channel-specific regional sends and optional `path_hash_mode_override` for per-channel path hop width.
 - `messages` (includes `sender_name`, `sender_key` for per-contact channel message attribution)
@@ -494,6 +498,7 @@ Repository writes should prefer typed models such as `ContactUpsert` over ad hoc
 - `packet_feed_sort`, `packet_history_sort` (`oldest`/`newest`), `packet_group_by_content` (shared "Group repeats by content" toggle for Raw Packet Feed + Packet History)
 - `mesh_health_page_size` (Mesh Health contacts table rows per page; `0` = all)
 - `date_time_format` (`auto` / `12h_mdy` / `24h_dmy`; migration `_103`)
+- `battery_chemistry` (`lipo` default / `lifepo4` / `lipo_hv` / `nmc`; global default for `mvToPercent` in `frontend/src/utils/batteryDisplay.ts`. A contact's own `battery_chemistry` column, migration `_108` and NULL = use this default, overrides it per node; see `ContactRepository._ANNOTATION_COLUMNS`)
 - `map_home_mode` (`auto` / `home` / `last`), `map_home_lat`, `map_home_lon`, `map_home_zoom` (map start view; migration `_104`)
 - `show_mention_ticker`, `mention_sound_enabled`, `mention_sound_choice`, `mention_sound_volume`, `mention_sound_custom`
 - `chat_parse_pubkeys`, `chat_parse_coordinates`, `chat_url_previews`, `chat_linkify_urls` (chat entity parsing)

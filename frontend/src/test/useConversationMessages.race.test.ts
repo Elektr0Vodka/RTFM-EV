@@ -93,6 +93,27 @@ describe('useConversationMessages ACK ordering', () => {
     expect(result.current.messages[0].paths).toEqual(paths);
   });
 
+  it('marks a DM failed, ignores it once acked, and removes a replaced DM', async () => {
+    const failing = createMessage({ id: 42 });
+    const delivered = createMessage({ id: 43, text: 'other', acked: 1 });
+    mockGetMessages.mockResolvedValueOnce([failing, delivered]);
+
+    const { result } = renderHook(() => useConversationMessages(createConversation()));
+    await waitFor(() => expect(result.current.messages).toHaveLength(2));
+
+    act(() => {
+      result.current.receiveMessageFailed(42, 1700000100);
+      result.current.receiveMessageFailed(43, 1700000100);
+    });
+    expect(result.current.messages.find((m) => m.id === 42)?.failed_at).toBe(1700000100);
+    expect(result.current.messages.find((m) => m.id === 43)?.failed_at).toBeUndefined();
+
+    act(() => {
+      result.current.removeMessage(42);
+    });
+    expect(result.current.messages.map((m) => m.id)).toEqual([43]);
+  });
+
   it('applies buffered ACK to message returned by in-flight fetch', async () => {
     const deferred = createDeferred<Message[]>();
     mockGetMessages.mockReturnValueOnce(deferred.promise);

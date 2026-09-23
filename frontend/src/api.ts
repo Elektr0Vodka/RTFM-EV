@@ -77,6 +77,7 @@ import type {
   PathDiscoveryResponse,
   PushSubscriptionInfo,
   ResendChannelMessageResponse,
+  ResendDirectMessageResponse,
   RepeaterAclResponse,
   RepeaterAdvertIntervalsResponse,
   RepeaterLoginResponse,
@@ -147,7 +148,10 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
     let errorMessage = errorText || res.statusText;
     try {
       const errorJson = JSON.parse(errorText);
-      if (errorJson.detail) {
+      if (typeof errorJson.detail?.message === 'string') {
+        // Structured detail, e.g. {"detail": {"message": "...", ...}}
+        errorMessage = errorJson.detail.message;
+      } else if (errorJson.detail) {
         errorMessage = errorJson.detail;
       }
     } catch {
@@ -538,6 +542,10 @@ export const api = {
       `/messages/channel/${messageId}/resend${newTimestamp ? '?new_timestamp=true' : ''}`,
       { method: 'POST' }
     ),
+  resendDirectMessage: (messageId: number) =>
+    fetchJson<ResendDirectMessageResponse>(`/messages/direct/${messageId}/resend`, {
+      method: 'POST',
+    }),
 
   // Packets
   getRecentPackets: (params?: { afterTs?: number; beforeTs?: number; limit?: number }) => {

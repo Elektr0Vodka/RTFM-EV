@@ -81,6 +81,8 @@ interface ConversationPaneProps {
   onReactToMessage?: (messageId: number, emoji: string) => void;
   onReplyToMessage?: (message: Message) => void;
   onDeleteMessage?: (message: Message) => void;
+  /** Retry a failed outgoing DM (sends a new copy that replaces it). */
+  onRetryDirectMessage?: (messageId: number) => void | Promise<void>;
   targetMessageId: number | null;
   hasNewerMessages: boolean;
   loadingNewer: boolean;
@@ -213,6 +215,7 @@ export function ConversationPane({
   onReactToMessage,
   onReplyToMessage,
   onDeleteMessage,
+  onRetryDirectMessage,
   targetMessageId,
   hasNewerMessages,
   loadingNewer,
@@ -643,6 +646,9 @@ export function ConversationPane({
           onReactToMessage={onReactToMessage}
           onReplyToMessage={onReplyToMessage}
           onDeleteMessage={onDeleteMessage}
+          onRetryDirectMessage={
+            activeConversation.type === 'contact' ? onRetryDirectMessage : undefined
+          }
           onDismissUnreadMarker={
             activeConversation.type === 'channel' ? onDismissUnreadMarker : undefined
           }

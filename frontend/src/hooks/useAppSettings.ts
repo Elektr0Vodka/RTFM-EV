@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { api } from '../api';
+import { api, ApiError } from '../api';
 import { takePrefetchOrFetch } from '../prefetch';
 import { toast } from '../components/ui/sonner';
 import { initLastMessageTimes } from '../utils/conversationState';
@@ -105,13 +105,9 @@ export function useAppSettings() {
       } catch {
         // If refetch also fails, leave optimistic state
       }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const detail = (err as any)?.body?.detail;
-      if (typeof detail === 'object' && detail?.message) {
-        toast.error(detail.message);
-      } else {
-        toast.error('Failed to update tracked telemetry');
-      }
+      toast.error(
+        err instanceof ApiError && err.message ? err.message : 'Failed to update tracked telemetry'
+      );
     }
   }, []);
 
@@ -138,13 +134,11 @@ export function useAppSettings() {
       } catch {
         // If refetch also fails, leave optimistic state
       }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const detail = (err as any)?.body?.detail;
-      if (typeof detail === 'object' && detail?.message) {
-        toast.error(detail.message);
-      } else {
-        toast.error('Failed to update tracked contact telemetry');
-      }
+      toast.error(
+        err instanceof ApiError && err.message
+          ? err.message
+          : 'Failed to update tracked contact telemetry'
+      );
     }
   }, []);
 

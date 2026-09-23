@@ -33,6 +33,110 @@ the change. Upstream development is on hold; the fork is the active repository.
   from the active conversation and any cached one; other open tabs update
   over the `message_deleted` WS event, and unread counts are re-fetched so
   they stay correct.
+## Update 2026-09-23 (DM failed state + manual retry, plan 28 item 1.1, feat/dm-failed-retry)
+
+### Chat (frontend)
+- **Failed DMs.** An outgoing DM that got no ACK after all background retries
+  now shows a red "Failed" marker instead of a `?` that never goes away. A
+  late ACK (see below) turns it into a normal delivered tick.
+- **Retry.** A failed DM gets a Retry row action (next to React/Reply). It
+  sends the text again as a new message (new timestamp, new ACK code, the
+  usual retries) and the new bubble replaces the failed one, like
+  meshcore-open's resend. Retry transmits over RF. If the new send fails (for
+  example no radio), the failed bubble stays and an error toast shows.
+
+### Messages (backend)
+- **Failed marker.** New nullable `messages.failed_at` (migration `_109`;
+  `_108` is reserved by another branch, numbering is reconciled at merge).
+  After the last retry attempt the backend waits one more ACK window, then
+  sets `failed_at` (only on an outgoing row with no ACK) and broadcasts the
+  new WS event `message_failed` (`{message_id, failed_at}`). The `Message`
+  payload carries `failed_at`.
+- **Late ACK.** For 30 s after a DM is marked failed, every ACK code it was
+  sent with still matches (meshcore-open behaviour): the ACK counts, clears
+  `failed_at` and broadcasts `message_acked`. An ACK later than that is
+  treated as unmatched and the DM stays failed.
+- **`POST /api/messages/direct/{message_id}/resend`.** Only for an outgoing
+  DM marked failed with no ACK (409 otherwise, 400 for channel or incoming
+  messages). Sends a new copy through the normal DM send path, then deletes
+  the failed row and broadcasts the new WS event `message_deleted`
+  (`{message_id, type, conversation_key}`). The failed row is kept when the
+  new send fails. No new in-flight limit: a retry is one ordinary DM send.
+- DMs whose first send returns no expected ACK code (no retries are
+  scheduled) are not marked failed; they keep showing `?`.
+## Update 2026-09-23 (Battery chemistry, feat/battery-chemistry, plan 28 item 1.9)
+
+### Battery display (frontend)
+- **Battery chemistry setting.** `frontend/src/utils/batteryDisplay.ts`
+  `mvToPercent` now supports four chemistries: LiPo keeps the existing real
+  discharge curve (Meshtastic OCV table); LiFePO4, LiPo HV and NMC use
+  meshcore-open's linear min-max mV ranges (`utils/battery_utils.dart`,
+  github.com/zjs81/meshcore-open, fetched and verified 2026-09-23:
+  2600-3650 / 3000-4350 / 3000-4200 mV) since no cited real discharge curve
+  was found for them. A global default lives in Settings > Local
+  Configuration > "Battery Chemistry" (server-side, `app_settings.
+  battery_chemistry`, so it is consistent across browsers rather than a
+  per-browser local preference like most settings on that page). Each
+  contact can override it in its contact info ("Battery chemistry", null =
+  use the global default). All three callers (status bar, My Node, and the
+  telemetry map layer) go through `mvToPercent`; the map layer resolves the
+  node's own override, the other two (this radio, no per-node concept) use
+  the global default.
+
+### Backend
+- New `app_settings.battery_chemistry` (`TEXT NOT NULL DEFAULT 'lipo'`) and
+  `contacts.battery_chemistry` (nullable `TEXT`, NULL = use the global
+  default, same convention as `telemetry_perms`) columns, migration `_108`.
+  `POST /contacts/{public_key}/annotations` accepts `battery_chemistry`
+  alongside the existing annotation fields (422 on an unrecognized value).
+## Update 2026-09-23 (Radio settings no longer reset client repeat, fix/radio-save-keeps-repeat, plan 29 Phase 0)
+
+### Radio (backend)
+- **Fix: saving Radio settings silently turned off client repeat.** `set_radio`
+  was always called without its optional repeat byte. Stock companion
+  firmware (fw ver 9+) treats a missing byte as 0 and always persists it, so
+  every Radio settings save turned off the off-grid "client repeat" mode,
+  even when another app had enabled it. RTFM-EV never enables client repeat
+  itself, but it must not fight another app's setting.
+- On connect (fw ver >= 9), RTFM-EV now reads the device's current client
+  repeat state and its allowed repeat frequencies (`get_allowed_repeat_freq`,
+  cached per connect) alongside the existing device-info query. Every
+  `PATCH /radio/config` radio-settings save now passes the current on-device
+  repeat value back to `set_radio` explicitly, then re-queries device info to
+  confirm what the firmware actually persisted. Firmware below version 9 is
+  unaffected (no repeat byte is sent, as before).
+- If client repeat is currently on and the requested frequency is not one the
+  firmware allows for repeat, the save is rejected with `409` instead of
+  either silently turning repeat off or getting a generic firmware error.
+- `GET /radio/config` now includes read-only `client_repeat_enabled` (`null`
+  when the firmware does not report support) and `client_repeat_allowed_freqs`
+  (kHz ranges, `null` if not queried), for this check and for a future
+  gated repeat toggle. No UI is added to enable repeat, and no code path
+  reachable from the UI sends `repeat=1`.
+## Update 2026-09-23 (Repeater LPP telemetry tracking, fix/repeater-lpp-telemetry-tracking)
+
+### Telemetry (backend + frontend)
+- **"Track Telemetry on Interval" works for repeaters.** On a repeater's
+  contact info page the LPP telemetry section's tracking button failed with
+  "Failed to update tracked contact telemetry", because the contact tracking
+  endpoint rejected repeaters with a 400. The endpoint now accepts any contact
+  type. This LPP list is separate from the repeater status list (Telemetry
+  History in the repeater dashboard), so a repeater on both lists is polled
+  once for status and once for LPP per cycle, and counts toward both caps and
+  the shared daily ceiling.
+- **Telemetry tracking errors show the server's reason.** Failed tracking
+  toggles now show the server's message (for example "Limit of 8 tracked
+  contacts reached") instead of a generic toast. `fetchJson` now uses
+  `detail.message` for structured error details instead of "[object Object]".
+
+### Home Assistant (backend)
+- **LPP-only repeater readings no longer blank the status sensors.** An LPP
+  reading for an HA-tracked repeater (the manual Request button, or LPP
+  interval tracking) sent `null` for battery, noise floor, packet counters and
+  the other status fields, which set those HA sensors to unknown until the
+  next status sample. Status fields missing from a snapshot are now left out
+  of the state payload, so HA keeps the last values. HA may log a template
+  warning per missing field.
 
 ## Update 2026-09-23 (Shared-locations map layer + MGRS, feat/shared-locations-map-layer)
 

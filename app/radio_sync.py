@@ -2060,7 +2060,7 @@ async def _collect_repeater_telemetry(mc: MeshCore, contact: Contact) -> bool:
 
 
 async def _collect_contact_telemetry(mc: MeshCore, contact: Contact) -> bool:
-    """Fetch LPP telemetry from a non-repeater contact and record it.
+    """Fetch LPP telemetry from a tracked contact (any type) and record it.
 
     Unlike repeaters, companions/rooms/sensors only respond to
     req_telemetry_sync (LPP), not req_status_sync (repeater status struct).
@@ -2175,7 +2175,7 @@ async def _run_telemetry_cycle(
             continue
         candidates.append((pub_key, contact, True))
 
-    # Build contact (non-repeater) candidates
+    # Build LPP contact candidates (any type, repeaters included)
     for pub_key in tracked_contacts:
         contact = await ContactRepository.get_by_key(pub_key)
         if not contact:

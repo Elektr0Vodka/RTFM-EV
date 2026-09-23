@@ -83,8 +83,8 @@ async def test_delete_message_broadcasts_one_event_per_deleted_row(test_db, monk
 
     events = [call.args for call in broadcast.call_args_list]
     assert events == [
-        ("message_deleted", {"id": target_id, "type": "CHAN", "conversation_key": CHAN}),
-        ("message_deleted", {"id": reaction_id, "type": "CHAN", "conversation_key": CHAN}),
+        ("message_deleted", {"message_id": target_id, "type": "CHAN", "conversation_key": CHAN}),
+        ("message_deleted", {"message_id": reaction_id, "type": "CHAN", "conversation_key": CHAN}),
     ]
 
 

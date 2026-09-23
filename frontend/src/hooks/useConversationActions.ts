@@ -15,13 +15,15 @@ interface UseConversationActionsArgs {
   setContacts: React.Dispatch<React.SetStateAction<Contact[]>>;
   setChannels: React.Dispatch<React.SetStateAction<Channel[]>>;
   observeMessage: (msg: Message) => { added: boolean; activeConversation: boolean };
-  messageInputRef: RefObject<MessageInputHandle | null>;
+  /** Drop a message locally: a local delete, or a failed DM replaced by its retry. */
   removeMessage: (messageId: number) => void;
+  messageInputRef: RefObject<MessageInputHandle | null>;
 }
 
 interface UseConversationActionsResult {
   handleSendMessage: (text: string) => Promise<void>;
   handleResendChannelMessage: (messageId: number, newTimestamp?: boolean) => Promise<void>;
+  handleRetryDirectMessage: (messageId: number) => Promise<void>;
   handleSetChannelFloodScopeOverride: (
     channelKey: string,
     floodScopeOverride: string
@@ -45,8 +47,8 @@ export function useConversationActions({
   setContacts,
   setChannels,
   observeMessage,
-  messageInputRef,
   removeMessage,
+  messageInputRef,
 }: UseConversationActionsArgs): UseConversationActionsResult {
   const t = useT();
   const mergeChannelIntoList = useCallback(
@@ -102,6 +104,26 @@ export function useConversationActions({
       }
     },
     [activeConversationRef, observeMessage]
+  );
+
+  // Retry a failed DM: the server sends a new copy and deletes the failed row,
+  // so the new bubble replaces the failed one.
+  const handleRetryDirectMessage = useCallback(
+    async (messageId: number) => {
+      try {
+        const resent = await api.resendDirectMessage(messageId);
+        removeMessage?.(resent.replaced_message_id);
+        if (activeConversationRef.current?.id === resent.message.conversation_key) {
+          observeMessage(resent.message);
+        }
+        toast.success(t('chat_retry_sent'));
+      } catch (err) {
+        toast.error(t('chat_retry_failed'), {
+          description: err instanceof Error ? err.message : undefined,
+        });
+      }
+    },
+    [activeConversationRef, observeMessage, removeMessage, t]
   );
 
   const handleSetChannelFloodScopeOverride = useCallback(
@@ -229,6 +251,7 @@ export function useConversationActions({
   return {
     handleSendMessage,
     handleResendChannelMessage,
+    handleRetryDirectMessage,
     handleSetChannelFloodScopeOverride,
     handleSetChannelPathHashModeOverride,
     handleSenderClick,

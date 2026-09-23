@@ -134,6 +134,8 @@ class Contact(BaseModel):
     radio_policy: Literal["auto", "pinned", "excluded"] = "auto"
     # App-set TELEM_PERM_* bits; None = never set in the app (radio flags rule)
     telemetry_perms: int | None = None
+    # Per-node battery chemistry override; None = use the global app_settings default.
+    battery_chemistry: Literal["lipo", "lifepo4", "lipo_hv", "nmc"] | None = None
     last_contacted: int | None = None  # Last time we sent/received a message
     last_read_at: int | None = None  # Server-side read state tracking
     first_seen: int | None = None
@@ -287,6 +289,10 @@ class ContactAnnotationsUpdate(BaseModel):
     owner_key: str | None = Field(default=None, description="64-char hex of an existing contact")
     manual_lat: float | None = Field(default=None, ge=-90, le=90)
     manual_lon: float | None = Field(default=None, ge=-180, le=180)
+    battery_chemistry: Literal["lipo", "lifepo4", "lipo_hv", "nmc"] | None = Field(
+        default=None,
+        description="Per-node battery chemistry override; null uses the global default",
+    )
 
 
 class ContactRoutingOverrideRequest(BaseModel):
@@ -556,6 +562,13 @@ class Message(BaseModel):
         default=None,
         description="Resolved region name for the transport code, if it matched a known region",
     )
+    failed_at: int | None = Field(
+        default=None,
+        description=(
+            "Unix time an outgoing direct message was marked failed (all retries ran out "
+            "without an ACK). None when not failed; a late ACK clears it."
+        ),
+    )
 
 
 class MessagesAroundResponse(BaseModel):
@@ -632,6 +645,13 @@ class ResendChannelMessageResponse(BaseModel):
     status: str
     message_id: int
     message: Message | None = None
+
+
+class ResendDirectMessageResponse(BaseModel):
+    status: str
+    message_id: int = Field(description="ID of the new message row that was sent")
+    message: Message
+    replaced_message_id: int = Field(description="ID of the failed message row that was removed")
 
 
 class RawPacketDecryptedInfo(BaseModel):
@@ -1357,6 +1377,12 @@ class SidebarFavoriteSortOrders(BaseModel):
     sensors: str = Field(default="recent")
 
 
+# Battery chemistries recognised by mvToPercent on the frontend (migration _108).
+# 'lipo' keeps the existing real discharge curve; the others are meshcore-open's
+# linear min-max ranges (utils/battery_utils.dart). See frontend/src/utils/
+# batteryDisplay.ts for the per-chemistry math and sources.
+BATTERY_CHEMISTRIES: tuple[str, ...] = ("lipo", "lifepo4", "lipo_hv", "nmc")
+
 # Retention settings added in migrations _105 and _107 (0 = keep forever / no cap).
 # Defaults reproduce the pruning behavior from before that migration.
 RETENTION_DEFAULTS: dict[str, int] = {
@@ -1521,6 +1547,16 @@ class AppSettings(BaseModel):
         description=(
             "Last-selected 'Group repeats by content' packet-filter toggle, "
             "shared by the Raw Packet Feed and Packet History views."
+        ),
+    )
+    battery_chemistry: Literal["lipo", "lifepo4", "lipo_hv", "nmc"] = Field(
+        default="lipo",
+        description=(
+            "Global default battery chemistry used to convert millivolts to a "
+            "percentage (status bar, My Node, telemetry map layer). A contact's "
+            "own 'battery_chemistry' overrides this for that node. Stored "
+            "server-side (not per-browser) so it stays consistent across "
+            "browsers, matching most other radio-facing settings."
         ),
     )
     map_home_mode: Literal["auto", "home", "last"] = Field(

@@ -90,6 +90,8 @@ interface MessageListProps {
   onReplyToMessage?: (message: Message) => void;
   /** Hard-delete a message (row + linked raw packet + any reactions to it). */
   onDeleteMessage?: (message: Message) => void;
+  /** Retry a failed outgoing DM (a new copy replaces the failed one). */
+  onRetryDirectMessage?: (messageId: number) => void | Promise<void>;
   onSenderClick?: (sender: string) => void;
   onLoadOlder?: () => void;
   onResendChannelMessage?: (messageId: number, newTimestamp?: boolean) => void;
@@ -118,6 +120,11 @@ interface MessageListProps {
   onLoadNewer?: () => void;
   onJumpToBottom?: () => void;
   preSorted?: boolean;
+}
+
+/** An outgoing DM that ran out of retries without an ACK can be retried by hand. */
+function isRetryable(msg: Message): boolean {
+  return msg.outgoing && msg.type === 'PRIV' && msg.acked === 0 && msg.failed_at != null;
 }
 
 // Renders a MeshCore Open GIF payload, falling back to the raw text on load error.
@@ -670,6 +677,7 @@ export function MessageList({
   onReactToMessage,
   onReplyToMessage,
   onDeleteMessage,
+  onRetryDirectMessage,
   onSenderClick,
   onLoadOlder,
   onResendChannelMessage,
@@ -1916,6 +1924,14 @@ export function MessageList({
                             {' '}
                             ?
                           </span>
+                        ) : msg.failed_at != null ? (
+                          <span
+                            className="msg-ack-failed font-semibold text-destructive"
+                            title={t('chat_message_failed_title')}
+                            aria-label={t('chat_message_failed_title')}
+                          >
+                            {` ✕ ${t('chat_message_failed')}`}
+                          </span>
                         ) : (
                           <span
                             className="msg-ack-pending text-muted-foreground"
@@ -1932,25 +1948,29 @@ export function MessageList({
                       </Suspense>
                     )}
                   </div>
-                  {(msg.sender_timestamp != null || onDeleteMessage) && (
-                    <MessageRowActions
-                      onReact={
-                        msg.sender_timestamp != null &&
-                        !isReactionPayload(content) &&
-                        onReactToMessage
-                          ? (emoji) => onReactToMessage(msg.id, emoji)
-                          : undefined
-                      }
-                      onReply={
-                        msg.sender_timestamp != null &&
-                        !isReactionPayload(content) &&
-                        onReplyToMessage
-                          ? () => onReplyToMessage(msg)
-                          : undefined
-                      }
-                      onDelete={onDeleteMessage ? () => onDeleteMessage(msg) : undefined}
-                    />
-                  )}
+                  {/* Renders nothing when no action applies to this row. */}
+                  <MessageRowActions
+                    onReact={
+                      msg.sender_timestamp != null &&
+                      !isReactionPayload(content) &&
+                      onReactToMessage
+                        ? (emoji) => onReactToMessage(msg.id, emoji)
+                        : undefined
+                    }
+                    onReply={
+                      msg.sender_timestamp != null &&
+                      !isReactionPayload(content) &&
+                      onReplyToMessage
+                        ? () => onReplyToMessage(msg)
+                        : undefined
+                    }
+                    onRetry={
+                      isRetryable(msg) && onRetryDirectMessage
+                        ? () => onRetryDirectMessage(msg.id)
+                        : undefined
+                    }
+                    onDelete={onDeleteMessage ? () => onDeleteMessage(msg) : undefined}
+                  />
                 </div>
               </div>
             );

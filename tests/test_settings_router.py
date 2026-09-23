@@ -23,6 +23,7 @@ from app.routers.settings import (
     get_telemetry_schedule,
     toggle_favorite,
     toggle_tracked_telemetry,
+    toggle_tracked_telemetry_contact,
     update_settings,
 )
 from app.services.flood_scope import FORCE_UNSCOPED_FRAME
@@ -154,6 +155,25 @@ class TestUpdateSettings:
         """A stale/rogue client value is ignored, leaving the default."""
         result = await update_settings(AppSettingsUpdate(date_time_format="nonsense"))
         assert result.date_time_format == "auto"
+
+    async def test_battery_chemistry_defaults_lipo(self, test_db):
+        result = await update_settings(AppSettingsUpdate())
+        assert result.battery_chemistry == "lipo"
+
+    @pytest.mark.asyncio
+    async def test_battery_chemistry_round_trip(self, test_db):
+        """The global default battery chemistry is forwarded and persisted."""
+        result = await update_settings(AppSettingsUpdate(battery_chemistry="lifepo4"))
+        assert result.battery_chemistry == "lifepo4"
+
+        fresh = await AppSettingsRepository.get()
+        assert fresh.battery_chemistry == "lifepo4"
+
+    @pytest.mark.asyncio
+    async def test_battery_chemistry_ignores_unknown_value(self, test_db):
+        """A stale/rogue client value is ignored, leaving the default."""
+        result = await update_settings(AppSettingsUpdate(battery_chemistry="nonsense"))
+        assert result.battery_chemistry == "lipo"
 
     async def test_packet_group_by_content_defaults_off(self, test_db):
         result = await update_settings(AppSettingsUpdate())
@@ -814,6 +834,57 @@ class TestToggleTrackedTelemetry:
         # N=1 unlocks the full menu including 1h
         assert 1 in result.schedule.options
         assert result.schedule.max_tracked == 8
+
+
+class TestToggleTrackedTelemetryContact:
+    """Tests for POST /settings/tracked-telemetry-contacts/toggle (LPP tracking)."""
+
+    @pytest.mark.asyncio
+    async def test_add_client_contact(self, test_db):
+        key = "aa" * 32
+        await ContactRepository.upsert(ContactUpsert(public_key=key, name="Client", type=1))
+
+        result = await toggle_tracked_telemetry_contact(TrackedTelemetryRequest(public_key=key))
+
+        assert key in result.tracked_telemetry_contacts
+        settings = await AppSettingsRepository.get()
+        assert key in settings.tracked_telemetry_contacts
+
+    @pytest.mark.asyncio
+    async def test_add_repeater_for_lpp_tracking(self, test_db):
+        """Repeaters answer LPP telemetry requests too; the contact info page
+        offers LPP interval tracking for them, so the toggle must accept them."""
+        key = "bb" * 32
+        await ContactRepository.upsert(
+            ContactUpsert(public_key=key, name="Repeater", type=CONTACT_TYPE_REPEATER)
+        )
+
+        result = await toggle_tracked_telemetry_contact(TrackedTelemetryRequest(public_key=key))
+
+        assert key in result.tracked_telemetry_contacts
+        assert result.names[key] == "Repeater"
+        settings = await AppSettingsRepository.get()
+        assert key in settings.tracked_telemetry_contacts
+        # LPP tracking is independent of the repeater status list
+        assert key not in settings.tracked_telemetry_repeaters
+
+    @pytest.mark.asyncio
+    async def test_remove_contact(self, test_db):
+        key = "cc" * 32
+        await ContactRepository.upsert(
+            ContactUpsert(public_key=key, name="Repeater", type=CONTACT_TYPE_REPEATER)
+        )
+        await AppSettingsRepository.update(tracked_telemetry_contacts=[key])
+
+        result = await toggle_tracked_telemetry_contact(TrackedTelemetryRequest(public_key=key))
+
+        assert key not in result.tracked_telemetry_contacts
+
+    @pytest.mark.asyncio
+    async def test_rejects_unknown_contact(self, test_db):
+        with pytest.raises(HTTPException) as exc_info:
+            await toggle_tracked_telemetry_contact(TrackedTelemetryRequest(public_key="dd" * 32))
+        assert exc_info.value.status_code == 404
 
 
 class TestTelemetryIntervalValidation:

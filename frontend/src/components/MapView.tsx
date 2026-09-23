@@ -1236,7 +1236,7 @@ export function MapView({
       // a toggle reveals the telemetry history line chart.
       const latest = latestTelemetryRef.current[contact.public_key];
       if (latest && (latest.battery_volts != null || latest.temperature != null)) {
-        const parts = telemetryPopupParts(latest, Date.now() / 1000);
+        const parts = telemetryPopupParts(latest, Date.now() / 1000, contact.battery_chemistry);
         const block = document.createElement('div');
         block.className = 'mt-2 rounded border border-border/60 bg-muted/30 px-2 py-1.5 text-xs';
         if (parts.stale) block.className += ' opacity-70';

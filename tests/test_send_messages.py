@@ -354,7 +354,8 @@ class TestOutgoingDMBroadcast:
         assert mc.commands.send_msg.await_args_list[1].kwargs["attempt"] == 1
         assert mc.commands.send_msg.await_args_list[2].kwargs["attempt"] == 2
         mc.commands.reset_path.assert_awaited_once_with(pub_key)
-        assert slept_for == pytest.approx([9.6, 8.4])
+        # Two retry waits, then the final attempt's own ACK window before failing.
+        assert slept_for == pytest.approx([9.6, 8.4, 7.2])
 
     @pytest.mark.asyncio
     async def test_send_dm_background_retry_stops_after_late_ack(self, test_db):

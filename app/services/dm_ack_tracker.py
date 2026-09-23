@@ -12,10 +12,16 @@ BUFFERED_ACK_TTL_SECONDS = 30.0
 # only needs to outlive a retry loop that is already in flight when the delete
 # happens.
 DELETED_MESSAGE_TTL_SECONDS = 300.0
+# After a DM is marked failed, its ACK codes stay matchable this long so a late
+# ACK still flips it to delivered (meshcore-open does the same). After that a
+# late ACK is treated as unmatched and the message stays failed.
+FAILED_ACK_GRACE_SECONDS = 30.0
 
 _pending_acks: dict[str, PendingAck] = {}
 _buffered_acks: dict[str, float] = {}
 _deleted_message_ids: dict[int, float] = {}
+# ack code -> (message_id, time.time() when the message was marked failed)
+_failed_acks: dict[str, tuple[int, float]] = {}
 
 
 def track_pending_ack(expected_ack: str, message_id: int, timeout_ms: int) -> bool:
@@ -69,6 +75,15 @@ def cleanup_expired_acks() -> None:
         del _buffered_acks[code]
         logger.debug("Expired buffered ACK %s", code)
 
+    expired_failed_codes = [
+        code
+        for code, (_message_id, failed_at) in _failed_acks.items()
+        if now - failed_at > FAILED_ACK_GRACE_SECONDS
+    ]
+    for code in expired_failed_codes:
+        del _failed_acks[code]
+        logger.debug("Expired failed-message ACK grace for %s", code)
+
     cleanup_expired_deleted_marks()
 
 
@@ -91,6 +106,7 @@ def clear_pending_acks_for_message(message_id: int) -> None:
     for code in sibling_codes:
         del _pending_acks[code]
         logger.debug("Cleared sibling pending ACK %s for message %d", code, message_id)
+    clear_failed_acks_for_message(message_id)
 
 
 def mark_message_deleted(message_id: int) -> None:
@@ -119,3 +135,40 @@ def cleanup_expired_deleted_marks() -> None:
     ]
     for message_id in expired:
         del _deleted_message_ids[message_id]
+
+
+def track_failed_acks(ack_codes: list[str], message_id: int) -> None:
+    """Keep a failed DM's ACK codes matchable for ``FAILED_ACK_GRACE_SECONDS``.
+
+    Replaces any still-pending entries for the message, so the codes are held in
+    exactly one place.
+    """
+    for code, (pending_message_id, _created_at, _timeout_ms) in list(_pending_acks.items()):
+        if pending_message_id == message_id:
+            del _pending_acks[code]
+    failed_at = time.time()
+    for code in ack_codes:
+        _failed_acks[code] = (message_id, failed_at)
+    logger.debug(
+        "Holding %d ACK code(s) for failed message %d for late delivery",
+        len(ack_codes),
+        message_id,
+    )
+
+
+def pop_failed_ack(ack_code: str) -> int | None:
+    """Claim a failed message's ID for a late ACK still inside its grace window."""
+    entry = _failed_acks.pop(ack_code, None)
+    if entry is None:
+        return None
+    message_id, failed_at = entry
+    if time.time() - failed_at > FAILED_ACK_GRACE_SECONDS:
+        return None
+    return message_id
+
+
+def clear_failed_acks_for_message(message_id: int) -> None:
+    """Drop any failed-grace ACK codes held for a message."""
+    for code, (failed_message_id, _failed_at) in list(_failed_acks.items()):
+        if failed_message_id == message_id:
+            del _failed_acks[code]

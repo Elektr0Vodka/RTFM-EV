@@ -42,6 +42,7 @@ import { loadRegistry, recordMention, saveRegistry } from './lib/channelManager'
 import { buildNameSet } from './lib/hashtagChannelState';
 import { useLocale } from './i18n';
 import { resolveDateTimeFormat, setActiveDateTimeFormat } from './utils/dateTimeFormat';
+import { DEFAULT_BATTERY_CHEMISTRY, setActiveBatteryChemistry } from './utils/batteryDisplay';
 
 interface ChannelUnreadMarker {
   channelId: string;
@@ -194,6 +195,11 @@ export function App() {
   // their next render (App re-renders when the setting or locale changes).
   const { locale: uiLocale } = useLocale();
   setActiveDateTimeFormat(resolveDateTimeFormat(appSettings?.date_time_format ?? 'auto', uiLocale));
+
+  // Keep the global default battery chemistry in sync with the setting. Callers
+  // that display a specific node's battery (e.g. the telemetry map layer) pass
+  // that node's own override instead; everything else falls back to this.
+  setActiveBatteryChemistry(appSettings?.battery_chemistry ?? DEFAULT_BATTERY_CHEMISTRY);
 
   // Mention/DM notification sound. Plays via the websocket message path below.
   const { notifyMentionSound } = useMentionSound({
@@ -377,10 +383,11 @@ export function App() {
     reloadCurrentConversation,
     observeMessage,
     receiveMessageAck,
+    receiveMessageFailed,
+    removeMessage,
     reconcileOnReconnect,
     renameConversationMessages,
     removeConversationMessages,
-    removeMessage,
     clearConversationMessages,
   } = useConversationMessages(activeConversation, targetMessageId);
   removeConversationMessagesRef.current = removeConversationMessages;
@@ -497,6 +504,7 @@ export function App() {
     renameConversationMessages,
     removeConversationMessages,
     receiveMessageAck,
+    receiveMessageFailed,
     removeMessage,
     notifyIncomingMessage,
     onChannelMention: handleChannelMention,
@@ -527,6 +535,7 @@ export function App() {
   const {
     handleSendMessage,
     handleResendChannelMessage,
+    handleRetryDirectMessage,
     handleReactToMessage,
     handleReplyToMessage,
     handleDeleteMessage,
@@ -542,8 +551,8 @@ export function App() {
     setContacts,
     setChannels,
     observeMessage,
-    messageInputRef,
     removeMessage,
+    messageInputRef,
   });
   const handleCreateCrackedChannel = useCallback(
     async (name: string, key: string) => {
@@ -714,6 +723,7 @@ export function App() {
     onNavigateToUnread: (messageId: number) => setTargetMessageId(messageId),
     onJumpToMessage: (messageId: number) => setTargetMessageId(messageId),
     onReactToMessage: handleReactToMessage,
+    onRetryDirectMessage: handleRetryDirectMessage,
     onReplyToMessage: handleReplyToMessage,
     onDeleteMessage: handleDeleteMessage,
     targetMessageId,

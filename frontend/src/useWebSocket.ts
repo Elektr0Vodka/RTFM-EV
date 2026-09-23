@@ -27,7 +27,8 @@ export interface UseWebSocketOptions {
     paths?: MessagePath[],
     packetId?: number | null
   ) => void;
-  onMessageDeleted?: (messageId: number, type: 'PRIV' | 'CHAN', conversationKey: string) => void;
+  onMessageFailed?: (messageId: number, failedAt: number) => void;
+  onMessageDeleted?: (messageId: number) => void;
   onError?: (error: ErrorEvent) => void;
   onSuccess?: (success: SuccessEvent) => void;
   onReconnect?: () => void;
@@ -146,19 +147,12 @@ export function useWebSocket(options: UseWebSocketOptions) {
             );
             break;
           }
-          case 'message_deleted': {
-            const deletedData = msg.data as {
-              id: number;
-              type: 'PRIV' | 'CHAN';
-              conversation_key: string;
-            };
-            handlers.onMessageDeleted?.(
-              deletedData.id,
-              deletedData.type,
-              deletedData.conversation_key
-            );
+          case 'message_failed':
+            handlers.onMessageFailed?.(msg.data.message_id, msg.data.failed_at);
             break;
-          }
+          case 'message_deleted':
+            handlers.onMessageDeleted?.(msg.data.message_id);
+            break;
           case 'error':
             handlers.onError?.(msg.data as ErrorEvent);
             break;
