@@ -156,6 +156,18 @@ def track_failed_acks(ack_codes: list[str], message_id: int) -> None:
     )
 
 
+def is_ack_expected(ack_code: str) -> bool:
+    """True when an outgoing DM still waits for this ACK code (read-only check).
+
+    Used by the host repeater's shadow mode to recognise ACKs addressed to us
+    before the packet processor consumes them.
+    """
+    if ack_code in _pending_acks:
+        return True
+    entry = _failed_acks.get(ack_code)
+    return entry is not None and time.time() - entry[1] <= FAILED_ACK_GRACE_SECONDS
+
+
 def pop_failed_ack(ack_code: str) -> int | None:
     """Claim a failed message's ID for a late ACK still inside its grace window."""
     entry = _failed_acks.pop(ack_code, None)

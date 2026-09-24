@@ -162,6 +162,9 @@ async def _stats_sampling_loop() -> None:
                 await _persist_samples(snapshot)
             elif not radio_manager.is_connected:
                 _latest_stats = {}
+            from app.services.host_repeater import host_repeater
+
+            host_repeater.on_stats_sample(snapshot)
             from app.websocket import broadcast_health
 
             broadcast_health(radio_manager.is_connected, radio_manager.connection_info)

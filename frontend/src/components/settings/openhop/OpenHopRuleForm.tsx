@@ -5,7 +5,11 @@ import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { Checkbox } from '../../ui/checkbox';
-import { OPENHOP_ACTIONS, OpenHopConditionBuilder } from './OpenHopConditionBuilder';
+import {
+  OPENHOP_ACTIONS,
+  OpenHopConditionBuilder,
+  type ConditionVocabulary,
+} from './OpenHopConditionBuilder';
 
 interface PolicyObjects {
   channel_hash_groups: Record<string, string[]>;
@@ -17,6 +21,7 @@ interface Props {
   objects: PolicyObjects;
   onSave: (r: OpenHopRule) => void;
   onCancel: () => void;
+  vocabulary?: ConditionVocabulary;
 }
 
 const selectClass = 'rounded border border-input bg-background px-2 py-1 text-sm';
@@ -33,7 +38,7 @@ function normalizeCondition(c: OpenHopCondition): OpenHopCondition {
   return c;
 }
 
-export function OpenHopRuleForm({ rule, objects, onSave, onCancel }: Props) {
+export function OpenHopRuleForm({ rule, objects, onSave, onCancel, vocabulary }: Props) {
   const t = useT();
   const [draft, setDraft] = useState<OpenHopRule>(rule);
   const cond: OpenHopCondition = hasCondition(draft.if)
@@ -78,6 +83,7 @@ export function OpenHopRuleForm({ rule, objects, onSave, onCancel }: Props) {
       <OpenHopConditionBuilder
         value={cond}
         objects={objects}
+        vocabulary={vocabulary}
         onChange={(c) => setDraft({ ...draft, if: c })}
       />
       <div className="flex gap-2">

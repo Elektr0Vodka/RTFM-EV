@@ -345,6 +345,13 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `POST /radio/reboot`
 - `POST /radio/reconnect`
 
+### Host repeater (plan 29, shadow mode only)
+RTFM-EV judges received frames as a repeater would; nothing transmits. Pure engine `services/host_repeater_engine.py` (MeshCore `Mesh.cpp` rules, repeater gates, DMC filter, OpenHop policy via `services/host_repeater_policy.py`; must not import the radio, radio commands or meshcore, `tests/test_host_repeater_api.py` enforces it). Settings model `services/host_repeater_settings.py` (strict, `extra=forbid`), stored as one versioned JSON row in `host_repeater_config` (migration `_112`, `repository/host_repeater.py`). Runtime `services/host_repeater.py`: `pre_observe` + `observe` are called from `event_handlers.on_rx_log_data` around `process_raw_packet` (pending ACK codes are read before the processor consumes them); `on_stats_sample` from the radio stats loop. Radio facts come in as a `RadioSnapshot` from `services/host_repeater_link.py`, the only module that reads the radio manager (cached state only). Stats are in memory. OpenHop radios are skipped. Region map: `settings.regions` (name without `#`, parent, `deny_flood`) + `home_region`; the engine matches transport codes against this list itself (`region_resolver.compute_transport_code`), not against `known_regions`. DMC region gating: `AirtimeBudget` (dmc-dev budget bucket) fed by would-forward airtime and `add_own_tx` (radio `tx_air_secs` deltas); pending 10 s gate checks are replayed on each engine call. The legacy `region_rules` field is converted in a `mode="before"` validator, because `load()` falls back to defaults on a validation error.
+- `GET /radio/host-repeater` - settings, `version`, `state` (`off`/`shadow`), `env_enabled` (`MESHCORE_HOST_REPEATER_ENABLED`), capabilities (raw send ver code >= 13, firmware repeat byte, OpenHop, EU sub-band limit, `arm_blockers`)
+- `PUT /radio/host-repeater/settings` - `{version, settings}`; 409 when `version` is stale, 409 when enabling shadow on OpenHop; broadcasts WS `host_repeater`
+- `POST /radio/host-repeater/validate` - `{valid, errors[{loc, msg}]}` without saving
+- `GET /radio/host-repeater/stats` (includes `region_gate`: level, max level, budget use, closed regions), `POST /radio/host-repeater/stats/reset`
+
 ### Contacts
 - `GET /contacts`
 - `GET /contacts/analytics` - unified keyed-or-name analytics payload
@@ -520,6 +527,7 @@ chosen node), and a Prefix Collisions tab badge.
 - `channel` - single channel upsert/update (payload: full `Channel`)
 - `channel_deleted` - channel removed from database (payload: `{ key }`)
 - `message_deleted` - message row removed: a local delete (one event per row, so a deleted reaction gets its own event alongside its target) or a failed DM replaced by a manual retry (payload: `{ message_id, type, conversation_key }`)
+- `host_repeater` - host repeater settings saved (payload: `{ version, settings, state, env_enabled }`)
 - `new_node` - a public key never stored before (first advert ever, or the radio's own NEW_CONTACT auto-add); batched into a summary on a busy mesh. See "New-node notifications" below
 - `error` - toast notification (reconnect failure, missing private key, stuck radio startup, etc.)
 - `success` - toast notification (historical decrypt complete, etc.)

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import type { Channel, HealthStatus, Contact, Message, MessagePath, RawPacket } from './types';
 import { parseWsEvent, type NewNodePayload } from './wsEvents';
+import { emitHostRepeaterEvent } from './utils/hostRepeaterEvents';
 
 interface ErrorEvent {
   message: string;
@@ -156,6 +157,9 @@ export function useWebSocket(options: UseWebSocketOptions) {
             break;
           case 'new_node':
             handlers.onNewNode?.(msg.data as NewNodePayload);
+            break;
+          case 'host_repeater':
+            emitHostRepeaterEvent(msg.data);
             break;
           case 'error':
             handlers.onError?.(msg.data as ErrorEvent);

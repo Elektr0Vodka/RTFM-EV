@@ -9,6 +9,7 @@ import type {
   RadioConfig,
   RadioConfigUpdate,
 } from '../types';
+import { CONTACT_TYPE_REPEATER } from '../types';
 import type { LocalLabel } from '../utils/localLabel';
 import { useT } from '../i18n';
 import {
@@ -26,6 +27,8 @@ import { SettingsDatabaseSection } from './settings/SettingsDatabaseSection';
 import { SettingsAboutSection } from './settings/SettingsAboutSection';
 import { SettingsHandyInfoSection } from './settings/SettingsHandyInfoSection';
 import { SettingsOpenHopSection } from './settings/openhop/SettingsOpenHopSection';
+import { HostRepeaterSettings } from './settings/hostRepeater/HostRepeaterSettings';
+import { radioFloodScopeRegions } from './settings/hostRepeater/floodScopeRegions';
 
 interface SettingsModalBaseProps {
   open: boolean;
@@ -120,6 +123,7 @@ export function SettingsModal(props: SettingsModalProps) {
   const externalDesktopSidebarMode = externalSidebarNav && !isMobileLayout;
   const [expandedSections, setExpandedSections] = useState<Record<SettingsSection, boolean>>({
     radio: false,
+    'host-repeater': false,
     local: false,
     'radio-app': false,
     map: false,
@@ -236,6 +240,30 @@ export function SettingsModal(props: SettingsModalProps) {
               <div className={sectionContentClass}>
                 <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
                   {t('settings_radio_unavailable')}
+                </div>
+              </div>
+            ))}
+        </section>
+      )}
+
+      {shouldRenderSection('host-repeater') && (
+        <section className={sectionWrapperClass}>
+          {renderSectionHeader('host-repeater')}
+          {isSectionVisible('host-repeater') &&
+            (appSettings ? (
+              <div className={sectionContentClass}>
+                <HostRepeaterSettings
+                  health={health}
+                  floodScopeRegions={radioFloodScopeRegions(appSettings.flood_scope, channels)}
+                  repeaters={(contacts ?? [])
+                    .filter((c) => c.type === CONTACT_TYPE_REPEATER)
+                    .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))}
+                />
+              </div>
+            ) : (
+              <div className={sectionContentClass}>
+                <div className="rounded-md border border-input bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                  {t('settings_loading_app_settings')}
                 </div>
               </div>
             ))}

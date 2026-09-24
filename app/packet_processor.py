@@ -364,6 +364,7 @@ async def process_raw_packet(
         "message_id": None,
         "channel_name": None,
         "sender": None,
+        "region": None,
     }
 
     # Compute packet hash once for threading into message broadcasts (used by bot fanout).
@@ -387,6 +388,7 @@ async def process_raw_packet(
             )
         except Exception:
             logger.debug("Region resolution failed for packet %d", packet_id, exc_info=True)
+        result["region"] = region
 
     # Process packets based on payload type
     # For GROUP_TEXT, we always try to decrypt even for duplicate packets - the message
