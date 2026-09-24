@@ -206,6 +206,9 @@ async def lifespan(app: FastAPI):
     await stop_external_map_sync()
     await stop_backup_schedule()
     await stop_retention_prune()
+    from app.services.host_repeater_tx import host_repeater_tx
+
+    await host_repeater_tx.stop()
     await stop_link_edge_backfill()
     await stop_periodic_advert()
     await stop_periodic_sync()

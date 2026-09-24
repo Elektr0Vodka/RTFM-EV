@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, ApiError } from '../api';
 import { HostRepeaterSettings } from '../components/settings/hostRepeater/HostRepeaterSettings';
+import { toast } from '../components/ui/sonner';
 import type {
   Contact,
   HealthStatus,
@@ -60,6 +61,9 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     dc_gate_enabled: false,
     dc_gate_threshold: 70,
     dc_gate_hysteresis: 10,
+    arm_min_sub_band_percent: 1,
+    max_pending_forwards: 20,
+    max_in_flight: 2,
     policy: {
       enabled: false,
       default_action: 'allow',
@@ -70,12 +74,19 @@ function settings(overrides: Partial<Settings> = {}): Settings {
   };
 }
 
-function state(version: number, s: Settings = settings()): HostRepeaterState {
+function state(
+  version: number,
+  s: Settings = settings(),
+  live: Partial<HostRepeaterState> = {}
+): HostRepeaterState {
   return {
     version,
     settings: s,
     state: s.shadow_enabled ? 'shadow' : 'off',
     env_enabled: false,
+    armed_since: null,
+    disarm_reason: null,
+    rearm_pending: false,
     capabilities: {
       connected: true,
       identity_known: true,
@@ -85,8 +96,20 @@ function state(version: number, s: Settings = settings()): HostRepeaterState {
       openhop: false,
       freq_mhz: 869.618,
       sub_band_limit_percent: 10,
-      arm_blockers: ['not_available_yet', 'env_switch_off', 'admin_switch_off'],
+      arm_blockers: ['env_switch_off', 'admin_switch_off'],
     },
+    ...live,
+  };
+}
+
+/** A state where every arming precondition passes (env on, admin on, no blockers). */
+function armable(version: number, extra: Partial<HostRepeaterState> = {}): HostRepeaterState {
+  const base = state(version, settings({ admin_enabled: true, shadow_enabled: true }));
+  return {
+    ...base,
+    env_enabled: true,
+    capabilities: { ...base.capabilities, arm_blockers: [] },
+    ...extra,
   };
 }
 
@@ -119,6 +142,25 @@ const emptyStats: HostRepeaterStats = {
   },
   invisible_rx: { samples: 0, radio_recv: 0, pushes: 0, estimate: null },
   rx_airtime_calibration: { model_ms: 0, radio_ms: 0, ratio: null },
+  tx: {
+    armed: false,
+    armed_since: null,
+    disarm_reason: null,
+    rearm_pending: false,
+    queued: 0,
+    in_flight: 0,
+    sent: 0,
+    sent_airtime_ms: 0,
+    send_errors: 0,
+    table_full: 0,
+    dropped_queue_full: 0,
+    dropped_too_late: 0,
+    dropped_lock_busy: 0,
+    dropped_disarmed: 0,
+    lock_retries: 0,
+    last_error: null,
+    last_sent_at: null,
+  },
   recent: [],
 };
 
@@ -303,5 +345,112 @@ describe('HostRepeaterSettings', () => {
     expect(
       screen.getByRole('checkbox', { name: 'Forward floods without a region' })
     ).not.toBeChecked();
+  });
+
+  it('hides the arm controls entirely while the server switch (env) is off', async () => {
+    vi.spyOn(api, 'getHostRepeater').mockResolvedValue(state(1));
+    render(<HostRepeaterSettings health={health(false)} floodScopeRegions={[]} repeaters={[]} />);
+
+    await screen.findByRole('checkbox', { name: 'Shadow mode' });
+    expect(
+      screen.getByText(/Server switch MESHCORE_HOST_REPEATER_ENABLED: off/)
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Live repeating (armed mode)')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Arm live repeating...' })).not.toBeInTheDocument();
+  });
+
+  it('keeps Arm disabled and lists the blockers while a precondition fails', async () => {
+    vi.spyOn(api, 'getHostRepeater').mockResolvedValue(
+      armable(1, {
+        settings: settings({ admin_enabled: false, shadow_enabled: true }),
+        capabilities: { ...armable(1).capabilities, arm_blockers: ['admin_switch_off'] },
+      })
+    );
+    render(<HostRepeaterSettings health={health(false)} floodScopeRegions={[]} repeaters={[]} />);
+
+    expect(await screen.findByRole('button', { name: 'Arm live repeating...' })).toBeDisabled();
+    expect(screen.getByText(/admin switch is off/)).toBeInTheDocument();
+  });
+
+  it('arms only after the confirmation checkbox and shows the kill switch', async () => {
+    vi.spyOn(api, 'getHostRepeater').mockResolvedValue(armable(1));
+    const setMode = vi.spyOn(api, 'setHostRepeaterMode').mockImplementation(async () => {
+      // Once armed, the stats poll reports live forwards.
+      vi.spyOn(api, 'getHostRepeaterStats').mockResolvedValue({
+        ...emptyStats,
+        tx: { ...emptyStats.tx!, armed: true, sent: 3, sent_airtime_ms: 360 },
+      });
+      return armable(1, { state: 'armed', armed_since: 1_700_000_000 });
+    });
+    const disarm = vi
+      .spyOn(api, 'disarmHostRepeater')
+      .mockResolvedValue(armable(1, { disarm_reason: 'user' }));
+    render(<HostRepeaterSettings health={health(false)} floodScopeRegions={[]} repeaters={[]} />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Arm live repeating...' }));
+    const armNow = screen.getByRole('button', { name: 'Arm now' });
+    expect(armNow).toBeDisabled();
+    expect(screen.getByText(/retransmit other nodes' packets on 869.618 MHz/)).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole('checkbox', { name: /I understand this transmits on air/ })
+    );
+    expect(armNow).toBeEnabled();
+    expect(setMode).not.toHaveBeenCalled();
+
+    await userEvent.click(armNow);
+    await waitFor(() => expect(setMode).toHaveBeenCalledWith('armed', true));
+    expect(await screen.findByText('Live repeating is ON')).toBeInTheDocument();
+    expect(screen.getByText('State:').nextSibling).toHaveTextContent('Armed (live)');
+    expect(screen.getByText('Live forwards')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Disarm (kill switch)' }));
+    await waitFor(() => expect(disarm).toHaveBeenCalledOnce());
+    expect(await screen.findByText(/Disarmed: stopped by the operator/)).toBeInTheDocument();
+    expect(screen.queryByText('Live repeating is ON')).not.toBeInTheDocument();
+  });
+
+  it('shows the blockers from a 409 when arming is refused', async () => {
+    vi.spyOn(api, 'getHostRepeater').mockResolvedValue(armable(1));
+    vi.spyOn(api, 'setHostRepeaterMode').mockRejectedValue(
+      new ApiError('cannot arm', 409, { message: 'cannot arm', blockers: ['firmware_repeat_on'] })
+    );
+    const errorToast = vi.spyOn(toast, 'error');
+    render(<HostRepeaterSettings health={health(false)} floodScopeRegions={[]} repeaters={[]} />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Arm live repeating...' }));
+    await userEvent.click(
+      screen.getByRole('checkbox', { name: /I understand this transmits on air/ })
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Arm now' }));
+
+    await waitFor(() =>
+      expect(errorToast).toHaveBeenCalledWith('Could not arm the host repeater', {
+        description: 'firmware client repeat is on',
+      })
+    );
+    expect(screen.queryByText('Live repeating is ON')).not.toBeInTheDocument();
+  });
+
+  it('follows an armed state pushed by another browser even with local edits', async () => {
+    vi.spyOn(api, 'getHostRepeater').mockResolvedValue(armable(1));
+    render(<HostRepeaterSettings health={health(false)} floodScopeRegions={[]} repeaters={[]} />);
+    await userEvent.click(
+      await screen.findByRole('checkbox', { name: 'Re-arm after a radio reconnect' })
+    );
+
+    act(() => {
+      emitHostRepeaterEvent({
+        version: 2,
+        settings: settings({ admin_enabled: true, shadow_enabled: true }),
+        state: 'armed',
+        env_enabled: true,
+        armed_since: 1_700_000_000,
+        disarm_reason: null,
+        rearm_pending: false,
+      });
+    });
+
+    expect(await screen.findByText('Live repeating is ON')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Re-arm after a radio reconnect' })).toBeChecked();
   });
 });

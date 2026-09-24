@@ -92,6 +92,9 @@ class HostRepeaterPayload(TypedDict):
     settings: dict[str, Any]
     state: str
     env_enabled: bool
+    armed_since: float | None
+    disarm_reason: str | None
+    rearm_pending: bool
 
 
 _PAYLOAD_ADAPTERS: dict[WsEventType, TypeAdapter[Any]] = {

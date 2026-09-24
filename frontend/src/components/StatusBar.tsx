@@ -17,6 +17,7 @@ import { getEffectiveTheme, THEME_CHANGE_EVENT } from '../utils/theme';
 import { HeaderLanguageMenu } from './HeaderLanguageMenu';
 import { LivePacketSparkline } from './LivePacketSparkline';
 import { useUpdateStatus } from '../hooks/useUpdateStatus';
+import { useHostRepeaterArmed } from '../hooks/useHostRepeaterArmed';
 import { ThemeSelector } from './settings/ThemeSelector';
 import { CrtEffects } from './settings/CrtEffects';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
@@ -59,6 +60,7 @@ export function StatusBar({
 }: StatusBarProps) {
   const t = useT();
   const { status: updateStatus } = useUpdateStatus();
+  const repeaterArmed = useHostRepeaterArmed();
   const [showBatteryPercent, setShowBatteryPercent] = useState(getShowBatteryPercent);
   const [showBatteryVoltage, setShowBatteryVoltage] = useState(getShowBatteryVoltage);
 
@@ -247,6 +249,16 @@ export function StatusBar({
         />
         <span className="hidden lg:inline text-muted-foreground">{statusLabel}</span>
       </div>
+
+      {repeaterArmed && (
+        <span
+          className="rounded border border-destructive/50 bg-destructive/15 px-1.5 py-0.5 text-[0.6875rem] font-semibold text-destructive"
+          role="status"
+          title={t('status_host_repeater_armed_title')}
+        >
+          {t('status_host_repeater_armed')}
+        </span>
+      )}
 
       {connected && batteryInfo && (
         <div

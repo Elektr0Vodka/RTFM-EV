@@ -1,7 +1,9 @@
-"""Host repeater settings, state and shadow statistics (plan 29, Phases 1-2).
+"""Host repeater settings, state, arming and statistics (plan 29, Phases 1-3).
 
-Nothing here transmits. Arming (live forwarding) is a later phase; the API only
-reports why it is not available (``arm_blockers``).
+Shadow mode never transmits. Armed mode (``POST .../mode`` with ``mode: "armed"`` and
+``confirm: true``) forwards other nodes' packets on the current frequency through
+``host_repeater_tx``; it needs the server switch (env), the admin switch and every
+capability check to pass, and ``POST .../disarm`` is the kill switch.
 """
 
 from typing import Any, Literal
@@ -12,19 +14,11 @@ from pydantic import BaseModel, Field, ValidationError
 from app.services.host_repeater import host_repeater
 from app.services.host_repeater_link import radio_snapshot
 from app.services.host_repeater_settings import HostRepeaterSettings, sub_band_duty_limit
+from app.services.host_repeater_tx import ArmBlocker, ArmRefused, host_repeater_tx
 
 router = APIRouter(prefix="/radio/host-repeater", tags=["radio"])
 
-ArmBlocker = Literal[
-    "not_available_yet",
-    "env_switch_off",
-    "admin_switch_off",
-    "radio_disconnected",
-    "raw_send_unsupported",
-    "firmware_repeat_on",
-    "openhop",
-    "frequency_unknown",
-]
+HostRepeaterState = Literal["off", "shadow", "armed"]
 
 
 class HostRepeaterCapabilities(BaseModel):
@@ -44,15 +38,24 @@ class HostRepeaterCapabilities(BaseModel):
     sub_band_limit_percent: float | None = Field(
         description="EU sub-band duty-cycle limit for the current frequency (None outside 863-870 MHz)"
     )
-    arm_blockers: list[ArmBlocker]
+    arm_blockers: list[ArmBlocker] = Field(
+        description="Why arming is refused right now; empty when the repeater can be armed"
+    )
 
 
 class HostRepeaterResponse(BaseModel):
     version: int = Field(description="Settings version; send it back on save (409 when stale)")
     settings: HostRepeaterSettings
-    state: Literal["off", "shadow"]
+    state: HostRepeaterState
     env_enabled: bool = Field(
         description="MESHCORE_HOST_REPEATER_ENABLED (server switch, env half)"
+    )
+    armed_since: float | None = Field(description="Unix time the repeater was armed, if armed")
+    disarm_reason: str | None = Field(
+        description="Why the repeater last left armed mode (user, radio_disconnected, ...)"
+    )
+    rearm_pending: bool = Field(
+        description="Disarmed by a radio disconnect and will re-arm on reconnect (opt-in)"
     )
     capabilities: HostRepeaterCapabilities
 
@@ -76,24 +79,28 @@ class HostRepeaterValidateResponse(BaseModel):
     errors: list[ValidationIssue]
 
 
+class HostRepeaterModeRequest(BaseModel):
+    mode: HostRepeaterState
+    confirm: bool = Field(
+        default=False,
+        description="Required true for mode 'armed': the operator confirmed live forwarding",
+    )
+
+
+def _tx():
+    """The armed-mode sender, attached to the runtime this router serves.
+
+    Tests swap ``host_repeater`` for a fresh runtime; the sender must follow it so
+    blockers and arming read the same settings the rest of the router does.
+    """
+    if host_repeater_tx.attached_runtime is not host_repeater:
+        host_repeater_tx.attach(host_repeater)
+    return host_repeater_tx
+
+
 def _capabilities() -> HostRepeaterCapabilities:
     snap = radio_snapshot()
     freq = snap.radio.freq_mhz if snap.radio else None
-    blockers: list[ArmBlocker] = ["not_available_yet"]
-    if not host_repeater.env_enabled:
-        blockers.append("env_switch_off")
-    if not host_repeater.settings.admin_enabled:
-        blockers.append("admin_switch_off")
-    if not snap.connected:
-        blockers.append("radio_disconnected")
-    if snap.raw_send_supported is False:
-        blockers.append("raw_send_unsupported")
-    if snap.client_repeat:
-        blockers.append("firmware_repeat_on")
-    if snap.is_openhop:
-        blockers.append("openhop")
-    if freq is None:
-        blockers.append("frequency_unknown")
     return HostRepeaterCapabilities(
         connected=snap.connected,
         identity_known=snap.public_key is not None,
@@ -103,16 +110,20 @@ def _capabilities() -> HostRepeaterCapabilities:
         openhop=snap.is_openhop,
         freq_mhz=freq,
         sub_band_limit_percent=sub_band_duty_limit(freq),
-        arm_blockers=blockers,
+        arm_blockers=_tx().blockers(snap),  # type: ignore[arg-type]
     )
 
 
 def _response() -> HostRepeaterResponse:
+    public = host_repeater.public_state()
     return HostRepeaterResponse(
         version=host_repeater.version,
         settings=host_repeater.settings,
-        state="shadow" if host_repeater.shadow_active else "off",
-        env_enabled=host_repeater.env_enabled,
+        state=public["state"],
+        env_enabled=public["env_enabled"],
+        armed_since=public["armed_since"],
+        disarm_reason=public["disarm_reason"],
+        rearm_pending=public["rearm_pending"],
         capabilities=_capabilities(),
     )
 
@@ -160,9 +171,50 @@ async def validate_host_repeater_settings(
     return HostRepeaterValidateResponse(valid=True, errors=[])
 
 
+@router.post("/mode", response_model=HostRepeaterResponse)
+async def set_host_repeater_mode(request: HostRepeaterModeRequest) -> HostRepeaterResponse:
+    """Arm live forwarding (``armed`` + ``confirm``) or leave it (``shadow`` / ``off``).
+
+    Leaving armed mode does not change the saved settings: shadow keeps running if it
+    is enabled. Arming answers 409 with the blocker list when a precondition fails and
+    400 when the confirmation is missing.
+    """
+    await host_repeater.ensure_loaded()
+    if request.mode == "armed":
+        try:
+            _tx().arm(confirm=request.confirm)
+        except ArmRefused as exc:
+            if exc.confirm_missing:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "message": "Arming needs confirm=true",
+                        "blockers": [],
+                    },
+                ) from exc
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": "The host repeater cannot be armed right now",
+                    "blockers": exc.blockers,
+                },
+            ) from exc
+    else:
+        _tx().disarm("user")
+    return _response()
+
+
+@router.post("/disarm", response_model=HostRepeaterResponse)
+async def disarm_host_repeater() -> HostRepeaterResponse:
+    """Kill switch: stop forwarding immediately (also cancels a pending re-arm)."""
+    await host_repeater.ensure_loaded()
+    _tx().disarm("user")
+    return _response()
+
+
 @router.get("/stats")
 async def get_host_repeater_stats() -> dict[str, Any]:
-    """Shadow-mode statistics (in memory since start or the last reset)."""
+    """Shadow and armed-mode statistics (in memory since start or the last reset)."""
     snap = radio_snapshot()
     return host_repeater.stats_snapshot(snap.radio.freq_mhz if snap.radio else None)
 

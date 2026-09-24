@@ -1928,18 +1928,39 @@ export interface HostRepeaterSettings {
   dc_gate_enabled: boolean;
   dc_gate_threshold: number;
   dc_gate_hysteresis: number;
+  /** Armed mode: refuse to arm below this sub-band duty-cycle limit (%). */
+  arm_min_sub_band_percent: number;
+  /** Armed mode: forwards held on the host waiting for their delay. */
+  max_pending_forwards: number;
+  /** Armed mode: forwards handed to the firmware and not yet assumed transmitted. */
+  max_in_flight: number;
   policy: OpenHopPolicyEngine;
 }
 
 export type HostRepeaterArmBlocker =
-  | 'not_available_yet'
   | 'env_switch_off'
   | 'admin_switch_off'
   | 'radio_disconnected'
+  | 'identity_unknown'
   | 'raw_send_unsupported'
   | 'firmware_repeat_on'
   | 'openhop'
-  | 'frequency_unknown';
+  | 'frequency_unknown'
+  | 'sub_band_below_minimum';
+
+export type HostRepeaterMode = 'off' | 'shadow' | 'armed';
+
+/** Why the repeater last left armed mode (`disarm_reason`). */
+export type HostRepeaterDisarmReason =
+  | 'user'
+  | 'radio_disconnected'
+  | 'firmware_repeat_on'
+  | 'identity_changed'
+  | 'radio_settings_changed'
+  | 'send_errors'
+  | 'duty_cycle_exceeded'
+  | 'queue_stuck'
+  | 'shutdown';
 
 export interface HostRepeaterCapabilities {
   connected: boolean;
@@ -1956,8 +1977,13 @@ export interface HostRepeaterCapabilities {
 export interface HostRepeaterState {
   version: number;
   settings: HostRepeaterSettings;
-  state: 'off' | 'shadow';
+  state: HostRepeaterMode;
   env_enabled: boolean;
+  /** Unix seconds the repeater was armed; null unless armed. */
+  armed_since: number | null;
+  disarm_reason: HostRepeaterDisarmReason | string | null;
+  /** Disarmed by a radio disconnect and will re-arm on reconnect (opt-in). */
+  rearm_pending: boolean;
   capabilities: HostRepeaterCapabilities;
 }
 
@@ -1965,8 +1991,32 @@ export interface HostRepeaterState {
 export interface HostRepeaterEventPayload {
   version: number;
   settings: HostRepeaterSettings;
-  state: 'off' | 'shadow';
+  state: HostRepeaterMode;
   env_enabled: boolean;
+  armed_since?: number | null;
+  disarm_reason?: string | null;
+  rearm_pending?: boolean;
+}
+
+/** Armed-mode sender statistics (`stats.tx`). */
+export interface HostRepeaterTxStats {
+  armed: boolean;
+  armed_since: number | null;
+  disarm_reason: string | null;
+  rearm_pending: boolean;
+  queued: number;
+  in_flight: number;
+  sent: number;
+  sent_airtime_ms: number;
+  send_errors: number;
+  table_full: number;
+  dropped_queue_full: number;
+  dropped_too_late: number;
+  dropped_lock_busy: number;
+  dropped_disarmed: number;
+  lock_retries: number;
+  last_error: string | null;
+  last_sent_at: number | null;
 }
 
 export interface HostRepeaterValidateResult {
@@ -2045,5 +2095,6 @@ export interface HostRepeaterStats {
     wildcard_gated: boolean;
     gated_regions: string[];
   };
+  tx?: HostRepeaterTxStats | null;
   recent: HostRepeaterDecision[];
 }

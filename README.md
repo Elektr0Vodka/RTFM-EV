@@ -380,7 +380,7 @@ Only one transport may be active at a time. If multiple are set, the server will
 | `MESHCORE_BASIC_AUTH_USERNAME` | | Optional app-wide HTTP Basic auth username; must be set together with `MESHCORE_BASIC_AUTH_PASSWORD` |
 | `MESHCORE_BASIC_AUTH_PASSWORD` | | Optional app-wide HTTP Basic auth password; must be set together with `MESHCORE_BASIC_AUTH_USERNAME` |
 | `MESHCORE_VAPID_SUBJECT` | `mailto:noreply@meshcore.local` | Subject (`sub`) claim for Web Push VAPID tokens; must be a `mailto:` or `https:` contact. Apple's push service rejects the default `.local` domain, so iOS/Safari users must set this to a real address (e.g. `mailto:you@example.com`). |
-| `MESHCORE_HOST_REPEATER_ENABLED` | false | Server switch (env half) for the host repeater's future live mode. The current version only has shadow mode, which never transmits and does not need this. |
+| `MESHCORE_HOST_REPEATER_ENABLED` | false | Server switch (env half) for the host repeater's armed mode (live forwarding). Arming also needs the admin switch in Settings > Host repeater and a confirmation; shadow mode never transmits and does not need this ([docs](#host-repeater-shadow-and-armed-mode)). |
 | `MESHCORE_UPDATE_CHECK_ENABLED` | true | Check GitHub for a newer fork build and show an in-app update indicator. Set `false` to disable the outbound request (air-gapped / privacy-conscious setups). |
 
 Common launch patterns:
@@ -434,11 +434,13 @@ RTFM-EV works with [OpenHop](https://github.com/openhop-dev/openhop_repeater) re
 
 As with the Meshcomod panel, everything is hidden on non-OpenHop devices and detection is automatic from the radio's device info.
 
-## Host repeater (shadow mode)
+## Host repeater (shadow and armed mode)
 
 RTFM-EV can judge every packet its radio receives the way a repeater would, like OpenHop does for its own radio: MeshCore forwarding rules, the repeater's `flood.max` / region / loop settings, the DMC packet filter, DMC duty-cycle region gating and OpenHop-style policy rules. Enable **Shadow mode** under **Settings -> Host repeater** to see what it would forward or drop, how long the host took, and how much airtime the forwards would use.
 
 Like the repeater firmware, only region-scoped floods for a region in the host repeater's region list are forwarded. An empty list is pre-filled with the radio's flood scopes; you can also import a repeater's region tree (this sends a request over RF, after a confirmation). Region gating (off by default) closes regions from the outside in when too much of the airtime budget is in use, keeping the deepest layer and the home region open. Shadow mode never transmits; live repeating is not available yet. Firmware client repeat must stay off. On OpenHop radios the option is disabled because OpenHop repeats packets itself.
+
+**Armed mode (live forwarding).** Once shadow data looks right, RTFM-EV can forward for real. Arming needs all of: the server switch `MESHCORE_HOST_REPEATER_ENABLED=true` (env), the admin switch in Settings > Host repeater, a connected radio with firmware raw send (companion v1.16+ / ver code 13), firmware client repeat off, a non-OpenHop radio, an EU sub-band whose duty-cycle limit is at least the configured minimum (1 % by default), and an explicit confirmation in the browser. Forwards are held on the host until their random retransmit delay has passed, sent with the raw-packet command at MeshCore priorities, and never block your own sends (they take the radio lock non-blocking and give up at their latency deadline). The repeater disarms itself when the radio disconnects (opt-in re-arm on reconnect), when firmware client repeat is found on, when the radio's frequency, modulation or identity changes, when raw sends keep failing, when the radio's measured TX airtime over the last hour exceeds the sub-band limit, or when the forward queue is stuck; **Disarm** in Settings and `POST /api/radio/host-repeater/disarm` are the kill switch. It always comes up disarmed after a server restart, and a **Repeating** badge shows in the top bar of every browser while it is armed. Stock companion firmware only allows client repeat on off-grid frequencies; this forwards on the main mesh frequency instead, like an OpenHop repeater, so make sure you are allowed to operate a repeater where you are.
 
 ## Languages
 

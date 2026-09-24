@@ -138,12 +138,14 @@ function Toggle({ id, label, desc, checked, disabled, onChange }: ToggleProps) {
 }
 
 /**
- * Settings > Host repeater (plan 29, Phases 1-2): its own settings section.
+ * Settings > Host repeater (plan 29, Phases 1-3): its own settings section.
  *
- * RTFM-EV itself acts as the repeater (firmware client repeat stays off). This
- * version only has shadow mode: every received frame is judged and counted,
- * nothing is transmitted. OpenHop radios repeat internally, so the section is
- * shown disabled for them.
+ * RTFM-EV itself acts as the repeater (firmware client repeat stays off). Shadow
+ * mode judges and counts every received frame without transmitting. Armed mode
+ * (Phase 3) forwards for real: it needs the server switch (env), the admin switch,
+ * every capability check and an explicit confirmation here; the Disarm button is
+ * the kill switch. OpenHop radios repeat internally, so the section is shown
+ * disabled for them.
  */
 export function HostRepeaterSettings({ health, floodScopeRegions, repeaters }: Props) {
   const t = useT();
@@ -155,6 +157,9 @@ export function HostRepeaterSettings({ health, floodScopeRegions, repeaters }: P
   const prefillDone = useRef(false);
   const [newChannelHash, setNewChannelHash] = useState('');
   const [newChannelLabel, setNewChannelLabel] = useState('');
+  const [armOpen, setArmOpen] = useState(false);
+  const [armAck, setArmAck] = useState(false);
+  const [arming, setArming] = useState(false);
 
   // Pre-fill an empty, never-configured region list with the radio's flood scopes.
   // It only changes the draft; nothing applies until the operator saves.
@@ -230,7 +235,45 @@ export function HostRepeaterSettings({ health, floodScopeRegions, repeaters }: P
   };
 
   const budgetPercent = (draft.max_airtime_per_minute_ms / 60000) * 100;
-  const armBlockers = caps.arm_blockers.filter((b) => b !== 'not_available_yet');
+  const armBlockers = caps.arm_blockers;
+  const armed = state.state === 'armed';
+  const canArm = state.env_enabled && !armed && armBlockers.length === 0;
+
+  const arm = async () => {
+    setArming(true);
+    try {
+      const result = await hr.setMode('armed', true);
+      if (result.ok) {
+        toast.success(t('settings_host_repeater_armed_toast'));
+        setArmOpen(false);
+        setArmAck(false);
+      } else {
+        toast.error(t('settings_host_repeater_arm_failed'), {
+          description:
+            result.blockers.length > 0
+              ? result.blockers.map((b) => t(`settings_host_repeater_blocker_${b}`)).join(', ')
+              : (result.message ?? undefined),
+        });
+        await hr.reload();
+      }
+    } finally {
+      setArming(false);
+    }
+  };
+
+  const disarm = async () => {
+    setArming(true);
+    try {
+      await hr.disarm();
+      toast.success(t('settings_host_repeater_disarmed_toast'));
+    } catch (err) {
+      toast.error(t('settings_host_repeater_disarm_failed'), {
+        description: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setArming(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -240,15 +283,19 @@ export function HostRepeaterSettings({ health, floodScopeRegions, repeaters }: P
         <span className="font-medium">{t('settings_host_repeater_state_label')}</span>
         <span
           className={
-            state.state === 'shadow'
-              ? 'rounded bg-primary/15 px-2 py-0.5 text-primary'
-              : 'rounded bg-muted px-2 py-0.5'
+            armed
+              ? 'rounded bg-destructive/15 px-2 py-0.5 font-semibold text-destructive'
+              : state.state === 'shadow'
+                ? 'rounded bg-primary/15 px-2 py-0.5 text-primary'
+                : 'rounded bg-muted px-2 py-0.5'
           }
         >
           {t(`settings_host_repeater_state_${state.state}`)}
         </span>
         <span className="text-xs text-muted-foreground">
-          {t('settings_host_repeater_no_transmit')}
+          {armed
+            ? t('settings_host_repeater_transmitting')
+            : t('settings_host_repeater_no_transmit')}
         </span>
       </div>
 
@@ -273,15 +320,131 @@ export function HostRepeaterSettings({ health, floodScopeRegions, repeaters }: P
             state.env_enabled ? 'settings_host_repeater_env_on' : 'settings_host_repeater_env_off'
           )}
         </span>
-        <span>{t('settings_host_repeater_armed_unavailable')}</span>
-        {armBlockers.length > 0 && (
+        {!armed && armBlockers.length > 0 && (
           <span>
             {t('settings_host_repeater_blockers', {
               list: armBlockers.map((b) => t(`settings_host_repeater_blocker_${b}`)).join(', '),
             })}
           </span>
         )}
+        {!armed && state.disarm_reason && (
+          <span className="text-warning" role="status">
+            {t('settings_host_repeater_disarmed_because', {
+              reason: t(`settings_host_repeater_disarm_${state.disarm_reason}`),
+            })}
+            {state.rearm_pending ? ` ${t('settings_host_repeater_rearm_pending')}` : ''}
+          </span>
+        )}
       </div>
+
+      {/* Armed mode: arm (confirm first) / disarm (kill switch). Hidden entirely while the
+          server switch (env) is off, so a browser alone can never bring it up. */}
+      {state.env_enabled && (
+        <div
+          className={
+            armed
+              ? 'space-y-2 rounded border border-destructive/50 bg-destructive/10 p-3'
+              : 'space-y-2 rounded border border-input p-3'
+          }
+        >
+          {armed ? (
+            <>
+              <p className="text-sm font-semibold text-destructive">
+                {t('settings_host_repeater_armed_banner')}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {t('settings_host_repeater_armed_banner_desc')}
+              </p>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={arming}
+                onClick={() => void disarm()}
+              >
+                {t('settings_host_repeater_disarm')}
+              </Button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-semibold">{t('settings_host_repeater_arm_heading')}</p>
+              <p className="text-xs text-muted-foreground">
+                {t('settings_host_repeater_arm_desc')}
+              </p>
+              {!armOpen ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!canArm || arming || hr.dirty}
+                  title={hr.dirty ? t('settings_host_repeater_arm_save_first') : undefined}
+                  onClick={() => setArmOpen(true)}
+                >
+                  {t('settings_host_repeater_arm')}
+                </Button>
+              ) : (
+                <div className="space-y-2 rounded border border-destructive/40 p-3">
+                  <p className="text-sm font-medium">
+                    {t('settings_host_repeater_arm_confirm_title')}
+                  </p>
+                  <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                    <li>
+                      {t('settings_host_repeater_arm_confirm_freq', {
+                        freq: caps.freq_mhz != null ? caps.freq_mhz.toFixed(3) : '?',
+                        limit:
+                          caps.sub_band_limit_percent != null
+                            ? `${caps.sub_band_limit_percent}%`
+                            : '?',
+                      })}
+                    </li>
+                    <li>
+                      {t('settings_host_repeater_arm_confirm_budget', {
+                        ms: draft.max_airtime_per_minute_ms,
+                        percent: Number.isFinite(budgetPercent) ? budgetPercent.toFixed(1) : '?',
+                      })}
+                    </li>
+                    <li>{t('settings_host_repeater_arm_confirm_stops')}</li>
+                    <li>{t('settings_host_repeater_arm_confirm_firmware')}</li>
+                    <li>{t('settings_host_repeater_arm_confirm_offgrid')}</li>
+                  </ul>
+                  <div className="flex items-start gap-2">
+                    <Checkbox
+                      id="host-repeater-arm-ack"
+                      className="mt-0.5"
+                      checked={armAck}
+                      onCheckedChange={(c) => setArmAck(c === true)}
+                    />
+                    <Label htmlFor="host-repeater-arm-ack" className="text-sm">
+                      {t('settings_host_repeater_arm_ack')}
+                    </Label>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      disabled={!armAck || !canArm || arming}
+                      onClick={() => void arm()}
+                    >
+                      {arming
+                        ? t('settings_host_repeater_arming')
+                        : t('settings_host_repeater_arm_confirm_button')}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={arming}
+                      onClick={() => {
+                        setArmOpen(false);
+                        setArmAck(false);
+                      }}
+                    >
+                      {t('settings_host_repeater_arm_cancel')}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       <Toggle
         id="host-repeater-shadow"
@@ -360,6 +523,34 @@ export function HostRepeaterSettings({ health, floodScopeRegions, repeaters }: P
             min={300}
             max={86400}
             onChange={(v) => set({ seen_ttl_seconds: v })}
+          />
+          <NumField
+            id="hr-max-pending"
+            label={t('settings_host_repeater_max_pending')}
+            hint={t('settings_host_repeater_max_pending_hint')}
+            value={draft.max_pending_forwards}
+            min={1}
+            max={200}
+            onChange={(v) => set({ max_pending_forwards: v })}
+          />
+          <NumField
+            id="hr-max-in-flight"
+            label={t('settings_host_repeater_max_in_flight')}
+            hint={t('settings_host_repeater_max_in_flight_hint')}
+            value={draft.max_in_flight}
+            min={1}
+            max={16}
+            onChange={(v) => set({ max_in_flight: v })}
+          />
+          <NumField
+            id="hr-arm-min-sub-band"
+            label={t('settings_host_repeater_arm_min_sub_band')}
+            hint={t('settings_host_repeater_arm_min_sub_band_hint')}
+            value={draft.arm_min_sub_band_percent}
+            min={0.1}
+            max={100}
+            step={0.1}
+            onChange={(v) => set({ arm_min_sub_band_percent: v })}
           />
         </div>
       </details>
@@ -673,7 +864,7 @@ export function HostRepeaterSettings({ health, floodScopeRegions, repeaters }: P
         </Button>
       </div>
 
-      {state.state === 'shadow' && (
+      {(state.state === 'shadow' || armed) && (
         <HostRepeaterStatsPane stats={hr.stats} onReset={() => void hr.resetStats()} />
       )}
     </div>
