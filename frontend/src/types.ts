@@ -1874,7 +1874,7 @@ export interface RestoreResult {
 export interface RestoreStatus {
   pending: PendingRestore | null;
   last_result: RestoreResult | null;
-
+}
 /* ── Host repeater (plan 29): RTFM-EV as the repeater, shadow mode only ── */
 
 export type HostRepeaterLoopDetect = 'off' | 'minimal' | 'moderate' | 'strict';
