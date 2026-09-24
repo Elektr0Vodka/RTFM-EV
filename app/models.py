@@ -10,6 +10,19 @@ from app.path_utils import normalize_contact_route, normalize_route_override
 # Corrupted radio data can produce values outside this range.
 _VALID_CONTACT_TYPES = frozenset({0, 1, 2, 3, 4})
 
+# Firmware TELEM_PERM_* bits (SensorManager.h): 0x01 base/battery, 0x02 location,
+# 0x04 environment. Companion firmware reads them from contact.flags >> 1, since
+# flags bit 0 is the radio favourite bit (companion_radio MyMesh.cpp).
+TELEMETRY_PERM_BASE = 0x01
+TELEMETRY_PERM_LOCATION = 0x02
+TELEMETRY_PERM_ENVIRONMENT = 0x04
+TELEMETRY_PERM_MASK = 0x07
+
+
+def apply_telemetry_perms(flags: int, perms: int) -> int:
+    """Return radio contact flags with the telemetry permission bits set to ``perms``."""
+    return (flags & ~(TELEMETRY_PERM_MASK << 1)) | ((perms & TELEMETRY_PERM_MASK) << 1)
+
 
 class ContactRoute(BaseModel):
     """A normalized contact route."""
@@ -27,7 +40,8 @@ class ContactUpsert(BaseModel):
     public_key: str = Field(description="Public key (64-char hex)")
     name: str | None = None
     type: int = 0
-    flags: int = 0
+    # None = keep the stored flags (they carry per-contact telemetry permissions)
+    flags: int | None = None
     direct_path: str | None = None
     direct_path_len: int | None = None
     direct_path_hash_mode: int | None = None
@@ -118,6 +132,10 @@ class Contact(BaseModel):
     on_radio: bool = False
     favorite: bool = False
     radio_policy: Literal["auto", "pinned", "excluded"] = "auto"
+    # App-set TELEM_PERM_* bits; None = never set in the app (radio flags rule)
+    telemetry_perms: int | None = None
+    # Per-node battery chemistry override; None = use the global app_settings default.
+    battery_chemistry: Literal["lipo", "lifepo4", "lipo_hv", "nmc"] | None = None
     last_contacted: int | None = None  # Last time we sent/received a message
     last_read_at: int | None = None  # Server-side read state tracking
     first_seen: int | None = None
@@ -211,11 +229,14 @@ class Contact(BaseModel):
         than our database schema (name, direct_path, etc.).
         """
         effective_path, effective_path_len, effective_path_hash_mode = self.effective_route_tuple()
+        flags = self.flags
+        if self.telemetry_perms is not None:
+            flags = apply_telemetry_perms(flags, self.telemetry_perms)
         return {
             "public_key": self.public_key,
             "adv_name": self.name or "",
             "type": self.type,
-            "flags": self.flags,
+            "flags": flags,
             "out_path": effective_path,
             "out_path_len": effective_path_len,
             "out_path_hash_mode": effective_path_hash_mode,
@@ -243,6 +264,39 @@ class CreateContactRequest(BaseModel):
     )
 
 
+class ContactUriResponse(BaseModel):
+    """A meshcore:// contact link exported from the radio."""
+
+    uri: str = Field(description="meshcore:// + lowercase hex of the raw advert packet")
+    public_key: str = Field(description="Public key of the node the link describes")
+
+
+class ContactUriImportRequest(BaseModel):
+    """Request to import a contact from a meshcore:// link."""
+
+    uri: str = Field(max_length=600, description="meshcore:// contact link")
+
+
+class ContactUriBatchRequest(BaseModel):
+    """Request to look up meshcore:// links for several contacts at once."""
+
+    public_keys: list[str] = Field(description="Contacts to look up a stored advert for")
+
+
+class ContactUriBatchResponse(BaseModel):
+    """meshcore:// links built from stored raw adverts, not the radio.
+
+    Read-only: sourced from the most recent retained advert transmission per
+    contact (``advert_events`` joined to ``raw_packets``). A key is omitted
+    when no raw advert is still stored for it (never heard, or pruned by
+    retention), so this never issues a per-node radio command.
+    """
+
+    links: dict[str, str] = Field(
+        description="Lowercase public_key -> meshcore:// link, only for keys that resolved"
+    )
+
+
 class ContactAnnotationsUpdate(BaseModel):
     """Partial update of user-editable contact annotations.
 
@@ -255,6 +309,10 @@ class ContactAnnotationsUpdate(BaseModel):
     owner_key: str | None = Field(default=None, description="64-char hex of an existing contact")
     manual_lat: float | None = Field(default=None, ge=-90, le=90)
     manual_lon: float | None = Field(default=None, ge=-180, le=180)
+    battery_chemistry: Literal["lipo", "lifepo4", "lipo_hv", "nmc"] | None = Field(
+        default=None,
+        description="Per-node battery chemistry override; null uses the global default",
+    )
 
 
 class ContactRoutingOverrideRequest(BaseModel):
@@ -267,6 +325,25 @@ class ContactRoutingOverrideRequest(BaseModel):
             "comma-separated 1/2/3-byte hop hex values"
         )
     )
+
+
+class ContactTelemetryPermissionsRequest(BaseModel):
+    """Per-contact telemetry sharing permissions.
+
+    Only takes effect for a category whose radio-wide telemetry mode is
+    per-contact (Settings > Radio).
+    """
+
+    base: bool = Field(description="Share base telemetry (battery)")
+    location: bool = Field(description="Share location")
+    environment: bool = Field(description="Share environment sensor readings")
+
+    def to_perms(self) -> int:
+        return (
+            (TELEMETRY_PERM_BASE if self.base else 0)
+            | (TELEMETRY_PERM_LOCATION if self.location else 0)
+            | (TELEMETRY_PERM_ENVIRONMENT if self.environment else 0)
+        )
 
 
 class ContactRadioPolicyRequest(BaseModel):
@@ -505,6 +582,13 @@ class Message(BaseModel):
         default=None,
         description="Resolved region name for the transport code, if it matched a known region",
     )
+    failed_at: int | None = Field(
+        default=None,
+        description=(
+            "Unix time an outgoing direct message was marked failed (all retries ran out "
+            "without an ACK). None when not failed; a late ACK clears it."
+        ),
+    )
 
 
 class MessagesAroundResponse(BaseModel):
@@ -513,10 +597,81 @@ class MessagesAroundResponse(BaseModel):
     has_newer: bool
 
 
+class ReactRequest(BaseModel):
+    """React to a stored message with one emoji."""
+
+    emoji: str = Field(min_length=1, max_length=16, description="A single emoji")
+
+
+class ReactionTargetResponse(BaseModel):
+    """The message an emoji reaction points at."""
+
+    dialect: Literal["hash", "open_v3", "open_v1"] = Field(
+        description="hash: @[Name]emoji + 8-char hash line; open_v3/open_v1: meshcore-open r: forms"
+    )
+    emoji: str | None = Field(
+        default=None, description="Reaction emoji; None for open_v3 (the client decodes the index)"
+    )
+    target_hash: str | None = Field(
+        default=None, description="Hash naming the target (None for open_v1, which hashes fields)"
+    )
+    target_sender: str | None = Field(
+        default=None, description="Sender name the channel reaction names"
+    )
+    target: Message | None = Field(
+        default=None, description="Matched message, or None when it was never received"
+    )
+
+
+class SharedLocation(BaseModel):
+    """A location shared in a chat message (map shared-locations layer)."""
+
+    message_id: int
+    type: str = Field(description="PRIV or CHAN")
+    conversation_key: str = Field(description="Contact pubkey for PRIV, channel key for CHAN")
+    conversation_name: str | None = Field(
+        default=None, description="Channel name or contact name, when known"
+    )
+    sender_key: str | None = None
+    sender_name: str | None = Field(
+        default=None, description="Channel sender name (from the text), or the stored sender name"
+    )
+    outgoing: bool = False
+    received_at: int
+    sender_timestamp: int | None = None
+    lat: float
+    lon: float
+    format: Literal["marker", "mgrs", "decimal"] = Field(
+        description="marker: meshcore-open m: payload; mgrs: MGRS reference; decimal: lat, lon pair"
+    )
+    raw: str = Field(description="The matched text")
+    label: str = Field(default="", description="Marker label (marker format only)")
+    flags: str = Field(default="", description="Marker flags, e.g. poi (marker format only)")
+    precision_m: float | None = Field(
+        default=None, description="MGRS grid-square size in metres; None for exact points"
+    )
+    paths: list[MessagePath] | None = None
+
+
+class SharedLocationsResponse(BaseModel):
+    locations: list[SharedLocation] = Field(description="Newest first")
+    scanned: int = Field(description="Messages examined in the window")
+    truncated: bool = Field(
+        description="True when the window held more messages than the scan limit (oldest skipped)"
+    )
+
+
 class ResendChannelMessageResponse(BaseModel):
     status: str
     message_id: int
     message: Message | None = None
+
+
+class ResendDirectMessageResponse(BaseModel):
+    status: str
+    message_id: int = Field(description="ID of the new message row that was sent")
+    message: Message
+    replaced_message_id: int = Field(description="ID of the failed message row that was removed")
 
 
 class RawPacketDecryptedInfo(BaseModel):
@@ -636,7 +791,9 @@ class RepeaterStatusResponse(BaseModel):
     packets_received: int = Field(description="Total packets received")
     packets_sent: int = Field(description="Total packets sent")
     airtime_seconds: int = Field(description="TX airtime in seconds")
-    rx_airtime_seconds: int = Field(description="RX airtime in seconds")
+    rx_airtime_seconds: int | None = Field(
+        description="RX airtime in seconds (None for room firmware, which does not report it)"
+    )
     uptime_seconds: int = Field(description="Uptime in seconds")
     sent_flood: int = Field(description="Flood packets sent")
     sent_direct: int = Field(description="Direct packets sent")
@@ -646,6 +803,12 @@ class RepeaterStatusResponse(BaseModel):
     direct_dups: int = Field(description="Duplicate direct packets")
     full_events: int = Field(description="Full event queue count")
     recv_errors: int | None = Field(default=None, description="Radio-level RX packet errors")
+    room_posted: int | None = Field(
+        default=None, description="Room server: messages posted (room firmware only)"
+    )
+    room_post_pushes: int | None = Field(
+        default=None, description="Room server: posts pushed to members (room firmware only)"
+    )
     telemetry_history: list[TelemetryHistoryEntry] = Field(
         default_factory=list, description="Recent telemetry history snapshots"
     )
@@ -678,6 +841,47 @@ class RepeaterRadioSettingsResponse(BaseModel):
     )
     repeat_enabled: str | None = Field(default=None, description="Repeat mode enabled")
     flood_max: str | None = Field(default=None, description="Max flood hops")
+
+
+class RepeaterSettingSetRequest(BaseModel):
+    """One structured ``set`` for the repeater settings editor (allow-listed)."""
+
+    setting: str = Field(description="Allow-listed setting key, e.g. 'tx' or 'radio'")
+    value: str = Field(description="New value as text; validated server-side")
+
+
+class RepeaterSettingSetResponse(BaseModel):
+    """Result of one ``set`` followed by a ``get`` read-back."""
+
+    setting: str = Field(description="Setting key")
+    value: str = Field(description="Normalized value that was sent")
+    set_reply: str | None = Field(
+        default=None, description="Firmware reply to the set (None when no reply was heard)"
+    )
+    readback: str | None = Field(
+        default=None, description="Reply to the get read-back (None when no reply was heard)"
+    )
+    status: Literal["ok", "mismatch", "rejected", "unverified"] = Field(
+        description=(
+            "ok: read-back matches; mismatch: read-back differs; rejected: firmware "
+            "answered the set with an error; unverified: no read-back heard"
+        )
+    )
+    reboot_required: bool = Field(
+        default=False, description="True when the firmware only applies it after a reboot"
+    )
+
+
+class RepeaterSettingsReadRequest(BaseModel):
+    """Which allow-listed settings to read; omit for all of them."""
+
+    settings: list[str] | None = Field(default=None, description="Setting keys to read")
+
+
+class RepeaterSettingsReadResponse(BaseModel):
+    """Current values of allow-listed settings (None when not heard or unsupported)."""
+
+    values: dict[str, str | None] = Field(default_factory=dict)
 
 
 class RepeaterAdvertIntervalsResponse(BaseModel):
@@ -1080,6 +1284,12 @@ class RadioPresetsStore(BaseModel):
     source_url: str = Field(default="", description="Upstream URL the presets came from")
 
 
+class MarkUnreadRequest(BaseModel):
+    """Request to mark a conversation unread from a specific message onward."""
+
+    message_id: int = Field(description="ID of the incoming message to mark unread, inclusive")
+
+
 class UnreadCounts(BaseModel):
     """Aggregated unread counts, mention flags, and last message times for all conversations."""
 
@@ -1234,6 +1444,50 @@ class SidebarFavoriteSortOrders(BaseModel):
     sensors: str = Field(default="recent")
 
 
+# Battery chemistries recognised by mvToPercent on the frontend (migration _108).
+# 'lipo' keeps the existing real discharge curve; the others are meshcore-open's
+# linear min-max ranges (utils/battery_utils.dart). See frontend/src/utils/
+# batteryDisplay.ts for the per-chemistry math and sources.
+BATTERY_CHEMISTRIES: tuple[str, ...] = ("lipo", "lifepo4", "lipo_hv", "nmc")
+
+
+class ContactGroup(BaseModel):
+    """A user-defined group of contacts and/or channels.
+
+    Rendered as its own collapsible sidebar section, alongside the built-in
+    Favorites/Channels/Contacts sections (see ``SidebarHidden``/section order).
+    A contact or channel can belong to any number of groups. Membership removes
+    the item from its normal Channels/Contacts/Rooms/Repeaters section, the
+    same way marking something a favorite does (see the ``favorite`` flag on
+    Contact/Channel) - the group section becomes the item's only "leftover"
+    section unless it is also a favorite. Local-only: nothing about groups is
+    sent over RF.
+    """
+
+    id: str = Field(description="Stable client-generated identifier for this group")
+    name: str = Field(description="Display name shown as the section header")
+    contact_keys: list[str] = Field(
+        default_factory=list, description="Member contact public keys (lowercase hex)"
+    )
+    channel_keys: list[str] = Field(default_factory=list, description="Member channel keys")
+
+
+# Retention settings added in migrations _105 and _107 (0 = keep forever / no cap).
+# Defaults reproduce the pruning behavior from before that migration.
+RETENTION_DEFAULTS: dict[str, int] = {
+    "retention_prune_interval_hours": 24,
+    "telemetry_retention_days": 30,
+    "telemetry_max_rows_per_node": 1000,
+    "link_signal_retention_days": 30,
+    "advert_paths_per_contact": 10,
+    "noise_floor_retention_days": 0,
+    "battery_retention_days": 0,
+    "airtime_retention_days": 0,
+    "message_retention_days": 0,
+    "link_edge_retention_days": 365,
+}
+
+
 class AppSettings(BaseModel):
     """Application settings stored in the database."""
 
@@ -1250,12 +1504,52 @@ class AppSettings(BaseModel):
     )
     advert_retention_days: int = Field(
         default=30,
-        description="Days of advert_events history to keep; older events are pruned daily",
+        description="Days of advert_events history to keep; 0 keeps forever",
     )
     raw_packet_retention_days: int = Field(
         default=0,
         ge=0,
-        description="Days of raw_packets history to keep; 0 keeps forever. Pruned daily.",
+        description="Days of raw_packets history to keep; 0 keeps forever",
+    )
+    retention_prune_interval_hours: int = Field(
+        default=24,
+        description="Hours between runs of the retention prune service",
+    )
+    telemetry_retention_days: int = Field(
+        default=30,
+        description="Days of repeater/contact telemetry history to keep; 0 keeps forever",
+    )
+    telemetry_max_rows_per_node: int = Field(
+        default=1000,
+        description="Telemetry history rows kept per node (newest first); 0 = no cap",
+    )
+    link_signal_retention_days: int = Field(
+        default=30,
+        description="Days of per-link signal history to keep; 0 keeps forever",
+    )
+    advert_paths_per_contact: int = Field(
+        default=10,
+        description="Most recent unique advert paths kept per contact",
+    )
+    noise_floor_retention_days: int = Field(
+        default=0,
+        description="Days of noise-floor samples to keep; 0 keeps forever",
+    )
+    battery_retention_days: int = Field(
+        default=0,
+        description="Days of local battery samples to keep; 0 keeps forever",
+    )
+    airtime_retention_days: int = Field(
+        default=0,
+        description="Days of local airtime samples to keep; 0 keeps forever",
+    )
+    message_retention_days: int = Field(
+        default=0,
+        description=("Days of messages to keep (with their linked raw packets); 0 keeps forever"),
+    )
+    link_edge_retention_days: int = Field(
+        default=365,
+        description="Days of per-packet map link history to keep; 0 keeps forever",
     )
     last_message_times: dict[str, int] = Field(
         default_factory=dict,
@@ -1308,6 +1602,10 @@ class AppSettings(BaseModel):
         default_factory=SidebarFavoriteSortOrders,
         description="Per-favorite-group sort order (recent/alpha) in the sidebar.",
     )
+    contact_groups: list[ContactGroup] = Field(
+        default_factory=list,
+        description="User-defined contact/channel groups, each its own sidebar section.",
+    )
     packet_feed_sort: Literal["oldest", "newest"] = Field(
         default="oldest",
         description=(
@@ -1342,6 +1640,16 @@ class AppSettings(BaseModel):
         description=(
             "Last-selected 'Group repeats by content' packet-filter toggle, "
             "shared by the Raw Packet Feed and Packet History views."
+        ),
+    )
+    battery_chemistry: Literal["lipo", "lifepo4", "lipo_hv", "nmc"] = Field(
+        default="lipo",
+        description=(
+            "Global default battery chemistry used to convert millivolts to a "
+            "percentage (status bar, My Node, telemetry map layer). A contact's "
+            "own 'battery_chemistry' overrides this for that node. Stored "
+            "server-side (not per-browser) so it stays consistent across "
+            "browsers, matching most other radio-facing settings."
         ),
     )
     map_home_mode: Literal["auto", "home", "last"] = Field(
@@ -1535,7 +1843,7 @@ class AppSettings(BaseModel):
     )
     brand_name: str = Field(
         default="",
-        description="Custom navbar wordmark; empty falls back to the built-in 'RemoteTerm'",
+        description="Custom navbar wordmark; empty falls back to the built-in 'RTFM-EV'",
     )
     brand_hidden: bool = Field(
         default=False,
@@ -1622,6 +1930,71 @@ class AdvertLinkEdge(BaseModel):
     count: int
     last_seen: int
     ambiguous: bool
+
+
+class TrafficLinkEdge(AdvertLinkEdge):
+    """One undirected link from the per-packet edge log, aggregated over a window.
+
+    ``count`` is distinct packets; ``ambiguous`` is True when every sample in
+    the window was a distance-based (nearest) resolution.
+    """
+
+    first_seen: int
+
+
+class LinkEndpoint(BaseModel):
+    pubkey: str
+    name: str | None = None
+    kind: Literal["self", "contact", "external", "unknown"]
+    lat: float | None = None
+    lon: float | None = None
+
+
+class LinkSummary(BaseModel):
+    a: LinkEndpoint
+    b: LinkEndpoint
+    distance_km: float | None = None
+    involves_self: bool
+    total_packets: int
+    first_seen: int | None = None
+    last_seen: int | None = None
+    by_hop_width: dict[str, int]
+    by_confidence: dict[str, int]
+    by_payload_type: dict[str, int]
+
+
+class LinkTrafficPoint(BaseModel):
+    bucket: int
+    payload_type: str
+    count: int
+
+
+class LinkSignalPoint(BaseModel):
+    bucket: int
+    samples: int
+    snr_avg: float | None = None
+    snr_min: float | None = None
+    snr_max: float | None = None
+    rssi_avg: float | None = None
+    rssi_min: int | None = None
+    rssi_max: int | None = None
+
+
+class LinkTimeseries(BaseModel):
+    bucket_seconds: int
+    traffic: list[LinkTrafficPoint]
+    signal: list[LinkSignalPoint]
+
+
+class LinkPacketRow(BaseModel):
+    raw_packet_id: int
+    ts: int
+    payload_type: str | None = None
+    route_type: str | None = None
+    hop_width: int
+    confidence: str
+    snr: float | None = None
+    rssi: int | None = None
 
 
 class BusyChannel(BaseModel):

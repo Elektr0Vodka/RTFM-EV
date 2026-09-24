@@ -354,7 +354,8 @@ class TestOutgoingDMBroadcast:
         assert mc.commands.send_msg.await_args_list[1].kwargs["attempt"] == 1
         assert mc.commands.send_msg.await_args_list[2].kwargs["attempt"] == 2
         mc.commands.reset_path.assert_awaited_once_with(pub_key)
-        assert slept_for == pytest.approx([9.6, 8.4])
+        # Two retry waits, then the final attempt's own ACK window before failing.
+        assert slept_for == pytest.approx([9.6, 8.4, 7.2])
 
     @pytest.mark.asyncio
     async def test_send_dm_background_retry_stops_after_late_ack(self, test_db):
@@ -2079,3 +2080,85 @@ class TestChannelSendLockScope:
         ack_events = [entry for entry in broadcasts if entry["type"] == "message_acked"]
         assert len(message_events) == 1
         assert len(ack_events) == 1
+
+
+class TestDirectMessageAckCodeUniqueness:
+    """The firmware DM ACK code is sha256(timestamp, attempt, text, sender pubkey):
+    the recipient is not part of it. Two DMs with the same text in the same second
+    to different contacts would get the same ACK code, and the second pending ACK
+    would overwrite the first, so the timestamp must be unique across recipients."""
+
+    @pytest.mark.asyncio
+    async def test_same_text_to_other_contact_same_second_bumps_timestamp(self, test_db):
+        now = 1_700_000_000
+        await MessageRepository.create(
+            msg_type="PRIV",
+            text="ok",
+            conversation_key="aa" * 32,
+            sender_timestamp=now,
+            received_at=now,
+            outgoing=True,
+        )
+
+        allocated = await message_send_service.allocate_outgoing_sender_timestamp(
+            message_repository=MessageRepository,
+            msg_type="PRIV",
+            conversation_key="bb" * 32,
+            text="ok",
+            requested_timestamp=now,
+        )
+        await message_send_service.release_outgoing_sender_timestamp(
+            msg_type="PRIV", conversation_key="bb" * 32, text="ok", sender_timestamp=allocated
+        )
+
+        assert allocated == now + 1
+
+    @pytest.mark.asyncio
+    async def test_in_flight_reservation_to_other_contact_is_respected(self, test_db):
+        now = 1_700_000_000
+        first = await message_send_service.allocate_outgoing_sender_timestamp(
+            message_repository=MessageRepository,
+            msg_type="PRIV",
+            conversation_key="aa" * 32,
+            text="ok",
+            requested_timestamp=now,
+        )
+        second = await message_send_service.allocate_outgoing_sender_timestamp(
+            message_repository=MessageRepository,
+            msg_type="PRIV",
+            conversation_key="bb" * 32,
+            text="ok",
+            requested_timestamp=now,
+        )
+        for key, ts in (("aa" * 32, first), ("bb" * 32, second)):
+            await message_send_service.release_outgoing_sender_timestamp(
+                msg_type="PRIV", conversation_key=key, text="ok", sender_timestamp=ts
+            )
+
+        assert first == now
+        assert second == now + 1
+
+    @pytest.mark.asyncio
+    async def test_channel_messages_stay_scoped_per_channel(self, test_db):
+        now = 1_700_000_000
+        await MessageRepository.create(
+            msg_type="CHAN",
+            text="Me: ok",
+            conversation_key="AA" * 16,
+            sender_timestamp=now,
+            received_at=now,
+            outgoing=True,
+        )
+
+        allocated = await message_send_service.allocate_outgoing_sender_timestamp(
+            message_repository=MessageRepository,
+            msg_type="CHAN",
+            conversation_key="BB" * 16,
+            text="Me: ok",
+            requested_timestamp=now,
+        )
+        await message_send_service.release_outgoing_sender_timestamp(
+            msg_type="CHAN", conversation_key="BB" * 16, text="Me: ok", sender_timestamp=allocated
+        )
+
+        assert allocated == now

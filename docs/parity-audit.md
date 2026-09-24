@@ -114,7 +114,7 @@ discovery rows were re-marked afterwards. §7 holds the current per-item status.
 ### Repeater / admin
 | Feature | Ref | RTFM-EV | Appl. | Notes |
 |---|---|---|---|---|
-| Repeater/room pairing + remote admin | Off | Present | App | Repeater console exists. |
+| Repeater/room pairing + remote admin | Off | Present | App | Repeater console exists. Structured repeater settings editor (allow-listed `set` + `get` read-back, per-change confirm, typed-name confirm for radio f/bw/sf/cr; no `prv.key`) added in plan 28 item 1.2. |
 | Run CLI on node | DMC | Partial | App | Companion `CMD_RUN_CLI_COMMAND 66` (v14+) available to host. |
 
 ### Adverts / path / map
@@ -125,6 +125,7 @@ discovery rows were re-marked afterwards. §7 holds the current per-item status.
 | Antenna coverage tool | Off | Absent | Adapt | Heavy; mobile-oriented. **[web]** |
 | Line-of-sight analysis | Off | Absent | Adapt | Heavy; mobile-oriented. **[web]** |
 | Phone GPS location sharing | Off | Absent | N/A | No device GPS in a server context. |
+| Shared-location markers on map | Off | Present | App | Map Overlays > Shared locations: meshcore-open `m:` markers and `lat, lon` pairs from DMs + channels, newest per sender or all (`GET /api/messages/locations`). RTFM-EV extra: MGRS references and a Decimal/DMS/MGRS display setting (no other client sends MGRS). |
 
 ### Telemetry
 | Feature | Ref | RTFM-EV | Appl. | Notes |

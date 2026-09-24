@@ -5,6 +5,7 @@ from typing import Any
 
 from app.database import db
 from app.models import (
+    TELEMETRY_PERM_MASK,
     Contact,
     ContactAdvertPath,
     ContactAdvertPathSummary,
@@ -71,11 +72,13 @@ class ContactRepository:
                                       last_advert, lat, lon, last_seen,
                                       on_radio, last_contacted, first_seen,
                                       notes, owner_info, owner_key, manual_lat, manual_lon)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, COALESCE(?, 0), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(public_key) DO UPDATE SET
                     name = COALESCE(excluded.name, contacts.name),
                     type = CASE WHEN excluded.type = 0 THEN contacts.type ELSE excluded.type END,
-                    flags = excluded.flags,
+                    -- flags carry per-contact telemetry permission bits. Writers that do
+                    -- not supply flags (adverts, DM placeholders) keep the stored value.
+                    flags = CASE WHEN ? IS NULL THEN contacts.flags ELSE excluded.flags END,
                     direct_path = COALESCE(excluded.direct_path, contacts.direct_path),
                     direct_path_len = COALESCE(excluded.direct_path_len, contacts.direct_path_len),
                     direct_path_hash_mode = COALESCE(
@@ -135,6 +138,7 @@ class ContactRepository:
                     contact_row.owner_key,
                     contact_row.manual_lat,
                     contact_row.manual_lon,
+                    contact_row.flags,
                 ),
             ):
                 pass
@@ -193,6 +197,9 @@ class ContactRepository:
                 if "radio_policy" in available_columns and row["radio_policy"]
                 else "auto"
             ),
+            telemetry_perms=(
+                row["telemetry_perms"] if "telemetry_perms" in available_columns else None
+            ),
             last_contacted=row["last_contacted"],
             last_read_at=row["last_read_at"],
             first_seen=row["first_seen"],
@@ -201,6 +208,9 @@ class ContactRepository:
             owner_key=row["owner_key"] if "owner_key" in available_columns else None,
             manual_lat=row["manual_lat"] if "manual_lat" in available_columns else None,
             manual_lon=row["manual_lon"] if "manual_lon" in available_columns else None,
+            battery_chemistry=(
+                row["battery_chemistry"] if "battery_chemistry" in available_columns else None
+            ),
         )
 
     @staticmethod
@@ -468,7 +478,14 @@ class ContactRepository:
             ):
                 pass
 
-    _ANNOTATION_COLUMNS = ("notes", "owner_info", "owner_key", "manual_lat", "manual_lon")
+    _ANNOTATION_COLUMNS = (
+        "notes",
+        "owner_info",
+        "owner_key",
+        "manual_lat",
+        "manual_lon",
+        "battery_chemistry",
+    )
 
     @staticmethod
     async def set_annotations(public_key: str, changes: dict) -> None:
@@ -587,6 +604,42 @@ class ContactRepository:
                 (1 if value else 0, public_key.lower()),
             ):
                 pass
+
+    @staticmethod
+    async def set_telemetry_perms(public_key: str, perms: int) -> None:
+        """Store app-set telemetry permissions and mirror them into the flag bits."""
+        perms &= TELEMETRY_PERM_MASK
+        async with db.tx() as conn:
+            async with conn.execute(
+                """
+                UPDATE contacts
+                SET telemetry_perms = ?,
+                    flags = (COALESCE(flags, 0) & ?) | (? << 1)
+                WHERE public_key = ?
+                """,
+                (perms, ~(TELEMETRY_PERM_MASK << 1), perms, public_key.lower()),
+            ):
+                pass
+
+    @staticmethod
+    async def set_flags(public_key: str, flags: int) -> None:
+        """Record the flags now held by the radio for a contact."""
+        async with db.tx() as conn:
+            async with conn.execute(
+                "UPDATE contacts SET flags = ? WHERE public_key = ?",
+                (flags, public_key.lower()),
+            ):
+                pass
+
+    @staticmethod
+    async def get_with_telemetry_perms() -> list[Contact]:
+        """Return contacts whose telemetry permissions were set in the app."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT * FROM contacts WHERE telemetry_perms IS NOT NULL"
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [ContactRepository._row_to_contact(row) for row in rows]
 
     @staticmethod
     async def get_pinned() -> list[Contact]:

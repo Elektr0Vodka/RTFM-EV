@@ -31,17 +31,32 @@ def _effective_latlon(
 
 class AdvertLinksRepository:
     @staticmethod
-    async def recent_events(limit: int = DEFAULT_EVENT_LIMIT) -> list[AdvertPathRow]:
-        """Most recent advert transmissions, newest first, capped at ``limit``."""
+    async def recent_events(
+        limit: int = DEFAULT_EVENT_LIMIT,
+        since: int | None = None,
+        until: int | None = None,
+    ) -> list[AdvertPathRow]:
+        """Most recent advert transmissions in the optional [since, until]
+        window, newest first, capped at ``limit``."""
+        clauses: list[str] = []
+        params: list[int] = []
+        if since is not None:
+            clauses.append("first_seen >= ?")
+            params.append(since)
+        if until is not None:
+            clauses.append("first_seen <= ?")
+            params.append(until)
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         async with db.readonly() as conn:
             async with conn.execute(
-                """
+                f"""
                 SELECT public_key, path_hex, hop_width, min_path_len, first_seen
                 FROM advert_events
+                {where}
                 ORDER BY first_seen DESC
                 LIMIT ?
                 """,
-                (limit,),
+                (*params, limit),
             ) as cur:
                 rows = await cur.fetchall()
         return [
@@ -56,29 +71,37 @@ class AdvertLinksRepository:
         ]
 
     @staticmethod
-    async def located_nodes() -> list[LocatedNode]:
+    async def located_nodes(heard_only: bool = False) -> list[LocatedNode]:
         """GPS-placed nodes: local contacts UNION analyzer nodes.
 
         A local contact wins over an external node with the same pubkey.
+
+        With ``heard_only`` the set is limited to contacts this server has heard
+        over RF (``last_seen`` set). Never-heard contacts and analyzer-only nodes
+        are left out, so a hop hash cannot resolve to a node that may sit far
+        outside radio range (for example across the North Sea).
         """
         by_pk: dict[str, LocatedNode] = {}
+        heard_clause = "AND last_seen IS NOT NULL" if heard_only else ""
         async with db.readonly() as conn:
+            if not heard_only:
+                async with conn.execute(
+                    """
+                    SELECT pubkey, lat, lon FROM external_map_nodes
+                    WHERE lat IS NOT NULL AND lon IS NOT NULL
+                      AND NOT (lat = 0 AND lon = 0)
+                    """
+                ) as cur:
+                    for r in await cur.fetchall():
+                        pk = (r["pubkey"] or "").lower()
+                        if pk:
+                            by_pk[pk] = LocatedNode(pk, r["lat"], r["lon"], "external")
             async with conn.execute(
-                """
-                SELECT pubkey, lat, lon FROM external_map_nodes
-                WHERE lat IS NOT NULL AND lon IS NOT NULL
-                  AND NOT (lat = 0 AND lon = 0)
-                """
-            ) as cur:
-                for r in await cur.fetchall():
-                    pk = (r["pubkey"] or "").lower()
-                    if pk:
-                        by_pk[pk] = LocatedNode(pk, r["lat"], r["lon"], "external")
-            async with conn.execute(
-                """
+                f"""
                 SELECT public_key, lat, lon, manual_lat, manual_lon FROM contacts
-                WHERE (lat IS NOT NULL AND lon IS NOT NULL)
-                   OR (manual_lat IS NOT NULL AND manual_lon IS NOT NULL)
+                WHERE ((lat IS NOT NULL AND lon IS NOT NULL)
+                   OR (manual_lat IS NOT NULL AND manual_lon IS NOT NULL))
+                  {heard_clause}
                 """
             ) as cur:
                 for r in await cur.fetchall():

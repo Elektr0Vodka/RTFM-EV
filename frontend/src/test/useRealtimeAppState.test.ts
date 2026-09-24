@@ -96,6 +96,7 @@ function createRealtimeArgs(overrides: Partial<Parameters<typeof useRealtimeAppS
       renameConversationMessages: vi.fn(),
       removeConversationMessages: vi.fn(),
       receiveMessageAck: vi.fn(),
+      removeMessage: vi.fn(),
       notifyIncomingMessage: vi.fn(),
       ...overrides,
     },
@@ -233,6 +234,27 @@ describe('useRealtimeAppState', () => {
     expect(args.notifyIncomingMessage).toHaveBeenCalledWith(incomingDm);
   });
 
+  it('forwards a new_node WS event to notifyNewNode', () => {
+    const notifyNewNode = vi.fn();
+    const { args } = createRealtimeArgs({ notifyNewNode });
+    const { result } = renderHook(() => useRealtimeAppState(args));
+
+    const payload = {
+      batched: false,
+      count: 1,
+      public_key: 'aa'.repeat(32),
+      name: 'Alice',
+      type: 2,
+      types: { '2': 1 },
+    };
+
+    act(() => {
+      result.current.onNewNode?.(payload);
+    });
+
+    expect(notifyNewNode).toHaveBeenCalledWith(payload);
+  });
+
   it('deleting the active contact clears it and marks fallback recovery pending', () => {
     const pendingDeleteFallbackRef = { current: false };
     const activeConversationRef = {
@@ -257,6 +279,18 @@ describe('useRealtimeAppState', () => {
     expect(args.removeConversationMessages).toHaveBeenCalledWith(incomingDm.conversation_key);
     expect(args.setActiveConversation).toHaveBeenCalledWith(null);
     expect(pendingDeleteFallbackRef.current).toBe(true);
+  });
+
+  it('a deleted message is removed locally and unread totals are re-fetched', () => {
+    const { args } = createRealtimeArgs();
+    const { result } = renderHook(() => useRealtimeAppState(args));
+
+    act(() => {
+      result.current.onMessageDeleted?.(incomingDm.id);
+    });
+
+    expect(args.removeMessage).toHaveBeenCalledWith(incomingDm.id);
+    expect(args.refreshUnreads).toHaveBeenCalledTimes(1);
   });
 
   it('resolves a prefix-only contact into a full key and updates active conversation state', () => {

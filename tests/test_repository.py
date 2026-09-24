@@ -779,6 +779,84 @@ class TestContactRepositoryUpsertContracts:
         assert contact.type == 2
         assert contact.on_radio is True
 
+    @pytest.mark.asyncio
+    async def test_upsert_without_flags_preserves_existing_flags(self, test_db):
+        # Per-contact telemetry permission bits live in flags; an advert or
+        # DM-placeholder upsert that does not carry flags must not zero them.
+        await ContactRepository.upsert(ContactUpsert(public_key="aa" * 32, name="A", flags=0x0E))
+
+        await ContactRepository.upsert(ContactUpsert(public_key="aa" * 32, name="A", lat=1.0))
+
+        contact = await ContactRepository.get_by_key("aa" * 32)
+        assert contact is not None
+        assert contact.flags == 0x0E
+
+    @pytest.mark.asyncio
+    async def test_upsert_with_flags_overwrites(self, test_db):
+        # A radio snapshot carries the radio's flags and stays authoritative.
+        await ContactRepository.upsert(ContactUpsert(public_key="aa" * 32, flags=0x0E))
+
+        await ContactRepository.upsert(ContactUpsert(public_key="aa" * 32, flags=0x02))
+
+        contact = await ContactRepository.get_by_key("aa" * 32)
+        assert contact is not None
+        assert contact.flags == 0x02
+
+    @pytest.mark.asyncio
+    async def test_set_telemetry_perms_stores_perms_and_flag_bits(self, test_db):
+        # Bit 0 (radio favourite) and bits above the permission bits survive.
+        await ContactRepository.upsert(ContactUpsert(public_key="aa" * 32, flags=0x31))
+
+        await ContactRepository.set_telemetry_perms("aa" * 32, 0x05)
+
+        contact = await ContactRepository.get_by_key("aa" * 32)
+        assert contact is not None
+        assert contact.telemetry_perms == 0x05
+        assert contact.flags == 0x31 | 0x0A
+
+    @pytest.mark.asyncio
+    async def test_set_telemetry_perms_clears_bits(self, test_db):
+        await ContactRepository.upsert(ContactUpsert(public_key="aa" * 32, flags=0x0F))
+
+        await ContactRepository.set_telemetry_perms("aa" * 32, 0)
+
+        contact = await ContactRepository.get_by_key("aa" * 32)
+        assert contact is not None
+        assert contact.telemetry_perms == 0
+        assert contact.flags == 0x01
+
+    @pytest.mark.asyncio
+    async def test_telemetry_perms_default_none_and_survive_upsert(self, test_db):
+        await ContactRepository.upsert(ContactUpsert(public_key="aa" * 32, name="A"))
+        contact = await ContactRepository.get_by_key("aa" * 32)
+        assert contact is not None
+        assert contact.telemetry_perms is None
+
+        await ContactRepository.set_telemetry_perms("aa" * 32, 0x03)
+        await ContactRepository.upsert(ContactUpsert(public_key="aa" * 32, flags=0))
+
+        contact = await ContactRepository.get_by_key("aa" * 32)
+        assert contact is not None
+        assert contact.telemetry_perms == 0x03
+
+    @pytest.mark.asyncio
+    async def test_get_with_telemetry_perms(self, test_db):
+        await ContactRepository.upsert(ContactUpsert(public_key="aa" * 32))
+        await ContactRepository.upsert(ContactUpsert(public_key="bb" * 32))
+        await ContactRepository.set_telemetry_perms("bb" * 32, 0)
+
+        contacts = await ContactRepository.get_with_telemetry_perms()
+
+        assert [c.public_key for c in contacts] == ["bb" * 32]
+
+    @pytest.mark.asyncio
+    async def test_insert_without_flags_defaults_to_zero(self, test_db):
+        await ContactRepository.upsert(ContactUpsert(public_key="aa" * 32, name="A"))
+
+        contact = await ContactRepository.get_by_key("aa" * 32)
+        assert contact is not None
+        assert contact.flags == 0
+
 
 class TestContactRepositoryLastSeenSemantics:
     """Guard the 'last_seen = last RF reception' contract.

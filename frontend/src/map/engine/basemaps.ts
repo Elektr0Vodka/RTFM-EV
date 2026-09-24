@@ -1,5 +1,6 @@
 import type { StyleSpecification, Map as MlMap } from 'maplibre-gl';
 import { recolorNovaDark, recolorNovaTinted } from './novaRecolor';
+import { proxiedUrl } from './tileProxy';
 
 export type BasemapKind = 'vector' | 'vector-recolor' | 'raster';
 
@@ -14,7 +15,8 @@ export interface BasemapEntry {
   attribution: string;
   recolorId?: string;
   recolor?: (style: StyleSpecification) => StyleSpecification;
-  /** dark|light hint used to pick a default per theme (not auto-applied). */
+  /** dark|light hint: picks the tone-matched raster fallback and lets overlays
+   *  (e.g. the path route line) choose a contrasting colour. */
   tone?: 'dark' | 'light';
 }
 
@@ -329,7 +331,7 @@ function recoloredStyle(entry: BasemapEntry): Promise<StyleSpecification> {
   const key = entry.styleUrl + '#' + (entry.recolorId || 'recolor');
   let p = _recolorCache.get(key);
   if (p) return p;
-  p = fetch(String(entry.styleUrl))
+  p = fetch(proxiedUrl(String(entry.styleUrl)))
     .then((r) => {
       if (!r.ok) throw new Error('style ' + r.status);
       return r.json();

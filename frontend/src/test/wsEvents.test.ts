@@ -75,6 +75,76 @@ describe('wsEvents', () => {
     });
   });
 
+  it('parses message_deleted events', () => {
+    const event = parseWsEvent(
+      JSON.stringify({
+        type: 'message_deleted',
+        data: { message_id: 42, type: 'CHAN', conversation_key: 'bb' },
+      })
+    );
+
+    expect(event).toEqual({
+      type: 'message_deleted',
+      data: { message_id: 42, type: 'CHAN', conversation_key: 'bb' },
+    });
+  });
+
+  it('parses new_node events (single node)', () => {
+    const event = parseWsEvent(
+      JSON.stringify({
+        type: 'new_node',
+        data: {
+          batched: false,
+          count: 1,
+          public_key: 'aa'.repeat(32),
+          name: 'Alice',
+          type: 2,
+          types: { '2': 1 },
+        },
+      })
+    );
+
+    expect(event).toEqual({
+      type: 'new_node',
+      data: {
+        batched: false,
+        count: 1,
+        public_key: 'aa'.repeat(32),
+        name: 'Alice',
+        type: 2,
+        types: { '2': 1 },
+      },
+    });
+  });
+
+  it('parses new_node events (batched summary)', () => {
+    const event = parseWsEvent(
+      JSON.stringify({
+        type: 'new_node',
+        data: {
+          batched: true,
+          count: 3,
+          public_key: null,
+          name: null,
+          type: null,
+          types: { '2': 2, '4': 1 },
+        },
+      })
+    );
+
+    expect(event).toEqual({
+      type: 'new_node',
+      data: {
+        batched: true,
+        count: 3,
+        public_key: null,
+        name: null,
+        type: null,
+        types: { '2': 2, '4': 1 },
+      },
+    });
+  });
+
   it('returns unknown events with rawType preserved', () => {
     const event = parseWsEvent(JSON.stringify({ type: 'mystery', data: { ok: true } }));
 

@@ -18,7 +18,7 @@ import type {
   RadioConfig,
   RawPacket,
 } from '../types';
-import { buildNodeLookupUrl } from '../utils/analyzerLink';
+import { buildChannelLookupUrl, buildNodeLookupUrl } from '../utils/analyzerLink';
 import { CONTACT_TYPE_ROOM } from '../types';
 import { api } from '../api';
 import {
@@ -28,9 +28,11 @@ import {
 } from '../utils/messageParser';
 import {
   giphyUrlForId,
-  parseGif,
+  isReactionPayload,
+  parseGifPayload,
   parseMeshCoreOneReaction,
   parseReaction,
+  parseReactionV1,
   splitReplyMention,
   parseMarker,
   type ParsedMarker,
@@ -57,10 +59,13 @@ import {
 import { ContactAvatar } from './ContactAvatar';
 import { PathModal } from './PathModal';
 import { RawPacketInspectorDialog } from './RawPacketDetailModal';
+import { MessageRowActions } from './MessageRowActions';
+import { ReactionTargetLink, type ReactionAnalyzerLookup } from './ReactionTargetLink';
 import { toast } from './ui/sonner';
 import { handleKeyboardActivate } from '../utils/a11y';
 import { classifyHashtag, buildNameSet, type HashtagState } from '../lib/hashtagChannelState';
 import { tokenizeMessageText, type ChatToken, type TokenizeOptions } from '../utils/chatEntities';
+import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { cn } from '@/lib/utils';
 import { useT } from '../i18n';
@@ -77,6 +82,18 @@ interface MessageListProps {
   onDismissUnreadMarker?: () => void;
   /** Called when the unread boundary is not in loaded history and must be jumped to. */
   onNavigateToUnread?: (messageId: number) => void;
+  /** Scroll to (loading around if needed) a message in this conversation. */
+  onJumpToMessage?: (messageId: number) => void;
+  /** Send an emoji reaction to a message. */
+  onReactToMessage?: (messageId: number, emoji: string) => void;
+  /** Prefill the composer with a reply to a message. */
+  onReplyToMessage?: (message: Message) => void;
+  /** Hard-delete a message (row + linked raw packet + any reactions to it). */
+  onDeleteMessage?: (message: Message) => void;
+  /** Retry a failed outgoing DM (a new copy replaces the failed one). */
+  onRetryDirectMessage?: (messageId: number) => void | Promise<void>;
+  /** Mark the conversation unread from (and including) this message. */
+  onMarkUnreadFromMessage?: (message: Message) => void;
   onSenderClick?: (sender: string) => void;
   onLoadOlder?: () => void;
   onResendChannelMessage?: (messageId: number, newTimestamp?: boolean) => void;
@@ -105,6 +122,11 @@ interface MessageListProps {
   onLoadNewer?: () => void;
   onJumpToBottom?: () => void;
   preSorted?: boolean;
+}
+
+/** An outgoing DM that ran out of retries without an ACK can be retried by hand. */
+function isRetryable(msg: Message): boolean {
+  return msg.outgoing && msg.type === 'PRIV' && msg.acked === 0 && msg.failed_at != null;
 }
 
 // Renders a MeshCore Open GIF payload, falling back to the raw text on load error.
@@ -162,19 +184,26 @@ const UrlPreviewCard = lazy(() =>
 // the inline-preview preference is on, a small map preview is shown below.
 function MarkerMessage({
   marker,
+  sourceText,
   onCoordinateClick,
 }: {
   marker: ParsedMarker;
+  /** Original text when it differs from the shown position (an MGRS reference). */
+  sourceText?: string;
   onCoordinateClick?: (lat: number, lon: number, label: string) => void;
 }) {
   const t = useT();
   const { showLocationPreview } = useLocationPreview();
-  const coords = `${marker.lat.toFixed(6)}, ${marker.lon.toFixed(6)}`;
+  const coordinateFormat = useCoordinateFormat();
+  const coords = formatCoordinates(marker.lat, marker.lon, coordinateFormat, 6);
   const inner = (
     <>
       <MapPin className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
       <span className="flex flex-col text-left">
         {marker.label && <span className="font-medium leading-tight">{marker.label}</span>}
+        {sourceText && sourceText !== coords && (
+          <span className="font-mono text-xs leading-tight">{sourceText}</span>
+        )}
         <span className="font-mono text-xs text-muted-foreground">{coords}</span>
       </span>
     </>
@@ -216,17 +245,38 @@ function MarkerMessage({
 }
 
 // Render a bare payload body (no reply prefix) into its rich node, or null.
+/** Lets a hash-addressed reaction resolve and link to the message it reacts to. */
+interface ReactionTargetCtx {
+  messageId: number;
+  onJumpToMessage?: (messageId: number) => void;
+  analyzerLookup?: ReactionAnalyzerLookup;
+}
+
 function renderPayloadBody(
   body: string,
-  onCoordinateClick?: (lat: number, lon: number, label: string) => void
+  onCoordinateClick?: (lat: number, lon: number, label: string) => void,
+  reactionCtx?: ReactionTargetCtx
 ): ReactNode | null {
-  const gifId = parseGif(body);
+  const gifId = parseGifPayload(body);
   if (gifId) {
     return <GifPayload gifId={gifId} rawText={body} />;
   }
-  const reaction = parseReaction(body) ?? parseMeshCoreOneReaction(body);
+  // Every dialect is resolvable by the backend (meshcore-open r: v3/v1 and
+  // the @[Name]emoji + hash-line form), so all of them get a target link.
+  const reaction = parseReaction(body) ?? parseReactionV1(body) ?? parseMeshCoreOneReaction(body);
   if (reaction) {
-    return <ReactionPayload emoji={reaction.emoji} targetSender={reaction.targetSender} />;
+    return (
+      <span className="inline-flex flex-wrap items-center gap-1.5">
+        <ReactionPayload emoji={reaction.emoji} targetSender={reaction.targetSender} />
+        {reactionCtx && (
+          <ReactionTargetLink
+            messageId={reactionCtx.messageId}
+            onJump={reactionCtx.onJumpToMessage}
+            analyzerLookup={reactionCtx.analyzerLookup}
+          />
+        )}
+      </span>
+    );
   }
   const marker = parseMarker(body);
   if (marker) {
@@ -257,14 +307,15 @@ function renderMeshcoreOpenPayload(
   content: string,
   radioName: string | undefined,
   ctx: HashtagRenderCtx,
-  onCoordinateClick?: (lat: number, lon: number, label: string) => void
+  onCoordinateClick?: (lat: number, lon: number, label: string) => void,
+  reactionCtx?: ReactionTargetCtx
 ): ReactNode | null {
-  const whole = renderPayloadBody(content, onCoordinateClick);
+  const whole = renderPayloadBody(content, onCoordinateClick, reactionCtx);
   if (whole) return whole;
 
   const split = splitReplyMention(content);
   if (split) {
-    const body = renderPayloadBody(split.body, onCoordinateClick);
+    const body = renderPayloadBody(split.body, onCoordinateClick, reactionCtx);
     if (body) {
       // Preserve the reply mention (rendered as a normal @[Name] mention) so the
       // GIF/reaction still reads as a reply to that person.
@@ -458,6 +509,7 @@ function renderToken(
         <MarkerMessage
           key={`coord-${i}`}
           marker={{ lat: tok.lat, lon: tok.lon, label: '', flags: '' }}
+          sourceText={tok.mgrs ? tok.raw : undefined}
           onCoordinateClick={deps.onCoordinateClick}
         />
       );
@@ -623,6 +675,12 @@ export function MessageList({
   unreadMarkerMessageId,
   onDismissUnreadMarker,
   onNavigateToUnread,
+  onJumpToMessage,
+  onReactToMessage,
+  onReplyToMessage,
+  onDeleteMessage,
+  onRetryDirectMessage,
+  onMarkUnreadFromMessage,
   onSenderClick,
   onLoadOlder,
   onResendChannelMessage,
@@ -861,6 +919,19 @@ export function MessageList({
     () => ({ parsePubkeys, parseCoordinates, linkifyUrls }),
     [parsePubkeys, parseCoordinates, linkifyUrls]
   );
+  // Where to look for a reaction target this client never received: the
+  // channel page on the first analyzer site with a usable channel template.
+  const reactionAnalyzerLookup = useMemo<ReactionAnalyzerLookup | undefined>(() => {
+    const first = messages[0];
+    if (!first || first.type !== 'CHAN') return undefined;
+    const channel = channels.find((c) => c.key === first.conversation_key);
+    if (!channel) return undefined;
+    for (const site of analyzerSites) {
+      const url = buildChannelLookupUrl(site, channel);
+      if (url) return { url, siteName: site.name };
+    }
+    return undefined;
+  }, [messages, channels, analyzerSites]);
   const tokenDeps = useMemo<TokenDeps>(
     () => ({ contacts, onOpenContactInfo, onCoordinateClick, analyzerSites }),
     [contacts, onOpenContactInfo, onCoordinateClick, analyzerSites]
@@ -1036,6 +1107,22 @@ export function MessageList({
 
     prevMessagesLengthRef.current = messages.length;
   }, [messages, sortedMessages.length, scrollToIndex, requestBottomScroll, targetMessageId]);
+
+  // Jump from a reaction to the message it reacts to. A target that is already
+  // loaded is scrolled to here: routing it through targetMessageId would clear the
+  // list for an around-load that the immediate "target reached" then cancels.
+  const jumpToMessage = useCallback(
+    (messageId: number) => {
+      const index = sortedMessages.findIndex((msg) => msg.id === messageId);
+      if (index !== -1) {
+        scrollToIndex(index, 'center');
+        setHighlightedMessageId(messageId);
+        return;
+      }
+      onJumpToMessage?.(messageId);
+    },
+    [sortedMessages, scrollToIndex, onJumpToMessage]
+  );
 
   // Scroll to target message and highlight it
   useLayoutEffect(() => {
@@ -1534,7 +1621,17 @@ export function MessageList({
               msg.type === 'PRIV'
                 ? { sender: null, content: msg.text }
                 : parseSenderFromText(msg.text);
-            const previewUrl = showUrlPreviews ? firstUrlIn(content) : null;
+            // Computed once so the URL preview card below can be skipped when the
+            // rich-payload renderer already turned this message into a GIF (a
+            // Giphy URL form) or another card - it must not render twice.
+            const richPayload = renderRichPayloads
+              ? renderMeshcoreOpenPayload(content, radioName, hashtagCtx, onCoordinateClick, {
+                  messageId: msg.id,
+                  onJumpToMessage: jumpToMessage,
+                  analyzerLookup: reactionAnalyzerLookup,
+                })
+              : null;
+            const previewUrl = showUrlPreviews && !richPayload ? firstUrlIn(content) : null;
             const directSenderName =
               msg.type === 'PRIV' && isRoomServer ? msg.sender_name || null : null;
             const channelSenderName = msg.type === 'CHAN' ? msg.sender_name || sender : null;
@@ -1659,7 +1756,7 @@ export function MessageList({
                 <div
                   data-message-id={msg.id}
                   className={cn(
-                    'flex items-start max-w-[85%]',
+                    'group flex items-start max-w-[85%]',
                     msg.outgoing && 'flex-row-reverse self-end',
                     isFirstInGroup && !isFirstMessage && 'mt-3'
                   )}
@@ -1747,13 +1844,7 @@ export function MessageList({
                       </div>
                     )}
                     <div className="break-words whitespace-pre-wrap">
-                      {(renderRichPayloads &&
-                        renderMeshcoreOpenPayload(
-                          content,
-                          radioName,
-                          hashtagCtx,
-                          onCoordinateClick
-                        )) ||
+                      {richPayload ||
                         content.split('\n').map((line, i, arr) => (
                           <span key={i}>
                             {renderTokens(line, radioName, hashtagCtx, entityOpts, tokenDeps)}
@@ -1835,6 +1926,14 @@ export function MessageList({
                             {' '}
                             ?
                           </span>
+                        ) : msg.failed_at != null ? (
+                          <span
+                            className="msg-ack-failed font-semibold text-destructive"
+                            title={t('chat_message_failed_title')}
+                            aria-label={t('chat_message_failed_title')}
+                          >
+                            {` ✕ ${t('chat_message_failed')}`}
+                          </span>
                         ) : (
                           <span
                             className="msg-ack-pending text-muted-foreground"
@@ -1851,6 +1950,37 @@ export function MessageList({
                       </Suspense>
                     )}
                   </div>
+                  {/* Renders nothing when no action applies to this row. */}
+                  <MessageRowActions
+                    onReact={
+                      msg.sender_timestamp != null &&
+                      !isReactionPayload(content) &&
+                      onReactToMessage
+                        ? (emoji) => onReactToMessage(msg.id, emoji)
+                        : undefined
+                    }
+                    onReply={
+                      msg.sender_timestamp != null &&
+                      !isReactionPayload(content) &&
+                      onReplyToMessage
+                        ? () => onReplyToMessage(msg)
+                        : undefined
+                    }
+                    onRetry={
+                      isRetryable(msg) && onRetryDirectMessage
+                        ? () => onRetryDirectMessage(msg.id)
+                        : undefined
+                    }
+                    onMarkUnread={
+                      msg.sender_timestamp != null &&
+                      !isReactionPayload(content) &&
+                      !msg.outgoing &&
+                      onMarkUnreadFromMessage
+                        ? () => onMarkUnreadFromMessage(msg)
+                        : undefined
+                    }
+                    onDelete={onDeleteMessage ? () => onDeleteMessage(msg) : undefined}
+                  />
                 </div>
               </div>
             );

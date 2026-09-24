@@ -431,6 +431,96 @@ class TestMarkRead:
         assert response.status_code == 404
 
 
+class TestMarkUnread:
+    """Test POST /api/contacts/{public_key}/mark-unread."""
+
+    @pytest.mark.asyncio
+    async def test_mark_unread_from_message_sets_last_read_at_before_it(self, test_db, client):
+        await _insert_contact(KEY_A)
+        await ContactRepository.update_last_read_at(KEY_A, 5000)
+
+        msg_id = await MessageRepository.create(
+            msg_type="PRIV",
+            text="hi",
+            conversation_key=KEY_A,
+            sender_timestamp=2000,
+            received_at=2000,
+            sender_key=KEY_A,
+        )
+
+        response = await client.post(
+            f"/api/contacts/{KEY_A}/mark-unread", json={"message_id": msg_id}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ok"
+        assert data["message_id"] == msg_id
+        assert data["last_read_at"] == 1999
+
+        contact = await ContactRepository.get_by_key(KEY_A)
+        assert contact.last_read_at == 1999
+
+        unreads = await MessageRepository.get_unread_counts()
+        assert unreads["counts"].get(f"contact-{KEY_A.lower()}") == 1
+        assert unreads["first_unread_ids"].get(f"contact-{KEY_A.lower()}") == msg_id
+
+    @pytest.mark.asyncio
+    async def test_mark_unread_rejects_outgoing_message(self, test_db, client):
+        await _insert_contact(KEY_A)
+
+        msg_id = await MessageRepository.create(
+            msg_type="PRIV",
+            text="hi",
+            conversation_key=KEY_A,
+            sender_timestamp=2000,
+            received_at=2000,
+            outgoing=True,
+        )
+
+        response = await client.post(
+            f"/api/contacts/{KEY_A}/mark-unread", json={"message_id": msg_id}
+        )
+
+        assert response.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_mark_unread_rejects_message_from_other_conversation(self, test_db, client):
+        await _insert_contact(KEY_A)
+        await _insert_contact(KEY_B, "Bob")
+
+        msg_id = await MessageRepository.create(
+            msg_type="PRIV",
+            text="hi",
+            conversation_key=KEY_B,
+            sender_timestamp=2000,
+            received_at=2000,
+            sender_key=KEY_B,
+        )
+
+        response = await client.post(
+            f"/api/contacts/{KEY_A}/mark-unread", json={"message_id": msg_id}
+        )
+
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_mark_unread_unknown_message_returns_404(self, test_db, client):
+        await _insert_contact(KEY_A)
+
+        response = await client.post(
+            f"/api/contacts/{KEY_A}/mark-unread", json={"message_id": 999999}
+        )
+
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_mark_unread_contact_not_found(self, test_db, client):
+        response = await client.post(f"/api/contacts/{KEY_A}/mark-unread", json={"message_id": 1})
+
+        assert response.status_code == 404
+
+
 class TestDeleteContact:
     """Test DELETE /api/contacts/{public_key}."""
 
@@ -856,6 +946,126 @@ class TestRadioPolicy:
         assert [c.public_key for c in pinned] == [KEY_A]
 
 
+class TestTelemetryPermissions:
+    """Test POST /api/contacts/{public_key}/telemetry-permissions."""
+
+    @staticmethod
+    def _mc(radio_contact=None, result=None):
+        mc = MagicMock()
+        mc.get_contact_by_key_prefix = MagicMock(return_value=radio_contact)
+        mc.commands.change_contact_flags = AsyncMock(return_value=result or _radio_result())
+        return mc
+
+    @pytest.mark.asyncio
+    async def test_disconnected_stores_perms(self, test_db, client):
+        await _insert_contact(KEY_A, flags=0x01)
+
+        with (
+            patch("app.routers.contacts.radio_manager") as mock_rm,
+            patch("app.websocket.broadcast_event") as mock_broadcast,
+        ):
+            mock_rm.is_connected = False
+            response = await client.post(
+                f"/api/contacts/{KEY_A}/telemetry-permissions",
+                json={"base": True, "location": False, "environment": True},
+            )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["telemetry_perms"] == 0x05
+        assert body["applied_to_radio"] is False
+        contact = await ContactRepository.get_by_key(KEY_A)
+        assert contact is not None
+        assert contact.telemetry_perms == 0x05
+        assert contact.flags == 0x01 | 0x0A
+        mock_broadcast.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_loaded_contact_pushes_flags_to_radio(self, test_db, client):
+        await _insert_contact(KEY_A, flags=0x01)
+        radio_contact = {"public_key": KEY_A, "flags": 0x01}
+        mc = self._mc(radio_contact)
+
+        with (
+            patch("app.routers.contacts.radio_manager") as mock_rm,
+            patch("app.websocket.broadcast_event"),
+        ):
+            mock_rm.is_connected = True
+            mock_rm.radio_operation = _noop_radio_operation(mc)
+            response = await client.post(
+                f"/api/contacts/{KEY_A}/telemetry-permissions",
+                json={"base": True, "location": True, "environment": False},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["applied_to_radio"] is True
+        mc.commands.change_contact_flags.assert_awaited_once_with(radio_contact, 0x01 | 0x06)
+
+    @pytest.mark.asyncio
+    async def test_contact_not_loaded_is_not_added_to_radio(self, test_db, client):
+        await _insert_contact(KEY_A)
+        mc = self._mc(radio_contact=None)
+
+        with (
+            patch("app.routers.contacts.radio_manager") as mock_rm,
+            patch("app.websocket.broadcast_event"),
+        ):
+            mock_rm.is_connected = True
+            mock_rm.radio_operation = _noop_radio_operation(mc)
+            response = await client.post(
+                f"/api/contacts/{KEY_A}/telemetry-permissions",
+                json={"base": True, "location": False, "environment": False},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["applied_to_radio"] is False
+        mc.commands.change_contact_flags.assert_not_awaited()
+        contact = await ContactRepository.get_by_key(KEY_A)
+        assert contact is not None
+        assert contact.telemetry_perms == 0x01
+
+    @pytest.mark.asyncio
+    async def test_radio_error_keeps_stored_perms(self, test_db, client):
+        await _insert_contact(KEY_A)
+        mc = self._mc({"public_key": KEY_A, "flags": 0}, _radio_result(EventType.ERROR))
+
+        with (
+            patch("app.routers.contacts.radio_manager") as mock_rm,
+            patch("app.websocket.broadcast_event"),
+        ):
+            mock_rm.is_connected = True
+            mock_rm.radio_operation = _noop_radio_operation(mc)
+            response = await client.post(
+                f"/api/contacts/{KEY_A}/telemetry-permissions",
+                json={"base": False, "location": False, "environment": True},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["applied_to_radio"] is False
+        contact = await ContactRepository.get_by_key(KEY_A)
+        assert contact is not None
+        assert contact.telemetry_perms == 0x04
+
+    @pytest.mark.asyncio
+    async def test_missing_field_returns_422(self, test_db, client):
+        await _insert_contact(KEY_A)
+
+        response = await client.post(
+            f"/api/contacts/{KEY_A}/telemetry-permissions", json={"base": True}
+        )
+
+        assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_contact_not_found(self, test_db, client):
+        response = await client.post(
+            f"/api/contacts/{KEY_A}/telemetry-permissions",
+            json={"base": True, "location": True, "environment": True},
+        )
+
+        assert response.status_code == 404
+
+
 class TestRadioResidency:
     """Test GET /api/contacts/radio-residency (derived on-radio set + reasons)."""
 
@@ -899,6 +1109,37 @@ class TestContactAnnotations:
         assert row["notes"] == "hello"
         assert row["manual_lat"] == 52.0
         assert row["manual_lon"] == 5.0
+
+    @pytest.mark.asyncio
+    async def test_set_battery_chemistry_override_and_clear(self, test_db, client):
+        """The per-node override is stored and null reverts to the global default."""
+        await _insert_contact(KEY_A)
+        resp = await client.post(
+            f"/api/contacts/{KEY_A}/annotations",
+            json={"battery_chemistry": "lifepo4"},
+        )
+        assert resp.status_code == 200
+        get = await client.get("/api/contacts")
+        row = next(c for c in get.json() if c["public_key"] == KEY_A)
+        assert row["battery_chemistry"] == "lifepo4"
+
+        clear = await client.post(
+            f"/api/contacts/{KEY_A}/annotations",
+            json={"battery_chemistry": None},
+        )
+        assert clear.status_code == 200
+        get = await client.get("/api/contacts")
+        row = next(c for c in get.json() if c["public_key"] == KEY_A)
+        assert row["battery_chemistry"] is None
+
+    @pytest.mark.asyncio
+    async def test_battery_chemistry_rejects_unknown_value(self, test_db, client):
+        await _insert_contact(KEY_A)
+        resp = await client.post(
+            f"/api/contacts/{KEY_A}/annotations",
+            json={"battery_chemistry": "alkaline"},
+        )
+        assert resp.status_code == 422
 
     @pytest.mark.asyncio
     async def test_owner_key_must_reference_existing_contact(self, test_db, client):

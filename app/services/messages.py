@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 from app.models import Message, MessagePath
 from app.repository import ContactRepository, MessageRepository, RawPacketRepository
+from app.smaz import decode_message_text
 
 if TYPE_CHECKING:
     from app.decoder import DecryptedDirectMessage
@@ -285,6 +286,7 @@ async def create_message_from_decrypted(
 ) -> int | None:
     """Store and broadcast a decrypted channel message."""
     received = received_at or int(time.time())
+    message_text = decode_message_text(message_text)
     text = f"{sender}: {message_text}" if sender else message_text
     channel_key_normalized = channel_key.upper()
 
@@ -449,6 +451,7 @@ async def create_fallback_channel_message(
 ) -> Message | None:
     """Store and broadcast a CHANNEL_MSG_RECV fallback channel message."""
     conversation_key_normalized = conversation_key.upper()
+    message_text = decode_message_text(message_text)
     text = f"{sender_name}: {message_text}" if sender_name else message_text
 
     resolved_sender_key: str | None = None

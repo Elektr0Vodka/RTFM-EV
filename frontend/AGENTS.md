@@ -64,8 +64,9 @@ frontend/src/
 │   ├── useConversationRouter.ts    # URL hash → active conversation routing
 │   ├── useContactsAndChannels.ts   # Contact/channel loading, creation, deletion
 │   ├── useBrowserNotifications.ts  # Per-conversation browser notification preferences + dispatch
+│   ├── useNewNodeNotifications.ts  # New-node browser notification preference (master + per-type) + WS event dispatch
 │   ├── usePushSubscription.ts      # Web Push subscription lifecycle, per-conversation filters
-│   ├── useFaviconBadge.ts          # Browser tab unread badge state
+│   ├── useFaviconBadge.ts          # Browser tab title + favicon (unread badge, brand name/icon)
 │   ├── useEntranceSettled.ts       # Defers entrance animation work until layout settles
 │   └── useRememberedServerPassword.ts # Browser-local repeater/room password persistence
 ├── components/
@@ -82,8 +83,11 @@ frontend/src/
 │   ├── urlHash.ts              # Hash parsing and encoding
 │   ├── conversationState.ts    # State keys, in-memory + localStorage helpers
 │   ├── messageParser.ts        # Sender/hashtag/mention parsing helpers used by the tokenizer
-│   ├── chatEntities.ts         # tokenizeMessageText: text → ordered mention/url/hashtag/pubkey/coordinate tokens (pubkey/coord/url gated by app_settings.chat_*)
+│   ├── chatEntities.ts         # tokenizeMessageText: text → ordered mention/url/hashtag/pubkey/coordinate tokens (pubkey/coord/url gated by app_settings.chat_*); coordinates include MGRS (mgrsText.ts)
+│   ├── mgrsText.ts             # findMgrsReferences: upper-case MGRS in text → lat/lon (mgrs npm); mirrors app/location_payloads.py
+│   ├── coordinateFormat.ts     # Coordinate display format (decimal/dms/mgrs, localStorage + useCoordinateFormat) + formatCoordinates
 │   ├── pathUtils.ts            # Distance/validation helpers for paths + map
+│   ├── traceMapUtils.ts        # Pure helpers: trace-result node locations + solid/dashed map segments (TraceRouteMap)
 │   ├── pubkey.ts               # getContactDisplayName (12-char prefix fallback)
 │   ├── contactAvatar.ts        # Avatar color derivation from public key
 │   ├── rawPacketIdentity.ts    # observation_id vs id dedup helpers
@@ -100,7 +104,7 @@ frontend/src/
 │   ├── lastViewedConversation.ts   # localStorage for last-viewed conversation
 │   ├── contactMerge.ts            # Merge WS contact updates into list
 │   ├── localLabel.ts              # Local label (text + color) in localStorage
-│   ├── sidebarLayout.ts           # Sidebar order reconcilers (section/tool/favorites-group orders + per-favorite-group sort orders + hidden-entry overlay persist server-side in app_settings, reversing migration _051; rail-collapse stays localStorage) + one-time legacy-order migration helpers
+│   ├── sidebarLayout.ts           # Sidebar order reconcilers (section/tool/favorites-group orders + per-favorite-group sort orders + hidden-entry overlay persist server-side in app_settings, reversing migration _051; rail-collapse and per-group collapse stay localStorage) + one-time legacy-order migration helpers + contact-group pure helpers (create/rename/delete/toggle membership, `group:<id>` section keys)
 │   ├── radioPresets.ts            # LoRa radio preset configurations
 │   ├── publicChannel.ts           # Public-channel resolution helpers for routing/hash defaults
 │   ├── fontScale.ts               # Browser-local relative font scale persistence/application
@@ -113,11 +117,15 @@ frontend/src/
 │   └── statusDotPulse.ts          # Status dot pulse animation helpers
 ├── components/
 │   ├── StatusBar.tsx
-│   ├── Sidebar.tsx
+│   ├── Sidebar.tsx             # Conversation list; Customize panel (section/tool/favorites-group reorder+hide) + Contact Groups (create/rename/delete); each contact_group renders as its own reorderable/hideable/collapsible section (see sidebarLayout.ts)
 │   ├── ChatHeader.tsx          # Conversation header (trace, favorite, delete)
-│   ├── MessageList.tsx        # Message rows; #hashtag refs styled by state (followed/known/unknown) with an inline "+" to capture unknowns into the registry (auto-capture via app_settings.auto_add_mentioned_channels)
+│   ├── MessageList.tsx        # Message rows; #hashtag refs styled by state (followed/known/unknown) with an inline "+" to capture unknowns into the registry (auto-capture via app_settings.auto_add_mentioned_channels); hover React/Reply/Delete (MessageRowActions) and reaction-target links (ReactionTargetLink)
+│   ├── MessageList.tsx        # Message rows; #hashtag refs styled by state (followed/known/unknown) with an inline "+" to capture unknowns into the registry (auto-capture via app_settings.auto_add_mentioned_channels); hover React/Reply/Mark-unread (MessageRowActions) and reaction-target links (ReactionTargetLink)
 │   ├── MessageInput.tsx
-│   ├── NewMessageModal.tsx
+│   ├── NewMessageModal.tsx     # Contact / Contact link (meshcore:// import) / channel tabs
+│   ├── ContactLinkShare.tsx    # On-demand meshcore:// link with copy (contact info + Settings > Radio)
+│   ├── ChannelImportExportModal.tsx # Channel text-file export/import + Communities tab
+│   ├── CommunitiesPanel.tsx    # meshcore-open communities: join (paste JSON / camera / QR image), add hashtag, export JSON/QR
 │   ├── SearchView.tsx          # Full-text message search pane
 │   ├── SettingsModal.tsx       # Layout shell - delegates to settings/ sections
 │   ├── SecurityWarningModal.tsx # Startup warning for trusted-network / bot execution posture
@@ -128,13 +136,14 @@ frontend/src/
 │   ├── PacketFeedStatsPanel.tsx # Live tab: session packet-stat breakdowns (reads rawPacketStore)
 │   ├── MeshTrendsHistoricalPanel.tsx # Historical tab: server-backed stats (GET /api/statistics)
 │   ├── AnalyzePacketView.tsx   # Tools view: standalone paste-a-hex packet inspector
-│   ├── MeshDiscoveryView.tsx   # Tools view: mesh discovery sweep (repeaters/sensors) + last-sweep results
+│   ├── MeshDiscoveryView.tsx   # Tools view: mesh discovery sweep (repeaters/sensors) + last-sweep results + repeater region discovery
 │   ├── MapView.tsx
 │   ├── TracePane.tsx           # Multi-hop route trace builder/results view
 │   ├── VisualizerView.tsx
 │   ├── PacketVisualizer3D.tsx
 │   ├── PathModal.tsx
 │   ├── PathRouteMap.tsx
+│   ├── TraceRouteMap.tsx        # Draws a TracePane result on a map (hops at known/manual locations, dashed gap over skipped hops, SNR tooltip); shares marker/colour helpers with PathRouteMap via map/routeMapVisuals.ts
 │   ├── CrackerPanel.tsx       # Browser channel finder; wordlist = bundled ENGLISH_WORDLIST + remote sync + registry names ("Sync from channels" button, meshcore-wordlist-registry-cache)
 │   ├── BotCodeEditor.tsx
 │   ├── ContactAvatar.tsx
@@ -157,7 +166,7 @@ frontend/src/
 │   ├── NeighborsMiniMap.tsx    # Leaflet mini-map for repeater neighbor locations
 │   ├── settings/
 │   │   ├── settingsConstants.ts          # Settings section type, ordering, labels
-│   │   ├── SettingsRadioSection.tsx      # Name, keys, advert interval, max contacts, radio preset, freq/bw/sf/cr, txPower, lat/lon, reboot, region discovery
+│   │   ├── SettingsRadioSection.tsx      # Name, keys, advert interval, max contacts, radio preset, freq/bw/sf/cr, txPower, lat/lon, reboot, known regions
 │   │   ├── SettingsLocalSection.tsx      # Browser-local settings: theme, relative font scale, local label, reopen last conversation
 │   │   ├── SettingsFanoutSection.tsx     # Fanout integrations: MQTT, bots, config CRUD
 │   │   ├── SettingsRadioAppSection.tsx    # Radio-App Management: tracked telemetry, contact management, blocked lists, partial-node sync
@@ -215,6 +224,7 @@ frontend/src/
     ├── sidebar.test.tsx
     ├── statusBar.test.tsx
     ├── tracePane.test.tsx
+    ├── traceMapUtils.test.ts
     ├── unreadCounts.test.ts
     ├── urlHash.test.ts
     ├── appSearchJump.test.tsx
@@ -263,7 +273,7 @@ High-level state is delegated to hooks:
 - `useConversationNavigation`: search target, conversation selection reset, and info-pane state
 - `useConversationActions`: send/resend/trace/path-discovery/block handlers and channel override updates
 - `useConversationMessages`: conversation switch loading, embedded conversation-scoped cache, jump-target loading, pagination, dedup/update helpers, reconnect reconciliation, and pending ACK buffering
-- `useUnreadCounts`: unread counters, mention tracking, recent-sort timestamps, server `last_read_ats`, and `first_unread_ids` (the unread-divider anchor)
+- `useUnreadCounts`: unread counters, mention tracking, recent-sort timestamps, server `last_read_ats`, `first_unread_ids` (the unread-divider anchor), and `markConversationUnreadFromMessage` ("mark unread from here")
 - `useRealtimeAppState`: typed WS event application, reconnect recovery, cache/unread coordination
 - `useRepeaterDashboard`: repeater dashboard state (login, pane data/retries, console, actions)
 
@@ -294,14 +304,18 @@ That gives the store a load-bearing invariant: **no ancestor of `MessageList` ma
 
 `NewMessageModal` resets form state on close. The component instance persists across open/close cycles for smooth animations.
 
+The "Contact link" tab only renders when `onImportContactUri` is passed (App wires `handleImportContactUri` from `useContactsAndChannels`). It checks the `meshcore://` prefix locally, then `api.importContactUri` (`POST /contacts/import-uri`) does the real validation (hex, ADVERT, signature) and the radio import; the backend error is shown inline and the dialog stays open. On success the contact list is refetched and the imported contact's conversation opens. The historical-decrypt checkbox is hidden on this tab.
+
 ### Message behavior
 
 - Outgoing sends are added to UI after the send API returns (not pre-send optimistic insertion), then persisted server-side.
 - Backend also emits WS `message` for outgoing sends so other clients stay in sync.
 - ACK/repeat updates arrive as `message_acked` events.
 - Outgoing channel messages show a 30-second resend control; resend calls `POST /api/messages/channel/{message_id}/resend`.
+- Failed DMs: an outgoing DM with `failed_at` set and `acked === 0` shows a red "Failed" marker instead of the pending `?` (`acked > 0` always wins, so a late ACK shows as delivered). WS `message_failed` sets `failed_at` via `useConversationMessages.receiveMessageFailed`. `MessageRowActions` gets an `onRetry` (Retry button) only for such rows; `useConversationActions.handleRetryDirectMessage` calls `POST /api/messages/direct/{message_id}/resend`, removes the failed row (`removeMessage`) and adds the new copy. Other clients drop the failed row on WS `message_deleted`. Retry transmits over RF.
 - Conversation-scoped message caching now lives inside `useConversationMessages.ts` rather than a standalone `messageCache.ts` module. If you touch message timeline restore/dedup/reconnect behavior, start there.
 - `contact_resolved` is a real-time identity migration event, not just a contact-list update. Changes in that area need to consider active conversation state, cached messages, unread state keys, and reconnect reconciliation together.
+- Deleting a message (`MessageRowActions` "Delete", after a `window.confirm`) calls `DELETE /api/messages/{id}` then removes it locally via `useConversationMessages`' `removeMessage` (active list + `conversationMessageCache`, any conversation). The backend's `message_deleted` WS event drives the same removal in every other open tab and re-fetches unread counts (`refreshUnreads`) rather than reproducing the count/first-unread-boundary math client-side. Local only; nothing is sent over RF.
 
 ### Visualizer behavior
 
@@ -319,6 +333,9 @@ That gives the store a load-bearing invariant: **no ancestor of `MessageList` ma
 ### Live packet map (`map/packets/`)
 
 - The map's "Visualize packets" feature renders with a single deck.gl overlay (`map/layers/packetDeckOverlay.ts`: one `MapLibreOverlay`, arcs + pulses + glow) in both flat 2D and tilted 3D. It replaces the former 2D canvas `particleOverlay` and the 3D-only `tracesDeck` arc path.
+- deck.gl's `MapLibreOverlay` allows only ONE interleaved overlay per map (a second throws). Every deck-drawn map feature therefore shares one overlay through `map/layers/sharedDeckOverlay.ts` (`acquireDeckSlot(map, key, deck, build)`): packets and neon nodes are slots, drawn in `SLOT_ORDER` (neon under packets). Do not construct another `MapLibreOverlay` on the main map; add a slot key instead. Slot builders must return fresh layer instances (the overlay rebuilds them after a WebGL context restore).
+- deck.gl 9 layer `parameters` use WebGPU-style names (`depthCompare`, `depthWriteEnabled`); the legacy `depthTest`/`depthMask` keys are silently ignored.
+- With 3D buildings on, `map/engine/buildingHeights.ts` lifts neon nodes, packet arc ends, pulses and glows to the roof height of the building under a node (read from the rendered `buildings-3d` layer; 0 when buildings are off or below its minzoom). The flat GL node circles cannot be elevated; they stay at ground level but draw above the buildings (`setBuildings3D` anchors the extrusion below the lowest node overlay layer).
 - `map/packets/` holds the framework-agnostic engine: `playbackController.ts` (a virtual clock - live follows wall time minus a smoothing buffer, replay is seekable at a rate), `packetTimeline.ts` (time-indexed buffer whose `stateAsOf(ms)` derives the render model), `packetAnimMath.ts` (pure freshness/pulse/glow/SNR math), and `clickAudio.ts` (optional geiger click). All are unit-tested without a map.
 - **`packetNetworkGraph` is the single path authority** for the live map: the timeline resolves every packet's route through `buildCanonicalPathForPacket`/`ingestPacketIntoPacketNetwork`, then maps node ids to coordinates via the contact-index resolver (`resolveLinkCoord`). There is no second ad-hoc path resolver. As a solo observer, the segment touching our `self` node is drawn witnessed (solid); inferred upstream hops are faint; an unresolved hop is bridged, never placed at `[0,0]`.
 - The `PlaybackBar` (`map/controls/PlaybackBar.tsx`) is a VCR (play/pause/speed/seek/Live/look-back); deeper look-back backfills via `GET /packets/recent?before_ts=`. The render loop mirrors the clock snapshot to React throttled (~150ms) so the 60fps clock does not re-render the tree.
@@ -339,7 +356,7 @@ jsdom has no layout engine, so none of this is observable from the vitest suite 
 - `SettingsRadioSection.tsx` also exposes `multi_acks_enabled` as a checkbox for the radio's extra direct-ACK transmission behavior.
 - Advert-location control is intentionally only `off` vs `include node location`. Companion-radio firmware does not reliably distinguish saved coordinates from live GPS in this path.
 - The advert action is mode-aware: the radio settings section exposes both flood and zero-hop manual advert buttons, both routed through the same `onAdvertise(mode)` seam.
-- Mesh discovery (the Tools > Mesh Discovery view, `#mesh-discovery`) is limited to node classes that currently answer discovery control-data requests in firmware: repeaters and sensors. Sweep state lives in `useRadioControl`, so the last result survives navigation and Settings > Radio region discovery still prefers repeaters from it.
+- Mesh discovery (the Tools > Mesh Discovery view, `#mesh-discovery`) is limited to node classes that currently answer discovery control-data requests in firmware: repeaters and sensors. Sweep state lives in `useRadioControl`, so the last result survives navigation. The same view hosts repeater region discovery (formerly in Settings > Radio), which prefers repeaters from the last sweep and saves added regions straight to `known_regions`.
 - Frontend `path_len` fields are hop counts, not raw byte lengths; multibyte path rendering must use the accompanying metadata before splitting hop identifiers.
 
 ### Chart zoom/pan (`lib/chartZoom.ts`, `hooks/useChartZoom.ts`, `components/charts/`)
@@ -370,7 +387,9 @@ jsdom has no layout engine, so none of this is observable from the vitest suite 
 - Auto reconnect (3s) with cleanup guard on unmount.
 - Heartbeat ping every 30s.
 - Incoming JSON is parsed through `wsEvents.ts`, which validates the top-level envelope and known event type strings, then casts payloads at the handler boundary. It does not schema-validate per-event payload shapes.
-- Event handlers: `health`, `message`, `contact`, `contact_resolved`, `channel`, `raw_packet`, `message_acked`, `contact_deleted`, `channel_deleted`, `error`, `success`, `pong` (ignored).
+- Event handlers: `health`, `message`, `contact`, `contact_resolved`, `channel`, `raw_packet`, `message_acked`, `message_deleted`, `contact_deleted`, `channel_deleted`, `error`, `success`, `pong` (ignored).
+- Event handlers: `health`, `message`, `contact`, `contact_resolved`, `channel`, `raw_packet`, `message_acked`, `message_failed`, `message_deleted`, `contact_deleted`, `channel_deleted`, `error`, `success`, `pong` (ignored).
+- Event handlers: `health`, `message`, `contact`, `contact_resolved`, `channel`, `raw_packet`, `message_acked`, `new_node`, `contact_deleted`, `channel_deleted`, `error`, `success`, `pong` (ignored).
 - For `raw_packet` events, use `observation_id` as event identity; `id` is a storage reference and may repeat.
 
 ## URL Hash Navigation (`utils/urlHash.ts`)
@@ -387,6 +406,7 @@ Supported routes:
 - `#channel/{channelKey}/{label}`
 - `#contact/{publicKey}`
 - `#contact/{publicKey}/{label}`
+- `#link/{pubkeyA}/{pubkeyB}` - link detail page (`LinkDetailView`); conversation type `link` with id `a~b`
 
 Where `{section}` is one of `radio`, `local`, `radio-app`, `database`, `fanout`, `openhop`, `handy-info`, or `about`.
 
@@ -415,6 +435,16 @@ It falls back to a 12-char prefix when `name` is missing.
 ### `utils/pathUtils.ts`
 
 Distance/validation helpers used by path + map UI.
+
+### `utils/traceMapUtils.ts`
+
+Pure helpers for `TraceRouteMap.tsx`: `resolveTraceNodeLocations` places each
+trace node ('local' at the radio config's location, 'repeater' at its matching
+contact's effective location via `getEffectiveLocation`, 'custom' hex hops
+never located), `buildTraceMapSegments` turns the located nodes into line
+segments and marks a segment `dashed` when it bridges one or more skipped
+(unlocated) hops. No component or maplibre dependency, so these are unit
+tested directly (`test/traceMapUtils.test.ts`).
 
 ### Time-range selection (`components/TimeRangeSelector.tsx`, `utils/timeRanges.ts`, `utils/timeRangePreference.ts`)
 
@@ -460,6 +490,8 @@ The unread divider is anchored to `first_unread_ids` - the id of the oldest unre
 
 Counts are incremented live over WebSocket while `first_unread_ids` only arrives with a full `/read-state/unreads` fetch, so `useUnreadCounts.incrementUnread` seeds the boundary itself on the read→unread transition. A channel going unread while the app is open would otherwise have a count but no boundary, and no divider at all.
 
+**Mark unread from here**: a message-row action (`MessageRowActions`, envelope icon, incoming messages only) calls `useUnreadCounts.markConversationUnreadFromMessage`, which hits `api.markContactUnread`/`api.markChannelUnread` (`POST .../mark-unread {message_id}`) and then resyncs via `refreshUnreads`. Decision: read state stays server-side and shared across browsers, consistent with mark-read. Because the app auto-re-marks the active conversation as read on every `/unreads` refresh (WS reconnect, mute toggle, `channelsLen`/`contactsLen` change - see `fetchUnreads`), marking the *currently open* conversation unread would otherwise be wiped out on the very next such refresh. `useUnreadCounts` suppresses that auto re-mark for the conversation just marked unread (`suppressAutoReadKeyRef`) until the user genuinely navigates away and back to it (`prevActiveKeyRef` distinguishes a real navigation from an incidental re-render with a new `activeConversation` object for the same conversation) - at that point it is treated as read again, like any other conversation. There is no sidebar-level "mark unread" (no context-menu pattern exists in `Sidebar.tsx` to hang it off); only the per-message row action exists.
+
 ## Contact Info Pane
 
 Clicking a contact's avatar in `ChatHeader` or `MessageList` opens a `ContactInfoPane` sheet (right drawer) showing comprehensive contact details fetched from `GET /api/contacts/analytics` using either `?public_key=...` or `?name=...`:
@@ -476,9 +508,22 @@ Clicking a contact's avatar in `ChatHeader` or `MessageList` opens a `ContactInf
 - Advert observation rate
 - Nearest repeaters (resolved from first-hop path prefixes)
 - Recent advert paths (informational only; not part of DM route selection)
+- User annotations (`ContactAnnotations` section): notes, owner info (free text), an owner pubkey pointer (validated against known contacts; the owner name links to open the DM conversation via `onOpenConversation`), an "Owned nodes" reverse list (contacts whose `owner_key` equals this contact, opened via `onOpenContactInfo`), manual fallback GPS, and a battery chemistry override (`lipo`/`lifepo4`/`lipo_hv`/`nmc`, or "Use global default" which clears it to `null`). All save via `api.updateContactAnnotations` (`POST /contacts/{key}/annotations`); the live `contact` WS update reseeds the fields.
+- Contact link (`ContactLinkShare`, below telemetry sharing): "Show contact link" calls `api.getContactUri` (`GET /contacts/{key}/contact-uri`, read from the radio's stored advert) only when clicked, then shows the `meshcore://` link read-only with a copy button; the backend error (for example no stored advert) is shown inline. Settings > Radio > Identity uses the same component with `api.getOwnContactUri` (`GET /radio/contact-uri`). No QR code: the frontend has no QR dependency.
 - User annotations (`ContactAnnotations` section): notes, owner info (free text), an owner pubkey pointer (validated against known contacts; the owner name links to open the DM conversation via `onOpenConversation`), an "Owned nodes" reverse list (contacts whose `owner_key` equals this contact, opened via `onOpenContactInfo`), and manual fallback GPS. All save via `api.updateContactAnnotations` (`POST /contacts/{key}/annotations`); the live `contact` WS update reseeds the fields.
+- Contact link (`ContactLinkShare`, below telemetry sharing): "Show contact link" calls `api.getContactUri` (`GET /contacts/{key}/contact-uri`, read from the radio's stored advert) only when clicked, then shows the `meshcore://` link read-only with a copy button; the backend error (for example no stored advert) is shown inline. Settings > Radio > Identity uses the same component with `api.getOwnContactUri` (`GET /radio/contact-uri`). No QR code for contact links (QR is only used for communities, see below).
+- Communities (`CommunitiesPanel`, Channels > Import / Export > Communities tab): join by pasted QR JSON, camera scan or an uploaded QR image; per community add hashtag channels and export. The export (`GET /communities/{id}/export`, contains the secret) is fetched only when "Show QR code and JSON" is clicked; it offers copy JSON, download JSON and download PNG. QR helpers in `utils/communityQr.ts`: `uqr` renders (SVG for display, canvas PNG for download); `zxing-wasm/reader` scans, imported lazily with its `.wasm` bundled through Vite `?url` (`prepareZXingModule` `locateFile`), so scanning never fetches zxing-wasm's default jsDelivr URL. Camera scanning needs a secure context (HTTPS or localhost).
+- Telemetry sharing (`ContactTelemetryPermissionsControl`, under radio residency): Battery / Location / Environment toggles that save via `api.setContactTelemetryPermissions` (`POST /contacts/{key}/telemetry-permissions`). Shows `telemetry_perms` when set in the app, else the radio's `(flags >> 1) & 7`; optimistic, reverts on error, and toasts when the contact is not on the radio yet.
+
+Map links have three modes (`MapLinkMode` in `map/controls/MapControls.tsx`): `liveness` (client-side from live packets), `advert` (`/packets/advert-links`) and `traffic` (`/packets/traffic-links`, the per-packet edge log). The two server modes share the `map/layers/advertLinksLayer.ts` controller (traffic uses id prefix `rt-traffic-links` and a green line) and a link-age window from `map/linkAge.ts`: it follows the node "Heard since" window unless the user turns that off in `LinkAgeControl` and picks an own preset or From/To (persisted keys `remoteterm-map-link-age-*`). Clicking a server link opens a popup (`map/linkPopup.ts`) whose "Details" calls `onOpenLink` (threaded `ConversationPane` -> `MapView`) to open `#link/<a>/<b>`. The layer click listeners are bound once in `handleReady`, so they call the latest popup handler through a ref.
 
 Effective map location is resolved by `getEffectiveLocation` in `utils/pathUtils.ts` (advertised coords win when valid, else manual coords). `MapView` projects it onto contacts so a manual-only node is mappable; the node popup shows a notes snippet, owner link, and a "Details" button that opens `ContactInfoPane` (`onOpenContactInfo`, threaded `App` → `ConversationPane` → `MapView`). Link/path drawing uses the same effective location: `resolveNodeCoord` (also in `utils/pathUtils.ts`) resolves a graph node id to coordinates for the liveness-links layer and packet-path pulses, so a manual-only node is drawn into paths too (not just placed as a marker). Discovery mode's packet-reveal gate (`resolvePacketContacts`) uses `hasEffectiveLocation` for the same reason, so a manual-only node is revealed by packet playback.
+
+The shared-locations overlay (`map/useSharedLocations.ts` + `map/layers/sharedLocationsLayer.ts`) fetches `GET /messages/locations` for the map window (`sinceCutoffSec`/`sinceUntilSec`) while its FAB toggle is on (`remoteterm-map-shared-locations`, plus `-all` for every share). `MapView` calls `attach(map)` in `handleReady` and `reattach()` in `handleBasemapReapply`; the pin popup's "Open in chat" uses `onNavigateToMessage` (threaded `App` → `ConversationPane` → `MapView`, same target shape as search). Position text in map popups, contact info, chat location cards and the location picker goes through `formatCoordinates(lat, lon, useCoordinateFormat())`; wire formats (`buildMarkerPayload`) stay decimal.
+
+GPX export (Export FAB, `fabs.gpxExport` / `onExportGpx` in `map/controls/MapControls.tsx`, a direct-action button in the no-panel `toggles` list, not a toggle: its `active` is left `undefined` so no `aria-pressed` is rendered): `MapView`'s `handleExportGpx` re-derives the raw (pre-effective-location) contact objects behind `mappableContacts` via `contactByKey`, so the pure `utils/gpxExport.ts` (`buildNodesGpx`) can tell an advertised location from a manual-fallback one (noted in the waypoint `<desc>`) from the original `lat`/`lon`/`manual_lat`/`manual_lon` fields. It best-effort calls `api.bulkContactUris` (`POST /contacts/bulk-contact-uris`) for a `meshcore://` link per node from stored raw adverts (never the radio); a lookup failure still downloads the GPX, just without links. Downloads `rtfm-ev-nodes-<date>.gpx` (waypoints only, no tracks; a node with no usable location is skipped).
+The guessed-locations overlay (pure logic in `map/guessedLocations.ts`, layer in `map/layers/guessedLocationsLayer.ts`, wired by `map/useGuessedLocations.ts`) estimates a position for a contact with no effective location: it fetches `GET /contacts/repeaters/advert-paths` (despite the name, this returns paths for all contacts) while its FAB toggle is on (`remoteterm-map-guessed-locations`), then for every unlocated contact heard in the last 24h, resolves each known path's `next_hop` (the hop nearest the origin — RTFM-EV stores `path_hex` as `origin -> ... -> self`, the opposite array convention from meshcore-open's own reversed `Contact.path`) against a same-render index of located repeaters, using only 2-/3-byte hops (1-byte hops collide too often). Anchors farther apart than `2 * ESTIMATED_LORA_RANGE_KM` (a fixed 15 km estimate, not a live radio read, so the layer still works with no radio connected) are dropped as mutually inconsistent; the guess is placed 330 m off a single anchor or 80-120 m off a weighted centre of several (biased toward the freshest anchor, normalized by the true weight sum — see the module doc for the divide-by-anchor-count bug this fixes relative to meshcore-open), at an angle seeded from the contact's public key so it is stable across renders. Guesses are drawn as a hollow "~" marker (never a filled circle, so they cannot be mistaken for a real position), shown only at zoom 12+, and are never persisted, exported or sent anywhere.
+Backend tile cache routing lives in `map/engine/tileProxy.ts`. `main.tsx` calls `loadTileProxyConfig()` once (`GET /tiles/config`); `SettingsTileCacheSection` calls `setTileProxyConfig` after every save so a toggle takes effect without a reload. `MapSurface` passes `transformTileRequest` as MapLibre's `transformRequest`, and the two direct style fetches (`basemaps.ts` recolour, `buildings3D.ts`) go through `proxiedUrl`. Only URLs starting with a `client_prefixes` entry of a `proxy: true` source are rewritten (to `./api/tiles/proxy/<source>/<path>`); anything with a query string, and every Esri URL, stays direct. The server's allow-list is the single source of truth; do not hard-code prefixes in the frontend.
 
 State: `useConversationNavigation` controls open/close via `infoPaneContactKey`. Live contact data from WebSocket updates is preferred over the initial detail snapshot.
 
@@ -513,6 +558,8 @@ For repeater contacts (`type=2`) on **mobile**, `ConversationPane.tsx` renders `
 
 **Dashboard panes** (after login): Telemetry, Node Info, Neighbors, ACL, Radio Settings, Regions, Advert Intervals, Owner Info - each fetched via granular `POST /api/contacts/{key}/repeater/{pane}` endpoints. The Owner Info pane consumes `owner_info_updated` / `stored_owner_info`: it notes when the repeater's reported owner was auto-saved to the contact (empty case) and offers an override button when a different value is already saved (which calls `api.updateContactAnnotations`). The Regions pane prefers the admin CLI hierarchy and falls back to the guest anon flood-allowed names, so its payload carries a `source` of `cli` or `anon`. Panes retry up to 3 times client-side. `Neighbors` depends on the smaller `node-info` fetch for repeater GPS, not the heavier radio-settings batch. "Load All" fetches all panes serially (parallel would queue behind the radio lock).
 
+**Settings Editor pane** (`RepeaterSettingsEditorPane.tsx`, defs in `repeaterSettingsDefs.ts`): editable rows for the allow-listed settings, seeded from the Radio Settings / Advert Intervals / Node Info / Owner Info pane data, plus a "Read current values" button (`api.repeaterSettingsRead`, `get` only, not part of Load All). Every change goes edit -> confirm (setting, current value, new value, exact CLI command) -> `api.repeaterSettingSet` (one `set` + `get` read-back) -> result (ok / mismatch / rejected / unverified). Radio f/bw/sf/cr is one `set radio` behind a strong confirm (type the repeater name; stranding + reboot warning). The client validators mirror `app/services/repeater_settings.py`, which stays the authority. After a verified read-back the hook's `applySetting` patches the matching read-only pane data (`applyReadbackToPaneData`).
+
 **Actions pane**: Send Advert, Sync Clock, Reboot - all send CLI commands via `POST /api/contacts/{key}/command`.
 
 **Console pane**: Full CLI access via the same command endpoint. History is ephemeral (not persisted to DB).
@@ -546,6 +593,39 @@ Web Push allows notifications even when the browser tab is closed. Requires HTTP
 - **Settings > Local**: `PushDeviceManagement` component shows subscription status, lists all registered devices with test/delete buttons. Uses `usePushSubscription` hook directly.
 - Auto-generates device labels from User-Agent (e.g., "Chrome on macOS").
 - `PushSubscriptionInfo` type in `types.ts`; API methods in `api.ts`.
+
+## New-Node Notifications
+
+Browser notification only (no Web Push) for the WS `new_node` event (plan 28
+item 1.5) - a public key never stored before, or a batched summary on a busy
+mesh (see `app/AGENTS.md` "New-node notifications" for the backend
+batching/warm-up).
+
+- **`useNewNodeNotifications` hook**: local-only preference, off by default,
+  same storage model as `useBrowserNotifications`' per-conversation toggle
+  (`localStorage`, gated on the `Notification` permission, no server
+  `app_settings` field). Stores `{ enabled, types }` under
+  `meshcore_new_node_notifications_settings`; `types` is contact type codes
+  (1=Client, 2=Repeater, 3=Room, 4=Sensor) to notify for, defaulting to all
+  four once enabled.
+- **Wiring**: `App.tsx` calls the hook once and threads `handleNewNodeEvent`
+  into `useRealtimeAppState`'s `notifyNewNode`, which fires on every WS
+  `new_node` event exactly like `notifyIncomingMessage` does for `message`.
+  The backend always broadcasts truthfully regardless of any browser's
+  preference; this hook does the per-browser filtering and notification
+  construction.
+- **Single vs batch**: a single-node payload (`batched: false`) shows the
+  contact name/type and clicking deep-links to `#contact/<key>/<label>` (same
+  pattern as `useBrowserNotifications`' message deep link). A batched payload
+  (`batched: true`) sums only the counts for the browser's enabled types from
+  `types` (a per-type breakdown) - if that sum is zero the notification is
+  suppressed entirely; otherwise it shows a plural "N new nodes" summary and
+  clicking clears the hash (opens the default view with the sidebar/contacts
+  visible) rather than deep-linking to one contact.
+- **Settings > Local**: a "New node notifications" group (`SettingsLocalSection.tsx`,
+  reusing `contactTypeLabel` from `ContactInfoBody.tsx` for the four type
+  checkboxes) sits next to the mention-sound group. Enabling requests the
+  `Notification` permission the same way the per-conversation toggle does.
 
 ## Styling
 
@@ -625,7 +705,7 @@ PYTHONPATH=. uv run pytest tests/ -v
 
 ### Contacts use mention styling for unread DMs
 
-This is intentional. In the sidebar, unread direct messages for actual contact conversations are treated as mention-equivalent for badge styling. That means both the Contacts section header and contact unread badges themselves use the highlighted mention-style colors for unread DMs, including when those contacts appear in Favorites. Repeaters do not inherit this rule, and channel badges still use mention styling only for real `@[name]` mentions.
+This is intentional. In the sidebar, unread direct messages for actual contact conversations are treated as mention-equivalent for badge styling. That means both the Contacts section header and contact unread badges themselves use the highlighted mention-style colors for unread DMs, including when those contacts appear in Favorites. Repeaters do not inherit this rule, and channel badges still use mention styling only for real `@[name]` mentions. Reactions are not mentions even though a channel reaction names its target (`@[Name]👍` plus a hash line): `messageContainsMention` skips them via `isReactionPayload`, and the backend unread query does the same through the `is_reaction_text` SQL function (`app/reaction_payloads.py`).
 
 ### RawPacketList autoscroll, pause, and fold
 

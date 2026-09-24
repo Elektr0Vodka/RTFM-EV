@@ -364,6 +364,7 @@ class MessageRepository:
         packet_id = None
         transport_code = None
         region = None
+        failed_at = None
         if hasattr(row, "keys"):
             row_keys = row.keys()
             if "packet_id" in row_keys:
@@ -372,6 +373,8 @@ class MessageRepository:
                 transport_code = row["transport_code"]
             if "region" in row_keys:
                 region = row["region"]
+            if "failed_at" in row_keys:
+                failed_at = row["failed_at"]
 
         return Message(
             id=row["id"],
@@ -390,6 +393,7 @@ class MessageRepository:
             packet_id=packet_id,
             transport_code=transport_code,
             region=region,
+            failed_at=failed_at,
         )
 
     @staticmethod
@@ -582,6 +586,9 @@ class MessageRepository:
     async def increment_ack_count(message_id: int) -> int:
         """Increment ack count and return the new value.
 
+        An ACK means the message was delivered, so this also clears a
+        ``failed_at`` marker (late ACK after the DM was marked failed).
+
         NOTE: ``RETURNING`` leaves the prepared statement active until the
         row is fetched, so we MUST consume it inside the ``async with``
         block. Without that, the commit at the end of ``db.tx()`` fails
@@ -589,11 +596,27 @@ class MessageRepository:
         """
         async with db.tx() as conn:
             async with conn.execute(
-                "UPDATE messages SET acked = acked + 1 WHERE id = ? RETURNING acked",
+                "UPDATE messages SET acked = acked + 1, failed_at = NULL WHERE id = ? "
+                "RETURNING acked",
                 (message_id,),
             ) as cursor:
                 row = await cursor.fetchone()
         return row["acked"] if row else 1
+
+    @staticmethod
+    async def mark_failed(message_id: int, failed_at: int) -> bool:
+        """Mark an unacknowledged outgoing message as failed.
+
+        Returns False (and changes nothing) when the row is gone, incoming, or
+        already acknowledged, so a racing ACK always wins.
+        """
+        async with db.tx() as conn:
+            async with conn.execute(
+                "UPDATE messages SET failed_at = ? WHERE id = ? AND outgoing = 1 AND acked = 0",
+                (failed_at, message_id),
+            ) as cursor:
+                rowcount = cursor.rowcount
+        return rowcount > 0
 
     @staticmethod
     async def get_ack_and_paths(message_id: int) -> tuple[int, list[MessagePath] | None]:
@@ -622,6 +645,68 @@ class MessageRepository:
         return MessageRepository._row_to_message(row)
 
     @staticmethod
+    async def get_conversation_window(
+        msg_type: str,
+        conversation_key: str,
+        since: int,
+        until: int,
+        exclude_id: int | None = None,
+    ) -> list["Message"]:
+        """Messages of one conversation received in [since, until], newest first."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                f"SELECT {MessageRepository._message_select('messages')} FROM messages "
+                "WHERE type = ? AND conversation_key = ? AND received_at BETWEEN ? AND ? "
+                "AND id IS NOT ? ORDER BY received_at DESC, id DESC",
+                (msg_type, conversation_key, since, until, exclude_id),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [MessageRepository._row_to_message(row) for row in rows]
+
+    @staticmethod
+    async def get_received_window(
+        since: int | None,
+        until: int | None,
+        limit: int,
+        blocked_keys: list[str] | None = None,
+        blocked_names: list[str] | None = None,
+    ) -> list[tuple["Message", str | None]]:
+        """Messages of every conversation received in (since, until], newest first.
+
+        Each comes with its conversation's name (channel name or contact name,
+        None when unknown). Lower bound exclusive, upper inclusive (the map's
+        window convention). ``packet_id`` is not looked up.
+        """
+        query = (
+            "SELECT messages.*, COALESCE(channels.name, contacts.name) AS conversation_name "
+            "FROM messages "
+            "LEFT JOIN contacts ON messages.type = 'PRIV' "
+            "AND messages.conversation_key = contacts.public_key "
+            "LEFT JOIN channels ON messages.type = 'CHAN' "
+            "AND messages.conversation_key = channels.key "
+            "WHERE 1=1"
+        )
+        params: list[Any] = []
+        blocked_clause, blocked_params = MessageRepository._build_blocked_incoming_clause(
+            "messages", blocked_keys, blocked_names
+        )
+        if blocked_clause:
+            query += f" AND {blocked_clause}"
+            params.extend(blocked_params)
+        if since is not None:
+            query += " AND messages.received_at > ?"
+            params.append(since)
+        if until is not None:
+            query += " AND messages.received_at <= ?"
+            params.append(until)
+        query += " ORDER BY messages.received_at DESC, messages.id DESC LIMIT ?"
+        params.append(limit)
+        async with db.readonly() as conn:
+            async with conn.execute(query, params) as cursor:
+                rows = await cursor.fetchall()
+        return [(MessageRepository._row_to_message(row), row["conversation_name"]) for row in rows]
+
+    @staticmethod
     async def delete_by_id(message_id: int) -> None:
         """Delete a message row by ID."""
         async with db.tx() as conn:
@@ -632,6 +717,30 @@ class MessageRepository:
                 pass
             async with conn.execute("DELETE FROM messages WHERE id = ?", (message_id,)):
                 pass
+
+    @staticmethod
+    async def delete_with_raw_packets(message_ids: list[int]) -> tuple[int, int]:
+        """Hard-delete messages and their linked raw packets in one transaction.
+
+        Mirrors ``RetentionRepository.prune_messages_older_than``: the linked raw
+        packets go first, in the same transaction, so historical decryption cannot
+        recreate a deleted message from its stored packet. Returns
+        ``(messages_deleted, raw_packets_deleted)``.
+        """
+        if not message_ids:
+            return 0, 0
+        placeholders = ",".join("?" for _ in message_ids)
+        async with db.tx() as conn:
+            async with conn.execute(
+                f"DELETE FROM raw_packets WHERE message_id IN ({placeholders})",
+                message_ids,
+            ) as cursor:
+                raw_deleted = cursor.rowcount
+            async with conn.execute(
+                f"DELETE FROM messages WHERE id IN ({placeholders})",
+                message_ids,
+            ) as cursor:
+                return cursor.rowcount, raw_deleted
 
     @staticmethod
     async def stream_chan_messages_with_raw(
@@ -707,6 +816,25 @@ class MessageRepository:
         return MessageRepository._row_to_message(row)
 
     @staticmethod
+    async def has_recent_outgoing_dm(text: str, sender_timestamp: int, window_seconds: int) -> bool:
+        """True if an outgoing DM to *any* contact used this text + timestamp recently.
+
+        Bounded by ``received_at`` so the (type, received_at, ...) index serves it
+        instead of scanning every stored DM.
+        """
+        async with db.readonly() as conn:
+            async with conn.execute(
+                """
+                SELECT 1 FROM messages
+                WHERE type = 'PRIV' AND received_at >= ? AND outgoing = 1
+                  AND text = ? AND sender_timestamp = ?
+                LIMIT 1
+                """,
+                (sender_timestamp - window_seconds, text, sender_timestamp),
+            ) as cursor:
+                return await cursor.fetchone() is not None
+
+    @staticmethod
     async def get_unread_counts(
         name: str | None = None,
         blocked_keys: list[str] | None = None,
@@ -754,7 +882,8 @@ class MessageRepository:
                 SELECT m.conversation_key,
                        COUNT(*) as unread_count,
                        SUM(CASE
-                               WHEN ? <> '' AND INSTR(LOWER(m.text), LOWER(?)) > 0 THEN 1
+                               WHEN ? <> '' AND INSTR(LOWER(m.text), LOWER(?)) > 0
+                                    AND NOT is_reaction_text(m.text) THEN 1
                                ELSE 0
                            END) > 0 as has_mention
                 FROM messages m
@@ -780,7 +909,8 @@ class MessageRepository:
                 SELECT m.conversation_key,
                        COUNT(*) as unread_count,
                        SUM(CASE
-                               WHEN ? <> '' AND INSTR(LOWER(m.text), LOWER(?)) > 0 THEN 1
+                               WHEN ? <> '' AND INSTR(LOWER(m.text), LOWER(?)) > 0
+                                    AND NOT is_reaction_text(m.text) THEN 1
                                ELSE 0
                            END) > 0 as has_mention
                 FROM messages m

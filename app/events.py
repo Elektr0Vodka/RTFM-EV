@@ -22,6 +22,9 @@ WsEventType = Literal[
     "channel_deleted",
     "raw_packet",
     "message_acked",
+    "message_failed",
+    "message_deleted",
+    "new_node",
     "error",
     "success",
 ]
@@ -47,9 +50,38 @@ class MessageAckedPayload(TypedDict):
     packet_id: NotRequired[int | None]
 
 
+class MessageFailedPayload(TypedDict):
+    message_id: int
+    failed_at: int
+
+
+class MessageDeletedPayload(TypedDict):
+    message_id: int
+    type: str
+    conversation_key: str
+
+
 class ToastPayload(TypedDict):
     message: str
     details: NotRequired[str]
+
+
+class NewNodePayload(TypedDict):
+    """A first-ever-seen contact, or a batched summary on a busy mesh.
+
+    ``batched=False`` carries one contact's detail (``public_key``/``name``/
+    ``type`` set, ``count`` is always 1). ``batched=True`` is a summary only
+    (those three fields are null); ``types`` is always a per-contact-type
+    breakdown ({"1": 2, "2": 1, ...}) so the frontend can filter by type
+    without needing per-node detail for a batch.
+    """
+
+    batched: bool
+    count: int
+    public_key: str | None
+    name: str | None
+    type: int | None
+    types: dict[str, int]
 
 
 _PAYLOAD_ADAPTERS: dict[WsEventType, TypeAdapter[Any]] = {
@@ -62,6 +94,9 @@ _PAYLOAD_ADAPTERS: dict[WsEventType, TypeAdapter[Any]] = {
     "channel_deleted": TypeAdapter(ChannelDeletedPayload),
     "raw_packet": TypeAdapter(RawPacketBroadcast),
     "message_acked": TypeAdapter(MessageAckedPayload),
+    "message_failed": TypeAdapter(MessageFailedPayload),
+    "message_deleted": TypeAdapter(MessageDeletedPayload),
+    "new_node": TypeAdapter(NewNodePayload),
     "error": TypeAdapter(ToastPayload),
     "success": TypeAdapter(ToastPayload),
 }

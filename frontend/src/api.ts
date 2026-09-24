@@ -1,11 +1,21 @@
 import type {
   AdvertLinkEdge,
+  LinkPacketRow,
+  LinkSummary,
+  LinkTimeseries,
+  TrafficLinkEdge,
   AppSettings,
   BackupFilesResponse,
   RestoreStatus,
   AppSettingsUpdate,
   PacketHistoryResponse,
   UrlPreview,
+  TileAreaEstimate,
+  TileAreaRequest,
+  TileCacheConfig,
+  TileCacheConfigUpdate,
+  TileCacheStats,
+  TileDownloadStatus,
   ExternalMapNode,
   ExternalMapStatus,
   PartialResolutionPreview,
@@ -13,6 +23,10 @@ import type {
   PartialNodeResolution,
   BulkCreateHashtagChannelsResult,
   ChannelImportResult,
+  Community,
+  CommunityExport,
+  CommunityHashtagResult,
+  CommunityJoinResult,
   Channel,
   ChannelDetail,
   CommandResponse,
@@ -21,14 +35,19 @@ import type {
   ContactAdvertPathSummary,
   LatestTelemetry,
   ContactRadioResidency,
+  ContactTelemetryPermissions,
   ContactTelemetryResponse,
   RadioContactOccupancy,
   RadioPolicy,
   FanoutConfig,
   HealthStatus,
   MaintenanceResult,
+  RetentionPruneResult,
+  RetentionStats,
   MeshcomodConfig,
   MeshcomodConfigUpdate,
+  GpsConfig,
+  GpsConfigUpdate,
   Message,
   OpenHopStatus,
   OpenHopEnvelope,
@@ -57,6 +76,8 @@ import type {
   OpenHopMqttStatus,
   OpenHopMqttConfigBody,
   MessagesAroundResponse,
+  ReactionTargetResponse,
+  SharedLocationsResponse,
   RawPacket,
   RadioAdvertMode,
   RadioConfig,
@@ -70,6 +91,7 @@ import type {
   PathDiscoveryResponse,
   PushSubscriptionInfo,
   ResendChannelMessageResponse,
+  ResendDirectMessageResponse,
   RepeaterAclResponse,
   RepeaterAdvertIntervalsResponse,
   RepeaterLoginResponse,
@@ -81,6 +103,8 @@ import type {
   ContactAnnotationsUpdate,
   RepeaterRadioSettingsResponse,
   RepeaterRegionsResponse,
+  RepeaterSettingSetResponse,
+  RepeaterSettingsReadResponse,
   RepeaterStatusResponse,
   TelemetryHistoryEntry,
   TelemetrySchedule,
@@ -100,6 +124,18 @@ import type {
 } from './types';
 
 const API_BASE = './api';
+
+type LinkWindow = { since?: number | null; until?: number | null };
+
+function setWindow(qs: URLSearchParams, w: LinkWindow): void {
+  if (w.since != null) qs.set('since', String(Math.floor(w.since)));
+  if (w.until != null) qs.set('until', String(Math.floor(w.until)));
+}
+
+function withQuery(path: string, qs: URLSearchParams): string {
+  const query = qs.toString();
+  return query ? `${path}?${query}` : path;
+}
 
 /** Error thrown by API calls, carrying the HTTP status so callers can tell
  * retryable failures from ones the mesh already answered (e.g. 422 timeouts). */
@@ -128,7 +164,10 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
     let errorMessage = errorText || res.statusText;
     try {
       const errorJson = JSON.parse(errorText);
-      if (errorJson.detail) {
+      if (typeof errorJson.detail?.message === 'string') {
+        // Structured detail, e.g. {"detail": {"message": "...", ...}}
+        errorMessage = errorJson.detail.message;
+      } else if (errorJson.detail) {
         errorMessage = errorJson.detail;
       }
     } catch {
@@ -153,6 +192,17 @@ interface DecryptResult {
   started: boolean;
   total_packets: number;
   message: string;
+}
+
+/** meshcore:// contact link exported from the radio. */
+export interface ContactUriResult {
+  uri: string;
+  public_key: string;
+}
+
+/** meshcore:// links built from stored raw adverts (no radio command). */
+export interface ContactUriBatchResult {
+  links: Record<string, string>;
 }
 
 interface BackupSaveResult {
@@ -189,6 +239,12 @@ export const api = {
   getMeshcomodConfig: () => fetchJson<MeshcomodConfig>('/radio/meshcomod'),
   updateMeshcomodConfig: (update: MeshcomodConfigUpdate) =>
     fetchJson<MeshcomodConfig>('/radio/meshcomod', {
+      method: 'PATCH',
+      body: JSON.stringify(update),
+    }),
+  getGpsConfig: () => fetchJson<GpsConfig>('/radio/gps'),
+  updateGpsConfig: (update: GpsConfigUpdate) =>
+    fetchJson<GpsConfig>('/radio/gps', {
       method: 'PATCH',
       body: JSON.stringify(update),
     }),
@@ -247,8 +303,57 @@ export const api = {
     fetchJson<ContactAdvertPathSummary[]>(
       `/contacts/repeaters/advert-paths?limit_per_repeater=${limitPerRepeater}`
     ),
-  getAdvertLinks: (signal?: AbortSignal) =>
-    fetchJson<AdvertLinkEdge[]>('/packets/advert-links', { signal }),
+  /** Resolved advert-path edges. `heardOnly` resolves hops only against
+   *  contacts this server has heard; `maxKm` (> 0) drops longer edges;
+   *  `since`/`until` limit the adverts used (unix seconds). */
+  getAdvertLinks: (
+    signal?: AbortSignal,
+    opts: { heardOnly?: boolean; maxKm?: number } & LinkWindow = {}
+  ) => {
+    const qs = new URLSearchParams();
+    if (opts.heardOnly) qs.set('heard_only', 'true');
+    if (opts.maxKm != null && opts.maxKm > 0) qs.set('max_km', String(opts.maxKm));
+    setWindow(qs, opts);
+    return fetchJson<AdvertLinkEdge[]>(withQuery('/packets/advert-links', qs), { signal });
+  },
+  /** Links from all flood traffic (edge log), aggregated over the window. */
+  getTrafficLinks: (
+    signal?: AbortSignal,
+    opts: { heardOnly?: boolean; maxKm?: number } & LinkWindow = {}
+  ) => {
+    const qs = new URLSearchParams();
+    if (opts.heardOnly) qs.set('heard_only', 'true');
+    if (opts.maxKm != null && opts.maxKm > 0) qs.set('max_km', String(opts.maxKm));
+    setWindow(qs, opts);
+    return fetchJson<TrafficLinkEdge[]>(withQuery('/packets/traffic-links', qs), { signal });
+  },
+  getLinkSummary: (a: string, b: string, w: LinkWindow = {}, signal?: AbortSignal) => {
+    const qs = new URLSearchParams();
+    setWindow(qs, w);
+    return fetchJson<LinkSummary>(withQuery(`/links/${a}/${b}/summary`, qs), { signal });
+  },
+  getLinkTimeseries: (
+    a: string,
+    b: string,
+    w: LinkWindow & { bucket?: 'hour' | 'day' } = {},
+    signal?: AbortSignal
+  ) => {
+    const qs = new URLSearchParams();
+    setWindow(qs, w);
+    if (w.bucket) qs.set('bucket', w.bucket);
+    return fetchJson<LinkTimeseries>(withQuery(`/links/${a}/${b}/timeseries`, qs), { signal });
+  },
+  getLinkPackets: (
+    a: string,
+    b: string,
+    opts: { limit?: number; before?: number | null } = {},
+    signal?: AbortSignal
+  ) => {
+    const qs = new URLSearchParams();
+    if (opts.limit != null) qs.set('limit', String(opts.limit));
+    if (opts.before != null) qs.set('before', String(opts.before));
+    return fetchJson<LinkPacketRow[]>(withQuery(`/links/${a}/${b}/packets`, qs), { signal });
+  },
   getContactAnalytics: (params: { publicKey?: string; name?: string }, signal?: AbortSignal) => {
     const searchParams = new URLSearchParams();
     if (params.publicKey) searchParams.set('public_key', params.publicKey);
@@ -272,10 +377,32 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ public_key: publicKey, name, type, try_historical: tryHistorical }),
     }),
+  getOwnContactUri: () => fetchJson<ContactUriResult>('/radio/contact-uri'),
+  getContactUri: (publicKey: string) =>
+    fetchJson<ContactUriResult>(`/contacts/${publicKey}/contact-uri`),
+  bulkContactUris: (publicKeys: string[]) =>
+    fetchJson<ContactUriBatchResult>('/contacts/bulk-contact-uris', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ public_keys: publicKeys }),
+    }),
+  importContactUri: (uri: string) =>
+    fetchJson<Contact>('/contacts/import-uri', {
+      method: 'POST',
+      body: JSON.stringify({ uri }),
+    }),
   markContactRead: (publicKey: string) =>
     fetchJson<{ status: string; public_key: string }>(`/contacts/${publicKey}/mark-read`, {
       method: 'POST',
     }),
+  markContactUnread: (publicKey: string, messageId: number) =>
+    fetchJson<{ status: string; public_key: string; message_id: number; last_read_at: number }>(
+      `/contacts/${publicKey}/mark-unread`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ message_id: messageId }),
+      }
+    ),
   sendRepeaterCommand: (publicKey: string, command: string) =>
     fetchJson<CommandResponse>(`/contacts/${publicKey}/command`, {
       method: 'POST',
@@ -302,6 +429,16 @@ export const api = {
         body: JSON.stringify({ policy }),
       }
     ),
+  setContactTelemetryPermissions: (publicKey: string, perms: ContactTelemetryPermissions) =>
+    fetchJson<{
+      status: string;
+      public_key: string;
+      telemetry_perms: number;
+      applied_to_radio: boolean;
+    }>(`/contacts/${publicKey}/telemetry-permissions`, {
+      method: 'POST',
+      body: JSON.stringify(perms),
+    }),
 
   // Channels
   getChannels: () => fetchJson<Channel[]>('/channels'),
@@ -345,10 +482,39 @@ export const api = {
     return res.json() as Promise<ChannelImportResult>;
   },
   getChannelDetail: (key: string) => fetchJson<ChannelDetail>(`/channels/${key}/detail`),
+
+  // Communities (meshcore-open shared-secret channels)
+  getCommunities: () => fetchJson<Community[]>('/communities'),
+  joinCommunity: (payload: string, addPublicChannel: boolean, tryHistorical: boolean) =>
+    fetchJson<CommunityJoinResult>('/communities/join', {
+      method: 'POST',
+      body: JSON.stringify({
+        payload,
+        add_public_channel: addPublicChannel,
+        try_historical: tryHistorical,
+      }),
+    }),
+  addCommunityHashtag: (communityId: string, hashtag: string, tryHistorical: boolean) =>
+    fetchJson<CommunityHashtagResult>(`/communities/${communityId}/hashtags`, {
+      method: 'POST',
+      body: JSON.stringify({ hashtag, try_historical: tryHistorical }),
+    }),
+  exportCommunity: (communityId: string) =>
+    fetchJson<CommunityExport>(`/communities/${communityId}/export`, { cache: 'no-store' }),
+  deleteCommunity: (communityId: string) =>
+    fetchJson<{ status: string }>(`/communities/${communityId}`, { method: 'DELETE' }),
   markChannelRead: (key: string) =>
     fetchJson<{ status: string; key: string }>(`/channels/${key}/mark-read`, {
       method: 'POST',
     }),
+  markChannelUnread: (key: string, messageId: number) =>
+    fetchJson<{ status: string; key: string; message_id: number; last_read_at: number }>(
+      `/channels/${key}/mark-unread`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ message_id: messageId }),
+      }
+    ),
   setChannelFloodScopeOverride: (key: string, floodScopeOverride: string) =>
     fetchJson<Channel>(`/channels/${key}/flood-scope-override`, {
       method: 'POST',
@@ -389,6 +555,33 @@ export const api = {
     const query = searchParams.toString();
     return fetchJson<Message[]>(`/messages${query ? `?${query}` : ''}`, { signal });
   },
+  reactToMessage: (messageId: number, emoji: string) =>
+    fetchJson<Message>(`/messages/${messageId}/react`, {
+      method: 'POST',
+      body: JSON.stringify({ emoji }),
+    }),
+  deleteMessage: (messageId: number) =>
+    fetchJson<{ status: string; deleted: number }>(`/messages/${messageId}`, {
+      method: 'DELETE',
+    }),
+  getReactionTarget: (messageId: number) =>
+    fetchJson<ReactionTargetResponse>(`/messages/${messageId}/reaction-target`),
+  /** Location shares in chat messages received in (since, until]; newest first. */
+  getSharedLocations: (
+    params: { since?: number; until?: number; latestPerSender?: boolean },
+    signal?: AbortSignal
+  ) => {
+    const qs = new URLSearchParams();
+    if (params.since !== undefined) qs.set('since', String(params.since));
+    if (params.until !== undefined) qs.set('until', String(params.until));
+    if (params.latestPerSender !== undefined) {
+      qs.set('latest_per_sender', String(params.latestPerSender));
+    }
+    const query = qs.toString();
+    return fetchJson<SharedLocationsResponse>(`/messages/locations${query ? `?${query}` : ''}`, {
+      signal,
+    });
+  },
   getMessagesAround: (
     messageId: number,
     type?: 'PRIV' | 'CHAN',
@@ -419,6 +612,10 @@ export const api = {
       `/messages/channel/${messageId}/resend${newTimestamp ? '?new_timestamp=true' : ''}`,
       { method: 'POST' }
     ),
+  resendDirectMessage: (messageId: number) =>
+    fetchJson<ResendDirectMessageResponse>(`/messages/direct/${messageId}/resend`, {
+      method: 'POST',
+    }),
 
   // Packets
   getRecentPackets: (params?: { afterTs?: number; beforeTs?: number; limit?: number }) => {
@@ -454,6 +651,13 @@ export const api = {
         }),
       }),
     }),
+
+  // Retention
+  getRetentionStats: (messagesDays?: number) =>
+    fetchJson<RetentionStats>(
+      `/retention/stats${messagesDays !== undefined ? `?messages_days=${messagesDays}` : ''}`
+    ),
+  runRetentionPrune: () => fetchJson<RetentionPruneResult>('/retention/prune', { method: 'POST' }),
 
   // Backup
   downloadBackupUrl: () => `${API_BASE}/backup/download`,
@@ -546,6 +750,28 @@ export const api = {
   // Chat link preview (unfurl)
   unfurl: (url: string, signal?: AbortSignal) =>
     fetchJson<UrlPreview>(`/unfurl?url=${encodeURIComponent(url)}`, { signal }),
+
+  // Backend map tile cache (Settings > Map)
+  getTileCacheConfig: () => fetchJson<TileCacheConfig>('/tiles/config'),
+  updateTileCacheConfig: (update: TileCacheConfigUpdate) =>
+    fetchJson<TileCacheConfig>('/tiles/config', {
+      method: 'PATCH',
+      body: JSON.stringify(update),
+    }),
+  getTileCacheStats: () => fetchJson<TileCacheStats>('/tiles/stats'),
+  clearTileCache: () => fetchJson<TileCacheStats>('/tiles/cache', { method: 'DELETE' }),
+  estimateTileDownload: (area: TileAreaRequest) =>
+    fetchJson<TileAreaEstimate>('/tiles/download/estimate', {
+      method: 'POST',
+      body: JSON.stringify(area),
+    }),
+  startTileDownload: (area: TileAreaRequest) =>
+    fetchJson<TileDownloadStatus>('/tiles/download', {
+      method: 'POST',
+      body: JSON.stringify(area),
+    }),
+  getTileDownload: () => fetchJson<TileDownloadStatus>('/tiles/download'),
+  cancelTileDownload: () => fetchJson<TileDownloadStatus>('/tiles/download', { method: 'DELETE' }),
 
   // App Settings
   getSettings: () => fetchJson<AppSettings>('/settings'),
@@ -912,6 +1138,18 @@ export const api = {
   repeaterRadioSettings: (publicKey: string) =>
     fetchJson<RepeaterRadioSettingsResponse>(`/contacts/${publicKey}/repeater/radio-settings`, {
       method: 'POST',
+    }),
+  // Structured settings editor. Each set is ONE CLI message over RF; the
+  // server validates against an allow-list and reads the value back.
+  repeaterSettingsRead: (publicKey: string, settings?: string[]) =>
+    fetchJson<RepeaterSettingsReadResponse>(`/contacts/${publicKey}/repeater/settings/read`, {
+      method: 'POST',
+      body: JSON.stringify({ settings: settings ?? null }),
+    }),
+  repeaterSettingSet: (publicKey: string, setting: string, value: string) =>
+    fetchJson<RepeaterSettingSetResponse>(`/contacts/${publicKey}/repeater/settings/set`, {
+      method: 'POST',
+      body: JSON.stringify({ setting, value }),
     }),
   repeaterAdvertIntervals: (publicKey: string) =>
     fetchJson<RepeaterAdvertIntervalsResponse>(`/contacts/${publicKey}/repeater/advert-intervals`, {

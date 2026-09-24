@@ -347,3 +347,71 @@ describe('pagination bookkeeping is independent of path hop-width', () => {
     expect(conversationMessageCache.get('conv-2b')?.hasOlderMessages).toBe(false);
   });
 });
+
+describe('ConversationMessageCache.removeMessage', () => {
+  it('removes a message from whichever cached conversation holds it', () => {
+    conversationMessageCache.set('conv-delete-a', {
+      messages: [createMessage({ id: 101 }), createMessage({ id: 102, text: 'second' })],
+      hasOlderMessages: false,
+    });
+
+    conversationMessageCache.removeMessage(101);
+
+    expect(conversationMessageCache.get('conv-delete-a')?.messages.map((m) => m.id)).toEqual([102]);
+  });
+
+  it('is a no-op when the message id is not cached anywhere', () => {
+    conversationMessageCache.set('conv-delete-b', {
+      messages: [createMessage({ id: 201 })],
+      hasOlderMessages: false,
+    });
+
+    conversationMessageCache.removeMessage(999999);
+
+    expect(conversationMessageCache.get('conv-delete-b')?.messages.map((m) => m.id)).toEqual([201]);
+  });
+
+  it('lets a later message with the same content key be re-added after removal', () => {
+    const msg = createMessage({ id: 301, text: 'duplicate-prone' });
+    conversationMessageCache.set('conv-delete-c', {
+      messages: [msg],
+      hasOlderMessages: false,
+    });
+
+    conversationMessageCache.removeMessage(301);
+    const added = conversationMessageCache.addMessage(
+      'conv-delete-c',
+      createMessage({ id: 302, text: 'duplicate-prone' })
+    );
+
+    expect(added).toBe(true);
+  });
+});
+
+describe('failed direct messages', () => {
+  it('cache marks a message failed and removes a replaced one', () => {
+    const failed = createMessage({
+      id: 501,
+      type: 'PRIV',
+      conversation_key: 'dm-f',
+      outgoing: true,
+    });
+    const other = createMessage({ id: 502, type: 'PRIV', conversation_key: 'dm-f', text: 'x' });
+    conversationMessageCache.set('dm-f', { messages: [failed, other], hasOlderMessages: false });
+
+    conversationMessageCache.updateFailed(501, 1700000100);
+    expect(conversationMessageCache.get('dm-f')?.messages[0].failed_at).toBe(1700000100);
+
+    conversationMessageCache.removeMessage(501);
+    expect(conversationMessageCache.get('dm-f')?.messages.map((m) => m.id)).toEqual([502]);
+    // Its content key is released, so a same-content copy could be cached again.
+    expect(conversationMessageCache.addMessage('dm-f', failed)).toBe(true);
+  });
+
+  it('reconcile picks up a failed marker that changed while disconnected', () => {
+    const current = [createMessage({ id: 1, outgoing: true, type: 'PRIV' })];
+    const fetched = [createMessage({ id: 1, outgoing: true, type: 'PRIV', failed_at: 1700000100 })];
+
+    expect(reconcileConversationMessages(current, fetched)).toEqual(fetched);
+  });
+});

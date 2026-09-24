@@ -3,8 +3,11 @@ import { api } from '../api';
 import { toast } from '../components/ui/sonner';
 import type { MessageInputHandle } from '../components/MessageInput';
 import type { Channel, Contact, Conversation, Message, PathDiscoveryResponse } from '../types';
+import { useT } from '../i18n';
 import { mergeContactIntoList } from '../utils/contactMerge';
 import { buildMarkerPayload } from '../utils/meshcoreOpenPayloads';
+import { parseSenderFromText } from '../utils/messageParser';
+import { buildReplyText } from '../utils/replyText';
 
 interface UseConversationActionsArgs {
   activeConversation: Conversation | null;
@@ -12,12 +15,20 @@ interface UseConversationActionsArgs {
   setContacts: React.Dispatch<React.SetStateAction<Contact[]>>;
   setChannels: React.Dispatch<React.SetStateAction<Channel[]>>;
   observeMessage: (msg: Message) => { added: boolean; activeConversation: boolean };
+  /** Drop a message locally: a local delete, or a failed DM replaced by its retry. */
+  removeMessage: (messageId: number) => void;
   messageInputRef: RefObject<MessageInputHandle | null>;
+  markConversationUnreadFromMessage: (args: {
+    type: 'channel' | 'contact';
+    id: string;
+    messageId: number;
+  }) => Promise<void>;
 }
 
 interface UseConversationActionsResult {
   handleSendMessage: (text: string) => Promise<void>;
   handleResendChannelMessage: (messageId: number, newTimestamp?: boolean) => Promise<void>;
+  handleRetryDirectMessage: (messageId: number) => Promise<void>;
   handleSetChannelFloodScopeOverride: (
     channelKey: string,
     floodScopeOverride: string
@@ -27,6 +38,10 @@ interface UseConversationActionsResult {
     pathHashModeOverride: number | null
   ) => Promise<void>;
   handleSenderClick: (sender: string) => void;
+  handleReactToMessage: (messageId: number, emoji: string) => Promise<void>;
+  handleReplyToMessage: (message: Message) => void;
+  handleDeleteMessage: (message: Message) => Promise<void>;
+  handleMarkUnreadFromMessage: (message: Message) => Promise<void>;
   handleInsertLocation: (lat: number, lon: number, label: string) => void;
   handleTrace: () => Promise<void>;
   handlePathDiscovery: (publicKey: string) => Promise<PathDiscoveryResponse>;
@@ -38,8 +53,11 @@ export function useConversationActions({
   setContacts,
   setChannels,
   observeMessage,
+  removeMessage,
   messageInputRef,
+  markConversationUnreadFromMessage,
 }: UseConversationActionsArgs): UseConversationActionsResult {
+  const t = useT();
   const mergeChannelIntoList = useCallback(
     (updated: Channel) => {
       setChannels((prev) => {
@@ -95,6 +113,26 @@ export function useConversationActions({
     [activeConversationRef, observeMessage]
   );
 
+  // Retry a failed DM: the server sends a new copy and deletes the failed row,
+  // so the new bubble replaces the failed one.
+  const handleRetryDirectMessage = useCallback(
+    async (messageId: number) => {
+      try {
+        const resent = await api.resendDirectMessage(messageId);
+        removeMessage?.(resent.replaced_message_id);
+        if (activeConversationRef.current?.id === resent.message.conversation_key) {
+          observeMessage(resent.message);
+        }
+        toast.success(t('chat_retry_sent'));
+      } catch (err) {
+        toast.error(t('chat_retry_failed'), {
+          description: err instanceof Error ? err.message : undefined,
+        });
+      }
+    },
+    [activeConversationRef, observeMessage, removeMessage, t]
+  );
+
   const handleSetChannelFloodScopeOverride = useCallback(
     async (channelKey: string, floodScopeOverride: string) => {
       try {
@@ -138,6 +176,71 @@ export function useConversationActions({
     [messageInputRef]
   );
 
+  const handleReactToMessage = useCallback(
+    async (messageId: number, emoji: string) => {
+      try {
+        const sent = await api.reactToMessage(messageId, emoji);
+        if (activeConversationRef.current?.id === sent.conversation_key) {
+          observeMessage(sent);
+        }
+      } catch (err) {
+        toast.error(t('chat_reaction_send_failed'), {
+          description: err instanceof Error ? err.message : undefined,
+        });
+      }
+    },
+    [activeConversationRef, observeMessage, t]
+  );
+
+  const handleReplyToMessage = useCallback(
+    (message: Message) => {
+      // Channels mention the original sender; DMs mention the contact, as other clients do.
+      const parsed = parseSenderFromText(message.text);
+      const isChannel = message.type === 'CHAN';
+      const mentionName = isChannel ? parsed.sender : activeConversationRef.current?.name;
+      if (!mentionName) return;
+      const body = isChannel ? parsed.content : message.text;
+      messageInputRef.current?.appendText(buildReplyText(mentionName, body));
+    },
+    [activeConversationRef, messageInputRef]
+  );
+
+  const handleDeleteMessage = useCallback(
+    async (message: Message) => {
+      if (!window.confirm(t('chat_delete_message_confirm'))) return;
+      try {
+        await api.deleteMessage(message.id);
+        // The backend also broadcasts message_deleted over WS (for other open
+        // tabs); remove it here too so this tab updates without waiting on it.
+        removeMessage(message.id);
+      } catch (err) {
+        toast.error(t('chat_delete_message_failed'), {
+          description: err instanceof Error ? err.message : undefined,
+        });
+      }
+    },
+    [removeMessage, t]
+  );
+
+  const handleMarkUnreadFromMessage = useCallback(
+    async (message: Message) => {
+      const type = message.type === 'CHAN' ? 'channel' : 'contact';
+      try {
+        await markConversationUnreadFromMessage({
+          type,
+          id: message.conversation_key,
+          messageId: message.id,
+        });
+        toast.success(t('chat_mark_unread_success'));
+      } catch (err) {
+        toast.error(t('chat_mark_unread_failed'), {
+          description: err instanceof Error ? err.message : undefined,
+        });
+      }
+    },
+    [markConversationUnreadFromMessage, t]
+  );
+
   const handleInsertLocation = useCallback(
     (lat: number, lon: number, label: string) => {
       messageInputRef.current?.appendText(`${buildMarkerPayload(lat, lon, label)} `);
@@ -174,9 +277,14 @@ export function useConversationActions({
   return {
     handleSendMessage,
     handleResendChannelMessage,
+    handleRetryDirectMessage,
     handleSetChannelFloodScopeOverride,
     handleSetChannelPathHashModeOverride,
     handleSenderClick,
+    handleReactToMessage,
+    handleReplyToMessage,
+    handleDeleteMessage,
+    handleMarkUnreadFromMessage,
     handleInsertLocation,
     handleTrace,
     handlePathDiscovery,

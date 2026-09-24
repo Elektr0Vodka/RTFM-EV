@@ -7,7 +7,9 @@ import { Separator } from '../ui/separator';
 import { toast } from '../ui/sonner';
 import { Checkbox } from '../ui/checkbox';
 import { MeshcomodSettings } from './MeshcomodSettings';
+import { GpsSettings } from './GpsSettings';
 import { OpenHopSettings } from './OpenHopSettings';
+import { ContactLinkShare } from '../ContactLinkShare';
 import { useT } from '../../i18n';
 import {
   Dialog,
@@ -30,10 +32,8 @@ import type {
   RadioAdvertMode,
   RadioConfig,
   RadioConfigUpdate,
-  RadioDiscoveryResponse,
   RadioPresetEntry,
   RadioPresetsStore,
-  RadioRegionDiscoveryResponse,
   RadioStatsSnapshot,
 } from '../../types';
 
@@ -190,10 +190,6 @@ export function SettingsRadioSection({
   onDisconnect,
   onReconnect,
   onAdvertise,
-  meshDiscovery,
-  regionDiscovery,
-  regionDiscoveryLoading,
-  onDiscoverRegions,
   onClose,
   className,
 }: {
@@ -208,10 +204,6 @@ export function SettingsRadioSection({
   onDisconnect: () => Promise<void>;
   onReconnect: () => Promise<void>;
   onAdvertise: (mode: RadioAdvertMode) => Promise<void>;
-  meshDiscovery: RadioDiscoveryResponse | null;
-  regionDiscovery: RadioRegionDiscoveryResponse | null;
-  regionDiscoveryLoading: boolean;
-  onDiscoverRegions: (publicKeys?: string[]) => Promise<void>;
   onClose: () => void;
   className?: string;
 }) {
@@ -618,32 +610,6 @@ export function SettingsRadioSection({
     }
   };
 
-  const handleDiscoverRegions = async () => {
-    // Prefer repeaters from the most recent mesh-discovery sweep (they just
-    // answered, so they're likely in range for the direct-routed regions
-    // request); otherwise let the backend pick recent repeater contacts.
-    const discoveredRepeaterKeys = (meshDiscovery?.results ?? [])
-      .filter((r) => r.node_type === 'repeater')
-      .map((r) => r.public_key);
-    await onDiscoverRegions(discoveredRepeaterKeys);
-  };
-
-  const handleAddDiscoveredRegions = () => {
-    if (!regionDiscovery || regionDiscovery.regions.length === 0) return;
-    const existing = knownRegions
-      .split('\n')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const seen = new Set(existing.map((s) => s.toLowerCase()));
-    const additions = regionDiscovery.regions.filter((r) => !seen.has(r.toLowerCase()));
-    if (additions.length === 0) {
-      toast.info(t('settings_radio_toast_regions_already_listed'));
-      return;
-    }
-    setKnownRegions([...existing, ...additions].join('\n'));
-    toast.success(t('settings_radio_toast_regions_added', { count: additions.length }));
-  };
-
   const [dutchSeeding, setDutchSeeding] = useState(false);
 
   // One-click offline seed: merge the bundled Dutch flood-scope names into
@@ -742,8 +708,8 @@ export function SettingsRadioSection({
         toast.info(t('settings_radio_toast_region_sync_empty'));
         return;
       }
-      // Additive merge into the textarea (mirrors handleAddDiscoveredRegions);
-      // the user reviews and persists via Save Messaging Settings.
+      // Additive merge into the textarea; the user reviews and persists via
+      // Save Messaging Settings.
       const existing = knownRegions
         .split('\n')
         .map((s) => s.trim())
@@ -1083,6 +1049,8 @@ export function SettingsRadioSection({
         <Label htmlFor="public-key">{t('common_public_key')}</Label>
         <Input id="public-key" value={config.public_key} disabled className="font-mono text-xs" />
       </div>
+
+      <ContactLinkShare key={config.public_key} load={() => api.getOwnContactUri()} />
 
       <div className="space-y-2">
         <Label htmlFor="private-key">{t('settings_radio_private_key_label')}</Label>
@@ -1566,76 +1534,6 @@ export function SettingsRadioSection({
         <div className="space-y-2 rounded-md border border-input bg-muted/20 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
-              {t('settings_radio_discover_regions_label')}
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleDiscoverRegions}
-              disabled={regionDiscoveryLoading || !health?.radio_connected}
-            >
-              {regionDiscoveryLoading
-                ? t('settings_radio_asking_repeaters')
-                : t('settings_radio_discover_regions_button')}
-            </Button>
-          </div>
-          <p className="text-[0.8125rem] text-muted-foreground">
-            {t('settings_radio_discover_regions_desc')}
-          </p>
-          {!health?.radio_connected && (
-            <p className="text-sm text-destructive">{t('settings_radio_not_connected')}</p>
-          )}
-          {regionDiscovery && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium">
-                {t('settings_radio_repeaters_answered', {
-                  count: regionDiscovery.repeaters_queried,
-                  answered: regionDiscovery.repeaters_answered,
-                  queried: regionDiscovery.repeaters_queried,
-                })}
-                {regionDiscovery.regions.length > 0
-                  ? t('settings_radio_regions_found_suffix', {
-                      count: regionDiscovery.regions.length,
-                    })
-                  : ''}
-              </p>
-              {regionDiscovery.regions.length > 0 ? (
-                <>
-                  <div className="flex flex-wrap gap-1.5">
-                    {regionDiscovery.regions.map((region) => (
-                      <span
-                        key={region}
-                        className="text-[0.625rem] uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary/10 font-mono"
-                      >
-                        {region}
-                      </span>
-                    ))}
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleAddDiscoveredRegions}
-                    className="border-success/50 text-success hover:bg-success/10"
-                  >
-                    {t('settings_radio_add_known_regions_button')}
-                  </Button>
-                </>
-              ) : (
-                regionDiscovery.repeaters_queried > 0 && (
-                  <p className="text-sm text-muted-foreground">
-                    {t('settings_radio_no_regions_reported')}
-                  </p>
-                )
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-2 rounded-md border border-input bg-muted/20 p-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
               {t('settings_radio_region_sync_label')}
             </span>
             <Button
@@ -1885,6 +1783,7 @@ export function SettingsRadioSection({
         </div>
 
         <MeshcomodSettings health={health} />
+        <GpsSettings health={health} />
 
         <OpenHopSettings
           health={health}

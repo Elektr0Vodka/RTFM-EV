@@ -1,9 +1,18 @@
 import { useCallback, useRef, useState } from 'react';
-import { Upload, Download, FileText, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import {
+  Upload,
+  Download,
+  FileText,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Users,
+} from 'lucide-react';
 import type { Channel, ChannelImportResult } from '../types';
 import { api } from '../api';
 import { useT } from '../i18n';
 import { toast } from './ui/sonner';
+import { CommunitiesPanel } from './CommunitiesPanel';
 import { Button } from './ui/button';
 import {
   Dialog,
@@ -31,7 +40,7 @@ export interface ChannelImportExportModalProps {
 }
 
 type ExportMode = 'all' | 'selected' | 'finder';
-type TabId = 'export' | 'import';
+type TabId = 'export' | 'import' | 'communities';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -251,7 +260,7 @@ export function ChannelImportExportModal({
 
         {/* Tab bar */}
         <div className="flex border-b border-border -mx-6 px-6">
-          {(['export', 'import'] as TabId[]).map((tab) => (
+          {(['export', 'import', 'communities'] as TabId[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -267,10 +276,15 @@ export function ChannelImportExportModal({
                   <Download className="h-3.5 w-3.5" />
                   {t('channel_export')}
                 </span>
-              ) : (
+              ) : tab === 'import' ? (
                 <span className="flex items-center gap-1.5">
                   <Upload className="h-3.5 w-3.5" />
                   {t('channel_import')}
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5" />
+                  {t('community_tab')}
                 </span>
               )}
             </button>
@@ -384,6 +398,11 @@ export function ChannelImportExportModal({
                 {t('channel_io_format_suffix')}
               </p>
             </>
+          )}
+
+          {/* ── Communities tab ─────────────────────────────────────────── */}
+          {activeTab === 'communities' && (
+            <CommunitiesPanel onChannelsChanged={() => onChannelsImported([])} />
           )}
 
           {/* ── Import tab ──────────────────────────────────────────────── */}
@@ -532,7 +551,9 @@ export function ChannelImportExportModal({
         </div>
 
         <DialogFooter>
-          {activeTab === 'export' ? (
+          {activeTab === 'communities' ? (
+            <Button onClick={onClose}>{t('common_close')}</Button>
+          ) : activeTab === 'export' ? (
             <>
               <Button variant="outline" onClick={onClose}>
                 {t('common_cancel')}

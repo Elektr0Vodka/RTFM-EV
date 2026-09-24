@@ -7,22 +7,44 @@ from app.event_handlers import track_pending_ack
 from app.models import (
     Message,
     MessagesAroundResponse,
+    ReactionTargetResponse,
+    ReactRequest,
     ResendChannelMessageResponse,
+    ResendDirectMessageResponse,
     SendChannelMessageRequest,
     SendDirectMessageRequest,
+    SharedLocationsResponse,
+)
+from app.reaction_payloads import (
+    build_reaction_text,
+    channel_sender,
+    is_reaction_text,
+    is_valid_reaction_emoji,
+    message_body,
+    parse_any_reaction,
+    parse_hash_reaction,
+    reaction_matches,
 )
 from app.repository import AmbiguousPublicKeyPrefixError, AppSettingsRepository, MessageRepository
+from app.services import dm_ack_tracker
 from app.services.message_send import (
     SCOPE_UNSET,
     resend_channel_message_record,
+    resend_direct_message_record,
     send_channel_message_to_channel,
     send_direct_message_to_contact,
 )
 from app.services.radio_runtime import radio_runtime as radio_manager
+from app.services.shared_locations import collect_shared_locations
 from app.websocket import broadcast_error, broadcast_event
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/messages", tags=["messages"])
+
+# How far back to look for a reaction's target message, and slack for a
+# target stored slightly after its reaction (out-of-order mesh delivery).
+REACTION_TARGET_WINDOW_SECONDS = 7 * 86400
+REACTION_TARGET_CLOCK_SLACK_SECONDS = 300
 
 
 @router.get("/around/{message_id}", response_model=MessagesAroundResponse)
@@ -45,6 +67,183 @@ async def get_messages_around(
         blocked_names=blocked_names,
     )
     return MessagesAroundResponse(messages=messages, has_older=has_older, has_newer=has_newer)
+
+
+@router.get("/locations", response_model=SharedLocationsResponse)
+async def list_shared_locations(
+    since: int | None = Query(
+        default=None, description="Only messages received after this Unix time (exclusive)"
+    ),
+    until: int | None = Query(
+        default=None, description="Only messages received at or before this Unix time"
+    ),
+    latest_per_sender: bool = Query(
+        default=True, description="Keep only the newest share per sender"
+    ),
+) -> SharedLocationsResponse:
+    """Location shares found in chat messages (DMs and channels), newest first.
+
+    Recognizes meshcore-open ``m:`` markers, MGRS references and ``lat, lon``
+    pairs with 4+ decimals. For the local map view only; never forwarded.
+    """
+    return await collect_shared_locations(
+        since=since, until=until, latest_per_sender=latest_per_sender
+    )
+
+
+@router.get("/{message_id}/reaction-target", response_model=ReactionTargetResponse)
+async def get_reaction_target(message_id: int) -> ReactionTargetResponse:
+    """Resolve an emoji reaction to the message it reacts to.
+
+    Handles ``<emoji>@[Name]\\n<hash>`` / ``<emoji>\\n<hash>`` and meshcore-open's
+    ``r:`` (v3 index and v1) reactions. The target is searched in the same
+    conversation, received up to ``REACTION_TARGET_WINDOW_SECONDS`` before the
+    reaction. meshcore-open v3 hashes are only 16 bits, so the newest match wins.
+    """
+    reaction = await MessageRepository.get_by_id(message_id)
+    if reaction is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+    parsed = parse_any_reaction(reaction.text, reaction.type)
+    if parsed is None:
+        raise HTTPException(status_code=400, detail="Message is not a reaction")
+
+    candidates = await MessageRepository.get_conversation_window(
+        msg_type=reaction.type,
+        conversation_key=reaction.conversation_key,
+        since=reaction.received_at - REACTION_TARGET_WINDOW_SECONDS,
+        until=reaction.received_at + REACTION_TARGET_CLOCK_SLACK_SECONDS,
+        exclude_id=reaction.id,
+    )
+    is_channel = reaction.type == "CHAN"
+    target = next(
+        (
+            msg
+            for msg in candidates
+            if msg.sender_timestamp is not None
+            and not is_reaction_text(msg.text)
+            and reaction_matches(
+                parsed,
+                body=message_body(msg.text, msg.type),
+                sender_name=channel_sender(msg.text) if is_channel else msg.sender_name,
+                sender_timestamp=msg.sender_timestamp,
+                is_channel=is_channel,
+            )
+        ),
+        None,
+    )
+    return ReactionTargetResponse(
+        dialect=parsed.kind,
+        emoji=parsed.emoji,
+        target_hash=parsed.target_hash,
+        target_sender=parsed.target_sender,
+        target=target,
+    )
+
+
+@router.post("/{message_id}/react", response_model=Message)
+async def react_to_message(message_id: int, request: ReactRequest) -> Message:
+    """Send an emoji reaction to a stored message, as an ordinary mesh message.
+
+    Wire format (interoperable with other clients that resolve reactions by
+    hash): ``@[TargetSender]emoji\\nhash`` on channels, ``emoji\\nhash`` in DMs.
+    """
+    target = await MessageRepository.get_by_id(message_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if not is_valid_reaction_emoji(request.emoji):
+        raise HTTPException(status_code=400, detail="Reaction must be a single emoji")
+    if target.sender_timestamp is None:
+        raise HTTPException(status_code=400, detail="Message has no sender timestamp")
+    if parse_hash_reaction(target.text, target.type) is not None or is_reaction_text(target.text):
+        raise HTTPException(status_code=400, detail="Cannot react to a reaction")
+
+    body = message_body(target.text, target.type)
+    if target.type == "CHAN":
+        sender = channel_sender(target.text)
+        if sender is None:
+            raise HTTPException(status_code=400, detail="Cannot tell who sent this message")
+        text = build_reaction_text(request.emoji, body, target.sender_timestamp, sender)
+        return await send_channel_message(
+            SendChannelMessageRequest(channel_key=target.conversation_key, text=text)
+        )
+
+    text = build_reaction_text(request.emoji, body, target.sender_timestamp, None)
+    return await send_direct_message(
+        SendDirectMessageRequest(destination=target.conversation_key, text=text)
+    )
+
+
+async def _find_reactions_targeting(target: Message) -> list[Message]:
+    """Messages in the same conversation that resolve ``target`` as their reaction target.
+
+    Mirrors ``get_reaction_target``'s window, inverted: a reaction to ``target``
+    can arrive up to ``REACTION_TARGET_WINDOW_SECONDS`` after it, or up to
+    ``REACTION_TARGET_CLOCK_SLACK_SECONDS`` before it (out-of-order delivery).
+    """
+    if target.sender_timestamp is None:
+        # None of the reaction dialects can name a target with no sender timestamp.
+        return []
+
+    is_channel = target.type == "CHAN"
+    target_body = message_body(target.text, target.type)
+    target_sender = channel_sender(target.text) if is_channel else target.sender_name
+
+    candidates = await MessageRepository.get_conversation_window(
+        msg_type=target.type,
+        conversation_key=target.conversation_key,
+        since=target.received_at - REACTION_TARGET_CLOCK_SLACK_SECONDS,
+        until=target.received_at + REACTION_TARGET_WINDOW_SECONDS,
+        exclude_id=target.id,
+    )
+    matches: list[Message] = []
+    for candidate in candidates:
+        parsed = parse_any_reaction(candidate.text, candidate.type)
+        if parsed is None:
+            continue
+        if reaction_matches(
+            parsed,
+            body=target_body,
+            sender_name=target_sender,
+            sender_timestamp=target.sender_timestamp,
+            is_channel=is_channel,
+        ):
+            matches.append(candidate)
+    return matches
+
+
+@router.delete("/{message_id}")
+async def delete_message(message_id: int) -> dict:
+    """Hard-delete a message: its row, its linked raw packet, and any stored
+    reactions that resolve to it, all in one transaction.
+
+    Local only - nothing is sent over RF. If the message is an outgoing DM with
+    a background retry still in flight, the retry is stopped so it does not
+    keep sending after the message is gone.
+    """
+    message = await MessageRepository.get_by_id(message_id)
+    if message is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    reactions = await _find_reactions_targeting(message)
+    to_delete = [message, *reactions]
+
+    for msg in to_delete:
+        if msg.outgoing and msg.type == "PRIV":
+            dm_ack_tracker.mark_message_deleted(msg.id)
+            dm_ack_tracker.clear_pending_acks_for_message(msg.id)
+
+    deleted, _raw_deleted = await MessageRepository.delete_with_raw_packets(
+        [msg.id for msg in to_delete]
+    )
+    logger.info("Deleted message %d (%d reaction(s) also removed)", message_id, len(reactions))
+
+    for msg in to_delete:
+        broadcast_event(
+            "message_deleted",
+            {"message_id": msg.id, "type": msg.type, "conversation_key": msg.conversation_key},
+        )
+
+    return {"status": "ok", "deleted": deleted}
 
 
 @router.get("", response_model=list[Message])
@@ -118,6 +317,55 @@ async def send_direct_message(request: SendDirectMessageRequest) -> Message:
     return await send_direct_message_to_contact(
         contact=db_contact,
         text=request.text,
+        radio_manager=radio_manager,
+        broadcast_fn=broadcast_event,
+        track_pending_ack_fn=track_pending_ack,
+        now_fn=time.time,
+        message_repository=MessageRepository,
+        contact_repository=ContactRepository,
+    )
+
+
+@router.post("/direct/{message_id}/resend", response_model=ResendDirectMessageResponse)
+async def resend_direct_message(message_id: int) -> ResendDirectMessageResponse:
+    """Retry a failed direct message.
+
+    Sends the text again as a new message (fresh timestamp, so a new ACK code,
+    with the normal background retries) and removes the failed row, like
+    meshcore-open's resend. Only allowed for an outgoing DM that was marked
+    failed and has no ACK. The failed row is kept if the new send fails.
+    """
+    radio_manager.require_connected()
+
+    from app.repository import ContactRepository
+
+    msg = await MessageRepository.get_by_id(message_id)
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    if not msg.outgoing:
+        raise HTTPException(status_code=400, detail="Can only resend outgoing messages")
+
+    if msg.type != "PRIV":
+        raise HTTPException(status_code=400, detail="Can only resend direct messages")
+
+    if msg.acked > 0 or msg.failed_at is None:
+        raise HTTPException(status_code=409, detail="Only failed direct messages can be retried")
+
+    db_contact = await ContactRepository.get_by_key(msg.conversation_key)
+    if not db_contact:
+        raise HTTPException(
+            status_code=404, detail=f"Contact not found in database: {msg.conversation_key}"
+        )
+    if len(db_contact.public_key) < 64:
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot send to an unresolved prefix-only contact until a full key is known",
+        )
+
+    return await resend_direct_message_record(
+        message=msg,
+        contact=db_contact,
         radio_manager=radio_manager,
         broadcast_fn=broadcast_event,
         track_pending_ack_fn=track_pending_ack,

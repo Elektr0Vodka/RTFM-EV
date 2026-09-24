@@ -6,9 +6,13 @@
 
 import { describe, it, expect } from 'vitest';
 import {
+  parseReactionV1,
+  isReactionPayload,
   REACTION_EMOJIS,
   giphyUrlForId,
   parseGif,
+  parseGifPayload,
+  parseGifUrl,
   parseMeshCoreOneReaction,
   parseReaction,
   splitReplyMention,
@@ -37,6 +41,69 @@ describe('parseGif', () => {
 
   it('builds the Giphy media URL', () => {
     expect(giphyUrlForId('abc123')).toBe('https://media.giphy.com/media/abc123/giphy.gif');
+  });
+});
+
+describe('parseGifUrl', () => {
+  it('parses the direct media URL with a scheme', () => {
+    expect(parseGifUrl('https://media.giphy.com/media/abc123/giphy.gif')).toBe('abc123');
+    expect(parseGifUrl('http://media.giphy.com/media/abc123/giphy.gif')).toBe('abc123');
+  });
+
+  it('parses the direct media URL without a scheme', () => {
+    expect(parseGifUrl('media.giphy.com/media/abc123/giphy.gif')).toBe('abc123');
+  });
+
+  it('parses the giphy.com page URL with a title prefix', () => {
+    expect(parseGifUrl('https://giphy.com/gifs/funny-cat-dancing-abc123')).toBe('abc123');
+  });
+
+  it('parses the giphy.com page URL with no title', () => {
+    expect(parseGifUrl('https://giphy.com/gifs/abc123')).toBe('abc123');
+    expect(parseGifUrl('giphy.com/gifs/abc123')).toBe('abc123');
+  });
+
+  it('allows a trailing slash on the page URL', () => {
+    expect(parseGifUrl('https://giphy.com/gifs/funny-cat-abc123/')).toBe('abc123');
+  });
+
+  it('trims surrounding whitespace', () => {
+    expect(parseGifUrl('  https://media.giphy.com/media/abc123/giphy.gif  ')).toBe('abc123');
+  });
+
+  it('takes the last dash-separated segment as the id', () => {
+    // ids cannot contain dashes, so a greedy title prefix backtracks to the
+    // last dash - "part-of-title" is the title, "abc123" is the id.
+    expect(parseGifUrl('giphy.com/gifs/part-of-title-abc123')).toBe('abc123');
+  });
+
+  it('returns null for a non-matching giphy URL', () => {
+    expect(parseGifUrl('https://giphy.com/search?q=cats')).toBeNull();
+    expect(parseGifUrl('https://giphy.com/channel/some-channel')).toBeNull();
+    expect(parseGifUrl('https://www.giphy.com/gifs/abc123')).toBeNull();
+    expect(parseGifUrl('https://media.giphy.com/media/abc123/source.gif')).toBeNull();
+    expect(parseGifUrl('not a url at all')).toBeNull();
+    expect(parseGifUrl('')).toBeNull();
+  });
+
+  it('rejects a page URL id containing a dash-unsafe trailing query', () => {
+    expect(parseGifUrl('https://giphy.com/gifs/abc123?utm_source=x')).toBeNull();
+  });
+});
+
+describe('parseGifPayload', () => {
+  it('accepts the g:<id> form', () => {
+    expect(parseGifPayload('g:abc123')).toBe('abc123');
+  });
+
+  it('accepts either Giphy URL form', () => {
+    expect(parseGifPayload('https://media.giphy.com/media/abc123/giphy.gif')).toBe('abc123');
+    expect(parseGifPayload('https://giphy.com/gifs/funny-cat-abc123')).toBe('abc123');
+  });
+
+  it('returns null for text matching none of the forms', () => {
+    expect(parseGifPayload('hello world')).toBeNull();
+    expect(parseGifPayload('https://example.com/cat.gif')).toBeNull();
   });
 });
 
@@ -158,5 +225,25 @@ describe('parseMeshCoreOneReaction', () => {
     expect(parseMeshCoreOneReaction('\u{1F44D} b45pc4ek')).toBeNull(); // single line
     expect(parseMeshCoreOneReaction('\u{1F44D}@[Bob]\nb45pc4ek\nmore')).toBeNull();
     expect(parseMeshCoreOneReaction('r:1a2b:00')).toBeNull();
+  });
+});
+
+describe('parseReactionV1 (older meshcore-open clients)', () => {
+  it('parses r:<millis>_<nameHash>_<textHash>:<emoji>', () => {
+    expect(parseReactionV1('r:1700000000123_12345_67890:👍')).toEqual({
+      emoji: '👍',
+      targetHash: '1700000000123_12345_67890',
+    });
+  });
+
+  it('rejects non-emoji and malformed ids', () => {
+    expect(parseReactionV1('r:1700000000123_12345_67890:ok')).toBeNull();
+    expect(parseReactionV1('r:17000_12345:👍')).toBeNull();
+    expect(parseReactionV1('r:1a2b:00')).toBeNull();
+  });
+
+  it('counts as a reaction payload, also behind a reply prefix', () => {
+    expect(isReactionPayload('r:1700000000123_12345_67890:👍')).toBe(true);
+    expect(isReactionPayload('@[Me] r:1700000000123_12345_67890:👍')).toBe(true);
   });
 });

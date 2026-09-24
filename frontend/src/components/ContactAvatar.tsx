@@ -1,3 +1,4 @@
+import { House, RadioTower } from 'lucide-react';
 import { getContactAvatar } from '../utils/contactAvatar';
 
 interface ContactAvatarProps {
@@ -74,7 +75,13 @@ export function ContactAvatar({
       }}
       aria-hidden="true"
     >
-      {avatar.text}
+      {avatar.icon === 'repeater' ? (
+        <RadioTower size={Math.round(size * 0.6)} strokeWidth={2} />
+      ) : avatar.icon === 'room' ? (
+        <House size={Math.round(size * 0.6)} strokeWidth={2} />
+      ) : (
+        avatar.text
+      )}
     </div>
   );
 }

@@ -8,6 +8,15 @@
  *   g:<gifId>        Giphy GIF        -> https://media.giphy.com/media/<id>/giphy.gif
  *   r:<hash>:<index> Emoji reaction   -> <index> picks an emoji from a fixed list
  *
+ * A GIF can also arrive as a whole-message Giphy URL instead of `g:<id>` (the
+ * meshcore-open picker inserts `g:<id>`, but its `GifHelper.parseGif` also
+ * accepts these, so a pasted Giphy link from another client still renders):
+ *
+ *   media.giphy.com/media/<id>/giphy.gif
+ *   giphy.com/gifs/[<title>-]<id>
+ *
+ * with an optional `http://`/`https://` scheme. See parseGifUrl below.
+ *
  * Formats and the emoji table are ported verbatim from meshcore-open:
  *   lib/helpers/gif_helper.dart
  *   lib/helpers/reaction_helper.dart
@@ -92,6 +101,38 @@ export function giphyUrlForId(gifId: string): string {
   return `https://media.giphy.com/media/${gifId}/giphy.gif`;
 }
 
+// The direct media URL: an optional scheme, then media.giphy.com/media/<id>/giphy.gif.
+const GIF_MEDIA_URL_PATTERN =
+  /^(?:https?:\/\/)?media\.giphy\.com\/media\/([A-Za-z0-9_-]+)\/giphy\.gif$/;
+
+// The Giphy page URL: an optional scheme, then giphy.com/gifs/, an optional
+// "title-" prefix (Giphy page slugs are "<title>-<id>"), the id, and an
+// optional trailing slash. The id itself cannot contain dashes, so a greedy
+// "anything-" prefix backtracks to the last dash in the path segment.
+const GIF_PAGE_URL_PATTERN = /^(?:https?:\/\/)?giphy\.com\/gifs\/(?:[^/?]*-)?([A-Za-z0-9_]+)\/?$/;
+
+/**
+ * Parse a whole-message Giphy URL in either form meshcore-open's `parseGif`
+ * accepts besides `g:<id>` (see the module doc comment). Returns the Giphy
+ * GIF id, or null if the (trimmed) text does not match either form.
+ */
+export function parseGifUrl(text: string): string | null {
+  const trimmed = text.trim();
+  const media = GIF_MEDIA_URL_PATTERN.exec(trimmed);
+  if (media) return media[1];
+  const page = GIF_PAGE_URL_PATTERN.exec(trimmed);
+  return page ? page[1] : null;
+}
+
+/**
+ * Parse any whole-message GIF payload meshcore-open's `parseGif` accepts:
+ * `g:<id>` or one of the two Giphy URL forms. Returns the Giphy GIF id, or
+ * null if the (trimmed) text does not match any of them.
+ */
+export function parseGifPayload(text: string): string | null {
+  return parseGif(text) ?? parseGifUrl(text);
+}
+
 // --- Reaction (r:<hash>:<index>) ---
 
 const REACTION_PATTERN = /^r:([0-9a-f]{4}):([0-9a-f]{2})$/;
@@ -120,6 +161,19 @@ export function parseReaction(text: string): ParsedReaction | null {
   return { emoji: REACTION_EMOJIS[index], targetHash: match[1] };
 }
 
+// --- meshcore-open v1 reaction (r:<millis>_<nameHash>_<textHash>:<emoji>) ---
+//
+// Sent by meshcore-open clients from before the r:<hash>:<index> format. The
+// hashes are Dart String.hashCode values; the backend resolves the target.
+const REACTION_V1_PATTERN = /^r:(\d{1,16}_\d{1,10}_\d{1,10}):(\S+)$/u;
+
+/** Parse an older meshcore-open reaction, or null. */
+export function parseReactionV1(text: string): ParsedReaction | null {
+  const match = REACTION_V1_PATTERN.exec(text.trim());
+  if (!match || !EMOJI_START.test(match[2])) return null;
+  return { emoji: match[2], targetHash: match[1] };
+}
+
 // --- MeshCore One reaction ({emoji}@[{sender}]\n{hash}) ---
 
 // MeshCore One (github.com/Avi0n/MeshCoreOne, docs/Reactions.md) speaks a
@@ -131,9 +185,9 @@ export function parseReaction(text: string): ParsedReaction | null {
 //
 // A newer MC1 build swaps the first line to "@[{targetSenderName}]{emoji}", so
 // both orders are accepted. <hash> is 8 Crockford Base32 chars (SHA-256 of the
-// target text + its sender timestamp, first 5 bytes) - like the meshcore-open
-// hash it is not resolved back to the target message here. There is no wire
-// representation for removing a reaction.
+// target text + its sender timestamp, first 5 bytes). It is not resolved here:
+// the backend resolves it (GET /messages/{id}/reaction-target, rendered by
+// ReactionTargetLink). There is no wire representation for removing a reaction.
 
 // Crockford Base32 is case-insensitive and normalizes I/L -> 1 and O -> 0, so
 // every letter but U can appear in a received hash.
@@ -187,6 +241,21 @@ export function splitReplyMention(text: string): SplitReplyMention | null {
   const match = REPLY_MENTION_PREFIX.exec(text.trim());
   if (!match) return null;
   return { mention: match[1], body: match[2] };
+}
+
+/**
+ * True when the message body is a reaction in either dialect, whole or
+ * reply-prefixed. A channel reaction carries "@[TargetName]", so callers use
+ * this to keep reactions from counting as @mentions.
+ */
+export function isReactionPayload(body: string): boolean {
+  const isReaction = (text: string) =>
+    parseReaction(text) !== null ||
+    parseReactionV1(text) !== null ||
+    parseMeshCoreOneReaction(text) !== null;
+  if (isReaction(body)) return true;
+  const split = splitReplyMention(body);
+  return split !== null && isReaction(split.body);
 }
 
 // --- Location marker (m:<lat>,<lon>|<label>|<flags>) ---

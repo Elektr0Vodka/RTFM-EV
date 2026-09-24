@@ -1,13 +1,14 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { Popup as MlPopup, Marker as MlMarker, type Map as MlMap } from 'maplibre-gl';
-import { Zap, Clock, Globe, Radio, MapPinOff, Boxes } from 'lucide-react';
+import { Zap, Clock, Globe, Radio, MapPinOff, Boxes, MapPin, HelpCircle } from 'lucide-react';
 import type {
   AdvertLinkEdge,
   Contact,
   ExternalMapNode,
   LatestTelemetry,
   RadioConfig,
+  TrafficLinkEdge,
 } from '../types';
 import {
   CONTACT_TYPE_CLIENT,
@@ -32,6 +33,7 @@ import { useT } from '../i18n';
 import { MapSurface } from '../map/MapSurface';
 import { setMapLock2D } from '../map/engine/mapLock2D';
 import { setBuildings3D } from '../map/engine/buildings3D';
+import { createBuildingHeights, type BuildingHeights } from '../map/engine/buildingHeights';
 import { createNodesLayer } from '../map/layers/nodesLayer';
 import { createNeonNodesOverlay, type NeonNodesOverlay } from '../map/layers/neonNodesLayer';
 import { createTelemetryLayer, telemetryPopupParts } from '../map/layers/telemetryLayer';
@@ -53,6 +55,12 @@ import {
 import { LOOKBACK_OPTIONS, PlaybackBar } from '../map/controls/PlaybackBar';
 import { isBool, isNumberIn, isOneOf, usePersistedMapSetting } from '../map/usePersistedMapSetting';
 import {
+  LINK_MAX_KM_STORAGE_KEY,
+  LINK_MAX_KM_UPPER,
+  heardContactsOnly,
+  isWithinLinkRange,
+} from '../map/linkDistance';
+import {
   ARC_FADE_PRESETS_MS,
   BUFFER_MAX_MS,
   DEFAULT_ARC_FADE_MS,
@@ -61,7 +69,7 @@ import { MapLegend } from '../map/controls/legend/MapLegend';
 import { PacketLegend } from '../map/controls/legend/PacketLegend';
 import { createClickAudio, type ClickAudio } from '../map/packets/clickAudio';
 import { createLinksLayer, type ResolveCoord } from '../map/layers/linksLayer';
-import { createAdvertLinksLayer } from '../map/layers/advertLinksLayer';
+import { createAdvertLinksLayer, type LinkClickInfo } from '../map/layers/advertLinksLayer';
 import { createExternalNodesLayer, type ExternalNodeProps } from '../map/layers/externalNodesLayer';
 import { isContactVisibleForFilters, type HeardFilterMode } from '../map/heardFilter';
 import {
@@ -71,6 +79,24 @@ import {
   serializeHiddenRoles,
 } from '../map/roleFilter';
 import { computeWrongLocationKeys } from '../map/wrongLocation';
+import { useSharedLocations } from '../map/useSharedLocations';
+import { useGuessedLocations } from '../map/useGuessedLocations';
+import { useDistanceUnit } from '../contexts/DistanceUnitContext';
+import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
+import type { SearchNavigateTarget } from './SearchView';
+import {
+  LINK_AGE_CUSTOM_ID,
+  LINK_AGE_FOLLOW_KEY,
+  LINK_AGE_FROM_KEY,
+  LINK_AGE_PRESET_KEY,
+  LINK_AGE_UNTIL_KEY,
+  isRelativeLinkAge,
+  isStr,
+  localDateTimeToEpochSec,
+  resolveLinkWindow,
+} from '../map/linkAge';
+import { LinkAgeControl } from '../map/controls/LinkAgeControl';
+import { buildLinkPopup } from '../map/linkPopup';
 import {
   resolveHomeView,
   readLastView,
@@ -85,7 +111,9 @@ import {
   ingestPacketIntoPacketNetwork,
   projectPacketNetwork,
 } from '../networkGraph/packetNetworkGraph';
-import type { ExtraFab } from '../map/controls/MapControls';
+import type { ExtraFab, MapLinkMode } from '../map/controls/MapControls';
+import { buildNodesGpx, gpxExportFilename } from '../utils/gpxExport';
+import { contactTypeLabel } from './ContactInfoBody';
 
 interface MapViewProps {
   contacts: Contact[];
@@ -95,6 +123,8 @@ interface MapViewProps {
   blockedNames?: string[];
   onSelectContact?: (contact: Contact) => void;
   onOpenContactInfo?: (publicKey: string) => void;
+  /** Open the link detail page for the node pair (a, b). */
+  onOpenLink?: (a: string, b: string) => void;
   focusedLatLon?: [number, number];
   focusedLabel?: string;
   sidebarOpen?: boolean;
@@ -103,6 +133,8 @@ interface MapViewProps {
   mapHomeLat?: number | null;
   mapHomeLon?: number | null;
   mapHomeZoom?: number | null;
+  /** Open a chat message (shared-locations popup "Open in chat"). */
+  onNavigateToMessage?: (target: SearchNavigateTarget) => void;
 }
 
 // --- "Heard since" filter ---
@@ -139,6 +171,8 @@ const MAP_LINK_WIDTH_STORAGE_KEY = 'remoteterm-map-link-width';
 
 // --- Neon node rendering (deck.gl halo+core nodes vs the flat GL circles) ---
 const MAP_NEON_NODES_STORAGE_KEY = 'remoteterm-map-neon-nodes';
+// Roof-height lookups run at most this often (map moves, tile loads, data).
+const HEIGHT_REFRESH_MS = 300;
 
 // --- Node labels (off / advert name / observed-width ID tag) ---
 const MAP_LABEL_MODE_STORAGE_KEY = 'remoteterm-map-label-mode';
@@ -256,12 +290,6 @@ function getSavedTelemetryOn(): boolean {
   }
 }
 
-function localDateTimeToEpochSec(value: string): number | null {
-  if (!value) return null;
-  const ms = new Date(value).getTime();
-  return Number.isNaN(ms) ? null : ms / 1000;
-}
-
 function resolveNameToGps(name: string, nameIndex: Map<string, Contact>): Contact | null {
   const c = nameIndex.get(name);
   if (!c) return null;
@@ -321,6 +349,7 @@ export function MapView({
   blockedNames,
   onSelectContact,
   onOpenContactInfo,
+  onOpenLink,
   focusedLatLon,
   focusedLabel,
   sidebarOpen,
@@ -328,6 +357,7 @@ export function MapView({
   mapHomeLat,
   mapHomeLon,
   mapHomeZoom,
+  onNavigateToMessage,
 }: MapViewProps) {
   const t = useT();
   const dark = useIsDarkTheme();
@@ -410,23 +440,67 @@ export function MapView({
   const [telemetryOn, setTelemetryOn] = useState<boolean>(getSavedTelemetryOn);
   const [latestTelemetry, setLatestTelemetry] = useState<Record<string, LatestTelemetry>>({});
   const [linksOn, setLinksOn] = usePersistedMapSetting('remoteterm-map-links', false, isBool);
-  const [linkMode, setLinkMode] = usePersistedMapSetting<'liveness' | 'advert'>(
+  const [linkMode, setLinkMode] = usePersistedMapSetting<MapLinkMode>(
     'remoteterm-map-link-mode',
     'liveness',
-    isOneOf(['liveness', 'advert'] as const)
+    isOneOf(['liveness', 'advert', 'traffic'] as const)
   );
   const [linkConfidence, setLinkConfidence] = usePersistedMapSetting<1 | 2 | 3>(
     'remoteterm-map-link-confidence',
     2,
     isOneOf([1, 2, 3] as const)
   );
+  // Max link length in km (0 = no limit), applied to both link modes.
+  const [linkMaxKm, setLinkMaxKm] = usePersistedMapSetting(
+    LINK_MAX_KM_STORAGE_KEY,
+    0,
+    isNumberIn(0, LINK_MAX_KM_UPPER)
+  );
   const [advertEdges, setAdvertEdges] = useState<AdvertLinkEdge[]>([]);
+  // Link age: follow the node "Heard since" window unless overridden.
+  const [linkAgeFollow, setLinkAgeFollow] = usePersistedMapSetting(
+    LINK_AGE_FOLLOW_KEY,
+    true,
+    isBool
+  );
+  const [linkAgePreset, setLinkAgePreset] = usePersistedMapSetting(
+    LINK_AGE_PRESET_KEY,
+    DEFAULT_MAP_SINCE_ID,
+    isOneOf([...MAP_SINCE_PRESETS.map((p) => p.id), LINK_AGE_CUSTOM_ID])
+  );
+  const [linkAgeFrom, setLinkAgeFrom] = usePersistedMapSetting(LINK_AGE_FROM_KEY, '', isStr);
+  const [linkAgeUntil, setLinkAgeUntil] = usePersistedMapSetting(LINK_AGE_UNTIL_KEY, '', isStr);
+  const [trafficEdges, setTrafficEdges] = useState<TrafficLinkEdge[]>([]);
+  // Unfiltered edges (all located nodes, no length cap) for the wrong-location
+  // filter, which needs the implausibly long edges to spot bad coordinates.
+  const [wrongLocationEdges, setWrongLocationEdges] = useState<AdvertLinkEdge[]>([]);
   const [showExternalNodes, setShowExternalNodes] = usePersistedMapSetting(
     'remoteterm-map-external-nodes',
     false,
     isBool
   );
   const [externalNodes, setExternalNodes] = useState<ExternalMapNode[]>([]);
+  const [showSharedLocations, setShowSharedLocations] = usePersistedMapSetting(
+    'remoteterm-map-shared-locations',
+    false,
+    isBool
+  );
+  // Off = newest share per sender; on = every share in the window.
+  const [sharedLocationsAll, setSharedLocationsAll] = usePersistedMapSetting(
+    'remoteterm-map-shared-locations-all',
+    false,
+    isBool
+  );
+  const [showGuessedLocations, setShowGuessedLocations] = usePersistedMapSetting(
+    'remoteterm-map-guessed-locations',
+    false,
+    isBool
+  );
+  const { distanceUnit } = useDistanceUnit();
+  const coordinateFormat = useCoordinateFormat();
+  // Popups are built imperatively; they read the display format at open time.
+  const coordinateFormatRef = useRef(coordinateFormat);
+  coordinateFormatRef.current = coordinateFormat;
   const [viewBounds, setViewBounds] = useState<{
     west: number;
     south: number;
@@ -441,6 +515,32 @@ export function MapView({
   const mapRef = useRef<MlMap | null>(null);
   const nodesRef = useRef<ReturnType<typeof createNodesLayer> | null>(null);
   const neonOverlayRef = useRef<NeonNodesOverlay | null>(null);
+  // Roof heights under nodes while 3D buildings are drawn, so neon nodes and the
+  // packet arcs landing on them sit on the roof instead of inside the building.
+  const buildingHeightsRef = useRef<BuildingHeights | null>(null);
+  const heightsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mappableContactsRef = useRef<Contact[]>([]);
+  // Re-read roof heights for the on-screen nodes. Throttled rather than
+  // debounced: tile loads fire sourcedata continuously while panning.
+  const scheduleHeightRefresh = useCallback(() => {
+    if (heightsTimerRef.current) return;
+    heightsTimerRef.current = setTimeout(() => {
+      heightsTimerRef.current = null;
+      const bh = buildingHeightsRef.current;
+      if (!bh) return;
+      const points: Array<[number, number]> = [];
+      for (const c of mappableContactsRef.current) {
+        if (c.lat != null && c.lon != null) points.push([c.lon, c.lat]);
+      }
+      try {
+        if (bh.refresh(points)) {
+          neonOverlayRef.current?.setHeights({ at: bh.heightAt, version: bh.version() });
+        }
+      } catch {
+        /* map torn down mid-refresh */
+      }
+    }, HEIGHT_REFRESH_MS);
+  }, []);
   const telemetryRef = useRef<ReturnType<typeof createTelemetryLayer> | null>(null);
   // Mirror of latestTelemetry so the node-click popup can read the latest known
   // battery/temperature without rebuilding its callback on every refresh.
@@ -460,6 +560,8 @@ export function MapView({
   if (!clickAudioRef.current) clickAudioRef.current = createClickAudio();
   const linksLayerRef = useRef<ReturnType<typeof createLinksLayer> | null>(null);
   const advertLinksLayerRef = useRef<ReturnType<typeof createAdvertLinksLayer> | null>(null);
+  const trafficLinksLayerRef = useRef<ReturnType<typeof createAdvertLinksLayer> | null>(null);
+  const linkPopupRef = useRef<MlPopup | null>(null);
   const linkStateRef = useRef(createPacketNetworkState(config?.name || 'Me'));
   const linkProcessedRef = useRef(new Set<string>());
   const popupRef = useRef<MlPopup | null>(null);
@@ -564,6 +666,21 @@ export function MapView({
     [contacts, config]
   );
 
+  // Liveness links resolve hops only against contacts this server has heard, so
+  // a hop hash cannot land on a never-heard node far outside radio range. The
+  // packet overlay keeps the full context above.
+  const heardLinkContext = useMemo(
+    () =>
+      buildPacketNetworkContext({
+        contacts: heardContactsOnly(contacts),
+        config: config ?? null,
+        repeaterAdvertPaths: [],
+        splitAmbiguousByTraffic: false,
+        useAdvertPathHints: false,
+      }),
+    [contacts, config]
+  );
+
   // Resolve a graph node id to coordinates: 'self' is my node, otherwise a
   // 12-char public-key prefix matched to a single contact (see resolveNode in
   // packetNetworkGraph.ts, which keys nodes by contactIndex.byPrefix12). Uses
@@ -587,8 +704,13 @@ export function MapView({
       showAmbiguousPaths: false,
       collapseLikelyKnownSiblingRepeaters: false,
     });
-    layer.setData(Array.from(projection.links.values()), resolveLinkCoord);
-  }, [linksOn, resolveLinkCoord]);
+    const links = Array.from(projection.links.values()).filter((link) => {
+      const a = resolveLinkCoord(link.sourceId);
+      const b = resolveLinkCoord(link.targetId);
+      return !a || !b || isWithinLinkRange(a, b, linkMaxKm);
+    });
+    layer.setData(links, resolveLinkCoord);
+  }, [linksOn, resolveLinkCoord, linkMaxKm]);
 
   // Keep refs in sync so the packet timeline (created once) always resolves with
   // the latest coordinate resolver and network context without being rebuilt.
@@ -640,72 +762,93 @@ export function MapView({
       const key = getRawPacketObservationKey(pkt);
       if (linkProcessedRef.current.has(key)) continue;
       linkProcessedRef.current.add(key);
-      ingestPacketIntoPacketNetwork(state, linkContext, pkt);
+      ingestPacketIntoPacketNetwork(state, heardLinkContext, pkt);
     }
     if (linkProcessedRef.current.size > 2000) {
       linkProcessedRef.current = new Set(Array.from(linkProcessedRef.current).slice(-1000));
     }
     refreshLinks();
-  }, [rawPackets, linksOn, linkContext, refreshLinks, config]);
+  }, [rawPackets, linksOn, heardLinkContext, refreshLinks, config]);
 
-  // Fetch resolved advert-truth edges when links are shown in advert mode, or
-  // when the wrong-location filter needs them to measure neighbour distances.
+  // The wrong-location filter measures neighbour distances on the unfiltered
+  // edge set (all located nodes, no cap), as before the heard-only change.
   useEffect(() => {
-    const needEdges = (linksOn && linkMode === 'advert') || hideWrongLocation;
-    if (!needEdges) return;
+    if (!hideWrongLocation) return;
     const controller = new AbortController();
     api
       .getAdvertLinks(controller.signal)
-      .then(setAdvertEdges)
+      .then(setWrongLocationEdges)
       .catch((err) => {
         if (!isAbortError(err)) console.error('Advert links fetch failed', err);
       });
     return () => controller.abort();
-  }, [linksOn, linkMode, hideWrongLocation]);
+  }, [hideWrongLocation]);
 
   // Pubkeys hidden by the wrong-location filter (empty unless the toggle is on).
   const wrongLocationKeys = useMemo(
-    () => (hideWrongLocation ? computeWrongLocationKeys(advertEdges) : new Set<string>()),
-    [hideWrongLocation, advertEdges]
+    () => (hideWrongLocation ? computeWrongLocationKeys(wrongLocationEdges) : new Set<string>()),
+    [hideWrongLocation, wrongLocationEdges]
   );
 
   // Paint advert edges (filtered by the confidence selector) and switch which
-  // links layer is visible based on the mode.
-  useEffect(() => {
+  // links layer is visible based on the mode. Also called once the layers exist
+  // (map load) and after a basemap swap re-adds them: the edge fetch can resolve
+  // before either, and state alone would not re-run this.
+  const paintLinks = useCallback(() => {
     const liveness = linksLayerRef.current;
     const advert = advertLinksLayerRef.current;
+    const traffic = trafficLinksLayerRef.current;
+    const keep = (e: AdvertLinkEdge) =>
+      e.hop_width >= linkConfidence &&
+      !wrongLocationKeys.has(e.a.pubkey.toLowerCase()) &&
+      !wrongLocationKeys.has(e.b.pubkey.toLowerCase());
     if (!linksOn) {
       liveness?.hide();
       advert?.hide();
+      traffic?.hide();
       return;
     }
     if (linkMode === 'advert') {
       liveness?.hide();
-      advert?.setData(
-        advertEdges.filter(
-          (e) =>
-            e.hop_width >= linkConfidence &&
-            !wrongLocationKeys.has(e.a.pubkey.toLowerCase()) &&
-            !wrongLocationKeys.has(e.b.pubkey.toLowerCase())
-        )
-      );
+      traffic?.hide();
+      advert?.setData(advertEdges.filter(keep));
       advert?.show();
+    } else if (linkMode === 'traffic') {
+      liveness?.hide();
+      advert?.hide();
+      traffic?.setData(trafficEdges.filter(keep));
+      traffic?.show();
     } else {
       advert?.hide();
+      traffic?.hide();
       liveness?.show();
       refreshLinks();
     }
-  }, [linksOn, linkMode, linkConfidence, advertEdges, refreshLinks, wrongLocationKeys]);
+  }, [
+    linksOn,
+    linkMode,
+    linkConfidence,
+    advertEdges,
+    trafficEdges,
+    refreshLinks,
+    wrongLocationKeys,
+  ]);
+  const paintLinksRef = useRef(paintLinks);
+  useEffect(() => {
+    paintLinksRef.current = paintLinks;
+    paintLinks();
+  }, [paintLinks]);
 
   const threeDaysAgoSec = useMemo(() => Date.now() / 1000 - THREE_DAYS_SEC, []);
   const activeSincePreset = MAP_SINCE_PRESETS.find((p) => p.id === sinceId) ?? null;
   const sinceIsRelative = activeSincePreset != null && activeSincePreset.seconds != null;
 
+  const linkAgeIsRelative = isRelativeLinkAge(linkAgeFollow, linkAgePreset, MAP_SINCE_PRESETS);
   useEffect(() => {
-    if (!sinceIsRelative) return;
+    if (!sinceIsRelative && !linkAgeIsRelative) return;
     const timer = setInterval(() => setNowSec(Date.now() / 1000), MAP_SINCE_TICK_MS);
     return () => clearInterval(timer);
-  }, [sinceIsRelative]);
+  }, [sinceIsRelative, linkAgeIsRelative]);
 
   useEffect(() => {
     try {
@@ -768,6 +911,7 @@ export function MapView({
     }
     linksLayerRef.current?.setWidthScale(linkWidthScale);
     advertLinksLayerRef.current?.setWidthScale(linkWidthScale);
+    trafficLinksLayerRef.current?.setWidthScale(linkWidthScale);
   }, [linkWidthScale]);
 
   // Persist the label mode and push it to the live layer.
@@ -867,6 +1011,52 @@ export function MapView({
     },
     [sinceCutoffSec, sinceUntilSec]
   );
+
+  // Window for the server-backed link layers (advert + traffic modes).
+  const linkWindow = useMemo(
+    () =>
+      resolveLinkWindow({
+        follow: linkAgeFollow,
+        nodeWindow: {
+          since: sinceCutoffSec == null ? null : Math.floor(sinceCutoffSec),
+          until: sinceUntilSec == null ? null : Math.floor(sinceUntilSec),
+        },
+        presetId: linkAgePreset,
+        presets: MAP_SINCE_PRESETS,
+        customFrom: linkAgeFrom,
+        customUntil: linkAgeUntil,
+        nowSec,
+      }),
+    [linkAgeFollow, sinceCutoffSec, sinceUntilSec, linkAgePreset, linkAgeFrom, linkAgeUntil, nowSec]
+  );
+
+  // Fetch server-resolved edges for the active server-backed mode. Hops
+  // resolve only against heard contacts, capped at the max link distance and
+  // limited to the link window. Debounced so typing a distance does not fire
+  // one request per key.
+  useEffect(() => {
+    if (!linksOn || linkMode === 'liveness') return;
+    const controller = new AbortController();
+    const opts = {
+      heardOnly: true,
+      maxKm: linkMaxKm,
+      since: linkWindow.since,
+      until: linkWindow.until,
+    };
+    const timer = window.setTimeout(() => {
+      const request =
+        linkMode === 'advert'
+          ? api.getAdvertLinks(controller.signal, opts).then(setAdvertEdges)
+          : api.getTrafficLinks(controller.signal, opts).then(setTrafficEdges);
+      request.catch((err) => {
+        if (!isAbortError(err)) console.error('Map links fetch failed', err);
+      });
+    }, 300);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [linksOn, linkMode, linkMaxKm, linkWindow.since, linkWindow.until]);
 
   const mappableContacts = useMemo(() => {
     const isBlocked = (c: Contact) =>
@@ -1044,7 +1234,9 @@ export function MapView({
       const loc = getEffectiveLocation(contact);
       const coords = document.createElement('div');
       coords.className = 'text-xs text-muted-foreground mt-1 font-mono';
-      coords.textContent = loc ? `${loc.lat.toFixed(5)}, ${loc.lon.toFixed(5)}` : '';
+      coords.textContent = loc
+        ? formatCoordinates(loc.lat, loc.lon, coordinateFormatRef.current, 5)
+        : '';
       root.append(nameRow, heard, coords);
 
       // Latest known battery/temperature as a small block, only when a reading
@@ -1052,7 +1244,7 @@ export function MapView({
       // a toggle reveals the telemetry history line chart.
       const latest = latestTelemetryRef.current[contact.public_key];
       if (latest && (latest.battery_volts != null || latest.temperature != null)) {
-        const parts = telemetryPopupParts(latest, Date.now() / 1000);
+        const parts = telemetryPopupParts(latest, Date.now() / 1000, contact.battery_chemistry);
         const block = document.createElement('div');
         block.className = 'mt-2 rounded border border-border/60 bg-muted/30 px-2 py-1.5 text-xs';
         if (parts.stale) block.className += ' opacity-70';
@@ -1178,7 +1370,7 @@ export function MapView({
       });
       const coords = document.createElement('div');
       coords.className = 'text-xs text-muted-foreground/80 mt-1 font-mono';
-      coords.textContent = `${props.lat.toFixed(5)}, ${props.lon.toFixed(5)}`;
+      coords.textContent = formatCoordinates(props.lat, props.lon, coordinateFormatRef.current, 5);
       el.append(name, source, heard, coords);
       externalPopupRef.current?.remove();
       externalPopupRef.current = new MlPopup({ closeButton: true, offset: 10 })
@@ -1188,6 +1380,39 @@ export function MapView({
     },
     [t]
   );
+
+  const openLinkPopup = useCallback(
+    (info: LinkClickInfo, lngLat: [number, number]) => {
+      const map = mapRef.current;
+      if (!map) return;
+      const selfKey = config?.public_key?.toLowerCase();
+      const nameFor = (pk: string) =>
+        contactByKey.get(pk)?.name ??
+        (selfKey && pk === selfKey ? config?.name : undefined) ??
+        pk.slice(0, 8);
+      linkPopupRef.current?.remove();
+      linkPopupRef.current = new MlPopup({ closeButton: true, offset: 8 })
+        .setLngLat(lngLat)
+        .setDOMContent(
+          buildLinkPopup(info, {
+            t,
+            nameFor,
+            formatTime,
+            onDetails: (a, b) => {
+              linkPopupRef.current?.remove();
+              onOpenLink?.(a, b);
+            },
+          })
+        )
+        .addTo(map);
+    },
+    [config, contactByKey, t, onOpenLink]
+  );
+  // handleReady binds layer listeners once, so clicks read the latest callback.
+  const openLinkPopupRef = useRef(openLinkPopup);
+  useEffect(() => {
+    openLinkPopupRef.current = openLinkPopup;
+  }, [openLinkPopup]);
 
   // Latest map "home view" preference, read at fit time via a ref so the
   // once-on-ready fit sees current values even though appSettings load async.
@@ -1273,6 +1498,34 @@ export function MapView({
     []
   );
 
+  const {
+    attach: attachSharedLocations,
+    reattach: reattachSharedLocations,
+    locations: sharedLocations,
+    truncated: sharedLocationsTruncated,
+  } = useSharedLocations({
+    enabled: showSharedLocations,
+    latestPerSender: !sharedLocationsAll,
+    since: sinceCutoffSec,
+    until: sinceUntilSec,
+    contacts,
+    config,
+    distanceUnit,
+    coordinateFormat,
+    onNavigateToMessage,
+    onOpenContactInfo,
+  });
+
+  const {
+    attach: attachGuessedLocations,
+    reattach: reattachGuessedLocations,
+    guesses: guessedLocations,
+  } = useGuessedLocations({
+    enabled: showGuessedLocations,
+    contacts,
+    nowSec,
+  });
+
   const handleReady = useCallback(
     (map: MlMap) => {
       mapRef.current = map;
@@ -1300,15 +1553,23 @@ export function MapView({
       neon.setData(mappableContacts, nowSec);
       neon.setVisible(neonNodes);
       neonOverlayRef.current = neon;
+      buildingHeightsRef.current = createBuildingHeights(map);
+      map.on('sourcedata', scheduleHeightRefresh);
       const telemetry = createTelemetryLayer(map);
       telemetry.ensure();
       telemetry.setData(mappableContacts, latestTelemetry, nowSec);
       telemetry.setVisible(telemetryOn);
       telemetryRef.current = telemetry;
+      // Chat location shares sit above the nodes so their pins stay clickable.
+      attachSharedLocations(map);
+      // Guessed locations sit above real nodes too, and above shared-location
+      // pins, so a guess marker is never obscured by a real one.
+      attachGuessedLocations(map);
       // Report the viewport so the external overlay can fetch just what's shown.
       onViewBounds(map.getBounds());
       map.on('moveend', () => {
         if (showExternalRef.current) onViewBounds(map.getBounds());
+        scheduleHeightRefresh();
         // Remember the camera for the "remember last position" startup mode.
         // moveend fires once per gesture (not continuously), so a direct write
         // is cheap and needs no debounce.
@@ -1321,10 +1582,21 @@ export function MapView({
       links.ensure();
       links.setWidthScale(linkWidthScale);
       linksLayerRef.current = links;
-      const advertLinks = createAdvertLinksLayer(map);
+      const onLinkClick = (info: LinkClickInfo, at: [number, number]) =>
+        openLinkPopupRef.current(info, at);
+      const advertLinks = createAdvertLinksLayer(map, { onClick: onLinkClick });
       advertLinks.ensure();
       advertLinks.setWidthScale(linkWidthScale);
       advertLinksLayerRef.current = advertLinks;
+      const trafficLinks = createAdvertLinksLayer(map, {
+        idPrefix: 'rt-traffic-links',
+        color: '#3fb950',
+        onClick: onLinkClick,
+      });
+      trafficLinks.ensure();
+      trafficLinks.setWidthScale(linkWidthScale);
+      trafficLinksLayerRef.current = trafficLinks;
+      paintLinksRef.current();
       fitInitialView(map);
       if (focusedLatLon) {
         const el = document.createElement('div');
@@ -1334,7 +1606,12 @@ export function MapView({
         title.textContent = focusedLabel || t('map_shared_location');
         const coords = document.createElement('div');
         coords.className = 'text-xs text-muted-foreground mt-1 font-mono';
-        coords.textContent = `${focusedLatLon[0].toFixed(6)}, ${focusedLatLon[1].toFixed(6)}`;
+        coords.textContent = formatCoordinates(
+          focusedLatLon[0],
+          focusedLatLon[1],
+          coordinateFormatRef.current,
+          6
+        );
         el.append(title, coords);
         const popup = new MlPopup({ offset: 12 }).setDOMContent(el);
         focusMarkerRef.current = new MlMarker({ color: '#ef4444' })
@@ -1364,16 +1641,30 @@ export function MapView({
     // A basemap setStyle drops custom sources/layers; re-add and re-feed links.
     linksLayerRef.current?.reattach();
     advertLinksLayerRef.current?.reattach();
-    refreshLinks();
+    trafficLinksLayerRef.current?.reattach();
+    paintLinksRef.current();
     externalRef.current?.reattach();
     externalRef.current?.setData(visibleExternalRef.current);
-  }, [mappableContacts, nowSec, nodeScale, labelMode, telemetryOn, latestTelemetry, refreshLinks]);
+    reattachSharedLocations();
+    reattachGuessedLocations();
+  }, [
+    mappableContacts,
+    nowSec,
+    nodeScale,
+    labelMode,
+    telemetryOn,
+    latestTelemetry,
+    reattachSharedLocations,
+    reattachGuessedLocations,
+  ]);
 
   // Keep node data in sync.
   useEffect(() => {
     nodesRef.current?.setData(mappableContacts, nowSec);
     neonOverlayRef.current?.setData(mappableContacts, nowSec);
-  }, [mappableContacts, nowSec]);
+    mappableContactsRef.current = mappableContacts;
+    scheduleHeightRefresh();
+  }, [mappableContacts, nowSec, scheduleHeightRefresh]);
 
   // Toggle between the flat GL circle nodes and the deck.gl neon overlay.
   useEffect(() => {
@@ -1427,6 +1718,7 @@ export function MapView({
             pulses: pulsesOnRef.current,
             glows: glowOnRef.current,
             fadeMs: arcFadeMsRef.current,
+            heightAt: buildingHeightsRef.current?.heightAt,
           })
         );
         // Mirror the snapshot to React for the PlaybackBar, throttled so the
@@ -1454,6 +1746,7 @@ export function MapView({
     return () => {
       packetOverlayRef.current?.destroy();
       neonOverlayRef.current?.destroy();
+      if (heightsTimerRef.current) clearTimeout(heightsTimerRef.current);
       clickAudioRef.current?.destroy();
       popupRef.current?.remove();
       externalPopupRef.current?.remove();
@@ -1484,6 +1777,40 @@ export function MapView({
     },
     [mappableContacts, openContactPopup]
   );
+
+  // Export exactly the nodes the map currently shows under its active filters
+  // (role, heard/never-heard, time window, hide-wrong-location, etc). Reads the
+  // raw (pre-effective-location) contact objects so the manual-location note
+  // reflects whether the advertised position was actually usable, not the
+  // effective lat/lon already projected onto mappableContacts. Links are
+  // best-effort: a stored-advert lookup failure still downloads the GPX, just
+  // without meshcore:// links.
+  const handleExportGpx = useCallback(async () => {
+    const exportContacts = mappableContacts
+      .map((c) => contactByKey.get(c.public_key) ?? c)
+      .filter((c): c is Contact => c != null);
+
+    let links: Record<string, string> = {};
+    try {
+      const result = await api.bulkContactUris(exportContacts.map((c) => c.public_key));
+      links = result.links;
+    } catch (err) {
+      console.error('GPX export: could not look up contact links', err);
+    }
+
+    const gpx = buildNodesGpx(exportContacts, {
+      typeLabel: (type) => contactTypeLabel(type, t),
+      manualLocationLabel: t('map_gpx_manual_location'),
+      links,
+    });
+    const blob = new Blob([gpx], { type: 'application/gpx+xml;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = gpxExportFilename(new Date());
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [mappableContacts, contactByKey, t]);
 
   // Since-filter + packet toggles as extra FAB panels.
   const extraFabs: ExtraFab[] = useMemo(() => {
@@ -1759,6 +2086,62 @@ export function MapView({
           </div>
         ),
       },
+      {
+        id: 'shared-locations',
+        label: t('map_shared_locations_label'),
+        icon: <MapPin size={20} aria-hidden />,
+        panel: (
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={showSharedLocations}
+                onChange={(e) => setShowSharedLocations(e.target.checked)}
+              />
+              {t('map_shared_locations_enable')}
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={sharedLocationsAll}
+                disabled={!showSharedLocations}
+                onChange={(e) => setSharedLocationsAll(e.target.checked)}
+              />
+              {t('map_shared_locations_all')}
+            </label>
+            <p className="text-xs text-muted-foreground">{t('map_shared_locations_help')}</p>
+            {showSharedLocations && (
+              <p className="text-xs text-muted-foreground" aria-live="polite">
+                {t('map_shared_locations_count', { count: sharedLocations.length })}
+                {sharedLocationsTruncated && ` ${t('map_shared_locations_truncated')}`}
+              </p>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: 'guessed-locations',
+        label: t('map_guessed_locations_label'),
+        icon: <HelpCircle size={20} aria-hidden />,
+        panel: (
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={showGuessedLocations}
+                onChange={(e) => setShowGuessedLocations(e.target.checked)}
+              />
+              {t('map_guessed_locations_enable')}
+            </label>
+            <p className="text-xs text-muted-foreground">{t('map_guessed_locations_help')}</p>
+            {showGuessedLocations && (
+              <p className="text-xs text-muted-foreground" aria-live="polite">
+                {t('map_guessed_locations_count', { count: guessedLocations.length })}
+              </p>
+            )}
+          </div>
+        ),
+      },
     ];
   }, [
     t,
@@ -1784,6 +2167,15 @@ export function MapView({
     setShowPackets,
     setSoundOn,
     setVolume,
+    showSharedLocations,
+    sharedLocationsAll,
+    sharedLocations.length,
+    sharedLocationsTruncated,
+    setShowSharedLocations,
+    setSharedLocationsAll,
+    showGuessedLocations,
+    guessedLocations.length,
+    setShowGuessedLocations,
   ]);
 
   const theme: 'light' | 'dark' = dark ? 'dark' : 'light';
@@ -1801,6 +2193,8 @@ export function MapView({
           links: true,
           labelMode: true,
           telemetry: true,
+          fullscreen: true,
+          gpxExport: true,
         }}
         onReady={handleReady}
         onBasemapReapply={handleBasemapReapply}
@@ -1814,7 +2208,7 @@ export function MapView({
         onToggleBuildings={(on) => {
           setBuildings(on);
           const map = mapRef.current;
-          if (map) void setBuildings3D(map, on, theme);
+          if (map) void setBuildings3D(map, on, theme).then(scheduleHeightRefresh);
         }}
         nodeScale={nodeScale}
         onNodeScale={setNodeScale}
@@ -1837,10 +2231,26 @@ export function MapView({
         onLinkMode={setLinkMode}
         linkConfidence={linkConfidence}
         onLinkConfidence={setLinkConfidence}
+        linkMaxKm={linkMaxKm}
+        onLinkMaxKm={setLinkMaxKm}
+        linkAgePanel={
+          <LinkAgeControl
+            follow={linkAgeFollow}
+            onFollow={setLinkAgeFollow}
+            presets={MAP_SINCE_PRESETS}
+            presetId={linkAgePreset}
+            onPreset={setLinkAgePreset}
+            customFrom={linkAgeFrom}
+            onCustomFrom={setLinkAgeFrom}
+            customUntil={linkAgeUntil}
+            onCustomUntil={setLinkAgeUntil}
+          />
+        }
         telemetryOn={telemetryOn}
         onToggleTelemetry={setTelemetryOn}
         sidebarOpen={sidebarOpen}
         onSearch={handleSearch}
+        onExportGpx={handleExportGpx}
         extraFabs={extraFabs}
         legendContent={
           showPackets ? <MapLegend roleColors={roleColors} extra={<PacketLegend />} /> : undefined

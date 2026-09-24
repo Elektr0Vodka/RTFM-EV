@@ -66,6 +66,22 @@ export interface MeshcomodConfigUpdate {
   gps_interval?: number;
 }
 
+/**
+ * GPS state via the generic custom-vars protocol. Unlike MeshcomodConfig this
+ * is not specific to the meshcomod DMC/DMC-EV fork: any radio (stock firmware
+ * included) that reports the `gps` custom var can use it.
+ */
+export interface GpsConfig {
+  gps_supported: boolean;
+  gps_enabled: boolean | null;
+  gps_interval: number | null;
+}
+
+export interface GpsConfigUpdate {
+  gps_enabled?: boolean;
+  gps_interval?: number;
+}
+
 export type RadioDiscoveryTarget = 'repeaters' | 'sensors' | 'all';
 
 export interface RadioDiscoveryResult {
@@ -183,6 +199,26 @@ export interface MaintenanceResult {
   vacuumed: boolean;
 }
 
+export interface RetentionClassStats {
+  key: string;
+  rows: number;
+  oldest_ts: number | null;
+}
+
+export interface RetentionStats {
+  classes: RetentionClassStats[];
+  interval_hours: number;
+  last_run_at: number | null;
+  next_run_at: number | null;
+  last_result: Record<string, number>;
+  messages_would_delete: number | null;
+}
+
+export interface RetentionPruneResult {
+  deleted: Record<string, number>;
+  ran_at: number;
+}
+
 export interface Contact {
   public_key: string;
   name: string | null;
@@ -206,6 +242,8 @@ export interface Contact {
   on_radio: boolean;
   favorite: boolean;
   radio_policy: RadioPolicy;
+  /** App-set telemetry sharing bits (1 base, 2 location, 4 environment); null = never set in the app. */
+  telemetry_perms?: number | null;
   last_contacted: number | null;
   last_read_at: number | null;
   first_seen: number | null;
@@ -214,9 +252,20 @@ export interface Contact {
   owner_key?: string | null;
   manual_lat?: number | null;
   manual_lon?: number | null;
+  /** Per-node battery chemistry override; null = use the global default (Settings). */
+  battery_chemistry?: BatteryChemistry | null;
 }
 
 export type RadioPolicy = 'auto' | 'pinned' | 'excluded';
+
+/** Battery chemistry used to convert millivolts to a percentage (see utils/batteryDisplay.ts). */
+export type BatteryChemistry = 'lipo' | 'lifepo4' | 'lipo_hv' | 'nmc';
+
+export interface ContactTelemetryPermissions {
+  base: boolean;
+  location: boolean;
+  environment: boolean;
+}
 
 export interface ContactAnnotationsUpdate {
   notes?: string | null;
@@ -224,6 +273,7 @@ export interface ContactAnnotationsUpdate {
   owner_key?: string | null;
   manual_lat?: number | null;
   manual_lon?: number | null;
+  battery_chemistry?: BatteryChemistry | null;
 }
 
 export type RadioResidencyReason = 'pinned' | 'favorite' | 'recent-dm' | 'recent-advert';
@@ -355,6 +405,45 @@ export interface ChannelImportResult {
   message: string;
 }
 
+export interface CommunityChannel {
+  key: string;
+  name: string;
+  kind: 'public' | 'hashtag';
+}
+
+/** A joined meshcore-open community. Never carries the secret (see CommunityExport). */
+export interface Community {
+  id: string;
+  short_id: string;
+  name: string;
+  created_at: number;
+  public_channel_key: string;
+  channels: CommunityChannel[];
+}
+
+export interface CommunityJoinResult {
+  community: Community;
+  already_joined: boolean;
+  created_channels: Channel[];
+  decrypt_started: boolean;
+  decrypt_total_packets: number;
+}
+
+export interface CommunityHashtagResult {
+  channel: Channel;
+  created: boolean;
+  community: Community;
+  decrypt_started: boolean;
+  decrypt_total_packets: number;
+}
+
+/** QR JSON payload including the community secret. Treat like a password. */
+export interface CommunityExport {
+  id: string;
+  name: string;
+  payload: string;
+}
+
 export interface PathHashWidthStats {
   total_packets: number;
   single_byte: number;
@@ -411,6 +500,8 @@ export interface Message {
   transport_code?: number | null;
   /** Resolved region name for the transport code, if it matched a known region. */
   region?: string | null;
+  /** Unix time an outgoing DM was marked failed (retries ran out, no ACK). Null when not failed. */
+  failed_at?: number | null;
 }
 
 export interface MessagesAroundResponse {
@@ -419,10 +510,64 @@ export interface MessagesAroundResponse {
   has_newer: boolean;
 }
 
+/** GET /messages/{id}/reaction-target: the message a reaction points at. */
+export interface ReactionTargetResponse {
+  dialect?: 'hash' | 'open_v3' | 'open_v1';
+  /** null for meshcore-open r:<hash>:<index> (the client decodes the index). */
+  emoji: string | null;
+  /** null for meshcore-open v1, which hashes fields instead. */
+  target_hash: string | null;
+  target_sender: string | null;
+  /** null when the target message was never received here. */
+  target: Message | null;
+}
+
+/** GET /messages/locations: a location shared in a chat message. */
+export interface SharedLocation {
+  message_id: number;
+  type: 'PRIV' | 'CHAN';
+  conversation_key: string;
+  /** Channel name or contact name, when known. */
+  conversation_name: string | null;
+  sender_key: string | null;
+  sender_name: string | null;
+  outgoing: boolean;
+  received_at: number;
+  sender_timestamp: number | null;
+  lat: number;
+  lon: number;
+  /** marker: meshcore-open m: payload; mgrs: MGRS reference; decimal: lat, lon pair. */
+  format: 'marker' | 'mgrs' | 'decimal';
+  /** The matched text. */
+  raw: string;
+  label: string;
+  flags: string;
+  /** MGRS grid-square size in metres; null for exact points. */
+  precision_m: number | null;
+  paths: MessagePath[] | null;
+}
+
+export interface SharedLocationsResponse {
+  /** Newest first. */
+  locations: SharedLocation[];
+  scanned: number;
+  /** True when the window held more messages than the server scans. */
+  truncated: boolean;
+}
+
 export interface ResendChannelMessageResponse {
   status: string;
   message_id: number;
   message?: Message;
+}
+
+export interface ResendDirectMessageResponse {
+  status: string;
+  /** ID of the new message that was sent. */
+  message_id: number;
+  message: Message;
+  /** ID of the failed message that was removed. */
+  replaced_message_id: number;
 }
 
 type ConversationType =
@@ -440,7 +585,8 @@ type ConversationType =
   | 'mesh-trends'
   | 'mesh-discovery'
   | 'analyze'
-  | 'packet-history';
+  | 'packet-history'
+  | 'link';
 
 export interface Conversation {
   type: ConversationType;
@@ -493,6 +639,78 @@ export interface UrlPreview {
   description?: string | null;
   image?: string | null;
   site_name?: string | null;
+}
+
+/** One upstream basemap source known to the backend tile cache (/tiles/config). */
+export interface TileCacheSource {
+  id: string;
+  label: string;
+  /** Upstream URL prefixes the map rewrites to /api/tiles/proxy/{id}/... */
+  client_prefixes: string[];
+  /** False when the source's terms forbid caching: it is always fetched directly. */
+  proxy: boolean;
+  /** True only when the source's tile policy allows bulk (area) download. */
+  predownload: boolean;
+  max_zoom: number;
+  policy_url: string;
+}
+
+export interface TileCacheConfig {
+  enabled: boolean;
+  max_size_mb: number;
+  max_age_days: number;
+  limits: {
+    min_size_mb: number;
+    max_size_mb: number;
+    min_age_days: number;
+    max_age_days: number;
+    predownload_min_zoom: number;
+    predownload_max_zoom: number;
+    predownload_max_tiles: number;
+    predownload_concurrency: number;
+  };
+  sources: TileCacheSource[];
+}
+
+export interface TileCacheConfigUpdate {
+  enabled?: boolean;
+  max_size_mb?: number;
+  max_age_days?: number;
+}
+
+export interface TileCacheStats {
+  entries: number;
+  bytes: number;
+  max_bytes: number;
+  per_source: Record<string, { entries: number; bytes: number }>;
+}
+
+export interface TileAreaRequest {
+  source: string;
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+  min_zoom: number;
+  max_zoom: number;
+}
+
+export interface TileAreaEstimate {
+  tiles: number;
+  max_tiles: number;
+  allowed: boolean;
+  reason?: string | null;
+}
+
+export interface TileDownloadStatus {
+  state: 'idle' | 'running' | 'done' | 'cancelled' | 'error';
+  source: string | null;
+  total: number;
+  done: number;
+  failed: number;
+  started_at: number | null;
+  finished_at: number | null;
+  error: string | null;
 }
 
 /** A user-configured external analyzer site for client-side node/packet lookups. */
@@ -570,12 +788,36 @@ export interface SidebarFavoriteSortOrders {
   sensors: FavoriteSortOrder;
 }
 
+/**
+ * A user-defined group of contacts and/or channels. Rendered as its own
+ * collapsible sidebar section (see utils/sidebarLayout groupSectionKey).
+ * A contact/channel can belong to several groups; server-persisted so all
+ * browsers agree. Local only - never sent over RF.
+ */
+export interface ContactGroup {
+  id: string;
+  name: string;
+  contact_keys: string[];
+  channel_keys: string[];
+}
+
 export interface AppSettings {
   max_radio_contacts: number;
   auto_decrypt_dm_on_advert: boolean;
   advert_retention_days: number;
-  /** Days of raw_packets history to keep; 0 = keep forever. Pruned daily. */
+  /** Days of raw_packets history to keep; 0 = keep forever. */
   raw_packet_retention_days: number;
+  /** Per-class retention (migration _105). Days/rows: 0 = keep forever / no cap. */
+  retention_prune_interval_hours: number;
+  telemetry_retention_days: number;
+  telemetry_max_rows_per_node: number;
+  link_signal_retention_days: number;
+  advert_paths_per_contact: number;
+  noise_floor_retention_days: number;
+  battery_retention_days: number;
+  airtime_retention_days: number;
+  message_retention_days: number;
+  link_edge_retention_days: number;
   last_message_times: Record<string, number>;
   advert_interval: number;
   last_advert_time: number;
@@ -588,12 +830,15 @@ export interface AppSettings {
   sidebar_favorites_order: string[];
   sidebar_hidden: SidebarHidden;
   sidebar_favorite_sort_orders: SidebarFavoriteSortOrders;
+  contact_groups: ContactGroup[];
   packet_feed_sort: 'oldest' | 'newest';
   packet_history_sort: 'oldest' | 'newest';
   /** Mesh Health contacts-table page size; 0 = show all. */
   mesh_health_page_size: number;
   /** UI date/time format: follow the UI language, or force 12h/24h + date order. */
   date_time_format: 'auto' | '12h_mdy' | '24h_dmy';
+  /** Global default battery chemistry; a contact's own battery_chemistry overrides this. */
+  battery_chemistry: BatteryChemistry;
   /** Last-selected 'Group repeats by content' packet-filter toggle (shared by both packet views). */
   packet_group_by_content: boolean;
   /** How the map picks its initial camera on load. */
@@ -783,6 +1028,66 @@ export interface AdvertLinkEdge {
   ambiguous: boolean;
 }
 
+/** Link from the per-packet edge log, aggregated over the requested window. */
+export interface TrafficLinkEdge extends AdvertLinkEdge {
+  first_seen: number;
+}
+
+export interface LinkEndpoint {
+  pubkey: string;
+  name: string | null;
+  kind: 'self' | 'contact' | 'external' | 'unknown';
+  lat: number | null;
+  lon: number | null;
+}
+
+export interface LinkSummary {
+  a: LinkEndpoint;
+  b: LinkEndpoint;
+  distance_km: number | null;
+  involves_self: boolean;
+  total_packets: number;
+  first_seen: number | null;
+  last_seen: number | null;
+  by_hop_width: Record<string, number>;
+  by_confidence: Record<string, number>;
+  by_payload_type: Record<string, number>;
+}
+
+export interface LinkTrafficPoint {
+  bucket: number;
+  payload_type: string;
+  count: number;
+}
+
+export interface LinkSignalPoint {
+  bucket: number;
+  samples: number;
+  snr_avg: number | null;
+  snr_min: number | null;
+  snr_max: number | null;
+  rssi_avg: number | null;
+  rssi_min: number | null;
+  rssi_max: number | null;
+}
+
+export interface LinkTimeseries {
+  bucket_seconds: number;
+  traffic: LinkTrafficPoint[];
+  signal: LinkSignalPoint[];
+}
+
+export interface LinkPacketRow {
+  raw_packet_id: number;
+  ts: number;
+  payload_type: string | null;
+  route_type: string | null;
+  hop_width: number;
+  confidence: 'unique' | 'confirmed' | 'nearest';
+  snr: number | null;
+  rssi: number | null;
+}
+
 export interface ExternalMapStatus {
   enabled: boolean;
   count: number;
@@ -842,6 +1147,16 @@ export interface AppSettingsUpdate {
   auto_decrypt_dm_on_advert?: boolean;
   advert_retention_days?: number;
   raw_packet_retention_days?: number;
+  retention_prune_interval_hours?: number;
+  telemetry_retention_days?: number;
+  telemetry_max_rows_per_node?: number;
+  link_signal_retention_days?: number;
+  advert_paths_per_contact?: number;
+  noise_floor_retention_days?: number;
+  battery_retention_days?: number;
+  airtime_retention_days?: number;
+  message_retention_days?: number;
+  link_edge_retention_days?: number;
   advert_interval?: number;
   auto_resend_channel?: boolean;
   flood_scope?: string;
@@ -853,10 +1168,12 @@ export interface AppSettingsUpdate {
   sidebar_favorites_order?: string[];
   sidebar_hidden?: SidebarHidden;
   sidebar_favorite_sort_orders?: Partial<SidebarFavoriteSortOrders>;
+  contact_groups?: ContactGroup[];
   packet_feed_sort?: 'oldest' | 'newest';
   packet_history_sort?: 'oldest' | 'newest';
   mesh_health_page_size?: number;
   date_time_format?: 'auto' | '12h_mdy' | '24h_dmy';
+  battery_chemistry?: BatteryChemistry;
   packet_group_by_content?: boolean;
   map_home_mode?: 'auto' | 'home' | 'last';
   map_home_lat?: number | null;
@@ -954,7 +1271,8 @@ export interface RepeaterStatusResponse {
   packets_received: number;
   packets_sent: number;
   airtime_seconds: number;
-  rx_airtime_seconds: number;
+  /** null for room firmware, which reports post counters instead. */
+  rx_airtime_seconds: number | null;
   uptime_seconds: number;
   sent_flood: number;
   sent_direct: number;
@@ -964,6 +1282,9 @@ export interface RepeaterStatusResponse {
   direct_dups: number;
   full_events: number;
   recv_errors: number | null;
+  /** Room firmware only: messages posted / posts pushed to members. */
+  room_posted?: number | null;
+  room_post_pushes?: number | null;
   telemetry_history: TelemetryHistoryEntry[];
 }
 
@@ -1018,6 +1339,21 @@ export interface RepeaterRadioSettingsResponse {
   duty_cycle_limit: string | null;
   repeat_enabled: string | null;
   flood_max: string | null;
+}
+
+/** Result of one structured `set` + `get` read-back from the settings editor. */
+export interface RepeaterSettingSetResponse {
+  setting: string;
+  /** Normalized value that was sent. */
+  value: string;
+  set_reply: string | null;
+  readback: string | null;
+  status: 'ok' | 'mismatch' | 'rejected' | 'unverified';
+  reboot_required: boolean;
+}
+
+export interface RepeaterSettingsReadResponse {
+  values: Record<string, string | null>;
 }
 
 export interface RepeaterAdvertIntervalsResponse {

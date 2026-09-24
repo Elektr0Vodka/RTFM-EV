@@ -16,6 +16,7 @@ import type {
   RadioConfig,
   RadioDiscoveryResponse,
   RadioDiscoveryTarget,
+  RadioRegionDiscoveryResponse,
   RadioTraceHopRequest,
   RadioTraceResponse,
 } from '../types';
@@ -27,6 +28,7 @@ import {
 } from '../utils/pubkey';
 import { useT } from '../i18n';
 import { useIsMobile } from '../map/controls/breakpoints';
+import type { SearchNavigateTarget } from './SearchView';
 
 const RepeaterDashboard = lazy(() =>
   import('./RepeaterDashboard').then((m) => ({ default: m.RepeaterDashboard }))
@@ -52,6 +54,9 @@ const AnalyzePacketView = lazy(() =>
 const PacketHistoryView = lazy(() =>
   import('./PacketHistoryView').then((m) => ({ default: m.PacketHistoryView }))
 );
+const LinkDetailView = lazy(() =>
+  import('./LinkDetailView').then((m) => ({ default: m.LinkDetailView }))
+);
 const ContactInfoView = lazy(() =>
   import('./ContactInfoView').then((m) => ({ default: m.ContactInfoView }))
 );
@@ -73,6 +78,13 @@ interface ConversationPaneProps {
   hasOlderMessages: boolean;
   unreadMarkerMessageId?: number | null;
   onNavigateToUnread?: (messageId: number) => void;
+  onJumpToMessage?: (messageId: number) => void;
+  onReactToMessage?: (messageId: number, emoji: string) => void;
+  onReplyToMessage?: (message: Message) => void;
+  onDeleteMessage?: (message: Message) => void;
+  /** Retry a failed outgoing DM (sends a new copy that replaces it). */
+  onRetryDirectMessage?: (messageId: number) => void | Promise<void>;
+  onMarkUnreadFromMessage?: (message: Message) => void;
   targetMessageId: number | null;
   hasNewerMessages: boolean;
   loadingNewer: boolean;
@@ -112,6 +124,8 @@ interface ConversationPaneProps {
   onHashtagAdded?: (channelName: string) => void;
   onInsertLocation?: (lat: number, lon: number, label: string) => void;
   onCoordinateClick?: (lat: number, lon: number, label: string) => void;
+  /** Open a chat message by id (map shared-locations popup). */
+  onNavigateToMessage?: (target: SearchNavigateTarget) => void;
   onLoadOlder: () => Promise<void>;
   onResendChannelMessage: (messageId: number, newTimestamp?: boolean) => Promise<void>;
   onTargetReached: () => void;
@@ -145,6 +159,9 @@ interface ConversationPaneProps {
   meshDiscovery?: RadioDiscoveryResponse | null;
   meshDiscoveryLoadingTarget?: RadioDiscoveryTarget | null;
   onDiscoverMesh?: (target: RadioDiscoveryTarget) => Promise<void>;
+  regionDiscovery?: RadioRegionDiscoveryResponse | null;
+  regionDiscoveryLoading?: boolean;
+  onDiscoverRegions?: (publicKeys?: string[]) => Promise<void>;
   onSaveAppSettings?: (update: import('../types').AppSettingsUpdate) => Promise<void> | void;
   /** Handlers the desktop full-page contact-info view needs beyond the ones
    *  ConversationPane already receives (contacts/config/favorite/blocked/analyzer). */
@@ -155,6 +172,8 @@ interface ConversationPaneProps {
     onToggleBlockedName?: (name: string) => void;
     trackedTelemetryContacts?: string[];
     onToggleTrackedTelemetryContact?: (publicKey: string) => Promise<void>;
+    contactGroups?: import('../types').ContactGroup[];
+    onUpdateContactGroups?: (next: import('../types').ContactGroup[]) => void | Promise<void>;
     onOpenConversation?: (publicKey: string) => void;
   };
 }
@@ -199,6 +218,12 @@ export function ConversationPane({
   hasOlderMessages,
   unreadMarkerMessageId,
   onNavigateToUnread,
+  onJumpToMessage,
+  onReactToMessage,
+  onReplyToMessage,
+  onDeleteMessage,
+  onRetryDirectMessage,
+  onMarkUnreadFromMessage,
   targetMessageId,
   hasNewerMessages,
   loadingNewer,
@@ -232,6 +257,7 @@ export function ConversationPane({
   onHashtagAdded,
   onInsertLocation,
   onCoordinateClick,
+  onNavigateToMessage,
   onLoadOlder,
   onResendChannelMessage,
   onTargetReached,
@@ -265,6 +291,9 @@ export function ConversationPane({
   meshDiscovery = null,
   meshDiscoveryLoadingTarget = null,
   onDiscoverMesh,
+  regionDiscovery = null,
+  regionDiscoveryLoading = false,
+  onDiscoverRegions,
   onSaveAppSettings,
   contactInfoViewProps,
 }: ConversationPaneProps) {
@@ -333,6 +362,10 @@ export function ConversationPane({
                 })
               }
               onOpenContactInfo={(publicKey) => onOpenContactInfo(publicKey)}
+              onOpenLink={(a, b) =>
+                onSelectConversation({ type: 'link', id: `${a}~${b}`, name: 'Link' })
+              }
+              onNavigateToMessage={onNavigateToMessage}
             />
           </Suspense>
         </div>
@@ -377,6 +410,10 @@ export function ConversationPane({
           meshDiscovery={meshDiscovery}
           meshDiscoveryLoadingTarget={meshDiscoveryLoadingTarget}
           onDiscoverMesh={onDiscoverMesh}
+          regionDiscovery={regionDiscovery}
+          regionDiscoveryLoading={regionDiscoveryLoading}
+          onDiscoverRegions={onDiscoverRegions}
+          onSeedKnownRegions={onSeedKnownRegions}
         />
       </Suspense>
     );
@@ -386,6 +423,21 @@ export function ConversationPane({
     return (
       <Suspense fallback={<LoadingPane label={t('common_loading_analyze_packet')} />}>
         <AnalyzePacketView channels={channels} />
+      </Suspense>
+    );
+  }
+
+  if (activeConversation.type === 'link') {
+    const [a, b] = activeConversation.id.split('~');
+    return (
+      <Suspense fallback={<LoadingPane label={t('common_loading_link_detail')} />}>
+        <LinkDetailView
+          a={a}
+          b={b}
+          channels={channels}
+          onBack={() => window.history.back()}
+          onOpenContactInfo={onOpenContactInfo}
+        />
       </Suspense>
     );
   }
@@ -605,6 +657,14 @@ export function ConversationPane({
           onNavigateToUnread={
             activeConversation.type === 'channel' ? onNavigateToUnread : undefined
           }
+          onJumpToMessage={onJumpToMessage}
+          onReactToMessage={onReactToMessage}
+          onReplyToMessage={onReplyToMessage}
+          onDeleteMessage={onDeleteMessage}
+          onRetryDirectMessage={
+            activeConversation.type === 'contact' ? onRetryDirectMessage : undefined
+          }
+          onMarkUnreadFromMessage={onMarkUnreadFromMessage}
           onDismissUnreadMarker={
             activeConversation.type === 'channel' ? onDismissUnreadMarker : undefined
           }

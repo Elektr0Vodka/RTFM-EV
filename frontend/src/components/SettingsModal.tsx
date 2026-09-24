@@ -8,8 +8,6 @@ import type {
   RadioAdvertMode,
   RadioConfig,
   RadioConfigUpdate,
-  RadioDiscoveryResponse,
-  RadioRegionDiscoveryResponse,
 } from '../types';
 import type { LocalLabel } from '../utils/localLabel';
 import { useT } from '../i18n';
@@ -43,10 +41,6 @@ interface SettingsModalBaseProps {
   onDisconnect: () => Promise<void>;
   onReconnect: () => Promise<void>;
   onAdvertise: (mode: RadioAdvertMode) => Promise<void>;
-  meshDiscovery: RadioDiscoveryResponse | null;
-  regionDiscovery: RadioRegionDiscoveryResponse | null;
-  regionDiscoveryLoading: boolean;
-  onDiscoverRegions: (publicKeys?: string[]) => Promise<void>;
   onHealthRefresh: () => Promise<void>;
   onRefreshAppSettings: () => Promise<void>;
   onLocalLabelChange?: (label: LocalLabel) => void;
@@ -62,6 +56,12 @@ interface SettingsModalBaseProps {
   onToggleTrackedTelemetry?: (publicKey: string) => Promise<void>;
   trackedTelemetryContacts?: string[];
   onToggleTrackedTelemetryContact?: (publicKey: string) => Promise<void>;
+  newNodeNotificationsSupported?: boolean;
+  newNodeNotificationsPermission?: NotificationPermission | 'unsupported';
+  newNodeNotificationsEnabled?: boolean;
+  newNodeNotificationTypes?: number[];
+  onSetNewNodeNotificationsEnabled?: (enabled: boolean) => Promise<void>;
+  onSetNewNodeNotificationType?: (type: number, checked: boolean) => void;
 }
 
 export type SettingsModalProps = SettingsModalBaseProps &
@@ -86,10 +86,6 @@ export function SettingsModal(props: SettingsModalProps) {
     onDisconnect,
     onReconnect,
     onAdvertise,
-    meshDiscovery,
-    regionDiscovery,
-    regionDiscoveryLoading,
-    onDiscoverRegions,
     onHealthRefresh,
     onRefreshAppSettings,
     onLocalLabelChange,
@@ -105,6 +101,12 @@ export function SettingsModal(props: SettingsModalProps) {
     onToggleTrackedTelemetry,
     trackedTelemetryContacts,
     onToggleTrackedTelemetryContact,
+    newNodeNotificationsSupported,
+    newNodeNotificationsPermission,
+    newNodeNotificationsEnabled,
+    newNodeNotificationTypes,
+    onSetNewNodeNotificationsEnabled,
+    onSetNewNodeNotificationType,
   } = props;
   const externalSidebarNav = props.externalSidebarNav === true;
   const desktopSection = props.externalSidebarNav ? props.desktopSection : undefined;
@@ -227,10 +229,6 @@ export function SettingsModal(props: SettingsModalProps) {
                 onDisconnect={onDisconnect}
                 onReconnect={onReconnect}
                 onAdvertise={onAdvertise}
-                meshDiscovery={meshDiscovery}
-                regionDiscovery={regionDiscovery}
-                regionDiscoveryLoading={regionDiscoveryLoading}
-                onDiscoverRegions={onDiscoverRegions}
                 onClose={onClose}
                 className={sectionContentClass}
               />
@@ -255,6 +253,12 @@ export function SettingsModal(props: SettingsModalProps) {
               className={sectionContentClass}
               appSettings={appSettings}
               onSaveAppSettings={onSaveAppSettings}
+              newNodeNotificationsSupported={newNodeNotificationsSupported}
+              newNodeNotificationsPermission={newNodeNotificationsPermission}
+              newNodeNotificationsEnabled={newNodeNotificationsEnabled}
+              newNodeNotificationTypes={newNodeNotificationTypes}
+              onSetNewNodeNotificationsEnabled={onSetNewNodeNotificationsEnabled}
+              onSetNewNodeNotificationType={onSetNewNodeNotificationType}
             />
           )}
         </section>

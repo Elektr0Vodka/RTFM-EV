@@ -31,7 +31,7 @@ app/
 ├── migrations/          # Schema migrations (SQLite user_version, per-version modules)
 ├── models.py            # Pydantic request/response models and typed write contracts (for example ContactUpsert)
 ├── version_info.py      # Unified version/build metadata resolution for debug + startup surfaces
-├── repository/          # Data access layer (contacts, channels, messages, raw_packets, settings, fanout, push_subscriptions, repeater_telemetry, contact_telemetry)
+├── repository/          # Data access layer (contacts, channels, communities, messages, raw_packets, settings, fanout, push_subscriptions, repeater_telemetry, contact_telemetry)
 ├── services/            # Shared orchestration/domain services
 │   ├── messages.py              # Shared message creation, dedup, ACK application
 │   ├── message_send.py          # Direct send, channel send, resend workflows
@@ -43,10 +43,14 @@ app/
 │   ├── radio_lifecycle.py       # Post-connect setup and reconnect/setup helpers
 │   ├── radio_commands.py        # Radio config/private-key command workflows
 │   ├── radio_stats.py           # In-memory local radio stats sampling and noise-floor history
-│   └── radio_runtime.py         # Router/dependency seam over the global RadioManager
+│   ├── radio_runtime.py         # Router/dependency seam over the global RadioManager
+│   └── new_node_notify.py       # New-node WS notification batching/warm-up (plan 28 item 1.5)
 ├── radio.py             # RadioManager transport/session state + lock management
 ├── radio_sync.py        # Polling, sync, periodic advertisement loop
 ├── decoder.py           # Packet parsing/decryption
+├── contact_uri.py       # meshcore:// contact links: parse/validate (ADVERT + signature), format
+├── smaz.py              # SMAZ "s:<base64>" message-body decode (port of meshcore-open smaz.dart)
+├── communities.py       # meshcore-open communities: HMAC-SHA256 channel keys from a 32-byte secret, QR JSON parse/format
 ├── packet_processor.py  # Raw packet pipeline, dedup, path handling
 ├── event_handlers.py    # MeshCore event subscriptions and ACK tracking
 ├── events.py            # Typed WS event payload serialization
@@ -62,7 +66,7 @@ app/
 ├── region_scope.py      # Normalize/validate regional flood-scope values
 ├── region_resolver.py   # Recompute transport codes per known region to name a packet's region
 ├── keystore.py          # Ephemeral private/public key storage for DM decryption
-├── frontend_static.py   # Mount/serve built frontend (production)
+├── frontend_static.py   # Mount/serve built frontend (production); applies brand_name to index.html title + site.webmanifest
 └── routers/
     ├── health.py
     ├── debug.py
@@ -79,6 +83,7 @@ app/
     ├── repeaters.py
     ├── statistics.py
     ├── unfurl.py           # GET /api/unfurl: SSRF-guarded link-preview fetch for chat
+    ├── tiles.py            # /api/tiles: allow-listed map tile caching proxy + settings
     ├── push.py
     └── ws.py
 ```
@@ -95,6 +100,24 @@ response size and time, sends no cookies, parses metadata with the stdlib
 `html.parser`, and caches results in-process. Never fetch untrusted chat URLs
 without going through `assert_public_http_url`.
 
+### Map tile cache (`/api/tiles`)
+
+`services/tile_cache.py` holds the source allow-list (`SOURCES`). Each source has
+a fixed `upstream_base`, the client URL prefixes the browser rewrites, regex
+`path_patterns`, and `proxy` / `predownload` flags with the policy URL that
+justifies them. `GET /api/tiles/proxy/{source}/{path}` only serves a path that
+fully matches one of that source's patterns, rebuilds the upstream URL
+server-side (the client never picks the host), and fetches it pinned to an IP
+checked by `url_safety.resolve_public_ip`. With the cache disabled it answers
+307 to the upstream. Tiles are stored under `<data dir>/tile_cache/tiles/` with
+their freshness metadata; settings are `<data dir>/tile_cache/config.json` (no
+DB table). `GET/PATCH /api/tiles/config`, `GET /api/tiles/stats`,
+`DELETE /api/tiles/cache`, and `/api/tiles/download[/estimate]` for area
+pre-download, which `check_predownload` refuses unless the source has
+`predownload=True` (none does today). Adding a source: record its tile-usage
+policy verdict in the comment above `SOURCES` first; never set `predownload`
+for a source whose terms forbid bulk downloading.
+
 ## Core Runtime Flows
 
 ### Incoming data
@@ -103,6 +126,7 @@ without going through `assert_public_http_url`.
 2. `on_rx_log_data` stores raw packet and tries decrypt/pipeline handling.
 3. Shared message-domain services create/update `messages` and shape WS payloads.
 4. Direct-message storage is centralized in `services/dm_ingest.py`; packet-processor DMs and `CONTACT_MSG_RECV` fallback events both route through that seam.
+5. Incoming SMAZ bodies (`s:<base64>`, sent compressed by meshcore-open) are decoded before storage by `app/smaz.py`: in `_store_direct_message` for incoming non-CLI DMs and in `create_message_from_decrypted` / `create_fallback_channel_message` for channel text (the part after `Sender: `). Stored text, mentions, reaction hashes and fanout all see the decoded text. A body is only decoded when it is valid base64/base64url, a complete stream, valid UTF-8, byte-identical to what the meshcore-open encoder produces, and shorter than the decoded text (the encoder only compresses when it saves bytes); anything else is stored unchanged. Outgoing echoes are never decoded. The raw-packet decoder (`decoder.py`, packet feed/analyzer views) still shows the `s:` form.
 
 ### Outgoing messages
 
@@ -110,7 +134,9 @@ without going through `assert_public_http_url`.
 2. Service-layer send workflows call MeshCore commands, persist outgoing messages, and wire ACK tracking.
 3. Endpoint broadcasts WS `message` event so all live clients update.
 4. ACK/repeat updates arrive later as `message_acked` events.
-5. Channel resend (`POST /messages/channel/{id}/resend`) strips the sender name prefix by exact match against the current radio name. This assumes the radio name hasn't changed between the original send and the resend. Name changes require an explicit radio config update and are rare, but the `new_timestamp=true` resend path has no time window, so a mismatch is possible if the name was changed between the original send and a later resend.
+5. DM failed state: `_retry_direct_message_until_acked` retries up to `DM_SEND_MAX_ATTEMPTS` (final attempt flood), then waits one more ACK window. With still no ACK it sets `messages.failed_at` (migration 109, `MessageRepository.mark_failed`, only when `outgoing = 1 AND acked = 0`) and broadcasts `message_failed`. Every ACK code the message was sent with stays matchable for `dm_ack_tracker.FAILED_ACK_GRACE_SECONDS` (30 s): a late ACK in that window goes through `apply_dm_ack_code` as usual, `increment_ack_count` clears `failed_at`, and `message_acked` flips the UI to delivered. A later ACK is buffered like any unmatched ACK and the message stays failed. DMs whose first send returned no `expected_ack` never schedule retries, so they are never marked failed.
+6. DM manual retry (`POST /messages/direct/{id}/resend`): only for an outgoing PRIV row with `failed_at` set and `acked = 0` (else 409). Sends the stored text again through `send_direct_message_to_contact` (fresh timestamp, new ACK code, normal background retries), then deletes the failed row and broadcasts `message_deleted`. If the new send fails the failed row stays. No byte-perfect DM resend exists.
+7. Channel resend (`POST /messages/channel/{id}/resend`) strips the sender name prefix by exact match against the current radio name. This assumes the radio name hasn't changed between the original send and the resend. Name changes require an explicit radio config update and are rare, but the `new_timestamp=true` resend path has no time window, so a mismatch is possible if the name was changed between the original send and a later resend.
 
 ### Connection lifecycle
 
@@ -136,12 +162,15 @@ without going through `assert_public_http_url`.
 - `route_override_path`, `route_override_len`, and `route_override_hash_mode` take precedence over the learned direct route for radio-bound sends.
 - Advertisement paths are stored only in `contact_advert_paths` for analytics/visualization. They are not part of `Contact.to_radio_dict()` or DM route selection.
 - `contact_advert_paths` identity is `(public_key, path_hex, path_len)` because the same hex bytes can represent different routes at different hop widths.
+- `contacts.flags` mirrors the radio's `ContactInfo.flags`: bit 0 is the radio favourite bit, bits 1-3 are the firmware `TELEM_PERM_*` bits (base, location, environment) that the companion reads as `flags >> 1` when a telemetry mode is Per-Contact. `ContactUpsert.flags=None` keeps the stored value, so advert/DM upserts never zero it; a radio snapshot writes the radio's value.
+- `contacts.telemetry_perms` (migration `_106`, nullable) is the app-set permission value and wins over the radio: `Contact.to_radio_dict()` overlays it on `flags`, and `sync_contacts_from_radio` pushes it with `change_contact_flags` to any radio contact whose bits differ. `NULL` means never set in the app, so the radio's bits are kept.
 
 ### Read/unread state
 
 - Server is source of truth (`contacts.last_read_at`, `channels.last_read_at`).
 - `GET /api/read-state/unreads` returns counts, mention flags, `last_message_times`, `last_read_ats`, and `first_unread_ids`.
 - `first_unread_ids` maps stateKey -> id of the oldest unread message, so the client can anchor the unread divider (and jump to it) without paging back through history. It is computed with `ROW_NUMBER() OVER (PARTITION BY type, conversation_key ORDER BY received_at, id)` - deliberately not `MIN(received_at)` with a bare id, because sender timestamps are whole seconds and same-second ties are routine, and not `MIN(id)`, because historical decryption inserts old messages with new ids.
+- `POST /contacts/{public_key}/mark-unread` and `POST /channels/{key}/mark-unread` (`{message_id}`) mark a conversation unread from a given message onward, by setting `last_read_at = message.received_at - 1`. The message must be an incoming (`outgoing = 0`) message belonging to that conversation (404/400 otherwise). Same server-side, shared-across-browsers model as mark-read.
 
 ### DM ingest + ACKs
 
@@ -152,6 +181,7 @@ without going through `assert_public_http_url`.
 - DM retry timing follows the firmware-provided `suggested_timeout` from `PACKET_MSG_SENT`; do not replace it with a fixed app timeout unless you intentionally want more aggressive duplicate-prone retries.
 - Direct-message send behavior is intended to emulate `meshcore_py.commands.send_msg_with_retry(...)` when the radio provides an expected ACK code: stage the effective contact route on the radio, send, wait for ACK, and on the final retry force flood via `reset_path(...)`.
 - Non-final DM attempts use the contact's effective route (`override > direct > flood`). The final retry is intentionally sent as flood even when a routing override exists.
+- Outgoing DM sender timestamps are made unique per *text across all recipients* (`allocate_outgoing_sender_timestamp`): the firmware ACK code is sha256(timestamp, attempt, text, sender pubkey) and does not include the recipient, so the same text to two contacts in the same second would otherwise share an ACK code. Channel timestamps stay unique per channel.
 - DM ACK state is terminal on first ACK. Retry attempts may register multiple expected ACK codes for the same message, but sibling pending codes are cleared once one ACK wins so a DM should not accrue multiple delivery confirmations from retries.
 - ACKs are delivery state, not routing state. Bundled ACKs inside PATH packets still satisfy pending DM sends, but ACK history does not feed contact route learning.
 - DM ACKs are matched from two independent radio emissions, so confirmation does not depend on the radio surfacing a host control frame: (1) the `EventType.ACK`/`SEND_CONFIRMED` host frame via `event_handlers.on_ack`, and (2) the raw RF packet itself via `packet_processor.process_raw_packet`. The packet processor extracts ACK codes both from PATH-return packets (flood replies, ACK embedded in `extra`) and from standalone `PayloadType.ACK` packets (direct replies, 4-byte cleartext payload), feeding both into `apply_dm_ack_code`. This matters for companion firmwares (e.g. pyMC over TCP) that do not reliably emit a separate host ACK frame for direct-routed replies.
@@ -170,6 +200,11 @@ Escalating is still correct because the **server** side treats an inbound flood 
 Escalation is bounded to one extra attempt and only fires when:
 - the first attempt **timed out**. `LOGIN_FAILED` means the server heard us and refused, so the route is fine and retrying only hammers it with bad credentials; a send error is a local radio problem a different route will not fix.
 - the contact was **not already on flood** (`effective_route_source != "flood"`), since the retry would otherwise be byte-identical.
+
+### Remote CLI reply correlation and redaction
+
+- Every remote CLI command of 2+ characters is sent with a rotating `XX|` tag (two uppercase hex digits). Repeater/room `CommonCLI` (since Feb 2025) and OpenHop strip it and reflect it at the start of the reply. `fetch_contact_cli_response(expected_tag=...)` drops a reply that echoes a *different* tag (a late answer to an earlier command) and keeps waiting; untagged replies are still accepted for firmware without the echo. `extract_response_text` strips the tag before the `> ` prefix.
+- CLI commands and replies are logged through `app/log_redaction.py`: `password <pw>`, `set guest.password <pw>` and `set prv.key <hex>` are masked, and the reply to any command that reads or sets one of those secrets is logged as `***` (the firmware echoes the new admin password back). A filter on the `meshcore` logger masks the library's own `send_cmd` debug line. The API response itself is not redacted.
 
 The retry deliberately does not re-run `_ensure_on_radio` - re-adding the contact would restore the route just cleared. `reset_path` clears the route on the radio only; the stored contact route is untouched, so the next `add_contact` re-stages it. That mirrors the DM retry and keeps one bad login from discarding a route that may be fine.
 
@@ -216,6 +251,51 @@ Both traffic buckets come from one 24h raw-packet scan (`_packet_shape_24h`) sha
 - `0` means disabled.
 - Last send time tracked in `app_settings.last_advert_time`.
 
+### New-node notifications
+
+`app/services/new_node_notify.py` decides whether and when to broadcast the WS
+`new_node` event for a public key never stored in `contacts` before (plan 28
+item 1.5). It does not touch contact storage; it is a pure notification-timing
+layer called from two independent "this contact is brand new" call sites,
+each of which checks `existing is None` against a fresh
+`ContactRepository.get_by_key` read immediately before creating the row:
+
+- `packet_processor._process_advertisement` - a genuine RF advert for a key
+  never seen before.
+- `event_handlers.on_new_contact` (MeshCore `EventType.NEW_CONTACT`) - the
+  radio's own auto-add from hearing an advert directly. This is distinct from
+  `sync_contacts_from_radio()`'s bulk startup pull, which upserts contacts
+  directly and never raises this event, so a fresh install's initial contact
+  sync does not trigger notifications on its own.
+
+A contact type with no user-facing notification checkbox (`0`/unknown) never
+queues. Notifiable types are `1`/`2`/`3`/`4` (Client/Repeater/Room/Sensor),
+matching `discovery_blocked_types`' codes.
+
+Rate limiting:
+
+- **Busy mesh batching.** Each queued node resets a quiet-period timer
+  (`BATCH_QUIET_SECONDS`, 3s); the batch flushes that long after the last new
+  node, or `BATCH_MAX_WAIT_SECONDS` (15s) after the first one, whichever comes
+  first. A batch of exactly one node broadcasts full contact detail
+  (`batched: false`, `public_key`/`name`/`type` set); more than one broadcasts
+  a count + per-type breakdown only (`batched: true`, those three fields
+  null, `types: {"2": 2, "4": 1}` etc.).
+- **Startup warm-up.** `arm_startup_warmup()` (called once from `main.py`'s
+  lifespan, after the DB connects and before the radio connects) checks
+  whether `contacts` was empty; if so, notifications are suppressed for
+  `STARTUP_WARMUP_SECONDS` (1 hour - deliberately generous, since existing
+  mesh nodes' advert intervals are commonly minutes to hours apart) so the
+  initial catch-up burst on a fresh install is silent. `suppress_for(seconds)`
+  is exposed for a future bulk-import flow that runs without a process
+  restart; no such endpoint exists today.
+
+The frontend applies its own per-browser filter on top of this (master
+enable + per-type checkboxes, both local-only/off by default, same model as
+the existing per-conversation browser-notification toggle) - the backend
+always broadcasts a truthful `new_node` event regardless of any browser's
+preference, the same way `message` broadcasts do.
+
 ### Fanout bus
 
 - All external integrations (MQTT, bots, webhooks, Apprise, SQS) are managed through the fanout bus (`app/fanout/`).
@@ -223,7 +303,7 @@ Both traffic buckets come from one 24h raw-packet scan (`_packet_shape_24h`) sha
 - `broadcast_event()` in `websocket.py` dispatches to the fanout manager for `message`, `raw_packet`, and `contact` events.
 - `on_message` and `on_raw` are scope-gated. `on_contact`, `on_telemetry`, and `on_health` are dispatched to all modules unconditionally (modules filter internally).
 - Repeater telemetry broadcasts are emitted after `RepeaterTelemetryRepository.record()` in both `radio_sync.py` (auto-collect) and `routers/repeaters.py` (manual fetch). Contact LPP telemetry is similarly recorded to `ContactTelemetryRepository` and dispatched to fanout.
-- The telemetry collection loop in `radio_sync.py` is unified: it iterates over both `tracked_telemetry_repeaters` and `tracked_telemetry_contacts`, dispatching to `_collect_repeater_telemetry` (type 2) or `_collect_contact_telemetry` (others). The daily check ceiling uses the combined count.
+- The telemetry collection loop in `radio_sync.py` is unified: it iterates over both `tracked_telemetry_repeaters` and `tracked_telemetry_contacts`, dispatching by list, not contact type: repeater-list entries go to `_collect_repeater_telemetry` (status) and contact-list entries to `_collect_contact_telemetry` (LPP). The contact list accepts any contact type, repeaters included, so a repeater can be on both lists and is then polled for status and LPP separately. The daily check ceiling uses the combined count.
 - The 60-second radio stats sampling loop in `radio_stats.py` dispatches an enriched health snapshot (radio identity + full stats) to all fanout modules after each sample.
 - Community MQTT publishes raw packets only, but its derived `path` field for direct packets is emitted as comma-separated hop identifiers, not flat path bytes.
 - See `app/fanout/AGENTS_fanout.md` for full architecture details and event payload shapes.
@@ -249,10 +329,12 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `GET /debug` - support snapshot with recent logs, live radio probe, slot/contact audits, and version/git info
 
 ### Radio
-- `GET /radio/config` - includes `path_hash_mode`, `path_hash_mode_supported`, advert-location on/off, and `multi_acks_enabled`
-- `PATCH /radio/config` - may update `path_hash_mode` (`0..2`) when firmware supports it, and `multi_acks_enabled`
+- `GET /radio/config` - includes `path_hash_mode`, `path_hash_mode_supported`, advert-location on/off, `multi_acks_enabled`, and read-only `client_repeat_enabled` (`null` if firmware doesn't report it, fw ver < 9) / `client_repeat_allowed_freqs` (kHz ranges from `get_allowed_repeat_freq`, cached per connect; `null` if not queried)
+- `PATCH /radio/config` - may update `path_hash_mode` (`0..2`) when firmware supports it, and `multi_acks_enabled`. A `radio` block update (fw ver >= 9) always re-sends the device's current client-repeat state to `set_radio` explicitly (firmware treats a missing repeat byte as 0 and persists that - see `app/services/radio_commands.py`), then re-queries device info; returns `409` if repeat is currently on and the new frequency isn't in the cached allowed-repeat-frequency list. RTFM-EV never sends `repeat=1` itself; there is no UI to enable it yet
 - `GET /radio/private-key` - export in-memory private key as hex (requires `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT=true`)
 - `PUT /radio/private-key`
+- `GET /radio/contact-uri` - this node's `meshcore://` contact link (`{uri, public_key}`) via `export_contact()` with no key (CMD_EXPORT_CONTACT). Local radio command, nothing transmitted; 502 if the radio returns no valid signed advert
+- `GET /radio/gps`, `PATCH /radio/gps` - GPS on/off + report interval via the generic custom-vars commands (`app/services/meshcomod.py` `read_gps_settings`/`apply_gps_update`). Not meshcomod-gated: the `gps` custom var is part of the stock MeshCore companion firmware too (`ENV_INCLUDE_GPS` build flag + runtime GPS detection), so this works for any radio that reports it. `GET/PATCH /radio/meshcomod` reuse the same helpers for its combined CAD+GPS response
 - `POST /radio/advertise` - manual advert send; request body may set `mode` to `flood` or `zero_hop` (defaults to `flood`)
 - `POST /radio/discover` - short mesh discovery sweep for nearby repeaters/sensors
 - `POST /radio/discover-regions` - sweep nearby repeaters via the guest anon regions request; aggregates flood-allowed region names into a deduped union for merging into `known_regions` (direct-routed, so only in-range repeaters answer; optional `public_keys`, else recent repeaters)
@@ -269,11 +351,16 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `GET /contacts/repeaters/advert-paths` - recent advert paths for all contacts
 - `POST /contacts`
 - `POST /contacts/bulk-delete`
+- `POST /contacts/bulk-contact-uris` - body `{public_keys}`: `meshcore://` links for several contacts at once (`{links: {public_key: uri}}`), built from the most recently retained advert transmission per key (`AdvertEventRepository.latest_raw_adverts`, `advert_events` joined to `raw_packets`) and validated the same way an imported link is (hex, ADVERT packet, Ed25519 signature). Unlike `GET /{public_key}/contact-uri` this never talks to the radio; a key with no stored advert (never heard, or pruned by retention) is left out of the response rather than erroring. Used by the map's GPX export
+- `POST /contacts/import-uri` - body `{uri}`: import a `meshcore://` contact link (`app/contact_uri.py`). The link is validated first (scheme, hex, <= 255 bytes, ADVERT packet, Ed25519 signature; 400 otherwise), then sent with `import_contact` (CMD_IMPORT_CONTACT; 422 if the radio rejects it). The firmware loops the advert back as if heard and ignores the forwarding decision, so nothing is transmitted. A new contact is stored with the advert's name, type and location but no `last_advert`/`last_seen` (not heard on RF); an existing contact is left unchanged. Broadcasts `contact`. `share_contact` (CMD 0x10, transmits) is deliberately not used anywhere
 - `DELETE /contacts/{public_key}`
 - `POST /contacts/{public_key}/mark-read`
+- `POST /contacts/{public_key}/mark-unread` - `{message_id}`, marks unread from that message onward
 - `POST /contacts/{public_key}/command`
-- `POST /contacts/{public_key}/annotations` - set user annotations (`notes`, `owner_info`, `owner_key`, `manual_lat`, `manual_lon`); partial update, explicit `null` clears a field, `owner_key` must reference an existing contact (422 otherwise); broadcasts `contact`
+- `POST /contacts/{public_key}/annotations` - set user annotations (`notes`, `owner_info`, `owner_key`, `manual_lat`, `manual_lon`, `battery_chemistry`); partial update, explicit `null` clears a field (for `battery_chemistry`, reverting to the global default), `owner_key` must reference an existing contact (422 otherwise), `battery_chemistry` must be one of `lipo`/`lifepo4`/`lipo_hv`/`nmc` (422 otherwise); broadcasts `contact`
 - `POST /contacts/{public_key}/routing-override`
+- `GET /contacts/{public_key}/contact-uri` - the contact's `meshcore://` link via `export_contact(key)`: the radio returns the last raw advert it stored for that contact (404 when it has none, 502 if it returns another node's or an invalid advert). Nothing transmitted
+- `POST /contacts/{public_key}/telemetry-permissions` - body `{base, location, environment}` (all required); stores `telemetry_perms`, pushes the flag bits to the radio when the contact is loaded there (never adds it just for this), returns `applied_to_radio`; broadcasts `contact`
 - `POST /contacts/{public_key}/trace`
 - `POST /contacts/{public_key}/path-discovery` - discover forward/return paths, persist the learned direct route, and sync it back to the radio best-effort
 - `POST /contacts/{public_key}/repeater/login` - one attempt on the effective route, then one flood retry on timeout
@@ -285,12 +372,14 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `POST /contacts/{public_key}/repeater/radio-settings`
 - `POST /contacts/{public_key}/repeater/regions` - CLI region hierarchy, falling back to the guest anon flood-allowed names (`source`: `cli` or `anon`)
 - `POST /contacts/{public_key}/repeater/advert-intervals`
+- `POST /contacts/{public_key}/repeater/settings/read` - `get` of allow-listed editor settings (`{settings?: [...]}`; omit for all); error sentinels come back as null
+- `POST /contacts/{public_key}/repeater/settings/set` - ONE allow-listed `set <verb> <value>` over RF then `get <verb>` read-back; returns `status` `ok`/`mismatch`/`rejected`/`unverified` + `reboot_required`. Allow-list + value ranges live in `app/services/repeater_settings.py` (from the stock `CommonCLI.cpp`); anything off-list or out of range is a 400 before the radio is touched. `prv.key` and the admin `password` are deliberately not on the list.
 - `POST /contacts/{public_key}/repeater/owner-info` - also auto-fills the contact's stored `owner_info` when empty (never overwrites) and returns `stored_owner_info` + `owner_info_updated`
 - `GET /contacts/{public_key}/repeater/telemetry-history` - stored telemetry history for a repeater (read-only, no radio access)
 - `POST /contacts/{public_key}/telemetry` - on-demand CayenneLPP telemetry from any contact (persists in `contact_telemetry_history`)
 - `GET /contacts/{public_key}/telemetry-history` - stored LPP telemetry history for a contact (read-only)
 - `POST /contacts/{public_key}/room/login` - one attempt on the effective route, then one flood retry on timeout
-- `POST /contacts/{public_key}/room/status`
+- `POST /contacts/{public_key}/room/status` - room firmware's 52-byte status ends with `n_posted`/`n_post_push` (uint16 each) where repeaters have RX airtime; these map to `room_posted`/`room_post_pushes` and `rx_airtime_seconds` is null (`services/room_status.py`). A 56-byte frame (e.g. OpenHop) keeps the repeater layout
 - `POST /contacts/{public_key}/room/lpp-telemetry`
 - `POST /contacts/{public_key}/room/acl`
 
@@ -303,13 +392,31 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `POST /channels/{key}/flood-scope-override`
 - `POST /channels/{key}/path-hash-mode-override`
 - `POST /channels/{key}/mark-read`
+- `POST /channels/{key}/mark-unread` - `{message_id}`, marks unread from that message onward
+
+### Communities
+meshcore-open communities (`app/communities.py`, port of `lib/models/community.dart`; router `app/routers/communities.py`; table `communities` from migration `_110`). A community is a 32-byte secret `K` plus a name. Keys: public channel `HMAC-SHA256(K, "channel:v1:__public__")[:16]`, hashtag channel `HMAC-SHA256(K, "channel:v1:" + normalized)[:16]` (strip one leading `#`, lowercase, trim), community ID `SHA256("community:v1" || K)` hex. Channel names `"<name> Public"` (cut to 32 UTF-8 bytes) and `"<name> #<tag>"` (400 when over 32 bytes). Channels are DB-only (`is_hashtag=false`, `on_radio=false`) like `POST /channels`; an existing key is left untouched. Nothing transmits. `K` is stored in `communities.secret` so hashtags can be added later; it is never logged and only `GET /communities/{id}/export` returns it (`Cache-Control: no-store`). It is also in DB backups.
+- `GET /communities` - joined communities with their derived channels (matched by key; hashtag channels by `"<name> #<tag>"` name plus key check). No secret
+- `POST /communities/join` - body `{payload, add_public_channel=true, try_historical=false}`; `payload` is the QR JSON `{"v":1,"type":"meshcore_community","name":...,"k":<base64url, 32 bytes>}` (padded or unpadded; a leading `#` in the name is dropped because meshcore_py re-derives the key of a channel whose name starts with `#`). Re-joining the same secret keeps the stored row (`already_joined`). 202 when a historical decrypt sweep starts
+- `POST /communities/{id}/hashtags` - body `{hashtag, try_historical=false}`: create `"<name> #<tag>"` with the community-derived key
+- `GET /communities/{id}/export` - `{id, name, payload}`: QR JSON including the secret (padded base64url, like meshcore-open)
+- `DELETE /communities/{id}` - forget the community and its secret; its channels stay
 
 ### Messages
 - `GET /messages` - list with filters; supports `q` (full-text search), `after`/`after_id` (forward cursor)
 - `GET /messages/around/{message_id}` - context messages around a target (for jump-to-message navigation)
+- `GET /messages/locations` - location shares in DM + channel messages received in `(since, until]`, newest first; `latest_per_sender` (default true) keeps one per sender (self / DM partner / channel sender key, else name). Parsing in `app/location_payloads.py` (meshcore-open `m:` marker, upper-case MGRS via `app/mgrs.py`, `lat, lon` with 4+ decimals); service `app/services/shared_locations.py` scans at most 20,000 newest rows (`truncated`). Local map only, never fanned out
 - `POST /messages/direct`
 - `POST /messages/channel`
+- `POST /messages/direct/{message_id}/resend` - retry a failed DM as a new message and remove the failed row (see Outgoing messages)
 - `POST /messages/channel/{message_id}/resend`
+- `GET /messages/{message_id}/reaction-target` - resolve an emoji reaction to the message it reacts to: same conversation, up to 7 days before (`app/reaction_payloads.py`). Dialects:
+  - `@[Name]emoji\nhash` / `emoji\nhash`: SHA-256 of the target's body (without `Sender: `) + its sender timestamp (LE uint32), first 5 bytes as Crockford Base32. Checked against real traffic and a known-answer vector.
+  - meshcore-open `r:<hash>:<index>`: Dart `String.hashCode & 0xFFFF` of `<ts><sender name><first 5 UTF-16 units of body>` (sender name left out for 1:1 DMs). Only 16 bits, so the newest match wins. The Dart hash is ported from the Dart SDK source; there is no real-traffic vector yet.
+  - meshcore-open v1 `r:<millis>_<nameHash>_<textHash>:<emoji>` (clients before 2026-01-29): full Dart hashes of the sender name and body.
+  - A target with a leading `@[Name] ` reply prefix is also tried with it stripped (meshcore-open hashes replies that way). `target` is null when it was never received; 400 for non-reactions
+- `POST /messages/{message_id}/react` - body `{emoji}`; sends a reaction in that same wire format through the normal channel/DM send path (so it is stored, echo-tracked and shown like any sent message). 400 for non-emoji, a reaction target, or a channel row without a sender
+- `DELETE /messages/{message_id}` - hard-deletes the message row, its linked raw packet, and any stored reaction that resolves to it (`_find_reactions_targeting`, the inverse of the reaction-target search window), all in one transaction (`MessageRepository.delete_with_raw_packets`, mirroring the retention pruner's message prune). Local only, nothing sent over RF. If the message is an outgoing DM with a background retry still in flight (`services/message_send.py`), the retry is stopped via `services/dm_ack_tracker.mark_message_deleted`. Broadcasts one `message_deleted` WS event per deleted row. 404 if the message does not exist
 
 ### Packets
 - `GET /packets/undecrypted/count`
@@ -322,7 +429,9 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - `GET /packets/prefix-collisions` - public-key prefix collisions among full-key local contacts at 1/2/3-byte widths (Mesh Health "Prefix Collisions" tab). Point-in-time over contacts, not window-scoped. See `app/services/prefix_collisions.py`
 - `GET /packets/snr-rssi-scatter`, `GET /packets/hourly-heatmap`, `GET /packets/reachability-rings` - windowed signal scatter, 7x24 UTC packet heatmap, and unique contacts by minimum hop distance
 - `GET /packets/relay-pairs?limit` - most frequent consecutive node pairs across advert paths
-- `GET /packets/advert-links?limit` - resolved advert-path edges for the map link layer
+- `GET /packets/traffic-links?since&until&heard_only&max_km` - map links from the per-packet edge log (`link_edge_events`), aggregated per `(a, b, hop_width)` over the window: `count` (distinct packets), `first_seen`, `last_seen`, `ambiguous` (every sample in the window was a distance-based `nearest` resolution). Endpoints without a current location are dropped; `heard_only`/`max_km` as for advert-links
+- `GET /links/{a}/{b}/summary|timeseries|packets` (`app/routers/links.py`) - per-link history for the link detail page. Keys in either order (normalised to sorted lowercase). `summary?since&until`: endpoint names/kinds/coords, distance, `involves_self`, totals and breakdowns by hop width, confidence and payload type. `timeseries?since&until&bucket=hour|day`: distinct packets per UTC bucket and payload type, plus SNR/RSSI avg/min/max per bucket (only the edge into our node carries signal). `packets?limit&before`: newest-first edge rows with a `ts` cursor
+- `GET /packets/advert-links?limit&heard_only&max_km&since&until` - resolved advert-path edges for the map link layer (`since`/`until` filter `advert_events.first_seen`). `heard_only=true` resolves hops only against contacts with `last_seen` set (no never-heard contacts, no analyzer-only `external_map_nodes`); `max_km` (> 0) drops candidates farther than that from the previous hop (breaking the chain) and any longer direct/tail edge. The map's link layer uses both; the wrong-location filter fetches without them
 - `GET /packets/{packet_id}` - fetch one stored raw packet by row ID for on-demand inspection
 - `GET /packets/request-traffic` - single-node REQUEST/RESPONSE traffic in a window: totals (requests, anon, responses, flood/direct split), a time-bucketed series, and top src→dest 1-byte-hash pairs (Mesh Health "Requests" panel). Parses `raw_packets` filtered by `payload_type IN (REQUEST, ANON_REQUEST, RESPONSE)`; makes no answered/unanswered judgment (a single node cannot hear responses routed around it)
 - `POST /packets/decrypt/historical`
@@ -365,7 +474,7 @@ chosen node), and a Prefix Collisions tab badge.
 - `POST /settings/blocked-names/toggle`
 - `POST /settings/tracked-telemetry/toggle`
 - `GET /settings/tracked-telemetry/schedule` - current telemetry scheduling derivation, interval options, and next-run-at timestamp
-- `POST /settings/tracked-telemetry-contacts/toggle` - toggle tracked LPP telemetry for any contact (max 8)
+- `POST /settings/tracked-telemetry-contacts/toggle` - toggle tracked LPP telemetry for any contact, repeaters included (max 8)
 - `GET /settings/tracked-telemetry-contacts/schedule` - contact telemetry scheduling (shared ceiling with repeaters)
 - `POST /settings/muted-channels/toggle`
 
@@ -377,6 +486,10 @@ chosen node), and a Prefix Collisions tab badge.
 - `POST /backup/restore/upload` (multipart `file`) and `POST /backup/restore/server` (`{filename}`, bare name inside the backup directory) - validate a backup (SQLite header, `quick_check`, RemoteTerm tables, schema not newer than this build) and stage it as `<db>.restore-pending`
 - `DELETE /backup/restore` - cancel the staged restore; `DELETE /backup/restore/result` - forget the last outcome
 - A staged restore is applied by `app/services/db_restore.py:apply_pending_restore` at the top of `lifespan`, before `db.connect()`: it snapshots the current DB to `meshcore-pre-restore-<stamp>.db` next to it, removes the old `-wal`/`-shm`, swaps the file in, and the normal migrations then upgrade it. Scheduled snapshots (`meshcore-auto-<stamp>.db`, keep-N rotation of those files only) run from `app/services/backup_scheduler.py`
+
+### Retention
+- `GET /retention/stats?messages_days` - per-class row count + oldest timestamp (`app/repository/retention.py`), prune-service interval / last run / next run / last result; `messages_days` adds `messages_would_delete` (preview for the UI confirm)
+- `POST /retention/prune` - run `retention_pruner.prune_once()` now; returns rows deleted per class
 
 ### Fanout
 - `GET /fanout` - list all fanout configs
@@ -410,10 +523,13 @@ chosen node), and a Prefix Collisions tab badge.
 - `contact_resolved` - prefix contact reconciled to a full contact row (payload: `{ previous_public_key, contact }`)
 - `message` - new message (channel or DM, from packet processor or send endpoints)
 - `message_acked` - ACK/echo update for existing message (ack count + paths)
+- `message_failed` - outgoing DM ran out of retries without an ACK (payload: `{ message_id, failed_at }`)
 - `raw_packet` - every incoming RF packet (for real-time packet feed UI)
 - `contact_deleted` - contact removed from database (payload: `{ public_key }`)
 - `channel` - single channel upsert/update (payload: full `Channel`)
 - `channel_deleted` - channel removed from database (payload: `{ key }`)
+- `message_deleted` - message row removed: a local delete (one event per row, so a deleted reaction gets its own event alongside its target) or a failed DM replaced by a manual retry (payload: `{ message_id, type, conversation_key }`)
+- `new_node` - a public key never stored before (first advert ever, or the radio's own NEW_CONTACT auto-add); batched into a summary on a busy mesh. See "New-node notifications" below
 - `error` - toast notification (reconnect failure, missing private key, stuck radio startup, etc.)
 - `success` - toast notification (historical decrypt complete, etc.)
 
@@ -423,19 +539,22 @@ Client sends `"ping"` text; server replies `{"type":"pong"}`.
 ## Data Model Notes
 
 Main tables:
-- `contacts` (includes `first_seen` for contact age tracking and `direct_path_hash_mode` / `route_override_*` for DM routing; plus user-editable annotations `notes`, `owner_info`, `owner_key`, `manual_lat`, `manual_lon` - preserved through radio-sync upserts via `COALESCE`, never overwritten by adverts. `owner_key` references another contact; `manual_lat`/`manual_lon` are fallback coordinates used when the contact has no valid advertised location - by the frontend map/paths (`getEffectiveLocation`) and by the advert-links layer's `located_nodes()` query, which resolves the same advertised-wins/manual-fallback effective location so a manual-only node is still an edge endpoint)
+- `contacts` (includes `first_seen` for contact age tracking and `direct_path_hash_mode` / `route_override_*` for DM routing; plus user-editable annotations `notes`, `owner_info`, `owner_key`, `manual_lat`, `manual_lon` - preserved through radio-sync upserts via `COALESCE`, never overwritten by adverts. `owner_key` references another contact; `manual_lat`/`manual_lon` are fallback coordinates used when the contact has no valid advertised location - by the frontend map/paths (`getEffectiveLocation`) and by the advert-links layer's `located_nodes()` query, which resolves the same advertised-wins/manual-fallback effective location so a manual-only node is still an edge endpoint. `battery_chemistry`, migration `_108`, nullable, follows the `telemetry_perms` pattern: absent from the upsert's column list entirely, so radio-sync never touches it, only `set_annotations` does)
 - `channels`
   Includes optional `flood_scope_override` for channel-specific regional sends and optional `path_hash_mode_override` for per-channel path hop width.
 - `messages` (includes `sender_name`, `sender_key` for per-contact channel message attribution)
+- `link_edge_events` (migration `_107`) - per-packet link edge log: one row per resolved undirected node pair (`a_pubkey < b_pubkey`) per stored packet (`raw_packet_id`), with `ts`, `hop_width`, `payload_type`, `route_type`, `confidence` (`unique`/`confirmed`/`nearest`) and `snr`/`rssi` on the final hop into our node only. `UNIQUE(raw_packet_id, a_pubkey, b_pubkey, hop_width)`, so duplicate copies and the backfill are idempotent (first copy's signal wins). Written by `services/link_edges.record_packet_edges()` from `process_raw_packet` for every copy; resolution is the pure `services/traffic_links.py` (flood paths only, walked back from self and forward from an advert origin that is a contact; a hop needs a confirmed soft resolution, a unique prefix among the candidates, or a nearest located candidate at least `NEAREST_RATIO` = 2x closer than the next). Candidates come from `LinkEdgesRepository.known_nodes()`: contacts with a full 64-hex key only, located or not. Analyzer-only `external_map_nodes` are never link endpoints (an analyzer node joins once promoted to a contact by an applied partial resolution). `link_edge_backfill_state` (single row `next_id`/`end_id`) drives the one-time `services/link_edge_backfill.py` backfill over pre-`_107` `raw_packets`
 - `raw_packets` (includes signal columns `rssi`/`snr`/`payload_type` and decoded-stat columns `route_type`/`hop_count`/`hop_byte_width`/`path_signature`, parsed from the packet header at ingest and backfilled by migration 089; used by `/packets/raw-feed-stats` for historical breakdowns)
 - `airtime_history` (60s samples of the local radio's cumulative `tx_air_secs`/`rx_air_secs`; utilization % is derived at query time. Sibling of the in-memory `noise_floor_samples`/`battery_history` pattern in `app/services/radio_stats.py`)
-- `contact_advert_paths` (recent unique advertisement paths per contact, keyed by contact + path bytes + hop count)
+- `contact_advert_paths` (recent unique advertisement paths per contact, keyed by contact + path bytes + hop count; count per contact is `advert_paths_per_contact`)
 - `contact_name_history` (tracks name changes over time)
 - `repeater_telemetry_history` (time-series telemetry snapshots for tracked repeaters)
 - `contact_telemetry_history` (time-series LPP telemetry snapshots for tracked contacts; same schema as repeater table)
 - `fanout_configs` (MQTT, bot, webhook, Apprise, SQS integration configs)
 - `push_subscriptions` (Web Push browser subscriptions with delivery metadata; UNIQUE on endpoint)
 - `app_settings` (includes `vapid_private_key` and `vapid_public_key` for Web Push VAPID signing)
+
+Retention: every history table above is pruned only by `app/services/retention_pruner.py` (one loop, ticks every 60 s, runs when `retention_prune_interval_hours` has elapsed), using the per-class settings listed under Settings. Repositories do not prune on insert, except the `contact_advert_paths` trim in `record_observation`. SQL lives in `app/repository/retention.py`. After a run that deleted rows it calls `PRAGMA incremental_vacuum` (the DB uses `auto_vacuum=INCREMENTAL`). The manual `POST /packets/maintenance` cleanup is separate and unchanged.
 
 Contact route state is canonicalized on the backend:
 - stored route inputs: `direct_path`, `direct_path_len`, `direct_path_hash_mode`, `direct_path_updated_at`, plus optional `route_override_*`
@@ -463,19 +582,21 @@ Repository writes should prefer typed models such as `ContactUpsert` over ad hoc
 - `auto_resend_channel`
 - `auto_add_mentioned_channels` (when enabled, #hashtag channels referenced in chat are auto-recorded in the browser Channel Registry; registry-only, no followed channel is created)
 - `telemetry_interval_hours`, `telemetry_routed_hourly` (poll tracked nodes with a direct/routed path hourly instead of on the normal interval)
-- `advert_retention_days` (days of `advert_events` kept), `raw_packet_retention_days` (days of `raw_packets` kept, `0` = forever; bounds Packet History); both pruned daily
+- Retention (all `0` = keep forever / no cap; enforced by `services/retention_pruner.py` every `retention_prune_interval_hours`, default 24): `raw_packet_retention_days` (default 0; bounds Packet History), `advert_retention_days` (30), `telemetry_retention_days` (30) + `telemetry_max_rows_per_node` (1000) for both telemetry tables, `link_signal_retention_days` (30), `noise_floor_retention_days` / `battery_retention_days` / `airtime_retention_days` (0), `message_retention_days` (0; deletes the message's linked `raw_packets` first), `link_edge_retention_days` (365; `link_edge_events`, migration `_107`), `advert_paths_per_contact` (10; trimmed on insert and by the pruner, also the contact-analytics read limit). The newer fields are migration `_105`; `RETENTION_DEFAULTS` in `models.py` holds their defaults
 - `registry_sync_url` (remote `{name: key}` channel list synced into the registry), `analyzer_sites` (external analyzer link targets, incl. per-site `channel_url_template`), `handy_info` (user overlay for the Handy Info section)
 - `external_map_enabled`, `external_map_sync_url`, `external_map_sync_interval_hours` (external analyzer node-directory overlay on the map; also the candidate source for partial-node resolution)
 - `sidebar_hidden`, `sidebar_section_order`, `sidebar_tool_order`, `sidebar_favorites_order`, `sidebar_favorite_sort_orders` (sidebar customisation, persisted server-side)
+- `contact_groups` (user-defined contact/channel groups, each `{id, name, contact_keys, channel_keys}`; full-list replace via `PATCH /settings`, same convention as the other sidebar arrays above; migration `_111`. Each group is its own sidebar section - its key is `sidebar_section_order`'s `group:<id>` entries, tolerated by that field's "unknown keys are dropped/appended" reconciliation without a schema change. Local only, never sent over RF)
 - `packet_feed_sort`, `packet_history_sort` (`oldest`/`newest`), `packet_group_by_content` (shared "Group repeats by content" toggle for Raw Packet Feed + Packet History)
 - `mesh_health_page_size` (Mesh Health contacts table rows per page; `0` = all)
 - `date_time_format` (`auto` / `12h_mdy` / `24h_dmy`; migration `_103`)
+- `battery_chemistry` (`lipo` default / `lifepo4` / `lipo_hv` / `nmc`; global default for `mvToPercent` in `frontend/src/utils/batteryDisplay.ts`. A contact's own `battery_chemistry` column, migration `_108` and NULL = use this default, overrides it per node; see `ContactRepository._ANNOTATION_COLUMNS`)
 - `map_home_mode` (`auto` / `home` / `last`), `map_home_lat`, `map_home_lon`, `map_home_zoom` (map start view; migration `_104`)
 - `show_mention_ticker`, `mention_sound_enabled`, `mention_sound_choice`, `mention_sound_volume`, `mention_sound_custom`
 - `chat_parse_pubkeys`, `chat_parse_coordinates`, `chat_url_previews`, `chat_linkify_urls` (chat entity parsing)
 - `backup_to_path_enabled`, `backup_destination_path` (server-side database backup)
 - `backup_schedule_enabled`, `backup_schedule_interval_hours`, `backup_schedule_keep` (automatic snapshots into the backup directory; migration `_113`)
-- `brand_name`, `brand_hidden`, `brand_icon` (navbar branding)
+- `brand_name`, `brand_hidden`, `brand_icon` (navbar, browser tab title/favicon, PWA manifest name; default name "RTFM-EV")
 - `openhop_api_url`, `openhop_api_token` (OpenHop REST API; the token is write-only and masked on read)
 
 A new `AppSettings` field needs the repository, the router's separate `AppSettingsUpdate` model and its kwargs, a migration, and the inline `AppSettings` test fixtures updated together.

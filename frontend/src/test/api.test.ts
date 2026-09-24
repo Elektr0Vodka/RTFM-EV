@@ -171,6 +171,23 @@ describe('fetchJson (via api methods)', () => {
 
       await expect(api.getHealth()).rejects.toThrow('{"error": "validation failed"}');
     });
+
+    it('uses detail.message when detail is a structured object', async () => {
+      installMockFetch();
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        statusText: 'Conflict',
+        text: () =>
+          Promise.resolve(
+            '{"detail": {"message": "Limit of 8 tracked contacts reached", "names": {}}}'
+          ),
+      });
+
+      await expect(api.toggleTrackedTelemetryContact('aa')).rejects.toThrow(
+        'Limit of 8 tracked contacts reached'
+      );
+    });
   });
 
   describe('Content-Type header', () => {
@@ -303,6 +320,20 @@ describe('fetchJson (via api methods)', () => {
 
       const [url, options] = mockFetch.mock.calls[0];
       expect(url).toBe('./api/contacts/pubkey123');
+      expect(options.method).toBe('DELETE');
+    });
+
+    it('sends DELETE for deleteMessage', async () => {
+      installMockFetch();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ status: 'ok', deleted: 1 }),
+      });
+
+      await api.deleteMessage(42);
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe('./api/messages/42');
       expect(options.method).toBe('DELETE');
     });
 

@@ -15,6 +15,7 @@ import {
   useConversationNavigation,
   useRealtimeAppState,
   useBrowserNotifications,
+  useNewNodeNotifications,
   useMentionSound,
   useFaviconBadge,
   useUnreadTitle,
@@ -34,7 +35,13 @@ import { buildMentionEvent, type MentionEvent } from './components/MentionTicker
 import { getStateKey } from './utils/conversationState';
 import { isConversationSoundMuted, toggleConversationSoundMuted } from './lib/mentionSoundMute';
 import { getContactDisplayName } from './utils/pubkey';
-import type { BulkCreateHashtagChannelsResult, Channel, Conversation, Message } from './types';
+import type {
+  BulkCreateHashtagChannelsResult,
+  Channel,
+  ContactGroup,
+  Conversation,
+  Message,
+} from './types';
 import { CONTACT_TYPE_REPEATER, CONTACT_TYPE_ROOM } from './types';
 import { shouldAutoFocusInput } from './utils/autoFocusInput';
 import { computeRegionSeed } from './lib/regionSeed';
@@ -42,6 +49,7 @@ import { loadRegistry, recordMention, saveRegistry } from './lib/channelManager'
 import { buildNameSet } from './lib/hashtagChannelState';
 import { useLocale } from './i18n';
 import { resolveDateTimeFormat, setActiveDateTimeFormat } from './utils/dateTimeFormat';
+import { DEFAULT_BATTERY_CHEMISTRY, setActiveBatteryChemistry } from './utils/batteryDisplay';
 
 interface ChannelUnreadMarker {
   channelId: string;
@@ -105,6 +113,15 @@ export function App() {
     toggleConversationNotifications,
     notifyIncomingMessage,
   } = useBrowserNotifications();
+  const {
+    newNodeNotificationsSupported,
+    newNodeNotificationsPermission,
+    newNodeNotificationsEnabled,
+    newNodeNotificationTypes,
+    setNewNodeNotificationsEnabled,
+    setNewNodeNotificationType,
+    handleNewNodeEvent,
+  } = useNewNodeNotifications();
   const pushSubscription = usePush();
   const {
     showNewMessage,
@@ -195,6 +212,11 @@ export function App() {
   const { locale: uiLocale } = useLocale();
   setActiveDateTimeFormat(resolveDateTimeFormat(appSettings?.date_time_format ?? 'auto', uiLocale));
 
+  // Keep the global default battery chemistry in sync with the setting. Callers
+  // that display a specific node's battery (e.g. the telemetry map layer) pass
+  // that node's own override instead; everything else falls back to this.
+  setActiveBatteryChemistry(appSettings?.battery_chemistry ?? DEFAULT_BATTERY_CHEMISTRY);
+
   // Mention/DM notification sound. Plays via the websocket message path below.
   const { notifyMentionSound } = useMentionSound({
     enabled: appSettings?.mention_sound_enabled ?? false,
@@ -249,6 +271,7 @@ export function App() {
     fetchAllContacts,
     fetchUndecryptedCount,
     handleCreateContact,
+    handleImportContactUri,
     handleCreateChannel,
     handleCreateHashtagChannel,
     handleBulkCreateHashtagChannels,
@@ -322,6 +345,16 @@ export function App() {
     [setContacts, setChannels]
   );
 
+  // Full-list replace for user-defined contact/channel groups (server-persisted
+  // in app_settings.contact_groups). Membership edits, create/rename/delete all
+  // funnel through here from the sidebar, ContactInfoBody and ChannelInfoPane -
+  // each computes the "next" array with the pure helpers in utils/sidebarLayout
+  // and hands it to this single PATCH, matching the other sidebar arrays.
+  const handleUpdateContactGroups = useCallback(
+    (next: ContactGroup[]) => handleSaveAppSettings({ contact_groups: next }),
+    [handleSaveAppSettings]
+  );
+
   // useConversationRouter is called second - it receives channels/contacts as inputs
   const {
     activeConversation,
@@ -376,6 +409,8 @@ export function App() {
     reloadCurrentConversation,
     observeMessage,
     receiveMessageAck,
+    receiveMessageFailed,
+    removeMessage,
     reconcileOnReconnect,
     renameConversationMessages,
     removeConversationMessages,
@@ -424,10 +459,11 @@ export function App() {
     removeConversationState,
     markAllRead,
     markConversationsRead,
+    markConversationUnreadFromMessage,
     refreshUnreads,
   } = useUnreadCounts(channels, contacts, activeConversation);
-  useFaviconBadge(unreadCounts, mentions, channels);
-  useUnreadTitle(unreadCounts, contacts, channels);
+  useFaviconBadge(unreadCounts, mentions, channels, appSettings?.brand_icon || undefined);
+  useUnreadTitle(unreadCounts, contacts, channels, appSettings?.brand_name || undefined);
 
   const handleToggleMute = useCallback(
     async (key: string) => {
@@ -495,7 +531,10 @@ export function App() {
     renameConversationMessages,
     removeConversationMessages,
     receiveMessageAck,
+    receiveMessageFailed,
+    removeMessage,
     notifyIncomingMessage,
+    notifyNewNode: handleNewNodeEvent,
     onChannelMention: handleChannelMention,
     notifyMentionSound,
   });
@@ -524,6 +563,11 @@ export function App() {
   const {
     handleSendMessage,
     handleResendChannelMessage,
+    handleRetryDirectMessage,
+    handleReactToMessage,
+    handleReplyToMessage,
+    handleDeleteMessage,
+    handleMarkUnreadFromMessage,
     handleSetChannelFloodScopeOverride,
     handleSetChannelPathHashModeOverride,
     handleSenderClick,
@@ -536,7 +580,9 @@ export function App() {
     setContacts,
     setChannels,
     observeMessage,
+    removeMessage,
     messageInputRef,
+    markConversationUnreadFromMessage,
   });
   const handleCreateCrackedChannel = useCallback(
     async (name: string, key: string) => {
@@ -674,6 +720,7 @@ export function App() {
     sidebarFavoritesOrder: appSettings?.sidebar_favorites_order ?? [],
     sidebarFavoriteSortOrders: appSettings?.sidebar_favorite_sort_orders,
     sidebarHidden: appSettings?.sidebar_hidden,
+    contactGroups: appSettings?.contact_groups ?? [],
     onSaveSidebarOrder: handleSaveAppSettings,
   };
   const bulkAddChannelResultModalProps = {
@@ -681,6 +728,7 @@ export function App() {
   };
   const conversationPaneProps = {
     activeConversation,
+    onNavigateToMessage: handleNavigateToMessage,
     contacts,
     channels,
     config,
@@ -704,6 +752,12 @@ export function App() {
           )
         : undefined,
     onNavigateToUnread: (messageId: number) => setTargetMessageId(messageId),
+    onJumpToMessage: (messageId: number) => setTargetMessageId(messageId),
+    onReactToMessage: handleReactToMessage,
+    onRetryDirectMessage: handleRetryDirectMessage,
+    onReplyToMessage: handleReplyToMessage,
+    onDeleteMessage: handleDeleteMessage,
+    onMarkUnreadFromMessage: handleMarkUnreadFromMessage,
     targetMessageId,
     hasNewerMessages,
     loadingNewer,
@@ -735,6 +789,9 @@ export function App() {
     meshDiscovery,
     meshDiscoveryLoadingTarget,
     onDiscoverMesh: handleDiscoverMesh,
+    regionDiscovery,
+    regionDiscoveryLoading,
+    onDiscoverRegions: handleDiscoverRegions,
     onSaveAppSettings: handleSaveAppSettings,
     autoAddMentionedChannels: appSettings?.auto_add_mentioned_channels ?? false,
     parsePubkeys: appSettings?.chat_parse_pubkeys ?? false,
@@ -824,6 +881,8 @@ export function App() {
       onToggleBlockedName: handleBlockName,
       trackedTelemetryContacts: appSettings?.tracked_telemetry_contacts ?? [],
       onToggleTrackedTelemetryContact: handleToggleTrackedTelemetryContact,
+      contactGroups: appSettings?.contact_groups ?? [],
+      onUpdateContactGroups: handleUpdateContactGroups,
       onOpenConversation: (publicKey: string) => {
         const target = contacts.find((c) => c.public_key === publicKey);
         handleSelectConversationWithTargetReset({
@@ -852,10 +911,6 @@ export function App() {
     onDisconnect: handleDisconnect,
     onReconnect: handleReconnect,
     onAdvertise: handleAdvertise,
-    meshDiscovery,
-    regionDiscovery,
-    regionDiscoveryLoading,
-    onDiscoverRegions: handleDiscoverRegions,
     onHealthRefresh: handleHealthRefresh,
     onRefreshAppSettings: fetchAppSettings,
     blockedKeys: appSettings?.blocked_keys,
@@ -876,6 +931,12 @@ export function App() {
     onToggleTrackedTelemetry: handleToggleTrackedTelemetry,
     trackedTelemetryContacts: appSettings?.tracked_telemetry_contacts ?? [],
     onToggleTrackedTelemetryContact: handleToggleTrackedTelemetryContact,
+    newNodeNotificationsSupported,
+    newNodeNotificationsPermission,
+    newNodeNotificationsEnabled,
+    newNodeNotificationTypes,
+    onSetNewNodeNotificationsEnabled: setNewNodeNotificationsEnabled,
+    onSetNewNodeNotificationType: setNewNodeNotificationType,
   };
   const crackerProps = {
     channels,
@@ -889,6 +950,7 @@ export function App() {
     onCreateChannel: handleCreateChannel,
     onCreateHashtagChannel: handleCreateHashtagChannel,
     onBulkAddHashtagChannels: handleBulkAddChannels,
+    onImportContactUri: handleImportContactUri,
   };
   const contactInfoPaneProps = {
     contactKey: infoPaneContactKey,
@@ -911,6 +973,8 @@ export function App() {
     trackedTelemetryContacts: appSettings?.tracked_telemetry_contacts ?? [],
     onToggleTrackedTelemetryContact: handleToggleTrackedTelemetryContact,
     analyzerSites: appSettings?.analyzer_sites ?? [],
+    contactGroups: appSettings?.contact_groups ?? [],
+    onUpdateContactGroups: handleUpdateContactGroups,
     onOpenContactInfo: handleOpenContactInfo,
     onOpenConversation: (publicKey: string) => {
       const target = contacts.find((c) => c.public_key === publicKey);
@@ -928,6 +992,8 @@ export function App() {
     channels,
     onToggleFavorite: handleToggleFavorite,
     analyzerSites: appSettings?.analyzer_sites ?? [],
+    contactGroups: appSettings?.contact_groups ?? [],
+    onUpdateContactGroups: handleUpdateContactGroups,
   };
 
   // Connect to WebSocket

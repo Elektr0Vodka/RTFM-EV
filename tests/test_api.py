@@ -521,6 +521,62 @@ class TestDebugEndpoint:
         assert response.json()["sidebar_favorite_sort_orders"]["channels"] == "alpha"
 
     @pytest.mark.asyncio
+    async def test_contact_groups_round_trip(self, test_db, client):
+        """Contact groups default to [] and persist (full-list replace) via PATCH."""
+        response = await client.get("/api/settings")
+        assert response.status_code == 200
+        assert response.json()["contact_groups"] == []
+
+        response = await client.patch(
+            "/api/settings",
+            json={
+                "contact_groups": [
+                    {
+                        "id": "grp-1",
+                        "name": "  Field team  ",
+                        "contact_keys": ["ABCDEF01", "abcdef01"],
+                        "channel_keys": ["chan-key-1"],
+                    },
+                    {
+                        "id": "grp-2",
+                        "name": "Backups",
+                        "contact_keys": [],
+                        "channel_keys": [],
+                    },
+                ]
+            },
+        )
+        assert response.status_code == 200
+        groups = response.json()["contact_groups"]
+        assert len(groups) == 2
+        assert groups[0]["id"] == "grp-1"
+        # Name is trimmed; contact keys are lowercased and deduped.
+        assert groups[0]["name"] == "Field team"
+        assert groups[0]["contact_keys"] == ["abcdef01"]
+        assert groups[0]["channel_keys"] == ["chan-key-1"]
+        assert groups[1]["id"] == "grp-2"
+
+        # Persisted across a fresh GET.
+        response = await client.get("/api/settings")
+        groups = response.json()["contact_groups"]
+        assert [g["id"] for g in groups] == ["grp-1", "grp-2"]
+
+        # A blank id or name is dropped rather than rejected.
+        response = await client.patch(
+            "/api/settings",
+            json={
+                "contact_groups": [
+                    {"id": "", "name": "No id", "contact_keys": [], "channel_keys": []},
+                    {"id": "grp-3", "name": "  ", "contact_keys": [], "channel_keys": []},
+                    {"id": "grp-4", "name": "Kept", "contact_keys": [], "channel_keys": []},
+                ]
+            },
+        )
+        assert response.status_code == 200
+        groups = response.json()["contact_groups"]
+        assert [g["id"] for g in groups] == ["grp-4"]
+
+    @pytest.mark.asyncio
     async def test_packet_feed_sort_round_trip(self, test_db, client):
         """Packet-feed sort defaults to 'oldest' and persists 'newest' via PATCH."""
         response = await client.get("/api/settings")
@@ -753,6 +809,7 @@ class TestMessagesEndpoint:
             patch("app.routers.messages.MessageRepository") as mock_msg_repo,
         ):
             mock_msg_repo.get_by_content = AsyncMock(return_value=None)
+            mock_msg_repo.has_recent_outgoing_dm = AsyncMock(return_value=False)
             # Simulate duplicate - create returns None
             mock_msg_repo.create = AsyncMock(return_value=None)
 
@@ -1196,6 +1253,43 @@ class TestReadStateEndpoints:
 
         assert f"channel-{chan_key}" not in result["counts"]
         assert result["first_unread_ids"].get(f"channel-{chan_key}") is None
+
+    @pytest.mark.asyncio
+    async def test_get_unreads_reactions_are_not_mentions(self, test_db):
+        """A channel reaction names its target ("@[Name]emoji\\nhash") but is not a mention."""
+        react_key = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA2"
+        mention_key = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA3"
+        for key, name in ((react_key, "#react"), (mention_key, "#mention")):
+            await ChannelRepository.upsert(key=key, name=name)
+            await ChannelRepository.update_last_read_at(key, 1000)
+
+        await MessageRepository.create(
+            msg_type="CHAN",
+            text="Bob: @[TestUser]👍\nABCD1234",
+            received_at=1001,
+            conversation_key=react_key,
+            sender_timestamp=1001,
+        )
+        await MessageRepository.create(
+            msg_type="CHAN",
+            text="Carol: @[TestUser] r:1a2b:00",
+            received_at=1002,
+            conversation_key=react_key,
+            sender_timestamp=1002,
+        )
+        await MessageRepository.create(
+            msg_type="CHAN",
+            text="Bob: @[TestUser] look\nat this",
+            received_at=1003,
+            conversation_key=mention_key,
+            sender_timestamp=1003,
+        )
+
+        result = await MessageRepository.get_unread_counts("TestUser")
+
+        assert result["counts"][f"channel-{react_key}"] == 2
+        assert f"channel-{react_key}" not in result["mentions"]
+        assert result["mentions"][f"channel-{mention_key}"] is True
 
     @pytest.mark.asyncio
     async def test_get_unreads_no_name_skips_mentions(self, test_db):

@@ -10,8 +10,6 @@ import type {
   RadioAdvertMode,
   RadioConfig,
   RadioConfigUpdate,
-  RadioDiscoveryResponse,
-  RadioRegionDiscoveryResponse,
 } from '../types';
 import type { SettingsSection } from '../components/settings/settingsConstants';
 import {
@@ -63,6 +61,16 @@ const baseSettings: AppSettings = {
   auto_decrypt_dm_on_advert: false,
   advert_retention_days: 30,
   raw_packet_retention_days: 0,
+  retention_prune_interval_hours: 24,
+  telemetry_retention_days: 30,
+  telemetry_max_rows_per_node: 1000,
+  link_signal_retention_days: 30,
+  link_edge_retention_days: 365,
+  advert_paths_per_contact: 10,
+  noise_floor_retention_days: 0,
+  battery_retention_days: 0,
+  airtime_retention_days: 0,
+  message_retention_days: 0,
   last_message_times: {},
 
   advert_interval: 0,
@@ -82,10 +90,12 @@ const baseSettings: AppSettings = {
     rooms: 'recent',
     sensors: 'recent',
   },
+  contact_groups: [],
   packet_feed_sort: 'oldest',
   packet_history_sort: 'oldest',
   mesh_health_page_size: 50,
   date_time_format: 'auto',
+  battery_chemistry: 'lipo',
   packet_group_by_content: false,
   map_home_mode: 'auto',
   map_home_lat: null,
@@ -140,8 +150,6 @@ function renderModal(overrides?: {
   onDisconnect?: () => Promise<void>;
   onReconnect?: () => Promise<void>;
   onAdvertise?: (mode: RadioAdvertMode) => Promise<void>;
-  meshDiscovery?: RadioDiscoveryResponse | null;
-  regionDiscovery?: RadioRegionDiscoveryResponse | null;
   contacts?: Contact[];
   trackedTelemetryRepeaters?: string[];
   open?: boolean;
@@ -161,7 +169,6 @@ function renderModal(overrides?: {
   const onDisconnect = overrides?.onDisconnect ?? vi.fn(async () => {});
   const onReconnect = overrides?.onReconnect ?? vi.fn(async () => {});
   const onAdvertise = overrides?.onAdvertise ?? vi.fn(async (_mode: RadioAdvertMode) => {});
-  const onDiscoverRegions = vi.fn(async () => {});
 
   const commonProps = {
     open: overrides?.open ?? true,
@@ -177,10 +184,6 @@ function renderModal(overrides?: {
     onDisconnect,
     onReconnect,
     onAdvertise,
-    meshDiscovery: overrides?.meshDiscovery ?? null,
-    regionDiscovery: overrides?.regionDiscovery ?? null,
-    regionDiscoveryLoading: false,
-    onDiscoverRegions,
     onHealthRefresh: vi.fn(async () => {}),
     onRefreshAppSettings,
     contacts: overrides?.contacts,
@@ -207,7 +210,6 @@ function renderModal(overrides?: {
     onDisconnect,
     onReconnect,
     onAdvertise,
-    onDiscoverRegions,
     view,
   };
 }
@@ -365,65 +367,11 @@ describe('SettingsModal', () => {
     expect(screen.queryByRole('button', { name: 'Discover Repeaters' })).not.toBeInTheDocument();
   });
 
-  it('discovers regions using repeaters from the last mesh sweep', async () => {
-    const { onDiscoverRegions } = renderModal({
-      meshDiscovery: {
-        target: 'all',
-        duration_seconds: 8,
-        results: [
-          {
-            public_key: '11'.repeat(32),
-            name: 'RPT-A',
-            node_type: 'repeater',
-            heard_count: 1,
-            local_snr: 5,
-            local_rssi: -100,
-            remote_snr: 3,
-          },
-          {
-            public_key: '22'.repeat(32),
-            name: 'Sensor',
-            node_type: 'sensor',
-            heard_count: 1,
-            local_snr: 5,
-            local_rssi: -100,
-            remote_snr: 3,
-          },
-        ],
-      },
-    });
+  it('no longer shows region discovery in the radio tab', () => {
+    renderModal();
     openRadioSection();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Discover Regions' }));
-
-    // Only the repeater's key is passed, not the sensor's.
-    await waitFor(() => {
-      expect(onDiscoverRegions).toHaveBeenCalledWith(['11'.repeat(32)]);
-    });
-  });
-
-  it('adds discovered regions to the known-regions field', () => {
-    renderModal({
-      regionDiscovery: {
-        repeaters_queried: 2,
-        repeaters_answered: 2,
-        regions: ['nl-gr', 'de-by'],
-        results: [],
-      },
-    });
-    openRadioSection();
-
-    expect(screen.getByText('2/2 repeaters answered - 2 regions found')).toBeInTheDocument();
-
-    const knownRegions = screen.getByLabelText(
-      'Known Regions (for decoding)'
-    ) as HTMLTextAreaElement;
-    fireEvent.change(knownRegions, { target: { value: 'nl-gr' } });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Add to Known Regions' }));
-
-    // Existing 'nl-gr' preserved, only the new 'de-by' appended.
-    expect(knownRegions.value).toBe('nl-gr\nde-by');
+    expect(screen.queryByRole('button', { name: 'Discover Regions' })).not.toBeInTheDocument();
   });
 
   it('stages analyzer-synced regions into the known-regions field, additively', async () => {

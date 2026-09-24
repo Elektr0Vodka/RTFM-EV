@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Marker as MlMarker, type Map as MlMap } from 'maplibre-gl';
 import { isValidLocation } from '../utils/pathUtils';
+import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
 import { Button } from './ui/button';
 import type { Contact } from '../types';
 import { useT } from '../i18n';
@@ -26,6 +27,7 @@ export function LocationPickerModal({
   initialLabel = '',
 }: LocationPickerModalProps) {
   const t = useT();
+  const coordinateFormat = useCoordinateFormat();
   const [selected, setSelected] = useState<[number, number]>(initialCenter); // [lat, lon]
   const [label, setLabel] = useState(initialLabel);
   const mapRef = useRef<MlMap | null>(null);
@@ -128,7 +130,7 @@ export function LocationPickerModal({
           <MiniMap center={[initialCenter[1], initialCenter[0]]} zoom={13} onReady={handleReady} />
         </div>
         <div className="font-mono text-xs text-muted-foreground">
-          {selected[0].toFixed(6)}, {selected[1].toFixed(6)}
+          {formatCoordinates(selected[0], selected[1], coordinateFormat, 6)}
         </div>
         <label className="flex flex-col gap-1 text-sm">
           <span>{t('location_picker_label_field')}</span>

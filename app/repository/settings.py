@@ -7,8 +7,11 @@ import aiosqlite
 
 from app.database import db
 from app.models import (
+    BATTERY_CHEMISTRIES,
+    RETENTION_DEFAULTS,
     AnalyzerSite,
     AppSettings,
+    ContactGroup,
     HandyInfoSettings,
     MentionSoundMeta,
     SidebarFavoriteSortOrders,
@@ -71,10 +74,21 @@ class AppSettingsRepository:
                    openhop_api_url, openhop_api_token,
                    mention_sound_enabled, mention_sound_choice, mention_sound_volume,
                    sidebar_section_order, sidebar_tool_order, sidebar_favorites_order,
-                   sidebar_hidden, sidebar_favorite_sort_orders,
+                   sidebar_hidden, sidebar_favorite_sort_orders, contact_groups,
                    packet_feed_sort, packet_history_sort,
                    mesh_health_page_size, date_time_format, packet_group_by_content,
+                   battery_chemistry,
                    raw_packet_retention_days,
+                   retention_prune_interval_hours,
+                   telemetry_retention_days,
+                   telemetry_max_rows_per_node,
+                   link_signal_retention_days,
+                   advert_paths_per_contact,
+                   noise_floor_retention_days,
+                   battery_retention_days,
+                   airtime_retention_days,
+                   message_retention_days,
+                   link_edge_retention_days,
                    map_home_mode, map_home_lat, map_home_lon, map_home_zoom
             FROM app_settings WHERE id = 1
             """
@@ -160,6 +174,16 @@ class AppSettingsRepository:
         except (json.JSONDecodeError, TypeError, KeyError, ValueError):
             sidebar_favorite_sort_orders = SidebarFavoriteSortOrders()
 
+        # Parse contact_groups JSON array ([] or invalid -> no groups). Tolerate a
+        # missing column (partial migration snapshot).
+        contact_groups: list[ContactGroup] = []
+        try:
+            raw_groups = row["contact_groups"]
+            if raw_groups:
+                contact_groups = [ContactGroup.model_validate(g) for g in json.loads(raw_groups)]
+        except (json.JSONDecodeError, TypeError, KeyError, ValueError):
+            contact_groups = []
+
         # Packet-feed sort direction; tolerate a missing column (partial migration
         # snapshot) and coerce anything unexpected to the default.
         try:
@@ -192,6 +216,15 @@ class AppSettingsRepository:
             date_time_format = "auto"
         if date_time_format not in ("auto", "12h_mdy", "24h_dmy"):
             date_time_format = "auto"
+
+        # Global default battery chemistry; tolerate a missing column and coerce
+        # an unknown value back to 'lipo' (migration _108).
+        try:
+            battery_chemistry = row["battery_chemistry"]
+        except (KeyError, IndexError):
+            battery_chemistry = "lipo"
+        if battery_chemistry not in BATTERY_CHEMISTRIES:
+            battery_chemistry = "lipo"
         # Packet-filter 'Group repeats by content' toggle; tolerate a missing column.
         try:
             packet_group_by_content = bool(row["packet_group_by_content"])
@@ -398,6 +431,15 @@ class AppSettingsRepository:
         except (KeyError, TypeError, ValueError):
             raw_packet_retention_days = 0
 
+        # Per-class retention settings (migration _105; 0 = keep forever / no cap).
+        retention: dict[str, int] = {}
+        for name, default in RETENTION_DEFAULTS.items():
+            try:
+                value = row[name]
+                retention[name] = int(value) if value is not None else default
+            except (IndexError, KeyError, TypeError, ValueError):
+                retention[name] = default
+
         # Branding (migration _082). Guard against older/partial rows.
         try:
             brand_name = row["brand_name"] or ""
@@ -462,6 +504,7 @@ class AppSettingsRepository:
             auto_decrypt_dm_on_advert=bool(row["auto_decrypt_dm_on_advert"]),
             advert_retention_days=advert_retention_days,
             raw_packet_retention_days=raw_packet_retention_days,
+            **retention,
             last_message_times=last_message_times,
             advert_interval=row["advert_interval"] or 0,
             last_advert_time=row["last_advert_time"] or 0,
@@ -508,10 +551,12 @@ class AppSettingsRepository:
             sidebar_favorites_order=sidebar_favorites_order,
             sidebar_hidden=sidebar_hidden,
             sidebar_favorite_sort_orders=sidebar_favorite_sort_orders,
+            contact_groups=contact_groups,
             packet_feed_sort=packet_feed_sort,
             packet_history_sort=packet_history_sort,
             mesh_health_page_size=mesh_health_page_size,
             date_time_format=date_time_format,
+            battery_chemistry=battery_chemistry,
             packet_group_by_content=packet_group_by_content,
             map_home_mode=map_home_mode,
             map_home_lat=map_home_lat,
@@ -527,6 +572,16 @@ class AppSettingsRepository:
         auto_decrypt_dm_on_advert: bool | None = None,
         advert_retention_days: int | None = None,
         raw_packet_retention_days: int | None = None,
+        retention_prune_interval_hours: int | None = None,
+        telemetry_retention_days: int | None = None,
+        telemetry_max_rows_per_node: int | None = None,
+        link_signal_retention_days: int | None = None,
+        advert_paths_per_contact: int | None = None,
+        noise_floor_retention_days: int | None = None,
+        battery_retention_days: int | None = None,
+        airtime_retention_days: int | None = None,
+        message_retention_days: int | None = None,
+        link_edge_retention_days: int | None = None,
         last_message_times: dict[str, int] | None = None,
         advert_interval: int | None = None,
         last_advert_time: int | None = None,
@@ -572,10 +627,12 @@ class AppSettingsRepository:
         sidebar_favorites_order: list[str] | None = None,
         sidebar_hidden: SidebarHidden | None = None,
         sidebar_favorite_sort_orders: SidebarFavoriteSortOrders | None = None,
+        contact_groups: list[ContactGroup] | None = None,
         packet_feed_sort: str | None = None,
         packet_history_sort: str | None = None,
         mesh_health_page_size: int | None = None,
         date_time_format: str | None = None,
+        battery_chemistry: str | None = None,
         packet_group_by_content: bool | None = None,
         map_home_mode: str | None = None,
         map_home_lat: float | None = None,
@@ -605,6 +662,22 @@ class AppSettingsRepository:
         if raw_packet_retention_days is not None:
             updates.append("raw_packet_retention_days = ?")
             params.append(raw_packet_retention_days)
+
+        for name, value in (
+            ("retention_prune_interval_hours", retention_prune_interval_hours),
+            ("telemetry_retention_days", telemetry_retention_days),
+            ("telemetry_max_rows_per_node", telemetry_max_rows_per_node),
+            ("link_signal_retention_days", link_signal_retention_days),
+            ("advert_paths_per_contact", advert_paths_per_contact),
+            ("noise_floor_retention_days", noise_floor_retention_days),
+            ("battery_retention_days", battery_retention_days),
+            ("airtime_retention_days", airtime_retention_days),
+            ("message_retention_days", message_retention_days),
+            ("link_edge_retention_days", link_edge_retention_days),
+        ):
+            if value is not None:
+                updates.append(f"{name} = ?")
+                params.append(value)
 
         if last_message_times is not None:
             updates.append("last_message_times = ?")
@@ -646,6 +719,10 @@ class AppSettingsRepository:
             updates.append("sidebar_favorite_sort_orders = ?")
             params.append(json.dumps(sidebar_favorite_sort_orders.model_dump()))
 
+        if contact_groups is not None:
+            updates.append("contact_groups = ?")
+            params.append(json.dumps([g.model_dump() for g in contact_groups]))
+
         if packet_feed_sort is not None:
             updates.append("packet_feed_sort = ?")
             params.append(packet_feed_sort)
@@ -661,6 +738,11 @@ class AppSettingsRepository:
         if date_time_format is not None:
             updates.append("date_time_format = ?")
             params.append(date_time_format)
+
+        if battery_chemistry is not None:
+            updates.append("battery_chemistry = ?")
+            params.append(battery_chemistry)
+
         if packet_group_by_content is not None:
             updates.append("packet_group_by_content = ?")
             params.append(1 if packet_group_by_content else 0)
@@ -838,6 +920,16 @@ class AppSettingsRepository:
         auto_decrypt_dm_on_advert: bool | None = None,
         advert_retention_days: int | None = None,
         raw_packet_retention_days: int | None = None,
+        retention_prune_interval_hours: int | None = None,
+        telemetry_retention_days: int | None = None,
+        telemetry_max_rows_per_node: int | None = None,
+        link_signal_retention_days: int | None = None,
+        advert_paths_per_contact: int | None = None,
+        noise_floor_retention_days: int | None = None,
+        battery_retention_days: int | None = None,
+        airtime_retention_days: int | None = None,
+        message_retention_days: int | None = None,
+        link_edge_retention_days: int | None = None,
         last_message_times: dict[str, int] | None = None,
         advert_interval: int | None = None,
         last_advert_time: int | None = None,
@@ -883,10 +975,12 @@ class AppSettingsRepository:
         sidebar_favorites_order: list[str] | None = None,
         sidebar_hidden: SidebarHidden | None = None,
         sidebar_favorite_sort_orders: SidebarFavoriteSortOrders | None = None,
+        contact_groups: list[ContactGroup] | None = None,
         packet_feed_sort: str | None = None,
         packet_history_sort: str | None = None,
         mesh_health_page_size: int | None = None,
         date_time_format: str | None = None,
+        battery_chemistry: str | None = None,
         packet_group_by_content: bool | None = None,
         map_home_mode: str | None = None,
         map_home_lat: float | None = None,
@@ -901,6 +995,16 @@ class AppSettingsRepository:
                 auto_decrypt_dm_on_advert=auto_decrypt_dm_on_advert,
                 advert_retention_days=advert_retention_days,
                 raw_packet_retention_days=raw_packet_retention_days,
+                retention_prune_interval_hours=retention_prune_interval_hours,
+                telemetry_retention_days=telemetry_retention_days,
+                telemetry_max_rows_per_node=telemetry_max_rows_per_node,
+                link_signal_retention_days=link_signal_retention_days,
+                advert_paths_per_contact=advert_paths_per_contact,
+                noise_floor_retention_days=noise_floor_retention_days,
+                battery_retention_days=battery_retention_days,
+                airtime_retention_days=airtime_retention_days,
+                message_retention_days=message_retention_days,
+                link_edge_retention_days=link_edge_retention_days,
                 last_message_times=last_message_times,
                 advert_interval=advert_interval,
                 last_advert_time=last_advert_time,
@@ -946,10 +1050,12 @@ class AppSettingsRepository:
                 sidebar_favorites_order=sidebar_favorites_order,
                 sidebar_hidden=sidebar_hidden,
                 sidebar_favorite_sort_orders=sidebar_favorite_sort_orders,
+                contact_groups=contact_groups,
                 packet_feed_sort=packet_feed_sort,
                 packet_history_sort=packet_history_sort,
                 mesh_health_page_size=mesh_health_page_size,
                 date_time_format=date_time_format,
+                battery_chemistry=battery_chemistry,
                 packet_group_by_content=packet_group_by_content,
                 map_home_mode=map_home_mode,
                 map_home_lat=map_home_lat,

@@ -28,9 +28,15 @@ import {
   getCrtMapTint,
 } from '../utils/crt';
 import { setMapLock2D } from './engine/mapLock2D';
+import { transformTileRequest } from './engine/tileProxy';
 import { setBuildings3D } from './engine/buildings3D';
 import { isWebglAvailable } from './engine/webgl';
-import { MapControls, type FabConfig, type ExtraFab } from './controls/MapControls';
+import {
+  MapControls,
+  type FabConfig,
+  type ExtraFab,
+  type MapLinkMode,
+} from './controls/MapControls';
 
 setWorkerUrl(maplibreWorkerUrl);
 
@@ -40,6 +46,9 @@ export interface MapSurfaceProps {
   initialZoom?: number;
   onReady?: (map: MlMap) => void;
   onBasemapReapply?: () => void;
+  /** Called with the selected basemap's tone on mount and on every basemap
+   *  switch, so overlays can pick a colour that contrasts with the map. */
+  onBasemapTone?: (tone: 'light' | 'dark') => void;
   className?: string;
   children?: ReactNode;
   // Control passthrough to MapControls.
@@ -64,16 +73,21 @@ export interface MapSurfaceProps {
   onToggleNeon?: (on: boolean) => void;
   linksOn?: boolean;
   onToggleLinks?: (on: boolean) => void;
-  linkMode?: 'liveness' | 'advert';
-  onLinkMode?: (mode: 'liveness' | 'advert') => void;
+  linkMode?: MapLinkMode;
+  onLinkMode?: (mode: MapLinkMode) => void;
   linkConfidence?: 1 | 2 | 3;
   onLinkConfidence?: (level: 1 | 2 | 3) => void;
+  linkMaxKm?: number;
+  onLinkMaxKm?: (km: number) => void;
+  /** Link-age control for the server-backed link modes. */
+  linkAgePanel?: ReactNode;
   telemetryOn?: boolean;
   onToggleTelemetry?: (on: boolean) => void;
   sidebarOpen?: boolean;
   onSearch?: (query: string) => void;
   legendContent?: ReactNode;
   extraFabs?: ExtraFab[];
+  onExportGpx?: () => void;
 }
 
 /** Synchronous initial style for map creation. A vector-recolor basemap cannot
@@ -115,6 +129,7 @@ export function MapSurface(props: MapSurfaceProps) {
     initialZoom = 7,
     onReady,
     onBasemapReapply,
+    onBasemapTone,
     className,
     children,
     tilt3D = false,
@@ -125,7 +140,10 @@ export function MapSurface(props: MapSurfaceProps) {
   const theme: 'light' | 'dark' = dark ? 'dark' : 'light';
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
-  const webglOk = useRef(isWebglAvailable());
+  // Lazy initialiser: probe once per mount. `useRef(isWebglAvailable())` ran the
+  // probe (a new WebGL context) on every render, and the live packet overlay
+  // re-renders several times a second; Chrome then force-lost the map's context.
+  const [webglOk] = useState(isWebglAvailable);
   const [selectedBasemapId, setSelectedBasemapId] = useState<string>(() => getSavedBasemapId());
   // The overlay re-apply callback changes identity whenever its inputs change
   // (every few seconds while live packets run). Keep it in a ref so a new
@@ -137,9 +155,33 @@ export function MapSurface(props: MapSurfaceProps) {
   }, [onBasemapReapply]);
   const reapplyOverlays = useCallback(() => reapplyRef.current?.(), []);
 
+  // Browser fullscreen for the whole map surface (map, overlays and FABs). The
+  // FAB is offered only where the Fullscreen API works (not on iPhone Safari).
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [fullscreenEl, setFullscreenEl] = useState<HTMLElement | null>(null);
+  const fullscreenSupported =
+    typeof document !== 'undefined' && document.fullscreenEnabled === true;
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const onChange = () => {
+      const root = rootRef.current;
+      setFullscreenEl(root && document.fullscreenElement === root ? root : null);
+    };
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+  const toggleFullscreen = useCallback(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const request = document.fullscreenElement
+      ? document.exitFullscreen()
+      : root.requestFullscreen();
+    request.catch((err: unknown) => console.warn('Map fullscreen toggle failed', err));
+  }, []);
+
   // Create the map once.
   useEffect(() => {
-    if (!webglOk.current || !containerRef.current) return;
+    if (!webglOk || !containerRef.current) return;
     const entry = resolveBasemapEntry(selectedBasemapId);
     const map = new MlMap({
       container: containerRef.current,
@@ -147,6 +189,8 @@ export function MapSurface(props: MapSurfaceProps) {
       center: initialCenter,
       zoom: initialZoom,
       attributionControl: { compact: true },
+      // Route allow-listed basemap requests through the backend tile cache when on.
+      transformRequest: transformTileRequest,
     });
     mapRef.current = map;
     if (entry.kind === 'vector-recolor') markBasemapApplied(map, rasterFallbackFor(entry));
@@ -215,7 +259,13 @@ export function MapSurface(props: MapSurfaceProps) {
     });
   }, [selectedBasemapId, reapplyOverlays, theme, buildings, tintSig]);
 
-  if (!webglOk.current) {
+  // Report the basemap tone (raster fallbacks are tone-matched, so it holds
+  // even when a vector style falls back).
+  useEffect(() => {
+    onBasemapTone?.(getBasemap(selectedBasemapId).tone ?? 'dark');
+  }, [selectedBasemapId, onBasemapTone]);
+
+  if (!webglOk) {
     return (
       <div
         className={cn(
@@ -229,7 +279,7 @@ export function MapSurface(props: MapSurfaceProps) {
   }
 
   return (
-    <div className={cn('relative h-full w-full', className)}>
+    <div ref={rootRef} className={cn('relative h-full w-full', className)}>
       {/* Fill the parent for real: maplibre-gl.css forces `.maplibregl-map`
           to position:relative, which cancels an `absolute inset-0` container
           and collapses its height to 0. Use h-full/w-full so the height
@@ -266,6 +316,13 @@ export function MapSurface(props: MapSurfaceProps) {
         onLinkMode={props.onLinkMode}
         linkConfidence={props.linkConfidence}
         onLinkConfidence={props.onLinkConfidence}
+        linkMaxKm={props.linkMaxKm}
+        onLinkMaxKm={props.onLinkMaxKm}
+        linkAgePanel={props.linkAgePanel}
+        fullscreen={fullscreenEl != null}
+        onToggleFullscreen={fullscreenSupported ? toggleFullscreen : undefined}
+        onExportGpx={props.onExportGpx}
+        portalContainer={fullscreenEl}
         telemetryOn={props.telemetryOn}
         onToggleTelemetry={props.onToggleTelemetry}
         sidebarOpen={props.sidebarOpen}

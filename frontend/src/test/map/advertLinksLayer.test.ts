@@ -51,3 +51,15 @@ describe('buildAdvertArcs', () => {
     );
   });
 });
+
+describe('buildAdvertArcs click identity', () => {
+  it('carries endpoints, count and last seen for click handling', () => {
+    const fc = buildAdvertArcs([edge({ count: 4, last_seen: 100 })], now);
+    expect(fc.features[0].properties).toMatchObject({
+      a: 'ff00',
+      b: 'aa11',
+      count: 4,
+      last_seen: 100,
+    });
+  });
+});

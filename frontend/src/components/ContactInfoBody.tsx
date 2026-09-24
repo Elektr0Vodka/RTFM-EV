@@ -42,9 +42,13 @@ import { ZoomableChart } from './charts/ZoomableChart';
 import type { ChartWindow } from '../lib/chartZoom';
 import { ContactAvatar } from './ContactAvatar';
 import { ContactRadioResidencyControl } from './ContactRadioResidencyControl';
+import { ContactTelemetryPermissionsControl } from './ContactTelemetryPermissionsControl';
+import { ContactLinkShare } from './ContactLinkShare';
 import { LppSensorRow, formatLppLabel } from './repeater/repeaterPaneShared';
 import { toast } from './ui/sonner';
 import { useDistanceUnit } from '../contexts/DistanceUnitContext';
+import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
+import { createContactGroup, toggleGroupMember } from '../utils/sidebarLayout';
 import { CONTACT_TYPE_REPEATER } from '../types';
 import type {
   AnalyzerSite,
@@ -54,6 +58,7 @@ import type {
   ContactAnalytics,
   ContactAnalyticsHourlyBucket,
   ContactAnalyticsWeeklyBucket,
+  ContactGroup,
   LppSensor,
   PartialNodeResolution,
   RadioConfig,
@@ -126,6 +131,10 @@ export interface ContactInfoBodyProps {
   analyzerSites?: AnalyzerSite[];
   onOpenContactInfo?: (publicKey: string) => void;
   onOpenConversation?: (publicKey: string) => void;
+  /** User-defined contact/channel groups (server-persisted); omit to hide the
+   *  Groups section entirely (e.g. when the caller has no settings loaded). */
+  contactGroups?: ContactGroup[];
+  onUpdateContactGroups?: (next: ContactGroup[]) => void | Promise<void>;
   /** Which region to render. 'all' = the full single-column stack (mobile Sheet);
    *  'identity' | 'data' | 'network' = only that column's sections (desktop). */
   region?: ContactInfoRegion;
@@ -163,11 +172,14 @@ export function ContactInfoBody({
   analyzerSites = [],
   onOpenContactInfo,
   onOpenConversation,
+  contactGroups,
+  onUpdateContactGroups,
   region = 'all',
   showHeader = true,
 }: ContactInfoBodyProps) {
   const t = useT();
   const { distanceUnit } = useDistanceUnit();
+  const coordinateFormat = useCoordinateFormat();
 
   const show = (group: 'identity' | 'data' | 'network') => region === 'all' || region === group;
 
@@ -346,7 +358,7 @@ export function ContactInfoBody({
             }}
             title={t('contact_view_on_map')}
           >
-            {effectiveLocation.lat.toFixed(5)}, {effectiveLocation.lon.toFixed(5)}
+            {formatCoordinates(effectiveLocation.lat, effectiveLocation.lon, coordinateFormat)}
           </span>
         </div>
       )}
@@ -386,6 +398,15 @@ export function ContactInfoBody({
         </div>
       )}
 
+      {show('identity') && contactGroups && onUpdateContactGroups && (
+        <ContactGroupsSection
+          t={t}
+          contactKey={contact.public_key}
+          contactGroups={contactGroups}
+          onUpdateContactGroups={onUpdateContactGroups}
+        />
+      )}
+
       {show('data') && (
         <ContactAnnotations
           contact={contact}
@@ -398,6 +419,19 @@ export function ContactInfoBody({
 
       {show('identity') && !isPrefixOnlyResolvedContact && (
         <ContactRadioResidencyControl contact={contact} />
+      )}
+
+      {show('identity') && !isPrefixOnlyResolvedContact && (
+        <ContactTelemetryPermissionsControl contact={contact} />
+      )}
+
+      {show('identity') && !isPrefixOnlyResolvedContact && (
+        <ContactLinkShare
+          key={contact.public_key}
+          load={() => api.getContactUri(contact.public_key)}
+          hint={t('contact_link_contact_hint')}
+          className="px-5 py-3 border-b border-border"
+        />
       )}
 
       {show('identity') && (onToggleBlockedKey || onToggleBlockedName) && (
@@ -990,6 +1024,86 @@ function NearbyRepeatersSection({
   );
 }
 
+/**
+ * Group membership editor shared by contact info (here) and channel info
+ * (ChannelInfoPane): a checkbox per existing group plus an inline "create a
+ * new group and add this item" row. Membership is a full-list toggle (see
+ * utils/sidebarLayout toggleGroupMember) handed to the caller, which persists
+ * it server-side (app_settings.contact_groups).
+ */
+function ContactGroupsSection({
+  t,
+  contactKey,
+  contactGroups,
+  onUpdateContactGroups,
+}: {
+  t: TFn;
+  contactKey: string;
+  contactGroups: ContactGroup[];
+  onUpdateContactGroups: (next: ContactGroup[]) => void | Promise<void>;
+}) {
+  const [newGroupName, setNewGroupName] = useState('');
+  const normalizedKey = contactKey.toLowerCase();
+
+  const createAndAdd = () => {
+    const name = newGroupName.trim();
+    if (!name) return;
+    const group = createContactGroup(name);
+    void onUpdateContactGroups(
+      toggleGroupMember([...contactGroups, group], group.id, 'contact', contactKey)
+    );
+    setNewGroupName('');
+  };
+
+  return (
+    <div className="px-5 py-3 border-b border-border">
+      <SectionLabel>{t('contact_groups_heading')}</SectionLabel>
+      {contactGroups.length === 0 ? (
+        <p className="text-xs text-muted-foreground mb-2">{t('nav_contact_groups_empty')}</p>
+      ) : (
+        <div className="space-y-1.5 mb-2">
+          {contactGroups.map((group) => (
+            <label key={group.id} className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={group.contact_keys.includes(normalizedKey)}
+                onChange={() =>
+                  void onUpdateContactGroups(
+                    toggleGroupMember(contactGroups, group.id, 'contact', contactKey)
+                  )
+                }
+                className="h-4 w-4 rounded border-input"
+              />
+              <span className="truncate">{group.name}</span>
+            </label>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-1.5">
+        <input
+          type="text"
+          value={newGroupName}
+          onChange={(e) => setNewGroupName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') createAndAdd();
+          }}
+          placeholder={t('nav_group_name_placeholder')}
+          aria-label={t('nav_group_name_placeholder')}
+          className="w-full text-sm rounded border border-border bg-background px-2 py-1"
+        />
+        <button
+          type="button"
+          className="text-xs px-2 py-1 rounded border border-border hover:bg-accent transition-colors whitespace-nowrap disabled:opacity-50"
+          disabled={!newGroupName.trim()}
+          onClick={createAndAdd}
+        >
+          {t('contact_group_create_and_add')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ContactAnnotations({
   contact,
   contacts,
@@ -1012,6 +1126,7 @@ function ContactAnnotations({
   const [manualLon, setManualLon] = useState(
     contact.manual_lon != null ? String(contact.manual_lon) : ''
   );
+  const [batteryChemistry, setBatteryChemistry] = useState(contact.battery_chemistry ?? '');
 
   // Re-seed local state when the pane switches contact or the row updates over WS.
   useEffect(() => {
@@ -1020,6 +1135,7 @@ function ContactAnnotations({
     setOwnerKey(contact.owner_key ?? '');
     setManualLat(contact.manual_lat != null ? String(contact.manual_lat) : '');
     setManualLon(contact.manual_lon != null ? String(contact.manual_lon) : '');
+    setBatteryChemistry(contact.battery_chemistry ?? '');
   }, [
     contact.public_key,
     contact.notes,
@@ -1027,6 +1143,7 @@ function ContactAnnotations({
     contact.owner_key,
     contact.manual_lat,
     contact.manual_lon,
+    contact.battery_chemistry,
   ]);
 
   const ownerContact = ownerKey ? (contacts.find((c) => c.public_key === ownerKey) ?? null) : null;
@@ -1197,6 +1314,35 @@ function ContactAnnotations({
           </button>
         </div>
       </div>
+
+      {/* Battery chemistry override (null = use the global default in Settings) */}
+      <div>
+        <label
+          htmlFor={`battery-chemistry-${contact.public_key}`}
+          className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium block mb-1"
+        >
+          {t('contact_battery_chemistry_label')}
+        </label>
+        <select
+          id={`battery-chemistry-${contact.public_key}`}
+          className="w-full text-sm rounded border border-border bg-background p-2"
+          value={batteryChemistry}
+          onChange={(e) => {
+            const value = e.target.value as '' | 'lipo' | 'lifepo4' | 'lipo_hv' | 'nmc';
+            setBatteryChemistry(value);
+            save({ battery_chemistry: value === '' ? null : value });
+          }}
+        >
+          <option value="">{t('contact_battery_chemistry_global_default')}</option>
+          <option value="lipo">{t('settings_battery_chemistry_lipo')}</option>
+          <option value="lifepo4">{t('settings_battery_chemistry_lifepo4')}</option>
+          <option value="lipo_hv">{t('settings_battery_chemistry_lipo_hv')}</option>
+          <option value="nmc">{t('settings_battery_chemistry_nmc')}</option>
+        </select>
+        <p className="text-xs text-muted-foreground mt-1">
+          {t('contact_battery_chemistry_description')}
+        </p>
+      </div>
     </div>
   );
 }
@@ -1231,6 +1377,7 @@ function ContactTelemetrySection({
   onToggleTracked?: (publicKey: string) => Promise<void>;
 }) {
   const { distanceUnit } = useDistanceUnit();
+  const coordinateFormat = useCoordinateFormat();
   const [expanded, setExpanded] = useState(true);
   const [mapExpanded, setMapExpanded] = useState(false);
   const [chartExpanded, setChartExpanded] = useState(false);
@@ -1380,9 +1527,12 @@ function ContactTelemetrySection({
                     ) : (
                       <ChevronRight className="h-3 w-3" />
                     )}
-                    {t('contact_gps_coords', {
-                      lat: gpsValue!.latitude.toFixed(5),
-                      lon: gpsValue!.longitude.toFixed(5),
+                    {t('contact_gps_position', {
+                      position: formatCoordinates(
+                        gpsValue!.latitude,
+                        gpsValue!.longitude,
+                        coordinateFormat
+                      ),
                     })}
                   </button>
                   {mapExpanded && (

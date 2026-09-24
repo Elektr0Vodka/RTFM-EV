@@ -12,6 +12,7 @@ import {
 } from 'react';
 import { Smile } from 'lucide-react';
 import { Button } from './ui/button';
+import { EmojiPicker } from './EmojiPicker';
 import { toast } from './ui/sonner';
 import { cn } from '@/lib/utils';
 import {
@@ -29,56 +30,14 @@ const DM_HARD_LIMIT = 156; // Max bytes for direct delivery
 const DM_WARNING_THRESHOLD = 140; // Conservative for multi-hop
 const CHANNEL_HARD_LIMIT = 156; // Base byte limit before sender overhead
 const CHANNEL_WARNING_THRESHOLD = 120; // Conservative for multi-hop
-const CHANNEL_DANGER_BUFFER = 8; // Red zone starts this many bytes before hard limit
+// Largest "sender: text" that fits 9 AES blocks (4-byte timestamp + 1 flag byte
+// + 139 = 144). One byte more adds a 10th block, and the companion only forwards
+// a heard packet to us as an RX-log frame when it fits 176 bytes, so repeats of
+// the message are dropped past ~4 path bytes (region-scoped) or ~8 (unscoped).
+const CHANNEL_RX_LOG_COMPOSED_LIMIT = 139;
 
 const textEncoder = new TextEncoder();
 const RADIO_NO_RESPONSE_SNIPPET = 'no response was heard back';
-
-// Curated set of common emojis for the quick picker. Kept small and
-// dependency-free (no emoji-picker library) since LoRa messages are short and
-// byte-constrained; a compact grid covers the everyday cases.
-const QUICK_EMOJIS = [
-  '😀',
-  '😁',
-  '😂',
-  '🤣',
-  '😊',
-  '😉',
-  '😍',
-  '😘',
-  '😎',
-  '🤔',
-  '😐',
-  '😴',
-  '😢',
-  '😭',
-  '😡',
-  '🥳',
-  '👍',
-  '👎',
-  '👌',
-  '🙏',
-  '👏',
-  '💪',
-  '🤝',
-  '✌️',
-  '❤️',
-  '🔥',
-  '⭐',
-  '✨',
-  '🎉',
-  '💯',
-  '✅',
-  '❌',
-  '📡',
-  '📻',
-  '🛰️',
-  '🔋',
-  '⚡',
-  '🗺️',
-  '📍',
-  '🚀',
-];
 
 /** Get UTF-8 byte length of a string (LoRa packets are byte-constrained, not character-constrained). */
 function byteLen(s: string): number {
@@ -112,6 +71,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const [emojiOpen, setEmojiOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
 
   /** Resize textarea to fit content, clamped between 1 row and ~6 rows. */
   const autoResize = useCallback(() => {
@@ -180,6 +140,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       return {
         warningAt: DM_WARNING_THRESHOLD,
         dangerAt: DM_HARD_LIMIT, // Same as hard limit for DMs (no intermediate red zone)
+        dangerMessageKey: 'chat_may_impact_hop_delivery' as const,
         hardLimit: DM_HARD_LIMIT,
       };
     } else if (conversationType === 'channel') {
@@ -188,7 +149,8 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       const hardLimit = Math.max(1, CHANNEL_HARD_LIMIT - nameByteLen - 2);
       return {
         warningAt: CHANNEL_WARNING_THRESHOLD,
-        dangerAt: Math.max(1, hardLimit - CHANNEL_DANGER_BUFFER),
+        dangerAt: Math.max(1, CHANNEL_RX_LOG_COMPOSED_LIMIT + 1 - nameByteLen - 2),
+        dangerMessageKey: 'chat_repeats_may_not_show' as const,
         hardLimit,
       };
     }
@@ -209,7 +171,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       return { limitState: 'error', warningMessage: t('chat_truncated_by_radio') };
     }
     if (textByteLen >= limits.dangerAt) {
-      return { limitState: 'danger', warningMessage: t('chat_may_impact_hop_delivery') };
+      return { limitState: 'danger', warningMessage: t(limits.dangerMessageKey) };
     }
     if (textByteLen >= limits.warningAt) {
       return { limitState: 'warning', warningMessage: t('chat_may_impact_hop_delivery') };
@@ -222,6 +184,9 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const handleSubmit = useCallback(
     async (e: FormEvent) => {
       e.preventDefault();
+      // Never send from inside the emoji picker: Enter in its search box (e.g.
+      // with no results, or while loading) triggers implicit form submission.
+      if (pickerRef.current?.contains(document.activeElement)) return;
       const trimmed = text.trim();
       if (!trimmed || sending || disabled) return;
 
@@ -340,21 +305,12 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
           {emojiOpen && (
             <div
+              ref={pickerRef}
               role="dialog"
               aria-label={t('chat_emoji_picker')}
-              className="absolute bottom-full right-0 mb-2 z-50 grid grid-cols-8 gap-0.5 rounded-md border border-border bg-card p-2 shadow-lg"
+              className="absolute bottom-full right-0 mb-2 z-50 overflow-hidden rounded-md border border-border bg-card shadow-lg"
             >
-              {QUICK_EMOJIS.map((emoji) => (
-                <button
-                  key={emoji}
-                  type="button"
-                  onClick={() => insertEmoji(emoji)}
-                  aria-label={emoji}
-                  className="flex h-8 w-8 items-center justify-center rounded-sm text-xl leading-none hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <span aria-hidden="true">{emoji}</span>
-                </button>
-              ))}
+              <EmojiPicker onSelect={insertEmoji} />
             </div>
           )}
         </div>

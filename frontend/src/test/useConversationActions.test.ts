@@ -6,9 +6,12 @@ import type { Channel, Contact, Conversation, Message, PathDiscoveryResponse } f
 
 const mocks = vi.hoisted(() => ({
   api: {
+    reactToMessage: vi.fn(),
+    deleteMessage: vi.fn(),
     requestPathDiscovery: vi.fn(),
     requestTrace: vi.fn(),
     resendChannelMessage: vi.fn(),
+    resendDirectMessage: vi.fn(),
     sendChannelMessage: vi.fn(),
     sendDirectMessage: vi.fn(),
     setChannelFloodScopeOverride: vi.fn(),
@@ -67,6 +70,8 @@ function createArgs(overrides: Partial<Parameters<typeof useConversationActions>
     setChannels: vi.fn(),
     observeMessage: vi.fn(() => ({ added: true, activeConversation: true })),
     messageInputRef: { current: { appendText: vi.fn(), focus: vi.fn() } },
+    removeMessage: vi.fn(),
+    markConversationUnreadFromMessage: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
@@ -114,6 +119,51 @@ describe('useConversationActions', () => {
     });
 
     expect(args.observeMessage).not.toHaveBeenCalled();
+  });
+
+  it('retrying a failed DM replaces the failed bubble with the new copy', async () => {
+    const dmKey = 'aa'.repeat(32);
+    const newCopy: Message = { ...sentMessage, id: 43, type: 'PRIV', conversation_key: dmKey };
+    mocks.api.resendDirectMessage.mockResolvedValue({
+      status: 'ok',
+      message_id: 43,
+      message: newCopy,
+      replaced_message_id: 41,
+    });
+    const contactConversation: Conversation = { type: 'contact', id: dmKey, name: 'Alice' };
+    const removeMessage = vi.fn();
+    const args = createArgs({
+      activeConversation: contactConversation,
+      activeConversationRef: { current: contactConversation },
+      removeMessage,
+    });
+    const { result } = renderHook(() => useConversationActions(args));
+
+    await act(async () => {
+      await result.current.handleRetryDirectMessage(41);
+    });
+
+    expect(mocks.api.resendDirectMessage).toHaveBeenCalledWith(41);
+    expect(removeMessage).toHaveBeenCalledWith(41);
+    expect(args.observeMessage).toHaveBeenCalledWith(newCopy);
+    expect(mocks.toast.success).toHaveBeenCalledWith('Message sent again');
+  });
+
+  it('a failed retry keeps the failed bubble and shows the error', async () => {
+    mocks.api.resendDirectMessage.mockRejectedValue(new Error('Radio not connected'));
+    const removeMessage = vi.fn();
+    const args = createArgs({ removeMessage });
+    const { result } = renderHook(() => useConversationActions(args));
+
+    await act(async () => {
+      await result.current.handleRetryDirectMessage(41);
+    });
+
+    expect(removeMessage).not.toHaveBeenCalled();
+    expect(args.observeMessage).not.toHaveBeenCalled();
+    expect(mocks.toast.error).toHaveBeenCalledWith('Retry failed', {
+      description: 'Radio not connected',
+    });
   });
 
   it('appends sender mentions into the message input', () => {
@@ -239,5 +289,151 @@ describe('useConversationActions', () => {
     expect(setContacts).toHaveBeenCalledTimes(1);
     const updater = setContacts.mock.calls[0][0] as (contacts: Contact[]) => Contact[];
     expect(updater([])).toEqual([discoveredContact]);
+  });
+});
+
+describe('useConversationActions reactions and replies', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('sends a reaction and adds it to the active conversation', async () => {
+    const reaction = { ...sentMessage, id: 77, text: 'Radio: @[Bob]👍\n3eykm5rn' };
+    mocks.api.reactToMessage.mockResolvedValue(reaction);
+    const args = createArgs();
+    const { result } = renderHook(() => useConversationActions(args));
+
+    await act(async () => {
+      await result.current.handleReactToMessage(42, '👍');
+    });
+
+    expect(mocks.api.reactToMessage).toHaveBeenCalledWith(42, '👍');
+    expect(args.observeMessage).toHaveBeenCalledWith(reaction);
+  });
+
+  it('shows an error toast when sending a reaction fails', async () => {
+    mocks.api.reactToMessage.mockRejectedValue(new Error('radio busy'));
+    const args = createArgs();
+    const { result } = renderHook(() => useConversationActions(args));
+
+    await act(async () => {
+      await result.current.handleReactToMessage(42, '👍');
+    });
+
+    expect(mocks.toast.error).toHaveBeenCalled();
+  });
+
+  it('deletes a message after confirmation and removes it locally', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mocks.api.deleteMessage.mockResolvedValue({ status: 'ok', deleted: 1 });
+    const args = createArgs();
+    const { result } = renderHook(() => useConversationActions(args));
+
+    await act(async () => {
+      await result.current.handleDeleteMessage(sentMessage);
+    });
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(mocks.api.deleteMessage).toHaveBeenCalledWith(sentMessage.id);
+    expect(args.removeMessage).toHaveBeenCalledWith(sentMessage.id);
+    confirmSpy.mockRestore();
+  });
+
+  it('does not call the API when the delete confirmation is declined', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const args = createArgs();
+    const { result } = renderHook(() => useConversationActions(args));
+
+    await act(async () => {
+      await result.current.handleDeleteMessage(sentMessage);
+    });
+
+    expect(mocks.api.deleteMessage).not.toHaveBeenCalled();
+    expect(args.removeMessage).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it('shows an error toast and does not remove the message when delete fails', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mocks.api.deleteMessage.mockRejectedValue(new Error('radio busy'));
+    const args = createArgs();
+    const { result } = renderHook(() => useConversationActions(args));
+
+    await act(async () => {
+      await result.current.handleDeleteMessage(sentMessage);
+    });
+
+    expect(mocks.toast.error).toHaveBeenCalled();
+    expect(args.removeMessage).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it('prefills a channel reply with the sender mention and a quote', () => {
+    const appendText = vi.fn();
+    const args = createArgs({
+      messageInputRef: { current: { appendText, focus: vi.fn() } },
+    });
+    const { result } = renderHook(() => useConversationActions(args));
+
+    act(() => {
+      result.current.handleReplyToMessage({ ...sentMessage, text: 'Bob: hello mesh' });
+    });
+
+    expect(appendText).toHaveBeenCalledWith('@[Bob]\n>hello mesh\n');
+  });
+
+  it('marks a channel message unread from here', async () => {
+    const markConversationUnreadFromMessage = vi.fn().mockResolvedValue(undefined);
+    const args = createArgs({ markConversationUnreadFromMessage });
+    const { result } = renderHook(() => useConversationActions(args));
+
+    const incoming = { ...sentMessage, id: 55, outgoing: false };
+
+    await act(async () => {
+      await result.current.handleMarkUnreadFromMessage(incoming);
+    });
+
+    expect(markConversationUnreadFromMessage).toHaveBeenCalledWith({
+      type: 'channel',
+      id: publicChannel.key,
+      messageId: 55,
+    });
+    expect(mocks.toast.success).toHaveBeenCalled();
+  });
+
+  it('marks a contact (PRIV) message unread from here', async () => {
+    const markConversationUnreadFromMessage = vi.fn().mockResolvedValue(undefined);
+    const args = createArgs({ markConversationUnreadFromMessage });
+    const { result } = renderHook(() => useConversationActions(args));
+
+    const incoming: Message = {
+      ...sentMessage,
+      id: 56,
+      type: 'PRIV',
+      conversation_key: 'aa'.repeat(32),
+      outgoing: false,
+    };
+
+    await act(async () => {
+      await result.current.handleMarkUnreadFromMessage(incoming);
+    });
+
+    expect(markConversationUnreadFromMessage).toHaveBeenCalledWith({
+      type: 'contact',
+      id: 'aa'.repeat(32),
+      messageId: 56,
+    });
+  });
+
+  it('shows an error toast when marking unread fails', async () => {
+    const markConversationUnreadFromMessage = vi.fn().mockRejectedValue(new Error('nope'));
+    const args = createArgs({ markConversationUnreadFromMessage });
+    const { result } = renderHook(() => useConversationActions(args));
+
+    await act(async () => {
+      await result.current.handleMarkUnreadFromMessage({ ...sentMessage, outgoing: false });
+    });
+
+    expect(mocks.toast.error).toHaveBeenCalled();
   });
 });

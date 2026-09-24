@@ -14,6 +14,9 @@ import {
   Activity,
   Pin,
   Settings,
+  Maximize,
+  Minimize,
+  Download,
   X,
 } from 'lucide-react';
 import { useT } from '../../i18n';
@@ -29,12 +32,15 @@ import { isBool, usePersistedMapSetting } from '../usePersistedMapSetting';
 import { MapLegend } from './legend/MapLegend';
 import { NODE_ROLE_TYPES, DEFAULT_NODE_ROLE_COLORS } from '../layers/nodeRoleColors';
 import { ARC_FADE_PRESETS_MS, DEFAULT_ARC_FADE_MS } from '../packets/packetAnimMath';
+import { LINK_MAX_KM_UPPER } from '../linkDistance';
 import {
   CONTACT_TYPE_CLIENT,
   CONTACT_TYPE_REPEATER,
   CONTACT_TYPE_ROOM,
   CONTACT_TYPE_SENSOR,
 } from '../../types';
+
+export type MapLinkMode = 'liveness' | 'advert' | 'traffic';
 
 export interface FabConfig {
   layers?: boolean;
@@ -46,6 +52,8 @@ export interface FabConfig {
   links?: boolean;
   labelMode?: boolean;
   telemetry?: boolean;
+  fullscreen?: boolean;
+  gpxExport?: boolean;
 }
 
 export interface BasemapOption {
@@ -86,10 +94,22 @@ export interface MapControlsProps {
   onLabelMode?: (mode: 'off' | 'name' | 'tag') => void;
   linksOn?: boolean;
   onToggleLinks?: (on: boolean) => void;
-  linkMode?: 'liveness' | 'advert';
-  onLinkMode?: (mode: 'liveness' | 'advert') => void;
+  linkMode?: MapLinkMode;
+  onLinkMode?: (mode: MapLinkMode) => void;
+  /** Link-age control, shown for the server-backed link modes. */
+  linkAgePanel?: ReactNode;
   linkConfidence?: 1 | 2 | 3;
   onLinkConfidence?: (level: 1 | 2 | 3) => void;
+  /** Max link length in km; 0 = no limit. */
+  linkMaxKm?: number;
+  onLinkMaxKm?: (km: number) => void;
+  fullscreen?: boolean;
+  /** Omitted when the browser cannot go fullscreen; the FAB is then hidden. */
+  onToggleFullscreen?: () => void;
+  /** Export the currently-filtered nodes as a GPX file. Omitted hides the FAB. */
+  onExportGpx?: () => void;
+  /** Where the compact bottom sheet portals to (the fullscreen element, if any). */
+  portalContainer?: HTMLElement | null;
   telemetryOn?: boolean;
   onToggleTelemetry?: (on: boolean) => void;
   sidebarOpen?: boolean;
@@ -258,8 +278,15 @@ export function MapControls(props: MapControlsProps) {
     onToggleLinks,
     linkMode = 'liveness',
     onLinkMode,
+    linkAgePanel,
     linkConfidence = 2,
     onLinkConfidence,
+    linkMaxKm = 0,
+    onLinkMaxKm,
+    fullscreen = false,
+    onToggleFullscreen,
+    onExportGpx,
+    portalContainer,
     telemetryOn = false,
     onToggleTelemetry,
     sidebarOpen = false,
@@ -503,7 +530,7 @@ export function MapControls(props: MapControlsProps) {
               <span className="text-xs font-medium text-muted-foreground">
                 {t('map_links_mode_label')}
               </span>
-              {(['liveness', 'advert'] as const).map((mode) => (
+              {(['liveness', 'advert', 'traffic'] as const).map((mode) => (
                 <button
                   key={mode}
                   type="button"
@@ -515,12 +542,18 @@ export function MapControls(props: MapControlsProps) {
                   }
                   onClick={() => onLinkMode?.(mode)}
                 >
-                  {mode === 'liveness' ? t('map_links_mode_liveness') : t('map_links_mode_advert')}
+                  {t(
+                    mode === 'liveness'
+                      ? 'map_links_mode_liveness'
+                      : mode === 'advert'
+                        ? 'map_links_mode_advert'
+                        : 'map_links_mode_traffic'
+                  )}
                 </button>
               ))}
             </div>
           )}
-          {linksOn && linkMode === 'advert' && (
+          {linksOn && linkMode !== 'liveness' && (
             <div
               role="radiogroup"
               aria-label={t('map_links_confidence_label')}
@@ -547,6 +580,28 @@ export function MapControls(props: MapControlsProps) {
                 </button>
               ))}
             </div>
+          )}
+          {linksOn && linkMode !== 'liveness' && linkAgePanel}
+          {linksOn && onLinkMaxKm && (
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              <span className="font-medium">{t('map_links_max_km_label')}</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={LINK_MAX_KM_UPPER}
+                step={1}
+                value={linkMaxKm > 0 ? linkMaxKm : ''}
+                placeholder={t('map_links_max_km_placeholder')}
+                aria-label={t('map_links_max_km_label')}
+                className="w-full rounded border border-border bg-background px-2 py-1.5 text-sm text-foreground"
+                onChange={(e) => {
+                  const km = e.target.value === '' ? 0 : Number(e.target.value);
+                  if (Number.isFinite(km) && km >= 0 && km <= LINK_MAX_KM_UPPER) onLinkMaxKm(km);
+                }}
+              />
+              <span>{t('map_links_max_km_hint')}</span>
+            </label>
           )}
         </div>
       ),
@@ -598,7 +653,7 @@ export function MapControls(props: MapControlsProps) {
       id: 'overlays',
       label: t('map_group_overlays'),
       icon: <Activity size={20} aria-hidden />,
-      memberIds: ['packets', 'links', 'telemetry'],
+      memberIds: ['packets', 'links', 'telemetry', 'shared-locations', 'guessed-locations'],
     },
   ];
 
@@ -651,12 +706,13 @@ export function MapControls(props: MapControlsProps) {
     });
   }
 
-  // Direct-toggle FABs (no panel).
+  // Direct-toggle FABs (no panel). `active` is omitted for a plain action
+  // button (nothing to show pressed) so it renders without aria-pressed.
   const toggles: {
     id: string;
     label: string;
     icon: ReactNode;
-    active: boolean;
+    active?: boolean;
     onClick: () => void;
   }[] = [];
   if (fabs.tilt) {
@@ -675,6 +731,23 @@ export function MapControls(props: MapControlsProps) {
       icon: <Building2 size={20} aria-hidden />,
       active: buildings,
       onClick: () => onToggleBuildings?.(!buildings),
+    });
+  }
+  if (fabs.fullscreen && onToggleFullscreen) {
+    toggles.push({
+      id: 'fullscreen',
+      label: fullscreen ? t('map_fullscreen_exit') : t('map_fullscreen_enter'),
+      icon: fullscreen ? <Minimize size={20} aria-hidden /> : <Maximize size={20} aria-hidden />,
+      active: fullscreen,
+      onClick: onToggleFullscreen,
+    });
+  }
+  if (fabs.gpxExport && onExportGpx) {
+    toggles.push({
+      id: 'gpx-export',
+      label: t('map_gpx_export'),
+      icon: <Download size={20} aria-hidden />,
+      onClick: onExportGpx,
     });
   }
 
@@ -709,7 +782,7 @@ export function MapControls(props: MapControlsProps) {
               type="button"
               title={tg.label}
               aria-label={tg.label}
-              aria-pressed={tg.active}
+              aria-pressed={tg.active === undefined ? undefined : tg.active}
               className={FAB_CLASS + (tg.active ? ' border-primary text-primary' : '')}
               onClick={tg.onClick}
             >
@@ -732,7 +805,11 @@ export function MapControls(props: MapControlsProps) {
       {/* Compact: bottom sheet host. */}
       {compact && (
         <Sheet open={activePanel != null} onOpenChange={(o) => !o && setOpenPanel(null)}>
-          <SheetContent side="bottom" className="max-h-[70vh] overflow-y-auto">
+          <SheetContent
+            side="bottom"
+            className="max-h-[70vh] overflow-y-auto"
+            container={portalContainer}
+          >
             <SheetHeader>
               <SheetTitle>{activePanel?.label ?? t('map_controls_title')}</SheetTitle>
               <SheetDescription className="sr-only">{t('map_controls_title')}</SheetDescription>

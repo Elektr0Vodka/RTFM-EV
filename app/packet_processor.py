@@ -52,12 +52,14 @@ from app.services.contact_reconciliation import (
     record_contact_name_and_reconcile,
 )
 from app.services.dm_ack_apply import apply_dm_ack_code
+from app.services.link_edges import record_packet_edges
 from app.services.messages import (
     create_dm_message_from_decrypted as _create_dm_message_from_decrypted,
 )
 from app.services.messages import (
     create_message_from_decrypted as _create_message_from_decrypted,
 )
+from app.services.new_node_notify import notify_new_node
 from app.services.packet_decoded_fields import decoded_stat_fields
 from app.websocket import broadcast_error, broadcast_event
 
@@ -323,6 +325,8 @@ async def process_raw_packet(
         hop_byte_width=decoded_fields["hop_byte_width"],
         path_signature=decoded_fields["path_signature"],
     )
+    # Per-copy link edge log (map traffic links + link history). Never raises.
+    await record_packet_edges(packet_id, ts, packet_info, snr, rssi)
     raw_hex = raw_bytes.hex()
 
     if packet_info is None and len(raw_bytes) > 2:
@@ -548,11 +552,6 @@ async def _process_group_text(
     return None
 
 
-# X2b: throttled prune timestamp for link_signal, so traffic-only deployments
-# (no tracked repeaters, endpoint never called) still bound history growth.
-_last_link_signal_prune: float = 0.0
-
-
 async def _maybe_record_traffic_signal(
     subject_pubkey: str,
     path_length: int | None,
@@ -563,9 +562,8 @@ async def _maybe_record_traffic_signal(
     """Persist a my-node 0-hop signal sample from regular advert traffic (X2b).
 
     Only direct (path_length == 0) receptions are recorded. Best-effort: never
-    disrupts packet processing. Runs a throttled prune (<=1/hour).
+    disrupts packet processing. Pruning is done by the retention service.
     """
-    global _last_link_signal_prune
     if path_length != 0 or snr is None or not subject_pubkey:
         return
     from app.repository.link_signal import LinkSignalRepository
@@ -580,10 +578,6 @@ async def _maybe_record_traffic_signal(
             rssi=rssi,
             observed_at=timestamp,
         )
-        now = time.time()
-        if now - _last_link_signal_prune > 3600:
-            _last_link_signal_prune = now
-            await LinkSignalRepository.prune()
     except Exception as e:  # noqa: BLE001 - best-effort telemetry
         logger.debug("link_signal traffic capture failed: %s", e)
 
@@ -665,8 +659,6 @@ async def _process_advertisement(
     # Check discovery_blocked_types: skip new contacts whose type is blocked.
     # Existing contacts are always updated (location, name, last_seen, etc.).
     if existing is None and contact_type > 0:
-        from app.repository import AppSettingsRepository
-
         settings = await AppSettingsRepository.get()
         if contact_type in settings.discovery_blocked_types:
             logger.debug(
@@ -691,12 +683,21 @@ async def _process_advertisement(
     # exists when foreign key enforcement is enabled.
     await ContactRepository.upsert(contact_upsert)
 
-    # Keep recent unique advert paths for all contacts.
+    if existing is None:
+        # First advert ever heard for this public key (plan 28 item 1.5).
+        notify_new_node(
+            public_key=advert.public_key.lower(),
+            name=advert.name or "",
+            contact_type=contact_type,
+        )
+
+    # Keep recent unique advert paths for all contacts (count is a setting).
+    advert_paths_per_contact = (await AppSettingsRepository.get()).advert_paths_per_contact
     await ContactAdvertPathRepository.record_observation(
         public_key=advert.public_key.lower(),
         path_hex=new_path_hex,
         timestamp=timestamp,
-        max_paths=10,
+        max_paths=advert_paths_per_contact,
         hop_count=new_path_len,
         rssi=rssi,
         snr=snr,
@@ -748,8 +749,6 @@ async def _process_advertisement(
     # For new contacts, optionally attempt to decrypt any historical DMs we may have stored
     # This is controlled by the auto_decrypt_dm_on_advert setting
     if existing is None:
-        from app.repository import AppSettingsRepository
-
         settings = await AppSettingsRepository.get()
         if settings.auto_decrypt_dm_on_advert:
             await start_historical_dm_decryption(None, advert.public_key.lower(), advert.name)

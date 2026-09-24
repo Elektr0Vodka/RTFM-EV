@@ -22,7 +22,7 @@ from meshcore import EventType, MeshCore
 from app.channel_constants import PUBLIC_CHANNEL_KEY, PUBLIC_CHANNEL_NAME
 from app.config import settings
 from app.event_handlers import cleanup_expired_acks, on_contact_message
-from app.models import _VALID_CONTACT_TYPES, Contact, ContactUpsert
+from app.models import _VALID_CONTACT_TYPES, Contact, ContactUpsert, apply_telemetry_perms
 from app.radio import RadioOperationBusyError
 from app.repository import (
     AmbiguousPublicKeyPrefixError,
@@ -39,6 +39,7 @@ from app.services.contact_reconciliation import (
 )
 from app.services.messages import create_fallback_channel_message
 from app.services.radio_runtime import radio_runtime as radio_manager
+from app.services.room_status import room_status_fields
 from app.telemetry_interval import clamp_telemetry_interval
 from app.websocket import broadcast_error, broadcast_event
 
@@ -1100,6 +1101,49 @@ def _normalize_radio_contacts_payload(contacts: dict | None) -> dict[str, dict]:
     return normalized
 
 
+async def _reapply_app_telemetry_perms(mc: MeshCore, radio_contacts: dict[str, dict]) -> None:
+    """Push app-set telemetry permissions to radio contacts whose bits differ.
+
+    The app value wins: the radio may have auto-added the contact with default
+    flags, or another client may have changed them while we were disconnected.
+    """
+    try:
+        app_contacts = await ContactRepository.get_with_telemetry_perms()
+    except Exception as e:
+        logger.warning("Could not load app telemetry permissions: %s", e)
+        return
+
+    for contact in app_contacts:
+        radio_contact = radio_contacts.get(contact.public_key.lower())
+        if radio_contact is None or contact.telemetry_perms is None:
+            continue
+        radio_flags = int(radio_contact.get("flags") or 0)
+        wanted = apply_telemetry_perms(radio_flags, contact.telemetry_perms)
+        if wanted == radio_flags:
+            continue
+        try:
+            result = await mc.commands.change_contact_flags(radio_contact, wanted)
+        except Exception as e:
+            logger.warning(
+                "Error re-applying telemetry permissions to %s: %s", contact.public_key[:12], e
+            )
+            continue
+        if result is not None and result.type != EventType.ERROR:
+            await ContactRepository.set_flags(contact.public_key, wanted)
+            logger.info(
+                "Re-applied telemetry permissions to %s (flags 0x%02x -> 0x%02x)",
+                contact.public_key[:12],
+                radio_flags,
+                wanted,
+            )
+        else:
+            logger.warning(
+                "Radio rejected telemetry permissions for %s: %s",
+                contact.public_key[:12],
+                result.payload if result is not None else None,
+            )
+
+
 async def sync_contacts_from_radio(mc: MeshCore) -> dict:
     """Pull contacts from the radio and persist them to the database without removing them."""
     synced = 0
@@ -1136,6 +1180,8 @@ async def sync_contacts_from_radio(mc: MeshCore) -> dict:
             synced += 1
 
         logger.debug("Synced %d contacts from radio snapshot", synced)
+
+        await _reapply_app_telemetry_perms(mc, contacts)
 
         # Import radio-favorited contacts into app favorites.
         # Only trust the favorite bit on contacts with a valid type (0-4);
@@ -1902,7 +1948,6 @@ async def _collect_repeater_telemetry(mc: MeshCore, contact: Contact) -> bool:
         "packets_received": status.get("nb_recv", 0),
         "packets_sent": status.get("nb_sent", 0),
         "airtime_seconds": status.get("airtime", 0),
-        "rx_airtime_seconds": status.get("rx_airtime", 0),
         "uptime_seconds": status.get("uptime", 0),
         "sent_flood": status.get("sent_flood", 0),
         "sent_direct": status.get("sent_direct", 0),
@@ -1912,6 +1957,7 @@ async def _collect_repeater_telemetry(mc: MeshCore, contact: Contact) -> bool:
         "direct_dups": status.get("direct_dups", 0),
         "full_events": status.get("full_evts", 0),
         "recv_errors": status.get("recv_errors"),
+        **room_status_fields(contact.type, status),
     }
 
     # Best-effort LPP sensor fetch - failure here does not fail the overall
@@ -2014,7 +2060,7 @@ async def _collect_repeater_telemetry(mc: MeshCore, contact: Contact) -> bool:
 
 
 async def _collect_contact_telemetry(mc: MeshCore, contact: Contact) -> bool:
-    """Fetch LPP telemetry from a non-repeater contact and record it.
+    """Fetch LPP telemetry from a tracked contact (any type) and record it.
 
     Unlike repeaters, companions/rooms/sensors only respond to
     req_telemetry_sync (LPP), not req_status_sync (repeater status struct).
@@ -2129,7 +2175,7 @@ async def _run_telemetry_cycle(
             continue
         candidates.append((pub_key, contact, True))
 
-    # Build contact (non-repeater) candidates
+    # Build LPP contact candidates (any type, repeaters included)
     for pub_key in tracked_contacts:
         contact = await ContactRepository.get_by_key(pub_key)
         if not contact:
@@ -2181,12 +2227,6 @@ async def _run_telemetry_cycle(
         collected,
         len(candidates),
     )
-
-    # Bound neighbor-signal history growth once per cycle (X2b).
-    try:
-        await LinkSignalRepository.prune()
-    except Exception as e:  # noqa: BLE001 - best-effort maintenance
-        logger.debug("Neighbor signal prune failed: %s", e)
 
 
 async def _sleep_until_next_utc_top_of_hour() -> None:

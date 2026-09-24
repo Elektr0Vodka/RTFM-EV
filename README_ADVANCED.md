@@ -88,14 +88,50 @@ instead. To undo a restore, restore the `meshcore-pre-restore-*` file the same w
 `POST /api/backup/restore/upload`, `POST /api/backup/restore/server`.
 
 Raw packets are kept forever by default, so the database (and each backup) can keep
-growing. Set **Keep raw packet history (days)** in the
-same Settings database section to a positive value to have older raw packets
-pruned daily. That setting also bounds how far back the Packet History view can
-reach.
+growing. See **Data retention** below to prune older data automatically.
 
 **Restore (manual, without the UI):** stop the server, replace `data/meshcore.db`
 with the backup file, delete `data/meshcore.db-wal` and `data/meshcore.db-shm` if
 present, then start the server again.
+
+## Data retention
+
+Settings > Database > **Data retention** controls how long each kind of stored
+history is kept. Every value is a number of days, and `0` means keep forever.
+
+| Data | Default | Notes |
+|---|---|---|
+| Raw packets | 0 (forever) | Also bounds how far back Packet History reaches |
+| Messages | 0 (forever) | Pruning a message also deletes its stored raw packet, so it cannot be decrypted back |
+| Advert events (Mesh Health) | 30 | Bounds the Mesh Health time windows |
+| Repeater and contact telemetry | 30 days, 1000 rows per node | Rows per node keeps the newest; `0` = no cap |
+| Link signal history | 30 | |
+| Noise floor, battery, airtime (My Node) | 0 (forever) | About one sample per minute each |
+| Advert paths | 10 per contact | Most recent unique paths; minimum 1 |
+
+How it runs:
+
+- One prune service applies all settings. It runs about a minute after the server
+  starts and then every **Prune every** hours (default 24, range 1-168). A changed
+  interval takes effect within a minute.
+- **Prune now** runs it immediately. Each row shows the current row count and the
+  age of the oldest entry.
+- Lowering a value deletes the older data on the next run. Raising it does not bring
+  deleted data back.
+- Limits are enforced per run, not per insert, so a table can briefly hold up to one
+  interval of data beyond its limit.
+- Setting a message retention above 0, or lowering it, asks for confirmation and
+  shows how many messages the next run will delete.
+- **Keep everything (analyzer)** sets every limit to 0. **Restore defaults** puts the
+  table above back; that re-enables the 30-day limits and deletes older rows on the
+  next run.
+- After a run that deleted rows the server returns the freed space to the operating
+  system (`PRAGMA incremental_vacuum`).
+
+The defaults match the behaviour before these settings existed, so upgrading does
+not delete anything that was kept before. The manual **Storage Cleanup** tools in
+the same section are unchanged. API: `GET /api/retention/stats`,
+`POST /api/retention/prune`; settings via `PATCH /api/settings`.
 
 ## Contact Loading Issues
 
@@ -117,6 +153,7 @@ Setting `MESHCORE_LOAD_WITH_AUTOEVICT=true` enables an alternative contact loadi
 - Contact adds never fail - the radio always makes room by evicting stale contacts
 - The app can load contacts even when it can't enumerate the radio's existing contact table (e.g., on slow BLE connections)
 - No contact removal step is needed during reconciliation
+- When the radio evicts a contact it reports it, and the app forgets that contact was loaded, so the next sync or send loads it again
 
 **Trade-off:** Contacts loaded by the app are not marked as radio-side favorites, so they are eviction candidates if the radio receives a new advertisement while full. In practice, freshly-loaded contacts have a recent `lastmod` timestamp and will be among the last to be evicted. If you disconnect the radio from RemoteTerm and use it standalone, your contacts will not be protected from eviction by newer advertisements.
 
@@ -192,10 +229,16 @@ Customisation heading and the branding block below it.
   Dark map basemap to match the active phosphor (applies only while a CRT theme
   is selected and Nova Dark is the chosen map layer). CRT choices are per-device
   (stored in the browser), like the theme selection.
-- **Branding**: rename the top-bar "RemoteTerm" wordmark, hide it, or upload a
+- **Branding**: rename the top-bar "RTFM-EV" wordmark, hide it, or upload a
   custom icon (PNG/SVG/ICO/JPEG, up to 128 KB). Branding is stored server-side,
   so it is shared across every device that connects to the instance. Leaving the
-  name empty restores "RemoteTerm"; removing the icon restores the built-in logo.
+  name empty restores "RTFM-EV"; removing the icon restores the built-in logo.
+  The browser tab title and favicon follow the same name and icon (the unread
+  badge is drawn over a custom icon too); hiding the navbar name does not hide
+  it from the tab title. The name is also used for the installed-app (PWA)
+  name and the iOS home-screen title; the installed-app icon stays the
+  built-in logo. Already-installed apps may keep the old name until the
+  browser refreshes the manifest or the app is reinstalled.
 
 ## Development Notes
 

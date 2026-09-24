@@ -970,3 +970,105 @@ describe('MessageList path modal sender location', () => {
     expect(screen.getByText('(51.5000, 4.2500)')).toBeInTheDocument();
   });
 });
+
+describe('MessageList delete action', () => {
+  it('calls onDeleteMessage with the message when Delete is clicked', async () => {
+    const onDeleteMessage = vi.fn();
+    const msg = createMessage();
+    render(
+      <MessageList
+        messages={[msg]}
+        contacts={[]}
+        loading={false}
+        onDeleteMessage={onDeleteMessage}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(onDeleteMessage).toHaveBeenCalledWith(msg);
+  });
+
+  it('shows Delete even for a message with no sender_timestamp, without React/Reply', () => {
+    render(
+      <MessageList
+        messages={[createMessage({ sender_timestamp: null })]}
+        contacts={[]}
+        loading={false}
+        onReactToMessage={vi.fn()}
+        onReplyToMessage={vi.fn()}
+        onDeleteMessage={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'React' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reply' })).not.toBeInTheDocument();
+  });
+
+  it('renders no row actions when onDeleteMessage is not provided and the message is a reaction', () => {
+    render(
+      <MessageList
+        messages={[createMessage({ text: 'Alice: \u{1F44D}\nabcdefgh' })]}
+        contacts={[]}
+        loading={false}
+        onReactToMessage={vi.fn()}
+        onReplyToMessage={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'React' })).not.toBeInTheDocument();
+  });
+});
+
+describe('MessageList failed direct messages', () => {
+  const dm = (overrides: Partial<Message> = {}) =>
+    createMessage({
+      id: 10,
+      type: 'PRIV',
+      conversation_key: 'ab'.repeat(32),
+      text: 'are you there?',
+      outgoing: true,
+      ...overrides,
+    });
+
+  it('shows a failed marker and a Retry action instead of the pending ?', async () => {
+    const onRetry = vi.fn();
+    render(
+      <MessageList
+        messages={[dm({ failed_at: 1700000100 })]}
+        contacts={[]}
+        loading={false}
+        onRetryDirectMessage={onRetry}
+      />
+    );
+
+    expect(screen.getByText(/Failed/)).toBeInTheDocument();
+    expect(screen.queryByTitle('No repeats heard yet')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(onRetry).toHaveBeenCalledWith(10);
+  });
+
+  it('keeps the pending ? and no Retry while the DM is not failed', () => {
+    render(
+      <MessageList messages={[dm()]} contacts={[]} loading={false} onRetryDirectMessage={vi.fn()} />
+    );
+
+    expect(screen.getByTitle('No repeats heard yet')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+  });
+
+  it('treats an acked DM as delivered even if a failed marker is still set', () => {
+    render(
+      <MessageList
+        messages={[dm({ acked: 1, failed_at: 1700000100 })]}
+        contacts={[]}
+        loading={false}
+        onRetryDirectMessage={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByText(/Failed/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+  });
+});

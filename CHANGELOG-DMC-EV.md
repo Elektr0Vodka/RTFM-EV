@@ -11,7 +11,7 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
-## Update 2026-09-23 (Database restore + scheduled backups)
+## Update 2026-09-25 (Database restore + scheduled backups, feat/backup-restore)
 
 ### Backup and restore (backend + frontend)
 - **Restore a backup from Settings > Database.** Upload a `.db` file
@@ -44,6 +44,807 @@ the change. Upstream development is on hold; the fork is the active repository.
 - Closes the remaining gaps of plan [22] (restore flow, scheduled backups).
   Network-protocol (SMB/NFS/SFTP) clients are still out of scope; a mounted share
   works as the backup directory.
+
+## Update 2026-09-24 (Room server alpha notice removed)
+
+### Rooms (frontend)
+- **Removed the "experimental, public alpha" warning** shown above the room
+  server login form, along with its `room_experimental_notice_*` i18n keys
+  (EN/NL/DE). Room server login and behaviour are unchanged.
+
+## Update 2026-09-23 (Region discovery moved to Mesh Discovery, feat/discover-regions-mesh-discovery)
+
+### Tools (frontend)
+- **Discover Regions moved from Settings > Radio to Tools > Mesh Discovery**,
+  below the sweep buttons and results. It still prefers repeaters from the
+  last mesh sweep, now shown on the same page. "Add to Known Regions" now
+  merges the discovered regions into `known_regions` and saves them
+  immediately (reusing the repeater Regions pane's seed path), since there
+  is no unsaved Known Regions field on that page to review first. The Known
+  Regions field, Dutch-scope seed and analyzer region sync stay in Settings >
+  Radio. No backend change.
+
+## Update 2026-09-23 (Local message delete, plan 28 item 1.7, feat/local-message-delete)
+
+### Messages (backend)
+- **`DELETE /api/messages/{id}`**: hard-deletes the message row and its linked
+  raw packet in one transaction (mirroring the retention pruner's message
+  prune), so historical decryption cannot recreate it, and also deletes any
+  stored reaction that resolves to that message. Local only - nothing is
+  sent over RF. If the message is an outgoing DM whose background retry loop
+  is still in flight (`app/services/message_send.py`), the retry is stopped
+  instead of sending again for a message that no longer exists. Broadcasts a
+  new `message_deleted` WS event per deleted row. New
+  `MessageRepository.delete_with_raw_packets` and deleted-message tracking in
+  `app/services/dm_ack_tracker.py`. No migration.
+
+### Chat (frontend)
+- **Delete action.** Hovering a message row now shows a Delete action next
+  to React/Reply. Unlike React/Reply it is available on every message
+  (including reactions and messages with no sender timestamp), and asks for
+  confirmation first since deletion is irreversible. Removes the message
+  from the active conversation and any cached one; other open tabs update
+  over the `message_deleted` WS event, and unread counts are re-fetched so
+  they stay correct.
+## Update 2026-09-23 (DM failed state + manual retry, plan 28 item 1.1, feat/dm-failed-retry)
+
+### Chat (frontend)
+- **Failed DMs.** An outgoing DM that got no ACK after all background retries
+  now shows a red "Failed" marker instead of a `?` that never goes away. A
+  late ACK (see below) turns it into a normal delivered tick.
+- **Retry.** A failed DM gets a Retry row action (next to React/Reply). It
+  sends the text again as a new message (new timestamp, new ACK code, the
+  usual retries) and the new bubble replaces the failed one, like
+  meshcore-open's resend. Retry transmits over RF. If the new send fails (for
+  example no radio), the failed bubble stays and an error toast shows.
+
+### Messages (backend)
+- **Failed marker.** New nullable `messages.failed_at` (migration `_109`;
+  `_108` is reserved by another branch, numbering is reconciled at merge).
+  After the last retry attempt the backend waits one more ACK window, then
+  sets `failed_at` (only on an outgoing row with no ACK) and broadcasts the
+  new WS event `message_failed` (`{message_id, failed_at}`). The `Message`
+  payload carries `failed_at`.
+- **Late ACK.** For 30 s after a DM is marked failed, every ACK code it was
+  sent with still matches (meshcore-open behaviour): the ACK counts, clears
+  `failed_at` and broadcasts `message_acked`. An ACK later than that is
+  treated as unmatched and the DM stays failed.
+- **`POST /api/messages/direct/{message_id}/resend`.** Only for an outgoing
+  DM marked failed with no ACK (409 otherwise, 400 for channel or incoming
+  messages). Sends a new copy through the normal DM send path, then deletes
+  the failed row and broadcasts the new WS event `message_deleted`
+  (`{message_id, type, conversation_key}`). The failed row is kept when the
+  new send fails. No new in-flight limit: a retry is one ordinary DM send.
+- DMs whose first send returns no expected ACK code (no retries are
+  scheduled) are not marked failed; they keep showing `?`.
+## Update 2026-09-23 (Battery chemistry, feat/battery-chemistry, plan 28 item 1.9)
+
+### Battery display (frontend)
+- **Battery chemistry setting.** `frontend/src/utils/batteryDisplay.ts`
+  `mvToPercent` now supports four chemistries: LiPo keeps the existing real
+  discharge curve (Meshtastic OCV table); LiFePO4, LiPo HV and NMC use
+  meshcore-open's linear min-max mV ranges (`utils/battery_utils.dart`,
+  github.com/zjs81/meshcore-open, fetched and verified 2026-09-23:
+  2600-3650 / 3000-4350 / 3000-4200 mV) since no cited real discharge curve
+  was found for them. A global default lives in Settings > Local
+  Configuration > "Battery Chemistry" (server-side, `app_settings.
+  battery_chemistry`, so it is consistent across browsers rather than a
+  per-browser local preference like most settings on that page). Each
+  contact can override it in its contact info ("Battery chemistry", null =
+  use the global default). All three callers (status bar, My Node, and the
+  telemetry map layer) go through `mvToPercent`; the map layer resolves the
+  node's own override, the other two (this radio, no per-node concept) use
+  the global default.
+
+### Backend
+- New `app_settings.battery_chemistry` (`TEXT NOT NULL DEFAULT 'lipo'`) and
+  `contacts.battery_chemistry` (nullable `TEXT`, NULL = use the global
+  default, same convention as `telemetry_perms`) columns, migration `_108`.
+  `POST /contacts/{public_key}/annotations` accepts `battery_chemistry`
+  alongside the existing annotation fields (422 on an unrecognized value).
+## Update 2026-09-23 (Radio settings no longer reset client repeat, fix/radio-save-keeps-repeat, plan 29 Phase 0)
+
+### Radio (backend)
+- **Fix: saving Radio settings silently turned off client repeat.** `set_radio`
+  was always called without its optional repeat byte. Stock companion
+  firmware (fw ver 9+) treats a missing byte as 0 and always persists it, so
+  every Radio settings save turned off the off-grid "client repeat" mode,
+  even when another app had enabled it. RTFM-EV never enables client repeat
+  itself, but it must not fight another app's setting.
+- On connect (fw ver >= 9), RTFM-EV now reads the device's current client
+  repeat state and its allowed repeat frequencies (`get_allowed_repeat_freq`,
+  cached per connect) alongside the existing device-info query. Every
+  `PATCH /radio/config` radio-settings save now passes the current on-device
+  repeat value back to `set_radio` explicitly, then re-queries device info to
+  confirm what the firmware actually persisted. Firmware below version 9 is
+  unaffected (no repeat byte is sent, as before).
+- If client repeat is currently on and the requested frequency is not one the
+  firmware allows for repeat, the save is rejected with `409` instead of
+  either silently turning repeat off or getting a generic firmware error.
+- `GET /radio/config` now includes read-only `client_repeat_enabled` (`null`
+  when the firmware does not report support) and `client_repeat_allowed_freqs`
+  (kHz ranges, `null` if not queried), for this check and for a future
+  gated repeat toggle. No UI is added to enable repeat, and no code path
+  reachable from the UI sends `repeat=1`.
+## Update 2026-09-23 (Repeater LPP telemetry tracking, fix/repeater-lpp-telemetry-tracking)
+
+### Telemetry (backend + frontend)
+- **"Track Telemetry on Interval" works for repeaters.** On a repeater's
+  contact info page the LPP telemetry section's tracking button failed with
+  "Failed to update tracked contact telemetry", because the contact tracking
+  endpoint rejected repeaters with a 400. The endpoint now accepts any contact
+  type. This LPP list is separate from the repeater status list (Telemetry
+  History in the repeater dashboard), so a repeater on both lists is polled
+  once for status and once for LPP per cycle, and counts toward both caps and
+  the shared daily ceiling.
+- **Telemetry tracking errors show the server's reason.** Failed tracking
+  toggles now show the server's message (for example "Limit of 8 tracked
+  contacts reached") instead of a generic toast. `fetchJson` now uses
+  `detail.message` for structured error details instead of "[object Object]".
+
+### Home Assistant (backend)
+- **LPP-only repeater readings no longer blank the status sensors.** An LPP
+  reading for an HA-tracked repeater (the manual Request button, or LPP
+  interval tracking) sent `null` for battery, noise floor, packet counters and
+  the other status fields, which set those HA sensors to unknown until the
+  next status sample. Status fields missing from a snapshot are now left out
+  of the state payload, so HA keeps the last values. HA may log a template
+  warning per missing field.
+## Update 2026-09-23 (Communities, feat/communities, plan 28 item 1.3)
+
+### Channels (backend)
+- **meshcore-open communities.** New `app/communities.py` ports
+  meshcore-open's `models/community.dart`: from a community's 32-byte secret
+  it derives the public channel key (`HMAC-SHA256(K, "channel:v1:__public__")`,
+  first 16 bytes), community hashtag keys (`"channel:v1:" + tag`, tag
+  normalized as in meshcore-open) and the community ID. New endpoints under
+  `/api/communities`: join from the QR JSON
+  (`{"v":1,"type":"meshcore_community","name":...,"k":...}`), add a hashtag
+  channel (`"<name> #<tag>"`), export, forget. Channels are created in the
+  database only, like any other channel; nothing is transmitted. Plain
+  `#hashtag` channels still use `sha256(name)`.
+- **Community secret stored.** Migration `_110` adds a `communities` table
+  that keeps the secret so hashtag channels can be added later. The secret is
+  never logged, is not in the list endpoint, and is only returned by the
+  export endpoint. It is included in database backups.
+
+### Channels (frontend)
+- **Communities tab** in Channels > Import / Export: join by pasting the
+  JSON, scanning the QR code with a camera, or uploading a QR image; add
+  community hashtag channels; export the community as JSON or a QR code (copy,
+  JSON download, PNG download). The export is only fetched when you ask for
+  it. New dependencies: `uqr` (QR rendering, no dependencies) and
+  `zxing-wasm` (QR scanning; its WASM is bundled with the app and loaded only
+  when you scan, so no CDN is contacted).
+## Update 2026-09-23 (Contact groups, plan 28 item 1.16, feat/contact-groups)
+
+### Sidebar (frontend)
+- **User-defined contact/channel groups.** Create, rename and delete named
+  groups from the sidebar's Customize panel; a group can hold any mix of
+  contacts and channels, and an item can belong to several groups. Each group
+  renders as its own collapsible sidebar section (unread counts, new-item
+  badges, per-section "mark read" - same as the built-in sections) and slots
+  into the existing section reorder/hide/collapse system (drag order, hidden
+  overlay), so groups can be reordered alongside Tools/Favorites/Channels/
+  Contacts and hidden without deleting them. Membership is edited from the
+  contact info pane, the channel info pane, or the group's own checkbox list
+  in those panes (which also offers "create a new group and add this item"
+  inline). A grouped item drops out of its normal Channels/Contacts/Rooms/
+  Repeaters section, the same way a favorite does - the group is its
+  "leftover" section unless the item is also a favorite. Stored server-side
+  in `app_settings.contact_groups` so all browsers agree; section order,
+  hidden-entries and collapse state follow their existing storage (server for
+  order/hidden, client-local for collapse). Local only - nothing about groups
+  is sent over RF. Migration `_111` adds the `contact_groups` column.
+- New pure helpers in `frontend/src/utils/sidebarLayout.ts` for group section
+  keys and membership edits (`toggleGroupMember`, `createContactGroup`,
+  `renameContactGroup`, `deleteContactGroup`, `groupsContainingContact/
+  Channel`), covered directly in `frontend/src/test/sidebarLayout.test.ts`.
+## Update 2026-09-23 (Mark unread, plan 28 item 1.6, feat/mark-unread)
+
+### Chat (backend)
+- **Mark unread from here.** New `POST /api/contacts/{public_key}/mark-unread`
+  and `POST /api/channels/{key}/mark-unread` (`{message_id}`) set
+  `last_read_at` to just before the given message's `received_at`, so that
+  message and every incoming message after it count as unread again. Read
+  state stays server-side and shared across browsers, same as mark-read. The
+  message must be an incoming message in that conversation (400/404
+  otherwise).
+
+### Chat (frontend)
+- **"Mark unread from here" message action.** A new envelope icon next to
+  React/Reply on hover marks the conversation unread from that message
+  onward. The sidebar badge, unread count and first-unread divider
+  (`first_unread_ids`) reflect it on the next refresh, and it persists across
+  reloads and other browsers, since it is server-side.
+- **Fix: the manual unread mark no longer gets wiped while still viewing the
+  conversation.** The app auto-marks the open conversation as read on every
+  `/unreads` refresh (WS reconnect, mute toggle, etc.), which would otherwise
+  immediately undo a "mark unread from here" done on the currently open
+  conversation. That auto re-mark is now suppressed for the conversation just
+  marked unread until the user actually leaves and returns to it (a real
+  navigation), at which point it reads as normal again, same as any other
+  unread conversation.
+## Update 2026-09-23 (GIF URL forms, feat/gif-url-forms, plan 28 item 1.4)
+
+### Chat and display (frontend)
+- **Giphy URL forms for MeshCore Open GIFs.** A whole-message
+  `media.giphy.com/media/<id>/giphy.gif` or `giphy.com/gifs/[title-]<id>` link
+  (with or without `https://`) now renders as an inline GIF the same way
+  `g:<id>` already does, matching the two extra forms meshcore-open's
+  `GifHelper.parseGif` accepts besides its own picker's `g:<id>`. Gated by the
+  same Settings > Local > "Render MeshCore Open GIFs & Reactions" toggle
+  (off by default); with it off, the message renders as a plain link/URL
+  preview as before. No picker, no Giphy API key and no send-side conversion
+  (deferred; see plan 28 item 1.4).
+## Update 2026-09-23 (GPS toggle on stock firmware, plan 28 item 1.10, feat/gps-toggle-stock-fw)
+
+### Radio settings (backend + frontend)
+- **`GET`/`PATCH /radio/gps`.** The GPS on/off toggle no longer requires
+  meshcomod DMC/DMC-EV firmware: the `gps` custom var (read/written via the
+  generic `CMD_GET_CUSTOM_VARS` / `CMD_SET_CUSTOM_VAR` commands) is part of
+  the stock MeshCore companion firmware protocol too, gated at build time by
+  `ENV_INCLUDE_GPS` and at runtime by physical GPS detection. Settings > Radio
+  now shows a GPS section (enable + interval) for any connected radio that
+  reports the var, whether or not it is meshcomod. Meshcomod radios keep
+  their existing combined CAD/GPS control in the Meshcomod section unchanged;
+  the new section stays hidden for them to avoid showing GPS twice.
+- `app/services/meshcomod.py` GPS read/apply logic split into
+  `read_gps_settings` / `apply_gps_update`, reused by both
+  `GET`/`PATCH /radio/meshcomod` (unchanged behaviour) and the new
+  `GET`/`PATCH /radio/gps` endpoints. No migration.
+## Update 2026-09-23 (GPX export, feat/map-gpx-export, plan 28 item 1.8)
+
+### Map (frontend)
+- **GPX export.** A new Export FAB on the map (download icon) exports the
+  nodes the map currently shows under its active filters (role, heard/never-
+  heard, time window, hide-wrong-location, blocked) as a GPX 1.1 waypoint
+  file, `rtfm-ev-nodes-<date>.gpx`. Each waypoint has the node's name, its
+  effective position (advertised, or its manual override when the advertised
+  one is missing or invalid, in which case the description notes "manual
+  location"), and a description with its type and public key, following
+  meshcore-open's `utils/gpx_export.dart`. No tracks, only waypoints; nodes
+  with no usable location are skipped.
+
+### Contacts (backend)
+- **`POST /contacts/bulk-contact-uris`**: builds `meshcore://` contact links
+  for several contacts at once from the most recently retained advert
+  transmission per key (`advert_events` joined to `raw_packets`), instead of
+  the existing per-contact `GET /contacts/{key}/contact-uri` which asks the
+  radio (`CMD_EXPORT_CONTACT`) for each one. Read-only and never touches the
+  radio; a key with no stored advert (never heard, or pruned by retention) is
+  left out of the response rather than erroring. Used by the GPX export so a
+  page of nodes does not cost one radio round trip per node.
+## Update 2026-09-23 (Guessed locations map layer, feat/map-guessed-locations, plan 28 item 1.12)
+
+### Map (frontend)
+- **Guessed-locations layer.** A new "Guessed locations" section in the map
+  Overlays FAB (off by default, remembered per browser, shown from zoom 12+)
+  estimates a position for a node with no advertised or manual location: it
+  takes the node's own known advert paths, matches the hop nearest the origin
+  against located repeaters by 2- or 3-byte public-key prefix (1-byte hops are
+  skipped; they collide across too many nodes), drops anchor repeaters more
+  than 2x an estimated 15 km LoRa hop range apart from every other anchor, and
+  places the guess 330 m off a single anchor or 80-120 m off a weighted centre
+  of several, at an angle seeded from the node's public key so it stays put
+  across renders. Only nodes heard in the last 24h are guessed. Drawn as a
+  hollow "~" marker (never a filled circle, so it cannot be mistaken for a
+  real position); clicking it explains the position is a guess and names the
+  anchor repeater(s) and confidence. Guessed positions are never persisted,
+  never included in an export, and never sent anywhere. Ported in spirit from
+  meshcore-open's map screen (`lib/screens/map_screen.dart`, MIT); the
+  weighted-centre average is computed as a proper weighted mean (divided by
+  the sum of applied weights), fixing a bug in meshcore-open's own version
+  (divided by the anchor count instead), which otherwise pulls the estimate
+  toward (0, 0) as more anchors are combined. See `frontend/src/map/guessedLocations.ts`.
+## Update 2026-09-23 (Trace on a map, plan 28 item 1.14, feat/trace-on-map)
+
+### Map (frontend)
+- **Trace results on a map.** The Trace page's results panel now shows a small
+  map above the hop list: each hop is placed at its known location (advertised
+  or manual override, same as the rest of the map), the route line follows
+  the basemap tone like the message-path map (PR #183), and hovering a hop
+  marker shows its name and SNR. A hop with no known location is skipped on
+  the map (the list still shows it); the line segment bridging the gap to the
+  next located hop is drawn dashed instead of implying a direct hop. New
+  `TraceRouteMap.tsx` component and `utils/traceMapUtils.ts` (pure location
+  resolution and segment building, unit tested). Shared marker/colour helpers
+  moved from `PathRouteMap.tsx` into `map/routeMapVisuals.ts` so both map
+  embeds draw hops the same way; no behaviour change for message-path maps.
+  No backend change: `/radio/trace` already returns per-hop SNR.
+## Update 2026-09-23 (New-node notifications, feat/new-node-notifications, plan 28 item 1.5)
+
+### Notifications (backend + frontend)
+- **New-node browser notifications.** An optional browser notification for the
+  first time this app ever hears a public key: `app/services/new_node_notify.py`
+  detects it on the advert packet path (`packet_processor._process_advertisement`)
+  and the radio's own NEW_CONTACT auto-add (`event_handlers.on_new_contact`),
+  broadcasting a WS `new_node` event. On a busy mesh, nodes heard within a
+  3-second quiet window (capped at 15 seconds total) are batched into one
+  summary notification instead of one per node. Notifications are suppressed
+  for an hour after startup when the contacts table was empty (fresh install
+  or restored DB), so the initial catch-up burst does not fire a wall of
+  notifications for nodes that are only new to this install, not to the mesh.
+- **Settings > Local Configuration > "New node notifications"** (off by
+  default): a master enable checkbox plus per-node-type checkboxes (Client,
+  Repeater, Room, Sensor - the same type names shown elsewhere in the app),
+  gated on the browser's own `Notification` permission. Local-only preference
+  (`localStorage`, same model as the existing per-conversation browser
+  notification toggle); no server setting or Web Push involved. Clicking a
+  single-node notification opens that contact; clicking a batch summary opens
+  the default view where the sidebar/contacts are visible.
+## Update 2026-09-23 (Structured repeater settings editor, plan 28 item 1.2, feat/repeater-settings-editor)
+
+### Repeater dashboard (frontend)
+- **Settings Editor pane.** A new full-width pane on the repeater dashboard
+  lists an allow-listed set of repeater settings (name, lat/lon, owner info,
+  guest password, radio f/bw/sf/cr, TX power, duty cycle, RX boosted gain,
+  interference threshold, AGC reset interval, repeat, allow read-only, max
+  flood hops, multi ACKs, loop detection, path hash mode, flood/direct TX
+  delay, local and flood advert intervals) with an Edit button per row.
+  Current values come from the panes that already read them, or from "Read
+  current values" (`get` only). Every change is confirmed on its own: the
+  dialog shows the setting, the current value, the new value and the exact
+  CLI command before anything is sent. After sending, the result shows the
+  read-back and flags a mismatch, a firmware rejection, or a missing
+  read-back. Radio f/bw/sf/cr is one `set radio f,bw,sf,cr` command behind a
+  strong confirm: its Edit button stays locked until the current radio values
+  have been read (so the form never starts from guessed defaults), the user
+  must type the repeater name, and the dialog warns
+  that a wrong value strands the repeater off-air and that the firmware only
+  applies it after a reboot (the editor never reboots). `prv.key` and the
+  admin password are not editable. The raw CLI console is unchanged.
+
+### Repeaters (backend)
+- `POST /api/contacts/{key}/repeater/settings/set` sends ONE allow-listed
+  `set <verb> <value>` and then `get <verb>`, returning the read-back and a
+  status (`ok`, `mismatch`, `rejected`, `unverified`). Setting names and
+  values are validated server-side (`app/services/repeater_settings.py`,
+  ranges from the stock `CommonCLI.cpp`) before the radio is touched;
+  anything else is a 400 and nothing is sent.
+  `POST /api/contacts/{key}/repeater/settings/read` reads allow-listed
+  settings with `get` only. No migration.
+## Update 2026-09-23 (Backend map tile cache, plan 28 item 1.13, feat/backend-tile-cache)
+
+### Map (backend + frontend)
+- **Backend tile cache.** Settings > Map > Map tile cache (off by default).
+  When on, the browser sends map requests for allow-listed sources to
+  `/api/tiles/proxy/{source}/{path}`; the server fetches them from the fixed
+  upstream, stores the tiles that were viewed on disk under
+  `<data dir>/tile_cache/` and serves them to every browser. Cached areas keep
+  working when the internet is down (a stale tile is served when the upstream
+  cannot be reached); uncached tiles fail as before. Freshness follows the
+  upstream `Cache-Control` / `Expires` headers with conditional revalidation,
+  size is capped (default 1024 MB, least recently used evicted first) and
+  entries expire after a max age (default 365 days). The settings show per
+  source stats and a "Clear cache" button.
+- **Per-source policy.** OpenFreeMap (vector styles, tiles, sprites, glyphs),
+  OpenStreetMap and OpenTopoMap are proxied and cached for viewed tiles only,
+  with a contactable User-Agent. Esri stays direct and is never fetched by the
+  server (its terms forbid storing basemap data). Area pre-download exists in
+  the backend but is off for every current source, because each of their
+  terms forbids bulk or automated downloading; the UI says so instead of
+  showing the download form.
+- **Safety.** The server only ever contacts the fixed upstream host of an
+  allow-listed source, and the client-supplied path must match that source's
+  path patterns (tile coordinates are range-checked). Fetches are pinned to a
+  validated public IP, the same approach as the chat link-preview fetch. No
+  migration: settings live in `<data dir>/tile_cache/config.json`.
+
+## Update 2026-09-23 (Shared-locations map layer + MGRS, feat/shared-locations-map-layer)
+
+### Map (frontend)
+- **Shared-locations layer.** A new "Shared locations" section in the map
+  Overlays FAB (off by default, remembered per browser) shows location shares
+  from chat as amber pins (teal for meshcore-open `poi` markers), for the
+  map's time window (presets or the custom From/To range). By default only
+  the newest share per sender is shown; "Every share" shows all of them. DMs
+  and channels both count, and so do your own shares. Clicking a pin opens a
+  popup with the label, who shared it, the channel or DM, the receive time,
+  the coordinates, the format, the distance from your node, the hop count, a
+  Details link for known contacts, "Open in chat" (jumps to the message) and
+  an OpenStreetMap link. An MGRS share also shows the text as sent and its
+  grid square (outlined on the map from 10 m up).
+
+### Chat and display (frontend)
+- **MGRS references in chat.** With coordinate parsing on, an upper-case MGRS
+  reference such as `31U FT 45332 73249` (or `31UFT45337324`; 2-5 digits per
+  half) becomes a location card like a `lat, lon` pair, showing the original
+  reference above the converted position. Conversion uses the `mgrs` npm
+  package (proj4js, MIT). Lower case is not matched, since it also matches
+  short hex strings.
+- **Coordinate format setting.** Settings > Local > Coordinate format:
+  Decimal (default, unchanged), degrees/minutes/seconds, or MGRS. It applies
+  to the map node/external/focus popups, the shared-location popup, the
+  contact info location and telemetry GPS rows, chat location cards and the
+  Share location picker. Stored per browser. Shares you send still use
+  decimal degrees. The i18n key `contact_gps_coords` is replaced by
+  `contact_gps_position`.
+
+### Messages (backend)
+- **`GET /api/messages/locations`** (`since`, `until`, `latest_per_sender`,
+  default true): location shares in stored DM and channel messages received in
+  `(since, until]`, newest first, with the conversation name, sender, format,
+  label/flags, MGRS precision and paths. Recognizes meshcore-open
+  `m:<lat>,<lon>|<label>|<flags>` markers, upper-case MGRS references, and
+  `lat, lon` pairs with at least 4 decimals on both numbers (so "1.5, 2.5"
+  is not a location). It does not depend on `chat_parse_coordinates`. Blocked
+  keys and names are skipped. At most the newest 20,000 messages in the
+  window are scanned (`truncated` says so). For the local map only; nothing
+  is forwarded to fanout or MQTT. No migration.
+- New `app/location_payloads.py` (share parsing) and `app/mgrs.py` (MGRS to
+  lat/lon, a port of the `mgrs` npm package's inverse, tested against vectors
+  generated with that package).
+
+## Update 2026-09-23 (Map link age + per-link traffic history, feat/map-link-age-history)
+
+### Map (backend)
+- **Per-packet link edge log.** Every received packet copy (duplicates
+  included) is resolved into undirected node-pair edges and stored in the new
+  `link_edge_events` table (migration `_107`). Only flood paths count, because
+  MeshCore forwarders append their hash to a flood path; direct paths are the
+  route still ahead and TRACE stores SNR bytes in the path. Only contacts can
+  be link endpoints: analyzer-only nodes never are (an analyzer node counts once
+  it is a contact, for example after an applied partial resolution), and
+  prefix-only placeholder contacts are skipped. Hops are resolved outward from
+  our own node, and inward from the origin for adverts from a contact. A hop is
+  accepted only when a confirmed soft resolution matches, when exactly one
+  contact (with or without a location) has the prefix, or when the nearest
+  located contact is at least 2x closer than the next. SNR/RSSI is stored on the last
+  hop into our node. See `app/services/traffic_links.py`.
+- **One-time backfill** of the edge log from packets stored before the upgrade
+  (first-copy path only; later copies were never stored), running in the
+  background after startup and resuming across restarts.
+- **New retention setting** `link_edge_retention_days` (default 365, `0` = keep
+  forever) in Settings > Database > Data retention.
+- **New endpoints:** `GET /api/packets/traffic-links?since&until&heard_only&max_km`
+  (links aggregated over a window) and `GET /api/links/{a}/{b}/summary`,
+  `/timeseries?bucket=hour|day`, `/packets?limit&before` (per-link history).
+  `GET /api/packets/advert-links` gains `since`/`until`.
+
+### Map (frontend)
+- **Link age selection.** The advert and traffic link modes follow the map's
+  node time filter by default; under Overlays > Links you can switch that off
+  and pick an own preset or From/To range (remembered per browser).
+- **"All traffic" link mode** (third mode next to Liveness and Advert paths),
+  drawn in green from the edge log.
+- **Clickable links.** Clicking an advert or traffic link opens a popup with the
+  endpoints, distance, packets in the window and last seen, plus "Details",
+  which opens a full page (`#link/<a>/<b>`) with summary cards, a traffic trend
+  stacked by packet type (hour/day buckets, zoom/pan), a signal trend for links
+  to your own node, and the recent packets (click one to inspect it). Strings in
+  EN/NL/DE.
+
+## Update 2026-09-23 (SMAZ message decode, feat/smaz-decode)
+
+### Messages (backend)
+- **SMAZ-compressed messages are decoded on receive.** Another MeshCore
+  client (meshcore-open) can send DM and channel text as `s:<base64>` SMAZ.
+  These bodies are now decoded before storage (new `app/smaz.py`, a port of
+  meshcore-open `lib/helpers/smaz.dart`, MIT), for DMs (packet and
+  `CONTACT_MSG_RECV` fallback paths) and channel messages (packet, historical
+  decrypt and `CHANNEL_MSG_RECV` fallback paths), so mentions, unread mention
+  flags and reaction hashes work on the readable text. Base64 and base64url
+  (with or without padding) are accepted. To avoid rewriting ordinary text
+  such as `s:test`, a body is only decoded when it is exactly what the
+  meshcore-open encoder would send (canonical stream, valid UTF-8, shorter
+  than the decoded text); otherwise the original text is stored unchanged.
+  Outgoing echoes are not decoded. The backend does not send SMAZ.
+
+## Update 2026-09-23 (meshcore:// contact links, feat/meshcore-contact-uri)
+
+### Contacts (backend)
+- **Export and import `meshcore://` contact links.** The link format is
+  `meshcore://` plus the lowercase hex of a raw advert packet, the same as
+  another MeshCore client (meshcore-open) and the companion firmware's
+  CMD_EXPORT_CONTACT use. New endpoints: `GET /api/radio/contact-uri` (this
+  node), `GET /api/contacts/{key}/contact-uri` (a contact; needs an advert
+  stored on the radio) and `POST /api/contacts/import-uri`. Imported links are
+  checked (hex, ADVERT packet, Ed25519 signature) before the radio sees them.
+  Export and import are local radio commands; nothing is transmitted.
+  `share_contact` (which transmits) is not used.
+
+### Contacts (frontend)
+- **Contact link in contact info and Settings > Radio.** "Show contact link"
+  reads the link from the radio and shows it with a copy button. The
+  new-conversation dialog has a "Contact link" tab to import a pasted
+  `meshcore://` link. No QR code (the frontend has no QR dependency). Strings
+  in EN/NL/DE.
+
+## Update 2026-09-23 (Path route map line contrast, fix/path-route-map-line-contrast)
+
+### Map (frontend)
+- **Path route line follows the basemap, not the app theme.** The single-route
+  line in the Path Route Map was near-white whenever the app theme was dark,
+  so it was hard to see on light or coloured basemaps (Liberty, Positron,
+  OSM, topo). It now uses the selected basemap's tone: dark line on light
+  basemaps, the existing light line on dark basemaps (Nova, OFM Dark, Fiord,
+  dark gray, satellite). It updates live when the basemap is switched from
+  the Layers FAB. `MapSurface` / `MiniMap` gain an `onBasemapTone` callback.
+  Multi-route overlays keep their per-route colours.
+
+## Update 2026-09-23 (Per-contact telemetry permissions, feat/per-contact-telemetry-perms)
+
+### Contacts (backend)
+- **Contact flags are no longer wiped by adverts.** Every advert, DM
+  placeholder, discovery and manual-create upsert wrote `flags = 0`, because
+  `ContactUpsert.flags` defaulted to 0 and the upsert SQL did
+  `flags = excluded.flags`. `ContactUpsert.flags` is now optional and `None`
+  keeps the stored value. A radio contact snapshot still writes the radio's
+  flags.
+- **Per-contact telemetry permissions.** New
+  `POST /api/contacts/{key}/telemetry-permissions` (`{base, location,
+  environment}`) stores the choice in the new nullable
+  `contacts.telemetry_perms` column (migration `_106`). The bits follow the
+  companion firmware: `contact.flags` bit 0 is the radio favourite bit and the
+  `TELEM_PERM_*` bits sit at `flags >> 1`. The app value wins: it is pushed with
+  `change_contact_flags` when the contact is loaded on the radio (the contact
+  is never added just for this), `Contact.to_radio_dict()` applies it whenever
+  the contact is loaded later, and each radio contact snapshot re-pushes it if
+  the radio's bits differ (for example after the radio auto-adds the contact
+  with default flags).
+
+### Contacts (frontend)
+- **Telemetry sharing toggles in contact info** (Battery / Location /
+  Environment, under Radio residency). These only take effect for categories
+  set to Per-Contact in Settings > Radio, which the hint says. Strings in
+  EN/NL/DE.
+## Update 2026-09-23 (Shared node_modules in worktrees, fix/vite-shared-node-modules)
+
+### Tooling / CI
+- **A worktree whose `frontend/node_modules` is a junction or symlink to a
+  shared checkout now works with Vite and Vitest.** Vite resolved the link to
+  its real path, outside the worktree, and denied the maplibre
+  `maplibre-gl-worker.mjs?worker&url` import (`Denied ID`), so 17 test files
+  failed to load and the dev server errored. `vite.config.ts` and
+  `vitest.config.ts` now add the real `node_modules` path to `server.fs.allow`
+  (next to the workspace root, which stays allowed). No effect on a normal
+  in-place install or the production build.
+
+## Update 2026-09-23 (Browser tab and PWA follow branding, feat/tab-branding-rtfm-ev)
+
+### Chat / UI
+- **The browser tab title and favicon now follow the custom branding.** A set
+  brand name becomes the tab title (unread form `(3) My Mesh`); a set brand
+  icon replaces the favicon, with the green/red unread badge drawn over it.
+  Hiding the navbar name does not change the tab title.
+- **The default name is now "RTFM-EV"** instead of "RemoteTerm for MeshCore" /
+  "RemoteTerm" / "MCTerm", in the tab title, the navbar wordmark, the
+  branding name placeholder and the iOS home-screen title.
+
+### Backend
+- **The served `index.html` and `site.webmanifest` use the brand name.**
+  `app/frontend_static.py` rewrites `<title>` and `apple-mobile-web-app-title`
+  in `index.html` when a brand name is set (so the tab shows it before the app
+  loads and "Add to Home Screen" picks it up), and uses it for the manifest
+  `name`/`short_name` and screenshot labels. Without a brand name, or when
+  settings cannot be read, both fall back to `DEFAULT_APP_NAME` ("RTFM-EV").
+  Manifest icons are unchanged (the built-in PNGs).
+
+## Update 2026-09-23 (Map links: heard-only, max distance, fullscreen)
+
+### Map links (backend)
+- **Advert-path links no longer resolve through never-heard nodes.**
+  `GET /api/packets/advert-links` gains `heard_only` (resolve hops only against
+  contacts with `last_seen` set, skipping never-heard contacts and analyzer-only
+  `external_map_nodes`) and `max_km` (a hop candidate farther than this from the
+  previous hop is not a match, so the chain breaks; direct and tail edges to self
+  longer than this are dropped). Both default off, so the API is unchanged for
+  other callers. Fixes links drawn from the Netherlands to the UK.
+
+### Map (frontend)
+- The map link layer requests `heard_only=true` plus the user's max distance.
+  The wrong-location filter keeps its own unfiltered fetch, so its detection is
+  unchanged.
+- Liveness links resolve hops only against heard contacts (the packet overlay
+  keeps the full contact set) and drop links longer than the max distance.
+- New **Max link distance (km)** field in Overlays > Links (per browser, empty =
+  no limit), usually the RF range of your frequency and preset.
+- New **Fullscreen** FAB that toggles browser fullscreen for the whole map
+  surface; hidden where the Fullscreen API is unavailable (iPhone Safari). The
+  compact bottom sheet portals into the fullscreen element so panels stay
+  visible.
+- **Fix: map links now draw on page load.** With links remembered on, the edge
+  fetch could resolve before the map finished loading, and nothing re-painted
+  the link layer once it was created, so no links showed until a link option
+  was changed. A basemap swap (including the initial vector-basemap upgrade)
+  also re-added the advert-links layer empty. `MapView` now paints the current
+  links as soon as the layers exist and again after every basemap re-apply.
+
+## Update 2026-09-23 (Protocol and messaging fixes, fix/protocol-messaging-bugs)
+
+### Security
+- **Remote CLI secrets no longer reach the logs.** `password <pw>`,
+  `set guest.password <pw>` and `set prv.key <hex>` are masked in the command
+  log lines. Replies to secret-bearing commands are logged as `***`; the
+  firmware echoes the new admin password back in its reply. The meshcore
+  library's own `send_cmd` debug line is filtered too. The log ring buffer is
+  served by `/api/debug`, which users paste into bug reports.
+  (`app/log_redaction.py`)
+
+### Repeaters and rooms
+- **CLI replies are matched to the command that caused them.** Each command is
+  sent with a rotating `XX|` tag. Repeater/room firmware and OpenHop reflect it
+  back, so a late reply to an earlier command is dropped and no longer shown as
+  the answer to the current one. Untagged replies from older firmware are still
+  accepted.
+- **Room status no longer shows a meaningless RX airtime.** Room firmware
+  reports two counters in that slot: posts, and post pushes to members. The
+  Telemetry pane now shows those for room servers. Tracked room telemetry
+  stores them the same way.
+
+### Messaging
+- **Same text to two contacts in the same second no longer shares a delivery
+  code.** The firmware DM ACK code does not include the recipient, so the
+  second DM overwrote the first's pending ACK. The first DM then never showed as
+  delivered. DM timestamps are now unique per text across all recipients.
+- **Reactions no longer count as @mentions.** A channel reaction names its
+  target (`@[Name]👍` plus a hash line). The mention badge, sound, ticker and
+  server unread-mention flag now skip reactions in both dialects.
+- **React and reply from the chat.** Hovering a message shows React (quick
+  emoji set) and Reply. Both use the plaintext format other MeshCore clients
+  already send, so they read correctly there:
+  - a reaction is `@[Sender]emoji` plus a hash line on channels, `emoji` plus
+    the hash in DMs; it goes out through the normal send path (new
+    `POST /messages/{id}/react`);
+  - Reply fills the composer with `@[Name]`, a `>` line quoting the first 10
+    characters, and a new line for your text.
+- **Received reactions link to the message they are for.** The 8-character
+  hash is resolved to the target message: SHA-256 of the target's body and
+  sender timestamp, checked against real channel traffic (new
+  `GET /messages/{id}/reaction-target`). The reaction shows a quoted snippet
+  that jumps to that message. If it never reached this radio, the reaction
+  says so and links to the channel on the first configured analyzer with a
+  channel link. Builds on the reaction display from #38. This works for
+  meshcore-open reactions too: the current `r:<hash>:<index>` form (Dart
+  `String.hashCode`, 16-bit, so the newest match wins) and the older
+  `r:<millis>_<nameHash>_<textHash>:<emoji>` form, which used to show as raw
+  text and is now recognised as a reaction.
+- **Web Push respects the block lists.** Blocked contacts and blocked channel
+  sender names no longer trigger push notifications.
+- **Composer warns earlier on long channel messages.** Above 139 bytes of
+  `name: text`, the message needs another encryption block. The radio then
+  stops forwarding repeats of it to the app after about 4 path bytes (region
+  scoped) or 8 (unscoped). The red zone now starts there with "repeats of this
+  message may not show up here".
+
+### Radio
+- **Contacts evicted by the radio are reloaded.** With overwrite-oldest on
+  (`MESHCORE_LOAD_WITH_AUTOEVICT` or set by another client), the radio's
+  "contact deleted" push now removes the contact from the library cache, so the
+  next sync or send loads it again instead of assuming it is still there.
+
+### Database
+- **Startup warns when the database is newer than the app.** After a
+  downgrade, or a restore of a backup from a newer build, the migration runner
+  now logs a warning instead of silently continuing.
+
+## Update 2026-09-23 (Configurable data retention, feat/data-retention-policy)
+
+### Retention (backend)
+- **Every stored history class now has its own retention setting.** Migration
+  `_105` adds `retention_prune_interval_hours` (24), `telemetry_retention_days`
+  (30), `telemetry_max_rows_per_node` (1000), `link_signal_retention_days` (30),
+  `advert_paths_per_contact` (10), `noise_floor_retention_days`,
+  `battery_retention_days`, `airtime_retention_days` and
+  `message_retention_days` (all 0 = keep forever). The existing
+  `raw_packet_retention_days` and `advert_retention_days` now both accept 0-3650
+  (advert `0` now means keep forever instead of "treated as 30"). The defaults
+  are the caps that were hard-coded before, so an upgrade deletes nothing new.
+- **One prune service replaces the scattered prune points.** New
+  `app/services/retention_pruner.py` (SQL in `app/repository/retention.py`)
+  replaces `advert_pruner.py` and `raw_packet_pruner.py`, the prune-on-insert in
+  the two telemetry repositories and the hourly `link_signal` prunes in
+  `packet_processor.py` / `radio_sync.py`. It ticks every minute, runs when the
+  configured interval has elapsed, isolates failures per class, and calls
+  `PRAGMA incremental_vacuum` after a run that deleted rows. Limits are now
+  enforced per run instead of per insert.
+- **Message retention deletes the message's raw packet too**, in the same
+  transaction, so historical decryption cannot bring a pruned message back.
+- **Noise floor, battery and airtime history can now be pruned.** Before this
+  nothing ever deleted them.
+- New `GET /api/retention/stats` (row count and oldest entry per class, last /
+  next run, preview of messages a given retention would delete) and
+  `POST /api/retention/prune` (run now).
+
+### Settings > Database (frontend)
+- **"Mesh health history" is replaced by a "Data retention" section**
+  (`SettingsRetentionSection.tsx`): one row per data class with row count, oldest
+  entry and its limit input(s), the prune interval, a "Prune now" button, and
+  "Keep everything (analyzer)" / "Restore defaults" buttons (both confirm first).
+  Enabling or lowering message retention asks for confirmation and shows how
+  many messages the next run deletes. New `settings_retention_*` i18n keys in
+  EN/NL/DE; the five old mesh-history retention keys are removed.
+
+### Documentation
+- README: the per-class retention roadmap item moved to "Shipped".
+  README_ADVANCED: new "Data retention" section. `app/AGENTS.md` and root
+  `AGENTS.md`: retention settings, service, and endpoints.
+
+## Update 2026-09-23 (Map: Chrome blackout, neon nodes, 3D buildings)
+
+### Map
+- **Chrome: the map no longer goes black for a few seconds with packet
+  visualization on.** `MapSurface` ran its WebGL availability probe on every
+  render (`useRef(isWebglAvailable())`), and each probe created a new WebGL
+  context. The live packet overlay re-renders several times a second, so Chrome
+  hit its per-page WebGL context limit. It then force-lost the oldest context,
+  which was the map's, roughly every 6 seconds. The probe now runs once per
+  mount and releases its context straight away (`WEBGL_lose_context`).
+- **Neon nodes and packet visualization now work together.** deck.gl's
+  `MapLibreOverlay` allows one interleaved overlay per map. The packet overlay
+  and the neon nodes each created their own, so whichever attached second threw
+  and was silently dropped. Neon only showed up by chance while the map kept
+  losing its WebGL context, and stopped showing once that was fixed. Both now
+  draw through one shared overlay per map (`map/layers/sharedDeckOverlay.ts`),
+  neon under the packets. The shared overlay also re-adds its MapLibre layer
+  group once the style has loaded: deck skips that step while a basemap style
+  is still loading and never retries. After a WebGL context restore, every
+  slot's layers are rebuilt fresh, so neon nodes come back too.
+- **Nodes inside a 3D building's footprint are no longer hidden by it.** With
+  3D buildings on, the building extrusions were inserted above the node
+  layers. The anchor list assumed `rt-external` was the lowest overlay, but it
+  is re-added last on every basemap switch. The extrusion now goes below
+  whichever node overlay is lowest in the actual layer order. Neon nodes were
+  hidden for a second reason: deck.gl 9 ignores the legacy
+  `depthTest`/`depthMask` layer parameters, so they were depth-tested against
+  the buildings. They now use `depthCompare: 'always'` (same for packet pulses
+  and glow).
+- **Neon nodes and packet arcs land on the roof.** A node inside a building
+  footprint is lifted to that building's roof height (plus 1 m), and packet
+  arcs, pulses and glows that start or end there follow it, so arcs land on
+  the node instead of disappearing into the building. Heights come from the
+  rendered building layer (`map/engine/buildingHeights.ts`), so they apply once
+  the buildings for that area are drawn (zoom 12 and up). The flat node
+  circles cannot be raised in MapLibre; they stay at ground level but draw
+  above the buildings.
+
+## Update 2026-09-23 (Chat: full emoji library)
+
+### Chat (frontend)
+- **The composer's emoji picker now has the full emoji library.** All Emojibase
+  categories (Smileys & emotion through Flags), replacing the fixed set of 40.
+  Built on `frimousse` (a small React picker with no built-in styling) and
+  `emojibase-data`, styled with the app's theme tokens.
+  - Search, with category names and search terms in the app language (EN/NL/DE).
+  - Skin tone selector, remembered per browser.
+  - A "Recent" row with the last 16 emojis used, per browser. It is hidden while
+    searching.
+  - A footer with the hovered emoji's name and UTF-8 byte cost, since LoRa
+    messages are byte-limited (e.g. 👍 = 4 bytes, 👍🏽 = 8, a flag = 8).
+- **No wasted bytes on emoji.** Emojibase spells ~500 emojis with a trailing
+  U+FE0F variation selector (3 bytes). For the 152 whose base character already
+  renders as emoji by default (👍 👎 ✋ ⛳ …) it is redundant and is now dropped,
+  so 👍 costs 4 bytes instead of 7. It is kept where it matters: text-default
+  characters such as ❤️ and keycap/ZWJ sequences.
+- **No CDN requests.** frimousse loads its data from jsDelivr by default. A small
+  Vite plugin now serves the en/nl/de data files from the installed package in
+  dev and copies them into `dist/emojibase-data/` at build time. Only the active
+  language is fetched (~100 KB gzipped), the first time the picker opens.
+- **Country flags on Windows.** frimousse's own flag-support check uses a font
+  stack without the app's "Twemoji Country Flags" polyfill, so on Windows
+  Chromium it dropped all 259 country flags. When the polyfill is active the
+  flags are now added back, and the picker's emoji font includes the polyfill
+  font so they render as flags.
+- **The picker can never send a message.** Emoji buttons are explicitly
+  `type="button"`, and the composer ignores form submits while focus is inside
+  the picker (Enter in the search box with no results or while loading would
+  otherwise trigger implicit form submission). Regression tests cover clicking
+  an emoji, Enter with and without a search match, and Enter while loading.
+
+
+## Update 2026-09-23 (Repeater and room avatars no longer depend on emoji fonts)
+
+### Contact avatars (frontend)
+- **Repeater and room-server avatars are now SVG icons, not emoji (fixes
+  #63).** Repeaters used 🛜 (Unicode 15, 2022) and rooms 🛖 (Unicode 13). On a
+  system whose emoji font predates Unicode 15, every repeater avatar showed a
+  missing-glyph box with the hex code `01F6DC` in it. The avatars now draw
+  lucide's `RadioTower` (repeaters) and `House` (rooms) icons, on the same grey
+  and brown backgrounds as before, so they look the same on every OS.
+  `getContactAvatar` returns a new `icon` field (`'repeater'` / `'room'`) that
+  `ContactAvatar` renders. Other contacts keep their initials or emoji, since
+  those come from the contact's own name. No backend change, no migration.
 
 ## Update 2026-09-23 (Docs refresh, docs/refresh-2026-09-22)
 

@@ -4,7 +4,11 @@ Backend server + browser interface for MeshCore mesh radio networks, providing a
 
 Connect your radio over Serial, TCP, or BLE, and then you can:
 
-* Send and receive DMs and channel messages
+* Send and receive DMs and channel messages (SMAZ-compressed `s:` messages from other MeshCore clients are shown decoded)
+* Share and import contacts as `meshcore://` links (the format other MeshCore clients use): Settings > Radio and contact info show your node's or a contact's link, and the new-conversation dialog imports a pasted link
+* Join meshcore-open communities: paste the community code or scan its QR code (camera or image upload) in Channels > Import / Export > Communities. The community's Public channel and any community hashtag channels you add use keys derived from the shared community secret, so they interoperate with meshcore-open. You can share a joined community again as JSON or a QR code
+* React to and reply to messages from the chat (hover a message). Reactions and replies use the plaintext format other MeshCore clients understand. A received reaction shows which message it is for and jumps to it. If that message never reached your radio, it links to the channel on your first configured analyzer that has a channel link. Received reactions show as reactions when Settings > Local Configuration > "Render MeshCore Open GIFs & Reactions" is on
+* Delete a message from your own local history (hover a message, confirm). This is local only -- nothing is sent over RF, and other clients still have their copy. Deleting also removes its raw packet and any reaction pointing at it, and stops a background DM retry that is still in flight
 * Cache all received packets, decrypting as you gain keys
 * Run multiple Python bots that can analyze messages and respond to DMs and channels
 * Monitor unlimited contacts and channels (radio limits don't apply -- packets are decrypted server-side)
@@ -12,10 +16,14 @@ Connect your radio over Serial, TCP, or BLE, and then you can:
 * Search for hashtag channel names for channels you don't have keys for yet
 * Parse entities in chat messages (optional, off by default): resolve public keys to a contact or external analyzer, turn GPS coordinates into a map card, and show clickable links with optional messenger-style previews (Settings > Local Configuration > "Chat parsing")
 * Play an optional notification sound on new @mentions and DMs, with a choice of bundled presets or your own uploaded sound, a volume control, and per-conversation muting (Settings > Local Configuration > "Mention & DM sound")
+* Get a browser notification the first time the app hears a node it has never seen before, filterable by node type (client, repeater, room, sensor) and batched into a summary on a busy mesh (Settings > Local Configuration > "New node notifications", off by default)
 * Choose how dates and times are shown: follow the UI language, or force 12-hour mm/dd/yyyy or 24-hour dd/mm/yyyy (Settings > Local Configuration > "Date & Time Format")
+* Set a battery chemistry (LiPo, LiFePO4, LiPo HV, or NMC) for accurate battery percentages: a global default (Settings > Local Configuration > "Battery Chemistry") with a per-node override in that node's contact info
 * Forward packets, messages, and automatic repeater telemetry to MQTT, Home Assistant, LetsMesh, MeshRank, SQS, Apprise, etc.
 * Use the more recent 1.14+ firmwares which support multibyte pathing
 * Auto-detect [meshcomod (DMC-EV)](https://github.com/Elektr0Vodka/meshcomod) firmware and expose its extra device settings (CAD, GPS)
+* Toggle the on-board GPS receiver on any radio that reports it, including stock MeshCore companion firmware (Settings > Radio)
+* Edit a remote repeater's settings (name, location, radio, TX power, routing and advert options) from its dashboard: each change is confirmed on its own, sent as one CLI command over RF and read back. Radio frequency/bandwidth/SF/CR needs you to type the repeater name first, since a wrong value can strand it off-air
 * Visualize the mesh as a map or node set, view repeater stats, and more!
 
 For advanced setup and troubleshooting see [README_ADVANCED.md](README_ADVANCED.md). If you plan to contribute, read [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -82,7 +90,7 @@ Shipped toward this so far:
   Path-hex hops
   resolve to known contact names in the feed, history, and packet detail. How
   far back it reaches is bounded by the raw-packet retention setting (Settings >
-  Database, `0` = keep forever, migration `_097`).
+  Database > Data retention, `0` = keep forever).
 - One unified time-range selector across the My Node, mesh-health, map, and Mesh
   Trends (Live tab) views (`20m`-`30d` + custom, plus per-page extras), with the
   choice remembered per page.
@@ -91,6 +99,46 @@ Shipped toward this so far:
   small in-settings map, or at your last position and zoom. The mode and home
   coordinate are stored server-side (migration `_104`); the last position is
   remembered per browser.
+- Map links are drawn only through nodes this server has heard over RF (never-heard
+  contacts and analyzer-only nodes are skipped), with an optional max link
+  distance in km (map Overlays > Links, per browser; usually the RF range of your
+  frequency and preset). A fullscreen button on the map toggles browser
+  fullscreen where the browser supports it.
+- Map link history: an "All traffic" link mode built from every flood packet the
+  node hears (not only adverts), a link-age window that follows the map's time
+  filter or its own range, and clickable links. A link's popup leads to a page
+  with its traffic trend, signal trend (links to your own node) and recent
+  packets. History is kept 365 days by default (`link_edge_retention_days`,
+  migration `_107`).
+- Shared-locations map layer (map Overlays > Shared locations, off by default,
+  per browser): pins for location shares sent in channels and DMs within the
+  map's time window (meshcore-open `m:` markers, `lat, lon` pairs with 4+
+  decimals, and MGRS references), newest per sender or every share. Clicking a
+  pin shows who shared it, where and when, with "Open in chat". Local view only;
+  never forwarded.
+- GPX export from the map (Export FAB, download icon): exports the nodes
+  currently shown under the map's active filters as GPX 1.1 waypoints
+  (`rtfm-ev-nodes-<date>.gpx`), including nodes placed only by a manual
+  location override (noted in the waypoint description). Each waypoint
+  includes a `meshcore://` contact link when a raw advert for that node is
+  still in the retained packet history; the link is left out otherwise.
+- Guessed-locations map layer (map Overlays > Guessed locations, off by
+  default, per browser, zoom 12+): an estimated position for a node with no
+  advertised or manual location, heard in the last 24h, based on the located
+  repeater(s) nearest it in its own known advert paths. Drawn as a hollow "~"
+  marker, distinct from real (filled) node markers; clicking it explains it is
+  a guess and names the anchor repeater(s). Never saved, exported or sent
+  anywhere.
+- MGRS support: upper-case MGRS references in chat (for example
+  `31U FT 45332 73249`) become location cards when coordinate parsing is on, and
+  Settings > Local > Coordinate format shows positions as decimal degrees
+  (default), degrees/minutes/seconds, or MGRS.
+- Backend map tile cache (Settings > Map > Map tile cache, off by default): the
+  server caches the map tiles that were viewed (OpenFreeMap, OpenStreetMap,
+  OpenTopoMap) on disk under `data/tile_cache/`, shared by every browser, so
+  already-viewed areas keep working without internet. Size cap (default 1 GB)
+  and max age (default 365 days) are configurable. Esri layers are never cached
+  (their terms forbid it), and no source allows area pre-download.
 - Mesh Trends Live-tab stat breakdowns can be computed from the database over the
   selected range, backed by decoded packet fields persisted at ingest (`_089`),
   not only the in-memory session buffer.
@@ -99,13 +147,24 @@ Shipped toward this so far:
   keep-N rotation (migrations `_084`, `_113`). Restore from an uploaded file or a
   server-side backup; it is applied at the next server restart, after the current
   database is saved. See `README_ADVANCED.md`.
+- Configurable, per-data-class retention (Settings > Database > Data retention,
+  migration `_105`). Raw packets, messages, advert events, repeater/contact
+  telemetry (days plus a rows-per-node cap), link signal, map link traffic
+  history, noise floor, battery, airtime, and advert paths per contact each have
+  their own setting, with `0` =
+  keep forever. One prune service runs on a configurable interval (default every
+  24 h) and there is a "Prune now" button, plus per-class row counts and oldest
+  entry. A "Keep everything (analyzer)" button turns every limit off; "Restore
+  defaults" puts back the previous caps. Defaults match the old behaviour, so an
+  upgrade deletes nothing new. Pruning a message also deletes its raw packet.
+  See `README_ADVANCED.md`.
+- Failed DMs are marked: when every retry of an outgoing DM runs out without an
+  ACK it shows "Failed" instead of `?` (stored, migration `_109`; an ACK within
+  30 s still flips it to delivered). A Retry row action sends a new copy that
+  replaces the failed bubble (`POST /api/messages/direct/{id}/resend`).
 
 Direction still on the roadmap (planned, not yet built):
 
-- Configurable, per-data-class retention with an "analyzer mode" preset, so an
-  operator can retain long trends instead of the current aggressive caps. Only
-  raw packets have a configurable retention setting today (see Packet History
-  above); other data classes still use their existing caps.
 - Historical device-info persistence: location and device-config history over time.
 - Multi-radio identity continuity, so a swapped or replaced feeding radio stays
   coherent in the long-lived record.
@@ -359,6 +418,8 @@ RemoteTerm supports the [meshcomod](https://github.com/Elektr0Vodka/meshcomod) f
 - **GPS:** enable the on-board GPS receiver and set its reporting interval (0 to 86400 seconds).
 
 The panel is hidden entirely on non-meshcomod devices, and each control disables itself if the specific firmware build does not advertise support. No configuration is needed: detection is automatic from the radio's device info.
+
+GPS is also available on **stock** MeshCore companion firmware builds: the `gps` custom var is part of the base companion protocol (gated by the firmware's own GPS build flag and physical GPS detection), not a meshcomod-only extra. Any connected radio that reports the var shows a standalone GPS section under **Settings -> Radio** (hidden on meshcomod radios, which keep the combined control above instead of showing GPS twice).
 
 ## OpenHop node management
 

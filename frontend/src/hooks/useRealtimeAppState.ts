@@ -27,6 +27,7 @@ import type {
   MessagePath,
   RawPacket,
 } from '../types';
+import type { NewNodePayload } from '../wsEvents';
 
 interface UseRealtimeAppStateArgs {
   prevHealthRef: MutableRefObject<HealthStatus | null>;
@@ -61,7 +62,15 @@ interface UseRealtimeAppStateArgs {
     paths?: MessagePath[],
     packetId?: number | null
   ) => void;
+  /** An outgoing DM ran out of retries without an ACK. */
+  receiveMessageFailed?: (messageId: number, failedAt: number) => void;
+  /** A message row was removed on the server (e.g. a failed DM replaced by a retry). */
+  removeMessage?: (messageId: number) => void;
   notifyIncomingMessage?: (msg: Message) => void;
+  /** Fired for a WS `new_node` event (a first-ever-seen contact, or a batched
+   *  summary on a busy mesh) so the caller can decide whether to show a
+   *  browser notification for it. */
+  notifyNewNode?: (payload: NewNodePayload) => void;
   /** Fired for a new incoming channel message that @mentions the user while
    *  they are not viewing that channel - drives the mention ticker. */
   onChannelMention?: (msg: Message) => void;
@@ -120,7 +129,10 @@ export function useRealtimeAppState({
   renameConversationMessages,
   removeConversationMessages,
   receiveMessageAck,
+  receiveMessageFailed,
+  removeMessage,
   notifyIncomingMessage,
+  notifyNewNode,
   onChannelMention,
   notifyMentionSound,
   maxRawPackets = MAX_RAW_PACKETS,
@@ -311,6 +323,19 @@ export function useRealtimeAppState({
       ) => {
         receiveMessageAck(messageId, ackCount, paths, packetId);
       },
+      onMessageFailed: (messageId: number, failedAt: number) => {
+        receiveMessageFailed?.(messageId, failedAt);
+      },
+      onMessageDeleted: (messageId: number) => {
+        removeMessage?.(messageId);
+        // Deleting an unread message changes its conversation's count (and
+        // possibly the first-unread boundary); re-fetch the server-computed
+        // totals rather than reproduce that logic here.
+        void refreshUnreads();
+      },
+      onNewNode: (payload: NewNodePayload) => {
+        notifyNewNode?.(payload);
+      },
     }),
     [
       activeConversationRef,
@@ -328,6 +353,8 @@ export function useRealtimeAppState({
       prevHealthRef,
       recordMessageEvent,
       receiveMessageAck,
+      receiveMessageFailed,
+      removeMessage,
       observeMessage,
       refreshUnreads,
       reconcileOnReconnect,
@@ -337,6 +364,7 @@ export function useRealtimeAppState({
       setContacts,
       setHealth,
       notifyIncomingMessage,
+      notifyNewNode,
       onChannelMention,
       notifyMentionSound,
     ]

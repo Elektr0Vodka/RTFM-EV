@@ -21,6 +21,7 @@ from app.routers.server_control import (
     require_server_capable_contact,
 )
 from app.services.radio_runtime import radio_runtime as radio_manager
+from app.services.room_status import room_status_fields
 
 router = APIRouter(prefix="/contacts", tags=["rooms"])
 
@@ -74,7 +75,6 @@ async def room_status(public_key: str) -> RepeaterStatusResponse:
         packets_received=status.get("nb_recv", 0),
         packets_sent=status.get("nb_sent", 0),
         airtime_seconds=status.get("airtime", 0),
-        rx_airtime_seconds=status.get("rx_airtime", 0),
         uptime_seconds=status.get("uptime", 0),
         sent_flood=status.get("sent_flood", 0),
         sent_direct=status.get("sent_direct", 0),
@@ -84,6 +84,7 @@ async def room_status(public_key: str) -> RepeaterStatusResponse:
         direct_dups=status.get("direct_dups", 0),
         full_events=status.get("full_evts", 0),
         recv_errors=status.get("recv_errors"),
+        **room_status_fields(contact.type, status),
     )
 
     # Persist + forward the received telemetry (telemetry only; no messages).

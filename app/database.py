@@ -7,6 +7,7 @@ from pathlib import Path
 import aiosqlite
 
 from app.config import settings
+from app.reaction_payloads import is_reaction_text
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ CREATE TABLE IF NOT EXISTS contacts (
     last_read_at INTEGER,
     favorite INTEGER DEFAULT 0,
     radio_policy TEXT NOT NULL DEFAULT 'auto',
+    telemetry_perms INTEGER,
     notes TEXT,
     owner_info TEXT,
     owner_key TEXT,
@@ -342,6 +344,12 @@ class Database:
         # Enable FK enforcement for all application queries from this point on.
         await self._connection.execute("PRAGMA foreign_keys = ON")
         logger.debug("Foreign key enforcement enabled")
+
+        # SQL helper so the unread-mention query can skip reaction payloads
+        # (a channel reaction names its target with "@[Name]").
+        await self._connection.create_function(
+            "is_reaction_text", 1, is_reaction_text, deterministic=True
+        )
 
     async def disconnect(self) -> None:
         if self._connection:

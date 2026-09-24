@@ -1,5 +1,7 @@
 import asyncio
+import itertools
 import logging
+import re
 import time
 from enum import Enum
 from typing import TYPE_CHECKING
@@ -7,6 +9,7 @@ from typing import TYPE_CHECKING
 from fastapi import HTTPException
 from meshcore import EventType
 
+from app.log_redaction import redact_cli_command, redact_cli_reply
 from app.models import (
     CONTACT_TYPE_REPEATER,
     CONTACT_TYPE_ROOM,
@@ -103,9 +106,47 @@ def _login_flood_retry_timeout_message(label: str) -> str:
     )
 
 
+# Repeater/room firmware (CommonCLI, since Feb 2025) and OpenHop strip an
+# optional "XX|" prefix from a CLI command and reflect it at the start of the
+# reply. We send a rotating two-hex-digit tag so a late reply to an earlier
+# command can be told apart from the answer to the current one.
+_CLI_ECHO_TAG_RE = re.compile(r"^[0-9A-F]{2}\|")
+_cli_echo_counter = itertools.count()
+
+
+def _next_cli_echo_tag() -> str:
+    return f"{next(_cli_echo_counter) % 256:02X}|"
+
+
+def _cli_echo_tag_for(command: str) -> str | None:
+    """Tag to prepend to ``command``, or None when the firmware would not strip it.
+
+    The firmware only treats ``command[2] == '|'`` as a tag when the tagged
+    command is longer than 4 characters.
+    """
+    if len(command) < 2:
+        return None
+    return _next_cli_echo_tag()
+
+
+def _reply_matches_tag(text: str, expected_tag: str | None) -> bool:
+    """False only when the reply carries a different command's echo tag.
+
+    Untagged replies are accepted so firmware without prefix echo keeps working.
+    """
+    if expected_tag is None:
+        return True
+    match = _CLI_ECHO_TAG_RE.match(text)
+    return match is None or match.group(0) == expected_tag
+
+
 def extract_response_text(event) -> str:
-    """Extract text from a CLI response event, stripping the firmware '> ' prefix."""
+    """Extract text from a CLI response event.
+
+    Strips the echoed "XX|" correlation tag (if any), then the firmware '> ' prefix.
+    """
     text = event.payload.get("text", str(event.payload))
+    text = _CLI_ECHO_TAG_RE.sub("", text, count=1)
     if text.startswith("> "):
         text = text[2:]
     return text
@@ -117,14 +158,14 @@ async def _flush_pending_messages(mc) -> None:
     A CLI response that arrived after a previous command already returned can
     sit buffered in the radio. Without this flush, the next command's fetch
     could pull that stale response and mis-attribute it as the new command's
-    answer (the firmware does not correlate responses to requests). Draining
+    answer (firmware without "XX|" prefix echo does not correlate them). Draining
     first routes any real DMs/channel messages to storage and lets stale CLI
     responses (txt_type=1) be dropped by ``event_handlers.on_contact_message``,
     so they cannot be returned as this command's answer.
 
-    This shrinks - but cannot fully eliminate - same-contact straddle
-    mis-attribution: a reply that is still in flight when we send can only be
-    bounded by a protocol-level request id, which the wire format lacks.
+    A reply that is still in flight when we send is handled by the "XX|" echo
+    tag instead (see ``_cli_echo_tag_for``); on firmware without prefix echo
+    this flush is the only guard.
     """
     try:
         drained = await drain_pending_messages(mc)
@@ -138,6 +179,7 @@ async def fetch_contact_cli_response(
     mc,
     target_pubkey_prefix: str,
     timeout: float = 20.0,
+    expected_tag: str | None = None,
 ) -> "Event | None":
     """Fetch a CLI response (txt_type=1) from a specific contact.
 
@@ -156,6 +198,9 @@ async def fetch_contact_cli_response(
 
     ``get_msg`` is still polled to pump the radio into delivering buffered
     frames and to route any unrelated DMs/channel messages to storage.
+
+    When ``expected_tag`` is given, a reply echoing a different tag belongs to
+    an earlier command and is dropped rather than returned.
     """
     loop = asyncio.get_running_loop()
     response_future: asyncio.Future = loop.create_future()
@@ -163,8 +208,10 @@ async def fetch_contact_cli_response(
     def _capture(event: "Event") -> None:
         # Dispatcher invokes sync callbacks inline with a cloned event; the
         # attribute filter guarantees this only fires for the target's CLI
-        # responses, so we resolve with the first one seen.
-        if not response_future.done():
+        # responses, so we resolve with the first one whose echo tag matches.
+        if not response_future.done() and _reply_matches_tag(
+            event.payload.get("text", ""), expected_tag
+        ):
             response_future.set_result(event)
 
     subscription = mc.subscribe(
@@ -206,7 +253,14 @@ async def fetch_contact_cli_response(
                 msg_prefix = result.payload.get("pubkey_prefix", "")
                 txt_type = result.payload.get("txt_type", 0)
                 if msg_prefix == target_pubkey_prefix and txt_type == 1:
-                    return result
+                    if _reply_matches_tag(result.payload.get("text", ""), expected_tag):
+                        return result
+                    logger.debug(
+                        "Dropping stale CLI reply from %s (expected tag %s)",
+                        msg_prefix,
+                        expected_tag,
+                    )
+                    continue
                 logger.debug(
                     "Storing non-target DM (from=%s, txt_type=%d) consumed while waiting for %s",
                     msg_prefix,
@@ -448,18 +502,23 @@ async def batch_cli_fetch(
             # cannot be pulled and mis-attributed to this one.
             await _flush_pending_messages(mc)
 
-            send_result = await mc.commands.send_cmd(_cli_command_destination(contact), cmd)
+            tag = _cli_echo_tag_for(cmd)
+            send_result = await mc.commands.send_cmd(
+                _cli_command_destination(contact), f"{tag or ''}{cmd}"
+            )
             if send_result.type == EventType.ERROR:
-                logger.debug("Command '%s' send error: %s", cmd, send_result.payload)
+                logger.debug(
+                    "Command '%s' send error: %s", redact_cli_command(cmd), send_result.payload
+                )
                 continue
 
             response_event = await fetch_contact_cli_response(
-                mc, contact.public_key[:12], timeout=10.0
+                mc, contact.public_key[:12], timeout=10.0, expected_tag=tag
             )
             if response_event is not None:
                 results[field] = extract_response_text(response_event)
             else:
-                logger.warning("No response for command '%s' (%s)", cmd, field)
+                logger.warning("No response for command '%s' (%s)", redact_cli_command(cmd), field)
 
     return results
 
@@ -585,22 +644,32 @@ async def send_contact_cli_command(
         # cannot be pulled and mis-attributed to this one.
         await _flush_pending_messages(mc)
 
-        logger.info("Sending command to %s %s: %s", label, contact.public_key[:12], command)
-        send_result = await mc.commands.send_cmd(_cli_command_destination(contact), command)
+        logger.info(
+            "Sending command to %s %s: %s",
+            label,
+            contact.public_key[:12],
+            redact_cli_command(command),
+        )
+        tag = _cli_echo_tag_for(command)
+        send_result = await mc.commands.send_cmd(
+            _cli_command_destination(contact), f"{tag or ''}{command}"
+        )
 
         if send_result.type == EventType.ERROR:
             raise HTTPException(
                 status_code=422, detail=f"Failed to send command: {send_result.payload}"
             )
 
-        response_event = await fetch_contact_cli_response(mc, contact.public_key[:12])
+        response_event = await fetch_contact_cli_response(
+            mc, contact.public_key[:12], expected_tag=tag
+        )
 
         if response_event is None:
             logger.warning(
                 "No response from %s %s for command: %s",
                 label,
                 contact.public_key[:12],
-                command,
+                redact_cli_command(command),
             )
             return CommandResponse(
                 command=command,
@@ -616,7 +685,7 @@ async def send_contact_cli_command(
             "Received response from %s %s: %s",
             label,
             contact.public_key[:12],
-            response_text,
+            redact_cli_reply(command, response_text),
         )
 
         return CommandResponse(

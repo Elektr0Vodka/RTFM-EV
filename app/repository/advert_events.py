@@ -93,3 +93,38 @@ class AdvertEventRepository:
                 "DELETE FROM advert_events WHERE first_seen < ?", (cutoff_ts,)
             ) as cur:
                 return cur.rowcount
+
+    @staticmethod
+    async def latest_raw_adverts(public_keys: list[str]) -> dict[str, bytes]:
+        """Most recent stored raw ADVERT packet per key, keyed by lowercase public_key.
+
+        Joins to raw_packets by transmission_id, so a key is present only when
+        its most recently recorded advert transmission still has a raw packet
+        row (backfilled events have no transmission_id, and old raw packets can
+        be pruned by retention independently of advert_events). Read-only; lets
+        a meshcore:// contact link be built from mesh-heard history without a
+        per-node radio command.
+        """
+        normalized = sorted({k.lower() for k in public_keys if k})
+        if not normalized:
+            return {}
+        placeholders = ",".join("?" * len(normalized))
+        async with db.readonly() as conn:
+            async with conn.execute(
+                f"""
+                SELECT public_key, data FROM (
+                    SELECT ae.public_key AS public_key, rp.data AS data,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY ae.public_key
+                               ORDER BY ae.first_seen DESC
+                           ) AS rn
+                    FROM advert_events ae
+                    JOIN raw_packets rp ON rp.id = ae.transmission_id
+                    WHERE ae.public_key IN ({placeholders})
+                )
+                WHERE rn = 1
+                """,
+                normalized,
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return {row["public_key"]: bytes(row["data"]) for row in rows}

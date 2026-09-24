@@ -1,9 +1,13 @@
+import html
 import logging
+import re
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+
+from app.repository.settings import AppSettingsRepository
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +18,12 @@ FRONTEND_BUILD_INSTRUCTIONS = (
     "Run 'cd frontend && npm install && npm run build', "
     "or use a release zip that includes frontend/prebuilt."
 )
+# Default app name for the tab title, iOS home-screen title and PWA manifest
+# when no custom brand name is set.
+DEFAULT_APP_NAME = "RTFM-EV"
+
+_TITLE_RE = re.compile(r"<title>[^<]*</title>")
+_APPLE_TITLE_RE = re.compile(r'(<meta name="apple-mobile-web-app-title" content=")[^"]*(")')
 
 
 class CacheControlStaticFiles(StaticFiles):
@@ -31,6 +41,39 @@ class CacheControlStaticFiles(StaticFiles):
 
 def _file_response(path: Path, *, cache_control: str) -> FileResponse:
     return FileResponse(path, headers={"Cache-Control": cache_control})
+
+
+async def _get_brand_name() -> str:
+    """Return the custom brand name, or "" when unset or settings are unreadable."""
+    try:
+        settings = await AppSettingsRepository.get()
+    except Exception:
+        logger.debug("Brand name lookup failed; using the default app name", exc_info=True)
+        return ""
+    return (settings.brand_name or "").strip()
+
+
+def _apply_brand_to_index(index_html: str, brand_name: str) -> str:
+    """Replace the static <title> and iOS home-screen title with the brand name."""
+    escaped = html.escape(brand_name, quote=True)
+    index_html = _TITLE_RE.sub(lambda _m: f"<title>{escaped}</title>", index_html, count=1)
+    return _APPLE_TITLE_RE.sub(lambda m: f"{m.group(1)}{escaped}{m.group(2)}", index_html, count=1)
+
+
+async def _index_response(index_file: Path) -> Response:
+    """Serve index.html, with the custom brand name applied when one is set."""
+    brand_name = await _get_brand_name()
+    if not brand_name:
+        return _file_response(index_file, cache_control=INDEX_CACHE_CONTROL)
+    try:
+        index_html = index_file.read_text(encoding="utf-8")
+    except OSError:
+        logger.warning("Could not read %s for branding; serving it unchanged", index_file)
+        return _file_response(index_file, cache_control=INDEX_CACHE_CONTROL)
+    return HTMLResponse(
+        _apply_brand_to_index(index_html, brand_name),
+        headers={"Cache-Control": INDEX_CACHE_CONTROL},
+    )
 
 
 def _is_index_file(path: Path, index_file: Path) -> bool:
@@ -119,15 +162,16 @@ def register_frontend_static_routes(app: FastAPI, frontend_dir: Path) -> bool:
     @app.get("/")
     async def serve_index():
         """Serve the frontend index.html."""
-        return _file_response(index_file, cache_control=INDEX_CACHE_CONTROL)
+        return await _index_response(index_file)
 
     @app.get("/site.webmanifest")
     async def serve_webmanifest(request: Request):
         """Serve a dynamic web manifest using the active request base URL."""
         base = _resolve_request_base(request)
+        app_name = await _get_brand_name() or DEFAULT_APP_NAME
         manifest = {
-            "name": "RemoteTerm for MeshCore",
-            "short_name": "RemoteTerm",
+            "name": app_name,
+            "short_name": app_name,
             "id": base,
             "start_url": base,
             "scope": base,
@@ -182,19 +226,19 @@ def register_frontend_static_routes(app: FastAPI, frontend_dir: Path) -> bool:
                     "sizes": "1367x909",
                     "type": "image/png",
                     "form_factor": "wide",
-                    "label": "RemoteTerm desktop view",
+                    "label": f"{app_name} desktop view",
                 },
                 {
                     "src": f"{base}screenshot-mobile.png",
                     "sizes": "1170x2532",
                     "type": "image/png",
-                    "label": "RemoteTerm mobile view",
+                    "label": f"{app_name} mobile view",
                 },
                 {
                     "src": f"{base}screenshot-mobile-2.png",
                     "sizes": "750x1334",
                     "type": "image/png",
-                    "label": "RemoteTerm mobile conversation",
+                    "label": f"{app_name} mobile conversation",
                 },
             ],
         }
@@ -226,14 +270,11 @@ def register_frontend_static_routes(app: FastAPI, frontend_dir: Path) -> bool:
             raise HTTPException(status_code=404, detail="Not found") from None
 
         if file_path.exists() and file_path.is_file():
-            cache_control = (
-                INDEX_CACHE_CONTROL
-                if _is_index_file(file_path, index_file)
-                else STATIC_FILE_CACHE_CONTROL
-            )
-            return _file_response(file_path, cache_control=cache_control)
+            if _is_index_file(file_path, index_file):
+                return await _index_response(index_file)
+            return _file_response(file_path, cache_control=STATIC_FILE_CACHE_CONTROL)
 
-        return _file_response(index_file, cache_control=INDEX_CACHE_CONTROL)
+        return await _index_response(index_file)
 
     logger.info("Serving frontend from %s", frontend_dir)
     return True

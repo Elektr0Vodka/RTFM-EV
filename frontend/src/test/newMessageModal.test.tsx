@@ -345,4 +345,54 @@ describe('NewMessageModal form reset', () => {
       expect(screen.getByLabelText('Name')).toHaveValue('Analyzer Node');
     });
   });
+
+  describe('contact link tab', () => {
+    const LINK = 'meshcore://1100ae92564c5c9884854f04f469bbb2';
+
+    it('is hidden when no import handler is wired', () => {
+      renderModal();
+      expect(screen.queryByRole('tab', { name: 'Contact link' })).toBeNull();
+    });
+
+    it('imports a pasted meshcore:// link', async () => {
+      const user = userEvent.setup();
+      const onImportContactUri = vi.fn().mockResolvedValue(undefined);
+      renderModal(true, { onImportContactUri });
+      await switchToTab(user, 'Contact link');
+
+      await user.type(screen.getByRole('textbox', { name: 'Contact link' }), `  ${LINK}  `);
+      await user.click(screen.getByRole('button', { name: 'Import' }));
+
+      await waitFor(() => expect(onImportContactUri).toHaveBeenCalledWith(LINK));
+      expect(onClose).toHaveBeenCalled();
+    });
+
+    it('rejects text that is not a meshcore:// link without calling the backend', async () => {
+      const user = userEvent.setup();
+      const onImportContactUri = vi.fn().mockResolvedValue(undefined);
+      renderModal(true, { onImportContactUri });
+      await switchToTab(user, 'Contact link');
+
+      await user.type(screen.getByRole('textbox', { name: 'Contact link' }), 'https://example.com');
+      await user.click(screen.getByRole('button', { name: 'Import' }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('meshcore://');
+      expect(onImportContactUri).not.toHaveBeenCalled();
+    });
+
+    it('shows the backend error and keeps the dialog open', async () => {
+      const user = userEvent.setup();
+      const onImportContactUri = vi
+        .fn()
+        .mockRejectedValue(new Error('Advert signature is invalid'));
+      renderModal(true, { onImportContactUri });
+      await switchToTab(user, 'Contact link');
+
+      await user.type(screen.getByRole('textbox', { name: 'Contact link' }), LINK);
+      await user.click(screen.getByRole('button', { name: 'Import' }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Advert signature is invalid');
+      expect(onClose).not.toHaveBeenCalled();
+    });
+  });
 });

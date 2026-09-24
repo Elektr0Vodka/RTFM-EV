@@ -7,6 +7,8 @@ from typing import Literal
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.log_redaction import CliSecretRedactFilter
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="MESHCORE_")
@@ -220,3 +222,6 @@ def setup_logging() -> None:
     # Squelch repeated messages from the meshcore library (e.g. rapid-fire
     # "Serial Connection started" when the port is contended).
     logging.getLogger("meshcore").addFilter(_RepeatSquelch())
+    # Keep remote CLI secrets (passwords, private keys) out of the library's
+    # send_cmd debug line, which would otherwise reach /api/debug at DEBUG level.
+    logging.getLogger("meshcore").addFilter(CliSecretRedactFilter())

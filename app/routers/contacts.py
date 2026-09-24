@@ -8,6 +8,12 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from meshcore import EventType
 from pydantic import BaseModel, Field
 
+from app.contact_uri import (
+    ContactUriError,
+    card_from_export_result,
+    format_contact_uri,
+    parse_contact_uri,
+)
 from app.models import (
     Contact,
     ContactActiveRoom,
@@ -17,21 +23,30 @@ from app.models import (
     ContactRadioPolicyRequest,
     ContactRadioResidency,
     ContactRoutingOverrideRequest,
+    ContactTelemetryPermissionsRequest,
     ContactTelemetryResponse,
     ContactUpsert,
+    ContactUriBatchRequest,
+    ContactUriBatchResponse,
+    ContactUriImportRequest,
+    ContactUriResponse,
     CreateContactRequest,
     LatestTelemetryEntry,
     LppSensor,
+    MarkUnreadRequest,
     NearestRepeater,
     PathDiscoveryResponse,
     PathDiscoveryRoute,
     TelemetryHistoryEntry,
     TraceResponse,
+    apply_telemetry_perms,
 )
 from app.packet_processor import start_historical_dm_decryption
 from app.path_utils import parse_explicit_hop_route
 from app.repository import (
+    AdvertEventRepository,
     AmbiguousPublicKeyPrefixError,
+    AppSettingsRepository,
     ContactAdvertPathRepository,
     ContactNameHistoryRepository,
     ContactRepository,
@@ -133,7 +148,10 @@ async def _build_keyed_contact_analytics(contact: Contact) -> ContactAnalytics:
     dm_count = await MessageRepository.count_dm_messages(contact.public_key)
     chan_count = await MessageRepository.count_channel_messages_by_sender(contact.public_key)
     active_rooms_raw = await MessageRepository.get_most_active_rooms(contact.public_key)
-    advert_paths = await ContactAdvertPathRepository.get_recent_for_contact(contact.public_key)
+    advert_paths = await ContactAdvertPathRepository.get_recent_for_contact(
+        contact.public_key,
+        limit=(await AppSettingsRepository.get()).advert_paths_per_contact,
+    )
     hourly_activity, weekly_activity = await MessageRepository.get_contact_activity_series(
         contact.public_key
     )
@@ -366,6 +384,87 @@ async def create_contact(
     return stored
 
 
+@router.post("/import-uri", response_model=Contact)
+async def import_contact_uri(request: ContactUriImportRequest) -> Contact:
+    """Import a contact from a meshcore:// link (CMD_IMPORT_CONTACT).
+
+    The link is validated (hex, ADVERT packet, Ed25519 signature) before the
+    radio sees it. The firmware loops the advert back as if it had been heard
+    and ignores the forwarding decision, so nothing is transmitted. A new
+    contact is also stored in the app; an existing one is left as it is.
+    """
+    try:
+        card = parse_contact_uri(request.uri)
+    except ContactUriError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    radio_manager.require_connected()
+    async with radio_manager.radio_operation("import_contact_uri") as mc:
+        result = await mc.commands.import_contact(card.raw)
+    if result is None or result.type == EventType.ERROR:
+        detail = result.payload if result is not None else "no response"
+        raise HTTPException(status_code=422, detail=f"Radio rejected the contact: {detail}")
+
+    public_key = card.public_key
+    promoted_keys: list[str] = []
+    existing = await ContactRepository.get_by_key(public_key)
+    if existing is None:
+        # Not heard on RF, so no last_advert/last_seen: the card only seeds the contact.
+        await ContactRepository.upsert(
+            ContactUpsert(
+                public_key=public_key,
+                name=card.advert.name,
+                type=card.advert.device_role,
+                lat=card.advert.lat,
+                lon=card.advert.lon,
+            )
+        )
+        logger.info("Imported contact %s from link", public_key[:12])
+        promoted_keys = await promote_prefix_contacts_for_contact(
+            public_key=public_key,
+            log=logger,
+        )
+        await record_contact_name_and_reconcile(
+            public_key=public_key,
+            contact_name=card.advert.name,
+            timestamp=int(time.time()),
+            log=logger,
+        )
+
+    stored = await ContactRepository.get_by_key(public_key)
+    if stored is None:
+        raise HTTPException(status_code=500, detail="Contact was imported but could not be loaded")
+    await _broadcast_contact_update(stored)
+    if promoted_keys:
+        await _broadcast_contact_resolution(promoted_keys, stored)
+    return stored
+
+
+@router.get("/{public_key}/contact-uri", response_model=ContactUriResponse)
+async def get_contact_uri(public_key: str) -> ContactUriResponse:
+    """Return a contact's meshcore:// link (CMD_EXPORT_CONTACT with its key).
+
+    The radio returns the last advert it stored for that contact, so this only
+    works for contacts the radio has heard or imported. Nothing is transmitted.
+    """
+    contact = await _resolve_contact_or_404(public_key)
+    radio_manager.require_connected()
+    async with radio_manager.radio_operation("export_contact_uri") as mc:
+        result = await mc.commands.export_contact(contact.public_key)
+    if result is None or result.type == EventType.ERROR:
+        raise HTTPException(
+            status_code=404,
+            detail="The radio has no stored advert for this contact",
+        )
+    try:
+        card = card_from_export_result(result)
+    except ContactUriError as exc:
+        raise HTTPException(status_code=502, detail=f"Radio export failed: {exc}") from exc
+    if card.public_key != contact.public_key.lower():
+        raise HTTPException(status_code=502, detail="Radio returned another node's advert")
+    return ContactUriResponse(uri=format_contact_uri(card.raw), public_key=card.public_key)
+
+
 @router.post("/{public_key}/mark-read")
 async def mark_contact_read(public_key: str) -> dict:
     """Mark a contact conversation as read (update last_read_at timestamp)."""
@@ -376,6 +475,38 @@ async def mark_contact_read(public_key: str) -> dict:
         raise HTTPException(status_code=500, detail="Failed to update read state")
 
     return {"status": "ok", "public_key": contact.public_key}
+
+
+@router.post("/{public_key}/mark-unread")
+async def mark_contact_unread(public_key: str, body: MarkUnreadRequest) -> dict:
+    """Mark a contact conversation as unread from a given message onward.
+
+    Sets last_read_at to just before the message's received_at, so that
+    message and every incoming message after it count as unread again.
+    """
+    contact = await _resolve_contact_or_404(public_key)
+
+    message = await MessageRepository.get_by_id(body.message_id)
+    if (
+        not message
+        or message.type != "PRIV"
+        or message.conversation_key.lower() != contact.public_key.lower()
+    ):
+        raise HTTPException(status_code=404, detail="Message not found in this conversation")
+    if message.outgoing:
+        raise HTTPException(status_code=400, detail="Cannot mark an outgoing message as unread")
+
+    timestamp = message.received_at - 1
+    updated = await ContactRepository.update_last_read_at(contact.public_key, timestamp)
+    if not updated:
+        raise HTTPException(status_code=500, detail="Failed to update read state")
+
+    return {
+        "status": "ok",
+        "public_key": contact.public_key,
+        "message_id": message.id,
+        "last_read_at": timestamp,
+    }
 
 
 class BulkDeleteRequest(BaseModel):
@@ -414,6 +545,32 @@ async def bulk_delete_contacts(request: BulkDeleteRequest) -> dict:
 
     logger.info("Bulk deleted %d/%d contacts", deleted, len(request.public_keys))
     return {"deleted": deleted}
+
+
+@router.post("/bulk-contact-uris", response_model=ContactUriBatchResponse)
+async def get_bulk_contact_uris(request: ContactUriBatchRequest) -> ContactUriBatchResponse:
+    """Build meshcore:// links for several contacts from stored raw adverts.
+
+    Unlike ``GET /{public_key}/contact-uri``, this never talks to the radio: it
+    looks up the most recently retained advert transmission per key
+    (``advert_events`` joined to ``raw_packets``) and validates it the same way
+    an imported link is validated (hex, ADVERT packet, Ed25519 signature). A
+    key is left out of the response when no raw advert is stored for it (never
+    heard, or pruned by retention) rather than causing an error, so callers
+    (for example a GPX export of many nodes at once) can simply omit the link
+    for those.
+    """
+    raw_by_key = await AdvertEventRepository.latest_raw_adverts(request.public_keys)
+    links: dict[str, str] = {}
+    for key, raw in raw_by_key.items():
+        try:
+            card = parse_contact_uri(format_contact_uri(raw))
+        except ContactUriError:
+            continue
+        if card.public_key != key:
+            continue
+        links[key] = format_contact_uri(card.raw)
+    return ContactUriBatchResponse(links=links)
 
 
 @router.delete("/{public_key}")
@@ -639,10 +796,13 @@ async def set_contact_routing_override(
 
 @router.post("/{public_key}/annotations")
 async def set_contact_annotations(public_key: str, request: ContactAnnotationsUpdate) -> dict:
-    """Update user-editable annotations (notes, owner info, owner pubkey, manual GPS).
+    """Update user-editable annotations (notes, owner info, owner pubkey, manual GPS,
+    battery chemistry override).
 
     Only fields explicitly present in the request body are changed; a field sent
     as ``null`` clears it. ``owner_key`` must reference an existing contact.
+    Clearing ``battery_chemistry`` (null) reverts the node to the global default
+    in Settings.
     """
     contact = await _resolve_contact_or_404(public_key)
 
@@ -694,6 +854,64 @@ async def set_contact_radio_policy(public_key: str, request: ContactRadioPolicyR
         "status": "ok",
         "public_key": contact.public_key,
         "radio_policy": request.policy,
+    }
+
+
+@router.post("/{public_key}/telemetry-permissions")
+async def set_contact_telemetry_permissions(
+    public_key: str, request: ContactTelemetryPermissionsRequest
+) -> dict:
+    """Set which telemetry this radio shares with a contact.
+
+    The app value is authoritative: it is stored, pushed now when the contact
+    is loaded on the radio, applied whenever the contact is loaded later, and
+    re-applied when a radio contact snapshot shows different bits. A contact
+    that is not on the radio is not added just for this.
+    """
+    contact = await _resolve_contact_or_404(public_key)
+    perms = request.to_perms()
+    await ContactRepository.set_telemetry_perms(contact.public_key, perms)
+
+    applied_to_radio = False
+    if radio_manager.is_connected:
+        try:
+            async with radio_manager.radio_operation("set_contact_telemetry_permissions") as mc:
+                radio_contact = mc.get_contact_by_key_prefix(contact.public_key[:12])
+                if radio_contact:
+                    # Build on the radio's own flags so its favourite bit is untouched.
+                    flags = apply_telemetry_perms(int(radio_contact.get("flags") or 0), perms)
+                    result = await mc.commands.change_contact_flags(radio_contact, flags)
+                    applied_to_radio = result is not None and result.type != EventType.ERROR
+                    if applied_to_radio:
+                        await ContactRepository.set_flags(contact.public_key, flags)
+                    if not applied_to_radio:
+                        logger.warning(
+                            "Radio rejected telemetry permissions for %s: %s",
+                            contact.public_key[:12],
+                            result.payload if result is not None else None,
+                        )
+        except Exception:
+            logger.warning(
+                "Failed to push telemetry permissions to radio for %s",
+                contact.public_key[:12],
+                exc_info=True,
+            )
+
+    logger.info(
+        "Set telemetry permissions for %s: 0x%02x (on radio now: %s)",
+        contact.public_key[:12],
+        perms,
+        applied_to_radio,
+    )
+    updated = await ContactRepository.get_by_key(contact.public_key)
+    if updated:
+        await _broadcast_contact_update(updated)
+
+    return {
+        "status": "ok",
+        "public_key": contact.public_key,
+        "telemetry_perms": perms,
+        "applied_to_radio": applied_to_radio,
     }
 
 

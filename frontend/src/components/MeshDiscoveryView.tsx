@@ -1,25 +1,41 @@
 import { useState } from 'react';
 
-import type { HealthStatus, RadioDiscoveryResponse, RadioDiscoveryTarget } from '../types';
+import type {
+  HealthStatus,
+  RadioDiscoveryResponse,
+  RadioDiscoveryTarget,
+  RadioRegionDiscoveryResponse,
+} from '../types';
 import { useT } from '../i18n';
 import { Button } from './ui/button';
+import { toast } from './ui/sonner';
 
-// Standalone Tools view for the mesh discovery sweep that used to live in
-// Settings > Radio. Sweep state lives in useRadioControl so the last result
-// survives navigation and stays available to Settings > Radio region discovery.
+// Standalone Tools view for the mesh discovery sweep and repeater region
+// discovery, both of which used to live in Settings > Radio. Sweep and region
+// state live in useRadioControl so the last results survive navigation, and
+// region discovery prefers repeaters from the last sweep.
 export function MeshDiscoveryView({
   health,
   meshDiscovery,
   meshDiscoveryLoadingTarget,
   onDiscoverMesh,
+  regionDiscovery = null,
+  regionDiscoveryLoading = false,
+  onDiscoverRegions,
+  onSeedKnownRegions,
 }: {
   health: HealthStatus | null;
   meshDiscovery: RadioDiscoveryResponse | null;
   meshDiscoveryLoadingTarget: RadioDiscoveryTarget | null;
   onDiscoverMesh: (target: RadioDiscoveryTarget) => Promise<void>;
+  regionDiscovery?: RadioRegionDiscoveryResponse | null;
+  regionDiscoveryLoading?: boolean;
+  onDiscoverRegions?: (publicKeys?: string[]) => Promise<void>;
+  onSeedKnownRegions?: (codes: string[]) => Promise<number>;
 }) {
   const t = useT();
   const [discoverError, setDiscoverError] = useState<string | null>(null);
+  const [seedingRegions, setSeedingRegions] = useState(false);
 
   const handleDiscover = async (target: RadioDiscoveryTarget) => {
     setDiscoverError(null);
@@ -29,6 +45,36 @@ export function MeshDiscoveryView({
       setDiscoverError(
         err instanceof Error ? err.message : t('settings_radio_failed_mesh_discovery')
       );
+    }
+  };
+
+  const handleDiscoverRegions = async () => {
+    if (!onDiscoverRegions) return;
+    // Prefer repeaters from the most recent mesh-discovery sweep (they just
+    // answered, so they're likely in range for the direct-routed regions
+    // request); otherwise let the backend pick recent repeater contacts.
+    const discoveredRepeaterKeys = (meshDiscovery?.results ?? [])
+      .filter((r) => r.node_type === 'repeater')
+      .map((r) => r.public_key);
+    await onDiscoverRegions(discoveredRepeaterKeys);
+  };
+
+  // Merges the discovered regions into known_regions and persists right away
+  // (there is no unsaved form on this page to review them in).
+  const handleAddDiscoveredRegions = async () => {
+    if (!onSeedKnownRegions || !regionDiscovery || regionDiscovery.regions.length === 0) return;
+    setSeedingRegions(true);
+    try {
+      const added = await onSeedKnownRegions(regionDiscovery.regions);
+      if (added > 0) {
+        toast.success(t('repeater_regions_seed_added', { count: added }));
+      } else {
+        toast.info(t('settings_radio_toast_regions_already_listed'));
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('repeater_regions_seed_failed'));
+    } finally {
+      setSeedingRegions(false);
     }
   };
 
@@ -119,6 +165,79 @@ export function MeshDiscoveryView({
                       </p>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          )}
+          {onDiscoverRegions && (
+            <div className="space-y-2 rounded-md border border-input bg-muted/20 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
+                  {t('settings_radio_discover_regions_label')}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDiscoverRegions}
+                  disabled={regionDiscoveryLoading || !health?.radio_connected}
+                >
+                  {regionDiscoveryLoading
+                    ? t('settings_radio_asking_repeaters')
+                    : t('settings_radio_discover_regions_button')}
+                </Button>
+              </div>
+              <p className="text-[0.8125rem] text-muted-foreground">
+                {t('settings_radio_discover_regions_desc')}
+              </p>
+              {regionDiscovery && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">
+                    {t('settings_radio_repeaters_answered', {
+                      count: regionDiscovery.repeaters_queried,
+                      answered: regionDiscovery.repeaters_answered,
+                      queried: regionDiscovery.repeaters_queried,
+                    })}
+                    {regionDiscovery.regions.length > 0
+                      ? t('settings_radio_regions_found_suffix', {
+                          count: regionDiscovery.regions.length,
+                        })
+                      : ''}
+                  </p>
+                  {regionDiscovery.regions.length > 0 ? (
+                    <>
+                      <div className="flex flex-wrap gap-1.5">
+                        {regionDiscovery.regions.map((region) => (
+                          <span
+                            key={region}
+                            className="text-[0.625rem] uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary/10 font-mono"
+                          >
+                            {region}
+                          </span>
+                        ))}
+                      </div>
+                      {onSeedKnownRegions && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleAddDiscoveredRegions}
+                          disabled={seedingRegions}
+                          className="border-success/50 text-success hover:bg-success/10"
+                        >
+                          {seedingRegions
+                            ? t('repeater_regions_seed_button_loading')
+                            : t('settings_radio_add_known_regions_button')}
+                        </Button>
+                      )}
+                    </>
+                  ) : (
+                    regionDiscovery.repeaters_queried > 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        {t('settings_radio_no_regions_reported')}
+                      </p>
+                    )
+                  )}
                 </div>
               )}
             </div>

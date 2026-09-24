@@ -7,9 +7,12 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from app.models import (
+    BATTERY_CHEMISTRIES,
     CONTACT_TYPE_REPEATER,
+    RETENTION_DEFAULTS,
     AnalyzerSite,
     AppSettings,
+    ContactGroup,
     HandyInfoCustomEntry,
     HandyInfoOverride,
     HandyInfoSettings,
@@ -259,15 +262,75 @@ class AppSettingsUpdate(BaseModel):
     )
     advert_retention_days: int | None = Field(
         default=None,
-        ge=1,
-        le=365,
-        description="Days of advert history to keep before daily pruning",
+        ge=0,
+        le=3650,
+        description="Days of advert history to keep; 0 = keep forever",
     )
     raw_packet_retention_days: int | None = Field(
         default=None,
         ge=0,
-        le=365,
-        description="Days of raw_packets history to keep; 0 = keep forever. Pruned daily.",
+        le=3650,
+        description="Days of raw_packets history to keep; 0 = keep forever",
+    )
+    retention_prune_interval_hours: int | None = Field(
+        default=None,
+        ge=1,
+        le=168,
+        description="Hours between retention prune runs",
+    )
+    telemetry_retention_days: int | None = Field(
+        default=None,
+        ge=0,
+        le=3650,
+        description="Days of repeater/contact telemetry history to keep; 0 = keep forever",
+    )
+    telemetry_max_rows_per_node: int | None = Field(
+        default=None,
+        ge=0,
+        le=100000,
+        description="Telemetry history rows kept per node; 0 = no cap",
+    )
+    link_signal_retention_days: int | None = Field(
+        default=None,
+        ge=0,
+        le=3650,
+        description="Days of per-link signal history to keep; 0 = keep forever",
+    )
+    advert_paths_per_contact: int | None = Field(
+        default=None,
+        ge=1,
+        le=100,
+        description="Most recent unique advert paths kept per contact",
+    )
+    noise_floor_retention_days: int | None = Field(
+        default=None,
+        ge=0,
+        le=3650,
+        description="Days of noise-floor samples to keep; 0 = keep forever",
+    )
+    battery_retention_days: int | None = Field(
+        default=None,
+        ge=0,
+        le=3650,
+        description="Days of battery samples to keep; 0 = keep forever",
+    )
+    airtime_retention_days: int | None = Field(
+        default=None,
+        ge=0,
+        le=3650,
+        description="Days of airtime samples to keep; 0 = keep forever",
+    )
+    message_retention_days: int | None = Field(
+        default=None,
+        ge=0,
+        le=3650,
+        description="Days of messages (and their linked raw packets) to keep; 0 = keep forever",
+    )
+    link_edge_retention_days: int | None = Field(
+        default=None,
+        ge=0,
+        le=3650,
+        description="Days of per-packet map link history to keep; 0 = keep forever",
     )
     advert_interval: int | None = Field(
         default=None,
@@ -305,6 +368,10 @@ class AppSettingsUpdate(BaseModel):
         default=None,
         description="Per-favorite-group sort order (recent/alpha) in the sidebar",
     )
+    contact_groups: list[ContactGroup] | None = Field(
+        default=None,
+        description="User-defined contact/channel groups (full-list replace)",
+    )
     packet_feed_sort: str | None = Field(
         default=None,
         description="Raw Packet Feed time-sort direction: 'oldest' or 'newest'",
@@ -320,6 +387,10 @@ class AppSettingsUpdate(BaseModel):
     date_time_format: str | None = Field(
         default=None,
         description="UI date/time format: 'auto', '12h_mdy', or '24h_dmy'",
+    )
+    battery_chemistry: str | None = Field(
+        default=None,
+        description="Global default battery chemistry: 'lipo', 'lifepo4', 'lipo_hv', or 'nmc'",
     )
     packet_group_by_content: bool | None = Field(
         default=None,
@@ -484,7 +555,7 @@ class AppSettingsUpdate(BaseModel):
     )
     brand_name: str | None = Field(
         default=None,
-        description="Custom navbar wordmark (empty falls back to 'RemoteTerm')",
+        description="Custom navbar wordmark (empty falls back to 'RTFM-EV')",
     )
     brand_hidden: bool | None = Field(
         default=None,
@@ -629,6 +700,10 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
         kwargs["advert_retention_days"] = update.advert_retention_days
     if update.raw_packet_retention_days is not None:
         kwargs["raw_packet_retention_days"] = update.raw_packet_retention_days
+    for name in RETENTION_DEFAULTS:
+        value = getattr(update, name)
+        if value is not None:
+            kwargs[name] = value
 
     if update.advert_interval is not None:
         # Enforce minimum 1-hour interval; 0 means disabled
@@ -715,6 +790,29 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
     if update.sidebar_favorite_sort_orders is not None:
         kwargs["sidebar_favorite_sort_orders"] = update.sidebar_favorite_sort_orders
 
+    # User-defined contact/channel groups (full-list replace, same convention as
+    # the other sidebar arrays above). Normalize ids/names and lowercase contact
+    # keys; drop entries with a blank id or name rather than 400-ing so a stale
+    # client can't brick the settings save.
+    if update.contact_groups is not None:
+        cleaned_groups: list[ContactGroup] = []
+        seen_group_ids: set[str] = set()
+        for group in update.contact_groups:
+            group_id = group.id.strip()
+            name = group.name.strip()
+            if not group_id or not name or group_id in seen_group_ids:
+                continue
+            seen_group_ids.add(group_id)
+            cleaned_groups.append(
+                ContactGroup(
+                    id=group_id,
+                    name=name,
+                    contact_keys=sorted({k.lower() for k in group.contact_keys if k}),
+                    channel_keys=sorted({k for k in group.channel_keys if k}),
+                )
+            )
+        kwargs["contact_groups"] = cleaned_groups
+
     # Packet-feed sort direction. Ignore unknown values so a stale client can't
     # corrupt the setting (matches the telemetry-interval convention).
     if update.packet_feed_sort is not None and update.packet_feed_sort in ("oldest", "newest"):
@@ -741,6 +839,10 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
         "24h_dmy",
     ):
         kwargs["date_time_format"] = update.date_time_format
+    # Global default battery chemistry. Ignore an unknown value so a stale client
+    # can't corrupt it; a contact's own battery_chemistry overrides this per-node.
+    if update.battery_chemistry is not None and update.battery_chemistry in BATTERY_CHEMISTRIES:
+        kwargs["battery_chemistry"] = update.battery_chemistry
     # Packet-filter 'Group repeats by content' toggle (shared by both packet views).
     if update.packet_group_by_content is not None:
         kwargs["packet_group_by_content"] = update.packet_group_by_content
@@ -1090,15 +1192,11 @@ async def toggle_tracked_telemetry_contact(
             ),
         )
 
-    # Validate contact exists and is not a repeater (repeaters use tracked_telemetry_repeaters)
+    # Any contact type may be tracked here, repeaters included: this list
+    # collects LPP telemetry, independent of the repeater status list.
     contact = await ContactRepository.get_by_key(key)
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
-    if contact.type == CONTACT_TYPE_REPEATER:
-        raise HTTPException(
-            status_code=400,
-            detail="Repeaters use the dedicated repeater telemetry tracking list",
-        )
 
     if len(current) >= MAX_TRACKED_TELEMETRY_CONTACTS:
         names = await _resolve_names(current)

@@ -63,11 +63,13 @@ from app.radio_sync import (
 from app.routers import (
     backup,
     channels,
+    communities,
     contacts,
     debug,
     external_map,
     fanout,
     health,
+    links,
     messages,
     openhop,
     packets,
@@ -78,22 +80,24 @@ from app.routers import (
     regions,
     registry,
     repeaters,
+    retention,
     rooms,
     settings,
     statistics,
+    tiles,
     unfurl,
     update_status,
     wordlists,
     ws,
 )
 from app.security import add_optional_basic_auth_middleware
-from app.services.advert_pruner import start_advert_prune, stop_advert_prune
 from app.services.backup_scheduler import start_backup_schedule, stop_backup_schedule
 from app.services.db_restore import apply_pending_restore
 from app.services.external_map import start_external_map_sync, stop_external_map_sync
+from app.services.link_edge_backfill import start_link_edge_backfill, stop_link_edge_backfill
 from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.radio_stats import start_radio_stats_sampling, stop_radio_stats_sampling
-from app.services.raw_packet_pruner import start_raw_packet_prune, stop_raw_packet_prune
+from app.services.retention_pruner import start_retention_prune, stop_retention_prune
 from app.version_info import get_app_build_info
 
 setup_logging()
@@ -141,15 +145,22 @@ async def lifespan(app: FastAPI):
     await ensure_default_channels()
     await start_radio_stats_sampling()
 
+    # Arm the new-node notification startup warm-up before the radio connects
+    # and starts syncing/hearing adverts, so an empty database suppresses the
+    # initial catch-up burst instead of notifying for every mesh node heard.
+    from app.services.new_node_notify import arm_startup_warmup
+
+    await arm_startup_warmup()
+
     # External-map node overlay sync loop (radio-independent; guarded by the
     # external_map_enabled / interval settings each tick).
     start_external_map_sync()
 
-    # Daily prune of advert_events per the configured retention.
-    start_advert_prune()
+    # Per-class retention pruning on the configured interval (Settings > Database).
+    start_retention_prune()
 
-    # Daily prune of raw_packets per the configured retention (0 = keep forever).
-    start_raw_packet_prune()
+    # One-time link edge backfill from packets stored before migration _107.
+    start_link_edge_backfill()
 
     # Scheduled snapshots into the server-side backup directory (off by default).
     start_backup_schedule()
@@ -183,9 +194,9 @@ async def lifespan(app: FastAPI):
     await stop_message_polling()
     await stop_radio_stats_sampling()
     await stop_external_map_sync()
-    await stop_advert_prune()
-    await stop_raw_packet_prune()
     await stop_backup_schedule()
+    await stop_retention_prune()
+    await stop_link_edge_backfill()
     await stop_periodic_advert()
     await stop_periodic_sync()
     await stop_telemetry_collect()
@@ -252,10 +263,13 @@ app.include_router(contacts.router, prefix="/api")
 app.include_router(repeaters.router, prefix="/api")
 app.include_router(rooms.router, prefix="/api")
 app.include_router(channels.router, prefix="/api")
+app.include_router(communities.router, prefix="/api")
 app.include_router(messages.router, prefix="/api")
 app.include_router(packets.router, prefix="/api")
+app.include_router(links.router, prefix="/api")
 app.include_router(read_state.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
+app.include_router(retention.router, prefix="/api")
 app.include_router(registry.router, prefix="/api")
 app.include_router(regions.router, prefix="/api")
 app.include_router(external_map.router, prefix="/api")
@@ -263,6 +277,7 @@ app.include_router(partial_resolution.router, prefix="/api")
 app.include_router(openhop.router, prefix="/api")
 app.include_router(statistics.router, prefix="/api")
 app.include_router(unfurl.router, prefix="/api")
+app.include_router(tiles.router, prefix="/api")
 app.include_router(push.router, prefix="/api")
 app.include_router(wordlists.router, prefix="/api")
 app.include_router(ws.router, prefix="/api")

@@ -10,11 +10,15 @@ import { applyCrt } from './utils/crt';
 import { applyFontScale, getSavedFontScale } from './utils/fontScale';
 import { PushSubscriptionProvider } from './contexts/PushSubscriptionContext';
 import { I18nProvider } from './i18n';
+import { setCountryFlagFontActive } from './utils/countryFlagFont';
+import { loadTileProxyConfig } from './map/engine/tileProxy';
 
 // Inject the bundled Twemoji flag font on browsers that support color emoji but
 // not regional-indicator flags (Windows/Chromium). No-op on macOS/Linux/Firefox.
 // Served locally from public/fonts, so it stays offline with no CDN dependency.
-polyfillCountryFlagEmojis('Twemoji Country Flags', './fonts/TwemojiCountryFlags.woff2');
+setCountryFlagFontActive(
+  polyfillCountryFlagEmojis('Twemoji Country Flags', './fonts/TwemojiCountryFlags.woff2')
+);
 
 // Apply saved theme before first render
 applyTheme(getSavedTheme());
@@ -23,6 +27,9 @@ applyCrt();
 // Re-apply when the OS color-scheme preference changes, if on "Follow OS".
 initFollowOSListener();
 applyFontScale(getSavedFontScale());
+// Learn early whether map tiles go through the backend tile cache, so the first
+// map mount already routes them (MapLibre reads it per request).
+void loadTileProxyConfig();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
