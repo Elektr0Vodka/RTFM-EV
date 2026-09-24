@@ -1,6 +1,8 @@
 import type {
   AdvertLinkEdge,
   AppSettings,
+  BackupFilesResponse,
+  RestoreStatus,
   AppSettingsUpdate,
   PacketHistoryResponse,
   UrlPreview,
@@ -459,6 +461,34 @@ export const api = {
     fetchJson<BackupSaveResult>('/backup/save', {
       method: 'POST',
     }),
+  listBackupFiles: () => fetchJson<BackupFilesResponse>('/backup/files'),
+  getRestoreStatus: () => fetchJson<RestoreStatus>('/backup/restore'),
+  restoreFromServer: (filename: string) =>
+    fetchJson<RestoreStatus>('/backup/restore/server', {
+      method: 'POST',
+      body: JSON.stringify({ filename }),
+    }),
+  restoreFromUpload: async (file: File): Promise<RestoreStatus> => {
+    const form = new FormData();
+    form.append('file', file);
+    // Raw fetch so the browser sets multipart/form-data (not application/json).
+    const res = await fetch(`${API_BASE}/backup/restore/upload`, { method: 'POST', body: form });
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = text || res.statusText;
+      try {
+        const j = JSON.parse(text);
+        if (j.detail) msg = j.detail;
+      } catch {
+        /* raw text */
+      }
+      throw new ApiError(msg, res.status);
+    }
+    return res.json() as Promise<RestoreStatus>;
+  },
+  cancelRestore: () => fetchJson<RestoreStatus>('/backup/restore', { method: 'DELETE' }),
+  dismissRestoreResult: () =>
+    fetchJson<RestoreStatus>('/backup/restore/result', { method: 'DELETE' }),
 
   // Read State
   getUnreads: () => fetchJson<UnreadCounts>('/read-state/unreads'),

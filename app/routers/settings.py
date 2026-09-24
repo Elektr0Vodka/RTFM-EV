@@ -466,6 +466,22 @@ class AppSettingsUpdate(BaseModel):
         default=None,
         description="Absolute directory backups are written to when the toggle is on",
     )
+    backup_schedule_enabled: bool | None = Field(
+        default=None,
+        description="Write automatic snapshots to the server-side backup directory",
+    )
+    backup_schedule_interval_hours: int | None = Field(
+        default=None,
+        ge=1,
+        le=720,
+        description="Hours between automatic snapshots (1-720)",
+    )
+    backup_schedule_keep: int | None = Field(
+        default=None,
+        ge=1,
+        le=365,
+        description="Number of automatic snapshots kept (1-365)",
+    )
     brand_name: str | None = Field(
         default=None,
         description="Custom navbar wordmark (empty falls back to 'RemoteTerm')",
@@ -782,6 +798,12 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
         kwargs["backup_to_path_enabled"] = update.backup_to_path_enabled
     if update.backup_destination_path is not None:
         kwargs["backup_destination_path"] = update.backup_destination_path.strip()
+    if update.backup_schedule_enabled is not None:
+        kwargs["backup_schedule_enabled"] = update.backup_schedule_enabled
+    if update.backup_schedule_interval_hours is not None:
+        kwargs["backup_schedule_interval_hours"] = update.backup_schedule_interval_hours
+    if update.backup_schedule_keep is not None:
+        kwargs["backup_schedule_keep"] = update.backup_schedule_keep
     # OpenHop REST management config (empty string clears the field; the gate
     # treats an empty url/token as "not configured", same as unset).
     if update.openhop_api_url is not None:

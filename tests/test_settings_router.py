@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import HTTPException
 from meshcore import EventType
+from pydantic import ValidationError
 
 from app.models import (
     CONTACT_TYPE_REPEATER,
@@ -75,6 +76,26 @@ class TestUpdateSettings:
         assert result.backup_to_path_enabled is True
         # path is trimmed
         assert result.backup_destination_path == "/mnt/backups"
+
+    @pytest.mark.asyncio
+    async def test_backup_schedule_settings_round_trip(self, test_db):
+        """The PATCH path must forward the scheduled-backup fields to storage."""
+        result = await update_settings(
+            AppSettingsUpdate(
+                backup_schedule_enabled=True,
+                backup_schedule_interval_hours=12,
+                backup_schedule_keep=5,
+            )
+        )
+        assert result.backup_schedule_enabled is True
+        assert result.backup_schedule_interval_hours == 12
+        assert result.backup_schedule_keep == 5
+
+    def test_backup_schedule_bounds_rejected(self):
+        with pytest.raises(ValidationError):
+            AppSettingsUpdate(backup_schedule_interval_hours=0)
+        with pytest.raises(ValidationError):
+            AppSettingsUpdate(backup_schedule_keep=0)
 
     @pytest.mark.asyncio
     async def test_backup_settings_default_off(self, test_db):

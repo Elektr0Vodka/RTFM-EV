@@ -8,6 +8,7 @@ import { api } from '../../api';
 import { formatTime } from '../../utils/messageParser';
 import { loadSyncedWordlist, saveSyncedWordlist } from '../../lib/wordlistSync';
 import { useT } from '../../i18n';
+import { SettingsBackupRestore } from './SettingsBackupRestore';
 import type { AnalyzerSite, AppSettings, AppSettingsUpdate, HealthStatus } from '../../types';
 
 function isValidNodeTemplate(template: string): boolean {
@@ -48,6 +49,7 @@ export function SettingsDatabaseSection({
   const [backupToPath, setBackupToPath] = useState(false);
   const [backupPath, setBackupPath] = useState('');
   const [savingBackup, setSavingBackup] = useState(false);
+  const [backupListVersion, setBackupListVersion] = useState(0);
   const [syncUrl, setSyncUrl] = useState('');
   const [wordlistSyncUrl, setWordlistSyncUrl] = useState('');
   const [wordlistSyncing, setWordlistSyncing] = useState(false);
@@ -130,6 +132,7 @@ export function SettingsDatabaseSection({
     setSavingBackup(true);
     try {
       const result = await api.saveBackup();
+      setBackupListVersion((v) => v + 1);
       toast.success(t('settings_db_backup_toast_saved_title'), {
         description: t('settings_db_backup_toast_saved_desc', {
           path: result.path,
@@ -501,6 +504,12 @@ export function SettingsDatabaseSection({
             </Button>
           </div>
         )}
+
+        <SettingsBackupRestore
+          appSettings={appSettings}
+          persist={persistAppSettings}
+          refreshToken={backupListVersion}
+        />
       </div>
 
       <Separator />

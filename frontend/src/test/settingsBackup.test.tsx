@@ -14,6 +14,9 @@ function baseSettings(overrides: Partial<AppSettings> = {}): AppSettings {
     analyzer_sites: [],
     backup_to_path_enabled: false,
     backup_destination_path: '',
+    backup_schedule_enabled: false,
+    backup_schedule_interval_hours: 24,
+    backup_schedule_keep: 7,
     ...overrides,
   } as AppSettings;
 }

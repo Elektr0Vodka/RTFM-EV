@@ -11,6 +11,40 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-23 (Database restore + scheduled backups)
+
+### Backup and restore (backend + frontend)
+- **Restore a backup from Settings > Database.** Upload a `.db` file
+  (**Restore from file...**) or pick one under **Backups on the server** (the
+  server-side backup directory). The server validates it (SQLite header,
+  `PRAGMA quick_check`, the RemoteTerm tables, schema not newer than the running
+  build) and stages it as `meshcore.db.restore-pending`. The live database is not
+  touched until the next server start. At that start, before the database opens,
+  the current database is saved as `meshcore-pre-restore-<stamp>.db` next to it,
+  the old `-wal`/`-shm` are removed, the staged file is swapped in, and the normal
+  migrations upgrade it. A staged restore can be cancelled. Settings shows the
+  outcome and where the previous database went. If the staged file fails its
+  checks at startup, the current database is kept and the file is moved aside as
+  `.restore-failed`. New `app/services/db_restore.py`; new routes
+  `GET /api/backup/files`, `GET|DELETE /api/backup/restore`,
+  `POST /api/backup/restore/upload`, `POST /api/backup/restore/server`,
+  `DELETE /api/backup/restore/result`.
+- **Scheduled backups.** With the server path enabled, **Back up automatically**
+  writes `meshcore-auto-<stamp>.db` every N hours (default 24, 1-720) and keeps the
+  newest N (default 7, 1-365). Rotation only deletes `meshcore-auto-*` files.
+  Checked every 5 minutes; "last run" comes from the newest automatic file name,
+  so restarts do not add extra snapshots. New `app/services/backup_scheduler.py`
+  and `app/services/backup_store.py` (directory checks, listing, naming,
+  rotation; `POST /api/backup/save` now uses the same directory checks). New
+  settings `backup_schedule_enabled`, `backup_schedule_interval_hours`,
+  `backup_schedule_keep` (migration `_113`).
+- **UI:** new `SettingsBackupRestore` panel inside the Settings > Database backup
+  block; the server list refreshes after **Back up to server now**. New i18n keys
+  `settings_db_schedule_*` and `settings_db_restore_*` in EN/NL/DE.
+- Closes the remaining gaps of plan [22] (restore flow, scheduled backups).
+  Network-protocol (SMB/NFS/SFTP) clients are still out of scope; a mounted share
+  works as the backup directory.
+
 ## Update 2026-09-23 (Docs refresh, docs/refresh-2026-09-22)
 
 ### Documentation

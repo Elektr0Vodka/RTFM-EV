@@ -58,7 +58,34 @@ snapshot of it:
   local-network target works when it is an OS-mounted share. Backing endpoints:
   `GET /api/backup/download` and `POST /api/backup/save`.
 
-Backup is on-demand only (no scheduled job) and does not include a restore flow.
+- **Back up automatically** (shown once the server path is on) writes a snapshot
+  named `meshcore-auto-YYYYMMDD-HHMMSS.db` every N hours (default 24) and keeps the
+  newest N automatic snapshots (default 7). Only `meshcore-auto-*` files are ever
+  deleted; manual and pre-restore snapshots are left alone. The schedule is checked
+  every few minutes and uses the newest automatic file's name as "last run", so a
+  server restart does not trigger an extra snapshot.
+
+**Restore** is in the same section. Pick **Restore from file...** to upload a backup,
+or press **Restore** next to a file listed under **Backups on the server**. The
+server checks the file (it must be a SQLite database with the RemoteTerm tables,
+pass `PRAGMA quick_check`, and not come from a newer schema than the running
+build) and stages it as `meshcore.db.restore-pending`. Nothing changes until the
+server restarts; until then **Cancel restore** discards it. At the next start,
+before the database opens, the server:
+
+1. saves the current database as `meshcore-pre-restore-YYYYMMDD-HHMMSS.db` in the
+   data directory (next to `meshcore.db`),
+2. removes the old `meshcore.db-wal` / `meshcore.db-shm`,
+3. moves the staged file into place, and the normal startup migrations upgrade an
+   older backup to the current schema.
+
+Settings then shows what was restored and where the previous database was saved.
+If the staged file fails its checks at that point, the current database is kept,
+the file is moved aside as `meshcore.db.restore-failed`, and the error is shown
+instead. To undo a restore, restore the `meshcore-pre-restore-*` file the same way
+(copy it into the backup directory, or download and upload it). Backing endpoints:
+`GET /api/backup/files`, `GET|DELETE /api/backup/restore`,
+`POST /api/backup/restore/upload`, `POST /api/backup/restore/server`.
 
 Raw packets are kept forever by default, so the database (and each backup) can keep
 growing. Set **Keep raw packet history (days)** in the
@@ -66,9 +93,9 @@ same Settings database section to a positive value to have older raw packets
 pruned daily. That setting also bounds how far back the Packet History view can
 reach.
 
-**Restore (manual):** stop the server, replace `data/meshcore.db` with the backup
-file, delete `data/meshcore.db-wal` and `data/meshcore.db-shm` if present, then
-start the server again.
+**Restore (manual, without the UI):** stop the server, replace `data/meshcore.db`
+with the backup file, delete `data/meshcore.db-wal` and `data/meshcore.db-shm` if
+present, then start the server again.
 
 ## Contact Loading Issues
 

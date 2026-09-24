@@ -630,6 +630,9 @@ export interface AppSettings {
   external_map_sync_interval_hours: number;
   backup_to_path_enabled: boolean;
   backup_destination_path: string;
+  backup_schedule_enabled: boolean;
+  backup_schedule_interval_hours: number;
+  backup_schedule_keep: number;
   brand_name: string;
   brand_hidden: boolean;
   brand_icon: string;
@@ -881,6 +884,9 @@ export interface AppSettingsUpdate {
   external_map_sync_interval_hours?: number;
   backup_to_path_enabled?: boolean;
   backup_destination_path?: string;
+  backup_schedule_enabled?: boolean;
+  backup_schedule_interval_hours?: number;
+  backup_schedule_keep?: number;
   brand_name?: string;
   brand_hidden?: boolean;
   brand_icon?: string;
@@ -1489,4 +1495,43 @@ export interface OpenHopMqttStatus {
   success: boolean;
   data?: Record<string, unknown>;
   error?: string;
+}
+
+export type BackupFileKind = 'auto' | 'manual' | 'pre-restore' | 'other';
+
+export interface BackupFile {
+  name: string;
+  size_bytes: number;
+  modified_at: number;
+  kind: BackupFileKind;
+}
+
+export interface BackupFilesResponse {
+  enabled: boolean;
+  path: string;
+  files: BackupFile[];
+  error: string | null;
+}
+
+export interface PendingRestore {
+  source: 'upload' | 'server' | string;
+  original_name: string;
+  size_bytes: number;
+  schema_version: number | null;
+  staged_at: number;
+}
+
+export interface RestoreResult {
+  ok: boolean;
+  applied_at: number;
+  source: string;
+  original_name: string;
+  pre_restore_snapshot: string | null;
+  schema_version: number | null;
+  error: string | null;
+}
+
+export interface RestoreStatus {
+  pending: PendingRestore | null;
+  last_result: RestoreResult | null;
 }
