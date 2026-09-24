@@ -5,11 +5,23 @@ This changelog covers work done in the **RTFM-EV** fork
 `jkingsman/Remote-Terminal-for-MeshCore`.
 
 - Fork base commit: `33b3b8d` (upstream `main`), 2026-07-26
-- Commits since fork: 301 total (231 non-merge), as of `462f3b8c` (#172)
-- Generated: 2026-09-10; updated 2026-09-23
+- Commits since fork: 349 total (265 non-merge), as of `da0bad66` (#206)
+- Generated: 2026-09-10; updated 2026-09-24
 
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
+
+## Update 2026-09-24 (Channel Registry date fields: text padding, fix/channel-registry-date-field-padding)
+
+### Channel Registry (frontend)
+- **Fix: "Last heard" and "Added" date text sat flush against the left border**
+  of the edit form's date fields, and could run under the calendar button.
+  The fields are `DateTimeField`s, which take their padding from the caller,
+  and the registry form passed only the height/font classes it uses for its
+  `Input`s (those get padding from the `Input` component itself). The two
+  date fields now get the same horizontal padding as the other inputs plus
+  room for the calendar button. Reported by a tester; the calendar picker
+  itself was already working. No behaviour change.
 
 ## Update 2026-09-24 (Room server alpha notice removed)
 

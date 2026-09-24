@@ -352,6 +352,7 @@ function EditChannelModal({
   }
 
   const inputCls = 'h-7 text-sm';
+  const dateInputCls = 'h-7 px-3 pr-7 text-sm';
   const labelCls = 'text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium';
 
   return (
@@ -578,7 +579,7 @@ function EditChannelModal({
               <DateTimeField
                 mode="date"
                 fullWidth
-                className={inputCls}
+                className={dateInputCls}
                 value={form.lastHeard}
                 onChange={(v) => setForm((f) => ({ ...f, lastHeard: v }))}
               />
@@ -588,7 +589,7 @@ function EditChannelModal({
               <DateTimeField
                 mode="date"
                 fullWidth
-                className={inputCls}
+                className={dateInputCls}
                 value={form.added}
                 onChange={(v) => setForm((f) => ({ ...f, added: v }))}
               />
