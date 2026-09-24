@@ -87,7 +87,12 @@ def list_backup_files(directory: str) -> list[dict]:
 
 
 def resolve_backup_file(directory: str, filename: str) -> str:
-    """Resolve a bare filename inside ``directory``; reject anything else."""
+    """Resolve a bare filename inside ``directory``; reject anything else.
+
+    The name must be a plain ``*.db`` basename (no separators, no ``.``/``..``)
+    and the normalized path must stay inside the real backup directory, so a
+    symlink or an odd name cannot point outside it.
+    """
     if (
         not filename
         or filename != os.path.basename(filename)
@@ -97,11 +102,13 @@ def resolve_backup_file(directory: str, filename: str) -> str:
         or not filename.lower().endswith(".db")
     ):
         raise BackupDirError(400, "Invalid backup file name")
-    path = os.path.join(directory, filename)
     real_dir = os.path.realpath(directory)
-    if os.path.dirname(os.path.realpath(path)) != real_dir or not os.path.isfile(path):
+    candidate = os.path.realpath(os.path.normpath(os.path.join(real_dir, filename)))
+    if not candidate.startswith(real_dir + os.sep) or os.path.dirname(candidate) != real_dir:
         raise BackupDirError(404, "Backup file not found")
-    return path
+    if not os.path.isfile(candidate):
+        raise BackupDirError(404, "Backup file not found")
+    return candidate
 
 
 def auto_backup_times(directory: str) -> list[tuple[datetime, str]]:
