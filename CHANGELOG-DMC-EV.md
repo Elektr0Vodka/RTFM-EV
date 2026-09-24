@@ -11,6 +11,71 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-24 (Host repeater, shadow mode only, plan 29 Phases 1-2 + DMC region gating, feat/host-repeater-shadow-v2)
+
+RTFM-EV itself can now judge every received packet the way a repeater would
+(firmware client repeat stays off). This version only has **shadow mode**: it
+counts what it would forward and never transmits. Live forwarding (plan 29
+Phase 3) is not built.
+
+### Radio (backend)
+- **Forwarding engine** (`app/services/host_repeater_engine.py`, pure, no radio
+  imports): MeshCore `Mesh.cpp` forwarding rules (flood hash append at the
+  packet's own hash size, direct next-hop strip, routed ACK regeneration,
+  multipart ACK, TRACE SNR append, zero-hop CONTROL, types never flood-forwarded,
+  seen table, packets for us), the repeater firmware gates (`flood.max`,
+  `flood.max.unscoped`, `flood.max.advert`, region map, loop detect),
+  the DMC `dmc-dev` RF packet filter (hops, rate with soft cutoff, minimum hash
+  size, channel blocklist, malformed Public scan, ACL bypass mapped to
+  contacts or favourites) and OpenHop policy rules (evaluated first, drop /
+  allow / log_only, groups). TX priority follows MeshCore (direct 0, TRACE 5,
+  floods the new hop count). Delay factors, 5 s delay cap and the 60 s
+  duty-cycle window with 3600 ms per minute follow OpenHop. LoRa airtime uses the
+  RadioLib time-on-air formula with MeshCore's 16-symbol preamble.
+- **Region map** (firmware `RegionMap` parity): up to 32 regions with a parent,
+  a flood deny flag and one home region. Like the repeater firmware, a
+  region-scoped flood is only forwarded when its transport code matches a listed
+  region that is not denied; unlisted regions are never forwarded. The engine
+  matches codes against its own list, not the app's `known_regions`. Settings
+  saved before this change (`region_rules`) are converted on load.
+- **DMC duty-cycle region gating** (`dc.gate`, DMC `dmc-dev` `MyMesh::loop`,
+  `RegionMap::applyDutyGate`): opt-in, threshold 70 and hysteresis 10 by default.
+  The reading is the share of the airtime budget in use (1 hour times the
+  sub-band duty cycle, refilled at that rate; 360 s at 10 %), as confirmed by the
+  DMC developer. Every 10 s one more layer closes (`*` first, then the broadest
+  regions; the deepest layer and the home region stay open) or re-opens with up
+  to 30 s of jitter. Would-forward airtime and the radio's own TX (from the
+  60 s `tx_air_secs` sample) use the same budget. New drop reason `region_gated`;
+  gate level, budget use and closed regions in the shadow stats.
+- **Shadow runtime** (`app/services/host_repeater.py`): fed from
+  `on_rx_log_data` after the packet processor; host-side MAC checks decide
+  "for us" / "our own" like the firmware's decrypt. Statistics (in memory):
+  decisions by reason and type, host latency and delay percentiles, would-forward
+  airtime per minute / hour vs the EU sub-band limit (DMC ETSI table), echo gap
+  to the first neighbour relay, hidden-frame estimate and RX airtime model
+  calibration from the 60 s radio stats sampler, recent decisions.
+- **API** `GET /api/radio/host-repeater`, `PUT /api/radio/host-repeater/settings`
+  (versioned; 409 on a stale version), `POST .../validate`, `GET .../stats`,
+  `POST .../stats/reset`. New WS event `host_repeater` on every settings change.
+- **Migration `_112`**: `host_repeater_config` (one versioned JSON settings row).
+- **Server switch (env half)** `MESHCORE_HOST_REPEATER_ENABLED`, default off;
+  arming will need it plus the admin switch. Neither transmits in this version.
+- OpenHop radios: the host repeater is disabled (OpenHop repeats itself); the
+  API refuses to enable shadow mode and the runtime skips OpenHop frames.
+
+### Settings (frontend)
+- **Settings > Host repeater** (its own settings section, directly after Radio):
+  state, frequency and sub-band limit, switches (shadow, admin, re-arm), timing,
+  airtime budget, repeater rules, a region map editor (parent, flood allow/deny,
+  home region; an empty list is pre-filled with the radio's flood scopes, the
+  default scope plus channel overrides; "Import from a repeater" reuses
+  `POST /api/contacts/{key}/repeater/regions` after a confirm, because it
+  transmits), region gating controls, DMC filter table and channel blocklist, OpenHop-style policy
+  rules (reuses the OpenHop rule editor with the host's field list), and a
+  shadow statistics pane (polled every 5 s). Other browsers follow a saved change
+  live; with local edits they show a reload notice and a stale save reloads after
+  the 409. Shown disabled on OpenHop radios. EN/NL/DE.
+
 ## Update 2026-09-23 (Region discovery moved to Mesh Discovery, feat/discover-regions-mesh-discovery)
 
 ### Tools (frontend)

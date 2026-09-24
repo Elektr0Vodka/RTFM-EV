@@ -3,10 +3,12 @@ import type { OpenHopCondition, OpenHopPolicyEngine, OpenHopRule } from '../../.
 import { useT } from '../../../i18n';
 import { Button } from '../../ui/button';
 import { OpenHopRuleForm } from './OpenHopRuleForm';
+import type { ConditionVocabulary } from './OpenHopConditionBuilder';
 
 interface Props {
   engine: OpenHopPolicyEngine;
   onChange: (e: OpenHopPolicyEngine) => void;
+  vocabulary?: ConditionVocabulary;
 }
 
 export function summarizeCondition(c: OpenHopCondition): string {
@@ -23,7 +25,7 @@ function newRuleId(): string {
     : `r${Date.now()}${Math.floor(Math.random() * 1000)}`;
 }
 
-export function OpenHopPolicyRules({ engine, onChange }: Props) {
+export function OpenHopPolicyRules({ engine, onChange, vocabulary }: Props) {
   const t = useT();
   const [editing, setEditing] = useState<string | null>(null);
   const rules = engine.rules;
@@ -52,6 +54,7 @@ export function OpenHopPolicyRules({ engine, onChange }: Props) {
               <OpenHopRuleForm
                 rule={rule}
                 objects={engine.objects}
+                vocabulary={vocabulary}
                 onSave={(r) => {
                   const next = [...rules];
                   next[i] = r;

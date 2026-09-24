@@ -33,6 +33,7 @@ interface ParsedHashConversation {
 
 const SETTINGS_SECTIONS: SettingsSection[] = [
   'radio',
+  'host-repeater',
   'local',
   'radio-app',
   'map',

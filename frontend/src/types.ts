@@ -895,10 +895,14 @@ export type OpenHopOperator =
   | 'equals'
   | 'not_equals'
   | 'greater_than'
+  | 'greater_or_equal'
   | 'less_than'
+  | 'less_or_equal'
   | 'contains'
   | 'in'
-  | 'starts_with';
+  | 'intersects'
+  | 'starts_with'
+  | 'ends_with';
 export type OpenHopGroupKind = 'channel_hashes' | 'pubkeys';
 
 export interface OpenHopSimpleCondition {
@@ -1825,4 +1829,177 @@ export interface OpenHopMqttStatus {
   success: boolean;
   data?: Record<string, unknown>;
   error?: string;
+}
+
+/* ── Host repeater (plan 29): RTFM-EV as the repeater, shadow mode only ── */
+
+export type HostRepeaterLoopDetect = 'off' | 'minimal' | 'moderate' | 'strict';
+export type HostRepeaterAclBypass = 'off' | 'contacts' | 'favorites';
+
+export interface HostRepeaterTypeLimits {
+  hops_max: number;
+  rate_limit: number;
+  rate_secs: number;
+  soft: number;
+}
+
+export interface HostRepeaterBlockedChannel {
+  hash: string;
+  label: string;
+}
+
+/** One host repeater region map entry (firmware RegionEntry); name without '#'. */
+export interface HostRepeaterRegion {
+  name: string;
+  /** Parent region name; null = child of the wildcard '*'. */
+  parent: string | null;
+  deny_flood: boolean;
+}
+
+export interface HostRepeaterSettings {
+  admin_enabled: boolean;
+  shadow_enabled: boolean;
+  auto_rearm_after_reconnect: boolean;
+  tx_delay_factor: number;
+  direct_tx_delay_factor: number;
+  max_tx_delay_ms: number;
+  max_forward_latency_ms: number;
+  preamble_symbols: number;
+  duty_cycle_enforced: boolean;
+  max_airtime_per_minute_ms: number;
+  flood_max: number;
+  flood_max_unscoped: number;
+  flood_max_advert: number;
+  loop_detect: HostRepeaterLoopDetect;
+  unscoped_flood_allow: boolean;
+  regions: HostRepeaterRegion[];
+  home_region: string | null;
+  seen_ttl_seconds: number;
+  filter_enabled: boolean;
+  filter_acl_bypass: HostRepeaterAclBypass;
+  filter_min_hash_bytes: number;
+  filter_malformed: boolean;
+  filter_types: Record<string, HostRepeaterTypeLimits>;
+  filter_channels: HostRepeaterBlockedChannel[];
+  dc_gate_enabled: boolean;
+  dc_gate_threshold: number;
+  dc_gate_hysteresis: number;
+  policy: OpenHopPolicyEngine;
+}
+
+export type HostRepeaterArmBlocker =
+  | 'not_available_yet'
+  | 'env_switch_off'
+  | 'admin_switch_off'
+  | 'radio_disconnected'
+  | 'raw_send_unsupported'
+  | 'firmware_repeat_on'
+  | 'openhop'
+  | 'frequency_unknown';
+
+export interface HostRepeaterCapabilities {
+  connected: boolean;
+  identity_known: boolean;
+  firmware_ver_code: number | null;
+  raw_send_supported: boolean | null;
+  firmware_repeat: boolean | null;
+  openhop: boolean;
+  freq_mhz: number | null;
+  sub_band_limit_percent: number | null;
+  arm_blockers: HostRepeaterArmBlocker[];
+}
+
+export interface HostRepeaterState {
+  version: number;
+  settings: HostRepeaterSettings;
+  state: 'off' | 'shadow';
+  env_enabled: boolean;
+  capabilities: HostRepeaterCapabilities;
+}
+
+/** WS `host_repeater`: settings or state changed in some browser. */
+export interface HostRepeaterEventPayload {
+  version: number;
+  settings: HostRepeaterSettings;
+  state: 'off' | 'shadow';
+  env_enabled: boolean;
+}
+
+export interface HostRepeaterValidateResult {
+  valid: boolean;
+  errors: { loc: string; msg: string }[];
+}
+
+export interface HostRepeaterPercentiles {
+  count: number;
+  p50: number | null;
+  p95: number | null;
+  p99: number | null;
+  max: number | null;
+}
+
+export interface HostRepeaterDecision {
+  ts: number;
+  payload_type: string;
+  route_type: number | null;
+  hop_count: number | null;
+  forward: boolean;
+  reason: string;
+  rx_len: number;
+  forwarded_len: number | null;
+  priority: number | null;
+  delay_ms: number | null;
+  airtime_ms: number | null;
+  latency_ms: number;
+  policy_rule_id: string | null;
+  policy_action: string | null;
+  packet_hash: string;
+}
+
+export interface HostRepeaterStats {
+  active: boolean;
+  since: number;
+  observed: number;
+  would_forward: number;
+  would_drop: number;
+  by_reason: Record<string, number>;
+  by_type: Record<string, { forward?: number; drop?: number }>;
+  policy_matches: Record<string, number>;
+  latency_ms: HostRepeaterPercentiles;
+  delay_ms: HostRepeaterPercentiles;
+  lock_busy: number;
+  airtime: {
+    would_forward_total_ms: number;
+    would_forward_last_minute_ms: number;
+    would_forward_last_hour_ms: number;
+    would_forward_percent_last_hour: number;
+    budget_per_minute_ms: number;
+    own_tx_last_hour_ms: number;
+    sub_band_limit_percent: number | null;
+  };
+  echo: {
+    gap_ms: HostRepeaterPercentiles;
+    neighbour_before_our_tx: number;
+    neighbour_after_our_tx: number;
+    late_fraction: number | null;
+  };
+  invisible_rx: {
+    samples: number;
+    radio_recv: number;
+    pushes: number;
+    estimate: number | null;
+  };
+  rx_airtime_calibration: { model_ms: number; radio_ms: number; ratio: number | null };
+  region_gate?: {
+    enabled: boolean;
+    level: number;
+    max_level: number;
+    budget_used_percent: number | null;
+    budget_max_ms: number;
+    threshold: number;
+    hysteresis: number;
+    wildcard_gated: boolean;
+    gated_regions: string[];
+  };
+  recent: HostRepeaterDecision[];
 }
