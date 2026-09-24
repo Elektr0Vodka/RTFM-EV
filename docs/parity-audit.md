@@ -1,7 +1,7 @@
 # RTFM-EV Parity & Gap Audit
 
 Date: 2026-09-10
-Status: backlog in progress (reconciled 2026-09-22 against `main` at `3481d9f8`, PR #170; no §7 item changed status in PRs #124-#170). SHIPPED: N1 (PR #12, merged), N2 (PR #24, merged), X1 (PR #41, merged; later folded into community MQTT topic toggles, PR #60), X2 core, X2b per-link signal history (PR #47). PARTIAL: L1 (region pills + sync shipped; DMC config-topic scope tree unbuilt), L2 (noise-floor viewer + Direct/Flood advert metrics shipped via PR #94; rx-error graphs still absent), L3 (neighbor/region publish shipped via PR #90; config-topic publish still pending), L4 (channel mute shipped; inline contact-sharing #347 unbuilt). See §7 for per-item status.
+Status: backlog in progress (reconciled 2026-09-24 against `main` at `da0bad66`, PR #206; no §7 item changed status in PRs #124-#206, but the meshcore-open parity work in plan [28] (PRs #178, #182, #184, #185, #189-#204) covers ground outside this audit's official-app + DMC reference sets). SHIPPED: N1 (PR #12, merged), N2 (PR #24, merged), X1 (PR #41, merged; later folded into community MQTT topic toggles, PR #60), X2 core, X2b per-link signal history (PR #47). PARTIAL: L1 (region pills + sync shipped; DMC config-topic scope tree unbuilt), L2 (noise-floor viewer + Direct/Flood advert metrics shipped via PR #94; rx-error graphs still absent), L3 (neighbor/region publish shipped via PR #90; config-topic publish still pending), L4 (channel mute shipped; inline contact-sharing #347 unbuilt). See §7 for per-item status.
 Author: Elektr0Vodka (with agent research)
 
 This is a living document. It compares the current RTFM-EV against two reference
@@ -108,7 +108,7 @@ discovery rows were re-marked afterwards. §7 holds the current per-item status.
 | Channels | Off | Present | App | |
 | Room-server connectivity | Off | Unverified | App | RTFM-EV depth not inspected; verify before scoping. **[web]** |
 | Auto contact discovery | Off | Unverified | App | RTFM-EV behavior not inspected; verify vs app. **[web]** |
-| Mute channel | Off | Absent | App | Small UI feature. **[web]** |
+| Mute channel | Off | Present | App | Shipped (per-channel mute; see §7 L4). |
 | Inline `<pubkey:1:Name>` contact sharing | Off | Absent | App | Upstream issue #347 (already in fork-port plan). |
 
 ### Repeater / admin

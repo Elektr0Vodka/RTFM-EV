@@ -9,7 +9,9 @@ Connect your radio over Serial, TCP, or BLE, and then you can:
 * Join meshcore-open communities: paste the community code or scan its QR code (camera or image upload) in Channels > Import / Export > Communities. The community's Public channel and any community hashtag channels you add use keys derived from the shared community secret, so they interoperate with meshcore-open. You can share a joined community again as JSON or a QR code
 * React to and reply to messages from the chat (hover a message). Reactions and replies use the plaintext format other MeshCore clients understand. A received reaction shows which message it is for and jumps to it. If that message never reached your radio, it links to the channel on your first configured analyzer that has a channel link. Received reactions show as reactions when Settings > Local Configuration > "Render MeshCore Open GIFs & Reactions" is on
 * Delete a message from your own local history (hover a message, confirm). This is local only -- nothing is sent over RF, and other clients still have their copy. Deleting also removes its raw packet and any reaction pointing at it, and stops a background DM retry that is still in flight
+* Mark a conversation unread from any received message (hover a message, envelope icon). The mark is server-side, so every browser sees the same unread state
 * Cache all received packets, decrypting as you gain keys
+* Group contacts and channels into your own named sidebar sections (Customize panel), edited from the contact or channel info pane; an item can sit in several groups and groups reorder/hide like the built-in sections
 * Run multiple Python bots that can analyze messages and respond to DMs and channels
 * Monitor unlimited contacts and channels (radio limits don't apply -- packets are decrypted server-side)
 * Access your radio remotely over your network or VPN
@@ -24,6 +26,7 @@ Connect your radio over Serial, TCP, or BLE, and then you can:
 * Auto-detect [meshcomod (DMC-EV)](https://github.com/Elektr0Vodka/meshcomod) firmware and expose its extra device settings (CAD, GPS)
 * Toggle the on-board GPS receiver on any radio that reports it, including stock MeshCore companion firmware (Settings > Radio)
 * Edit a remote repeater's settings (name, location, radio, TX power, routing and advert options) from its dashboard: each change is confirmed on its own, sent as one CLI command over RF and read back. Radio frequency/bandwidth/SF/CR needs you to type the repeater name first, since a wrong value can strand it off-air
+* Run a trace from the Trace page and see the hops drawn on a small map above the hop list (hops with no known location are skipped and bridged with a dashed segment)
 * Visualize the mesh as a map or node set, view repeater stats, and more!
 
 For advanced setup and troubleshooting see [README_ADVANCED.md](README_ADVANCED.md). If you plan to contribute, read [CONTRIBUTING.md](CONTRIBUTING.md).
