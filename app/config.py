@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     basic_auth_password: str = ""
     vapid_subject: str = "mailto:noreply@meshcore.local"
     update_check_enabled: bool = True
+    # Server switch (env half) for the host repeater: live forwarding (a later
+    # phase) needs this AND the admin setting. Shadow mode does not need it.
+    host_repeater_enabled: bool = False
 
     @model_validator(mode="after")
     def validate_transport_exclusivity(self) -> "Settings":

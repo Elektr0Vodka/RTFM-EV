@@ -359,6 +359,14 @@ jsdom has no layout engine, so none of this is observable from the vitest suite 
 - Mesh discovery (the Tools > Mesh Discovery view, `#mesh-discovery`) is limited to node classes that currently answer discovery control-data requests in firmware: repeaters and sensors. Sweep state lives in `useRadioControl`, so the last result survives navigation. The same view hosts repeater region discovery (formerly in Settings > Radio), which prefers repeaters from the last sweep and saves added regions straight to `known_regions`.
 - Frontend `path_len` fields are hop counts, not raw byte lengths; multibyte path rendering must use the accompanying metadata before splitting hop identifiers.
 
+### Host repeater section (`components/settings/hostRepeater/`)
+
+- Own settings section `host-repeater` (after `radio`), rendered from `SettingsModal`, which passes `floodScopeRegions` (`floodScopeRegions.ts`: app `flood_scope` + channel overrides, `#` stripped) and repeater contacts.
+- `HostRepeaterRegions` edits the region map (`regionTree.ts` for tree order, parent choices and mapping a repeater region dump). An empty saved list is pre-filled in the draft only. The import calls `api.repeaterRegions`, which transmits, so it sits behind `window.confirm`; tests must mock it.
+
+- `HostRepeaterSettings` edits one versioned settings document (`useHostRepeater`): validate via `POST .../validate`, then `PUT .../settings` with the loaded `version`; a 409 reloads. A WS `host_repeater` event reloads when there are no local edits, otherwise it shows a reload notice. On OpenHop radios it renders a disabled checkbox and a note only (no requests).
+- Policy rules reuse `OpenHopPolicyEngineCard` / `OpenHopPolicyRules`; the condition builder takes an optional `vocabulary` (fields/operators) so the host's field list differs from the OpenHop API's. `HostRepeaterStatsPane` polls `GET .../stats` every 5 s while shadow mode is on.
+
 ### Chart zoom/pan (`lib/chartZoom.ts`, `hooks/useChartZoom.ts`, `components/charts/`)
 
 - Time-series charts support wheel-zoom-to-cursor, drag-pan, and double-click
@@ -390,6 +398,7 @@ jsdom has no layout engine, so none of this is observable from the vitest suite 
 - Event handlers: `health`, `message`, `contact`, `contact_resolved`, `channel`, `raw_packet`, `message_acked`, `message_deleted`, `contact_deleted`, `channel_deleted`, `error`, `success`, `pong` (ignored).
 - Event handlers: `health`, `message`, `contact`, `contact_resolved`, `channel`, `raw_packet`, `message_acked`, `message_failed`, `message_deleted`, `contact_deleted`, `channel_deleted`, `error`, `success`, `pong` (ignored).
 - Event handlers: `health`, `message`, `contact`, `contact_resolved`, `channel`, `raw_packet`, `message_acked`, `new_node`, `contact_deleted`, `channel_deleted`, `error`, `success`, `pong` (ignored).
+- `host_repeater` is not routed through a handler prop: `useWebSocket` re-emits it as a window event (`utils/hostRepeaterEvents.ts`), which `hooks/useHostRepeater.ts` subscribes to while Settings > Host repeater is mounted.
 - For `raw_packet` events, use `observation_id` as event identity; `id` is a storage reference and may repeat.
 
 ## URL Hash Navigation (`utils/urlHash.ts`)

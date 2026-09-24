@@ -378,6 +378,7 @@ Only one transport may be active at a time. If multiple are set, the server will
 | `MESHCORE_BASIC_AUTH_USERNAME` | | Optional app-wide HTTP Basic auth username; must be set together with `MESHCORE_BASIC_AUTH_PASSWORD` |
 | `MESHCORE_BASIC_AUTH_PASSWORD` | | Optional app-wide HTTP Basic auth password; must be set together with `MESHCORE_BASIC_AUTH_USERNAME` |
 | `MESHCORE_VAPID_SUBJECT` | `mailto:noreply@meshcore.local` | Subject (`sub`) claim for Web Push VAPID tokens; must be a `mailto:` or `https:` contact. Apple's push service rejects the default `.local` domain, so iOS/Safari users must set this to a real address (e.g. `mailto:you@example.com`). |
+| `MESHCORE_HOST_REPEATER_ENABLED` | false | Server switch (env half) for the host repeater's future live mode. The current version only has shadow mode, which never transmits and does not need this. |
 | `MESHCORE_UPDATE_CHECK_ENABLED` | true | Check GitHub for a newer fork build and show an in-app update indicator. Set `false` to disable the outbound request (air-gapped / privacy-conscious setups). |
 
 Common launch patterns:
@@ -430,6 +431,12 @@ RTFM-EV works with [OpenHop](https://github.com/openhop-dev/openhop_repeater) re
 - **As a managed node.** When a connected node is detected as OpenHop, an extra **OpenHop** section appears with management panes that the companion link and RF do not expose, organised in a two-row sub-nav: a **Node** row (Config, System, Update, CAD) and a **Mesh** row (Policy, Plugins, Transport keys, MQTT). These talk to OpenHop's REST API, so set the API URL and token in the OpenHop block under **Settings -> Radio** first (the token is write-only). Actions with real-world effect (firmware install, CAD threshold save, transport-key delete, MQTT config writes, "publish neighbours now") are confirmation-gated. With the API configured, the My Node airtime chart also reads TX/RX airtime from OpenHop's REST API, because OpenHop's companion stats frame always reports RX airtime as 0.
 
 As with the Meshcomod panel, everything is hidden on non-OpenHop devices and detection is automatic from the radio's device info.
+
+## Host repeater (shadow mode)
+
+RTFM-EV can judge every packet its radio receives the way a repeater would, like OpenHop does for its own radio: MeshCore forwarding rules, the repeater's `flood.max` / region / loop settings, the DMC packet filter, DMC duty-cycle region gating and OpenHop-style policy rules. Enable **Shadow mode** under **Settings -> Host repeater** to see what it would forward or drop, how long the host took, and how much airtime the forwards would use.
+
+Like the repeater firmware, only region-scoped floods for a region in the host repeater's region list are forwarded. An empty list is pre-filled with the radio's flood scopes; you can also import a repeater's region tree (this sends a request over RF, after a confirmation). Region gating (off by default) closes regions from the outside in when too much of the airtime budget is in use, keeping the deepest layer and the home region open. Shadow mode never transmits; live repeating is not available yet. Firmware client repeat must stay off. On OpenHop radios the option is disabled because OpenHop repeats packets itself.
 
 ## Languages
 

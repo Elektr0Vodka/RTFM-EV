@@ -1,4 +1,12 @@
-import type { Channel, Contact, HealthStatus, Message, MessagePath, RawPacket } from './types';
+import type {
+  Channel,
+  Contact,
+  HealthStatus,
+  HostRepeaterEventPayload,
+  Message,
+  MessagePath,
+  RawPacket,
+} from './types';
 
 export interface MessageAckedPayload {
   message_id: number;
@@ -66,6 +74,7 @@ export type KnownWsEvent =
   | { type: 'message_failed'; data: MessageFailedPayload }
   | { type: 'message_deleted'; data: MessageDeletedPayload }
   | { type: 'new_node'; data: NewNodePayload }
+  | { type: 'host_repeater'; data: HostRepeaterEventPayload }
   | { type: 'error'; data: ToastPayload }
   | { type: 'success'; data: ToastPayload }
   | { type: 'pong'; data?: null };
@@ -102,6 +111,7 @@ export function parseWsEvent(raw: string): ParsedWsEvent {
     case 'message_failed':
     case 'message_deleted':
     case 'new_node':
+    case 'host_repeater':
     case 'error':
     case 'success':
       return {
