@@ -185,7 +185,8 @@ def runtime():
 async def test_get_defaults_version_zero(test_db, runtime):
     resp = await router_module.get_host_repeater()
     assert resp.version == 0 and resp.state == "off"
-    assert "not_available_yet" in resp.capabilities.arm_blockers
+    assert resp.capabilities.arm_blockers == ["env_switch_off", "admin_switch_off"]
+    assert resp.disarm_reason is None and resp.armed_since is None
     assert resp.capabilities.sub_band_limit_percent == 10.0
 
 

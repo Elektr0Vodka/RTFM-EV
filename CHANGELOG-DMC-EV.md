@@ -11,6 +11,65 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-25 (Host repeater armed mode: live forwarding, plan 29 Phase 3, feat/host-repeater-armed)
+
+The host repeater can now forward for real. Shadow mode (PR #207) is unchanged;
+**armed mode** adds the sender and everything that keeps it safe. It is off by
+default at three levels and always comes up disarmed after a server restart.
+
+### Radio (backend)
+- **Sender** `app/services/host_repeater_tx.py`, the only host repeater module
+  that may touch the radio (the engine and the shadow runtime keep their
+  no-radio import boundary, still enforced by a test). While armed, every
+  "would forward" decision becomes a job held on the host until its random
+  retransmit delay has passed, then sent with `CMD_SEND_RAW_PACKET` at the
+  MeshCore priority (direct 0, TRACE 5, floods = new hop count). Forwards take
+  the radio lock non-blocking and retry every 25 ms until their latency
+  deadline (`max_forward_latency_ms` after the delay), so our own messaging
+  always wins. Queue cap (`max_pending_forwards`, default 20, oldest dropped)
+  and in-flight cap (`max_in_flight`, default 2, assumed transmitted after the
+  modelled airtime plus 100 ms) keep the firmware's 16-slot packet pool free.
+- **Arming preconditions**, all required: `MESHCORE_HOST_REPEATER_ENABLED`
+  (env), the admin switch, radio connected with a known identity, firmware
+  raw send (companion ver code >= 13), firmware client repeat off, not
+  OpenHop, a known EU sub-band whose duty-cycle limit is at least
+  `arm_min_sub_band_percent` (default 1 %, so the 0.1 % bands are refused),
+  and `confirm: true` from the operator.
+- **Automatic disarm** (state and reason broadcast to every browser): radio
+  disconnect (opt-in re-arm after reconnect via the existing setting),
+  firmware client repeat found on, radio identity change, frequency or
+  modulation change, five `TABLE_FULL` errors in a row or more than 20 % send
+  errors over the last 50, the radio's measured TX airtime over the last hour
+  above the sub-band limit (from the 60 s stats sampler: the firmware counter
+  is the truth, not the model), a full queue for more than 60 s, and shutdown.
+- **API**: `POST /radio/host-repeater/mode {mode: off|shadow|armed, confirm}`
+  (armed answers 409 `{message, blockers}` on a failed precondition, 400
+  without `confirm`; off/shadow leave armed mode without touching the saved
+  settings), `POST /radio/host-repeater/disarm` (kill switch). `GET` now
+  reports `state` `armed`, `armed_since`, `disarm_reason`, `rearm_pending` and
+  the real `arm_blockers` list (`not_available_yet` is gone). Saving the
+  settings with the admin switch off while armed disarms. Stats gain a `tx`
+  block (sent, airtime, errors, table-full, queued, in flight, drops by cause,
+  last error). The WS `host_repeater` event carries the same live fields.
+- New settings `arm_min_sub_band_percent`, `max_pending_forwards`,
+  `max_in_flight`; documents saved before this change load with the defaults.
+  No migration.
+
+### Settings (frontend)
+- **Settings > Host repeater**: an "Armed (live)" state pill, an arm panel that
+  is hidden entirely while the env switch is off, an **Arm live repeating...**
+  button (disabled with the blocker list while any precondition fails, or
+  while there are unsaved edits) that opens an inline confirmation (frequency
+  and sub-band limit, airtime budget, what stops it, firmware repeat must stay
+  off, the off-grid restriction of stock firmware) with an "I understand"
+  checkbox, and a red **Disarm (kill switch)** banner while armed. The reason
+  for the last automatic disarm is shown. The statistics pane adds the live
+  forward counters. Three new fields in Timing. A **Repeating** badge in the
+  top bar in every browser while armed (`useHostRepeaterArmed`, from the
+  initial state plus the WS event). EN/NL/DE.
+- `ApiError` keeps the structured FastAPI `detail` so the 409 blocker list can
+  be shown.
+
 ## Update 2026-09-24 (Channel Registry date fields: text padding, fix/channel-registry-date-field-padding)
 
 ### Channel Registry (frontend)

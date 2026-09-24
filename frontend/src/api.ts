@@ -144,7 +144,9 @@ function withQuery(path: string, qs: URLSearchParams): string {
 export class ApiError extends Error {
   constructor(
     message: string,
-    public readonly status: number
+    public readonly status: number,
+    /** The parsed FastAPI `detail` when it was a structured object (e.g. `{message, blockers}`). */
+    public readonly detail?: Record<string, unknown>
   ) {
     super(message);
     this.name = 'ApiError';
@@ -164,18 +166,20 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
     const errorText = await res.text();
     // FastAPI returns errors as {"detail": "message"}, extract the message
     let errorMessage = errorText || res.statusText;
+    let errorDetail: Record<string, unknown> | undefined;
     try {
       const errorJson = JSON.parse(errorText);
       if (typeof errorJson.detail?.message === 'string') {
         // Structured detail, e.g. {"detail": {"message": "...", ...}}
         errorMessage = errorJson.detail.message;
+        errorDetail = errorJson.detail;
       } else if (errorJson.detail) {
         errorMessage = errorJson.detail;
       }
     } catch {
       // Not JSON, use raw text
     }
-    throw new ApiError(errorMessage, res.status);
+    throw new ApiError(errorMessage, res.status, errorDetail);
   }
   return res.json();
 }
@@ -257,6 +261,15 @@ export const api = {
       body: JSON.stringify({ settings }),
     }),
   getHostRepeaterStats: () => fetchJson<HostRepeaterStats>('/radio/host-repeater/stats'),
+  // Armed mode (plan 29 Phase 3): 'armed' needs confirm=true and answers 409 with
+  // {message, blockers} when a precondition fails; 'shadow'/'off' just disarm.
+  setHostRepeaterMode: (mode: 'off' | 'shadow' | 'armed', confirm = false) =>
+    fetchJson<HostRepeaterState>('/radio/host-repeater/mode', {
+      method: 'POST',
+      body: JSON.stringify({ mode, confirm }),
+    }),
+  disarmHostRepeater: () =>
+    fetchJson<HostRepeaterState>('/radio/host-repeater/disarm', { method: 'POST' }),
   resetHostRepeaterStats: () =>
     fetchJson<{ status: string }>('/radio/host-repeater/stats/reset', { method: 'POST' }),
   getGpsConfig: () => fetchJson<GpsConfig>('/radio/gps'),

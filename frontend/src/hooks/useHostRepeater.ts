@@ -46,8 +46,22 @@ export function useHostRepeater(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
     void reload();
-    return subscribeHostRepeaterEvents(() => {
+    return subscribeHostRepeaterEvents((payload) => {
       if (dirtyRef.current) {
+        // Keep the local edits, but follow the live armed / disarmed state so the
+        // badge, the disarm reason and the kill switch stay truthful.
+        setState((prev) =>
+          prev
+            ? {
+                ...prev,
+                state: payload.state,
+                env_enabled: payload.env_enabled,
+                armed_since: payload.armed_since ?? null,
+                disarm_reason: payload.disarm_reason ?? null,
+                rearm_pending: payload.rearm_pending ?? false,
+              }
+            : prev
+        );
         setRemoteChanged(true);
         return;
       }
@@ -55,9 +69,11 @@ export function useHostRepeater(enabled: boolean) {
     });
   }, [enabled, reload]);
 
-  const shadowOn = state?.state === 'shadow';
+  // Poll while the engine runs; re-run (immediate tick) on shadow <-> armed transitions.
+  const mode = state?.state;
+  const engineOn = mode === 'shadow' || mode === 'armed';
   useEffect(() => {
-    if (!enabled || !shadowOn) return;
+    if (!enabled || !engineOn) return;
     let cancelled = false;
     const tick = async () => {
       try {
@@ -73,7 +89,41 @@ export function useHostRepeater(enabled: boolean) {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [enabled, shadowOn]);
+  }, [enabled, engineOn, mode]);
+
+  /** Arm live forwarding (mode 'armed' + confirm) or leave it ('shadow' / 'off'). */
+  const setMode = useCallback(
+    async (mode: 'off' | 'shadow' | 'armed', confirm = false): Promise<HostRepeaterModeResult> => {
+      try {
+        const next = await api.setHostRepeaterMode(mode, confirm);
+        setState((prev) => (prev && dirtyRef.current ? { ...prev, ...pickLive(next) } : next));
+        if (!dirtyRef.current) setDraft(next.settings);
+        return { ok: true };
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 409) {
+          const blockers = err.detail?.blockers;
+          return {
+            ok: false,
+            blockers: Array.isArray(blockers) ? blockers.map(String) : [],
+            message: err.message,
+          };
+        }
+        return {
+          ok: false,
+          blockers: [],
+          message: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+    []
+  );
+
+  /** Kill switch: stop forwarding now (also cancels a pending re-arm). */
+  const disarm = useCallback(async () => {
+    const next = await api.disarmHostRepeater();
+    setState((prev) => (prev && dirtyRef.current ? { ...prev, ...pickLive(next) } : next));
+    if (!dirtyRef.current) setDraft(next.settings);
+  }, []);
 
   const update = useCallback((patch: Partial<HostRepeaterSettings>) => {
     setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
@@ -129,5 +179,23 @@ export function useHostRepeater(enabled: boolean) {
     discard,
     reload,
     resetStats,
+    setMode,
+    disarm,
+  };
+}
+
+export type HostRepeaterModeResult =
+  | { ok: true }
+  | { ok: false; blockers: string[]; message?: string };
+
+/** The live (non-settings) part of a state response, applied over local edits. */
+function pickLive(next: HostRepeaterState): Partial<HostRepeaterState> {
+  return {
+    state: next.state,
+    env_enabled: next.env_enabled,
+    armed_since: next.armed_since,
+    disarm_reason: next.disarm_reason,
+    rearm_pending: next.rearm_pending,
+    capabilities: next.capabilities,
   };
 }

@@ -21,7 +21,7 @@ import logging
 import time
 from collections import Counter, OrderedDict, deque
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 from pydantic import ValidationError
 
@@ -69,6 +69,31 @@ class PreFacts:
     """Facts that must be read before the packet processor consumes them."""
 
     ack_expected: bool = False
+
+
+class ForwardSink(Protocol):
+    """What the runtime needs from the armed-mode sender (``host_repeater_tx``).
+
+    Declared here as a protocol so this module never imports the module that can
+    transmit; the sender attaches itself at import time.
+    """
+
+    armed: bool
+    armed_since: float | None
+    disarm_reason: str | None
+
+    @property
+    def rearm_pending(self) -> bool: ...
+
+    def enqueue(self, decision: Decision, arrival: float, *, now: float | None = None) -> None: ...
+
+    def disarm(self, reason: str, *, rearm_when_reconnected: bool = False) -> None: ...
+
+    def on_stats_sample(self, own_tx_last_hour_ms: float, freq_mhz: float | None) -> None: ...
+
+    def reset_stats(self) -> None: ...
+
+    def snapshot(self, now: float | None = None) -> dict[str, Any]: ...
 
 
 @dataclass
@@ -153,6 +178,9 @@ class HostRepeaterRuntime:
         self._pushes_at_last_sample = 0
         self._model_rx_at_last_sample = 0.0
         self._lock = asyncio.Lock()
+        # Armed-mode sender (``host_repeater_tx``), attached by that module at import.
+        # Kept as an opaque attribute: this module must not import the send path.
+        self._tx: ForwardSink | None = None
 
     # ── settings ─────────────────────────────────────────────────────────
 
@@ -160,13 +188,22 @@ class HostRepeaterRuntime:
     def env_enabled(self) -> bool:
         return bool(server_config.host_repeater_enabled)
 
+    def attach_tx(self, tx: ForwardSink) -> None:
+        self._tx = tx
+
+    @property
+    def armed(self) -> bool:
+        return self._tx is not None and bool(self._tx.armed)
+
     @property
     def shadow_active(self) -> bool:
-        # Armed mode does not exist yet, so shadow runs whenever it is enabled.
-        return self.settings.shadow_enabled
+        # The engine judges every frame while shadow is enabled or the repeater is armed.
+        return self.settings.shadow_enabled or self.armed
 
     @property
     def state(self) -> str:
+        if self.armed:
+            return "armed"
         return "shadow" if self.shadow_active else "off"
 
     async def load(self) -> None:
@@ -200,6 +237,9 @@ class HostRepeaterRuntime:
                 return None
             self.version, self.settings = version, new_settings
             self.engine.configure(settings=new_settings)
+            if self._tx is not None and self._tx.armed and not new_settings.admin_enabled:
+                # The admin half of the server switch was turned off: stop forwarding.
+                self._tx.disarm("user")
             if self.shadow_active and not was_active:
                 self.engine.reset_state()
                 self.reset_stats()
@@ -207,7 +247,14 @@ class HostRepeaterRuntime:
         return version
 
     def public_state(self) -> dict[str, Any]:
-        return {"state": self.state, "env_enabled": self.env_enabled}
+        tx = self._tx
+        return {
+            "state": self.state,
+            "env_enabled": self.env_enabled,
+            "armed_since": tx.armed_since if tx is not None else None,
+            "disarm_reason": tx.disarm_reason if tx is not None else None,
+            "rearm_pending": bool(tx.rearm_pending) if tx is not None else False,
+        }
 
     def broadcast(self) -> None:
         try:
@@ -311,6 +358,9 @@ class HostRepeaterRuntime:
                 policy_rule_id=decision.policy_rule_id,
             )
         self._record(decision, env, raw, radio, arrival, now, latency_ms)
+        if decision.forward and self._tx is not None and self._tx.armed:
+            # Armed: the sender holds the job until its delay has passed, then transmits.
+            self._tx.enqueue(decision, arrival, now=now)
         return decision
 
     def _acl_bytes(self) -> frozenset[int]:
@@ -552,6 +602,10 @@ class HostRepeaterRuntime:
         self.engine.add_own_tx(time.monotonic(), d_tx * 1000.0)
         while s.radio_tx_air and time.time() - s.radio_tx_air[0][0] > HOUR_SECONDS:
             s.radio_tx_air.popleft()
+        if self._tx is not None:
+            # Armed: the firmware's own TX counter is the truth for the duty-cycle cap.
+            freq = self.engine.radio.freq_mhz if self.engine.radio is not None else None
+            self._tx.on_stats_sample(sum(ms for _, ms in s.radio_tx_air), freq)
 
     # ── reporting ────────────────────────────────────────────────────────
 
@@ -561,6 +615,8 @@ class HostRepeaterRuntime:
         self._last_radio_counters = None
         self._pushes_at_last_sample = 0
         self._model_rx_at_last_sample = 0.0
+        if self._tx is not None:
+            self._tx.reset_stats()
 
     def stats_snapshot(self, freq_mhz: float | None) -> dict[str, Any]:
         s = self.stats
@@ -619,6 +675,7 @@ class HostRepeaterRuntime:
                 else None,
             },
             "region_gate": self.engine.gate_snapshot(time.monotonic()),
+            "tx": self._tx.snapshot() if self._tx is not None else None,
             "recent": list(s.recent),
         }
 

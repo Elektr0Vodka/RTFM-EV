@@ -311,6 +311,15 @@ class HostRepeaterSettings(BaseModel):
     dc_gate_threshold: int = Field(default=70, ge=1, le=100)
     dc_gate_hysteresis: int = Field(default=10, ge=0, le=50)
 
+    # Armed mode (Phase 3). Arming also needs the env switch, the admin switch and an
+    # explicit confirmation; these bound what the scheduler may hold and send.
+    # Refuse to arm when the sub-band duty-cycle limit is below this (0.1 % bands).
+    arm_min_sub_band_percent: float = Field(default=1.0, ge=0.1, le=100.0)
+    # Forwards held on the host waiting for their delay (oldest dropped past the cap).
+    max_pending_forwards: int = Field(default=20, ge=1, le=200)
+    # Forwards handed to the firmware and not yet assumed transmitted.
+    max_in_flight: int = Field(default=2, ge=1, le=16)
+
     # OpenHop policy rules (all packets, evaluated first).
     policy: PolicyConfig = Field(default_factory=PolicyConfig)
 

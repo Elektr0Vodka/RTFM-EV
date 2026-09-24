@@ -49,6 +49,7 @@ export function HostRepeaterStatsPane({ stats, onReset }: Props) {
   const reasons = Object.entries(stats.by_reason).sort((a, b) => b[1] - a[1]);
   const a = stats.airtime;
   const gate = stats.region_gate;
+  const tx = stats.tx;
   const gatedList = gate ? [...(gate.wildcard_gated ? ['*'] : []), ...gate.gated_regions] : [];
   const since = formatDateTime(new Date(stats.since * 1000), {
     month: 'short',
@@ -139,6 +140,49 @@ export function HostRepeaterStatsPane({ stats, onReset }: Props) {
           </span>
         )}
       </div>
+
+      {tx && (tx.armed || tx.sent > 0 || tx.send_errors > 0) && (
+        <div
+          className={
+            tx.armed
+              ? 'grid gap-1 rounded border border-destructive/40 p-2 text-sm'
+              : 'grid gap-1 rounded border border-input p-2 text-sm'
+          }
+          role="status"
+        >
+          <span className={tx.armed ? 'font-semibold text-destructive' : 'font-semibold'}>
+            {t(tx.armed ? 'settings_host_repeater_tx_live' : 'settings_host_repeater_tx_heading')}
+          </span>
+          <span>
+            {t('settings_host_repeater_tx_sent', {
+              sent: tx.sent,
+              airtime: fmtMs(tx.sent_airtime_ms),
+              errors: tx.send_errors,
+              tableFull: tx.table_full,
+            })}
+          </span>
+          <span className="text-muted-foreground">
+            {t('settings_host_repeater_tx_queue', {
+              queued: tx.queued,
+              inFlight: tx.in_flight,
+              lockRetries: tx.lock_retries,
+            })}
+          </span>
+          <span className="text-muted-foreground">
+            {t('settings_host_repeater_tx_dropped', {
+              queueFull: tx.dropped_queue_full,
+              tooLate: tx.dropped_too_late,
+              lockBusy: tx.dropped_lock_busy,
+              disarmed: tx.dropped_disarmed,
+            })}
+          </span>
+          {tx.last_error && (
+            <span className="text-warning">
+              {t('settings_host_repeater_tx_last_error', { error: tx.last_error })}
+            </span>
+          )}
+        </div>
+      )}
 
       {reasons.length > 0 && (
         <div>
