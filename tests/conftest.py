@@ -139,6 +139,12 @@ async def test_db():
     original_backup_db = backup_module.db
     backup_module.db = db
 
+    # Scheduled backups snapshot via the same connection.
+    import app.services.backup_scheduler as backup_scheduler_module
+
+    original_backup_scheduler_db = backup_scheduler_module.db
+    backup_scheduler_module.db = db
+
     try:
         yield db
     finally:
@@ -146,6 +152,7 @@ async def test_db():
             mod.db = original
         packets_module.db = original_packets_db
         backup_module.db = original_backup_db
+        backup_scheduler_module.db = original_backup_scheduler_db
         await db.disconnect()
 
 

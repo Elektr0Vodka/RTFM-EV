@@ -487,6 +487,15 @@ chosen node), and a Prefix Collisions tab badge.
 - `GET /settings/tracked-telemetry-contacts/schedule` - contact telemetry scheduling (shared ceiling with repeaters)
 - `POST /settings/muted-channels/toggle`
 
+### Backup and restore
+- `GET /backup/download` - stream a `VACUUM INTO` snapshot of the database
+- `POST /backup/save` - write a snapshot (`meshcore-backup-<stamp>.db`) to `backup_destination_path` (requires `backup_to_path_enabled`)
+- `GET /backup/files` - list `*.db` files in the backup directory, newest first, each tagged `auto` / `manual` / `pre-restore` / `other`
+- `GET /backup/restore` - `{pending, last_result}`: a staged restore and the outcome of the last applied one
+- `POST /backup/restore/upload` (multipart `file`) and `POST /backup/restore/server` (`{filename}`, bare name inside the backup directory) - validate a backup (SQLite header, `quick_check`, RemoteTerm tables, schema not newer than this build) and stage it as `<db>.restore-pending`
+- `DELETE /backup/restore` - cancel the staged restore; `DELETE /backup/restore/result` - forget the last outcome
+- A staged restore is applied by `app/services/db_restore.py:apply_pending_restore` at the top of `lifespan`, before `db.connect()`: it snapshots the current DB to `meshcore-pre-restore-<stamp>.db` next to it, removes the old `-wal`/`-shm`, swaps the file in, and the normal migrations then upgrade it. Scheduled snapshots (`meshcore-auto-<stamp>.db`, keep-N rotation of those files only) run from `app/services/backup_scheduler.py`
+
 ### Retention
 - `GET /retention/stats?messages_days` - per-class row count + oldest timestamp (`app/repository/retention.py`), prune-service interval / last run / next run / last result; `messages_days` adds `messages_would_delete` (preview for the UI confirm)
 - `POST /retention/prune` - run `retention_pruner.prune_once()` now; returns rows deleted per class
@@ -596,6 +605,7 @@ Repository writes should prefer typed models such as `ContactUpsert` over ad hoc
 - `show_mention_ticker`, `mention_sound_enabled`, `mention_sound_choice`, `mention_sound_volume`, `mention_sound_custom`
 - `chat_parse_pubkeys`, `chat_parse_coordinates`, `chat_url_previews`, `chat_linkify_urls` (chat entity parsing)
 - `backup_to_path_enabled`, `backup_destination_path` (server-side database backup)
+- `backup_schedule_enabled`, `backup_schedule_interval_hours`, `backup_schedule_keep` (automatic snapshots into the backup directory; migration `_113`)
 - `brand_name`, `brand_hidden`, `brand_icon` (navbar, browser tab title/favicon, PWA manifest name; default name "RTFM-EV")
 - `openhop_api_url`, `openhop_api_token` (OpenHop REST API; the token is write-only and masked on read)
 
