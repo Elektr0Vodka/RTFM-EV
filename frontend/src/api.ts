@@ -50,6 +50,10 @@ import type {
   GpsConfigUpdate,
   Message,
   OpenHopStatus,
+  HostRepeaterSettings,
+  HostRepeaterState,
+  HostRepeaterStats,
+  HostRepeaterValidateResult,
   OpenHopEnvelope,
   OpenHopGroupKind,
   OpenHopPolicyDoc,
@@ -242,6 +246,21 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(update),
     }),
+  // Host repeater (plan 29): settings are versioned, a stale save answers 409.
+  getHostRepeater: () => fetchJson<HostRepeaterState>('/radio/host-repeater'),
+  saveHostRepeaterSettings: (version: number, settings: HostRepeaterSettings) =>
+    fetchJson<HostRepeaterState>('/radio/host-repeater/settings', {
+      method: 'PUT',
+      body: JSON.stringify({ version, settings }),
+    }),
+  validateHostRepeaterSettings: (settings: HostRepeaterSettings) =>
+    fetchJson<HostRepeaterValidateResult>('/radio/host-repeater/validate', {
+      method: 'POST',
+      body: JSON.stringify({ settings }),
+    }),
+  getHostRepeaterStats: () => fetchJson<HostRepeaterStats>('/radio/host-repeater/stats'),
+  resetHostRepeaterStats: () =>
+    fetchJson<{ status: string }>('/radio/host-repeater/stats/reset', { method: 'POST' }),
   getGpsConfig: () => fetchJson<GpsConfig>('/radio/gps'),
   updateGpsConfig: (update: GpsConfigUpdate) =>
     fetchJson<GpsConfig>('/radio/gps', {

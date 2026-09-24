@@ -10,6 +10,7 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useWebSocket } from '../useWebSocket';
+import { subscribeHostRepeaterEvents } from '../utils/hostRepeaterEvents';
 import fixtures from './fixtures/websocket_events.json';
 
 class MockWebSocket {
@@ -200,6 +201,18 @@ describe('useWebSocket dispatch', () => {
 
     expect(onNewNode).toHaveBeenCalledOnce();
     expect(onNewNode).toHaveBeenCalledWith(newNodeData);
+  });
+
+  it('fans host_repeater events out to window listeners', () => {
+    const received: unknown[] = [];
+    const unsubscribe = subscribeHostRepeaterEvents((payload) => received.push(payload));
+    renderHook(() => useWebSocket({}));
+
+    const payload = { version: 3, settings: {}, state: 'shadow', env_enabled: false };
+    fireMessage({ type: 'host_repeater', data: payload });
+    unsubscribe();
+
+    expect(received).toEqual([payload]);
   });
 
   it('routes error event to onError', () => {

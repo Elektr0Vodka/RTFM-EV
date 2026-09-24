@@ -20,6 +20,8 @@ from app.services.dm_ingest import (
     resolve_direct_message_sender_metadata,
     resolve_fallback_direct_message_context,
 )
+from app.services.host_repeater import host_repeater
+from app.services.host_repeater_link import radio_snapshot
 from app.services.new_node_notify import notify_new_node
 from app.websocket import broadcast_event
 
@@ -148,12 +150,27 @@ async def on_rx_log_data(event: "Event") -> None:
 
     raw_hex = payload["payload"]
     raw_bytes = bytes.fromhex(raw_hex)
+    arrival = time.monotonic()
+    # Host repeater shadow mode (plan 29): read pending-ACK state before the
+    # packet processor consumes it; judge the frame afterwards. Never transmits.
+    pre = host_repeater.pre_observe(raw_bytes)
 
-    await process_raw_packet(
+    result = await process_raw_packet(
         raw_bytes=raw_bytes,
         snr=payload.get("snr"),
         rssi=payload.get("rssi"),
     )
+
+    if pre is not None:
+        await host_repeater.observe(
+            raw_bytes,
+            snr=payload.get("snr"),
+            rssi=payload.get("rssi"),
+            arrival=arrival,
+            result=result,
+            pre=pre,
+            radio=radio_snapshot(),
+        )
 
 
 async def on_path_update(event: "Event") -> None:

@@ -25,6 +25,7 @@ WsEventType = Literal[
     "message_failed",
     "message_deleted",
     "new_node",
+    "host_repeater",
     "error",
     "success",
 ]
@@ -84,6 +85,15 @@ class NewNodePayload(TypedDict):
     types: dict[str, int]
 
 
+class HostRepeaterPayload(TypedDict):
+    """Host repeater settings or state changed (plan 29); sent to every browser."""
+
+    version: int
+    settings: dict[str, Any]
+    state: str
+    env_enabled: bool
+
+
 _PAYLOAD_ADAPTERS: dict[WsEventType, TypeAdapter[Any]] = {
     "health": TypeAdapter(HealthResponse),
     "message": TypeAdapter(Message),
@@ -97,6 +107,7 @@ _PAYLOAD_ADAPTERS: dict[WsEventType, TypeAdapter[Any]] = {
     "message_failed": TypeAdapter(MessageFailedPayload),
     "message_deleted": TypeAdapter(MessageDeletedPayload),
     "new_node": TypeAdapter(NewNodePayload),
+    "host_repeater": TypeAdapter(HostRepeaterPayload),
     "error": TypeAdapter(ToastPayload),
     "success": TypeAdapter(ToastPayload),
 }

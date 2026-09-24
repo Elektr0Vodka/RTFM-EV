@@ -41,13 +41,22 @@ function isAny(c: OpenHopCondition): c is { any: OpenHopCondition[] } {
 
 const selectClass = 'rounded border border-input bg-background px-2 py-1 text-sm';
 
+/** Field/operator lists the builder offers. Defaults to the OpenHop API's own. */
+export interface ConditionVocabulary {
+  fields: readonly string[];
+  operators: readonly OpenHopOperator[];
+}
+
 interface Props {
   value: OpenHopCondition;
   objects: PolicyObjects;
   onChange: (c: OpenHopCondition) => void;
+  vocabulary?: ConditionVocabulary;
 }
 
-export function OpenHopConditionBuilder({ value, objects, onChange }: Props) {
+export function OpenHopConditionBuilder({ value, objects, onChange, vocabulary }: Props) {
+  const fields = vocabulary?.fields ?? OPENHOP_FIELDS;
+  const operators = vocabulary?.operators ?? OPENHOP_OPERATORS;
   const t = useT();
   const mode = isAll(value) ? 'all' : isAny(value) ? 'any' : 'single';
   const children: OpenHopCondition[] = isAll(value) ? value.all : isAny(value) ? value.any : [];
@@ -95,7 +104,7 @@ export function OpenHopConditionBuilder({ value, objects, onChange }: Props) {
             onChange={(e) => onChange({ ...simple, field: e.target.value })}
           >
             <option value="">--</option>
-            {OPENHOP_FIELDS.map((f) => (
+            {fields.map((f) => (
               <option key={f} value={f}>
                 {f}
               </option>
@@ -107,7 +116,7 @@ export function OpenHopConditionBuilder({ value, objects, onChange }: Props) {
             value={simple.op}
             onChange={(e) => onChange({ ...simple, op: e.target.value as OpenHopOperator })}
           >
-            {OPENHOP_OPERATORS.map((o) => (
+            {operators.map((o) => (
               <option key={o} value={o}>
                 {o}
               </option>
@@ -144,6 +153,7 @@ export function OpenHopConditionBuilder({ value, objects, onChange }: Props) {
               key={i}
               value={child}
               objects={objects}
+              vocabulary={vocabulary}
               onChange={(c) => {
                 const next = [...children];
                 next[i] = c;

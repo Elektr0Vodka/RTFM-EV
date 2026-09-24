@@ -55,6 +55,20 @@ machine this was authored on and may differ elsewhere.
   (`app/services/openhop_api.py`) and the My Node TX/RX airtime chart via
   `/api/airtime_chart_data`, because OpenHop's companion stats frame reports RX
   airtime as 0.
+- Host repeater (plan 29): `repeater/engine.py` (gate order, delay formula and 5 s cap,
+  seen table), `repeater/airtime.py` (60 s duty-cycle window, `max_airtime_per_minute`
+  3600 ms) and `repeater/policy_engine.py` (rule format and operators) are the model
+  for `app/services/host_repeater_*.py`. Forwarding rules themselves come from
+  MeshCore `src/Mesh.cpp`, repeater gates from `examples/simple_repeater/MyMesh.cpp`
+  and `src/helpers/RoutingPolicy.h`, the packet filter from DMC `dmc-dev`
+  `examples/simple_repeater/Filter.{h,cpp}` / `Limiter.h`, and the EU sub-band table
+  from DMC `src/helpers/DutyCycleLimits.cpp`. The region map and duty-cycle region
+  gating follow DMC `dmc-dev` `src/helpers/RegionMap.{h,cpp}` (`findMatch`,
+  `depthOf`, `getMaxGateLevel`, `applyDutyGate`), `examples/simple_repeater/MyMesh.cpp`
+  (`onRecvPacket`, the `dc.gate` loop) and `src/Dispatcher.cpp`
+  `getTxDutyCyclePercent` (budget in use). `dmc-observer-dev` measures wall-clock TX
+  duty instead (`TxDutyWindow.h`); the budget meaning was confirmed by the DMC
+  developer and is the one used here.
 
 ### DMC OTA
 - Repo: https://github.com/Dutch-MeshCore/DutchMeshCore-OTA

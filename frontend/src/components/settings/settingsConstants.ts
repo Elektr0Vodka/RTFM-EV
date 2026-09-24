@@ -5,6 +5,7 @@ import {
   MapPin,
   MonitorCog,
   RadioTower,
+  Repeat,
   Share2,
   ShieldAlert,
   SlidersHorizontal,
@@ -14,6 +15,7 @@ import type { TFn } from '../../i18n';
 
 export type SettingsSection =
   | 'radio'
+  | 'host-repeater'
   | 'local'
   | 'radio-app'
   | 'map'
@@ -25,6 +27,7 @@ export type SettingsSection =
 
 export const SETTINGS_SECTION_ORDER: SettingsSection[] = [
   'radio',
+  'host-repeater',
   'local',
   'fanout',
   'openhop',
@@ -37,6 +40,7 @@ export const SETTINGS_SECTION_ORDER: SettingsSection[] = [
 
 const SETTINGS_SECTION_LABEL_KEYS: Record<SettingsSection, string> = {
   radio: 'settings_section_radio',
+  'host-repeater': 'settings_section_host_repeater',
   local: 'settings_section_local',
   'radio-app': 'settings_section_radio_app',
   map: 'settings_section_map',
@@ -53,6 +57,7 @@ export function settingsSectionLabel(section: SettingsSection, t: TFn): string {
 
 export const SETTINGS_SECTION_ICONS: Record<SettingsSection, LucideIcon> = {
   radio: RadioTower,
+  'host-repeater': Repeat,
   local: MonitorCog,
   'radio-app': SlidersHorizontal,
   map: MapPin,

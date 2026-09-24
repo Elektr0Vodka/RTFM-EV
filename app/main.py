@@ -69,6 +69,7 @@ from app.routers import (
     external_map,
     fanout,
     health,
+    host_repeater,
     links,
     messages,
     openhop,
@@ -151,6 +152,15 @@ async def lifespan(app: FastAPI):
     from app.services.new_node_notify import arm_startup_warmup
 
     await arm_startup_warmup()
+
+    # Host repeater settings (plan 29): shadow mode reads them on every RX frame.
+    from app.services.host_repeater import host_repeater
+
+    try:
+        await host_repeater.load()
+    except Exception:
+        # Defaults (everything off) stay active; the API retries the load on first use.
+        logger.warning("Could not load host repeater settings at startup", exc_info=True)
 
     # External-map node overlay sync loop (radio-independent; guarded by the
     # external_map_enabled / interval settings each tick).
@@ -259,6 +269,7 @@ app.include_router(update_status.router, prefix="/api")
 app.include_router(debug.router, prefix="/api")
 app.include_router(fanout.router, prefix="/api")
 app.include_router(radio.router, prefix="/api")
+app.include_router(host_repeater.router, prefix="/api")
 app.include_router(contacts.router, prefix="/api")
 app.include_router(repeaters.router, prefix="/api")
 app.include_router(rooms.router, prefix="/api")
