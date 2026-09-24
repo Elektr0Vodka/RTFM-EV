@@ -92,6 +92,8 @@ from app.routers import (
     ws,
 )
 from app.security import add_optional_basic_auth_middleware
+from app.services.backup_scheduler import start_backup_schedule, stop_backup_schedule
+from app.services.db_restore import apply_pending_restore
 from app.services.external_map import start_external_map_sync, stop_external_map_sync
 from app.services.link_edge_backfill import start_link_edge_backfill, stop_link_edge_backfill
 from app.services.radio_runtime import radio_runtime as radio_manager
@@ -118,6 +120,13 @@ async def _startup_radio_connect_and_setup() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage database and radio connection lifecycle."""
+    # A restore staged from Settings is swapped in before the database opens
+    # (the current database is snapshotted first); migrations then upgrade it.
+    if db.db_path != ":memory:":
+        try:
+            await asyncio.to_thread(apply_pending_restore, db.db_path)
+        except Exception:
+            logger.exception("Applying a staged database restore failed")
     await db.connect()
     logger.info("Database connected")
 
@@ -163,6 +172,9 @@ async def lifespan(app: FastAPI):
     # One-time link edge backfill from packets stored before migration _107.
     start_link_edge_backfill()
 
+    # Scheduled snapshots into the server-side backup directory (off by default).
+    start_backup_schedule()
+
     # Always start connection monitor (even if initial connection failed)
     await radio_manager.start_connection_monitor()
 
@@ -192,6 +204,7 @@ async def lifespan(app: FastAPI):
     await stop_message_polling()
     await stop_radio_stats_sampling()
     await stop_external_map_sync()
+    await stop_backup_schedule()
     await stop_retention_prune()
     await stop_link_edge_backfill()
     await stop_periodic_advert()

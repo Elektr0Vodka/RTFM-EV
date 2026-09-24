@@ -145,9 +145,11 @@ Shipped toward this so far:
 - Mesh Trends Live-tab stat breakdowns can be computed from the database over the
   selected range, backed by decoded packet fields persisted at ingest (`_089`),
   not only the in-memory session buffer.
-- In-app database backup: download a consistent SQLite snapshot, or write one to a
-  configured server-side path, from the Settings database section (migration
-  `_084`). See `README_ADVANCED.md` for the manual restore procedure.
+- In-app database backup and restore: download a consistent SQLite snapshot, or
+  write one to a configured server-side path, on demand or on a schedule with
+  keep-N rotation (migrations `_084`, `_113`). Restore from an uploaded file or a
+  server-side backup; it is applied at the next server restart, after the current
+  database is saved. See `README_ADVANCED.md`.
 - Configurable, per-data-class retention (Settings > Database > Data retention,
   migration `_105`). Raw packets, messages, advert events, repeater/contact
   telemetry (days plus a rows-per-node cap), link signal, map link traffic

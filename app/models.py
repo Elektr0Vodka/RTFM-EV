@@ -1824,6 +1824,23 @@ class AppSettings(BaseModel):
         default="",
         description="Absolute directory backups are written to when backup_to_path_enabled is on",
     )
+    backup_schedule_enabled: bool = Field(
+        default=False,
+        description=(
+            "Write automatic database snapshots to the server-side backup directory "
+            "(requires backup_to_path_enabled)"
+        ),
+    )
+    backup_schedule_interval_hours: int = Field(
+        default=24,
+        ge=1,
+        description="Hours between automatic database snapshots",
+    )
+    backup_schedule_keep: int = Field(
+        default=7,
+        ge=1,
+        description="Number of automatic snapshots kept; older ones are deleted",
+    )
     brand_name: str = Field(
         default="",
         description="Custom navbar wordmark; empty falls back to the built-in 'RTFM-EV'",

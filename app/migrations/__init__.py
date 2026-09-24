@@ -34,6 +34,16 @@ async def set_version(conn: aiosqlite.Connection, version: int) -> None:
     await conn.execute(f"PRAGMA user_version = {version}")
 
 
+def latest_version() -> int:
+    """Highest migration number this build ships (the schema version it upgrades to)."""
+    nums = [
+        int(match.group(1))
+        for module_info in pkgutil.iter_modules(__path__)
+        if (match := re.match(r"_(\d+)_", module_info.name))
+    ]
+    return max(nums, default=0)
+
+
 async def run_migrations(conn: aiosqlite.Connection) -> int:
     """
     Run all pending migrations.

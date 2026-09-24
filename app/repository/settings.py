@@ -68,6 +68,8 @@ class AppSettingsRepository:
                    external_map_enabled, external_map_sync_url,
                    external_map_sync_interval_hours,
                    backup_to_path_enabled, backup_destination_path,
+                   backup_schedule_enabled, backup_schedule_interval_hours,
+                   backup_schedule_keep,
                    brand_name, brand_hidden, brand_icon,
                    openhop_api_url, openhop_api_token,
                    mention_sound_enabled, mention_sound_choice, mention_sound_volume,
@@ -401,6 +403,20 @@ class AppSettingsRepository:
         except (KeyError, TypeError):
             backup_destination_path = ""
 
+        # Scheduled backups (migration _113 adds the columns).
+        try:
+            backup_schedule_enabled = bool(row["backup_schedule_enabled"])
+        except (KeyError, TypeError):
+            backup_schedule_enabled = False
+        try:
+            backup_schedule_interval_hours = max(1, int(row["backup_schedule_interval_hours"]))
+        except (KeyError, TypeError, ValueError):
+            backup_schedule_interval_hours = 24
+        try:
+            backup_schedule_keep = max(1, int(row["backup_schedule_keep"]))
+        except (KeyError, TypeError, ValueError):
+            backup_schedule_keep = 7
+
         # Parse advert_retention_days (migration adds the column with default=30)
         try:
             raw_retention = row["advert_retention_days"]
@@ -518,6 +534,9 @@ class AppSettingsRepository:
             external_map_sync_interval_hours=external_map_sync_interval_hours,
             backup_to_path_enabled=backup_to_path_enabled,
             backup_destination_path=backup_destination_path,
+            backup_schedule_enabled=backup_schedule_enabled,
+            backup_schedule_interval_hours=backup_schedule_interval_hours,
+            backup_schedule_keep=backup_schedule_keep,
             brand_name=brand_name,
             brand_hidden=brand_hidden,
             brand_icon=brand_icon,
@@ -592,6 +611,9 @@ class AppSettingsRepository:
         external_map_sync_interval_hours: int | None = None,
         backup_to_path_enabled: bool | None = None,
         backup_destination_path: str | None = None,
+        backup_schedule_enabled: bool | None = None,
+        backup_schedule_interval_hours: int | None = None,
+        backup_schedule_keep: int | None = None,
         brand_name: str | None = None,
         brand_hidden: bool | None = None,
         brand_icon: str | None = None,
@@ -834,6 +856,18 @@ class AppSettingsRepository:
             updates.append("backup_destination_path = ?")
             params.append(backup_destination_path)
 
+        if backup_schedule_enabled is not None:
+            updates.append("backup_schedule_enabled = ?")
+            params.append(1 if backup_schedule_enabled else 0)
+
+        if backup_schedule_interval_hours is not None:
+            updates.append("backup_schedule_interval_hours = ?")
+            params.append(backup_schedule_interval_hours)
+
+        if backup_schedule_keep is not None:
+            updates.append("backup_schedule_keep = ?")
+            params.append(backup_schedule_keep)
+
         if brand_name is not None:
             updates.append("brand_name = ?")
             params.append(brand_name)
@@ -925,6 +959,9 @@ class AppSettingsRepository:
         external_map_sync_interval_hours: int | None = None,
         backup_to_path_enabled: bool | None = None,
         backup_destination_path: str | None = None,
+        backup_schedule_enabled: bool | None = None,
+        backup_schedule_interval_hours: int | None = None,
+        backup_schedule_keep: int | None = None,
         brand_name: str | None = None,
         brand_hidden: bool | None = None,
         brand_icon: str | None = None,
@@ -997,6 +1034,9 @@ class AppSettingsRepository:
                 external_map_sync_interval_hours=external_map_sync_interval_hours,
                 backup_to_path_enabled=backup_to_path_enabled,
                 backup_destination_path=backup_destination_path,
+                backup_schedule_enabled=backup_schedule_enabled,
+                backup_schedule_interval_hours=backup_schedule_interval_hours,
+                backup_schedule_keep=backup_schedule_keep,
                 brand_name=brand_name,
                 brand_hidden=brand_hidden,
                 brand_icon=brand_icon,
