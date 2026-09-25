@@ -200,6 +200,23 @@ describe('ContactInfoPane', () => {
     openSpy.mockRestore();
   });
 
+  it('offers a triangulator link-out with the node prefix, without analyzer sites', async () => {
+    const contact = createContact();
+    getContactAnalytics.mockResolvedValue(createAnalytics(contact));
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+    render(<ContactInfoPane {...baseProps} contactKey={contact.public_key} />);
+
+    const button = await screen.findByText('Triangulate on triangulator.dutchmeshcore.nl');
+    button.click();
+    expect(openSpy).toHaveBeenCalledWith(
+      `https://triangulator.dutchmeshcore.nl/?prefixes=${contact.public_key.slice(0, 6).toLowerCase()}`,
+      '_blank',
+      'noopener,noreferrer'
+    );
+    openSpy.mockRestore();
+  });
+
   it('hides the analyzer lookup for a prefix-only contact', async () => {
     const contact = createContact({ public_key: 'aa'.repeat(6) }); // 12 hex = prefix only
     getContactAnalytics.mockResolvedValue(createAnalytics(contact));

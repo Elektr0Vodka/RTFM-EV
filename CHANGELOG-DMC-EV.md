@@ -11,6 +11,21 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-25 (Triangulation link-out, plan 13 last item, feat/map-triangulate-link)
+
+### Map + contact info: triangulate a node on the DMC triangulator (frontend)
+- The last open item of plan [13] (map overhaul) ships as the plan's
+  recommended option (a), a deep link: **Triangulate** in the map node popup
+  and **Triangulate on triangulator.dutchmeshcore.nl** in the contact info
+  identity section open `https://triangulator.dutchmeshcore.nl/?prefixes=<first
+  6 hex of the key>` in a new tab. That is the triangulator's own share-link
+  form (2/4/6-hex path-hash prefixes); it pre-fills the query and runs
+  discovery against the public mc-radar / map.meshcore.io feeds itself, so
+  RTFM-EV sends nothing but the prefix. Prefix-only contacts get their whole
+  bytes; keys shorter than one byte get no link. New i18n keys
+  `contact_triangulate_label`, `contact_triangulate_title`,
+  `map_triangulate_link` in EN/NL/DE.
+
 ## Update 2026-09-25 (GRP_DATA image placeholder, plan 28 item 1.17, feat/group-data-placeholder)
 
 ### Channel datagrams (GRP_DATA) shown as a placeholder (backend + frontend)

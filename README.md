@@ -29,6 +29,7 @@ Connect your radio over Serial, TCP, or BLE, and then you can:
 * Toggle the on-board GPS receiver on any radio that reports it, including stock MeshCore companion firmware (Settings > Radio)
 * Edit a remote repeater's settings (name, location, radio, TX power, routing and advert options) from its dashboard: each change is confirmed on its own, sent as one CLI command over RF and read back. Radio frequency/bandwidth/SF/CR needs you to type the repeater name first, since a wrong value can strand it off-air
 * Run a trace from the Trace page and see the hops drawn on a small map above the hop list (hops with no known location are skipped and bridged with a dashed segment)
+* Triangulate a node from the map popup or its contact info: a link-out to the DMC triangulator (triangulator.dutchmeshcore.nl) with the node's path-hash prefix; the site estimates the position from public observer feeds, nothing else is sent
 * Visualize the mesh as a map or node set, view repeater stats, and more!
 
 For advanced setup and troubleshooting see [README_ADVANCED.md](README_ADVANCED.md). If you plan to contribute, read [CONTRIBUTING.md](CONTRIBUTING.md).

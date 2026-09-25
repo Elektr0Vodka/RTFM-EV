@@ -772,3 +772,7 @@ Rules for new strings:
 
 Translation strings for NL/DE are adapted in part from kiekr-i18n by Marcel
 Verdult (@marcelverdult), https://github.com/marcelverdult/kiekr-i18n, CC-BY 4.0.
+
+### Triangulation link-out (plan [13])
+
+`utils/triangulatorLink.ts` builds `https://triangulator.dutchmeshcore.nl/?prefixes=<first 6 hex>` for a node (the DMC triangulator's own deep-link form: 2/4/6-hex path-hash prefixes, optional `:count` weights, `prefixes2`, `hop2`, `cluster`; it auto-runs discovery from the public mc-radar / map.meshcore.io feeds). Shown as "Triangulate on triangulator.dutchmeshcore.nl" in the contact info identity section (`ContactInfoBody`, independent of configured analyzer sites) and as a "Triangulate" link in the map node popup (`MapView.buildContactPopup`). It is a link-out, not an embedded estimator: the plan rejected a from-scratch port as a separate large plan.
