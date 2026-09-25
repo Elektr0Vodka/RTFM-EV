@@ -42,6 +42,8 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     max_tx_delay_ms: 5000,
     max_forward_latency_ms: 5000,
     preamble_symbols: 16,
+    rx_delay_base: 0,
+    use_score_for_tx: false,
     duty_cycle_enforced: true,
     max_airtime_per_minute_ms: 3600,
     flood_max: 64,
@@ -58,6 +60,11 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     filter_malformed: false,
     filter_types: { GRP_TXT: { hops_max: 32, rate_limit: 20, rate_secs: 60, soft: 0 } },
     filter_channels: [],
+    advert_limiter_enabled: false,
+    advert_bucket_capacity: 2,
+    advert_refill_tokens: 1,
+    advert_refill_interval_seconds: 36000,
+    advert_min_interval_seconds: 3600,
     dc_gate_enabled: false,
     dc_gate_threshold: 70,
     dc_gate_hysteresis: 10,
@@ -204,6 +211,75 @@ describe('HostRepeaterSettings', () => {
     expect(await screen.findByText('Shadow statistics')).toBeInTheDocument();
     expect(await screen.findByText('Would forward: 5')).toBeInTheDocument();
     expect(screen.getByText('Duplicate (already seen)')).toBeInTheDocument();
+  });
+
+  it('saves the score-delay and advert-limiter fields (Phase 4)', async () => {
+    vi.spyOn(api, 'getHostRepeater').mockResolvedValue(state(2));
+    const save = vi.spyOn(api, 'saveHostRepeaterSettings').mockResolvedValue(state(3));
+    render(<HostRepeaterSettings health={health(false)} floodScopeRegions={[]} repeaters={[]} />);
+    await screen.findByRole('checkbox', { name: 'Shadow mode' });
+
+    const rxDelay = screen.getByLabelText('Score-based receive delay (rxdelay base)');
+    await userEvent.clear(rxDelay);
+    await userEvent.type(rxDelay, '10');
+    await userEvent.click(screen.getByRole('checkbox', { name: /Shorter retransmit delay/ }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Limit adverts per node' }));
+    const capacity = screen.getByLabelText('Bucket capacity (adverts)');
+    await userEvent.clear(capacity);
+    await userEvent.type(capacity, '3');
+    await userEvent.click(screen.getByRole('button', { name: 'Save host repeater settings' }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledOnce());
+    const saved = save.mock.calls[0][1];
+    expect(saved.rx_delay_base).toBe(10);
+    expect(saved.use_score_for_tx).toBe(true);
+    expect(saved.advert_limiter_enabled).toBe(true);
+    expect(saved.advert_bucket_capacity).toBe(3);
+    expect(saved.advert_min_interval_seconds).toBe(3600);
+  });
+
+  it('shows the lifetime totals and resets them separately from the session', async () => {
+    vi.spyOn(api, 'getHostRepeater').mockResolvedValue(
+      state(2, settings({ shadow_enabled: true }))
+    );
+    vi.spyOn(api, 'getHostRepeaterStats').mockResolvedValue({
+      ...emptyStats,
+      rx_delay: {
+        enabled: true,
+        held: 4,
+        yielded: 3,
+        pending: 1,
+        delay_ms: { count: 4, p50: 300, p95: 900, p99: 900, max: 900 },
+      },
+      advert_limiter: { enabled: true, tracked: 5, allowed: 9, dropped: 2 },
+      lifetime: {
+        since: 1_700_000_000,
+        runs: 3,
+        persisted: true,
+        observed: 1234,
+        would_forward: 500,
+        would_drop: 734,
+        forward_airtime_total_ms: 65_000,
+        rx_delayed: 4,
+        rx_delay_yielded: 3,
+        by_reason: {},
+        by_type: {},
+        policy_matches: {},
+      },
+    });
+    const reset = vi.spyOn(api, 'resetHostRepeaterStats').mockResolvedValue({ status: 'ok' });
+    render(<HostRepeaterSettings health={health(false)} floodScopeRegions={[]} repeaters={[]} />);
+
+    expect(await screen.findByText('Lifetime totals')).toBeInTheDocument();
+    expect(screen.getByText(/3 server runs/)).toBeInTheDocument();
+    expect(screen.getByText(/Observed 1234, would forward 500/)).toBeInTheDocument();
+    expect(screen.getByText(/Held 4 weak floods; 3 were relayed/)).toBeInTheDocument();
+    expect(screen.getByText(/Advert limiter: 9 allowed, 2 dropped, 5 nodes/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Reset lifetime' }));
+    await waitFor(() => expect(reset).toHaveBeenCalledWith(true));
+    await userEvent.click(screen.getByRole('button', { name: 'Reset' }));
+    await waitFor(() => expect(reset).toHaveBeenCalledWith(false));
   });
 
   it('reloads the latest version after a 409 conflict', async () => {

@@ -162,8 +162,8 @@ export function useHostRepeater(enabled: boolean) {
     setDirty(false);
   }, [state]);
 
-  const resetStats = useCallback(async () => {
-    await api.resetHostRepeaterStats();
+  const resetStats = useCallback(async (lifetime = false) => {
+    await api.resetHostRepeaterStats(lifetime);
     setStats(await api.getHostRepeaterStats());
   }, []);
 

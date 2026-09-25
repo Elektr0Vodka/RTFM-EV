@@ -272,8 +272,11 @@ export const api = {
     }),
   disarmHostRepeater: () =>
     fetchJson<HostRepeaterState>('/radio/host-repeater/disarm', { method: 'POST' }),
-  resetHostRepeaterStats: () =>
-    fetchJson<{ status: string }>('/radio/host-repeater/stats/reset', { method: 'POST' }),
+  resetHostRepeaterStats: (lifetime = false) =>
+    fetchJson<{ status: string }>(
+      `/radio/host-repeater/stats/reset${lifetime ? '?lifetime=true' : ''}`,
+      { method: 'POST' }
+    ),
   getGpsConfig: () => fetchJson<GpsConfig>('/radio/gps'),
   updateGpsConfig: (update: GpsConfigUpdate) =>
     fetchJson<GpsConfig>('/radio/gps', {

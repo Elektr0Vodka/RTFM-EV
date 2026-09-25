@@ -366,6 +366,7 @@ jsdom has no layout engine, so none of this is observable from the vitest suite 
 
 - `HostRepeaterSettings` edits one versioned settings document (`useHostRepeater`): validate via `POST .../validate`, then `PUT .../settings` with the loaded `version`; a 409 reloads. A WS `host_repeater` event reloads when there are no local edits, otherwise it shows a reload notice. On OpenHop radios it renders a disabled checkbox and a note only (no requests).
 - Policy rules reuse `OpenHopPolicyEngineCard` / `OpenHopPolicyRules`; the condition builder takes an optional `vocabulary` (fields/operators) so the host's field list differs from the OpenHop API's. `HostRepeaterStatsPane` polls `GET .../stats` every 5 s while shadow mode is on.
+- Phase 4: Timing also edits `rx_delay_base` and `use_score_for_tx`; an own **Advert limiter** block edits the per-node token bucket (`advert_*`). `HostRepeaterStatsPane` renders the receive-hold percentiles (`rx_delay`), the advert limiter counters and a **Lifetime totals** block; its `onReset(lifetime)` maps to `api.resetHostRepeaterStats(lifetime)` (`POST .../stats/reset?lifetime=true`). The stats fields are optional in `HostRepeaterStats` so older fixtures stay valid.
 
 ### Chart zoom/pan (`lib/chartZoom.ts`, `hooks/useChartZoom.ts`, `components/charts/`)
 

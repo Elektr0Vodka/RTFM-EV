@@ -1,6 +1,7 @@
 """Host repeater settings, API, shadow runtime and RF-safety boundary (plan 29, Phases 1-2)."""
 
 import ast
+import asyncio
 import hashlib
 import hmac
 import importlib
@@ -53,6 +54,9 @@ def test_defaults_are_all_off():
     )
     assert s.tx_delay_factor == 1.0 and s.direct_tx_delay_factor == 0.5
     assert s.max_airtime_per_minute_ms == 3600
+    assert s.rx_delay_base == 0.0 and not s.use_score_for_tx and not s.advert_limiter_enabled
+    assert (s.advert_bucket_capacity, s.advert_refill_tokens) == (2, 1)
+    assert (s.advert_refill_interval_seconds, s.advert_min_interval_seconds) == (36000, 3600)
     assert s.filter_types["GRP_TXT"].hops_max == 32 and s.filter_types["ADVERT"].rate_limit == 10
 
 
@@ -61,6 +65,9 @@ def test_defaults_are_all_off():
     [
         {"unknown": 1},
         {"flood_max": 65},
+        {"rx_delay_base": 20.5},
+        {"advert_bucket_capacity": 0},
+        {"advert_refill_interval_seconds": 59},
         {"loop_detect": "sometimes"},
         {"filter_types": {"NOPE": {"hops_max": 1, "rate_limit": 1, "rate_secs": 1}}},
         {"filter_channels": [{"hash": "zz"}]},
@@ -474,3 +481,136 @@ def test_policy_string_values_are_coerced_and_empty_condition_never_matches():
     assert evaluate_policy(policy, {"hop_count": 5}).rule_id == "far"
     assert evaluate_policy(policy, {"hop_count": 2, "channel_decryptable": True}).rule_id == "dec"
     assert not evaluate_policy(policy, {"hop_count": 2, "channel_decryptable": False}).matched
+
+
+# ── Phase 4: score-based receive delay ──────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_weak_flood_is_held_and_yields_to_a_neighbours_relay(test_db):
+    rt = HostRepeaterRuntime()
+    rt.settings = HostRepeaterSettings(shadow_enabled=True, rx_delay_base=3.0)
+    rt.engine.configure(settings=rt.settings)
+    radio = snapshot(bytes([0xAB]) + bytes(31))
+    t0 = time.monotonic()
+    held = await rt.observe(
+        _grp(7), snr=-10.0, rssi=-120, arrival=t0, result={}, pre=PreFacts(), radio=radio
+    )
+    assert held is None and len(rt._held) == 1 and rt.stats.observed == 0
+    relayed = bytes([(0x05 << 2) | 1, 0x01, 0x77]) + _grp(7)[2:]
+    relay = await rt.observe(
+        relayed, snr=20.0, rssi=-60, arrival=t0 + 0.01, result={}, pre=PreFacts(), radio=radio
+    )
+    assert relay is not None and relay.forward  # strong copy judged at once
+    await asyncio.gather(*rt._held)
+    stats = rt.stats_snapshot(869.618)
+    assert (stats["observed"], stats["would_forward"], stats["would_drop"]) == (2, 1, 1)
+    assert stats["by_reason"] == {"forward:flood": 1, "duplicate": 1}
+    assert stats["rx_delay"]["held"] == 1 and stats["rx_delay"]["yielded"] == 1
+    assert stats["rx_delay"]["pending"] == 0 and stats["rx_delay"]["delay_ms"]["p50"] > 50
+    hold_row = next(r for r in stats["recent"] if r["rx_delay_ms"] is not None)
+    assert hold_row["reason"] == "duplicate" and hold_row["score"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_held_frame_is_judged_after_its_delay_when_nobody_relays(test_db):
+    rt = HostRepeaterRuntime()
+    rt.settings = HostRepeaterSettings(shadow_enabled=True, rx_delay_base=3.0)
+    rt.engine.configure(settings=rt.settings)
+    radio = snapshot(bytes([0xAB]) + bytes(31))
+    assert (
+        await rt.observe(
+            _grp(8),
+            snr=-9.9,
+            rssi=-120,
+            arrival=time.monotonic(),
+            result={},
+            pre=PreFacts(),
+            radio=radio,
+        )
+        is None
+    )
+    await asyncio.gather(*rt._held)
+    stats = rt.stats_snapshot(869.618)
+    assert stats["would_forward"] == 1 and stats["rx_delay"] == {
+        "enabled": True,
+        "held": 1,
+        "yielded": 0,
+        "pending": 0,
+        "delay_ms": stats["rx_delay"]["delay_ms"],
+    }
+    assert stats["latency_ms"]["max"] < 1000  # the hold is not counted as pipeline latency
+    await rt.stop()
+
+
+@pytest.mark.asyncio
+async def test_stop_drops_held_frames(test_db):
+    rt = HostRepeaterRuntime()
+    rt.settings = HostRepeaterSettings(shadow_enabled=True, rx_delay_base=20.0)
+    rt.engine.configure(settings=rt.settings)
+    radio = snapshot(bytes([0xAB]) + bytes(31))
+    await rt.observe(
+        _grp(9),
+        snr=-9.9,
+        rssi=-120,
+        arrival=time.monotonic(),
+        result={},
+        pre=PreFacts(),
+        radio=radio,
+    )
+    assert len(rt._held) == 1
+    await rt.stop()
+    assert len(rt._held) == 0 and rt.stats.observed == 0
+
+
+# ── Phase 4: lifetime totals survive a restart ──────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_lifetime_totals_persist_across_runtimes(test_db):
+    with patch("app.services.host_repeater.broadcast_event"):
+        first = HostRepeaterRuntime()
+        await first.load()
+        assert first.lifetime.runs == 1 and first.stats_snapshot(None)["lifetime"]["persisted"]
+        first.settings = HostRepeaterSettings(shadow_enabled=True)
+        first.engine.configure(settings=first.settings)
+        radio = snapshot(bytes([0xAB]) + bytes(31))
+        await first.observe(
+            _grp(11),
+            snr=5.0,
+            rssi=-80,
+            arrival=time.monotonic(),
+            result={},
+            pre=PreFacts(),
+            radio=radio,
+        )
+        first.reset_stats()  # session reset keeps the lifetime totals
+        assert first.stats.observed == 0 and first.lifetime.observed == 1
+        await first.stop()
+
+        second = HostRepeaterRuntime()
+        await second.load()
+        life = second.stats_snapshot(None)["lifetime"]
+        assert life["runs"] == 2 and life["observed"] == 1 and life["would_forward"] == 1
+        assert life["by_reason"] == {"forward:flood": 1} and life["by_type"] == {
+            "GRP_TXT": {"forward": 1}
+        }
+        assert life["since"] == first.lifetime.since
+
+        await second.reset_lifetime()
+        third = HostRepeaterRuntime()
+        await third.load()
+        assert third.lifetime.runs == 2 and third.lifetime.observed == 0
+
+
+@pytest.mark.asyncio
+async def test_stats_reset_endpoint_lifetime_flag(test_db, runtime):
+    await runtime.load()
+    runtime.lifetime.observed = 5
+    runtime.stats.observed = 3
+    assert await router_module.reset_host_repeater_stats(lifetime=False) == {"status": "ok"}
+    assert runtime.stats.observed == 0 and runtime.lifetime.observed == 5
+    assert await router_module.reset_host_repeater_stats(lifetime=True) == {"status": "ok"}
+    assert runtime.lifetime.observed == 0
+    stats = await router_module.get_host_repeater_stats()
+    assert stats["lifetime"]["observed"] == 0 and stats["advert_limiter"]["enabled"] is False

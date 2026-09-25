@@ -17,9 +17,17 @@ Order of checks:
 4. Repeater firmware gates for floods (``simple_repeater`` ``allowPacketForward``):
    region map (with DMC duty-cycle region gating) / unscoped, flood.max*, loop detect.
 5. DMC RF packet filter for floods (last, like DMC's hook).
-6. Raw-send size limit and the OpenHop duty-cycle window.
+6. Per-source advert token bucket (OpenHop ``advert_rate_limit``), adverts only.
+7. Raw-send size limit and the OpenHop duty-cycle window.
 
 TX priority follows MeshCore: direct forwards 0, TRACE 5, floods the new hop count.
+
+Score-based delays (Phase 4): ``packet_score`` ports the firmware's
+``RadioLibWrapper::packetScoreInt``. ``rx_delay_ms`` is the repeater's ``rxdelay``
+(``MyMesh::calcRxDelay``): the host holds a weak flood back before judging it, so a
+copy relayed by a neighbour with better reception is judged first and the held copy
+becomes a duplicate, exactly like the firmware's delayed inbound queue. With
+``use_score_for_tx`` (OpenHop) a strong reception gets a shorter random delay.
 
 Region gating follows DMC ``dmc-dev``: the gate reads how much of the airtime budget
 is in use (``Dispatcher::getTxDutyCyclePercent``: a bucket of one hour times the
@@ -115,6 +123,15 @@ LOOP_MAX_COUNTERS = {
     "strict": {1: 1, 2: 1, 3: 1},
 }
 
+# Score-based delays: RadioLibWrappers.cpp snr_threshold[] (SF7..SF12) and
+# Dispatcher.cpp checkRecv (delays under 50 ms are not queued, cap MAX_RX_DELAY_MILLIS).
+SNR_THRESHOLD_BY_SF = {7: -7.5, 8: -10.0, 9: -12.5, 10: -15.0, 11: -17.5, 12: -20.0}
+SCORE_DELAY_MIN_MS = 50.0
+MAX_RX_DELAY_MS = 32_000.0
+# OpenHop advert limiter: inactive keys are forgotten after 7 days, at most 10000 kept.
+ADVERT_LIMITER_MAX_KEYS = 10_000
+ADVERT_LIMITER_RETENTION_SECONDS = 7 * 24 * 3600.0
+
 # DMC Filter.h
 DMC_PUBLIC_CHANNEL_HASH = 0x11
 DMC_INVALID_TIMESTAMP_WINDOW = 7 * 24 * 60 * 60
@@ -149,6 +166,7 @@ DROP_REASONS = (
     "filter_rate",
     "filter_channel",
     "filter_malformed",
+    "advert_rate",
     "too_large",
     "duty_cycle",
     "too_late",
@@ -201,6 +219,8 @@ class Decision:
     airtime_ms: float | None = None
     policy_action: str | None = None
     policy_rule_id: str | None = None
+    # Reception score used for the delays (None when SNR or SF is unknown).
+    score: float | None = None
 
     @property
     def payload_type_name(self) -> str:
@@ -234,6 +254,37 @@ def lora_airtime_ms(length: int, radio: RadioParams, preamble_symbols: int = 16)
     denom = 4 * (sf - 2) if low_dr else 4 * sf
     payload_symbols = 8 + math.ceil(max(bits, 0) / denom) * cr_denom
     return (preamble_symbols + sync_symbols + payload_symbols) * symbol_s * 1000.0
+
+
+def packet_score(snr: float | None, sf: int, length: int) -> float | None:
+    """Firmware ``RadioLibWrapper::packetScoreInt``: reception quality in [0, 1].
+
+    0 below the spreading factor's SNR floor; otherwise (SNR - floor) / 10 dB scaled
+    by a collision penalty ``1 - length / 256``. None when SNR or SF is unknown.
+    """
+    floor = SNR_THRESHOLD_BY_SF.get(sf)
+    if snr is None or floor is None:
+        return None
+    if snr < floor:
+        return 0.0
+    success = (snr - floor) / 10.0
+    penalty = 1.0 - length / 256.0
+    return max(0.0, min(1.0, success * penalty))
+
+
+def rx_delay_ms(score: float | None, airtime_ms: float, base: float) -> float:
+    """Repeater ``rxdelay`` (``MyMesh::calcRxDelay`` + ``Dispatcher::checkRecv``).
+
+    ``(base ^ (0.85 - score) - 1) * airtime``; 0 when the setting is off, the score is
+    unknown or the result is under 50 ms (the firmware processes those at once);
+    capped at 32 s.
+    """
+    if base <= 0.0 or score is None:
+        return 0.0
+    delay = (math.pow(base, 0.85 - score) - 1.0) * airtime_ms
+    if delay < SCORE_DELAY_MIN_MS:
+        return 0.0
+    return min(delay, MAX_RX_DELAY_MS)
 
 
 def packet_hash(payload_type: int, payload: bytes, path_byte: int | None = None) -> str:
@@ -321,6 +372,66 @@ def _dmc_public_payload_malformed(payload: bytes, now: float) -> bool:
     return not _dmc_message_valid(data, now)
 
 
+class AdvertLimiter:
+    """OpenHop ``AdvertHelper._allow_advert`` without the penalty box and adaptive tiers:
+    one token bucket per advertising public key plus a minimum interval per key."""
+
+    def __init__(
+        self, capacity: int, refill_tokens: int, refill_seconds: int, min_interval: int
+    ) -> None:
+        self.capacity = float(capacity)
+        self.refill_tokens = float(refill_tokens)
+        self.refill_seconds = float(refill_seconds)
+        self.min_interval = float(min_interval)
+        # key -> [tokens, last_refill, last_seen (-1 = never)]
+        self._state: OrderedDict[bytes, list[float]] = OrderedDict()
+        self.allowed = 0
+        self.dropped = 0
+        self._last_cleanup = 0.0
+
+    def allow(self, key: bytes, now: float) -> bool:
+        self._cleanup(now)
+        state = self._state.get(key)
+        if state is None:
+            state = [self.capacity, now, -1.0]
+            self._state[key] = state
+            while len(self._state) > ADVERT_LIMITER_MAX_KEYS:
+                self._state.popitem(last=False)
+        else:
+            self._state.move_to_end(key)
+            elapsed = now - state[1]
+            if elapsed >= self.refill_seconds:
+                intervals = int(elapsed // self.refill_seconds)
+                state[0] = min(self.capacity, state[0] + intervals * self.refill_tokens)
+                state[1] += intervals * self.refill_seconds
+        if self.min_interval > 0 and state[2] >= 0 and now - state[2] < self.min_interval:
+            self.dropped += 1
+            return False
+        if state[0] < 1.0:
+            self.dropped += 1
+            return False
+        state[0] -= 1.0
+        state[2] = now
+        self.allowed += 1
+        return True
+
+    def _cleanup(self, now: float) -> None:
+        if now - self._last_cleanup < 3600.0:
+            return
+        self._last_cleanup = now
+        stale = [
+            k
+            for k, s in self._state.items()
+            if now - max(s[1], s[2]) > ADVERT_LIMITER_RETENTION_SECONDS
+        ]
+        for key in stale:
+            del self._state[key]
+
+    @property
+    def tracked(self) -> int:
+        return len(self._state)
+
+
 @dataclass
 class _DutyWindow:
     entries: deque[tuple[float, float]] = field(default_factory=deque)
@@ -392,6 +503,7 @@ class ForwardingEngine:
         self.radio = radio
         self._limiters: dict[int, DmcLimiter] = {}
         self._build_limiters()
+        self._advert_limiter = self._build_advert_limiter()
         self._budget = AirtimeBudget()
         self._gate_level = 0
         self._gate_next: float | None = None
@@ -412,6 +524,7 @@ class ForwardingEngine:
             self.settings = settings
             self._build_limiters()
             self._build_region_tree()
+            self._advert_limiter = self._build_advert_limiter()
         if public_key is not None and public_key != self.public_key:
             self.public_key = public_key
             self._seen.clear()
@@ -439,6 +552,36 @@ class ForwardingEngine:
         self._seen.clear()
         self._duty = _DutyWindow()
         self._build_limiters()
+        self._advert_limiter = self._build_advert_limiter()
+
+    def _build_advert_limiter(self) -> AdvertLimiter:
+        s = self.settings
+        return AdvertLimiter(
+            s.advert_bucket_capacity,
+            s.advert_refill_tokens,
+            s.advert_refill_interval_seconds,
+            s.advert_min_interval_seconds,
+        )
+
+    def advert_limiter_snapshot(self) -> dict:
+        lim = self._advert_limiter
+        return {
+            "enabled": self.settings.advert_limiter_enabled,
+            "tracked": lim.tracked,
+            "allowed": lim.allowed,
+            "dropped": lim.dropped,
+        }
+
+    def rx_delay_ms(self, raw: bytes, snr: float | None) -> float:
+        """Score-based receive delay for a flood frame (0 = judge it now)."""
+        if self.settings.rx_delay_base <= 0.0 or self.radio is None:
+            return 0.0
+        env = parse_packet_envelope(raw)
+        if env is None or env.route_type not in (ROUTE_FLOOD, ROUTE_TRANSPORT_FLOOD):
+            return 0.0
+        score = packet_score(snr, self.radio.sf, len(raw))
+        airtime = lora_airtime_ms(len(raw), self.radio, self.settings.preamble_symbols)
+        return rx_delay_ms(score, airtime, self.settings.rx_delay_base)
 
     def _build_limiters(self) -> None:
         by_code = {name: code for code, name in PAYLOAD_TYPE_NAMES.items()}
@@ -551,6 +694,8 @@ class ForwardingEngine:
             env.payload_type, env.payload, env.path_byte if env.payload_type == PT_TRACE else None
         )
 
+        score = packet_score(facts.snr, self.radio.sf, rx_len) if self.radio else None
+
         def drop(reason: str, policy: PolicyDecision | None = None) -> Decision:
             return Decision(
                 False,
@@ -558,6 +703,7 @@ class ForwardingEngine:
                 pkt_hash,
                 policy_action=policy.action if policy and policy.matched else None,
                 policy_rule_id=policy.rule_id if policy and policy.matched else None,
+                score=score,
                 payload_type=ptype,
                 route_type=route,
                 hop_count=hops,
@@ -596,6 +742,13 @@ class ForwardingEngine:
                 else self.settings.direct_tx_delay_factor
             )
             delay_ms = airtime * factor * (self._rng.randrange(5001) / 1000.0)
+            if (
+                self.settings.use_score_for_tx
+                and score is not None
+                and delay_ms >= SCORE_DELAY_MIN_MS
+            ):
+                # OpenHop: a strong reception forwards sooner, never below 20 %.
+                delay_ms *= max(0.2, 1.0 - score)
         delay_ms = min(delay_ms, float(self.settings.max_tx_delay_ms))
 
         if (
@@ -616,6 +769,7 @@ class ForwardingEngine:
             airtime_ms=airtime,
             policy_action=policy.action if policy.matched else None,
             policy_rule_id=policy.rule_id if policy.matched else None,
+            score=score,
             payload_type=ptype,
             route_type=route,
             hop_count=hops,
@@ -774,6 +928,13 @@ class ForwardingEngine:
             reason = self._dmc_filter(env, facts, now, wall_now)
             if reason is not None:
                 return reason
+
+        if (
+            ptype == PT_ADVERT
+            and s.advert_limiter_enabled
+            and not self._advert_limiter.allow(bytes(payload[:PUB_KEY_SIZE]), now)
+        ):
+            return "advert_rate"
 
         forwarded = (
             _header_and_codes(raw, env)

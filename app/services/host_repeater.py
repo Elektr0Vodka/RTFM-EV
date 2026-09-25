@@ -1,4 +1,4 @@
-"""Host repeater runtime: settings, shadow mode and statistics (plan 29, Phases 1-2).
+"""Host repeater runtime: settings, shadow mode and statistics (plan 29, Phases 1-4).
 
 Shadow mode runs every received frame through ``ForwardingEngine`` and records
 what a repeater would have done ("would forward" / "would drop"), how long the
@@ -7,9 +7,17 @@ transmits: this module has no reference to the radio or its send path (radio fac
 arrive as a ``RadioSnapshot`` argument), and a test enforces the import boundary.
 
 Shadow mode is opt-in (``shadow_enabled``) and runs whenever the repeater is not
-armed. Arming (live forwarding) is a later phase and does not exist yet.
+armed. Armed mode lives in ``host_repeater_tx`` and attaches itself as a ``ForwardSink``.
 
-Statistics are in memory only and reset on restart or via the API.
+Score-based receive delay (Phase 4, the repeater's ``rxdelay``): a weak flood is held
+back before it is judged, so a copy relayed by a neighbour with better reception is
+judged first and the held copy becomes a duplicate, like the firmware's delayed
+inbound queue.
+
+Session statistics are in memory and reset on restart or via the API. Lifetime
+totals (``LifetimeStats``) accumulate across restarts in ``host_repeater_stats``
+(migration ``_114``): flushed at most once a minute from the RX path, at shutdown and
+on reset.
 """
 
 from __future__ import annotations
@@ -32,6 +40,7 @@ from app.path_utils import parse_packet_envelope
 from app.repository.host_repeater import (
     HostRepeaterConfigRepository,
     HostRepeaterContactsRepository,
+    HostRepeaterStatsRepository,
 )
 from app.services import dm_ack_tracker
 from app.services.host_repeater_engine import (
@@ -62,6 +71,7 @@ ECHO_TRACK_MAX = 2000
 ECHO_TRACK_SECONDS = 60.0
 CONTACT_CACHE_SECONDS = 60.0
 HOUR_SECONDS = 3600.0
+LIFETIME_FLUSH_SECONDS = 60.0
 
 
 @dataclass(frozen=True)
@@ -153,12 +163,75 @@ class ShadowStats:
         self.radio_rx_air_ms = 0.0
         self.radio_tx_air: deque[tuple[float, float]] = deque()
         self.stats_samples = 0
+        # Score-based receive delay: frames held back, their delays, and how many of
+        # them a neighbour's relay overtook (judged as duplicate after the hold).
+        self.rx_delayed = 0
+        self.rx_delay_ms: deque[float] = deque(maxlen=LATENCY_SAMPLES)
+        self.rx_delay_yielded = 0
         self.recent: deque[dict[str, Any]] = deque(maxlen=RECENT_DECISIONS)
 
     def forward_airtime_last(self, seconds: float, now: float) -> float:
         while self.forward_airtime and now - self.forward_airtime[0][0] > HOUR_SECONDS:
             self.forward_airtime.popleft()
         return sum(ms for ts, ms in self.forward_airtime if now - ts <= seconds)
+
+
+class LifetimeStats:
+    """Decision totals that survive restarts (persisted as one JSON row)."""
+
+    FIELDS = (
+        "observed",
+        "would_forward",
+        "would_drop",
+        "forward_airtime_total_ms",
+        "rx_delayed",
+        "rx_delay_yielded",
+    )
+
+    def __init__(self, since: float | None = None, runs: int = 1) -> None:
+        self.since = int(since if since is not None else time.time())
+        self.runs = runs
+        self.observed = 0
+        self.would_forward = 0
+        self.would_drop = 0
+        self.forward_airtime_total_ms = 0.0
+        self.rx_delayed = 0
+        self.rx_delay_yielded = 0
+        self.by_reason: Counter[str] = Counter()
+        self.by_type: dict[str, Counter[str]] = {}
+        self.policy_matches: Counter[str] = Counter()
+
+    @classmethod
+    def from_row(cls, row: dict[str, Any]) -> LifetimeStats:
+        out = cls(row.get("since"), int(row.get("runs") or 1))
+        data = row.get("stats") or {}
+        for name in cls.FIELDS:
+            value = data.get(name, 0)
+            if isinstance(value, (int, float)):
+                setattr(out, name, value)
+        out.by_reason = Counter({str(k): int(v) for k, v in (data.get("by_reason") or {}).items()})
+        out.by_type = {
+            str(k): Counter({str(a): int(b) for a, b in v.items()})
+            for k, v in (data.get("by_type") or {}).items()
+            if isinstance(v, dict)
+        }
+        out.policy_matches = Counter(
+            {str(k): int(v) for k, v in (data.get("policy_matches") or {}).items()}
+        )
+        return out
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "observed": self.observed,
+            "would_forward": self.would_forward,
+            "would_drop": self.would_drop,
+            "forward_airtime_total_ms": round(self.forward_airtime_total_ms, 1),
+            "rx_delayed": self.rx_delayed,
+            "rx_delay_yielded": self.rx_delay_yielded,
+            "by_reason": dict(self.by_reason),
+            "by_type": {k: dict(v) for k, v in self.by_type.items()},
+            "policy_matches": dict(self.policy_matches),
+        }
 
 
 class HostRepeaterRuntime:
@@ -178,6 +251,13 @@ class HostRepeaterRuntime:
         self._pushes_at_last_sample = 0
         self._model_rx_at_last_sample = 0.0
         self._lock = asyncio.Lock()
+        # Lifetime totals (persisted); loaded with the settings, flushed when dirty.
+        self.lifetime = LifetimeStats()
+        self._lifetime_loaded = False
+        self._lifetime_dirty = False
+        self._lifetime_saved_at = 0.0
+        # Frames held back by the score-based receive delay (one task each).
+        self._held: set[asyncio.Task[None]] = set()
         # Armed-mode sender (``host_repeater_tx``), attached by that module at import.
         # Kept as an opaque attribute: this module must not import the send path.
         self._tx: ForwardSink | None = None
@@ -220,6 +300,62 @@ class HostRepeaterRuntime:
             self.version, self.settings = version, parsed
         self.engine.configure(settings=self.settings)
         self.loaded = True
+        await self._load_lifetime()
+
+    async def _load_lifetime(self) -> None:
+        """Continue the persisted lifetime totals and count this server run."""
+        if self._lifetime_loaded:
+            return
+        try:
+            row = await HostRepeaterStatsRepository.get()
+            if row is None:
+                self.lifetime = LifetimeStats()
+            else:
+                self.lifetime = LifetimeStats.from_row(row)
+                self.lifetime.runs += 1
+            self._lifetime_loaded = True
+            self._lifetime_dirty = True
+            await self.flush_lifetime(force=True)
+        except Exception:
+            logger.warning("Could not load host repeater lifetime stats", exc_info=True)
+
+    async def flush_lifetime(self, *, force: bool = False) -> bool:
+        """Write the lifetime totals when they changed (at most once a minute unless forced)."""
+        if not self._lifetime_dirty or not self._lifetime_loaded:
+            return False
+        now = time.monotonic()
+        if not force and now - self._lifetime_saved_at < LIFETIME_FLUSH_SECONDS:
+            return False
+        try:
+            lt = self.lifetime
+            await HostRepeaterStatsRepository.save(lt.since, lt.runs, lt.to_dict())
+        except Exception:
+            logger.debug("Host repeater lifetime stats flush failed", exc_info=True)
+            self._lifetime_saved_at = now  # retry after the interval, not on every frame
+            return False
+        self._lifetime_dirty = False
+        self._lifetime_saved_at = now
+        return True
+
+    async def reset_lifetime(self) -> None:
+        """Start the lifetime totals over (session stats are reset too)."""
+        self.reset_stats()
+        self.lifetime = LifetimeStats()
+        self._lifetime_loaded = True
+        self._lifetime_dirty = True
+        await self.flush_lifetime(force=True)
+
+    async def stop(self) -> None:
+        """Process shutdown: drop held frames and write the lifetime totals."""
+        for task in list(self._held):
+            task.cancel()
+        for task in list(self._held):
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):
+                pass
+        self._held.clear()
+        await self.flush_lifetime(force=True)
 
     async def ensure_loaded(self) -> None:
         if not self.loaded:
@@ -292,17 +428,55 @@ class HostRepeaterRuntime:
         pre: PreFacts | None,
         radio: RadioSnapshot,
     ) -> Decision | None:
-        """Judge one received frame in shadow mode. Never raises, never transmits."""
+        """Judge one received frame in shadow mode. Never raises, never transmits.
+
+        With ``rx_delay_base`` set, a weak flood is held back (returns None now) and
+        judged after its score-based delay by a background task.
+        """
         if not self.shadow_active or radio.is_openhop:
             # OpenHop repeats internally; the host repeater is disabled for it.
             return None
         try:
+            self.engine.configure(public_key=radio.public_key, radio=radio.radio)
+            hold_ms = self.engine.rx_delay_ms(raw, snr)
+            if hold_ms > 0:
+                self._hold(raw, snr, rssi, arrival, result or {}, pre or PreFacts(), radio, hold_ms)
+                return None
             return await self._observe(
                 raw, snr, rssi, arrival, result or {}, pre or PreFacts(), radio
             )
         except Exception:
             logger.exception("Host repeater shadow observation failed")
             return None
+
+    def _hold(
+        self,
+        raw: bytes,
+        snr: float | None,
+        rssi: int | None,
+        arrival: float,
+        result: dict,
+        pre: PreFacts,
+        radio: RadioSnapshot,
+        hold_ms: float,
+    ) -> None:
+        """Firmware ``queueInbound``: judge the frame once its receive delay has passed."""
+
+        async def judge_later() -> None:
+            await asyncio.sleep(hold_ms / 1000.0)
+            if not self.shadow_active:
+                return
+            try:
+                # The retransmit window starts when the firmware would have processed it.
+                await self._observe(
+                    raw, snr, rssi, arrival + hold_ms / 1000.0, result, pre, radio, hold_ms
+                )
+            except Exception:
+                logger.exception("Host repeater delayed observation failed")
+
+        task = asyncio.get_running_loop().create_task(judge_later(), name="host_repeater_hold")
+        self._held.add(task)
+        task.add_done_callback(self._held.discard)
 
     async def _observe(
         self,
@@ -313,6 +487,7 @@ class HostRepeaterRuntime:
         result: dict,
         pre: PreFacts,
         radio: RadioSnapshot,
+        rx_delay_ms: float = 0.0,
     ) -> Decision | None:
         env = parse_packet_envelope(raw)
         self.engine.configure(public_key=radio.public_key, radio=radio.radio)
@@ -356,11 +531,13 @@ class HostRepeaterRuntime:
                 decision.rx_len,
                 policy_action=decision.policy_action,
                 policy_rule_id=decision.policy_rule_id,
+                score=decision.score,
             )
-        self._record(decision, env, raw, radio, arrival, now, latency_ms)
+        self._record(decision, env, raw, radio, arrival, now, latency_ms, rx_delay_ms)
         if decision.forward and self._tx is not None and self._tx.armed:
             # Armed: the sender holds the job until its delay has passed, then transmits.
             self._tx.enqueue(decision, arrival, now=now)
+        await self.flush_lifetime()
         return decision
 
     def _acl_bytes(self) -> frozenset[int]:
@@ -486,10 +663,21 @@ class HostRepeaterRuntime:
         arrival: float,
         now: float,
         latency_ms: float,
+        rx_delay_ms: float = 0.0,
     ) -> None:
         s = self.stats
+        lt = self.lifetime
         s.observed += 1
+        lt.observed += 1
         s.pushes += 1
+        if rx_delay_ms > 0:
+            s.rx_delayed += 1
+            lt.rx_delayed += 1
+            s.rx_delay_ms.append(rx_delay_ms)
+            if decision.reason == "duplicate":
+                # A neighbour's relay was judged while this copy was held: it went first.
+                s.rx_delay_yielded += 1
+                lt.rx_delay_yielded += 1
         s.latency_ms.append(latency_ms)
         if radio.lock_busy:
             s.lock_busy += 1
@@ -498,21 +686,31 @@ class HostRepeaterRuntime:
                 len(raw), radio.radio, self.settings.preamble_symbols
             )
         type_counts = s.by_type.setdefault(decision.payload_type_name, Counter())
+        lt_counts = lt.by_type.setdefault(decision.payload_type_name, Counter())
         if decision.forward:
             s.would_forward += 1
+            lt.would_forward += 1
             type_counts["forward"] += 1
+            lt_counts["forward"] += 1
             s.by_reason[f"forward:{decision.reason}"] += 1
+            lt.by_reason[f"forward:{decision.reason}"] += 1
             if decision.delay_ms is not None:
                 s.delay_ms.append(decision.delay_ms)
             if decision.airtime_ms is not None:
                 s.forward_airtime_total_ms += decision.airtime_ms
+                lt.forward_airtime_total_ms += decision.airtime_ms
                 s.forward_airtime.append((time.time(), decision.airtime_ms))
         else:
             s.would_drop += 1
+            lt.would_drop += 1
             type_counts["drop"] += 1
+            lt_counts["drop"] += 1
             s.by_reason[decision.reason] += 1
+            lt.by_reason[decision.reason] += 1
         if decision.policy_rule_id:
             s.policy_matches[decision.policy_rule_id] += 1
+            lt.policy_matches[decision.policy_rule_id] += 1
+        self._lifetime_dirty = True
 
         self._track_echo(decision, env, arrival, latency_ms)
 
@@ -532,6 +730,8 @@ class HostRepeaterRuntime:
                 if decision.airtime_ms is not None
                 else None,
                 "latency_ms": round(latency_ms, 1),
+                "rx_delay_ms": round(rx_delay_ms, 1) if rx_delay_ms > 0 else None,
+                "score": round(decision.score, 3) if decision.score is not None else None,
                 "policy_rule_id": decision.policy_rule_id,
                 "policy_action": decision.policy_action,
                 "packet_hash": decision.packet_hash,
@@ -674,8 +874,22 @@ class HostRepeaterRuntime:
                 if s.radio_rx_air_ms > 0
                 else None,
             },
+            "rx_delay": {
+                "enabled": self.settings.rx_delay_base > 0,
+                "held": s.rx_delayed,
+                "yielded": s.rx_delay_yielded,
+                "pending": len(self._held),
+                "delay_ms": _percentiles(s.rx_delay_ms),
+            },
+            "advert_limiter": self.engine.advert_limiter_snapshot(),
             "region_gate": self.engine.gate_snapshot(time.monotonic()),
             "tx": self._tx.snapshot() if self._tx is not None else None,
+            "lifetime": {
+                "since": self.lifetime.since,
+                "runs": self.lifetime.runs,
+                "persisted": self._lifetime_loaded,
+                **self.lifetime.to_dict(),
+            },
             "recent": list(s.recent),
         }
 

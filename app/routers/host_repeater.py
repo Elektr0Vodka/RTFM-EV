@@ -8,7 +8,7 @@ capability check to pass, and ``POST .../disarm`` is the kill switch.
 
 from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field, ValidationError
 
 from app.services.host_repeater import host_repeater
@@ -214,12 +214,20 @@ async def disarm_host_repeater() -> HostRepeaterResponse:
 
 @router.get("/stats")
 async def get_host_repeater_stats() -> dict[str, Any]:
-    """Shadow and armed-mode statistics (in memory since start or the last reset)."""
+    """Shadow and armed-mode statistics: session counters (in memory since start or the
+    last reset) plus ``lifetime`` totals that survive restarts."""
     snap = radio_snapshot()
     return host_repeater.stats_snapshot(snap.radio.freq_mhz if snap.radio else None)
 
 
 @router.post("/stats/reset")
-async def reset_host_repeater_stats() -> dict[str, str]:
-    host_repeater.reset_stats()
+async def reset_host_repeater_stats(
+    lifetime: bool = Query(
+        default=False, description="Also start the persisted lifetime totals over"
+    ),
+) -> dict[str, str]:
+    if lifetime:
+        await host_repeater.reset_lifetime()
+    else:
+        host_repeater.reset_stats()
     return {"status": "ok"}
