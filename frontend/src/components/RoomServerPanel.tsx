@@ -15,6 +15,7 @@ import { TelemetryPane } from './repeater/RepeaterTelemetryPane';
 import { AclPane } from './repeater/RepeaterAclPane';
 import { LppTelemetryPane } from './repeater/RepeaterLppTelemetryPane';
 import { ConsolePane } from './repeater/RepeaterConsolePane';
+import { RepeaterConfigHistoryPane } from './repeater/RepeaterConfigHistoryPane';
 import { RepeaterLogin } from './RepeaterLogin';
 import { ServerLoginStatusBanner } from './ServerLoginStatusBanner';
 import { useRememberedServerPassword } from '../hooks/useRememberedServerPassword';
@@ -403,6 +404,15 @@ export function RoomServerPanel({ contact, onAuthenticatedChange }: RoomServerPa
                 loading={consoleLoading}
                 onSend={handleConsoleCommand}
               />
+              {/* Stored ACL snapshots with per-change diffs (plan 14) - full width */}
+              <div className="xl:col-span-2">
+                <RepeaterConfigHistoryPane
+                  publicKey={contact.public_key}
+                  reloadKey={String(paneStates.acl.fetched_at ?? 0)}
+                  loadHistory={api.roomConfigHistory}
+                  noteKey="room_config_history_note"
+                />
+              </div>
             </div>
           </div>
         </SheetContent>

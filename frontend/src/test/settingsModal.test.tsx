@@ -67,6 +67,7 @@ const baseSettings: AppSettings = {
   link_signal_retention_days: 30,
   link_edge_retention_days: 365,
   packet_reception_retention_days: 2,
+  device_history_retention_days: 0,
   advert_paths_per_contact: 10,
   noise_floor_retention_days: 0,
   battery_retention_days: 0,

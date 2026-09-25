@@ -90,6 +90,7 @@ class AppSettingsRepository:
                    message_retention_days,
                    link_edge_retention_days,
                    packet_reception_retention_days,
+                   device_history_retention_days,
                    map_home_mode, map_home_lat, map_home_lon, map_home_zoom
             FROM app_settings WHERE id = 1
             """
@@ -598,6 +599,7 @@ class AppSettingsRepository:
         message_retention_days: int | None = None,
         link_edge_retention_days: int | None = None,
         packet_reception_retention_days: int | None = None,
+        device_history_retention_days: int | None = None,
         last_message_times: dict[str, int] | None = None,
         advert_interval: int | None = None,
         last_advert_time: int | None = None,
@@ -692,6 +694,7 @@ class AppSettingsRepository:
             ("message_retention_days", message_retention_days),
             ("link_edge_retention_days", link_edge_retention_days),
             ("packet_reception_retention_days", packet_reception_retention_days),
+            ("device_history_retention_days", device_history_retention_days),
         ):
             if value is not None:
                 updates.append(f"{name} = ?")
@@ -953,6 +956,7 @@ class AppSettingsRepository:
         message_retention_days: int | None = None,
         link_edge_retention_days: int | None = None,
         packet_reception_retention_days: int | None = None,
+        device_history_retention_days: int | None = None,
         last_message_times: dict[str, int] | None = None,
         advert_interval: int | None = None,
         last_advert_time: int | None = None,
@@ -1030,6 +1034,7 @@ class AppSettingsRepository:
                 message_retention_days=message_retention_days,
                 link_edge_retention_days=link_edge_retention_days,
                 packet_reception_retention_days=packet_reception_retention_days,
+                device_history_retention_days=device_history_retention_days,
                 last_message_times=last_message_times,
                 advert_interval=advert_interval,
                 last_advert_time=last_advert_time,

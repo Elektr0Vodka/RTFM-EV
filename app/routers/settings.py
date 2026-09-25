@@ -349,6 +349,15 @@ class AppSettingsUpdate(BaseModel):
         le=3650,
         description="Days of per-copy relay reception rows to keep; 0 = keep forever",
     )
+    device_history_retention_days: int | None = Field(
+        default=None,
+        ge=0,
+        le=3650,
+        description=(
+            "Days of device history (pane snapshots, contact positions by last seen) "
+            "to keep; 0 = keep forever"
+        ),
+    )
     advert_interval: int | None = Field(
         default=None,
         ge=0,

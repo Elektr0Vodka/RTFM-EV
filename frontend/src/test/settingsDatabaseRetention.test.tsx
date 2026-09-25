@@ -92,6 +92,26 @@ describe('Database settings: data retention', () => {
     ).toBe('365');
   });
 
+  it('renders the device history row with both tables summed', async () => {
+    vi.mocked(api.getRetentionStats).mockResolvedValue(
+      makeStats({
+        classes: [
+          { key: 'device_config', rows: 5, oldest_ts: NOW - 3 * 86400 },
+          { key: 'contact_locations', rows: 6, oldest_ts: NOW - 8 * 86400 },
+        ],
+      })
+    );
+    renderSection();
+    expect(
+      (
+        screen.getByLabelText(
+          'Device history (pane snapshots, positions) (days)'
+        ) as HTMLInputElement
+      ).value
+    ).toBe('0');
+    expect(await screen.findByText('Rows: 11 · oldest: 8 days ago')).toBeInTheDocument();
+  });
+
   it('shows row counts and summed telemetry stats from the server', async () => {
     renderSection();
     expect(await screen.findByText('Rows: 120 · oldest: 12 days ago')).toBeInTheDocument();

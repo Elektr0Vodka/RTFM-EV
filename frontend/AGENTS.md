@@ -581,7 +581,7 @@ For repeater contacts (`type=2`) on **mobile**, `ConversationPane.tsx` renders `
 
 **Console pane**: Full CLI access via the same command endpoint. History is ephemeral (not persisted to DB).
 
-**History pane** (`RepeaterConfigHistoryPane.tsx`, plan 14): read-only list of the stored pane snapshots from `GET /api/contacts/{key}/repeater/config-history` (`api.repeaterConfigHistory`), grouped by kind in pane order (Node Info, Radio Settings, Advert Intervals, Owner Info, Regions), newest first, each diffed against the previous snapshot of that kind (`utils/deviceConfigHistory.ts`: `buildConfigHistory`, `formatConfigValue`); five per kind, then "Show all". `RepeaterDashboardBody` passes a `reloadKey` built from those panes' `fetched_at`, so it re-reads (DB only, no radio) after a pane fetch.
+**History pane** (`RepeaterConfigHistoryPane.tsx`, plan 14): read-only list of the stored pane snapshots from `GET /api/contacts/{key}/repeater/config-history` (`api.repeaterConfigHistory`), grouped by kind in pane order (Node Info, Radio Settings, Advert Intervals, Owner Info, Regions), newest first, each diffed against the previous snapshot of that kind (`utils/deviceConfigHistory.ts`: `buildConfigHistory`, `formatConfigValue`); five per kind, then "Show all". `RepeaterDashboardBody` passes a `reloadKey` built from those panes' `fetched_at`, so it re-reads (DB only, no radio) after a pane fetch. `RoomServerPanel` reuses it full width under the room tools with `loadHistory={api.roomConfigHistory}` (`GET /api/contacts/{key}/room/config-history`, ACL snapshots), `noteKey="room_config_history_note"` and the ACL pane's `fetched_at` as `reloadKey`.
 
 All state is managed by `useRepeaterDashboard` hook. State resets on conversation change.
 
