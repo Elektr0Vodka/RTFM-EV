@@ -194,6 +194,145 @@ class TestChannelMessagePipeline:
         assert len(message_broadcasts) == 0
 
 
+class TestGroupDataPipeline:
+    """GRP_DATA flow: packet -> decrypt with channel key -> placeholder row -> broadcast."""
+
+    CHANNEL_KEY_HEX = "7ABA109EDCF304A84433CB71D0F3AB73"
+
+    def _packet(self, index: int, total: int = 2, img_id: int = 0x3B) -> bytes:
+        from tests.test_decoder import build_group_data_packet, build_image_chunk_blob
+
+        blob = build_image_chunk_blob(bytes.fromhex("1f2e"), img_id, index, total, b"\x42" * 50)
+        return build_group_data_packet(bytes.fromhex(self.CHANNEL_KEY_HEX), 0xAE1C, blob)
+
+    @pytest.mark.asyncio
+    async def test_image_chunk_creates_placeholder_and_broadcasts(
+        self, test_db, captured_broadcasts
+    ):
+        from app.decoder import TXT_TYPE_GROUP_DATA
+        from app.packet_processor import process_raw_packet
+
+        await ChannelRepository.upsert(key=self.CHANNEL_KEY_HEX, name="#six77", is_hashtag=True)
+        broadcasts, mock_broadcast = captured_broadcasts
+
+        with patch("app.packet_processor.broadcast_event", mock_broadcast):
+            result = await process_raw_packet(self._packet(index=0), timestamp=1700000000)
+
+        assert result is not None
+        assert result["decrypted"] is True
+        assert result["channel_name"] == "#six77"
+        assert result["sender"] == "1F2E"
+        assert result["message_id"] is not None
+
+        messages = await MessageRepository.get_all(
+            msg_type="CHAN", conversation_key=self.CHANNEL_KEY_HEX, limit=10
+        )
+        assert len(messages) == 1
+        msg = messages[0]
+        assert msg.text == "1F2E: [image] id=3b chunks=2"
+        assert msg.txt_type == TXT_TYPE_GROUP_DATA
+        assert msg.sender_timestamp is None
+        assert msg.sender_name is None  # prefix did not resolve to a contact
+        assert msg.sender_key is None
+
+        message_broadcasts = [b for b in broadcasts if b["type"] == "message"]
+        assert len(message_broadcasts) == 1
+        assert message_broadcasts[0]["data"]["txt_type"] == TXT_TYPE_GROUP_DATA
+        assert message_broadcasts[0]["data"]["text"] == "1F2E: [image] id=3b chunks=2"
+
+        raw = [b for b in broadcasts if b["type"] == "raw_packet"]
+        assert raw[-1]["data"]["decrypted"] is True
+        assert raw[-1]["data"]["decrypted_info"]["channel_name"] == "#six77"
+
+    @pytest.mark.asyncio
+    async def test_further_chunks_add_paths_to_the_same_row(self, test_db, captured_broadcasts):
+        from app.packet_processor import process_raw_packet
+
+        await ChannelRepository.upsert(key=self.CHANNEL_KEY_HEX, name="#six77", is_hashtag=True)
+        broadcasts, mock_broadcast = captured_broadcasts
+
+        with patch("app.packet_processor.broadcast_event", mock_broadcast):
+            await process_raw_packet(self._packet(index=0), timestamp=1700000000)
+            r2 = await process_raw_packet(self._packet(index=1), timestamp=1700000001)
+            r3 = await process_raw_packet(self._packet(index=2), timestamp=1700000002)  # parity
+
+        assert r2 is not None and r2["decrypted"] is True and r2["message_id"] is None
+        assert r3 is not None and r3["decrypted"] is True and r3["message_id"] is None
+
+        messages = await MessageRepository.get_all(
+            msg_type="CHAN", conversation_key=self.CHANNEL_KEY_HEX, limit=10
+        )
+        assert len(messages) == 1
+        assert messages[0].paths is not None
+        assert len(messages[0].paths) == 3
+
+        message_broadcasts = [b for b in broadcasts if b["type"] == "message"]
+        assert len(message_broadcasts) == 1
+
+        # A different image id from the same sender is a separate placeholder.
+        with patch("app.packet_processor.broadcast_event", mock_broadcast):
+            await process_raw_packet(self._packet(index=0, img_id=0x3C), timestamp=1700000003)
+        messages = await MessageRepository.get_all(
+            msg_type="CHAN", conversation_key=self.CHANNEL_KEY_HEX, limit=10
+        )
+        assert len(messages) == 2
+
+    @pytest.mark.asyncio
+    async def test_sender_prefix_resolves_to_unique_contact(self, test_db, captured_broadcasts):
+        from app.packet_processor import process_raw_packet
+
+        pubkey = "1f2e" + "ab" * 30
+        await ContactRepository.upsert({"public_key": pubkey, "name": "Alice", "type": 1})
+        await ChannelRepository.upsert(key=self.CHANNEL_KEY_HEX, name="#six77", is_hashtag=True)
+        _, mock_broadcast = captured_broadcasts
+
+        with patch("app.packet_processor.broadcast_event", mock_broadcast):
+            result = await process_raw_packet(self._packet(index=0), timestamp=1700000000)
+
+        assert result is not None and result["sender"] == "Alice"
+        messages = await MessageRepository.get_all(
+            msg_type="CHAN", conversation_key=self.CHANNEL_KEY_HEX, limit=10
+        )
+        assert messages[0].text == "Alice: [image] id=3b chunks=2"
+        assert messages[0].sender_name == "Alice"
+        assert messages[0].sender_key == pubkey
+
+    @pytest.mark.asyncio
+    async def test_unknown_channel_is_not_decrypted(self, test_db, captured_broadcasts):
+        from app.packet_processor import process_raw_packet
+
+        broadcasts, mock_broadcast = captured_broadcasts
+        with patch("app.packet_processor.broadcast_event", mock_broadcast):
+            result = await process_raw_packet(self._packet(index=0), timestamp=1700000000)
+
+        assert result is not None
+        assert result["decrypted"] is False
+        assert [b for b in broadcasts if b["type"] == "message"] == []
+        assert result["payload_type"] == "GROUP_DATA"
+
+    @pytest.mark.asyncio
+    async def test_non_image_datagram_gets_generic_placeholder(self, test_db, captured_broadcasts):
+        from app.decoder import TXT_TYPE_GROUP_DATA
+        from app.packet_processor import process_raw_packet
+        from tests.test_decoder import build_group_data_packet
+
+        await ChannelRepository.upsert(key=self.CHANNEL_KEY_HEX, name="#six77", is_hashtag=True)
+        _, mock_broadcast = captured_broadcasts
+        packet = build_group_data_packet(bytes.fromhex(self.CHANNEL_KEY_HEX), 0x1234, b"hello")
+
+        with patch("app.packet_processor.broadcast_event", mock_broadcast):
+            result = await process_raw_packet(packet, timestamp=1700000000)
+
+        assert result is not None and result["decrypted"] is True
+        assert result["sender"] is None
+        messages = await MessageRepository.get_all(
+            msg_type="CHAN", conversation_key=self.CHANNEL_KEY_HEX, limit=10
+        )
+        assert len(messages) == 1
+        assert messages[0].txt_type == TXT_TYPE_GROUP_DATA
+        assert messages[0].text.startswith("[data] type=0x1234 len=5 sha=")
+
+
 class TestAdvertisementPipeline:
     """Test advertisement flow: packet → parse → upsert contact → broadcast."""
 

@@ -25,6 +25,7 @@ from app.decoder import (
     parse_advertisement,
     parse_packet,
     try_decrypt_dm,
+    try_decrypt_group_data_with_channel_key,
     try_decrypt_packet_with_channel_key,
     try_decrypt_path,
     verify_advert_signature,
@@ -55,6 +56,9 @@ from app.services.dm_ack_apply import apply_dm_ack_code
 from app.services.link_edges import record_packet_edges
 from app.services.messages import (
     create_dm_message_from_decrypted as _create_dm_message_from_decrypted,
+)
+from app.services.messages import (
+    create_group_data_message,
 )
 from app.services.messages import (
     create_message_from_decrypted as _create_message_from_decrypted,
@@ -409,6 +413,23 @@ async def process_raw_packet(
         if decrypt_result:
             result.update(decrypt_result)
 
+    elif payload_type == PayloadType.GROUP_DATA:
+        # Channel datagrams (meshcore-open image chunks). Decrypted with the
+        # channel key like GROUP_TEXT; stored as a placeholder row only.
+        decrypt_result = await _process_group_data(
+            raw_bytes,
+            packet_id,
+            ts,
+            packet_info,
+            rssi=rssi,
+            snr=snr,
+            packet_hash=pkt_hash,
+            transport_code=transport_code,
+            region=region,
+        )
+        if decrypt_result:
+            result.update(decrypt_result)
+
     elif payload_type == PayloadType.ADVERT:
         # Process all advert arrivals (even payload-hash duplicates) so the
         # advert-history table retains recent path observations.
@@ -551,6 +572,72 @@ async def _process_group_text(
         }
 
     # Couldn't decrypt with any known key
+    return None
+
+
+async def _process_group_data(
+    raw_bytes: bytes,
+    packet_id: int,
+    timestamp: int,
+    packet_info: PacketInfo | None,
+    rssi: int | None = None,
+    snr: float | None = None,
+    packet_hash: str | None = None,
+    transport_code: int | None = None,
+    region: str | None = None,
+) -> dict | None:
+    """
+    Process a GRP_DATA (channel datagram) packet.
+
+    Tries all known channel keys to decrypt. On success a placeholder message
+    row is stored (chunk metadata only; the blob is neither kept nor decoded).
+    Further chunks of the same image, and repeats, add a path to that row.
+    """
+    channels = await ChannelRepository.get_all()
+
+    for channel in channels:
+        try:
+            channel_key_bytes = bytes.fromhex(channel.key)
+        except ValueError:
+            continue
+
+        decrypted = try_decrypt_group_data_with_channel_key(raw_bytes, channel_key_bytes)
+        if not decrypted:
+            continue
+
+        logger.debug(
+            "Decrypted GRP_DATA for channel %s: type 0x%04X, %d bytes",
+            channel.name,
+            decrypted.data_type,
+            len(decrypted.data),
+        )
+
+        msg_id, text, sender_label = await create_group_data_message(
+            packet_id=packet_id,
+            channel_key=channel.key,
+            decrypted=decrypted,
+            received_at=timestamp,
+            path=packet_info.path.hex() if packet_info else None,
+            path_len=packet_info.path_length if packet_info else None,
+            rssi=rssi,
+            snr=snr,
+            channel_name=channel.name,
+            broadcast_fn=broadcast_event,
+            packet_hash=packet_hash,
+            transport_code=transport_code,
+            region=region,
+        )
+
+        return {
+            "decrypted": True,
+            "channel_name": channel.name,
+            "sender": sender_label,
+            "message_id": msg_id,  # None if duplicate/further chunk, msg_id if new
+            "channel_key": channel.key,
+            "sender_timestamp": None,
+            "message": text,
+        }
+
     return None
 
 

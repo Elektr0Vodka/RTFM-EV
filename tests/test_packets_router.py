@@ -115,6 +115,40 @@ class TestDecryptHistoricalPackets:
     """Test POST /api/packets/decrypt/historical."""
 
     @pytest.mark.asyncio
+    async def test_historical_channel_worker_stores_group_data_placeholder(self, test_db):
+        """The background worker turns stored GRP_DATA packets into placeholder rows."""
+        from app.decoder import TXT_TYPE_GROUP_DATA
+        from app.routers.packets import _run_historical_channel_decryption
+        from tests.test_decoder import build_group_data_packet, build_image_chunk_blob
+
+        key_hex = "0123456789abcdef0123456789abcdef"
+        key = bytes.fromhex(key_hex)
+        chunk0 = build_group_data_packet(
+            key, 0xAE1C, build_image_chunk_blob(bytes.fromhex("1f2e"), 7, 0, 1, b"" * 20)
+        )
+        parity = build_group_data_packet(
+            key, 0xAE1C, build_image_chunk_blob(bytes.fromhex("1f2e"), 7, 1, 1, b"" * 21)
+        )
+        id0, _ = await RawPacketRepository.create(chunk0, timestamp=1700000000)
+        id1, _ = await RawPacketRepository.create(parity, timestamp=1700000001)
+
+        with (
+            patch("app.routers.packets.broadcast_event"),
+            patch("app.routers.packets.broadcast_success"),
+        ):
+            await _run_historical_channel_decryption(key, key_hex.upper(), "#pics")
+
+        messages = await MessageRepository.get_all(
+            msg_type="CHAN", conversation_key=key_hex.upper(), limit=10
+        )
+        assert len(messages) == 1
+        assert messages[0].txt_type == TXT_TYPE_GROUP_DATA
+        assert messages[0].text == "1F2E: [image] id=07 chunks=1"
+        assert messages[0].paths is not None and len(messages[0].paths) == 2
+        assert await RawPacketRepository.get_undecrypted_count() == 0
+        assert id0 != id1
+
+    @pytest.mark.asyncio
     async def test_channel_decrypt_with_hex_key(self, test_db, client):
         """Channel decryption with a valid hex key starts background task."""
         await _insert_raw_packets(5)
