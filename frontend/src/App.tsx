@@ -200,6 +200,8 @@ export function App() {
     appSettings,
     fetchAppSettings,
     handleSaveAppSettings,
+    handleSetHiddenHopWidths,
+    hiddenHopWidthsVersion,
     handleToggleBlockedKey,
     handleToggleBlockedName,
     handleToggleTrackedTelemetry,
@@ -252,6 +254,18 @@ export function App() {
     blockedKeysRef.current = appSettings?.blocked_keys ?? [];
     blockedNamesRef.current = appSettings?.blocked_names ?? [];
   }, [appSettings?.blocked_keys, appSettings?.blocked_names]);
+
+  // Chat "Hide by hop size" filter (server setting), for the WS callback and
+  // the message list. Stable array identity per selection via the joined key.
+  const hiddenHopWidthsKey = (appSettings?.hidden_hop_widths ?? []).join(',');
+  const hiddenHopWidths = useMemo(
+    () => (hiddenHopWidthsKey ? hiddenHopWidthsKey.split(',').map(Number) : []),
+    [hiddenHopWidthsKey]
+  );
+  const hiddenHopWidthsRef = useRef<ReadonlySet<number>>(new Set());
+  useEffect(() => {
+    hiddenHopWidthsRef.current = new Set(hiddenHopWidths);
+  }, [hiddenHopWidths]);
 
   // Check if a message mentions the user
   const checkMention = useCallback(
@@ -465,6 +479,12 @@ export function App() {
   useFaviconBadge(unreadCounts, mentions, channels, appSettings?.brand_icon || undefined);
   useUnreadTitle(unreadCounts, contacts, channels, appSettings?.brand_name || undefined);
 
+  // The server excludes hop-hidden messages from unread counts, so re-fetch
+  // them once it has stored a new "Hide by hop size" selection.
+  useEffect(() => {
+    if (hiddenHopWidthsVersion > 0) void refreshUnreads();
+  }, [hiddenHopWidthsVersion, refreshUnreads]);
+
   const handleToggleMute = useCallback(
     async (key: string) => {
       setChannels((prev) => prev.map((c) => (c.key === key ? { ...c, muted: !c.muted } : c)));
@@ -519,6 +539,7 @@ export function App() {
     setContacts,
     blockedKeysRef,
     blockedNamesRef,
+    hiddenHopWidthsRef,
     channelsRef,
     activeConversationRef,
     observeMessage,
@@ -803,6 +824,8 @@ export function App() {
     parseCoordinates: appSettings?.chat_parse_coordinates ?? false,
     linkifyUrls: appSettings?.chat_linkify_urls ?? true,
     showUrlPreviews: appSettings?.chat_url_previews ?? false,
+    hiddenHopWidths,
+    onHiddenHopWidthsChange: handleSetHiddenHopWidths,
     analyzerSites: appSettings?.analyzer_sites ?? [],
     onHashtagAdded: handleHashtagAdded,
     onInsertLocation: handleInsertLocation,

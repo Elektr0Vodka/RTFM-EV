@@ -122,6 +122,8 @@ interface ConversationPaneProps {
   parseCoordinates?: boolean;
   linkifyUrls?: boolean;
   showUrlPreviews?: boolean;
+  hiddenHopWidths?: readonly number[];
+  onHiddenHopWidthsChange?: (widths: number[]) => void;
   analyzerSites?: import('../types').AnalyzerSite[];
   onHashtagAdded?: (channelName: string) => void;
   onInsertLocation?: (lat: number, lon: number, label: string) => void;
@@ -256,6 +258,8 @@ export function ConversationPane({
   parseCoordinates,
   linkifyUrls,
   showUrlPreviews,
+  hiddenHopWidths,
+  onHiddenHopWidthsChange,
   analyzerSites,
   onHashtagAdded,
   onInsertLocation,
@@ -679,6 +683,8 @@ export function ConversationPane({
           parseCoordinates={parseCoordinates}
           linkifyUrls={linkifyUrls}
           showUrlPreviews={showUrlPreviews}
+          hiddenHopWidths={hiddenHopWidths}
+          onHiddenHopWidthsChange={onHiddenHopWidthsChange}
           analyzerSites={analyzerSites}
           onHashtagAdded={onHashtagAdded}
           onCoordinateClick={onCoordinateClick}

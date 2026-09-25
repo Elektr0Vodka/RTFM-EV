@@ -443,6 +443,13 @@ class AppSettingsUpdate(BaseModel):
         default=None,
         description="Display names whose messages are hidden from the UI",
     )
+    hidden_hop_widths: list[int] | None = Field(
+        default=None,
+        description=(
+            "Per-hop path byte widths (1/2/3) whose incoming messages are hidden in chat "
+            "and excluded from unread counts, mentions and Web Push. Invalid widths are dropped."
+        ),
+    )
     discovery_blocked_types: list[int] | None = Field(
         default=None,
         description=(
@@ -752,6 +759,12 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
         kwargs["blocked_keys"] = [k.lower() for k in update.blocked_keys]
     if update.blocked_names is not None:
         kwargs["blocked_names"] = update.blocked_names
+
+    # Hide-by-hop-size filter: only 1/2/3-byte widths are meaningful.
+    if update.hidden_hop_widths is not None:
+        kwargs["hidden_hop_widths"] = sorted(
+            {w for w in update.hidden_hop_widths if w in (1, 2, 3)}
+        )
 
     # Discovery blocked types
     if update.discovery_blocked_types is not None:

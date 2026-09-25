@@ -1446,6 +1446,15 @@ export function MapView({
     };
   }, [mapHomeMode, mapHomeLat, mapHomeLon, mapHomeZoom]);
 
+  // Focused node the camera has already been centred on. The initial fit below
+  // runs once, on map ready, with that render's contacts; when the map is
+  // opened straight from a "view on map" link (a new tab) the contacts are
+  // usually still loading then, so the focus is completed by the effect below
+  // once the node is known. Centring once per focus key keeps later contact
+  // updates from yanking the camera back after the user pans away.
+  const centeredFocusKeyRef = useRef<string | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+
   // Initial camera fit / geolocate / focus (port of MapBoundsHandler).
   const fitInitialView = useCallback(
     (map: MlMap) => {
@@ -1454,10 +1463,16 @@ export function MapView({
         return;
       }
       const focused = focusedKey ? contactByKey.get(focusedKey) : null;
-      if (focused && focused.lat != null && focused.lon != null) {
-        map.flyTo({ center: [focused.lon, focused.lat], zoom: 12, duration: 0 });
+      const focusedLoc = focused ? getEffectiveLocation(focused) : null;
+      if (focusedKey && focusedLoc) {
+        centeredFocusKeyRef.current = focusedKey;
+        map.flyTo({ center: [focusedLoc.lon, focusedLoc.lat], zoom: 12, duration: 0 });
         return;
       }
+      // A focus whose node is not loaded yet is centred later by the focus
+      // effect; skip the async geolocate below so it cannot land afterwards
+      // and pull the camera off the focused node.
+      const focusPending = !!focusedKey;
       // Home-view preference (fixed home or remember-last-position). Explicit
       // node/coordinate focuses above still win; this sits above the geolocate
       // + fit-all fallback below. Returns null in 'auto' mode or when its data
@@ -1493,7 +1508,7 @@ export function MapView({
           );
         }
       };
-      if ('geolocation' in navigator) {
+      if (!focusPending && 'geolocation' in navigator) {
         navigator.geolocation.getCurrentPosition(
           (position) =>
             map.flyTo({
@@ -1544,6 +1559,7 @@ export function MapView({
   const handleReady = useCallback(
     (map: MlMap) => {
       mapRef.current = map;
+      setMapReady(true);
       // Analyzer/external overlay under the local nodes so local contacts win.
       const external = createExternalNodesLayer(map, { onClick: openExternalPopup });
       external.ensure();
@@ -1768,6 +1784,19 @@ export function MapView({
       focusMarkerRef.current?.remove();
     };
   }, []);
+
+  // Centre on the focused node once it (and the map) is available, if the
+  // initial fit could not (see centeredFocusKeyRef).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map || !focusedKey || focusedLatLon) return;
+    if (centeredFocusKeyRef.current === focusedKey) return;
+    const contact = contactByKey.get(focusedKey);
+    const loc = contact ? getEffectiveLocation(contact) : null;
+    if (!loc) return;
+    centeredFocusKeyRef.current = focusedKey;
+    map.flyTo({ center: [loc.lon, loc.lat], zoom: 12, duration: 0 });
+  }, [mapReady, focusedKey, focusedLatLon, contactByKey]);
 
   // Focus popup open on focus change.
   useEffect(() => {

@@ -93,3 +93,62 @@ describe('useAppSettings legacy sidebar-order migration', () => {
     expect(mocks.api.updateSettings).not.toHaveBeenCalled();
   });
 });
+
+describe('useAppSettings legacy hop-size filter migration', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mocks.api.getSettings.mockReset();
+    mocks.api.updateSettings.mockReset();
+  });
+
+  it('moves a local hop-size filter to the server when the server has none', async () => {
+    localStorage.setItem('remoteterm-hidden-hop-widths', JSON.stringify([1, 9]));
+    mocks.api.getSettings.mockResolvedValue(makeServerSettings({ hidden_hop_widths: [] }));
+    mocks.api.updateSettings.mockResolvedValue(makeServerSettings({ hidden_hop_widths: [1] }));
+
+    const { result } = renderHook(() => useAppSettings());
+    await act(async () => {
+      await result.current.fetchAppSettings();
+    });
+
+    await waitFor(() =>
+      expect(mocks.api.updateSettings).toHaveBeenCalledWith({ hidden_hop_widths: [1] })
+    );
+    await waitFor(() => expect(localStorage.getItem('remoteterm-hidden-hop-widths')).toBeNull());
+    expect(result.current.appSettings?.hidden_hop_widths).toEqual([1]);
+    // Signals the app to re-fetch unread counts.
+    expect(result.current.hiddenHopWidthsVersion).toBe(1);
+  });
+
+  it('keeps the server filter and just clears a stale local key', async () => {
+    localStorage.setItem('remoteterm-hidden-hop-widths', JSON.stringify([1]));
+    mocks.api.getSettings.mockResolvedValue(makeServerSettings({ hidden_hop_widths: [2] }));
+
+    const { result } = renderHook(() => useAppSettings());
+    await act(async () => {
+      await result.current.fetchAppSettings();
+    });
+
+    await waitFor(() => expect(localStorage.getItem('remoteterm-hidden-hop-widths')).toBeNull());
+    expect(mocks.api.updateSettings).not.toHaveBeenCalledWith(
+      expect.objectContaining({ hidden_hop_widths: expect.anything() })
+    );
+  });
+
+  it('saves a toggled filter optimistically and bumps the version on success', async () => {
+    mocks.api.getSettings.mockResolvedValue(makeServerSettings({ hidden_hop_widths: [] }));
+    mocks.api.updateSettings.mockResolvedValue(makeServerSettings({ hidden_hop_widths: [1, 3] }));
+
+    const { result } = renderHook(() => useAppSettings());
+    await act(async () => {
+      await result.current.fetchAppSettings();
+    });
+    await act(async () => {
+      await result.current.handleSetHiddenHopWidths([3, 1]);
+    });
+
+    expect(mocks.api.updateSettings).toHaveBeenCalledWith({ hidden_hop_widths: [1, 3] });
+    expect(result.current.appSettings?.hidden_hop_widths).toEqual([1, 3]);
+    expect(result.current.hiddenHopWidthsVersion).toBe(1);
+  });
+});

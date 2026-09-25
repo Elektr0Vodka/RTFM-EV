@@ -56,7 +56,7 @@ class AppSettingsRepository:
                    advert_retention_days,
                    last_message_times,
                    advert_interval, last_advert_time, flood_scope, known_regions,
-                   blocked_keys, blocked_names, discovery_blocked_types,
+                   blocked_keys, blocked_names, hidden_hop_widths, discovery_blocked_types,
                    tracked_telemetry_repeaters, tracked_telemetry_contacts,
                    auto_resend_channel,
                    telemetry_interval_hours, telemetry_routed_hourly,
@@ -257,6 +257,19 @@ class AppSettingsRepository:
         map_home_lat = _parse_optional_float("map_home_lat")
         map_home_lon = _parse_optional_float("map_home_lon")
         map_home_zoom = _parse_optional_float("map_home_zoom")
+
+        # Parse hidden_hop_widths JSON (migration _120); keep only valid widths.
+        hidden_hop_widths: list[int] = []
+        try:
+            raw_widths = row["hidden_hop_widths"]
+            if raw_widths:
+                parsed_widths = json.loads(raw_widths)
+                if isinstance(parsed_widths, list):
+                    hidden_hop_widths = sorted(
+                        {w for w in parsed_widths if isinstance(w, int) and w in (1, 2, 3)}
+                    )
+        except (json.JSONDecodeError, TypeError, KeyError, IndexError):
+            hidden_hop_widths = []
 
         # Parse discovery_blocked_types JSON
         discovery_blocked_types: list[int] = []
@@ -513,6 +526,7 @@ class AppSettingsRepository:
             known_regions=known_regions,
             blocked_keys=blocked_keys,
             blocked_names=blocked_names,
+            hidden_hop_widths=hidden_hop_widths,
             discovery_blocked_types=discovery_blocked_types,
             tracked_telemetry_repeaters=tracked_telemetry_repeaters,
             tracked_telemetry_contacts=tracked_telemetry_contacts,
@@ -591,6 +605,7 @@ class AppSettingsRepository:
         known_regions: list[str] | None = None,
         blocked_keys: list[str] | None = None,
         blocked_names: list[str] | None = None,
+        hidden_hop_widths: list[int] | None = None,
         discovery_blocked_types: list[int] | None = None,
         tracked_telemetry_repeaters: list[str] | None = None,
         tracked_telemetry_contacts: list[str] | None = None,
@@ -771,6 +786,10 @@ class AppSettingsRepository:
             updates.append("blocked_names = ?")
             params.append(json.dumps(blocked_names))
 
+        if hidden_hop_widths is not None:
+            updates.append("hidden_hop_widths = ?")
+            params.append(json.dumps(sorted({w for w in hidden_hop_widths if w in (1, 2, 3)})))
+
         if discovery_blocked_types is not None:
             updates.append("discovery_blocked_types = ?")
             params.append(json.dumps(discovery_blocked_types))
@@ -941,6 +960,7 @@ class AppSettingsRepository:
         known_regions: list[str] | None = None,
         blocked_keys: list[str] | None = None,
         blocked_names: list[str] | None = None,
+        hidden_hop_widths: list[int] | None = None,
         discovery_blocked_types: list[int] | None = None,
         tracked_telemetry_repeaters: list[str] | None = None,
         tracked_telemetry_contacts: list[str] | None = None,
@@ -1017,6 +1037,7 @@ class AppSettingsRepository:
                 known_regions=known_regions,
                 blocked_keys=blocked_keys,
                 blocked_names=blocked_names,
+                hidden_hop_widths=hidden_hop_widths,
                 discovery_blocked_types=discovery_blocked_types,
                 tracked_telemetry_repeaters=tracked_telemetry_repeaters,
                 tracked_telemetry_contacts=tracked_telemetry_contacts,

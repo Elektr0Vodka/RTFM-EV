@@ -272,6 +272,45 @@ def parse_explicit_hop_route(route_text: str) -> tuple[str, int, int]:
     return "".join(hops), len(hops), hash_size - 1
 
 
+def stored_path_hop_width(path_hex: object, path_len: object) -> int | None:
+    """Per-hop byte width (1/2/3) of a stored message path entry, or None.
+
+    Mirrors the frontend's ``inferPathHashMode``: only derivable when
+    ``path_len`` > 0 and the hex path is exactly ``path_len`` hops of 2/4/6 hex
+    chars. Direct (0-hop) and legacy entries without ``path_len`` return None.
+    """
+    if not isinstance(path_hex, str) or not path_hex:
+        return None
+    if not isinstance(path_len, int) or isinstance(path_len, bool) or path_len <= 0:
+        return None
+    chars_per_hop, remainder = divmod(len(path_hex), path_len)
+    if remainder or chars_per_hop not in (2, 4, 6):
+        return None
+    return chars_per_hop // 2
+
+
+def message_hidden_by_hop_width(paths: object, hidden_hop_widths: Iterable[int]) -> bool:
+    """Whether the chat 'Hide by hop size' filter hides a message.
+
+    Same policy as the frontend's ``isMessageHiddenByHopWidth`` and the
+    unread-count SQL: hidden when ANY path has a width in *hidden_hop_widths*.
+    *paths* is the message's ``paths`` list (dicts or models with ``path`` and
+    ``path_len``).
+    """
+    hidden = {w for w in hidden_hop_widths if w in (1, 2, 3)}
+    if not hidden or not isinstance(paths, list):
+        return False
+    for entry in paths:
+        if isinstance(entry, dict):
+            path_hex, path_len = entry.get("path"), entry.get("path_len")
+        else:
+            path_hex = getattr(entry, "path", None)
+            path_len = getattr(entry, "path_len", None)
+        if stored_path_hop_width(path_hex, path_len) in hidden:
+            return True
+    return False
+
+
 def bucket_path_hash_widths(rows: Iterable) -> dict[str, int | float]:
     """Bucket raw packet rows by hop hash width and return counts + percentages.
 

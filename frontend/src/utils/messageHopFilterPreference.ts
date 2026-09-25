@@ -1,35 +1,29 @@
-// Browser-local preference for hiding chat messages by their path hop byte
-// width (1-byte / 2-byte / 3-byte). Used to suppress spam that floods a channel
-// at a given path-hash mode. Stored per-browser in localStorage; empty (nothing
-// hidden) by default. Persisted so the choice survives the per-conversation
-// remount of MessageList and page reloads.
+// Legacy browser-local storage for the chat "Hide by hop size" filter (hiding
+// messages by their path hop byte width, 1/2/3). The filter now lives in the
+// server-side `hidden_hop_widths` app setting so unread counts, mentions and
+// Web Push honour it too; these helpers only read and clear the old key so
+// useAppSettings can migrate it once.
 
 export const HIDDEN_HOP_WIDTHS_KEY = 'remoteterm-hidden-hop-widths';
 
 const VALID_WIDTHS = [1, 2, 3];
 
-export function getSavedHiddenHopWidths(): Set<number> {
+/** The legacy locally stored hidden widths (sorted, valid only), or [] when absent. */
+export function readLegacyHiddenHopWidths(): number[] {
   try {
     const raw = localStorage.getItem(HIDDEN_HOP_WIDTHS_KEY);
-    if (!raw) return new Set();
+    if (!raw) return [];
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return new Set();
-    return new Set(parsed.filter((n) => VALID_WIDTHS.includes(n)));
+    if (!Array.isArray(parsed)) return [];
+    return [...new Set<number>(parsed.filter((n) => VALID_WIDTHS.includes(n)))].sort();
   } catch {
-    return new Set();
+    return [];
   }
 }
 
-export function setSavedHiddenHopWidths(widths: ReadonlySet<number>): void {
+export function clearLegacyHiddenHopWidths(): void {
   try {
-    if (widths.size === 0) {
-      localStorage.removeItem(HIDDEN_HOP_WIDTHS_KEY);
-    } else {
-      localStorage.setItem(
-        HIDDEN_HOP_WIDTHS_KEY,
-        JSON.stringify([...widths].filter((n) => VALID_WIDTHS.includes(n)).sort())
-      );
-    }
+    localStorage.removeItem(HIDDEN_HOP_WIDTHS_KEY);
   } catch {
     // localStorage may be unavailable
   }

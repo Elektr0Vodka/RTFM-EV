@@ -907,6 +907,8 @@ export interface AppSettings {
   known_regions: string[];
   blocked_keys: string[];
   blocked_names: string[];
+  /** Per-hop path byte widths (1/2/3) hidden by the chat "Hide by hop size" filter. */
+  hidden_hop_widths: number[];
   sidebar_section_order: string[];
   sidebar_tool_order: string[];
   sidebar_favorites_order: string[];
@@ -1260,6 +1262,7 @@ export interface AppSettingsUpdate {
   known_regions?: string[];
   blocked_keys?: string[];
   blocked_names?: string[];
+  hidden_hop_widths?: number[];
   sidebar_section_order?: string[];
   sidebar_tool_order?: string[];
   sidebar_favorites_order?: string[];

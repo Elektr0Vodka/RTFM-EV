@@ -4,6 +4,10 @@ import { takePrefetchOrFetch } from '../prefetch';
 import { toast } from '../components/ui/sonner';
 import { initLastMessageTimes } from '../utils/conversationState';
 import { readLegacyLocalOrders, clearLegacyLocalOrders } from '../utils/sidebarLayout';
+import {
+  readLegacyHiddenHopWidths,
+  clearLegacyHiddenHopWidths,
+} from '../utils/messageHopFilterPreference';
 import type { AppSettings, AppSettingsUpdate } from '../types';
 
 export function useAppSettings() {
@@ -12,6 +16,10 @@ export function useAppSettings() {
   // One-time migration guards
   const hasMigratedRef = useRef(false);
   const hasMigratedOrdersRef = useRef(false);
+  const hasMigratedHopWidthsRef = useRef(false);
+  // Bumped each time the server confirms a new hop-size filter, so the app can
+  // re-fetch the unread counts the server derives from it.
+  const [hiddenHopWidthsVersion, setHiddenHopWidthsVersion] = useState(0);
 
   const fetchAppSettings = useCallback(async () => {
     try {
@@ -30,6 +38,24 @@ export function useAppSettings() {
     },
     [fetchAppSettings]
   );
+
+  // Chat "Hide by hop size" filter. Optimistic so the message list reacts at
+  // once; the server copy drives unread counts and Web Push.
+  const handleSetHiddenHopWidths = useCallback(async (widths: number[]) => {
+    const next = [...new Set(widths)].sort();
+    setAppSettings((prev) => (prev ? { ...prev, hidden_hop_widths: next } : prev));
+    try {
+      setAppSettings(await api.updateSettings({ hidden_hop_widths: next }));
+      setHiddenHopWidthsVersion((v) => v + 1);
+    } catch (err) {
+      console.error('Failed to save hop-size filter:', err);
+      try {
+        setAppSettings(await api.getSettings());
+      } catch {
+        // If refetch also fails, leave optimistic state
+      }
+    }
+  }, []);
 
   const handleToggleBlockedKey = useCallback(async (key: string) => {
     const normalizedKey = key.toLowerCase();
@@ -209,10 +235,36 @@ export function useAppSettings() {
     void migrateOrders();
   }, [appSettings, fetchAppSettings]);
 
+  // One-time migration: the hop-size filter used to be browser-local. Carry an
+  // old local choice to the server when the server has none, then drop the key.
+  useEffect(() => {
+    if (!appSettings || hasMigratedHopWidthsRef.current) return;
+    hasMigratedHopWidthsRef.current = true;
+
+    const legacy = readLegacyHiddenHopWidths();
+    if (legacy.length === 0 || (appSettings.hidden_hop_widths?.length ?? 0) > 0) {
+      clearLegacyHiddenHopWidths();
+      return;
+    }
+    const migrateHopWidths = async () => {
+      try {
+        setAppSettings(await api.updateSettings({ hidden_hop_widths: legacy }));
+        setHiddenHopWidthsVersion((v) => v + 1);
+        clearLegacyHiddenHopWidths();
+      } catch (err) {
+        // Keep the local key so the next load can retry.
+        console.error('Failed to migrate hop-size filter:', err);
+      }
+    };
+    void migrateHopWidths();
+  }, [appSettings]);
+
   return {
     appSettings,
     fetchAppSettings,
     handleSaveAppSettings,
+    handleSetHiddenHopWidths,
+    hiddenHopWidthsVersion,
     handleToggleBlockedKey,
     handleToggleBlockedName,
     handleToggleTrackedTelemetry,

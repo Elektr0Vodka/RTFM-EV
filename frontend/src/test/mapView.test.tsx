@@ -11,6 +11,7 @@ import * as maplibre from 'maplibre-gl';
 import { api } from '../api';
 import { I18nProvider } from '../i18n/I18nProvider';
 import { MapView } from '../components/MapView';
+import { writeLastView } from '../map/homeView';
 import {
   CONTACT_TYPE_CLIENT,
   CONTACT_TYPE_REPEATER,
@@ -20,6 +21,7 @@ import {
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const stub = (maplibre as any).__stub as {
+  flyTo: ReturnType<typeof vi.fn>;
   fire: (ev: string) => void;
   getSource: (id: string) => { setData: ReturnType<typeof vi.fn> } | undefined;
   on: ReturnType<typeof vi.fn>;
@@ -210,5 +212,55 @@ describe('MapView (MapLibre)', () => {
       (c: unknown[]) => c[0] === 'click' && c[1] === 'rt-traffic-links-solid'
     );
     expect(clickBound).toBe(true);
+  });
+
+  describe('view-on-map focus', () => {
+    const flyCenters = () =>
+      stub.flyTo.mock.calls.map((c: any[]) => c[0].center as [number, number]);
+
+    it('centres on the focused node once contacts load after the map is ready', async () => {
+      // "Remember last position" with a saved camera elsewhere: before the fix the
+      // map stayed on this last view because the focused node was not known yet
+      // when the one-time initial fit ran (opened from a link in a new tab).
+      writeLastView({ center: [10, 50], zoom: 9 });
+      const ui = (contacts: Contact[]) => (
+        <I18nProvider>
+          <MapView contacts={contacts} focusedKey="rep" mapHomeMode="last" />
+        </I18nProvider>
+      );
+      const { rerender } = render(ui([]));
+      stub.fire('load');
+      await waitFor(() => expect(flyCenters()).toContainEqual([10, 50]));
+
+      const rep = contact({ public_key: 'rep', type: CONTACT_TYPE_REPEATER, lat: 51.5, lon: 4.5 });
+      rerender(ui([rep]));
+      await waitFor(() => {
+        const centers = flyCenters();
+        expect(centers[centers.length - 1]).toEqual([4.5, 51.5]);
+      });
+
+      // A later contacts refresh does not pull the camera back again.
+      const calls = stub.flyTo.mock.calls.length;
+      rerender(ui([{ ...rep, last_seen: now + 5 }, contact({ public_key: 'x' })]));
+      await act(async () => {});
+      expect(stub.flyTo.mock.calls.length).toBe(calls);
+    });
+
+    it('centres on a focused node placed only by manual coordinates', async () => {
+      render(
+        <I18nProvider>
+          <MapView
+            contacts={[
+              contact({ public_key: 'man', lat: null, lon: null, manual_lat: 51, manual_lon: 4 }),
+              // A second node, so the fit-all fallback is a fitBounds, not a flyTo.
+              contact({ public_key: 'other', lat: 53, lon: 6 }),
+            ]}
+            focusedKey="man"
+          />
+        </I18nProvider>
+      );
+      stub.fire('load');
+      await waitFor(() => expect(flyCenters()).toContainEqual([4, 51]));
+    });
   });
 });
