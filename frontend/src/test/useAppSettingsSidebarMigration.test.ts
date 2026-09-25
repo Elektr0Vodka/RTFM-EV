@@ -57,7 +57,13 @@ describe('useAppSettings legacy sidebar-order migration', () => {
 
     await waitFor(() => expect(mocks.api.updateSettings).toHaveBeenCalledTimes(1));
     const payload = mocks.api.updateSettings.mock.calls[0][0];
-    expect(payload.sidebar_section_order).toEqual(['favorites', 'tools', 'channels', 'contacts']);
+    expect(payload.sidebar_section_order).toEqual([
+      'favorites',
+      'tools',
+      'channels',
+      'contacts',
+      'owned',
+    ]);
     expect(payload.sidebar_tool_order?.[0]).toBe('map');
 
     await waitFor(() => {

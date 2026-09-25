@@ -66,6 +66,11 @@ describe('sidebarLayout server-order reconcilers', () => {
     expect([...out].sort()).toEqual([...ALL_TOOL_KEYS].sort());
   });
 
+  it('appends the owned section to an order stored before it existed', () => {
+    const loaded = resolveSectionOrder(['tools', 'favorites', 'channels', 'contacts']);
+    expect(loaded).toEqual(['tools', 'favorites', 'channels', 'contacts', 'owned']);
+  });
+
   it('falls back to defaults on a non-array server value', () => {
     expect(resolveSectionOrder('{not an array')).toEqual(ALL_SECTION_KEYS);
   });
@@ -90,12 +95,12 @@ describe('contact group section keys', () => {
       ['grp-1']
     );
     expect(order[0]).toBe('group:grp-1');
-    expect(order).toHaveLength(5);
+    expect(order).toHaveLength(6);
   });
 
   it('drops a group key for a group that no longer exists', () => {
     const order = resolveSectionOrder(
-      ['group:deleted', 'tools', 'favorites', 'channels', 'contacts'],
+      ['group:deleted', 'tools', 'favorites', 'owned', 'channels', 'contacts'],
       []
     );
     expect(order).not.toContain('group:deleted');
@@ -168,7 +173,7 @@ describe('sidebarLayout legacy localStorage migration helpers', () => {
     );
     localStorage.setItem('remoteterm-sidebar-tool-order', JSON.stringify(['map', 'bogus']));
     const legacy = readLegacyLocalOrders();
-    expect(legacy.section).toEqual(['favorites', 'tools', 'channels', 'contacts']);
+    expect(legacy.section).toEqual(['favorites', 'tools', 'channels', 'contacts', 'owned']);
     expect(legacy.tool?.[0]).toBe('map');
     expect(legacy.tool).not.toContain('bogus');
   });

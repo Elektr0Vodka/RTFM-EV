@@ -896,13 +896,27 @@ async def resolve_contact_name(
     return await _resolve_and_apply_name(contact, force=force)
 
 
+def _own_radio_public_key() -> str | None:
+    """The connected radio's own public key (lowercase hex), or None when unknown."""
+    try:
+        info = getattr(radio_manager.meshcore, "self_info", None)
+    except Exception:
+        return None
+    if not isinstance(info, dict):
+        return None
+    key = info.get("public_key")
+    return str(key).lower() if isinstance(key, str) and key else None
+
+
 @router.post("/{public_key}/annotations")
 async def set_contact_annotations(public_key: str, request: ContactAnnotationsUpdate) -> dict:
     """Update user-editable annotations (notes, owner info, owner pubkey, manual GPS,
     battery chemistry override).
 
     Only fields explicitly present in the request body are changed; a field sent
-    as ``null`` clears it. ``owner_key`` must reference an existing contact.
+    as ``null`` clears it. ``owner_key`` must reference an existing contact or be
+    the connected radio's own public key (the sidebar "Owned" section lists the
+    contacts owned by this radio).
     Clearing ``battery_chemistry`` (null) reverts the node to the global default
     in Settings.
     """
@@ -918,8 +932,14 @@ async def set_contact_annotations(public_key: str, request: ContactAnnotationsUp
         else:
             if len(owner_key) != 64 or not all(c in "0123456789abcdef" for c in owner_key):
                 raise HTTPException(status_code=422, detail="owner_key must be 64-char hex")
-            if await ContactRepository.get_by_key(owner_key) is None:
-                raise HTTPException(status_code=422, detail="owner_key is not a known contact")
+            if (
+                owner_key != _own_radio_public_key()
+                and await ContactRepository.get_by_key(owner_key) is None
+            ):
+                raise HTTPException(
+                    status_code=422,
+                    detail="owner_key is not a known contact or this radio's key",
+                )
             provided["owner_key"] = owner_key
 
     await ContactRepository.set_annotations(contact.public_key, provided)
