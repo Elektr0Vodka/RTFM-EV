@@ -80,6 +80,9 @@ Shipped toward this so far:
   prefix), and a Relay reception tab: for every flooded packet heard more than once,
   which relay delivered each copy and the SNR/RSSI measured for it, with a per-relay
   summary (kept 48 h by default, Settings > Database > Data retention)
+- History kept for later analysis without a UI yet: each position a contact has
+  advertised (`/api/contacts/{key}/location-history`) and snapshots of the repeater
+  dashboard panes whenever they change (`/api/contacts/{key}/repeater/config-history`)
   prefix, a first-byte usage matrix, and a local/regional distance badge).
 - A "Mesh Trends" view that consolidates the analytical stats into two tabs: a
   Historical tab (server-backed network/message/packet/MQTT/region-scope/noise-floor

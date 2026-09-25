@@ -446,6 +446,15 @@ class ContactNameHistory(BaseModel):
     last_seen: int
 
 
+class ContactLocationHistory(BaseModel):
+    """A position a contact has advertised (rounded to 4 decimals, plan 14)."""
+
+    lat: float
+    lon: float
+    first_seen: int
+    last_seen: int
+
+
 class ContactActiveRoom(BaseModel):
     """A channel where a contact has been active."""
 
@@ -2162,6 +2171,14 @@ class StatisticsResponse(BaseModel):
 
 
 class TelemetryHistoryEntry(BaseModel):
+    timestamp: int
+    data: dict
+
+
+class DeviceConfigHistoryEntry(BaseModel):
+    """One stored repeater pane snapshot (plan 14 ``device_config_history``)."""
+
+    kind: Literal["node_info", "radio_settings", "advert_intervals", "owner_info", "regions"]
     timestamp: int
     data: dict
 

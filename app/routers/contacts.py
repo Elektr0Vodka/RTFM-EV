@@ -20,6 +20,7 @@ from app.models import (
     ContactAdvertPathSummary,
     ContactAnalytics,
     ContactAnnotationsUpdate,
+    ContactLocationHistory,
     ContactRadioPolicyRequest,
     ContactRadioResidency,
     ContactRoutingOverrideRequest,
@@ -53,9 +54,11 @@ from app.repository import (
     ContactRepository,
     MessageRepository,
 )
+from app.repository.contacts import ContactLocationHistoryRepository
 from app.services.analyzer_resolution import resolve_pubkey_name
 from app.services.contact_reconciliation import (
     promote_prefix_contacts_for_contact,
+    record_contact_location,
     record_contact_name_and_reconcile,
 )
 from app.services.path_scoring import score_paths
@@ -519,6 +522,12 @@ async def import_contact_uri(request: ContactUriImportRequest) -> Contact:
             timestamp=int(time.time()),
             log=logger,
         )
+        await record_contact_location(
+            public_key=public_key,
+            lat=card.advert.lat,
+            lon=card.advert.lon,
+            timestamp=int(time.time()),
+        )
 
     stored = await ContactRepository.get_by_key(public_key)
     if stored is None:
@@ -881,6 +890,13 @@ async def set_contact_routing_override(
         await _broadcast_contact_update(updated_contact)
 
     return {"status": "ok", "public_key": contact.public_key}
+
+
+@router.get("/{public_key}/location-history", response_model=list[ContactLocationHistory])
+async def contact_location_history(public_key: str) -> list[ContactLocationHistory]:
+    """Positions this contact has advertised, newest first (plan 14; read-only)."""
+    contact = await _resolve_contact_or_404(public_key)
+    return await ContactLocationHistoryRepository.get_history(contact.public_key)
 
 
 @router.post("/{public_key}/resolve-name", response_model=ResolveNameResponse)

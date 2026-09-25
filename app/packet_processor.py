@@ -50,6 +50,7 @@ from app.repository import (
 )
 from app.services.contact_reconciliation import (
     promote_prefix_contacts_for_contact,
+    record_contact_location,
     record_contact_name_and_reconcile,
 )
 from app.services.dm_ack_apply import apply_dm_ack_code
@@ -817,6 +818,12 @@ async def _process_advertisement(
         contact_name=advert.name,
         timestamp=timestamp,
         log=logger,
+    )
+    await record_contact_location(
+        public_key=advert.public_key,
+        lat=advert.lat,
+        lon=advert.lon,
+        timestamp=timestamp,
     )
 
     # Read back from DB so the broadcast includes all fields (last_contacted,

@@ -11,6 +11,25 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-25 (Contact location and repeater config history, plan 14, feat/device-history)
+
+### Persistence: location history and repeater pane snapshots (backend)
+- New `contact_location_history` (migration `_119`): every distinct position
+  a contact advertises, rounded to 4 decimals (about 11 m, so GPS jitter
+  collapses into one row; missing and (0, 0) positions are ignored), with
+  first/last seen, the same shape as name history. Captured from advert
+  ingest and contact-card import. Read with
+  `GET /api/contacts/{key}/location-history`.
+- New `device_config_history` (same migration): snapshots of the repeater
+  dashboard panes (node info, radio settings, advert intervals, owner info,
+  regions) stored as JSON when a fetched pane differs from the last stored
+  one (the repeater clock, local owner-info bookkeeping, the guest password
+  and the raw regions dump are excluded from the comparison and the
+  snapshot), at most 200 per contact and kind. Read with
+  `GET /api/contacts/{key}/repeater/config-history?kind=`. Room-server
+  panes and a history UI are deferred. Decisions: 4-decimal rounding, rooms
+  deferred, cap 200 (2026-09-25).
+
 ## Update 2026-09-25 (Relay reception comparison, plan 21 S1, feat/relay-reception)
 
 ### Mesh Health: per-relay reception of the same flooded packet (backend, frontend)
