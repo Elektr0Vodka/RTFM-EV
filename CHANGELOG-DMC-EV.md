@@ -42,6 +42,7 @@ the change. Upstream development is on hold; the fork is the active repository.
 - Radio-App Management -> "Sync partial node info" lists the soft links
   applied earlier (collapsed, with count) with a remove button per row.
   Removing clears only the link; a contact it created or merged stays.
+
 ## Update 2026-09-26 (Room ACL history + device history retention, plan 14, feat/room-config-history-retention)
 
 ### Room server dashboard: ACL history (backend + frontend)
@@ -63,6 +64,7 @@ the change. Upstream development is on hold; the fork is the active repository.
   gains a "Device history" row with the row count of both tables; the
   retention stats endpoint lists them as `device_config` and
   `contact_locations`.
+
 ## Update 2026-09-25 (Parity L4 closed, fix/parity-l4-auto-discovery-closeout)
 
 ### Documentation
