@@ -694,6 +694,10 @@ export interface RawPacket {
   transport_code?: number | null;
   /** Resolved region name for the transport code, if it matched a known region. */
   region?: string | null;
+  /** True when this copy was stored for Mesh Health "Relay reception" (flood-routed). */
+  relay_reception?: boolean;
+  /** Relay that delivered this copy (last path hop); null = heard from the origin. */
+  last_hop_hex?: string | null;
 }
 
 /** Response of GET /packets/history: a newest-first page plus a backward cursor. */
@@ -983,7 +987,10 @@ export type OpenHopOperator =
   | 'in'
   | 'intersects'
   | 'starts_with'
-  | 'ends_with';
+  | 'ends_with'
+  | 'matches';
+/** Which matched stream shares a throttled rule's budget (host repeater only). */
+export type PolicyThrottleKey = 'rule' | 'sender' | 'channel' | 'path_first';
 export type OpenHopGroupKind = 'channel_hashes' | 'pubkeys';
 
 export interface OpenHopSimpleCondition {
@@ -1002,7 +1009,14 @@ export interface OpenHopRule {
   name: string;
   enabled: boolean;
   if: OpenHopCondition;
-  then: { action: OpenHopAction };
+  then: {
+    action: OpenHopAction;
+    /** Host repeater only: decide this percentage of matches (1-100), rest falls through. */
+    prob?: number;
+    /** Host repeater only: one match per window slips past, the excess gets the action. */
+    throttle_seconds?: number;
+    throttle_key?: PolicyThrottleKey;
+  };
 }
 export interface OpenHopPolicyEngine {
   enabled: boolean;
@@ -2160,6 +2174,11 @@ export interface HostRepeaterStats {
   by_reason: Record<string, number>;
   by_type: Record<string, { forward?: number; drop?: number }>;
   policy_matches: Record<string, number>;
+  /** Throttled rules that let a matching packet slip (per rule id). */
+  policy_passes?: Record<string, number>;
+  /** Estimated airtime of rule / rate-limiter drops, per rule id and per drop reason. */
+  saved_airtime_by_rule?: Record<string, number>;
+  saved_airtime_by_reason?: Record<string, number>;
   latency_ms: HostRepeaterPercentiles;
   delay_ms: HostRepeaterPercentiles;
   lock_busy: number;
@@ -2168,6 +2187,7 @@ export interface HostRepeaterStats {
     would_forward_last_minute_ms: number;
     would_forward_last_hour_ms: number;
     would_forward_percent_last_hour: number;
+    saved_total_ms?: number;
     budget_per_minute_ms: number;
     own_tx_last_hour_ms: number;
     sub_band_limit_percent: number | null;
@@ -2214,11 +2234,15 @@ export interface HostRepeaterStats {
     would_forward: number;
     would_drop: number;
     forward_airtime_total_ms: number;
+    saved_airtime_total_ms?: number;
     rx_delayed: number;
     rx_delay_yielded: number;
     by_reason: Record<string, number>;
     by_type: Record<string, { forward?: number; drop?: number }>;
     policy_matches: Record<string, number>;
+    policy_passes?: Record<string, number>;
+    saved_airtime_by_rule?: Record<string, number>;
+    saved_airtime_by_reason?: Record<string, number>;
   };
   recent: HostRepeaterDecision[];
 }

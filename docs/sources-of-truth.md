@@ -69,6 +69,17 @@ machine this was authored on and may differ elsewhere.
   `getTxDutyCyclePercent` (budget in use). `dmc-observer-dev` measures wall-clock TX
   duty instead (`TxDutyWindow.h`); the budget meaning was confirmed by the DMC
   developer and is the one used here.
+- Host repeater rule extensions (regex `matches`, per-rule `prob` / `throttle`,
+  channel-name / region / path-position fields, per-rule hits and saved airtime)
+  follow the jhuebert/MeshCore repeater packet filter: https://github.com/jhuebert/MeshCore
+  branch `repeater-filter`, `FILTER.md` (user guide, read 2026-09-25) and
+  `examples/simple_repeater/PacketFilter.{h,cpp}`, `RateLimiter.h`, `TinyRegex.{h,cpp}`.
+  Semantics kept: first match wins, a rule that steps aside (failed roll, within
+  budget) lets later rules decide, `prob` is deterministic per packet, throttle
+  state is RAM-only, `hits` counts decisions and `pass` the within-budget slips,
+  saved airtime is billed for rule and rate-limiter drops only. Deliberate
+  differences: Python `re` instead of TinyRegex, a keyed throttle budget
+  (per sender / channel / first hop) the firmware does not have, 100 rules.
 
 ### DMC OTA
 - Repo: https://github.com/Dutch-MeshCore/DutchMeshCore-OTA

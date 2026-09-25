@@ -24,6 +24,22 @@ export const OPENHOP_OPERATORS: OpenHopOperator[] = [
 
 export const OPENHOP_ACTIONS = ['allow', 'drop', 'log_only'] as const;
 
+/** MeshCore payload types (src/Packet.h) for the `payload_type` value picker. */
+export const PAYLOAD_TYPE_OPTIONS: readonly { value: string; label: string }[] = [
+  { value: '0', label: '0 REQ' },
+  { value: '1', label: '1 RESPONSE' },
+  { value: '2', label: '2 TXT_MSG' },
+  { value: '3', label: '3 ACK' },
+  { value: '4', label: '4 ADVERT' },
+  { value: '5', label: '5 GRP_TXT' },
+  { value: '6', label: '6 GRP_DATA' },
+  { value: '7', label: '7 ANON_REQ' },
+  { value: '8', label: '8 PATH' },
+  { value: '9', label: '9 TRACE' },
+  { value: '10', label: '10 MULTIPART' },
+  { value: '11', label: '11 CONTROL' },
+];
+
 interface PolicyObjects {
   channel_hash_groups: Record<string, string[]>;
   pubkey_groups: Record<string, string[]>;
@@ -45,6 +61,8 @@ const selectClass = 'rounded border border-input bg-background px-2 py-1 text-sm
 export interface ConditionVocabulary {
   fields: readonly string[];
   operators: readonly OpenHopOperator[];
+  /** Offer the per-rule `prob` / `throttle` gates (host repeater; the OpenHop API has none). */
+  ruleGates?: boolean;
 }
 
 interface Props {
@@ -122,12 +140,29 @@ export function OpenHopConditionBuilder({ value, objects, onChange, vocabulary }
               </option>
             ))}
           </select>
-          <input
-            aria-label={t('openhop_rule_value')}
-            className={selectClass}
-            value={simple.value}
-            onChange={(e) => onChange({ ...simple, value: e.target.value })}
-          />
+          {simple.field === 'payload_type' &&
+          (!simple.value || PAYLOAD_TYPE_OPTIONS.some((o) => o.value === String(simple.value))) ? (
+            <select
+              aria-label={t('openhop_rule_value')}
+              className={selectClass}
+              value={String(simple.value)}
+              onChange={(e) => onChange({ ...simple, value: e.target.value })}
+            >
+              <option value="">--</option>
+              {PAYLOAD_TYPE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              aria-label={t('openhop_rule_value')}
+              className={selectClass}
+              value={simple.value}
+              onChange={(e) => onChange({ ...simple, value: e.target.value })}
+            />
+          )}
           {groupRefs.length > 0 && (
             <select
               aria-label={t('openhop_rule_use_group')}

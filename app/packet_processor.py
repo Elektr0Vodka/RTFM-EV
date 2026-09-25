@@ -334,7 +334,7 @@ async def process_raw_packet(
     # Per-copy link edge log (map traffic links + link history). Never raises.
     await record_packet_edges(packet_id, ts, packet_info, snr, rssi)
     # Per-copy relay reception (Mesh Health "Relay reception", plan 21 S1). Never raises.
-    await record_packet_reception(packet_id, ts, packet_info, snr, rssi, raw_bytes)
+    relay_capture = await record_packet_reception(packet_id, ts, packet_info, snr, rssi, raw_bytes)
     raw_hex = raw_bytes.hex()
 
     if packet_info is None and len(raw_bytes) > 2:
@@ -506,6 +506,8 @@ async def process_raw_packet(
         else None,
         transport_code=transport_code,
         region=region,
+        relay_reception=relay_capture is not None,
+        last_hop_hex=relay_capture.last_hop_hex if relay_capture else None,
     )
     broadcast_event("raw_packet", broadcast_payload.model_dump())
 
