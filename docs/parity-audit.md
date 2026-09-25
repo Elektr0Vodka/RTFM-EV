@@ -245,9 +245,16 @@ Each "Now/Next" item gets its own brainstorm → spec → plan cycle.
   `docs/superpowers/`.
 
 ### Later
-- **L1. Region / scope surfacing** - PARTIAL: region pills + list sync shipped
-  (plan [05]). Remaining: mirror DMC `config` topic `region.scopes[]`,
-  `region_gate{}`; `CMD_GET_DEFAULT_FLOOD_SCOPE`.
+- **L1. Region / scope surfacing** - DONE (companion-reachable part): region
+  pills + list sync shipped (plan [05]); a repeater's `region.scopes[]` tree is
+  shown from the RF regions request (`RepeaterRegionsPane`, depth / flood /
+  home) and RTFM-EV's own tree is edited in Settings > Host repeater and
+  published on the `config` topic (L3); `CMD_GET_DEFAULT_FLOOD_SCOPE` surfaced
+  2026-09-25 (`feat/radio-default-flood-scope`: `GET /radio/default-flood-scope`,
+  read-only line under Settings > Radio > Flood Scope). Not built:
+  `region_gate{}` live state of *other* repeaters, which only exists on the
+  DMC MQTT `filter`/`config` topics (needs an MQTT subscriber, not a companion
+  command).
 - **L2. Telemetry graph parity** - DONE: noise-floor viewer and Direct/Flood
   advert metrics shipped (PR #94); receive-error graph shipped 2026-09-25
   (`feat/rx-error-graph`: `airtime_history.recv_errors`, migration `_116`,
@@ -258,8 +265,10 @@ Each "Now/Next" item gets its own brainstorm → spec → plan cycle.
   opt-in `publish_config` on the community MQTT integration, retained
   `meshcore/{IATA}/{PUBKEY}/config` mirroring the DMC field set for the
   sections a host can fill).
-- **L4. Small messaging parity** - PARTIAL: mute channel shipped. Remaining:
-  inline contact sharing (#347), auto contact discovery confirmation.
+- **L4. Small messaging parity** - PARTIAL: mute channel shipped; inline
+  contact sharing (#347) shipped 2026-09-25 (`feat/inline-contact-share`:
+  `<pubkey:type:Name>` chips with "Add contact", "Copy share tag" next to the
+  contact link). Remaining: auto contact discovery confirmation.
 
 ### Won't / N/A
 - On-device pairing UX, phone GPS location sharing - mobile-only.

@@ -108,7 +108,6 @@ the change. Upstream development is on hold; the fork is the active repository.
   `settings_fanout_publish_config`, `settings_fanout_publish_config_desc`
   in EN/NL/DE.
 
-## Update 2026-09-25 (Scored path history, plan 28 item 1.15, feat/scored-path-history)
 ## Update 2026-09-25 (Receive-error graph, parity audit L2, feat/rx-error-graph)
 
 ### My Node: receive errors chart (backend + frontend)
@@ -127,6 +126,7 @@ the change. Upstream development is on hold; the fork is the active repository.
   audit L2 (telemetry graph parity). New i18n keys `node_chart_rx_errors_*`
   in EN/NL/DE.
 
+## Update 2026-09-25 (Scored path history, plan 28 item 1.15, feat/scored-path-history)
 
 ### Contact info: message routes (scored) (backend + frontend)
 - **Contact info > Network** now lists the routes your direct messages to that
@@ -1150,7 +1150,6 @@ Phase 3) is not built.
   the picker (Enter in the search box with no results or while loading would
   otherwise trigger implicit form submission). Regression tests cover clicking
   an emoji, Enter with and without a search match, and Enter while loading.
-
 
 ## Update 2026-09-23 (Repeater and room avatars no longer depend on emoji fonts)
 
