@@ -226,6 +226,8 @@
   "node_tooltip_noise_floor": "NF",
   "node_tooltip_packets": "pkts",
   "node_tooltip_rssi": "RSSI",
+  "node_tooltip_noise_est": "gesch. NF",
+  "node_chart_rssi_noise_legend": "Stippellijn: ruisvloer gepolld van de radio (één meting per minuut). Gearceerd: geschatte ruisvloer (RSSI min SNR); de ruimte tot de RSSI-lijn is de SNR-marge.",
   "node_tooltip_time_suffix": "{label} · {time}",
   "node_total_packets_label": "Totaal Pakketten",
   "node_total_suffix": "{count} totaal",

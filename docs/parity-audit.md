@@ -258,7 +258,9 @@ Each "Now/Next" item gets its own brainstorm → spec → plan cycle.
 - **L2. Telemetry graph parity** - DONE: noise-floor viewer and Direct/Flood
   advert metrics shipped (PR #94); receive-error graph shipped 2026-09-25
   (`feat/rx-error-graph`: `airtime_history.recv_errors`, migration `_116`,
-  My Node "Receive errors" card).
+  My Node "Receive errors" card); noise-floor overlay on the My Node RSSI
+  chart (plan [21] S4: polled floor as a dashed line, `RSSI - SNR` estimate
+  shaded) shipped 2026-09-25 (`feat/mynode-noise-floor-overlay`).
 - **L3. MQTT `neighbors` / `config` topic publishing** - DONE: neighbor /
   region publish shipped with `subject_id` attribution (PR #90, plan [24]);
   `config`-topic publishing shipped 2026-09-25 (`feat/mqtt-config-topic`:
