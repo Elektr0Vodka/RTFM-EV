@@ -125,7 +125,7 @@ const BIN_COUNT = 40;
 
 // ─── Data types ─────────────────────────────────────────────────────────────
 
-interface Bin {
+export interface Bin {
   time: number;
   packets: number;
   bytes: number;
@@ -163,6 +163,41 @@ function hexBytes(hex: string): number {
 function mean(arr: number[]): number | null {
   if (!arr.length) return null;
   return arr.reduce((a, b) => a + b, 0) / arr.length;
+}
+
+/**
+ * Plan [21] S4: the radio's polled noise floor (dBm, one sample a minute) laid
+ * over the RSSI bins. Each bin gets the latest sample taken in or before it
+ * (carry-forward), null until the first sample; bins are assumed to be evenly
+ * spaced so a bin ends where the next one starts.
+ */
+export function noiseFloorPerBin(bins: Bin[], samples: NoiseFloorSample[]): (number | null)[] {
+  if (!bins.length || !samples.length) return bins.map(() => null);
+  const sorted = [...samples].sort((a, b) => a.timestamp - b.timestamp);
+  const gapMs = bins.length > 1 ? bins[1].time - bins[0].time : 60_000;
+  let j = 0;
+  let last: number | null = null;
+  return bins.map((b) => {
+    const end = b.time + gapMs;
+    while (j < sorted.length && sorted[j].timestamp * 1000 <= end) {
+      last = sorted[j].noise_floor_dbm;
+      j++;
+    }
+    return last;
+  });
+}
+
+/**
+ * Plan [21] S4: estimated noise floor per bin as mean RSSI minus mean SNR
+ * (dBm), the same estimate the reference signal tester shades. Null when a
+ * bin has no RSSI or no SNR reading.
+ */
+export function estimatedNoiseFloorPerBin(bins: Bin[]): (number | null)[] {
+  return bins.map((b) => {
+    const rssi = mean(b.rssis);
+    const snr = mean(b.snrs);
+    return rssi != null && snr != null ? rssi - snr : null;
+  });
 }
 
 function buildLiveBins(packets: RawPacket[], windowMs: number): Bin[] {
@@ -444,7 +479,7 @@ export function BarChart({
 
 // ─── LineChart ─────────────────────────────────────────────────────────────
 
-function LineChart({
+export function LineChart({
   bins,
   valueKey,
   color = 'hsl(var(--primary))',
@@ -453,6 +488,8 @@ function LineChart({
   tooltipLabel,
   windowSeconds,
   t,
+  overlay,
+  band,
 }: {
   bins: Bin[];
   valueKey: 'snr' | 'rssi';
@@ -462,12 +499,19 @@ function LineChart({
   tooltipLabel?: string;
   windowSeconds: number;
   t: TFn;
+  /** Dashed reference series on the same axis, one value per bin (plan [21] S4). */
+  overlay?: { values: (number | null)[]; label: string };
+  /** Shaded region from the chart floor up to these values, one per bin (plan [21] S4). */
+  band?: { values: (number | null)[]; label: string };
 }) {
   const [hov, setHov] = useState<number | null>(null);
   const values = bins.map((b): number | null =>
     valueKey === 'snr' ? mean(b.snrs) : mean(b.rssis)
   );
   const nonNull = values.filter((v): v is number => v != null);
+  const overlayValues = overlay?.values ?? [];
+  const bandValues = band?.values ?? [];
+  const extraNonNull = [...overlayValues, ...bandValues].filter((v): v is number => v != null);
   const gap = INNER_W / values.length;
   function xPos(i: number) {
     return PAD_L + i * gap + gap / 2;
@@ -501,8 +545,8 @@ function LineChart({
       </svg>
     );
 
-  const yMin = Math.min(...nonNull);
-  const yMax = Math.max(...nonNull);
+  const yMin = Math.min(...nonNull, ...extraNonNull);
+  const yMax = Math.max(...nonNull, ...extraNonNull);
   const range = yMax - yMin || 1;
   const yLabels = [yMin, (yMin + yMax) / 2, yMax].map(Math.round);
   function yPos(v: number) {
@@ -530,10 +574,46 @@ function LineChart({
     }
   }
 
+  // Overlay: dashed line through the non-null overlay values (gaps break it).
+  let overlayPath = '';
+  for (let i = 0; i < overlayValues.length && i < values.length; i++) {
+    const v = overlayValues[i];
+    if (v == null) continue;
+    overlayPath += `${i === 0 || overlayValues[i - 1] == null ? 'M' : 'L'}${xPos(i).toFixed(1)},${yPos(v).toFixed(1)}`;
+  }
+  // Band: shaded region from the chart floor up to the band value.
+  let bandPath = '';
+  let bandStart: number | null = null;
+  for (let i = 0; i <= values.length; i++) {
+    const v = i < bandValues.length ? (bandValues[i] ?? null) : null;
+    if (v != null && bandStart == null) bandStart = i;
+    if ((v == null || i === values.length) && bandStart != null) {
+      const end = i - 1;
+      const pts = [];
+      for (let j = bandStart; j <= end; j++)
+        pts.push(`${xPos(j).toFixed(1)},${yPos(bandValues[j]!).toFixed(1)}`);
+      bandPath += `M${xPos(bandStart).toFixed(1)},${INNER_H} L${pts.join(' L')} L${xPos(end).toFixed(1)},${INNER_H} Z `;
+      bandStart = null;
+    }
+  }
+
   let tipX = 0,
     tipY = 0;
   let tipVal: number | null = null;
+  let tipExtra = '';
   if (hov !== null) {
+    const parts: string[] = [];
+    const ov = overlayValues[hov];
+    if (overlay && ov != null) {
+      const r = Math.round(ov);
+      parts.push(`${overlay.label} ${formatY ? formatY(r) : r}`);
+    }
+    const bv = bandValues[hov];
+    if (band && bv != null) {
+      const r = Math.round(bv);
+      parts.push(`${band.label} ${formatY ? formatY(r) : r}`);
+    }
+    tipExtra = parts.join(' · ');
     tipVal = values[hov] ?? null;
     tipX = xPos(hov);
     tipY = tipVal != null ? yPos(tipVal) - 20 : 10;
@@ -581,6 +661,14 @@ function LineChart({
           </g>
         );
       })}
+      {bandPath && (
+        <path
+          d={bandPath}
+          data-testid={`${id}-band`}
+          fill="hsl(var(--muted-foreground))"
+          fillOpacity="0.18"
+        />
+      )}
       <path d={areaPath} fill={`url(#${id})`} />
       <path
         d={linePath}
@@ -590,6 +678,17 @@ function LineChart({
         strokeLinejoin="round"
         strokeLinecap="round"
       />
+      {overlayPath && (
+        <path
+          d={overlayPath}
+          data-testid={`${id}-overlay`}
+          fill="none"
+          stroke="hsl(var(--muted-foreground))"
+          strokeWidth="1"
+          strokeDasharray="3,2"
+          strokeLinejoin="round"
+        />
+      )}
       {hov !== null && tipVal != null && (
         <circle
           cx={xPos(hov).toFixed(1)}
@@ -603,10 +702,10 @@ function LineChart({
       {hov !== null && tipVal !== null && (
         <g transform={`translate(${tipX.toFixed(1)},${tipY.toFixed(1)})`}>
           <rect
-            x="-28"
+            x={tipExtra ? '-40' : '-28'}
             y="-11"
-            width="56"
-            height="22"
+            width={tipExtra ? '80' : '56'}
+            height={tipExtra ? '31' : '22'}
             rx="2"
             fill="hsl(var(--popover))"
             stroke="hsl(var(--border))"
@@ -626,6 +725,17 @@ function LineChart({
             {tooltipLabel ? `${tooltipLabel} · ` : ''}
             {fmtTime(bins[hov].time, windowSeconds)}
           </text>
+          {tipExtra && (
+            <text
+              textAnchor="middle"
+              fontSize="6.5"
+              fill="hsl(var(--muted-foreground))"
+              dy="10"
+              data-testid={`${id}-tooltip-extra`}
+            >
+              {tipExtra}
+            </text>
+          )}
         </g>
       )}
       <line
@@ -2218,9 +2328,24 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                         tooltipLabel={t('node_tooltip_rssi')}
                         windowSeconds={windowSeconds}
                         t={t}
+                        overlay={
+                          noiseFloorSupported !== false && noiseFloorSamples.length > 0
+                            ? {
+                                values: noiseFloorPerBin(bins, noiseFloorSamples),
+                                label: t('node_tooltip_noise_floor'),
+                              }
+                            : undefined
+                        }
+                        band={{
+                          values: estimatedNoiseFloorPerBin(bins),
+                          label: t('node_tooltip_noise_est'),
+                        }}
                       />
                     )}
                   </ZoomableBinChart>
+                  <p className="px-1 text-[9px] text-muted-foreground italic">
+                    {t('node_chart_rssi_noise_legend')}
+                  </p>
                 </ChartCard>
                 {noiseFloorSupported !== false && (
                   <ChartCard

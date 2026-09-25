@@ -5,7 +5,7 @@ This changelog covers work done in the **RTFM-EV** fork
 `jkingsman/Remote-Terminal-for-MeshCore`.
 
 - Fork base commit: `33b3b8d` (upstream `main`), 2026-07-26
-- Commits since fork: 368 total (273 non-merge), as of `80e168d0` (#211)
+- Commits since fork: 388 total (283 non-merge), as of `b9a4a1b0` (#220)
 - Generated: 2026-09-10; updated 2026-09-25
 
 Entries are grouped by area and reference the non-merge commit that introduced
@@ -30,6 +30,25 @@ the change. Upstream development is on hold; the fork is the active repository.
   `test_radio_sync::TestSyncAndOffloadAll::test_add_contact_decodes_legacy_packed_path_len`)
   did not reproduce at `b9a4a1b0` (ten clean full runs, an eight-round loop of
   the affected files, and a 218-file order-dependency search); left as is.
+
+## Update 2026-09-25 (Noise-floor overlay on the My Node RSSI chart, plan 21 S4, feat/mynode-noise-floor-overlay)
+
+### My Node: noise floor laid over the RSSI chart (frontend)
+- The RSSI card now draws the radio's polled noise floor (the existing
+  `noise_floor_samples`, one reading a minute, carried forward per bin) as a
+  dashed line on the same dBm axis, and shades an estimated noise floor
+  (mean RSSI minus mean SNR per bin) from the chart floor up, so the unshaded
+  gap below the RSSI line is the SNR margin. The y-axis widens to include
+  both. Hovering a bin adds `NF` / `est. NF` values to the tooltip; a legend
+  line under the chart explains the two marks. The separate Noise Floor card
+  and the SNR card are unchanged. Plan [21] S4 wording says "on the SNR chart";
+  the overlay lives on the RSSI chart because that is the only dBm axis
+  (the polled floor and `RSSI - SNR` are dBm, SNR is dB). Sample rate stays
+  60 s (plan [21] Q5 default). `LineChart` gains optional `overlay` / `band`
+  props; helpers `noiseFloorPerBin` / `estimatedNoiseFloorPerBin` in
+  `MyNodeView.tsx`. New i18n keys `node_tooltip_noise_est`,
+  `node_chart_rssi_noise_legend` in EN/NL/DE.
+
 ## Update 2026-09-25 (Inline contact sharing, parity audit L4 / upstream #347, feat/inline-contact-share)
 
 ### Chat: inline `<pubkey:type:Name>` contact sharing (frontend)

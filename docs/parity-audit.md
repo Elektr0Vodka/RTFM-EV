@@ -1,7 +1,7 @@
 # RTFM-EV Parity & Gap Audit
 
 Date: 2026-09-10
-Status: backlog in progress (reconciled 2026-09-25 against `main` at `80e168d0`, PR #211; PR #210 (host repeater armed mode, plan [29] Phase 3) merged the same day, PR #212 (Phase 4) open; no §7 item changed status in PRs #124-#211, but the meshcore-open parity work in plan [28] (PRs #178, #182, #184, #185, #189-#204) covers ground outside this audit's official-app + DMC reference sets). SHIPPED: N1 (PR #12, merged), N2 (PR #24, merged), X1 (PR #41, merged; later folded into community MQTT topic toggles, PR #60), X2 core, X2b per-link signal history (PR #47). PARTIAL: L1 (region pills + sync shipped; DMC config-topic scope tree unbuilt), L2 (noise-floor viewer + Direct/Flood advert metrics shipped via PR #94; rx-error graphs still absent), L3 (neighbor/region publish shipped via PR #90; config-topic publish still pending), L4 (channel mute shipped; inline contact-sharing #347 unbuilt). See §7 for per-item status.
+Status: §7 backlog shipped except the L4 auto contact-discovery confirmation (reconciled 2026-09-25 against `main` at `b9a4a1b0`, PR #220). The overnight run of 2026-09-25 closed the §7 "Later" items: L1 default flood scope read-out (PR #217), L2 receive-error graph (PR #215, migration `_116`), L3 MQTT `config`-topic publish (PR #216, opt-in `publish_config`), L4 inline contact sharing (PR #218); the same run shipped GRP_DATA placeholder rows (PR #214, plan [28] 1.17) and the triangulation link-out (PR #219, plan [13]), bundled through PR #220. Before that: PR #210 (host repeater armed mode, plan [29] Phase 3) and PR #212 (Phase 4) merged; the meshcore-open parity work in plan [28] (PRs #178, #182, #184, #185, #189-#204) covers ground outside this audit's official-app + DMC reference sets. SHIPPED: N1 (PR #12), N2 (PR #24), X1 (PR #41; later folded into community MQTT topic toggles, PR #60), X2 core, X2b per-link signal history (PR #47). L1 DONE for the companion-reachable part (region pills + sync PR #94, radio default scope PR #217; the live `region_gate{}` state of *other* repeaters stays out of scope, §7). L2 DONE (noise-floor viewer + Direct/Flood advert metrics PR #94, rx-error graph PR #215). L3 DONE (neighbor/region publish PR #90, config-topic publish PR #216). L4 PARTIAL (channel mute, inline contact sharing PR #218; auto contact-discovery confirmation still open). See §7 for per-item status.
 Author: Elektr0Vodka (with agent research)
 
 This is a living document. It compares the current RTFM-EV against two reference
@@ -258,7 +258,9 @@ Each "Now/Next" item gets its own brainstorm → spec → plan cycle.
 - **L2. Telemetry graph parity** - DONE: noise-floor viewer and Direct/Flood
   advert metrics shipped (PR #94); receive-error graph shipped 2026-09-25
   (`feat/rx-error-graph`: `airtime_history.recv_errors`, migration `_116`,
-  My Node "Receive errors" card).
+  My Node "Receive errors" card); noise-floor overlay on the My Node RSSI
+  chart (plan [21] S4: polled floor as a dashed line, `RSSI - SNR` estimate
+  shaded) shipped 2026-09-25 (`feat/mynode-noise-floor-overlay`).
 - **L3. MQTT `neighbors` / `config` topic publishing** - DONE: neighbor /
   region publish shipped with `subject_id` attribution (PR #90, plan [24]);
   `config`-topic publishing shipped 2026-09-25 (`feat/mqtt-config-topic`:
