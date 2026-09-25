@@ -382,8 +382,24 @@ def _validate_mqtt_ha_config(config: dict) -> None:
             raise HTTPException(status_code=400, detail=f"{field} must be a list of public keys")
 
 
+def _data_placeholders_scope(scope: dict) -> str:
+    """Validate the opt-in for GRP_DATA placeholder rows; missing means 'none'."""
+    value = scope.get("data_placeholders", "none")
+    if value not in ("all", "none"):
+        raise HTTPException(
+            status_code=400,
+            detail="scope.data_placeholders must be 'all' or 'none'",
+        )
+    return value
+
+
 def _enforce_scope(config_type: str, scope: dict) -> dict:
-    """Enforce type-specific scope constraints. Returns normalized scope."""
+    """Enforce type-specific scope constraints. Returns normalized scope.
+
+    Bots, community MQTT and the map upload have a fixed scope and never
+    receive GRP_DATA placeholder rows; the other types opt in per config via
+    ``scope.data_placeholders`` (default ``"none"``).
+    """
     if config_type == "mqtt_community":
         return {"messages": "none", "raw_packets": "all"}
     if config_type == "map_upload":
@@ -397,7 +413,11 @@ def _enforce_scope(config_type: str, scope: dict) -> dict:
                 status_code=400,
                 detail="scope.messages must be 'all', 'none', or a filter object",
             )
-        return {"messages": messages, "raw_packets": "none"}
+        return {
+            "messages": messages,
+            "raw_packets": "none",
+            "data_placeholders": _data_placeholders_scope(scope),
+        }
     # For mqtt_private and sqs, validate scope values
     messages = scope.get("messages", "all")
     if messages not in ("all", "none") and not isinstance(messages, dict):
@@ -411,7 +431,11 @@ def _enforce_scope(config_type: str, scope: dict) -> dict:
             status_code=400,
             detail="scope.raw_packets must be 'all' or 'none'",
         )
-    return {"messages": messages, "raw_packets": raw_packets}
+    return {
+        "messages": messages,
+        "raw_packets": raw_packets,
+        "data_placeholders": _data_placeholders_scope(scope),
+    }
 
 
 def _bot_system_disabled_detail() -> str | None:
