@@ -18,6 +18,7 @@ AGE_TABLES: dict[str, tuple[str, str]] = {
     "airtime": ("airtime_history", "timestamp"),
     "messages": ("messages", "received_at"),
     "link_edges": ("link_edge_events", "ts"),
+    "packet_receptions": ("packet_receptions", "observed_at"),
 }
 
 # Tables that also get a per-node row cap (newest kept).

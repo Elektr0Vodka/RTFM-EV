@@ -3,6 +3,7 @@
 import logging
 
 from app.repository import ContactNameHistoryRepository, ContactRepository, MessageRepository
+from app.repository.contacts import ContactLocationHistoryRepository
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +108,20 @@ async def record_contact_name(
         timestamp,
     )
     return True
+
+
+async def record_contact_location(
+    *,
+    public_key: str,
+    lat: float | None,
+    lon: float | None,
+    timestamp: int,
+    contact_location_history_repository=ContactLocationHistoryRepository,
+) -> bool:
+    """Record contact position history (plan 14); ignores missing/(0,0) positions."""
+    return await contact_location_history_repository.record_location(
+        public_key.lower(), lat, lon, timestamp
+    )
 
 
 async def record_contact_name_and_reconcile(

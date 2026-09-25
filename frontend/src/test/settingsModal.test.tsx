@@ -66,6 +66,7 @@ const baseSettings: AppSettings = {
   telemetry_max_rows_per_node: 1000,
   link_signal_retention_days: 30,
   link_edge_retention_days: 365,
+  packet_reception_retention_days: 2,
   advert_paths_per_contact: 10,
   noise_floor_retention_days: 0,
   battery_retention_days: 0,
@@ -588,6 +589,8 @@ describe('SettingsModal', () => {
             node_url_template: 'https://cornmeister.nl/#node?id={pubkey}',
             packet_url_template: null,
             channel_url_template: 'https://cornmeister.nl/#channels?channel={name}',
+            node_api_url_template: 'https://cornmeister.nl/api/nodes/{pubkey}/detail',
+            resolution_enabled: false,
           },
         ],
       });

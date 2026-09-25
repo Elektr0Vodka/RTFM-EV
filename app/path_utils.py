@@ -164,6 +164,18 @@ def first_hop_hex(path_hex: str, hop_count: int) -> str | None:
     return hops[0] if hops else None
 
 
+def last_hop_hex(path_hex: str, hop_count: int) -> str | None:
+    """Extract the last hop identifier: the relay that delivered this copy to us.
+
+    Meaningful for flood-routed packets, where every relay appends its own
+    hash as it forwards. Direct routes pop the path hop by hop instead, so the
+    last chunk is not the deliverer there: callers guard on route type.
+    Returns None for empty paths (heard straight from the origin).
+    """
+    hops = split_path_hex(path_hex, hop_count)
+    return hops[-1] if hops else None
+
+
 def normalize_contact_route(
     path_hex: str | None,
     path_len: int | None,

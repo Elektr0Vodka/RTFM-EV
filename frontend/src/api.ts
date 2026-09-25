@@ -105,6 +105,8 @@ import type {
   RepeaterNodeInfoResponse,
   RepeaterOwnerInfoResponse,
   ContactAnnotationsUpdate,
+  ResolveNameResponse,
+  ResolveNamesBulkResponse,
   RepeaterRadioSettingsResponse,
   RepeaterRegionsResponse,
   RepeaterSettingSetResponse,
@@ -1197,6 +1199,13 @@ export const api = {
     fetchJson<RepeaterOwnerInfoResponse>(`/contacts/${publicKey}/repeater/owner-info`, {
       method: 'POST',
     }),
+  resolveContactName: (publicKey: string, force = false) =>
+    fetchJson<ResolveNameResponse>(
+      `/contacts/${publicKey}/resolve-name${force ? '?force=true' : ''}`,
+      { method: 'POST' }
+    ),
+  resolveContactNames: () =>
+    fetchJson<ResolveNamesBulkResponse>('/contacts/resolve-names', { method: 'POST' }),
   updateContactAnnotations: (publicKey: string, update: ContactAnnotationsUpdate) =>
     fetchJson<{ status: string; public_key: string }>(`/contacts/${publicKey}/annotations`, {
       method: 'POST',

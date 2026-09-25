@@ -26,6 +26,7 @@ function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings {
     telemetry_max_rows_per_node: 1000,
     link_signal_retention_days: 30,
     link_edge_retention_days: 365,
+    packet_reception_retention_days: 2,
     advert_paths_per_contact: 10,
     noise_floor_retention_days: 0,
     battery_retention_days: 0,
@@ -161,6 +162,8 @@ describe('SettingsHandyInfoSection', () => {
             node_url_template: 'https://mc-radar.woodwar.com/node/{pubkey}',
             packet_url_template: null,
             channel_url_template: 'https://mc-radar.woodwar.com/group-messages?channel={name}',
+            node_api_url_template: null,
+            resolution_enabled: false,
           },
         ],
       })
@@ -178,6 +181,8 @@ describe('SettingsHandyInfoSection', () => {
             node_url_template: 'https://analyzer.on8ar.eu/#/nodes/{pubkey}',
             packet_url_template: 'https://analyzer.on8ar.eu/#/packets/{hash}',
             channel_url_template: 'https://analyzer.on8ar.eu/#/channels/{name}',
+            node_api_url_template: null,
+            resolution_enabled: false,
           },
         ],
       })
@@ -192,6 +197,8 @@ describe('SettingsHandyInfoSection', () => {
             name: 'Cornmeister',
             node_url_template: 'https://cornmeister.nl/#node?id={pubkey}',
             packet_url_template: null,
+            node_api_url_template: 'https://cornmeister.nl/api/nodes/{pubkey}/detail',
+            resolution_enabled: false,
           },
         ],
       })
@@ -325,5 +332,55 @@ describe('SettingsHandyInfoSection', () => {
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith({ handy_info: { overrides: {}, custom: [] } })
     );
+  });
+});
+
+describe('SettingsHandyInfoSection name resolution opt-in (plan 16)', () => {
+  const cornSite = {
+    name: 'Cornmeister',
+    node_url_template: 'https://cornmeister.nl/#node?id={pubkey}',
+    packet_url_template: null,
+    channel_url_template: 'https://cornmeister.nl/#channels?channel={name}',
+    node_api_url_template: 'https://cornmeister.nl/api/nodes/{pubkey}/detail',
+    resolution_enabled: false,
+  };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('enables name resolution after confirmation and persists it on the site', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { onSave } = renderSection(makeSettings({ analyzer_sites: [cornSite] }));
+    const box = screen.getByRole('checkbox', { name: 'Name resolution via Cornmeister' });
+    expect(box).not.toBeChecked();
+    fireEvent.click(box);
+    expect(window.confirm).toHaveBeenCalled();
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({
+        analyzer_sites: [{ ...cornSite, resolution_enabled: true }],
+      })
+    );
+  });
+
+  it('does not enable name resolution when the confirmation is cancelled', () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const { onSave } = renderSection(makeSettings({ analyzer_sites: [cornSite] }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Name resolution via Cornmeister' }));
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('explains when an applied analyzer has no node API template', () => {
+    const radar = {
+      name: 'MC-Radar',
+      node_url_template: 'https://mc-radar.woodwar.com/node/{pubkey}',
+      packet_url_template: null,
+      channel_url_template: 'https://mc-radar.woodwar.com/group-messages?channel={name}',
+    };
+    renderSection(makeSettings({ analyzer_sites: [radar] }));
+    expect(screen.getByText(/No node API template/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole('checkbox', { name: 'Name resolution via MC-Radar' })
+    ).not.toBeInTheDocument();
   });
 });

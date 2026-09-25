@@ -446,6 +446,15 @@ class ContactNameHistory(BaseModel):
     last_seen: int
 
 
+class ContactLocationHistory(BaseModel):
+    """A position a contact has advertised (rounded to 4 decimals, plan 14)."""
+
+    lat: float
+    lon: float
+    first_seen: int
+    last_seen: int
+
+
 class ContactActiveRoom(BaseModel):
     """A channel where a contact has been active."""
 
@@ -1376,6 +1385,22 @@ class AnalyzerSite(BaseModel):
             "{channel} placeholder (channel key)."
         ),
     )
+    node_api_url_template: str | None = Field(
+        default=None,
+        description=(
+            "Optional JSON node endpoint with a {pubkey} placeholder, e.g. "
+            "'https://cornmeister.nl/api/nodes/{pubkey}/detail'. Read server-side by "
+            "analyzer name resolution (plan 16 case (a)) when resolution_enabled is set."
+        ),
+    )
+    resolution_enabled: bool = Field(
+        default=False,
+        description=(
+            "Opt-in: allow RTFM-EV to ask this site's node API for the name of a "
+            "contact whose full public key it knows but has no name for. Off by default; "
+            "each request sends that one public key to the site."
+        ),
+    )
 
 
 class HandyInfoOverride(BaseModel):
@@ -1398,6 +1423,9 @@ class HandyInfoOverride(BaseModel):
     )
     channel_url_template: str | None = Field(
         default=None, description="Override analyzer channel URL template ({name}/{channel})"
+    )
+    node_api_url_template: str | None = Field(
+        default=None, description="Override analyzer node API URL template ({pubkey})"
     )
 
 
@@ -1423,6 +1451,9 @@ class HandyInfoCustomEntry(BaseModel):
     )
     channel_url_template: str | None = Field(
         default=None, description="Optional analyzer channel URL template ({name}/{channel})"
+    )
+    node_api_url_template: str | None = Field(
+        default=None, description="Optional analyzer node API URL template ({pubkey})"
     )
 
 
@@ -1518,6 +1549,7 @@ RETENTION_DEFAULTS: dict[str, int] = {
     "airtime_retention_days": 0,
     "message_retention_days": 0,
     "link_edge_retention_days": 365,
+    "packet_reception_retention_days": 2,
 }
 
 
@@ -1583,6 +1615,13 @@ class AppSettings(BaseModel):
     link_edge_retention_days: int = Field(
         default=365,
         description="Days of per-packet map link history to keep; 0 keeps forever",
+    )
+    packet_reception_retention_days: int = Field(
+        default=2,
+        description=(
+            "Days of per-copy relay reception rows (Mesh Health relay reception) to keep; "
+            "0 keeps forever"
+        ),
     )
     last_message_times: dict[str, int] = Field(
         default_factory=dict,
@@ -2132,6 +2171,14 @@ class StatisticsResponse(BaseModel):
 
 
 class TelemetryHistoryEntry(BaseModel):
+    timestamp: int
+    data: dict
+
+
+class DeviceConfigHistoryEntry(BaseModel):
+    """One stored repeater pane snapshot (plan 14 ``device_config_history``)."""
+
+    kind: Literal["node_info", "radio_settings", "advert_intervals", "owner_info", "regions"]
     timestamp: int
     data: dict
 

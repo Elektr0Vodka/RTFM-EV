@@ -11,6 +11,73 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-25 (Contact location and repeater config history, plan 14, feat/device-history)
+
+### Persistence: location history and repeater pane snapshots (backend)
+- New `contact_location_history` (migration `_119`): every distinct position
+  a contact advertises, rounded to 4 decimals (about 11 m, so GPS jitter
+  collapses into one row; missing and (0, 0) positions are ignored), with
+  first/last seen, the same shape as name history. Captured from advert
+  ingest and contact-card import. Read with
+  `GET /api/contacts/{key}/location-history`.
+- New `device_config_history` (same migration): snapshots of the repeater
+  dashboard panes (node info, radio settings, advert intervals, owner info,
+  regions) stored as JSON when a fetched pane differs from the last stored
+  one (the repeater clock, local owner-info bookkeeping, the guest password
+  and the raw regions dump are excluded from the comparison and the
+  snapshot), at most 200 per contact and kind. Read with
+  `GET /api/contacts/{key}/repeater/config-history?kind=`. Room-server
+  panes and a history UI are deferred. Decisions: 4-decimal rounding, rooms
+  deferred, cap 200 (2026-09-25).
+
+## Update 2026-09-25 (Relay reception comparison, plan 21 S1, feat/relay-reception)
+
+### Mesh Health: per-relay reception of the same flooded packet (backend, frontend)
+- New `packet_receptions` table (migration `_118`): one row per received
+  copy of a flood-routed packet (`raw_packets` keeps one row per payload, so
+  copies via other relays were invisible until now), with the delivering
+  relay (last path hop, `path_utils.last_hop_hex`), SNR/RSSI, route, hop
+  count and hash width. Written by `record_packet_reception` right after the
+  raw-packet dedup; direct-routed packets are skipped (their path is popped
+  hop by hop, plan 21 Q3). Retention setting
+  `packet_reception_retention_days` (default 2 = 48 h, 0 keeps forever) in
+  Settings > Database > Data retention, pruned with the other classes.
+- `GET /api/packets/relay-reception?start_ts&end_ts&limit`: packets x relays
+  with best/last SNR and RSSI per cell, copies, a decrypted preview when the
+  packet became a message, and a per-relay summary (receptions, packets, best
+  and average SNR, last seen). Relay hashes resolve to a contact only on a
+  unique full-key match; a collision shows the raw hash with a "?" marker.
+- Mesh Health gains a "Relay reception" tab (window-scoped like Adverts and
+  Requests): stat tiles, the pivot table (up to 8 relay columns, extra relays
+  folded), and the sortable relay summary. i18n EN/NL/DE. Decisions: new
+  table (Q1), floods and transport floods only (Q2/Q3), 48 h default (Q4).
+
+## Update 2026-09-25 (Analyzer name resolution for unnamed contacts, plan 16 case (a), feat/analyzer-name-resolution)
+
+### Contacts: resolve a name for a full public key without one (backend, frontend)
+- A contact RTFM-EV knows only by its full public key (an unknown sender, a
+  key pasted into a DM) can now get its name from an analyzer: the contact
+  info pane gains "Resolve name from analyzer", Settings > Radio-App
+  Management gains "Resolve unnamed contacts" (newest first, up to 100).
+  Order: the locally synced external map directory (no network), then the
+  new `analyzer_resolved_names` cache (migration `_117`; a found name is
+  reused for 7 days, a miss for 1 day), then the analyzer sites that opted
+  in. A found name is applied only when the contact has none, goes through
+  the normal name-history/reconcile path and is broadcast live. Endpoints
+  `POST /api/contacts/{key}/resolve-name?force=` and
+  `POST /api/contacts/resolve-names`.
+- Per-site opt-in: `AnalyzerSite` gains `node_api_url_template` (a JSON
+  node endpoint with `{pubkey}`, e.g. cornmeister's
+  `/api/nodes/{pubkey}/detail`, now part of the Cornmeister preset) and
+  `resolution_enabled` (default off; cannot be on without a template). The
+  Handy Info Configure tab shows a "Name resolution" checkbox on an applied
+  analyzer that has such a template; enabling it asks for confirmation and
+  states what is sent (the one public key per lookup). Handy Info entries
+  (built-in overrides and custom analyzers) carry the API template too.
+  Case (b) (asking an analyzer about short hop hashes) is not built.
+  New i18n keys (EN/NL/DE) for the button, toasts, settings field and
+  confirmation.
+
 ## Update 2026-09-25 (Owned sidebar section, plan 17 Phase 3, feat/sidebar-owned-section)
 
 ### Sidebar: "Owned" section for the nodes your radio owns (frontend)
@@ -31,6 +98,7 @@ the change. Upstream development is on hold; the fork is the active repository.
   `nav_owned_heading`, `contact_owner_own_radio`,
   `contact_owner_use_own_radio`, `contact_owner_use_own_radio_hint` (and the
   reworded `contact_owner_unknown`) in EN/NL/DE.
+
 
 ## Update 2026-09-25 (GRP_DATA placeholder rows kept out of fanout, feat/grp-data-fanout-suppress)
 

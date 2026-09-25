@@ -333,6 +333,49 @@ class TestUpdateSettings:
         assert result.analyzer_sites == []
 
     @pytest.mark.asyncio
+    async def test_analyzer_sites_name_resolution_fields_round_trip(self, test_db):
+        sites = [
+            AnalyzerSite(
+                name="Corn",
+                node_url_template="https://corn.example/#node?id={pubkey}",
+                node_api_url_template=" https://corn.example/api/nodes/{pubkey}/detail ",
+                resolution_enabled=True,
+            )
+        ]
+        result = await update_settings(AppSettingsUpdate(analyzer_sites=sites))
+        site = result.analyzer_sites[0]
+        assert site.node_api_url_template == "https://corn.example/api/nodes/{pubkey}/detail"
+        assert site.resolution_enabled is True
+        fresh = await AppSettingsRepository.get()
+        assert fresh.analyzer_sites[0].resolution_enabled is True
+
+    @pytest.mark.asyncio
+    async def test_analyzer_sites_resolution_needs_an_api_template(self, test_db):
+        sites = [
+            AnalyzerSite(
+                name="Radar",
+                node_url_template="https://radar.example/node/{pubkey}",
+                resolution_enabled=True,
+            )
+        ]
+        result = await update_settings(AppSettingsUpdate(analyzer_sites=sites))
+        assert result.analyzer_sites[0].node_api_url_template is None
+        assert result.analyzer_sites[0].resolution_enabled is False
+
+    @pytest.mark.asyncio
+    async def test_analyzer_sites_rejects_bad_api_template(self, test_db):
+        sites = [
+            AnalyzerSite(
+                name="Corn",
+                node_url_template="https://corn.example/#node?id={pubkey}",
+                node_api_url_template="https://corn.example/api/nodes/detail",
+            )
+        ]
+        with pytest.raises(HTTPException) as exc_info:
+            await update_settings(AppSettingsUpdate(analyzer_sites=sites))
+        assert exc_info.value.status_code == 400
+
+    @pytest.mark.asyncio
     async def test_analyzer_sites_round_trip(self, test_db):
         sites = [
             AnalyzerSite(

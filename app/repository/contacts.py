@@ -9,6 +9,7 @@ from app.models import (
     Contact,
     ContactAdvertPath,
     ContactAdvertPathSummary,
+    ContactLocationHistory,
     ContactNameHistory,
     ContactPathOutcome,
     ContactUpsert,
@@ -507,6 +508,42 @@ class ContactRepository:
                 params,
             ):
                 pass
+
+    @staticmethod
+    async def set_name_if_empty(public_key: str, name: str) -> bool:
+        """Set ``name`` only when the contact currently has none.
+
+        Used by analyzer name resolution (plan 16 case (a)): a name a real
+        advert delivered is never overwritten. Returns True if a row changed.
+        """
+        async with db.tx() as conn:
+            async with conn.execute(
+                """
+                UPDATE contacts
+                SET name = ?
+                WHERE public_key = ?
+                  AND (name IS NULL OR name = '')
+                """,
+                (name, public_key.lower()),
+            ) as cursor:
+                rowcount = cursor.rowcount
+        return rowcount > 0
+
+    @staticmethod
+    async def unnamed_full_keys(limit: int = 100) -> list[str]:
+        """Full (64-hex) public keys of contacts with no name, most recently seen first."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                """
+                SELECT public_key FROM contacts
+                WHERE length(public_key) = 64 AND (name IS NULL OR name = '')
+                ORDER BY COALESCE(last_seen, 0) DESC, public_key
+                LIMIT ?
+                """,
+                (limit,),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [row["public_key"] for row in rows]
 
     @staticmethod
     async def set_owner_info_if_empty(public_key: str, owner_info: str) -> bool:
@@ -1094,6 +1131,78 @@ class ContactNameHistoryRepository:
         return [
             ContactNameHistory(
                 name=row["name"], first_seen=row["first_seen"], last_seen=row["last_seen"]
+            )
+            for row in rows
+        ]
+
+
+LOCATION_DECIMALS = 4
+
+
+def round_location(lat: float | None, lon: float | None) -> tuple[float, float] | None:
+    """Round a position for history dedup; None for missing or the (0, 0) sentinel."""
+    if lat is None or lon is None:
+        return None
+    if float(lat) == 0.0 and float(lon) == 0.0:
+        return None
+    return round(float(lat), LOCATION_DECIMALS), round(float(lon), LOCATION_DECIMALS)
+
+
+class ContactLocationHistoryRepository:
+    """Append-on-change contact position history (plan 14, mirrors name history)."""
+
+    @staticmethod
+    async def record_location(
+        public_key: str, lat: float | None, lon: float | None, timestamp: int
+    ) -> bool:
+        """Record a position; returns True when a new distinct position was stored."""
+        rounded = round_location(lat, lon)
+        if rounded is None:
+            return False
+        r_lat, r_lon = rounded
+        key = public_key.lower()
+        async with db.tx() as conn:
+            async with conn.execute(
+                "SELECT id FROM contact_location_history "
+                "WHERE public_key = ? AND lat = ? AND lon = ?",
+                (key, r_lat, r_lon),
+            ) as cursor:
+                existing = await cursor.fetchone()
+            if existing is not None:
+                async with conn.execute(
+                    "UPDATE contact_location_history SET last_seen = MAX(last_seen, ?) "
+                    "WHERE id = ?",
+                    (timestamp, existing["id"]),
+                ):
+                    pass
+                return False
+            async with conn.execute(
+                "INSERT INTO contact_location_history "
+                "(public_key, lat, lon, first_seen, last_seen) VALUES (?, ?, ?, ?, ?)",
+                (key, r_lat, r_lon, timestamp, timestamp),
+            ):
+                pass
+        return True
+
+    @staticmethod
+    async def get_history(public_key: str) -> list[ContactLocationHistory]:
+        async with db.readonly() as conn:
+            async with conn.execute(
+                """
+                SELECT lat, lon, first_seen, last_seen
+                FROM contact_location_history
+                WHERE public_key = ?
+                ORDER BY last_seen DESC, id DESC
+                """,
+                (public_key.lower(),),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [
+            ContactLocationHistory(
+                lat=row["lat"],
+                lon=row["lon"],
+                first_seen=row["first_seen"],
+                last_seen=row["last_seen"],
             )
             for row in rows
         ]

@@ -3,6 +3,7 @@ import logging
 import time
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from app.models import (
     CONTACT_TYPE_REPEATER,
@@ -10,6 +11,7 @@ from app.models import (
     CommandRequest,
     CommandResponse,
     Contact,
+    DeviceConfigHistoryEntry,
     LppSensor,
     NeighborHistoryEntry,
     NeighborInfo,
@@ -35,6 +37,10 @@ from app.models import (
     TelemetryHistoryEntry,
 )
 from app.repository import ContactRepository, RepeaterTelemetryRepository
+from app.repository.device_config_history import (
+    DeviceConfigHistoryRepository,
+    DeviceConfigKind,
+)
 from app.repository.link_signal import LinkSignalRepository
 from app.routers.contacts import (
     _broadcast_contact_update,
@@ -223,6 +229,20 @@ async def repeater_telemetry_history(public_key: str) -> list[TelemetryHistoryEn
     return [TelemetryHistoryEntry(**row) for row in rows]
 
 
+@router.get(
+    "/{public_key}/repeater/config-history",
+    response_model=list[DeviceConfigHistoryEntry],
+)
+async def repeater_config_history(
+    public_key: str, kind: DeviceConfigKind | None = None
+) -> list[DeviceConfigHistoryEntry]:
+    """Stored pane snapshots for a repeater, newest first (plan 14; read-only)."""
+    contact = await _resolve_contact_or_404(public_key)
+    _require_repeater(contact)
+    rows = await DeviceConfigHistoryRepository.get_history(contact.public_key, kind)
+    return [DeviceConfigHistoryEntry(**row) for row in rows]
+
+
 @router.post("/{public_key}/repeater/lpp-telemetry", response_model=RepeaterLppTelemetryResponse)
 async def repeater_lpp_telemetry(public_key: str) -> RepeaterLppTelemetryResponse:
     """Fetch CayenneLPP sensor telemetry from a repeater (single attempt, 10s timeout)."""
@@ -404,6 +424,32 @@ async def _batch_cli_fetch(
     return await batch_cli_fetch(contact, operation_name, commands)
 
 
+async def _record_config_snapshot(
+    contact: Contact,
+    kind: DeviceConfigKind,
+    response: BaseModel,
+    *,
+    exclude: set[str] | None = None,
+) -> None:
+    """Store the pane response in ``device_config_history`` (plan 14). Never raises.
+
+    Only stored when it differs from the latest snapshot of that kind, so
+    ``exclude`` drops fields that change on every fetch (the repeater clock,
+    the local owner-info bookkeeping) and would otherwise defeat the dedup.
+    """
+    try:
+        await DeviceConfigHistoryRepository.record(
+            contact.public_key,
+            kind,
+            int(time.time()),
+            response.model_dump(mode="json", exclude=exclude),
+        )
+    except Exception:
+        logger.warning(
+            "Failed to record %s snapshot for %s", kind, contact.public_key[:12], exc_info=True
+        )
+
+
 @router.post("/{public_key}/repeater/node-info", response_model=RepeaterNodeInfoResponse)
 async def repeater_node_info(public_key: str) -> RepeaterNodeInfoResponse:
     """Fetch repeater identity/location info via a small CLI batch."""
@@ -421,7 +467,9 @@ async def repeater_node_info(public_key: str) -> RepeaterNodeInfoResponse:
             ("clock", "clock_utc"),
         ],
     )
-    return RepeaterNodeInfoResponse(**results)
+    response = RepeaterNodeInfoResponse(**results)
+    await _record_config_snapshot(contact, "node_info", response, exclude={"clock_utc"})
+    return response
 
 
 @router.post("/{public_key}/repeater/radio-settings", response_model=RepeaterRadioSettingsResponse)
@@ -453,7 +501,9 @@ async def repeater_radio_settings(public_key: str) -> RepeaterRadioSettingsRespo
         dc = dc.strip()
         if dc.startswith("??") or dc.lower().startswith("error"):
             results["duty_cycle_limit"] = None
-    return RepeaterRadioSettingsResponse(**results)
+    response = RepeaterRadioSettingsResponse(**results)
+    await _record_config_snapshot(contact, "radio_settings", response)
+    return response
 
 
 @router.post("/{public_key}/repeater/settings/read", response_model=RepeaterSettingsReadResponse)
@@ -550,7 +600,9 @@ async def repeater_advert_intervals(public_key: str) -> RepeaterAdvertIntervalsR
             ("get flood.advert.interval", "flood_advert_interval"),
         ],
     )
-    return RepeaterAdvertIntervalsResponse(**results)
+    response = RepeaterAdvertIntervalsResponse(**results)
+    await _record_config_snapshot(contact, "advert_intervals", response)
+    return response
 
 
 @router.post("/{public_key}/repeater/owner-info", response_model=RepeaterOwnerInfoResponse)
@@ -589,7 +641,7 @@ async def repeater_owner_info(public_key: str) -> RepeaterOwnerInfoResponse:
     if owner_info_updated and refreshed:
         await _broadcast_contact_update(refreshed)
 
-    return RepeaterOwnerInfoResponse(
+    response = RepeaterOwnerInfoResponse(
         owner_info=fetched_owner_info,
         firmware_version=owner.get("firmware_version"),
         name=owner.get("name"),
@@ -597,6 +649,13 @@ async def repeater_owner_info(public_key: str) -> RepeaterOwnerInfoResponse:
         stored_owner_info=stored_owner_info,
         owner_info_updated=owner_info_updated,
     )
+    await _record_config_snapshot(
+        contact,
+        "owner_info",
+        response,
+        exclude={"stored_owner_info", "owner_info_updated", "guest_password"},
+    )
+    return response
 
 
 # The firmware's `region` dump is written into a fixed ~160-char buffer
@@ -769,6 +828,8 @@ async def repeater_regions(public_key: str) -> RepeaterRegionsResponse:
             )
         )
 
+    if response.regions:
+        await _record_config_snapshot(contact, "regions", response, exclude={"raw"})
     return response
 
 

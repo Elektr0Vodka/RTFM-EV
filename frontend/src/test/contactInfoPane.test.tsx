@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import { ContactInfoPane } from '../components/ContactInfoPane';
+import { api } from '../api';
+import { toast } from '../components/ui/sonner';
 import type { Contact, ContactAnalytics, ContactGroup, RadioConfig } from '../types';
 
 const { getContactAnalytics, contactTelemetryHistory, updateContactAnnotations } = vi.hoisted(
@@ -19,6 +21,12 @@ vi.mock('../api', () => ({
     contactTelemetryHistory,
     updateContactAnnotations,
     listPartialResolutions: vi.fn().mockResolvedValue([]),
+    resolveContactName: vi.fn().mockResolvedValue({
+      status: 'resolved',
+      name: 'Dir Node',
+      source: 'external_map',
+      cached: false,
+    }),
     deletePartialResolution: vi.fn().mockResolvedValue({ deleted: true }),
   },
   isAbortError: () => false,
@@ -40,6 +48,7 @@ vi.mock('../components/ui/sonner', () => ({
   toast: {
     error: vi.fn(),
     success: vi.fn(),
+    info: vi.fn(),
   },
 }));
 
@@ -146,6 +155,33 @@ describe('ContactInfoPane', () => {
     );
   });
 
+  it('offers analyzer name resolution for an unnamed full-key contact and applies the answer', async () => {
+    const user = userEvent.setup();
+    const contact = createContact({ name: '', last_advert: null });
+    getContactAnalytics.mockResolvedValue(createAnalytics(contact));
+
+    render(<ContactInfoPane {...baseProps} contactKey={contact.public_key} />);
+
+    const button = await screen.findByRole('button', { name: 'Resolve name from analyzer' });
+    await user.click(button);
+
+    await waitFor(() => expect(api.resolveContactName).toHaveBeenCalledWith(contact.public_key));
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith('Name resolved from external_map: Dir Node')
+    );
+  });
+
+  it('does not offer name resolution for a named contact', async () => {
+    const contact = createContact({ name: 'Alice' });
+    getContactAnalytics.mockResolvedValue(createAnalytics(contact));
+
+    render(<ContactInfoPane {...baseProps} contactKey={contact.public_key} />);
+
+    await screen.findByLabelText('Notes');
+    expect(
+      screen.queryByRole('button', { name: 'Resolve name from analyzer' })
+    ).not.toBeInTheDocument();
+  });
   it("offers the radio's own key as owner and saves it", async () => {
     const user = userEvent.setup();
     const contact = createContact();
@@ -171,7 +207,6 @@ describe('ContactInfoPane', () => {
       })
     );
   });
-
   it('lists owned nodes (reverse owner link)', async () => {
     const owner = createContact({ public_key: 'AA'.repeat(32), name: 'Companion' });
     const owned = createContact({

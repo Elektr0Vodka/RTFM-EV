@@ -11,6 +11,15 @@ logger = logging.getLogger(__name__)
 UNDECRYPTED_PACKET_BATCH_SIZE = 500
 
 
+def payload_hash_for(data: bytes) -> bytes:
+    """SHA-256 of the packet payload (routing/path excluded); full bytes if unparseable.
+
+    The dedup key of ``raw_packets`` and the grouping key of ``packet_receptions``.
+    """
+    payload = extract_payload(data)
+    return sha256(payload).digest() if payload else sha256(data).digest()
+
+
 class RawPacketRepository:
     @staticmethod
     async def create(
@@ -38,13 +47,7 @@ class RawPacketRepository:
         """
         ts = timestamp if timestamp is not None else int(time.time())
 
-        # Compute payload hash for deduplication
-        payload = extract_payload(data)
-        if payload:
-            payload_hash = sha256(payload).digest()
-        else:
-            # For malformed packets, hash the full data
-            payload_hash = sha256(data).digest()
+        payload_hash = payload_hash_for(data)
 
         async with db.tx() as conn:
             async with conn.execute(

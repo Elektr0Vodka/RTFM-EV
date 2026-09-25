@@ -50,6 +50,7 @@ from app.repository import (
 )
 from app.services.contact_reconciliation import (
     promote_prefix_contacts_for_contact,
+    record_contact_location,
     record_contact_name_and_reconcile,
 )
 from app.services.dm_ack_apply import apply_dm_ack_code
@@ -65,6 +66,7 @@ from app.services.messages import (
 )
 from app.services.new_node_notify import notify_new_node
 from app.services.packet_decoded_fields import decoded_stat_fields
+from app.services.relay_reception import record_packet_reception
 from app.websocket import broadcast_error, broadcast_event
 
 logger = logging.getLogger(__name__)
@@ -331,6 +333,8 @@ async def process_raw_packet(
     )
     # Per-copy link edge log (map traffic links + link history). Never raises.
     await record_packet_edges(packet_id, ts, packet_info, snr, rssi)
+    # Per-copy relay reception (Mesh Health "Relay reception", plan 21 S1). Never raises.
+    await record_packet_reception(packet_id, ts, packet_info, snr, rssi, raw_bytes)
     raw_hex = raw_bytes.hex()
 
     if packet_info is None and len(raw_bytes) > 2:
@@ -814,6 +818,12 @@ async def _process_advertisement(
         contact_name=advert.name,
         timestamp=timestamp,
         log=logger,
+    )
+    await record_contact_location(
+        public_key=advert.public_key,
+        lat=advert.lat,
+        lon=advert.lon,
+        timestamp=timestamp,
     )
 
     # Read back from DB so the broadcast includes all fields (last_contacted,

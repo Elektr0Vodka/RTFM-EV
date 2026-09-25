@@ -352,11 +352,89 @@ describe('MeshHealthView Prefix Collisions tab', () => {
     ],
   };
 
+  const RELAY_RECEPTION = {
+    start_ts: 0,
+    end_ts: 1,
+    receptions: 3,
+    packets: [
+      {
+        payload_hash: 'ab'.repeat(32),
+        payload_type: 'GROUP_TEXT',
+        route_type: 'Flood',
+        first_seen: 1_700_000_000,
+        last_seen: 1_700_000_010,
+        copies: 3,
+        relays: [
+          {
+            last_hop_hex: 'bb',
+            count: 2,
+            best_snr: 6.5,
+            last_snr: 5.5,
+            best_rssi: -90,
+            last_rssi: -95,
+            last_seen: 1_700_000_010,
+            resolved_pubkey: 'bb'.repeat(32),
+            resolved_name: 'Relay Bee',
+            candidates: 1,
+          },
+          {
+            last_hop_hex: 'aa',
+            count: 1,
+            best_snr: 1,
+            last_snr: 1,
+            best_rssi: -100,
+            last_rssi: -100,
+            last_seen: 1_700_000_000,
+            resolved_pubkey: null,
+            resolved_name: null,
+            candidates: 2,
+          },
+        ],
+        preview: 'hello mesh',
+        message_id: 7,
+      },
+    ],
+    relays: [
+      {
+        last_hop_hex: 'bb',
+        receptions: 2,
+        packets: 1,
+        best_snr: 6.5,
+        avg_snr: 6,
+        last_snr: 5.5,
+        best_rssi: -90,
+        last_seen: 1_700_000_010,
+        resolved_pubkey: 'bb'.repeat(32),
+        resolved_name: 'Relay Bee',
+        candidates: 1,
+      },
+      {
+        last_hop_hex: 'aa',
+        receptions: 1,
+        packets: 1,
+        best_snr: 1,
+        avg_snr: 1,
+        last_snr: 1,
+        best_rssi: -100,
+        last_seen: 1_700_000_000,
+        resolved_pubkey: null,
+        resolved_name: null,
+        candidates: 2,
+      },
+    ],
+  };
+
   beforeEach(() => {
     // A prior test persists its tab to localStorage; clear it so this suite
     // starts deterministically on the Adverts tab.
     localStorage.clear();
     global.fetch = vi.fn((url: string) => {
+      if (String(url).includes('relay-reception')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(RELAY_RECEPTION),
+        } as Response);
+      }
       if (String(url).includes('prefix-collisions')) {
         return Promise.resolve({
           ok: true,
@@ -435,5 +513,23 @@ describe('MeshHealthView Prefix Collisions tab', () => {
       expect(screen.getByText(/No prefix collisions in cell 00/)).toBeInTheDocument()
     );
     expect(screen.queryByText('aa')).not.toBeInTheDocument();
+  });
+
+  it('switches to the Relay reception panel and renders the pivot and summary', async () => {
+    render(<MeshHealthView config={null} />);
+    await waitFor(() => expect(screen.getByText('Node A')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Relay reception' }));
+
+    await waitFor(() => expect(screen.getByText('Packets via 2+ relays')).toBeInTheDocument());
+    const pivot = screen.getByTestId('relay-reception-pivot');
+    // Resolved relay renders by name; the colliding one as raw hex with a marker.
+    expect(within(pivot).getByText('Relay Bee')).toBeInTheDocument();
+    expect(within(pivot).getByText('aa ?')).toBeInTheDocument();
+    // Best SNR with the copy multiplier, and the decrypted preview.
+    expect(within(pivot).getByText('+6.5 dB ×2')).toBeInTheDocument();
+    expect(within(pivot).getByText(/hello mesh/)).toBeInTheDocument();
+    const summary = screen.getByTestId('relay-reception-summary');
+    expect(within(summary).getByText('+6.0 dB')).toBeInTheDocument();
   });
 });

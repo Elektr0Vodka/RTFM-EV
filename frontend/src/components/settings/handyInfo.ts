@@ -22,6 +22,8 @@ export interface HandyBuiltin {
     node_url_template?: string;
     packet_url_template?: string;
     channel_url_template?: string;
+    /** JSON node endpoint ({pubkey}) for server-side name resolution. */
+    node_api_url_template?: string;
   };
 }
 
@@ -41,6 +43,8 @@ export interface HandyEntry {
     node_url_template?: string;
     packet_url_template?: string;
     channel_url_template?: string;
+    /** JSON node endpoint ({pubkey}) for server-side name resolution. */
+    node_api_url_template?: string;
   };
 }
 
@@ -68,6 +72,7 @@ export const HANDY_BUILTINS: HandyBuiltin[] = [
       kind: 'analyzer',
       node_url_template: 'https://cornmeister.nl/#node?id={pubkey}',
       channel_url_template: 'https://cornmeister.nl/#channels?channel={name}',
+      node_api_url_template: 'https://cornmeister.nl/api/nodes/{pubkey}/detail',
     },
   },
   {
@@ -272,6 +277,7 @@ export function resolveHandyEntries(
           node_url_template: pick(o?.node_url_template, b.apply.node_url_template),
           packet_url_template: pick(o?.packet_url_template, b.apply.packet_url_template),
           channel_url_template: pick(o?.channel_url_template, b.apply.channel_url_template),
+          node_api_url_template: pick(o?.node_api_url_template, b.apply.node_api_url_template),
         }
       : undefined;
     result.push({
@@ -300,6 +306,7 @@ export function resolveHandyEntries(
             node_url_template: c.node_url_template ?? undefined,
             packet_url_template: c.packet_url_template ?? undefined,
             channel_url_template: c.channel_url_template ?? undefined,
+            node_api_url_template: c.node_api_url_template ?? undefined,
           }
         : undefined,
     });
@@ -318,6 +325,7 @@ export interface HandyEntryForm {
   node_url_template: string;
   packet_url_template: string;
   channel_url_template: string;
+  node_api_url_template: string;
 }
 
 /**
@@ -350,6 +358,10 @@ export function buildBuiltinOverride(
     if (channel !== (builtin.apply.channel_url_template ?? '')) {
       next.channel_url_template = channel || null;
     }
+    const api = form.node_api_url_template.trim();
+    if (api !== (builtin.apply.node_api_url_template ?? '')) {
+      next.node_api_url_template = api || null;
+    }
   }
 
   const hasValue =
@@ -359,7 +371,8 @@ export function buildBuiltinOverride(
     next.category !== undefined ||
     next.node_url_template !== undefined ||
     next.packet_url_template !== undefined ||
-    next.channel_url_template !== undefined;
+    next.channel_url_template !== undefined ||
+    next.node_api_url_template !== undefined;
   return hasValue ? next : null;
 }
 
@@ -381,6 +394,10 @@ export function formToCustomEntry(id: string, form: HandyEntryForm): HandyInfoCu
     channel_url_template:
       applyKind === 'analyzer' && form.channel_url_template.trim()
         ? form.channel_url_template.trim()
+        : null,
+    node_api_url_template:
+      applyKind === 'analyzer' && form.node_api_url_template.trim()
+        ? form.node_api_url_template.trim()
         : null,
   };
 }

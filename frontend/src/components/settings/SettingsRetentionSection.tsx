@@ -15,6 +15,7 @@ type RetentionField =
   | 'telemetry_max_rows_per_node'
   | 'link_signal_retention_days'
   | 'link_edge_retention_days'
+  | 'packet_reception_retention_days'
   | 'noise_floor_retention_days'
   | 'battery_retention_days'
   | 'airtime_retention_days'
@@ -53,6 +54,11 @@ const ROWS: RowDef[] = [
   },
   { id: 'link_signal', statKeys: ['link_signal'], fields: [DAYS('link_signal_retention_days')] },
   { id: 'link_edges', statKeys: ['link_edges'], fields: [DAYS('link_edge_retention_days')] },
+  {
+    id: 'packet_receptions',
+    statKeys: ['packet_receptions'],
+    fields: [DAYS('packet_reception_retention_days')],
+  },
   { id: 'noise_floor', statKeys: ['noise_floor'], fields: [DAYS('noise_floor_retention_days')] },
   { id: 'battery', statKeys: ['battery'], fields: [DAYS('battery_retention_days')] },
   { id: 'airtime', statKeys: ['airtime'], fields: [DAYS('airtime_retention_days')] },
@@ -82,6 +88,7 @@ export const RETENTION_DEFAULT_VALUES: Record<RetentionField, number> = {
   telemetry_max_rows_per_node: 1000,
   link_signal_retention_days: 30,
   link_edge_retention_days: 365,
+  packet_reception_retention_days: 2,
   noise_floor_retention_days: 0,
   battery_retention_days: 0,
   airtime_retention_days: 0,
@@ -97,6 +104,7 @@ export const RETENTION_ANALYZER_VALUES: AppSettingsUpdate = {
   telemetry_max_rows_per_node: 0,
   link_signal_retention_days: 0,
   link_edge_retention_days: 0,
+  packet_reception_retention_days: 0,
   noise_floor_retention_days: 0,
   battery_retention_days: 0,
   airtime_retention_days: 0,

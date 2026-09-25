@@ -20,6 +20,7 @@ Connect your radio over Serial, TCP, or BLE, and then you can:
 * Access your radio remotely over your network or VPN
 * Search for hashtag channel names for channels you don't have keys for yet
 * Parse entities in chat messages (optional, off by default): resolve public keys to a contact or external analyzer, turn GPS coordinates into a map card, and show clickable links with optional messenger-style previews (Settings > Local Configuration > "Chat parsing")
+* Resolve the name of a contact you only know by public key: the contact info pane's "Resolve name from analyzer" button (and "Resolve unnamed contacts" under Settings > Radio-App Management) checks the synced external map first, then any analyzer that has name resolution switched on (Settings > Handy Info > Configure; off by default, each lookup sends that one public key to the site)
 * Play an optional notification sound on new @mentions and DMs, with a choice of bundled presets or your own uploaded sound, a volume control, and per-conversation muting (Settings > Local Configuration > "Mention & DM sound")
 * Get a browser notification the first time the app hears a node it has never seen before, filterable by node type (client, repeater, room, sensor) and batched into a summary on a busy mesh (Settings > Local Configuration > "New node notifications", off by default)
 * Choose how dates and times are shown: follow the UI language, or force 12-hour mm/dd/yyyy or 24-hour dd/mm/yyyy (Settings > Local Configuration > "Date & Time Format")
@@ -77,6 +78,12 @@ Shipped toward this so far:
   counts, a searchable and pageable contacts table, and HIGH/MEDIUM alerts that
   count flood adverts only), a Requests panel (REQUEST/RESPONSE traffic heard by
   this node), and a Prefix Collisions tab (contacts sharing a 1/2/3-byte key
+  prefix), and a Relay reception tab: for every flooded packet heard more than once,
+  which relay delivered each copy and the SNR/RSSI measured for it, with a per-relay
+  summary (kept 48 h by default, Settings > Database > Data retention)
+- History kept for later analysis without a UI yet: each position a contact has
+  advertised (`/api/contacts/{key}/location-history`) and snapshots of the repeater
+  dashboard panes whenever they change (`/api/contacts/{key}/repeater/config-history`)
   prefix, a first-byte usage matrix, and a local/regional distance badge).
 - A "Mesh Trends" view that consolidates the analytical stats into two tabs: a
   Historical tab (server-backed network/message/packet/MQTT/region-scope/noise-floor
