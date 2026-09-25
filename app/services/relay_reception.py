@@ -14,7 +14,7 @@ them, so the last chunk is not the delivering relay (plan 21 Q3).
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 
 from app.decoder import PacketInfo, RouteType
@@ -115,13 +115,22 @@ class RelaySummary:
 
 
 def aggregate_relay_receptions(
-    rows: Sequence[PacketReceptionRow], *, limit_packets: int = 50
+    rows: Sequence[PacketReceptionRow],
+    *,
+    limit_packets: int = 50,
+    relay_identity: Callable[[str | None], str | None] | None = None,
 ) -> tuple[list[PacketGroup], list[RelaySummary]]:
     """Group reception rows (newest first) into packets x relays and per-relay totals.
 
     Packets are returned newest first, capped at ``limit_packets``; the relay
     summary covers every row in ``rows`` (not only the capped packets).
+
+    ``relay_identity`` maps a last-hop hash to the key the summary groups by.
+    The same relay shows up as ``6942`` and ``694203`` when packets use
+    different path hash widths; mapping both to the relay's full key keeps it
+    one summary row, labelled with the longest hash seen. Default: the hash.
     """
+    identity = relay_identity or (lambda hop: hop)
     groups: dict[bytes, PacketGroup] = {}
     summaries: dict[str | None, RelaySummary] = {}
     packets_per_relay: dict[str | None, set[bytes]] = {}
@@ -150,10 +159,13 @@ def aggregate_relay_receptions(
             group.relays[row.last_hop_hex] = cell
         cell.add(row)
 
-        summary = summaries.get(row.last_hop_hex)
+        key = identity(row.last_hop_hex)
+        summary = summaries.get(key)
         if summary is None:
             summary = RelaySummary(last_hop_hex=row.last_hop_hex)
-            summaries[row.last_hop_hex] = summary
+            summaries[key] = summary
+        elif row.last_hop_hex and len(row.last_hop_hex) > len(summary.last_hop_hex or ""):
+            summary.last_hop_hex = row.last_hop_hex
         summary.receptions += 1
         if summary.receptions == 1:
             summary.last_snr = row.snr
@@ -168,10 +180,10 @@ def aggregate_relay_receptions(
                 row.rssi if summary.best_rssi is None else max(summary.best_rssi, row.rssi)
             )
         summary.last_seen = max(summary.last_seen, row.observed_at)
-        packets_per_relay.setdefault(row.last_hop_hex, set()).add(row.payload_hash)
+        packets_per_relay.setdefault(key, set()).add(row.payload_hash)
 
-    for hop, summary in summaries.items():
-        summary.packets = len(packets_per_relay.get(hop, ()))
+    for key, summary in summaries.items():
+        summary.packets = len(packets_per_relay.get(key, ()))
 
     ordered_groups = sorted(groups.values(), key=lambda g: g.last_seen, reverse=True)[
         :limit_packets

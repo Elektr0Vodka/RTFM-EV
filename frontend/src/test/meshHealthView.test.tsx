@@ -532,4 +532,25 @@ describe('MeshHealthView Prefix Collisions tab', () => {
     const summary = screen.getByTestId('relay-reception-summary');
     expect(within(summary).getByText('+6.0 dB')).toBeInTheDocument();
   });
+
+  it('puts a wider hop hash of a resolved relay in that relay column', async () => {
+    // Same relay, packet sent with a 2-byte path hash: the cell's hash differs
+    // from the summary's, the resolved key does not.
+    const wide = structuredClone(RELAY_RECEPTION);
+    wide.packets[0].relays[0].last_hop_hex = 'bbbb';
+    const base = global.fetch;
+    global.fetch = vi.fn((url: string) =>
+      String(url).includes('relay-reception')
+        ? Promise.resolve({ ok: true, json: () => Promise.resolve(wide) } as Response)
+        : base(url)
+    ) as unknown as typeof fetch;
+
+    render(<MeshHealthView config={null} />);
+    await waitFor(() => expect(screen.getByText('Node A')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Relay reception' }));
+
+    const pivot = await screen.findByTestId('relay-reception-pivot');
+    expect(within(pivot).getByText('+6.5 dB ×2')).toBeInTheDocument();
+    expect(within(pivot).queryByText(/more/)).not.toBeInTheDocument();
+  });
 });
