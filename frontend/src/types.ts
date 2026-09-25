@@ -364,6 +364,29 @@ export interface ContactNameHistory {
   last_seen: number;
 }
 
+/** A position a contact advertised (plan 14; rounded to 4 decimals, newest first). */
+export interface ContactLocationHistoryEntry {
+  lat: number;
+  lon: number;
+  first_seen: number;
+  last_seen: number;
+}
+
+/** Repeater dashboard pane stored in `device_config_history` (plan 14). */
+export type DeviceConfigKind =
+  | 'node_info'
+  | 'radio_settings'
+  | 'advert_intervals'
+  | 'owner_info'
+  | 'regions';
+
+/** One stored repeater pane snapshot (JSON of the pane response). */
+export interface DeviceConfigHistoryEntry {
+  kind: DeviceConfigKind;
+  timestamp: number;
+  data: Record<string, unknown>;
+}
+
 export interface ContactActiveRoom {
   channel_key: string;
   channel_name: string;

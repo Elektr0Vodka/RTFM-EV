@@ -11,6 +11,25 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-25 (Device history view, plan 14 second slice, feat/device-history-view)
+
+### Repeater dashboard and contact info: read-only history (frontend)
+- The repeater dashboard gains a "History" block (full width, below the
+  telemetry history): the stored pane snapshots from
+  `GET /api/contacts/{key}/repeater/config-history`, grouped by pane (Node
+  Info, Radio Settings, Advert Intervals, Owner Info, Regions), newest
+  first, each showing the fields that changed against the previous snapshot
+  (old value struck through, new value) or, for the oldest, all stored
+  fields. Five per pane, then "Show all". It re-reads after a pane fetch
+  completes and has its own refresh; both are database reads, nothing is
+  sent to the repeater.
+- The contact info page (Network region) gains "Positions": the positions
+  the contact advertised, from `GET /api/contacts/{key}/location-history`,
+  newest first, in the coordinate format set under Settings, with first and
+  last seen. Hidden until at least one position is stored.
+- No new endpoints. New i18n keys (EN/NL/DE) `repeater_config_history_*`,
+  `contact_positions_heading`, `contact_positions_note`.
+
 ## Update 2026-09-25 (Host repeater policy rules: regex, prob, throttle, saved airtime; feat/host-repeater-filter-rules)
 
 ### Host repeater: rule engine parity with the jhuebert/MeshCore repeater filter (backend)

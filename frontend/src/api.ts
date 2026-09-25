@@ -1,5 +1,7 @@
 import type {
   AdvertLinkEdge,
+  ContactLocationHistoryEntry,
+  DeviceConfigHistoryEntry,
   LinkPacketRow,
   LinkSummary,
   LinkTimeseries,
@@ -1221,6 +1223,11 @@ export const api = {
     }),
   repeaterTelemetryHistory: (publicKey: string) =>
     fetchJson<TelemetryHistoryEntry[]>(`/contacts/${publicKey}/repeater/telemetry-history`),
+  // Stored pane snapshots (plan 14), read-only: no radio access.
+  repeaterConfigHistory: (publicKey: string) =>
+    fetchJson<DeviceConfigHistoryEntry[]>(`/contacts/${publicKey}/repeater/config-history`),
+  contactLocationHistory: (publicKey: string) =>
+    fetchJson<ContactLocationHistoryEntry[]>(`/contacts/${publicKey}/location-history`),
   // Contact telemetry (universal, any contact type)
   requestContactTelemetry: (publicKey: string) =>
     fetchJson<ContactTelemetryResponse>(`/contacts/${publicKey}/telemetry`, {
