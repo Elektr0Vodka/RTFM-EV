@@ -588,6 +588,8 @@ describe('SettingsModal', () => {
             node_url_template: 'https://cornmeister.nl/#node?id={pubkey}',
             packet_url_template: null,
             channel_url_template: 'https://cornmeister.nl/#channels?channel={name}',
+            node_api_url_template: 'https://cornmeister.nl/api/nodes/{pubkey}/detail',
+            resolution_enabled: false,
           },
         ],
       });

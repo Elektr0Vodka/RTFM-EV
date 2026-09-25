@@ -20,6 +20,44 @@ import type {
   TelemetrySchedule,
 } from '../../types';
 
+/**
+ * Bulk "Resolve unnamed contacts" (plan 16 case (a)): asks the server to find
+ * names for contacts known only by a full public key, newest first.
+ */
+function ResolveNamesBlock() {
+  const t = useT();
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    setBusy(true);
+    try {
+      const r = await api.resolveContactNames();
+      const summary = t('settings_resolve_names_result', {
+        checked: r.checked,
+        resolved: r.resolved,
+        not_found: r.not_found,
+      });
+      if (r.no_sources) {
+        toast.info(`${summary} ${t('settings_resolve_names_no_sources')}`);
+      } else {
+        toast.success(summary);
+      }
+    } catch {
+      toast.error(t('settings_resolve_names_failed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="space-y-3">
+      <h4 className="text-sm font-semibold">{t('settings_resolve_names_label')}</h4>
+      <p className="text-[0.8125rem] text-muted-foreground">{t('settings_resolve_names_desc')}</p>
+      <Button variant="outline" className="w-full" disabled={busy} onClick={() => void run()}>
+        {busy ? t('settings_resolve_names_busy') : t('settings_resolve_names_button')}
+      </Button>
+    </div>
+  );
+}
+
 export function SettingsRadioAppSection({
   appSettings,
   onSaveAppSettings,
@@ -617,6 +655,8 @@ export function SettingsRadioAppSection({
           </Button>
           <PartialNodeSyncModal open={partialSyncOpen} onClose={() => setPartialSyncOpen(false)} />
         </div>
+
+        <ResolveNamesBlock />
       </div>
     </div>
   );

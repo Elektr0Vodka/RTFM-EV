@@ -1376,6 +1376,22 @@ class AnalyzerSite(BaseModel):
             "{channel} placeholder (channel key)."
         ),
     )
+    node_api_url_template: str | None = Field(
+        default=None,
+        description=(
+            "Optional JSON node endpoint with a {pubkey} placeholder, e.g. "
+            "'https://cornmeister.nl/api/nodes/{pubkey}/detail'. Read server-side by "
+            "analyzer name resolution (plan 16 case (a)) when resolution_enabled is set."
+        ),
+    )
+    resolution_enabled: bool = Field(
+        default=False,
+        description=(
+            "Opt-in: allow RTFM-EV to ask this site's node API for the name of a "
+            "contact whose full public key it knows but has no name for. Off by default; "
+            "each request sends that one public key to the site."
+        ),
+    )
 
 
 class HandyInfoOverride(BaseModel):
@@ -1398,6 +1414,9 @@ class HandyInfoOverride(BaseModel):
     )
     channel_url_template: str | None = Field(
         default=None, description="Override analyzer channel URL template ({name}/{channel})"
+    )
+    node_api_url_template: str | None = Field(
+        default=None, description="Override analyzer node API URL template ({pubkey})"
     )
 
 
@@ -1423,6 +1442,9 @@ class HandyInfoCustomEntry(BaseModel):
     )
     channel_url_template: str | None = Field(
         default=None, description="Optional analyzer channel URL template ({name}/{channel})"
+    )
+    node_api_url_template: str | None = Field(
+        default=None, description="Optional analyzer node API URL template ({pubkey})"
     )
 
 

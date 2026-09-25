@@ -11,6 +11,32 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-25 (Analyzer name resolution for unnamed contacts, plan 16 case (a), feat/analyzer-name-resolution)
+
+### Contacts: resolve a name for a full public key without one (backend, frontend)
+- A contact RTFM-EV knows only by its full public key (an unknown sender, a
+  key pasted into a DM) can now get its name from an analyzer: the contact
+  info pane gains "Resolve name from analyzer", Settings > Radio-App
+  Management gains "Resolve unnamed contacts" (newest first, up to 100).
+  Order: the locally synced external map directory (no network), then the
+  new `analyzer_resolved_names` cache (migration `_117`; a found name is
+  reused for 7 days, a miss for 1 day), then the analyzer sites that opted
+  in. A found name is applied only when the contact has none, goes through
+  the normal name-history/reconcile path and is broadcast live. Endpoints
+  `POST /api/contacts/{key}/resolve-name?force=` and
+  `POST /api/contacts/resolve-names`.
+- Per-site opt-in: `AnalyzerSite` gains `node_api_url_template` (a JSON
+  node endpoint with `{pubkey}`, e.g. cornmeister's
+  `/api/nodes/{pubkey}/detail`, now part of the Cornmeister preset) and
+  `resolution_enabled` (default off; cannot be on without a template). The
+  Handy Info Configure tab shows a "Name resolution" checkbox on an applied
+  analyzer that has such a template; enabling it asks for confirmation and
+  states what is sent (the one public key per lookup). Handy Info entries
+  (built-in overrides and custom analyzers) carry the API template too.
+  Case (b) (asking an analyzer about short hop hashes) is not built.
+  New i18n keys (EN/NL/DE) for the button, toasts, settings field and
+  confirmation.
+
 ## Update 2026-09-25 (Backend test flake: tile cache concurrent fetch, fix/tile-cache-test-flake)
 
 ### Tests: deterministic `test_concurrent_requests_share_one_fetch` (backend)

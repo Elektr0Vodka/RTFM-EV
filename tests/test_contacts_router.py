@@ -1167,3 +1167,76 @@ class TestContactAnnotations:
     async def test_unknown_contact_404(self, test_db, client):
         resp = await client.post(f"/api/contacts/{KEY_A}/annotations", json={"notes": "x"})
         assert resp.status_code == 404
+
+
+class TestResolveContactName:
+    """Plan 16 case (a): analyzer name resolution endpoints."""
+
+    async def _seed_directory(self, key: str, name: str) -> None:
+        from app.models import ExternalMapNode
+        from app.repository.external_map import ExternalMapRepository
+
+        await ExternalMapRepository.replace_all(
+            [ExternalMapNode(pubkey=key, name=name, lat=52.0, lon=4.0)], "src", 1
+        )
+
+    @pytest.mark.asyncio
+    async def test_applies_name_from_synced_directory(self, test_db, client):
+        await _insert_contact(KEY_A, name=None)
+        await self._seed_directory(KEY_A, "Dir Node")
+
+        resp = await client.post(f"/api/contacts/{KEY_A}/resolve-name")
+
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "status": "resolved",
+            "name": "Dir Node",
+            "source": "external_map",
+            "cached": False,
+        }
+        get = await client.get("/api/contacts")
+        row = next(c for c in get.json() if c["public_key"] == KEY_A)
+        assert row["name"] == "Dir Node"
+
+    @pytest.mark.asyncio
+    async def test_named_contact_is_left_alone(self, test_db, client):
+        await _insert_contact(KEY_A, name="Alice")
+        await self._seed_directory(KEY_A, "Dir Node")
+
+        resp = await client.post(f"/api/contacts/{KEY_A}/resolve-name")
+
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "already_named"
+        get = await client.get("/api/contacts")
+        assert next(c for c in get.json() if c["public_key"] == KEY_A)["name"] == "Alice"
+
+    @pytest.mark.asyncio
+    async def test_no_sources_when_nothing_can_be_asked(self, test_db, client):
+        await _insert_contact(KEY_A, name=None)
+
+        resp = await client.post(f"/api/contacts/{KEY_A}/resolve-name")
+
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "no_sources"
+
+    @pytest.mark.asyncio
+    async def test_unknown_contact_is_404(self, test_db, client):
+        resp = await client.post(f"/api/contacts/{KEY_C}/resolve-name")
+        assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_bulk_resolves_unnamed_contacts(self, test_db, client):
+        await _insert_contact(KEY_A, name=None)
+        await _insert_contact(KEY_B, name=None)
+        await _insert_contact(KEY_C, name="Named")
+        await self._seed_directory(KEY_A, "Dir Node")
+
+        resp = await client.post("/api/contacts/resolve-names")
+
+        assert resp.status_code == 200
+        assert resp.json() == {"checked": 2, "resolved": 1, "not_found": 0, "no_sources": True}
+        get = await client.get("/api/contacts")
+        names = {c["public_key"]: c["name"] for c in get.json()}
+        assert names[KEY_A] == "Dir Node"
+        assert not names[KEY_B]
+        assert names[KEY_C] == "Named"

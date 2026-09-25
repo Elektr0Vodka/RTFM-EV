@@ -53,6 +53,7 @@ from app.repository import (
     ContactRepository,
     MessageRepository,
 )
+from app.services.analyzer_resolution import resolve_pubkey_name
 from app.services.contact_reconciliation import (
     promote_prefix_contacts_for_contact,
     record_contact_name_and_reconcile,
@@ -245,6 +246,88 @@ async def _build_name_only_contact_analytics(name: str) -> ContactAnalytics:
         most_active_rooms=most_active_rooms,
         hourly_activity=hourly_activity,
         weekly_activity=weekly_activity,
+    )
+
+
+class ResolveNameResponse(BaseModel):
+    """Outcome of an analyzer name resolution for one contact (plan 16 case (a))."""
+
+    status: str = Field(
+        description="'resolved' | 'already_named' | 'not_found' | 'no_sources'",
+    )
+    name: str | None = None
+    source: str | None = Field(
+        default=None, description="'external_map' or the analyzer site that answered"
+    )
+    cached: bool = False
+
+
+class ResolveNamesBulkResponse(BaseModel):
+    checked: int
+    resolved: int
+    not_found: int
+    no_sources: bool = Field(
+        description=(
+            "True when at least one contact had nowhere to be asked (not in the synced "
+            "directory and no analyzer site has name resolution enabled)"
+        )
+    )
+
+
+async def _resolve_and_apply_name(contact: Contact, *, force: bool) -> ResolveNameResponse:
+    """Resolve a name for an unnamed full-key contact and apply it if found."""
+    if contact.name and contact.name.strip():
+        return ResolveNameResponse(status="already_named", name=contact.name)
+    if len(contact.public_key) != 64:
+        return ResolveNameResponse(status="no_sources")
+    result = await resolve_pubkey_name(contact.public_key, force=force)
+    if result is None:
+        return ResolveNameResponse(status="no_sources")
+    if not result.name:
+        return ResolveNameResponse(status="not_found", source=result.source, cached=result.cached)
+    if await ContactRepository.set_name_if_empty(contact.public_key, result.name):
+        await record_contact_name_and_reconcile(
+            public_key=contact.public_key,
+            contact_name=result.name,
+            timestamp=int(time.time()),
+        )
+        updated = await ContactRepository.get_by_key(contact.public_key)
+        if updated is not None:
+            await _broadcast_contact_update(updated)
+        logger.info(
+            "Resolved name %r for %s from %s", result.name, contact.public_key[:12], result.source
+        )
+    return ResolveNameResponse(
+        status="resolved", name=result.name, source=result.source, cached=result.cached
+    )
+
+
+@router.post("/resolve-names", response_model=ResolveNamesBulkResponse)
+async def resolve_contact_names(
+    limit: int = Query(default=100, ge=1, le=500),
+) -> ResolveNamesBulkResponse:
+    """Resolve names for unnamed full-key contacts (plan 16 case (a)), newest first.
+
+    Sources per contact: the synced analyzer directory, then the cache, then
+    the analyzer sites that opted in to name resolution. Names are applied only
+    to contacts that have none.
+    """
+    checked = resolved = not_found = 0
+    no_sources = False
+    for key in await ContactRepository.unnamed_full_keys(limit):
+        contact = await ContactRepository.get_by_key(key)
+        if contact is None:
+            continue
+        checked += 1
+        outcome = await _resolve_and_apply_name(contact, force=False)
+        if outcome.status == "resolved":
+            resolved += 1
+        elif outcome.status == "not_found":
+            not_found += 1
+        elif outcome.status == "no_sources":
+            no_sources = True
+    return ResolveNamesBulkResponse(
+        checked=checked, resolved=resolved, not_found=not_found, no_sources=no_sources
     )
 
 
@@ -798,6 +881,19 @@ async def set_contact_routing_override(
         await _broadcast_contact_update(updated_contact)
 
     return {"status": "ok", "public_key": contact.public_key}
+
+
+@router.post("/{public_key}/resolve-name", response_model=ResolveNameResponse)
+async def resolve_contact_name(
+    public_key: str, force: bool = Query(default=False)
+) -> ResolveNameResponse:
+    """Resolve and apply a name for one unnamed full-key contact (plan 16 case (a)).
+
+    ``force`` re-asks the opted-in analyzer sites even when a fresh cached
+    answer exists.
+    """
+    contact = await _resolve_contact_or_404(public_key)
+    return await _resolve_and_apply_name(contact, force=force)
 
 
 @router.post("/{public_key}/annotations")

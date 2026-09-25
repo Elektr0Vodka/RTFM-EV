@@ -564,6 +564,11 @@ export function ContactInfoBody({
         </div>
       )}
 
+      {show('identity') &&
+        !isPrefixOnlyResolvedContact &&
+        contact.public_key.length === 64 &&
+        !contact.name && <ResolveNameButton publicKey={contact.public_key} t={t} />}
+
       {show('network') &&
         analytics &&
         (() => {
@@ -1161,6 +1166,49 @@ function ContactGroupsSection({
           {t('contact_group_create_and_add')}
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * "Resolve name from analyzer" (plan 16 case (a)): for a contact known only by
+ * its full public key. The server checks the synced external map first, then
+ * the analyzer sites that opted in to name resolution, and applies the name.
+ */
+function ResolveNameButton({ publicKey, t }: { publicKey: string; t: TFn }) {
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    setBusy(true);
+    try {
+      const result = await api.resolveContactName(publicKey);
+      const source = result.source ?? '';
+      if (result.status === 'resolved') {
+        toast.success(t('contact_resolve_name_resolved', { name: result.name ?? '', source }));
+      } else if (result.status === 'not_found') {
+        toast.info(t('contact_resolve_name_not_found', { source }));
+      } else if (result.status === 'no_sources') {
+        toast.info(t('contact_resolve_name_no_sources'));
+      } else {
+        toast.info(t('contact_resolve_name_already_named'));
+      }
+    } catch {
+      toast.error(t('contact_resolve_name_failed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="px-5 py-3 border-b border-border">
+      <button
+        type="button"
+        className="text-sm flex items-center gap-2 hover:text-primary transition-colors disabled:opacity-50"
+        disabled={busy}
+        onClick={() => void run()}
+        title={t('contact_resolve_name_hint')}
+      >
+        <Search className="h-4.5 w-4.5 text-muted-foreground" aria-hidden="true" />
+        <span>{busy ? t('contact_resolve_name_busy') : t('contact_resolve_name_button')}</span>
+      </button>
     </div>
   );
 }

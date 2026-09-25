@@ -31,6 +31,7 @@ const baseForm: HandyEntryForm = {
   node_url_template: '',
   packet_url_template: '',
   channel_url_template: '',
+  node_api_url_template: '',
 };
 
 describe('resolveHandyEntries', () => {
@@ -195,6 +196,7 @@ describe('formToCustomEntry', () => {
       node_url_template: null,
       packet_url_template: null,
       channel_url_template: null,
+      node_api_url_template: null,
     });
   });
 

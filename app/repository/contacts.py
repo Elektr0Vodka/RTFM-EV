@@ -509,6 +509,42 @@ class ContactRepository:
                 pass
 
     @staticmethod
+    async def set_name_if_empty(public_key: str, name: str) -> bool:
+        """Set ``name`` only when the contact currently has none.
+
+        Used by analyzer name resolution (plan 16 case (a)): a name a real
+        advert delivered is never overwritten. Returns True if a row changed.
+        """
+        async with db.tx() as conn:
+            async with conn.execute(
+                """
+                UPDATE contacts
+                SET name = ?
+                WHERE public_key = ?
+                  AND (name IS NULL OR name = '')
+                """,
+                (name, public_key.lower()),
+            ) as cursor:
+                rowcount = cursor.rowcount
+        return rowcount > 0
+
+    @staticmethod
+    async def unnamed_full_keys(limit: int = 100) -> list[str]:
+        """Full (64-hex) public keys of contacts with no name, most recently seen first."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                """
+                SELECT public_key FROM contacts
+                WHERE length(public_key) = 64 AND (name IS NULL OR name = '')
+                ORDER BY COALESCE(last_seen, 0) DESC, public_key
+                LIMIT ?
+                """,
+                (limit,),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [row["public_key"] for row in rows]
+
+    @staticmethod
     async def set_owner_info_if_empty(public_key: str, owner_info: str) -> bool:
         """Set ``owner_info`` only when it is currently NULL or empty.
 

@@ -274,6 +274,23 @@ export interface ContactTelemetryPermissions {
   environment: boolean;
 }
 
+/** POST /contacts/{key}/resolve-name (plan 16 case (a)). */
+export interface ResolveNameResponse {
+  status: 'resolved' | 'already_named' | 'not_found' | 'no_sources';
+  name?: string | null;
+  /** 'external_map' or the analyzer site that answered. */
+  source?: string | null;
+  cached?: boolean;
+}
+
+/** POST /contacts/resolve-names. */
+export interface ResolveNamesBulkResponse {
+  checked: number;
+  resolved: number;
+  not_found: number;
+  no_sources: boolean;
+}
+
 export interface ContactAnnotationsUpdate {
   notes?: string | null;
   owner_info?: string | null;
@@ -757,6 +774,10 @@ export interface AnalyzerSite {
    * {channel} placeholder (channel key). Every built-in analyzer uses {name}.
    */
   channel_url_template?: string | null;
+  /** Optional JSON node endpoint with a {pubkey} placeholder, read server-side for name resolution. */
+  node_api_url_template?: string | null;
+  /** Opt-in: RTFM-EV may ask this site's node API for the name of an unnamed full-key contact. */
+  resolution_enabled?: boolean;
 }
 
 export interface MentionSoundMeta {
@@ -782,6 +803,7 @@ export interface HandyInfoOverride {
   node_url_template?: string | null;
   packet_url_template?: string | null;
   channel_url_template?: string | null;
+  node_api_url_template?: string | null;
 }
 
 /** A user-created Handy Info entry (link or apply-capable preset). */
@@ -795,6 +817,7 @@ export interface HandyInfoCustomEntry {
   node_url_template?: string | null;
   packet_url_template?: string | null;
   channel_url_template?: string | null;
+  node_api_url_template?: string | null;
 }
 
 /** Persisted overlay for the Handy Info section. */

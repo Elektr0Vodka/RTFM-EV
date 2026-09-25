@@ -45,6 +45,7 @@ const EMPTY_FORM: HandyEntryForm = {
   node_url_template: '',
   packet_url_template: '',
   channel_url_template: '',
+  node_api_url_template: '',
 };
 
 function genId(): string {
@@ -106,11 +107,36 @@ export function SettingsHandyInfoSection({
         node_url_template: template,
         packet_url_template: entry.apply?.packet_url_template ?? null,
         channel_url_template: entry.apply?.channel_url_template ?? null,
+        node_api_url_template: entry.apply?.node_api_url_template ?? null,
+        resolution_enabled: false,
       },
     ];
     void onSaveAppSettings({ analyzer_sites: next })
       .then(() => toast.success(t('settings_handy_toast_analyzer_added', { name })))
       .catch(() => toast.error(t('settings_handy_toast_apply_failed')));
+  };
+
+  // Name resolution opt-in (plan 16 case (a)) lives on the applied analyzer
+  // site, matched by node template. Enabling asks for confirmation first and
+  // says what leaves the host: the one public key per lookup.
+  const configuredSite = (template: string | undefined) =>
+    template
+      ? (appSettings?.analyzer_sites ?? []).find((s) => s.node_url_template === template)
+      : undefined;
+
+  const setResolution = (entry: HandyEntry, enabled: boolean) => {
+    const template = entry.apply?.node_url_template;
+    const name = entryLabel(entry, t);
+    const site = configuredSite(template);
+    if (!site) return;
+    if (enabled && !window.confirm(t('settings_handy_resolution_confirm', { name }))) return;
+    const next = (appSettings?.analyzer_sites ?? []).map((s) =>
+      s.node_url_template === template ? { ...s, resolution_enabled: enabled } : s
+    );
+    persist(
+      { analyzer_sites: next },
+      enabled ? 'settings_handy_toast_resolution_on' : 'settings_handy_toast_resolution_off'
+    );
   };
 
   const applySync = (entry: HandyEntry) => {
@@ -164,6 +190,7 @@ export function SettingsHandyInfoSection({
       node_url_template: entry.apply?.node_url_template ?? '',
       packet_url_template: entry.apply?.packet_url_template ?? '',
       channel_url_template: entry.apply?.channel_url_template ?? '',
+      node_api_url_template: entry.apply?.node_api_url_template ?? '',
     });
     setDialogOpen(true);
   };
@@ -191,6 +218,10 @@ export function SettingsHandyInfoSection({
           (!channel.includes('{name}') && !channel.includes('{channel}')))
       ) {
         return t('settings_handy_err_channel_tpl');
+      }
+      const api = form.node_api_url_template.trim();
+      if (api && (!/^https?:\/\//.test(api) || !api.includes('{pubkey}'))) {
+        return t('settings_handy_err_api_tpl');
       }
     }
     return null;
@@ -256,6 +287,7 @@ export function SettingsHandyInfoSection({
     const name = entryLabel(entry, t);
     const template = entry.apply?.node_url_template ?? '';
     const configured = isAnalyzerConfigured(template);
+    const site = configuredSite(template);
     return (
       <li key={entry.id} className={rowClass}>
         <div className="min-w-0 flex-1 space-y-0.5">
@@ -269,6 +301,23 @@ export function SettingsHandyInfoSection({
             {name}
           </a>
           <div className="text-xs font-mono text-muted-foreground break-all">{template}</div>
+          {configured &&
+            (site?.node_api_url_template ? (
+              <label className="flex items-center gap-2 text-xs cursor-pointer pt-1">
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 rounded border-border"
+                  checked={site.resolution_enabled === true}
+                  onChange={(e) => setResolution(entry, e.target.checked)}
+                  aria-label={t('settings_handy_resolution_aria', { name })}
+                />
+                <span>{t('settings_handy_resolution_label')}</span>
+              </label>
+            ) : (
+              <div className="text-xs text-muted-foreground pt-1">
+                {t('settings_handy_resolution_no_api')}
+              </div>
+            ))}
         </div>
         <div className={actionsClass}>
           <Button
@@ -561,6 +610,17 @@ export function SettingsHandyInfoSection({
                     placeholder="https://.../{name}"
                     onChange={(e) =>
                       setForm((f) => ({ ...f, channel_url_template: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="handy-api">{t('settings_handy_field_api_tpl')}</Label>
+                  <Input
+                    id="handy-api"
+                    value={form.node_api_url_template}
+                    placeholder="https://.../api/nodes/{pubkey}/detail"
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, node_api_url_template: e.target.value }))
                     }
                   />
                 </div>

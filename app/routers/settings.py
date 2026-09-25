@@ -117,6 +117,7 @@ def _is_valid_channel_template(template: str) -> bool:
 CHANNEL_TEMPLATE_ERROR = (
     "channel_url_template must be an http(s) URL containing '{name}' or '{channel}'"
 )
+NODE_API_TEMPLATE_ERROR = "node_api_url_template must be an http(s) URL containing '{pubkey}'"
 
 
 HANDY_GROUPS = ("analyzers", "sync", "links")
@@ -145,6 +146,9 @@ def _clean_handy_override(raw: HandyInfoOverride) -> HandyInfoOverride:
     channel_tpl = raw.channel_url_template.strip() if raw.channel_url_template else None
     if channel_tpl and not _is_valid_channel_template(channel_tpl):
         raise HTTPException(status_code=400, detail=CHANNEL_TEMPLATE_ERROR)
+    api_tpl = raw.node_api_url_template.strip() if raw.node_api_url_template else None
+    if api_tpl and not _is_valid_lookup_template(api_tpl, "{pubkey}"):
+        raise HTTPException(status_code=400, detail=NODE_API_TEMPLATE_ERROR)
     label = raw.label.strip() if raw.label is not None else None
     category = raw.category.strip() if raw.category else None
     if category and category not in HANDY_LINK_CATEGORIES:
@@ -157,6 +161,7 @@ def _clean_handy_override(raw: HandyInfoOverride) -> HandyInfoOverride:
         node_url_template=node_tpl,
         packet_url_template=packet_tpl,
         channel_url_template=channel_tpl,
+        node_api_url_template=api_tpl,
     )
 
 
@@ -178,6 +183,7 @@ def _clean_handy_custom(raw: HandyInfoCustomEntry) -> HandyInfoCustomEntry:
     node_tpl = raw.node_url_template.strip() if raw.node_url_template else None
     packet_tpl = raw.packet_url_template.strip() if raw.packet_url_template else None
     channel_tpl = raw.channel_url_template.strip() if raw.channel_url_template else None
+    api_tpl = raw.node_api_url_template.strip() if raw.node_api_url_template else None
     category = raw.category.strip() if raw.category else None
 
     if raw.group == "links":
@@ -188,6 +194,7 @@ def _clean_handy_custom(raw: HandyInfoCustomEntry) -> HandyInfoCustomEntry:
         node_tpl = None
         packet_tpl = None
         channel_tpl = None
+        api_tpl = None
     elif raw.group == "analyzers":
         if apply_kind != "analyzer":
             raise HTTPException(
@@ -205,6 +212,8 @@ def _clean_handy_custom(raw: HandyInfoCustomEntry) -> HandyInfoCustomEntry:
             )
         if channel_tpl and not _is_valid_channel_template(channel_tpl):
             raise HTTPException(status_code=400, detail=CHANNEL_TEMPLATE_ERROR)
+        if api_tpl and not _is_valid_lookup_template(api_tpl, "{pubkey}"):
+            raise HTTPException(status_code=400, detail=NODE_API_TEMPLATE_ERROR)
         category = None
     else:  # sync
         if apply_kind not in ("region_sync", "registry_sync"):
@@ -215,6 +224,7 @@ def _clean_handy_custom(raw: HandyInfoCustomEntry) -> HandyInfoCustomEntry:
         node_tpl = None
         packet_tpl = None
         channel_tpl = None
+        api_tpl = None
         category = None
 
     return HandyInfoCustomEntry(
@@ -227,6 +237,7 @@ def _clean_handy_custom(raw: HandyInfoCustomEntry) -> HandyInfoCustomEntry:
         node_url_template=node_tpl,
         packet_url_template=packet_tpl,
         channel_url_template=channel_tpl,
+        node_api_url_template=api_tpl,
     )
 
 
@@ -939,12 +950,19 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
             channel_tpl = site.channel_url_template.strip() if site.channel_url_template else None
             if channel_tpl and not _is_valid_channel_template(channel_tpl):
                 raise HTTPException(status_code=400, detail=CHANNEL_TEMPLATE_ERROR)
+            api_tpl = site.node_api_url_template.strip() if site.node_api_url_template else None
+            if api_tpl and not _is_valid_lookup_template(api_tpl, "{pubkey}"):
+                raise HTTPException(status_code=400, detail=NODE_API_TEMPLATE_ERROR)
             cleaned_sites.append(
                 AnalyzerSite(
                     name=name,
                     node_url_template=node_tpl,
                     packet_url_template=packet_tpl,
                     channel_url_template=channel_tpl,
+                    node_api_url_template=api_tpl,
+                    # Name resolution needs an endpoint to ask; never persist the
+                    # opt-in without one.
+                    resolution_enabled=bool(site.resolution_enabled) and api_tpl is not None,
                 )
             )
         kwargs["analyzer_sites"] = cleaned_sites
