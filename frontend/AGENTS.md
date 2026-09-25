@@ -135,6 +135,7 @@ frontend/src/
 │   ├── MeshTrendsView.tsx      # Tools view: Live / Historical tabs (consolidated stats)
 │   ├── PacketFeedStatsPanel.tsx # Live tab: session packet-stat breakdowns (reads rawPacketStore)
 │   ├── MeshTrendsHistoricalPanel.tsx # Historical tab: server-backed stats (GET /api/statistics)
+│   ├── MeshRelayReceptionPanel.tsx # Mesh Health "Relay reception" tab: packets x relays pivot + relay summary, live refresh (plan 21 S1)
 │   ├── AnalyzePacketView.tsx   # Tools view: standalone paste-a-hex packet inspector
 │   ├── MeshDiscoveryView.tsx   # Tools view: mesh discovery sweep (repeaters/sensors) + last-sweep results + repeater region discovery
 │   ├── MapView.tsx
