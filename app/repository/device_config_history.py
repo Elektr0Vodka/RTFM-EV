@@ -34,11 +34,15 @@ class DeviceConfigHistoryRepository:
         *,
         max_rows: int = DEFAULT_MAX_ROWS,
     ) -> bool:
-        """Store a snapshot unless it equals the latest one. Returns True when stored."""
+        """Store a snapshot unless it equals the latest one. Returns True when stored.
+
+        A ``None`` field means that command got no answer this time (partial CLI
+        timeout), not that the setting was cleared, so it keeps the value from
+        the latest snapshot of that kind.
+        """
         if kind not in KINDS:
             raise ValueError(f"Unknown device config kind: {kind}")
         key = public_key.lower()
-        blob = _canonical(data)
         async with db.tx() as conn:
             async with conn.execute(
                 "SELECT data FROM device_config_history WHERE public_key = ? AND kind = ? "
@@ -46,6 +50,13 @@ class DeviceConfigHistoryRepository:
                 (key, kind),
             ) as cursor:
                 latest = await cursor.fetchone()
+            if latest is not None:
+                previous = json.loads(latest["data"])
+                data = {
+                    field: previous.get(field) if value is None else value
+                    for field, value in data.items()
+                }
+            blob = _canonical(data)
             if latest is not None and latest["data"] == blob:
                 return False
             async with conn.execute(

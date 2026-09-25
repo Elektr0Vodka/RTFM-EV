@@ -83,6 +83,33 @@ class TestDeviceConfigHistoryRepository:
         assert history[0]["data"]["name"] == "R1-renamed"
 
     @pytest.mark.asyncio
+    async def test_missing_field_keeps_the_last_known_value(self, test_db):
+        # A None field means the repeater did not answer that one command
+        # (partial CLI timeout), not that the setting was cleared.
+        await _contact(KEY_A, contact_type=2)
+        snap = {"name": "R1", "lat": "52.1", "lon": "4.3"}
+        assert await DeviceConfigHistoryRepository.record(KEY_A, "node_info", 1000, snap)
+        assert not await DeviceConfigHistoryRepository.record(
+            KEY_A, "node_info", 2000, {**snap, "lat": None}
+        )
+        # A real change in another field is stored with the last known lat.
+        assert await DeviceConfigHistoryRepository.record(
+            KEY_A, "node_info", 3000, {**snap, "lat": None, "name": "R1-renamed"}
+        )
+        history = await DeviceConfigHistoryRepository.get_history(KEY_A, "node_info")
+        assert [h["timestamp"] for h in history] == [3000, 1000]
+        assert history[0]["data"] == {"name": "R1-renamed", "lat": "52.1", "lon": "4.3"}
+
+    @pytest.mark.asyncio
+    async def test_field_never_answered_stays_empty(self, test_db):
+        await _contact(KEY_A, contact_type=2)
+        await DeviceConfigHistoryRepository.record(
+            KEY_A, "radio_settings", 1000, {"tx_power": "20", "airtime_factor": None}
+        )
+        history = await DeviceConfigHistoryRepository.get_history(KEY_A, "radio_settings")
+        assert history[0]["data"] == {"tx_power": "20", "airtime_factor": None}
+
+    @pytest.mark.asyncio
     async def test_kinds_are_independent_and_filterable(self, test_db):
         await _contact(KEY_A, contact_type=2)
         await DeviceConfigHistoryRepository.record(KEY_A, "node_info", 1000, {"name": "R1"})
@@ -225,6 +252,36 @@ class TestPaneCapture:
 
         history = await DeviceConfigHistoryRepository.get_history(KEY_A, "node_info")
         assert [h["data"]["name"] for h in history] == ["R1"]
+
+    @pytest.mark.asyncio
+    async def test_partially_answered_fetch_is_not_a_change(self, test_db):
+        # Only `get lat` timed out: the pane shows lat empty, but the history
+        # must not record "lat cleared" now and "lat set" on the next full fetch.
+        from app.routers import repeaters as repeaters_router
+        from app.routers.repeaters import repeater_node_info
+
+        await _contact(KEY_A, name="Repeater", contact_type=2)
+        mc = _mock_mc()
+        batches = iter(
+            [
+                {"name": "R1", "lat": "52.1", "lon": "4.3", "clock_utc": "10:00"},
+                {"name": "R1", "lat": None, "lon": "4.3", "clock_utc": "10:05"},
+                {"name": "R1", "lat": "52.1", "lon": "4.3", "clock_utc": "10:10"},
+            ]
+        )
+        with (
+            patch("app.routers.repeaters.radio_manager.require_connected", return_value=mc),
+            patch.object(
+                repeaters_router,
+                "_batch_cli_fetch",
+                AsyncMock(side_effect=lambda *a, **k: next(batches)),
+            ),
+        ):
+            responses = [await repeater_node_info(KEY_A) for _ in range(3)]
+
+        assert responses[1].lat is None  # the pane still shows what came back
+        history = await DeviceConfigHistoryRepository.get_history(KEY_A, "node_info")
+        assert [h["data"] for h in history] == [{"name": "R1", "lat": "52.1", "lon": "4.3"}]
 
     @pytest.mark.asyncio
     async def test_radio_settings_and_advert_intervals_snapshots(self, test_db):
