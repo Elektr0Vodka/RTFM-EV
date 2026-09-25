@@ -97,6 +97,7 @@ import {
 } from '../map/linkAge';
 import { LinkAgeControl } from '../map/controls/LinkAgeControl';
 import { buildLinkPopup } from '../map/linkPopup';
+import { buildTriangulatorUrl } from '../utils/triangulatorLink';
 import {
   resolveHomeView,
   readLastView,
@@ -1320,6 +1321,20 @@ export function MapView({
           onOpenContactInfo(contact.public_key);
         });
         root.appendChild(details);
+      }
+      // Plan [13] triangulation: a link-out to the DMC triangulator with this
+      // node's path-hash prefix (the site does the estimating from public feeds).
+      const triangulateUrl = buildTriangulatorUrl(contact.public_key);
+      if (triangulateUrl) {
+        const link = document.createElement('a');
+        link.href = triangulateUrl;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.className = 'text-xs text-primary underline mt-1 block';
+        link.textContent = t('map_triangulate_link');
+        link.title = t('contact_triangulate_title');
+        link.addEventListener('click', (e) => e.stopPropagation());
+        root.appendChild(link);
       }
       return root;
     },

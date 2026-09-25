@@ -34,6 +34,7 @@ import {
 } from '../utils/pathUtils';
 import { isPublicChannelKey } from '../utils/publicChannel';
 import { buildNodeLookupUrl } from '../utils/analyzerLink';
+import { buildTriangulatorUrl } from '../utils/triangulatorLink';
 import { getMapFocusHash } from '../utils/urlHash';
 import { formatDateTime } from '../utils/dateTimeFormat';
 import { handleKeyboardActivate } from '../utils/a11y';
@@ -521,6 +522,26 @@ export function ContactInfoBody({
           </button>
         </div>
       )}
+
+      {show('identity') &&
+        analyzerLookupKey &&
+        (() => {
+          const url = buildTriangulatorUrl(analyzerLookupKey);
+          if (!url) return null;
+          return (
+            <div className="px-5 py-3 border-b border-border">
+              <button
+                type="button"
+                className="text-sm flex items-center gap-2 hover:text-primary transition-colors"
+                onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+                title={t('contact_triangulate_title')}
+              >
+                <ExternalLink className="h-4.5 w-4.5 text-muted-foreground" aria-hidden="true" />
+                <span>{t('contact_triangulate_label')}</span>
+              </button>
+            </div>
+          );
+        })()}
 
       {show('identity') && analyzerLookupKey && analyzerSites.length > 0 && (
         <div className="px-5 py-3 border-b border-border space-y-2">
