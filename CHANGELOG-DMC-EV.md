@@ -5,7 +5,7 @@ This changelog covers work done in the **RTFM-EV** fork
 `jkingsman/Remote-Terminal-for-MeshCore`.
 
 - Fork base commit: `33b3b8d` (upstream `main`), 2026-07-26
-- Commits since fork: 363 total (271 non-merge), as of `13b41bf2` (#208)
+- Commits since fork: 368 total (273 non-merge), as of `80e168d0` (#211)
 - Generated: 2026-09-10; updated 2026-09-25
 
 Entries are grouped by area and reference the non-merge commit that introduced
