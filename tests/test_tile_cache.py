@@ -266,13 +266,24 @@ class TestCacheLookup:
         with pytest.raises(TileUnavailable):
             await cache.get("osm", "3/1/2.png")
 
-    async def test_concurrent_requests_share_one_fetch(self, cache, upstream):
+    async def test_concurrent_requests_share_one_fetch(self, cache, upstream, monkeypatch):
         gate = asyncio.Event()
 
         async def slow(url, headers):
             upstream.calls.append((url, headers))
             await gate.wait()
             return upstream.default
+
+        # Run the disk hops inline instead of on the thread pool. ``get`` reads
+        # the cache dir via ``asyncio.to_thread`` before it registers the
+        # in-flight refresh; on a busy pool (xdist) a caller's miss result can
+        # be delivered only after another caller's refresh has completed and
+        # been stored, and that caller then fetches again. Inline, every task
+        # reaches the shared in-flight task within one loop iteration.
+        async def inline_to_thread(fn, /, *args, **kwargs):
+            return fn(*args, **kwargs)
+
+        monkeypatch.setattr(asyncio, "to_thread", inline_to_thread)
 
         cache._fetch = slow
         tasks = [asyncio.create_task(cache.get("osm", "3/1/2.png")) for _ in range(5)]
