@@ -41,6 +41,8 @@ Each config has a `scope` JSON blob controlling what events reach it:
 ```
 Community MQTT always enforces `{"messages": "none", "raw_packets": "all"}`.
 
+A third key, `data_placeholders` (`"all"` | `"none"`, missing = `"none"`), gates the GRP_DATA placeholder rows (`txt_type` 0x40, `TXT_TYPE_GROUP_DATA`: the "Image (not supported)" / "Data (not supported)" rows stored for meshcore-open channel datagrams). `_scope_matches_message` drops them unless the scope says `"all"`; the `messages` filter still applies on top. `_enforce_scope` in `routers/fanout.py` validates the key for webhook, Apprise, HA MQTT, private MQTT and SQS (the "Forward channel data placeholders" checkbox in `ScopeSelector`); bots, community MQTT and the map upload have a fixed scope and never receive them.
+
 Scope only gates `on_message` and `on_raw`. The `on_contact`, `on_telemetry`, and `on_health` hooks are dispatched to all modules unconditionally - modules that care about specific contacts or repeaters filter internally based on their own config.
 
 ## Event Flow

@@ -1585,6 +1585,8 @@
   "settings_fanout_no_items_match": "No {label} match “{search}”",
   "settings_fanout_scope_heading": "Message Scope",
   "settings_fanout_forward_raw_packets_label": "Forward raw packets",
+  "settings_fanout_forward_data_placeholders_label": "Forward channel data placeholders",
+  "settings_fanout_forward_data_placeholders_hint": "Also send the \"Image (not supported)\" / \"Data (not supported)\" rows RTFM-EV stores for meshcore-open channel data (GRP_DATA) packets. Off by default: they carry chunk metadata, not a message.",
   "settings_fanout_scope_mode_all": "All messages",
   "settings_fanout_scope_mode_none": "No messages",
   "settings_fanout_scope_mode_only": "Only listed channels/contacts",

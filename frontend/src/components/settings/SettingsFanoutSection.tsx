@@ -2312,6 +2312,7 @@ function ScopeSelector({
   };
 
   const rawEnabled = showRawPackets && scope.raw_packets === 'all';
+  const placeholdersEnabled = scope.data_placeholders === 'all';
 
   // Warn when the effective scope matches nothing
   const messagesEffectivelyNone =
@@ -2353,6 +2354,23 @@ function ScopeSelector({
           <span className="text-sm">{t('settings_fanout_forward_raw_packets_label')}</span>
         </label>
       )}
+
+      <label className="flex items-start gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={placeholdersEnabled}
+          onChange={(e) =>
+            onChange({ ...scope, data_placeholders: e.target.checked ? 'all' : 'none' })
+          }
+          className="mt-0.5 h-4 w-4 rounded border-border"
+        />
+        <span className="text-sm">
+          {t('settings_fanout_forward_data_placeholders_label')}
+          <span className="block text-xs text-muted-foreground">
+            {t('settings_fanout_forward_data_placeholders_hint')}
+          </span>
+        </span>
+      </label>
 
       <div className="space-y-1">
         {messageModes.map((m) => (

@@ -4,8 +4,10 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from fastapi import HTTPException
 
 from app.database import Database
+from app.decoder import TXT_TYPE_GROUP_DATA
 from app.fanout.base import FanoutModule
 from app.fanout.manager import (
     _DISPATCH_TIMEOUT_SECONDS,
@@ -13,6 +15,7 @@ from app.fanout.manager import (
     _scope_matches_message,
     _scope_matches_raw,
 )
+from app.routers.fanout import _enforce_scope
 
 # ---------------------------------------------------------------------------
 # Scope matching unit tests
@@ -1662,3 +1665,101 @@ class TestScopeMatchesMessageCombinations:
         }
         assert _scope_matches_message(scope, {"type": "CHAN", "conversation_key": "ch1"})
         assert _scope_matches_message(scope, {"type": "PRIV", "conversation_key": "pk1"})
+
+
+# ---------------------------------------------------------------------------
+# GRP_DATA placeholder rows (txt_type 0x40) and the data_placeholders scope key
+# ---------------------------------------------------------------------------
+
+
+def _placeholder_row() -> dict:
+    return {"type": "CHAN", "conversation_key": "ch1", "txt_type": TXT_TYPE_GROUP_DATA}
+
+
+class TestScopeDataPlaceholders:
+    def test_placeholder_suppressed_when_key_missing(self):
+        assert _scope_matches_message({"messages": "all"}, _placeholder_row()) is False
+
+    def test_placeholder_suppressed_when_none(self):
+        scope = {"messages": "all", "data_placeholders": "none"}
+        assert _scope_matches_message(scope, _placeholder_row()) is False
+
+    def test_placeholder_forwarded_when_all(self):
+        scope = {"messages": "all", "data_placeholders": "all"}
+        assert _scope_matches_message(scope, _placeholder_row()) is True
+
+    def test_opt_in_still_respects_message_scope(self):
+        assert (
+            _scope_matches_message(
+                {"messages": "none", "data_placeholders": "all"}, _placeholder_row()
+            )
+            is False
+        )
+        listed_elsewhere = {
+            "messages": {"channels": ["other"], "contacts": "none"},
+            "data_placeholders": "all",
+        }
+        assert _scope_matches_message(listed_elsewhere, _placeholder_row()) is False
+
+    def test_regular_channel_message_unaffected(self):
+        data = {"type": "CHAN", "conversation_key": "ch1", "txt_type": 0}
+        assert _scope_matches_message({"messages": "all"}, data) is True
+        assert (
+            _scope_matches_message({"messages": "all", "data_placeholders": "none"}, data) is True
+        )
+
+    def test_missing_txt_type_is_a_regular_message(self):
+        data = {"type": "CHAN", "conversation_key": "ch1"}
+        assert _scope_matches_message({"messages": "all"}, data) is True
+
+    @pytest.mark.asyncio
+    async def test_broadcast_message_skips_placeholder_for_default_scope(self):
+        manager = FanoutManager()
+        mod = StubModule()
+        manager._modules["m"] = (mod, {"messages": "all", "raw_packets": "none"})
+
+        await manager.broadcast_message(_placeholder_row())
+
+        assert mod.message_calls == []
+
+    @pytest.mark.asyncio
+    async def test_broadcast_message_delivers_placeholder_when_opted_in(self):
+        manager = FanoutManager()
+        mod = StubModule()
+        manager._modules["m"] = (
+            mod,
+            {"messages": "all", "raw_packets": "none", "data_placeholders": "all"},
+        )
+
+        await manager.broadcast_message(_placeholder_row())
+
+        assert len(mod.message_calls) == 1
+
+
+class TestEnforceScopeDataPlaceholders:
+    @pytest.mark.parametrize(
+        "config_type", ["webhook", "apprise", "mqtt_ha", "mqtt_private", "sqs"]
+    )
+    def test_defaults_to_none(self, config_type):
+        scope = _enforce_scope(config_type, {"messages": "all", "raw_packets": "none"})
+        assert scope["data_placeholders"] == "none"
+
+    @pytest.mark.parametrize(
+        "config_type", ["webhook", "apprise", "mqtt_ha", "mqtt_private", "sqs"]
+    )
+    def test_keeps_opt_in(self, config_type):
+        scope = _enforce_scope(
+            config_type,
+            {"messages": "all", "raw_packets": "none", "data_placeholders": "all"},
+        )
+        assert scope["data_placeholders"] == "all"
+
+    def test_rejects_invalid_value(self):
+        with pytest.raises(HTTPException) as exc_info:
+            _enforce_scope("webhook", {"messages": "all", "data_placeholders": "yes"})
+        assert exc_info.value.status_code == 400
+
+    @pytest.mark.parametrize("config_type", ["bot", "mqtt_community", "map_upload"])
+    def test_fixed_scope_types_never_forward_placeholders(self, config_type):
+        scope = _enforce_scope(config_type, {"messages": "all", "data_placeholders": "all"})
+        assert scope.get("data_placeholders", "none") == "none"
