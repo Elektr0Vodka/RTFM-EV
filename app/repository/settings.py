@@ -258,7 +258,7 @@ class AppSettingsRepository:
         map_home_lon = _parse_optional_float("map_home_lon")
         map_home_zoom = _parse_optional_float("map_home_zoom")
 
-        # Parse hidden_hop_widths JSON (migration _120); keep only valid widths.
+        # Parse hidden_hop_widths JSON (migration _121); keep only valid widths.
         hidden_hop_widths: list[int] = []
         try:
             raw_widths = row["hidden_hop_widths"]

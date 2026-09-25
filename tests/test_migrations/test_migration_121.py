@@ -1,4 +1,4 @@
-"""Tests for database migration 120: add hidden_hop_widths to app_settings."""
+"""Tests for database migration 121: add hidden_hop_widths to app_settings."""
 
 import aiosqlite
 import pytest
@@ -7,7 +7,7 @@ from app.migrations import get_version, run_migrations, set_version
 from tests.test_migrations.conftest import LATEST_SCHEMA_VERSION
 
 
-class TestMigration120:
+class TestMigration121:
     @pytest.mark.asyncio
     async def test_adds_hidden_hop_widths_column(self):
         conn = await aiosqlite.connect(":memory:")
@@ -18,11 +18,11 @@ class TestMigration120:
             )
             await conn.execute("INSERT INTO app_settings (id) VALUES (1)")
             await conn.commit()
-            await set_version(conn, 119)
+            await set_version(conn, 120)
 
             applied = await run_migrations(conn)
 
-            assert applied == LATEST_SCHEMA_VERSION - 119
+            assert applied == LATEST_SCHEMA_VERSION - 120
             assert await get_version(conn) == LATEST_SCHEMA_VERSION
             async with conn.execute(
                 "SELECT hidden_hop_widths FROM app_settings WHERE id = 1"
@@ -35,7 +35,7 @@ class TestMigration120:
 
     @pytest.mark.asyncio
     async def test_is_idempotent_and_skips_without_app_settings(self):
-        from app.migrations._120_add_hidden_hop_widths import migrate
+        from app.migrations._121_add_hidden_hop_widths import migrate
 
         conn = await aiosqlite.connect(":memory:")
         try:

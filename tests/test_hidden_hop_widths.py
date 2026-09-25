@@ -1,4 +1,4 @@
-"""'Hide by hop size' filter stored server-side (migration _120).
+"""'Hide by hop size' filter stored server-side (migration _121).
 
 Covers the settings round-trip, the shared width helper, and that hidden
 messages are excluded from unread counts, mention flags, the unread boundary

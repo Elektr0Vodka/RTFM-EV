@@ -15,7 +15,7 @@ the change. Upstream development is on hold; the fork is the active repository.
 
 ### Chat: "Hide by hop size" filter applies everywhere (backend + frontend)
 - The filter moved from browser localStorage to the server setting
-  `app_settings.hidden_hop_widths` (migration `_120`, JSON list of 1/2/3,
+  `app_settings.hidden_hop_widths` (migration `_121`, JSON list of 1/2/3,
   default empty). A local choice from before this change is carried to the
   server once on first load (only when the server has none), then the old key
   is removed.
