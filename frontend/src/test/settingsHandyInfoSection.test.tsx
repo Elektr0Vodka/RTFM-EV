@@ -363,6 +363,21 @@ describe('SettingsHandyInfoSection name resolution opt-in (plan 16)', () => {
     );
   });
 
+  it('offers resolution on a site applied before the preset had an API template', async () => {
+    // Applied before plan 16: the stored site has no API template, the
+    // Cornmeister preset now does. Enabling copies the template onto the site.
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const legacy = { ...cornSite, node_api_url_template: null };
+    const { onSave } = renderSection(makeSettings({ analyzer_sites: [legacy] }));
+    expect(screen.queryByText(/No node API template/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Name resolution via Cornmeister' }));
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({
+        analyzer_sites: [{ ...cornSite, resolution_enabled: true }],
+      })
+    );
+  });
+
   it('does not enable name resolution when the confirmation is cancelled', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(false);
     const { onSave } = renderSection(makeSettings({ analyzer_sites: [cornSite] }));
