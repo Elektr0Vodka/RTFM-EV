@@ -226,6 +226,8 @@
   "node_tooltip_noise_floor": "NF",
   "node_tooltip_packets": "Pkt.",
   "node_tooltip_rssi": "RSSI",
+  "node_tooltip_noise_est": "gesch. NF",
+  "node_chart_rssi_noise_legend": "Gestrichelte Linie: vom Funkgerät abgefragter Noise Floor (eine Messung pro Minute). Schraffiert: geschätzter Noise Floor (RSSI minus SNR); der Abstand zur RSSI-Linie ist die SNR-Marge.",
   "node_tooltip_time_suffix": "{label} · {time}",
   "node_total_packets_label": "Pakete gesamt",
   "node_total_suffix": "{count} insgesamt",
