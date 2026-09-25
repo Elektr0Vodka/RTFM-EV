@@ -146,6 +146,12 @@ class ShadowStats:
         self.by_reason: Counter[str] = Counter()
         self.by_type: dict[str, Counter[str]] = {}
         self.policy_matches: Counter[str] = Counter()
+        # Throttled rules that let a matching packet slip (the fork's ``pass=``).
+        self.policy_passes: Counter[str] = Counter()
+        # Estimated airtime of rule / rate-limiter drops (the fork's ``air:``).
+        self.saved_airtime_total_ms = 0.0
+        self.saved_airtime_by_rule: dict[str, float] = {}
+        self.saved_airtime_by_reason: dict[str, float] = {}
         self.latency_ms: deque[float] = deque(maxlen=LATENCY_SAMPLES)
         self.delay_ms: deque[float] = deque(maxlen=LATENCY_SAMPLES)
         self.lock_busy = 0
@@ -184,6 +190,7 @@ class LifetimeStats:
         "would_forward",
         "would_drop",
         "forward_airtime_total_ms",
+        "saved_airtime_total_ms",
         "rx_delayed",
         "rx_delay_yielded",
     )
@@ -195,11 +202,15 @@ class LifetimeStats:
         self.would_forward = 0
         self.would_drop = 0
         self.forward_airtime_total_ms = 0.0
+        self.saved_airtime_total_ms = 0.0
         self.rx_delayed = 0
         self.rx_delay_yielded = 0
         self.by_reason: Counter[str] = Counter()
         self.by_type: dict[str, Counter[str]] = {}
         self.policy_matches: Counter[str] = Counter()
+        self.policy_passes: Counter[str] = Counter()
+        self.saved_airtime_by_rule: dict[str, float] = {}
+        self.saved_airtime_by_reason: dict[str, float] = {}
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> LifetimeStats:
@@ -218,6 +229,11 @@ class LifetimeStats:
         out.policy_matches = Counter(
             {str(k): int(v) for k, v in (data.get("policy_matches") or {}).items()}
         )
+        out.policy_passes = Counter(
+            {str(k): int(v) for k, v in (data.get("policy_passes") or {}).items()}
+        )
+        out.saved_airtime_by_rule = _float_map(data.get("saved_airtime_by_rule"))
+        out.saved_airtime_by_reason = _float_map(data.get("saved_airtime_by_reason"))
         return out
 
     def to_dict(self) -> dict[str, Any]:
@@ -228,10 +244,24 @@ class LifetimeStats:
             "forward_airtime_total_ms": round(self.forward_airtime_total_ms, 1),
             "rx_delayed": self.rx_delayed,
             "rx_delay_yielded": self.rx_delay_yielded,
+            "saved_airtime_total_ms": round(self.saved_airtime_total_ms, 1),
             "by_reason": dict(self.by_reason),
             "by_type": {k: dict(v) for k, v in self.by_type.items()},
             "policy_matches": dict(self.policy_matches),
+            "policy_passes": dict(self.policy_passes),
+            "saved_airtime_by_rule": _round_map(self.saved_airtime_by_rule),
+            "saved_airtime_by_reason": _round_map(self.saved_airtime_by_reason),
         }
+
+
+def _float_map(raw: Any) -> dict[str, float]:
+    if not isinstance(raw, dict):
+        return {}
+    return {str(k): float(v) for k, v in raw.items() if isinstance(v, (int, float))}
+
+
+def _round_map(values: dict[str, float]) -> dict[str, float]:
+    return {k: round(v, 1) for k, v in values.items()}
 
 
 class HostRepeaterRuntime:
@@ -707,9 +737,14 @@ class HostRepeaterRuntime:
             lt_counts["drop"] += 1
             s.by_reason[decision.reason] += 1
             lt.by_reason[decision.reason] += 1
+            if decision.saved_airtime_ms is not None:
+                self._add_saved_airtime(decision)
         if decision.policy_rule_id:
             s.policy_matches[decision.policy_rule_id] += 1
             lt.policy_matches[decision.policy_rule_id] += 1
+        for rule_id in decision.policy_passes:
+            s.policy_passes[rule_id] += 1
+            lt.policy_passes[rule_id] += 1
         self._lifetime_dirty = True
 
         self._track_echo(decision, env, arrival, latency_ms)
@@ -737,6 +772,17 @@ class HostRepeaterRuntime:
                 "packet_hash": decision.packet_hash,
             }
         )
+
+    def _add_saved_airtime(self, decision: Decision) -> None:
+        """Bill a rule / rate-limiter drop's estimated airtime to the totals, reason and rule."""
+        ms = decision.saved_airtime_ms or 0.0
+        for stats in (self.stats, self.lifetime):
+            stats.saved_airtime_total_ms += ms
+            by_reason = stats.saved_airtime_by_reason
+            by_reason[decision.reason] = by_reason.get(decision.reason, 0.0) + ms
+            if decision.reason == "policy_drop" and decision.policy_rule_id:
+                by_rule = stats.saved_airtime_by_rule
+                by_rule[decision.policy_rule_id] = by_rule.get(decision.policy_rule_id, 0.0) + ms
 
     def _track_echo(self, decision: Decision, env, arrival: float, latency_ms: float) -> None:
         """Measure the gap between our first reception and the first neighbour relay."""
@@ -837,6 +883,9 @@ class HostRepeaterRuntime:
             "by_reason": dict(s.by_reason),
             "by_type": {k: dict(v) for k, v in s.by_type.items()},
             "policy_matches": dict(s.policy_matches),
+            "policy_passes": dict(s.policy_passes),
+            "saved_airtime_by_rule": _round_map(s.saved_airtime_by_rule),
+            "saved_airtime_by_reason": _round_map(s.saved_airtime_by_reason),
             "latency_ms": _percentiles(s.latency_ms),
             "delay_ms": _percentiles(s.delay_ms),
             "lock_busy": s.lock_busy,
@@ -847,6 +896,7 @@ class HostRepeaterRuntime:
                 "would_forward_percent_last_hour": round(
                     hour_ms / (window_hours * HOUR_SECONDS * 1000.0) * 100.0, 3
                 ),
+                "saved_total_ms": round(s.saved_airtime_total_ms, 1),
                 "budget_per_minute_ms": self.settings.max_airtime_per_minute_ms,
                 "own_tx_last_hour_ms": round(own_tx_hour_ms, 1),
                 "sub_band_limit_percent": sub_band,

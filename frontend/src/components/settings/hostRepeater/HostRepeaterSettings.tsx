@@ -40,6 +40,11 @@ const POLICY_VOCABULARY: ConditionVocabulary = {
     'transport_code_0',
     'transport_code_1',
     'payload_hex',
+    'channel_name',
+    'region',
+    'path_first',
+    'path_last',
+    'path_string',
   ],
   operators: [
     'equals',
@@ -53,7 +58,9 @@ const POLICY_VOCABULARY: ConditionVocabulary = {
     'intersects',
     'starts_with',
     'ends_with',
+    'matches',
   ] satisfies OpenHopOperator[],
+  ruleGates: true,
 };
 
 const LOOP_MODES: HostRepeaterLoopDetect[] = ['off', 'minimal', 'moderate', 'strict'];
@@ -900,6 +907,15 @@ export function HostRepeaterSettings({ health, floodScopeRegions, repeaters }: P
             engine={draft.policy}
             vocabulary={POLICY_VOCABULARY}
             onChange={(p) => set({ policy: p })}
+            ruleStats={
+              hr.stats
+                ? {
+                    hits: hr.stats.policy_matches,
+                    passes: hr.stats.policy_passes,
+                    savedMs: hr.stats.saved_airtime_by_rule,
+                  }
+                : undefined
+            }
           />
         </div>
       </details>

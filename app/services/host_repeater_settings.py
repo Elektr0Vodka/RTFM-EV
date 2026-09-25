@@ -48,6 +48,9 @@ PAYLOAD_TYPE_BY_NAME: dict[str, int] = {name: code for code, name in PAYLOAD_TYP
 
 LoopDetectMode = Literal["off", "minimal", "moderate", "strict"]
 PolicyAction = Literal["allow", "drop", "log_only"]
+# Which matched stream shares a rule's ``throttle_seconds`` budget: the whole rule
+# (the jhuebert repeater filter), or one budget per sender / channel / first path hop.
+ThrottleKey = Literal["rule", "sender", "channel", "path_first"]
 AclBypass = Literal["off", "contacts", "favorites"]
 
 # OpenHop policy fields a companion host can evaluate. OpenHop's rx_radio_id,
@@ -68,9 +71,19 @@ POLICY_FIELDS: tuple[str, ...] = (
     "transport_code_0",
     "transport_code_1",
     "payload_hex",
+    # Host additions (jhuebert repeater filter parity): the decrypted channel's name,
+    # the resolved flood region (``unscoped`` for plain floods), and the flood path as
+    # first hop, last hop and ``"10>a1>b2"`` string for position matching.
+    "channel_name",
+    "region",
+    "path_first",
+    "path_last",
+    "path_string",
 )
 # Canonical OpenHop operator names (policy_engine._compare also accepts short aliases;
-# the stored document only uses these).
+# the stored document only uses these). ``matches`` is a host addition: a Python
+# regular expression searched in the field (anchor with ``^``/``$``, ``(?i)`` for
+# case-insensitive), replacing the repeater filter's TinyRegex.
 POLICY_OPERATORS: tuple[str, ...] = (
     "equals",
     "not_equals",
@@ -83,7 +96,9 @@ POLICY_OPERATORS: tuple[str, ...] = (
     "intersects",
     "starts_with",
     "ends_with",
+    "matches",
 )
+MAX_REGEX_LENGTH = 128
 POLICY_OBJECT_GROUPS: tuple[str, ...] = ("channel_hash_groups", "pubkey_groups")
 MAX_POLICY_RULES = 100
 MAX_CONDITION_DEPTH = 4
@@ -183,9 +198,25 @@ class PolicyObjects(BaseModel):
 
 
 class PolicyRuleThen(BaseModel):
+    """Rule outcome. ``prob`` and ``throttle_seconds`` follow the jhuebert repeater
+    filter: a rule with ``prob`` decides only that percentage of its matches
+    (deterministic per packet); a rule with ``throttle_seconds`` lets one match per
+    window slip past untouched and decides the excess. A rule that steps aside
+    behaves as if it had not matched, so the next rule is consulted.
+    """
+
     model_config = ConfigDict(extra="forbid")
 
     action: PolicyAction
+    prob: int | None = Field(default=None, ge=1, le=100)
+    throttle_seconds: int | None = Field(default=None, ge=1, le=65535)
+    throttle_key: ThrottleKey = "rule"
+
+    @model_validator(mode="after")
+    def _check_throttle_key(self) -> PolicyRuleThen:
+        if self.throttle_key != "rule" and self.throttle_seconds is None:
+            raise ValueError("throttle_key needs throttle_seconds")
+        return self
 
 
 class PolicyRule(BaseModel):
@@ -244,6 +275,16 @@ def _validate_condition(cond: Any, objects: PolicyObjects, where: str, depth: in
     if cond["op"] not in POLICY_OPERATORS:
         raise ValueError(f"{where}.op: unknown operator '{cond['op']}'")
     value = cond["value"]
+    if cond["op"] == "matches":
+        if not isinstance(value, str) or not value:
+            raise ValueError(f"{where}.value: regex must be a non-empty string")
+        if len(value) > MAX_REGEX_LENGTH:
+            raise ValueError(f"{where}.value: regex longer than {MAX_REGEX_LENGTH} characters")
+        try:
+            re.compile(value)
+        except re.error as exc:
+            raise ValueError(f"{where}.value: invalid regex ({exc})") from exc
+        return
     if isinstance(value, str):
         match = _OBJECT_REF.match(value)
         if match:

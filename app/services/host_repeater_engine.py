@@ -53,7 +53,7 @@ from app.channel_constants import PUBLIC_CHANNEL_KEY
 from app.decoder import verify_advert_signature
 from app.path_utils import MAX_PATH_SIZE, ParsedPacketEnvelope, parse_packet_envelope
 from app.region_resolver import compute_transport_code
-from app.services.host_repeater_policy import PolicyDecision, evaluate_policy
+from app.services.host_repeater_policy import PolicyDecision, PolicyState, evaluate_policy
 from app.services.host_repeater_settings import (
     PAYLOAD_TYPE_NAMES,
     HostRepeaterSettings,
@@ -202,6 +202,23 @@ class RxFacts:
     channel_decryptable: bool = False
     channel_sender: str | None = None
     channel_message_body: str | None = None
+    # Name of the channel the pipeline decrypted the packet with (group traffic only).
+    channel_name: str | None = None
+
+
+# Drop reasons that mean "traffic you explicitly targeted" (rule and rate-limiter
+# drops, the fork's ``air:`` accounting); their airtime counts as saved.
+SAVED_AIRTIME_REASONS = frozenset(
+    {
+        "policy_drop",
+        "filter_hash",
+        "filter_hops",
+        "filter_rate",
+        "filter_channel",
+        "filter_malformed",
+        "advert_rate",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -219,6 +236,10 @@ class Decision:
     airtime_ms: float | None = None
     policy_action: str | None = None
     policy_rule_id: str | None = None
+    # Throttled rules that matched but let this packet slip within their budget.
+    policy_passes: tuple[str, ...] = ()
+    # For rule / rate-limiter drops: estimated airtime the retransmit would have used.
+    saved_airtime_ms: float | None = None
     # Reception score used for the delays (None when SNR or SF is unknown).
     score: float | None = None
 
@@ -510,6 +531,7 @@ class ForwardingEngine:
         self._depths: dict[str, int] = {}
         self._max_depth = 0
         self._build_region_tree()
+        self._policy_state = PolicyState()
 
     # ── configuration ────────────────────────────────────────────────────
 
@@ -553,6 +575,7 @@ class ForwardingEngine:
         self._duty = _DutyWindow()
         self._build_limiters()
         self._advert_limiter = self._build_advert_limiter()
+        self._policy_state.clear()
 
     def _build_advert_limiter(self) -> AdvertLimiter:
         s = self.settings
@@ -697,12 +720,23 @@ class ForwardingEngine:
         score = packet_score(facts.snr, self.radio.sf, rx_len) if self.radio else None
 
         def drop(reason: str, policy: PolicyDecision | None = None) -> Decision:
+            saved = None
+            if reason in SAVED_AIRTIME_REASONS and self.radio is not None:
+                # Length we would have re-sent: floods grow by our hash, direct
+                # forwards lose the consumed one.
+                if route in (ROUTE_FLOOD, ROUTE_TRANSPORT_FLOOD):
+                    sent_len = rx_len + env.hash_size
+                else:
+                    sent_len = max(1, rx_len - env.hash_size)
+                saved = lora_airtime_ms(sent_len, self.radio, self.settings.preamble_symbols)
             return Decision(
                 False,
                 reason,
                 pkt_hash,
                 policy_action=policy.action if policy and policy.matched else None,
                 policy_rule_id=policy.rule_id if policy and policy.matched else None,
+                policy_passes=policy.passes if policy else (),
+                saved_airtime_ms=saved,
                 score=score,
                 payload_type=ptype,
                 route_type=route,
@@ -718,7 +752,13 @@ class ForwardingEngine:
             return drop("no_radio")
 
         self._gate_catch_up(now)
-        policy = evaluate_policy(self.settings.policy, self._policy_fields(env, facts))
+        policy = evaluate_policy(
+            self.settings.policy,
+            self._policy_fields(env, facts),
+            packet_hash=pkt_hash,
+            now=now,
+            state=self._policy_state,
+        )
         if policy.action == "drop":
             return drop("policy_drop", policy)
 
@@ -769,6 +809,7 @@ class ForwardingEngine:
             airtime_ms=airtime,
             policy_action=policy.action if policy.matched else None,
             policy_rule_id=policy.rule_id if policy.matched else None,
+            policy_passes=policy.passes,
             score=score,
             payload_type=ptype,
             route_type=route,
@@ -1020,6 +1061,13 @@ class ForwardingEngine:
             else []
         )
         codes = env.transport_codes
+        is_flood = env.route_type in (ROUTE_FLOOD, ROUTE_TRANSPORT_FLOOD)
+        if not is_flood:
+            region = None
+        elif env.route_type == ROUTE_FLOOD:
+            region = "unscoped"
+        else:
+            region = facts.region
         return {
             "route_type": env.route_type,
             "payload_type": env.payload_type,
@@ -1036,4 +1084,9 @@ class ForwardingEngine:
             "transport_code_0": codes[0] if codes else None,
             "transport_code_1": codes[1] if codes else None,
             "payload_hex": env.payload.hex(),
+            "channel_name": facts.channel_name,
+            "region": region,
+            "path_first": path_hashes[0] if path_hashes else None,
+            "path_last": path_hashes[-1] if path_hashes else None,
+            "path_string": ">".join(path_hashes),
         }

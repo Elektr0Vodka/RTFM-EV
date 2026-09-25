@@ -11,6 +11,46 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-25 (Host repeater policy rules: regex, prob, throttle, saved airtime; feat/host-repeater-filter-rules)
+
+### Host repeater: rule engine parity with the jhuebert/MeshCore repeater filter (backend)
+- Policy rule fields `channel_name` (the channel RTFM-EV decrypted the packet
+  with, via `RxFacts.channel_name`), `region` (`unscoped` for plain floods, the
+  resolved region name for scoped ones, none for direct packets), `path_first`,
+  `path_last` and `path_string` (`10>a1>b2`), so rules can isolate one upstream
+  relay or combine a channel with a region the way `FILTER.md` recipes do.
+- New `matches` operator: a Python regular expression searched in the field
+  (`^`/`$` anchors, `(?i)` for case-insensitive). Patterns are validated and
+  capped at 128 characters when the settings are saved, and compiled through a
+  bounded cache.
+- Per-rule gates in `then`: `prob` (1-100, the rule decides only that share of
+  its matches; the roll is deterministic per rule and packet hash) and
+  `throttle_seconds` (one matching packet per window slips past, the rest get
+  the action) with `throttle_key` (`rule`, `sender`, `channel`, `path_first`;
+  the firmware only has the per-rule budget). A rule that steps aside is
+  skipped like a non-match, so the next rule decides. Throttle state lives in
+  `PolicyState` inside the engine and resets with the seen table.
+- Stats: `policy_passes` per rule, and saved airtime (estimated time-on-air of
+  the frame we would have re-sent) for policy drops, DMC filter drops and the
+  advert limiter, as `airtime.saved_total_ms`, `saved_airtime_by_reason` and
+  `saved_airtime_by_rule`, in session and lifetime totals.
+  (`app/services/host_repeater_settings.py`, `host_repeater_policy.py`,
+  `host_repeater_engine.py`, `host_repeater.py`; tests
+  `tests/test_host_repeater_rules.py`)
+
+### Host repeater: rule editor and stats (frontend)
+- The rule form (host repeater only) gains **Match probability**, **Throttle
+  (seconds)** and **Throttle budget**; blank inputs are omitted so existing
+  rules keep their shape. The OpenHop API rule form is unchanged.
+- The rule list shows `prob` / `throttle` badges and, from the stats poll, each
+  rule's hits, throttle passes and saved airtime. `payload_type` conditions get
+  a type-name picker. The stats pane shows the saved airtime total in the
+  session and lifetime blocks. EN/NL/DE strings.
+  (`OpenHopRuleForm.tsx`, `OpenHopPolicyRules.tsx`,
+  `OpenHopConditionBuilder.tsx`, `HostRepeaterSettings.tsx`,
+  `HostRepeaterStatsPane.tsx`, `types.ts`; tests
+  `src/test/hostRepeaterPolicyRules.test.tsx`)
+
 ## Update 2026-09-25 (Contact location and repeater config history, plan 14, feat/device-history)
 
 ### Persistence: location history and repeater pane snapshots (backend)

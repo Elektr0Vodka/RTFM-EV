@@ -121,6 +121,9 @@ export function HostRepeaterStatsPane({ stats, onReset }: Props) {
             percent: a.would_forward_percent_last_hour.toFixed(2),
           })}
         </span>
+        <span>
+          {t('settings_host_repeater_stats_saved', { total: fmtMs(a.saved_total_ms ?? 0) })}
+        </span>
         <span className="text-muted-foreground">
           {t('settings_host_repeater_stats_own_tx', {
             hour: fmtMs(a.own_tx_last_hour_ms),
@@ -248,6 +251,11 @@ export function HostRepeaterStatsPane({ stats, onReset }: Props) {
               forward: life.would_forward,
               drop: life.would_drop,
               airtime: fmtMs(life.forward_airtime_total_ms),
+            })}
+          </span>
+          <span>
+            {t('settings_host_repeater_stats_saved', {
+              total: fmtMs(life.saved_airtime_total_ms ?? 0),
             })}
           </span>
           <span className="text-xs text-muted-foreground">

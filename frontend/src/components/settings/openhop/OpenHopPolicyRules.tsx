@@ -5,10 +5,34 @@ import { Button } from '../../ui/button';
 import { OpenHopRuleForm } from './OpenHopRuleForm';
 import type { ConditionVocabulary } from './OpenHopConditionBuilder';
 
+/** Per-rule counters shown next to each rule (host repeater shadow / armed stats). */
+export interface RuleStats {
+  hits: Record<string, number>;
+  passes?: Record<string, number>;
+  savedMs?: Record<string, number>;
+}
+
 interface Props {
   engine: OpenHopPolicyEngine;
   onChange: (e: OpenHopPolicyEngine) => void;
   vocabulary?: ConditionVocabulary;
+  ruleStats?: RuleStats;
+}
+
+function fmtSaved(ms: number): string {
+  return ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms)} ms`;
+}
+
+function gateBadges(rule: OpenHopRule): string[] {
+  const out: string[] = [];
+  if (rule.then.prob != null) out.push(`prob ${rule.then.prob}%`);
+  if (rule.then.throttle_seconds != null) {
+    const keyed = rule.then.throttle_key && rule.then.throttle_key !== 'rule';
+    out.push(
+      `throttle ${rule.then.throttle_seconds} s${keyed ? ` / ${rule.then.throttle_key}` : ''}`
+    );
+  }
+  return out;
 }
 
 export function summarizeCondition(c: OpenHopCondition): string {
@@ -25,7 +49,7 @@ function newRuleId(): string {
     : `r${Date.now()}${Math.floor(Math.random() * 1000)}`;
 }
 
-export function OpenHopPolicyRules({ engine, onChange, vocabulary }: Props) {
+export function OpenHopPolicyRules({ engine, onChange, vocabulary, ruleStats }: Props) {
   const t = useT();
   const [editing, setEditing] = useState<string | null>(null);
   const rules = engine.rules;
@@ -77,7 +101,21 @@ export function OpenHopPolicyRules({ engine, onChange, vocabulary }: Props) {
                 />
                 <span className="font-medium">{rule.name || '(unnamed)'}</span>
                 <span className="rounded bg-muted px-1 text-xs">{rule.then.action}</span>
+                {gateBadges(rule).map((badge) => (
+                  <span key={badge} className="rounded bg-muted px-1 text-xs">
+                    {badge}
+                  </span>
+                ))}
                 <span className="text-xs text-muted-foreground">{summarizeCondition(rule.if)}</span>
+                {ruleStats && (
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    {t('openhop_rule_stats', {
+                      hits: ruleStats.hits[rule.id] ?? 0,
+                      passes: ruleStats.passes?.[rule.id] ?? 0,
+                      saved: fmtSaved(ruleStats.savedMs?.[rule.id] ?? 0),
+                    })}
+                  </span>
+                )}
                 <span className="ml-auto flex gap-1">
                   <button
                     type="button"
