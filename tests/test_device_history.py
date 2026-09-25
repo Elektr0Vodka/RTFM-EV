@@ -378,3 +378,91 @@ class TestEndpoints:
         await _contact(KEY_A, contact_type=1)
         resp = await client.get(f"/api/contacts/{KEY_A}/repeater/config-history")
         assert resp.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_room_config_history_endpoint(self, test_db, client):
+        await _contact(KEY_A, name="Room", contact_type=3)
+        await DeviceConfigHistoryRepository.record(
+            KEY_A, "acl", 1000, {"acl": [{"pubkey_prefix": "aabbccddeeff", "permission": 3}]}
+        )
+        resp = await client.get(f"/api/contacts/{KEY_A}/room/config-history")
+        assert resp.status_code == 200
+        assert resp.json()[0]["kind"] == "acl"
+
+        await _contact(KEY_B, name="Repeater", contact_type=2)
+        wrong = await client.get(f"/api/contacts/{KEY_B}/room/config-history")
+        assert wrong.status_code == 400
+
+
+class TestRoomAclCapture:
+    @staticmethod
+    async def _fetch(acl_data):
+        from app.radio import radio_manager
+        from app.routers.rooms import room_acl
+
+        mc = _mock_mc()
+        mc.commands.add_contact = AsyncMock(return_value=_radio_result(EventType.OK))
+        mc.commands.req_acl_sync = AsyncMock(return_value=acl_data)
+        with (
+            patch("app.routers.rooms.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+        ):
+            return await room_acl(KEY_A)
+
+    @pytest.mark.asyncio
+    async def test_acl_snapshot_is_sorted_and_name_free(self, test_db):
+        await _contact(KEY_A, name="Room", contact_type=3)
+        await self._fetch([{"key": "ffffffffffff", "perm": 0}, {"key": "bbbbbbbbbbbb", "perm": 3}])
+        # Same members in another order, and one now resolves to a named contact:
+        # neither is an ACL change.
+        await _contact("bbbbbbbbbbbb" + "00" * 26, name="Now Named", contact_type=1)
+        await self._fetch([{"key": "bbbbbbbbbbbb", "perm": 3}, {"key": "ffffffffffff", "perm": 0}])
+
+        history = await DeviceConfigHistoryRepository.get_history(KEY_A, "acl")
+        assert [h["data"] for h in history] == [
+            {
+                "acl": [
+                    {"pubkey_prefix": "bbbbbbbbbbbb", "permission": 3},
+                    {"pubkey_prefix": "ffffffffffff", "permission": 0},
+                ]
+            }
+        ]
+
+    @pytest.mark.asyncio
+    async def test_empty_or_unanswered_acl_is_not_a_snapshot(self, test_db):
+        await _contact(KEY_A, name="Room", contact_type=3)
+        await self._fetch(None)
+        await self._fetch([])
+        assert await DeviceConfigHistoryRepository.get_history(KEY_A, "acl") == []
+
+
+class TestDeviceHistoryRetention:
+    @pytest.mark.asyncio
+    async def test_prunes_both_tables_by_age_and_zero_keeps(self, test_db):
+        from app.repository import AppSettingsRepository
+        from app.services import retention_pruner
+
+        day = 86400
+        now = 100 * day
+        await _contact(KEY_A, contact_type=2)
+        s = await AppSettingsRepository.get()
+        assert s.device_history_retention_days == 0
+
+        await DeviceConfigHistoryRepository.record(KEY_A, "node_info", now - 40 * day, {"n": 1})
+        await DeviceConfigHistoryRepository.record(KEY_A, "node_info", now - 5 * day, {"n": 2})
+        # Location rows age by last_seen: a position still being reported stays.
+        await ContactLocationHistoryRepository.record_location(KEY_A, 52.1, 4.3, now - 60 * day)
+        await ContactLocationHistoryRepository.record_location(KEY_A, 52.2, 4.3, now - 50 * day)
+        await ContactLocationHistoryRepository.record_location(KEY_A, 52.2, 4.3, now - 1 * day)
+
+        result = await retention_pruner.prune_once(now)
+        assert "device_config" not in result and "contact_locations" not in result
+
+        await AppSettingsRepository.update(device_history_retention_days=30)
+        result = await retention_pruner.prune_once(now)
+        assert result.get("device_config") == 1
+        assert result.get("contact_locations") == 1
+        config = await DeviceConfigHistoryRepository.get_history(KEY_A)
+        assert [h["data"] for h in config] == [{"n": 2}]
+        positions = await ContactLocationHistoryRepository.get_history(KEY_A)
+        assert [(p.lat, p.lon) for p in positions] == [(52.2, 4.3)]

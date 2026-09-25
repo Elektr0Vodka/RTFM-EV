@@ -1,4 +1,4 @@
-"""Repository for ``device_config_history`` (plan 14): repeater pane snapshots.
+"""Repository for ``device_config_history`` (plan 14): repeater and room pane snapshots.
 
 Append-on-change: a snapshot is stored only when it differs from the latest
 stored one for the same contact and kind, so reopening a dashboard pane whose
@@ -14,7 +14,7 @@ from typing import Literal, get_args
 from app.database import db
 
 DeviceConfigKind = Literal[
-    "node_info", "radio_settings", "advert_intervals", "owner_info", "regions"
+    "node_info", "radio_settings", "advert_intervals", "owner_info", "regions", "acl"
 ]
 KINDS: tuple[str, ...] = get_args(DeviceConfigKind)
 DEFAULT_MAX_ROWS = 200
