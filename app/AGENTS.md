@@ -37,6 +37,8 @@ app/
 │   ├── message_send.py          # Direct send, channel send, resend workflows
 │   ├── dm_ingest.py             # Shared direct-message ingest / dedup seam for packet + fallback paths
 │   ├── dm_ack_apply.py          # Shared DM ACK application over pending/buffered ACK state
+│   ├── dm_path_outcomes.py      # Which route each DM attempt used + ACK/failed outcomes (plan 28 1.15)
+│   ├── path_scoring.py          # meshcore-open path score port (display only, pure)
 │   ├── dm_ack_tracker.py        # Pending DM ACK state
 │   ├── contact_reconciliation.py # Prefix-claim, sender-key backfill, name-history wiring
 │   ├── flood_scope.py           # Firmware-version-aware flood-scope set/clear command seam
@@ -162,6 +164,7 @@ for a source whose terms forbid bulk downloading.
 - `route_override_path`, `route_override_len`, and `route_override_hash_mode` take precedence over the learned direct route for radio-bound sends.
 - Advertisement paths are stored only in `contact_advert_paths` for analytics/visualization. They are not part of `Contact.to_radio_dict()` or DM route selection.
 - `contact_advert_paths` identity is `(public_key, path_hex, path_len)` because the same hex bytes can represent different routes at different hop widths.
+- `contact_path_outcomes` (migration `_115`, `ContactPathOutcomeRepository`) is the scored path history (plan 28 item 1.15): one row per `(public_key, path_hex, path_len)` a DM was sent on (`path_len` -1 = flood, 0 = direct neighbour) with attempts, successes, failures, trip times and a meshcore-open route weight. `services/dm_path_outcomes.py` is fed by `message_send` (`record_attempt` after every `send_msg`, route read from the radio's contact record `out_path`/`out_path_len`), by `dm_ack_apply` / the immediate-match branch (`record_ack`: last attempt gets the send-to-ACK trip time) and by `_mark_direct_message_failed` (`record_failed`: one failure per distinct route). `services/path_scoring.py` ranks the rows for `GET /contacts/analytics` (`path_scores`). Display only: nothing reads it for routing. Recording errors are swallowed so a send never fails because of it.
 - `contacts.flags` mirrors the radio's `ContactInfo.flags`: bit 0 is the radio favourite bit, bits 1-3 are the firmware `TELEM_PERM_*` bits (base, location, environment) that the companion reads as `flags >> 1` when a telemetry mode is Per-Contact. `ContactUpsert.flags=None` keeps the stored value, so advert/DM upserts never zero it; a radio snapshot writes the radio's value.
 - `contacts.telemetry_perms` (migration `_106`, nullable) is the app-set permission value and wins over the radio: `Contact.to_radio_dict()` overlays it on `flags`, and `sync_contacts_from_radio` pushes it with `change_contact_flags` to any radio contact whose bits differ. `NULL` means never set in the app, so the radio's bits are kept.
 
@@ -356,7 +359,7 @@ RTFM-EV judges received frames as a repeater would; shadow mode never transmits,
 
 ### Contacts
 - `GET /contacts`
-- `GET /contacts/analytics` - unified keyed-or-name analytics payload
+- `GET /contacts/analytics` - unified keyed-or-name analytics payload (keyed lookups include `path_scores`, the scored DM route history)
 - `GET /contacts/repeaters/advert-paths` - recent advert paths for all contacts
 - `POST /contacts`
 - `POST /contacts/bulk-delete`
@@ -557,6 +560,7 @@ Main tables:
 - `raw_packets` (includes signal columns `rssi`/`snr`/`payload_type` and decoded-stat columns `route_type`/`hop_count`/`hop_byte_width`/`path_signature`, parsed from the packet header at ingest and backfilled by migration 089; used by `/packets/raw-feed-stats` for historical breakdowns)
 - `airtime_history` (60s samples of the local radio's cumulative `tx_air_secs`/`rx_air_secs`; utilization % is derived at query time. Sibling of the in-memory `noise_floor_samples`/`battery_history` pattern in `app/services/radio_stats.py`)
 - `contact_advert_paths` (recent unique advertisement paths per contact, keyed by contact + path bytes + hop count; count per contact is `advert_paths_per_contact`)
+- `contact_path_outcomes` (routes our DMs used per contact with outcomes and trip times, newest 100 per contact, migration `_115`; not covered by the retention pruner)
 - `contact_name_history` (tracks name changes over time)
 - `repeater_telemetry_history` (time-series telemetry snapshots for tracked repeaters)
 - `contact_telemetry_history` (time-series LPP telemetry snapshots for tracked contacts; same schema as repeater table)

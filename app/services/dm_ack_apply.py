@@ -2,7 +2,7 @@
 
 import logging
 
-from app.services import dm_ack_tracker
+from app.services import dm_ack_tracker, dm_path_outcomes
 from app.services.messages import BroadcastFn, increment_ack_and_broadcast
 
 logger = logging.getLogger(__name__)
@@ -30,5 +30,6 @@ async def apply_dm_ack_code(ack_code: str, *, broadcast_fn: BroadcastFn) -> bool
         return False
 
     dm_ack_tracker.clear_pending_acks_for_message(message_id)
+    await dm_path_outcomes.record_ack(message_id)
     await increment_ack_and_broadcast(message_id=message_id, broadcast_fn=broadcast_fn)
     return True

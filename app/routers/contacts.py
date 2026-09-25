@@ -49,6 +49,7 @@ from app.repository import (
     AppSettingsRepository,
     ContactAdvertPathRepository,
     ContactNameHistoryRepository,
+    ContactPathOutcomeRepository,
     ContactRepository,
     MessageRepository,
 )
@@ -56,6 +57,7 @@ from app.services.contact_reconciliation import (
     promote_prefix_contacts_for_contact,
     record_contact_name_and_reconcile,
 )
+from app.services.path_scoring import score_paths
 from app.services.radio_runtime import radio_runtime as radio_manager
 
 logger = logging.getLogger(__name__)
@@ -155,6 +157,9 @@ async def _build_keyed_contact_analytics(contact: Contact) -> ContactAnalytics:
     hourly_activity, weekly_activity = await MessageRepository.get_contact_activity_series(
         contact.public_key
     )
+    path_scores = score_paths(
+        await ContactPathOutcomeRepository.get_for_contact(contact.public_key)
+    )
 
     most_active_rooms = [
         ContactActiveRoom(channel_key=key, channel_name=name, message_count=count)
@@ -214,6 +219,7 @@ async def _build_keyed_contact_analytics(contact: Contact) -> ContactAnalytics:
         advert_paths=advert_paths,
         advert_frequency=advert_frequency,
         nearest_repeaters=nearest_repeaters,
+        path_scores=path_scores,
         hourly_activity=hourly_activity,
         weekly_activity=weekly_activity,
     )

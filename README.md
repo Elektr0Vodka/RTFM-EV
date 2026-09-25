@@ -21,6 +21,7 @@ Connect your radio over Serial, TCP, or BLE, and then you can:
 * Get a browser notification the first time the app hears a node it has never seen before, filterable by node type (client, repeater, room, sensor) and batched into a summary on a busy mesh (Settings > Local Configuration > "New node notifications", off by default)
 * Choose how dates and times are shown: follow the UI language, or force 12-hour mm/dd/yyyy or 24-hour dd/mm/yyyy (Settings > Local Configuration > "Date & Time Format")
 * Set a battery chemistry (LiPo, LiFePO4, LiPo HV, or NMC) for accurate battery percentages: a global default (Settings > Local Configuration > "Battery Chemistry") with a per-node override in that node's contact info
+* Contact info lists the routes your direct messages to a contact were sent on (learned direct path or flood), scored the way meshcore-open ranks its path history from delivery rate, trip time, freshness and route weight. Display only: routing is unchanged
 * Forward packets, messages, and automatic repeater telemetry to MQTT, Home Assistant, LetsMesh, MeshRank, SQS, Apprise, etc.
 * Use the more recent 1.14+ firmwares which support multibyte pathing
 * Auto-detect [meshcomod (DMC-EV)](https://github.com/Elektr0Vodka/meshcomod) firmware and expose its extra device settings (CAD, GPS)

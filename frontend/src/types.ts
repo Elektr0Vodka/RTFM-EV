@@ -307,6 +307,28 @@ export interface ContactAdvertPath {
   heard_count: number;
 }
 
+/** One route our direct messages used, with its meshcore-open path score (plan 28 item 1.15). */
+export interface ContactPathScore {
+  path: string;
+  /** -1 = flood, 0 = direct neighbour, > 0 hops. */
+  path_len: number;
+  next_hop: string | null;
+  attempt_count: number;
+  success_count: number;
+  failure_count: number;
+  route_weight: number;
+  last_trip_ms: number | null;
+  best_trip_ms: number | null;
+  first_used: number;
+  last_used: number;
+  last_success: number | null;
+  score: number;
+  reliability: number;
+  latency: number;
+  freshness: number;
+  weight: number;
+}
+
 export interface ContactAdvertPathSummary {
   public_key: string;
   paths: ContactAdvertPath[];
@@ -357,6 +379,8 @@ export interface ContactAnalytics {
   advert_paths: ContactAdvertPath[];
   advert_frequency: number | null;
   nearest_repeaters: NearestRepeater[];
+  /** Routes our DMs used, ranked by score (display only; routing is unchanged). */
+  path_scores: ContactPathScore[];
   hourly_activity: ContactAnalyticsHourlyBucket[];
   weekly_activity: ContactAnalyticsWeeklyBucket[];
 }

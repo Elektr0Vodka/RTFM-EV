@@ -505,6 +505,8 @@ Counts are incremented live over WebSocket while `first_unread_ids` only arrives
 
 ## Contact Info Pane
 
+`ContactInfoBody`'s Network region lists **Message routes (scored)** from `analytics.path_scores` (`ContactPathScore` in `types.ts`, from `GET /contacts/analytics`): hops via `parsePathHops`, `Flood` for `path_len` -1, `(direct)` for an empty path, then `contact_path_score_detail` (score as a percentage, delivered/attempts, last trip time) and the last-used time. Rows carry `data-testid="contact-path-score"`. Display only; the backend does the scoring (plan 28 item 1.15).
+
 Clicking a contact's avatar in `ChatHeader` or `MessageList` opens a `ContactInfoPane` sheet (right drawer) showing comprehensive contact details fetched from `GET /api/contacts/analytics` using either `?public_key=...` or `?name=...`:
 
 - Header: avatar, name, public key, type badge, on-radio badge

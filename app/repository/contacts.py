@@ -10,6 +10,7 @@ from app.models import (
     ContactAdvertPath,
     ContactAdvertPathSummary,
     ContactNameHistory,
+    ContactPathOutcome,
     ContactUpsert,
 )
 from app.path_utils import first_hop_hex, normalize_contact_route, normalize_route_override
@@ -1096,3 +1097,139 @@ class ContactNameHistoryRepository:
             )
             for row in rows
         ]
+
+
+class ContactPathOutcomeRepository:
+    """Per-route direct-message outcomes for a contact (migration _115, plan 28 item 1.15)."""
+
+    MAX_PATHS_PER_CONTACT = 100  # meshcore-open _maxHistoryEntries
+    WEIGHT_STEP = 0.5
+    WEIGHT_MAX = 5.0
+    WEIGHT_FLOOR = 0.1
+
+    @staticmethod
+    def _row_to_outcome(row) -> ContactPathOutcome:
+        path = row["path_hex"] or ""
+        path_len = row["path_len"]
+        return ContactPathOutcome(
+            path=path,
+            path_len=path_len,
+            next_hop=first_hop_hex(path, path_len) if path_len > 0 else None,
+            attempt_count=row["attempt_count"],
+            success_count=row["success_count"],
+            failure_count=row["failure_count"],
+            route_weight=row["route_weight"],
+            last_trip_ms=row["last_trip_ms"],
+            best_trip_ms=row["best_trip_ms"],
+            first_used=row["first_used"],
+            last_used=row["last_used"],
+            last_success=row["last_success"],
+        )
+
+    @classmethod
+    async def record_attempt(cls, public_key: str, path_hex: str, path_len: int, ts: int) -> None:
+        key, path = public_key.lower(), path_hex.lower()
+        async with db.tx() as conn:
+            async with conn.execute(
+                """
+                INSERT INTO contact_path_outcomes
+                    (public_key, path_hex, path_len, attempt_count, first_used, last_used)
+                VALUES (?, ?, ?, 1, ?, ?)
+                ON CONFLICT(public_key, path_hex, path_len) DO UPDATE SET
+                    attempt_count = contact_path_outcomes.attempt_count + 1,
+                    last_used = MAX(contact_path_outcomes.last_used, excluded.last_used)
+                """,
+                (key, path, path_len, ts, ts),
+            ):
+                pass
+            async with conn.execute(
+                """
+                DELETE FROM contact_path_outcomes
+                WHERE public_key = ? AND id NOT IN (
+                    SELECT id FROM contact_path_outcomes WHERE public_key = ?
+                    ORDER BY last_used DESC, id DESC LIMIT ?
+                )
+                """,
+                (key, key, cls.MAX_PATHS_PER_CONTACT),
+            ):
+                pass
+
+    @classmethod
+    async def record_success(
+        cls, public_key: str, path_hex: str, path_len: int, ts: int, trip_ms: int
+    ) -> None:
+        key, path = public_key.lower(), path_hex.lower()
+        async with db.tx() as conn:
+            async with conn.execute(
+                """
+                INSERT INTO contact_path_outcomes
+                    (public_key, path_hex, path_len, attempt_count, success_count, route_weight,
+                     last_trip_ms, best_trip_ms, first_used, last_used, last_success)
+                VALUES (?, ?, ?, 1, 1, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(public_key, path_hex, path_len) DO UPDATE SET
+                    success_count = contact_path_outcomes.success_count + 1,
+                    route_weight = MIN(?, contact_path_outcomes.route_weight + ?),
+                    last_trip_ms = excluded.last_trip_ms,
+                    best_trip_ms = MIN(
+                        COALESCE(contact_path_outcomes.best_trip_ms, excluded.best_trip_ms),
+                        excluded.best_trip_ms
+                    ),
+                    last_used = MAX(contact_path_outcomes.last_used, excluded.last_used),
+                    last_success = excluded.last_success
+                """,
+                (
+                    key,
+                    path,
+                    path_len,
+                    min(cls.WEIGHT_MAX, 1.0 + cls.WEIGHT_STEP),
+                    trip_ms,
+                    trip_ms,
+                    ts,
+                    ts,
+                    ts,
+                    cls.WEIGHT_MAX,
+                    cls.WEIGHT_STEP,
+                ),
+            ):
+                pass
+
+    @classmethod
+    async def record_failure(cls, public_key: str, path_hex: str, path_len: int, ts: int) -> None:
+        key, path = public_key.lower(), path_hex.lower()
+        async with db.tx() as conn:
+            async with conn.execute(
+                """
+                INSERT INTO contact_path_outcomes
+                    (public_key, path_hex, path_len, attempt_count, failure_count, route_weight,
+                     first_used, last_used)
+                VALUES (?, ?, ?, 1, 1, ?, ?, ?)
+                ON CONFLICT(public_key, path_hex, path_len) DO UPDATE SET
+                    failure_count = contact_path_outcomes.failure_count + 1,
+                    route_weight = MAX(?, contact_path_outcomes.route_weight - ?),
+                    last_used = MAX(contact_path_outcomes.last_used, excluded.last_used)
+                """,
+                (
+                    key,
+                    path,
+                    path_len,
+                    max(cls.WEIGHT_FLOOR, 1.0 - cls.WEIGHT_STEP),
+                    ts,
+                    ts,
+                    cls.WEIGHT_FLOOR,
+                    cls.WEIGHT_STEP,
+                ),
+            ):
+                pass
+
+    @classmethod
+    async def get_for_contact(
+        cls, public_key: str, limit: int | None = None
+    ) -> list[ContactPathOutcome]:
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT * FROM contact_path_outcomes WHERE public_key = ? "
+                "ORDER BY last_used DESC, id DESC LIMIT ?",
+                (public_key.lower(), limit or cls.MAX_PATHS_PER_CONTACT),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [cls._row_to_outcome(row) for row in rows]
