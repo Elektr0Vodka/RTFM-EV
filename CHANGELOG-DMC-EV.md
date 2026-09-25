@@ -24,6 +24,31 @@ the change. Upstream development is on hold; the fork is the active repository.
   auto-refresh; a 30 s poll is the fallback when the stream is quiet or a
   WebSocket event was missed. The tab had no polling before (only Adverts
   and Requests did). Longer windows stay manual (Refresh button).
+## Update 2026-09-25 (Fixes from the live check of #224-#228, fix/verify-224-228-findings)
+
+### Mesh Health: one relay, one row across path hash widths (backend, frontend)
+- The Relay reception summary grouped relays by the raw last-hop hash, so a
+  relay heard on packets with 2-byte and 3-byte path hashes (`6942` and
+  `694203`) showed up as two rows and two pivot columns, and a packet's cell
+  for the wider hash fell into "+n more" instead of that relay's column.
+  `aggregate_relay_receptions` takes a `relay_identity` key; the endpoint
+  merges hashes that resolve to the same unique contact (labelled with the
+  longest hash seen) and the panel matches cells to columns by resolved key.
+  Unresolved and colliding hashes stay separate.
+
+### Repeater dashboard: an unanswered pane fetch is not a config snapshot (backend)
+- A pane fetch that timed out (every field empty, e.g. "No CLI response")
+  was stored in `device_config_history` as a snapshot, which records a fake
+  change now and another when the repeater answers again. Such responses
+  are skipped. Snapshots already stored are left as they are.
+
+### Handy Info: name resolution on analyzers applied before plan 16 (frontend)
+- An analyzer applied before its preset gained a node API template (for
+  example Cornmeister applied before #226), or whose entry was edited to add
+  one afterwards, kept a site without the template, so the Configure tab
+  showed "No node API template" and no checkbox. The checkbox now also
+  appears when the Handy Info entry carries the template, and enabling it
+  copies the template onto the applied site.
 
 ## Update 2026-09-25 (Contact location and repeater config history, plan 14, feat/device-history)
 

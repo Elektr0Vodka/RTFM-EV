@@ -197,6 +197,36 @@ class TestPaneCapture:
         assert "clock_utc" not in history[0]["data"]
 
     @pytest.mark.asyncio
+    async def test_unanswered_fetch_is_not_a_snapshot(self, test_db):
+        # CLI timeout: every field comes back None. Storing it would record a
+        # fake change now and another one when the repeater answers again.
+        from app.routers import repeaters as repeaters_router
+        from app.routers.repeaters import repeater_node_info
+
+        await _contact(KEY_A, name="Repeater", contact_type=2)
+        mc = _mock_mc()
+        batches = iter(
+            [
+                {"name": "R1", "lat": "52.1", "lon": "4.3", "clock_utc": "10:00"},
+                {"name": None, "lat": None, "lon": None, "clock_utc": None},
+                {"name": "R1", "lat": "52.1", "lon": "4.3", "clock_utc": "10:10"},
+            ]
+        )
+        with (
+            patch("app.routers.repeaters.radio_manager.require_connected", return_value=mc),
+            patch.object(
+                repeaters_router,
+                "_batch_cli_fetch",
+                AsyncMock(side_effect=lambda *a, **k: next(batches)),
+            ),
+        ):
+            for _ in range(3):
+                await repeater_node_info(KEY_A)
+
+        history = await DeviceConfigHistoryRepository.get_history(KEY_A, "node_info")
+        assert [h["data"]["name"] for h in history] == ["R1"]
+
+    @pytest.mark.asyncio
     async def test_radio_settings_and_advert_intervals_snapshots(self, test_db):
         from app.routers import repeaters as repeaters_router
         from app.routers.repeaters import repeater_advert_intervals, repeater_radio_settings

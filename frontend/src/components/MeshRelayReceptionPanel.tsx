@@ -85,9 +85,14 @@ const LIVE_REFRESH_MS = 3_000;
 const POLL_MS = 30_000;
 type SummarySort = 'receptions' | 'best_snr' | 'last_seen';
 
-/** Relay identity for a column/row: name when unique, else the raw hash. */
-function relayKey(hop: string | null): string {
-  return hop ?? '__direct__';
+/**
+ * Relay identity for a column/row: the resolved full key when unique, else the
+ * raw hash. The same relay arrives as `6942` or `694203` depending on the
+ * packet's path hash width; the backend merges the summary by full key, so
+ * cells must match columns the same way.
+ */
+function relayKey(relay: { last_hop_hex: string | null; resolved_pubkey: string | null }): string {
+  return relay.resolved_pubkey ?? relay.last_hop_hex ?? '__direct__';
 }
 
 function fmtRssi(rssi: number | null): string {
@@ -223,7 +228,7 @@ export function MeshRelayReceptionPanel({
                 <th className="py-1 pr-2">{t('relay_reception_col_packet')}</th>
                 <th className="py-1 pr-2 text-right">{t('relay_reception_col_copies')}</th>
                 {columns.map((col) => (
-                  <th key={relayKey(col.last_hop_hex)} className="py-1 px-2 text-right">
+                  <th key={relayKey(col)} className="py-1 px-2 text-right">
                     {col.resolved_pubkey && onOpenNode ? (
                       <button
                         type="button"
@@ -251,10 +256,9 @@ export function MeshRelayReceptionPanel({
             </thead>
             <tbody>
               {data.packets.map((p) => {
-                const byHop = new Map(p.relays.map((c) => [relayKey(c.last_hop_hex), c]));
+                const byHop = new Map(p.relays.map((c) => [relayKey(c), c]));
                 const extra = p.relays.filter(
-                  (c) =>
-                    !columns.some((col) => relayKey(col.last_hop_hex) === relayKey(c.last_hop_hex))
+                  (c) => !columns.some((col) => relayKey(col) === relayKey(c))
                 );
                 return (
                   <tr key={p.payload_hash} className="border-t border-border/60 align-top">
@@ -274,12 +278,9 @@ export function MeshRelayReceptionPanel({
                     </td>
                     <td className="py-1 pr-2 text-right tabular-nums">{p.copies}</td>
                     {columns.map((col) => {
-                      const cell = byHop.get(relayKey(col.last_hop_hex));
+                      const cell = byHop.get(relayKey(col));
                       return (
-                        <td
-                          key={relayKey(col.last_hop_hex)}
-                          className="py-1 px-2 text-right tabular-nums"
-                        >
+                        <td key={relayKey(col)} className="py-1 px-2 text-right tabular-nums">
                           {cell ? (
                             <span title={fmtRssi(cell.best_rssi)}>
                               {formatSNR(cell.best_snr) ?? '—'}
@@ -335,7 +336,7 @@ export function MeshRelayReceptionPanel({
             </thead>
             <tbody>
               {sortedSummary.map((r) => (
-                <tr key={relayKey(r.last_hop_hex)} className="border-t border-border/60">
+                <tr key={relayKey(r)} className="border-t border-border/60">
                   <td className="py-1 pr-2">
                     {r.resolved_pubkey && onOpenNode ? (
                       <button

@@ -124,14 +124,25 @@ export function SettingsHandyInfoSection({
       ? (appSettings?.analyzer_sites ?? []).find((s) => s.node_url_template === template)
       : undefined;
 
+  // A site applied before the entry had an API template (or before the entry
+  // was edited to add one) lacks it; the entry's template fills the gap and is
+  // copied onto the site when resolution is enabled.
+  const resolutionApiTemplate = (entry: HandyEntry) =>
+    configuredSite(entry.apply?.node_url_template)?.node_api_url_template ||
+    entry.apply?.node_api_url_template ||
+    null;
+
   const setResolution = (entry: HandyEntry, enabled: boolean) => {
     const template = entry.apply?.node_url_template;
     const name = entryLabel(entry, t);
     const site = configuredSite(template);
-    if (!site) return;
+    const apiTemplate = resolutionApiTemplate(entry);
+    if (!site || !apiTemplate) return;
     if (enabled && !window.confirm(t('settings_handy_resolution_confirm', { name }))) return;
     const next = (appSettings?.analyzer_sites ?? []).map((s) =>
-      s.node_url_template === template ? { ...s, resolution_enabled: enabled } : s
+      s.node_url_template === template
+        ? { ...s, node_api_url_template: apiTemplate, resolution_enabled: enabled }
+        : s
     );
     persist(
       { analyzer_sites: next },
@@ -302,7 +313,7 @@ export function SettingsHandyInfoSection({
           </a>
           <div className="text-xs font-mono text-muted-foreground break-all">{template}</div>
           {configured &&
-            (site?.node_api_url_template ? (
+            (site && resolutionApiTemplate(entry) ? (
               <label className="flex items-center gap-2 text-xs cursor-pointer pt-1">
                 <input
                   type="checkbox"

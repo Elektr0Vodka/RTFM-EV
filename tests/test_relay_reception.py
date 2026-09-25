@@ -215,6 +215,25 @@ class TestAggregate:
         assert len(groups) == 2 and groups[0].last_seen == 104
         assert relays[0].receptions == 5
 
+    def test_relay_identity_merges_hash_widths(self):
+        h1, h2, h3 = bytes([1]) * 32, bytes([2]) * 32, bytes([3]) * 32
+        rows = [
+            _row(h1, 103, "694203", snr=3.0),
+            _row(h2, 102, "6942", snr=5.0),
+            _row(h3, 101, "69", snr=1.0),
+        ]
+        full = {"6942": "PK", "694203": "PK"}
+        _groups, relays = aggregate_relay_receptions(
+            rows, relay_identity=lambda hop: full.get(hop or "") or hop
+        )
+
+        by_hop = {r.last_hop_hex: r for r in relays}
+        assert set(by_hop) == {"694203", "69"}
+        merged = by_hop["694203"]
+        assert (merged.receptions, merged.packets, merged.best_snr) == (2, 2, 5.0)
+        assert merged.avg_snr == 4.0 and merged.last_snr == 3.0
+        assert by_hop["69"].receptions == 1
+
     def test_resolve_relay_unique_and_collision(self):
         ids = [("aa" * 32, "Alpha"), ("ab" + "00" * 31, "AlphaBee"), ("cc" * 32, None)]
         assert resolve_relay("aa", ids) == ("aa" * 32, "Alpha", 1)
@@ -273,6 +292,35 @@ class TestEndpoint:
         assert cells["aa"]["resolved_name"] is None and cells["aa"]["candidates"] == 0
         relays = {r["last_hop_hex"]: r for r in body["relays"]}
         assert relays["bb"]["receptions"] == 2 and relays["bb"]["avg_snr"] == 6.0
+
+    @pytest.mark.asyncio
+    async def test_summary_merges_widths_of_one_relay(self, test_db, client):
+        await ContactRepository.upsert(
+            ContactUpsert(public_key="6942" + "03" * 30, name="Wide Relay", type=2)
+        )
+        for i, (hop, width) in enumerate((("6942", 2), ("694203", 3), ("694203", 3))):
+            await PacketReceptionRepository.insert(
+                raw_packet_id=None,
+                payload_hash=bytes([i]) * 32,
+                observed_at=1000 + i,
+                snr=float(i),
+                rssi=-100,
+                payload_type="GROUP_TEXT",
+                route_type="Flood",
+                hop_count=1,
+                hash_size=width,
+                last_hop_hex=hop,
+                path_hex=hop,
+            )
+
+        resp = await client.get("/api/packets/relay-reception?start_ts=900&end_ts=2000")
+
+        assert resp.status_code == 200
+        relays = resp.json()["relays"]
+        assert len(relays) == 1
+        assert relays[0]["last_hop_hex"] == "694203"
+        assert relays[0]["receptions"] == 3 and relays[0]["packets"] == 3
+        assert relays[0]["resolved_name"] == "Wide Relay"
 
     @pytest.mark.asyncio
     async def test_rejects_bad_window(self, test_db, client):
