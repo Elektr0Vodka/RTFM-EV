@@ -109,7 +109,7 @@ discovery rows were re-marked afterwards. §7 holds the current per-item status.
 | Room-server connectivity | Off | Unverified | App | RTFM-EV depth not inspected; verify before scoping. **[web]** |
 | Auto contact discovery | Off | Unverified | App | RTFM-EV behavior not inspected; verify vs app. **[web]** |
 | Mute channel | Off | Present | App | Shipped (per-channel mute; see §7 L4). |
-| Inline `<pubkey:1:Name>` contact sharing | Off | Absent | App | Upstream issue #347 (already in fork-port plan). |
+| Inline `<pubkey:1:Name>` contact sharing | Off | Present | App | Receive: contact chip + "Add contact" (known contact opens info). Send: "Copy share tag" in contact info / Settings > Radio. Upstream issue #347. |
 
 ### Repeater / admin
 | Feature | Ref | RTFM-EV | Appl. | Notes |
@@ -253,8 +253,10 @@ Each "Now/Next" item gets its own brainstorm → spec → plan cycle.
 - **L3. MQTT `neighbors` / `config` topic publishing** - PARTIAL: neighbor /
   region publish shipped with `subject_id` attribution (PR #90, plan [24]).
   Remaining: `config`-topic publishing.
-- **L4. Small messaging parity** - PARTIAL: mute channel shipped. Remaining:
-  inline contact sharing (#347), auto contact discovery confirmation.
+- **L4. Small messaging parity** - PARTIAL: mute channel shipped; inline
+  contact sharing (#347) shipped 2026-09-25 (`feat/inline-contact-share`:
+  `<pubkey:type:Name>` chips with "Add contact", "Copy share tag" next to the
+  contact link). Remaining: auto contact discovery confirmation.
 
 ### Won't / N/A
 - On-device pairing UX, phone GPS location sharing - mobile-only.

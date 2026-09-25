@@ -14,10 +14,17 @@ export function ContactLinkShare({
   load,
   hint,
   className = '',
+  shareTag,
 }: {
   load: () => Promise<ContactUriResult>;
   hint?: string;
   className?: string;
+  /**
+   * The inline `<pubkey:type:Name>` share tag for this contact. Pasted into a
+   * message it gives other MeshCore apps an "Add contact" offer (upstream
+   * issue #347). Optional; no button when omitted.
+   */
+  shareTag?: string;
 }) {
   const t = useT();
   const [uri, setUri] = useState<string | null>(null);
@@ -42,6 +49,12 @@ export function ContactLinkShare({
     if (!uri) return;
     await navigator.clipboard.writeText(uri);
     toast.success(t('contact_link_copied'));
+  };
+
+  const handleCopyTag = async () => {
+    if (!shareTag) return;
+    await navigator.clipboard.writeText(shareTag);
+    toast.success(t('contact_share_tag_copied'));
   };
 
   return (
@@ -87,6 +100,20 @@ export function ContactLinkShare({
         </p>
       )}
       <p className="text-xs text-muted-foreground">{hint ?? t('contact_link_hint')}</p>
+      {shareTag && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void handleCopyTag()}
+            title={shareTag}
+          >
+            {t('contact_share_tag_copy')}
+          </Button>
+          <span className="text-xs text-muted-foreground">{t('contact_share_tag_hint')}</span>
+        </div>
+      )}
     </div>
   );
 }

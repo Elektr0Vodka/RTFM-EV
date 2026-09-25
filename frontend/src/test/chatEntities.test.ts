@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { findPubkeys, findCoordinates, tokenizeMessageText } from '../utils/chatEntities';
+import {
+  findContactShares,
+  findPubkeys,
+  findCoordinates,
+  formatContactShare,
+  tokenizeMessageText,
+} from '../utils/chatEntities';
 
 const KEY = 'f40fd1f0b0dedcb2650457bf90d81f3c1b174242449e9012ec38aba5db2d87ee';
 
@@ -83,5 +89,53 @@ describe('tokenizeMessageText', () => {
     expect(kinds).not.toContain('pubkey');
     expect(kinds).not.toContain('coordinate');
     expect(kinds).not.toContain('url');
+  });
+});
+
+describe('contact shares (<pubkey:type:Name>, upstream #347)', () => {
+  it('finds the official app share form', () => {
+    const r = findContactShares(`meet <${KEY.toUpperCase()}:1:Fl1p> today`);
+    expect(r).toEqual([
+      {
+        publicKey: KEY,
+        type: 1,
+        name: 'Fl1p',
+        raw: `<${KEY.toUpperCase()}:1:Fl1p>`,
+        start: 5,
+        end: 5 + 64 + 9,
+      },
+    ]);
+  });
+
+  it('ignores malformed tags', () => {
+    expect(findContactShares(`<${KEY}:x:Name>`)).toEqual([]);
+    expect(findContactShares(`<${KEY.slice(0, 63)}:1:Name>`)).toEqual([]);
+    expect(findContactShares(`<${KEY}:1:>`)).toEqual([]);
+    expect(findContactShares(`<${KEY}:1:   >`)).toEqual([]);
+  });
+
+  it('is tokenized even when pubkey parsing is off, and wins over the bare key', () => {
+    const text = `hi <${KEY}:2:Repeater One> and ${KEY}`;
+    const off = tokenizeMessageText(text, {
+      parsePubkeys: false,
+      parseCoordinates: false,
+      linkifyUrls: true,
+    });
+    expect(off.map((t) => t.kind)).toEqual(['text', 'contact_share', 'text']);
+    const on = tokenizeMessageText(text, {
+      parsePubkeys: true,
+      parseCoordinates: false,
+      linkifyUrls: true,
+    });
+    expect(on.map((t) => t.kind)).toEqual(['text', 'contact_share', 'text', 'pubkey']);
+    const share = on[1];
+    expect(share.kind === 'contact_share' && share.name).toBe('Repeater One');
+    expect(share.kind === 'contact_share' && share.type).toBe(2);
+  });
+
+  it('formats a tag that round-trips and strips angle brackets from the name', () => {
+    const tag = formatContactShare(KEY.toUpperCase(), 3, ' Room <A> ');
+    expect(tag).toBe(`<${KEY}:3:Room  A>`);
+    expect(findContactShares(tag)[0].name).toBe('Room  A');
   });
 });

@@ -23,6 +23,7 @@ import { api, isAbortError } from '../../api';
 import { formatDateTime } from '../../utils/dateTimeFormat';
 import { RADIO_PRESETS } from '../../utils/radioPresets';
 import { stripRegionScopePrefix } from '../../utils/regionScope';
+import { formatContactShare } from '../../utils/chatEntities';
 import { allDutchScopes } from '../../lib/dutchGeo';
 import type {
   AppSettings,
@@ -1050,7 +1051,15 @@ export function SettingsRadioSection({
         <Input id="public-key" value={config.public_key} disabled className="font-mono text-xs" />
       </div>
 
-      <ContactLinkShare key={config.public_key} load={() => api.getOwnContactUri()} />
+      <ContactLinkShare
+        key={config.public_key}
+        load={() => api.getOwnContactUri()}
+        shareTag={formatContactShare(
+          config.public_key,
+          1,
+          config.name || config.public_key.slice(0, 8)
+        )}
+      />
 
       <div className="space-y-2">
         <Label htmlFor="private-key">{t('settings_radio_private_key_label')}</Label>

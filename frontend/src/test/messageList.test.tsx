@@ -912,6 +912,40 @@ describe('MessageList entity parsing', () => {
     };
   }
 
+  it('renders an inline contact share with an Add contact button and adds it', async () => {
+    const onAddSharedContact = vi.fn().mockResolvedValue(undefined);
+    render(
+      <MessageList
+        messages={[createMessage({ text: `meet <${KEY}:1:Fl1p>`, sender_name: 'Bob' })]}
+        contacts={[]}
+        loading={false}
+        onAddSharedContact={onAddSharedContact}
+      />
+    );
+    const chip = screen.getByTestId('contact-share');
+    expect(chip).toHaveTextContent('Fl1p');
+    expect(chip).toHaveTextContent('Client');
+    expect(screen.queryByText(`<${KEY}:1:Fl1p>`)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Add contact' }));
+    expect(onAddSharedContact).toHaveBeenCalledWith(KEY, 'Fl1p', 1);
+  });
+
+  it('renders an inline contact share for a known contact as an open-contact button', async () => {
+    const onOpenContactInfo = vi.fn();
+    render(
+      <MessageList
+        messages={[createMessage({ text: `meet <${KEY}:1:Fl1p>`, sender_name: 'Bob' })]}
+        contacts={[createContact()]}
+        loading={false}
+        onOpenContactInfo={onOpenContactInfo}
+        onAddSharedContact={vi.fn()}
+      />
+    );
+    expect(screen.queryByRole('button', { name: 'Add contact' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('contact-share-known'));
+    expect(onOpenContactInfo).toHaveBeenCalledWith(KEY);
+  });
+
   it('renders a known pubkey as a contact button', async () => {
     const onOpenContactInfo = vi.fn();
     render(
