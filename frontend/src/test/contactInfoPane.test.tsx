@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import { ContactInfoPane } from '../components/ContactInfoPane';
-import type { Contact, ContactAnalytics, ContactGroup } from '../types';
+import type { Contact, ContactAnalytics, ContactGroup, RadioConfig } from '../types';
 
 const { getContactAnalytics, contactTelemetryHistory, updateContactAnnotations } = vi.hoisted(
   () => ({
@@ -142,6 +142,32 @@ describe('ContactInfoPane', () => {
     await waitFor(() =>
       expect(updateContactAnnotations).toHaveBeenCalledWith(contact.public_key, {
         notes: 'field note',
+      })
+    );
+  });
+
+  it("offers the radio's own key as owner and saves it", async () => {
+    const user = userEvent.setup();
+    const contact = createContact();
+    getContactAnalytics.mockResolvedValue(createAnalytics(contact));
+    const ownKey = 'CD'.repeat(32);
+
+    render(
+      <ContactInfoPane
+        {...baseProps}
+        config={{ public_key: ownKey } as RadioConfig}
+        contactKey={contact.public_key}
+      />
+    );
+
+    await screen.findByLabelText('Notes');
+    await user.click(screen.getByRole('button', { name: "Use my radio's key" }));
+    await screen.findByText('Your radio (listed under Owned in the sidebar)');
+    await user.click(screen.getByRole('button', { name: 'Save owner' }));
+
+    await waitFor(() =>
+      expect(updateContactAnnotations).toHaveBeenCalledWith(contact.public_key, {
+        owner_key: ownKey.toLowerCase(),
       })
     );
   });
