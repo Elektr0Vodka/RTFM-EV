@@ -109,7 +109,7 @@ discovery rows were re-marked afterwards. §7 holds the current per-item status.
 | Room-server connectivity | Off | Unverified | App | RTFM-EV depth not inspected; verify before scoping. **[web]** |
 | Auto contact discovery | Off | Unverified | App | RTFM-EV behavior not inspected; verify vs app. **[web]** |
 | Mute channel | Off | Present | App | Shipped (per-channel mute; see §7 L4). |
-| Inline `<pubkey:1:Name>` contact sharing | Off | Absent | App | Upstream issue #347 (already in fork-port plan). |
+| Inline `<pubkey:1:Name>` contact sharing | Off | Present | App | Receive: contact chip + "Add contact" (known contact opens info). Send: "Copy share tag" in contact info / Settings > Radio. Upstream issue #347. |
 
 ### Repeater / admin
 | Feature | Ref | RTFM-EV | Appl. | Notes |

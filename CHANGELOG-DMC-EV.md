@@ -11,6 +11,23 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-25 (Inline contact sharing, parity audit L4 / upstream #347, feat/inline-contact-share)
+
+### Chat: inline `<pubkey:type:Name>` contact sharing (frontend)
+- A message containing the official app's share form
+  `<64-hex pubkey:type:Name>` (type 1 client, 2 repeater, 3 room, 4 sensor)
+  now renders as a contact chip instead of raw text: name, type and short key
+  with an **Add contact** button for an unknown key (adds the contact with the
+  shared name and type through the existing create-contact flow; a local
+  radio command, nothing is transmitted), or a button that opens the contact
+  when you already have it. The tag is always parsed (it is an explicit form,
+  not a heuristic) and takes precedence over the bare public-key scanner.
+- **Copy share tag** next to the `meshcore://` link in contact info and under
+  your own key in Settings > Radio copies the tag to paste into a message.
+- Parity audit L4: inline contact sharing done; auto contact discovery
+  confirmation still open. New i18n keys `chat_contact_share_*`,
+  `contact_share_tag_*` in EN/NL/DE.
+
 ## Update 2026-09-25 (GRP_DATA image placeholder, plan 28 item 1.17, feat/group-data-placeholder)
 
 ### Channel datagrams (GRP_DATA) shown as a placeholder (backend + frontend)

@@ -115,6 +115,8 @@ interface MessageListProps {
   radioName?: string;
   config?: RadioConfig | null;
   onOpenContactInfo?: (publicKey: string, fromChannel?: boolean) => void;
+  /** Add a contact shared inline as `<pubkey:type:Name>` (upstream issue #347). */
+  onAddSharedContact?: (publicKey: string, name: string, type: number) => void | Promise<void>;
   targetMessageId?: number | null;
   onTargetReached?: () => void;
   hasNewerMessages?: boolean;
@@ -455,6 +457,81 @@ interface TokenDeps {
   onOpenContactInfo?: (publicKey: string, fromChannel?: boolean) => void;
   onCoordinateClick?: (lat: number, lon: number, label: string) => void;
   analyzerSites: AnalyzerSite[];
+  /** Add a contact shared inline as `<pubkey:type:Name>` (local radio command, no RF). */
+  onAddSharedContact?: (publicKey: string, name: string, type: number) => void | Promise<void>;
+}
+
+const CONTACT_SHARE_TYPE_KEYS: Record<number, string> = {
+  1: 'common_client',
+  2: 'common_repeater',
+  3: 'common_room',
+  4: 'common_sensor',
+};
+
+// The official app's inline contact share `<pubkey:type:Name>`: a known contact
+// opens its info, an unknown one shows the name, type and short key with an
+// "Add contact" button (upstream issue #347). Rendered whether or not bare
+// pubkey parsing is on, because the form is explicit.
+function ContactShareToken({
+  publicKey,
+  type,
+  name,
+  deps,
+}: {
+  publicKey: string;
+  type: number;
+  name: string;
+  deps: TokenDeps;
+}) {
+  const t = useT();
+  const [adding, setAdding] = useState(false);
+  const known = deps.contacts.find((c) => c.public_key.toLowerCase() === publicKey);
+  const short = `${publicKey.slice(0, 6)}…${publicKey.slice(-6)}`;
+  const typeKey = CONTACT_SHARE_TYPE_KEYS[type];
+  const typeLabel = typeKey ? t(typeKey) : `#${type}`;
+  const chipClass =
+    'inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-1.5 py-0.5 align-baseline text-[0.8125rem]';
+
+  if (known && deps.onOpenContactInfo) {
+    return (
+      <button
+        type="button"
+        className={cn(
+          chipClass,
+          'hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+        )}
+        title={t('chat_contact_share_open', { name: known.name || name, key: short })}
+        onClick={() => deps.onOpenContactInfo!(publicKey)}
+        data-testid="contact-share-known"
+      >
+        <span className="font-medium">{known.name || name}</span>
+        <span className="font-mono text-muted-foreground">{short}</span>
+      </button>
+    );
+  }
+  return (
+    <span className={chipClass} title={publicKey} data-testid="contact-share">
+      <span className="font-medium">{name}</span>
+      <span className="text-muted-foreground">{typeLabel}</span>
+      <span className="font-mono text-muted-foreground">{short}</span>
+      {deps.onAddSharedContact && !known && (
+        <button
+          type="button"
+          disabled={adding}
+          onClick={() => {
+            setAdding(true);
+            void Promise.resolve(deps.onAddSharedContact!(publicKey, name, type)).finally(() =>
+              setAdding(false)
+            );
+          }}
+          className="rounded border border-border px-1 text-[0.6875rem] leading-tight text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          title={t('chat_contact_share_add_title', { name, key: short })}
+        >
+          {t('chat_contact_share_add')}
+        </button>
+      )}
+    </span>
+  );
 }
 
 const EMPTY_TOKEN_DEPS: TokenDeps = { contacts: [], analyzerSites: [] };
@@ -541,6 +618,16 @@ function renderToken(
       return renderHashtag(tok.label, `hashtag-${i}`, ctx);
     case 'pubkey':
       return <PubkeyToken key={`pubkey-${i}`} value={tok.value} deps={deps} />;
+    case 'contact_share':
+      return (
+        <ContactShareToken
+          key={`share-${i}`}
+          publicKey={tok.publicKey}
+          type={tok.type}
+          name={tok.name}
+          deps={deps}
+        />
+      );
     case 'coordinate':
       return (
         <MarkerMessage
@@ -734,6 +821,7 @@ export function MessageList({
   radioName,
   config,
   onOpenContactInfo,
+  onAddSharedContact,
   targetMessageId,
   onTargetReached,
   hasNewerMessages = false,
@@ -970,8 +1058,8 @@ export function MessageList({
     return undefined;
   }, [messages, channels, analyzerSites]);
   const tokenDeps = useMemo<TokenDeps>(
-    () => ({ contacts, onOpenContactInfo, onCoordinateClick, analyzerSites }),
-    [contacts, onOpenContactInfo, onCoordinateClick, analyzerSites]
+    () => ({ contacts, onOpenContactInfo, onCoordinateClick, analyzerSites, onAddSharedContact }),
+    [contacts, onOpenContactInfo, onCoordinateClick, analyzerSites, onAddSharedContact]
   );
 
   // Opt-in passive capture: when enabled, record unknown #hashtag references seen

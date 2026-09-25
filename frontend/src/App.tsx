@@ -774,6 +774,10 @@ export function App() {
     onSetChannelPathHashModeOverride: handleSetChannelPathHashModeOverride,
     onSelectConversation: handleSelectConversationWithTargetReset,
     onOpenContactInfo: handleOpenContactInfo,
+    // Inline `<pubkey:type:Name>` share: add with the shared name/type, no
+    // historical decrypt (a local radio command; nothing goes on air).
+    onAddSharedContact: (publicKey: string, name: string, type: number) =>
+      handleCreateContact(name, publicKey, false, type),
     onOpenChannelInfo: handleOpenChannelInfo,
     onSenderClick: handleSenderClick,
     onChannelReferenceClick: handleChannelReferenceClick,

@@ -44,6 +44,7 @@ import { ContactAvatar } from './ContactAvatar';
 import { ContactRadioResidencyControl } from './ContactRadioResidencyControl';
 import { ContactTelemetryPermissionsControl } from './ContactTelemetryPermissionsControl';
 import { ContactLinkShare } from './ContactLinkShare';
+import { formatContactShare } from '../utils/chatEntities';
 import { LppSensorRow, formatLppLabel } from './repeater/repeaterPaneShared';
 import { toast } from './ui/sonner';
 import { useDistanceUnit } from '../contexts/DistanceUnitContext';
@@ -431,6 +432,11 @@ export function ContactInfoBody({
           load={() => api.getContactUri(contact.public_key)}
           hint={t('contact_link_contact_hint')}
           className="px-5 py-3 border-b border-border"
+          shareTag={formatContactShare(
+            contact.public_key,
+            contact.type,
+            contact.name || contact.public_key.slice(0, 8)
+          )}
         />
       )}
 
