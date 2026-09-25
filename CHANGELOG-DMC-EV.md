@@ -11,6 +11,37 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-25 (Inline contact sharing, parity audit L4 / upstream #347, feat/inline-contact-share)
+
+### Chat: inline `<pubkey:type:Name>` contact sharing (frontend)
+- A message containing the official app's share form
+  `<64-hex pubkey:type:Name>` (type 1 client, 2 repeater, 3 room, 4 sensor)
+  now renders as a contact chip instead of raw text: name, type and short key
+  with an **Add contact** button for an unknown key (adds the contact with the
+  shared name and type through the existing create-contact flow; a local
+  radio command, nothing is transmitted), or a button that opens the contact
+  when you already have it. The tag is always parsed (it is an explicit form,
+  not a heuristic) and takes precedence over the bare public-key scanner.
+- **Copy share tag** next to the `meshcore://` link in contact info and under
+  your own key in Settings > Radio copies the tag to paste into a message.
+- Parity audit L4: inline contact sharing done; auto contact discovery
+  confirmation still open. New i18n keys `chat_contact_share_*`,
+  `contact_share_tag_*` in EN/NL/DE.
+## Update 2026-09-25 (Triangulation link-out, plan 13 last item, feat/map-triangulate-link)
+
+### Map + contact info: triangulate a node on the DMC triangulator (frontend)
+- The last open item of plan [13] (map overhaul) ships as the plan's
+  recommended option (a), a deep link: **Triangulate** in the map node popup
+  and **Triangulate on triangulator.dutchmeshcore.nl** in the contact info
+  identity section open `https://triangulator.dutchmeshcore.nl/?prefixes=<first
+  6 hex of the key>` in a new tab. That is the triangulator's own share-link
+  form (2/4/6-hex path-hash prefixes); it pre-fills the query and runs
+  discovery against the public mc-radar / map.meshcore.io feeds itself, so
+  RTFM-EV sends nothing but the prefix. Prefix-only contacts get their whole
+  bytes; keys shorter than one byte get no link. New i18n keys
+  `contact_triangulate_label`, `contact_triangulate_title`,
+  `map_triangulate_link` in EN/NL/DE.
+
 ## Update 2026-09-25 (GRP_DATA image placeholder, plan 28 item 1.17, feat/group-data-placeholder)
 
 ### Channel datagrams (GRP_DATA) shown as a placeholder (backend + frontend)
@@ -57,6 +88,43 @@ the change. Upstream development is on hold; the fork is the active repository.
   parity audit L1; other repeaters' live region-gate state stays DMC-MQTT-only.
   New i18n keys `settings_radio_default_scope_*` in EN/NL/DE.
 
+## Update 2026-09-25 (MQTT config topic, parity audit L3, feat/mqtt-config-topic)
+
+### Community MQTT: node config topic (backend + frontend)
+- New opt-in toggle **Publish node config** on Community MQTT integrations
+  (`publish_config`, default off, like the DMC firmware's `set mqtt.config 1`).
+  When on, RTFM-EV publishes a retained `meshcore/{IATA}/{PUBKEY}/config`
+  message right after `status` on connect and on the status cadence: the
+  counterpart of the DMC observer firmware `config` topic
+  (`MQTTMessageBuilder::buildConfigMessage`) for the sections a
+  companion-driven host can fill: identity and firmware, `radio`
+  (freq/bw/sf/cr/tx power/multi-acks), `repeat` (host repeater forwarding
+  limits, `disable_fwd` while not armed), `region_gate`, `region` (home,
+  default outbound scope, wildcard flood, the host repeater's scope tree as
+  `{name, flood, parent}`), `host_repeater.state` and the `mqtt` toggles.
+  Firmware-only sections (bridge, gps, power, room, timezone, alert, snmp)
+  are omitted; broker address, credentials and keys are never included.
+  Closes the last open item of parity audit L3. New i18n keys
+  `settings_fanout_publish_config`, `settings_fanout_publish_config_desc`
+  in EN/NL/DE.
+
+## Update 2026-09-25 (Receive-error graph, parity audit L2, feat/rx-error-graph)
+
+### My Node: receive errors chart (backend + frontend)
+- The 60 s radio stats sampler now also persists the radio's cumulative RX
+  error counter (`recv_errors` from the companion `STATS_PACKETS` frame,
+  firmware v1.12+; NULL on the legacy 26-byte frame) in `airtime_history`
+  (migration `_116`, `AirtimeHistoryRepository.insert(..., recv_errors)`).
+- `GET /api/statistics/airtime/range` bins gain `rx_errors`: the sum of the
+  counter deltas of the sample pairs in each bin, with the same counter-reset
+  and disconnect-gap rules as the airtime deltas; `null` when no pair had the
+  counter (older firmware, or the OpenHop airtime source, which has no error
+  counter).
+- My Node shows a **Receive errors** card (bar chart, same time range and zoom
+  as the airtime chart, total in the window as the stat) whenever the window
+  has at least one bin with the counter. Closes the last open item of parity
+  audit L2 (telemetry graph parity). New i18n keys `node_chart_rx_errors_*`
+  in EN/NL/DE.
 
 ## Update 2026-09-25 (Scored path history, plan 28 item 1.15, feat/scored-path-history)
 
@@ -1082,7 +1150,6 @@ Phase 3) is not built.
   the picker (Enter in the search box with no results or while loading would
   otherwise trigger implicit form submission). Regression tests cover clicking
   an emoji, Enter with and without a search match, and Enter while loading.
-
 
 ## Update 2026-09-23 (Repeater and room avatars no longer depend on emoji fonts)
 

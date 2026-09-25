@@ -111,6 +111,8 @@ interface ConversationPaneProps {
   onToggleCad?: () => void;
   onSelectConversation: (conversation: Conversation) => void;
   onOpenContactInfo: (publicKey: string, fromChannel?: boolean) => void;
+  /** Add a contact shared inline as `<pubkey:type:Name>` in a message. */
+  onAddSharedContact?: (publicKey: string, name: string, type: number) => void | Promise<void>;
   onOpenChannelInfo: (channelKey: string) => void;
   onSenderClick: (sender: string) => void;
   onChannelReferenceClick?: (channelName: string) => void;
@@ -244,6 +246,7 @@ export function ConversationPane({
   onToggleCad,
   onSelectConversation,
   onOpenContactInfo,
+  onAddSharedContact,
   onOpenChannelInfo,
   onSenderClick,
   onChannelReferenceClick,
@@ -686,6 +689,7 @@ export function ConversationPane({
           radioName={config?.name}
           config={config}
           onOpenContactInfo={onOpenContactInfo}
+          onAddSharedContact={onAddSharedContact}
           targetMessageId={targetMessageId}
           onTargetReached={onTargetReached}
           hasNewerMessages={hasNewerMessages}

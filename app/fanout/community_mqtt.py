@@ -360,6 +360,117 @@ def _format_node_regions(
     return payload
 
 
+def _format_node_config(
+    *,
+    device_name: str,
+    public_key_hex: str,
+    self_info: dict[str, Any] | None,
+    device_info: dict[str, Any] | None,
+    stats: dict[str, Any] | None,
+    host_repeater_settings: Any | None,
+    host_repeater_state: str | None,
+    flood_scope: str | None,
+    fanout_config: dict[str, Any],
+) -> dict[str, Any]:
+    """Build the ``config`` topic payload: this node's non-sensitive configuration.
+
+    Mirrors the DMC observer firmware's ``config`` topic (type 5,
+    ``MQTTMessageBuilder::buildConfigMessage`` / ``MyMesh::publishConfigIfDue``)
+    for the sections a companion-driven host can fill: identity, ``radio``,
+    ``repeat``, ``region_gate``, ``region`` (scope tree) and ``mqtt`` toggles.
+    Firmware-only sections (bridge, gps, power, room, timezone, alert, snmp)
+    are omitted rather than published empty. ``repeat`` / ``region_gate`` /
+    ``region.scopes`` come from the host repeater settings (RTFM-EV's own
+    repeater role); ``region.default`` is the app's outbound flood scope. No
+    broker host, credentials or keys are ever included.
+    """
+    payload: dict[str, Any] = {
+        "timestamp": _format_utc_timestamp(),
+        "origin": device_name or "MeshCore Device",
+        "origin_id": public_key_hex.upper(),
+        "client_version": _get_client_version(),
+    }
+    if device_info:
+        payload["model"] = device_info.get("model", "unknown")
+        payload["firmware_version"] = device_info.get("firmware_version", "unknown")
+    uptime = (stats or {}).get("uptime_secs")
+    if isinstance(uptime, int):
+        payload["uptime_secs"] = uptime
+    if device_name:
+        payload["node_name"] = device_name
+
+    info = self_info or {}
+    radio: dict[str, Any] = {}
+    for src, dst in (
+        ("radio_freq", "freq"),
+        ("radio_bw", "bw"),
+        ("radio_sf", "sf"),
+        ("radio_cr", "cr"),
+        ("tx_power", "tx_power"),
+        ("max_tx_power", "max_tx_power"),
+        ("multi_acks", "multi_acks"),
+    ):
+        value = info.get(src)
+        if isinstance(value, (int, float)):
+            radio[dst] = value
+    if radio:
+        payload["radio"] = radio
+
+    hr = host_repeater_settings
+    if hr is not None:
+        armed = host_repeater_state == "armed"
+        payload["repeat"] = {
+            "disable_fwd": not armed,
+            "flood_max": hr.flood_max,
+            "flood_max_unscoped": hr.flood_max_unscoped,
+            "flood_max_advert": hr.flood_max_advert,
+            "loop_detect": hr.loop_detect,
+        }
+        payload["region_gate"] = {
+            "enabled": bool(hr.dc_gate_enabled),
+            "threshold": hr.dc_gate_threshold,
+            "hysteresis": hr.dc_gate_hysteresis,
+        }
+        region: dict[str, Any] = {"wildcard_flood": bool(hr.unscoped_flood_allow)}
+        if hr.home_region:
+            region["home"] = hr.home_region
+        scopes = [
+            {
+                "name": entry.name,
+                "flood": not entry.deny_flood,
+                "parent": entry.parent or "*",
+            }
+            for entry in hr.regions
+        ]
+        region["scopes"] = scopes
+        payload["region"] = region
+        payload["host_repeater"] = {"state": host_repeater_state or "off"}
+    if flood_scope:
+        payload.setdefault("region", {})["default"] = flood_scope
+
+    payload["mqtt"] = {
+        "status": bool(fanout_config.get("publish_status", True)),
+        "packets": bool(fanout_config.get("publish_packets", True)),
+        "telemetry": bool(fanout_config.get("publish_telemetry", False)),
+        "neighbors": bool(fanout_config.get("publish_neighbors", False)),
+        "regions": bool(fanout_config.get("publish_regions", False)),
+        "config": True,
+        "status_interval": _clamp_status_interval_ms(
+            fanout_config.get("status_interval_ms", _STATUS_INTERVAL_DEFAULT_MS)
+        ),
+    }
+    iata = str(fanout_config.get("iata", "")).upper().strip()
+    if iata:
+        payload["mqtt"]["iata"] = iata
+    return payload
+
+
+def _build_config_topic(settings: CommunityMqttSettings, pubkey_hex: str) -> str:
+    """Build the ``meshcore/{IATA}/{PUBKEY}/config`` topic string."""
+    iata = settings.community_mqtt_iata.upper().strip()
+    return f"meshcore/{iata}/{pubkey_hex}/config"
+
+
 def _build_status_topic(settings: CommunityMqttSettings, pubkey_hex: str) -> str:
     """Build the ``meshcore/{IATA}/{PUBKEY}/status`` topic string."""
     iata = settings.community_mqtt_iata.upper().strip()
@@ -671,9 +782,71 @@ class CommunityMqttPublisher(BaseMqttPublisher):
         await self.publish(status_topic, payload, retain=True)
         self._last_status_publish = time.monotonic()
 
+    async def _publish_config(self, settings: CommunityMqttSettings) -> None:
+        """Publish the retained node ``config`` snapshot (opt-in, DMC ``config`` topic)."""
+        if not getattr(settings, "community_mqtt_publish_config", False):
+            return
+
+        from app.keystore import get_public_key
+        from app.services.radio_runtime import radio_runtime as radio_manager
+
+        public_key = get_public_key()
+        if public_key is None:
+            return
+        pubkey_hex = public_key.hex().upper()
+
+        self_info: dict[str, Any] | None = None
+        device_name = ""
+        if radio_manager.meshcore and radio_manager.meshcore.self_info:
+            self_info = dict(radio_manager.meshcore.self_info)
+            device_name = self_info.get("name", "")
+
+        device_info: dict[str, Any] | None = None
+        if radio_manager.device_info_loaded:
+            raw_ver = radio_manager.firmware_version or "unknown"
+            fw_build = radio_manager.firmware_build or ""
+            device_info = {
+                "model": radio_manager.device_model or "unknown",
+                "firmware_version": f"{raw_ver} (Build: {fw_build})" if fw_build else raw_ver,
+            }
+        elif self._cached_device_info:
+            device_info = self._cached_device_info
+
+        host_settings: Any | None = None
+        host_state: str | None = None
+        try:
+            from app.services.host_repeater import host_repeater
+
+            host_settings = host_repeater.settings
+            host_state = host_repeater.state
+        except Exception:
+            logger.debug("Community MQTT: host repeater settings unavailable", exc_info=True)
+
+        flood_scope: str | None = None
+        try:
+            from app.repository import AppSettingsRepository
+
+            flood_scope = (await AppSettingsRepository.get()).flood_scope or None
+        except Exception:
+            logger.debug("Community MQTT: app settings unavailable for config", exc_info=True)
+
+        payload = _format_node_config(
+            device_name=device_name,
+            public_key_hex=pubkey_hex,
+            self_info=self_info,
+            device_info=device_info,
+            stats=self._cached_stats,
+            host_repeater_settings=host_settings,
+            host_repeater_state=host_state,
+            flood_scope=flood_scope,
+            fanout_config=getattr(settings, "community_mqtt_fanout_config", None) or {},
+        )
+        await self.publish(_build_config_topic(settings, pubkey_hex), payload, retain=True)
+
     async def _on_connected_async(self, settings: object) -> None:
-        """Publish a retained online status message after connecting."""
+        """Publish the retained online status (and, opt-in, config) after connecting."""
         await self._publish_status(settings)  # type: ignore[arg-type]
+        await self._publish_config(settings)  # type: ignore[arg-type]
 
     async def _on_periodic_wake(self, elapsed: float) -> None:
         if not self._settings:
@@ -686,6 +859,9 @@ class CommunityMqttPublisher(BaseMqttPublisher):
         now = time.monotonic()
         if (now - self._last_status_publish) >= (interval_ms / 1000.0):
             await self._publish_status(self._settings, refresh_stats=True)
+            # Config changes rarely; the firmware reuses its filter interval,
+            # we reuse the status cadence.
+            await self._publish_config(self._settings)
 
     def _on_error(self) -> tuple[str, str]:
         return (

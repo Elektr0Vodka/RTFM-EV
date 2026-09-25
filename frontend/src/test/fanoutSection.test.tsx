@@ -944,6 +944,7 @@ describe('SettingsFanoutSection', () => {
           topic_template: 'meshcore/{IATA}/{PUBLIC_KEY}/packets',
           publish_status: true,
           publish_packets: true,
+          publish_config: false,
           status_interval_ms: 300000,
         },
         scope: { messages: 'none', raw_packets: 'all' },
@@ -1691,6 +1692,7 @@ describe('SettingsFanoutSection', () => {
     });
     fireEvent.change(screen.getByLabelText('Region Code (IATA)'), { target: { value: 'ams' } });
     fireEvent.click(screen.getByText('Publish packets')); // toggle OFF
+    fireEvent.click(screen.getByText('Publish node config')); // opt-in ON
     fireEvent.change(screen.getByLabelText('Status interval (minutes)'), {
       target: { value: '10' },
     });
@@ -1703,6 +1705,7 @@ describe('SettingsFanoutSection', () => {
           config: expect.objectContaining({
             publish_status: true,
             publish_packets: false,
+            publish_config: true,
             status_interval_ms: 600000,
           }),
         })

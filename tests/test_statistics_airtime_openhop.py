@@ -105,7 +105,7 @@ async def test_falls_back_to_local_on_openhop_error(test_db, monkeypatch):
     await AirtimeHistoryRepository.insert(60, 30, 6)
 
     out = await get_airtime_range(start_ts=0, end_ts=60, bin_count=1)
-    assert out == [{"_bin": 0, "timestamp": 30, "tx_pct": 50.0, "rx_pct": 10.0}]
+    assert out == [{"_bin": 0, "timestamp": 30, "tx_pct": 50.0, "rx_pct": 10.0, "rx_errors": None}]
 
 
 @pytest.mark.asyncio

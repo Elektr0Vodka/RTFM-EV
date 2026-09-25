@@ -62,8 +62,49 @@ export function findCoordinates(text: string): CoordinateMatch[] {
   return out.sort((a, b) => a.start - b.start);
 }
 
+/**
+ * The official MeshCore app's inline contact share: `<pubkey:type:Name>` with a
+ * 64-hex public key, the contact type (1 client, 2 repeater, 3 room, 4 sensor)
+ * and the display name (upstream issue jkingsman/Remote-Terminal-for-MeshCore#347).
+ */
+export interface ContactShareMatch {
+  publicKey: string;
+  type: number;
+  name: string;
+  raw: string;
+  start: number;
+  end: number;
+}
+
+const CONTACT_SHARE_PATTERN = /<([0-9a-fA-F]{64}):(\d{1,2}):([^<>\r\n]{1,64})>/g;
+
+export function findContactShares(text: string): ContactShareMatch[] {
+  const out: ContactShareMatch[] = [];
+  CONTACT_SHARE_PATTERN.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = CONTACT_SHARE_PATTERN.exec(text)) !== null) {
+    const name = m[3].trim();
+    if (!name) continue;
+    out.push({
+      publicKey: m[1].toLowerCase(),
+      type: Number(m[2]),
+      name,
+      raw: m[0],
+      start: m.index,
+      end: m.index + m[0].length,
+    });
+  }
+  return out;
+}
+
+/** Build the share tag other MeshCore apps turn into an "Add contact" offer. */
+export function formatContactShare(publicKey: string, type: number, name: string): string {
+  return `<${publicKey.toLowerCase()}:${type}:${name.replace(/[<>\r\n]/g, ' ').trim()}>`;
+}
+
 export type ChatToken =
   | { kind: 'text'; value: string }
+  | { kind: 'contact_share'; publicKey: string; type: number; name: string; raw: string }
   | { kind: 'mention'; name: string }
   | { kind: 'url'; value: string }
   | { kind: 'hashtag'; label: string }
@@ -91,10 +132,28 @@ interface RawMatch {
 // Split message text into ordered, non-overlapping typed tokens. One scan per
 // entity kind; matches are sorted by position (priority breaks ties on the same
 // start) and accepted greedily so a higher-priority entity wins an overlap
-// (e.g. a URL that contains a coordinate). Mentions and hashtags are always
-// parsed; url/pubkey/coordinate parsing follows the toggles.
+// (e.g. a URL that contains a coordinate). Mentions, hashtags and contact
+// shares are always parsed; url/pubkey/coordinate parsing follows the toggles.
 export function tokenizeMessageText(text: string, opts: TokenizeOptions): ChatToken[] {
   const raw: RawMatch[] = [];
+
+  // Contact shares are an explicit protocol form (not a heuristic), so they are
+  // always parsed and start before the key they contain, which keeps the bare
+  // pubkey scanner from claiming the key on its own.
+  for (const share of findContactShares(text)) {
+    raw.push({
+      start: share.start,
+      end: share.end,
+      priority: -1,
+      make: () => ({
+        kind: 'contact_share',
+        publicKey: share.publicKey,
+        type: share.type,
+        name: share.name,
+        raw: share.raw,
+      }),
+    });
+  }
 
   MENTION_PATTERN.lastIndex = 0;
   let mm: RegExpExecArray | null;

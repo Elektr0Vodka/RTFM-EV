@@ -71,6 +71,9 @@ def _config_to_settings(config: dict) -> SimpleNamespace:
         community_mqtt_websocket_path=config.get("websocket_path", "/"),
         community_mqtt_publish_status=config.get("publish_status", True),
         community_mqtt_status_interval_ms=config.get("status_interval_ms", 300000),
+        community_mqtt_publish_config=bool(config.get("publish_config", False)),
+        # The config topic echoes the per-topic toggles, so hand the blob through.
+        community_mqtt_fanout_config=dict(config),
     )
 
 

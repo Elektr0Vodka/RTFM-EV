@@ -7,6 +7,7 @@ Connect your radio over Serial, TCP, or BLE, and then you can:
 * Send and receive DMs and channel messages (SMAZ-compressed `s:` messages from other MeshCore clients are shown decoded)
 * Channel image chunks sent by meshcore-open (`GRP_DATA` packets) are decrypted with the channel key and shown as an "Image (not supported)" placeholder in the channel, one per image. Images are not decoded (that needs meshcore-open's neural codec) and the image bytes are not stored, only the chunk metadata
 * Share and import contacts as `meshcore://` links (the format other MeshCore clients use): Settings > Radio and contact info show your node's or a contact's link, and the new-conversation dialog imports a pasted link
+* Inline contact sharing like the official app: a `<pubkey:type:Name>` tag in a message shows as a contact chip with an "Add contact" button (or opens the contact when you already have it); "Copy share tag" next to the contact link puts your own or a contact's tag on the clipboard to paste into a message
 * Join meshcore-open communities: paste the community code or scan its QR code (camera or image upload) in Channels > Import / Export > Communities. The community's Public channel and any community hashtag channels you add use keys derived from the shared community secret, so they interoperate with meshcore-open. You can share a joined community again as JSON or a QR code
 * React to and reply to messages from the chat (hover a message). Reactions and replies use the plaintext format other MeshCore clients understand. A received reaction shows which message it is for and jumps to it. If that message never reached your radio, it links to the channel on your first configured analyzer that has a channel link. Received reactions show as reactions when Settings > Local Configuration > "Render MeshCore Open GIFs & Reactions" is on
 * Delete a message from your own local history (hover a message, confirm). This is local only -- nothing is sent over RF, and other clients still have their copy. Deleting also removes its raw packet and any reaction pointing at it, and stops a background DM retry that is still in flight
@@ -29,6 +30,7 @@ Connect your radio over Serial, TCP, or BLE, and then you can:
 * Toggle the on-board GPS receiver on any radio that reports it, including stock MeshCore companion firmware (Settings > Radio)
 * Edit a remote repeater's settings (name, location, radio, TX power, routing and advert options) from its dashboard: each change is confirmed on its own, sent as one CLI command over RF and read back. Radio frequency/bandwidth/SF/CR needs you to type the repeater name first, since a wrong value can strand it off-air
 * Run a trace from the Trace page and see the hops drawn on a small map above the hop list (hops with no known location are skipped and bridged with a dashed segment)
+* Triangulate a node from the map popup or its contact info: a link-out to the DMC triangulator (triangulator.dutchmeshcore.nl) with the node's path-hash prefix; the site estimates the position from public observer feeds, nothing else is sent
 * Visualize the mesh as a map or node set, view repeater stats, and more!
 
 For advanced setup and troubleshooting see [README_ADVANCED.md](README_ADVANCED.md). If you plan to contribute, read [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -63,11 +65,12 @@ Shipped toward this so far:
   packet (migration `_065`), plus advert-path signal (`_066`) and per-link signal
   history (`_075`).
 - Standalone history stores for noise floor (`_069`), battery (`_070`), and local
-  radio TX/RX airtime (`_088`).
+  radio TX/RX airtime (`_088`) plus the radio's RX error counter (`_116`).
 - Repeater and per-contact telemetry history (`_050`, `_062`) and contact name
   history (`_024`).
 - "My Node" and mesh-health views that read from this persisted history, including
-  a TX/RX airtime utilization (%) chart on My Node and a "Directly heard radar"
+  a TX/RX airtime utilization (%) chart and a receive-errors chart (packets the
+  radio could not decode, firmware v1.12+) on My Node and a "Directly heard radar"
   card that plots 0-hop nodes by bearing and distance, coloured by best SNR.
 - A "Mesh Health" view with an Adverts panel (per-contact direct/flood advert
   counts, a searchable and pageable contacts table, and HIGH/MEDIUM alerts that

@@ -119,7 +119,7 @@ frontend/src/
 │   ├── StatusBar.tsx
 │   ├── Sidebar.tsx             # Conversation list; Customize panel (section/tool/favorites-group reorder+hide) + Contact Groups (create/rename/delete); each contact_group renders as its own reorderable/hideable/collapsible section (see sidebarLayout.ts)
 │   ├── ChatHeader.tsx          # Conversation header (trace, favorite, delete)
-│   ├── MessageList.tsx        # Message rows; #hashtag refs styled by state (followed/known/unknown) with an inline "+" to capture unknowns into the registry (auto-capture via app_settings.auto_add_mentioned_channels); hover React/Reply/Delete (MessageRowActions) and reaction-target links (ReactionTargetLink); rows with txt_type === TXT_TYPE_GROUP_DATA (GRP_DATA channel datagrams, marker text `[image] id=.. chunks=..` / `[data] type=.. len=..`) render an "Image (not supported)" / "Data (not supported)" placeholder instead of the text
+│   ├── MessageList.tsx        # Message rows; #hashtag refs styled by state (followed/known/unknown) with an inline "+" to capture unknowns into the registry (auto-capture via app_settings.auto_add_mentioned_channels); hover React/Reply/Delete (MessageRowActions) and reaction-target links (ReactionTargetLink); inline `<pubkey:type:Name>` contact shares (utils/chatEntities `findContactShares`, always tokenized, priority over the bare-pubkey scanner) render as ContactShareToken: known contact opens info, unknown shows name/type/short key + "Add contact" via `onAddSharedContact` (App: `handleCreateContact(name, key, false, type)`); rows with txt_type === TXT_TYPE_GROUP_DATA (GRP_DATA channel datagrams, marker text `[image] id=.. chunks=..` / `[data] type=.. len=..`) render an "Image (not supported)" / "Data (not supported)" placeholder instead of the text
 │   ├── MessageList.tsx        # Message rows; #hashtag refs styled by state (followed/known/unknown) with an inline "+" to capture unknowns into the registry (auto-capture via app_settings.auto_add_mentioned_channels); hover React/Reply/Mark-unread (MessageRowActions) and reaction-target links (ReactionTargetLink)
 │   ├── MessageInput.tsx
 │   ├── NewMessageModal.tsx     # Contact / Contact link (meshcore:// import) / channel tabs
@@ -772,3 +772,7 @@ Rules for new strings:
 
 Translation strings for NL/DE are adapted in part from kiekr-i18n by Marcel
 Verdult (@marcelverdult), https://github.com/marcelverdult/kiekr-i18n, CC-BY 4.0.
+
+### Triangulation link-out (plan [13])
+
+`utils/triangulatorLink.ts` builds `https://triangulator.dutchmeshcore.nl/?prefixes=<first 6 hex>` for a node (the DMC triangulator's own deep-link form: 2/4/6-hex path-hash prefixes, optional `:count` weights, `prefixes2`, `hop2`, `cluster`; it auto-runs discovery from the public mc-radar / map.meshcore.io feeds). Shown as "Triangulate on triangulator.dutchmeshcore.nl" in the contact info identity section (`ContactInfoBody`, independent of configured analyzer sites) and as a "Triangulate" link in the map node popup (`MapView.buildContactPopup`). It is a link-out, not an embedded estimator: the plan rejected a from-scratch port as a separate large plan.

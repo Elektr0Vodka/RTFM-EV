@@ -47,3 +47,21 @@ describe('ContactLinkShare', () => {
     expect(screen.queryByRole('textbox')).toBeNull();
   });
 });
+
+describe('ContactLinkShare share tag', () => {
+  it('copies the inline share tag when one is given', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+    const tag = `<${'ab'.repeat(32)}:1:Fl1p>`;
+    render(<ContactLinkShare load={vi.fn()} shareTag={tag} />);
+
+    await user.click(screen.getByRole('button', { name: 'Copy share tag' }));
+    expect(writeText).toHaveBeenCalledWith(tag);
+    expect(toastSuccess).toHaveBeenCalled();
+  });
+
+  it('shows no tag button without a tag', () => {
+    render(<ContactLinkShare load={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'Copy share tag' })).toBeNull();
+  });
+});

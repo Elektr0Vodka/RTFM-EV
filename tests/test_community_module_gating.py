@@ -13,6 +13,13 @@ def test_config_to_settings_defaults():
     s = _config_to_settings({"iata": "AMS"})
     assert s.community_mqtt_publish_status is True
     assert s.community_mqtt_status_interval_ms == 300000
+    assert s.community_mqtt_publish_config is False
+    assert s.community_mqtt_fanout_config == {"iata": "AMS"}
+
+
+def test_config_to_settings_maps_publish_config():
+    s = _config_to_settings({"iata": "AMS", "publish_config": True})
+    assert s.community_mqtt_publish_config is True
 
 
 @pytest.mark.asyncio

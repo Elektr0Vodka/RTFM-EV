@@ -109,7 +109,7 @@ discovery rows were re-marked afterwards. §7 holds the current per-item status.
 | Room-server connectivity | Off | Unverified | App | RTFM-EV depth not inspected; verify before scoping. **[web]** |
 | Auto contact discovery | Off | Unverified | App | RTFM-EV behavior not inspected; verify vs app. **[web]** |
 | Mute channel | Off | Present | App | Shipped (per-channel mute; see §7 L4). |
-| Inline `<pubkey:1:Name>` contact sharing | Off | Absent | App | Upstream issue #347 (already in fork-port plan). |
+| Inline `<pubkey:1:Name>` contact sharing | Off | Present | App | Receive: contact chip + "Add contact" (known contact opens info). Send: "Copy share tag" in contact info / Settings > Radio. Upstream issue #347. |
 
 ### Repeater / admin
 | Feature | Ref | RTFM-EV | Appl. | Notes |
@@ -132,7 +132,7 @@ discovery rows were re-marked afterwards. §7 holds the current per-item status.
 |---|---|---|---|---|
 | Telemetry history (battery etc.) | Off | Present | App | `_061`/`_062`. |
 | Noise-floor viewer | Off | Absent | App | Needs signal-storage foundation (see §6). **[web]** |
-| Receive-error graphs | Off | Absent | App | Needs signal-storage foundation. **[web]** |
+| Receive-error graphs | Off | Present | App | My Node "Receive errors" card from the companion `STATS_PACKETS` `recv_errors` counter (firmware v1.12+), sampled with airtime (`_116`). |
 | Direct/Flood packet metrics | Off | Partial | App | Needs signal-storage foundation. **[web]** |
 
 ### Neighbor discovery
@@ -160,7 +160,7 @@ discovery rows were re-marked afterwards. §7 holds the current per-item status.
 | Configurable status interval | DMC | Absent | App | DMC limits: 1-60 min (CLI) / 1000ms-3600000ms (bridge), default 5 min. |
 | `neighbors` topic publish | DMC | Absent | Adapt | Reconstruct host-side. |
 | `filter` stats topic | DMC | Absent | N/A | Repeater packet-filter concept; no companion analog. |
-| `config` topic (NEW this branch) | DMC | Absent | Adapt | Full node config snapshot; RTFM-EV could mirror its own config. |
+| `config` topic (NEW this branch) | DMC | Present | Adapt | Opt-in `publish_config`: own config snapshot (identity, radio, host repeater `repeat` / `region_gate` / `region.scopes[]`, mqtt toggles); firmware-only sections omitted. |
 | Wire-compatible DMC payload schemas | DMC | Absent | App | Mirror `MQTTPayloadBuilder`/`MQTTMessageBuilder` JSON shapes. |
 
 ### Internationalization
@@ -255,13 +255,20 @@ Each "Now/Next" item gets its own brainstorm → spec → plan cycle.
   `region_gate{}` live state of *other* repeaters, which only exists on the
   DMC MQTT `filter`/`config` topics (needs an MQTT subscriber, not a companion
   command).
-- **L2. Telemetry graph parity** - PARTIAL: noise-floor viewer and Direct/Flood
-  advert metrics shipped (PR #94). Remaining: receive-error graphs.
-- **L3. MQTT `neighbors` / `config` topic publishing** - PARTIAL: neighbor /
-  region publish shipped with `subject_id` attribution (PR #90, plan [24]).
-  Remaining: `config`-topic publishing.
-- **L4. Small messaging parity** - PARTIAL: mute channel shipped. Remaining:
-  inline contact sharing (#347), auto contact discovery confirmation.
+- **L2. Telemetry graph parity** - DONE: noise-floor viewer and Direct/Flood
+  advert metrics shipped (PR #94); receive-error graph shipped 2026-09-25
+  (`feat/rx-error-graph`: `airtime_history.recv_errors`, migration `_116`,
+  My Node "Receive errors" card).
+- **L3. MQTT `neighbors` / `config` topic publishing** - DONE: neighbor /
+  region publish shipped with `subject_id` attribution (PR #90, plan [24]);
+  `config`-topic publishing shipped 2026-09-25 (`feat/mqtt-config-topic`:
+  opt-in `publish_config` on the community MQTT integration, retained
+  `meshcore/{IATA}/{PUBKEY}/config` mirroring the DMC field set for the
+  sections a host can fill).
+- **L4. Small messaging parity** - PARTIAL: mute channel shipped; inline
+  contact sharing (#347) shipped 2026-09-25 (`feat/inline-contact-share`:
+  `<pubkey:type:Name>` chips with "Add contact", "Copy share tag" next to the
+  contact link). Remaining: auto contact discovery confirmation.
 
 ### Won't / N/A
 - On-device pairing UX, phone GPS location sharing - mobile-only.

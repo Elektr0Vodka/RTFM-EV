@@ -4,6 +4,11 @@ Input samples are cumulative-from-boot counters (seconds). Utilization for a
 pair of consecutive samples is 100 * delta_airtime / delta_wallclock. Pairs
 that straddle a counter reset (negative delta) or a long gap (radio was
 disconnected) are dropped so they do not create false spikes.
+
+Samples may also carry ``recv_errors`` (the cumulative radio RX error counter,
+firmware v1.12+). Each bin then gets ``rx_errors``: the sum of the counter
+deltas of the pairs in it, with the same reset / gap rules; ``None`` when no
+pair in the bin had the counter on both samples.
 """
 
 # Drop a pair whose wall-clock gap exceeds this multiple of the sample interval.
@@ -41,10 +46,14 @@ def compute_airtime_utilization(
             continue
         if idx >= bin_count:
             idx = bin_count - 1
-        slot = acc.setdefault(idx, {"tx": 0.0, "rx": 0.0, "n": 0})
+        slot = acc.setdefault(idx, {"tx": 0.0, "rx": 0.0, "n": 0, "err": None})
         slot["tx"] += tx_pct
         slot["rx"] += rx_pct
         slot["n"] += 1
+        err_a = a.get("recv_errors")
+        err_b = b.get("recv_errors")
+        if isinstance(err_a, int) and isinstance(err_b, int) and err_b >= err_a:
+            slot["err"] = (slot["err"] or 0) + (err_b - err_a)
 
     out: list[dict] = []
     for idx in sorted(acc):
@@ -56,6 +65,7 @@ def compute_airtime_utilization(
                 "timestamp": int(start_ts + (idx + 0.5) * bin_width),
                 "tx_pct": round(slot["tx"] / n, 2),
                 "rx_pct": round(slot["rx"] / n, 2),
+                "rx_errors": slot["err"],
             }
         )
     return out
@@ -68,6 +78,7 @@ def map_openhop_airtime_buckets(data: dict) -> list[dict]:
     (from its packet DB, so RX is real). Convert each bucket to channel
     utilization %: ``100 * ms / (bucket_seconds * 1000)``, capped at 100, in the
     same ``{timestamp, tx_pct, rx_pct}`` shape the local computation returns.
+    OpenHop reports no RX error counter here, so the points carry no ``rx_errors``.
     """
     bucket_seconds = data.get("bucket_seconds") or 0
     denom = bucket_seconds * 1000

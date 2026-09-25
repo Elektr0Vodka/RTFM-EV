@@ -31,6 +31,16 @@ def test_forward_toggles_default_off():
     assert cfg["publish_regions"] is False
 
 
+def test_publish_config_defaults_off_and_coerces():
+    """The DMC ``config`` topic is opt-in, like the firmware's ``set mqtt.config 1``."""
+    cfg = _base()
+    _validate_mqtt_community_config(cfg)
+    assert cfg["publish_config"] is False
+    cfg = _base() | {"publish_config": "yes"}
+    _validate_mqtt_community_config(cfg)
+    assert cfg["publish_config"] is True
+
+
 def test_forward_toggles_coerced_to_bool_when_enabled():
     cfg = _base() | {
         "publish_telemetry": True,
