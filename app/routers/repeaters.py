@@ -436,13 +436,18 @@ async def _record_config_snapshot(
     Only stored when it differs from the latest snapshot of that kind, so
     ``exclude`` drops fields that change on every fetch (the repeater clock,
     the local owner-info bookkeeping) and would otherwise defeat the dedup.
+    A response with every stored field empty means the repeater did not answer
+    (CLI timeout), not a config change, so it is not stored.
     """
+    data = response.model_dump(mode="json", exclude=exclude)
+    if all(value is None for value in data.values()):
+        return
     try:
         await DeviceConfigHistoryRepository.record(
             contact.public_key,
             kind,
             int(time.time()),
-            response.model_dump(mode="json", exclude=exclude),
+            data,
         )
     except Exception:
         logger.warning(

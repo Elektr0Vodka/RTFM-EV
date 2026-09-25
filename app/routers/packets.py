@@ -1322,7 +1322,6 @@ async def get_relay_reception(
     packet_cap = max(1, min(limit, 200))
 
     rows = await PacketReceptionRepository.window_rows(start_ts, end_ts)
-    groups, summaries = aggregate_relay_receptions(rows, limit_packets=packet_cap)
     identities = [
         (pk, name) for pk, name, _lat, _lon in await ContactRepository.full_key_identities()
     ]
@@ -1332,6 +1331,14 @@ async def get_relay_reception(
         if hop not in resolved:
             resolved[hop] = resolve_relay(hop, identities)
         return resolved[hop]
+
+    # One summary row per relay: hashes of different widths that resolve to the
+    # same contact are merged; unresolved hashes stay apart (no guessing).
+    groups, summaries = aggregate_relay_receptions(
+        rows,
+        limit_packets=packet_cap,
+        relay_identity=lambda hop: _resolve(hop)[0] or hop,
+    )
 
     previews = await PacketReceptionRepository.message_previews(
         [g.raw_packet_id for g in groups if g.raw_packet_id is not None]
