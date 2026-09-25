@@ -93,6 +93,30 @@ describe('RepeaterConfigHistoryPane', () => {
     await waitFor(() => expect(within(block).getAllByRole('listitem')).toHaveLength(7));
   });
 
+  it('reads through a custom loader and shows room ACL snapshots last', async () => {
+    const loadHistory = vi.fn().mockResolvedValue([
+      { kind: 'acl', timestamp: 20, data: { acl: [{ pubkey_prefix: 'bb', permission: 3 }] } },
+      { kind: 'acl', timestamp: 10, data: { acl: [{ pubkey_prefix: 'bb', permission: 1 }] } },
+    ]);
+    render(
+      <RepeaterConfigHistoryPane
+        publicKey={KEY}
+        loadHistory={loadHistory}
+        noteKey="room_config_history_note"
+      />
+    );
+
+    const acl = await screen.findByTestId('config-history-acl');
+    expect(loadHistory).toHaveBeenCalledWith(KEY);
+    expect(repeaterConfigHistory).not.toHaveBeenCalled();
+    expect(within(acl).getByText('ACL')).toBeInTheDocument();
+    expect(screen.getByText(/nothing is sent to the room server/)).toBeInTheDocument();
+    const kinds = buildConfigHistory([...ENTRIES, { kind: 'acl', timestamp: 1, data: {} }]).map(
+      (h) => h.kind
+    );
+    expect(kinds[kinds.length - 1]).toBe('acl');
+  });
+
   it('re-reads when the reload key changes', async () => {
     repeaterConfigHistory.mockResolvedValue([]);
     const { rerender } = render(<RepeaterConfigHistoryPane publicKey={KEY} reloadKey="0" />);

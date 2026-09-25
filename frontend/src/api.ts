@@ -1226,6 +1226,8 @@ export const api = {
   // Stored pane snapshots (plan 14), read-only: no radio access.
   repeaterConfigHistory: (publicKey: string) =>
     fetchJson<DeviceConfigHistoryEntry[]>(`/contacts/${publicKey}/repeater/config-history`),
+  roomConfigHistory: (publicKey: string) =>
+    fetchJson<DeviceConfigHistoryEntry[]>(`/contacts/${publicKey}/room/config-history`),
   contactLocationHistory: (publicKey: string) =>
     fetchJson<ContactLocationHistoryEntry[]>(`/contacts/${publicKey}/location-history`),
   // Contact telemetry (universal, any contact type)

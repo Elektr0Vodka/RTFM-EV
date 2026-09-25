@@ -85,7 +85,10 @@ Shipped toward this so far:
   "Positions" on the contact info page (`/api/contacts/{key}/location-history`), and
   snapshots of the repeater dashboard panes whenever they change, shown in the
   dashboard's "History" block with what changed against the previous snapshot
-  (`/api/contacts/{key}/repeater/config-history`)
+  (`/api/contacts/{key}/repeater/config-history`); the room server dashboard does
+  the same for its ACL (`/api/contacts/{key}/room/config-history`). Kept forever by
+  default; "Device history" under Settings > Database > Data retention sets an
+  age limit (positions age by when they were last reported)
   prefix, a first-byte usage matrix, and a local/regional distance badge).
 - A "Mesh Trends" view that consolidates the analytical stats into two tabs: a
   Historical tab (server-backed network/message/packet/MQTT/region-scope/noise-floor

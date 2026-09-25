@@ -372,15 +372,16 @@ export interface ContactLocationHistoryEntry {
   last_seen: number;
 }
 
-/** Repeater dashboard pane stored in `device_config_history` (plan 14). */
+/** Repeater or room dashboard pane stored in `device_config_history` (plan 14). */
 export type DeviceConfigKind =
   | 'node_info'
   | 'radio_settings'
   | 'advert_intervals'
   | 'owner_info'
-  | 'regions';
+  | 'regions'
+  | 'acl';
 
-/** One stored repeater pane snapshot (JSON of the pane response). */
+/** One stored repeater or room pane snapshot (JSON of the pane response). */
 export interface DeviceConfigHistoryEntry {
   kind: DeviceConfigKind;
   timestamp: number;
@@ -900,6 +901,7 @@ export interface AppSettings {
   message_retention_days: number;
   link_edge_retention_days: number;
   packet_reception_retention_days: number;
+  device_history_retention_days: number;
   last_message_times: Record<string, number>;
   advert_interval: number;
   last_advert_time: number;
@@ -1254,6 +1256,7 @@ export interface AppSettingsUpdate {
   message_retention_days?: number;
   link_edge_retention_days?: number;
   packet_reception_retention_days?: number;
+  device_history_retention_days?: number;
   advert_interval?: number;
   auto_resend_channel?: boolean;
   flood_scope?: string;

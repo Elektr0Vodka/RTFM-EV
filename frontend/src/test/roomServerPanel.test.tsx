@@ -10,6 +10,7 @@ vi.mock('../api', () => ({
     roomStatus: vi.fn(),
     roomAcl: vi.fn(),
     roomLppTelemetry: vi.fn(),
+    roomConfigHistory: vi.fn(),
     sendRepeaterCommand: vi.fn(),
   },
 }));
@@ -138,5 +139,19 @@ describe('RoomServerPanel', () => {
     expect(screen.queryByText('Retry Password Login')).not.toBeInTheDocument();
     expect(screen.queryByText('Retry Existing-Access Login')).not.toBeInTheDocument();
     expect(mockToast.success).toHaveBeenCalledWith('Login confirmed by the room server.');
+  });
+
+  it('shows the stored ACL history once the tools are open', async () => {
+    mockApi.roomLogin.mockResolvedValueOnce({ status: 'ok', authenticated: true, message: null });
+    mockApi.roomConfigHistory.mockResolvedValue([
+      { kind: 'acl', timestamp: 100, data: { acl: [{ pubkey_prefix: 'bb', permission: 3 }] } },
+    ]);
+
+    render(<RoomServerPanel contact={roomContact} />);
+    fireEvent.click(screen.getByText('Login with Existing Access / Guest'));
+    fireEvent.click(await screen.findByText('Show Tools'));
+
+    expect(await screen.findByTestId('config-history-acl')).toBeInTheDocument();
+    expect(mockApi.roomConfigHistory).toHaveBeenCalledWith(roomContact.public_key);
   });
 });
