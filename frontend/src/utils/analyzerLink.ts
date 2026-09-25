@@ -1,4 +1,14 @@
 import type { AnalyzerSite } from '../types';
+import { isPublicChannelKey } from './publicChannel';
+
+/**
+ * The meshcore-analyzer.eu software (cornmeister.nl, meshcore-analyzer.eu,
+ * analyzer.meshcorenetz.de, analyzer.meshdresden.eu; channel pages at
+ * `#channels?channel={name}`) lists the default Public channel as `public`
+ * in its `/api/channels`, so a `Public` link opens an empty page there. Other
+ * analyzers (on8ar's CoreScope) keep `Public`.
+ */
+const LOWERCASE_PUBLIC_TEMPLATE = /#channels\?channel=\{name\}/;
 
 /**
  * Build an external analyzer lookup URL by substituting a placeholder in a
@@ -58,7 +68,11 @@ export function buildChannelLookupUrl(
   let url = trimmed;
   if (usesName) {
     if (!channel.name) return null;
-    url = url.split('{name}').join(encodeURIComponent(channel.name));
+    const name =
+      isPublicChannelKey(channel.key) && LOWERCASE_PUBLIC_TEMPLATE.test(trimmed)
+        ? 'public'
+        : channel.name;
+    url = url.split('{name}').join(encodeURIComponent(name));
   }
   if (usesKey) {
     if (!channel.key) return null;
