@@ -11,6 +11,20 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-25 (Relay reception refreshes live, plan 21 S1 Phase 3, feat/relay-reception-live-ws)
+
+### Mesh Health: Relay reception updates as packets arrive (backend, frontend)
+- The `raw_packet` WebSocket event gains `relay_reception` (true when the
+  copy was stored in `packet_receptions`, i.e. flood-routed) and
+  `last_hop_hex` (the delivering relay, null = heard from the origin).
+  `record_packet_reception` returns what it stored so the processor can
+  fill both.
+- The Relay reception tab re-fetches when such a copy arrives, at most once
+  every 3 s, on the short windows (30m/1h) that the header marks as
+  auto-refresh; a 30 s poll is the fallback when the stream is quiet or a
+  WebSocket event was missed. The tab had no polling before (only Adverts
+  and Requests did). Longer windows stay manual (Refresh button).
+
 ## Update 2026-09-25 (Contact location and repeater config history, plan 14, feat/device-history)
 
 ### Persistence: location history and repeater pane snapshots (backend)

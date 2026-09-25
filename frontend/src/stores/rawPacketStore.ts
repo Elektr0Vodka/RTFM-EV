@@ -143,6 +143,14 @@ export function getRawPacketStatsSession(): RawPacketStatsSessionState {
   return statsSession;
 }
 
+/**
+ * Listen for store changes without rendering on every packet (read the newest
+ * with getRawPackets()). Returns the unsubscribe function.
+ */
+export function subscribeRawPackets(listener: () => void): () => void {
+  return subscribe(listener);
+}
+
 export function useRawPackets(): RawPacket[] {
   return useSyncExternalStore(subscribe, getRawPackets);
 }

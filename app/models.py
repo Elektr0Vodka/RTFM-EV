@@ -755,6 +755,20 @@ class RawPacketBroadcast(BaseModel):
         default=None,
         description="Resolved region name for the transport code, if it matched a known region",
     )
+    relay_reception: bool = Field(
+        default=False,
+        description=(
+            "True when this copy was stored in packet_receptions (flood-routed; plan 21 "
+            "S1), so the Mesh Health Relay reception view can refresh on arrival"
+        ),
+    )
+    last_hop_hex: str | None = Field(
+        default=None,
+        description=(
+            "Relay that delivered this copy (last path hop) when relay_reception is true; "
+            "None = heard straight from the origin, or not a recorded flood copy"
+        ),
+    )
 
 
 class RawPacketDetail(BaseModel):

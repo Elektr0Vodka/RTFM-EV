@@ -28,6 +28,13 @@ logger = logging.getLogger(__name__)
 RELAY_ROUTE_TYPES = frozenset({RouteType.FLOOD, RouteType.TRANSPORT_FLOOD})
 
 
+@dataclass(frozen=True)
+class RelayCapture:
+    """What :func:`record_packet_reception` stored. ``last_hop_hex`` None = heard from the origin."""
+
+    last_hop_hex: str | None
+
+
 async def record_packet_reception(
     packet_id: int,
     ts: int,
@@ -35,14 +42,19 @@ async def record_packet_reception(
     snr: float | None,
     rssi: int | None,
     raw_bytes: bytes,
-) -> None:
-    """Store one reception row for a flood-routed packet copy. Never raises."""
+) -> RelayCapture | None:
+    """Store one reception row for a flood-routed packet copy. Never raises.
+
+    Returns the capture (for the live ``raw_packet`` broadcast), or None when
+    nothing was stored (not flood-routed, undecodable, or the insert failed).
+    """
     try:
         if packet_info is None or packet_info.route_type not in RELAY_ROUTE_TYPES:
-            return
+            return None
         hops = packet_info.path_length or 0
         path_hex = packet_info.path.hex() if (hops > 0 and packet_info.path) else ""
         width = packet_info.path_hash_size if hops > 0 else 0
+        hop = last_hop_hex(path_hex, hops)
         await PacketReceptionRepository.insert(
             raw_packet_id=packet_id,
             payload_hash=payload_hash_for(raw_bytes),
@@ -53,11 +65,13 @@ async def record_packet_reception(
             route_type=route_label(packet_info.route_type),
             hop_count=hops,
             hash_size=width,
-            last_hop_hex=last_hop_hex(path_hex, hops),
+            last_hop_hex=hop,
             path_hex=path_hex or None,
         )
+        return RelayCapture(last_hop_hex=hop)
     except Exception:
         logger.warning("Packet reception recording failed for packet %s", packet_id, exc_info=True)
+        return None
 
 
 @dataclass

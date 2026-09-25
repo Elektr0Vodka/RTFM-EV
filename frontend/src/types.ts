@@ -671,6 +671,10 @@ export interface RawPacket {
   transport_code?: number | null;
   /** Resolved region name for the transport code, if it matched a known region. */
   region?: string | null;
+  /** True when this copy was stored for Mesh Health "Relay reception" (flood-routed). */
+  relay_reception?: boolean;
+  /** Relay that delivered this copy (last path hop); null = heard from the origin. */
+  last_hop_hex?: string | null;
 }
 
 /** Response of GET /packets/history: a newest-first page plus a backward cursor. */
