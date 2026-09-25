@@ -1540,6 +1540,7 @@ RETENTION_DEFAULTS: dict[str, int] = {
     "airtime_retention_days": 0,
     "message_retention_days": 0,
     "link_edge_retention_days": 365,
+    "packet_reception_retention_days": 2,
 }
 
 
@@ -1605,6 +1606,13 @@ class AppSettings(BaseModel):
     link_edge_retention_days: int = Field(
         default=365,
         description="Days of per-packet map link history to keep; 0 keeps forever",
+    )
+    packet_reception_retention_days: int = Field(
+        default=2,
+        description=(
+            "Days of per-copy relay reception rows (Mesh Health relay reception) to keep; "
+            "0 keeps forever"
+        ),
     )
     last_message_times: dict[str, int] = Field(
         default_factory=dict,

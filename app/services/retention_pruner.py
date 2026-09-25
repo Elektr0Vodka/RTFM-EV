@@ -62,6 +62,7 @@ async def prune_once(now: int | None = None) -> dict[str, int]:
             "battery": s.battery_retention_days,
             "airtime": s.airtime_retention_days,
             "link_edges": s.link_edge_retention_days,
+            "packet_receptions": s.packet_reception_retention_days,
         }
         for key, days in age_settings.items():
             if days > 0:

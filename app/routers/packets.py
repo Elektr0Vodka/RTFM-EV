@@ -35,6 +35,7 @@ from app.repository import (
 )
 from app.repository.advert_links import AdvertLinksRepository
 from app.repository.link_edges import LinkEdgesRepository
+from app.repository.packet_receptions import PacketReceptionRepository
 from app.repository.partial_resolution import PartialResolutionRepository
 from app.repository.request_traffic import aggregate_request_traffic
 from app.services.advert_links import LocatedNode, haversine_km, resolve_advert_edges
@@ -42,6 +43,7 @@ from app.services.messages import backfill_message_regions, create_group_data_me
 from app.services.prefix_collisions import compute_prefix_collisions
 from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.raw_feed_stats import compute_raw_feed_stats
+from app.services.relay_reception import aggregate_relay_receptions, resolve_relay
 from app.websocket import broadcast_event, broadcast_success
 
 logger = logging.getLogger(__name__)
@@ -1247,6 +1249,157 @@ class RequestTrafficResponse(BaseModel):
     totals: RequestTrafficTotals
     series: list[RequestTrafficBucket]
     pairs: list[RequestTrafficPair]
+
+
+class RelayCellModel(BaseModel):
+    last_hop_hex: str | None = Field(
+        description="Delivering relay's path hash; null = heard from the origin"
+    )
+    count: int
+    best_snr: float | None
+    last_snr: float | None
+    best_rssi: int | None
+    last_rssi: int | None
+    last_seen: int
+    resolved_pubkey: str | None
+    resolved_name: str | None
+    candidates: int = Field(description="Contacts matching the hash prefix; >1 = collision")
+
+
+class RelayPacketModel(BaseModel):
+    payload_hash: str
+    payload_type: str
+    route_type: str
+    first_seen: int
+    last_seen: int
+    copies: int
+    relays: list[RelayCellModel]
+    preview: str | None = None
+    message_id: int | None = None
+
+
+class RelaySummaryModel(BaseModel):
+    last_hop_hex: str | None
+    receptions: int
+    packets: int
+    best_snr: float | None
+    avg_snr: float | None
+    last_snr: float | None
+    best_rssi: int | None
+    last_seen: int
+    resolved_pubkey: str | None
+    resolved_name: str | None
+    candidates: int
+
+
+class RelayReceptionResponse(BaseModel):
+    start_ts: int
+    end_ts: int
+    receptions: int
+    packets: list[RelayPacketModel]
+    relays: list[RelaySummaryModel]
+
+
+_PREVIEW_CHARS = 80
+
+
+@router.get("/relay-reception", response_model=RelayReceptionResponse)
+async def get_relay_reception(
+    start_ts: int,
+    end_ts: int,
+    limit: int = 50,
+) -> RelayReceptionResponse:
+    """Per-relay reception of the same flooded packet (Mesh Health "Relay reception").
+
+    Groups ``packet_receptions`` in the window by payload hash: for each packet
+    the relays (last path hop) that delivered a copy with the best/last SNR and
+    RSSI our radio measured, plus a per-relay summary over the window. Relay
+    hashes resolve to a contact only when exactly one full key matches;
+    ``candidates`` > 1 flags a collision.
+    """
+    if end_ts <= start_ts:
+        raise HTTPException(status_code=400, detail="end_ts must be greater than start_ts")
+    packet_cap = max(1, min(limit, 200))
+
+    rows = await PacketReceptionRepository.window_rows(start_ts, end_ts)
+    groups, summaries = aggregate_relay_receptions(rows, limit_packets=packet_cap)
+    identities = [
+        (pk, name) for pk, name, _lat, _lon in await ContactRepository.full_key_identities()
+    ]
+    resolved: dict[str | None, tuple[str | None, str | None, int]] = {}
+
+    def _resolve(hop: str | None) -> tuple[str | None, str | None, int]:
+        if hop not in resolved:
+            resolved[hop] = resolve_relay(hop, identities)
+        return resolved[hop]
+
+    previews = await PacketReceptionRepository.message_previews(
+        [g.raw_packet_id for g in groups if g.raw_packet_id is not None]
+    )
+
+    packets: list[RelayPacketModel] = []
+    for group in groups:
+        cells: list[RelayCellModel] = []
+        for cell in sorted(
+            group.relays.values(), key=lambda c: (c.count, c.last_seen), reverse=True
+        ):
+            pk, name, candidates = _resolve(cell.last_hop_hex)
+            cells.append(
+                RelayCellModel(
+                    last_hop_hex=cell.last_hop_hex,
+                    count=cell.count,
+                    best_snr=cell.best_snr,
+                    last_snr=cell.last_snr,
+                    best_rssi=cell.best_rssi,
+                    last_rssi=cell.last_rssi,
+                    last_seen=cell.last_seen,
+                    resolved_pubkey=pk,
+                    resolved_name=name,
+                    candidates=candidates,
+                )
+            )
+        preview_entry = previews.get(group.raw_packet_id) if group.raw_packet_id else None
+        preview_text = preview_entry[1] if preview_entry else None
+        packets.append(
+            RelayPacketModel(
+                payload_hash=group.payload_hash.hex(),
+                payload_type=group.payload_type,
+                route_type=group.route_type,
+                first_seen=group.first_seen,
+                last_seen=group.last_seen,
+                copies=group.copies,
+                relays=cells,
+                preview=(preview_text[:_PREVIEW_CHARS] if preview_text else None),
+                message_id=preview_entry[0] if preview_entry else None,
+            )
+        )
+
+    relays: list[RelaySummaryModel] = []
+    for summary in summaries:
+        pk, name, candidates = _resolve(summary.last_hop_hex)
+        relays.append(
+            RelaySummaryModel(
+                last_hop_hex=summary.last_hop_hex,
+                receptions=summary.receptions,
+                packets=summary.packets,
+                best_snr=summary.best_snr,
+                avg_snr=summary.avg_snr,
+                last_snr=summary.last_snr,
+                best_rssi=summary.best_rssi,
+                last_seen=summary.last_seen,
+                resolved_pubkey=pk,
+                resolved_name=name,
+                candidates=candidates,
+            )
+        )
+
+    return RelayReceptionResponse(
+        start_ts=start_ts,
+        end_ts=end_ts,
+        receptions=len(rows),
+        packets=packets,
+        relays=relays,
+    )
 
 
 @router.get("/request-traffic", response_model=RequestTrafficResponse)

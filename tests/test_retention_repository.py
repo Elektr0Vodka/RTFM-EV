@@ -13,6 +13,7 @@ from app.repository.contact_telemetry import ContactTelemetryRepository
 from app.repository.contacts import ContactAdvertPathRepository
 from app.repository.link_signal import LinkSignalRepository
 from app.repository.noise_floor import NoiseFloorRepository
+from app.repository.packet_receptions import PacketReceptionRepository
 from app.repository.raw_packets import RawPacketRepository
 from app.repository.repeater_telemetry import RepeaterTelemetryRepository
 from app.repository.retention import AGE_TABLES, RetentionRepository
@@ -64,6 +65,19 @@ async def test_prune_older_than_each_age_table(test_db):
                 "hop_width, confidence) VALUES (?, ?, 'a', 'b', 1, 'unique')",
                 (ts, ts),
             )
+        await PacketReceptionRepository.insert(
+            raw_packet_id=None,
+            payload_hash=b"" * 32,
+            observed_at=ts,
+            snr=None,
+            rssi=None,
+            payload_type="GROUP_TEXT",
+            route_type="Flood",
+            hop_count=1,
+            hash_size=1,
+            last_hop_hex="aa",
+            path_hex="aa",
+        )
 
     cutoff = now - 30 * DAY
     for key in AGE_TABLES:

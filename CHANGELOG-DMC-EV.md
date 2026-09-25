@@ -11,6 +11,28 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-25 (Relay reception comparison, plan 21 S1, feat/relay-reception)
+
+### Mesh Health: per-relay reception of the same flooded packet (backend, frontend)
+- New `packet_receptions` table (migration `_118`): one row per received
+  copy of a flood-routed packet (`raw_packets` keeps one row per payload, so
+  copies via other relays were invisible until now), with the delivering
+  relay (last path hop, `path_utils.last_hop_hex`), SNR/RSSI, route, hop
+  count and hash width. Written by `record_packet_reception` right after the
+  raw-packet dedup; direct-routed packets are skipped (their path is popped
+  hop by hop, plan 21 Q3). Retention setting
+  `packet_reception_retention_days` (default 2 = 48 h, 0 keeps forever) in
+  Settings > Database > Data retention, pruned with the other classes.
+- `GET /api/packets/relay-reception?start_ts&end_ts&limit`: packets x relays
+  with best/last SNR and RSSI per cell, copies, a decrypted preview when the
+  packet became a message, and a per-relay summary (receptions, packets, best
+  and average SNR, last seen). Relay hashes resolve to a contact only on a
+  unique full-key match; a collision shows the raw hash with a "?" marker.
+- Mesh Health gains a "Relay reception" tab (window-scoped like Adverts and
+  Requests): stat tiles, the pivot table (up to 8 relay columns, extra relays
+  folded), and the sortable relay summary. i18n EN/NL/DE. Decisions: new
+  table (Q1), floods and transport floods only (Q2/Q3), 48 h default (Q4).
+
 ## Update 2026-09-25 (Analyzer name resolution for unnamed contacts, plan 16 case (a), feat/analyzer-name-resolution)
 
 ### Contacts: resolve a name for a full public key without one (backend, frontend)

@@ -872,6 +872,7 @@ export interface AppSettings {
   airtime_retention_days: number;
   message_retention_days: number;
   link_edge_retention_days: number;
+  packet_reception_retention_days: number;
   last_message_times: Record<string, number>;
   advert_interval: number;
   last_advert_time: number;
@@ -1215,6 +1216,7 @@ export interface AppSettingsUpdate {
   airtime_retention_days?: number;
   message_retention_days?: number;
   link_edge_retention_days?: number;
+  packet_reception_retention_days?: number;
   advert_interval?: number;
   auto_resend_channel?: boolean;
   flood_scope?: string;

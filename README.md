@@ -77,6 +77,9 @@ Shipped toward this so far:
   counts, a searchable and pageable contacts table, and HIGH/MEDIUM alerts that
   count flood adverts only), a Requests panel (REQUEST/RESPONSE traffic heard by
   this node), and a Prefix Collisions tab (contacts sharing a 1/2/3-byte key
+  prefix), and a Relay reception tab: for every flooded packet heard more than once,
+  which relay delivered each copy and the SNR/RSSI measured for it, with a per-relay
+  summary (kept 48 h by default, Settings > Database > Data retention)
   prefix, a first-byte usage matrix, and a local/regional distance badge).
 - A "Mesh Trends" view that consolidates the analytical stats into two tabs: a
   Historical tab (server-backed network/message/packet/MQTT/region-scope/noise-floor

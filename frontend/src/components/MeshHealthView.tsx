@@ -20,8 +20,9 @@ import type { AppSettingsUpdate } from '../types';
 import { MeshAdvertsPanel } from './MeshAdvertsPanel';
 import { MeshRequestsPanel } from './MeshRequestsPanel';
 import { MeshPrefixCollisionsPanel } from './MeshPrefixCollisionsPanel';
+import { MeshRelayReceptionPanel } from './MeshRelayReceptionPanel';
 
-type MeshHealthTab = 'adverts' | 'requests' | 'prefix-collisions';
+type MeshHealthTab = 'adverts' | 'requests' | 'relay-reception' | 'prefix-collisions';
 
 // Mesh Health keeps 30m as a shorter extra and adopts the shared base set. The
 // panels fetch now-relative ranges from selectedWindow.hours, so a From/To
@@ -40,7 +41,7 @@ const MESH_HEALTH_TAB_KEY = 'rtfm-meshhealth-tab';
 function loadStoredTab(): MeshHealthTab {
   try {
     const v = localStorage.getItem(MESH_HEALTH_TAB_KEY);
-    if (v === 'requests' || v === 'prefix-collisions') return v;
+    if (v === 'requests' || v === 'relay-reception' || v === 'prefix-collisions') return v;
     return 'adverts';
   } catch {
     return 'adverts';
@@ -113,6 +114,7 @@ export function MeshHealthView({
   const tabs: { key: MeshHealthTab; label: string }[] = [
     { key: 'adverts', label: t('mesh_health_tab_adverts') },
     { key: 'requests', label: t('mesh_health_tab_requests') },
+    { key: 'relay-reception', label: t('mesh_health_tab_relay_reception') },
     { key: 'prefix-collisions', label: t('mesh_health_tab_prefix_collisions') },
   ];
 
@@ -199,6 +201,14 @@ export function MeshHealthView({
               selectedWindow={selectedWindow}
               refreshKey={refreshKey}
               onLoadingChange={handleLoadingChange}
+            />
+          )}
+          {activeTab === 'relay-reception' && (
+            <MeshRelayReceptionPanel
+              selectedWindow={selectedWindow}
+              refreshKey={refreshKey}
+              onLoadingChange={handleLoadingChange}
+              onOpenNode={onOpenNode}
             />
           )}
           {activeTab === 'prefix-collisions' && (
