@@ -66,6 +66,8 @@ function renderSidebar(overrides?: {
   sidebarFavoritesOrder?: string[];
   sidebarHidden?: { sections: string[]; tools: string[]; favorites: string[] };
   contactGroups?: ContactGroup[];
+  contacts?: Contact[];
+  ownPublicKey?: string | null;
   onSaveSidebarOrder?: (update: {
     sidebar_section_order?: string[];
     sidebar_tool_order?: string[];
@@ -98,7 +100,8 @@ function renderSidebar(overrides?: {
 
   const view = render(
     <Sidebar
-      contacts={[alice, board, relay]}
+      contacts={overrides?.contacts ?? [alice, board, relay]}
+      ownPublicKey={overrides?.ownPublicKey}
       channels={channels}
       activeConversation={null}
       onSelectConversation={onSelectConversation}
@@ -1480,5 +1483,64 @@ describe('Sidebar back-to-top button', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back to top' }));
 
     expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
+  });
+});
+
+describe('Sidebar owned section (plan 17 phase 3)', () => {
+  const OWN_KEY = 'ab'.repeat(32);
+  const owned = () => [
+    makeContact('11'.repeat(32), 'Alice', CONTACT_TYPE_CLIENT, {
+      owner_key: OWN_KEY.toUpperCase(),
+    }),
+    makeContact('22'.repeat(32), 'Relay', CONTACT_TYPE_REPEATER, { owner_key: OWN_KEY }),
+    makeContact('33'.repeat(32), 'Ops Board', CONTACT_TYPE_ROOM, { owner_key: 'cd'.repeat(32) }),
+    makeContact('44'.repeat(32), 'Temp Sensor', CONTACT_TYPE_SENSOR, { owner_key: OWN_KEY }),
+    makeContact('55'.repeat(32), 'Nobody', CONTACT_TYPE_CLIENT),
+  ];
+
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('lists the contacts whose owner key is the radio key, grouped by type', () => {
+    renderSidebar({ contacts: owned(), ownPublicKey: OWN_KEY, unreadCounts: {} });
+    const header = getSectionHeaderContainer('Owned');
+    expect(header.textContent).toContain('3');
+    // Owned rows are rendered in addition to their normal Contacts rows.
+    expect(screen.getAllByText('Alice')).toHaveLength(2);
+    expect(screen.getAllByText('Relay')).toHaveLength(2);
+    expect(screen.getAllByText('Temp Sensor')).toHaveLength(2);
+    // Owned by another key, or by nobody: only the Contacts row.
+    expect(screen.getAllByText('Ops Board')).toHaveLength(1);
+    expect(screen.getAllByText('Nobody')).toHaveLength(1);
+  });
+
+  it('omits the section when no contact is owned by the radio key or the key is unknown', () => {
+    const { unmount } = renderSidebar({
+      contacts: owned(),
+      ownPublicKey: 'ef'.repeat(32),
+      unreadCounts: {},
+    });
+    expect(screen.queryByRole('button', { name: 'Owned' })).not.toBeInTheDocument();
+    unmount();
+    renderSidebar({ contacts: owned(), ownPublicKey: null, unreadCounts: {} });
+    expect(screen.queryByRole('button', { name: 'Owned' })).not.toBeInTheDocument();
+  });
+
+  it('can be hidden like any other section and stays listed in the Customize panel', () => {
+    renderSidebar({
+      contacts: owned(),
+      ownPublicKey: OWN_KEY,
+      unreadCounts: {},
+      sidebarHidden: { sections: ['owned'], tools: [], favorites: [] },
+    });
+    expect(screen.queryByRole('button', { name: 'Owned' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Customize sidebar' }));
+    const panel = screen.getByRole('group', { name: 'Customize sidebar' });
+    expect(
+      within(panel)
+        .getAllByRole('listitem')
+        .some((li) => li.textContent?.includes('Owned'))
+    ).toBe(true);
   });
 });

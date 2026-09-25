@@ -14,6 +14,7 @@ Connect your radio over Serial, TCP, or BLE, and then you can:
 * Mark a conversation unread from any received message (hover a message, envelope icon). The mark is server-side, so every browser sees the same unread state
 * Cache all received packets, decrypting as you gain keys
 * Group contacts and channels into your own named sidebar sections (Customize panel), edited from the contact or channel info pane; an item can sit in several groups and groups reorder/hide like the built-in sections
+* An "Owned" sidebar section lists the contacts whose owner key is your radio's own public key (contact info pane > Owner > "Use my radio's key"), grouped by type; it appears only when there is at least one such contact and reorders/hides like the other sections
 * Run multiple Python bots that can analyze messages and respond to DMs and channels
 * Monitor unlimited contacts and channels (radio limits don't apply -- packets are decrypted server-side)
 * Access your radio remotely over your network or VPN

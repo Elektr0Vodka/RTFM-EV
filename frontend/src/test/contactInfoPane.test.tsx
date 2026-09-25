@@ -5,7 +5,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { ContactInfoPane } from '../components/ContactInfoPane';
 import { api } from '../api';
 import { toast } from '../components/ui/sonner';
-import type { Contact, ContactAnalytics, ContactGroup } from '../types';
+import type { Contact, ContactAnalytics, ContactGroup, RadioConfig } from '../types';
 
 const { getContactAnalytics, contactTelemetryHistory, updateContactAnnotations } = vi.hoisted(
   () => ({
@@ -182,7 +182,31 @@ describe('ContactInfoPane', () => {
       screen.queryByRole('button', { name: 'Resolve name from analyzer' })
     ).not.toBeInTheDocument();
   });
+  it("offers the radio's own key as owner and saves it", async () => {
+    const user = userEvent.setup();
+    const contact = createContact();
+    getContactAnalytics.mockResolvedValue(createAnalytics(contact));
+    const ownKey = 'CD'.repeat(32);
 
+    render(
+      <ContactInfoPane
+        {...baseProps}
+        config={{ public_key: ownKey } as RadioConfig}
+        contactKey={contact.public_key}
+      />
+    );
+
+    await screen.findByLabelText('Notes');
+    await user.click(screen.getByRole('button', { name: "Use my radio's key" }));
+    await screen.findByText('Your radio (listed under Owned in the sidebar)');
+    await user.click(screen.getByRole('button', { name: 'Save owner' }));
+
+    await waitFor(() =>
+      expect(updateContactAnnotations).toHaveBeenCalledWith(contact.public_key, {
+        owner_key: ownKey.toLowerCase(),
+      })
+    );
+  });
   it('lists owned nodes (reverse owner link)', async () => {
     const owner = createContact({ public_key: 'AA'.repeat(32), name: 'Companion' });
     const owned = createContact({
