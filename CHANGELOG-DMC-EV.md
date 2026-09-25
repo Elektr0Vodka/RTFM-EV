@@ -11,6 +11,36 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-25 (GRP_DATA image placeholder, plan 28 item 1.17, feat/group-data-placeholder)
+
+### Channel datagrams (GRP_DATA) shown as a placeholder (backend + frontend)
+- `PayloadType.GROUP_DATA` (0x06) packets, which meshcore-open uses for its
+  chunked image transport (`CMD_SEND_CHANNEL_DATA`, data type `0xAE1C`, up to 15
+  chunks plus an XOR parity chunk), are now decrypted with the channel key next
+  to `GROUP_TEXT` (`app/decoder.py`: `decrypt_group_data`,
+  `try_decrypt_group_data_with_channel_key`; plaintext `data_type(u16 LE) |
+  data_len(u8) | blob` as in firmware `BaseChatMesh::onGroupDataRecv`). Before
+  this the type was defined but never processed, so the packets only appeared
+  as undecrypted raw packets.
+- A decrypted datagram is stored as one placeholder channel message with
+  `txt_type = 0x40` (`TXT_TYPE_GROUP_DATA`; firmware text types are 0..3), text
+  `<Sender>: [image] id=<hex> chunks=<n>` for image chunks (sender = unique
+  contact match on the 2-byte key prefix carried in every chunk, else the
+  prefix in hex) or `[data] type=0x<type> len=<n> sha=<8 hex>` for any other
+  data type. The text omits the chunk index, so all chunks and repeats of one
+  image land on one row and each arrival becomes a path (hop badge). The raw
+  packet is linked to the row like a decrypted text message.
+- The blob is neither stored nor decoded: decoding needs meshcore-open's
+  neural image codec (about 2 GiB of model files), which is out of scope.
+- The chat renders these rows as an "Image (not supported)" / "Data (not
+  supported)" pill (`MessageList.tsx`, hover for id, chunk count or data type
+  and length) instead of the marker text. New i18n keys
+  `chat_group_data_image_placeholder`, `chat_group_data_image_detail`,
+  `chat_group_data_placeholder`, `chat_group_data_detail` in EN/NL/DE.
+- Known limitation: a sender that reuses an image id on the same channel later
+  merges into the earlier placeholder (meshcore-open itself only keeps a partial
+  image for 60 s).
+
 ## Update 2026-09-25 (Scored path history, plan 28 item 1.15, feat/scored-path-history)
 
 ### Contact info: message routes (scored) (backend + frontend)

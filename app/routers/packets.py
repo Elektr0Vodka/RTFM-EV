@@ -10,7 +10,11 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Response, 
 from pydantic import BaseModel, Field
 
 from app.database import db
-from app.decoder import parse_packet, try_decrypt_packet_with_channel_key
+from app.decoder import (
+    parse_packet,
+    try_decrypt_group_data_with_channel_key,
+    try_decrypt_packet_with_channel_key,
+)
 from app.models import (
     AdvertLinkEdge,
     AdvertLinkNode,
@@ -34,11 +38,11 @@ from app.repository.link_edges import LinkEdgesRepository
 from app.repository.partial_resolution import PartialResolutionRepository
 from app.repository.request_traffic import aggregate_request_traffic
 from app.services.advert_links import LocatedNode, haversine_km, resolve_advert_edges
-from app.services.messages import backfill_message_regions
+from app.services.messages import backfill_message_regions, create_group_data_message
 from app.services.prefix_collisions import compute_prefix_collisions
 from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.raw_feed_stats import compute_raw_feed_stats
-from app.websocket import broadcast_success
+from app.websocket import broadcast_event, broadcast_success
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/packets", tags=["packets"])
@@ -93,24 +97,50 @@ async def _run_historical_channel_decryption(
         packet_timestamp,
     ) in RawPacketRepository.stream_all_undecrypted():
         result = try_decrypt_packet_with_channel_key(packet_data, channel_key_bytes)
+        group_data = (
+            try_decrypt_group_data_with_channel_key(packet_data, channel_key_bytes)
+            if result is None
+            else None
+        )
 
-        if result is not None:
-            # Extract path from the raw packet for storage
-            packet_info = parse_packet(packet_data)
-            path_hex = packet_info.path.hex() if packet_info else None
+        if result is None and group_data is None:
+            continue
 
-            # Resolve regional flood-scope if this is a transport-routed packet.
-            transport_code: int | None = None
-            region: str | None = None
-            if packet_info is not None and packet_info.transport_codes is not None:
-                transport_code = packet_info.transport_codes[0]
-                region = resolve_region(
-                    int(packet_info.payload_type),
-                    packet_info.payload,
-                    transport_code,
-                    known_regions,
-                )
+        # Extract path from the raw packet for storage
+        packet_info = parse_packet(packet_data)
+        path_hex = packet_info.path.hex() if packet_info else None
 
+        # Resolve regional flood-scope if this is a transport-routed packet.
+        transport_code: int | None = None
+        region: str | None = None
+        if packet_info is not None and packet_info.transport_codes is not None:
+            transport_code = packet_info.transport_codes[0]
+            region = resolve_region(
+                int(packet_info.payload_type),
+                packet_info.payload,
+                transport_code,
+                known_regions,
+            )
+
+        if group_data is not None:
+            # GRP_DATA placeholder (chunk metadata only, see services/messages).
+            msg_id, _text, _sender = await create_group_data_message(
+                packet_id=packet_id,
+                channel_key=channel_key_hex,
+                decrypted=group_data,
+                received_at=packet_timestamp,
+                path=path_hex,
+                path_len=packet_info.path_length if packet_info else None,
+                channel_name=display_name,
+                realtime=False,
+                broadcast_fn=broadcast_event,
+                transport_code=transport_code,
+                region=region,
+            )
+            if msg_id is not None:
+                decrypted_count += 1
+
+        elif result is not None:
             msg_id = await create_message_from_decrypted(
                 packet_id=packet_id,
                 channel_key=channel_key_hex,

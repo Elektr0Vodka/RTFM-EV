@@ -19,7 +19,7 @@ import type {
   RawPacket,
 } from '../types';
 import { buildChannelLookupUrl, buildNodeLookupUrl } from '../utils/analyzerLink';
-import { CONTACT_TYPE_ROOM } from '../types';
+import { CONTACT_TYPE_ROOM, TXT_TYPE_GROUP_DATA } from '../types';
 import { api } from '../api';
 import {
   findLinkedChannelReferences,
@@ -37,7 +37,7 @@ import {
   parseMarker,
   type ParsedMarker,
 } from '../utils/meshcoreOpenPayloads';
-import { ListFilter, MapPin } from 'lucide-react';
+import { FileQuestion, ImageOff, ListFilter, MapPin } from 'lucide-react';
 import { useRichPayloads } from '../contexts/RichPayloadContext';
 import { useLocationPreview } from '../contexts/LocationPreviewContext';
 import { usePathHopWidth } from '../contexts/PathHopWidthContext';
@@ -68,7 +68,7 @@ import { tokenizeMessageText, type ChatToken, type TokenizeOptions } from '../ut
 import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { cn } from '@/lib/utils';
-import { useT } from '../i18n';
+import { useT, type TFn } from '../i18n';
 
 interface MessageListProps {
   messages: Message[];
@@ -297,6 +297,43 @@ export interface HashtagRenderCtx {
 }
 
 const EMPTY_NAME_SET: Set<string> = new Set();
+
+const GROUP_DATA_IMAGE_RE = /^\[image\] id=([0-9a-f]+) chunks=(\d+)$/;
+const GROUP_DATA_BLOB_RE = /^\[data\] type=0x([0-9A-Fa-f]+) len=(\d+)/;
+
+// Placeholder for a GRP_DATA (channel datagram) row. The backend stores only
+// chunk metadata for these (meshcore-open image chunks need a neural codec we
+// do not ship), so the chat shows "image (not supported)" instead of the raw
+// marker text. Returns null when the text is not a recognised marker.
+function renderGroupDataPlaceholder(content: string, t: TFn): ReactNode | null {
+  const image = GROUP_DATA_IMAGE_RE.exec(content);
+  if (image) {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-muted-foreground/40 px-2 py-1 text-muted-foreground italic"
+        data-testid="group-data-placeholder"
+        title={t('chat_group_data_image_detail', { id: image[1], chunks: image[2] })}
+      >
+        <ImageOff className="h-4 w-4 shrink-0" aria-hidden="true" />
+        {t('chat_group_data_image_placeholder')}
+      </span>
+    );
+  }
+  const blob = GROUP_DATA_BLOB_RE.exec(content);
+  if (blob) {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-muted-foreground/40 px-2 py-1 text-muted-foreground italic"
+        data-testid="group-data-placeholder"
+        title={t('chat_group_data_detail', { type: blob[1], len: blob[2] })}
+      >
+        <FileQuestion className="h-4 w-4 shrink-0" aria-hidden="true" />
+        {t('chat_group_data_placeholder')}
+      </span>
+    );
+  }
+  return null;
+}
 
 // Recognize a MeshCore Open payload and render it. Handles both a whole-message
 // payload ("g:<id>") and a reply-prefixed one ("@[Name] g:<id>") - the form
@@ -1624,13 +1661,16 @@ export function MessageList({
             // Computed once so the URL preview card below can be skipped when the
             // rich-payload renderer already turned this message into a GIF (a
             // Giphy URL form) or another card - it must not render twice.
-            const richPayload = renderRichPayloads
-              ? renderMeshcoreOpenPayload(content, radioName, hashtagCtx, onCoordinateClick, {
-                  messageId: msg.id,
-                  onJumpToMessage: jumpToMessage,
-                  analyzerLookup: reactionAnalyzerLookup,
-                })
-              : null;
+            const richPayload =
+              msg.txt_type === TXT_TYPE_GROUP_DATA
+                ? renderGroupDataPlaceholder(content, t)
+                : renderRichPayloads
+                  ? renderMeshcoreOpenPayload(content, radioName, hashtagCtx, onCoordinateClick, {
+                      messageId: msg.id,
+                      onJumpToMessage: jumpToMessage,
+                      analyzerLookup: reactionAnalyzerLookup,
+                    })
+                  : null;
             const previewUrl = showUrlPreviews && !richPayload ? firstUrlIn(content) : null;
             const directSenderName =
               msg.type === 'PRIV' && isRoomServer ? msg.sender_name || null : null;

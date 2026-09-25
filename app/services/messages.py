@@ -1,14 +1,16 @@
+import hashlib
 import logging
 import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+from app.decoder import TXT_TYPE_GROUP_DATA
 from app.models import Message, MessagePath
 from app.repository import ContactRepository, MessageRepository, RawPacketRepository
 from app.smaz import decode_message_text
 
 if TYPE_CHECKING:
-    from app.decoder import DecryptedDirectMessage
+    from app.decoder import DecryptedDirectMessage, DecryptedGroupData
 
 logger = logging.getLogger(__name__)
 
@@ -360,6 +362,141 @@ async def create_message_from_decrypted(
     )
 
     return msg_id
+
+
+def format_group_data_placeholder(decrypted: "DecryptedGroupData", sender_label: str | None) -> str:
+    """Build the stored text for a GRP_DATA placeholder row.
+
+    The text is deliberately stable across the chunks of one image (it omits the
+    chunk index), so every chunk of the same ``(channel, sender prefix, image id,
+    chunk count)`` reconciles onto one row via the messages dedup index and shows
+    up as one placeholder with one path per received chunk. Non-image datagrams
+    get a per-blob digest instead so distinct blobs stay distinct rows.
+    """
+    chunk = decrypted.image_chunk
+    if chunk is not None:
+        body = f"[image] id={chunk.img_id:02x} chunks={chunk.total}"
+        return f"{sender_label}: {body}" if sender_label else body
+    digest = hashlib.sha256(decrypted.data).hexdigest()[:8]
+    return f"[data] type=0x{decrypted.data_type:04X} len={len(decrypted.data)} sha={digest}"
+
+
+async def create_group_data_message(
+    *,
+    packet_id: int,
+    channel_key: str,
+    decrypted: "DecryptedGroupData",
+    received_at: int | None = None,
+    path: str | None = None,
+    path_len: int | None = None,
+    rssi: int | None = None,
+    snr: float | None = None,
+    channel_name: str | None = None,
+    realtime: bool = True,
+    broadcast_fn: BroadcastFn,
+    packet_hash: str | None = None,
+    transport_code: int | None = None,
+    region: str | None = None,
+) -> tuple[int | None, str, str | None]:
+    """Store and broadcast a placeholder row for a decrypted GRP_DATA packet.
+
+    Only chunk metadata is stored (sender prefix, image id, chunk count, or the
+    data type, length and a short digest); the blob itself is not persisted and
+    is never decoded. Returns ``(message_id, text, sender_label)``;
+    ``message_id`` is None when the row already existed (a further chunk or a
+    repeat), in which case the arrival is added as a path on the existing row.
+    """
+    received = received_at or int(time.time())
+    channel_key_normalized = channel_key.upper()
+
+    sender_label: str | None = None
+    resolved_sender_key: str | None = None
+    chunk = decrypted.image_chunk
+    if chunk is not None:
+        contact = await ContactRepository.get_by_key_prefix(chunk.sender_prefix)
+        if contact is not None:
+            sender_label = contact.name
+            resolved_sender_key = contact.public_key
+        else:
+            sender_label = chunk.sender_prefix.upper()
+
+    text = format_group_data_placeholder(decrypted, sender_label)
+
+    msg_id = await MessageRepository.create(
+        msg_type="CHAN",
+        text=text,
+        conversation_key=channel_key_normalized,
+        sender_timestamp=None,
+        received_at=received,
+        path=path,
+        path_len=path_len,
+        rssi=rssi,
+        snr=snr,
+        txt_type=TXT_TYPE_GROUP_DATA,
+        sender_name=sender_label if resolved_sender_key else None,
+        sender_key=resolved_sender_key,
+        transport_code=transport_code,
+        region=region,
+    )
+
+    if msg_id is None:
+        existing = await MessageRepository.get_by_content(
+            msg_type="CHAN",
+            conversation_key=channel_key_normalized,
+            text=text,
+            sender_timestamp=None,
+        )
+        if existing is None:
+            logger.warning(
+                "Duplicate GRP_DATA placeholder for %s but couldn't find existing",
+                channel_key_normalized[:12],
+            )
+            return None, text, sender_label
+        await reconcile_duplicate_message(
+            existing_msg=existing,
+            packet_id=packet_id,
+            path=path,
+            received_at=received,
+            path_len=path_len,
+            rssi=rssi,
+            snr=snr,
+            broadcast_fn=broadcast_fn,
+        )
+        return None, text, sender_label
+
+    logger.info(
+        'Stored channel data placeholder "%s" for %r (msg ID %d, type 0x%04X, %d bytes)',
+        truncate_for_log(text),
+        _format_channel_log_target(channel_name, channel_key_normalized),
+        msg_id,
+        decrypted.data_type,
+        len(decrypted.data),
+    )
+    await RawPacketRepository.mark_decrypted(packet_id, msg_id)
+
+    broadcast_message(
+        message=build_message_model(
+            message_id=msg_id,
+            msg_type="CHAN",
+            conversation_key=channel_key_normalized,
+            text=text,
+            sender_timestamp=None,
+            received_at=received,
+            paths=build_message_paths(path, received, path_len, rssi=rssi, snr=snr),
+            txt_type=TXT_TYPE_GROUP_DATA,
+            sender_name=sender_label if resolved_sender_key else None,
+            sender_key=resolved_sender_key,
+            channel_name=channel_name,
+            packet_id=packet_id,
+            transport_code=transport_code,
+            region=region,
+        ),
+        broadcast_fn=broadcast_fn,
+        realtime=realtime,
+        packet_hash=packet_hash,
+    )
+
+    return msg_id, text, sender_label
 
 
 async def backfill_message_regions(known_regions: list[str]) -> dict[str, int]:

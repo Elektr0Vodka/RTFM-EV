@@ -51,6 +51,49 @@ class DecryptedGroupText:
     channel_hash: str
 
 
+# meshcore-open's chunked image transport tags its GRP_DATA blobs with this
+# data type (``lib/services/image_chunk_transport.dart``: ``dataTypeAeicImage``).
+GROUP_DATA_TYPE_AEIC_IMAGE = 0xAE1C
+
+# Sentinel ``txt_type`` for stored GRP_DATA placeholder rows. Firmware group
+# text types occupy 0..3 (two bits), so this value can never collide.
+TXT_TYPE_GROUP_DATA = 0x40
+
+
+@dataclass
+class GroupDataImageChunk:
+    """Header of one meshcore-open image chunk carried in a GRP_DATA blob.
+
+    Layout (``image_chunk_transport.dart``): ``sender_prefix(2) | img_id(1) |
+    idx<<4 | total (1) | body``. ``idx == total`` marks the XOR parity chunk.
+    The image body is NOT decoded (it needs meshcore-open's neural codec).
+    """
+
+    sender_prefix: str  # first two bytes of the sender's public key, hex
+    img_id: int
+    index: int
+    total: int
+    body_len: int
+
+    @property
+    def is_parity(self) -> bool:
+        return self.index == self.total
+
+
+@dataclass
+class DecryptedGroupData:
+    """Result of decrypting a GRP_DATA (channel datagram) packet.
+
+    Plaintext layout (firmware ``BaseChatMesh::sendGroupData``):
+    ``data_type(uint16 LE) | data_len(uint8) | blob``.
+    """
+
+    data_type: int
+    data: bytes
+    channel_hash: str
+    image_chunk: GroupDataImageChunk | None = None
+
+
 @dataclass
 class DecryptedDirectMessage:
     """Result of decrypting a TEXT_MESSAGE (direct message)."""
@@ -155,19 +198,11 @@ def parse_packet(raw_packet: bytes) -> PacketInfo | None:
         return None
 
 
-def decrypt_group_text(payload: bytes, channel_key: bytes) -> DecryptedGroupText | None:
-    """
-    Decrypt a GroupText payload using the channel key.
+def _mac_then_decrypt_group_payload(payload: bytes, channel_key: bytes) -> tuple[str, bytes] | None:
+    """Verify the MAC and decrypt a group (GRP_TXT / GRP_DATA) payload.
 
-    GroupText structure:
-    - channel_hash (1 byte): First byte of SHA256 of channel key
-    - cipher_mac (2 bytes): First 2 bytes of HMAC-SHA256
-    - ciphertext (rest): AES-128 ECB encrypted content
-
-    Decrypted content structure:
-    - timestamp (4 bytes, little-endian)
-    - flags (1 byte)
-    - message text (null-terminated string, format: "sender: message")
+    Shared layout: ``channel_hash(1) | cipher_mac(2) | ciphertext``. Returns the
+    channel hash (hex) and the raw decrypted bytes, or None on any failure.
     """
     if len(payload) < 3:
         return None
@@ -195,6 +230,28 @@ def decrypt_group_text(payload: bytes, channel_key: bytes) -> DecryptedGroupText
     except Exception as e:
         logger.debug("AES decryption failed: %s", e)
         return None
+
+    return channel_hash, decrypted
+
+
+def decrypt_group_text(payload: bytes, channel_key: bytes) -> DecryptedGroupText | None:
+    """
+    Decrypt a GroupText payload using the channel key.
+
+    GroupText structure:
+    - channel_hash (1 byte): First byte of SHA256 of channel key
+    - cipher_mac (2 bytes): First 2 bytes of HMAC-SHA256
+    - ciphertext (rest): AES-128 ECB encrypted content
+
+    Decrypted content structure:
+    - timestamp (4 bytes, little-endian)
+    - flags (1 byte)
+    - message text (null-terminated string, format: "sender: message")
+    """
+    opened = _mac_then_decrypt_group_payload(payload, channel_key)
+    if opened is None:
+        return None
+    channel_hash, decrypted = opened
 
     if len(decrypted) < 5:
         return None
@@ -232,6 +289,78 @@ def decrypt_group_text(payload: bytes, channel_key: bytes) -> DecryptedGroupText
         message=content,
         channel_hash=channel_hash,
     )
+
+
+def parse_group_data_image_chunk(blob: bytes) -> GroupDataImageChunk | None:
+    """Parse the 4-byte meshcore-open image chunk header from a GRP_DATA blob."""
+    if len(blob) < 4:
+        return None
+    idx_total = blob[3]
+    index = idx_total >> 4
+    total = idx_total & 0x0F
+    # total is 1..15 data chunks; idx runs 0..total (idx == total is parity).
+    if total < 1 or index > total:
+        return None
+    return GroupDataImageChunk(
+        sender_prefix=blob[0:2].hex(),
+        img_id=blob[2],
+        index=index,
+        total=total,
+        body_len=len(blob) - 4,
+    )
+
+
+def decrypt_group_data(payload: bytes, channel_key: bytes) -> DecryptedGroupData | None:
+    """
+    Decrypt a GRP_DATA payload using the channel key.
+
+    Same envelope as GroupText (channel_hash, 2-byte MAC, AES-128 ECB). The
+    plaintext is ``data_type(uint16 LE) | data_len(uint8) | blob``; ``data_len``
+    is authoritative (the ciphertext is zero-padded to the block size). Mirrors
+    the firmware checks in ``BaseChatMesh::onGroupDataRecv``.
+    """
+    opened = _mac_then_decrypt_group_payload(payload, channel_key)
+    if opened is None:
+        return None
+    channel_hash, decrypted = opened
+
+    if len(decrypted) < 3:
+        return None
+    data_type = int.from_bytes(decrypted[0:2], "little")
+    data_len = decrypted[2]
+    if data_len > len(decrypted) - 3:
+        return None
+    blob = bytes(decrypted[3 : 3 + data_len])
+
+    image_chunk = None
+    if data_type == GROUP_DATA_TYPE_AEIC_IMAGE:
+        image_chunk = parse_group_data_image_chunk(blob)
+
+    return DecryptedGroupData(
+        data_type=data_type,
+        data=blob,
+        channel_hash=channel_hash,
+        image_chunk=image_chunk,
+    )
+
+
+def _channel_hash_matches(payload: bytes, channel_key: bytes) -> bool:
+    """True when the group payload's leading channel-hash byte matches the key."""
+    if len(payload) < 1:
+        return False
+    return payload[0] == hashlib.sha256(channel_key).digest()[0]
+
+
+def try_decrypt_group_data_with_channel_key(
+    raw_packet: bytes, channel_key: bytes
+) -> DecryptedGroupData | None:
+    """Try to decrypt a raw GRP_DATA packet with a channel key; None if it does not apply."""
+    packet_info = parse_packet(raw_packet)
+    if packet_info is None or packet_info.payload_type != PayloadType.GROUP_DATA:
+        return None
+    if not _channel_hash_matches(packet_info.payload, channel_key):
+        return None
+    return decrypt_group_data(packet_info.payload, channel_key)
 
 
 def try_decrypt_packet_with_channel_key(

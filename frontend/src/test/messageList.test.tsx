@@ -6,7 +6,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MessageList } from '../components/MessageList';
 import { PathHopWidthProvider } from '../contexts/PathHopWidthContext';
 import { buildNameSet } from '../lib/hashtagChannelState';
-import { CONTACT_TYPE_ROOM, type Channel, type Contact, type Message } from '../types';
+import {
+  CONTACT_TYPE_ROOM,
+  TXT_TYPE_GROUP_DATA,
+  type Channel,
+  type Contact,
+  type Message,
+} from '../types';
 
 const scrollIntoViewMock = vi.fn();
 const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
@@ -62,6 +68,48 @@ describe('MessageList channel sender rendering', () => {
 
     expect(screen.getByText('<No name -- corrupt packet?>')).toBeInTheDocument();
     expect(screen.getByTestId('corrupt-avatar')).toBeInTheDocument();
+  });
+
+  it('renders an image placeholder for GRP_DATA rows instead of the marker text', () => {
+    render(
+      <MessageList
+        messages={[
+          createMessage({
+            text: '1F2E: [image] id=3b chunks=2',
+            txt_type: TXT_TYPE_GROUP_DATA,
+            sender_timestamp: null,
+          }),
+        ]}
+        contacts={[]}
+        loading={false}
+      />
+    );
+
+    const placeholder = screen.getByTestId('group-data-placeholder');
+    expect(placeholder).toHaveTextContent('Image (not supported)');
+    expect(placeholder).toHaveAttribute('title', expect.stringContaining('id 3b, 2 chunk(s)'));
+    expect(screen.queryByText('[image] id=3b chunks=2')).not.toBeInTheDocument();
+    expect(screen.getByText('1F2E')).toBeInTheDocument();
+  });
+
+  it('renders a generic placeholder for non-image GRP_DATA rows', () => {
+    render(
+      <MessageList
+        messages={[
+          createMessage({
+            text: '[data] type=0x1234 len=5 sha=2cf24dba',
+            txt_type: TXT_TYPE_GROUP_DATA,
+            sender_timestamp: null,
+          }),
+        ]}
+        contacts={[]}
+        loading={false}
+      />
+    );
+
+    const placeholder = screen.getByTestId('group-data-placeholder');
+    expect(placeholder).toHaveTextContent('Data (not supported)');
+    expect(placeholder).toHaveAttribute('title', expect.stringContaining('0x1234, 5 bytes'));
   });
 
   it('renders a region badge for region-scoped channel messages', () => {

@@ -1262,6 +1262,13 @@ export const CONTACT_TYPE_REPEATER = 2;
 export const CONTACT_TYPE_ROOM = 3;
 export const CONTACT_TYPE_SENSOR = 4;
 
+/**
+ * `txt_type` of a stored GRP_DATA (channel datagram) placeholder row. The
+ * backend never decodes the blob; the row's text carries chunk metadata only
+ * (`[image] id=.. chunks=..` or `[data] type=.. len=.. sha=..`).
+ */
+export const TXT_TYPE_GROUP_DATA = 0x40;
+
 export interface NeighborInfo {
   pubkey_prefix: string;
   name: string | null;

@@ -10,10 +10,12 @@ import hmac
 from Crypto.Cipher import AES
 
 from app.decoder import (
+    GROUP_DATA_TYPE_AEIC_IMAGE,
     DecryptedDirectMessage,
     PayloadType,
     RouteType,
     decrypt_direct_message,
+    decrypt_group_data,
     decrypt_group_text,
     decrypt_path_payload,
     derive_public_key,
@@ -21,6 +23,7 @@ from app.decoder import (
     extract_payload,
     parse_packet,
     try_decrypt_dm,
+    try_decrypt_group_data_with_channel_key,
     try_decrypt_packet_with_channel_key,
     try_decrypt_path,
 )
@@ -461,6 +464,118 @@ class TestTryDecryptPath:
         )
 
         assert result is None
+
+
+def build_group_data_packet(channel_key: bytes, data_type: int, blob: bytes) -> bytes:
+    """Build a flood-routed GRP_DATA packet the way the firmware does.
+
+    ``BaseChatMesh::sendGroupData`` packs ``data_type(u16 LE) | data_len(u8) |
+    blob``; ``Mesh::createGroupDatagram`` prefixes the channel hash and
+    ``Utils::encryptThenMAC`` zero-pads to the AES block, encrypts (AES-128
+    ECB) and prepends a 2-byte HMAC-SHA256 over the ciphertext.
+    """
+    plaintext = data_type.to_bytes(2, "little") + bytes([len(blob)]) + blob
+    pad_len = (16 - len(plaintext) % 16) % 16
+    plaintext += bytes(pad_len)
+    ciphertext = AES.new(channel_key, AES.MODE_ECB).encrypt(plaintext)
+    mac = hmac.new(channel_key + bytes(16), ciphertext, hashlib.sha256).digest()[:2]
+    channel_hash = hashlib.sha256(channel_key).digest()[:1]
+    # Header: route_type=FLOOD(1), payload_type=GROUP_DATA(6): (6 << 2) | 1 = 0x19
+    return bytes([0x19, 0x00]) + channel_hash + mac + ciphertext
+
+
+def build_image_chunk_blob(
+    sender_prefix: bytes, img_id: int, index: int, total: int, body: bytes
+) -> bytes:
+    """Build a meshcore-open image chunk blob (``image_chunk_transport.dart``)."""
+    return sender_prefix + bytes([img_id, (index << 4) | total]) + body
+
+
+class TestGroupData:
+    """GRP_DATA (0x06) channel datagram decryption."""
+
+    KEY = hashlib.sha256(b"#grpdata").digest()[:16]
+
+    def test_decrypts_image_chunk_header(self):
+        blob = build_image_chunk_blob(bytes.fromhex("1f2e"), 0x3B, 0, 2, b"\x11" * 100)
+        packet = build_group_data_packet(self.KEY, GROUP_DATA_TYPE_AEIC_IMAGE, blob)
+
+        result = try_decrypt_group_data_with_channel_key(packet, self.KEY)
+
+        assert result is not None
+        assert result.data_type == GROUP_DATA_TYPE_AEIC_IMAGE
+        assert result.data == blob
+        assert result.channel_hash == hashlib.sha256(self.KEY).digest()[:1].hex()
+        chunk = result.image_chunk
+        assert chunk is not None
+        assert chunk.sender_prefix == "1f2e"
+        assert chunk.img_id == 0x3B
+        assert chunk.index == 0
+        assert chunk.total == 2
+        assert chunk.body_len == 100
+        assert chunk.is_parity is False
+
+    def test_parity_chunk_is_index_equal_to_total(self):
+        blob = build_image_chunk_blob(bytes.fromhex("1f2e"), 0x3B, 2, 2, b"\x00" * 10)
+        result = decrypt_group_data(build_group_data_packet(self.KEY, 0xAE1C, blob)[2:], self.KEY)
+
+        assert result is not None and result.image_chunk is not None
+        assert result.image_chunk.is_parity is True
+
+    def test_data_len_strips_block_padding(self):
+        """data_len is authoritative; the AES zero padding must not leak into the blob."""
+        blob = b"\x01\x02\x03\x04\x05"
+        result = decrypt_group_data(build_group_data_packet(self.KEY, 0x1234, blob)[2:], self.KEY)
+
+        assert result is not None
+        assert result.data_type == 0x1234
+        assert result.data == blob
+        assert result.image_chunk is None
+
+    def test_rejects_data_len_beyond_available(self):
+        """Mirrors the firmware's malformed check (data_len > available)."""
+        plaintext = (0x1234).to_bytes(2, "little") + bytes([200]) + b"\x00" * 13
+        ciphertext = AES.new(self.KEY, AES.MODE_ECB).encrypt(plaintext)
+        mac = hmac.new(self.KEY + bytes(16), ciphertext, hashlib.sha256).digest()[:2]
+        payload = hashlib.sha256(self.KEY).digest()[:1] + mac + ciphertext
+
+        assert decrypt_group_data(payload, self.KEY) is None
+
+    def test_wrong_key_fails_mac(self):
+        blob = build_image_chunk_blob(bytes.fromhex("1f2e"), 1, 0, 1, b"x" * 20)
+        packet = build_group_data_packet(self.KEY, GROUP_DATA_TYPE_AEIC_IMAGE, blob)
+        other_key = hashlib.sha256(b"#other").digest()[:16]
+        forced_hash = bytes([packet[2]])
+        # Keep the channel-hash byte so only the MAC decides.
+        result = decrypt_group_data(forced_hash + packet[3:], other_key)
+
+        assert result is None
+        assert try_decrypt_group_data_with_channel_key(packet, other_key) is None
+
+    def test_group_text_packet_is_not_group_data(self):
+        """try_decrypt_group_data only applies to payload type 0x06."""
+        packet = build_group_data_packet(self.KEY, 0x1234, b"abc")
+        as_group_text = bytes([0x15]) + packet[1:]
+
+        assert try_decrypt_group_data_with_channel_key(as_group_text, self.KEY) is None
+        # And the GROUP_TEXT path does not claim a GRP_DATA packet either.
+        assert try_decrypt_packet_with_channel_key(packet, self.KEY) is None
+
+    def test_short_or_malformed_image_chunk_has_no_header(self):
+        result = decrypt_group_data(
+            build_group_data_packet(self.KEY, GROUP_DATA_TYPE_AEIC_IMAGE, b"\x1f\x2e")[2:],
+            self.KEY,
+        )
+        assert result is not None
+        assert result.image_chunk is None
+
+        # total == 0 is invalid (must be 1..15)
+        bad = build_image_chunk_blob(bytes.fromhex("1f2e"), 1, 0, 0, b"")
+        result = decrypt_group_data(
+            build_group_data_packet(self.KEY, GROUP_DATA_TYPE_AEIC_IMAGE, bad)[2:], self.KEY
+        )
+        assert result is not None
+        assert result.image_chunk is None
 
 
 class TestTryDecryptPacket:
