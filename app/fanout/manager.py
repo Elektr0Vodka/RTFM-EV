@@ -6,6 +6,7 @@ import asyncio
 import logging
 from typing import Any
 
+from app.decoder import TXT_TYPE_GROUP_DATA
 from app.fanout.base import FanoutModule
 
 logger = logging.getLogger(__name__)
@@ -67,7 +68,17 @@ def _matches_filter(filter_value: Any, key: str) -> bool:
 
 
 def _scope_matches_message(scope: dict, data: dict) -> bool:
-    """Check whether a message event matches the given scope."""
+    """Check whether a message event matches the given scope.
+
+    GRP_DATA placeholder rows (``txt_type`` 0x40: chunk metadata stored for a
+    channel datagram, not a message anyone typed) are dropped unless the scope
+    opts in with ``"data_placeholders": "all"``; the message filter still applies.
+    """
+    if (
+        data.get("txt_type") == TXT_TYPE_GROUP_DATA
+        and scope.get("data_placeholders", "none") != "all"
+    ):
+        return False
     messages = scope.get("messages", "none")
     if messages == "all":
         return True

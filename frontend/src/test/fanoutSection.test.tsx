@@ -1905,4 +1905,32 @@ describe('SettingsFanoutSection', () => {
     const zulu = within(webhookGroup).getByText('Zulu Hook');
     expect(alpha.compareDocumentPosition(zulu) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
+
+  it('scope editor offers the channel data placeholder opt-in, off by default, and saves it', async () => {
+    mockedApi.getFanoutConfigs.mockResolvedValue([webhookConfig]);
+    mockedApi.updateFanoutConfig.mockResolvedValue({
+      ...webhookConfig,
+      scope: { messages: 'all', raw_packets: 'none', data_placeholders: 'all' },
+    });
+    renderSection();
+    await waitFor(() => expect(screen.getByText('Test Hook')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    await waitFor(() => expect(screen.getByText('← Back to list')).toBeInTheDocument());
+
+    const box = screen.getByLabelText(/Forward channel data placeholders/);
+    expect(box).not.toBeChecked();
+    fireEvent.click(box);
+    expect(box).toBeChecked();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save as Enabled' }));
+    await waitFor(() =>
+      expect(mockedApi.updateFanoutConfig).toHaveBeenCalledWith(
+        'wh-1',
+        expect.objectContaining({
+          scope: expect.objectContaining({ data_placeholders: 'all' }),
+        })
+      )
+    );
+  });
 });
