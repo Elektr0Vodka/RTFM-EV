@@ -41,6 +41,23 @@ the change. Upstream development is on hold; the fork is the active repository.
   merges into the earlier placeholder (meshcore-open itself only keeps a partial
   image for 60 s).
 
+## Update 2026-09-25 (Radio default flood scope, parity audit L1, feat/radio-default-flood-scope)
+
+### Settings > Radio: default scope on the radio (backend + frontend)
+- New `GET /api/radio/default-flood-scope` reads the radio's own configured
+  default region with the companion `CMD_GET_DEFAULT_FLOOD_SCOPE` (64):
+  `{supported, scope_name, scope_key}`; `supported=false` on firmware without
+  the command, `scope_name=null` when no default is set. Local command,
+  nothing transmitted.
+- Settings > Radio shows it read-only under "Flood Scope / Region" ("Default
+  scope on the radio: ..."), with a Refresh button and a hint when it differs
+  from RTFM-EV's outbound scope (RTFM-EV applies its own scope per send with
+  `CMD_SET_FLOOD_SCOPE`; on firmware older than v12 an empty outbound scope
+  falls back to the radio default). Closes the companion-reachable part of
+  parity audit L1; other repeaters' live region-gate state stays DMC-MQTT-only.
+  New i18n keys `settings_radio_default_scope_*` in EN/NL/DE.
+
+
 ## Update 2026-09-25 (Scored path history, plan 28 item 1.15, feat/scored-path-history)
 
 ### Contact info: message routes (scored) (backend + frontend)

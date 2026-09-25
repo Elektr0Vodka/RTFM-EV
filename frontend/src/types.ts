@@ -77,6 +77,13 @@ export interface GpsConfig {
   gps_interval: number | null;
 }
 
+/** GET /radio/default-flood-scope: the radio's own configured default region (firmware setting). */
+export interface RadioDefaultFloodScope {
+  supported: boolean;
+  scope_name: string | null;
+  scope_key: string | null;
+}
+
 export interface GpsConfigUpdate {
   gps_enabled?: boolean;
   gps_interval?: number;

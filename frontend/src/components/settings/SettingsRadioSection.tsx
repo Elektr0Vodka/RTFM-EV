@@ -23,6 +23,7 @@ import { api, isAbortError } from '../../api';
 import { formatDateTime } from '../../utils/dateTimeFormat';
 import { RADIO_PRESETS } from '../../utils/radioPresets';
 import { stripRegionScopePrefix } from '../../utils/regionScope';
+import { RadioDefaultScope } from './RadioDefaultScope';
 import { allDutchScopes } from '../../lib/dutchGeo';
 import type {
   AppSettings,
@@ -1514,6 +1515,10 @@ export function SettingsRadioSection({
         <p className="text-[0.8125rem] text-muted-foreground">
           {t('settings_radio_flood_scope_desc')}
         </p>
+        <RadioDefaultScope
+          connected={health?.radio_connected ?? false}
+          appFloodScope={floodScope}
+        />
       </div>
 
       <div className="space-y-2">

@@ -116,6 +116,7 @@ import type {
   TrackedTelemetryResponse,
   BatteryHistoryStats,
   AirtimeSample,
+  RadioDefaultFloodScope,
   BatterySample,
   NoiseFloorSample,
   RawFeedHistoricalStats,
@@ -278,6 +279,8 @@ export const api = {
       { method: 'POST' }
     ),
   getGpsConfig: () => fetchJson<GpsConfig>('/radio/gps'),
+  getRadioDefaultFloodScope: (signal?: AbortSignal) =>
+    fetchJson<RadioDefaultFloodScope>('/radio/default-flood-scope', { signal }),
   updateGpsConfig: (update: GpsConfigUpdate) =>
     fetchJson<GpsConfig>('/radio/gps', {
       method: 'PATCH',
