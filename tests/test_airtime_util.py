@@ -104,3 +104,40 @@ def test_map_openhop_buckets_empty_and_missing_fields():
         {"bucket_seconds": 0, "buckets": [{"timestamp": 5, "tx_ms": 10, "rx_ms": 10}]}
     )
     assert out == [{"timestamp": 5, "tx_pct": 0.0, "rx_pct": 0.0}]
+
+
+def test_rx_errors_summed_per_bin_from_counter_deltas():
+    samples = [
+        {"timestamp": 0, "tx_air_secs": 0, "rx_air_secs": 0, "recv_errors": 10},
+        {"timestamp": 60, "tx_air_secs": 1, "rx_air_secs": 1, "recv_errors": 13},  # +3
+        {"timestamp": 120, "tx_air_secs": 2, "rx_air_secs": 2, "recv_errors": 13},  # +0
+        {"timestamp": 180, "tx_air_secs": 3, "rx_air_secs": 3, "recv_errors": 20},  # +7
+    ]
+    out = compute_airtime_utilization(
+        samples, start_ts=0, end_ts=240, bin_count=2, sample_interval=SAMPLE_INTERVAL
+    )
+    by_bin = {o["_bin"]: o for o in out}
+    assert by_bin[0]["rx_errors"] == 3  # pairs starting at 0 and 60 -> 3 + 0
+    assert by_bin[1]["rx_errors"] == 7
+
+
+def test_rx_errors_none_when_counter_absent_or_reset():
+    samples = [
+        {"timestamp": 0, "tx_air_secs": 0, "rx_air_secs": 0},  # legacy frame, no counter
+        {"timestamp": 60, "tx_air_secs": 1, "rx_air_secs": 1, "recv_errors": None},
+        {"timestamp": 120, "tx_air_secs": 2, "rx_air_secs": 2, "recv_errors": 50},
+        {"timestamp": 180, "tx_air_secs": 3, "rx_air_secs": 3, "recv_errors": 4},  # reset
+    ]
+    out = compute_airtime_utilization(
+        samples, start_ts=0, end_ts=240, bin_count=1, sample_interval=SAMPLE_INTERVAL
+    )
+    assert len(out) == 1
+    assert out[0]["rx_errors"] is None
+    assert out[0]["tx_pct"] > 0  # airtime still computed
+
+
+def test_openhop_buckets_have_no_rx_errors():
+    out = map_openhop_airtime_buckets(
+        {"bucket_seconds": 60, "buckets": [{"timestamp": 0, "tx_ms": 600, "rx_ms": 0}]}
+    )
+    assert "rx_errors" not in out[0]

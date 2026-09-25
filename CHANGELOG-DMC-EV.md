@@ -11,7 +11,24 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
-## Update 2026-09-25 (Scored path history, plan 28 item 1.15, feat/scored-path-history)
+## Update 2026-09-25 (Receive-error graph, parity audit L2, feat/rx-error-graph)
+
+### My Node: receive errors chart (backend + frontend)
+- The 60 s radio stats sampler now also persists the radio's cumulative RX
+  error counter (`recv_errors` from the companion `STATS_PACKETS` frame,
+  firmware v1.12+; NULL on the legacy 26-byte frame) in `airtime_history`
+  (migration `_116`, `AirtimeHistoryRepository.insert(..., recv_errors)`).
+- `GET /api/statistics/airtime/range` bins gain `rx_errors`: the sum of the
+  counter deltas of the sample pairs in each bin, with the same counter-reset
+  and disconnect-gap rules as the airtime deltas; `null` when no pair had the
+  counter (older firmware, or the OpenHop airtime source, which has no error
+  counter).
+- My Node shows a **Receive errors** card (bar chart, same time range and zoom
+  as the airtime chart, total in the window as the stat) whenever the window
+  has at least one bin with the counter. Closes the last open item of parity
+  audit L2 (telemetry graph parity). New i18n keys `node_chart_rx_errors_*`
+  in EN/NL/DE.
+
 
 ### Contact info: message routes (scored) (backend + frontend)
 - **Contact info > Network** now lists the routes your direct messages to that

@@ -111,7 +111,17 @@ async def _persist_samples(snapshot: dict[str, Any]) -> None:
         if isinstance(tx_air_secs, int) and isinstance(rx_air_secs, int):
             from app.repository.airtime_history import AirtimeHistoryRepository
 
-            await AirtimeHistoryRepository.insert(ts, tx_air_secs, rx_air_secs)
+            # Cumulative RX error counter from STATS_PACKETS (firmware v1.12+,
+            # None on the legacy 26-byte frame); stored beside the airtime
+            # counters so the My Node receive-error graph shares their sampling.
+            packets = snapshot.get("packets")
+            recv_errors = packets.get("recv_errors") if isinstance(packets, dict) else None
+            await AirtimeHistoryRepository.insert(
+                ts,
+                tx_air_secs,
+                rx_air_secs,
+                recv_errors if isinstance(recv_errors, int) else None,
+            )
     except Exception:
         logger.exception("Failed to persist radio stats samples")
 
