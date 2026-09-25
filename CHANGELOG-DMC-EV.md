@@ -24,6 +24,7 @@ the change. Upstream development is on hold; the fork is the active repository.
   auto-refresh; a 30 s poll is the fallback when the stream is quiet or a
   WebSocket event was missed. The tab had no polling before (only Adverts
   and Requests did). Longer windows stay manual (Refresh button).
+
 ## Update 2026-09-25 (Analyzer channel links: lowercase Public, fix/analyzer-public-channel-name)
 
 ### Analyzer links: the default Public channel is `public` on meshcore-analyzer.eu sites (frontend)
