@@ -11,6 +11,23 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-26 (Soft links in the visualizer and path modal, plan 16, feat/soft-links-visualizer-pathmodal)
+
+### Packet visualizer and path modal: name linked hop prefixes (frontend)
+- A hop prefix the user linked to a node in Settings > Radio-App
+  Management (the partial node soft links from #152) now shows that node
+  where the prefix alone was ambiguous or unknown. In the packet visualizer
+  the node is labelled with the linked name and the tooltip reads
+  "Probably: <name>", with the other local matches under "Other possible";
+  the link wins over the advert-path guess because it was reviewed, and the
+  node stays marked ambiguous. In the path modal ("Show paths") such a hop
+  reads "Linked to <name> (soft link)" instead of `<UNKNOWN>`, or above the
+  list of ambiguous matches.
+- The links come from `GET /api/partial-resolutions` (a DB read), loaded
+  when the visualizer mounts or the path modal opens
+  (`hooks/useSoftResolutions.ts`). Names resolved for unnamed full-key
+  contacts (#226) already reached both views through the contact list.
+
 ## Update 2026-09-25 (Parity L4 closed, fix/parity-l4-auto-discovery-closeout)
 
 ### Documentation

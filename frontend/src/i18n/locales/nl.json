@@ -3192,6 +3192,7 @@
   "path_modal_hop_label": "Hop {n}",
   "path_modal_ambiguous_suffix": "ambigu",
   "path_modal_unknown_node": "<ONBEKEND>",
+  "path_modal_soft_link": "Gekoppeld aan {name} (zachte koppeling)",
   "path_modal_and_more": {
     "one": "(en {count} meer)",
     "other": "(en {count} meer)"
