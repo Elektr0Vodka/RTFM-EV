@@ -11,6 +11,19 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-25 (Live verification of #230-#234, fix/config-history-partial-timeout)
+
+### Repeater dashboard: a partly answered pane fetch is not a config change (backend)
+- When only some CLI commands of a pane timed out (live: `get lat` on
+  NL-DHR-TDP-EV while name and lon answered), the response was stored in
+  `device_config_history` with that field empty, so the History block
+  showed "lat 52.95 -> -" and then "- -> 52.95" on the next full fetch.
+  `DeviceConfigHistoryRepository.record` now keeps the latest snapshot's
+  value for a field that came back empty, so such a fetch adds nothing
+  unless another field really changed. A field that never answered stays
+  empty. The pane itself still shows what came back. Snapshots already
+  stored are left as they are.
+
 ## Update 2026-09-25 (Docs reconciled through #234, fix/docs-reconcile-224-231)
 
 ### Documentation
