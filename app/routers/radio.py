@@ -207,6 +207,14 @@ class GpsConfigResponse(BaseModel):
     gps_interval: int | None = None
 
 
+class DefaultFloodScopeResponse(BaseModel):
+    """The radio's own configured default flood scope (companion ``CMD_GET_DEFAULT_FLOOD_SCOPE`` 64)."""
+
+    supported: bool = True
+    scope_name: str | None = None
+    scope_key: str | None = None
+
+
 class GpsConfigUpdate(BaseModel):
     gps_enabled: bool | None = None
     gps_interval: int | None = Field(default=None, ge=0, le=86400)
@@ -565,6 +573,29 @@ async def get_gps_config() -> GpsConfigResponse:
     async with radio_manager.radio_operation("get_gps_config") as mc:
         data = await read_gps_settings(mc)
     return GpsConfigResponse(**data)
+
+
+@router.get("/default-flood-scope", response_model=DefaultFloodScopeResponse)
+async def get_default_flood_scope() -> DefaultFloodScopeResponse:
+    """Read the radio's configured default flood scope.
+
+    This is the firmware setting (``CMD_GET_DEFAULT_FLOOD_SCOPE`` 64, the
+    region a stock client or the CLI configured on the node), not the per-send
+    scope override RTFM-EV applies from its own "Flood Scope / Region" setting
+    (``CMD_SET_FLOOD_SCOPE``). The firmware answers with the 31-byte name and
+    the 16-byte key, or a bare response code when no default is set; firmware
+    without the command answers ERROR, reported as ``supported=false``.
+    Local radio command; nothing is transmitted.
+    """
+    radio_manager.require_connected()
+    async with radio_manager.radio_operation("get_default_flood_scope") as mc:
+        event = await mc.commands.get_default_flood_scope()
+    if event is None or event.type == EventType.ERROR:
+        return DefaultFloodScopeResponse(supported=False)
+    payload = event.payload or {}
+    name = str(payload.get("scope_name") or "").strip() or None
+    key = payload.get("scope_key") or None
+    return DefaultFloodScopeResponse(supported=True, scope_name=name, scope_key=key)
 
 
 @router.patch("/gps", response_model=GpsConfigResponse)

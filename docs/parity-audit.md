@@ -146,8 +146,8 @@ discovery rows were re-marked afterwards. §7 holds the current per-item status.
 | Feature | Ref | RTFM-EV | Appl. | Notes |
 |---|---|---|---|---|
 | Message region scope | both | Partial | App | `_063` exists; not yet surfaced/complete. |
-| RegionMap scope tree display | DMC | Absent | Adapt | DMC `config` topic `region.scopes[]`, companion `CMD_GET_DEFAULT_FLOOD_SCOPE 64`. |
-| Region-gating (duty-cycle) state | DMC | Absent | Adapt | DMC-only; `region_gate{}` in `filter`/`config` topics. Repeater-side; RTFM-EV can display if bridged. |
+| RegionMap scope tree display | DMC | Present | Adapt | Repeater tree via the RF regions request (`RepeaterRegionsPane`); own tree in Settings > Host repeater (published on the `config` topic). Companion `CMD_GET_DEFAULT_FLOOD_SCOPE 64` shown read-only in Settings > Radio (`GET /radio/default-flood-scope`). |
+| Region-gating (duty-cycle) state | DMC | Partial | Adapt | Own host repeater gate state is in Settings > Host repeater stats and on the `config` topic; other repeaters' `region_gate{}` only exists on the DMC MQTT `filter`/`config` topics (needs an MQTT subscriber; not built). |
 | IATA routing code | DMC | Partial | App | Community MQTT has `iata`. |
 
 ### MQTT export (RTFM-EV as the companion bridge)
@@ -245,9 +245,16 @@ Each "Now/Next" item gets its own brainstorm → spec → plan cycle.
   `docs/superpowers/`.
 
 ### Later
-- **L1. Region / scope surfacing** - PARTIAL: region pills + list sync shipped
-  (plan [05]). Remaining: mirror DMC `config` topic `region.scopes[]`,
-  `region_gate{}`; `CMD_GET_DEFAULT_FLOOD_SCOPE`.
+- **L1. Region / scope surfacing** - DONE (companion-reachable part): region
+  pills + list sync shipped (plan [05]); a repeater's `region.scopes[]` tree is
+  shown from the RF regions request (`RepeaterRegionsPane`, depth / flood /
+  home) and RTFM-EV's own tree is edited in Settings > Host repeater and
+  published on the `config` topic (L3); `CMD_GET_DEFAULT_FLOOD_SCOPE` surfaced
+  2026-09-25 (`feat/radio-default-flood-scope`: `GET /radio/default-flood-scope`,
+  read-only line under Settings > Radio > Flood Scope). Not built:
+  `region_gate{}` live state of *other* repeaters, which only exists on the
+  DMC MQTT `filter`/`config` topics (needs an MQTT subscriber, not a companion
+  command).
 - **L2. Telemetry graph parity** - PARTIAL: noise-floor viewer and Direct/Flood
   advert metrics shipped (PR #94). Remaining: receive-error graphs.
 - **L3. MQTT `neighbors` / `config` topic publishing** - PARTIAL: neighbor /
