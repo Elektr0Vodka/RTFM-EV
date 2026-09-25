@@ -1577,6 +1577,8 @@ export interface AirtimeSample {
   timestamp: number;
   tx_pct: number;
   rx_pct: number;
+  /** Radio RX errors in this bin (delta of the firmware v1.12+ counter); null when unknown. */
+  rx_errors?: number | null;
 }
 
 export interface RawFeedStatItem {

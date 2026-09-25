@@ -63,11 +63,12 @@ Shipped toward this so far:
   packet (migration `_065`), plus advert-path signal (`_066`) and per-link signal
   history (`_075`).
 - Standalone history stores for noise floor (`_069`), battery (`_070`), and local
-  radio TX/RX airtime (`_088`).
+  radio TX/RX airtime (`_088`) plus the radio's RX error counter (`_116`).
 - Repeater and per-contact telemetry history (`_050`, `_062`) and contact name
   history (`_024`).
 - "My Node" and mesh-health views that read from this persisted history, including
-  a TX/RX airtime utilization (%) chart on My Node and a "Directly heard radar"
+  a TX/RX airtime utilization (%) chart and a receive-errors chart (packets the
+  radio could not decode, firmware v1.12+) on My Node and a "Directly heard radar"
   card that plots 0-hop nodes by bearing and distance, coloured by best SNR.
 - A "Mesh Health" view with an Adverts panel (per-contact direct/flood advert
   counts, a searchable and pageable contacts table, and HIGH/MEDIUM alerts that

@@ -826,6 +826,24 @@ function niceCeilPct(v: number): number {
   return Math.min(100, nf * base);
 }
 
+// Receive errors per bin, shaped as BarChart bins so the RX error card reuses
+// the packet-count bar chart (and its zoom frame). Bins whose counter was
+// unknown (older firmware, OpenHop source) draw as 0.
+export function rxErrorBins(samples: AirtimeSample[]): Bin[] {
+  return samples.map((s) => ({
+    time: s.timestamp * 1000,
+    packets: s.rx_errors ?? 0,
+    bytes: 0,
+    types: {},
+    snrs: [],
+    rssis: [],
+  }));
+}
+
+export function hasRxErrorData(samples: AirtimeSample[]): boolean {
+  return samples.some((s) => s.rx_errors !== null && s.rx_errors !== undefined);
+}
+
 function AirtimeLineChart({
   samples,
   windowSeconds,
@@ -2251,6 +2269,33 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                     </div>
                     <p className="px-1 text-[9px] italic text-muted-foreground">
                       {t('node_chart_airtime_note')}
+                    </p>
+                  </ChartCard>
+                )}
+                {hasRxErrorData(airtimeSamples) && (
+                  <ChartCard
+                    title={t('node_chart_rx_errors_title')}
+                    stat={t('node_chart_rx_errors_stat', {
+                      count: airtimeSamples.reduce((sum, s) => sum + (s.rx_errors ?? 0), 0),
+                    })}
+                  >
+                    <ZoomableBinChart
+                      items={rxErrorBins(airtimeSamples)}
+                      plotLeftFrac={binPlotLeftFrac}
+                    >
+                      {(b) => (
+                        <BarChart
+                          bins={b}
+                          valueKey="packets"
+                          id="rx-errors"
+                          color="hsl(var(--destructive))"
+                          tooltipLabel={t('node_chart_rx_errors_tooltip')}
+                          windowSeconds={windowSeconds}
+                        />
+                      )}
+                    </ZoomableBinChart>
+                    <p className="px-1 text-[9px] italic text-muted-foreground">
+                      {t('node_chart_rx_errors_note')}
                     </p>
                   </ChartCard>
                 )}

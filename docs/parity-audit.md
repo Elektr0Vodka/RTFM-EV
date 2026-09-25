@@ -132,7 +132,7 @@ discovery rows were re-marked afterwards. §7 holds the current per-item status.
 |---|---|---|---|---|
 | Telemetry history (battery etc.) | Off | Present | App | `_061`/`_062`. |
 | Noise-floor viewer | Off | Absent | App | Needs signal-storage foundation (see §6). **[web]** |
-| Receive-error graphs | Off | Absent | App | Needs signal-storage foundation. **[web]** |
+| Receive-error graphs | Off | Present | App | My Node "Receive errors" card from the companion `STATS_PACKETS` `recv_errors` counter (firmware v1.12+), sampled with airtime (`_116`). |
 | Direct/Flood packet metrics | Off | Partial | App | Needs signal-storage foundation. **[web]** |
 
 ### Neighbor discovery
@@ -245,18 +245,13 @@ Each "Now/Next" item gets its own brainstorm → spec → plan cycle.
   `docs/superpowers/`.
 
 ### Later
-- **L1. Region / scope surfacing** - DONE (companion-reachable part): region
-  pills + list sync shipped (plan [05]); a repeater's `region.scopes[]` tree is
-  shown from the RF regions request (`RepeaterRegionsPane`, depth / flood /
-  home) and RTFM-EV's own tree is edited in Settings > Host repeater and
-  published on the `config` topic (L3); `CMD_GET_DEFAULT_FLOOD_SCOPE` surfaced
-  2026-09-25 (`feat/radio-default-flood-scope`: `GET /radio/default-flood-scope`,
-  read-only line under Settings > Radio > Flood Scope). Not built:
-  `region_gate{}` live state of *other* repeaters, which only exists on the
-  DMC MQTT `filter`/`config` topics (needs an MQTT subscriber, not a companion
-  command).
-- **L2. Telemetry graph parity** - PARTIAL: noise-floor viewer and Direct/Flood
-  advert metrics shipped (PR #94). Remaining: receive-error graphs.
+- **L1. Region / scope surfacing** - PARTIAL: region pills + list sync shipped
+  (plan [05]). Remaining: mirror DMC `config` topic `region.scopes[]`,
+  `region_gate{}`; `CMD_GET_DEFAULT_FLOOD_SCOPE`.
+- **L2. Telemetry graph parity** - DONE: noise-floor viewer and Direct/Flood
+  advert metrics shipped (PR #94); receive-error graph shipped 2026-09-25
+  (`feat/rx-error-graph`: `airtime_history.recv_errors`, migration `_116`,
+  My Node "Receive errors" card).
 - **L3. MQTT `neighbors` / `config` topic publishing** - PARTIAL: neighbor /
   region publish shipped with `subject_id` attribution (PR #90, plan [24]).
   Remaining: `config`-topic publishing.
