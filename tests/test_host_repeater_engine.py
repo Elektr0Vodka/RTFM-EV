@@ -17,6 +17,7 @@ from nacl.signing import SigningKey
 from app.channel_constants import PUBLIC_CHANNEL_KEY
 from app.region_resolver import compute_transport_code
 from app.services.host_repeater_engine import (
+    AdvertLimiter,
     AirtimeBudget,
     DmcLimiter,
     ForwardingEngine,
@@ -24,6 +25,8 @@ from app.services.host_repeater_engine import (
     RxFacts,
     lora_airtime_ms,
     packet_hash,
+    packet_score,
+    rx_delay_ms,
 )
 from app.services.host_repeater_settings import (
     BlockedChannel,
@@ -584,3 +587,95 @@ def test_dmc_malformed_public_scan():
     assert decide(eng, frame(FLOOD, GRP_TXT, 0x00, b"", empty)).reason == "filter_malformed"
     bad_utf8 = _public_grp(int(time.time()), b"\xff\xfe")
     assert decide(eng, frame(FLOOD, GRP_TXT, 0x00, b"", bad_utf8)).reason == "filter_malformed"
+
+
+# ── Phase 4: score-based delays ─────────────────────────────────────────
+
+
+def test_packet_score_ports_packet_score_int():
+    # RadioLibWrappers.cpp: 0 below the SF floor, (snr - floor) / 10 * (1 - len / 256), clamped.
+    assert packet_score(-10.0, 8, 20) == 0.0
+    assert packet_score(-10.1, 8, 20) == 0.0
+    assert packet_score(-5.0, 8, 128) == pytest.approx(0.25)
+    assert packet_score(20.0, 8, 20) == 1.0
+    assert packet_score(-7.4, 7, 0) == pytest.approx(0.01)
+    assert packet_score(None, 8, 20) is None
+    assert packet_score(5.0, 6, 20) is None  # unknown SF: no score, delays stay off
+
+
+def test_rx_delay_formula_threshold_and_cap():
+    # MyMesh::calcRxDelay: (base ^ (0.85 - score) - 1) * airtime; < 50 ms means "now".
+    assert rx_delay_ms(0.0, 100.0, 0.0) == 0.0
+    assert rx_delay_ms(None, 100.0, 10.0) == 0.0
+    assert rx_delay_ms(0.85, 100.0, 10.0) == 0.0
+    assert rx_delay_ms(0.0, 100.0, 10.0) == pytest.approx((10**0.85 - 1) * 100.0)
+    assert rx_delay_ms(0.8, 100.0, 10.0) == 0.0  # 12.2 ms, under the 50 ms threshold
+    assert rx_delay_ms(0.0, 100_000.0, 20.0) == 32_000.0
+
+
+def test_engine_holds_only_weak_floods():
+    eng = engine(rx_delay_base=10.0)
+    weak = frame(FLOOD, GRP_TXT, 0x02, bytes([0x11, 0x22]), grp_payload())
+    assert eng.rx_delay_ms(weak, -9.9) > 50.0
+    assert eng.rx_delay_ms(weak, 20.0) == 0.0  # score 1: strong receptions are judged now
+    assert eng.rx_delay_ms(weak, None) == 0.0
+    direct = frame(DIRECT, REQ, 0x01, bytes([0xAB]), bytes(20))
+    assert eng.rx_delay_ms(direct, -9.9) == 0.0  # Dispatcher only queues floods
+    assert engine().rx_delay_ms(weak, -9.9) == 0.0  # default off
+
+
+def test_use_score_for_tx_shrinks_the_random_delay_for_strong_receptions():
+    raw = frame(FLOOD, GRP_TXT, 0x02, bytes([0x11, 0x22]), grp_payload())
+    plain = decide(engine(tx_delay_factor=10.0), raw, snr=20.0)
+    scored = decide(engine(tx_delay_factor=10.0, use_score_for_tx=True), raw, snr=20.0)
+    assert plain.forward and scored.forward and plain.delay_ms >= 50.0
+    assert scored.score == 1.0 and scored.delay_ms == pytest.approx(plain.delay_ms * 0.2)
+    # A reception at the SNR floor keeps the full delay; unknown SNR too.
+    floor = decide(engine(tx_delay_factor=10.0, use_score_for_tx=True), raw, snr=-10.0)
+    assert floor.score == 0.0 and floor.delay_ms == pytest.approx(plain.delay_ms)
+    unknown = decide(engine(tx_delay_factor=10.0, use_score_for_tx=True), raw)
+    assert unknown.score is None and unknown.delay_ms == pytest.approx(plain.delay_ms)
+
+
+# ── Phase 4: per-source advert limiter ──────────────────────────────────
+
+
+def test_advert_limiter_bucket_refill_and_min_interval():
+    lim = AdvertLimiter(2, 1, 100, 10)
+    assert lim.allow(b"a", 0.0)
+    assert not lim.allow(b"a", 5.0)  # min interval
+    assert lim.allow(b"a", 20.0)  # second token
+    assert not lim.allow(b"a", 40.0)  # bucket empty
+    assert lim.allow(b"b", 40.0)  # other node, own bucket
+    assert lim.allow(b"a", 120.0)  # one token refilled at t=100
+    assert not lim.allow(b"a", 140.0)
+    assert (lim.allowed, lim.dropped, lim.tracked) == (4, 3, 2)
+
+
+def _signed_advert(key: SigningKey, ts: int) -> bytes:
+    pub = bytes(key.verify_key)
+    stamp = ts.to_bytes(4, "little")
+    app_data = b"\x81node"
+    sig = key.sign(pub + stamp + app_data).signature
+    return frame(FLOOD, ADVERT, 0x00, b"", pub + stamp + sig + app_data)
+
+
+def test_engine_advert_rate_limits_repeat_adverts_per_source():
+    key = SigningKey.generate()
+    eng = engine(
+        advert_limiter_enabled=True,
+        advert_bucket_capacity=1,
+        advert_min_interval_seconds=0,
+        advert_refill_interval_seconds=3600,
+    )
+    assert decide(eng, _signed_advert(key, 1)).forward
+    second = decide(eng, _signed_advert(key, 2), now=NOW + 60)
+    assert second.reason == "advert_rate"
+    other = decide(eng, _signed_advert(SigningKey.generate(), 2), now=NOW + 60)
+    assert other.forward
+    assert decide(eng, _signed_advert(key, 3), now=NOW + 3700).forward  # refilled
+    snap = eng.advert_limiter_snapshot()
+    assert snap == {"enabled": True, "tracked": 2, "allowed": 3, "dropped": 1}
+    off = engine()
+    assert decide(off, _signed_advert(key, 1)).forward
+    assert decide(off, _signed_advert(key, 2), now=NOW + 60).forward

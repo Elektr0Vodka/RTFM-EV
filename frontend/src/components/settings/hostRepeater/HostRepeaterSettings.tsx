@@ -138,7 +138,7 @@ function Toggle({ id, label, desc, checked, disabled, onChange }: ToggleProps) {
 }
 
 /**
- * Settings > Host repeater (plan 29, Phases 1-3): its own settings section.
+ * Settings > Host repeater (plan 29, Phases 1-4): its own settings section.
  *
  * RTFM-EV itself acts as the repeater (firmware client repeat stays off). Shadow
  * mode judges and counts every received frame without transmitting. Armed mode
@@ -525,6 +525,23 @@ export function HostRepeaterSettings({ health, floodScopeRegions, repeaters }: P
             onChange={(v) => set({ seen_ttl_seconds: v })}
           />
           <NumField
+            id="hr-rx-delay-base"
+            label={t('settings_host_repeater_rx_delay_base')}
+            hint={t('settings_host_repeater_rx_delay_base_hint')}
+            value={draft.rx_delay_base}
+            min={0}
+            max={20}
+            step={0.5}
+            onChange={(v) => set({ rx_delay_base: v })}
+          />
+          <Toggle
+            id="hr-score-tx"
+            label={t('settings_host_repeater_use_score_for_tx')}
+            desc={t('settings_host_repeater_use_score_for_tx_desc')}
+            checked={draft.use_score_for_tx}
+            onChange={(v) => set({ use_score_for_tx: v })}
+          />
+          <NumField
             id="hr-max-pending"
             label={t('settings_host_repeater_max_pending')}
             hint={t('settings_host_repeater_max_pending_hint')}
@@ -684,6 +701,55 @@ export function HostRepeaterSettings({ health, floodScopeRegions, repeaters }: P
                 })
               : t('settings_host_repeater_gate_unknown_band')}
           </p>
+        </div>
+      </details>
+
+      <details className="rounded border border-input p-3">
+        <summary className="cursor-pointer text-sm font-semibold">
+          {t('settings_host_repeater_advert_heading')}
+        </summary>
+        <div className="mt-3 space-y-3">
+          <p className="text-xs text-muted-foreground">{t('settings_host_repeater_advert_desc')}</p>
+          <Toggle
+            id="hr-advert-enabled"
+            label={t('settings_host_repeater_advert_enabled')}
+            checked={draft.advert_limiter_enabled}
+            onChange={(v) => set({ advert_limiter_enabled: v })}
+          />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <NumField
+              id="hr-advert-capacity"
+              label={t('settings_host_repeater_advert_capacity')}
+              value={draft.advert_bucket_capacity}
+              min={1}
+              max={100}
+              onChange={(v) => set({ advert_bucket_capacity: v })}
+            />
+            <NumField
+              id="hr-advert-refill-tokens"
+              label={t('settings_host_repeater_advert_refill_tokens')}
+              value={draft.advert_refill_tokens}
+              min={1}
+              max={100}
+              onChange={(v) => set({ advert_refill_tokens: v })}
+            />
+            <NumField
+              id="hr-advert-refill-interval"
+              label={t('settings_host_repeater_advert_refill_interval')}
+              value={draft.advert_refill_interval_seconds}
+              min={60}
+              max={604800}
+              onChange={(v) => set({ advert_refill_interval_seconds: v })}
+            />
+            <NumField
+              id="hr-advert-min-interval"
+              label={t('settings_host_repeater_advert_min_interval')}
+              value={draft.advert_min_interval_seconds}
+              min={0}
+              max={86400}
+              onChange={(v) => set({ advert_min_interval_seconds: v })}
+            />
+          </div>
         </div>
       </details>
 
@@ -865,7 +931,10 @@ export function HostRepeaterSettings({ health, floodScopeRegions, repeaters }: P
       </div>
 
       {(state.state === 'shadow' || armed) && (
-        <HostRepeaterStatsPane stats={hr.stats} onReset={() => void hr.resetStats()} />
+        <HostRepeaterStatsPane
+          stats={hr.stats}
+          onReset={(lifetime) => void hr.resetStats(lifetime)}
+        />
       )}
     </div>
   );

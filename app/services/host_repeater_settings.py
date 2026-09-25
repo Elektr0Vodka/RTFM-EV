@@ -1,4 +1,4 @@
-"""Host repeater settings model (plan 29, Phases 1-2).
+"""Host repeater settings model (plan 29, Phases 1-4).
 
 RTFM-EV can act as the repeater for its companion radio (firmware client repeat
 stays off): every received frame is judged by a server-side policy and, once a
@@ -17,6 +17,9 @@ Where the defaults come from:
 - ``regions``, ``home_region`` and ``dc_gate*`` follow the DMC ``dmc-dev`` repeater
   region map and duty-cycle region gating (``src/helpers/RegionMap.{h,cpp}``,
   ``examples/simple_repeater/MyMesh.cpp``).
+- ``rx_delay_base`` is the repeater's ``rxdelay`` (``MyMesh::calcRxDelay``,
+  ``Dispatcher::checkRecv``); ``use_score_for_tx`` and the ``advert_*`` token bucket
+  follow OpenHop (``engine.py`` ``_calculate_tx_delay``, ``handler_helpers/advert.py``).
 """
 
 from __future__ import annotations
@@ -278,6 +281,16 @@ class HostRepeaterSettings(BaseModel):
     max_forward_latency_ms: int = Field(default=5000, ge=100, le=60000)
     # LoRa preamble symbols for the airtime model (MeshCore radio init uses 16).
     preamble_symbols: int = Field(default=16, ge=6, le=65535)
+    # Score-based delays (Phase 4). The reception score is the firmware's
+    # packetScoreInt(SNR, SF, length): 0 at the SF's SNR floor, 1 for a strong short frame.
+    # rx_delay_base: the repeater's ``rxdelay``: weak floods wait
+    # (base ^ (0.85 - score) - 1) * airtime before they are judged, so that neighbours
+    # with better reception forward first (delays under 50 ms are skipped, cap 32 s).
+    # 0 = off, the stock repeater default.
+    rx_delay_base: float = Field(default=0.0, ge=0.0, le=20.0)
+    # OpenHop ``use_score_for_tx``: shrink the random retransmit delay of a strong
+    # reception by max(0.2, 1 - score) once it is 50 ms or more.
+    use_score_for_tx: bool = False
 
     # Duty cycle (OpenHop): rolling 60 s window.
     duty_cycle_enforced: bool = True
@@ -304,6 +317,16 @@ class HostRepeaterSettings(BaseModel):
     filter_channels: list[BlockedChannel] = Field(
         default_factory=list, max_length=MAX_FILTER_CHANNELS
     )
+
+    # Per-source advert limiter (OpenHop ``advert_rate_limit``): a token bucket per
+    # advertising public key, refilled with ``advert_refill_tokens`` every
+    # ``advert_refill_interval_seconds``, plus a minimum interval between two adverts
+    # of the same node. Applies to flood adverts after every other gate.
+    advert_limiter_enabled: bool = False
+    advert_bucket_capacity: int = Field(default=2, ge=1, le=100)
+    advert_refill_tokens: int = Field(default=1, ge=1, le=100)
+    advert_refill_interval_seconds: int = Field(default=36000, ge=60, le=604800)
+    advert_min_interval_seconds: int = Field(default=3600, ge=0, le=86400)
 
     # DMC duty-cycle region gating: above threshold % of the airtime budget in use,
     # shed flood regions from the outside in; recover below threshold - hysteresis.

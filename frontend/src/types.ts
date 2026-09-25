@@ -1909,6 +1909,10 @@ export interface HostRepeaterSettings {
   max_tx_delay_ms: number;
   max_forward_latency_ms: number;
   preamble_symbols: number;
+  /** Repeater `rxdelay`: weak floods wait (base ^ (0.85 - score) - 1) x airtime before being judged; 0 = off. */
+  rx_delay_base: number;
+  /** OpenHop `use_score_for_tx`: strong receptions get a shorter random retransmit delay. */
+  use_score_for_tx: boolean;
   duty_cycle_enforced: boolean;
   max_airtime_per_minute_ms: number;
   flood_max: number;
@@ -1925,6 +1929,12 @@ export interface HostRepeaterSettings {
   filter_malformed: boolean;
   filter_types: Record<string, HostRepeaterTypeLimits>;
   filter_channels: HostRepeaterBlockedChannel[];
+  /** Per-node advert token bucket (OpenHop advert_rate_limit). */
+  advert_limiter_enabled: boolean;
+  advert_bucket_capacity: number;
+  advert_refill_tokens: number;
+  advert_refill_interval_seconds: number;
+  advert_min_interval_seconds: number;
   dc_gate_enabled: boolean;
   dc_gate_threshold: number;
   dc_gate_hysteresis: number;
@@ -2045,6 +2055,9 @@ export interface HostRepeaterDecision {
   delay_ms: number | null;
   airtime_ms: number | null;
   latency_ms: number;
+  /** Score-based receive hold applied before this frame was judged (null = none). */
+  rx_delay_ms?: number | null;
+  score?: number | null;
   policy_rule_id: string | null;
   policy_action: string | null;
   packet_hash: string;
@@ -2096,5 +2109,28 @@ export interface HostRepeaterStats {
     gated_regions: string[];
   };
   tx?: HostRepeaterTxStats | null;
+  rx_delay?: {
+    enabled: boolean;
+    held: number;
+    yielded: number;
+    pending: number;
+    delay_ms: HostRepeaterPercentiles;
+  };
+  advert_limiter?: { enabled: boolean; tracked: number; allowed: number; dropped: number };
+  /** Totals that survive restarts (host_repeater_stats row). */
+  lifetime?: {
+    since: number;
+    runs: number;
+    persisted: boolean;
+    observed: number;
+    would_forward: number;
+    would_drop: number;
+    forward_airtime_total_ms: number;
+    rx_delayed: number;
+    rx_delay_yielded: number;
+    by_reason: Record<string, number>;
+    by_type: Record<string, { forward?: number; drop?: number }>;
+    policy_matches: Record<string, number>;
+  };
   recent: HostRepeaterDecision[];
 }

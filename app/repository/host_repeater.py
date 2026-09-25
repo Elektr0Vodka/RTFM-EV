@@ -64,3 +64,46 @@ class HostRepeaterContactsRepository:
             ) as cursor:
                 rows = await cursor.fetchall()
         return [(str(r["public_key"]).lower(), bool(r["favorite"])) for r in rows]
+
+
+class HostRepeaterStatsRepository:
+    """Single-row store for the lifetime host repeater counters (migration _114)."""
+
+    @staticmethod
+    async def get() -> dict | None:
+        """``{since, runs, stats}`` or None when nothing was saved yet."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT since, runs, stats FROM host_repeater_stats WHERE id = 1"
+            ) as cursor:
+                row = await cursor.fetchone()
+        if row is None:
+            return None
+        try:
+            stats = json.loads(row["stats"])
+        except (TypeError, ValueError):
+            stats = {}
+        return {
+            "since": int(row["since"]),
+            "runs": int(row["runs"]),
+            "stats": stats if isinstance(stats, dict) else {},
+        }
+
+    @staticmethod
+    async def save(since: int, runs: int, stats: dict) -> None:
+        payload = json.dumps(stats, separators=(",", ":"))
+        async with db.tx() as conn:
+            async with conn.execute(
+                "INSERT INTO host_repeater_stats (id, since, runs, stats, updated_at) "
+                "VALUES (1, ?, ?, ?, ?) "
+                "ON CONFLICT(id) DO UPDATE SET since = excluded.since, runs = excluded.runs, "
+                "stats = excluded.stats, updated_at = excluded.updated_at",
+                (since, runs, payload, int(time.time())),
+            ):
+                pass
+
+    @staticmethod
+    async def clear() -> None:
+        async with db.tx() as conn:
+            async with conn.execute("DELETE FROM host_repeater_stats WHERE id = 1"):
+                pass

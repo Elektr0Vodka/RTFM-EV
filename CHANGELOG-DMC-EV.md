@@ -5,11 +5,54 @@ This changelog covers work done in the **RTFM-EV** fork
 `jkingsman/Remote-Terminal-for-MeshCore`.
 
 - Fork base commit: `33b3b8d` (upstream `main`), 2026-07-26
-- Commits since fork: 363 total (271 non-merge), as of `13b41bf2` (#208)
+- Commits since fork: 368 total (273 non-merge), as of `80e168d0` (#211)
 - Generated: 2026-09-10; updated 2026-09-25
 
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
+
+## Update 2026-09-25 (Host repeater Phase 4: score-based delays, advert limiter, lifetime stats, feat/host-repeater-phase4)
+
+### Host repeater (backend + frontend, plan 29 Phase 4)
+- **Score-based receive delay** (the repeater's `rxdelay`, off by default). With
+  **Score-based receive delay** set in Settings > Host repeater > Timing, a weakly
+  received flood is held for `(base ^ (0.85 - score) - 1) x airtime` before it is
+  judged (delays under 50 ms are skipped, cap 32 s), so a copy relayed by a
+  neighbour with better reception is judged first and the held copy is dropped as
+  a duplicate, the way the firmware's delayed inbound queue works. The score is
+  the firmware's `packetScoreInt` (SNR above the spreading factor's floor, scaled
+  by frame length). New engine functions `packet_score` / `rx_delay_ms`; the
+  runtime holds the frame in a task (`HostRepeaterRuntime._hold`) and drops held
+  frames at shutdown (`host_repeater.stop()`). Statistics show the hold
+  percentiles, how many frames were held, how many a neighbour relayed first and
+  how many are still waiting; recent decisions carry `rx_delay_ms` and `score`.
+- **Shorter retransmit delay for strong receptions** (OpenHop `use_score_for_tx`,
+  off by default): the random delay is scaled by `1 - score`, never below 20 %,
+  once it is 50 ms or more.
+- **Advert limiter (per node)**, off by default: an OpenHop-style token bucket per
+  advertising public key (`advert_bucket_capacity`, `advert_refill_tokens` every
+  `advert_refill_interval_seconds`, `advert_min_interval_seconds` between two
+  adverts of the same node), checked after every other rule for flood adverts.
+  New drop reason `advert_rate`; statistics show allowed / dropped / nodes tracked.
+  OpenHop's penalty box and adaptive tiers are not ported.
+- **Lifetime totals survive restarts.** Observed / would-forward / would-drop,
+  reasons, types, policy matches, forward airtime and the receive-hold counters
+  now also accumulate in `host_repeater_stats` (migration `_114`,
+  `HostRepeaterStatsRepository`), written from the RX path at most once a minute,
+  at shutdown and on reset. `GET /api/radio/host-repeater/stats` gains
+  `lifetime` (with `since`, `runs`, `persisted`), `rx_delay` and
+  `advert_limiter`; `POST .../stats/reset?lifetime=true` starts the totals over.
+  The statistics pane shows a **Lifetime totals** block with its own reset; the
+  session counters still reset on restart.
+- Settings document: new fields `rx_delay_base`, `use_score_for_tx`,
+  `advert_limiter_enabled`, `advert_bucket_capacity`, `advert_refill_tokens`,
+  `advert_refill_interval_seconds`, `advert_min_interval_seconds` (all defaults
+  keep today's behaviour). New i18n keys `settings_host_repeater_rx_delay_*`,
+  `..._use_score_for_tx*`, `..._advert_*`, `..._stats_rx_delay*`,
+  `..._stats_advert_limiter`, `..._stats_lifetime_*`, `..._stats_reset_lifetime`,
+  `..._reason_advert_rate` in EN/NL/DE.
+- Nothing in this change transmits; armed mode is unchanged apart from the delay
+  it is handed.
 
 ## Update 2026-09-25 (Host repeater armed mode: live forwarding, plan 29 Phase 3, feat/host-repeater-armed)
 

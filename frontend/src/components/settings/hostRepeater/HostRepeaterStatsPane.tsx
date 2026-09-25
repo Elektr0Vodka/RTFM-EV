@@ -5,7 +5,8 @@ import { formatDateTime } from '../../../utils/dateTimeFormat';
 
 interface Props {
   stats: HostRepeaterStats | null;
-  onReset: () => void;
+  /** `lifetime` also starts the persisted totals over. */
+  onReset: (lifetime?: boolean) => void;
 }
 
 const RECENT_ROWS = 25;
@@ -50,6 +51,9 @@ export function HostRepeaterStatsPane({ stats, onReset }: Props) {
   const a = stats.airtime;
   const gate = stats.region_gate;
   const tx = stats.tx;
+  const rxDelay = stats.rx_delay;
+  const advert = stats.advert_limiter;
+  const life = stats.lifetime;
   const gatedList = gate ? [...(gate.wildcard_gated ? ['*'] : []), ...gate.gated_regions] : [];
   const since = formatDateTime(new Date(stats.since * 1000), {
     month: 'short',
@@ -65,7 +69,13 @@ export function HostRepeaterStatsPane({ stats, onReset }: Props) {
         <span className="text-xs text-muted-foreground">
           {t('settings_host_repeater_stats_since', { since })}
         </span>
-        <Button type="button" variant="outline" size="sm" className="ml-auto" onClick={onReset}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="ml-auto"
+          onClick={() => onReset(false)}
+        >
           {t('settings_host_repeater_stats_reset')}
         </Button>
       </div>
@@ -83,6 +93,18 @@ export function HostRepeaterStatsPane({ stats, onReset }: Props) {
       <Percentiles label={t('settings_host_repeater_stats_latency')} p={stats.latency_ms} />
       <Percentiles label={t('settings_host_repeater_stats_delay')} p={stats.delay_ms} />
       <Percentiles label={t('settings_host_repeater_stats_echo_gap')} p={stats.echo.gap_ms} />
+      {rxDelay && (rxDelay.enabled || rxDelay.held > 0) && (
+        <div>
+          <Percentiles label={t('settings_host_repeater_stats_rx_delay')} p={rxDelay.delay_ms} />
+          <div className="text-sm text-muted-foreground">
+            {t('settings_host_repeater_stats_rx_delay_summary', {
+              held: rxDelay.held,
+              yielded: rxDelay.yielded,
+              pending: rxDelay.pending,
+            })}
+          </div>
+        </div>
+      )}
       <div className="text-sm text-muted-foreground">
         {t('settings_host_repeater_stats_echo_order', {
           before: stats.echo.neighbour_before_our_tx,
@@ -124,6 +146,15 @@ export function HostRepeaterStatsPane({ stats, onReset }: Props) {
               })
             : t('settings_host_repeater_stats_calibration_pending')}
         </span>
+        {advert && (advert.enabled || advert.dropped > 0) && (
+          <span className="text-muted-foreground">
+            {t('settings_host_repeater_stats_advert_limiter', {
+              allowed: advert.allowed,
+              dropped: advert.dropped,
+              tracked: advert.tracked,
+            })}
+          </span>
+        )}
         {gate && !gate.enabled && <span>{t('settings_host_repeater_stats_gate_off')}</span>}
         {gate?.enabled && (
           <span>
@@ -181,6 +212,49 @@ export function HostRepeaterStatsPane({ stats, onReset }: Props) {
               {t('settings_host_repeater_tx_last_error', { error: tx.last_error })}
             </span>
           )}
+        </div>
+      )}
+
+      {life && (
+        <div className="grid gap-1 rounded border border-input p-2 text-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold">
+              {t('settings_host_repeater_stats_lifetime_heading')}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {t('settings_host_repeater_stats_lifetime_since', {
+                since: formatDateTime(new Date(life.since * 1000), {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                }),
+                runs: life.runs,
+              })}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="ml-auto"
+              onClick={() => onReset(true)}
+            >
+              {t('settings_host_repeater_stats_reset_lifetime')}
+            </Button>
+          </div>
+          <span>
+            {t('settings_host_repeater_stats_lifetime_totals', {
+              observed: life.observed,
+              forward: life.would_forward,
+              drop: life.would_drop,
+              airtime: fmtMs(life.forward_airtime_total_ms),
+            })}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {life.persisted
+              ? t('settings_host_repeater_stats_lifetime_desc')
+              : t('settings_host_repeater_stats_lifetime_unsaved')}
+          </span>
         </div>
       )}
 
