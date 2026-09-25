@@ -31,7 +31,7 @@ app/
 ├── migrations/          # Schema migrations (SQLite user_version, per-version modules)
 ├── models.py            # Pydantic request/response models and typed write contracts (for example ContactUpsert)
 ├── version_info.py      # Unified version/build metadata resolution for debug + startup surfaces
-├── repository/          # Data access layer (contacts, channels, communities, messages, raw_packets, settings, fanout, push_subscriptions, repeater_telemetry, contact_telemetry)
+├── repository/          # Data access layer (contacts incl. name/location history, channels, communities, messages, raw_packets, packet_receptions, settings, fanout, push_subscriptions, repeater_telemetry, contact_telemetry, device_config_history, analyzer_names)
 ├── services/            # Shared orchestration/domain services
 │   ├── messages.py              # Shared message creation, dedup, ACK application
 │   ├── message_send.py          # Direct send, channel send, resend workflows
@@ -46,7 +46,9 @@ app/
 │   ├── radio_commands.py        # Radio config/private-key command workflows
 │   ├── radio_stats.py           # In-memory local radio stats sampling and noise-floor history
 │   ├── radio_runtime.py         # Router/dependency seam over the global RadioManager
-│   └── new_node_notify.py       # New-node WS notification batching/warm-up (plan 28 item 1.5)
+│   ├── new_node_notify.py       # New-node WS notification batching/warm-up (plan 28 item 1.5)
+│   ├── relay_reception.py       # Per-copy flood reception capture + packets x relays aggregation (plan 21 S1)
+│   └── analyzer_resolution.py   # Name for an unnamed full-key contact: directory, cache, opted-in analyzers (plan 16 a)
 ├── radio.py             # RadioManager transport/session state + lock management
 ├── radio_sync.py        # Polling, sync, periodic advertisement loop
 ├── decoder.py           # Packet parsing/decryption
@@ -646,6 +648,7 @@ tests/
 ├── conftest.py                 # Shared fixtures
 ├── test_ack_tracking_wiring.py # DM ACK tracking extraction and wiring
 ├── test_api.py                 # REST endpoint integration tests
+├── test_analyzer_resolution.py # Analyzer name resolution: directory, cache TTLs, opted-in sites, endpoints
 ├── test_block_lists.py         # Blocked keys/names filtering across list/search surfaces
 ├── test_bot.py                 # Bot execution and sandboxing
 ├── test_channel_sender_backfill.py # Sender-key backfill uniqueness rules for channel messages
@@ -655,6 +658,7 @@ tests/
 ├── test_contact_reconciliation_service.py # Prefix/contact reconciliation service helpers
 ├── test_contacts_router.py     # Contacts router endpoints
 ├── test_decoder.py             # Packet parsing/decryption
+├── test_device_history.py      # Contact location history + repeater pane snapshots (plan 14)
 ├── test_disable_bots.py        # MESHCORE_DISABLE_BOTS=true feature
 ├── test_echo_dedup.py          # Echo/repeat deduplication (incl. concurrent)
 ├── test_fanout.py              # Fanout bus CRUD, scope matching, manager dispatch
@@ -684,6 +688,7 @@ tests/
 ├── test_radio_runtime_service.py # radio_runtime seam behavior and helpers
 ├── test_radio_sync.py          # Polling, sync, advertisement
 ├── test_real_crypto.py         # Real cryptographic operations
+├── test_relay_reception.py     # packet_receptions capture, aggregation, relay-reception endpoint, WS fields
 ├── test_repeater_routes.py     # Repeater command/telemetry/trace + granular pane endpoints
 ├── test_repository.py          # Data access layer
 ├── test_room_routes.py         # Room-server login/status/telemetry/ACL endpoints

@@ -5,11 +5,28 @@ This changelog covers work done in the **RTFM-EV** fork
 `jkingsman/Remote-Terminal-for-MeshCore`.
 
 - Fork base commit: `33b3b8d` (upstream `main`), 2026-07-26
-- Commits since fork: 388 total (283 non-merge), as of `b9a4a1b0` (#220)
+- Commits since fork: 424 total (296 non-merge), as of `153fe587` (#232)
 - Generated: 2026-09-10; updated 2026-09-25
 
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
+
+## Update 2026-09-25 (Docs reconciled through #233, fix/docs-reconcile-224-231)
+
+### Documentation
+- **`docs/parity-audit.md`:** status reconciled to `153fe587` (#232). No §7
+  item changed after #220; the later merges (#221, #224-#228, #230-#233) are
+  plan work outside the audit's reference sets and are listed in the status.
+- **`app/AGENTS.md`:** tree gains `services/relay_reception.py`,
+  `services/analyzer_resolution.py`, the new repository stores
+  (`packet_receptions`, `device_config_history`, `analyzer_names`, location
+  history in `contacts`) and the tests `test_relay_reception.py`,
+  `test_device_history.py`, `test_analyzer_resolution.py`.
+- **`frontend/AGENTS.md`:** tree gains `MeshRelayReceptionPanel.tsx`.
+- **`docs/sources-of-truth.md`:** Cornmeister's node API as the name
+  resolution preset, and the `public` channel naming of the
+  meshcore-analyzer.eu sites.
+- Refreshed the commit counts in this changelog's header.
 
 ## Update 2026-09-25 (Host repeater policy rules: regex, prob, throttle, saved airtime; feat/host-repeater-filter-rules)
 

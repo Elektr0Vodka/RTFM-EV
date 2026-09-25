@@ -1,6 +1,6 @@
 # Sources of Truth
 
-Date: 2026-09-10 (updated 2026-09-22: OpenHop, EU analyzer API endpoints)
+Date: 2026-09-10 (updated 2026-09-22: OpenHop, EU analyzer API endpoints; 2026-09-25: analyzer name resolution, channel naming)
 
 Canonical upstreams for the firmware and tooling RTFM-EV interoperates with. When
 a plan or feature depends on a wire format, CLI verb, MQTT payload shape, or URL
@@ -111,6 +111,13 @@ machine this was authored on and may differ elsewhere.
 - Cornmeister / Argus analyzer (node/packet lookup reference; Go): https://github.com/Elektr0Vodka/Argus-mesh-analyzer
   (local `G:\Github\repositories\Elektr0Vodka\cornmeister-mesh-analyzer`).
   Public site: https://cornmeister.nl (node URL scheme `#node?id=<64-hex>`).
+  Runtime use: `https://cornmeister.nl/api/nodes/{pubkey}/detail` is the preset
+  `node_api_url_template` for opt-in name resolution of unnamed full-key contacts
+  (`app/services/analyzer_resolution.py`, plan [16] case (a), PR #226). The
+  meshcore-analyzer.eu software behind cornmeister.nl, meshcore-analyzer.eu,
+  analyzer.meshcorenetz.de and analyzer.meshdresden.eu names the default Public
+  channel `public` in `/api/channels`; channel links use that (PR #231), while
+  on8ar's CoreScope keeps `Public`.
 - mc-radar analyzer: https://mc-radar.woodwar.com (node URL scheme `/node/<64-hex>`).
 - collector-wardrive (wardrive ingest reference): local
   `G:\Github\repositories\Dutch-MeshCore\collector-wardrive`.
