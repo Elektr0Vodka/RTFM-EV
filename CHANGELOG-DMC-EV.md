@@ -11,6 +11,19 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-25 (Analyzer channel links: lowercase Public, fix/analyzer-public-channel-name)
+
+### Analyzer links: the default Public channel is `public` on meshcore-analyzer.eu sites (frontend)
+- The meshcore-analyzer.eu software (Cornmeister, Meshcore-analyzer.eu,
+  MeshCoreNetz, MeshDresden; channel pages at `#channels?channel={name}`)
+  lists the default Public channel as `public` (checked against each site's
+  `/api/channels`), so "Open channel on ..." and the reaction-target link
+  for Public opened an empty channel page there. `buildChannelLookupUrl`
+  now substitutes `public` for the default Public channel (key
+  `8B3387E9...`) on templates of that shape. Other analyzers (on8ar's
+  CoreScope lists `Public`) and the separate `#public` hashtag channel are
+  unchanged.
+
 ## Update 2026-09-25 (Contact location and repeater config history, plan 14, feat/device-history)
 
 ### Persistence: location history and repeater pane snapshots (backend)

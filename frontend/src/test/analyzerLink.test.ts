@@ -82,6 +82,25 @@ describe('buildChannelLookupUrl', () => {
     );
   });
 
+  it('lowercases the default Public channel for the meshcore-analyzer.eu family', () => {
+    const publicChannel = { name: 'Public', key: '8b3387e9c5cdea6ac9e5edbaa115cd72' };
+    expect(buildChannelLookupUrl(nameSite, publicChannel)).toBe(
+      'https://meshcore-analyzer.eu/#channels?channel=public'
+    );
+    const on8ar: AnalyzerSite = {
+      name: 'on8ar',
+      node_url_template: 'https://analyzer.on8ar.eu/#/nodes/{pubkey}',
+      channel_url_template: 'https://analyzer.on8ar.eu/#/channels/{name}',
+    };
+    expect(buildChannelLookupUrl(on8ar, publicChannel)).toBe(
+      'https://analyzer.on8ar.eu/#/channels/Public'
+    );
+    // The #public hashtag channel is a different channel and keeps its name.
+    expect(buildChannelLookupUrl(nameSite, { name: '#public', key: 'b'.repeat(32) })).toBe(
+      'https://meshcore-analyzer.eu/#channels?channel=%23public'
+    );
+  });
+
   it('url-encodes a hashtag channel name (# -> %23)', () => {
     expect(buildChannelLookupUrl(nameSite, { name: '#test', key: 'a'.repeat(32) })).toBe(
       'https://meshcore-analyzer.eu/#channels?channel=%23test'
