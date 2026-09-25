@@ -1390,6 +1390,8 @@
   "settings_fanout_desc_mqtt_community": "MeshcoreToMQTT-compatibele publicatie van ruwe pakketfeeds, compatibel met community-aggregators (met andere woorden: laat uw companion-radio ook als observer-node fungeren). Superset van de andere Community-MQTT-presets.",
   "settings_fanout_publish_status": "Status publiceren",
   "settings_fanout_publish_packets": "Pakketten publiceren",
+  "settings_fanout_publish_config": "Nodeconfiguratie publiceren",
+  "settings_fanout_publish_config_desc": "Vastgehouden config-topic zoals de DMC-observerfirmware: radio-instellingen, doorstuurlimieten van de hostrepeater, regiogating en scopeboom, en deze topic-schakelaars. Geen brokeradres, inloggegevens of sleutels. Standaard uit.",
   "settings_fanout_status_interval_min": "Statusinterval (minuten)",
   "settings_fanout_status_interval_help": "Hoe vaak het statusbericht wordt gepubliceerd (1-60 minuten).",
   "settings_fanout_desc_webhook": "Generieke webhook voor ontsleutelde kanaal-/DM-berichten met aanpasbaar werkwoord, methode en optionele HMAC-handtekening.",

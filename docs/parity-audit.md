@@ -160,7 +160,7 @@ discovery rows were re-marked afterwards. §7 holds the current per-item status.
 | Configurable status interval | DMC | Absent | App | DMC limits: 1-60 min (CLI) / 1000ms-3600000ms (bridge), default 5 min. |
 | `neighbors` topic publish | DMC | Absent | Adapt | Reconstruct host-side. |
 | `filter` stats topic | DMC | Absent | N/A | Repeater packet-filter concept; no companion analog. |
-| `config` topic (NEW this branch) | DMC | Absent | Adapt | Full node config snapshot; RTFM-EV could mirror its own config. |
+| `config` topic (NEW this branch) | DMC | Present | Adapt | Opt-in `publish_config`: own config snapshot (identity, radio, host repeater `repeat` / `region_gate` / `region.scopes[]`, mqtt toggles); firmware-only sections omitted. |
 | Wire-compatible DMC payload schemas | DMC | Absent | App | Mirror `MQTTPayloadBuilder`/`MQTTMessageBuilder` JSON shapes. |
 
 ### Internationalization
@@ -252,9 +252,12 @@ Each "Now/Next" item gets its own brainstorm → spec → plan cycle.
   advert metrics shipped (PR #94); receive-error graph shipped 2026-09-25
   (`feat/rx-error-graph`: `airtime_history.recv_errors`, migration `_116`,
   My Node "Receive errors" card).
-- **L3. MQTT `neighbors` / `config` topic publishing** - PARTIAL: neighbor /
-  region publish shipped with `subject_id` attribution (PR #90, plan [24]).
-  Remaining: `config`-topic publishing.
+- **L3. MQTT `neighbors` / `config` topic publishing** - DONE: neighbor /
+  region publish shipped with `subject_id` attribution (PR #90, plan [24]);
+  `config`-topic publishing shipped 2026-09-25 (`feat/mqtt-config-topic`:
+  opt-in `publish_config` on the community MQTT integration, retained
+  `meshcore/{IATA}/{PUBKEY}/config` mirroring the DMC field set for the
+  sections a host can fill).
 - **L4. Small messaging parity** - PARTIAL: mute channel shipped. Remaining:
   inline contact sharing (#347), auto contact discovery confirmation.
 

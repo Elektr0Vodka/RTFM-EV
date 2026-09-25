@@ -57,6 +57,25 @@ the change. Upstream development is on hold; the fork is the active repository.
   parity audit L1; other repeaters' live region-gate state stays DMC-MQTT-only.
   New i18n keys `settings_radio_default_scope_*` in EN/NL/DE.
 
+## Update 2026-09-25 (MQTT config topic, parity audit L3, feat/mqtt-config-topic)
+
+### Community MQTT: node config topic (backend + frontend)
+- New opt-in toggle **Publish node config** on Community MQTT integrations
+  (`publish_config`, default off, like the DMC firmware's `set mqtt.config 1`).
+  When on, RTFM-EV publishes a retained `meshcore/{IATA}/{PUBKEY}/config`
+  message right after `status` on connect and on the status cadence: the
+  counterpart of the DMC observer firmware `config` topic
+  (`MQTTMessageBuilder::buildConfigMessage`) for the sections a
+  companion-driven host can fill: identity and firmware, `radio`
+  (freq/bw/sf/cr/tx power/multi-acks), `repeat` (host repeater forwarding
+  limits, `disable_fwd` while not armed), `region_gate`, `region` (home,
+  default outbound scope, wildcard flood, the host repeater's scope tree as
+  `{name, flood, parent}`), `host_repeater.state` and the `mqtt` toggles.
+  Firmware-only sections (bridge, gps, power, room, timezone, alert, snmp)
+  are omitted; broker address, credentials and keys are never included.
+  Closes the last open item of parity audit L3. New i18n keys
+  `settings_fanout_publish_config`, `settings_fanout_publish_config_desc`
+  in EN/NL/DE.
 
 ## Update 2026-09-25 (Scored path history, plan 28 item 1.15, feat/scored-path-history)
 ## Update 2026-09-25 (Receive-error graph, parity audit L2, feat/rx-error-graph)

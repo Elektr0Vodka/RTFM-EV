@@ -187,6 +187,8 @@ def _validate_mqtt_community_config(config: dict) -> None:
     config["publish_telemetry"] = bool(config.get("publish_telemetry", False))
     config["publish_neighbors"] = bool(config.get("publish_neighbors", False))
     config["publish_regions"] = bool(config.get("publish_regions", False))
+    # DMC ``config`` topic (node config snapshot): opt-in like the firmware's ``set mqtt.config 1``.
+    config["publish_config"] = bool(config.get("publish_config", False))
 
     interval = config.get("status_interval_ms", 300000)
     if (
