@@ -140,6 +140,12 @@ Shipped toward this so far:
   location override (noted in the waypoint description). Each waypoint
   includes a `meshcore://` contact link when a raw advert for that node is
   still in the retained packet history; the link is left out otherwise.
+- Relay-signal map layer (map Overlays > Relay signal, off by default, per
+  browser): a ring around each relay that passed flooded packets to your radio
+  in the map's time window, coloured by the average SNR your radio measured on
+  those copies and sized by how many it delivered, labelled "+5.3 dB · 8×".
+  Same data as Mesh Health > Relay reception; relays without a unique node or a
+  known position are counted, not drawn.
 - Guessed-locations map layer (map Overlays > Guessed locations, off by
   default, per browser, zoom 12+): an estimated position for a node with no
   advertised or manual location, heard in the last 24h, based on the located

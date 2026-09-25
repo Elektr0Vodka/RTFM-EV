@@ -1,7 +1,17 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { Popup as MlPopup, Marker as MlMarker, type Map as MlMap } from 'maplibre-gl';
-import { Zap, Clock, Globe, Radio, MapPinOff, Boxes, MapPin, HelpCircle } from 'lucide-react';
+import {
+  Zap,
+  Clock,
+  Globe,
+  Radio,
+  MapPinOff,
+  Boxes,
+  MapPin,
+  HelpCircle,
+  Signal,
+} from 'lucide-react';
 import type {
   AdvertLinkEdge,
   Contact,
@@ -81,6 +91,7 @@ import {
 import { computeWrongLocationKeys } from '../map/wrongLocation';
 import { useSharedLocations } from '../map/useSharedLocations';
 import { useGuessedLocations } from '../map/useGuessedLocations';
+import { useRelaySignal } from '../map/useRelaySignal';
 import { useDistanceUnit } from '../contexts/DistanceUnitContext';
 import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
 import type { SearchNavigateTarget } from './SearchView';
@@ -494,6 +505,11 @@ export function MapView({
   );
   const [showGuessedLocations, setShowGuessedLocations] = usePersistedMapSetting(
     'remoteterm-map-guessed-locations',
+    false,
+    isBool
+  );
+  const [showRelaySignal, setShowRelaySignal] = usePersistedMapSetting(
+    'remoteterm-map-relay-signal',
     false,
     isBool
   );
@@ -1541,6 +1557,18 @@ export function MapView({
     nowSec,
   });
 
+  const {
+    attach: attachRelaySignal,
+    reattach: reattachRelaySignal,
+    placed: relaySignalPlaced,
+    unplaced: relaySignalUnplaced,
+  } = useRelaySignal({
+    enabled: showRelaySignal,
+    since: sinceCutoffSec,
+    until: sinceUntilSec,
+    contacts: mappableContacts,
+  });
+
   const handleReady = useCallback(
     (map: MlMap) => {
       mapRef.current = map;
@@ -1575,6 +1603,8 @@ export function MapView({
       telemetry.setData(mappableContacts, latestTelemetry, nowSec);
       telemetry.setVisible(telemetryOn);
       telemetryRef.current = telemetry;
+      // Relay SNR rings go under the node circles (the layer inserts itself below them).
+      attachRelaySignal(map);
       // Chat location shares sit above the nodes so their pins stay clickable.
       attachSharedLocations(map);
       // Guessed locations sit above real nodes too, and above shared-location
@@ -1662,6 +1692,7 @@ export function MapView({
     externalRef.current?.setData(visibleExternalRef.current);
     reattachSharedLocations();
     reattachGuessedLocations();
+    reattachRelaySignal();
   }, [
     mappableContacts,
     nowSec,
@@ -1671,6 +1702,7 @@ export function MapView({
     latestTelemetry,
     reattachSharedLocations,
     reattachGuessedLocations,
+    reattachRelaySignal,
   ]);
 
   // Keep node data in sync.
@@ -2135,6 +2167,31 @@ export function MapView({
         ),
       },
       {
+        id: 'relay-signal',
+        label: t('map_relay_signal_label'),
+        icon: <Signal size={20} aria-hidden />,
+        panel: (
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={showRelaySignal}
+                onChange={(e) => setShowRelaySignal(e.target.checked)}
+              />
+              {t('map_relay_signal_enable')}
+            </label>
+            <p className="text-xs text-muted-foreground">{t('map_relay_signal_help')}</p>
+            {showRelaySignal && (
+              <p className="text-xs text-muted-foreground" aria-live="polite">
+                {t('map_relay_signal_count', { count: relaySignalPlaced })}
+                {relaySignalUnplaced > 0 &&
+                  ` ${t('map_relay_signal_unplaced', { count: relaySignalUnplaced })}`}
+              </p>
+            )}
+          </div>
+        ),
+      },
+      {
         id: 'guessed-locations',
         label: t('map_guessed_locations_label'),
         icon: <HelpCircle size={20} aria-hidden />,
@@ -2191,6 +2248,10 @@ export function MapView({
     showGuessedLocations,
     guessedLocations.length,
     setShowGuessedLocations,
+    showRelaySignal,
+    relaySignalPlaced,
+    relaySignalUnplaced,
+    setShowRelaySignal,
   ]);
 
   const theme: 'light' | 'dark' = dark ? 'dark' : 'light';

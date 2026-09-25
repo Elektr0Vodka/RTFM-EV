@@ -1,3 +1,4 @@
+import type { RelayReceptionResponse } from './components/MeshRelayReceptionPanel';
 import type {
   AdvertLinkEdge,
   ContactLocationHistoryEntry,
@@ -609,6 +610,12 @@ export const api = {
   getReactionTarget: (messageId: number) =>
     fetchJson<ReactionTargetResponse>(`/messages/${messageId}/reaction-target`),
   /** Location shares in chat messages received in (since, until]; newest first. */
+  /** Per-relay reception summary (plan 21 S1); `limit` caps only the packet list. */
+  getRelayReception: (startTs: number, endTs: number, limit = 1, signal?: AbortSignal) =>
+    fetchJson<RelayReceptionResponse>(
+      `/packets/relay-reception?start_ts=${startTs}&end_ts=${endTs}&limit=${limit}`,
+      { signal }
+    ),
   getSharedLocations: (
     params: { since?: number; until?: number; latestPerSender?: boolean },
     signal?: AbortSignal
