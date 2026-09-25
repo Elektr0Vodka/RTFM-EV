@@ -51,6 +51,33 @@ the change. Upstream development is on hold; the fork is the active repository.
   `HostRepeaterStatsPane.tsx`, `types.ts`; tests
   `src/test/hostRepeaterPolicyRules.test.tsx`)
 
+## Update 2026-09-25 (Relay reception refreshes live, plan 21 S1 Phase 3, feat/relay-reception-live-ws)
+
+### Mesh Health: Relay reception updates as packets arrive (backend, frontend)
+- The `raw_packet` WebSocket event gains `relay_reception` (true when the
+  copy was stored in `packet_receptions`, i.e. flood-routed) and
+  `last_hop_hex` (the delivering relay, null = heard from the origin).
+  `record_packet_reception` returns what it stored so the processor can
+  fill both.
+- The Relay reception tab re-fetches when such a copy arrives, at most once
+  every 3 s, on the short windows (30m/1h) that the header marks as
+  auto-refresh; a 30 s poll is the fallback when the stream is quiet or a
+  WebSocket event was missed. The tab had no polling before (only Adverts
+  and Requests did). Longer windows stay manual (Refresh button).
+
+## Update 2026-09-25 (Analyzer channel links: lowercase Public, fix/analyzer-public-channel-name)
+
+### Analyzer links: the default Public channel is `public` on meshcore-analyzer.eu sites (frontend)
+- The meshcore-analyzer.eu software (Cornmeister, Meshcore-analyzer.eu,
+  MeshCoreNetz, MeshDresden; channel pages at `#channels?channel={name}`)
+  lists the default Public channel as `public` (checked against each site's
+  `/api/channels`), so "Open channel on ..." and the reaction-target link
+  for Public opened an empty channel page there. `buildChannelLookupUrl`
+  now substitutes `public` for the default Public channel (key
+  `8B3387E9...`) on templates of that shape. Other analyzers (on8ar's
+  CoreScope lists `Public`) and the separate `#public` hashtag channel are
+  unchanged.
+
 ## Update 2026-09-25 (Fixes from the live check of #224-#228, fix/verify-224-228-findings)
 
 ### Mesh Health: one relay, one row across path hash widths (backend, frontend)

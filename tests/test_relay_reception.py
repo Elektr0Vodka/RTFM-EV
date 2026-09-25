@@ -90,6 +90,24 @@ class TestCapture:
         assert row.raw_packet_id == result["packet_id"]
 
     @pytest.mark.asyncio
+    async def test_raw_packet_broadcast_carries_the_relay(self, test_db, captured_broadcasts):
+        broadcasts, _ = captured_broadcasts
+        await self._process(
+            _packet(FLOOD_GROUP_TEXT, bytes.fromhex("aabb")), 1000, 3.5, -90, captured_broadcasts
+        )
+        await self._process(_packet(FLOOD_GROUP_TEXT, b""), 1001, 9.0, -60, captured_broadcasts)
+        await self._process(
+            _packet(DIRECT_GROUP_TEXT, bytes.fromhex("aabb")), 1002, 3.0, -100, captured_broadcasts
+        )
+        raw = [
+            (b["data"]["relay_reception"], b["data"]["last_hop_hex"])
+            for b in broadcasts
+            if b["type"] == "raw_packet"
+        ]
+        # Flood via bb; zero-hop flood heard from the origin; direct: not recorded.
+        assert raw == [(True, "bb"), (True, None), (False, None)]
+
+    @pytest.mark.asyncio
     async def test_duplicate_payload_via_other_relay_is_a_second_row(
         self, test_db, captured_broadcasts
     ):
@@ -145,7 +163,7 @@ class TestCapture:
             payload=b"",
             path_hash_size=1,
         )
-        await record_packet_reception(7, 1000, info, 1.0, -105, b"\x17\x00")
+        assert await record_packet_reception(7, 1000, info, 1.0, -105, b"\x17\x00") is None
         assert await PacketReceptionRepository.count() == 0
 
     @pytest.mark.asyncio

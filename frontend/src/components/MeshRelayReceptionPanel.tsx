@@ -9,10 +9,15 @@
  *
  * Rendered inside the MeshHealthView shell (header, tab pill, shared time
  * window, refresh); this panel returns only its content blocks.
+ *
+ * Short windows (30m/1h, `autoRefresh`) refresh live: a `raw_packet` WS event
+ * with `relay_reception` (a copy was just stored) triggers a re-fetch, at most
+ * once per LIVE_REFRESH_MS, and a 30 s poll covers a quiet or missed stream.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '../i18n';
+import { getRawPackets, subscribeRawPackets } from '../stores/rawPacketStore';
 import { formatDateTime } from '../utils/dateTimeFormat';
 import { formatSNR } from '../utils/traceMapUtils';
 import { type TimeWindow, relTime, StatTile } from './meshHealthShared';
@@ -74,6 +79,10 @@ interface Props {
 }
 
 const MAX_RELAY_COLUMNS = 8;
+/** Minimum spacing of live (WS-triggered) re-fetches. */
+const LIVE_REFRESH_MS = 3_000;
+/** Fallback poll for short windows when no live re-fetch happened meanwhile. */
+const POLL_MS = 30_000;
 type SummarySort = 'receptions' | 'best_snr' | 'last_seen';
 
 /**
@@ -101,12 +110,48 @@ export function MeshRelayReceptionPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summarySort, setSummarySort] = useState<SummarySort>('receptions');
+  const [liveTick, setLiveTick] = useState(0);
+  const lastFetchRef = useRef(0);
 
   useEffect(() => {
     onLoadingChange?.(loading);
   }, [loading, onLoadingChange]);
 
   useEffect(() => {
+    if (!selectedWindow.autoRefresh) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    // Stamp the request time here, not only when the fetch effect runs: a copy
+    // arriving before that render would otherwise schedule a second fetch.
+    const refresh = () => {
+      lastFetchRef.current = Date.now();
+      setLiveTick((n) => n + 1);
+    };
+    const initial = getRawPackets();
+    let newest = initial[initial.length - 1];
+    const unsubscribe = subscribeRawPackets(() => {
+      const packets = getRawPackets();
+      const latest = packets[packets.length - 1];
+      if (!latest || latest === newest) return;
+      newest = latest;
+      if (!latest.relay_reception || timer) return;
+      const wait = Math.max(0, lastFetchRef.current + LIVE_REFRESH_MS - Date.now());
+      timer = setTimeout(() => {
+        timer = null;
+        refresh();
+      }, wait);
+    });
+    const poll = setInterval(() => {
+      if (Date.now() - lastFetchRef.current >= POLL_MS) refresh();
+    }, POLL_MS);
+    return () => {
+      unsubscribe();
+      clearInterval(poll);
+      if (timer) clearTimeout(timer);
+    };
+  }, [selectedWindow]);
+
+  useEffect(() => {
+    lastFetchRef.current = Date.now();
     const endTs = Math.floor(Date.now() / 1000);
     const startTs = endTs - selectedWindow.hours * 3600;
     let cancelled = false;
@@ -130,7 +175,7 @@ export function MeshRelayReceptionPanel({
     return () => {
       cancelled = true;
     };
-  }, [selectedWindow, refreshKey, t]);
+  }, [selectedWindow, refreshKey, liveTick, t]);
 
   const relayLabel = (cell: { last_hop_hex: string | null; resolved_name: string | null }) => {
     if (cell.last_hop_hex === null) return t('relay_reception_direct');
