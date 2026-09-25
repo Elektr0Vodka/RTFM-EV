@@ -61,6 +61,7 @@ import type {
   ContactAnalyticsHourlyBucket,
   ContactAnalyticsWeeklyBucket,
   ContactGroup,
+  ContactLocationHistoryEntry,
   LppSensor,
   PartialNodeResolution,
   RadioConfig,
@@ -689,6 +690,8 @@ export function ContactInfoBody({
         </div>
       )}
 
+      {show('network') && <ContactPositionsSection publicKey={contact.public_key} t={t} />}
+
       {show('network') && !isRepeater && (
         <>
           <MessageStatsSection
@@ -1176,6 +1179,54 @@ function ContactGroupsSection({
  * its full public key. The server checks the synced external map first, then
  * the analyzer sites that opted in to name resolution, and applies the name.
  */
+/**
+ * Positions this contact advertised over time (plan 14 location history,
+ * newest first). Read-only; renders nothing until at least one is stored.
+ */
+function ContactPositionsSection({ publicKey, t }: { publicKey: string; t: TFn }) {
+  const coordinateFormat = useCoordinateFormat();
+  const [positions, setPositions] = useState<ContactLocationHistoryEntry[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPositions([]);
+    api
+      .contactLocationHistory(publicKey)
+      .then((rows) => {
+        if (!cancelled) setPositions(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setPositions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [publicKey]);
+
+  if (positions.length === 0) return null;
+  return (
+    <div className="px-5 py-3 border-b border-border" data-testid="contact-positions">
+      <SectionLabel>{t('contact_positions_heading')}</SectionLabel>
+      <p className="text-xs text-muted-foreground mb-1">{t('contact_positions_note')}</p>
+      <div className="space-y-1">
+        {positions.map((p) => (
+          <div
+            key={`${p.lat},${p.lon}`}
+            className="flex justify-between items-center gap-2 text-sm"
+          >
+            <span className="font-mono truncate">
+              {formatCoordinates(p.lat, p.lon, coordinateFormat, 4)}
+            </span>
+            <span className="text-xs text-muted-foreground flex-shrink-0">
+              {formatTime(p.first_seen)} &ndash; {formatTime(p.last_seen)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ResolveNameButton({ publicKey, t }: { publicKey: string; t: TFn }) {
   const [busy, setBusy] = useState(false);
   const run = async () => {

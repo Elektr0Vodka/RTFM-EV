@@ -20,6 +20,7 @@ import { RegionsPane } from './RepeaterRegionsPane';
 import { ActionsPane } from './RepeaterActionsPane';
 import { ConsolePane } from './RepeaterConsolePane';
 import { TelemetryHistoryPane } from './RepeaterTelemetryHistoryPane';
+import { RepeaterConfigHistoryPane } from './RepeaterConfigHistoryPane';
 import { useT } from '../../i18n';
 
 interface RepeaterDashboardBodyProps {
@@ -125,6 +126,17 @@ export function RepeaterDashboardBody({
   };
 
   const anyLoading = Object.values(paneStates).some((s) => s.loading);
+  // Changes when a snapshot-producing pane finishes a fetch, so the History
+  // block re-reads the stored snapshots (a DB read, no radio traffic).
+  const configHistoryReloadKey = [
+    paneStates.nodeInfo,
+    paneStates.radioSettings,
+    paneStates.advertIntervals,
+    paneStates.ownerInfo,
+    paneStates.regions,
+  ]
+    .map((s) => s.fetched_at ?? 0)
+    .join(':');
 
   if (!loggedIn) {
     return (
@@ -275,6 +287,9 @@ export function RepeaterDashboardBody({
         trackedTelemetryRepeaters={trackedTelemetryRepeaters}
         onToggleTrackedTelemetry={onToggleTrackedTelemetry}
       />
+
+      {/* Stored pane snapshots with per-change diffs (plan 14) - full width */}
+      <RepeaterConfigHistoryPane publicKey={conversation.id} reloadKey={configHistoryReloadKey} />
     </div>
   );
 }
