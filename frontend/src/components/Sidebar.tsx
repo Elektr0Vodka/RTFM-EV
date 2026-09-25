@@ -162,6 +162,7 @@ type CollapseState = {
   channels: boolean;
   contacts: boolean;
   rooms: boolean;
+  owned: boolean;
   repeaters: boolean;
   favChannels: boolean;
   favContacts: boolean;
@@ -181,6 +182,7 @@ const DEFAULT_COLLAPSE_STATE: CollapseState = {
   channels: false,
   contacts: false,
   rooms: false,
+  owned: false,
   repeaters: false,
   favChannels: false,
   favContacts: false,
@@ -200,6 +202,7 @@ function loadCollapsedState(): CollapseState {
       channels: parsed.channels ?? DEFAULT_COLLAPSE_STATE.channels,
       contacts: parsed.contacts ?? DEFAULT_COLLAPSE_STATE.contacts,
       rooms: parsed.rooms ?? DEFAULT_COLLAPSE_STATE.rooms,
+      owned: parsed.owned ?? DEFAULT_COLLAPSE_STATE.owned,
       repeaters: parsed.repeaters ?? DEFAULT_COLLAPSE_STATE.repeaters,
       favChannels: parsed.favChannels ?? DEFAULT_COLLAPSE_STATE.favChannels,
       favContacts: parsed.favContacts ?? DEFAULT_COLLAPSE_STATE.favContacts,
@@ -241,6 +244,8 @@ interface SidebarProps {
   sidebarHidden?: { sections: string[]; tools: string[]; favorites: string[] };
   /** User-defined contact/channel groups (server-persisted), each its own section. */
   contactGroups?: ContactGroup[];
+  /** The connected radio's public key; drives the Owned section (owner_key match). */
+  ownPublicKey?: string | null;
   /** Persist a sidebar order/visibility change (or a contact-groups edit) to the backend. */
   onSaveSidebarOrder?: (update: {
     sidebar_section_order?: string[];
@@ -285,6 +290,7 @@ export function Sidebar({
   sidebarSectionOrder = [],
   sidebarToolOrder = [],
   sidebarFavoritesOrder = [],
+  ownPublicKey = null,
   sidebarFavoriteSortOrders,
   sidebarHidden,
   contactGroups = [],
@@ -308,6 +314,7 @@ export function Sidebar({
   const [channelsCollapsed, setChannelsCollapsed] = useState(initialCollapsedState.channels);
   const [contactsCollapsed, setContactsCollapsed] = useState(initialCollapsedState.contacts);
   const [roomsCollapsed, setRoomsCollapsed] = useState(initialCollapsedState.rooms);
+  const [ownedCollapsed, setOwnedCollapsed] = useState(initialCollapsedState.owned);
   const [repeatersCollapsed, setRepeatersCollapsed] = useState(initialCollapsedState.repeaters);
   const [favChannelsCollapsed, setFavChannelsCollapsed] = useState(
     initialCollapsedState.favChannels
@@ -786,6 +793,7 @@ export function Sidebar({
           channels: channelsCollapsed,
           contacts: contactsCollapsed,
           rooms: roomsCollapsed,
+          owned: ownedCollapsed,
           repeaters: repeatersCollapsed,
           favChannels: favChannelsCollapsed,
           favContacts: favContactsCollapsed,
@@ -801,6 +809,7 @@ export function Sidebar({
         channelsCollapsed ||
         contactsCollapsed ||
         roomsCollapsed ||
+        ownedCollapsed ||
         repeatersCollapsed ||
         favChannelsCollapsed ||
         favContactsCollapsed ||
@@ -813,6 +822,7 @@ export function Sidebar({
         setChannelsCollapsed(false);
         setContactsCollapsed(false);
         setRoomsCollapsed(false);
+        setOwnedCollapsed(false);
         setRepeatersCollapsed(false);
         setFavChannelsCollapsed(false);
         setFavContactsCollapsed(false);
@@ -831,6 +841,7 @@ export function Sidebar({
       setChannelsCollapsed(prev.channels);
       setContactsCollapsed(prev.contacts);
       setRoomsCollapsed(prev.rooms);
+      setOwnedCollapsed(prev.owned);
       setRepeatersCollapsed(prev.repeaters);
       setFavChannelsCollapsed(prev.favChannels);
       setFavContactsCollapsed(prev.favContacts);
@@ -845,6 +856,7 @@ export function Sidebar({
     channelsCollapsed,
     contactsCollapsed,
     roomsCollapsed,
+    ownedCollapsed,
     repeatersCollapsed,
     favChannelsCollapsed,
     favContactsCollapsed,
@@ -862,6 +874,7 @@ export function Sidebar({
       channels: channelsCollapsed,
       contacts: contactsCollapsed,
       rooms: roomsCollapsed,
+      owned: ownedCollapsed,
       repeaters: repeatersCollapsed,
       favChannels: favChannelsCollapsed,
       favContacts: favContactsCollapsed,
@@ -882,6 +895,7 @@ export function Sidebar({
     channelsCollapsed,
     contactsCollapsed,
     roomsCollapsed,
+    ownedCollapsed,
     repeatersCollapsed,
     favChannelsCollapsed,
     favContactsCollapsed,
@@ -1246,6 +1260,31 @@ export function Sidebar({
       { pill: 'rooms', label: t('nav_room_servers_heading'), rows: roomRows },
     ] satisfies ContactPillBucket[]
   ).filter((bucket) => bucket.rows.length > 0);
+
+  // Owned section (plan 17 phase 3): contacts whose owner key is this radio's
+  // own public key, bucketed by type like the Contacts "All" view. Rows reuse
+  // the pool order (each type already sorted by its Contacts sort order).
+  const ownKeyLower = ownPublicKey ? ownPublicKey.toLowerCase() : null;
+  const ownedContacts = ownKeyLower
+    ? allFilteredContactsPool.filter((c) => c.owner_key?.toLowerCase() === ownKeyLower)
+    : [];
+  const ownedRowsFor = (pill: Exclude<ContactPill, 'all'>): ConversationRow[] =>
+    ownedContacts.filter((c) => contactPillFor(c) === pill).map((c) => buildContactRow(c, 'owned'));
+  const ownedBuckets: ContactPillBucket[] = (
+    [
+      {
+        pill: 'companions',
+        label: t('nav_contacts_pill_companions'),
+        rows: ownedRowsFor('companions'),
+      },
+      { pill: 'sensors', label: t('nav_contacts_pill_sensors'), rows: ownedRowsFor('sensors') },
+      { pill: 'repeaters', label: t('nav_repeaters_heading'), rows: ownedRowsFor('repeaters') },
+      { pill: 'rooms', label: t('nav_room_servers_heading'), rows: ownedRowsFor('rooms') },
+    ] satisfies ContactPillBucket[]
+  ).filter((bucket) => bucket.rows.length > 0);
+  const ownedRows = ownedBuckets.flatMap((bucket) => bucket.rows);
+  const ownedUnread = getSectionUnreadCount(ownedRows);
+  const ownedNew = countNew(identitiesOf(ownedRows));
 
   const contactPillOptions: SegmentedOption[] = [
     {
@@ -1784,6 +1823,34 @@ export function Sidebar({
             )}
           </div>
         ) : null;
+      case 'owned':
+        return ownedRows.length > 0 ? (
+          <div key="sec-owned">
+            {renderSectionHeader(
+              t('nav_owned_heading'),
+              ownedCollapsed,
+              () => setOwnedCollapsed((prev) => !prev),
+              null,
+              ownedUnread,
+              sectionHasMention(ownedRows),
+              null,
+              ownedRows.length,
+              ownedNew,
+              ownedUnread > 0 || ownedNew > 0 ? () => clearSection(ownedRows) : null
+            )}
+            {(isSearching || !ownedCollapsed) &&
+              ownedBuckets.map((bucket) => (
+                <div key={`owned-${bucket.pill}`}>
+                  {ownedBuckets.length > 1 && (
+                    <div className="px-3 pt-2 pb-0.5 text-[0.625rem] uppercase tracking-wider text-muted-foreground/70">
+                      {bucket.label}
+                    </div>
+                  )}
+                  {bucket.rows.map((row) => renderConversationRow(row))}
+                </div>
+              ))}
+          </div>
+        ) : null;
       default:
         return null;
     }
@@ -1792,6 +1859,7 @@ export function Sidebar({
   const sectionLabels: Record<string, string> = {
     tools: t('nav_tools_heading'),
     favorites: t('nav_favorites_heading'),
+    owned: t('nav_owned_heading'),
     channels: t('nav_channels_heading'),
     contacts: t('nav_contacts_heading'),
     ...Object.fromEntries(contactGroups.map((g) => [groupSectionKey(g.id), g.name])),

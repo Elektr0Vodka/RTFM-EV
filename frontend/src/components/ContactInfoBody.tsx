@@ -413,6 +413,7 @@ export function ContactInfoBody({
         <ContactAnnotations
           contact={contact}
           contacts={contacts}
+          ownPublicKey={config?.public_key ?? null}
           t={t}
           onOpenContact={onOpenContactInfo}
           onOpenConversation={onOpenConversation}
@@ -1168,12 +1169,15 @@ function ContactGroupsSection({
 function ContactAnnotations({
   contact,
   contacts,
+  ownPublicKey = null,
   t,
   onOpenContact,
   onOpenConversation,
 }: {
   contact: Contact;
   contacts: Contact[];
+  /** The connected radio's public key: allowed as owner (sidebar "Owned" section). */
+  ownPublicKey?: string | null;
   t: TFn;
   onOpenContact?: (publicKey: string) => void;
   onOpenConversation?: (publicKey: string) => void;
@@ -1212,7 +1216,11 @@ function ContactAnnotations({
     () => contacts.filter((c) => c.owner_key === contact.public_key),
     [contacts, contact.public_key]
   );
-  const ownerKnown = ownerKey === '' || contacts.some((c) => c.public_key === ownerKey);
+  const ownKey = ownPublicKey ? ownPublicKey.toLowerCase() : null;
+  const ownerIsOwnRadio = ownKey !== null && ownerKey === ownKey;
+  const ownerKnown =
+    ownerKey === '' || ownerIsOwnRadio || contacts.some((c) => c.public_key === ownerKey);
+  const canUseOwnKey = ownKey !== null && ownKey !== contact.public_key && ownerKey !== ownKey;
 
   const save = async (update: ContactAnnotationsUpdate) => {
     try {
@@ -1284,6 +1292,8 @@ function ContactAnnotations({
               ownerContact.last_advert
             )}
           </button>
+        ) : ownerIsOwnRadio ? (
+          <span className="text-sm">{t('contact_owner_own_radio')}</span>
         ) : ownerKey ? (
           <span className="text-sm font-mono break-all">{ownerKey}</span>
         ) : null}
@@ -1297,14 +1307,26 @@ function ContactAnnotations({
         {!ownerKnown && (
           <p className="text-xs text-destructive mt-0.5">{t('contact_owner_unknown')}</p>
         )}
-        <button
-          type="button"
-          className="mt-1 text-xs px-2 py-0.5 rounded border border-border hover:bg-accent transition-colors disabled:opacity-50"
-          disabled={!ownerKnown}
-          onClick={() => save({ owner_key: ownerKey === '' ? null : ownerKey })}
-        >
-          {t('contact_owner_save')}
-        </button>
+        <div className="mt-1 flex flex-wrap gap-1">
+          <button
+            type="button"
+            className="text-xs px-2 py-0.5 rounded border border-border hover:bg-accent transition-colors disabled:opacity-50"
+            disabled={!ownerKnown}
+            onClick={() => save({ owner_key: ownerKey === '' ? null : ownerKey })}
+          >
+            {t('contact_owner_save')}
+          </button>
+          {canUseOwnKey && (
+            <button
+              type="button"
+              className="text-xs px-2 py-0.5 rounded border border-border hover:bg-accent transition-colors"
+              onClick={() => setOwnerKey(ownKey)}
+              title={t('contact_owner_use_own_radio_hint')}
+            >
+              {t('contact_owner_use_own_radio')}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Owned nodes (reverse link) */}

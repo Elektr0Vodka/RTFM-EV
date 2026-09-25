@@ -721,6 +721,7 @@ export function App() {
     sidebarFavoriteSortOrders: appSettings?.sidebar_favorite_sort_orders,
     sidebarHidden: appSettings?.sidebar_hidden,
     contactGroups: appSettings?.contact_groups ?? [],
+    ownPublicKey: config?.public_key ?? null,
     onSaveSidebarOrder: handleSaveAppSettings,
   };
   const bulkAddChannelResultModalProps = {

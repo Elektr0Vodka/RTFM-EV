@@ -11,6 +11,27 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-25 (Owned sidebar section, plan 17 Phase 3, feat/sidebar-owned-section)
+
+### Sidebar: "Owned" section for the nodes your radio owns (frontend)
+- New `owned` sidebar section listing the contacts whose owner key (the
+  "Owner key" field in the contact info pane, `contacts.owner_key`, PR #104)
+  equals the connected radio's own public key (case-insensitive), grouped by
+  type (companions, sensors, repeaters, room servers) like the Contacts "All"
+  view. The section only renders when at least one such contact exists; it
+  takes part in the Customize panel like the built-in sections (reorder, hide,
+  collapse; `owned` is appended to an already stored section order), shows the
+  usual unread/new counters and the per-section clear button. Rows keep the
+  Contacts sort orders. Owner source decision: the radio's own key (App passes
+  `config.public_key` as `ownPublicKey`); no migration.
+- `POST /api/contacts/{key}/annotations` now also accepts the connected radio's
+  own public key as `owner_key` (it is not a contact row, so it was rejected
+  with 422 before); the contact info pane's Owner field gains a "Use my
+  radio's key" button and shows "Your radio" for that value. New i18n keys
+  `nav_owned_heading`, `contact_owner_own_radio`,
+  `contact_owner_use_own_radio`, `contact_owner_use_own_radio_hint` (and the
+  reworded `contact_owner_unknown`) in EN/NL/DE.
+
 ## Update 2026-09-25 (GRP_DATA placeholder rows kept out of fanout, feat/grp-data-fanout-suppress)
 
 ### Fanout: channel data placeholders are not forwarded unless opted in (backend, frontend)
@@ -26,6 +47,7 @@ the change. Upstream development is on hold; the fork is the active repository.
   checkbox in the scope editor (EN/NL/DE). Bots, community MQTT and the map
   upload keep their fixed scope and never receive them. WebSocket clients
   (the chat view) and web push are unchanged.
+
 
 ## Update 2026-09-25 (Backend test flake: tile cache concurrent fetch, fix/tile-cache-test-flake)
 
