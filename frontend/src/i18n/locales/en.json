@@ -1374,6 +1374,8 @@
   "settings_fanout_desc_mqtt_community": "MeshcoreToMQTT-compatible raw-packet feed publishing, compatible with community aggregators (in other words, make your companion radio also serve as an observer node). Superset of other Community MQTT presets.",
   "settings_fanout_publish_status": "Publish status",
   "settings_fanout_publish_packets": "Publish packets",
+  "settings_fanout_publish_config": "Publish node config",
+  "settings_fanout_publish_config_desc": "Retained config topic like the DMC observer firmware: radio settings, host repeater forwarding limits, region gating and scope tree, and these topic toggles. No broker address, credentials or keys. Off by default.",
   "settings_fanout_status_interval_min": "Status interval (minutes)",
   "settings_fanout_status_interval_help": "How often the status message is published (1-60 minutes).",
   "settings_fanout_desc_webhook": "Generic webhook for decrypted channel/DM messages with customizable verb, method, and optional HMAC signature.",

@@ -76,6 +76,7 @@ function createCommunityConfigDefaults(
     topic_template: DEFAULT_COMMUNITY_PACKET_TOPIC_TEMPLATE,
     publish_status: true,
     publish_packets: true,
+    publish_config: false,
     status_interval_ms: 300000,
     ...overrides,
   };
@@ -375,6 +376,7 @@ function normalizeIntegrationConfigForSave(
 
     normalized.publish_status = normalized.publish_status !== false;
     normalized.publish_packets = normalized.publish_packets !== false;
+    normalized.publish_config = normalized.publish_config === true;
     const interval =
       typeof normalized.status_interval_ms === 'string'
         ? Number.parseInt(normalized.status_interval_ms, 10)
@@ -1492,6 +1494,16 @@ function CommunityTopicControls({
         />
         <span className="text-sm">{t('settings_fanout_publish_packets')}</span>
       </label>
+      <label className="flex items-center gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={config.publish_config === true}
+          onChange={(e) => onChange({ ...config, publish_config: e.target.checked })}
+          className="h-4 w-4 rounded border-border"
+        />
+        <span className="text-sm">{t('settings_fanout_publish_config')}</span>
+      </label>
+      <p className="text-xs text-muted-foreground">{t('settings_fanout_publish_config_desc')}</p>
       <div className="space-y-2">
         <Label htmlFor="fanout-comm-interval">{t('settings_fanout_status_interval_min')}</Label>
         <Input

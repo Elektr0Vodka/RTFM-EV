@@ -6,6 +6,9 @@ The whole id fix: forwarded messages keep ``origin_id`` = the publishing radio
 the heard node R in a distinct ``subject_id`` field.
 """
 
+import json
+
+from app.fanout import community_mqtt as cm
 from app.fanout.community_mqtt import (
     _format_node_neighbors,
     _format_node_regions,
@@ -183,3 +186,113 @@ def test_format_node_regions_without_subject_key_returns_none():
     del event["public_key"]
 
     assert _format_node_regions(event, "MyRadio", _SELF) is None
+
+
+# ---------------------------------------------------------------------------
+# config topic (own node config snapshot, DMC ``config`` type 5)
+# ---------------------------------------------------------------------------
+
+
+def _config_inputs(**overrides):
+    from app.services.host_repeater_settings import HostRepeaterSettings, RegionConfig
+
+    base = {
+        "device_name": "Bridge",
+        "public_key_hex": "aabb",
+        "self_info": {
+            "radio_freq": 869.618,
+            "radio_bw": 62.5,
+            "radio_sf": 8,
+            "radio_cr": 8,
+            "tx_power": 22,
+            "max_tx_power": 22,
+            "multi_acks": 0,
+            "name": "Bridge",
+            "public_key": "aabb",
+        },
+        "device_info": {"model": "Heltec V3", "firmware_version": "v1.16"},
+        "stats": {"uptime_secs": 1234},
+        "host_repeater_settings": HostRepeaterSettings(
+            regions=[
+                RegionConfig(name="nl", deny_flood=True),
+                RegionConfig(name="nl-gr", parent="nl"),
+            ],
+            home_region="nl-gr",
+            dc_gate_enabled=True,
+            dc_gate_threshold=80,
+            dc_gate_hysteresis=5,
+            flood_max=32,
+        ),
+        "host_repeater_state": "armed",
+        "flood_scope": "nl-gr",
+        "fanout_config": {"iata": "ams", "publish_regions": True, "status_interval_ms": 60000},
+    }
+    base.update(overrides)
+    return base
+
+
+def test_format_node_config_mirrors_dmc_sections():
+    payload = cm._format_node_config(**_config_inputs())
+    assert payload["origin"] == "Bridge"
+    assert payload["origin_id"] == "AABB"
+    assert payload["node_name"] == "Bridge"
+    assert payload["model"] == "Heltec V3"
+    assert payload["uptime_secs"] == 1234
+    assert payload["radio"] == {
+        "freq": 869.618,
+        "bw": 62.5,
+        "sf": 8,
+        "cr": 8,
+        "tx_power": 22,
+        "max_tx_power": 22,
+        "multi_acks": 0,
+    }
+    assert payload["repeat"]["disable_fwd"] is False  # armed
+    assert payload["repeat"]["flood_max"] == 32
+    assert payload["repeat"]["loop_detect"] == "minimal"
+    assert payload["region_gate"] == {"enabled": True, "threshold": 80, "hysteresis": 5}
+    assert payload["region"]["home"] == "nl-gr"
+    assert payload["region"]["default"] == "nl-gr"
+    assert payload["region"]["wildcard_flood"] is True
+    assert payload["region"]["scopes"] == [
+        {"name": "nl", "flood": False, "parent": "*"},
+        {"name": "nl-gr", "flood": True, "parent": "nl"},
+    ]
+    assert payload["host_repeater"] == {"state": "armed"}
+    assert payload["mqtt"]["regions"] is True
+    assert payload["mqtt"]["status_interval"] == 60000
+    assert payload["mqtt"]["iata"] == "AMS"
+    assert payload["mqtt"]["config"] is True
+    # Never leaks secrets or the public key beyond origin_id.
+    assert "password" not in json.dumps(payload).lower()
+    assert "timestamp" in payload
+
+
+def test_format_node_config_omits_sections_without_data():
+    payload = cm._format_node_config(
+        **_config_inputs(
+            self_info=None,
+            device_info=None,
+            stats=None,
+            host_repeater_settings=None,
+            host_repeater_state=None,
+            flood_scope=None,
+            fanout_config={},
+        )
+    )
+    assert "radio" not in payload
+    assert "repeat" not in payload
+    assert "region" not in payload
+    assert "region_gate" not in payload
+    assert "model" not in payload
+    assert "uptime_secs" not in payload
+    assert payload["mqtt"]["status"] is True
+    assert payload["mqtt"]["packets"] is True
+    assert "iata" not in payload["mqtt"]
+
+
+def test_format_node_config_default_scope_without_host_repeater():
+    payload = cm._format_node_config(
+        **_config_inputs(host_repeater_settings=None, host_repeater_state=None)
+    )
+    assert payload["region"] == {"default": "nl-gr"}
