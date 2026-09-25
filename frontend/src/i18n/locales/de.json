@@ -1575,6 +1575,8 @@
   "settings_fanout_no_items_match": "Keine {label} stimmen mit „{search}“ überein",
   "settings_fanout_scope_heading": "Nachrichtenumfang",
   "settings_fanout_forward_raw_packets_label": "Rohe Pakete weiterleiten",
+  "settings_fanout_forward_data_placeholders_label": "Platzhalter für Kanaldaten weiterleiten",
+  "settings_fanout_forward_data_placeholders_hint": "Auch die Zeilen \"Bild (nicht unterstützt)\" / \"Daten (nicht unterstützt)\" weiterleiten, die RTFM-EV für meshcore-open-Kanaldaten (GRP_DATA-Pakete) speichert. Standardmäßig aus: sie enthalten Chunk-Metadaten, keine Nachricht.",
   "settings_fanout_scope_mode_all": "Alle Nachrichten",
   "settings_fanout_scope_mode_none": "Keine Nachrichten",
   "settings_fanout_scope_mode_only": "Nur aufgelistete Kanäle/Kontakte",
