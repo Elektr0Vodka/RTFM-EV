@@ -11,6 +11,25 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-25 (Backend test flake: tile cache concurrent fetch, fix/tile-cache-test-flake)
+
+### Tests: deterministic `test_concurrent_requests_share_one_fetch` (backend)
+- `tests/test_tile_cache.py::TestCacheLookup::test_concurrent_requests_share_one_fetch`
+  could fail under xdist with `assert 2 == 1`. `TileCache.get` reads the cache
+  directory through `asyncio.to_thread` before it registers the shared
+  in-flight refresh; the test released its gate after one `asyncio.sleep(0)`,
+  so on a busy thread pool a caller's miss result could be delivered only
+  after another caller's refresh had completed and stored the tile, and that
+  caller fetched again (mechanism reproduced with a scratch test that delays
+  the miss result). The test now runs the thread hops inline via
+  `monkeypatch` so every caller reaches the shared task within one loop
+  iteration. Code unchanged: the extra upstream fetch in that window is
+  redundant, not incorrect. The three other flakes reported for the same suite
+  (`test_retention_repository::test_stats_covers_every_class`,
+  `test_advert_events::TestLatestRawAdverts::test_returns_raw_packet_for_latest_transmission`,
+  `test_radio_sync::TestSyncAndOffloadAll::test_add_contact_decodes_legacy_packed_path_len`)
+  did not reproduce at `b9a4a1b0` (ten clean full runs, an eight-round loop of
+  the affected files, and a 218-file order-dependency search); left as is.
 ## Update 2026-09-25 (Inline contact sharing, parity audit L4 / upstream #347, feat/inline-contact-share)
 
 ### Chat: inline `<pubkey:type:Name>` contact sharing (frontend)
