@@ -1148,6 +1148,30 @@ class TestContactAnnotations:
         assert resp.status_code == 422
 
     @pytest.mark.asyncio
+    async def test_owner_key_accepts_the_radios_own_key(self, test_db, client):
+        """The radio itself is not a contact, but it may own contacts (Owned section)."""
+        await _insert_contact(KEY_A)
+        with patch("app.routers.contacts.radio_manager") as mock_rm:
+            mock_rm.meshcore.self_info = {"public_key": KEY_C.upper(), "name": "Me"}
+            ok = await client.post(
+                f"/api/contacts/{KEY_A}/annotations", json={"owner_key": KEY_C.upper()}
+            )
+        assert ok.status_code == 200
+        get = await client.get("/api/contacts")
+        row = next(c for c in get.json() if c["public_key"] == KEY_A)
+        assert row["owner_key"] == KEY_C
+
+    @pytest.mark.asyncio
+    async def test_owner_key_rejects_unknown_key_when_radio_key_differs(self, test_db, client):
+        await _insert_contact(KEY_A)
+        with patch("app.routers.contacts.radio_manager") as mock_rm:
+            mock_rm.meshcore.self_info = {"public_key": KEY_B}
+            resp = await client.post(
+                f"/api/contacts/{KEY_A}/annotations", json={"owner_key": KEY_C}
+            )
+        assert resp.status_code == 422
+
+    @pytest.mark.asyncio
     async def test_owner_key_accepts_existing_and_clears(self, test_db, client):
         await _insert_contact(KEY_A)
         await _insert_contact(KEY_B, name="Bob")
