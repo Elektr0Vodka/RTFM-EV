@@ -73,6 +73,7 @@ function createAnalytics(contact: Contact | null): ContactAnalytics {
     includes_direct_messages: true,
     most_active_rooms: [],
     advert_paths: [],
+    path_scores: [],
     advert_frequency: null,
     nearest_repeaters: [],
     hourly_activity: [],
@@ -111,6 +112,48 @@ describe('ContactInfoView', () => {
     });
     expect(screen.queryByTestId('repeater-body')).not.toBeInTheDocument();
     expect(screen.queryByTestId('room-panel')).not.toBeInTheDocument();
+  });
+
+  it('lists the scored message routes when the analytics carry them', async () => {
+    const contact = createContact();
+    const base = {
+      next_hop: null,
+      attempt_count: 4,
+      success_count: 3,
+      failure_count: 1,
+      route_weight: 2.5,
+      best_trip_ms: 800,
+      first_used: 1699990000,
+      last_used: 1699990100,
+      last_success: 1699990100,
+      reliability: 0.67,
+      latency: 1,
+      freshness: 0.5,
+      weight: 1,
+    };
+    getContactAnalytics.mockResolvedValue({
+      ...createAnalytics(contact),
+      path_scores: [
+        { ...base, path: '11', path_len: 1, last_trip_ms: 1234, score: 0.8125 },
+        { ...base, path: '', path_len: -1, last_trip_ms: null, score: 0.41, success_count: 1 },
+      ],
+    });
+
+    render(
+      <ContactInfoView
+        publicKey={contact.public_key}
+        contacts={[contact]}
+        config={null}
+        {...baseHandlers}
+      />
+    );
+
+    expect(await screen.findByText('Message routes (scored)')).toBeInTheDocument();
+    const rows = screen.getAllByTestId('contact-path-score');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent('score 81 · 3/4 delivered · 1.2 s');
+    expect(rows[1]).toHaveTextContent('Flood');
+    expect(rows[1]).toHaveTextContent('score 41 · 1/4 delivered · -');
   });
 
   it('shows a minimizable login region for a repeater', async () => {

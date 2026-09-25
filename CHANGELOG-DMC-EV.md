@@ -11,6 +11,31 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-25 (Scored path history, plan 28 item 1.15, feat/scored-path-history)
+
+### Contact info: message routes (scored) (backend + frontend)
+- **Contact info > Network** now lists the routes your direct messages to that
+  contact were sent on (the firmware's learned direct path, or flood), ranked
+  the way meshcore-open ranks its path history: `0.45 x delivery rate
+  ((successes + 1) / (attempts + 2)) + 0.25 x trip time (fastest / this, 0.6 when
+  unknown) + 0.1 x freshness (1 / (1 + days since the last success)) + 0.2 x
+  route weight (+0.5 per success, -0.5 per failure, 0.1-5)`. Each row shows the
+  hops, the score, delivered/attempts, the last send-to-ACK time and when it was
+  last used. **Display only**: DM routing stays firmware direct path, then flood.
+- Every DM attempt (first send and background retries) records the route the
+  radio's contact record held at that moment (`app/services/dm_path_outcomes.py`);
+  the ACK credits the last attempt with its trip time, and a DM that runs out of
+  retries counts one failure per distinct route. Stored per
+  `(contact, path, hop count)` in `contact_path_outcomes` (migration `_115`,
+  `ContactPathOutcomeRepository`, newest 100 routes per contact, rows follow the
+  contact on delete). Scoring is `app/services/path_scoring.py`;
+  `GET /api/contacts/analytics` gains `path_scores`.
+- Not ported from meshcore-open: choosing retry paths from the ranking, the
+  flood-ACK path attribution, and deleting a route after three failures at
+  weight 0 (RTFM-EV keeps the row so the history stays visible).
+- New i18n keys `contact_path_scores`, `contact_path_scores_hint`,
+  `contact_path_score_flood`, `contact_path_score_detail` in EN/NL/DE.
+
 ## Update 2026-09-25 (Host repeater Phase 4: score-based delays, advert limiter, lifetime stats, feat/host-repeater-phase4)
 
 ### Host repeater (backend + frontend, plan 29 Phase 4)

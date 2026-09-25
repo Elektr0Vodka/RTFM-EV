@@ -599,6 +599,40 @@ export function ContactInfoBody({
         </div>
       )}
 
+      {show('network') && analytics && analytics.path_scores.length > 0 && (
+        <div className="px-5 py-3 border-b border-border">
+          <SectionLabel>{t('contact_path_scores')}</SectionLabel>
+          <p className="text-xs text-muted-foreground mb-1.5">{t('contact_path_scores_hint')}</p>
+          <div className="space-y-1.5">
+            {analytics.path_scores.map((p) => (
+              <div
+                key={`${p.path_len}:${p.path}`}
+                className="flex justify-between items-start gap-2 text-sm"
+                data-testid="contact-path-score"
+              >
+                <span className="font-mono text-xs break-all">
+                  {p.path_len < 0
+                    ? t('contact_path_score_flood')
+                    : p.path
+                      ? parsePathHops(p.path, p.path_len).join(' → ')
+                      : t('contact_direct_path')}
+                </span>
+                <span className="text-xs text-muted-foreground flex-shrink-0 text-right">
+                  {t('contact_path_score_detail', {
+                    score: Math.round(p.score * 100),
+                    ok: p.success_count,
+                    attempts: p.attempt_count,
+                    trip: p.last_trip_ms != null ? `${(p.last_trip_ms / 1000).toFixed(1)} s` : '-',
+                  })}
+                  {' · '}
+                  {formatTime(p.last_used)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {show('network') && fromChannel && (
         <ChannelAttributionWarning
           t={t}

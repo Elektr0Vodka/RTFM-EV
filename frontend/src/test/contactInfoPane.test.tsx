@@ -81,6 +81,7 @@ function createAnalytics(
     includes_direct_messages: Boolean(contact),
     most_active_rooms: [],
     advert_paths: [],
+    path_scores: [],
     advert_frequency: null,
     nearest_repeaters: [],
     hourly_activity: Array.from({ length: 24 }, (_, index) => ({

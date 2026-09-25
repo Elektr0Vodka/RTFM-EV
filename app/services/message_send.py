@@ -18,7 +18,7 @@ from app.repository import (
     ContactRepository,
     MessageRepository,
 )
-from app.services import dm_ack_tracker
+from app.services import dm_ack_tracker, dm_path_outcomes
 from app.services.flood_scope import set_radio_flood_scope
 from app.services.messages import (
     BroadcastFn,
@@ -490,6 +490,7 @@ async def _apply_direct_message_ack_tracking(
     logger.debug("Tracking ACK %s for message %d", ack_code, message_id)
     if matched_immediately:
         dm_ack_tracker.clear_pending_acks_for_message(message_id)
+        await dm_path_outcomes.record_ack(message_id)
         return await increment_ack_and_broadcast(
             message_id=message_id,
             broadcast_fn=broadcast_fn,
@@ -567,6 +568,7 @@ async def _retry_direct_message_until_acked(
                     if refreshed_contact:
                         cached_contact = refreshed_contact
 
+                attempt_started = _time.monotonic()
                 result = await mc.commands.send_msg(
                     dst=cached_contact,
                     msg=text,
@@ -616,6 +618,10 @@ async def _retry_direct_message_until_acked(
             return
 
         ack_code = _extract_expected_ack_code(result)
+        if ack_code:
+            await dm_path_outcomes.record_attempt(
+                message_id, contact.public_key, cached_contact, attempt_started
+            )
         if not ack_code:
             logger.debug(
                 "Background DM retry attempt %d/%d for %s returned no expected_ack; "
@@ -665,6 +671,7 @@ async def _mark_direct_message_failed(
         # Acked (or deleted) in the meantime; nothing to report.
         return
     dm_ack_tracker.track_failed_acks(ack_codes, message_id)
+    await dm_path_outcomes.record_failed(message_id)
     logger.info(
         "Direct message %d marked failed after %d attempt(s) without an ACK",
         message_id,
@@ -717,6 +724,7 @@ async def send_direct_message_to_contact(
                 text=text,
                 requested_timestamp=sent_at,
             )
+            attempt_started = _time.monotonic()
             result = await mc.commands.send_msg(
                 dst=cached_contact,
                 msg=text,
@@ -768,6 +776,10 @@ async def send_direct_message_to_contact(
 
     ack_code = _extract_expected_ack_code(result)
     retry_timeout_ms = _get_direct_message_retry_timeout_ms(result)
+    # Scored path history (display only): remember which route this attempt used.
+    await dm_path_outcomes.record_attempt(
+        message.id, contact.public_key, cached_contact, attempt_started
+    )
     ack_count = await _apply_direct_message_ack_tracking(
         result=result,
         message_id=message.id,

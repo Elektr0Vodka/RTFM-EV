@@ -4,6 +4,7 @@ from app.repository.contacts import (
     AmbiguousPublicKeyPrefixError,
     ContactAdvertPathRepository,
     ContactNameHistoryRepository,
+    ContactPathOutcomeRepository,
     ContactRepository,
 )
 from app.repository.fanout import FanoutConfigRepository
@@ -21,6 +22,7 @@ __all__ = [
     "AppSettingsRepository",
     "ChannelRepository",
     "ContactAdvertPathRepository",
+    "ContactPathOutcomeRepository",
     "ContactNameHistoryRepository",
     "ContactRepository",
     "FanoutConfigRepository",

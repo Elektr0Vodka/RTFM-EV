@@ -409,6 +409,35 @@ class ContactAdvertPathSummary(BaseModel):
     )
 
 
+class ContactPathOutcome(BaseModel):
+    """Outcomes of direct messages sent to a contact on one route (plan 28 item 1.15)."""
+
+    path: str = Field(description="Hex-encoded route (empty for direct or flood)")
+    path_len: int = Field(description="Hop count: -1 = flood, 0 = direct neighbour")
+    next_hop: str | None = Field(default=None, description="First hop identifier, or null")
+    attempt_count: int = 0
+    success_count: int = 0
+    failure_count: int = 0
+    route_weight: float = Field(default=1.0, description="meshcore-open route weight (0.1-5)")
+    last_trip_ms: int | None = Field(
+        default=None, description="Send-to-ACK time of the last success"
+    )
+    best_trip_ms: int | None = None
+    first_used: int
+    last_used: int
+    last_success: int | None = None
+
+
+class ContactPathScore(ContactPathOutcome):
+    """A path outcome row with its meshcore-open score (0-1) and the four terms."""
+
+    score: float
+    reliability: float
+    latency: float
+    freshness: float
+    weight: float
+
+
 class ContactNameHistory(BaseModel):
     """A historical name used by a contact."""
 
@@ -469,6 +498,10 @@ class ContactAnalytics(BaseModel):
         description="Advert observations per hour (includes multi-path arrivals of same advert)",
     )
     nearest_repeaters: list[NearestRepeater] = Field(default_factory=list)
+    path_scores: list[ContactPathScore] = Field(
+        default_factory=list,
+        description="Routes our direct messages used, ranked by the meshcore-open path score",
+    )
     hourly_activity: list[ContactAnalyticsHourlyBucket] = Field(default_factory=list)
     weekly_activity: list[ContactAnalyticsWeeklyBucket] = Field(default_factory=list)
 
