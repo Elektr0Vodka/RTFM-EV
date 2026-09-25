@@ -18,6 +18,7 @@ vi.mock('../api', () => ({
     getContactAnalytics,
     contactTelemetryHistory,
     updateContactAnnotations,
+    contactLocationHistory: vi.fn().mockResolvedValue([]),
   },
   isAbortError: () => false,
 }));

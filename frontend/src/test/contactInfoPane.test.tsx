@@ -20,6 +20,7 @@ vi.mock('../api', () => ({
     getContactAnalytics,
     contactTelemetryHistory,
     updateContactAnnotations,
+    contactLocationHistory: vi.fn().mockResolvedValue([]),
     listPartialResolutions: vi.fn().mockResolvedValue([]),
     resolveContactName: vi.fn().mockResolvedValue({
       status: 'resolved',
@@ -153,6 +154,34 @@ describe('ContactInfoPane', () => {
         notes: 'field note',
       })
     );
+  });
+
+  it('lists stored positions from the location history, newest first', async () => {
+    const contact = createContact();
+    getContactAnalytics.mockResolvedValue(createAnalytics(contact));
+    vi.mocked(api.contactLocationHistory).mockResolvedValueOnce([
+      { lat: 52.3821, lon: 6.6611, first_seen: 1_700_000_500, last_seen: 1_700_000_900 },
+      { lat: 52.1, lon: 4.3, first_seen: 1_700_000_000, last_seen: 1_700_000_100 },
+    ]);
+
+    render(<ContactInfoPane {...baseProps} contactKey={contact.public_key} />);
+
+    const section = await screen.findByTestId('contact-positions');
+    expect(api.contactLocationHistory).toHaveBeenCalledWith(contact.public_key);
+    expect(section).toHaveTextContent('Positions');
+    const text = section.textContent ?? '';
+    expect(text.indexOf('52.3821, 6.6611')).toBeGreaterThan(-1);
+    expect(text.indexOf('52.3821, 6.6611')).toBeLessThan(text.indexOf('52.1000, 4.3000'));
+  });
+
+  it('shows no Positions section without stored positions', async () => {
+    const contact = createContact();
+    getContactAnalytics.mockResolvedValue(createAnalytics(contact));
+
+    render(<ContactInfoPane {...baseProps} contactKey={contact.public_key} />);
+
+    await screen.findByLabelText('Notes');
+    expect(screen.queryByTestId('contact-positions')).not.toBeInTheDocument();
   });
 
   it('offers analyzer name resolution for an unnamed full-key contact and applies the answer', async () => {

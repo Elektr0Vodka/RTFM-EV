@@ -57,6 +57,7 @@ vi.mock('../hooks/useRepeaterDashboard', () => ({
 vi.mock('../api', () => ({
   api: {
     repeaterTelemetryHistory: vi.fn().mockResolvedValue([]),
+    repeaterConfigHistory: vi.fn().mockResolvedValue([]),
     repeaterNeighborHistory: vi.fn().mockResolvedValue({ neighbors: [] }),
     setContactRoutingOverride: vi.fn().mockResolvedValue({ status: 'ok' }),
   },

@@ -86,6 +86,7 @@ frontend/src/
 │   ├── chatEntities.ts         # tokenizeMessageText: text → ordered mention/url/hashtag/pubkey/coordinate tokens (pubkey/coord/url gated by app_settings.chat_*); coordinates include MGRS (mgrsText.ts)
 │   ├── mgrsText.ts             # findMgrsReferences: upper-case MGRS in text → lat/lon (mgrs npm); mirrors app/location_payloads.py
 │   ├── coordinateFormat.ts     # Coordinate display format (decimal/dms/mgrs, localStorage + useCoordinateFormat) + formatCoordinates
+│   ├── deviceConfigHistory.ts  # Plan 14 repeater pane snapshots: group by kind + diff vs previous (buildConfigHistory)
 │   ├── pathUtils.ts            # Distance/validation helpers for paths + map
 │   ├── traceMapUtils.ts        # Pure helpers: trace-result node locations + solid/dashed map segments (TraceRouteMap)
 │   ├── pubkey.ts               # getContactDisplayName (12-char prefix fallback)
@@ -185,6 +186,7 @@ frontend/src/
 │   │   ├── RepeaterLppTelemetryPane.tsx # CayenneLPP sensor data
 │   │   ├── RepeaterOwnerInfoPane.tsx    # Owner info + guest password
 │   │   ├── RepeaterTelemetryHistoryPane.tsx # Historical telemetry chart/table
+│   │   ├── RepeaterConfigHistoryPane.tsx # Stored pane snapshots with per-change diffs (plan 14)
 │   │   ├── RepeaterActionsPane.tsx      # Send Advert, Sync Clock, Reboot
 │   │   └── RepeaterConsolePane.tsx      # CLI console with history
 │   └── ui/                     # shadcn/ui primitives
@@ -504,6 +506,8 @@ Counts are incremented live over WebSocket while `first_unread_ids` only arrives
 
 ## Contact Info Pane
 
+`ContactInfoBody`'s Network region also lists **Positions** (`ContactPositionsSection`, plan 14): the advertised positions from `GET /api/contacts/{key}/location-history` (`api.contactLocationHistory`, rounded to 4 decimals server-side), newest first, formatted with the coordinate-format preference and first/last seen; hidden until at least one is stored (`data-testid="contact-positions"`).
+
 `ContactInfoBody`'s Network region lists **Message routes (scored)** from `analytics.path_scores` (`ContactPathScore` in `types.ts`, from `GET /contacts/analytics`): hops via `parsePathHops`, `Flood` for `path_len` -1, `(direct)` for an empty path, then `contact_path_score_detail` (score as a percentage, delivered/attempts, last trip time) and the last-used time. Rows carry `data-testid="contact-path-score"`. Display only; the backend does the scoring (plan 28 item 1.15).
 
 Clicking a contact's avatar in `ChatHeader` or `MessageList` opens a `ContactInfoPane` sheet (right drawer) showing comprehensive contact details fetched from `GET /api/contacts/analytics` using either `?public_key=...` or `?name=...`:
@@ -573,6 +577,8 @@ For repeater contacts (`type=2`) on **mobile**, `ConversationPane.tsx` renders `
 **Actions pane**: Send Advert, Sync Clock, Reboot - all send CLI commands via `POST /api/contacts/{key}/command`.
 
 **Console pane**: Full CLI access via the same command endpoint. History is ephemeral (not persisted to DB).
+
+**History pane** (`RepeaterConfigHistoryPane.tsx`, plan 14): read-only list of the stored pane snapshots from `GET /api/contacts/{key}/repeater/config-history` (`api.repeaterConfigHistory`), grouped by kind in pane order (Node Info, Radio Settings, Advert Intervals, Owner Info, Regions), newest first, each diffed against the previous snapshot of that kind (`utils/deviceConfigHistory.ts`: `buildConfigHistory`, `formatConfigValue`); five per kind, then "Show all". `RepeaterDashboardBody` passes a `reloadKey` built from those panes' `fetched_at`, so it re-reads (DB only, no radio) after a pane fetch.
 
 All state is managed by `useRepeaterDashboard` hook. State resets on conversation change.
 
