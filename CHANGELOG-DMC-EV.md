@@ -33,6 +33,17 @@ the change. Upstream development is on hold; the fork is the active repository.
   retention stats endpoint lists them as `device_config` and
   `contact_locations`.
 
+## Update 2026-09-25 (Parity L4 closed, fix/parity-l4-auto-discovery-closeout)
+
+### Documentation
+- **`docs/parity-audit.md`:** the last open §7 item, the L4 auto contact
+  discovery confirmation, is closed by inspection. RTFM-EV discovers
+  contacts automatically (every advert heard, plus the radio's own
+  auto-add), "Block Discovery of New Node Types" skips new contacts per
+  type, and new-node notifications are opt-in per type. There is no
+  confirm-before-add queue, by design. The §5 row moves from Unverified to
+  Present and L4 to DONE. No code change.
+
 ## Update 2026-09-25 (Live verification of #230-#234, fix/config-history-partial-timeout)
 
 ### Repeater dashboard: a partly answered pane fetch is not a config change (backend)
