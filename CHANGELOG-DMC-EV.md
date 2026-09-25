@@ -11,6 +11,22 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-25 (GRP_DATA placeholder rows kept out of fanout, feat/grp-data-fanout-suppress)
+
+### Fanout: channel data placeholders are not forwarded unless opted in (backend, frontend)
+- The "Image (not supported)" / "Data (not supported)" placeholder rows stored
+  for meshcore-open channel data (`GRP_DATA`) packets (PR #214) were broadcast
+  to fanout like any channel message, so bots, private/HA MQTT, webhooks,
+  Apprise and SQS received rows that carry chunk metadata rather than a
+  message. `FanoutManager` now drops messages with `txt_type` 0x40 unless the
+  integration's scope carries `"data_placeholders": "all"`; the message
+  filter still applies on top. New scope key validated by `_enforce_scope`
+  (`'all'` | `'none'`, missing = `'none'`) for webhook, Apprise, HA MQTT,
+  private MQTT and SQS, exposed as a "Forward channel data placeholders"
+  checkbox in the scope editor (EN/NL/DE). Bots, community MQTT and the map
+  upload keep their fixed scope and never receive them. WebSocket clients
+  (the chat view) and web push are unchanged.
+
 ## Update 2026-09-25 (Backend test flake: tile cache concurrent fetch, fix/tile-cache-test-flake)
 
 ### Tests: deterministic `test_concurrent_requests_share_one_fetch` (backend)

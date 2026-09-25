@@ -1571,6 +1571,8 @@
   "settings_fanout_no_items_match": "Geen {label} komen overeen met “{search}”",
   "settings_fanout_scope_heading": "Berichtbereik",
   "settings_fanout_forward_raw_packets_label": "Ruwe pakketten doorsturen",
+  "settings_fanout_forward_data_placeholders_label": "Plaatsvervangers voor kanaaldata doorsturen",
+  "settings_fanout_forward_data_placeholders_hint": "Stuur ook de rijen \"Afbeelding (niet ondersteund)\" / \"Data (niet ondersteund)\" door die RTFM-EV opslaat voor meshcore-open kanaaldata (GRP_DATA)-pakketten. Standaard uit: ze bevatten chunk-metadata, geen bericht.",
   "settings_fanout_scope_mode_all": "Alle berichten",
   "settings_fanout_scope_mode_none": "Geen berichten",
   "settings_fanout_scope_mode_only": "Alleen vermelde kanalen/contacten",
