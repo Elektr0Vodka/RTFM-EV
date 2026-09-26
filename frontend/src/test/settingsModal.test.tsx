@@ -81,6 +81,7 @@ const baseSettings: AppSettings = {
   known_regions: [],
   blocked_keys: [],
   blocked_names: [],
+  hidden_hop_widths: [],
   sidebar_section_order: [],
   sidebar_tool_order: [],
   sidebar_favorites_order: [],

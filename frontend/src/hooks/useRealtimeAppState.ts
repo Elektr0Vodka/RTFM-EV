@@ -18,6 +18,7 @@ import {
   seedRawPacketStore,
 } from '../stores/rawPacketStore';
 import { emitStatusDotPulse } from '../utils/statusDotPulse';
+import { isMessageHiddenByHopWidth } from '../utils/pathUtils';
 import type {
   Channel,
   Contact,
@@ -40,6 +41,8 @@ interface UseRealtimeAppStateArgs {
   setContacts: Dispatch<SetStateAction<Contact[]>>;
   blockedKeysRef: MutableRefObject<string[]>;
   blockedNamesRef: MutableRefObject<string[]>;
+  /** Per-hop byte widths hidden by the chat "Hide by hop size" filter. */
+  hiddenHopWidthsRef?: MutableRefObject<ReadonlySet<number>>;
   channelsRef: MutableRefObject<Channel[]>;
   activeConversationRef: MutableRefObject<Conversation | null>;
   observeMessage: (msg: Message) => { added: boolean; activeConversation: boolean };
@@ -117,6 +120,7 @@ export function useRealtimeAppState({
   setContacts,
   blockedKeysRef,
   blockedNamesRef,
+  hiddenHopWidthsRef,
   channelsRef,
   activeConversationRef,
   observeMessage,
@@ -228,11 +232,20 @@ export function useRealtimeAppState({
           msg.type === 'CHAN' &&
           !!msg.conversation_key &&
           channelsRef.current.some((c) => c.key === msg.conversation_key && c.muted);
+        // Hidden by the chat hop-size filter: stored (the list filters it from
+        // view) but treated like a muted channel, so it raises no unread count,
+        // notification, sound or mention ticker. Matches the server's /unreads
+        // and Web Push, which apply the same setting.
+        const isHopHidden =
+          !msg.outgoing &&
+          !!hiddenHopWidthsRef &&
+          isMessageHiddenByHopWidth(msg.paths, hiddenHopWidthsRef.current);
+        const isSilenced = isMutedChannel || isHopHidden;
 
         const { added: isNewMessage, activeConversation: isForActiveConversation } =
           observeMessage(msg);
 
-        if (!isMutedChannel) {
+        if (!isSilenced) {
           recordMessageEvent({
             msg,
             activeConversation: isForActiveConversation,
@@ -241,7 +254,7 @@ export function useRealtimeAppState({
           });
         }
 
-        if (!msg.outgoing && isNewMessage && !isMutedChannel) {
+        if (!msg.outgoing && isNewMessage && !isSilenced) {
           notifyIncomingMessage?.(msg);
           notifyMentionSound?.(msg, {
             isForActiveConversation,
@@ -257,7 +270,7 @@ export function useRealtimeAppState({
           !msg.outgoing &&
           isNewMessage &&
           !isForActiveConversation &&
-          !isMutedChannel &&
+          !isSilenced &&
           checkMention(msg.text)
         ) {
           onChannelMention?.(msg);
@@ -341,6 +354,7 @@ export function useRealtimeAppState({
       activeConversationRef,
       blockedKeysRef,
       blockedNamesRef,
+      hiddenHopWidthsRef,
       checkMention,
       fetchAllContacts,
       fetchConfig,

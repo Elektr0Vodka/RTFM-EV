@@ -35,7 +35,10 @@ async def get_unreads() -> UnreadCounts:
     blocked_keys = settings.blocked_keys or None
     blocked_names = settings.blocked_names or None
     data = await MessageRepository.get_unread_counts(
-        name, blocked_keys=blocked_keys, blocked_names=blocked_names
+        name,
+        blocked_keys=blocked_keys,
+        blocked_names=blocked_names,
+        hidden_hop_widths=settings.hidden_hop_widths or None,
     )
     return UnreadCounts(**data)
 

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import { api } from '../../api';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { toast } from '../ui/sonner';
 import { useT } from '../../i18n';
 import type {
+  PartialNodeResolution,
   PartialResolutionPreview,
   PartialResolutionApplyItem,
   PartialResolutionProposal,
@@ -28,7 +30,8 @@ interface PartialNodeSyncModalProps {
 /**
  * Reviews soft resolutions for partial nodes (prefix-only placeholder contacts
  * and hop hashes seen in paths) matched against the external-map cache. Nothing
- * is persisted until the user confirms the checked rows with Apply.
+ * is persisted until the user confirms the checked rows with Apply. Soft links
+ * applied earlier are listed below the proposals and can be removed one by one.
  */
 export function PartialNodeSyncModal({ open, onClose }: PartialNodeSyncModalProps) {
   const t = useT();
@@ -38,6 +41,40 @@ export function PartialNodeSyncModal({ open, onClose }: PartialNodeSyncModalProp
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [chosen, setChosen] = useState<Record<string, number>>({});
   const [applying, setApplying] = useState(false);
+  const [applied, setApplied] = useState<PartialNodeResolution[] | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setApplied(null);
+    api
+      .listPartialResolutions()
+      .then((rows) => {
+        if (!cancelled) setApplied(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setApplied([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  const handleRemoveApplied = async (prefixHex: string) => {
+    setRemoving(prefixHex);
+    try {
+      await api.deletePartialResolution(prefixHex);
+      setApplied((prev) => prev?.filter((r) => r.prefix_hex !== prefixHex) ?? prev);
+      toast.success(t('partial_sync_resolved_cleared'));
+    } catch (err) {
+      toast.error(t('partial_sync_applied_remove_failed'), {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setRemoving(null);
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -227,7 +264,49 @@ export function PartialNodeSyncModal({ open, onClose }: PartialNodeSyncModalProp
                 <div className="mt-1 font-mono break-all">{preview.unmatched.join(', ')}</div>
               </details>
             )}
+          </>
+        )}
 
+        {applied !== null && (
+          <details className="text-xs text-muted-foreground">
+            <summary className="cursor-pointer">
+              {t('partial_sync_applied_heading', { count: applied.length })}
+            </summary>
+            <p className="mt-1">{t('partial_sync_applied_desc')}</p>
+            {applied.length === 0 ? (
+              <p className="mt-1">{t('partial_sync_applied_none')}</p>
+            ) : (
+              <div className="mt-1 max-h-48 overflow-y-auto border border-border rounded-md divide-y divide-border">
+                {applied.map((r) => (
+                  <div key={r.prefix_hex} className="flex items-center gap-2 px-2 py-1.5">
+                    <code className="font-mono text-muted-foreground">{r.prefix_hex}</code>
+                    <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                      {r.resolved_name || r.resolved_pubkey.slice(0, 12)}
+                      <span className="ml-2 font-mono text-xs text-muted-foreground">
+                        {r.resolved_pubkey.slice(0, 16)}
+                      </span>
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 flex-shrink-0"
+                      onClick={() => handleRemoveApplied(r.prefix_hex)}
+                      disabled={removing !== null}
+                      aria-label={t('partial_sync_applied_remove', { prefix: r.prefix_hex })}
+                      title={t('partial_sync_applied_remove', { prefix: r.prefix_hex })}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </details>
+        )}
+
+        {!loading && !error && preview && !preview.reason && (
+          <>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="secondary" onClick={onClose} disabled={applying}>
                 {t('common_cancel')}

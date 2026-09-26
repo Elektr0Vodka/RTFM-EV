@@ -28,6 +28,38 @@ the change. Upstream development is on hold; the fork is the active repository.
   (`hooks/useSoftResolutions.ts`). Names resolved for unnamed full-key
   contacts (#226) already reached both views through the contact list.
 
+## Update 2026-09-26 (Tester fixes: hop-size filter, map focus, soft links, fix/richard-hop-filter-map-focus)
+
+### Chat: "Hide by hop size" filter applies everywhere (backend + frontend)
+- The filter moved from browser localStorage to the server setting
+  `app_settings.hidden_hop_widths` (migration `_121`, JSON list of 1/2/3,
+  default empty). A local choice from before this change is carried to the
+  server once on first load (only when the server has none), then the old key
+  is removed.
+- Opening a channel no longer shows a hidden message just because it is the
+  first unread one: the unread divider moves to the first visible unread
+  message, or disappears when every unread message is hidden. Same for the
+  "Hide unscoped" filter.
+- Hidden messages no longer count as new: `/read-state/unreads` excludes them
+  from counts, mention flags, the unread boundary and last message times
+  (like blocked senders), live WebSocket messages hidden by the filter raise
+  no unread count, notification, sound or mention ticker (like a muted
+  channel), and Web Push skips them. Unread counts are re-fetched after the
+  filter changes. "Hide unscoped" stays a per-browser view filter.
+
+### Map: "view on map" centres on the requested node (frontend)
+- The map's one-time initial camera fit read the contacts of its first
+  render, so a focus link opened before contacts loaded, or a new focus on an
+  already open map, left the camera on the home view or the previous
+  location. The map now centres once per focus key as soon as the node is
+  known (advertised or manual location), and skips the delayed geolocate
+  fallback while a focus is pending.
+
+### Settings: remove applied soft links (frontend)
+- Radio-App Management -> "Sync partial node info" lists the soft links
+  applied earlier (collapsed, with count) with a remove button per row.
+  Removing clears only the link; a contact it created or merged stays.
+
 ## Update 2026-09-26 (Room ACL history + device history retention, plan 14, feat/room-config-history-retention)
 
 ### Room server dashboard: ACL history (backend + frontend)
