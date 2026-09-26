@@ -28,6 +28,28 @@ the change. Upstream development is on hold; the fork is the active repository.
   (`hooks/useSoftResolutions.ts`). Names resolved for unnamed full-key
   contacts (#226) already reached both views through the contact list.
 
+## Update 2026-09-26 (Room ACL history + device history retention, plan 14, feat/room-config-history-retention)
+
+### Room server dashboard: ACL history (backend + frontend)
+- Fetching a room server's ACL now also stores an `acl` snapshot in
+  `device_config_history`: who has which permission, sorted by key prefix,
+  without the locally resolved names, so a reordered list or a contact that
+  gained a name is not a change. An empty list (no answer) is not stored.
+  Room status and LPP telemetry were already kept in telemetry history.
+- New `GET /api/contacts/{key}/room/config-history`. The room tools show the
+  same "History" block as the repeater dashboard, full width, re-read after
+  an ACL fetch (DB only, nothing sent to the room server).
+
+### Data retention: device history (backend + frontend)
+- New `device_history_retention_days` (migration `_120`, default 0 = keep
+  forever, the behavior so far): one age limit for the pane snapshots
+  (`device_config_history`) and the contact positions
+  (`contact_location_history`, aged by when a position was last reported,
+  so a node still sending it keeps it). Settings > Database > Data retention
+  gains a "Device history" row with the row count of both tables; the
+  retention stats endpoint lists them as `device_config` and
+  `contact_locations`.
+
 ## Update 2026-09-25 (Parity L4 closed, fix/parity-l4-auto-discovery-closeout)
 
 ### Documentation
