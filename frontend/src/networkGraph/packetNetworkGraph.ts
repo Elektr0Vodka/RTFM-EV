@@ -4,6 +4,7 @@ import {
   CONTACT_TYPE_REPEATER,
   type Contact,
   type ContactAdvertPathSummary,
+  type PartialNodeResolution,
   type RadioConfig,
   type RawPacket,
 } from '../types';
@@ -37,6 +38,8 @@ interface AdvertPathIndex {
 export interface PacketNetworkContext {
   advertPathIndex: AdvertPathIndex;
   contactIndex: ContactIndex;
+  /** User-applied prefix -> node soft links (plan 16), keyed by lowercase prefix hex. */
+  softLinks: Map<string, PartialNodeResolution>;
   myPrefix: string | null;
   splitAmbiguousByTraffic: boolean;
   useAdvertPathHints: boolean;
@@ -108,12 +111,14 @@ export function buildPacketNetworkContext({
   config,
   contacts,
   repeaterAdvertPaths,
+  softLinks = new Map(),
   splitAmbiguousByTraffic,
   useAdvertPathHints,
 }: {
   config: RadioConfig | null;
   contacts: Contact[];
   repeaterAdvertPaths: ContactAdvertPathSummary[];
+  softLinks?: Map<string, PartialNodeResolution>;
   splitAmbiguousByTraffic: boolean;
   useAdvertPathHints: boolean;
 }): PacketNetworkContext {
@@ -149,6 +154,7 @@ export function buildPacketNetworkContext({
   return {
     contactIndex: { byPrefix12, byName, byPrefix },
     advertPathIndex: { byRepeater },
+    softLinks,
     myPrefix: config?.public_key?.slice(0, 12).toLowerCase() || null,
     splitAmbiguousByTraffic,
     useAdvertPathHints,
@@ -449,7 +455,21 @@ function resolveNode(
   let probableIdentityNodeId: string | null = null;
   let ambiguousNames = names.length > 0 ? names : undefined;
 
-  if (context.useAdvertPathHints && isRepeater && trafficContext) {
+  // A prefix the user linked to a node (plan 16 soft link) names the node;
+  // it was reviewed, so it wins over the advert-path guess below. The node
+  // stays ambiguous: the link is a probable identity, not a proven one.
+  const softLink = context.softLinks.get(lookupValue);
+  if (softLink) {
+    const linkedKey = softLink.resolved_pubkey.toLowerCase();
+    const linkedName = softLink.resolved_name || linkedKey.slice(0, 12).toUpperCase();
+    probableIdentity = linkedName;
+    probableIdentityNodeId = linkedKey.slice(0, 12);
+    displayName = linkedName;
+    const others = filtered
+      .filter((candidate) => candidate.public_key.toLowerCase() !== linkedKey)
+      .map((candidate) => candidate.name || candidate.public_key.slice(0, 8));
+    ambiguousNames = others.length > 0 ? others : undefined;
+  } else if (context.useAdvertPathHints && isRepeater && trafficContext) {
     const likely = pickLikelyRepeaterByAdvertPath(context, filtered, trafficContext.nextPrefix);
     if (likely) {
       const likelyName = likely.name || likely.public_key.slice(0, 12).toUpperCase();

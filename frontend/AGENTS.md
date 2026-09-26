@@ -58,6 +58,7 @@ frontend/src/
 │   ├── useUnreadCounts.ts          # Unread counters, mentions, recent-sort timestamps
 │   ├── useRealtimeAppState.ts      # WebSocket event application and reconnect recovery
 │   ├── useAppShell.ts              # App-shell view state (settings/sidebar/modals/cracker)
+│   ├── useSoftResolutions.ts       # Applied prefix -> node soft links (plan 16), loaded per mount, keyed by lowercase prefix
 │   ├── useRepeaterDashboard.ts      # Repeater dashboard state (login, panes, console, retries)
 │   ├── useRadioControl.ts          # Radio health/config state, reconnection, mesh discovery sweeps
 │   ├── useAppSettings.ts           # Settings, favorites, preferences migration
@@ -324,6 +325,7 @@ The "Contact link" tab only renders when `onImportContactUri` is passed (App wir
 
 - `VisualizerView.tsx` hosts `PacketVisualizer3D.tsx` (desktop split-pane and mobile tabs).
 - `PacketVisualizer3D.tsx` is now a thin composition shell over visualizer-specific hooks/components in `components/visualizer/`.
+- Soft links (plan 16): `useVisualizerData3D` passes `useSoftResolutions()` into `buildPacketNetworkContext({ softLinks })`. An ambiguous or unknown hop prefix the user linked (Settings > Radio-App Management, `PartialNodeSyncModal`) gets the linked node as its label and `probableIdentity` ("Probably: ..."), ahead of the advert-path guess; it stays `isAmbiguous`. `PathModal` does the same per hop ("Linked to X (soft link)", `data-testid="hop-soft-link"`) for hops with zero or several local matches.
 - `PacketVisualizer3D` uses persistent Three.js geometries for links/highlights/particles and updates typed-array buffers in-place per frame.
 - Packet repeat aggregation keys prefer decoder `messageHash` (path-insensitive), with hash fallback for malformed packets.
 - Raw-packet decoding in `RawPacketList.tsx` and `visualizerUtils.ts` relies on the multibyte-aware decoder fork; keep frontend packet parsing aligned with backend `path_utils.py`.
