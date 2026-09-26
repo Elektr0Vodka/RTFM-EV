@@ -12,6 +12,7 @@ import {
 } from 'd3-force-3d';
 
 import type { PacketNetworkNode } from '../../networkGraph/packetNetworkGraph';
+import { useSoftResolutions } from '../../hooks/useSoftResolutions';
 import {
   buildPacketNetworkContext,
   clearPacketNetworkState,
@@ -129,16 +130,19 @@ export function useVisualizerData3D({
   const [stats, setStats] = useState({ processed: 0, animated: 0, nodes: 0, links: 0 });
   const [, setProjectionVersion] = useState(0);
 
+  const softLinks = useSoftResolutions();
+
   const packetNetworkContext = useMemo(
     () =>
       buildPacketNetworkContext({
         contacts,
         config,
         repeaterAdvertPaths,
+        softLinks,
         splitAmbiguousByTraffic,
         useAdvertPathHints,
       }),
-    [contacts, config, repeaterAdvertPaths, splitAmbiguousByTraffic, useAdvertPathHints]
+    [contacts, config, repeaterAdvertPaths, softLinks, splitAmbiguousByTraffic, useAdvertPathHints]
   );
 
   useEffect(() => {

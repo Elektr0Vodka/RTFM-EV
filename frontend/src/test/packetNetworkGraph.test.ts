@@ -10,7 +10,7 @@ import {
   snapshotNeighborIds,
 } from '../networkGraph/packetNetworkGraph';
 import { buildLinkKey } from '../utils/visualizerUtils';
-import type { Contact, RadioConfig, RawPacket } from '../types';
+import type { Contact, PartialNodeResolution, RadioConfig, RawPacket } from '../types';
 import { CONTACT_TYPE_REPEATER } from '../types';
 
 const { packetFixtures } = vi.hoisted(() => ({
@@ -401,5 +401,101 @@ describe('packetNetworkGraph', () => {
     expect(collapsed.links.has('323232323232->aaaaaaaaaaaa')).toBe(true);
     expect(separated.renderedNodeIds.has('?32')).toBe(true);
     expect(separated.links.has('?32->aaaaaaaaaaaa')).toBe(true);
+  });
+});
+
+describe('packet network soft links (plan 16)', () => {
+  const selfKey = 'ffffffffffff0000000000000000000000000000000000000000000000000000';
+  const aliceKey = 'aaaaaaaaaaaa0000000000000000000000000000000000000000000000000000';
+  const relayA = '32aa00000000000000000000000000000000000000000000000000000000000a';
+  const relayB = '32bb00000000000000000000000000000000000000000000000000000000000b';
+
+  function softLink(prefix: string, pubkey: string, name: string | null): PartialNodeResolution {
+    return {
+      prefix_hex: prefix,
+      resolved_pubkey: pubkey,
+      resolved_name: name,
+      source: 'external_map',
+      confidence: 0.8,
+      candidate_count: 2,
+      resolved_by: 'user',
+      created_at: null,
+      updated_at: null,
+    };
+  }
+
+  function ingest(
+    fixture: string,
+    hop: string,
+    contacts: Contact[],
+    links: Map<string, PartialNodeResolution>
+  ) {
+    packetFixtures.set(fixture, {
+      payloadType: PayloadType.TextMessage,
+      messageHash: fixture,
+      pathBytes: [hop],
+      srcHash: 'aaaaaaaaaaaa',
+      dstHash: 'ffffffffffff',
+      advertPubkey: null,
+      groupTextSender: null,
+      anonRequestPubkey: null,
+    });
+    const state = createPacketNetworkState('Me');
+    const context = buildPacketNetworkContext({
+      contacts: [createContact(aliceKey, 'Alice'), ...contacts],
+      config: createConfig(selfKey),
+      repeaterAdvertPaths: [],
+      softLinks: links,
+      splitAmbiguousByTraffic: false,
+      useAdvertPathHints: false,
+    });
+    ingestPacketIntoPacketNetwork(state, context, createPacket(fixture));
+    return state;
+  }
+
+  it('names an ambiguous hop after the linked node and keeps the others as possible', () => {
+    const links = new Map([['32', softLink('32', relayB, 'Relay B')]]);
+    const state = ingest(
+      'soft-link-ambiguous',
+      '32',
+      [
+        createContact(relayA, 'Relay A', CONTACT_TYPE_REPEATER),
+        createContact(relayB, 'Relay B', CONTACT_TYPE_REPEATER),
+      ],
+      links
+    );
+
+    const node = state.nodes.get('?32');
+    expect(node?.isAmbiguous).toBe(true);
+    expect(node?.name).toBe('Relay B');
+    expect(node?.probableIdentity).toBe('Relay B');
+    expect(node?.probableIdentityNodeId).toBe(relayB.slice(0, 12));
+    expect(node?.ambiguousNames).toEqual(['Relay A']);
+  });
+
+  it('names a hop no local contact matches', () => {
+    const remote = '45cc00000000000000000000000000000000000000000000000000000000000c';
+    const links = new Map([['45', softLink('45', remote, 'Far Relay')]]);
+    const state = ingest('soft-link-unknown', '45', [], links);
+
+    const node = state.nodes.get('?45');
+    expect(node?.name).toBe('Far Relay');
+    expect(node?.probableIdentity).toBe('Far Relay');
+    expect(node?.ambiguousNames).toBeUndefined();
+  });
+
+  it('leaves hops without a link unchanged', () => {
+    const state = ingest(
+      'soft-link-none',
+      '32',
+      [
+        createContact(relayA, 'Relay A', CONTACT_TYPE_REPEATER),
+        createContact(relayB, 'Relay B', CONTACT_TYPE_REPEATER),
+      ],
+      new Map()
+    );
+    const node = state.nodes.get('?32');
+    expect(node?.probableIdentity).toBeNull();
+    expect(node?.ambiguousNames).toEqual(['Relay A', 'Relay B']);
   });
 });

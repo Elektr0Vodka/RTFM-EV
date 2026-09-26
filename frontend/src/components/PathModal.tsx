@@ -1,5 +1,5 @@
 import { useState, lazy, Suspense } from 'react';
-import type { Contact, RadioConfig, MessagePath } from '../types';
+import type { Contact, RadioConfig, MessagePath, PartialNodeResolution } from '../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import {
@@ -17,6 +17,7 @@ import { getMapFocusHash } from '../utils/urlHash';
 import { useDistanceUnit } from '../contexts/DistanceUnitContext';
 import type { DistanceUnit } from '../utils/distanceUnits';
 import { useT, type TFn } from '../i18n';
+import { useSoftResolutions, type SoftResolutionMap } from '../hooks/useSoftResolutions';
 
 const PathRouteMap = lazy(() =>
   import('./PathRouteMap').then((m) => ({ default: m.PathRouteMap }))
@@ -54,6 +55,7 @@ export function PathModal({
   const t = useT();
   const { distanceUnit } = useDistanceUnit();
   const [mapModalIndex, setMapModalIndex] = useState<number | 'all' | null>(null);
+  const softLinks = useSoftResolutions(open);
   const hasResendActions = isOutgoingChan && messageId !== undefined && onResend;
   const hasPaths = paths.length > 0;
   const showAnalyzePacket = hasPaths && packetId != null && onAnalyzePacket;
@@ -199,6 +201,7 @@ export function PathModal({
                   resolved={pathData.resolved}
                   senderInfo={senderInfo}
                   distanceUnit={distanceUnit}
+                  softLinks={softLinks}
                   t={t}
                 />
               </div>
@@ -304,10 +307,17 @@ interface PathVisualizationProps {
   resolved: ResolvedPath;
   senderInfo: SenderInfo;
   distanceUnit: DistanceUnit;
+  softLinks: SoftResolutionMap;
   t: TFn;
 }
 
-function PathVisualization({ resolved, senderInfo, distanceUnit, t }: PathVisualizationProps) {
+function PathVisualization({
+  resolved,
+  senderInfo,
+  distanceUnit,
+  softLinks,
+  t,
+}: PathVisualizationProps) {
   // Track previous location for each hop to calculate distances
   // Returns null if previous hop was ambiguous or has invalid location
   const getPrevLocation = (hopIndex: number): { lat: number | null; lon: number | null } | null => {
@@ -358,6 +368,7 @@ function PathVisualization({ resolved, senderInfo, distanceUnit, t }: PathVisual
           hopNumber={index + 1}
           prevLocation={getPrevLocation(index)}
           distanceUnit={distanceUnit}
+          softLink={softLinks.get(hop.prefix.toLowerCase())}
           t={t}
         />
       ))}
@@ -457,12 +468,14 @@ interface HopNodeProps {
   hopNumber: number;
   prevLocation: { lat: number | null; lon: number | null } | null;
   distanceUnit: DistanceUnit;
+  /** Soft link the user applied to this hop prefix (plan 16); shown for unknown/ambiguous hops. */
+  softLink?: PartialNodeResolution;
   t: TFn;
 }
 
 const AMBIGUOUS_MATCH_PREVIEW_LIMIT = 3;
 
-function HopNode({ hop, hopNumber, prevLocation, distanceUnit, t }: HopNodeProps) {
+function HopNode({ hop, hopNumber, prevLocation, distanceUnit, softLink, t }: HopNodeProps) {
   const isAmbiguous = hop.matches.length > 1;
   const isUnknown = hop.matches.length === 0;
   const [expanded, setExpanded] = useState(false);
@@ -504,8 +517,17 @@ function HopNode({ hop, hopNumber, prevLocation, distanceUnit, t }: HopNodeProps
           )}
         </div>
 
+        {softLink && (isUnknown || isAmbiguous) && (
+          <div className="text-xs text-muted-foreground truncate" data-testid="hop-soft-link">
+            {t('path_modal_soft_link', {
+              name: softLink.resolved_name || softLink.resolved_pubkey.slice(0, 12),
+            })}
+          </div>
+        )}
         {isUnknown ? (
-          <div className="font-medium text-muted-foreground">{t('path_modal_unknown_node')}</div>
+          softLink ? null : (
+            <div className="font-medium text-muted-foreground">{t('path_modal_unknown_node')}</div>
+          )
         ) : isAmbiguous ? (
           <div>
             {(expanded ? hop.matches : hop.matches.slice(0, AMBIGUOUS_MATCH_PREVIEW_LIMIT)).map(

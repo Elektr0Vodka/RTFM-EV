@@ -482,7 +482,9 @@ prefix's located path-neighbours.
 Read-time enrichment also consumes the soft links: `ContactInfoBody` display +
 analyzer button for still-unpromoted prefix-only contacts, the advert-links
 resolver (`resolve_advert_edges`'s `confirmed` arg disambiguates a hop to the
-chosen node), and a Prefix Collisions tab badge.
+chosen node), and a Prefix Collisions tab badge. The frontend also reads
+`GET /partial-resolutions` to name linked hop prefixes in the packet visualizer
+and the path modal (`hooks/useSoftResolutions.ts`).
 
 ### Read state
 - `GET /read-state/unreads` - counts, mention flags, `last_message_times`, `last_read_ats`, and `first_unread_ids`
