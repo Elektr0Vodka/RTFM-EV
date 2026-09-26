@@ -48,6 +48,25 @@ def _reset_radio_stats_buffers():
 
 
 @pytest.fixture(autouse=True)
+def _fresh_radio_operation_lock():
+    """Give every test its own ``radio_manager`` operation lock.
+
+    The lock lives on the module-global ``radio_manager`` and is created
+    lazily. An ``asyncio.Lock`` binds to the event loop of the first
+    contended ``acquire``, and each async test runs in a new loop, so a lock
+    left over from an earlier test on the same xdist worker makes the next
+    contended acquire raise "is bound to a different event loop" (seen in
+    ``test_concurrent_sends_to_same_channel_both_succeed``). Per-file
+    save/restore fixtures only put that same bound lock back.
+    """
+    from app.radio import radio_manager
+
+    radio_manager._operation_lock = None
+    yield
+    radio_manager._operation_lock = None
+
+
+@pytest.fixture(autouse=True)
 def _reset_new_node_notify_state():
     """Reset new-node notification batching/warm-up state between tests.
 

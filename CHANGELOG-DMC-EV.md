@@ -11,6 +11,19 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-26 (Backend test flake: radio operation lock bound to an old event loop, fix/send-messages-lock-loop-flake)
+
+### Tests: fresh radio operation lock per test (backend)
+- `test_concurrent_sends_to_same_channel_both_succeed` failed intermittently
+  in CI (main push run for #240 and the #241 PR run) with "Lock ... is bound
+  to a different event loop". `radio_manager._operation_lock` is a
+  module-global `asyncio.Lock`; it binds to the event loop of its first
+  contended acquire, and a lock left bound by an earlier test on the same
+  xdist worker broke the next test's concurrent sends. The per-file
+  save/restore fixtures only put that same lock back. `tests/conftest.py`
+  now resets it to `None` around every test (the app creates it lazily).
+  Test-only change.
+
 ## Update 2026-09-26 (Relay signal map overlay, plan 21 S2, feat/relay-snr-map-layer)
 
 ### Map: relay signal rings (frontend)
