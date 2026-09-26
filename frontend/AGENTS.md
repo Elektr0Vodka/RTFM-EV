@@ -97,6 +97,7 @@ frontend/src/
 │   ├── meshcoreOpenPayloads.ts # Rich MeshCore Open payload detection/rendering helpers
 │   ├── textReplace.ts          # Shared message text substitution helpers
 │   ├── pathHopWidthPreference.ts # LocalStorage persistence for hop-width display toggle
+│   ├── messageHopFilterPreference.ts # Chat "Hide unscoped" filter (localStorage) + read/clear of the legacy local "Hide by hop size" key (the hop filter now lives in app_settings.hidden_hop_widths; useAppSettings migrates the old key once)
 │   ├── richPayloadPreference.ts  # LocalStorage persistence for rich payload rendering toggle
 │   ├── visualizerUtils.ts      # 3D visualizer node types, colors, particles
 │   ├── visualizerSettings.ts   # LocalStorage persistence for visualizer options
@@ -120,7 +121,7 @@ frontend/src/
 │   ├── StatusBar.tsx
 │   ├── Sidebar.tsx             # Conversation list; Customize panel (section/tool/favorites-group reorder+hide) + Contact Groups (create/rename/delete); each contact_group renders as its own reorderable/hideable/collapsible section (see sidebarLayout.ts); `owned` section (plan 17 phase 3): contacts whose `owner_key` equals the radio's public key (`ownPublicKey` prop, from App `config`), bucketed by type, rendered only when non-empty
 │   ├── ChatHeader.tsx          # Conversation header (trace, favorite, delete)
-│   ├── MessageList.tsx        # Message rows; #hashtag refs styled by state (followed/known/unknown) with an inline "+" to capture unknowns into the registry (auto-capture via app_settings.auto_add_mentioned_channels); hover React/Reply/Mark-unread/Delete (MessageRowActions) and reaction-target links (ReactionTargetLink); inline `<pubkey:type:Name>` contact shares (utils/chatEntities `findContactShares`, always tokenized, priority over the bare-pubkey scanner) render as ContactShareToken: known contact opens info, unknown shows name/type/short key + "Add contact" via `onAddSharedContact` (App: `handleCreateContact(name, key, false, type)`); rows with txt_type === TXT_TYPE_GROUP_DATA (GRP_DATA channel datagrams, marker text `[image] id=.. chunks=..` / `[data] type=.. len=..`) render an "Image (not supported)" / "Data (not supported)" placeholder instead of the text
+│   ├── MessageList.tsx        # Message rows; #hashtag refs styled by state (followed/known/unknown) with an inline "+" to capture unknowns into the registry (auto-capture via app_settings.auto_add_mentioned_channels); hover React/Reply/Mark-unread/Delete (MessageRowActions) and reaction-target links (ReactionTargetLink); inline `<pubkey:type:Name>` contact shares (utils/chatEntities `findContactShares`, always tokenized, priority over the bare-pubkey scanner) render as ContactShareToken: known contact opens info, unknown shows name/type/short key + "Add contact" via `onAddSharedContact` (App: `handleCreateContact(name, key, false, type)`); rows with txt_type === TXT_TYPE_GROUP_DATA (GRP_DATA channel datagrams, marker text `[image] id=.. chunks=..` / `[data] type=.. len=..`) render an "Image (not supported)" / "Data (not supported)" placeholder instead of the text; view filters "Hide by hop size" (controlled by `hiddenHopWidths` from app_settings, saved via `onHiddenHopWidthsChange`) and "Hide unscoped" (localStorage) hide incoming rows except the jump target, and the unread divider moves to the first visible unread message (none when all unread rows are hidden)
 │   ├── MessageInput.tsx
 │   ├── NewMessageModal.tsx     # Contact / Contact link (meshcore:// import) / channel tabs
 │   ├── ContactLinkShare.tsx    # On-demand meshcore:// link with copy (contact info + Settings > Radio)
@@ -171,7 +172,7 @@ frontend/src/
 │   │   ├── SettingsLocalSection.tsx      # Browser-local settings: theme, relative font scale, local label, reopen last conversation
 │   │   ├── SettingsFanoutSection.tsx     # Fanout integrations: MQTT, bots, config CRUD
 │   │   ├── SettingsRadioAppSection.tsx    # Radio-App Management: tracked telemetry, contact management, blocked lists, partial-node sync
-│   │   ├── PartialNodeSyncModal.tsx       # Review + apply soft resolutions of partial nodes vs the external-map cache
+│   │   ├── PartialNodeSyncModal.tsx       # Review + apply soft resolutions of partial nodes vs the external-map cache; lists applied soft links (collapsed) with a per-row remove (DELETE /partial-resolutions/{prefix})
 │   │   ├── SettingsDatabaseSection.tsx   # Database: DB size, storage cleanup, auto-decrypt
 │   │   ├── SettingsAboutSection.tsx     # Version, author, license, links
 │   │   ├── ThemeSelector.tsx           # Color theme picker
@@ -276,7 +277,7 @@ High-level state is delegated to hooks:
 - `useConversationActions`: send/resend/trace/path-discovery/block handlers and channel override updates
 - `useConversationMessages`: conversation switch loading, embedded conversation-scoped cache, jump-target loading, pagination, dedup/update helpers, reconnect reconciliation, and pending ACK buffering
 - `useUnreadCounts`: unread counters, mention tracking, recent-sort timestamps, server `last_read_ats`, `first_unread_ids` (the unread-divider anchor), and `markConversationUnreadFromMessage` ("mark unread from here")
-- `useRealtimeAppState`: typed WS event application, reconnect recovery, cache/unread coordination
+- `useRealtimeAppState`: typed WS event application, reconnect recovery, cache/unread coordination; incoming messages hidden by the hop-size filter (`hiddenHopWidthsRef`) are stored but raise no unread count, recency bump, notification, sound or mention ticker, like a muted channel
 - `useRepeaterDashboard`: repeater dashboard state (login, pane data/retries, console, actions)
 
 `App.tsx` intentionally still does the final `AppShell` prop assembly. That composition layer is considered acceptable here because it keeps the shell contract visible in one place and avoids a prop-bundling hook with little original logic.

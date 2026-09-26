@@ -9,6 +9,8 @@ vi.mock('../api', () => ({
   api: {
     previewPartialResolutions: vi.fn(),
     applyPartialResolutions: vi.fn().mockResolvedValue({ applied: 1 }),
+    listPartialResolutions: vi.fn(),
+    deletePartialResolution: vi.fn(),
   },
 }));
 
@@ -36,6 +38,7 @@ const unambiguousPreview: PartialResolutionPreview = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(api.listPartialResolutions).mockResolvedValue([]);
 });
 
 describe('PartialNodeSyncModal', () => {
@@ -151,5 +154,65 @@ describe('PartialNodeSyncModal', () => {
     render(<PartialNodeSyncModal open onClose={() => {}} />);
 
     expect(await screen.findByText(/external map cache is empty/i)).toBeInTheDocument();
+  });
+
+  describe('applied soft links', () => {
+    const appliedRow = (prefix: string, name: string) => ({
+      prefix_hex: prefix,
+      resolved_pubkey: prefix + '22'.repeat(31),
+      resolved_name: name,
+      source: 'external_map',
+      confidence: 0.9,
+      candidate_count: 1,
+      resolved_by: 'user',
+      created_at: null,
+      updated_at: null,
+    });
+
+    it('lists applied links and removes one', async () => {
+      vi.mocked(api.previewPartialResolutions).mockResolvedValue(unambiguousPreview);
+      vi.mocked(api.listPartialResolutions).mockResolvedValue([
+        appliedRow('bb', 'Bravo'),
+        appliedRow('cc', 'Charlie'),
+      ]);
+      vi.mocked(api.deletePartialResolution).mockResolvedValue({ deleted: true });
+      render(<PartialNodeSyncModal open onClose={() => {}} />);
+
+      fireEvent.click(await screen.findByText('Applied soft links (2)'));
+      expect(screen.getByText('Bravo')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Remove soft link bb' }));
+
+      await waitFor(() => expect(api.deletePartialResolution).toHaveBeenCalledWith('bb'));
+      await waitFor(() => expect(screen.queryByText('Bravo')).not.toBeInTheDocument());
+      expect(screen.getByText('Charlie')).toBeInTheDocument();
+      expect(screen.getByText('Applied soft links (1)')).toBeInTheDocument();
+    });
+
+    it('keeps the row when removal fails', async () => {
+      vi.mocked(api.previewPartialResolutions).mockResolvedValue(unambiguousPreview);
+      vi.mocked(api.listPartialResolutions).mockResolvedValue([appliedRow('bb', 'Bravo')]);
+      vi.mocked(api.deletePartialResolution).mockRejectedValue(new Error('boom'));
+      render(<PartialNodeSyncModal open onClose={() => {}} />);
+
+      fireEvent.click(await screen.findByText('Applied soft links (1)'));
+      fireEvent.click(screen.getByRole('button', { name: 'Remove soft link bb' }));
+
+      await waitFor(() => expect(api.deletePartialResolution).toHaveBeenCalledWith('bb'));
+      expect(screen.getByText('Bravo')).toBeInTheDocument();
+    });
+
+    it('shows applied links even when the external map cache is empty', async () => {
+      vi.mocked(api.previewPartialResolutions).mockResolvedValue({
+        external_count: 0,
+        reason: 'The external map cache is empty.',
+        resolutions: [],
+        unmatched: [],
+      });
+      vi.mocked(api.listPartialResolutions).mockResolvedValue([appliedRow('bb', 'Bravo')]);
+      render(<PartialNodeSyncModal open onClose={() => {}} />);
+
+      expect(await screen.findByText('Applied soft links (1)')).toBeInTheDocument();
+    });
   });
 });

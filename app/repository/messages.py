@@ -359,6 +359,34 @@ class MessageRepository:
         return f"NOT ({prefix}outgoing = 0 AND ({' OR '.join(blocked_matchers)}))", params
 
     @staticmethod
+    def _build_hidden_hop_width_clause(
+        message_alias: str = "",
+        hidden_hop_widths: list[int] | None = None,
+    ) -> str:
+        """Exclude incoming messages hidden by the chat 'Hide by hop size' filter.
+
+        Same rule as the frontend's isMessageHiddenByHopWidth and
+        ``path_utils.message_hidden_by_hop_width``: a message is hidden when ANY
+        stored path has a per-hop byte width in *hidden_hop_widths*. A path's
+        width is only derivable when ``path_len`` > 0 and the hex path is exactly
+        ``path_len`` hops of 2/4/6 hex chars; direct (0-hop) and legacy paths
+        never match. Widths are validated ints, so they are inlined, not bound.
+        """
+        widths = sorted({w for w in hidden_hop_widths or [] if w in (1, 2, 3)})
+        if not widths:
+            return ""
+        prefix = f"{message_alias}." if message_alias else ""
+        path_expr = "json_extract(p.value, '$.path')"
+        len_expr = "json_extract(p.value, '$.path_len')"
+        width_matches = " OR ".join(f"length({path_expr}) = {len_expr} * {2 * w}" for w in widths)
+        return (
+            f"NOT ({prefix}outgoing = 0 AND EXISTS ("
+            f"SELECT 1 FROM json_each(CASE WHEN json_valid({prefix}paths) "
+            f"THEN {prefix}paths ELSE '[]' END) p "
+            f"WHERE {len_expr} > 0 AND ({width_matches})))"
+        )
+
+    @staticmethod
     def _row_to_message(row: Any) -> Message:
         """Convert a database row to a Message model."""
         packet_id = None
@@ -839,6 +867,7 @@ class MessageRepository:
         name: str | None = None,
         blocked_keys: list[str] | None = None,
         blocked_names: list[str] | None = None,
+        hidden_hop_widths: list[int] | None = None,
     ) -> dict:
         """Get unread message counts, mention flags, and last message times for all conversations.
 
@@ -846,6 +875,9 @@ class MessageRepository:
             name: User's display name for @[name] mention detection. If None, mentions are skipped.
             blocked_keys: Public keys whose messages should be excluded from counts.
             blocked_names: Display names whose messages should be excluded from counts.
+            hidden_hop_widths: Per-hop byte widths (1/2/3) whose incoming messages the
+                chat hop-size filter hides; excluded from counts, mentions, the unread
+                boundary and last message times, like blocked traffic.
 
         Returns:
             Dict with 'counts', 'mentions', 'last_message_times', 'last_read_ats',
@@ -864,13 +896,27 @@ class MessageRepository:
             "m", blocked_keys, blocked_names
         )
         blocked_sql = f" AND {blocked_clause}" if blocked_clause else ""
+        hidden_clause = MessageRepository._build_hidden_hop_width_clause("m", hidden_hop_widths)
+        if hidden_clause:
+            blocked_sql += f" AND {hidden_clause}"
 
         # Last message times for all conversations (including read ones),
-        # excluding blocked incoming traffic so refresh matches live WS behavior.
+        # excluding blocked and hop-hidden incoming traffic so refresh matches
+        # live WS behavior.
         last_time_clause, last_time_params = MessageRepository._build_blocked_incoming_clause(
             blocked_keys=blocked_keys, blocked_names=blocked_names
         )
-        last_time_where_sql = f"WHERE {last_time_clause}" if last_time_clause else ""
+        last_time_clauses = [
+            c
+            for c in (
+                last_time_clause,
+                MessageRepository._build_hidden_hop_width_clause("", hidden_hop_widths),
+            )
+            if c
+        ]
+        last_time_where_sql = (
+            f"WHERE {' AND '.join(last_time_clauses)}" if last_time_clauses else ""
+        )
 
         # Single readonly acquisition for all 5 queries - they form one logical
         # snapshot, and holding the lock for the batch is cheaper than acquiring

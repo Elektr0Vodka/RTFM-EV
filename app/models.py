@@ -1676,6 +1676,13 @@ class AppSettings(BaseModel):
         default_factory=list,
         description="Display names whose messages are hidden from the UI",
     )
+    hidden_hop_widths: list[int] = Field(
+        default_factory=list,
+        description=(
+            "Per-hop path byte widths (1/2/3) whose incoming messages are hidden in chat "
+            "and excluded from unread counts, mentions and Web Push ('Hide by hop size')."
+        ),
+    )
     sidebar_hidden: SidebarHidden = Field(
         default_factory=SidebarHidden,
         description="Customize-sidebar entries hidden from the sidebar (sections/tools/favorites).",

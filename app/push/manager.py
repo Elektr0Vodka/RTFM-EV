@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 from pywebpush import WebPushException
 
+from app.path_utils import message_hidden_by_hop_width
 from app.push.send import send_push
 from app.push.vapid import get_vapid_claims, get_vapid_private_key
 from app.repository.channels import ChannelRepository
@@ -115,10 +116,13 @@ class PushManager:
         if state_key not in push_conversations:
             return
 
-        # Skip blocked senders (contacts and channel sender names)
+        # Skip blocked senders (contacts and channel sender names), and messages
+        # the chat 'Hide by hop size' filter hides.
         try:
             settings = await AppSettingsRepository.get()
             if _is_blocked(data, settings.blocked_keys, settings.blocked_names):
+                return
+            if message_hidden_by_hop_width(data.get("paths"), settings.hidden_hop_widths):
                 return
         except Exception:
             logger.debug("Push dispatch: failed to check block lists", exc_info=True)

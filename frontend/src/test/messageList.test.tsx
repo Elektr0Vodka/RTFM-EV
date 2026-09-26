@@ -696,11 +696,15 @@ describe('MessageList hop-size filter', () => {
     expect(row(container, 3)).not.toBeNull(); // no derivable width always shown
   });
 
-  it('keeps the unread-anchor message visible even when its width is hidden', async () => {
+  // The virtual row wrapper holding a message; the unread divider renders inside it.
+  const virtualRow = (container: HTMLElement, id: number) =>
+    row(container, id)?.closest('[data-index]') ?? null;
+
+  it('hides a hidden-width unread anchor and moves the divider to the next visible message', async () => {
     const user = userEvent.setup();
     const { container } = render(
       <MessageList
-        messages={[oneByte(1), oneByte(4), twoByte(2)]}
+        messages={[oneByte(1), twoByte(2), oneByte(3), twoByte(4)]}
         contacts={[]}
         loading={false}
         unreadMarkerMessageId={1}
@@ -709,11 +713,46 @@ describe('MessageList hop-size filter', () => {
 
     await hideWidth(user, /1-byte hops/i);
 
-    // The anchor (id 1) stays so the unread divider never dangles; the other
-    // 1-byte message (id 4) is hidden as normal.
+    // The server's boundary (id 1) is a 1-byte message: it is hidden like any
+    // other, and the divider sits on the first visible unread message instead.
+    expect(row(container, 1)).toBeNull();
+    expect(row(container, 3)).toBeNull();
+    const divider = screen.getByText('Unread messages');
+    expect(virtualRow(container, 2)?.contains(divider)).toBe(true);
+  });
+
+  it('drops the unread divider when every unread message is hidden', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <MessageList
+        messages={[twoByte(1), oneByte(2), oneByte(3)]}
+        contacts={[]}
+        loading={false}
+        unreadMarkerMessageId={2}
+      />
+    );
+
+    await hideWidth(user, /1-byte hops/i);
+
     expect(row(container, 1)).not.toBeNull();
-    expect(row(container, 4)).toBeNull();
+    expect(screen.queryByText('Unread messages')).not.toBeInTheDocument();
+  });
+
+  it('applies a server-provided hidden-width selection on first render', () => {
+    // A channel opened while the filter is already set must be filtered at once,
+    // without a reload, including a hidden unread boundary.
+    const { container } = render(
+      <MessageList
+        messages={[oneByte(1), twoByte(2)]}
+        contacts={[]}
+        loading={false}
+        unreadMarkerMessageId={1}
+        hiddenHopWidths={[1]}
+      />
+    );
+    expect(row(container, 1)).toBeNull();
     expect(row(container, 2)).not.toBeNull();
+    expect(virtualRow(container, 2)?.contains(screen.getByText('Unread messages'))).toBe(true);
   });
 
   it('leaves server-driven pagination chrome intact when everything visible is filtered', async () => {
@@ -736,21 +775,33 @@ describe('MessageList hop-size filter', () => {
     expect(screen.getByText('Scroll up for older messages')).toBeInTheDocument();
   });
 
-  it('persists the hidden widths across a remount (localStorage-backed)', async () => {
+  it('reports toggles to the server-backed setting when controlled', async () => {
     const user = userEvent.setup();
-    const first = render(
-      <MessageList messages={[oneByte(1), twoByte(2)]} contacts={[]} loading={false} />
+    const onChange = vi.fn();
+    const { container, rerender } = render(
+      <MessageList
+        messages={[oneByte(1), twoByte(2)]}
+        contacts={[]}
+        loading={false}
+        hiddenHopWidths={[]}
+        onHiddenHopWidthsChange={onChange}
+      />
     );
     await hideWidth(user, /1-byte hops/i);
-    expect(first.container.querySelector('[data-message-id="1"]')).toBeNull();
-    first.unmount();
+    expect(onChange).toHaveBeenCalledWith([1]);
 
-    const second = render(
-      <MessageList messages={[oneByte(1), twoByte(2)]} contacts={[]} loading={false} />
+    // The parent echoes the saved setting back; the list follows the prop.
+    rerender(
+      <MessageList
+        messages={[oneByte(1), twoByte(2)]}
+        contacts={[]}
+        loading={false}
+        hiddenHopWidths={[1]}
+        onHiddenHopWidthsChange={onChange}
+      />
     );
-    // A fresh instance reads the persisted filter, so the 1-byte message stays hidden.
-    expect(second.container.querySelector('[data-message-id="1"]')).toBeNull();
-    expect(second.container.querySelector('[data-message-id="2"]')).not.toBeNull();
+    expect(row(container, 1)).toBeNull();
+    expect(row(container, 2)).not.toBeNull();
   });
 
   const scoped = (id: number) =>
@@ -795,11 +846,11 @@ describe('MessageList hop-size filter', () => {
     expect(row(container, 12)).not.toBeNull(); // your own message always stays
   });
 
-  it('keeps an unscoped unread-anchor message visible', async () => {
+  it('moves the unread divider past an unscoped anchor too', async () => {
     const user = userEvent.setup();
     const { container } = render(
       <MessageList
-        messages={[unscopedIncoming(11), unscopedIncoming(13)]}
+        messages={[unscopedIncoming(11), scoped(12), unscopedIncoming(13)]}
         contacts={[]}
         loading={false}
         unreadMarkerMessageId={11}
@@ -808,8 +859,9 @@ describe('MessageList hop-size filter', () => {
 
     await openFilterAndCheck(user, /hide unscoped/i);
 
-    expect(row(container, 11)).not.toBeNull(); // anchor protected
-    expect(row(container, 13)).toBeNull(); // other unscoped hidden
+    expect(row(container, 11)).toBeNull(); // anchor no longer forced visible
+    expect(row(container, 13)).toBeNull();
+    expect(virtualRow(container, 12)?.contains(screen.getByText('Unread messages'))).toBe(true);
   });
 });
 

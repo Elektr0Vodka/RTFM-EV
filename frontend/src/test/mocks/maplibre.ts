@@ -75,6 +75,8 @@ export function mockMaplibreModule() {
       setHTML: vi.fn().mockReturnThis(),
       addTo: vi.fn().mockReturnThis(),
       remove: vi.fn(),
+      // MapView subscribes to 'close' to unmount popup charts.
+      on: vi.fn().mockReturnThis(),
     };
   });
   const NavigationControl = vi.fn(function NavigationControl() {

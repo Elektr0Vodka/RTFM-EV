@@ -50,12 +50,7 @@ import {
 } from '../utils/pathUtils';
 import { getDirectContactRoute, getEffectiveLocation } from '../utils/pathUtils';
 import { classifyMessageScope, formatTransportCode } from '../utils/messageScope';
-import {
-  getSavedHiddenHopWidths,
-  setSavedHiddenHopWidths,
-  getSavedHideUnscoped,
-  setSavedHideUnscoped,
-} from '../utils/messageHopFilterPreference';
+import { getSavedHideUnscoped, setSavedHideUnscoped } from '../utils/messageHopFilterPreference';
 import { ContactAvatar } from './ContactAvatar';
 import { PathModal } from './PathModal';
 import { RawPacketInspectorDialog } from './RawPacketDetailModal';
@@ -79,6 +74,14 @@ interface MessageListProps {
   hasOlderMessages?: boolean;
   /** Id of the oldest unread message, from the server. Null when nothing is unread. */
   unreadMarkerMessageId?: number | null;
+  /**
+   * Per-hop byte widths (1/2/3) hidden by the "Hide by hop size" filter. Stored
+   * server-side (app setting `hidden_hop_widths`); when omitted the filter is
+   * kept in local component state only.
+   */
+  hiddenHopWidths?: readonly number[];
+  /** Persist a new hidden-width selection (sorted, deduplicated). */
+  onHiddenHopWidthsChange?: (widths: number[]) => void;
   onDismissUnreadMarker?: () => void;
   /** Called when the unread boundary is not in loaded history and must be jumped to. */
   onNavigateToUnread?: (messageId: number) => void;
@@ -796,7 +799,9 @@ export function MessageList({
   loading,
   loadingOlder = false,
   hasOlderMessages = false,
-  unreadMarkerMessageId,
+  unreadMarkerMessageId: rawUnreadMarkerMessageId,
+  hiddenHopWidths: hiddenHopWidthsProp,
+  onHiddenHopWidthsChange,
   onDismissUnreadMarker,
   onNavigateToUnread,
   onJumpToMessage,
@@ -878,29 +883,38 @@ export function MessageList({
   const targetScrolledRef = useRef(false);
   const unreadMarkerRef = useRef<HTMLButtonElement | HTMLDivElement | null>(null);
   // Per-hop byte widths (1/2/3) the user has chosen to hide from this list, e.g.
-  // to suppress spam flooding a channel at a given path-hash mode. Persisted in
-  // localStorage so the choice survives the per-conversation remount of this
-  // component (see messageHopFilterPreference).
-  const [hiddenHopWidths, setHiddenHopWidths] = useState<Set<number>>(() =>
-    getSavedHiddenHopWidths()
+  // to suppress spam flooding a channel at a given path-hash mode. Controlled by
+  // the server-side app setting when the parent passes it (so unread counts and
+  // notifications honour the same filter); local state otherwise.
+  const [localHiddenHopWidths, setLocalHiddenHopWidths] = useState<readonly number[]>([]);
+  const hiddenHopWidthsSource = hiddenHopWidthsProp ?? localHiddenHopWidths;
+  const hiddenHopWidthsKey = hiddenHopWidthsSource.join(',');
+  const hiddenHopWidths = useMemo(
+    () => new Set(hiddenHopWidthsKey ? hiddenHopWidthsKey.split(',').map(Number) : []),
+    [hiddenHopWidthsKey]
   );
   // Hide messages that carry no regional flood-scope ("unscoped"), e.g. global
   // noise. Persisted like the hop-width filter.
   const [hideUnscoped, setHideUnscoped] = useState<boolean>(() => getSavedHideUnscoped());
   const [hopFilterOpen, setHopFilterOpen] = useState(false);
   const hopFilterRef = useRef<HTMLDivElement>(null);
-  const toggleHopWidth = useCallback((width: number) => {
-    setHiddenHopWidths((prev) => {
-      const next = new Set(prev);
+  const toggleHopWidth = useCallback(
+    (width: number) => {
+      const next = new Set(hiddenHopWidths);
       if (next.has(width)) {
         next.delete(width);
       } else {
         next.add(width);
       }
-      setSavedHiddenHopWidths(next);
-      return next;
-    });
-  }, []);
+      const sorted = [...next].sort((a, b) => a - b);
+      if (onHiddenHopWidthsChange) {
+        onHiddenHopWidthsChange(sorted);
+      } else {
+        setLocalHiddenHopWidths(sorted);
+      }
+    },
+    [hiddenHopWidths, onHiddenHopWidthsChange]
+  );
   const toggleHideUnscoped = useCallback(() => {
     setHideUnscoped((prev) => {
       const next = !prev;
@@ -982,22 +996,24 @@ export function MessageList({
   // Sort messages by received_at ascending (oldest first)
   // Note: Deduplication is handled by useConversationMessages.observeMessage()
   // and the database UNIQUE constraint on (type, conversation_key, text, sender_timestamp)
+  const allSortedMessages = useMemo(
+    () =>
+      preSorted
+        ? messages
+        : [...messages].sort((a, b) => a.received_at - b.received_at || a.id - b.id),
+    [messages, preSorted]
+  );
   const sortedMessages = useMemo(() => {
-    const base = preSorted
-      ? messages
-      : [...messages].sort((a, b) => a.received_at - b.received_at || a.id - b.id);
     if (hiddenHopWidths.size === 0 && !hideUnscoped) {
-      return base;
+      return allSortedMessages;
     }
-    // Apply the view-only message filters. Three kinds of message are always
+    // Apply the view-only message filters. Two kinds of message are always
     // kept, so a filter can never make something of the user's own vanish or
-    // strand navigation: their outgoing sends, the unread-divider anchor
-    // (filtering it out returns findIndex -> -1 and triggers a needless "jump to
-    // unread"), and the active jump target. Pagination cursors are server-driven
-    // and read from raw `messages`, so filtering the view here does not perturb
-    // hasOlder/hasNewer bookkeeping.
-    return base.filter((m) => {
-      if (m.outgoing || m.id === unreadMarkerMessageId || m.id === targetMessageId) {
+    // strand navigation: their outgoing sends and the active jump target.
+    // Pagination cursors are server-driven and read from raw `messages`, so
+    // filtering the view here does not perturb hasOlder/hasNewer bookkeeping.
+    return allSortedMessages.filter((m) => {
+      if (m.outgoing || m.id === targetMessageId) {
         return true;
       }
       if (isMessageHiddenByHopWidth(m.paths, hiddenHopWidths)) {
@@ -1008,7 +1024,25 @@ export function MessageList({
       }
       return true;
     });
-  }, [messages, preSorted, hiddenHopWidths, hideUnscoped, unreadMarkerMessageId, targetMessageId]);
+  }, [allSortedMessages, hiddenHopWidths, hideUnscoped, targetMessageId]);
+
+  // The unread divider sits on the first *visible* unread message. When the
+  // server's boundary is a message the filters hide, move it forward to the
+  // next visible one (or drop it when every unread message is hidden) instead
+  // of forcing the hidden message into view. A boundary outside the loaded
+  // window is passed through unchanged so "jump to unread" still works.
+  const unreadMarkerMessageId = useMemo(() => {
+    if (rawUnreadMarkerMessageId == null || sortedMessages === allSortedMessages) {
+      return rawUnreadMarkerMessageId;
+    }
+    const start = allSortedMessages.findIndex((m) => m.id === rawUnreadMarkerMessageId);
+    if (start === -1) return rawUnreadMarkerMessageId;
+    const visibleIds = new Set(sortedMessages.map((m) => m.id));
+    for (let i = start; i < allSortedMessages.length; i++) {
+      if (visibleIds.has(allSortedMessages[i].id)) return allSortedMessages[i].id;
+    }
+    return null;
+  }, [rawUnreadMarkerMessageId, allSortedMessages, sortedMessages]);
 
   // Followed radio-channel names and the (parent-provided) registry name set,
   // used to classify #hashtag references in message text.

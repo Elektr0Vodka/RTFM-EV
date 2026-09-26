@@ -481,6 +481,52 @@ describe('useRealtimeAppState', () => {
     });
   });
 
+  describe('hop-size filter', () => {
+    // Two 1-byte hops.
+    const oneByteChan: Message = {
+      ...incomingChan,
+      paths: [{ path: '1a2b', path_len: 2, received_at: 1700000001 }],
+    };
+
+    function run(msg: Message, hidden: number[]) {
+      const fns = {
+        recordMessageEvent: vi.fn(),
+        notifyIncomingMessage: vi.fn(),
+        notifyMentionSound: vi.fn(),
+        onChannelMention: vi.fn(),
+      };
+      const { args } = createRealtimeArgs({
+        ...fns,
+        hiddenHopWidthsRef: { current: new Set(hidden) },
+        checkMention: vi.fn(() => true),
+        observeMessage: vi.fn(() => ({ added: true, activeConversation: false })),
+      });
+      const { result } = renderHook(() => useRealtimeAppState(args));
+      act(() => {
+        result.current.onMessage?.(msg);
+      });
+      return { ...fns, observeMessage: args.observeMessage };
+    }
+
+    it('stores but does not count or notify a message hidden by hop width', () => {
+      const fns = run(oneByteChan, [1]);
+      // Still stored, so it is there if the filter is switched off again.
+      expect(fns.observeMessage).toHaveBeenCalledWith(oneByteChan);
+      expect(fns.recordMessageEvent).not.toHaveBeenCalled();
+      expect(fns.notifyIncomingMessage).not.toHaveBeenCalled();
+      expect(fns.notifyMentionSound).not.toHaveBeenCalled();
+      expect(fns.onChannelMention).not.toHaveBeenCalled();
+    });
+
+    it('still counts and notifies a message of another width', () => {
+      const fns = run(oneByteChan, [2]);
+      expect(fns.recordMessageEvent).toHaveBeenCalled();
+      expect(fns.notifyIncomingMessage).toHaveBeenCalledWith(oneByteChan);
+      expect(fns.notifyMentionSound).toHaveBeenCalled();
+      expect(fns.onChannelMention).toHaveBeenCalledWith(oneByteChan);
+    });
+  });
+
   it('does not fire notifyMentionSound for a muted channel', () => {
     const notifyMentionSound = vi.fn();
     const { args } = createRealtimeArgs({
