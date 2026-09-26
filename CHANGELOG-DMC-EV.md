@@ -5,11 +5,20 @@ This changelog covers work done in the **RTFM-EV** fork
 `jkingsman/Remote-Terminal-for-MeshCore`.
 
 - Fork base commit: `33b3b8d` (upstream `main`), 2026-07-26
-- Commits since fork: 427 total (297 non-merge), as of `34ffcb0f` (#234)
-- Generated: 2026-09-10; updated 2026-09-25
+- Commits since fork: 456 total (307 non-merge), as of `c0985781` (#242)
+- Generated: 2026-09-10; updated 2026-09-26
 
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
+
+## Update 2026-09-26 (Docs reconciled through #242, fix/docs-reconcile-236-242)
+
+### Documentation
+- **`docs/parity-audit.md`:** status reconciled to `c0985781` (#242). No §7
+  item changed; the later merges (#237-#242) are docs, plan work outside the
+  audit's reference sets, tester fixes and a test fix, and are listed in the
+  status.
+- Refreshed the commit counts in this changelog's header.
 
 ## Update 2026-09-26 (Backend test flake: radio operation lock bound to an old event loop, fix/send-messages-lock-loop-flake)
 
