@@ -24,6 +24,24 @@ the change. Upstream development is on hold; the fork is the active repository.
   now resets it to `None` around every test (the app creates it lazily).
   Test-only change.
 
+## Update 2026-09-26 (Relay signal map overlay, plan 21 S2, feat/relay-snr-map-layer)
+
+### Map: relay signal rings (frontend)
+- New map overlay (Overlays > Relay signal, off by default, remembered per
+  browser): a ring around each relay that passed flooded packets to your
+  radio in the map's time window, coloured by the average SNR your radio
+  measured on those copies (the amber -> blue -> green ramp of the live
+  packet arcs) and sized by the number of copies, with a "+5.3 dB · 8×"
+  label. The rings sit under the node circles and do not take clicks, so
+  node popups work as before. The panel counts the relays drawn and those
+  left out (no unique node or no known position).
+- Data is the per-relay summary of `GET /api/packets/relay-reception` (Mesh
+  Health > Relay reception), joined in the browser with the map's contacts
+  (manual locations and map filters applied); refreshed every minute for
+  open-ended windows. No backend change. This is the fixed-station form of
+  plan 21 S2 (signal by relay position); an SNR-over-GPS track needs a moving
+  radio and is not built.
+
 ## Update 2026-09-26 (Soft links in the visualizer and path modal, plan 16, feat/soft-links-visualizer-pathmodal)
 
 ### Packet visualizer and path modal: name linked hop prefixes (frontend)

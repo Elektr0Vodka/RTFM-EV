@@ -653,7 +653,14 @@ export function MapControls(props: MapControlsProps) {
       id: 'overlays',
       label: t('map_group_overlays'),
       icon: <Activity size={20} aria-hidden />,
-      memberIds: ['packets', 'links', 'telemetry', 'shared-locations', 'guessed-locations'],
+      memberIds: [
+        'packets',
+        'links',
+        'telemetry',
+        'shared-locations',
+        'relay-signal',
+        'guessed-locations',
+      ],
     },
   ];
 
