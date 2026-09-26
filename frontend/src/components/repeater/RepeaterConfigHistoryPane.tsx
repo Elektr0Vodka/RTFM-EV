@@ -16,6 +16,7 @@ const KIND_TITLE_KEYS: Record<DeviceConfigKind, string> = {
   advert_intervals: 'repeater_advert_intervals_title',
   owner_info: 'repeater_owner_info_title',
   regions: 'repeater_regions_title',
+  acl: 'repeater_config_history_kind_acl',
 };
 
 /** Snapshots shown per kind before "Show all". */
@@ -69,15 +70,20 @@ function SnapshotRow({ snapshot }: { snapshot: ConfigSnapshotView }) {
 /**
  * Read-only history of the repeater dashboard panes (plan 14): stored snapshots
  * per pane, each diffed against the previous one. Reads
- * `GET /contacts/{key}/repeater/config-history` only; never touches the radio.
+ * `GET /contacts/{key}/repeater/config-history` only (the room dashboard passes
+ * `api.roomConfigHistory`); never touches the radio.
  * `reloadKey` changes when a pane fetch completes, so a new snapshot shows up.
  */
 export function RepeaterConfigHistoryPane({
   publicKey,
   reloadKey,
+  loadHistory = api.repeaterConfigHistory,
+  noteKey = 'repeater_config_history_note',
 }: {
   publicKey: string;
   reloadKey?: string;
+  loadHistory?: (publicKey: string) => Promise<DeviceConfigHistoryEntry[]>;
+  noteKey?: string;
 }) {
   const t = useT();
   const [entries, setEntries] = useState<DeviceConfigHistoryEntry[] | null>(null);
@@ -87,7 +93,7 @@ export function RepeaterConfigHistoryPane({
   const load = useCallback(async () => {
     setState({ loading: true, attempt: 1, error: null });
     try {
-      const rows = await api.repeaterConfigHistory(publicKey);
+      const rows = await loadHistory(publicKey);
       setEntries(rows);
       setState({ loading: false, attempt: 0, error: null, fetched_at: Date.now() });
     } catch (err) {
@@ -97,7 +103,7 @@ export function RepeaterConfigHistoryPane({
         error: err instanceof Error ? err.message : String(err),
       });
     }
-  }, [publicKey]);
+  }, [publicKey, loadHistory]);
 
   useEffect(() => {
     void load();
@@ -116,7 +122,7 @@ export function RepeaterConfigHistoryPane({
   return (
     <RepeaterPane
       title={t('repeater_config_history_title')}
-      headerNote={t('repeater_config_history_note')}
+      headerNote={t(noteKey)}
       state={state}
       onRefresh={() => void load()}
     >

@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException
 from app.models import (
     CONTACT_TYPE_ROOM,
     AclEntry,
+    DeviceConfigHistoryEntry,
     LppSensor,
     RepeaterAclResponse,
     RepeaterLoginRequest,
@@ -10,12 +11,14 @@ from app.models import (
     RepeaterLppTelemetryResponse,
     RepeaterStatusResponse,
 )
+from app.repository.device_config_history import DeviceConfigHistoryRepository, DeviceConfigKind
 from app.routers.contacts import (
     _ensure_on_radio,
     _record_and_forward_lpp_telemetry,
     _record_and_forward_status_telemetry,
     _resolve_contact_or_404,
 )
+from app.routers.repeaters import _record_config_snapshot
 from app.routers.server_control import (
     prepare_authenticated_contact_connection,
     require_server_capable_contact,
@@ -157,4 +160,30 @@ async def room_acl(public_key: str) -> RepeaterAclResponse:
                 )
             )
 
+    # Plan 14: store who has which permission. Resolved names and the order the
+    # room lists them in are left out, so only a real ACL change is a new
+    # snapshot. An empty list means no answer (timeout), not "everyone removed".
+    if acl_entries:
+        await _record_config_snapshot(
+            contact,
+            "acl",
+            {
+                "acl": [
+                    {"pubkey_prefix": e.pubkey_prefix, "permission": e.permission}
+                    for e in sorted(acl_entries, key=lambda e: e.pubkey_prefix)
+                ]
+            },
+        )
+
     return RepeaterAclResponse(acl=acl_entries)
+
+
+@router.get("/{public_key}/room/config-history", response_model=list[DeviceConfigHistoryEntry])
+async def room_config_history(
+    public_key: str, kind: DeviceConfigKind | None = None
+) -> list[DeviceConfigHistoryEntry]:
+    """Stored pane snapshots for a room server, newest first (plan 14; read-only)."""
+    contact = await _resolve_contact_or_404(public_key)
+    _require_room(contact)
+    rows = await DeviceConfigHistoryRepository.get_history(contact.public_key, kind)
+    return [DeviceConfigHistoryEntry(**row) for row in rows]

@@ -427,7 +427,7 @@ async def _batch_cli_fetch(
 async def _record_config_snapshot(
     contact: Contact,
     kind: DeviceConfigKind,
-    response: BaseModel,
+    response: BaseModel | dict,
     *,
     exclude: set[str] | None = None,
 ) -> None:
@@ -439,7 +439,11 @@ async def _record_config_snapshot(
     A response with every stored field empty means the repeater did not answer
     (CLI timeout), not a config change, so it is not stored.
     """
-    data = response.model_dump(mode="json", exclude=exclude)
+    data = (
+        response
+        if isinstance(response, dict)
+        else response.model_dump(mode="json", exclude=exclude)
+    )
     if all(value is None for value in data.values()):
         return
     try:

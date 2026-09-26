@@ -1,12 +1,13 @@
 import type { DeviceConfigHistoryEntry, DeviceConfigKind } from '../types';
 
-/** Pane order of the repeater dashboard; kinds render in this order. */
+/** Pane order of the repeater dashboard (room ACL last); kinds render in this order. */
 export const DEVICE_CONFIG_KINDS: DeviceConfigKind[] = [
   'node_info',
   'radio_settings',
   'advert_intervals',
   'owner_info',
   'regions',
+  'acl',
 ];
 
 export interface ConfigFieldChange {
