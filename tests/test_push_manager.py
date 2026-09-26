@@ -12,8 +12,12 @@ OTHER_KEY = "cd" * 32
 CHAN_KEY = "AA" * 16
 
 
-def _settings(blocked_keys=(), blocked_names=()):
-    return SimpleNamespace(blocked_keys=list(blocked_keys), blocked_names=list(blocked_names))
+def _settings(blocked_keys=(), blocked_names=(), hidden_hop_widths=()):
+    return SimpleNamespace(
+        blocked_keys=list(blocked_keys),
+        blocked_names=list(blocked_names),
+        hidden_hop_widths=list(hidden_hop_widths),
+    )
 
 
 async def _dispatch(data: dict, settings) -> AsyncMock:
@@ -96,5 +100,46 @@ async def test_unblocked_sender_still_pushed():
     send = await _dispatch(
         {"type": "PRIV", "conversation_key": OTHER_KEY, "text": "hi", "outgoing": False},
         _settings(blocked_keys=[BLOCKED_KEY], blocked_names=["Spammer"]),
+    )
+    send.assert_called_once()
+
+
+def _chan_msg(paths: list[dict]) -> dict:
+    return {
+        "type": "CHAN",
+        "conversation_key": CHAN_KEY,
+        "sender_name": "Someone",
+        "text": "Someone: hi",
+        "outgoing": False,
+        "paths": paths,
+    }
+
+
+@pytest.mark.asyncio
+async def test_hop_hidden_channel_message_gets_no_push():
+    # Two 1-byte hops: hidden when 1-byte widths are hidden.
+    send = await _dispatch(
+        _chan_msg([{"path": "a1b2", "path_len": 2, "received_at": 1}]),
+        _settings(hidden_hop_widths=[1]),
+    )
+    send.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_other_hop_width_still_pushed():
+    # Two 2-byte hops are not hidden by a 1-byte filter.
+    send = await _dispatch(
+        _chan_msg([{"path": "a1b2c3d4", "path_len": 2, "received_at": 1}]),
+        _settings(hidden_hop_widths=[1]),
+    )
+    send.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_direct_message_without_hops_still_pushed():
+    # A 0-hop (direct) path has no derivable width, so the filter never hides it.
+    send = await _dispatch(
+        _chan_msg([{"path": "", "path_len": 0, "received_at": 1}]),
+        _settings(hidden_hop_widths=[1, 2, 3]),
     )
     send.assert_called_once()
