@@ -261,6 +261,9 @@ describe('MapView (MapLibre)', () => {
       );
       stub.fire('load');
       await waitFor(() => expect(flyCenters()).toContainEqual([4, 51]));
+      // The focus also opens the node's popup on a short timer; wait for it so
+      // it always runs inside the test (on a slow runner it used to fire late).
+      await waitFor(() => expect((maplibre as any).Popup).toHaveBeenCalled());
     });
   });
 });
