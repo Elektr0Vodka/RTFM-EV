@@ -132,7 +132,7 @@ discovery rows were re-marked afterwards. §7 holds the current per-item status.
 |---|---|---|---|---|
 | Telemetry history (battery etc.) | Off | Present | App | `_061`/`_062`. |
 | Noise-floor viewer | Off | Absent | App | Needs signal-storage foundation (see §6). **[web]** |
-| Receive-error graphs | Off | Present | App | My Node "Receive errors" card from the companion `STATS_PACKETS` `recv_errors` counter (firmware v1.12+), sampled with airtime (`_116`). |
+| Receive-error graphs | Off | Present | App | My Node "Receive errors" card from the companion `STATS_PACKETS` `recv_errors` counter (firmware v1.12+), sampled with airtime (`_116`). OpenHop nodes: from the OpenHop API radio CRC error history (API must be configured). |
 | Direct/Flood packet metrics | Off | Partial | App | Needs signal-storage foundation. **[web]** |
 
 ### Neighbor discovery

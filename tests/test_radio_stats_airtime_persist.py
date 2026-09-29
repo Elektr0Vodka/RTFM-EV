@@ -65,6 +65,27 @@ async def test_persist_writes_recv_errors_from_packet_stats(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_persist_drops_recv_errors_on_openhop(monkeypatch):
+    # OpenHop fills the STATS_PACKETS recv_errors slot with its repeater
+    # dropped-packet count, not radio CRC errors, so it must not be stored.
+    calls: list[tuple[int, int, int, int | None]] = []
+    _patch_repos(monkeypatch, calls)
+    monkeypatch.setattr(
+        radio_stats.radio_manager, "device_model", "openHop-Repeater-Companion", raising=False
+    )
+
+    await radio_stats._persist_samples(
+        {
+            "timestamp": 1000,
+            "tx_air_secs": 5,
+            "rx_air_secs": 0,
+            "packets": {"recv": 10, "sent": 2, "recv_errors": 7},
+        }
+    )
+    assert calls == [(1000, 5, 0, None)]
+
+
+@pytest.mark.asyncio
 async def test_persist_skips_airtime_when_missing(monkeypatch):
     calls: list[tuple[int, int, int, int | None]] = []
     _patch_repos(monkeypatch, calls)

@@ -282,7 +282,7 @@
   "node_chart_rx_errors_title": "Receive errors",
   "node_chart_rx_errors_stat": "{count} in window",
   "node_chart_rx_errors_tooltip": "RX errors",
-  "node_chart_rx_errors_note": "Packets the radio started to receive but could not decode (CRC or header errors), from the companion packet stats. Needs firmware v1.12 or newer; not available from OpenHop airtime data.",
+  "node_chart_rx_errors_note": "Packets the radio started to receive but could not decode (CRC or header errors), from the companion packet stats. Needs firmware v1.12 or newer. On OpenHop nodes this comes from the radio CRC error history in the OpenHop API instead, so it needs the OpenHop API configured.",
   "node_window_30d": "30d",
   "node_window_6h": "6h",
   "node_window_7d": "7d",

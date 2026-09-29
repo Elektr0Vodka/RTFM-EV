@@ -7,6 +7,8 @@ API is configured, the endpoint sources airtime from OpenHop's REST endpoint
 computation over airtime_history.
 """
 
+from types import SimpleNamespace
+
 import httpx
 import pytest
 
@@ -38,7 +40,14 @@ def _set_node(monkeypatch, model, self_info=None):
     )
 
 
-def _fake_client(response: dict | None = None, *, raises: Exception | None = None):
+def _fake_client(
+    response: dict | None = None,
+    *,
+    raises: Exception | None = None,
+    crc: dict | None = None,
+    crc_raises: Exception | None = None,
+    crc_calls: list | None = None,
+):
     class _FakeClient:
         def __init__(self, url, token, **kwargs):
             pass
@@ -47,6 +56,13 @@ def _fake_client(response: dict | None = None, *, raises: Exception | None = Non
             if raises is not None:
                 raise raises
             return response
+
+        async def crc_error_history(self, hours, *, limit):
+            if crc_calls is not None:
+                crc_calls.append((hours, limit))
+            if crc_raises is not None:
+                raise crc_raises
+            return crc if crc is not None else {"success": True, "data": {"history": []}}
 
         async def aclose(self):
             pass
@@ -70,6 +86,75 @@ async def test_openhop_path_maps_buckets(test_db, monkeypatch):
         },
     }
     monkeypatch.setattr("app.routers.statistics.OpenHopClient", _fake_client(resp))
+
+    out = await get_airtime_range(start_ts=0, end_ts=2400, bin_count=40)
+    assert out == [{"timestamp": 1000, "tx_pct": 50.0, "rx_pct": 10.0, "rx_errors": 0}]
+
+
+@pytest.mark.asyncio
+async def test_openhop_path_merges_crc_errors_in_window(test_db, monkeypatch):
+    _set_node(
+        monkeypatch,
+        OPENHOP_MODEL,
+        self_info={"radio_sf": 7, "radio_bw": 62.5, "radio_cr": 5},
+    )
+    await AppSettingsRepository.update(openhop_api_url="http://node:8000", openhop_api_token="tok")
+    monkeypatch.setattr(
+        "app.routers.statistics.time", SimpleNamespace(time=lambda: 10_000.0), raising=True
+    )
+    resp = {
+        "success": True,
+        "data": {
+            "bucket_seconds": 60,
+            "buckets": [{"timestamp": 1020, "tx_ms": 0, "rx_ms": 6000}],
+        },
+    }
+    crc = {
+        "success": True,
+        "data": {
+            "history": [
+                {"timestamp": 500.0, "count": 9},  # before start_ts -> dropped
+                {"timestamp": 1030.0, "count": 2},
+                {"timestamp": 1070.0, "count": 1},  # same 60 s bucket (1020)
+                {"timestamp": 1090.0, "count": 4},  # bucket 1080, no airtime row
+                {"timestamp": 2500.0, "count": 9},  # after end_ts -> dropped
+            ]
+        },
+    }
+    calls: list = []
+    monkeypatch.setattr(
+        "app.routers.statistics.OpenHopClient",
+        _fake_client(resp, crc=crc, crc_calls=calls),
+    )
+
+    out = await get_airtime_range(start_ts=1000, end_ts=2400, bin_count=40)
+    assert out == [
+        {"timestamp": 1020, "tx_pct": 0.0, "rx_pct": 10.0, "rx_errors": 3},
+        {"timestamp": 1080, "tx_pct": 0.0, "rx_pct": 0.0, "rx_errors": 4},
+    ]
+    # hours reaches back from "now" (10_000) to start_ts (1000): 9000 s -> 3 h.
+    assert calls[0][0] == 3
+
+
+@pytest.mark.asyncio
+async def test_openhop_crc_failure_keeps_airtime_without_rx_errors(test_db, monkeypatch):
+    _set_node(
+        monkeypatch,
+        OPENHOP_MODEL,
+        self_info={"radio_sf": 7, "radio_bw": 62.5, "radio_cr": 5},
+    )
+    await AppSettingsRepository.update(openhop_api_url="http://node:8000", openhop_api_token="tok")
+    resp = {
+        "success": True,
+        "data": {
+            "bucket_seconds": 60,
+            "buckets": [{"timestamp": 1000, "tx_ms": 30000, "rx_ms": 6000}],
+        },
+    }
+    monkeypatch.setattr(
+        "app.routers.statistics.OpenHopClient",
+        _fake_client(resp, crc_raises=httpx.ConnectError("boom")),
+    )
 
     out = await get_airtime_range(start_ts=0, end_ts=2400, bin_count=40)
     assert out == [{"timestamp": 1000, "tx_pct": 50.0, "rx_pct": 10.0}]
