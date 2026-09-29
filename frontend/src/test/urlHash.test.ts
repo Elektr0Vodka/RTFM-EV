@@ -390,3 +390,26 @@ describe('link route', () => {
     );
   });
 });
+
+describe('manual (User Guide) route', () => {
+  let originalHash: string;
+
+  beforeEach(() => {
+    originalHash = window.location.hash;
+  });
+
+  afterEach(() => {
+    window.location.hash = originalHash;
+  });
+
+  it('parses #manual', () => {
+    window.location.hash = '#manual';
+    expect(parseHashConversation()).toEqual({ type: 'manual', name: 'manual' });
+  });
+
+  it('builds #manual from a manual conversation', () => {
+    expect(getConversationHash({ type: 'manual', id: 'manual', name: 'User Guide' })).toBe(
+      '#manual'
+    );
+  });
+});

@@ -11,6 +11,24 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-29 (In-app User Guide, feat/user-guide-manual)
+
+### Tools: User Guide page (frontend)
+- New "User Guide" entry in the sidebar Tools section, also reachable at
+  `#manual`. It covers getting started, the layout, messaging, contacts and
+  nodes, the map, every Tools view, every Settings section, integrations,
+  backup/restore/retention and troubleshooting.
+- Full text in English, Dutch and German (`frontend/src/content/manual/`),
+  following the interface language with English as fallback. UI labels in the
+  NL/DE text match the NL/DE catalogs.
+- A table of contents scrolls to each section without changing the URL hash;
+  on narrow screens it folds into a "Contents" panel above the text.
+- Rendered by a small built-in markdown subset parser to React elements (no new
+  dependency, no HTML injection). Tests check that all three locales keep the
+  same ordered section ids and contain no em dash.
+- The User Guide view no longer triggers a message fetch (added to the
+  non-message conversation types).
+
 ## Update 2026-09-29 (Radio identity registry, plan 18 Phase 1, feat/multi-radio-identity-history)
 
 ### Radio: remember which radio fed the install (backend + frontend)

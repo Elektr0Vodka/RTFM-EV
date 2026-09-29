@@ -212,6 +212,12 @@ describe('sidebarLayout rail collapse (client-local)', () => {
 
   const tk: SidebarToolKey = 'cracker';
   it('has cracker as a valid tool key', () => expect(ALL_TOOL_KEYS).toContain(tk));
+
+  it('has the User Guide as the last default tool, so stored orders append it', () => {
+    expect(ALL_TOOL_KEYS[ALL_TOOL_KEYS.length - 1]).toBe('manual');
+    const stored = ALL_TOOL_KEYS.filter((k) => k !== 'manual');
+    expect(resolveToolOrder(stored)).toEqual(ALL_TOOL_KEYS);
+  });
 });
 
 describe('contact groups: pure state-transition helpers', () => {

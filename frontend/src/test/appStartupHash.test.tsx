@@ -128,6 +128,10 @@ vi.mock('../components/MeshTrendsView', () => ({
   MeshTrendsView: () => null,
 }));
 
+vi.mock('../components/ManualView', () => ({
+  ManualView: () => null,
+}));
+
 vi.mock('../components/MeshDiscoveryView', () => ({
   MeshDiscoveryView: () => null,
 }));
@@ -362,6 +366,19 @@ describe('App startup hash resolution', () => {
     await waitFor(() => {
       for (const node of screen.getAllByTestId('active-conversation')) {
         expect(node).toHaveTextContent('packet-history:packet-history:');
+      }
+    });
+  });
+
+  it('restores the User Guide view from the URL hash even when channels are unavailable', async () => {
+    setHash('#manual');
+    mocks.api.getChannels.mockResolvedValue([]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      for (const node of screen.getAllByTestId('active-conversation')) {
+        expect(node).toHaveTextContent('manual:manual:');
       }
     });
   });

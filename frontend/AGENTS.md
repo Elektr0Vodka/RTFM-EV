@@ -135,6 +135,7 @@ frontend/src/
 │   ├── RawPacketFeedView.tsx   # Live raw packet feed (list + filters + inspector); stats moved to Mesh Trends
 │   ├── RawPacketDetailModal.tsx # On-demand packet inspector dialog + RawPacketPasteInspector (shared paste-hex body)
 │   ├── MeshTrendsView.tsx      # Tools view: Live / Historical tabs (consolidated stats)
+│   ├── ManualView.tsx          # Tools view "User Guide" (#manual): renders content/manual/{en,nl,de}.md for the active locale (EN fallback) with a section TOC; TOC scrolls in-pane and never changes the hash
 │   ├── PacketFeedStatsPanel.tsx # Live tab: session packet-stat breakdowns (reads rawPacketStore)
 │   ├── MeshTrendsHistoricalPanel.tsx # Historical tab: server-backed stats (GET /api/statistics)
 │   ├── MeshRelayReceptionPanel.tsx # Mesh Health "Relay reception" tab: packets x relays pivot + relay summary, live refresh (plan 21 S1)
@@ -433,6 +434,7 @@ Supported routes:
 - `#contact/{publicKey}`
 - `#contact/{publicKey}/{label}`
 - `#link/{pubkeyA}/{pubkeyB}` - link detail page (`LinkDetailView`); conversation type `link` with id `a~b`
+- `#manual` - User Guide (`ManualView`); conversation type `manual`
 
 Where `{section}` is one of `radio`, `local`, `radio-app`, `database`, `fanout`, `openhop`, `handy-info`, or `about`.
 
@@ -790,6 +792,17 @@ Rules for new strings:
   pubkeys), log lines, or test fixtures.
 - Locale-aware number/date formatting: use `src/utils/localeFormat.ts` or pass the
   active locale (from `useLocale()`) to `Intl`/`toLocaleString`.
+
+### User Guide content
+
+The in-app User Guide (`#manual`, sidebar Tools > User Guide) is plain markdown
+per locale in `src/content/manual/{en,nl,de}.md`, imported with Vite `?raw` and
+parsed by `utils/manualMarkdown.ts` (a small subset: `<!-- id: x -->` section
+markers, `##`/`###`, paragraphs, `-`/`1.` lists, bold, italic, code, http(s)
+links). It renders to React elements, never HTML strings. When user-facing
+behavior changes, update all three files. Keep the same ordered `id` markers in
+each and no em dashes: `src/test/manualContent.test.ts` enforces both. Use the
+UI label text from the matching locale catalog so the guide matches the screen.
 
 Translation strings for NL/DE are adapted in part from kiekr-i18n by Marcel
 Verdult (@marcelverdult), https://github.com/marcelverdult/kiekr-i18n, CC-BY 4.0.

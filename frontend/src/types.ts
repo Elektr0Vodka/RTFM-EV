@@ -751,6 +751,7 @@ type ConversationType =
   | 'mesh-discovery'
   | 'analyze'
   | 'packet-history'
+  | 'manual'
   | 'link';
 
 export interface Conversation {

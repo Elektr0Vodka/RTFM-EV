@@ -99,6 +99,9 @@ Shipped toward this so far:
   default; "Device history" under Settings > Database > Data retention sets an
   age limit (positions age by when they were last reported)
   prefix, a first-byte usage matrix, and a local/regional distance badge).
+- A "User Guide" view (Tools group, `#manual`): an in-app manual covering the
+  whole interface, in English, Dutch and German, following the interface language,
+  with a table of contents.
 - A "Mesh Trends" view that consolidates the analytical stats into two tabs: a
   Historical tab (server-backed network/message/packet/MQTT/region-scope/noise-floor
   breakdowns) and a Live tab (the session packet-stat breakdowns that used to live
