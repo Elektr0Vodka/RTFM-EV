@@ -7,6 +7,7 @@ import {
   Cable,
   ChartNetwork,
   Activity,
+  BookOpen,
   CheckCheck,
   ChevronDown,
   ChevronRight,
@@ -540,7 +541,8 @@ export function Sidebar({
       | 'mesh-trends'
       | 'mesh-discovery'
       | 'analyze'
-      | 'packet-history',
+      | 'packet-history'
+      | 'manual',
     id: string
   ) => activeConversation?.type === type && activeConversation?.id === id;
 
@@ -1503,6 +1505,20 @@ export function Sidebar({
             }),
           iconOnly,
         });
+      case 'manual':
+        return renderSidebarActionRow({
+          key: 'tool-manual',
+          active: isActive('manual', 'manual'),
+          icon: <BookOpen className="h-4 w-4" />,
+          label: t('nav_user_guide'),
+          onClick: () =>
+            handleSelectConversation({
+              type: 'manual',
+              id: 'manual',
+              name: t('nav_user_guide'),
+            }),
+          iconOnly,
+        });
       case 'cracker':
         return renderSidebarActionRow({
           key: 'tool-cracker',
@@ -1919,6 +1935,7 @@ export function Sidebar({
     search: t('nav_message_search'),
     'channel-registry': 'Channel Registry',
     cracker: t('nav_show_channel_finder'),
+    manual: t('nav_user_guide'),
   };
   const favoriteGroupLabels: Record<FavoriteGroupKey, string> = {
     channels: t('nav_favorite_channels'),

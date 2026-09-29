@@ -20,6 +20,7 @@ interface ParsedHashConversation {
     | 'mesh-discovery'
     | 'analyze'
     | 'packet-history'
+    | 'manual'
     | 'link';
   /** Conversation identity token (channel key or contact public key, or legacy name token) */
   name: string;
@@ -95,6 +96,10 @@ export function parseHashConversation(): ParsedHashConversation | null {
 
   if (hash === 'packet-history') {
     return { type: 'packet-history', name: 'packet-history' };
+  }
+
+  if (hash === 'manual') {
+    return { type: 'manual', name: 'manual' };
   }
 
   // Link detail page: #link/<pubkeyA>/<pubkeyB>
@@ -237,6 +242,7 @@ export function getConversationHash(conv: Conversation | null): string {
   if (conv.type === 'mesh-discovery') return '#mesh-discovery';
   if (conv.type === 'analyze') return '#analyze';
   if (conv.type === 'packet-history') return '#packet-history';
+  if (conv.type === 'manual') return '#manual';
   if (conv.type === 'link') {
     const [a, b] = conv.id.split('~');
     return `#link/${encodeURIComponent(a)}/${encodeURIComponent(b)}`;

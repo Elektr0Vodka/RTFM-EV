@@ -955,6 +955,16 @@ describe('Sidebar section summaries', () => {
 describe('Sidebar customisation (plan 17)', () => {
   beforeEach(() => localStorage.clear());
 
+  it('shows a User Guide tool that opens the manual view', () => {
+    const { onSelectConversation } = renderSidebar();
+    fireEvent.click(screen.getByRole('button', { name: 'User Guide' }));
+    expect(onSelectConversation).toHaveBeenCalledWith({
+      type: 'manual',
+      id: 'manual',
+      name: 'User Guide',
+    });
+  });
+
   it('renders tools in a stored custom order', () => {
     renderSidebar({
       sidebarToolOrder: [

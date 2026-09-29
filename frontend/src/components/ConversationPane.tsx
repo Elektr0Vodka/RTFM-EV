@@ -54,6 +54,7 @@ const AnalyzePacketView = lazy(() =>
 const PacketHistoryView = lazy(() =>
   import('./PacketHistoryView').then((m) => ({ default: m.PacketHistoryView }))
 );
+const ManualView = lazy(() => import('./ManualView').then((m) => ({ default: m.ManualView })));
 const LinkDetailView = lazy(() =>
   import('./LinkDetailView').then((m) => ({ default: m.LinkDetailView }))
 );
@@ -459,6 +460,14 @@ export function ConversationPane({
           packetGroupByContent={packetGroupByContent}
           onSaveAppSettings={onSaveAppSettings}
         />
+      </Suspense>
+    );
+  }
+
+  if (activeConversation.type === 'manual') {
+    return (
+      <Suspense fallback={<LoadingPane label={t('common_loading_user_guide')} />}>
+        <ManualView />
       </Suspense>
     );
   }

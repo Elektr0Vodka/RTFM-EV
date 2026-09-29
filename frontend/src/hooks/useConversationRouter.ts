@@ -60,6 +60,8 @@ function resolveConversationFromHash(
       return { type: 'analyze', id: 'analyze', name: 'Analyze Packet' };
     case 'packet-history':
       return { type: 'packet-history', id: 'packet-history', name: 'Packet History' };
+    case 'manual':
+      return { type: 'manual', id: 'manual', name: 'User Guide' };
     case 'link':
       return { type: 'link', id: hashConv.name, name: 'Link' };
     case 'channel-registry':
@@ -207,6 +209,11 @@ export function useConversationRouter({
         id: 'packet-history',
         name: 'Packet History',
       });
+      hasSetDefaultConversation.current = true;
+      return;
+    }
+    if (hashConv?.type === 'manual') {
+      setActiveConversationState({ type: 'manual', id: 'manual', name: 'User Guide' });
       hasSetDefaultConversation.current = true;
       return;
     }

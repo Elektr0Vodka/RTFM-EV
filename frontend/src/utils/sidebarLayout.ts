@@ -62,7 +62,8 @@ export type SidebarToolKey =
   | 'trace'
   | 'search'
   | 'channel-registry'
-  | 'cracker';
+  | 'cracker'
+  | 'manual';
 
 export const ALL_TOOL_KEYS: SidebarToolKey[] = [
   'my-node',
@@ -78,6 +79,7 @@ export const ALL_TOOL_KEYS: SidebarToolKey[] = [
   'search',
   'channel-registry',
   'cracker',
+  'manual',
 ];
 
 // Favorite type groups, orderable within the Favorites section (by-type mode).
