@@ -1340,6 +1340,41 @@ class RadioPresetsStore(BaseModel):
     source_url: str = Field(default="", description="Upstream URL the presets came from")
 
 
+class ChannelSetEntry(BaseModel):
+    """One channel in a channel set: its key and the name it had when saved."""
+
+    key: str = Field(description="Channel key (32-char hex, upper case)")
+    name: str = Field(description="Channel name; the apply uses the current DB name if any")
+
+
+class ChannelSet(BaseModel):
+    """A named set of channels that can be loaded onto the radio in one action (plan 08)."""
+
+    id: str
+    name: str
+    channels: list[ChannelSetEntry] = Field(default_factory=list)
+    created_at: int
+    updated_at: int
+
+
+class ChannelSetApplyItem(BaseModel):
+    """Per-channel outcome of loading a channel set onto the radio."""
+
+    key: str
+    name: str
+    status: Literal["loaded", "already_loaded", "failed"]
+    slot: int | None = Field(default=None, description="Radio channel slot, when on the radio")
+    error: Literal["no_free_slot", "radio_error"] | None = None
+
+
+class ChannelSetApplyResult(BaseModel):
+    set_id: str
+    items: list[ChannelSetApplyItem]
+    loaded: int
+    already_loaded: int
+    failed: int
+
+
 class MarkUnreadRequest(BaseModel):
     """Request to mark a conversation unread from a specific message onward."""
 

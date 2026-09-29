@@ -423,6 +423,14 @@ meshcore-open communities (`app/communities.py`, port of `lib/models/community.d
 - `GET /communities/{id}/export` - `{id, name, payload}`: QR JSON including the secret (padded base64url, like meshcore-open)
 - `DELETE /communities/{id}` - forget the community and its secret; its channels stay
 
+### Channel sets
+Named channel groups loaded onto the radio in one action (plan 08 slice 1; router `app/routers/channel_sets.py`, apply logic `app/services/channel_set_apply.py`). Stored as a JSON array in the internal-only `app_settings.channel_sets` column (migration `_122`), not part of `AppSettings`. Each entry keeps the channel key plus the name it had when saved. Local radio commands only; nothing transmits.
+- `GET /channel-sets` - saved sets, oldest first
+- `POST /channel-sets` - body `{name, channel_keys}`: keys upper-cased, duplicates dropped, order kept; every key must be a stored channel (400 names the unknown ones); blank name or no keys is 422
+- `PATCH /channel-sets/{id}` - rename and/or replace `channel_keys`
+- `DELETE /channel-sets/{id}` - delete the set; its channels stay
+- `POST /channel-sets/{id}/apply` - under the radio operation lock: reads every slot with `get_channel`, then writes each set channel that is not already on the radio into the first empty slot with `set_channel`. Additive: never evicts another channel (`no_free_slot` when full), keeps going after a failed write (`radio_error`), uses the channel's current DB name (the saved name when the channel was deleted), and records written/found slots in the send-slot cache (`note_channel_slot_loaded`). When slots are not reused (TCP, `MESHCORE_FORCE_CHANNEL_SLOT_RECONFIGURE`) slot 0 is skipped because every channel send writes there first. Returns `{set_id, items: [{key, name, status: loaded|already_loaded|failed, slot, error}], loaded, already_loaded, failed}`. Point-in-time: the next reconnect or full periodic sync offloads the slots again (`sync_and_offload_channels`)
+
 ### Messages
 - `GET /messages` - list with filters; supports `q` (full-text search), `after`/`after_id` (forward cursor)
 - `GET /messages/around/{message_id}` - context messages around a target (for jump-to-message navigation)

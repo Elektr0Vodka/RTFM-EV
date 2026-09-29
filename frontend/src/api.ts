@@ -26,6 +26,8 @@ import type {
   PartialNodeResolution,
   BulkCreateHashtagChannelsResult,
   ChannelImportResult,
+  ChannelSet,
+  ChannelSetApplyResult,
   Community,
   CommunityExport,
   CommunityHashtagResult,
@@ -525,6 +527,23 @@ export const api = {
     return res.json() as Promise<ChannelImportResult>;
   },
   getChannelDetail: (key: string) => fetchJson<ChannelDetail>(`/channels/${key}/detail`),
+
+  // Channel sets (plan 08): named channel groups loaded onto the radio in one action
+  getChannelSets: () => fetchJson<ChannelSet[]>('/channel-sets'),
+  createChannelSet: (name: string, channelKeys: string[]) =>
+    fetchJson<ChannelSet>('/channel-sets', {
+      method: 'POST',
+      body: JSON.stringify({ name, channel_keys: channelKeys }),
+    }),
+  updateChannelSet: (setId: string, update: { name?: string; channel_keys?: string[] }) =>
+    fetchJson<ChannelSet>(`/channel-sets/${setId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(update),
+    }),
+  deleteChannelSet: (setId: string) =>
+    fetchJson<{ deleted: string }>(`/channel-sets/${setId}`, { method: 'DELETE' }),
+  applyChannelSet: (setId: string) =>
+    fetchJson<ChannelSetApplyResult>(`/channel-sets/${setId}/apply`, { method: 'POST' }),
 
   // Communities (meshcore-open shared-secret channels)
   getCommunities: () => fetchJson<Community[]>('/communities'),
