@@ -21,7 +21,8 @@ class Settings(BaseSettings):
     ble_pin: str = ""
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     database_path: str = "data/meshcore.db"
-    disable_bots: bool = False
+    # Fork default: bots are off unless MESHCORE_DISABLE_BOTS=false (upstream default: on).
+    disable_bots: bool = True
     enable_message_poll_fallback: bool = False
     force_channel_slot_reconfigure: bool = False
     clowntown_do_clock_wraparound: bool = Field(

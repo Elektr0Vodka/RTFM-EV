@@ -11,6 +11,31 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-29 (Richard's Discord requests, feat/richard-requests-2026-09-29)
+
+### Sidebar: sort a custom group by recent activity (frontend + backend)
+- Each user-created sidebar group has its own sort toggle (A-Z / recent),
+  the same control as the Favorites sub-groups. On "recent", channels and
+  contacts in the group are interleaved with the most recently active one on
+  top.
+- Stored per group as `sort_order` (`alpha` default, `recent`) inside the
+  existing `app_settings.contact_groups` JSON. No migration; groups saved
+  before this keep A-Z.
+
+### Security: bots are off by default in this fork (backend)
+- `MESHCORE_DISABLE_BOTS` now defaults to `true` (upstream: `false`). The bot
+  system cannot run or be configured unless the server is started with
+  `MESHCORE_DISABLE_BOTS=false`, so the startup security warning no longer
+  appears on a default install.
+- Existing bot integrations stop running after upgrade until
+  `MESHCORE_DISABLE_BOTS=false` is set. Settings > Integrations says how to
+  re-enable them.
+
+### Map: "Equal node sizes" toggle (frontend)
+- Map settings > node size: a checkbox that draws companions, rooms and
+  sensors at the repeater size, on both the flat and neon node layers. Off by
+  default (repeaters stay larger); remembered per browser.
+
 ## Update 2026-09-26 (Channel sets, plan 08 slice 1, feat/channel-sets)
 
 ### Channels: load a saved channel set onto the radio (backend + frontend)

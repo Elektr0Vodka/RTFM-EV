@@ -159,6 +159,8 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
   const baseR = opts.baseR ?? 7;
   const repeaterR = opts.repeaterR ?? 10;
   let nodeScale = 1;
+  // "Equal node sizes": every node uses the repeater radius.
+  let equalSizes = false;
   let roleColors: Record<number, string> = opts.roleColors ?? NODE_TYPE_STROKE;
   let labelMode: NodeLabelMode = 'off';
   // The flat circle layer is hidden when the neon node overlay takes over; the
@@ -169,6 +171,9 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
   let listenersBound = false;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const m = map as any;
+
+  const radiusExpr = () =>
+    circleRadiusExpr((equalSizes ? repeaterR : baseR) * nodeScale, repeaterR * nodeScale);
 
   function addSourceAndLayer() {
     if (m.getSource('rt-nodes')) return;
@@ -183,7 +188,7 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
       layout: { visibility: 'visible' },
       paint: {
         'circle-color': circleColorExpr(),
-        'circle-radius': circleRadiusExpr(baseR * nodeScale, repeaterR * nodeScale),
+        'circle-radius': radiusExpr(),
         'circle-opacity': circlesVisible ? 0.9 : 0,
         'circle-stroke-color': strokeColorExpr(roleColors),
         'circle-stroke-width': ['case', ['get', 'repeater'], 3, 2],
@@ -240,13 +245,12 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
 
   function setNodeScale(factor: number) {
     nodeScale = factor;
-    if (m.getLayer('rt-nodes')) {
-      m.setPaintProperty(
-        'rt-nodes',
-        'circle-radius',
-        circleRadiusExpr(baseR * nodeScale, repeaterR * nodeScale)
-      );
-    }
+    if (m.getLayer('rt-nodes')) m.setPaintProperty('rt-nodes', 'circle-radius', radiusExpr());
+  }
+
+  function setEqualSizes(on: boolean) {
+    equalSizes = on;
+    if (m.getLayer('rt-nodes')) m.setPaintProperty('rt-nodes', 'circle-radius', radiusExpr());
   }
 
   function setRoleColors(colors: Record<number, string>) {
@@ -280,6 +284,7 @@ export function createNodesLayer(map: MlMap, opts: NodesLayerOptions = {}) {
     reattach,
     setData,
     setNodeScale,
+    setEqualSizes,
     setRoleColors,
     setLabelMode,
     setCirclesVisible,

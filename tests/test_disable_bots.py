@@ -123,9 +123,12 @@ class TestDisableBotsHealthEndpoint:
 
     @pytest.mark.asyncio
     async def test_health_includes_bots_disabled_false(self, test_db):
-        with patch(
-            "app.routers.health.settings",
-            MagicMock(disable_bots=False, basic_auth_enabled=False, database_path="x"),
+        mock_settings = MagicMock(disable_bots=False, basic_auth_enabled=False, database_path="x")
+        # The fanout manager reads app.config.settings directly (fork default is
+        # disable_bots=True), so both views must see bots enabled.
+        with (
+            patch("app.routers.health.settings", mock_settings),
+            patch("app.config.settings", mock_settings),
         ):
             with patch("app.routers.health.os.path.getsize", return_value=0):
                 data = await build_health_data(True, "TCP: 1.2.3.4:4000")
@@ -159,3 +162,19 @@ class TestDisableBotsHealthEndpoint:
 
         assert data["bots_disabled"] is True
         assert data["bots_disabled_source"] == "until_restart"
+
+
+class TestDisableBotsForkDefault:
+    """This fork ships with bots disabled unless MESHCORE_DISABLE_BOTS=false."""
+
+    def test_default_is_disabled(self, monkeypatch):
+        from app.config import Settings
+
+        monkeypatch.delenv("MESHCORE_DISABLE_BOTS", raising=False)
+        assert Settings().disable_bots is True
+
+    def test_env_false_enables_bots(self, monkeypatch):
+        from app.config import Settings
+
+        monkeypatch.setenv("MESHCORE_DISABLE_BOTS", "false")
+        assert Settings().disable_bots is False

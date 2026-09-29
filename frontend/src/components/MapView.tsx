@@ -439,6 +439,11 @@ export function MapView({
     isBool
   );
   const [nodeScale, setNodeScale] = useState(getSavedNodeScale);
+  const [equalNodeSizes, setEqualNodeSizes] = usePersistedMapSetting(
+    'remoteterm-map-equal-node-sizes',
+    false,
+    isBool
+  );
   const [arcFadeMs, setArcFadeMs] = useState(getSavedArcFadeMs);
   const [arcWidthScale, setArcWidthScale] = useState(() =>
     getSavedWidthScale(MAP_ARC_WIDTH_STORAGE_KEY)
@@ -1599,6 +1604,7 @@ export function MapView({
       });
       nodes.ensure();
       nodes.setNodeScale(nodeScale);
+      nodes.setEqualSizes(equalNodeSizes);
       nodes.setLabelMode(labelMode);
       nodes.setData(mappableContacts, nowSec);
       // Neon nodes: a deck.gl halo+core overlay that replaces the flat circles
@@ -1608,6 +1614,7 @@ export function MapView({
       nodesRef.current = nodes;
       const neon = createNeonNodesOverlay(map);
       neon.setNodeScale(nodeScale);
+      neon.setEqualSizes(equalNodeSizes);
       neon.setRoleColors(roleColorsRef.current);
       neon.setData(mappableContacts, nowSec);
       neon.setVisible(neonNodes);
@@ -1749,6 +1756,11 @@ export function MapView({
     nodesRef.current?.setNodeScale(nodeScale);
     neonOverlayRef.current?.setNodeScale(nodeScale);
   }, [nodeScale]);
+
+  useEffect(() => {
+    nodesRef.current?.setEqualSizes(equalNodeSizes);
+    neonOverlayRef.current?.setEqualSizes(equalNodeSizes);
+  }, [equalNodeSizes]);
 
   // Keep the external overlay layer + refs in sync with fetched/visible nodes.
   useEffect(() => {
@@ -2317,6 +2329,8 @@ export function MapView({
         }}
         nodeScale={nodeScale}
         onNodeScale={setNodeScale}
+        equalNodeSizes={equalNodeSizes}
+        onToggleEqualNodeSizes={setEqualNodeSizes}
         arcWidthScale={arcWidthScale}
         onArcWidthScale={setArcWidthScale}
         arcFadeMs={arcFadeMs}

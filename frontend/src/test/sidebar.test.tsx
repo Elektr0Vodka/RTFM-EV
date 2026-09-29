@@ -1242,6 +1242,58 @@ describe('Sidebar contact groups (plan 28 item 1.16)', () => {
     ).toBeInTheDocument();
   });
 
+  describe('per-group sort toggle', () => {
+    const opsChannel = makeChannel('CC'.repeat(16), '#ops');
+    const zuluChannel = makeChannel('DD'.repeat(16), '#zulu');
+    const channels = [makeChannel('AA'.repeat(16), 'Public'), opsChannel, zuluChannel];
+    // #zulu has the newest message; A-Z would put #ops first.
+    const lastMessageTimes = {
+      [getStateKey('channel', opsChannel.key)]: 100,
+      [getStateKey('channel', zuluChannel.key)]: 200,
+    };
+    const baseGroup: ContactGroup = {
+      id: 'grp-1',
+      name: 'Field Team',
+      contact_keys: [],
+      channel_keys: [opsChannel.key, zuluChannel.key],
+    };
+    const memberOrder = () =>
+      screen
+        .getAllByText(/^#(ops|zulu)$/)
+        .map((node) => node.textContent)
+        .filter((text): text is string => Boolean(text));
+
+    it('keeps A-Z order for a group saved without a sort order', () => {
+      renderSidebar({ channels, lastMessageTimes, contactGroups: [baseGroup] });
+      expect(memberOrder()).toEqual(['#ops', '#zulu']);
+    });
+
+    it('puts the most recently active member first when set to recent', () => {
+      renderSidebar({
+        channels,
+        lastMessageTimes,
+        contactGroups: [{ ...baseGroup, sort_order: 'recent' }],
+      });
+      expect(memberOrder()).toEqual(['#zulu', '#ops']);
+    });
+
+    it('persists the toggled sort order on the group', () => {
+      const { onSaveSidebarOrder } = renderSidebar({
+        channels,
+        lastMessageTimes,
+        contactGroups: [baseGroup],
+      });
+      fireEvent.click(
+        within(getSectionHeaderContainer('Field Team')).getByRole('button', {
+          name: /^Sort Field Team/,
+        })
+      );
+      expect(onSaveSidebarOrder).toHaveBeenCalledWith({
+        contact_groups: [expect.objectContaining({ id: 'grp-1', sort_order: 'recent' })],
+      });
+    });
+  });
+
   it('collapses and expands a group section', () => {
     const group: ContactGroup = {
       id: 'grp-1',

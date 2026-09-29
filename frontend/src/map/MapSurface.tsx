@@ -71,6 +71,8 @@ export interface MapSurfaceProps {
   onLinkWidthScale?: (v: number) => void;
   neonNodes?: boolean;
   onToggleNeon?: (on: boolean) => void;
+  equalNodeSizes?: boolean;
+  onToggleEqualNodeSizes?: (on: boolean) => void;
   linksOn?: boolean;
   onToggleLinks?: (on: boolean) => void;
   linkMode?: MapLinkMode;
@@ -305,6 +307,8 @@ export function MapSurface(props: MapSurfaceProps) {
         onLinkWidthScale={props.onLinkWidthScale}
         neonNodes={props.neonNodes}
         onToggleNeon={props.onToggleNeon}
+        equalNodeSizes={props.equalNodeSizes}
+        onToggleEqualNodeSizes={props.onToggleEqualNodeSizes}
         roleColors={props.roleColors}
         onRoleColorChange={props.onRoleColorChange}
         onResetRoleColors={props.onResetRoleColors}

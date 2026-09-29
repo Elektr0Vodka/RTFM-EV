@@ -848,6 +848,7 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
                     name=name,
                     contact_keys=sorted({k.lower() for k in group.contact_keys if k}),
                     channel_keys=sorted({k for k in group.channel_keys if k}),
+                    sort_order=group.sort_order,
                 )
             )
         kwargs["contact_groups"] = cleaned_groups

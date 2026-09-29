@@ -69,7 +69,8 @@ export function buildNeonNodeLayers(
   data: NeonNodeDatum[],
   nodeScale = 1,
   roleColors: Record<number, string> = NODE_TYPE_STROKE,
-  heights: NodeHeights = GROUND_HEIGHTS
+  heights: NodeHeights = GROUND_HEIGHTS,
+  equalSizes = false
 ): unknown[] {
   const ScatterplotLayer = deck.ScatterplotLayer as unknown as new (
     p: Record<string, unknown>
@@ -80,7 +81,8 @@ export function buildNeonNodeLayers(
     d.pos[1],
     heights.at(d.pos[0], d.pos[1]),
   ];
-  const coreR = (d: NeonNodeDatum) => (d.repeater ? REPEATER_CORE_R : CORE_R) * nodeScale;
+  const coreR = (d: NeonNodeDatum) =>
+    (d.repeater || equalSizes ? REPEATER_CORE_R : CORE_R) * nodeScale;
   // Core ring encodes node TYPE via the per-role colour (same source as the flat
   // layer's stroke and the legend), so neon honours the node-colour picker.
   const ringColor = (d: NeonNodeDatum): [number, number, number, number] => {
@@ -101,7 +103,7 @@ export function buildNeonNodeLayers(
     },
     stroked: false,
     billboard: true,
-    updateTriggers: { getRadius: nodeScale, getPosition: heights.version },
+    updateTriggers: { getRadius: [nodeScale, equalSizes], getPosition: heights.version },
     // Always on top: 3D buildings never hide a node (deck.gl 9 parameter names;
     // the legacy depthTest/depthMask are ignored). No depth writes, so
     // overlapping halos read as additive glow, not occlusion.
@@ -125,7 +127,7 @@ export function buildNeonNodeLayers(
     lineWidthMinPixels: 1.5,
     billboard: true,
     updateTriggers: {
-      getRadius: nodeScale,
+      getRadius: [nodeScale, equalSizes],
       getLineColor: roleColors,
       getPosition: heights.version,
     },
@@ -138,6 +140,7 @@ export function buildNeonNodeLayers(
 export interface NeonNodesOverlay {
   setData(contacts: Contact[], nowSec: number): void;
   setNodeScale(scale: number): void;
+  setEqualSizes(on: boolean): void;
   setRoleColors(colors: Record<number, string>): void;
   setVisible(visible: boolean): void;
   setHeights(heights: NodeHeights): void;
@@ -148,6 +151,7 @@ export function createNeonNodesOverlay(map: MlMap): NeonNodesOverlay {
   let slot: DeckSlot | null = null;
   let data: NeonNodeDatum[] = [];
   let nodeScale = 1;
+  let equalSizes = false;
   let roleColors: Record<number, string> = NODE_TYPE_STROKE;
   let heights: NodeHeights = GROUND_HEIGHTS;
   let visible = false;
@@ -162,7 +166,7 @@ export function createNeonNodesOverlay(map: MlMap): NeonNodesOverlay {
       .then((deck) => {
         if (destroyed) return;
         slot = acquireDeckSlot(map, 'neon', deck, () =>
-          visible ? buildNeonNodeLayers(deck, data, nodeScale, roleColors, heights) : []
+          visible ? buildNeonNodeLayers(deck, data, nodeScale, roleColors, heights, equalSizes) : []
         );
       })
       .catch(() => {
@@ -178,6 +182,10 @@ export function createNeonNodesOverlay(map: MlMap): NeonNodesOverlay {
     },
     setNodeScale(scale: number): void {
       nodeScale = scale;
+      if (slot) apply();
+    },
+    setEqualSizes(on: boolean): void {
+      equalSizes = on;
       if (slot) apply();
     },
     setRoleColors(colors: Record<number, string>): void {
