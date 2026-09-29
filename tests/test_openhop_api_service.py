@@ -76,6 +76,32 @@ async def test_airtime_chart_data_sends_params_and_key():
 
 
 @pytest.mark.asyncio
+async def test_crc_error_history_sends_params_and_key():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/crc_error_history":
+            seen["key"] = request.headers.get("X-API-Key")
+            seen["params"] = dict(request.url.params)
+            return httpx.Response(
+                200,
+                json={
+                    "success": True,
+                    "data": {"history": [{"timestamp": 100.5, "count": 2}], "hours": 3, "count": 1},
+                },
+            )
+        return httpx.Response(404, json={"success": False})
+
+    client = OpenHopClient("http://node:8000", token="tok", transport=httpx.MockTransport(handler))
+    resp = await client.crc_error_history(3, limit=500)
+    await client.aclose()
+
+    assert seen["key"] == "tok"
+    assert seen["params"] == {"hours": "3", "limit": "500"}
+    assert resp["data"]["history"][0]["count"] == 2
+
+
+@pytest.mark.asyncio
 async def test_policy_and_group_methods_use_api_key():
     seen = {}
 

@@ -1,4 +1,5 @@
 import logging
+import math
 import time
 
 import httpx
@@ -112,13 +113,47 @@ async def _openhop_airtime_range(start_ts: int, end_ts: int, bin_count: int) -> 
             bw_hz=int(bw_khz * 1000),
             cr=cr,
         )
+        crc_history = await _openhop_crc_history(client, start_ts, end_ts)
     except (httpx.HTTPError, ValueError) as exc:
         logger.debug("OpenHop airtime fetch failed, falling back to local: %s", exc)
         return None
     finally:
         await client.aclose()
 
-    return map_openhop_airtime_buckets(resp.get("data") or {})
+    return map_openhop_airtime_buckets(resp.get("data") or {}, crc_history)
+
+
+# OpenHop polls its radio CRC counter every 30 s (engine NOISE_FLOOR_INTERVAL)
+# and stores at most one row per poll, so 120 rows/hour bounds the history.
+OPENHOP_CRC_ROWS_PER_HOUR = 120
+
+
+async def _openhop_crc_history(
+    client: OpenHopClient, start_ts: int, end_ts: int
+) -> list[dict] | None:
+    """Radio CRC error rows in [start_ts, end_ts] from OpenHop, or None on failure.
+
+    The companion STATS_PACKETS ``recv_errors`` slot on OpenHop carries its
+    repeater dropped-packet count, so real receive errors only come from this
+    endpoint. It takes a window in hours back from now, so ask for enough hours
+    to reach ``start_ts`` and trim to the requested range here.
+    """
+    hours = max(1, math.ceil((time.time() - start_ts) / 3600))
+    try:
+        resp = await client.crc_error_history(
+            hours, limit=hours * OPENHOP_CRC_ROWS_PER_HOUR + OPENHOP_CRC_ROWS_PER_HOUR
+        )
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.debug("OpenHop CRC error fetch failed, omitting rx_errors: %s", exc)
+        return None
+    if not resp.get("success"):
+        return None
+    history = (resp.get("data") or {}).get("history") or []
+    return [
+        row
+        for row in history
+        if isinstance(row.get("timestamp"), int | float) and start_ts <= row["timestamp"] <= end_ts
+    ]
 
 
 @router.get("/airtime/range")
@@ -131,7 +166,8 @@ async def get_airtime_range(
 
     On OpenHop nodes (which hardcode rx_air_secs=0 in the companion frame) with
     the OpenHop API configured, data comes from OpenHop's REST endpoint, which
-    reports real RX airtime. Otherwise utilization is derived from deltas between
+    reports real RX airtime, and ``rx_errors`` comes from OpenHop's radio CRC
+    error history (omitted if that call fails). Otherwise utilization is derived from deltas between
     cumulative airtime samples, so the response is empty until at least two
     samples exist in the window.
     """

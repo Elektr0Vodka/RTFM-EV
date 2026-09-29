@@ -11,6 +11,21 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-29 (OpenHop receive-error graph, fix/openhop-crc-rx-errors)
+
+### My Node: receive-error graph on OpenHop nodes (backend)
+- With the OpenHop API configured, `GET /api/statistics/airtime/range` now
+  fills `rx_errors` from OpenHop's radio CRC error history
+  (`/api/crc_error_history`), bucketed like OpenHop's airtime buckets, so the
+  My Node "Receive errors" card shows on OpenHop nodes. If that call fails the
+  airtime chart still loads and the card stays hidden.
+- OpenHop's companion `STATS_PACKETS` frame puts the repeater's dropped-packet
+  count in the `recv_errors` slot, not radio CRC errors. The sampler no longer
+  stores that value for OpenHop nodes (`airtime_history.recv_errors` is NULL),
+  so without the OpenHop API the card is hidden instead of showing drops as
+  receive errors. Rows stored before this change are left as they are.
+- New `OpenHopClient.crc_error_history`. No migration.
+
 ## Update 2026-09-29 (Richard's Discord requests, feat/richard-requests-2026-09-29)
 
 ### Sidebar: sort a custom group by recent activity (frontend + backend)

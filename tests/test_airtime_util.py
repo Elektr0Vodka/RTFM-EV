@@ -106,6 +106,34 @@ def test_map_openhop_buckets_empty_and_missing_fields():
     assert out == [{"timestamp": 5, "tx_pct": 0.0, "rx_pct": 0.0}]
 
 
+def test_map_openhop_buckets_merges_crc_history():
+    # CRC rows land in the epoch-aligned bucket OpenHop uses (floor(ts/bs)*bs).
+    data = {
+        "bucket_seconds": 60,
+        "buckets": [
+            {"timestamp": 60, "tx_ms": 0, "rx_ms": 6000},
+            {"timestamp": 180, "tx_ms": 0, "rx_ms": 0},
+        ],
+    }
+    crc = [
+        {"timestamp": 61.5, "count": 2},
+        {"timestamp": 119.9, "count": 3},  # same 60s bucket as 61.5
+        {"timestamp": 250.0, "count": 4},  # bucket 240 has no airtime row
+    ]
+    out = map_openhop_airtime_buckets(data, crc_history=crc)
+    assert out == [
+        {"timestamp": 60, "tx_pct": 0.0, "rx_pct": 10.0, "rx_errors": 5},
+        {"timestamp": 180, "tx_pct": 0.0, "rx_pct": 0.0, "rx_errors": 0},
+        {"timestamp": 240, "tx_pct": 0.0, "rx_pct": 0.0, "rx_errors": 4},
+    ]
+
+
+def test_map_openhop_buckets_without_crc_history_has_no_rx_errors():
+    data = {"bucket_seconds": 60, "buckets": [{"timestamp": 60, "tx_ms": 0, "rx_ms": 0}]}
+    out = map_openhop_airtime_buckets(data, crc_history=None)
+    assert "rx_errors" not in out[0]
+
+
 def test_rx_errors_summed_per_bin_from_counter_deltas():
     samples = [
         {"timestamp": 0, "tx_air_secs": 0, "rx_air_secs": 0, "recv_errors": 10},

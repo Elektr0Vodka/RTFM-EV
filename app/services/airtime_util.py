@@ -71,17 +71,34 @@ def compute_airtime_utilization(
     return out
 
 
-def map_openhop_airtime_buckets(data: dict) -> list[dict]:
+def map_openhop_airtime_buckets(data: dict, crc_history: list[dict] | None = None) -> list[dict]:
     """Map OpenHop's ``airtime_chart_data`` payload to chart points.
 
     OpenHop returns pre-bucketed ``rx_ms``/``tx_ms`` per ``bucket_seconds`` slot
     (from its packet DB, so RX is real). Convert each bucket to channel
     utilization %: ``100 * ms / (bucket_seconds * 1000)``, capped at 100, in the
     same ``{timestamp, tx_pct, rx_pct}`` shape the local computation returns.
-    OpenHop reports no RX error counter here, so the points carry no ``rx_errors``.
+
+    ``crc_history`` is OpenHop's ``crc_error_history`` rows (``{timestamp,
+    count}``, already limited to the window). When given, every point gets
+    ``rx_errors``: the summed counts in its bucket, using OpenHop's own
+    epoch-aligned bucketing (``floor(ts / bucket_seconds) * bucket_seconds``).
+    OpenHop only stores a row when errors occurred, so a bucket without rows is
+    0, and a bucket with errors but no packets becomes a 0 % airtime point.
+    ``None`` (history unavailable) leaves ``rx_errors`` off the points.
     """
     bucket_seconds = data.get("bucket_seconds") or 0
     denom = bucket_seconds * 1000
+    errors: dict[int, int] | None = None
+    if crc_history is not None and bucket_seconds > 0:
+        errors = {}
+        for row in crc_history:
+            ts = row.get("timestamp")
+            count = row.get("count")
+            if not isinstance(ts, int | float) or not isinstance(count, int):
+                continue
+            key = int(ts // bucket_seconds) * bucket_seconds
+            errors[key] = errors.get(key, 0) + count
     out: list[dict] = []
     for bucket in data.get("buckets") or []:
         ts = bucket.get("timestamp")
@@ -92,12 +109,17 @@ def map_openhop_airtime_buckets(data: dict) -> list[dict]:
             rx_pct = min(100.0, 100.0 * (bucket.get("rx_ms", 0.0) / denom))
         else:
             tx_pct = rx_pct = 0.0
-        out.append(
-            {
-                "timestamp": int(ts),
-                "tx_pct": round(tx_pct, 2),
-                "rx_pct": round(rx_pct, 2),
-            }
-        )
+        point = {
+            "timestamp": int(ts),
+            "tx_pct": round(tx_pct, 2),
+            "rx_pct": round(rx_pct, 2),
+        }
+        if errors is not None:
+            point["rx_errors"] = errors.pop(int(ts), 0)
+        out.append(point)
+    if errors:
+        # Error buckets with no packet row: no decoded traffic, so 0 % airtime.
+        for ts, count in errors.items():
+            out.append({"timestamp": ts, "tx_pct": 0.0, "rx_pct": 0.0, "rx_errors": count})
     out.sort(key=lambda p: p["timestamp"])
     return out

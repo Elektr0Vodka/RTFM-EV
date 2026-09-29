@@ -283,7 +283,7 @@
   "node_chart_rx_errors_title": "Ontvangstfouten",
   "node_chart_rx_errors_stat": "{count} in venster",
   "node_chart_rx_errors_tooltip": "RX-fouten",
-  "node_chart_rx_errors_note": "Pakketten die de radio begon te ontvangen maar niet kon decoderen (CRC- of headerfouten), uit de pakketstatistieken van de companion. Vereist firmware v1.12 of nieuwer; niet beschikbaar uit OpenHop-zendtijddata.",
+  "node_chart_rx_errors_note": "Pakketten die de radio begon te ontvangen maar niet kon decoderen (CRC- of headerfouten), uit de pakketstatistieken van de companion. Vereist firmware v1.12 of nieuwer. Op OpenHop-nodes komt dit uit de CRC-foutgeschiedenis van de radio via de OpenHop-API, dus daarvoor moet de OpenHop-API ingesteld zijn.",
   "node_window_30d": "30d",
   "node_window_6h": "6h",
   "node_window_7d": "7d",

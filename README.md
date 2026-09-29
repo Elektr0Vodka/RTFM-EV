@@ -73,7 +73,8 @@ Shipped toward this so far:
   history (`_024`).
 - "My Node" and mesh-health views that read from this persisted history, including
   a TX/RX airtime utilization (%) chart and a receive-errors chart (packets the
-  radio could not decode, firmware v1.12+) on My Node and a "Directly heard radar"
+  radio could not decode, firmware v1.12+; on OpenHop nodes read from the OpenHop
+  API's CRC error history) on My Node and a "Directly heard radar"
   card that plots 0-hop nodes by bearing and distance, coloured by best SNR.
 - A "Mesh Health" view with an Adverts panel (per-contact direct/flood advert
   counts, a searchable and pageable contacts table, and HIGH/MEDIUM alerts that

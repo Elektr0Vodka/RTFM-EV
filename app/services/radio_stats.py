@@ -25,6 +25,7 @@ from typing import Any
 from meshcore import EventType
 
 from app.radio import RadioDisconnectedError, RadioOperationBusyError
+from app.services.openhop import is_openhop
 from app.services.radio_runtime import radio_runtime as radio_manager
 
 logger = logging.getLogger(__name__)
@@ -114,8 +115,13 @@ async def _persist_samples(snapshot: dict[str, Any]) -> None:
             # Cumulative RX error counter from STATS_PACKETS (firmware v1.12+,
             # None on the legacy 26-byte frame); stored beside the airtime
             # counters so the My Node receive-error graph shares their sampling.
+            # OpenHop fills this slot with its repeater dropped-packet count,
+            # not radio CRC errors, so it is not stored for OpenHop nodes (their
+            # graph reads CRC errors from the OpenHop REST API instead).
             packets = snapshot.get("packets")
             recv_errors = packets.get("recv_errors") if isinstance(packets, dict) else None
+            if is_openhop(getattr(radio_manager, "device_model", None)):
+                recv_errors = None
             await AirtimeHistoryRepository.insert(
                 ts,
                 tx_air_secs,

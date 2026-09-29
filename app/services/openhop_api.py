@@ -282,6 +282,16 @@ class OpenHopClient:
             },
         )
 
+    async def crc_error_history(self, hours: int, *, limit: int) -> dict[str, Any]:
+        """Radio CRC error rows from the last ``hours`` (counted back from now).
+
+        OpenHop polls its radio's CRC counter every 30 s and stores the delta
+        only when it is above 0, so ``data.history`` is sparse
+        ``[{timestamp, count}]`` in chronological order. ``limit`` keeps the
+        newest rows. Standard ``{success, data}`` envelope.
+        """
+        return await self._get_q("/api/crc_error_history", {"hours": hours, "limit": limit})
+
     # --- Transport keys + neighbor scopes -------------------------------
     async def transport_keys(self) -> dict[str, Any]:
         return await self._get("/api/transport_keys")
