@@ -6,11 +6,11 @@ import { NODE_LABEL_FONT } from './nodesLayer';
 // or manual location, computed in guessedLocations.ts. Drawn as a HOLLOW
 // circle with a "~" glyph so it never reads as a real, located node (which is
 // always a filled circle, see nodesLayer.ts) -- these coordinates are a guess
-// and must never be mistaken for a reported position. Only shown at zoom 12+
-// (native `minzoom`, per meshcore-open's own `_guessedZoomThreshold`), and off
-// by default.
+// and must never be mistaken for a reported position. Only shown at zoom 8+
+// (native `minzoom`; meshcore-open's `_guessedZoomThreshold` is 12, lowered
+// here so the markers are visible from a regional view), and off by default.
 
-export const GUESSED_LOCATIONS_MIN_ZOOM = 12;
+export const GUESSED_LOCATIONS_MIN_ZOOM = 8;
 
 const SOURCE_ID = 'rt-guessed-locations';
 const CIRCLE_LAYER_ID = 'rt-guessed-locations';

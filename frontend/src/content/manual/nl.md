@@ -219,7 +219,7 @@ De kaartbediening is verdeeld over **Weergave**, **Grootte & kleuren**, **Filter
 - **Verbindingen** tussen nodes, op basis van liveness, advertpaden of al het verkeer, met een betrouwbaarheidsniveau, een maximale afstand en een leeftijdsvenster. Klik op een verbinding en daarna op **Details** voor de geschiedenis van verkeer en signaal.
 - **Telemetrie (accu/temp)**.
 - **Gedeelde locaties:** spelden voor locaties die in chats gedeeld zijn. Klik erop om te zien wie hem deelde, en op **Openen in chat**.
-- **Geraden locaties:** geschatte posities voor nodes zonder locatie, als holle markeringen vanaf zoomniveau 12. Worden nooit opgeslagen of verstuurd.
+- **Geraden locaties:** geschatte posities voor nodes zonder locatie, als holle markeringen vanaf zoomniveau 8. Worden nooit opgeslagen of verstuurd.
 - **Relay-signaal:** ringen rond relays die flood-pakketten aan je radio doorgaven, gekleurd naar gemiddelde SNR.
 
 **Analyzer-nodes** toont nodes uit de nodelijst van een externe analyzer. Die lijst wordt alleen gevuld als **Externe analyzer-node-laag** is aangezet en gesynchroniseerd in Instellingen > Radio.

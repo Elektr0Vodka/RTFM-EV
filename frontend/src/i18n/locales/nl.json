@@ -2230,7 +2230,7 @@
   "map_shared_locations_open_osm": "Openen in OpenStreetMap",
   "map_guessed_locations_label": "Geraden locaties",
   "map_guessed_locations_enable": "Geraden posities tonen voor niet-gelokaliseerde nodes",
-  "map_guessed_locations_help": "Geschatte posities voor nodes zonder verzonden of handmatige locatie, gebaseerd op de dichtstbijzijnde gelokaliseerde repeater(s) in hun bekende advertentiepaden. Alleen zichtbaar vanaf zoomniveau 12, voor nodes gehoord in de laatste 24 uur. Nooit opgeslagen, geëxporteerd of ergens naartoe verzonden.",
+  "map_guessed_locations_help": "Geschatte posities voor nodes zonder verzonden of handmatige locatie, gebaseerd op de dichtstbijzijnde gelokaliseerde repeater(s) in hun bekende advertentiepaden. Alleen zichtbaar vanaf zoomniveau 8, voor nodes gehoord in de laatste 24 uur. Nooit opgeslagen, geëxporteerd of ergens naartoe verzonden.",
   "map_guessed_locations_count": "{count} geraden op de kaart.",
   "map_relay_signal_label": "Relay-signaal",
   "map_relay_signal_enable": "Toon relay-signaalringen",

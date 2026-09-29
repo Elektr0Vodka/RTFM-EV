@@ -2229,7 +2229,7 @@
   "map_shared_locations_open_osm": "Open in OpenStreetMap",
   "map_guessed_locations_label": "Guessed locations",
   "map_guessed_locations_enable": "Show guessed positions for unlocated nodes",
-  "map_guessed_locations_help": "Estimated positions for nodes with no advertised or manual location, based on the located repeater(s) nearest them in their known advert paths. Only shown at zoom 12+, for nodes heard in the last 24h. Never saved, exported or sent anywhere.",
+  "map_guessed_locations_help": "Estimated positions for nodes with no advertised or manual location, based on the located repeater(s) nearest them in their known advert paths. Only shown at zoom 8+, for nodes heard in the last 24h. Never saved, exported or sent anywhere.",
   "map_guessed_locations_count": "{count} guessed on the map.",
   "map_relay_signal_label": "Relay signal",
   "map_relay_signal_enable": "Show relay signal rings",
