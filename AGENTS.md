@@ -23,6 +23,7 @@ A web interface for MeshCore mesh radio networks. The backend connects to a Mesh
 **Interop references:**
 - `docs/sources-of-truth.md` - Canonical upstream repos for the firmware (official MeshCore, DMC Repeater / DMC-MQTT-Repeater, meshcomod, OpenHop) and tooling RTFM-EV interoperates with. Verify wire formats, CLI verbs, MQTT payloads, and URL schemes here.
 - `docs/parity-audit.md` - Parity/gap audit against the official app and DMC firmware, with the prioritized backlog status (§7).
+- Public docs site (GitHub Pages): `.github/workflows/pages.yml` publishes `README.md`, `README_ADVANCED.md`, `README_HA.md` and the User Guide (`frontend/src/content/manual/*.md`) on every push to `main` that touches them. Nothing under `docs/` is published; links to other repo files point at GitHub. Details in `scripts/build/stage_pages_site.py`.
 - `docs/agents/` - Agent workflow notes: pre-push CI checks (`ci-checks.md`), issue tracker, triage labels, and domain-doc conventions.
 - `docs/plans/` and `docs/superpowers/` - Local-only planning backlog and per-feature spec/plan notes. These are git-ignored (kept on disk, not tracked), so they are present only in local checkouts that have them.
 
@@ -218,11 +219,13 @@ This message-layer echo/path handling is independent of raw-packet storage dedup
 │   │       ├── MapView.tsx       # MapLibre GL map showing node locations (engine/layers in src/map/)
 │   │       └── ...
 │   └── vite.config.ts
+├── pages/                  # GitHub Pages docs site shell (Jekyll layout, CSS, JS, _config.yml); pages are staged from README*.md + the User Guide
 ├── pkg/aur/                # AUR package files (PKGBUILD, systemd service, env, install hooks)
 ├── scripts/                # Quality / release helpers (listing below is representative, not exhaustive)
 │   ├── build/
 │   │   ├── collect_licenses.sh # Gather third-party license attributions
-│   │   └── publish.sh          # Version bump, changelog, docker build & push
+│   │   ├── publish.sh          # Version bump, changelog, docker build & push
+│   │   └── stage_pages_site.py # Stage the GitHub Pages docs site (used by .github/workflows/pages.yml)
 │   ├── quality/
 │   │   ├── all_quality.sh      # Repo-standard autofix + validate gate
 │   │   ├── e2e.sh              # End-to-end test runner

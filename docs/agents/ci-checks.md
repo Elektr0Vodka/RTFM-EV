@@ -88,6 +88,20 @@ junction can delete the shared install's contents. `vite.config.ts` and
 `vitest.config.ts` allow the link's real path in `server.fs.allow`, which the
 maplibre `?worker&url` import needs.
 
+## Docs site (not a PR gate)
+
+`.github/workflows/pages.yml` only runs on `main` (and by hand) and deploys the
+GitHub Pages site. To preview a docs change locally, stage it and build it with
+the same image the workflow uses:
+
+```bash
+python3 scripts/build/stage_pages_site.py --out _pages_build/src
+MSYS_NO_PATHCONV=1 docker run --rm -v "/$(pwd)/_pages_build://github/workspace" \
+  -e GITHUB_WORKSPACE=/github/workspace -e INPUT_SOURCE=src -e INPUT_DESTINATION=site \
+  ghcr.io/actions/jekyll-build-pages:v1.0.13
+python3 -m http.server 8765 -d _pages_build/site
+```
+
 ## Quick gate before pushing
 
 Backend changed -> run the backend block. Frontend changed -> run the frontend

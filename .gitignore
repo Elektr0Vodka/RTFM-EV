@@ -38,6 +38,9 @@ ha_test_config/
 
 .superpowers/
 
+# Docs site staging/build output (scripts/build/stage_pages_site.py)
+/_pages_build/
+
 # Local-only planning docs (kept on disk, not tracked)
 docs/plans/
 docs/superpowers/

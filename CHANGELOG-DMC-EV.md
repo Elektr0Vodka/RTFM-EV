@@ -11,6 +11,36 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-29 (README rewritten for the fork + docs site, feat/readme-fork-refresh)
+
+### Docs: GitHub Pages documentation site
+- New documentation site on GitHub Pages: the README (landing page),
+  `README_ADVANCED.md`, `README_HA.md` and the in-app User Guide (EN/NL/DE) are
+  built from the repository markdown by `.github/workflows/pages.yml`
+  (`scripts/build/stage_pages_site.py` + the `pages/` shell, official Pages
+  actions) on pushes to main that touch those sources. No generated HTML is
+  committed and internal `docs/` material is not published. Other relative
+  links point to the files on GitHub. Needs Settings > Pages > Source set to
+  "GitHub Actions" once.
+
+### Docs: README.md
+- `README.md` rewritten as the README of RTFM-EV (a fork of RemoteTerm for
+  MeshCore): what it is, what the fork adds, a feature overview grouped by
+  area, requirements, quick start (source and Docker), a configuration table
+  of the main `MESHCORE_*` variables, security notes, meshcomod / OpenHop /
+  host repeater summaries, and links to the in-app User Guide,
+  `README_ADVANCED.md`, `README_HA.md`, this changelog, `docs/` and
+  `CONTRIBUTING.md`. Per-screen detail now lives in the User Guide.
+- Removed the Arch Linux (AUR) install path: the `rtfm-ev` AUR package it
+  named does not exist (the AUR RPC lists only upstream's
+  `remoteterm-meshcore`), and the fork has not published a release.
+- The prebuilt-frontend tip now says it needs a fork release carrying a
+  prebuilt frontend asset, which does not exist yet.
+- Dropped the "planned" roadmap items that have since shipped (device history,
+  multi-radio identity) and a stray sentence fragment.
+- Node requirement updated to what the frontend toolchain needs (Vite 8:
+  Node 20.19+ or 22.12+).
+
 ## Update 2026-09-29 (Coordinate format everywhere, fix/coordinate-format-everywhere)
 
 ### Settings > Local > Coordinate format (frontend)
