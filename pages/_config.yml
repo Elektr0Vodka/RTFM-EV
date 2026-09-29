@@ -1,0 +1,26 @@
+# Jekyll config for the GitHub Pages documentation site.
+#
+# This folder is only the site shell (layout, CSS, JS). The pages themselves are
+# generated from README*.md and frontend/src/content/manual/*.md by
+# scripts/build/stage_pages_site.py, which copies this folder into a staging
+# directory first. Built by .github/workflows/pages.yml with
+# actions/jekyll-build-pages (github-pages gem, kramdown GFM).
+
+title: RTFM-EV
+description: Web interface for MeshCore companion radios
+repository: Elektr0Vodka/RTFM-EV
+theme: null
+# Every link in the layout and the staged pages is relative (front matter `root`),
+# so the site works under any path (the project Pages URL or a local preview).
+# Setting baseurl stops jekyll-github-metadata from looking it up via the Pages API.
+baseurl: ""
+# The staging script already rewrites relative links. jekyll-relative-links would
+# turn them into root-absolute URLs, which break under the /RTFM-EV/ project path.
+relative_links:
+  enabled: false
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default

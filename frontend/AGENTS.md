@@ -803,6 +803,10 @@ links). It renders to React elements, never HTML strings. When user-facing
 behavior changes, update all three files. Keep the same ordered `id` markers in
 each and no em dashes: `src/test/manualContent.test.ts` enforces both. Use the
 UI label text from the matching locale catalog so the guide matches the screen.
+The same files are also published to the GitHub Pages docs site as
+`/guide/<lang>/` (`scripts/build/stage_pages_site.py`, `.github/workflows/pages.yml`),
+with the `id` markers as section anchors; keep them stable, since site links
+and the language switch depend on them.
 
 Translation strings for NL/DE are adapted in part from kiekr-i18n by Marcel
 Verdult (@marcelverdult), https://github.com/marcelverdult/kiekr-i18n, CC-BY 4.0.

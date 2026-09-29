@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="{{ page.lang | default: 'en' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>{% if page.title and page.title != site.title %}{{ page.title | escape }} | {% endif %}{{ site.title | escape }}</title>
+  <meta name="description" content="{{ site.description | escape }}">
+  <link rel="stylesheet" href="{{ page.root }}assets/site.css">
+  <script src="{{ page.root }}assets/site.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="{{ page.root }}">{{ site.title | escape }}</a>
+      <nav class="mainnav" aria-label="Site">
+        <a href="{{ page.root }}"{% if page.nav == 'home' %} aria-current="page"{% endif %}>Home</a>
+        <a href="{{ page.root }}guide/{{ page.lang | default: 'en' }}/"{% if page.nav == 'guide' %} aria-current="page"{% endif %}>{{ page.guide_label | default: 'User Guide' | escape }}</a>
+        <a href="{{ page.root }}advanced/"{% if page.nav == 'advanced' %} aria-current="page"{% endif %}>Advanced</a>
+        <a href="{{ page.root }}home-assistant/"{% if page.nav == 'ha' %} aria-current="page"{% endif %}>Home Assistant</a>
+        <a href="https://github.com/{{ site.repository }}">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="page{% if page.toc %} has-toc{% endif %}">
+    {% if page.toc %}
+    <aside class="toc">
+      <details open>
+        <summary>{{ page.toc_heading | default: 'Contents' | escape }}</summary>
+        <ol>
+          {% for item in page.toc %}<li><a href="#{{ item.id }}">{{ item.title | escape }}</a></li>
+          {% endfor %}
+        </ol>
+      </details>
+    </aside>
+    {% endif %}
+
+    <main class="content">
+      {% if page.languages %}
+      <nav class="langswitch" aria-label="Language">
+        {% for l in page.languages %}{% if l.current %}<span aria-current="true" lang="{{ l.code }}">{{ l.name | escape }}</span>{% else %}<a href="{{ l.url }}" hreflang="{{ l.code }}" lang="{{ l.code }}" data-keep-hash>{{ l.name | escape }}</a>{% endif %}
+        {% endfor %}
+      </nav>
+      {% endif %}
+      {{ content }}
+      {% if page.source_url %}
+      <p class="source-link"><a href="{{ page.source_url }}">View source on GitHub</a></p>
+      {% endif %}
+    </main>
+  </div>
+</body>
+</html>
