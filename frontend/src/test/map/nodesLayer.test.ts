@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildNodeFeatures,
   circleRadiusExpr,
+  createNodesLayer,
   recencyTier,
   observedIdTag,
   labelSortKey,
@@ -52,6 +53,41 @@ describe('recencyTier', () => {
 describe('circleRadiusExpr', () => {
   it('makes repeaters larger via a case on the repeater property', () => {
     expect(circleRadiusExpr(7, 10)).toEqual(['case', ['get', 'repeater'], 10, 7]);
+  });
+});
+
+describe('createNodesLayer equal sizes', () => {
+  function fakeMap() {
+    const layers = new Map<string, { paint: Record<string, unknown> }>();
+    const sources = new Set<string>();
+    const map = {
+      getSource: (id: string) => (sources.has(id) ? { setData: () => {} } : undefined),
+      addSource: (id: string) => sources.add(id),
+      getLayer: (id: string) => layers.get(id),
+      addLayer: (l: { id: string; paint?: Record<string, unknown> }) =>
+        layers.set(l.id, { paint: { ...(l.paint ?? {}) } }),
+      setPaintProperty: (id: string, prop: string, value: unknown) => {
+        const layer = layers.get(id);
+        if (layer) layer.paint[prop] = value;
+      },
+      on: () => {},
+      getCanvas: () => ({ style: {} }),
+    };
+    return { map, radius: () => layers.get('rt-nodes')?.paint['circle-radius'] };
+  }
+
+  it('uses the repeater radius for all nodes when on, and restores it when off', () => {
+    const { map, radius } = fakeMap();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const layer = createNodesLayer(map as any);
+    layer.ensure();
+    expect(radius()).toEqual(circleRadiusExpr(7, 10));
+    layer.setEqualSizes(true);
+    expect(radius()).toEqual(circleRadiusExpr(10, 10));
+    layer.setNodeScale(2);
+    expect(radius()).toEqual(circleRadiusExpr(20, 20));
+    layer.setEqualSizes(false);
+    expect(radius()).toEqual(circleRadiusExpr(14, 20));
   });
 });
 

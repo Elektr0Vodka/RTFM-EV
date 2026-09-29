@@ -453,6 +453,17 @@ export function Sidebar({
     setEditingGroupId(null);
     void onSaveSidebarOrder?.({ contact_groups: next });
   };
+  const handleGroupSortToggle = (id: string) => {
+    const next = contactGroups.map((g) =>
+      g.id === id
+        ? {
+            ...g,
+            sort_order: (g.sort_order === 'recent' ? 'alpha' : 'recent') as FavoriteSortOrder,
+          }
+        : g
+    );
+    void onSaveSidebarOrder?.({ contact_groups: next });
+  };
   const handleDeleteGroup = (id: string, name: string) => {
     if (!window.confirm(t('nav_group_delete_confirm', { name }))) return;
     const next = deleteContactGroup(contactGroups, id);
@@ -1645,15 +1656,34 @@ export function Sidebar({
   // section; a group with no visible members (all filtered out, or the
   // group's members were removed) simply doesn't render.
   const renderGroupSection = (group: ContactGroup): React.ReactNode => {
-    const groupChannelRows = filteredChannels
+    const groupChannels = filteredChannels
       .filter((c) => group.channel_keys.includes(c.key))
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((c) => buildChannelRow(c, `grp-${group.id}-chan`));
-    const groupContactRows = allFilteredContactsPool
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const groupContacts = allFilteredContactsPool
       .filter((c) => group.contact_keys.includes(c.public_key.toLowerCase()))
-      .sort((a, b) => (a.name || a.public_key).localeCompare(b.name || b.public_key))
-      .map((c) => buildContactRow(c, `grp-${group.id}-contact`));
-    const rows = [...groupChannelRows, ...groupContactRows];
+      .sort((a, b) => (a.name || a.public_key).localeCompare(b.name || b.public_key));
+    const sortOrder: FavoriteSortOrder = group.sort_order === 'recent' ? 'recent' : 'alpha';
+    let rows: ConversationRow[];
+    if (sortOrder === 'recent') {
+      // Channels and contacts interleaved, most recent activity first; members
+      // with no activity keep the A-Z order above (stable sort).
+      const members = [
+        ...groupChannels.map((c) => ({
+          time: getLastMessageTime('channel', c.key),
+          row: buildChannelRow(c, `grp-${group.id}-chan`),
+        })),
+        ...groupContacts.map((c) => ({
+          time: getContactRecentTime(c),
+          row: buildContactRow(c, `grp-${group.id}-contact`),
+        })),
+      ];
+      rows = members.sort((a, b) => (b.time || 0) - (a.time || 0)).map((m) => m.row);
+    } else {
+      rows = [
+        ...groupChannels.map((c) => buildChannelRow(c, `grp-${group.id}-chan`)),
+        ...groupContacts.map((c) => buildContactRow(c, `grp-${group.id}-contact`)),
+      ];
+    }
     if (rows.length === 0) return null;
 
     const collapsed = groupCollapsed[group.id] ?? false;
@@ -1673,7 +1703,8 @@ export function Sidebar({
           null,
           rows.length,
           newCount,
-          unread > 0 || newCount > 0 ? () => clearSection(rows) : null
+          unread > 0 || newCount > 0 ? () => clearSection(rows) : null,
+          { order: sortOrder, onToggle: () => handleGroupSortToggle(group.id) }
         )}
         {(isSearching || !collapsed) && rows.map((row) => renderConversationRow(row))}
       </div>

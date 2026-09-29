@@ -103,6 +103,24 @@ describe('buildNeonNodeLayers', () => {
     expect(r2(data[0])).toBeCloseTo(2 * r(data[0]), 5);
   });
 
+  it('equal sizes draws every node at the repeater radius', () => {
+    const [halo, core] = buildNeonNodeLayers(
+      fakeDeck(),
+      data,
+      1.5,
+      undefined,
+      undefined,
+      true
+    ) as unknown as FakeLayer[];
+    const r = core.props.getRadius as (d: NeonNodeDatum) => number;
+    expect(r(data[0])).toBe(r(data[1]));
+    const [, defaultCore] = buildNeonNodeLayers(fakeDeck(), data, 1.5) as unknown as FakeLayer[];
+    const rDefault = defaultCore.props.getRadius as (d: NeonNodeDatum) => number;
+    expect(r(data[1])).toBe(rDefault(data[1])); // repeater size unchanged
+    // Toggling must retrigger deck.gl's radius accessor.
+    expect((halo.props.updateTriggers as { getRadius: unknown }).getRadius).toEqual([1.5, true]);
+  });
+
   it('colours the core by recency tier', () => {
     const [, core] = buildNeonNodeLayers(fakeDeck(), data) as unknown as FakeLayer[];
     const fill = core.props.getFillColor as (d: NeonNodeDatum) => number[];

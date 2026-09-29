@@ -87,6 +87,9 @@ export interface MapControlsProps {
   onLinkWidthScale?: (v: number) => void;
   neonNodes?: boolean;
   onToggleNeon?: (on: boolean) => void;
+  /** Draw companions/rooms/sensors at the repeater size. */
+  equalNodeSizes?: boolean;
+  onToggleEqualNodeSizes?: (on: boolean) => void;
   roleColors?: Record<number, string>;
   onRoleColorChange?: (type: number, color: string) => void;
   onResetRoleColors?: () => void;
@@ -269,6 +272,8 @@ export function MapControls(props: MapControlsProps) {
     onLinkWidthScale,
     neonNodes = false,
     onToggleNeon,
+    equalNodeSizes = false,
+    onToggleEqualNodeSizes,
     roleColors = DEFAULT_NODE_ROLE_COLORS,
     onRoleColorChange,
     onResetRoleColors,
@@ -350,6 +355,18 @@ export function MapControls(props: MapControlsProps) {
               onChange={(e) => onNodeScale?.(Number(e.target.value))}
             />
           </label>
+          {onToggleEqualNodeSizes && (
+            <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span>{t('map_equal_node_sizes_label')}</span>
+              <input
+                type="checkbox"
+                className="h-4 w-4 cursor-pointer"
+                checked={equalNodeSizes}
+                aria-label={t('map_equal_node_sizes_label')}
+                onChange={(e) => onToggleEqualNodeSizes(e.target.checked)}
+              />
+            </label>
+          )}
           {onToggleNeon && (
             <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
               <span>{t('map_neon_nodes_label')}</span>

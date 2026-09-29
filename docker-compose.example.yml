@@ -41,7 +41,8 @@ services:
       # MESHCORE_BLE_PIN: 123456
 
       # Security
-      # MESHCORE_DISABLE_BOTS: "true"
+      # Bots are off by default in this fork; set "false" to enable them.
+      # MESHCORE_DISABLE_BOTS: "false"
       # MESHCORE_BASIC_AUTH_USERNAME: changeme
       # MESHCORE_BASIC_AUTH_PASSWORD: changeme
       # MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT: "false"

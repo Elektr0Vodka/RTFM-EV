@@ -1583,6 +1583,13 @@ class ContactGroup(BaseModel):
         default_factory=list, description="Member contact public keys (lowercase hex)"
     )
     channel_keys: list[str] = Field(default_factory=list, description="Member channel keys")
+    sort_order: Literal["alpha", "recent"] = Field(
+        default="alpha",
+        description=(
+            "Order of the group's members in its sidebar section: 'alpha' (channels "
+            "then contacts, each A-Z) or 'recent' (most recent activity first)"
+        ),
+    )
 
 
 # Retention settings added in migrations _105 and _107 (0 = keep forever / no cap).

@@ -911,6 +911,8 @@ export interface ContactGroup {
   name: string;
   contact_keys: string[];
   channel_keys: string[];
+  /** Member order in the section; absent on groups saved before this field = 'alpha'. */
+  sort_order?: FavoriteSortOrder;
 }
 
 export interface AppSettings {

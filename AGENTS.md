@@ -116,7 +116,7 @@ The following are **deliberate design choices**, not bugs. They are documented i
 
 1. **No CORS restrictions**: The backend allows all origins (`allow_origins=["*"]`). This lets users access their radio from any device/origin on their network without configuration hassle.
 2. **Minimal optional access control only**: The app has no user accounts, sessions, authorization model, or per-feature permissions. Operators may optionally set `MESHCORE_BASIC_AUTH_USERNAME` and `MESHCORE_BASIC_AUTH_PASSWORD` for app-wide HTTP Basic auth, but this is only a coarse gate and still requires HTTPS plus a trusted network posture.
-3. **Arbitrary bot code execution**: The bot system (`app/fanout/bot_exec.py`) executes user-provided Python via `exec()` with full `__builtins__`. This is intentional - bots are a power-user feature for automation. The README explicitly warns that anyone on the network can execute arbitrary code through this. Operators can set `MESHCORE_DISABLE_BOTS=true` to completely disable the bot system at startup - this skips all bot execution, returns 403 on bot settings updates, and shows a disabled message in the frontend.
+3. **Arbitrary bot code execution**: The bot system (`app/fanout/bot_exec.py`) executes user-provided Python via `exec()` with full `__builtins__`. This is intentional - bots are a power-user feature for automation. The README explicitly warns that anyone on the network can execute arbitrary code through this. This fork defaults `MESHCORE_DISABLE_BOTS` to `true` (upstream defaults to `false`); operators set `MESHCORE_DISABLE_BOTS=false` to opt in. When disabled, the bot system is off at startup - this skips all bot execution, returns 403 on bot settings updates, and shows a disabled message in the frontend.
 
 ## Intentional Packet Handling Decision
 
@@ -528,7 +528,7 @@ mc.subscribe(EventType.ACK, handler)
 | `MESHCORE_SERIAL_BAUDRATE` | `115200` | Serial baud rate |
 | `MESHCORE_LOG_LEVEL` | `INFO` | Logging level (`DEBUG`/`INFO`/`WARNING`/`ERROR`) |
 | `MESHCORE_DATABASE_PATH` | `data/meshcore.db` | SQLite database location |
-| `MESHCORE_DISABLE_BOTS` | `false` | Disable bot system entirely (blocks execution and config) |
+| `MESHCORE_DISABLE_BOTS` | `true` | Disable bot system entirely (blocks execution and config). Fork default `true`; upstream `false` |
 | `MESHCORE_BASIC_AUTH_USERNAME` | *(none)* | Optional app-wide HTTP Basic auth username; must be set together with `MESHCORE_BASIC_AUTH_PASSWORD` |
 | `MESHCORE_BASIC_AUTH_PASSWORD` | *(none)* | Optional app-wide HTTP Basic auth password; must be set together with `MESHCORE_BASIC_AUTH_USERNAME` |
 | `MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK` | `false` | Switch the always-on radio audit task from hourly checks to aggressive 10-second polling; the audit checks both missed message drift and channel-slot cache drift |

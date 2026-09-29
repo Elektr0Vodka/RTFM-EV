@@ -63,6 +63,8 @@ export default defineConfig({
     timeout: 180_000,
     env: {
       MESHCORE_DATABASE_PATH: path.join(tmpDir, 'e2e-test.db'),
+      // This fork defaults bots off; bot.spec.ts needs them on.
+      MESHCORE_DISABLE_BOTS: 'false',
       // Pass through the serial port from the environment
       ...(process.env.MESHCORE_SERIAL_PORT
         ? { MESHCORE_SERIAL_PORT: process.env.MESHCORE_SERIAL_PORT }

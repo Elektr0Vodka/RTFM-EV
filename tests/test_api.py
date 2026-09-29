@@ -577,6 +577,27 @@ class TestDebugEndpoint:
         assert [g["id"] for g in groups] == ["grp-4"]
 
     @pytest.mark.asyncio
+    async def test_contact_group_sort_order_round_trip(self, test_db, client):
+        """A group's sort_order defaults to 'alpha' and persists 'recent'."""
+        base = {"name": "Team", "contact_keys": [], "channel_keys": []}
+        response = await client.patch(
+            "/api/settings",
+            json={
+                "contact_groups": [
+                    {"id": "grp-a", **base},
+                    {"id": "grp-r", **base, "sort_order": "recent"},
+                ]
+            },
+        )
+        assert response.status_code == 200
+        groups = response.json()["contact_groups"]
+        assert [g["sort_order"] for g in groups] == ["alpha", "recent"]
+
+        response = await client.get("/api/settings")
+        groups = response.json()["contact_groups"]
+        assert [g["sort_order"] for g in groups] == ["alpha", "recent"]
+
+    @pytest.mark.asyncio
     async def test_packet_feed_sort_round_trip(self, test_db, client):
         """Packet-feed sort defaults to 'oldest' and persists 'newest' via PATCH."""
         response = await client.get("/api/settings")
