@@ -172,8 +172,9 @@ frontend/src/
 │   │   ├── SettingsRadioSection.tsx      # Name, keys, advert interval, max contacts, radio preset, freq/bw/sf/cr, txPower, lat/lon, reboot, known regions
 │   │   ├── SettingsLocalSection.tsx      # Browser-local settings: theme, relative font scale, local label, reopen last conversation
 │   │   ├── SettingsFanoutSection.tsx     # Fanout integrations: MQTT, bots, config CRUD
-│   │   ├── SettingsRadioAppSection.tsx    # Radio-App Management: tracked telemetry, contact management, blocked lists, partial-node sync, channel sets
-│   │   ├── ChannelSetsSettings.tsx        # Channel sets (plan 08): save named channel groups, "Load onto radio" with per-channel slot results (/api/channel-sets)
+│   │   ├── SettingsRadioAppSection.tsx    # Radio-App Management: tracked telemetry, contact management, blocked lists, partial-node sync, loadouts (channel sets)
+│   │   ├── ChannelSetsSettings.tsx        # Loadouts (channel sets, plan 08): save named groups of channels + contacts, "Load onto radio" with per-channel slot and per-contact results (/api/channel-sets)
+│   │   ├── LoadoutDisconnectDialog.tsx    # Plan 08 slice 3: Disconnect (Settings > Radio) offers to load a loadout first; asks again when anything failed
 │   │   ├── PartialNodeSyncModal.tsx       # Review + apply soft resolutions of partial nodes vs the external-map cache; lists applied soft links (collapsed) with a per-row remove (DELETE /partial-resolutions/{prefix})
 │   │   ├── SettingsDatabaseSection.tsx   # Database: DB size, storage cleanup, auto-decrypt
 │   │   ├── SettingsAboutSection.tsx     # Version, author, license, links

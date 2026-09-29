@@ -663,7 +663,7 @@ export function SettingsRadioAppSection({
       <Separator />
 
       {/* ── Channel sets (plan 08) ── */}
-      <ChannelSetsSettings channels={channels} />
+      <ChannelSetsSettings channels={channels} contacts={contacts} />
     </div>
   );
 }
