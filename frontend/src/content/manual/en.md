@@ -219,7 +219,7 @@ The map controls are grouped under **Display**, **Size & colors**, **Filters** a
 - **Links** between nodes, from liveness, advert paths or all traffic, with a confidence level, a maximum distance and an age window. Click a link and then **Details** for its traffic and signal history.
 - **Telemetry (battery/temp)**.
 - **Shared locations:** pins for locations sent in chat. Click one for who shared it and **Open in chat**.
-- **Guessed locations:** estimated positions for nodes without a location, shown as hollow markers from zoom 12. Never saved or sent.
+- **Guessed locations:** estimated positions for nodes without a location, shown as hollow markers from zoom 8. Never saved or sent.
 - **Relay signal:** rings around relays that passed flooded packets to your radio, colored by average SNR.
 
 **Analyzer nodes** shows nodes from an external analyzer directory. The directory is only filled when **External analyzer node overlay** is turned on and synced in Settings > Radio.

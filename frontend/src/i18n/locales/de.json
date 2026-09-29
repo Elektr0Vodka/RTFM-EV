@@ -2230,7 +2230,7 @@
   "map_shared_locations_open_osm": "In OpenStreetMap öffnen",
   "map_guessed_locations_label": "Geschätzte Standorte",
   "map_guessed_locations_enable": "Geschätzte Positionen für nicht lokalisierte Knoten anzeigen",
-  "map_guessed_locations_help": "Geschätzte Positionen für Knoten ohne gesendeten oder manuellen Standort, basierend auf dem/den nächstgelegenen lokalisierten Repeater(n) in ihren bekannten Advert-Pfaden. Nur ab Zoomstufe 12 sichtbar, für Knoten, die in den letzten 24 Stunden empfangen wurden. Wird nie gespeichert, exportiert oder irgendwohin gesendet.",
+  "map_guessed_locations_help": "Geschätzte Positionen für Knoten ohne gesendeten oder manuellen Standort, basierend auf dem/den nächstgelegenen lokalisierten Repeater(n) in ihren bekannten Advert-Pfaden. Nur ab Zoomstufe 8 sichtbar, für Knoten, die in den letzten 24 Stunden empfangen wurden. Wird nie gespeichert, exportiert oder irgendwohin gesendet.",
   "map_guessed_locations_count": "{count} geschätzt auf der Karte.",
   "map_relay_signal_label": "Relay-Signal",
   "map_relay_signal_enable": "Relay-Signalringe anzeigen",

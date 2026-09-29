@@ -11,6 +11,14 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-30 (Guessed locations visible from farther out, fix/guessed-locations-min-zoom)
+
+### Map: guessed locations
+- Guessed-location markers now draw from zoom 8 instead of zoom 12
+  (`GUESSED_LOCATIONS_MIN_ZOOM` in `frontend/src/map/layers/guessedLocationsLayer.ts`),
+  so estimated node positions are visible from a regional view. Help text,
+  User Guide (EN/NL/DE) and `frontend/AGENTS.md` updated to match.
+
 ## Update 2026-09-29 (README rewritten for the fork + docs site, feat/readme-fork-refresh)
 
 ### Docs: GitHub Pages documentation site
