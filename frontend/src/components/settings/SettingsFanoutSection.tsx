@@ -25,6 +25,7 @@ import { toast } from '../ui/sonner';
 import { cn } from '@/lib/utils';
 import { api } from '../../api';
 import { useT, type TFn } from '../../i18n';
+import { formatCoordinates, useCoordinateFormat } from '../../utils/coordinateFormat';
 import type { Channel, Contact, FanoutConfig, HealthStatus } from '../../types';
 import {
   COMMUNITY_MQTT_PRESETS,
@@ -1881,6 +1882,7 @@ function MapUploadConfigEditor({
   onChange: (config: Record<string, unknown>) => void;
 }) {
   const t = useT();
+  const coordinateFormat = useCoordinateFormat();
   const isDryRun = config.dry_run !== false;
   const [radioLat, setRadioLat] = useState<number | null>(null);
   const [radioLon, setRadioLon] = useState<number | null>(null);
@@ -1995,9 +1997,7 @@ function MapUploadConfigEditor({
           {radioLatLonConfigured && (
             <p className="text-[0.8125rem] text-muted-foreground">
               {t('settings_fanout_map_using_radio_position')}{' '}
-              <code>
-                {radioLat?.toFixed(5)}, {radioLon?.toFixed(5)}
-              </code>{' '}
+              <code>{formatCoordinates(radioLat, radioLon, coordinateFormat, 5)}</code>{' '}
               {t('settings_fanout_map_geofence_center_suffix')}
             </p>
           )}

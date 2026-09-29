@@ -15,6 +15,7 @@ import type { Contact } from '../types';
 import { useDistanceUnit } from '../contexts/DistanceUnitContext';
 import { ContactRoutingOverrideModal } from './ContactRoutingOverrideModal';
 import { useT } from '../i18n';
+import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
 
 interface ContactStatusInfoProps {
   contact: Contact;
@@ -29,6 +30,7 @@ interface ContactStatusInfoProps {
 export function ContactStatusInfo({ contact, ourLat, ourLon }: ContactStatusInfoProps) {
   const t = useT();
   const { distanceUnit } = useDistanceUnit();
+  const coordinateFormat = useCoordinateFormat();
   const [routingModalOpen, setRoutingModalOpen] = useState(false);
   const parts: ReactNode[] = [];
   const effectiveRoute = getEffectiveContactRoute(contact);
@@ -85,7 +87,7 @@ export function ContactStatusInfo({ contact, ourLat, ourLon }: ContactStatusInfo
           }}
           title={t('contact_view_on_map')}
         >
-          {effectiveLocation.lat.toFixed(3)}, {effectiveLocation.lon.toFixed(3)}
+          {formatCoordinates(effectiveLocation.lat, effectiveLocation.lon, coordinateFormat, 3)}
         </span>
         {distFromUs !== null && ` (${formatDistance(distFromUs, distanceUnit)})`}
       </span>

@@ -11,6 +11,17 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-29 (Coordinate format everywhere, fix/coordinate-format-everywhere)
+
+### Settings > Local > Coordinate format (frontend)
+- The chosen format (decimal, degrees/minutes/seconds, MGRS) now also applies
+  to positions that still showed fixed decimals: the contact/repeater status
+  line under the name, the Path modal node coordinates, My Node (header and
+  Location row), the Mesh Health prefix-collision node list, the repeater
+  Node Info Lat/Lon row and the Community Map geofence-center note. Decimal
+  mode keeps each spot's previous precision; the repeater Node Info row keeps
+  the raw values the repeater returned. Reported by Richard on Discord.
+
 ## Update 2026-09-29 (In-app User Guide, feat/user-guide-manual)
 
 ### Tools: User Guide page (frontend)
