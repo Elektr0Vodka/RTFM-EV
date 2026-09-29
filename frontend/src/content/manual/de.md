@@ -14,7 +14,7 @@ Was du damit tun kannst:
 
 Zwei Dinge vorab:
 
-- **Die App verwaltet dein Funkgerät.** Sobald ein Funkgerät verbunden ist, werden seine Kontakte und Kanäle in die App übernommen, und die App entscheidet, welche Kontakte auf dem Funkgerät geladen bleiben. Deshalb passt sie schlecht, wenn du oft Funkgeräte wechselst und jedes seinen eigenen Zustand behalten soll.
+- **Die App verwaltet dein Funkgerät.** Sobald ein Funkgerät verbunden ist, werden seine Kontakte und Kanäle in die App übernommen, und die App entscheidet, welche Kontakte auf dem Funkgerät geladen bleiben. Deshalb passt sie schlecht, wenn du oft Funkgeräte wechselst und jedes seinen eigenen Zustand behalten soll. Nur der Verlauf von Akku, Grundrauschen und Sendezeit wird pro Funkgerät gespeichert (siehe Funkgerät wechseln).
 - **Nutze die App nur in einem vertrauenswürdigen Netzwerk.** Es gibt keine Benutzerkonten. Wer die Seite erreicht, kann sie benutzen. Die optionale HTTP-Basic-Authentifizierung ist nur eine grobe Hürde und gehört immer zusammen mit HTTPS. Bots führen beliebigen Python-Code aus, deshalb ist das Botsystem standardmäßig aus.
 
 <!-- id: getting-started -->
@@ -49,6 +49,14 @@ Gute erste Schritte:
 2. Füge die Kanäle hinzu, die du nutzt (siehe Nachrichten).
 3. Öffne **Knotenkarte** und **Mesh-Zustand**, sobald etwas Verkehr empfangen wurde.
 
+### Funkgerät wechseln
+
+Die App merkt sich jedes Funkgerät, das mit ihr verbunden war. Der Verlauf von Akku, Grundrauschen und Sendezeit wird pro Funkgerät gespeichert, damit zwei Funkgeräte nie in einem Diagramm vermischt werden. Kontakte, Kanäle, Pakete und Nachrichten teilen sich alle Funkgeräte.
+
+Verbindet sich ein Funkgerät, das diese Installation noch nicht kennt, fragt ein Dialog **Ein anderes Funkgerät ist verbunden**. Wähle **Das ist ein neues Funkgerät**, oder **Es ersetzt ein früheres Funkgerät** und wähle das alte unter **Ersetzt**. Ein Ersatz kann den **Verlauf von Akku, Grundrauschen und Sendezeit**, die **Eigene Knoten** und die **Notiz** des früheren Funkgeräts übernehmen. Nichts wird verschoben oder gelöscht, und du kannst es später unter Einstellungen > Radio > Funkgeräte ändern oder rückgängig machen. **Später entscheiden** blendet den Dialog für diese Browsersitzung aus. Das Funkgerät funktioniert weiter, während du entscheidest.
+
+Verlauf aus der Zeit vor der Funkgeräte-Erfassung wird automatisch dem verbundenen Funkgerät zugeordnet, wenn die App erkennt, dass er zu ihm gehört. Sonst fragt sie einmal, **Wem gehört dieser Verlauf?**: **Ja, er gehört zu diesem Funkgerät**, oder **Nein, getrennt halten**. Getrennter Verlauf bleibt auf Mein Knoten als **Vor der Funkgeräte-Erfassung** verfügbar.
+
 ### Sprache und Design
 
 Die Oberfläche gibt es auf Englisch, Niederländisch und Deutsch. Die Sprache wechselst du über das Sprachmenü in der oberen Leiste (Flagge und Sprachkürzel) oder unter **Einstellungen > Lokale Konfiguration**. Die Wahl wird pro Browser gespeichert. Das Sonnen- oder Mondsymbol in der oberen Leiste öffnet die Designauswahl.
@@ -69,7 +77,7 @@ Die Seitenleiste ist die Hauptnavigation. Ihre Abschnitte in der Standardreihenf
 
 - **Werkzeuge:** die Analyse- und Hilfsansichten (siehe Werkzeuge).
 - **Favoriten:** favorisierte Kanäle und Kontakte, aufgeteilt in Favorisierte Kanäle, Favorisierte Companions, Favorisierte Repeater, Favorisierte Room-Server und Favorisierte Sensoren.
-- **Eigene Nodes:** Kontakte, deren Besitzer dein eigenes Funkgerät ist. Nur sichtbar, wenn es mindestens einen gibt.
+- **Eigene Nodes:** Kontakte, deren Besitzer dein eigenes Funkgerät ist, oder ein Funkgerät, das es ersetzt hat, wenn diese Verknüpfung **Eigene Knoten** übernimmt. Nur sichtbar, wenn es mindestens einen gibt.
 - **Kanäle:** deine Kanäle. Ein Symbol neben der Überschrift öffnet Import und Export von Kanälen.
 - **Kontakte:** alle Kontakte, mit Filterschaltern für Alle, Companions, Sensoren, Repeater und Raumserver.
 - Die **Kontaktgruppen**, die du selbst anlegst.
@@ -234,6 +242,8 @@ Der Abschnitt Werkzeuge in der Seitenleiste enthält diese Ansichten. Mit Seiten
 
 Statistiken zu deinem eigenen Funkgerät: Gerätedaten (Frequenz, Bandbreite, Modell, Firmware) und Diagramme über einen wählbaren Zeitraum, von 20 Minuten bis zu einem Jahr oder einem eigenen Zeitraum. Es gibt Diagramme für Pakete und Bytes, RSSI und SNR mit Rauschpegel, **Sendezeitauslastung**, **Empfangsfehler**, gehörte Knoten, Nachbarn, Pfad-Hash-Breite, die aktivsten Kanäle und das **Radar direkt gehört**, das mit 0 Hops gehörte Knoten nach Richtung und Entfernung darstellt. Diagramme zoomst du mit dem Mausrad, verschiebst sie durch Ziehen und setzt sie per Doppelklick zurück.
 
+Die Diagramme für Akku, Grundrauschen und Sendezeit zeigen das aktuelle Funkgerät plus den Verlauf, den es von einem ersetzten Funkgerät übernommen hat. Gibt es mehr als ein Funkgerät oder Verlauf aus der Zeit vor der Funkgeräte-Erfassung, erscheint neben dem Zeitraum eine Auswahl **Funkgerät**: **Aktuelles Funkgerät**, ein bestimmtes Funkgerät (mit dem, was es übernommen hat) oder **Vor der Funkgeräte-Erfassung**.
+
 ### Mesh-Zustand
 
 - **Adverts:** direkte und Flood-Adverts pro Kontakt, eine durchsuchbare Kontakttabelle, Diagramme zu Hops und Hash-Modus, eine Aktivitäts-Heatmap und Warnungen für Knoten, die zu oft adverten (nur Flood-Adverts).
@@ -295,6 +305,7 @@ Diese Seite. Öffne sie unter Werkzeuge oder über die Adresse `#manual`. Sie fo
 
 - **Verbindung:** Erneut verbinden und **Trennen**, das die automatische Wiederverbindung pausiert, damit ein anderes Gerät das Funkgerät nutzen kann. Hast du Loadouts, bietet Trennen an, vorher eines zu laden.
 - **Identität:** Funkgerätename, privater Schlüssel (nur schreiben) und dein `meshcore://`-Kontaktlink.
+- **Funkgeräte:** jedes Funkgerät, das mit dieser Installation verbunden war, mit erster und letzter Verbindungszeit, auch wenn kein Funkgerät verbunden ist. Das zuletzt verbundene ist mit **Aktuell** markiert. Ein Funkgerät mit **Antwort nötig** kannst du hier beantworten (siehe Funkgerät wechseln). Bei einem ersetzten Funkgerät kannst du ändern, was das neuere übernimmt, oder **Ersetzungsverknüpfung entfernen**. Jedes Funkgerät hat eine eigene Notiz (**Notiz speichern**).
 - **Funkparameter:** Voreinstellung, Frequenz, Bandbreite, Spreading Factor, Coding Rate, Sendeleistung und Pfad-Hash-Modus (1, 2 oder 3 Bytes pro Hop, wenn die Firmware es unterstützt).
 - **Standort**, Telemetrie-Freigabe und **Werbung & Erkennung** (Advert-Intervall und Schaltflächen zum Senden eines Adverts).
 - **Nachrichten:** zusätzliche ACKs, **Unbeantwortete Kanalnachrichten automatisch erneut senden** und der Standard-Flood-Scope.

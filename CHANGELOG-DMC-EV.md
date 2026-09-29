@@ -18,6 +18,9 @@ the change. Upstream development is on hold; the fork is the active repository.
   `#manual`. It covers getting started, the layout, messaging, contacts and
   nodes, the map, every Tools view, every Settings section, integrations,
   backup/restore/retention and troubleshooting.
+- Covers swapping radios (#248): the different-radio prompt, the one-time
+  history question, Settings > Radio > Radios, the My Node radio picker and
+  owned nodes carried over from a replaced radio.
 - Full text in English, Dutch and German (`frontend/src/content/manual/`),
   following the interface language with English as fallback. UI labels in the
   NL/DE text match the NL/DE catalogs.

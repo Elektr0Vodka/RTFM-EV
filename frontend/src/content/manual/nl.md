@@ -14,7 +14,7 @@ Wat je ermee kunt:
 
 Twee dingen om vooraf te weten:
 
-- **De app beheert je radio.** Zodra een radio verbonden is, worden de contacten en kanalen in de app geïmporteerd en bepaalt de app welke contacten op de radio geladen blijven. Daardoor past de app minder goed als je vaak van radio wisselt en elke radio zijn eigen toestand wilt laten houden.
+- **De app beheert je radio.** Zodra een radio verbonden is, worden de contacten en kanalen in de app geïmporteerd en bepaalt de app welke contacten op de radio geladen blijven. Daardoor past de app minder goed als je vaak van radio wisselt en elke radio zijn eigen toestand wilt laten houden. Alleen de geschiedenis van batterij, ruisvloer en zendtijd wordt per radio bewaard (zie Van radio wisselen).
 - **Gebruik de app alleen op een vertrouwd netwerk.** Er zijn geen gebruikersaccounts. Iedereen die de pagina kan bereiken, kan hem gebruiken. De optionele HTTP Basic-authenticatie is slechts een grove drempel en hoort altijd samen te gaan met HTTPS. Bots voeren willekeurige Python-code uit, daarom staat het botsysteem standaard uit.
 
 <!-- id: getting-started -->
@@ -49,6 +49,14 @@ Goede eerste stappen:
 2. Voeg de kanalen toe die je gebruikt (zie Berichten).
 3. Open **Nodekaart** en **Meshgezondheid** zodra er wat verkeer gehoord is.
 
+### Van radio wisselen
+
+De app onthoudt elke radio die ermee verbonden is geweest. De geschiedenis van batterij, ruisvloer en zendtijd wordt per radio opgeslagen, zodat twee radio's nooit in één grafiek door elkaar lopen. Contacten, kanalen, pakketten en berichten zijn van alle radio's samen.
+
+Verbindt er een radio die deze installatie nog niet kent, dan vraagt een venster **Er is een andere radio verbonden**. Kies **Dit is een nieuwe radio**, of **Deze vervangt een eerdere radio** en kies de oude onder **Vervangt**. Een vervanging kan de **Geschiedenis van batterij, ruisvloer en zendtijd**, de **Eigen nodes** en de **Notitie** van de eerdere radio overnemen. Er wordt niets verplaatst of verwijderd, en je kunt het later wijzigen of ongedaan maken onder Instellingen > Radio > Radio’s. **Later beslissen** verbergt het venster voor deze browsersessie. De radio blijft werken terwijl je beslist.
+
+Geschiedenis van voordat radio's werden bijgehouden, wordt automatisch aan de verbonden radio toegewezen als de app kan zien dat die van deze radio is. Anders vraagt hij het één keer, **Van wie is deze geschiedenis?**: **Ja, die hoort bij deze radio**, of **Nee, apart houden**. Aparte geschiedenis blijft op Mijn node beschikbaar als **Voor radio-registratie**.
+
 ### Taal en thema
 
 De interface is beschikbaar in het Engels, Nederlands en Duits. Wissel van taal met het taalmenu in de bovenbalk (vlag en taalcode) of onder **Instellingen > Lokale configuratie**. De keuze wordt per browser bewaard. Het zon- of maanpictogram in de bovenbalk opent de themakiezer.
@@ -69,7 +77,7 @@ De zijbalk is de hoofdnavigatie. De secties, in de standaardvolgorde:
 
 - **Hulpmiddelen:** de analyse- en hulpweergaven (zie Hulpmiddelen).
 - **Favorieten:** favoriete kanalen en contacten, verdeeld over Favoriete kanalen, Favoriete companions, Favoriete repeaters, Favoriete roomservers en Favoriete sensoren.
-- **Eigen nodes:** contacten waarvan je eigen radio de eigenaar is. Alleen zichtbaar als er minstens één is.
+- **Eigen nodes:** contacten waarvan je eigen radio de eigenaar is, of een radio die hij vervangen heeft als die koppeling **Eigen nodes** overneemt. Alleen zichtbaar als er minstens één is.
 - **Kanalen:** je kanalen. Een pictogram naast de kop opent het importeren en exporteren van kanalen.
 - **Contacten:** alle contacten, met filterknoppen voor Alle, Companions, Sensoren, Repeaters en Roomservers.
 - De **Contactgroepen** die je zelf aanmaakt.
@@ -234,6 +242,8 @@ De sectie Hulpmiddelen in de zijbalk bevat deze weergaven. Met Zijbalk aanpassen
 
 Statistieken over je eigen radio: radiogegevens (frequentie, bandbreedte, model, firmware) en grafieken over een tijdsperiode naar keuze, van 20 minuten tot een jaar of een eigen periode. Er zijn grafieken voor pakketten en bytes, RSSI en SNR met de ruisvloer, **Zendtijdgebruik**, **Ontvangstfouten**, gehoorde nodes, buren, padhashbreedte, drukste kanalen, en de **Radar direct gehoord**, die nodes die op 0 hops gehoord zijn uitzet op richting en afstand. Grafieken zoom je in met het scrollwiel, verschuif je door te slepen en zet je terug met dubbelklikken.
 
+De grafieken voor batterij, ruisvloer en zendtijd tonen de huidige radio plus de geschiedenis die hij heeft overgenomen van een radio die hij vervangen heeft. Is er meer dan één radio, of geschiedenis van voor de radio-registratie, dan verschijnt naast de tijdsperiode een keuzelijst **Radio**: **Huidige radio**, één bepaalde radio (met wat die radio overnam), of **Voor radio-registratie**.
+
 ### Meshgezondheid
 
 - **Adverts:** aantallen directe en flood-adverts per contact, een doorzoekbare contactentabel, grafieken van hops en hashmodus, een activiteitenheatmap, en waarschuwingen voor nodes die te vaak adverteren (alleen flood-adverts).
@@ -295,6 +305,7 @@ Open Instellingen met de knop in de bovenbalk. Op een telefoon klapt elke sectie
 
 - **Verbinding:** Opnieuw verbinden, en **Verbinding verbreken**, dat automatisch opnieuw verbinden pauzeert zodat een ander apparaat de radio kan gebruiken. Heb je loadouts, dan biedt Verbinding verbreken aan er eerst een te laden.
 - **Identiteit:** radionaam, privésleutel (alleen schrijven) en je `meshcore://`-contactlink.
+- **Radio’s:** elke radio die met deze installatie verbonden is geweest, met de eerste en laatste verbindingstijd, ook als er geen radio verbonden is. De laatst verbonden radio heeft het label **Huidig**. Een radio met **Wacht op antwoord** kun je hier beantwoorden (zie Van radio wisselen). Bij een vervangen radio kun je wijzigen wat de nieuwere radio overneemt, of **Vervangingskoppeling verwijderen**. Elke radio heeft een eigen notitie (**Notitie opslaan**).
 - **Radioparameters:** voorinstelling, frequentie, bandbreedte, spreading factor, coding rate, zendvermogen en padhashmodus (1, 2 of 3 bytes per hop, als de firmware het ondersteunt).
 - **Locatie**, telemetrie delen, en **Adverteren & Ontdekken** (advertinterval en knoppen om een advert te versturen).
 - **Berichten:** extra ACK's, **Onbeantwoorde Kanaalberichten Automatisch Opnieuw Verzenden** en de standaard floodscope.

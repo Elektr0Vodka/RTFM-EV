@@ -14,7 +14,7 @@ What you can do with it:
 
 Two things to know before you start:
 
-- **The app manages your radio.** Once a radio is connected, its contacts and channels are imported into the app, and the app decides which contacts stay loaded on the radio. This makes it a poor fit if you swap radios in and out and want each radio to keep its own state.
+- **The app manages your radio.** Once a radio is connected, its contacts and channels are imported into the app, and the app decides which contacts stay loaded on the radio. This makes it a poor fit if you swap radios in and out and want each radio to keep its own state. Only battery, noise floor and airtime history is kept per radio (see Swapping radios).
 - **Use it on a trusted network only.** There are no user accounts. Anyone who can reach the page can use it. Optional HTTP Basic auth is only a coarse gate and must be paired with HTTPS. Bots run arbitrary Python, so the bot system is off by default.
 
 <!-- id: getting-started -->
@@ -49,6 +49,14 @@ Good first steps:
 2. Add the channels you use (see Messaging).
 3. Open **Node Map** and **Mesh Health** once some traffic has been heard.
 
+### Swapping radios
+
+The app remembers every radio that has connected to it. Battery, noise floor and airtime history is stored per radio, so two radios are never blended into one chart. Contacts, channels, packets and messages are shared by all radios.
+
+When a radio connects that this install has not seen before, a prompt asks **A different radio is connected**. Choose **This is a new radio**, or **This replaces an earlier radio** and pick the old one under **Replaces**. A replacement can carry over the **Battery, noise floor and airtime history**, the **Owned nodes** and the **Note** of the earlier radio. Nothing is moved or deleted, and you can change or undo it later under Settings > Radio > Radios. **Decide later** hides the prompt for this browser session. The radio keeps working while you decide.
+
+History recorded before radios were tracked is assigned to the connected radio automatically when the app can tell it is that radio's. Otherwise it asks once, **Whose history is this?**: **Yes, it belongs to this radio**, or **No, keep it separate**. Separate history stays available on My Node as **Before radio tracking**.
+
 ### Language and theme
 
 The interface is available in English, Dutch and German. Switch language with the language menu in the top bar (flag and language code) or under **Settings > Local Configuration**. The choice is saved per browser. The sun or moon icon in the top bar opens the theme picker.
@@ -69,7 +77,7 @@ The sidebar is the main navigation. Its sections, in default order:
 
 - **Tools:** the analysis and utility views (see Tools).
 - **Favorites:** favorite channels and contacts, split into Favorite Channels, Favorite Companions, Favorite Repeaters, Favorite Room Servers and Favorite Sensors.
-- **Owned:** contacts whose owner is your own radio. Only shown when there is at least one.
+- **Owned:** contacts whose owner is your own radio, or a radio it replaced when that link carries **Owned nodes**. Only shown when there is at least one.
 - **Channels:** your channels. An icon next to the heading opens channel import and export.
 - **Contacts:** all contacts, with filter pills for All, Companions, Sensors, Repeaters and Room Servers.
 - Any **Contact Groups** you create.
@@ -234,6 +242,8 @@ The Tools section of the sidebar holds these views. You can reorder or hide them
 
 Statistics about your own radio: radio details (frequency, bandwidth, model, firmware) and charts over a time range you choose, from 20 minutes to a year or a custom range. Charts include packets and bytes, RSSI and SNR with the noise floor, **Airtime utilization**, **Receive errors**, nodes heard, neighbors, path hash width, busiest channels, and the **Directly heard radar**, which plots nodes heard at 0 hops by bearing and distance. Charts zoom with the scroll wheel, pan by dragging and reset on double-click.
 
+The battery, noise floor and airtime charts show the current radio plus the history it inherited from a radio it replaced. When there is more than one radio, or history from before radio tracking, a **Radio** picker appears next to the time range: **Current radio**, one specific radio (with what that radio inherited), or **Before radio tracking**.
+
 ### Mesh Health
 
 - **Adverts:** direct and flood advert counts per contact, a searchable contacts table, hop and hash mode charts, an activity heatmap, and alerts for nodes that advertise too often (flood adverts only).
@@ -295,6 +305,7 @@ Open Settings with the button in the top bar. On a phone each section expands in
 
 - **Connection:** Reconnect, and **Disconnect**, which pauses automatic reconnects so another device can use the radio. If you have loadouts, Disconnect offers to load one first.
 - **Identity:** radio name, private key (write only) and your `meshcore://` contact link.
+- **Radios:** every radio that has fed this install, with first and last connect times, also when no radio is connected. The most recently connected one is marked **Current**. A radio marked **Needs an answer** can be answered here (see Swapping radios). For a replaced radio you can change what the newer radio inherits or **Remove replacement link**. Each radio has its own note (**Save note**).
 - **Radio Parameters:** preset, frequency, bandwidth, spreading factor, coding rate, TX power and path hash mode (1, 2 or 3 bytes per hop, when the firmware supports it).
 - **Location**, telemetry sharing, and **Advertising & Discovery** (advert interval and buttons to send an advert).
 - **Messaging:** extra ACKs, **Auto-Resend Unheard Channel Messages** and the default flood scope.
