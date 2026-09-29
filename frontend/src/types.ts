@@ -484,6 +484,36 @@ export interface CommunityChannel {
 }
 
 /** A joined meshcore-open community. Never carries the secret (see CommunityExport). */
+export interface ChannelSetEntry {
+  key: string;
+  name: string;
+}
+
+/** A named set of channels that can be loaded onto the radio in one action (plan 08). */
+export interface ChannelSet {
+  id: string;
+  name: string;
+  channels: ChannelSetEntry[];
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ChannelSetApplyItem {
+  key: string;
+  name: string;
+  status: 'loaded' | 'already_loaded' | 'failed';
+  slot: number | null;
+  error: 'no_free_slot' | 'radio_error' | null;
+}
+
+export interface ChannelSetApplyResult {
+  set_id: string;
+  items: ChannelSetApplyItem[];
+  loaded: number;
+  already_loaded: number;
+  failed: number;
+}
+
 export interface Community {
   id: string;
   short_id: string;

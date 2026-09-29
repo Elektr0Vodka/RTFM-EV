@@ -11,6 +11,7 @@ from app.models import (
     RETENTION_DEFAULTS,
     AnalyzerSite,
     AppSettings,
+    ChannelSet,
     ContactGroup,
     HandyInfoSettings,
     MentionSoundMeta,
@@ -1244,6 +1245,35 @@ class AppSettingsRepository:
         """Clear the persisted radio-preset list (reset to built-in)."""
         async with db.tx() as conn:
             await conn.execute("UPDATE app_settings SET radio_presets = '' WHERE id = 1")
+
+    @staticmethod
+    async def get_channel_sets() -> list[ChannelSet]:
+        """Return the saved channel sets (plan 08), oldest first.
+
+        Internal-only column (migration ``_122``), not exposed via the
+        AppSettings model. An unparseable value is treated as no sets.
+        """
+        async with db.readonly() as conn:
+            async with conn.execute("SELECT channel_sets FROM app_settings WHERE id = 1") as cursor:
+                row = await cursor.fetchone()
+        if not row or not row["channel_sets"]:
+            return []
+        try:
+            raw = json.loads(row["channel_sets"])
+            return [ChannelSet.model_validate(item) for item in raw]
+        except (ValueError, TypeError):
+            logger.warning("Failed to parse stored channel_sets, treating as empty")
+            return []
+
+    @staticmethod
+    async def set_channel_sets(sets: list[ChannelSet]) -> list[ChannelSet]:
+        """Replace the saved channel sets with ``sets``."""
+        async with db.tx() as conn:
+            await conn.execute(
+                "UPDATE app_settings SET channel_sets = ? WHERE id = 1",
+                (json.dumps([s.model_dump() for s in sets]),),
+            )
+        return sets
 
 
 class StatisticsRepository:

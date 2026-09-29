@@ -11,6 +11,7 @@ import { useDistanceUnit } from '../../contexts/DistanceUnitContext';
 import { BulkDeleteContactsModal } from './BulkDeleteContactsModal';
 import { BulkDeleteChannelsModal } from './BulkDeleteChannelsModal';
 import { PartialNodeSyncModal } from './PartialNodeSyncModal';
+import { ChannelSetsSettings } from './ChannelSetsSettings';
 import type {
   AppSettings,
   AppSettingsUpdate,
@@ -658,6 +659,11 @@ export function SettingsRadioAppSection({
 
         <ResolveNamesBlock />
       </div>
+
+      <Separator />
+
+      {/* ── Channel sets (plan 08) ── */}
+      <ChannelSetsSettings channels={channels} />
     </div>
   );
 }

@@ -11,6 +11,27 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-26 (Channel sets, plan 08 slice 1, feat/channel-sets)
+
+### Channels: load a saved channel set onto the radio (backend + frontend)
+- Settings > Radio-App Management > Channel sets: save named groups of
+  channels and load one onto the radio's channel slots with "Load onto
+  radio", for example before taking the radio away from the server.
+- Loading is additive: the radio's slots are read first, channels already on
+  the radio are left as they are, every other set channel goes into an empty
+  slot, and no channel is ever evicted. Each channel reports loaded (slot),
+  already on the radio (slot), or not loaded (no free slot, or the radio
+  refused it); one failure does not stop the rest.
+- On TCP radios (and with `MESHCORE_FORCE_CHANNEL_SLOT_RECONFIGURE`) slot 0
+  is left alone, because every channel send writes its channel there first.
+- A point-in-time load: the next reconnect or full periodic sync offloads the
+  radio's channel slots again, as for every channel. Nothing is transmitted.
+- `GET/POST /api/channel-sets`, `PATCH/DELETE /api/channel-sets/{id}`,
+  `POST /api/channel-sets/{id}/apply`; sets stored in
+  `app_settings.channel_sets` (migration `_122`).
+- Contacts in sets (slice 2) and a load-before-disconnect prompt (slice 3)
+  are not built.
+
 ## Update 2026-09-26 (Docs reconciled through #242, fix/docs-reconcile-236-242)
 
 ### Documentation
