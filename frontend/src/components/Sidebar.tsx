@@ -246,6 +246,8 @@ interface SidebarProps {
   contactGroups?: ContactGroup[];
   /** The connected radio's public key; drives the Owned section (owner_key match). */
   ownPublicKey?: string | null;
+  /** Earlier radios whose owned nodes this radio inherits (plan 18 `owned_keys`, incl. itself). */
+  ownedKeys?: string[];
   /** Persist a sidebar order/visibility change (or a contact-groups edit) to the backend. */
   onSaveSidebarOrder?: (update: {
     sidebar_section_order?: string[];
@@ -291,6 +293,7 @@ export function Sidebar({
   sidebarToolOrder = [],
   sidebarFavoritesOrder = [],
   ownPublicKey = null,
+  ownedKeys,
   sidebarFavoriteSortOrders,
   sidebarHidden,
   contactGroups = [],
@@ -1275,10 +1278,17 @@ export function Sidebar({
   // Owned section (plan 17 phase 3): contacts whose owner key is this radio's
   // own public key, bucketed by type like the Contacts "All" view. Rows reuse
   // the pool order (each type already sorted by its Contacts sort order).
-  const ownKeyLower = ownPublicKey ? ownPublicKey.toLowerCase() : null;
-  const ownedContacts = ownKeyLower
-    ? allFilteredContactsPool.filter((c) => c.owner_key?.toLowerCase() === ownKeyLower)
-    : [];
+  // Plan 18: a replacement radio also owns what its predecessors owned when the
+  // link carries "owned nodes" (health `owned_keys`).
+  const ownKeysLower = new Set(
+    [ownPublicKey, ...(ownedKeys ?? [])].filter((k): k is string => !!k).map((k) => k.toLowerCase())
+  );
+  const ownedContacts =
+    ownKeysLower.size > 0
+      ? allFilteredContactsPool.filter(
+          (c) => !!c.owner_key && ownKeysLower.has(c.owner_key.toLowerCase())
+        )
+      : [];
   const ownedRowsFor = (pill: Exclude<ContactPill, 'all'>): ConversationRow[] =>
     ownedContacts.filter((c) => contactPillFor(c) === pill).map((c) => buildContactRow(c, 'owned'));
   const ownedBuckets: ContactPillBucket[] = (

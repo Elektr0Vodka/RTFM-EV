@@ -31,7 +31,7 @@ app/
 ├── migrations/          # Schema migrations (SQLite user_version, per-version modules)
 ├── models.py            # Pydantic request/response models and typed write contracts (for example ContactUpsert)
 ├── version_info.py      # Unified version/build metadata resolution for debug + startup surfaces
-├── repository/          # Data access layer (contacts incl. name/location history, channels, communities, messages, raw_packets, packet_receptions, settings, fanout, push_subscriptions, repeater_telemetry, contact_telemetry, device_config_history, analyzer_names)
+├── repository/          # Data access layer (contacts incl. name/location history, channels, communities, messages, raw_packets, packet_receptions, settings, fanout, push_subscriptions, repeater_telemetry, contact_telemetry, device_config_history, analyzer_names, radio_identities)
 ├── services/            # Shared orchestration/domain services
 │   ├── messages.py              # Shared message creation, dedup, ACK application
 │   ├── message_send.py          # Direct send, channel send, resend workflows
@@ -45,6 +45,7 @@ app/
 │   ├── radio_lifecycle.py       # Post-connect setup and reconnect/setup helpers
 │   ├── radio_commands.py        # Radio config/private-key command workflows
 │   ├── radio_stats.py           # In-memory local radio stats sampling and noise-floor history
+│   ├── radio_identity.py        # Which radio feeds this install: connect registration, per-sample attribution, chart scope (plan 18)
 │   ├── radio_runtime.py         # Router/dependency seam over the global RadioManager
 │   ├── new_node_notify.py       # New-node WS notification batching/warm-up (plan 28 item 1.5)
 │   ├── relay_reception.py       # Per-copy flood reception capture + packets x relays aggregation (plan 21 S1)
@@ -149,6 +150,7 @@ for a source whose terms forbid bulk downloading.
 - `RadioManager.post_connect_setup()` delegates to `services/radio_lifecycle.py`.
 - Routers, startup/lifespan code, fanout helpers, and `radio_sync.py` should reach radio state through `services/radio_runtime.py`, not by importing `app.radio.radio_manager` directly.
 - Shared reconnect/setup helpers in `services/radio_lifecycle.py` are used by startup, the monitor, and manual reconnect/reboot flows before broadcasting healthy state.
+- Setup first records the connected radio in `radio_identities` (`services/radio_identity.register_connected_radio`, key from `mc.self_info["public_key"]`; never raises). The stats sampler files each sample under that radio and skips samples from a radio that is not registered yet, so a swapped radio never blends into the previous one's series.
 - Setup still includes handler registration, key export, time sync, contact/channel sync, and advertisement tasks. The message-poll task always starts: by default it runs as a low-frequency hourly audit, and `MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK=true` switches it to aggressive 10-second polling. That audit checks both missed-radio-message drift and channel-slot cache drift; cache mismatches are logged, toasted, and the send-slot cache is reset.
 - Post-connect setup is timeout-bounded. If initial radio offload/setup hangs too long, the backend logs the failure and broadcasts an `error` toast telling the operator to reboot the radio and restart the server.
 
@@ -331,6 +333,16 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 
 ### Health
 - `GET /health`
+  - `radio_identity`: the active (most recently connected) radio `{id, public_key, name, status, pending_reason, owned_keys}` or null. `status: "pending"` drives the connect-time prompt; `owned_keys` (the radio plus predecessors linked with `carry_owned`) drive the sidebar Owned section.
+
+### Radio identities (plan 18)
+- `GET /radio-identities` - `{radios, has_unassigned_history}`, newest connect first
+- `POST /radio-identities/{id}/confirm-new` - answer "new radio" for a pending `new_key` radio
+- `POST /radio-identities/{id}/replace` - `{old_id, carry_stats, carry_owned, carry_note}`: this radio replaces `old_id`; confirms it
+- `POST /radio-identities/{id}/legacy-history` - `{adopt}`: whether samples recorded before radio tracking belong to this radio
+- `PATCH /radio-identities/{old_id}/link` - change the carry-over flags; `DELETE /radio-identities/{old_id}/link` - undo a replacement
+- `PATCH /radio-identities/{id}` - `{notes}`
+- 404 unknown id, 409 wrong state (already answered, self link, radio already replaced, second predecessor, loop). Every change broadcasts `health`. Nothing here touches the radio.
 
 ### Debug
 - `GET /debug` - support snapshot with recent logs, live radio probe, slot/contact audits, and version/git info
@@ -532,6 +544,7 @@ and the path modal (`hooks/useSoftResolutions.ts`).
 
 ### Statistics
 - `GET /statistics` - aggregated mesh network stats (entity counts, message/packet splits, activity windows, busiest channels, `region_scope_24h` regional adoption)
+- `GET /statistics/battery`, `/statistics/battery/range`, `/statistics/noise-floor` and `/statistics/airtime/range` take optional `radio_id` (that radio plus the radios it inherits stats from; 404 when unknown) or `unassigned=true` (samples from before radio tracking). Default: the active radio's lineage, or every sample when no radio was ever registered. The 24 h battery endpoint only merges in-memory samples when the read covers the active radio; the OpenHop airtime branch only serves the default.
 - `GET /statistics/airtime/range?start_ts&end_ts&bin_count` - per-bin TX/RX airtime utilization % over a range. Default source: the persisted cumulative airtime counters via adjacent-sample deltas (counter resets / disconnect gaps are dropped, not spiked). On OpenHop nodes with the OpenHop API configured, it instead sources TX/RX from OpenHop's `/api/airtime_chart_data` (real per-packet time-on-air, RX included) because OpenHop's companion `STATS_RADIO` frame hardcodes `rx_air_secs=0`; any failure / missing config / non-OpenHop node falls back to the local computation. Each bin also carries `rx_errors`: on the local path the sum of `recv_errors` counter deltas (None when unknown); on the OpenHop path the radio CRC error counts from OpenHop's `/api/crc_error_history`, bucketed like the airtime buckets (0 for a bucket with no rows, key omitted when that call fails). Feeds the My Node airtime and receive-error charts. See `app/services/airtime_util.py` (`compute_airtime_utilization`, `map_openhop_airtime_buckets`) and `app/services/openhop_api.py::airtime_chart_data` / `crc_error_history`.
 - `GET /packets/raw-feed-stats?start_ts&end_ts` - DB-computed Raw Packet Feed breakdowns (payload/route/hop/hop-byte-width/RSSI buckets + counts) for historical windows, from the decoded columns persisted on `raw_packets`. Neighbor/timeline/unique-source data is not included (needs decryption; stays live-only). See `app/services/raw_feed_stats.py`.
 
@@ -550,7 +563,7 @@ and the path modal (`hooks/useSoftResolutions.ts`).
 
 ## WebSocket Events
 
-- `health` - radio connection status (broadcast on change, personal on connect)
+- `health` - radio connection status (broadcast on change, personal on connect, and after each 60 s stats sample); includes `radio_identity`, so a pending radio question reaches tabs opened later
 - `contact` - single contact upsert (from advertisements and radio sync)
 - `contact_resolved` - prefix contact reconciled to a full contact row (payload: `{ previous_public_key, contact }`)
 - `message` - new message (channel or DM, from packet processor or send endpoints)
@@ -578,6 +591,7 @@ Main tables:
 - `messages` (includes `sender_name`, `sender_key` for per-contact channel message attribution)
 - `link_edge_events` (migration `_107`) - per-packet link edge log: one row per resolved undirected node pair (`a_pubkey < b_pubkey`) per stored packet (`raw_packet_id`), with `ts`, `hop_width`, `payload_type`, `route_type`, `confidence` (`unique`/`confirmed`/`nearest`) and `snr`/`rssi` on the final hop into our node only. `UNIQUE(raw_packet_id, a_pubkey, b_pubkey, hop_width)`, so duplicate copies and the backfill are idempotent (first copy's signal wins). Written by `services/link_edges.record_packet_edges()` from `process_raw_packet` for every copy; resolution is the pure `services/traffic_links.py` (flood paths only, walked back from self and forward from an advert origin that is a contact; a hop needs a confirmed soft resolution, a unique prefix among the candidates, or a nearest located candidate at least `NEAREST_RATIO` = 2x closer than the next). Candidates come from `LinkEdgesRepository.known_nodes()`: contacts with a full 64-hex key only, located or not. Analyzer-only `external_map_nodes` are never link endpoints (an analyzer node joins once promoted to a contact by an applied partial resolution). `link_edge_backfill_state` (single row `next_id`/`end_id`) drives the one-time `services/link_edge_backfill.py` backfill over pre-`_107` `raw_packets`
 - `raw_packets` (includes signal columns `rssi`/`snr`/`payload_type` and decoded-stat columns `route_type`/`hop_count`/`hop_byte_width`/`path_signature`, parsed from the packet header at ingest and backfilled by migration 089; used by `/packets/raw-feed-stats` for historical breakdowns)
+- `radio_identities` (migration `_123`, plan 18) - one row per radio that has fed this install, keyed by full `public_key` (from `mc.self_info` at connect). `status` pending/confirmed with `pending_reason` `new_key` (unknown radio after an earlier one) or `legacy_history` (first radio, unassigned samples, and the own keys found in outgoing channel messages / `link_signal` traffic rows are missing or not all this radio's; when they all match, the samples are assigned silently). A replacement is stored on the OLD row: `replaced_by` + `carry_stats` / `carry_owned`, applied at read time by walking the chain; no row is re-keyed. `is_active` = most recently connected. Foreign keys are off app-wide, so link integrity is checked in `repository/radio_identities.py`, inside each operation's single `db.tx()`. `battery_history`, `noise_floor_samples` and `airtime_history` carry a nullable `radio_identity_id` (NULL = recorded before radio tracking); airtime deltas are never taken across two radios
 - `airtime_history` (60s samples of the local radio's cumulative `tx_air_secs`/`rx_air_secs` plus, since migration `_116`, the cumulative `recv_errors` counter from `STATS_PACKETS` (firmware v1.12+, NULL on the legacy frame, and NULL on OpenHop nodes, whose companion puts its repeater dropped-packet count in that slot); utilization % and per-bin RX error counts are derived at query time. Sibling of the in-memory `noise_floor_samples`/`battery_history` pattern in `app/services/radio_stats.py`)
 - `contact_advert_paths` (recent unique advertisement paths per contact, keyed by contact + path bytes + hop count; count per contact is `advert_paths_per_contact`)
 - `contact_path_outcomes` (routes our DMs used per contact with outcomes and trip times, newest 100 per contact, migration `_115`; not covered by the retention pruner)
@@ -710,6 +724,9 @@ tests/
 ├── test_settings_router.py     # Settings endpoints, advert validation
 ├── test_push_send.py           # Web Push send/dispatch
 ├── test_radio_stats.py         # Radio stats sampling and noise-floor history
+├── test_radio_identities.py    # Radio identity registry: registration, legacy adoption, links, lineage, rollback (plan 18)
+├── test_radio_identity_service.py # Connect hook, per-sample attribution, chart scope, health view
+├── test_radio_identity_api.py  # /radio-identities endpoints, per-radio statistics filters, health field
 ├── test_repeater_telemetry.py  # Repeater telemetry history recording
 ├── test_service_installer.py   # Service installer script behavior
 ├── test_sqs_fanout.py          # SQS fanout module

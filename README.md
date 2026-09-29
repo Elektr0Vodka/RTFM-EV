@@ -15,7 +15,7 @@ Connect your radio over Serial, TCP, or BLE, and then you can:
 * Mark a conversation unread from any received message (hover a message, envelope icon). The mark is server-side, so every browser sees the same unread state
 * Cache all received packets, decrypting as you gain keys
 * Group contacts and channels into your own named sidebar sections (Customize panel), edited from the contact or channel info pane; an item can sit in several groups and groups reorder/hide like the built-in sections
-* An "Owned" sidebar section lists the contacts whose owner key is your radio's own public key (contact info pane > Owner > "Use my radio's key"), grouped by type; it appears only when there is at least one such contact and reorders/hides like the other sections
+* An "Owned" sidebar section lists the contacts whose owner key is your radio's own public key (contact info pane > Owner > "Use my radio's key"), grouped by type; it appears only when there is at least one such contact and reorders/hides like the other sections. After a radio swap marked as a replacement, nodes owned by the earlier radio stay listed unless you untick "Owned nodes" for that link
 * Run multiple Python bots that can analyze messages and respond to DMs and channels
 * Monitor unlimited contacts and channels (radio limits don't apply -- packets are decrypted server-side)
 * Access your radio remotely over your network or VPN
@@ -69,6 +69,13 @@ Shipped toward this so far:
   history (`_075`).
 - Standalone history stores for noise floor (`_069`), battery (`_070`), and local
   radio TX/RX airtime (`_088`) plus the radio's RX error counter (`_116`).
+- A registry of every radio that has fed the install (`_123`). Noise floor, battery
+  and airtime samples record which radio measured them, so swapping the radio no
+  longer blends two devices into one series. When a different radio connects, a
+  prompt asks whether it is a new radio or replaces an earlier one, and for a
+  replacement which history and owned nodes it inherits (nothing is moved or
+  deleted; Settings > Radio > Radios changes or undoes it later). The My Node charts
+  get a radio picker once there is more than one radio.
 - Repeater and per-contact telemetry history (`_050`, `_062`) and contact name
   history (`_024`).
 - "My Node" and mesh-health views that read from this persisted history, including

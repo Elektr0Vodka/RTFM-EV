@@ -36,6 +36,20 @@ def test_counter_reset_is_skipped():
     assert 1 not in ids
 
 
+def test_pair_across_two_radios_is_skipped():
+    # Plan 18: a swap to a radio with higher counters must not read as a spike.
+    samples = [
+        {"timestamp": 0, "tx_air_secs": 0, "rx_air_secs": 0, "radio_identity_id": 1},
+        {"timestamp": 60, "tx_air_secs": 50, "rx_air_secs": 50, "radio_identity_id": 2},
+        {"timestamp": 120, "tx_air_secs": 56, "rx_air_secs": 56, "radio_identity_id": 2},
+    ]
+    out = compute_airtime_utilization(
+        samples, start_ts=0, end_ts=120, bin_count=1, sample_interval=SAMPLE_INTERVAL
+    )
+    assert len(out) == 1
+    assert out[0]["tx_pct"] == 10.0
+
+
 def test_large_gap_pair_is_skipped():
     samples = [
         {"timestamp": 0, "tx_air_secs": 0, "rx_air_secs": 0},

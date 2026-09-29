@@ -188,7 +188,47 @@ export interface HealthStatus {
   bots_disabled: boolean;
   bots_disabled_source?: 'env' | 'until_restart' | null;
   basic_auth_enabled?: boolean;
+  /** The active radio (plan 18); status "pending" means the connect-time question is open. */
+  radio_identity?: RadioIdentityHealth | null;
 }
+
+export type RadioIdentityStatus = 'pending' | 'confirmed';
+export type RadioIdentityPendingReason = 'new_key' | 'legacy_history';
+
+export interface RadioIdentityHealth {
+  id: number;
+  public_key: string;
+  name: string | null;
+  status: RadioIdentityStatus;
+  pending_reason: RadioIdentityPendingReason | null;
+  /** Keys whose owned nodes count as this radio's (itself plus predecessors carrying "owned"). */
+  owned_keys: string[];
+}
+
+/** A radio that has fed this install (plan 18 `radio_identities`). */
+export interface RadioIdentity {
+  id: number;
+  public_key: string;
+  name: string | null;
+  notes: string | null;
+  first_connected: number;
+  last_connected: number;
+  status: RadioIdentityStatus;
+  pending_reason: RadioIdentityPendingReason | null;
+  /** Id of the radio that replaced this one. */
+  replaced_by: number | null;
+  carry_stats: boolean;
+  carry_owned: boolean;
+  is_active: boolean;
+}
+
+export interface RadioIdentityList {
+  radios: RadioIdentity[];
+  has_unassigned_history: boolean;
+}
+
+/** Whose samples a My Node chart reads: default (omit) = the active radio and its lineage. */
+export type RadioStatFilter = { radioId: number } | { unassigned: true } | null;
 
 export interface FanoutConfig {
   id: string;

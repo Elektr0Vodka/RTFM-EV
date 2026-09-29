@@ -19,6 +19,7 @@ import {
 } from './settings/settingsConstants';
 
 import { SettingsRadioSection } from './settings/SettingsRadioSection';
+import { RadioIdentitiesSettings } from './settings/RadioIdentitiesSettings';
 import { SettingsLocalSection } from './settings/SettingsLocalSection';
 import { SettingsRadioAppSection } from './settings/SettingsRadioAppSection';
 import { SettingsMapSection } from './settings/SettingsMapSection';
@@ -241,6 +242,8 @@ export function SettingsModal(props: SettingsModalProps) {
                 <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
                   {t('settings_radio_unavailable')}
                 </div>
+                {/* Plan 18: earlier radios stay reviewable without a connected radio. */}
+                <RadioIdentitiesSettings health={health} />
               </div>
             ))}
         </section>

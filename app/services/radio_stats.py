@@ -94,18 +94,29 @@ async def _persist_samples(snapshot: dict[str, Any]) -> None:
     if not snapshot:
         return
     ts = snapshot.get("timestamp") or int(time.time())
+    from app.services.radio_identity import sample_identity
+
+    mc = radio_manager.meshcore
+    self_info = mc.self_info if mc else None
+    live_key = self_info.get("public_key") if isinstance(self_info, dict) else None
+    persist, radio_identity_id = sample_identity(live_key)
+    if not persist:
+        # The radio changed and is not registered yet (plan 18): filing this
+        # sample under the previous radio would blend two devices' series.
+        logger.debug("Skipping stats persist: connected radio not registered yet")
+        return
     try:
         noise_floor = snapshot.get("noise_floor")
         if isinstance(noise_floor, int):
             from app.repository.noise_floor import NoiseFloorRepository
 
-            await NoiseFloorRepository.insert(ts, noise_floor)
+            await NoiseFloorRepository.insert(ts, noise_floor, radio_identity_id)
 
         battery_mv = snapshot.get("battery_mv")
         if isinstance(battery_mv, int):
             from app.repository.battery_history import BatteryHistoryRepository
 
-            await BatteryHistoryRepository.insert(ts, battery_mv)
+            await BatteryHistoryRepository.insert(ts, battery_mv, radio_identity_id)
 
         tx_air_secs = snapshot.get("tx_air_secs")
         rx_air_secs = snapshot.get("rx_air_secs")
@@ -127,6 +138,7 @@ async def _persist_samples(snapshot: dict[str, Any]) -> None:
                 tx_air_secs,
                 rx_air_secs,
                 recv_errors if isinstance(recv_errors, int) else None,
+                radio_identity_id,
             )
     except Exception:
         logger.exception("Failed to persist radio stats samples")
@@ -276,3 +288,14 @@ def get_battery_history() -> dict:
 def get_latest_radio_stats() -> dict[str, Any]:
     """Return the most recent radio stats snapshot (for health endpoint)."""
     return dict(_latest_stats)
+
+
+def clear_sample_buffers() -> None:
+    """Drop the in-memory 24 h battery / noise-floor samples and the latest snapshot.
+
+    Called when a different radio connects (plan 18) so the 24 h endpoints do
+    not merge two radios' readings.
+    """
+    _noise_floor_samples.clear()
+    _battery_samples.clear()
+    _latest_stats.clear()

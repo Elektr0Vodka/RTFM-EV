@@ -5,9 +5,11 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from app.config import settings
+from app.models import RadioIdentityPendingReason, RadioIdentityStatus
 from app.repository import RawPacketRepository
 from app.services.meshcomod import is_meshcomod
 from app.services.openhop import is_openhop
+from app.services.radio_identity import health_view as radio_identity_health_view
 from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.radio_stats import get_latest_radio_stats
 from app.version_info import get_app_build_info
@@ -61,6 +63,18 @@ class RadioStatsSnapshot(BaseModel):
     direct_rx: int | None = None
 
 
+class RadioIdentityHealth(BaseModel):
+    """The active radio (plan 18). ``status`` pending means the connect-time
+    question is open; ``owned_keys`` feed the sidebar Owned section."""
+
+    id: int
+    public_key: str
+    name: str | None = None
+    status: RadioIdentityStatus
+    pending_reason: RadioIdentityPendingReason | None = None
+    owned_keys: list[str] = Field(default_factory=list)
+
+
 class HealthResponse(BaseModel):
     status: str
     radio_connected: bool
@@ -76,6 +90,7 @@ class HealthResponse(BaseModel):
     bots_disabled: bool = False
     bots_disabled_source: Literal["env", "until_restart"] | None = None
     basic_auth_enabled: bool = False
+    radio_identity: RadioIdentityHealth | None = None
 
 
 def _clean_optional_str(value: object) -> str | None:
@@ -103,6 +118,12 @@ async def build_health_data(radio_connected: bool, connection_info: str | None) 
     oldest_ts = None
     try:
         oldest_ts = await RawPacketRepository.get_oldest_undecrypted()
+    except RuntimeError:
+        pass  # Database not connected
+
+    radio_identity = None
+    try:
+        radio_identity = await radio_identity_health_view()
     except RuntimeError:
         pass  # Database not connected
 
@@ -199,6 +220,7 @@ async def build_health_data(radio_connected: bool, connection_info: str | None) 
         "bots_disabled": bots_disabled_source is not None,
         "bots_disabled_source": bots_disabled_source,
         "basic_auth_enabled": _read_optional_bool_setting("basic_auth_enabled"),
+        "radio_identity": radio_identity,
     }
 
 

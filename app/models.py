@@ -2284,3 +2284,36 @@ class LatestTelemetryEntry(BaseModel):
         default=None, description="Temperature in degrees C from the LPP sensors, if present"
     )
     source: str = Field(description="Which history table the reading came from: repeater | contact")
+
+
+RadioIdentityStatus = Literal["pending", "confirmed"]
+RadioIdentityPendingReason = Literal["new_key", "legacy_history"]
+
+
+class RadioIdentity(BaseModel):
+    """A radio that has fed this install (plan 18 ``radio_identities``)."""
+
+    id: int
+    public_key: str = Field(description="Full 64-hex public key, lowercase")
+    name: str | None = Field(default=None, description="Radio name at its latest connect")
+    notes: str | None = Field(default=None, description="User note")
+    first_connected: int
+    last_connected: int
+    status: RadioIdentityStatus = Field(
+        description="pending until the user answers the connect-time question"
+    )
+    pending_reason: RadioIdentityPendingReason | None = Field(
+        default=None,
+        description="new_key: unknown radio after an earlier one; "
+        "legacy_history: history recorded before radio tracking may belong to it",
+    )
+    replaced_by: int | None = Field(
+        default=None, description="Id of the radio that replaced this one"
+    )
+    carry_stats: bool = Field(
+        default=False, description="The replacing radio's charts include this radio's samples"
+    )
+    carry_owned: bool = Field(
+        default=False, description="Nodes owned by this radio count as owned by its replacement"
+    )
+    is_active: bool = Field(default=False, description="Most recently connected radio")
