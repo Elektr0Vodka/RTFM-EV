@@ -11,6 +11,32 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-29 (Loadouts: contacts + disconnect prompt, plan 08 slices 2-3, feat/loadouts-contacts-disconnect)
+
+### Radio: loadouts hold contacts too (backend + frontend)
+- Channel sets are now called "Loadouts" in the UI (Settings > Radio-App
+  Management > Loadouts). API paths and storage keep the `channel-sets` name.
+- A loadout can hold contacts as well as channels (or only contacts). The
+  editor lists contacts with a full public key, filterable, selected first.
+- Loading a loadout adds its contacts to the radio after its channels.
+  Additive: contacts already on the radio are reported as such and nothing is
+  removed. A full contact table fails that contact and the rest
+  (`table_full`); a contact deleted since saving fails as `unknown_contact`,
+  one set to App only as `excluded`.
+- Contacts a loadout put on the radio (or found there) stay protected until
+  the next reconnect: they join the first residency tier after pinned contacts
+  (reason "loadout" in the contact's radio residency), so a full sync does not
+  remove them. Protection is in memory only and adds up over several loads.
+- `POST/PATCH /api/channel-sets` take `contact_keys`; apply returns
+  `contact_items`, and the totals cover channels and contacts. No migration.
+
+### Radio: offer a loadout before disconnecting (frontend)
+- Settings > Radio > Disconnect, while the radio is connected and at least one
+  loadout exists: a dialog to pick a loadout and "Load and disconnect",
+  "Disconnect without loading", or Cancel. When anything fails to load, the
+  per-item results are shown and the radio stays connected until you choose
+  "Disconnect anyway". Without loadouts, Disconnect works as before.
+
 ## Update 2026-09-29 (OpenHop receive-error graph, fix/openhop-crc-rx-errors)
 
 ### My Node: receive-error graph on OpenHop nodes (backend)

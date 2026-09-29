@@ -300,7 +300,12 @@ export interface ContactAnnotationsUpdate {
   battery_chemistry?: BatteryChemistry | null;
 }
 
-export type RadioResidencyReason = 'pinned' | 'favorite' | 'recent-dm' | 'recent-advert';
+export type RadioResidencyReason =
+  | 'pinned'
+  | 'loadout'
+  | 'favorite'
+  | 'recent-dm'
+  | 'recent-advert';
 
 export interface ContactRadioResidency {
   public_key: string;
@@ -489,11 +494,20 @@ export interface ChannelSetEntry {
   name: string;
 }
 
-/** A named set of channels that can be loaded onto the radio in one action (plan 08). */
+export interface ChannelSetContact {
+  public_key: string;
+  name: string | null;
+}
+
+/**
+ * A named set of channels and contacts loaded onto the radio in one action
+ * (plan 08). Shown as a "loadout" in the UI.
+ */
 export interface ChannelSet {
   id: string;
   name: string;
   channels: ChannelSetEntry[];
+  contacts: ChannelSetContact[];
   created_at: number;
   updated_at: number;
 }
@@ -506,9 +520,18 @@ export interface ChannelSetApplyItem {
   error: 'no_free_slot' | 'radio_error' | null;
 }
 
+export interface ChannelSetContactApplyItem {
+  public_key: string;
+  name: string | null;
+  status: 'loaded' | 'already_loaded' | 'failed';
+  error: 'table_full' | 'unknown_contact' | 'excluded' | 'radio_error' | null;
+}
+
+/** Counts cover channels and contacts together. */
 export interface ChannelSetApplyResult {
   set_id: string;
   items: ChannelSetApplyItem[];
+  contact_items: ChannelSetContactApplyItem[];
   loaded: number;
   already_loaded: number;
   failed: number;

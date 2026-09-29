@@ -363,7 +363,7 @@ class ContactRadioResidency(BaseModel):
     """One contact currently selected to occupy the radio, with the reason."""
 
     public_key: str = Field(description="Contact public key (64-char hex)")
-    reason: Literal["pinned", "favorite", "recent-dm", "recent-advert"] = Field(
+    reason: Literal["pinned", "loadout", "favorite", "recent-dm", "recent-advert"] = Field(
         description="Why this contact is selected for the radio"
     )
 
@@ -1347,12 +1347,23 @@ class ChannelSetEntry(BaseModel):
     name: str = Field(description="Channel name; the apply uses the current DB name if any")
 
 
+class ChannelSetContact(BaseModel):
+    """One contact in a channel set: its full public key and the name it had when saved."""
+
+    public_key: str = Field(description="Full 64-char public key (lower case)")
+    name: str | None = Field(default=None, description="Display name when saved")
+
+
 class ChannelSet(BaseModel):
-    """A named set of channels that can be loaded onto the radio in one action (plan 08)."""
+    """A named set of channels and contacts loaded onto the radio in one action (plan 08).
+
+    Shown as a "loadout" in the UI.
+    """
 
     id: str
     name: str
     channels: list[ChannelSetEntry] = Field(default_factory=list)
+    contacts: list[ChannelSetContact] = Field(default_factory=list)
     created_at: int
     updated_at: int
 
@@ -1367,12 +1378,22 @@ class ChannelSetApplyItem(BaseModel):
     error: Literal["no_free_slot", "radio_error"] | None = None
 
 
+class ChannelSetContactApplyItem(BaseModel):
+    """Per-contact outcome of loading a channel set onto the radio."""
+
+    public_key: str
+    name: str | None = None
+    status: Literal["loaded", "already_loaded", "failed"]
+    error: Literal["table_full", "unknown_contact", "excluded", "radio_error"] | None = None
+
+
 class ChannelSetApplyResult(BaseModel):
     set_id: str
     items: list[ChannelSetApplyItem]
-    loaded: int
-    already_loaded: int
-    failed: int
+    contact_items: list[ChannelSetContactApplyItem] = Field(default_factory=list)
+    loaded: int = Field(description="Channels plus contacts loaded")
+    already_loaded: int = Field(description="Channels plus contacts already on the radio")
+    failed: int = Field(description="Channels plus contacts that failed")
 
 
 class MarkUnreadRequest(BaseModel):

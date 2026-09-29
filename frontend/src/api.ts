@@ -528,14 +528,17 @@ export const api = {
   },
   getChannelDetail: (key: string) => fetchJson<ChannelDetail>(`/channels/${key}/detail`),
 
-  // Channel sets (plan 08): named channel groups loaded onto the radio in one action
+  // Channel sets ("loadouts", plan 08): channels + contacts loaded onto the radio in one action
   getChannelSets: () => fetchJson<ChannelSet[]>('/channel-sets'),
-  createChannelSet: (name: string, channelKeys: string[]) =>
+  createChannelSet: (name: string, channelKeys: string[], contactKeys: string[] = []) =>
     fetchJson<ChannelSet>('/channel-sets', {
       method: 'POST',
-      body: JSON.stringify({ name, channel_keys: channelKeys }),
+      body: JSON.stringify({ name, channel_keys: channelKeys, contact_keys: contactKeys }),
     }),
-  updateChannelSet: (setId: string, update: { name?: string; channel_keys?: string[] }) =>
+  updateChannelSet: (
+    setId: string,
+    update: { name?: string; channel_keys?: string[]; contact_keys?: string[] }
+  ) =>
     fetchJson<ChannelSet>(`/channel-sets/${setId}`, {
       method: 'PATCH',
       body: JSON.stringify(update),

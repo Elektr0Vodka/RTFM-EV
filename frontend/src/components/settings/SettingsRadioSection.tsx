@@ -9,6 +9,7 @@ import { Checkbox } from '../ui/checkbox';
 import { MeshcomodSettings } from './MeshcomodSettings';
 import { GpsSettings } from './GpsSettings';
 import { OpenHopSettings } from './OpenHopSettings';
+import { LoadoutDisconnectDialog } from './LoadoutDisconnectDialog';
 import { ContactLinkShare } from '../ContactLinkShare';
 import { useT } from '../../i18n';
 import {
@@ -29,6 +30,7 @@ import { allDutchScopes } from '../../lib/dutchGeo';
 import type {
   AppSettings,
   AppSettingsUpdate,
+  ChannelSet,
   HealthStatus,
   RadioContactOccupancy,
   RadioAdvertMode,
@@ -268,6 +270,8 @@ export function SettingsRadioSection({
   // Advertise state
   const [advertisingMode, setAdvertisingMode] = useState<RadioAdvertMode | null>(null);
   const [connectionBusy, setConnectionBusy] = useState(false);
+  // Loadouts offered before a disconnect (plan 08 slice 3); non-null = prompt open.
+  const [disconnectLoadouts, setDisconnectLoadouts] = useState<ChannelSet[] | null>(null);
 
   useEffect(() => {
     setName(config.name);
@@ -968,10 +972,10 @@ export function SettingsRadioSection({
     return label;
   }, [health?.radio_device_info, t]);
 
-  const handleConnectionAction = async () => {
+  const runConnectionAction = async (action: 'reconnect' | 'disconnect') => {
     setConnectionBusy(true);
     try {
-      if (radioState === 'paused') {
+      if (action === 'reconnect') {
         await onReconnect();
         toast.success(t('settings_radio_toast_reconnect_requested'));
       } else {
@@ -986,6 +990,27 @@ export function SettingsRadioSection({
     } finally {
       setConnectionBusy(false);
     }
+  };
+
+  const handleConnectionAction = async () => {
+    if (radioState === 'paused') {
+      await runConnectionAction('reconnect');
+      return;
+    }
+    // Offer a loadout only while the radio is connected and at least one exists.
+    if (radioState === 'connected') {
+      let loadouts: ChannelSet[] = [];
+      try {
+        loadouts = (await api.getChannelSets()) ?? [];
+      } catch {
+        // No loadout list: disconnect as before.
+      }
+      if (loadouts.length > 0) {
+        setDisconnectLoadouts(loadouts);
+        return;
+      }
+    }
+    await runConnectionAction('disconnect');
   };
 
   return (
@@ -1028,6 +1053,14 @@ export function SettingsRadioSection({
         >
           {connectionBusy ? `${connectionActionLabel}...` : connectionActionLabel}
         </Button>
+        <LoadoutDisconnectDialog
+          sets={disconnectLoadouts}
+          onCancel={() => setDisconnectLoadouts(null)}
+          onDisconnect={() => {
+            setDisconnectLoadouts(null);
+            void runConnectionAction('disconnect');
+          }}
+        />
         <p className="text-[0.8125rem] text-muted-foreground">
           {t('settings_radio_disconnect_note')}
         </p>

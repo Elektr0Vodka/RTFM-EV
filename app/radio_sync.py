@@ -1576,19 +1576,40 @@ async def stop_background_contact_reconciliation() -> None:
 
 
 # Radio residency reasons, in fill-priority order.
-ResidencyReason = Literal["pinned", "favorite", "recent-dm", "recent-advert"]
+ResidencyReason = Literal["pinned", "loadout", "favorite", "recent-dm", "recent-advert"]
 RESIDENCY_PINNED: ResidencyReason = "pinned"
+RESIDENCY_LOADOUT: ResidencyReason = "loadout"
 RESIDENCY_FAVORITE: ResidencyReason = "favorite"
 RESIDENCY_RECENT_DM: ResidencyReason = "recent-dm"
 RESIDENCY_RECENT_ADVERT: ResidencyReason = "recent-advert"
+
+# Contacts loaded by a loadout (channel set, plan 08) since the last connect.
+# They stay in the first residency tier so a full sync does not remove them;
+# cleared at the start of every post-connect setup. In memory only.
+_loadout_protected_keys: dict[str, None] = {}
+
+
+def protect_loadout_contacts(public_keys: list[str]) -> None:
+    """Keep these contacts on the radio until the next connect (added to earlier ones)."""
+    for key in public_keys:
+        _loadout_protected_keys[key.lower()] = None
+
+
+def clear_loadout_protection() -> None:
+    _loadout_protected_keys.clear()
+
+
+def get_loadout_protected_keys() -> list[str]:
+    return list(_loadout_protected_keys)
 
 
 async def get_radio_residency() -> list[tuple[Contact, ResidencyReason]]:
     """Return (contact, reason) pairs that would be loaded onto the radio now.
 
     Fill order:
-    1. Pinned then favorites (``radio_policy == 'pinned'`` first, then
-       ``favorite``), always loaded up to full capacity.
+    1. Pinned, then contacts loaded by a loadout since the last connect, then
+       favorites (``radio_policy == 'pinned'`` first), always loaded up to
+       full capacity.
     2. Most recently DM-active non-repeaters (sent or received, up to 80% refill target)
     3. Most recently advertised non-repeaters (up to 80% refill target)
 
@@ -1615,6 +1636,14 @@ async def get_radio_residency() -> list[tuple[Contact, ResidencyReason]]:
         if key not in first_tier_keys:
             first_tier_keys.add(key)
             first_tier.append((contact, RESIDENCY_PINNED))
+    for key in get_loadout_protected_keys():
+        if key in first_tier_keys:
+            continue
+        contact = await ContactRepository.get_by_key(key)
+        if contact is None or contact.radio_policy == "excluded":
+            continue
+        first_tier_keys.add(key)
+        first_tier.append((contact, RESIDENCY_LOADOUT))
     for contact in await ContactRepository.get_favorites():
         key = contact.public_key.lower()
         if contact.radio_policy == "excluded" or key in first_tier_keys:

@@ -717,6 +717,41 @@ describe('SettingsModal', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it('offers a loadout before disconnecting when one exists', async () => {
+    vi.spyOn(api, 'getChannelSets').mockResolvedValue([
+      {
+        id: 'set1',
+        name: 'Field kit',
+        channels: [{ key: 'AA'.repeat(16), name: '#alpha' }],
+        contacts: [],
+        created_at: 1,
+        updated_at: 1,
+      },
+    ]);
+    const onDisconnect = vi.fn(async () => {});
+    renderModal({ health: { ...baseHealth, radio_state: 'connected' }, onDisconnect });
+    openRadioSection();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }));
+
+    expect(await screen.findByText('Load a loadout before disconnecting?')).toBeInTheDocument();
+    expect(onDisconnect).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Disconnect without loading' }));
+    await waitFor(() => expect(onDisconnect).toHaveBeenCalledTimes(1));
+  });
+
+  it('disconnects straight away when there are no loadouts', async () => {
+    vi.spyOn(api, 'getChannelSets').mockResolvedValue([]);
+    const onDisconnect = vi.fn(async () => {});
+    renderModal({ health: { ...baseHealth, radio_state: 'connected' }, onDisconnect });
+    openRadioSection();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }));
+
+    await waitFor(() => expect(onDisconnect).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText('Load a loadout before disconnecting?')).not.toBeInTheDocument();
+  });
+
   it('stores and clears reopen-last-conversation preference locally', () => {
     window.location.hash = '#raw';
     renderModal();

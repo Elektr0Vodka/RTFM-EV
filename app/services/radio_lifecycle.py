@@ -28,6 +28,7 @@ async def run_post_connect_setup(radio_manager) -> None:
     from app.event_handlers import register_event_handlers
     from app.keystore import export_and_store_private_key
     from app.radio_sync import (
+        clear_loadout_protection,
         drain_pending_messages,
         send_advertisement,
         start_message_polling,
@@ -49,6 +50,8 @@ async def run_post_connect_setup(radio_manager) -> None:
             return
         radio_manager._setup_in_progress = True
         radio_manager._setup_complete = False
+        # A loadout's contacts stay protected only until the next connect.
+        clear_loadout_protection()
         try:
             # Hold the operation lock for all radio I/O during setup.
             # This prevents user-initiated operations (send message, etc.)

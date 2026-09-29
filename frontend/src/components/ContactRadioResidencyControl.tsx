@@ -21,6 +21,7 @@ const POLICY_HINT_KEY: Record<RadioPolicy, string> = {
 
 const REASON_KEY: Record<RadioResidencyReason, string> = {
   pinned: 'contact_radio_reason_pinned',
+  loadout: 'contact_radio_reason_loadout',
   favorite: 'contact_radio_reason_favorite',
   'recent-dm': 'contact_radio_reason_recent_dm',
   'recent-advert': 'contact_radio_reason_recent_advert',
