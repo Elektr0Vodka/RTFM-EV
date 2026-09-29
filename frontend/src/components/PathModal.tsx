@@ -17,6 +17,7 @@ import { getMapFocusHash } from '../utils/urlHash';
 import { useDistanceUnit } from '../contexts/DistanceUnitContext';
 import type { DistanceUnit } from '../utils/distanceUnits';
 import { useT, type TFn } from '../i18n';
+import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
 import { useSoftResolutions, type SoftResolutionMap } from '../hooks/useSoftResolutions';
 
 const PathRouteMap = lazy(() =>
@@ -603,6 +604,7 @@ function CoordinateLink({
   publicKey: string;
   t: TFn;
 }) {
+  const coordinateFormat = useCoordinateFormat();
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -625,7 +627,7 @@ function CoordinateLink({
       onClick={handleClick}
       title={t('contact_view_on_map')}
     >
-      ({lat.toFixed(4)}, {lon.toFixed(4)})
+      ({formatCoordinates(lat, lon, coordinateFormat, 4)})
     </span>
   );
 }

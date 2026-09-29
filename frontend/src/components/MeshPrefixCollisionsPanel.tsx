@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { ChevronRight, X } from 'lucide-react';
 import { api } from '../api';
 import { useT } from '../i18n';
+import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
 import { StatTile } from './meshHealthShared';
 
 // ─── Types (mirror the backend PrefixCollisions* models) ──────────────────────
@@ -114,6 +115,7 @@ function LegendSwatch({ sev, label }: { sev: number; label: string }) {
 
 export function MeshPrefixCollisionsPanel({ refreshKey, onLoadingChange, onOpenNode }: Props) {
   const t = useT();
+  const coordinateFormat = useCoordinateFormat();
   const [data, setData] = useState<PrefixCollisionsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -378,7 +380,7 @@ export function MeshPrefixCollisionsPanel({ refreshKey, onLoadingChange, onOpenN
                             )}
                             {n.lat !== null && n.lon !== null && (
                               <span className="ml-2 text-[10px] tabular-nums text-muted-foreground">
-                                ({n.lat.toFixed(2)}, {n.lon.toFixed(2)})
+                                ({formatCoordinates(n.lat, n.lon, coordinateFormat, 2)})
                               </span>
                             )}
                           </td>

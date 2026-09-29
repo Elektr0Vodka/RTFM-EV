@@ -28,6 +28,7 @@ import { getContactDisplayName } from '../utils/pubkey';
 import { handleKeyboardActivate } from '../utils/a11y';
 import { cn } from '@/lib/utils';
 import { useT, type TFn } from '../i18n';
+import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
 import { TimeRangeSelector } from './TimeRangeSelector';
 import { useRadioLabel } from './RadioIdentityPrompt';
 import {
@@ -1675,6 +1676,7 @@ function HBarSection({
 
 export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
   const t = useT();
+  const coordinateFormat = useCoordinateFormat();
   const rawPackets = useRawPackets();
   const rawPacketStatsSession = useRawPacketStatsSession();
   const [config, setConfig] = useState<RadioConfig | null>(null);
@@ -2177,7 +2179,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                         }
                         title={t('contact_view_on_map')}
                       >
-                        {config.lat.toFixed(4)}, {config.lon.toFixed(4)}
+                        {formatCoordinates(config.lat, config.lon, coordinateFormat, 4)}
                       </span>
                     )}
                   </div>
@@ -3013,7 +3015,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                 {config.lat != null && config.lon != null && (
                   <KV
                     label={t('contact_location')}
-                    value={`${config.lat.toFixed(5)}, ${config.lon.toFixed(5)}`}
+                    value={formatCoordinates(config.lat, config.lon, coordinateFormat, 5)}
                   />
                 )}
                 {health?.radio_device_info?.model && (

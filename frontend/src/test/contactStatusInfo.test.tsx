@@ -1,9 +1,10 @@
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect } from 'vitest';
 
 import { ContactStatusInfo } from '../components/ContactStatusInfo';
 import { I18nProvider } from '../i18n/I18nProvider';
 import type { Contact } from '../types';
+import { COORDINATE_FORMAT_KEY } from '../utils/coordinateFormat';
 import { CONTACT_TYPE_REPEATER } from '../types';
 
 function makeContact(overrides: Partial<Contact>): Contact {
@@ -57,5 +58,24 @@ describe('ContactStatusInfo location', () => {
   it('shows no coordinate line when the node has neither advertised nor manual location', () => {
     const { container } = renderStatus(makeContact({ lat: null, lon: null }));
     expect(container.textContent).not.toMatch(/\d+\.\d{3}, /);
+  });
+});
+
+describe('ContactStatusInfo coordinate format', () => {
+  afterEach(() => {
+    localStorage.removeItem(COORDINATE_FORMAT_KEY);
+  });
+
+  it('follows the degrees, minutes, seconds setting', () => {
+    localStorage.setItem(COORDINATE_FORMAT_KEY, 'dms');
+    renderStatus(makeContact({ lat: 51.812, lon: 4.703 }));
+    expect(screen.getByText(`51°48'43.2"N 4°42'10.8"E`)).toBeInTheDocument();
+    expect(screen.queryByText('51.812, 4.703')).not.toBeInTheDocument();
+  });
+
+  it('follows the MGRS setting', () => {
+    localStorage.setItem(COORDINATE_FORMAT_KEY, 'mgrs');
+    const { container } = renderStatus(makeContact({ lat: 51.812, lon: 4.703 }));
+    expect(container.textContent).toMatch(/31U [A-Z]{2} \d{5} \d{5}/);
   });
 });
