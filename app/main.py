@@ -78,6 +78,7 @@ from app.routers import (
     partial_resolution,
     push,
     radio,
+    radio_identities,
     read_state,
     regions,
     registry,
@@ -274,6 +275,7 @@ app.include_router(update_status.router, prefix="/api")
 app.include_router(debug.router, prefix="/api")
 app.include_router(fanout.router, prefix="/api")
 app.include_router(radio.router, prefix="/api")
+app.include_router(radio_identities.router, prefix="/api")
 app.include_router(host_repeater.router, prefix="/api")
 app.include_router(contacts.router, prefix="/api")
 app.include_router(repeaters.router, prefix="/api")

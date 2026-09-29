@@ -366,6 +366,13 @@ jsdom has no layout engine, so none of this is observable from the vitest suite 
 - Mesh discovery (the Tools > Mesh Discovery view, `#mesh-discovery`) is limited to node classes that currently answer discovery control-data requests in firmware: repeaters and sensors. Sweep state lives in `useRadioControl`, so the last result survives navigation. The same view hosts repeater region discovery (formerly in Settings > Radio), which prefers repeaters from the last sweep and saves added regions straight to `known_regions`.
 - Frontend `path_len` fields are hop counts, not raw byte lengths; multibyte path rendering must use the accompanying metadata before splitting hop identifiers.
 
+### Radio identities (plan 18)
+
+- `RadioIdentityPrompt.tsx` (mounted in `AppShell` next to `SecurityWarningModal`) opens while `health.radio_identity.status === 'pending'`. `new_key`: new radio, or "replaces" an earlier radio that is not already replaced, with carry-over checkboxes (stats, owned nodes, note). `legacy_history`: whether pre-tracking history belongs to this radio. "Decide later" hides it per browser session (`sessionStorage`); it never blocks the app. The answer form (`RadioIdentityResolver`) is reused by `settings/RadioIdentitiesSettings.tsx`.
+- Settings > Radio > Radios (`RadioIdentitiesSettings`) lists every radio with pending answers, the replacement link (carry-over toggles, undo) and a note. It also renders when no radio is connected (`SettingsModal` "Radio is not available" branch).
+- My Node charts read the active radio's lineage by default; `RadioStatPicker` (only when there is more than one radio or unassigned history) passes a `RadioStatFilter` to `api.getBatteryRange` / `getNoiseFloorHistory` / `getAirtimeRange`. With a filter set, live windows read from the DB instead of the in-memory samples.
+- The sidebar Owned section matches `owner_key` against `ownPublicKey` plus `health.radio_identity.owned_keys`.
+
 ### Host repeater section (`components/settings/hostRepeater/`)
 
 - Own settings section `host-repeater` (after `radio`), rendered from `SettingsModal`, which passes `floodScopeRegions` (`floodScopeRegions.ts`: app `flood_scope` + channel overrides, `#` stripped) and repeater contacts.

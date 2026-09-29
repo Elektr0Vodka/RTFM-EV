@@ -68,6 +68,7 @@ function renderSidebar(overrides?: {
   contactGroups?: ContactGroup[];
   contacts?: Contact[];
   ownPublicKey?: string | null;
+  ownedKeys?: string[];
   onSaveSidebarOrder?: (update: {
     sidebar_section_order?: string[];
     sidebar_tool_order?: string[];
@@ -102,6 +103,7 @@ function renderSidebar(overrides?: {
     <Sidebar
       contacts={overrides?.contacts ?? [alice, board, relay]}
       ownPublicKey={overrides?.ownPublicKey}
+      ownedKeys={overrides?.ownedKeys}
       channels={channels}
       activeConversation={null}
       onSelectConversation={onSelectConversation}
@@ -1577,6 +1579,20 @@ describe('Sidebar owned section (plan 17 phase 3)', () => {
     unmount();
     renderSidebar({ contacts: owned(), ownPublicKey: null, unreadCounts: {} });
     expect(screen.queryByRole('button', { name: 'Owned' })).not.toBeInTheDocument();
+  });
+
+  it('also lists nodes owned by an earlier radio in the owned lineage (plan 18)', () => {
+    // 'cd' is a replaced radio whose link carries "owned nodes".
+    renderSidebar({
+      contacts: owned(),
+      ownPublicKey: OWN_KEY,
+      ownedKeys: [OWN_KEY, 'CD'.repeat(32)],
+      unreadCounts: {},
+    });
+    const header = getSectionHeaderContainer('Owned');
+    expect(header.textContent).toContain('4');
+    expect(screen.getAllByText('Ops Board')).toHaveLength(2);
+    expect(screen.getAllByText('Nobody')).toHaveLength(1);
   });
 
   it('can be hidden like any other section and stays listed in the Customize panel', () => {

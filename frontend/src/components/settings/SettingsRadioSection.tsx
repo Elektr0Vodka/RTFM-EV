@@ -10,6 +10,7 @@ import { MeshcomodSettings } from './MeshcomodSettings';
 import { GpsSettings } from './GpsSettings';
 import { OpenHopSettings } from './OpenHopSettings';
 import { LoadoutDisconnectDialog } from './LoadoutDisconnectDialog';
+import { RadioIdentitiesSettings } from './RadioIdentitiesSettings';
 import { ContactLinkShare } from '../ContactLinkShare';
 import { useT } from '../../i18n';
 import {
@@ -1122,6 +1123,11 @@ export function SettingsRadioSection({
           {identityError}
         </div>
       )}
+
+      <Separator />
+
+      {/* ── Radios (plan 18) ── */}
+      <RadioIdentitiesSettings health={health} />
 
       <Separator />
 

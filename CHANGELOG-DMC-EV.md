@@ -11,6 +11,37 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-29 (Radio identity registry, plan 18 Phase 1, feat/multi-radio-identity-history)
+
+### Radio: remember which radio fed the install (backend + frontend)
+- New `radio_identities` registry (migration `_123`): every radio that has fed
+  this install, recorded at connect from the radio's own key.
+- Battery, noise floor and airtime samples now record which radio measured
+  them (`radio_identity_id`). Swapping the radio no longer blends two devices
+  into one series, and airtime no longer spikes across a swap. A sample from a
+  swapped radio that is not registered yet is skipped.
+- Existing samples: on the first connect after the upgrade they are assigned
+  to the connected radio when every own key found in the history (outgoing
+  channel messages, 0-hop signal samples) is that radio's. Otherwise the app
+  asks once whether the history belongs to this radio.
+- A different radio connecting raises a prompt: new radio, or a replacement
+  for an earlier one with what it inherits (battery/noise/airtime history,
+  owned nodes, the note). Carry-over is applied when reading; nothing is moved
+  or deleted. "Decide later" hides it for the browser session; the radio keeps
+  working meanwhile.
+- Settings > Radio > Radios lists every radio (also without a connected
+  radio): answer a pending radio, change or undo a replacement link, add a note.
+- My Node battery, noise floor and airtime charts show the current radio plus
+  what it inherits; a radio picker appears once there is more than one radio or
+  history from before radio tracking.
+- The sidebar Owned section also lists nodes owned by a replaced radio when
+  the link carries "Owned nodes".
+- API: `/api/radio-identities` (list, confirm-new, replace, legacy-history,
+  link edit/undo, notes); `radio_id` / `unassigned` filters on the
+  `/api/statistics` battery, noise-floor and airtime endpoints; `health` carries
+  `radio_identity`. Observed mesh data (contacts, packets, messages) stays
+  global. Nothing is transmitted.
+
 ## Update 2026-09-29 (Loadouts: contacts + disconnect prompt, plan 08 slices 2-3, feat/loadouts-contacts-disconnect)
 
 ### Radio: loadouts hold contacts too (backend + frontend)

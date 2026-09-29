@@ -97,6 +97,9 @@ import type {
   RadioTraceHopRequest,
   RadioTraceResponse,
   RadioDiscoveryTarget,
+  RadioIdentity,
+  RadioIdentityList,
+  RadioStatFilter,
   PathDiscoveryResponse,
   PushSubscriptionInfo,
   ResendChannelMessageResponse,
@@ -161,6 +164,13 @@ export class ApiError extends Error {
     super(message);
     this.name = 'ApiError';
   }
+}
+
+/** Query suffix selecting whose samples a My Node stat read returns (plan 18). */
+function radioStatQuery(filter?: RadioStatFilter): string {
+  if (!filter) return '';
+  if ('unassigned' in filter) return '&unassigned=true';
+  return `&radio_id=${filter.radioId}`;
 }
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
@@ -1165,15 +1175,52 @@ export const api = {
 
   // Statistics
   getStatistics: () => fetchJson<StatisticsResponse>('/statistics'),
-  getNoiseFloorHistory: (startTs: number, endTs: number) =>
-    fetchJson<NoiseFloorSample[]>(`/statistics/noise-floor?start_ts=${startTs}&end_ts=${endTs}`),
-  getBatteryHistory: () => fetchJson<BatteryHistoryStats>('/statistics/battery'),
-  getBatteryRange: (startTs: number, endTs: number) =>
-    fetchJson<BatterySample[]>(`/statistics/battery/range?start_ts=${startTs}&end_ts=${endTs}`),
-  getAirtimeRange: (startTs: number, endTs: number, binCount = 40) =>
-    fetchJson<AirtimeSample[]>(
-      `/statistics/airtime/range?start_ts=${startTs}&end_ts=${endTs}&bin_count=${binCount}`
+  getNoiseFloorHistory: (startTs: number, endTs: number, radio?: RadioStatFilter) =>
+    fetchJson<NoiseFloorSample[]>(
+      `/statistics/noise-floor?start_ts=${startTs}&end_ts=${endTs}${radioStatQuery(radio)}`
     ),
+  getBatteryHistory: (radio?: RadioStatFilter) =>
+    fetchJson<BatteryHistoryStats>(
+      radio ? `/statistics/battery?${radioStatQuery(radio).slice(1)}` : '/statistics/battery'
+    ),
+  getBatteryRange: (startTs: number, endTs: number, radio?: RadioStatFilter) =>
+    fetchJson<BatterySample[]>(
+      `/statistics/battery/range?start_ts=${startTs}&end_ts=${endTs}${radioStatQuery(radio)}`
+    ),
+  getAirtimeRange: (startTs: number, endTs: number, binCount = 40, radio?: RadioStatFilter) =>
+    fetchJson<AirtimeSample[]>(
+      `/statistics/airtime/range?start_ts=${startTs}&end_ts=${endTs}&bin_count=${binCount}${radioStatQuery(radio)}`
+    ),
+
+  // Radio identities (plan 18)
+  getRadioIdentities: () => fetchJson<RadioIdentityList>('/radio-identities'),
+  confirmNewRadio: (id: number) =>
+    fetchJson<RadioIdentity>(`/radio-identities/${id}/confirm-new`, { method: 'POST' }),
+  replaceRadio: (
+    id: number,
+    body: { old_id: number; carry_stats: boolean; carry_owned: boolean; carry_note: boolean }
+  ) =>
+    fetchJson<RadioIdentity>(`/radio-identities/${id}/replace`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  answerLegacyHistory: (id: number, adopt: boolean) =>
+    fetchJson<RadioIdentity>(`/radio-identities/${id}/legacy-history`, {
+      method: 'POST',
+      body: JSON.stringify({ adopt }),
+    }),
+  updateRadioLink: (oldId: number, body: { carry_stats: boolean; carry_owned: boolean }) =>
+    fetchJson<RadioIdentity>(`/radio-identities/${oldId}/link`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  removeRadioLink: (oldId: number) =>
+    fetchJson<RadioIdentity>(`/radio-identities/${oldId}/link`, { method: 'DELETE' }),
+  updateRadioNotes: (id: number, notes: string | null) =>
+    fetchJson<RadioIdentity>(`/radio-identities/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ notes }),
+    }),
   getRawFeedStats: (startTs: number, endTs: number) =>
     fetchJson<RawFeedHistoricalStats>(
       `/packets/raw-feed-stats?start_ts=${startTs}&end_ts=${endTs}`

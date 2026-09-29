@@ -19,6 +19,7 @@ import { ChannelInfoPane } from './ChannelInfoPane';
 import { MentionTicker, type MentionEvent } from './MentionTicker';
 import { CommandPalette } from './CommandPalette';
 import { SecurityWarningModal } from './SecurityWarningModal';
+import { RadioIdentityPrompt } from './RadioIdentityPrompt';
 import { Toaster } from './ui/sonner';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './ui/sheet';
 import {
@@ -400,6 +401,7 @@ export function AppShell({
         isOpenHop={statusProps.health?.radio_device_info?.is_openhop === true}
       />
       <SecurityWarningModal health={statusProps.health} />
+      <RadioIdentityPrompt health={statusProps.health} />
       <ContactInfoPane {...contactInfoPaneProps} />
       <ChannelInfoPane {...channelInfoPaneProps} />
       <Toaster

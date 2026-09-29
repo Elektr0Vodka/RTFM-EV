@@ -13,8 +13,20 @@ async def test_insert_and_get_range(test_db):
 
     rows = await AirtimeHistoryRepository.get_range(900, 1100)
     assert rows == [
-        {"timestamp": 1000, "tx_air_secs": 10, "rx_air_secs": 20, "recv_errors": None},
-        {"timestamp": 1060, "tx_air_secs": 12, "rx_air_secs": 25, "recv_errors": None},
+        {
+            "timestamp": 1000,
+            "tx_air_secs": 10,
+            "rx_air_secs": 20,
+            "recv_errors": None,
+            "radio_identity_id": None,
+        },
+        {
+            "timestamp": 1060,
+            "tx_air_secs": 12,
+            "rx_air_secs": 25,
+            "recv_errors": None,
+            "radio_identity_id": None,
+        },
     ]
 
 

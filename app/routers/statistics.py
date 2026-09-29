@@ -1,9 +1,10 @@
 import logging
 import math
 import time
+from typing import Annotated
 
 import httpx
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
 from app.fanout.manager import fanout_manager
 from app.models import StatisticsResponse
@@ -11,10 +12,16 @@ from app.repository import StatisticsRepository
 from app.repository.airtime_history import AirtimeHistoryRepository
 from app.repository.battery_history import BatteryHistoryRepository
 from app.repository.noise_floor import NoiseFloorRepository
+from app.repository.radio_identities import (
+    RadioIdentityNotFound,
+    RadioIdentityRepository,
+    StatScope,
+)
 from app.repository.settings import AppSettingsRepository
 from app.services.airtime_util import compute_airtime_utilization, map_openhop_airtime_buckets
 from app.services.openhop import is_openhop
 from app.services.openhop_api import OpenHopClient
+from app.services.radio_identity import resolve_stat_scope
 from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.radio_stats import (
     STATS_SAMPLE_INTERVAL_SECONDS,
@@ -26,6 +33,35 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/statistics", tags=["statistics"])
 
+# Annotated so the Python defaults stay None / False when a handler is called directly.
+RadioIdParam = Annotated[
+    int | None,
+    Query(
+        description="Radio identity id (plan 18). Default: the active radio plus the radios "
+        "it inherits stats from"
+    ),
+]
+UnassignedParam = Annotated[
+    bool, Query(description="Only samples recorded before radio tracking (no radio attached)")
+]
+
+
+async def _scope(radio_id: int | None, unassigned: bool) -> StatScope:
+    try:
+        return await resolve_stat_scope(radio_id, unassigned)
+    except RadioIdentityNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+async def _includes_active_radio(scope: StatScope) -> bool:
+    """Whether in-memory samples (always the connected radio's) belong in this read."""
+    if scope.unassigned:
+        return False
+    if not scope.ids:
+        return True
+    active = await RadioIdentityRepository.get_active()
+    return active is not None and active.id in scope.ids
+
 
 @router.get("", response_model=StatisticsResponse)
 async def get_statistics() -> StatisticsResponse:
@@ -36,18 +72,24 @@ async def get_statistics() -> StatisticsResponse:
 
 
 @router.get("/battery")
-async def get_battery_history_endpoint() -> dict:
+async def get_battery_history_endpoint(
+    radio_id: RadioIdParam = None, unassigned: UnassignedParam = False
+) -> dict:
     """Return 24h battery history: in-memory samples merged with DB records.
 
     The DB is the authoritative long-term store; in-memory samples fill any
-    gap at the tail (e.g. between the last persisted write and now).
+    gap at the tail (e.g. between the last persisted write and now). They
+    belong to the connected radio, so they are only merged when the read
+    covers it.
     """
+    scope = await _scope(radio_id, unassigned)
     in_memory = get_battery_history()
     now = int(time.time())
     cutoff = now - 24 * 3600
-    db_samples = await BatteryHistoryRepository.get_range(cutoff, now)
+    db_samples = await BatteryHistoryRepository.get_range(cutoff, now, scope)
     seen_ts = {s["timestamp"] for s in db_samples}
-    merged = db_samples + [s for s in in_memory["samples"] if s["timestamp"] not in seen_ts]
+    memory_samples = in_memory["samples"] if await _includes_active_radio(scope) else []
+    merged = db_samples + [s for s in memory_samples if s["timestamp"] not in seen_ts]
     merged.sort(key=lambda s: s["timestamp"])
     latest = merged[-1] if merged else None
     oldest_ts = merged[0]["timestamp"] if merged else None
@@ -64,16 +106,24 @@ async def get_battery_history_endpoint() -> dict:
 async def get_battery_range(
     start_ts: int = Query(..., description="Start timestamp (Unix seconds)"),
     end_ts: int = Query(..., description="End timestamp (Unix seconds)"),
+    radio_id: RadioIdParam = None,
+    unassigned: UnassignedParam = False,
 ) -> list[dict]:
-    return await BatteryHistoryRepository.get_range(start_ts, end_ts)
+    return await BatteryHistoryRepository.get_range(
+        start_ts, end_ts, await _scope(radio_id, unassigned)
+    )
 
 
 @router.get("/noise-floor")
 async def get_noise_floor_range(
     start_ts: int = Query(..., description="Start timestamp (Unix seconds)"),
     end_ts: int = Query(..., description="End timestamp (Unix seconds)"),
+    radio_id: RadioIdParam = None,
+    unassigned: UnassignedParam = False,
 ) -> list[dict]:
-    return await NoiseFloorRepository.get_range(start_ts, end_ts)
+    return await NoiseFloorRepository.get_range(
+        start_ts, end_ts, await _scope(radio_id, unassigned)
+    )
 
 
 async def _openhop_airtime_range(start_ts: int, end_ts: int, bin_count: int) -> list[dict] | None:
@@ -161,6 +211,8 @@ async def get_airtime_range(
     start_ts: int = Query(..., description="Start timestamp (Unix seconds)"),
     end_ts: int = Query(..., description="End timestamp (Unix seconds)"),
     bin_count: int = Query(40, ge=1, le=500, description="Number of output bins"),
+    radio_id: RadioIdParam = None,
+    unassigned: UnassignedParam = False,
 ) -> list[dict]:
     """Return per-bin TX/RX airtime utilization % over the range.
 
@@ -169,13 +221,16 @@ async def get_airtime_range(
     reports real RX airtime, and ``rx_errors`` comes from OpenHop's radio CRC
     error history (omitted if that call fails). Otherwise utilization is derived from deltas between
     cumulative airtime samples, so the response is empty until at least two
-    samples exist in the window.
+    samples exist in the window. ``radio_id`` / ``unassigned`` pick whose samples
+    (plan 18); the OpenHop branch only serves the default (the connected radio).
     """
-    openhop = await _openhop_airtime_range(start_ts, end_ts, bin_count)
-    if openhop is not None:
-        return openhop
+    scope = await _scope(radio_id, unassigned)
+    if radio_id is None and not unassigned:
+        openhop = await _openhop_airtime_range(start_ts, end_ts, bin_count)
+        if openhop is not None:
+            return openhop
 
-    samples = await AirtimeHistoryRepository.get_range(start_ts, end_ts)
+    samples = await AirtimeHistoryRepository.get_range(start_ts, end_ts, scope)
     return compute_airtime_utilization(
         samples, start_ts, end_ts, bin_count, STATS_SAMPLE_INTERVAL_SECONDS
     )

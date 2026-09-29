@@ -3,7 +3,8 @@
 Input samples are cumulative-from-boot counters (seconds). Utilization for a
 pair of consecutive samples is 100 * delta_airtime / delta_wallclock. Pairs
 that straddle a counter reset (negative delta) or a long gap (radio was
-disconnected) are dropped so they do not create false spikes.
+disconnected) are dropped so they do not create false spikes. So is a pair whose
+samples carry different ``radio_identity_id`` values (two radios, plan 18).
 
 Samples may also carry ``recv_errors`` (the cumulative radio RX error counter,
 firmware v1.12+). Each bin then gets ``rx_errors``: the sum of the counter
@@ -33,6 +34,8 @@ def compute_airtime_utilization(
         dt = b["timestamp"] - a["timestamp"]
         if dt <= 0 or dt > max_gap:
             continue
+        if a.get("radio_identity_id") != b.get("radio_identity_id"):
+            continue  # counters from two different radios (plan 18)
         d_tx = b["tx_air_secs"] - a["tx_air_secs"]
         d_rx = b["rx_air_secs"] - a["rx_air_secs"]
         if d_tx < 0 or d_rx < 0:

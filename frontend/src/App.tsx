@@ -743,6 +743,7 @@ export function App() {
     sidebarHidden: appSettings?.sidebar_hidden,
     contactGroups: appSettings?.contact_groups ?? [],
     ownPublicKey: config?.public_key ?? null,
+    ownedKeys: health?.radio_identity?.owned_keys,
     onSaveSidebarOrder: handleSaveAppSettings,
   };
   const bulkAddChannelResultModalProps = {

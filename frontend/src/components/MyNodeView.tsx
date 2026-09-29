@@ -14,6 +14,8 @@ import type {
   HealthStatus,
   NoiseFloorSample,
   RadioConfig,
+  RadioIdentityList,
+  RadioStatFilter,
   RawPacket,
   StatisticsResponse,
 } from '../types';
@@ -27,6 +29,7 @@ import { handleKeyboardActivate } from '../utils/a11y';
 import { cn } from '@/lib/utils';
 import { useT, type TFn } from '../i18n';
 import { TimeRangeSelector } from './TimeRangeSelector';
+import { useRadioLabel } from './RadioIdentityPrompt';
 import {
   BASE_TIME_RANGES,
   CUSTOM_RANGE_ID,
@@ -1825,6 +1828,15 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
   const [batterySamples, setBatterySamples] = useState<BatterySample[]>([]);
   const [airtimeSamples, setAirtimeSamples] = useState<AirtimeSample[]>([]);
 
+  // Plan 18: whose samples the battery / noise-floor / airtime charts read. null =
+  // the connected radio plus the radios it inherits stats from. The picker only
+  // shows when there is more than one radio or unassigned history.
+  const [radioFilter, setRadioFilter] = useState<RadioStatFilter>(null);
+  const [radioList, setRadioList] = useState<RadioIdentityList | null>(null);
+  useEffect(() => {
+    api.getRadioIdentities().then(setRadioList, () => {});
+  }, []);
+
   // Fetch DB historical stats whenever the time window changes (uses nowSec which ticks every 30s)
   useEffect(() => {
     const endTs = nowSec;
@@ -1847,24 +1859,25 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
 
   // Battery: filter live samples for the selected window; fetch from DB for historical windows
   useEffect(() => {
-    if (selectedWindow.useLive) {
+    if (selectedWindow.useLive && radioFilter === null) {
       const cutoff = nowSec - (selectedWindow.seconds ?? 20 * 60);
       setBatterySamples((prev) => prev.filter((s) => s.timestamp >= cutoff));
       return;
     }
     if (selectedWindow.key === 'custom') return;
     const endTs = nowSec;
-    const startTs = selectedWindow.seconds !== null ? endTs - selectedWindow.seconds : 0;
-    api.getBatteryRange(startTs, endTs).then(
+    const seconds = selectedWindow.seconds ?? (selectedWindow.useLive ? 20 * 60 : null);
+    const startTs = seconds !== null ? endTs - seconds : 0;
+    api.getBatteryRange(startTs, endTs, radioFilter).then(
       (samples) => setBatterySamples(samples),
       () => {}
     );
-  }, [selectedWindow.key, selectedWindow.useLive, selectedWindow.seconds, nowSec]);
+  }, [selectedWindow.key, selectedWindow.useLive, selectedWindow.seconds, nowSec, radioFilter]);
 
   // Noise floor: filter live samples for live window; fetch from DB for historical windows
   useEffect(() => {
     if (noiseFloorSupported === false) return;
-    if (selectedWindow.useLive) {
+    if (selectedWindow.useLive && radioFilter === null) {
       // Filter in-memory stats samples to the live window (20m)
       const cutoff = nowSec - (selectedWindow.seconds ?? 20 * 60);
       setNoiseFloorSamples((prev) => prev.filter((s) => s.timestamp >= cutoff));
@@ -1872,8 +1885,9 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
     }
     if (selectedWindow.key === 'custom') return; // handled by Apply button
     const endTs = nowSec;
-    const startTs = selectedWindow.seconds !== null ? endTs - selectedWindow.seconds : 0;
-    api.getNoiseFloorHistory(startTs, endTs).then(
+    const seconds = selectedWindow.seconds ?? (selectedWindow.useLive ? 20 * 60 : null);
+    const startTs = seconds !== null ? endTs - seconds : 0;
+    api.getNoiseFloorHistory(startTs, endTs, radioFilter).then(
       (samples) => setNoiseFloorSamples(samples),
       () => {} // silently ignore - chart will just show no data
     );
@@ -1883,6 +1897,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
     selectedWindow.seconds,
     nowSec,
     noiseFloorSupported,
+    radioFilter,
   ]);
 
   // Airtime utilization: always DB-backed (no in-memory deque). Custom via Apply.
@@ -1890,11 +1905,11 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
     if (selectedWindowId === CUSTOM_RANGE_ID) return;
     const resolved = resolveRange(selectedWindowId, { nowSec, extras: MYNODE_EXTRAS_AFTER });
     if (!resolved) return;
-    api.getAirtimeRange(resolved.startTs, resolved.endTs, BIN_COUNT).then(
+    api.getAirtimeRange(resolved.startTs, resolved.endTs, BIN_COUNT, radioFilter).then(
       (samples) => setAirtimeSamples(samples),
       () => {}
     );
-  }, [selectedWindowId, nowSec]);
+  }, [selectedWindowId, nowSec, radioFilter]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
   const windowSeconds = useMemo((): number => {
@@ -2215,12 +2230,33 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                   onCustomEndChange={setCustomEnd}
                   onApplyCustom={(s, e) => {
                     void fetchHistorical(s, e);
-                    api.getAirtimeRange(s, e, BIN_COUNT).then(
+                    api.getAirtimeRange(s, e, BIN_COUNT, radioFilter).then(
                       (samples) => setAirtimeSamples(samples),
                       () => {}
                     );
                   }}
                 />
+                {radioList && (radioList.radios.length > 1 || radioList.has_unassigned_history) && (
+                  <RadioStatPicker
+                    list={radioList}
+                    value={radioFilter}
+                    onChange={(next) => {
+                      setRadioFilter(next);
+                      // Back to the connected radio in a live window: reload from the DB,
+                      // since the live path only trims what is already loaded.
+                      if (next === null && selectedWindow.useLive) {
+                        const endTs = nowSec;
+                        const startTs = endTs - (selectedWindow.seconds ?? 20 * 60);
+                        api.getBatteryRange(startTs, endTs).then(setBatterySamples, () => {});
+                        if (noiseFloorSupported !== false) {
+                          api
+                            .getNoiseFloorHistory(startTs, endTs)
+                            .then(setNoiseFloorSamples, () => {});
+                        }
+                      }
+                    }}
+                  />
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-2 p-2 md:grid-cols-3">
@@ -3175,5 +3211,46 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
         )}
       </div>
     </div>
+  );
+}
+
+/** Plan 18: pick whose samples the battery, noise-floor and airtime charts read. */
+export function RadioStatPicker({
+  list,
+  value,
+  onChange,
+}: {
+  list: RadioIdentityList;
+  value: RadioStatFilter;
+  onChange: (next: RadioStatFilter) => void;
+}) {
+  const t = useT();
+  const radioLabel = useRadioLabel();
+  const selected =
+    value === null ? '' : 'unassigned' in value ? 'unassigned' : String(value.radioId);
+  return (
+    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+      {t('node_radio_picker_label')}
+      <select
+        value={selected}
+        onChange={(e) => {
+          const v = e.target.value;
+          onChange(
+            v === '' ? null : v === 'unassigned' ? { unassigned: true } : { radioId: Number(v) }
+          );
+        }}
+        className="h-7 rounded-md border border-input bg-background px-2 text-xs text-foreground"
+      >
+        <option value="">{t('node_radio_picker_current')}</option>
+        {list.radios.map((r) => (
+          <option key={r.id} value={String(r.id)}>
+            {radioLabel(r)}
+          </option>
+        ))}
+        {list.has_unassigned_history && (
+          <option value="unassigned">{t('node_radio_picker_unassigned')}</option>
+        )}
+      </select>
+    </label>
   );
 }

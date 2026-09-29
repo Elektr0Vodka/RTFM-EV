@@ -9,7 +9,7 @@ from app.services import radio_stats
 
 
 def _patch_repos(monkeypatch, calls):
-    async def fake_air(ts, tx, rx, recv_errors=None):
+    async def fake_air(ts, tx, rx, recv_errors=None, radio_identity_id=None):
         calls.append((ts, tx, rx, recv_errors))
 
     async def noop(*args, **kwargs):

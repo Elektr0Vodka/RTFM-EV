@@ -38,6 +38,7 @@ async def run_post_connect_setup(radio_manager) -> None:
         sync_and_offload_all,
         sync_radio_time,
     )
+    from app.services.radio_identity import register_connected_radio
 
     if not radio_manager.meshcore:
         return
@@ -61,6 +62,10 @@ async def run_post_connect_setup(radio_manager) -> None:
                 mc = radio_manager.meshcore
                 if not mc:
                     return
+
+                # Record which radio this is (plan 18) before anything samples
+                # or stores data for it. Never raises.
+                await register_connected_radio(mc)
 
                 # Register event handlers against the locked, current transport.
                 register_event_handlers(mc)
