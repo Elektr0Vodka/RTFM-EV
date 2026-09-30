@@ -19,8 +19,13 @@ from dataclasses import dataclass, field
 
 from app.decoder import PacketInfo, RouteType
 from app.path_utils import last_hop_hex
-from app.repository.packet_receptions import PacketReceptionRepository, PacketReceptionRow
+from app.repository.packet_receptions import (
+    PacketReceptionRepository,
+    PacketReceptionRow,
+    RelayStatsRow,
+)
 from app.repository.raw_packets import payload_hash_for
+from app.repository.relay_history import RelayHistoryRepository
 from app.services.packet_decoded_fields import route_label
 
 logger = logging.getLogger(__name__)
@@ -225,3 +230,212 @@ def resolve_relay(
         pk, name = matches[0]
         return pk, name, 1
     return None, None, len(matches)
+
+
+# ─── Window statistics: raw rows + long-term hourly history ─────────────────
+
+HOUR = 3600
+
+
+def floor_hour(ts: int) -> int:
+    return ts - ts % HOUR
+
+
+def ceil_hour(ts: int) -> int:
+    return ts if ts % HOUR == 0 else floor_hour(ts) + HOUR
+
+
+async def rollup_relay_history(now: int) -> int:
+    """Fold every complete hour not rolled up yet into ``relay_reception_hourly``.
+
+    Runs before the retention prune (``retention_pruner.prune_once``). Resumes
+    after the newest rolled-up hour with receptions; on the first run it
+    starts at the oldest stored reception. Returns the rows written.
+    """
+    to_hour = floor_hour(now)
+    latest = await RelayHistoryRepository.latest_hour()
+    if latest is not None:
+        from_hour = latest + HOUR
+    else:
+        oldest = await PacketReceptionRepository.oldest_observed_at()
+        if oldest is None:
+            return 0
+        from_hour = floor_hour(oldest)
+    if from_hour >= to_hour:
+        return 0
+    return await RelayHistoryRepository.rollup(from_hour, to_hour)
+
+
+@dataclass(frozen=True)
+class WindowSources:
+    """Which store answers which part of ``[start_ts, end_ts]``.
+
+    Raw rows cover ``[raw_start, end_ts]`` exactly (None = no raw part).
+    Hours ``[rollup_from, rollup_to)`` come from the hourly history (empty
+    when ``rollup_from >= rollup_to``); they start at the hour holding
+    ``start_ts``, so the oldest part of a long window has hour resolution.
+    """
+
+    raw_start: int | None
+    rollup_from: int
+    rollup_to: int
+
+    @property
+    def uses_rollup(self) -> bool:
+        return self.rollup_from < self.rollup_to
+
+
+def split_window(
+    start_ts: int, end_ts: int, raw_oldest: int | None, rolled_latest: int | None
+) -> WindowSources:
+    """Raw rows where they exist; the hourly history for the older part of the window.
+
+    ``rolled_latest`` is the newest rolled-up hour with receptions. The raw
+    table is pruned mid-hour, so once the hour holding its oldest row has been
+    rolled up, that partial hour comes from the history and raw rows are used
+    from the next full hour. Before that (no rollup ran yet) the raw rows are
+    used from their oldest row.
+    """
+    raw_only = WindowSources(raw_start=start_ts, rollup_from=0, rollup_to=0)
+    if raw_oldest is not None and start_ts >= raw_oldest:
+        return raw_only
+    if rolled_latest is None or rolled_latest < floor_hour(start_ts):
+        return raw_only  # the history holds nothing for this window
+    if raw_oldest is None:
+        boundary = end_ts + 1
+    elif rolled_latest is not None and rolled_latest >= floor_hour(raw_oldest):
+        boundary = ceil_hour(raw_oldest)
+    else:
+        boundary = raw_oldest
+    return WindowSources(
+        raw_start=boundary if boundary <= end_ts else None,
+        rollup_from=floor_hour(start_ts),
+        rollup_to=min(boundary, end_ts + 1),
+    )
+
+
+async def window_sources(start_ts: int, end_ts: int) -> WindowSources:
+    """:func:`split_window` against the current state of both stores."""
+    return split_window(
+        start_ts,
+        end_ts,
+        await PacketReceptionRepository.oldest_observed_at(),
+        await RelayHistoryRepository.latest_hour(),
+    )
+
+
+@dataclass
+class RelayTotals:
+    """Merged statistics of one relay (and time bucket) across stores and hash widths.
+
+    ``relay_hexes`` lists the last-hop hashes merged in (``''`` = heard from
+    the origin); ``label_hex`` is the longest one.
+    """
+
+    relay_hexes: list[str]
+    bucket_ts: int | None
+    receptions: int = 0
+    packets: int = 0
+    first_arrivals: int = 0
+    unique_packets: int = 0
+    snr_sum: float = 0.0
+    snr_count: int = 0
+    best_snr: float | None = None
+    rssi_sum: int = 0
+    rssi_count: int = 0
+    best_rssi: int | None = None
+    last_seen: int = 0
+    last_snr: float | None = None
+    last_rssi: int | None = None
+    _last_from: int = -1
+
+    @property
+    def label_hex(self) -> str:
+        return max(self.relay_hexes, key=len)
+
+    @property
+    def avg_snr(self) -> float | None:
+        return round(self.snr_sum / self.snr_count, 1) if self.snr_count else None
+
+    @property
+    def avg_rssi(self) -> float | None:
+        return round(self.rssi_sum / self.rssi_count, 1) if self.rssi_count else None
+
+    def add(self, row: RelayStatsRow) -> None:
+        if row.relay_hex not in self.relay_hexes:
+            self.relay_hexes.append(row.relay_hex)
+        self.receptions += row.receptions
+        self.packets += row.packets
+        self.first_arrivals += row.first_arrivals
+        self.unique_packets += row.unique_packets
+        self.snr_sum += row.snr_sum
+        self.snr_count += row.snr_count
+        self.rssi_sum += row.rssi_sum
+        self.rssi_count += row.rssi_count
+        if row.snr_best is not None:
+            self.best_snr = (
+                row.snr_best if self.best_snr is None else max(self.best_snr, row.snr_best)
+            )
+        if row.rssi_best is not None:
+            self.best_rssi = (
+                row.rssi_best if self.best_rssi is None else max(self.best_rssi, row.rssi_best)
+            )
+        self.last_seen = max(self.last_seen, row.last_seen)
+        # Only raw rows know their newest copy's signal; keep the newest one.
+        if (row.last_snr is not None or row.last_rssi is not None) and (
+            row.last_seen > self._last_from
+        ):
+            self._last_from = row.last_seen
+            self.last_snr = row.last_snr
+            self.last_rssi = row.last_rssi
+
+
+def merge_relay_stats(
+    rows: Iterable[RelayStatsRow],
+    relay_identity: Callable[[str], str] | None = None,
+) -> list[RelayTotals]:
+    """Merge rows per (relay identity, bucket). Default identity: the hash itself."""
+    identity = relay_identity or (lambda hop: hop)
+    merged: dict[tuple[str, int | None], RelayTotals] = {}
+    for row in rows:
+        key = (identity(row.relay_hex), row.bucket_ts)
+        totals = merged.get(key)
+        if totals is None:
+            totals = RelayTotals(relay_hexes=[], bucket_ts=row.bucket_ts)
+            merged[key] = totals
+        totals.add(row)
+    return list(merged.values())
+
+
+async def window_relay_stats(
+    start_ts: int,
+    end_ts: int,
+    *,
+    relay_hexes: list[str] | None = None,
+    bucket_seconds: int | None = None,
+) -> tuple[list[RelayStatsRow], WindowSources, int]:
+    """Per-relay rows over the whole window from both stores (not merged yet).
+
+    Returns the rows, the source split, and the bucket origin (the window
+    start, or its hour when the hourly history is used so buckets align).
+    """
+    sources = await window_sources(start_ts, end_ts)
+    origin = floor_hour(start_ts) if sources.uses_rollup else start_ts
+    rows: list[RelayStatsRow] = []
+    if sources.uses_rollup:
+        rows += await RelayHistoryRepository.relay_stats(
+            sources.rollup_from,
+            sources.rollup_to,
+            relay_hexes=relay_hexes,
+            bucket_seconds=bucket_seconds,
+            origin=origin,
+        )
+    if sources.raw_start is not None:
+        rows += await PacketReceptionRepository.relay_stats(
+            sources.raw_start,
+            end_ts,
+            relay_hexes=relay_hexes,
+            bucket_seconds=bucket_seconds,
+            origin=origin,
+        )
+    return rows, sources, origin

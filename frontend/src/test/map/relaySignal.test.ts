@@ -29,12 +29,17 @@ function contact(publicKey: string, name: string, lat: number | null, lon: numbe
 function relay(overrides: Partial<RelaySummary>): RelaySummary {
   return {
     last_hop_hex: 'aa',
+    relay_hexes: ['aa'],
     receptions: 4,
     packets: 3,
+    first_arrivals: 2,
+    unique_packets: 1,
     best_snr: 8,
     avg_snr: 5.25,
     last_snr: 4,
     best_rssi: -90,
+    avg_rssi: -95,
+    last_rssi: -96,
     last_seen: 1_700_000_000,
     resolved_pubkey: null,
     resolved_name: null,

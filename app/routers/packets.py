@@ -43,7 +43,12 @@ from app.services.messages import backfill_message_regions, create_group_data_me
 from app.services.prefix_collisions import compute_prefix_collisions
 from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.raw_feed_stats import compute_raw_feed_stats
-from app.services.relay_reception import aggregate_relay_receptions, resolve_relay
+from app.services.relay_reception import (
+    aggregate_relay_receptions,
+    merge_relay_stats,
+    resolve_relay,
+    window_relay_stats,
+)
 from app.websocket import broadcast_event, broadcast_success
 
 logger = logging.getLogger(__name__)
@@ -1280,12 +1285,22 @@ class RelayPacketModel(BaseModel):
 
 class RelaySummaryModel(BaseModel):
     last_hop_hex: str | None
+    relay_hexes: list[str] = Field(
+        description=(
+            "Last-hop hashes merged into this row (one relay seen with several path hash "
+            "widths); '' = heard from the origin. Pass them to /relay-reception/relay."
+        )
+    )
     receptions: int
     packets: int
+    first_arrivals: int = Field(description="Packets whose first copy came via this relay")
+    unique_packets: int = Field(description="Packets heard only via this relay")
     best_snr: float | None
     avg_snr: float | None
     last_snr: float | None
     best_rssi: int | None
+    avg_rssi: float | None
+    last_rssi: int | None
     last_seen: int
     resolved_pubkey: str | None
     resolved_name: str | None
@@ -1296,32 +1311,41 @@ class RelayReceptionResponse(BaseModel):
     start_ts: int
     end_ts: int
     receptions: int
+    total_packets: int = Field(description="Distinct packets in the window (all stores)")
+    multi_relay_packets: int = Field(description="Packets delivered by more than one relay")
     packets: list[RelayPacketModel]
+    packet_offset: int
+    packet_total: int = Field(
+        description="Packets available to the per-packet table (raw rows only, pageable)"
+    )
     relays: list[RelaySummaryModel]
+    raw_since: int | None = Field(
+        description="Oldest stored per-copy row; older parts of the window are hourly history"
+    )
+    history_from: int | None = Field(
+        description="Start of the part answered from the hourly history; null = none used"
+    )
 
 
 _PREVIEW_CHARS = 80
+RELAY_PAGE_MAX = 200
+RELAY_RECENT_LIMIT = 25
+_RELAY_HEX = re.compile(r"^[0-9a-f]{0,16}$")
+# Chart bucket sizes for the per-relay detail series (about 60 buckets per window).
+_RELAY_BUCKETS = (60, 300, 600, 900, 1800, 3600, 7200, 10800, 21600, 43200, 86400)
+_RELAY_TARGET_BUCKETS = 60
 
 
-@router.get("/relay-reception", response_model=RelayReceptionResponse)
-async def get_relay_reception(
-    start_ts: int,
-    end_ts: int,
-    limit: int = 50,
-) -> RelayReceptionResponse:
-    """Per-relay reception of the same flooded packet (Mesh Health "Relay reception").
+def _relay_bucket_seconds(span: int, hourly: bool) -> int:
+    wanted = max(1, span // _RELAY_TARGET_BUCKETS)
+    size = next((b for b in _RELAY_BUCKETS if b >= wanted), _RELAY_BUCKETS[-1])
+    if span // size > _RELAY_TARGET_BUCKETS * 2:
+        size = -(-span // (_RELAY_TARGET_BUCKETS * 86400)) * 86400
+    # Hourly history cannot be split below an hour.
+    return max(size, 3600) if hourly else size
 
-    Groups ``packet_receptions`` in the window by payload hash: for each packet
-    the relays (last path hop) that delivered a copy with the best/last SNR and
-    RSSI our radio measured, plus a per-relay summary over the window. Relay
-    hashes resolve to a contact only when exactly one full key matches;
-    ``candidates`` > 1 flags a collision.
-    """
-    if end_ts <= start_ts:
-        raise HTTPException(status_code=400, detail="end_ts must be greater than start_ts")
-    packet_cap = max(1, min(limit, 200))
 
-    rows = await PacketReceptionRepository.window_rows(start_ts, end_ts)
+async def _relay_resolver():
     identities = [
         (pk, name) for pk, name, _lat, _lon in await ContactRepository.full_key_identities()
     ]
@@ -1329,15 +1353,52 @@ async def get_relay_reception(
 
     def _resolve(hop: str | None) -> tuple[str | None, str | None, int]:
         if hop not in resolved:
-            resolved[hop] = resolve_relay(hop, identities)
+            resolved[hop] = resolve_relay(hop or None, identities)
         return resolved[hop]
 
+    return _resolve
+
+
+@router.get("/relay-reception", response_model=RelayReceptionResponse)
+async def get_relay_reception(
+    start_ts: int,
+    end_ts: int,
+    limit: Annotated[int, Query(description="Packets per page (1-200)")] = 50,
+    offset: Annotated[int, Query(ge=0, description="Packets to skip (paging)")] = 0,
+) -> RelayReceptionResponse:
+    """Per-relay reception of the same flooded packet (Mesh Health "Relay reception").
+
+    The per-relay summary and the totals cover the whole window with no row
+    cap: stored copies (``packet_receptions``) where they exist, the hourly
+    history (``relay_reception_hourly``) for older hours. The per-packet table
+    pages through the stored copies (``limit``/``offset``): for each packet the
+    relays (last path hop) that delivered a copy with the best/last SNR and
+    RSSI our radio measured. Relay hashes resolve to a contact only when
+    exactly one full key matches; ``candidates`` > 1 flags a collision.
+    """
+    if end_ts <= start_ts:
+        raise HTTPException(status_code=400, detail="end_ts must be greater than start_ts")
+    page_size = max(1, min(limit, RELAY_PAGE_MAX))
+    _resolve = await _relay_resolver()
+
+    def relay_identity(hop: str | None) -> str | None:
+        return _resolve(hop)[0] or hop
+
+    stat_rows, sources, _origin = await window_relay_stats(start_ts, end_ts)
     # One summary row per relay: hashes of different widths that resolve to the
     # same contact are merged; unresolved hashes stay apart (no guessing).
-    groups, summaries = aggregate_relay_receptions(
-        rows,
-        limit_packets=packet_cap,
-        relay_identity=lambda hop: _resolve(hop)[0] or hop,
+    totals = sorted(
+        merge_relay_stats(stat_rows, relay_identity=lambda hop: relay_identity(hop) or ""),
+        key=lambda r: (r.receptions, r.last_seen),
+        reverse=True,
+    )
+
+    page_hashes, packet_total = await PacketReceptionRepository.packet_page(
+        start_ts, end_ts, page_size, offset
+    )
+    rows = await PacketReceptionRepository.rows_for_hashes(page_hashes, start_ts, end_ts)
+    groups, _summaries = aggregate_relay_receptions(
+        rows, limit_packets=page_size, relay_identity=relay_identity
     )
 
     previews = await PacketReceptionRepository.message_previews(
@@ -1382,17 +1443,23 @@ async def get_relay_reception(
         )
 
     relays: list[RelaySummaryModel] = []
-    for summary in summaries:
-        pk, name, candidates = _resolve(summary.last_hop_hex)
+    for summary in totals:
+        label = summary.label_hex or None
+        pk, name, candidates = _resolve(label)
         relays.append(
             RelaySummaryModel(
-                last_hop_hex=summary.last_hop_hex,
+                last_hop_hex=label,
+                relay_hexes=sorted(summary.relay_hexes, key=len, reverse=True),
                 receptions=summary.receptions,
                 packets=summary.packets,
+                first_arrivals=summary.first_arrivals,
+                unique_packets=summary.unique_packets,
                 best_snr=summary.best_snr,
                 avg_snr=summary.avg_snr,
                 last_snr=summary.last_snr,
                 best_rssi=summary.best_rssi,
+                avg_rssi=summary.avg_rssi,
+                last_rssi=summary.last_rssi,
                 last_seen=summary.last_seen,
                 resolved_pubkey=pk,
                 resolved_name=name,
@@ -1400,12 +1467,190 @@ async def get_relay_reception(
             )
         )
 
+    # Every packet has exactly one first copy, so first arrivals sum to the
+    # packet count, and packets heard via one relay only are the unique ones.
+    total_packets = sum(r.first_arrivals for r in totals)
     return RelayReceptionResponse(
         start_ts=start_ts,
         end_ts=end_ts,
-        receptions=len(rows),
+        receptions=sum(r.receptions for r in totals),
+        total_packets=total_packets,
+        multi_relay_packets=total_packets - sum(r.unique_packets for r in totals),
         packets=packets,
+        packet_offset=offset,
+        packet_total=packet_total,
         relays=relays,
+        raw_since=await PacketReceptionRepository.oldest_observed_at(),
+        history_from=sources.rollup_from if sources.uses_rollup else None,
+    )
+
+
+class RelaySeriesPoint(BaseModel):
+    ts: int = Field(description="Bucket start (unix seconds)")
+    receptions: int
+    packets: int
+    first_arrivals: int
+    avg_snr: float | None
+    best_snr: float | None
+    avg_rssi: float | None
+    best_rssi: int | None
+
+
+class RelayDetailTotals(BaseModel):
+    receptions: int
+    packets: int
+    first_arrivals: int
+    unique_packets: int
+    window_packets: int = Field(description="Distinct packets heard via any relay in the window")
+    best_snr: float | None
+    avg_snr: float | None
+    best_rssi: int | None
+    avg_rssi: float | None
+    last_seen: int | None
+
+
+class RelayCount(BaseModel):
+    key: str
+    count: int
+
+
+class RelayRecentCopy(BaseModel):
+    payload_hash: str
+    observed_at: int
+    payload_type: str
+    route_type: str
+    hop_count: int
+    snr: float | None
+    rssi: int | None
+    path_hex: str | None
+    first: bool = Field(description="This copy was the first of its packet to arrive")
+    relays: int = Field(description="Relays that delivered the packet in the window")
+    preview: str | None = None
+    message_id: int | None = None
+
+
+class RelayDetailResponse(BaseModel):
+    start_ts: int
+    end_ts: int
+    relay_hexes: list[str]
+    bucket_seconds: int
+    totals: RelayDetailTotals
+    series: list[RelaySeriesPoint]
+    payload_types: list[RelayCount]
+    hop_counts: list[RelayCount]
+    recent: list[RelayRecentCopy]
+    raw_since: int | None = Field(
+        description="Breakdowns and recent copies cover stored copies only (from here)"
+    )
+    history_from: int | None
+
+
+@router.get("/relay-reception/relay", response_model=RelayDetailResponse)
+async def get_relay_reception_detail(
+    start_ts: int,
+    end_ts: int,
+    relay: Annotated[
+        list[str],
+        Query(description="Last-hop hash(es) of one relay ('' = heard from the origin)"),
+    ],
+) -> RelayDetailResponse:
+    """History of one relay (Mesh Health "Relay reception", expanded summary row).
+
+    Totals and the time series cover the whole window (stored copies plus the
+    hourly history); the payload-type and hop-count breakdowns and the recent
+    copies come from stored copies only (``raw_since``).
+    """
+    if end_ts <= start_ts:
+        raise HTTPException(status_code=400, detail="end_ts must be greater than start_ts")
+    hexes = sorted({h.strip().lower() for h in relay})
+    if not hexes or len(hexes) > 8 or any(not _RELAY_HEX.match(h) for h in hexes):
+        raise HTTPException(status_code=400, detail="relay must be 1-8 hex hashes or ''")
+
+    raw_since = await PacketReceptionRepository.oldest_observed_at()
+    all_rows, sources, _origin = await window_relay_stats(start_ts, end_ts)
+    bucket = _relay_bucket_seconds(end_ts - start_ts, sources.uses_rollup)
+    window_packets = sum(r.first_arrivals for r in all_rows)
+    relay_rows = [r for r in all_rows if r.relay_hex in hexes]
+    merged = merge_relay_stats(relay_rows, relay_identity=lambda _hop: "relay")
+    total = merged[0] if merged else None
+
+    series_rows, _sources, origin = await window_relay_stats(
+        start_ts, end_ts, relay_hexes=hexes, bucket_seconds=bucket
+    )
+    by_bucket = {
+        t.bucket_ts: t for t in merge_relay_stats(series_rows, relay_identity=lambda _hop: "relay")
+    }
+    series: list[RelaySeriesPoint] = []
+    ts = origin
+    while ts <= end_ts:
+        point = by_bucket.get(ts)
+        series.append(
+            RelaySeriesPoint(
+                ts=ts,
+                receptions=point.receptions if point else 0,
+                packets=point.packets if point else 0,
+                first_arrivals=point.first_arrivals if point else 0,
+                avg_snr=point.avg_snr if point else None,
+                best_snr=point.best_snr if point else None,
+                avg_rssi=point.avg_rssi if point else None,
+                best_rssi=point.best_rssi if point else None,
+            )
+        )
+        ts += bucket
+
+    by_type, by_hops = await PacketReceptionRepository.relay_breakdowns(start_ts, end_ts, hexes)
+    recent_rows = await PacketReceptionRepository.relay_recent(
+        start_ts, end_ts, hexes, RELAY_RECENT_LIMIT
+    )
+    previews = await PacketReceptionRepository.message_previews(
+        [r.raw_packet_id for r, _first, _n in recent_rows if r.raw_packet_id is not None]
+    )
+    recent: list[RelayRecentCopy] = []
+    for row, is_first, n_relays in recent_rows:
+        preview_entry = previews.get(row.raw_packet_id) if row.raw_packet_id else None
+        recent.append(
+            RelayRecentCopy(
+                payload_hash=row.payload_hash.hex(),
+                observed_at=row.observed_at,
+                payload_type=row.payload_type,
+                route_type=row.route_type,
+                hop_count=row.hop_count,
+                snr=row.snr,
+                rssi=row.rssi,
+                path_hex=row.path_hex,
+                first=is_first,
+                relays=n_relays,
+                preview=preview_entry[1][:_PREVIEW_CHARS] if preview_entry else None,
+                message_id=preview_entry[0] if preview_entry else None,
+            )
+        )
+
+    return RelayDetailResponse(
+        start_ts=start_ts,
+        end_ts=end_ts,
+        relay_hexes=hexes,
+        bucket_seconds=bucket,
+        totals=RelayDetailTotals(
+            receptions=total.receptions if total else 0,
+            packets=total.packets if total else 0,
+            first_arrivals=total.first_arrivals if total else 0,
+            unique_packets=total.unique_packets if total else 0,
+            window_packets=window_packets,
+            best_snr=total.best_snr if total else None,
+            avg_snr=total.avg_snr if total else None,
+            best_rssi=total.best_rssi if total else None,
+            avg_rssi=total.avg_rssi if total else None,
+            last_seen=total.last_seen if total else None,
+        ),
+        series=series,
+        payload_types=[
+            RelayCount(key=k, count=n)
+            for k, n in sorted(by_type.items(), key=lambda kv: kv[1], reverse=True)
+        ],
+        hop_counts=[RelayCount(key=str(k), count=n) for k, n in sorted(by_hops.items())],
+        recent=recent,
+        raw_since=raw_since,
+        history_from=sources.rollup_from if sources.uses_rollup else None,
     )
 
 

@@ -79,6 +79,12 @@ async def test_prune_older_than_each_age_table(test_db):
             last_hop_hex="aa",
             path_hex="aa",
         )
+        async with test_db.tx() as conn:
+            await conn.execute(
+                "INSERT INTO relay_reception_hourly (hour_ts, relay_hex, receptions, packets, "
+                "first_arrivals, unique_packets, last_seen) VALUES (?, 'aa', 1, 1, 1, 1, ?)",
+                (ts, ts),
+            )
         await DeviceConfigHistoryRepository.record(KEY_A, "node_info", ts, {"v": ts})
         await ContactLocationHistoryRepository.record_location(KEY_A, 52.0 + ts % 7, 4.3, ts)
 

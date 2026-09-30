@@ -1628,6 +1628,7 @@ RETENTION_DEFAULTS: dict[str, int] = {
     "link_edge_retention_days": 365,
     "packet_reception_retention_days": 2,
     "device_history_retention_days": 0,
+    "relay_history_retention_days": 365,
 }
 
 
@@ -1706,6 +1707,13 @@ class AppSettings(BaseModel):
         description=(
             "Days of device history to keep: repeater/room pane snapshots and contact "
             "positions (by last seen); 0 keeps forever"
+        ),
+    )
+    relay_history_retention_days: int = Field(
+        default=365,
+        description=(
+            "Days of hourly per-relay reception history (Mesh Health relay reception) "
+            "to keep; 0 keeps forever"
         ),
     )
     last_message_times: dict[str, int] = Field(

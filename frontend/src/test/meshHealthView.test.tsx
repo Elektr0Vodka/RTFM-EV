@@ -356,6 +356,12 @@ describe('MeshHealthView Prefix Collisions tab', () => {
     start_ts: 0,
     end_ts: 1,
     receptions: 3,
+    total_packets: 1,
+    multi_relay_packets: 1,
+    packet_offset: 0,
+    packet_total: 1,
+    raw_since: 1_700_000_000,
+    history_from: null,
     packets: [
       {
         payload_hash: 'ab'.repeat(32),
@@ -397,6 +403,11 @@ describe('MeshHealthView Prefix Collisions tab', () => {
     relays: [
       {
         last_hop_hex: 'bb',
+        relay_hexes: ['bb'],
+        first_arrivals: 1,
+        unique_packets: 0,
+        avg_rssi: -95,
+        last_rssi: -95,
         receptions: 2,
         packets: 1,
         best_snr: 6.5,
@@ -410,6 +421,11 @@ describe('MeshHealthView Prefix Collisions tab', () => {
       },
       {
         last_hop_hex: 'aa',
+        relay_hexes: ['aa'],
+        first_arrivals: 0,
+        unique_packets: 0,
+        avg_rssi: -95,
+        last_rssi: -95,
         receptions: 1,
         packets: 1,
         best_snr: 1,

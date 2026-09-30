@@ -358,6 +358,12 @@ class AppSettingsUpdate(BaseModel):
             "to keep; 0 = keep forever"
         ),
     )
+    relay_history_retention_days: int | None = Field(
+        default=None,
+        ge=0,
+        le=3650,
+        description="Days of hourly per-relay reception history to keep; 0 = keep forever",
+    )
     advert_interval: int | None = Field(
         default=None,
         ge=0,

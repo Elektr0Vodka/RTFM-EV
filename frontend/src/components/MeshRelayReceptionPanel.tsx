@@ -15,12 +15,14 @@
  * once per LIVE_REFRESH_MS, and a 30 s poll covers a quiet or missed stream.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useT } from '../i18n';
 import { getRawPackets, subscribeRawPackets } from '../stores/rawPacketStore';
 import { formatDateTime } from '../utils/dateTimeFormat';
 import { formatSNR } from '../utils/traceMapUtils';
 import { type TimeWindow, relTime, StatTile } from './meshHealthShared';
+import { MeshRelayDetail } from './MeshRelayDetail';
 
 // ─── Types (mirror app/routers/packets.py) ──────────────────────────────────
 
@@ -49,12 +51,18 @@ export interface RelayPacket {
 }
 export interface RelaySummary {
   last_hop_hex: string | null;
+  /** Hashes merged into this row ('' = heard from the origin); keys for the detail call. */
+  relay_hexes: string[];
   receptions: number;
   packets: number;
+  first_arrivals: number;
+  unique_packets: number;
   best_snr: number | null;
   avg_snr: number | null;
   last_snr: number | null;
   best_rssi: number | null;
+  avg_rssi: number | null;
+  last_rssi: number | null;
   last_seen: number;
   resolved_pubkey: string | null;
   resolved_name: string | null;
@@ -64,8 +72,63 @@ export interface RelayReceptionResponse {
   start_ts: number;
   end_ts: number;
   receptions: number;
+  total_packets: number;
+  multi_relay_packets: number;
   packets: RelayPacket[];
+  packet_offset: number;
+  packet_total: number;
   relays: RelaySummary[];
+  /** Oldest stored copy; older parts of the window come from the hourly history. */
+  raw_since: number | null;
+  history_from: number | null;
+}
+export interface RelaySeriesPoint {
+  ts: number;
+  receptions: number;
+  packets: number;
+  first_arrivals: number;
+  avg_snr: number | null;
+  best_snr: number | null;
+  avg_rssi: number | null;
+  best_rssi: number | null;
+}
+export interface RelayRecentCopy {
+  payload_hash: string;
+  observed_at: number;
+  payload_type: string;
+  route_type: string;
+  hop_count: number;
+  snr: number | null;
+  rssi: number | null;
+  path_hex: string | null;
+  first: boolean;
+  relays: number;
+  preview: string | null;
+  message_id: number | null;
+}
+export interface RelayDetailResponse {
+  start_ts: number;
+  end_ts: number;
+  relay_hexes: string[];
+  bucket_seconds: number;
+  totals: {
+    receptions: number;
+    packets: number;
+    first_arrivals: number;
+    unique_packets: number;
+    window_packets: number;
+    best_snr: number | null;
+    avg_snr: number | null;
+    best_rssi: number | null;
+    avg_rssi: number | null;
+    last_seen: number | null;
+  };
+  series: RelaySeriesPoint[];
+  payload_types: { key: string; count: number }[];
+  hop_counts: { key: string; count: number }[];
+  recent: RelayRecentCopy[];
+  raw_since: number | null;
+  history_from: number | null;
 }
 
 interface Props {
@@ -83,7 +146,29 @@ const MAX_RELAY_COLUMNS = 8;
 const LIVE_REFRESH_MS = 3_000;
 /** Fallback poll for short windows when no live re-fetch happened meanwhile. */
 const POLL_MS = 30_000;
-type SummarySort = 'receptions' | 'best_snr' | 'last_seen';
+/** Packets per page of the per-packet table (the backend caps a page at 200). */
+const PAGE_SIZES = [25, 50, 100, 200];
+const DEFAULT_PAGE_SIZE = 50;
+const PAGE_SIZE_KEY = 'rtfm-relay-reception-page-size';
+type SummarySort = 'receptions' | 'first_arrivals' | 'unique_packets' | 'best_snr' | 'last_seen';
+
+function loadPageSize(): number {
+  try {
+    const v = Number(localStorage.getItem(PAGE_SIZE_KEY));
+    return PAGE_SIZES.includes(v) ? v : DEFAULT_PAGE_SIZE;
+  } catch {
+    return DEFAULT_PAGE_SIZE;
+  }
+}
+
+function fmtStamp(ts: number): string {
+  return formatDateTime(new Date(ts * 1000), {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
 /**
  * Relay identity for a column/row: the resolved full key when unique, else the
@@ -111,7 +196,36 @@ export function MeshRelayReceptionPanel({
   const [error, setError] = useState<string | null>(null);
   const [summarySort, setSummarySort] = useState<SummarySort>('receptions');
   const [liveTick, setLiveTick] = useState(0);
+  const [pageSize, setPageSize] = useState(loadPageSize);
+  const [page, setPage] = useState(0);
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const lastFetchRef = useRef(0);
+
+  // A new window starts on the first page (reset while rendering, so the
+  // fetch effect never runs with the old window's page).
+  const [pageWindow, setPageWindow] = useState(selectedWindow);
+  if (pageWindow !== selectedWindow) {
+    setPageWindow(selectedWindow);
+    setPage(0);
+  }
+
+  const changePageSize = (size: number) => {
+    setPageSize(size);
+    setPage(0);
+    try {
+      localStorage.setItem(PAGE_SIZE_KEY, String(size));
+    } catch {
+      /* ignore unavailable storage */
+    }
+  };
+
+  const toggleExpanded = (key: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   useEffect(() => {
     onLoadingChange?.(loading);
@@ -157,7 +271,10 @@ export function MeshRelayReceptionPanel({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetch(`/api/packets/relay-reception?start_ts=${startTs}&end_ts=${endTs}&limit=50`)
+    fetch(
+      `/api/packets/relay-reception?start_ts=${startTs}&end_ts=${endTs}` +
+        `&limit=${pageSize}&offset=${page * pageSize}`
+    )
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json() as Promise<RelayReceptionResponse>;
@@ -175,7 +292,7 @@ export function MeshRelayReceptionPanel({
     return () => {
       cancelled = true;
     };
-  }, [selectedWindow, refreshKey, liveTick, t]);
+  }, [selectedWindow, refreshKey, liveTick, pageSize, page, t]);
 
   const relayLabel = (cell: { last_hop_hex: string | null; resolved_name: string | null }) => {
     if (cell.last_hop_hex === null) return t('relay_reception_direct');
@@ -194,6 +311,8 @@ export function MeshRelayReceptionPanel({
     rows.sort((a, b) => {
       if (summarySort === 'best_snr') return (b.best_snr ?? -999) - (a.best_snr ?? -999);
       if (summarySort === 'last_seen') return b.last_seen - a.last_seen;
+      if (summarySort === 'first_arrivals') return b.first_arrivals - a.first_arrivals;
+      if (summarySort === 'unique_packets') return b.unique_packets - a.unique_packets;
       return b.receptions - a.receptions;
     });
     return rows;
@@ -206,21 +325,31 @@ export function MeshRelayReceptionPanel({
     return <div className="text-sm text-muted-foreground">{t('mesh_health_loading')}</div>;
   }
 
-  const multiRelayPackets = data.packets.filter((p) => p.relays.length > 1).length;
+  const pageCount = Math.max(1, Math.ceil(data.packet_total / pageSize));
+  const pageFrom = data.packet_total === 0 ? 0 : data.packet_offset + 1;
+  const pageTo = data.packet_offset + data.packets.length;
+  const summaryColumns = 8;
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatTile label={t('relay_reception_tile_receptions')} value={data.receptions} />
-        <StatTile label={t('relay_reception_tile_multi')} value={multiRelayPackets} />
+        <StatTile label={t('relay_reception_tile_packets')} value={data.total_packets} />
+        <StatTile label={t('relay_reception_tile_multi')} value={data.multi_relay_packets} />
         <StatTile label={t('relay_reception_tile_relays')} value={data.relays.length} />
       </div>
 
       <p className="text-[0.8125rem] text-muted-foreground">{t('relay_reception_intro')}</p>
+      {data.history_from != null && data.raw_since != null && (
+        <p className="text-[0.8125rem] text-muted-foreground" data-testid="relay-history-note">
+          {t('relay_reception_history_note', { since: fmtStamp(data.raw_since) })}
+        </p>
+      )}
 
-      {data.packets.length === 0 ? (
+      {data.relays.length === 0 && (
         <div className="text-sm text-muted-foreground">{t('relay_reception_empty')}</div>
-      ) : (
+      )}
+      {data.packet_total > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full text-xs" data-testid="relay-reception-pivot">
             <thead>
@@ -302,70 +431,182 @@ export function MeshRelayReceptionPanel({
               })}
             </tbody>
           </table>
+          <div
+            className="mt-2 flex flex-wrap items-center justify-end gap-2 text-[11px] text-muted-foreground"
+            data-testid="relay-reception-pager"
+          >
+            <label className="flex items-center gap-1">
+              {t('relay_reception_page_size')}
+              <select
+                value={pageSize}
+                onChange={(e) => changePageSize(Number(e.target.value))}
+                className="h-7 rounded-md border border-input bg-background px-1.5 text-[11px] text-foreground"
+              >
+                {PAGE_SIZES.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <span className="tabular-nums">
+              {t('relay_reception_page_range', {
+                from: pageFrom,
+                to: pageTo,
+                total: data.packet_total,
+              })}
+            </span>
+            <button
+              type="button"
+              aria-label={t('relay_reception_page_prev')}
+              title={t('relay_reception_page_prev')}
+              disabled={page === 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              className="h-7 rounded-md border border-input px-1.5 text-foreground disabled:opacity-40"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              aria-label={t('relay_reception_page_next')}
+              title={t('relay_reception_page_next')}
+              disabled={page >= pageCount - 1}
+              onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+              className="h-7 rounded-md border border-input px-1.5 text-foreground disabled:opacity-40"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       )}
 
       {data.relays.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold mb-2">{t('relay_reception_summary_heading')}</h3>
-          <table className="w-full text-xs" data-testid="relay-reception-summary">
-            <thead>
-              <tr className="text-left text-muted-foreground">
-                <th className="py-1 pr-2">{t('relay_reception_col_relay')}</th>
-                {(
-                  [
-                    ['receptions', t('relay_reception_col_receptions')],
-                    ['best_snr', t('relay_reception_col_best_snr')],
-                    ['last_seen', t('relay_reception_col_last_seen')],
-                  ] as [SummarySort, string][]
-                ).map(([key, label]) => (
-                  <th key={key} className="py-1 px-2 text-right">
-                    <button
-                      type="button"
-                      className={summarySort === key ? 'text-foreground' : 'hover:text-foreground'}
-                      onClick={() => setSummarySort(key)}
-                    >
-                      {label}
-                      {summarySort === key ? ' ▼' : ''}
-                    </button>
-                  </th>
-                ))}
-                <th className="py-1 px-2 text-right">{t('relay_reception_col_avg_snr')}</th>
-                <th className="py-1 px-2 text-right">{t('relay_reception_col_packets')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedSummary.map((r) => (
-                <tr key={relayKey(r)} className="border-t border-border/60">
-                  <td className="py-1 pr-2">
-                    {r.resolved_pubkey && onOpenNode ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs" data-testid="relay-reception-summary">
+              <thead>
+                <tr className="text-left text-muted-foreground">
+                  <th className="py-1 pr-2">{t('relay_reception_col_relay')}</th>
+                  {(
+                    [
+                      ['receptions', t('relay_reception_col_receptions'), undefined],
+                      [
+                        'first_arrivals',
+                        t('relay_reception_col_first'),
+                        t('relay_reception_col_first_title'),
+                      ],
+                      [
+                        'unique_packets',
+                        t('relay_reception_col_unique'),
+                        t('relay_reception_col_unique_title'),
+                      ],
+                      ['best_snr', t('relay_reception_col_best_snr'), undefined],
+                      ['last_seen', t('relay_reception_col_last_seen'), undefined],
+                    ] as [SummarySort, string, string | undefined][]
+                  ).map(([key, label, title]) => (
+                    <th key={key} className="py-1 px-2 text-right">
                       <button
                         type="button"
-                        className="hover:text-primary hover:underline"
-                        onClick={() => onOpenNode(r.resolved_pubkey as string, r.resolved_name)}
+                        title={title}
+                        className={
+                          summarySort === key ? 'text-foreground' : 'hover:text-foreground'
+                        }
+                        onClick={() => setSummarySort(key)}
                       >
-                        {relayLabel(r)}
+                        {label}
+                        {summarySort === key ? ' ▼' : ''}
                       </button>
-                    ) : (
-                      <span className={r.last_hop_hex ? 'font-mono' : ''}>
-                        {relayLabel(r)}
-                        {r.candidates > 1 ? ' ?' : ''}
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-1 px-2 text-right tabular-nums">{r.receptions}</td>
-                  <td className="py-1 px-2 text-right tabular-nums">
-                    {formatSNR(r.best_snr) ?? '—'}
-                  </td>
-                  <td className="py-1 px-2 text-right">{relTime(r.last_seen, t)}</td>
-                  <td className="py-1 px-2 text-right tabular-nums">
-                    {formatSNR(r.avg_snr) ?? '—'}
-                  </td>
-                  <td className="py-1 px-2 text-right tabular-nums">{r.packets}</td>
+                    </th>
+                  ))}
+                  <th className="py-1 px-2 text-right">{t('relay_reception_col_avg_snr')}</th>
+                  <th className="py-1 px-2 text-right">{t('relay_reception_col_packets')}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {sortedSummary.map((r) => {
+                  const key = relayKey(r);
+                  const open = expanded.has(key);
+                  const name = relayLabel(r);
+                  return (
+                    <Fragment key={key}>
+                      <tr className="border-t border-border/60">
+                        <td className="py-1 pr-2">
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              aria-expanded={open}
+                              aria-label={t(
+                                open ? 'relay_reception_collapse' : 'relay_reception_expand',
+                                { name }
+                              )}
+                              title={t(
+                                open ? 'relay_reception_collapse' : 'relay_reception_expand',
+                                { name }
+                              )}
+                              className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                              onClick={() => toggleExpanded(key)}
+                            >
+                              {open ? (
+                                <ChevronDown className="h-3.5 w-3.5" />
+                              ) : (
+                                <ChevronRight className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                            {r.resolved_pubkey && onOpenNode ? (
+                              <button
+                                type="button"
+                                className="text-left hover:text-primary hover:underline"
+                                onClick={() =>
+                                  onOpenNode(r.resolved_pubkey as string, r.resolved_name)
+                                }
+                              >
+                                {name}
+                              </button>
+                            ) : (
+                              <span className={r.last_hop_hex ? 'font-mono' : ''}>
+                                {name}
+                                {r.candidates > 1 ? ' ?' : ''}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-1 px-2 text-right tabular-nums">{r.receptions}</td>
+                        <td className="py-1 px-2 text-right tabular-nums">
+                          {r.first_arrivals}
+                          <span className="ml-1 text-muted-foreground">
+                            {r.packets > 0
+                              ? `${Math.round((r.first_arrivals / r.packets) * 100)}%`
+                              : ''}
+                          </span>
+                        </td>
+                        <td className="py-1 px-2 text-right tabular-nums">{r.unique_packets}</td>
+                        <td className="py-1 px-2 text-right tabular-nums">
+                          {formatSNR(r.best_snr) ?? '—'}
+                        </td>
+                        <td className="py-1 px-2 text-right">{relTime(r.last_seen, t)}</td>
+                        <td className="py-1 px-2 text-right tabular-nums">
+                          {formatSNR(r.avg_snr) ?? '—'}
+                        </td>
+                        <td className="py-1 px-2 text-right tabular-nums">{r.packets}</td>
+                      </tr>
+                      {open && (
+                        <tr>
+                          <td colSpan={summaryColumns} className="bg-muted/20 p-2">
+                            <MeshRelayDetail
+                              startTs={data.start_ts}
+                              endTs={data.end_ts}
+                              relayHexes={r.relay_hexes}
+                            />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

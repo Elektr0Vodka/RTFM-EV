@@ -16,6 +16,7 @@ type RetentionField =
   | 'link_signal_retention_days'
   | 'link_edge_retention_days'
   | 'packet_reception_retention_days'
+  | 'relay_history_retention_days'
   | 'device_history_retention_days'
   | 'noise_floor_retention_days'
   | 'battery_retention_days'
@@ -61,6 +62,11 @@ const ROWS: RowDef[] = [
     fields: [DAYS('packet_reception_retention_days')],
   },
   {
+    id: 'relay_history',
+    statKeys: ['relay_history'],
+    fields: [DAYS('relay_history_retention_days')],
+  },
+  {
     id: 'device_history',
     statKeys: ['device_config', 'contact_locations'],
     fields: [DAYS('device_history_retention_days')],
@@ -95,6 +101,7 @@ export const RETENTION_DEFAULT_VALUES: Record<RetentionField, number> = {
   link_signal_retention_days: 30,
   link_edge_retention_days: 365,
   packet_reception_retention_days: 2,
+  relay_history_retention_days: 365,
   device_history_retention_days: 0,
   noise_floor_retention_days: 0,
   battery_retention_days: 0,
@@ -112,6 +119,7 @@ export const RETENTION_ANALYZER_VALUES: AppSettingsUpdate = {
   link_signal_retention_days: 0,
   link_edge_retention_days: 0,
   packet_reception_retention_days: 0,
+  relay_history_retention_days: 0,
   device_history_retention_days: 0,
   noise_floor_retention_days: 0,
   battery_retention_days: 0,

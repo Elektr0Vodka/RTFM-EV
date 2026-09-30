@@ -19,6 +19,7 @@ AGE_TABLES: dict[str, tuple[str, str]] = {
     "messages": ("messages", "received_at"),
     "link_edges": ("link_edge_events", "ts"),
     "packet_receptions": ("packet_receptions", "observed_at"),
+    "relay_history": ("relay_reception_hourly", "hour_ts"),
     # Device history (plan 14): a position ages by when it was last reported.
     "device_config": ("device_config_history", "timestamp"),
     "contact_locations": ("contact_location_history", "last_seen"),
