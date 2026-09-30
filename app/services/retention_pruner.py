@@ -14,6 +14,7 @@ from collections.abc import Awaitable, Callable
 
 from app.repository import AppSettingsRepository
 from app.repository.retention import RetentionRepository
+from app.services.relay_reception import rollup_relay_history
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,16 @@ async def prune_once(now: int | None = None) -> dict[str, int]:
         s = await AppSettingsRepository.get()
         result: dict[str, int] = {}
 
+        # Fold complete hours of relay receptions into the long-term hourly
+        # history before their raw rows can be pruned. If that fails, keep the
+        # raw rows this run so no history is lost.
+        rolled_up = True
+        try:
+            await rollup_relay_history(now)
+        except Exception as e:  # noqa: BLE001 - must not block the other classes
+            rolled_up = False
+            logger.error("Relay history rollup failed: %s", e, exc_info=True)
+
         age_settings = {
             "raw_packets": s.raw_packet_retention_days,
             "advert_events": s.advert_retention_days,
@@ -62,7 +73,8 @@ async def prune_once(now: int | None = None) -> dict[str, int]:
             "battery": s.battery_retention_days,
             "airtime": s.airtime_retention_days,
             "link_edges": s.link_edge_retention_days,
-            "packet_receptions": s.packet_reception_retention_days,
+            "packet_receptions": s.packet_reception_retention_days if rolled_up else 0,
+            "relay_history": s.relay_history_retention_days,
             "device_config": s.device_history_retention_days,
             "contact_locations": s.device_history_retention_days,
         }

@@ -5,7 +5,19 @@ import type { TimeWindow } from '../components/meshHealthShared';
 import { recordRawPacket, resetRawPacketStore } from '../stores/rawPacketStore';
 import type { RawPacket } from '../types';
 
-const EMPTY = { start_ts: 0, end_ts: 1, receptions: 0, packets: [], relays: [] };
+const EMPTY = {
+  start_ts: 0,
+  end_ts: 1,
+  receptions: 0,
+  total_packets: 0,
+  multi_relay_packets: 0,
+  packets: [],
+  packet_offset: 0,
+  packet_total: 0,
+  relays: [],
+  raw_since: null,
+  history_from: null,
+};
 
 const SHORT: TimeWindow = { key: '1h', label: '1h', hours: 1, autoRefresh: true };
 const LONG: TimeWindow = { key: '24h', label: '24h', hours: 24, autoRefresh: false };

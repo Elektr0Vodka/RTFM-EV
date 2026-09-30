@@ -138,7 +138,8 @@ frontend/src/
 │   ├── ManualView.tsx          # Tools view "User Guide" (#manual): renders content/manual/{en,nl,de}.md for the active locale (EN fallback) with a section TOC; TOC scrolls in-pane and never changes the hash
 │   ├── PacketFeedStatsPanel.tsx # Live tab: session packet-stat breakdowns (reads rawPacketStore)
 │   ├── MeshTrendsHistoricalPanel.tsx # Historical tab: server-backed stats (GET /api/statistics)
-│   ├── MeshRelayReceptionPanel.tsx # Mesh Health "Relay reception" tab: packets x relays pivot + relay summary, live refresh (plan 21 S1)
+│   ├── MeshRelayReceptionPanel.tsx # Mesh Health "Relay reception" tab: paged packets x relays pivot (rows per page in localStorage) + uncapped relay summary with expandable rows, live refresh (plan 21 S1)
+│   ├── MeshRelayDetail.tsx     # Expanded relay row: totals, activity + signal charts, packet types, hop counts, recent copies
 │   ├── AnalyzePacketView.tsx   # Tools view: standalone paste-a-hex packet inspector
 │   ├── MeshDiscoveryView.tsx   # Tools view: mesh discovery sweep (repeaters/sensors) + last-sweep results + repeater region discovery
 │   ├── MapView.tsx

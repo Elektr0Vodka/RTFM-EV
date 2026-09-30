@@ -1,4 +1,7 @@
-import type { RelayReceptionResponse } from './components/MeshRelayReceptionPanel';
+import type {
+  RelayDetailResponse,
+  RelayReceptionResponse,
+} from './components/MeshRelayReceptionPanel';
 import type {
   AdvertLinkEdge,
   ContactLocationHistoryEntry,
@@ -648,6 +651,16 @@ export const api = {
       `/packets/relay-reception?start_ts=${startTs}&end_ts=${endTs}&limit=${limit}`,
       { signal }
     ),
+  getRelayReceptionDetail: (
+    startTs: number,
+    endTs: number,
+    relayHexes: string[],
+    signal?: AbortSignal
+  ) => {
+    const qs = new URLSearchParams({ start_ts: String(startTs), end_ts: String(endTs) });
+    for (const hex of relayHexes) qs.append('relay', hex);
+    return fetchJson<RelayDetailResponse>(`/packets/relay-reception/relay?${qs}`, { signal });
+  },
   getSharedLocations: (
     params: { since?: number; until?: number; latestPerSender?: boolean },
     signal?: AbortSignal

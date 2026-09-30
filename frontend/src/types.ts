@@ -998,6 +998,7 @@ export interface AppSettings {
   link_edge_retention_days: number;
   packet_reception_retention_days: number;
   device_history_retention_days: number;
+  relay_history_retention_days: number;
   last_message_times: Record<string, number>;
   advert_interval: number;
   last_advert_time: number;
@@ -1355,6 +1356,7 @@ export interface AppSettingsUpdate {
   link_edge_retention_days?: number;
   packet_reception_retention_days?: number;
   device_history_retention_days?: number;
+  relay_history_retention_days?: number;
   advert_interval?: number;
   auto_resend_channel?: boolean;
   flood_scope?: string;

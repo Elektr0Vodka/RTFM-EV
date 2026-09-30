@@ -11,6 +11,46 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-30 (Relay reception without the 5000-copy cap, hourly history and per-relay details, feat/relay-reception-history)
+
+### Mesh Health: Relay reception covers the whole window (backend, frontend)
+- The tab loaded at most the newest 5000 received copies, so windows of about
+  6 h and longer showed a capped "Copies received" and a per-relay summary
+  built from part of the window. The summary and totals are now SQL
+  aggregates over every copy in the window (`GET /api/packets/relay-reception`).
+- "Packets via 2+ relays" now counts the whole window (it counted only the
+  packets shown in the table) and a new "Packets" tile shows all packets.
+- The per-packet table pages through the window: rows per page 25/50/100/200
+  (remembered per browser) with previous/next (`limit` 1-200 + `offset`,
+  `packet_total`).
+- The per-relay table gains **First** (packets whose first copy came via that
+  relay, with its share) and **Only via** (packets heard only via that relay),
+  both sortable.
+
+### Mesh Health: per-relay details (backend, frontend)
+- Each relay row expands (arrow before the name) into its history for the
+  window: copies, packets (share of all packets), first arrivals, packets
+  heard only via it, average/best SNR and RSSI, an activity chart (copies and
+  first arrivals) and a signal chart (average SNR and RSSI) over time, packet
+  types, hop counts and the 25 newest copies with a "first" marker and the
+  number of relays that delivered that packet.
+- New endpoint `GET /api/packets/relay-reception/relay?start_ts&end_ts&relay=<hash>`
+  (repeatable; `relay=` for copies heard from the origin).
+
+### Mesh Health: long-term relay history (backend, settings)
+- Stored copies are still pruned after 2 days by default. Before each
+  retention prune, every complete hour is folded into a new hourly per-relay
+  table (`relay_reception_hourly`, migration `_124`), so windows longer than
+  the stored copies (7d, 14d, 30d) show per-relay totals and charts. The tab
+  notes from when the stored copies start; the per-packet table, packet types,
+  hop counts and recent copies cover stored copies only. If the rollup fails,
+  the prune of stored copies is skipped for that run.
+- New retention setting **Relay history, hourly (Mesh Health)**
+  (`relay_history_retention_days`, default 365, `0` keeps forever) under
+  Settings > Data retention.
+- Docs: User Guide (EN/NL/DE) Mesh Health section, `app/AGENTS.md`,
+  `frontend/AGENTS.md`.
+
 ## Update 2026-09-30 (Guessed locations at every zoom + labels, fix/guessed-locations-no-min-zoom)
 
 ### Map: guessed locations
