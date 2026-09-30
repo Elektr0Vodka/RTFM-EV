@@ -202,8 +202,18 @@ CREATE INDEX IF NOT EXISTS idx_repeater_telemetry_pk_ts
 """
 
 
+# Reader connections for file databases. Each has its own page cache, so the
+# worst-case extra memory is READER_POOL_SIZE * READER_CACHE_KB. The pool is
+# LIFO: sequential reads keep reusing the warm reader, and the others only fill
+# their caches under concurrent reads. The cache matches the writer's so hot
+# indexes (e.g. ix_link_edge_events_group) fit; on a slow volume a cache miss
+# is a real disk read.
+READER_POOL_SIZE = 3
+READER_CACHE_KB = 64000
+
+
 class Database:
-    """Single-connection aiosqlite wrapper with coroutine-level serialization.
+    """aiosqlite wrapper: one locked writer connection plus a reader pool.
 
     Why the lock: aiosqlite runs one ``sqlite3.Connection`` on a background
     worker thread and serializes statement execution there. But SQLite's
@@ -221,17 +231,25 @@ class Database:
     that take a ``conn`` and don't lock; the public method acquires the lock
     once and calls those helpers.
 
-    Why reads are also locked: reads must also hold the lock, because a read
-    in ``SQLITE_ROW`` state is precisely the live statement that breaks a
-    concurrent writer's commit. Single-connection aiosqlite cannot safely
-    overlap reads and writes. If we ever split reader/writer connections in
-    the future, ``readonly()`` becomes the seam to point at the reader pool.
+    Why reads use separate connections: on a single connection, a read in
+    ``SQLITE_ROW`` state is precisely the live statement that breaks a
+    concurrent writer's commit, so reads used to hold the same lock and a
+    slow analytics read stalled packet ingest. ``readonly()`` now hands out a
+    connection from a small reader pool instead. WAL lets those readers run
+    alongside the writer; each read sees the last committed state. Reader
+    connections set ``query_only`` so a stray write fails loudly.
+
+    ``:memory:`` databases (tests) cannot share data across connections, so
+    there ``readonly()`` falls back to the writer under the lock, with
+    ``query_only`` switched on for the duration of the block.
     """
 
     def __init__(self, db_path: str):
         self.db_path = db_path
         self._connection: aiosqlite.Connection | None = None
         self._lock = asyncio.Lock()
+        self._readers: list[aiosqlite.Connection] = []
+        self._reader_pool: asyncio.LifoQueue[aiosqlite.Connection] | None = None
 
     @asynccontextmanager
     async def tx(self) -> AsyncIterator[aiosqlite.Connection]:
@@ -259,18 +277,32 @@ class Database:
 
     @asynccontextmanager
     async def readonly(self) -> AsyncIterator[aiosqlite.Connection]:
-        """Acquire the connection for a read. No commit, no rollback.
+        """Acquire a connection for a read. No commit, no rollback.
 
-        Locked for the same reason writes are: on a single connection, an
-        active read statement blocks a concurrent writer's commit. Callers
-        MUST fully consume or close cursors before the block exits (use
+        Does not wait for the write lock (see class docstring). Callers MUST
+        fully consume or close cursors before the block exits (use
         ``async with conn.execute(...) as cursor:`` + ``fetchall`` /
-        ``fetchone``; avoid holding a cursor across ``await`` on other IO).
+        ``fetchone``): an open statement pins that reader to an old snapshot
+        and holds back WAL checkpoints.
         """
+        pool = self._reader_pool
+        if pool is not None:
+            conn = await pool.get()
+            try:
+                yield conn
+            finally:
+                pool.put_nowait(conn)
+            return
+
         async with self._lock:
             if self._connection is None:
                 raise RuntimeError("Database not connected")
-            yield self._connection
+            conn = self._connection
+            await conn.execute("PRAGMA query_only = ON")
+            try:
+                yield conn
+            finally:
+                await conn.execute("PRAGMA query_only = OFF")
 
     async def backup_to(self, target_path: str) -> None:
         """Write a consistent snapshot of the database to ``target_path``.
@@ -345,13 +377,40 @@ class Database:
         await self._connection.execute("PRAGMA foreign_keys = ON")
         logger.debug("Foreign key enforcement enabled")
 
+        await self._register_functions(self._connection)
+
+        if self.db_path != ":memory:":
+            pool: asyncio.LifoQueue[aiosqlite.Connection] = asyncio.LifoQueue()
+            for _ in range(READER_POOL_SIZE):
+                reader = await self._open_reader()
+                self._readers.append(reader)
+                pool.put_nowait(reader)
+            self._reader_pool = pool
+            logger.debug("Opened %d reader connections", READER_POOL_SIZE)
+
+    @staticmethod
+    async def _register_functions(conn: aiosqlite.Connection) -> None:
         # SQL helper so the unread-mention query can skip reaction payloads
         # (a channel reaction names its target with "@[Name]").
-        await self._connection.create_function(
-            "is_reaction_text", 1, is_reaction_text, deterministic=True
-        )
+        await conn.create_function("is_reaction_text", 1, is_reaction_text, deterministic=True)
+
+    async def _open_reader(self) -> aiosqlite.Connection:
+        # Opened after migrations, so readers always see the final schema.
+        # journal_mode (WAL) persists in the file; the rest is per-connection.
+        reader = await aiosqlite.connect(self.db_path)
+        reader.row_factory = aiosqlite.Row
+        await reader.execute("PRAGMA busy_timeout = 5000")
+        await reader.execute(f"PRAGMA cache_size = -{READER_CACHE_KB}")
+        await reader.execute("PRAGMA temp_store = MEMORY")
+        await reader.execute("PRAGMA query_only = ON")
+        await self._register_functions(reader)
+        return reader
 
     async def disconnect(self) -> None:
+        self._reader_pool = None
+        for reader in self._readers:
+            await reader.close()
+        self._readers = []
         if self._connection:
             await self._connection.close()
             self._connection = None
