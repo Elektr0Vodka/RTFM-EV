@@ -147,6 +147,48 @@ describe('SettingsHandyInfoSection', () => {
     expect(screen.getByText('Zweerbericht')).toBeInTheDocument();
   });
 
+  it('flags a built-in link for the Knowledge base', async () => {
+    const { onSave } = renderSection(makeSettings());
+    await userEvent.click(screen.getByRole('tab', { name: 'Links' }));
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Add Triangulator to the Knowledge base' })
+    );
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({
+        handy_info: { overrides: { 'link-triangulator': { kb: true } }, custom: [] },
+      })
+    );
+  });
+
+  it('keeps the Knowledge base flag when a custom link is edited', async () => {
+    const { onSave } = renderSection(
+      makeSettings({
+        handy_info: {
+          overrides: {},
+          custom: [
+            {
+              id: 'c1',
+              group: 'links',
+              category: 'tools',
+              label: 'My KB',
+              url: 'https://kb.example',
+              kb: true,
+            },
+          ],
+        },
+      })
+    );
+    await userEvent.click(screen.getByRole('tab', { name: 'Links' }));
+    expect(
+      screen.getByRole('button', { name: 'Remove My KB from the Knowledge base' })
+    ).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(screen.getByRole('button', { name: 'Edit My KB' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const saved = onSave.mock.calls[0][0].handy_info;
+    expect(saved.custom[0]).toMatchObject({ id: 'c1', label: 'My KB', kb: true });
+  });
+
   it('copies an analyzer node template to the clipboard', () => {
     renderSection(makeSettings());
     fireEvent.click(screen.getByRole('button', { name: 'Copy Cornmeister URL' }));

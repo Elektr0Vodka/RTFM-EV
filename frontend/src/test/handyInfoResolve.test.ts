@@ -6,6 +6,7 @@ import {
   resolveHandyEntries,
   withCustomEntry,
   withHiddenBuiltin,
+  withKnowledgeBase,
   withoutCustomEntry,
   type HandyBuiltin,
   type HandyEntryForm,
@@ -266,5 +267,80 @@ describe('overlay mutation helpers', () => {
 
     const removed = withoutCustomEntry(added, 'c1');
     expect(removed.custom).toHaveLength(0);
+  });
+});
+
+describe('knowledge base flag', () => {
+  const customLink = {
+    id: 'c1',
+    group: 'links' as const,
+    category: 'fun',
+    label: 'C',
+    url: 'https://c.example',
+  };
+
+  it('defaults built-ins and custom links to not-in-KB', () => {
+    const entries = resolveHandyEntries(BUILTINS, { overrides: {}, custom: [customLink] });
+    expect(entries.map((e) => e.kb)).toEqual([false, false, false]);
+  });
+
+  it('reads the flag from overrides and custom entries', () => {
+    const entries = resolveHandyEntries(BUILTINS, {
+      overrides: { 'link-y': { kb: true } },
+      custom: [{ ...customLink, kb: true }],
+    });
+    expect(entries.find((e) => e.id === 'link-y')?.kb).toBe(true);
+    expect(entries.find((e) => e.id === 'c1')?.kb).toBe(true);
+  });
+
+  it('keeps an existing kb flag when a built-in is edited', () => {
+    const form = {
+      ...baseForm,
+      category: 'tools' as const,
+      label: 'Y2',
+      url: 'https://y.example',
+    };
+    expect(buildBuiltinOverride(BUILTINS[1], form, { kb: true }, 'Y')).toEqual({
+      kb: true,
+      label: 'Y2',
+    });
+    const unchanged = { ...form, label: 'Y' };
+    expect(buildBuiltinOverride(BUILTINS[1], unchanged, { kb: true }, 'Y')).toEqual({ kb: true });
+  });
+
+  it('formToCustomEntry sets kb only for links', () => {
+    const link = { ...baseForm, label: 'L', url: 'https://l.example' };
+    expect(formToCustomEntry('l1', link, true).kb).toBe(true);
+    expect(formToCustomEntry('l1', link).kb).toBeUndefined();
+    const analyzer = {
+      ...baseForm,
+      group: 'analyzers' as const,
+      applyKind: 'analyzer' as const,
+      label: 'A',
+      url: 'https://a.example',
+      node_url_template: 'https://a.example/{pubkey}',
+    };
+    expect(formToCustomEntry('a1', analyzer, true).kb).toBeUndefined();
+  });
+
+  it('withKnowledgeBase flags and unflags a built-in, dropping an empty override', () => {
+    const empty = { overrides: {}, custom: [] };
+    const on = withKnowledgeBase(empty, { id: 'link-y', source: 'builtin' }, true);
+    expect(on.overrides['link-y']).toEqual({ kb: true });
+    const off = withKnowledgeBase(on, { id: 'link-y', source: 'builtin' }, false);
+    expect(off.overrides['link-y']).toBeUndefined();
+
+    const edited = { overrides: { 'link-y': { label: 'Mine', kb: true } }, custom: [] };
+    const offEdited = withKnowledgeBase(edited, { id: 'link-y', source: 'builtin' }, false);
+    expect(offEdited.overrides['link-y']).toEqual({ label: 'Mine' });
+  });
+
+  it('withKnowledgeBase toggles a custom entry without mutating the input', () => {
+    const overlay = { overrides: {}, custom: [customLink] };
+    const on = withKnowledgeBase(overlay, { id: 'c1', source: 'custom' }, true);
+    expect(on.custom[0].kb).toBe(true);
+    expect(overlay.custom[0]).not.toHaveProperty('kb');
+    const off = withKnowledgeBase(on, { id: 'c1', source: 'custom' }, false);
+    expect(off.custom[0].kb).toBe(false);
   });
 });

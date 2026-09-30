@@ -162,6 +162,7 @@ def _clean_handy_override(raw: HandyInfoOverride) -> HandyInfoOverride:
         packet_url_template=packet_tpl,
         channel_url_template=channel_tpl,
         node_api_url_template=api_tpl,
+        kb=raw.kb,
     )
 
 
@@ -185,6 +186,11 @@ def _clean_handy_custom(raw: HandyInfoCustomEntry) -> HandyInfoCustomEntry:
     channel_tpl = raw.channel_url_template.strip() if raw.channel_url_template else None
     api_tpl = raw.node_api_url_template.strip() if raw.node_api_url_template else None
     category = raw.category.strip() if raw.category else None
+
+    if raw.kb and raw.group != "links":
+        raise HTTPException(
+            status_code=400, detail="Only link entries can be shown in the Knowledge base"
+        )
 
     if raw.group == "links":
         if apply_kind is not None:
@@ -238,6 +244,7 @@ def _clean_handy_custom(raw: HandyInfoCustomEntry) -> HandyInfoCustomEntry:
         packet_url_template=packet_tpl,
         channel_url_template=channel_tpl,
         node_api_url_template=api_tpl,
+        kb=raw.kb,
     )
 
 

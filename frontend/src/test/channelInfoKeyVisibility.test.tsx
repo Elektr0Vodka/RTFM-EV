@@ -315,3 +315,24 @@ describe('ChannelInfoPane group membership (plan 28 item 1.16)', () => {
     expect(screen.queryByText('Groups')).not.toBeInTheDocument();
   });
 });
+
+describe('ChannelInfoPane registry edit shortcut', () => {
+  it('opens the channel in the Channel Registry', async () => {
+    const key = 'EF'.repeat(16);
+    const channel = makeChannel(key, '#general', true);
+    mockGetChannelDetail.mockResolvedValue(makeDetail(channel));
+    const onEditInRegistry = vi.fn();
+
+    render(
+      <ChannelInfoPane
+        {...baseProps}
+        channelKey={key}
+        channels={[channel]}
+        onEditInRegistry={onEditInRegistry}
+      />
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit in Channel Registry' }));
+    expect(onEditInRegistry).toHaveBeenCalledWith(key);
+  });
+});

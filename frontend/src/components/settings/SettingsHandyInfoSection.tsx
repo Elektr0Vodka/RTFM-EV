@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { BookMarked, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 
 import type {
   AppSettings,
@@ -13,9 +13,9 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { cn } from '@/lib/utils';
 import { toast } from '../ui/sonner';
 import { useT } from '../../i18n';
-import type { TFn } from '../../i18n';
 import {
   buildBuiltinOverride,
   EMPTY_HANDY_INFO,
@@ -25,6 +25,9 @@ import {
   resolveHandyEntries,
   withCustomEntry,
   withHiddenBuiltin,
+  handyEntryLabel as entryLabel,
+  newHandyEntryId as genId,
+  withKnowledgeBase,
   withOverride,
   withoutCustomEntry,
   type HandyEntry,
@@ -47,16 +50,6 @@ const EMPTY_FORM: HandyEntryForm = {
   channel_url_template: '',
   node_api_url_template: '',
 };
-
-function genId(): string {
-  const c = globalThis.crypto as Crypto | undefined;
-  if (c && typeof c.randomUUID === 'function') return c.randomUUID();
-  return `c-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-function entryLabel(entry: HandyEntry, t: TFn): string {
-  return entry.label ?? (entry.labelKey ? t(entry.labelKey) : entry.id);
-}
 
 export function SettingsHandyInfoSection({
   appSettings,
@@ -175,6 +168,12 @@ export function SettingsHandyInfoSection({
     }
   };
 
+  const toggleKnowledgeBase = (entry: HandyEntry) =>
+    persist(
+      { handy_info: withKnowledgeBase(overlay, entry, !entry.kb) },
+      entry.kb ? 'settings_handy_toast_kb_removed' : 'settings_handy_toast_kb_added'
+    );
+
   const resetDefaults = () => {
     if (!window.confirm(t('settings_handy_confirm_reset'))) return;
     persist({ handy_info: EMPTY_HANDY_INFO }, 'settings_handy_toast_reset');
@@ -258,7 +257,8 @@ export function SettingsHandyInfoSection({
       next = withOverride(overlay, editingBuiltin.id, override);
     } else {
       const id = editingId ?? genId();
-      next = withCustomEntry(overlay, formToCustomEntry(id, form));
+      const keepKb = overlay.custom.some((c) => c.id === id && c.kb === true);
+      next = withCustomEntry(overlay, formToCustomEntry(id, form, keepKb));
     }
     setDialogOpen(false);
     persist({ handy_info: next }, 'settings_handy_toast_saved');
@@ -418,6 +418,24 @@ export function SettingsHandyInfoSection({
             aria-label={t('settings_handy_copy_aria', { name })}
           >
             {t('settings_handy_copy')}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn('h-8 w-8', entry.kb ? 'text-primary' : 'text-muted-foreground')}
+            onClick={() => toggleKnowledgeBase(entry)}
+            aria-pressed={entry.kb}
+            aria-label={t(
+              entry.kb ? 'settings_handy_kb_remove_aria' : 'settings_handy_kb_add_aria',
+              {
+                name,
+              }
+            )}
+            title={t(entry.kb ? 'settings_handy_kb_remove_aria' : 'settings_handy_kb_add_aria', {
+              name,
+            })}
+          >
+            <BookMarked className="h-3.5 w-3.5" />
           </Button>
           {editDeleteButtons(entry)}
         </div>

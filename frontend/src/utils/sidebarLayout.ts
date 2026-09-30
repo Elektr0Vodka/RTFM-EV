@@ -63,6 +63,7 @@ export type SidebarToolKey =
   | 'search'
   | 'channel-registry'
   | 'cracker'
+  | 'knowledge-base'
   | 'manual';
 
 export const ALL_TOOL_KEYS: SidebarToolKey[] = [
@@ -79,6 +80,7 @@ export const ALL_TOOL_KEYS: SidebarToolKey[] = [
   'search',
   'channel-registry',
   'cracker',
+  'knowledge-base',
   'manual',
 ];
 

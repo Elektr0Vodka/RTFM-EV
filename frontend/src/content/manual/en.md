@@ -286,11 +286,15 @@ Full-text search across direct and channel messages. Use `user:` or `channel:` t
 
 ### Channel Registry
 
-A local catalog of known channels. It is a reference list, not the channels the app monitors. You can add, edit, filter, import and export entries, sync from a remote list, and use **Add to Channels** to start monitoring one. Private entries are never exported.
+A local catalog of known channels. It is a reference list, not the channels the app monitors. You can add, edit, filter, import and export entries, sync from a remote list, and use **Add to Channels** to start monitoring one. Private entries are never exported. In a channel, the registry icon in the header (or **Edit in Channel Registry** in the channel info panel) opens that channel's entry straight in edit mode, adding it first if it is missing.
 
 ### Channel Finder
 
 **Show Channel Finder** opens a panel that tries to find the names of channels you have no key for, using wordlists and brute force on your GPU. It needs a browser with WebGPU (for example Chrome or Edge 113 or newer) and HTTPS when you are not on `localhost`. Found channels can decrypt stored packets.
+
+### Knowledge base
+
+Your own list of handy links, grouped by category. **Add link** creates a new one; the X removes a link from the Knowledge base but keeps it in Settings > Handy Info > Links. There, the book icon on any link (built-in or your own) adds it to or removes it from the Knowledge base.
 
 ### User Guide
 
@@ -345,7 +349,7 @@ Database overview, storage cleanup, **Data retention**, backup and restore, and 
 
 ### Handy Info
 
-**Configure** lists external node analyzers and sync sources. Name resolution for an analyzer only sends one public key per lookup, and only when you press a button. **Links** holds useful reference sites.
+**Configure** lists external node analyzers and sync sources. Name resolution for an analyzer only sends one public key per lookup, and only when you press a button. **Links** holds useful reference sites; the book icon on a link shows it in Tools > Knowledge base.
 
 ### About
 

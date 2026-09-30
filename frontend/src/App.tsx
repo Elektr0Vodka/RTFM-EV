@@ -820,6 +820,7 @@ export function App() {
     regionDiscoveryLoading,
     onDiscoverRegions: handleDiscoverRegions,
     onSaveAppSettings: handleSaveAppSettings,
+    handyInfo: appSettings?.handy_info ?? null,
     autoAddMentionedChannels: appSettings?.auto_add_mentioned_channels ?? false,
     parsePubkeys: appSettings?.chat_parse_pubkeys ?? false,
     parseCoordinates: appSettings?.chat_parse_coordinates ?? false,
@@ -1023,6 +1024,15 @@ export function App() {
     analyzerSites: appSettings?.analyzer_sites ?? [],
     contactGroups: appSettings?.contact_groups ?? [],
     onUpdateContactGroups: handleUpdateContactGroups,
+    onEditInRegistry: (channelKey: string) => {
+      handleCloseChannelInfo();
+      handleSelectConversationWithTargetReset({
+        type: 'channel-registry',
+        id: 'channel-registry',
+        name: 'Channel Registry',
+        registryEditKey: channelKey,
+      });
+    },
   };
 
   // Connect to WebSocket

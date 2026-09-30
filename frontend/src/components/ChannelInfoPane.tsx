@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
-import { ExternalLink, Star } from 'lucide-react';
+import { ExternalLink, Library, Star } from 'lucide-react';
 import { api } from '../api';
 import { formatTime } from '../utils/messageParser';
 import { handleKeyboardActivate } from '../utils/a11y';
@@ -28,6 +28,8 @@ interface ChannelInfoPaneProps {
    *  Groups section entirely (e.g. when the caller has no settings loaded). */
   contactGroups?: ContactGroup[];
   onUpdateContactGroups?: (next: ContactGroup[]) => void | Promise<void>;
+  /** Open this channel's Channel Registry entry in edit mode. */
+  onEditInRegistry?: (channelKey: string) => void;
 }
 
 export function ChannelInfoPane({
@@ -38,6 +40,7 @@ export function ChannelInfoPane({
   analyzerSites = [],
   contactGroups,
   onUpdateContactGroups,
+  onEditInRegistry,
 }: ChannelInfoPaneProps) {
   const t = useT();
   const [detail, setDetail] = useState<ChannelDetail | null>(null);
@@ -185,6 +188,19 @@ export function ChannelInfoPane({
                 contactGroups={contactGroups}
                 onUpdateContactGroups={onUpdateContactGroups}
               />
+            )}
+
+            {onEditInRegistry && (
+              <div className="px-5 py-3 border-b border-border">
+                <button
+                  type="button"
+                  className="text-sm flex items-center gap-2 hover:text-primary transition-colors"
+                  onClick={() => onEditInRegistry(channel.key)}
+                >
+                  <Library className="h-4.5 w-4.5 text-muted-foreground" aria-hidden="true" />
+                  <span>{t('channel_edit_in_registry')}</span>
+                </button>
+              </div>
             )}
 
             {/* Open this channel on external analyzer(s). Hidden when no site has

@@ -306,6 +306,15 @@ export interface RadioChannelSeed {
  * New entries get source = 'radio' and added = the channel's created_at date.
  * Returns { result, added } - caller must persist with saveRegistry if added > 0.
  */
+/**
+ * Registry name for a radio/DB channel. Hashtag channels get the # prefix
+ * normalised in; non-hashtag channels (e.g. the default "Public" channel)
+ * keep their original name as-is.
+ */
+export function registryNameForRadioChannel(rc: Pick<RadioChannelSeed, 'name' | 'is_hashtag'>) {
+  return rc.is_hashtag === false ? rc.name.trim() : normalizeChannelName(rc.name);
+}
+
 export function seedFromRadioChannels(
   radioChannels: RadioChannelSeed[],
   existing: RegistryChannel[]
@@ -314,9 +323,7 @@ export function seedFromRadioChannels(
   let added = 0;
 
   for (const rc of radioChannels) {
-    // Hashtag channels get the # prefix normalised in; non-hashtag channels
-    // (e.g. the default "Public" channel) keep their original name as-is.
-    const name = rc.is_hashtag === false ? rc.name.trim() : normalizeChannelName(rc.name);
+    const name = registryNameForRadioChannel(rc);
     const key = name.toLowerCase();
     if (byName.has(key)) continue;
 

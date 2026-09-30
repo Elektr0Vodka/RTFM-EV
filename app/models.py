@@ -1503,6 +1503,9 @@ class HandyInfoOverride(BaseModel):
     node_api_url_template: str | None = Field(
         default=None, description="Override analyzer node API URL template ({pubkey})"
     )
+    kb: bool | None = Field(
+        default=None, description="Show this link in Tools > Knowledge base (None = default off)"
+    )
 
 
 class HandyInfoCustomEntry(BaseModel):
@@ -1530,6 +1533,9 @@ class HandyInfoCustomEntry(BaseModel):
     )
     node_api_url_template: str | None = Field(
         default=None, description="Optional analyzer node API URL template ({pubkey})"
+    )
+    kb: bool = Field(
+        default=False, description="Show this link in Tools > Knowledge base (links only)"
     )
 
 

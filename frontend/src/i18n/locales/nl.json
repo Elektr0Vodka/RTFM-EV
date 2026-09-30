@@ -4017,5 +4017,14 @@
   "settings_fanout_publish_own_neighbors": "Eigen buren publiceren (neighbors-topic)",
   "settings_fanout_publish_own_neighbors_desc": "De burentabel van deze node uit de host-repeater, eenmaal gepubliceerd na elke voltooide opvraging (Instellingen > Host-repeater > Buren opvragen). Alleen zolang de host-repeater in shadow- of armed-modus staat. Standaard uit.",
   "settings_host_repeater_filter_add": "Toevoegen",
-  "settings_host_repeater_no_forward_poll": "Er wordt niets doorgestuurd. Het buren opvragen zendt elke {hours} u uit."
+  "settings_host_repeater_no_forward_poll": "Er wordt niets doorgestuurd. Het buren opvragen zendt elke {hours} u uit.",
+  "nav_knowledge_base": "Kennisbank",
+  "knowledge_base_desc": "Je eigen verzameling handige links. Gebruikt de links uit Instellingen > Handige Info > Links; met het boekpictogram daar voeg je een link toe of haal je hem weg.",
+  "knowledge_base_add": "Link toevoegen",
+  "knowledge_base_empty": "Nog geen links. Voeg er hier een toe, of gebruik het boekpictogram bij een link in Instellingen > Handige Info > Links.",
+  "settings_handy_kb_add_aria": "{name} toevoegen aan de Kennisbank",
+  "settings_handy_kb_remove_aria": "{name} verwijderen uit de Kennisbank",
+  "settings_handy_toast_kb_added": "Toegevoegd aan de Kennisbank",
+  "settings_handy_toast_kb_removed": "Verwijderd uit de Kennisbank",
+  "channel_edit_in_registry": "Bewerken in Kanaalregister"
 }

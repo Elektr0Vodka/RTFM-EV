@@ -758,6 +758,7 @@ type ConversationType =
   | 'analyze'
   | 'packet-history'
   | 'manual'
+  | 'knowledge-base'
   | 'link';
 
 export interface Conversation {
@@ -771,6 +772,8 @@ export interface Conversation {
   mapFocusLatLon?: [number, number];
   /** For map view: label to show on the focused point's popup */
   mapFocusLabel?: string;
+  /** For channel-registry view: channel key whose registry entry opens in edit mode */
+  registryEditKey?: string;
 }
 
 export interface RawPacket {
@@ -932,6 +935,8 @@ export interface HandyInfoOverride {
   packet_url_template?: string | null;
   channel_url_template?: string | null;
   node_api_url_template?: string | null;
+  /** Show this link in Tools > Knowledge base (unset = off). */
+  kb?: boolean | null;
 }
 
 /** A user-created Handy Info entry (link or apply-capable preset). */
@@ -946,6 +951,8 @@ export interface HandyInfoCustomEntry {
   packet_url_template?: string | null;
   channel_url_template?: string | null;
   node_api_url_template?: string | null;
+  /** Show this link in Tools > Knowledge base (links only). */
+  kb?: boolean;
 }
 
 /** Persisted overlay for the Handy Info section. */

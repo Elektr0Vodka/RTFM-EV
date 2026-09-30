@@ -1,3 +1,4 @@
+import type { TFn } from '../../i18n';
 import type {
   HandyApplyKind,
   HandyGroup,
@@ -38,6 +39,8 @@ export interface HandyEntry {
   /** Literal label (custom entries, overridden built-ins, brand-name built-ins). */
   label?: string;
   url: string;
+  /** Listed in Tools > Knowledge base. */
+  kb: boolean;
   apply?: {
     kind: HandyApplyKind;
     node_url_template?: string;
@@ -253,6 +256,18 @@ export const HANDY_BUILTINS: HandyBuiltin[] = [
 
 export const EMPTY_HANDY_INFO: HandyInfoSettings = { overrides: {}, custom: [] };
 
+/** Client-generated stable id for a new custom entry. */
+export function newHandyEntryId(): string {
+  const c = globalThis.crypto as Crypto | undefined;
+  if (c && typeof c.randomUUID === 'function') return c.randomUUID();
+  return `c-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+/** Display label of a resolved entry (literal label, i18n key, or id). */
+export function handyEntryLabel(entry: HandyEntry, t: TFn): string {
+  return entry.label ?? (entry.labelKey ? t(entry.labelKey) : entry.id);
+}
+
 /** Non-nullish coalesce that also treats `null` as "fall back to default". */
 function pick<T>(override: T | null | undefined, fallback: T): T {
   return override === null || override === undefined ? fallback : override;
@@ -288,6 +303,7 @@ export function resolveHandyEntries(
       labelKey: overriddenLabel ? undefined : b.labelKey,
       label: overriddenLabel ?? b.label,
       url: pick(o?.url, b.url),
+      kb: o?.kb === true,
       apply,
     });
   }
@@ -300,6 +316,7 @@ export function resolveHandyEntries(
       category: c.category ?? undefined,
       label: c.label,
       url: c.url,
+      kb: c.kb === true,
       apply: c.apply_kind
         ? {
             kind: c.apply_kind,
@@ -341,6 +358,7 @@ export function buildBuiltinOverride(
 ): HandyInfoOverride | null {
   const next: HandyInfoOverride = {};
   if (existing?.hidden) next.hidden = true;
+  if (existing?.kb) next.kb = true;
 
   if (form.label.trim() !== defaultLabel) next.label = form.label.trim();
   if (form.url.trim() !== builtin.url) next.url = form.url.trim();
@@ -366,6 +384,7 @@ export function buildBuiltinOverride(
 
   const hasValue =
     next.hidden === true ||
+    next.kb === true ||
     next.label !== undefined ||
     next.url !== undefined ||
     next.category !== undefined ||
@@ -376,10 +395,18 @@ export function buildBuiltinOverride(
   return hasValue ? next : null;
 }
 
-/** Turn dialog form state into a custom entry (id supplied by the caller). */
-export function formToCustomEntry(id: string, form: HandyEntryForm): HandyInfoCustomEntry {
+/**
+ * Turn dialog form state into a custom entry (id supplied by the caller).
+ * `kb` carries the Knowledge base flag; it only applies to links.
+ */
+export function formToCustomEntry(
+  id: string,
+  form: HandyEntryForm,
+  kb = false
+): HandyInfoCustomEntry {
   const applyKind = form.group === 'links' ? null : form.applyKind || null;
   return {
+    ...(kb && form.group === 'links' ? { kb: true } : {}),
     id,
     group: form.group,
     category: form.group === 'links' ? form.category || null : null,
@@ -433,6 +460,24 @@ export function withCustomEntry(
       ? overlay.custom.map((c) => (c.id === entry.id ? entry : c))
       : [...overlay.custom, entry];
   return { overrides: overlay.overrides, custom };
+}
+
+/** Immutable helper: add a link to, or remove it from, the Knowledge base. */
+export function withKnowledgeBase(
+  overlay: HandyInfoSettings,
+  entry: Pick<HandyEntry, 'id' | 'source'>,
+  kb: boolean
+): HandyInfoSettings {
+  if (entry.source === 'custom') {
+    return {
+      overrides: overlay.overrides,
+      custom: overlay.custom.map((c) => (c.id === entry.id ? { ...c, kb } : c)),
+    };
+  }
+  const { kb: _previous, ...rest } = overlay.overrides[entry.id] ?? {};
+  const next: HandyInfoOverride = kb ? { ...rest, kb: true } : rest;
+  const isEmpty = Object.values(next).every((v) => v === undefined || v === null || v === false);
+  return withOverride(overlay, entry.id, isEmpty ? null : next);
 }
 
 /** Immutable helper: remove a custom entry by id. */

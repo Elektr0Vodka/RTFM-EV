@@ -21,6 +21,7 @@ interface ParsedHashConversation {
     | 'analyze'
     | 'packet-history'
     | 'manual'
+    | 'knowledge-base'
     | 'link';
   /** Conversation identity token (channel key or contact public key, or legacy name token) */
   name: string;
@@ -100,6 +101,10 @@ export function parseHashConversation(): ParsedHashConversation | null {
 
   if (hash === 'manual') {
     return { type: 'manual', name: 'manual' };
+  }
+
+  if (hash === 'knowledge-base') {
+    return { type: 'knowledge-base', name: 'knowledge-base' };
   }
 
   // Link detail page: #link/<pubkeyA>/<pubkeyB>
@@ -243,6 +248,7 @@ export function getConversationHash(conv: Conversation | null): string {
   if (conv.type === 'analyze') return '#analyze';
   if (conv.type === 'packet-history') return '#packet-history';
   if (conv.type === 'manual') return '#manual';
+  if (conv.type === 'knowledge-base') return '#knowledge-base';
   if (conv.type === 'link') {
     const [a, b] = conv.id.split('~');
     return `#link/${encodeURIComponent(a)}/${encodeURIComponent(b)}`;
