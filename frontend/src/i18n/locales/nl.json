@@ -3953,6 +3953,11 @@
   "mesh_health_po_col_heard": "Laatst gehoord",
   "mesh_health_po_island_title": "Eiland met {count} overlevende nodes",
   "mesh_health_po_show_on_map": "Toon op kaart",
+  "mesh_health_po_rows_summary": {
+    "one": "{count} node",
+    "other": "{count} nodes"
+  },
+  "mesh_health_scroll_top": "Naar boven",
   "settings_host_repeater_filter_dryrun": "Proefdraaien (dry-run)",
   "settings_host_repeater_filter_dryrun_desc": "Tel elke filterdrop, maar stuur het pakket toch door, zodat je een instelling kunt afstemmen voordat je hem afdwingt. De filterstatistieken tonen wat gedropt zou zijn.",
   "settings_host_repeater_filter_advert_hours": "Advertvenster per node (uren)",

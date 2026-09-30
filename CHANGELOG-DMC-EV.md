@@ -11,6 +11,18 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-30 (Power Outage tab: sorting + pagination, power-tab-sorting-pagination)
+
+### Mesh Health: Power Outage table
+- Column headers (Node, Role, Power, In outage, Island, Last heard) sort the
+  node table; click again to flip the direction. Default stays island order
+  (nodes without an island last).
+- Paginated with a **Show max rows** selector (10 / 25 / 50 / 100 / All). It
+  shares the existing `mesh_health_page_size` setting with the Adverts table,
+  so changing it on one tab changes both. No migration.
+- A floating go-to-top button appears after scrolling down the Power Outage
+  tab.
+
 ## Update 2026-09-30 (Registry edit shortcut + Knowledge base, feat/registry-edit-knowledge-base)
 
 ### Channels: edit in Channel Registry

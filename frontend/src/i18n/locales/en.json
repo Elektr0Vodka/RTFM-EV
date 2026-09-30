@@ -3952,6 +3952,11 @@
   "mesh_health_po_col_heard": "Last heard",
   "mesh_health_po_island_title": "Island with {count} surviving nodes",
   "mesh_health_po_show_on_map": "Show on map",
+  "mesh_health_po_rows_summary": {
+    "one": "{count} node",
+    "other": "{count} nodes"
+  },
+  "mesh_health_scroll_top": "Go to top",
   "settings_host_repeater_filter_dryrun": "Dry-run",
   "settings_host_repeater_filter_dryrun_desc": "Count every filter drop but still forward the packet, to size a setting before enforcing it. The filter statistics show what would have been dropped.",
   "settings_host_repeater_filter_advert_hours": "Advert window per node (hours)",

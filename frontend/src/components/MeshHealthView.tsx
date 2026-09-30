@@ -6,11 +6,12 @@
  * panel:
  *  - MeshAdvertsPanel: advert-frequency health (the original page).
  *  - MeshRequestsPanel: single-node REQUEST/RESPONSE traffic view.
- *  - MeshPowerOutagePanel: which nodes stay online in a power outage.
+ *  - MeshPowerOutagePanel: which nodes stay online in a power outage. Also gets
+ *    a floating go-to-top button over the scroll area, since its table is long.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, RefreshCw } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Activity, ChevronsUp, RefreshCw } from 'lucide-react';
 import type { Contact, RadioConfig } from '../types';
 import { useT } from '../i18n';
 import { type TimeWindow } from './meshHealthShared';
@@ -42,6 +43,8 @@ const AUTO_REFRESH_IDS = new Set(['30m', '1h']);
 const DEFAULT_MESH_HEALTH_ID = '30m';
 const MESH_HEALTH_WINDOW_KEY = 'rtfm-meshhealth-window';
 const MESH_HEALTH_TAB_KEY = 'rtfm-meshhealth-tab';
+/** Scroll distance (px) after which the go-to-top button appears. */
+const SCROLL_TOP_THRESHOLD = 300;
 
 // Persist the Adverts/Requests sub-tab so a page refresh stays on the same panel
 // instead of snapping back to Adverts.
@@ -127,6 +130,16 @@ export function MeshHealthView({
   // Panels report their own loading so the shared refresh spinner reflects it.
   const handleLoadingChange = useCallback((l: boolean) => setLoading(l), []);
 
+  // Go-to-top button for the Power Outage tab: shown once the scroll area has
+  // moved past the threshold.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrolledDown, setScrolledDown] = useState(false);
+  const showScrollTop = activeTab === 'power-outage' && scrolledDown;
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (el) setScrolledDown(el.scrollTop > SCROLL_TOP_THRESHOLD);
+  }, []);
+
   const tabs: { key: MeshHealthTab; label: string }[] = [
     { key: 'adverts', label: t('mesh_health_tab_adverts') },
     { key: 'requests', label: t('mesh_health_tab_requests') },
@@ -182,70 +195,85 @@ export function MeshHealthView({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-4xl space-y-4 p-4">
-          {/* Unified time-range selector (shared by the window-scoped tabs). The
+      <div className="relative min-h-0 flex-1">
+        <div ref={scrollRef} onScroll={handleScroll} className="h-full overflow-y-auto">
+          <div className="mx-auto max-w-4xl space-y-4 p-4">
+            {/* Unified time-range selector (shared by the window-scoped tabs). The
               prefix-collisions tab is point-in-time and power-outage has its
               own heard-within selector, so it is hidden there. */}
-          {activeTab !== 'prefix-collisions' && activeTab !== 'power-outage' && (
-            <TimeRangeSelector
-              value={selectedWindowId}
-              onChange={setSelectedWindowId}
-              extrasBefore={MESH_HEALTH_EXTRAS_BEFORE}
-              showCustom={false}
-              customStart=""
-              customEnd=""
-              onCustomStartChange={() => {}}
-              onCustomEndChange={() => {}}
-              onApplyCustom={() => {}}
-            />
-          )}
+            {activeTab !== 'prefix-collisions' && activeTab !== 'power-outage' && (
+              <TimeRangeSelector
+                value={selectedWindowId}
+                onChange={setSelectedWindowId}
+                extrasBefore={MESH_HEALTH_EXTRAS_BEFORE}
+                showCustom={false}
+                customStart=""
+                customEnd=""
+                onCustomStartChange={() => {}}
+                onCustomEndChange={() => {}}
+                onApplyCustom={() => {}}
+              />
+            )}
 
-          {activeTab === 'adverts' && (
-            <MeshAdvertsPanel
-              config={config}
-              selectedWindow={selectedWindow}
-              refreshKey={refreshKey}
-              onNavigateToMap={onNavigateToMap}
-              onOpenNode={onOpenNode}
-              focusKey={focusKey}
-              onLoadingChange={handleLoadingChange}
-              pageSize={pageSize}
-              onSaveAppSettings={onSaveAppSettings}
-            />
-          )}
-          {activeTab === 'requests' && (
-            <MeshRequestsPanel
-              selectedWindow={selectedWindow}
-              refreshKey={refreshKey}
-              onLoadingChange={handleLoadingChange}
-            />
-          )}
-          {activeTab === 'relay-reception' && (
-            <MeshRelayReceptionPanel
-              selectedWindow={selectedWindow}
-              refreshKey={refreshKey}
-              onLoadingChange={handleLoadingChange}
-              onOpenNode={onOpenNode}
-            />
-          )}
-          {activeTab === 'prefix-collisions' && (
-            <MeshPrefixCollisionsPanel
-              refreshKey={refreshKey}
-              onLoadingChange={handleLoadingChange}
-              onOpenNode={onOpenNode}
-            />
-          )}
-          {activeTab === 'power-outage' && (
-            <MeshPowerOutagePanel
-              contacts={contacts}
-              refreshKey={refreshKey}
-              onLoadingChange={handleLoadingChange}
-              onOpenNode={onOpenNode}
-              onNavigateToMap={onNavigateToMap}
-            />
-          )}
+            {activeTab === 'adverts' && (
+              <MeshAdvertsPanel
+                config={config}
+                selectedWindow={selectedWindow}
+                refreshKey={refreshKey}
+                onNavigateToMap={onNavigateToMap}
+                onOpenNode={onOpenNode}
+                focusKey={focusKey}
+                onLoadingChange={handleLoadingChange}
+                pageSize={pageSize}
+                onSaveAppSettings={onSaveAppSettings}
+              />
+            )}
+            {activeTab === 'requests' && (
+              <MeshRequestsPanel
+                selectedWindow={selectedWindow}
+                refreshKey={refreshKey}
+                onLoadingChange={handleLoadingChange}
+              />
+            )}
+            {activeTab === 'relay-reception' && (
+              <MeshRelayReceptionPanel
+                selectedWindow={selectedWindow}
+                refreshKey={refreshKey}
+                onLoadingChange={handleLoadingChange}
+                onOpenNode={onOpenNode}
+              />
+            )}
+            {activeTab === 'prefix-collisions' && (
+              <MeshPrefixCollisionsPanel
+                refreshKey={refreshKey}
+                onLoadingChange={handleLoadingChange}
+                onOpenNode={onOpenNode}
+              />
+            )}
+            {activeTab === 'power-outage' && (
+              <MeshPowerOutagePanel
+                contacts={contacts}
+                refreshKey={refreshKey}
+                onLoadingChange={handleLoadingChange}
+                onOpenNode={onOpenNode}
+                onNavigateToMap={onNavigateToMap}
+                pageSize={pageSize}
+                onSaveAppSettings={onSaveAppSettings}
+              />
+            )}
+          </div>
         </div>
+        {showScrollTop && (
+          <button
+            type="button"
+            onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+            title={t('mesh_health_scroll_top')}
+            aria-label={t('mesh_health_scroll_top')}
+            className="absolute bottom-4 right-4 rounded-full border border-border bg-card/90 p-2 text-muted-foreground shadow-sm backdrop-blur transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ChevronsUp className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </div>
   );
