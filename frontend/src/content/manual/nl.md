@@ -286,11 +286,15 @@ Zoeken in de volledige tekst van directe berichten en kanaalberichten. Gebruik `
 
 ### Channel Registry (Kanaalregister)
 
-Een lokale catalogus van bekende kanalen. Het is een naslaglijst, niet de lijst met kanalen die de app volgt. Je kunt items toevoegen, bewerken, filteren, importeren en exporteren, synchroniseren vanaf een externe lijst, en met **Aan kanalen toevoegen** een kanaal gaan volgen. Privé-items worden nooit geëxporteerd.
+Een lokale catalogus van bekende kanalen. Het is een naslaglijst, niet de lijst met kanalen die de app volgt. Je kunt items toevoegen, bewerken, filteren, importeren en exporteren, synchroniseren vanaf een externe lijst, en met **Aan kanalen toevoegen** een kanaal gaan volgen. Privé-items worden nooit geëxporteerd. In een kanaal opent het registerpictogram in de kop (of **Bewerken in Kanaalregister** in het kanaalinfopaneel) het item van dat kanaal direct in bewerkmodus; ontbreekt het, dan wordt het eerst toegevoegd.
 
 ### Kanaalzoeker
 
 **Kanaalzoeker tonen** opent een paneel dat probeert de namen te vinden van kanalen waarvan je geen sleutel hebt, met woordenlijsten en brute force op je GPU. Dat vereist een browser met WebGPU (bijvoorbeeld Chrome of Edge 113 of nieuwer) en HTTPS wanneer je niet op `localhost` werkt. Gevonden kanalen kunnen opgeslagen pakketten ontsleutelen.
+
+### Kennisbank
+
+Je eigen lijst met handige links, gegroepeerd per categorie. **Link toevoegen** maakt een nieuwe aan; het kruisje haalt een link uit de Kennisbank maar laat hem staan in Instellingen > Handige Info > Links. Daar zet het boekpictogram bij elke link (ingebouwd of eigen) hem in of uit de Kennisbank.
 
 ### Gebruikershandleiding
 
@@ -345,7 +349,7 @@ Databaseoverzicht, opslag opruimen, **Databewaring**, back-up en herstel, en syn
 
 ### Handige Info
 
-**Instellen** toont externe node-analyzers en synchronisatiebronnen. Namen opzoeken via een analyzer stuurt per opzoeking maar één publieke sleutel, en alleen als je op een knop drukt. **Links** bevat handige naslagsites.
+**Instellen** toont externe node-analyzers en synchronisatiebronnen. Namen opzoeken via een analyzer stuurt per opzoeking maar één publieke sleutel, en alleen als je op een knop drukt. **Links** bevat handige naslagsites; met het boekpictogram bij een link verschijnt hij in Hulpmiddelen > Kennisbank.
 
 ### Over
 

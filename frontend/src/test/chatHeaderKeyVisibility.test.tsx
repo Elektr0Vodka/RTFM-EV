@@ -394,3 +394,39 @@ describe('ChatHeader key visibility', () => {
     expect(onSetChannelFloodScopeOverride).toHaveBeenCalledWith(key, '*');
   });
 });
+
+describe('ChatHeader registry edit shortcut', () => {
+  it('opens the channel in the Channel Registry', () => {
+    const key = 'AB'.repeat(16);
+    const channel = makeChannel(key, '#general', true);
+    const conversation: Conversation = { type: 'channel', id: key, name: '#general' };
+    const onEditInRegistry = vi.fn();
+
+    render(
+      <ChatHeader
+        {...baseProps}
+        conversation={conversation}
+        channels={[channel]}
+        onEditInRegistry={onEditInRegistry}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit in Channel Registry' }));
+    expect(onEditInRegistry).toHaveBeenCalledWith(key);
+  });
+
+  it('is not shown for contacts', () => {
+    const conversation: Conversation = { type: 'contact', id: 'CD'.repeat(32), name: 'Bob' };
+    render(
+      <ChatHeader
+        {...baseProps}
+        conversation={conversation}
+        channels={[]}
+        onEditInRegistry={vi.fn()}
+      />
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Edit in Channel Registry' })
+    ).not.toBeInTheDocument();
+  });
+});

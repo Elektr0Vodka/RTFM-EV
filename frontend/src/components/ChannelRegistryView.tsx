@@ -25,6 +25,7 @@ import {
   loadRegistry,
   mergeImport,
   recordFinderDiscovery,
+  registryNameForRadioChannel,
   saveRegistry,
   seedFromRadioChannels,
   toProjectAFormat,
@@ -680,10 +681,13 @@ export default function ChannelRegistryView({
   channels,
   channelStats,
   onAddToChannels,
+  editChannelKey,
 }: {
   channels?: Channel[];
   channelStats?: Record<string, ChannelBulkStats>;
   onAddToChannels?: (channelNames: string[]) => Promise<void>;
+  /** Channel key whose entry opens in edit mode on arrival (added first if missing). */
+  editChannelKey?: string;
 }) {
   const t = useT();
   const [registry, setRegistry] = useState<RegistryChannel[]>(() => {
@@ -891,6 +895,21 @@ export default function ChannelRegistryView({
     setRegistry(next);
     saveRegistry(next);
   }, []);
+
+  // ── Open a channel's entry in edit mode (channel header / info pane shortcut) ─
+  // Handled once per key; waits until the channel list contains the key.
+  const handledEditKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!editChannelKey || handledEditKeyRef.current === editChannelKey) return;
+    const ch = channels?.find((c) => c.key.toUpperCase() === editChannelKey.toUpperCase());
+    if (!ch) return;
+    handledEditKeyRef.current = editChannelKey;
+    const { result, added } = seedFromRadioChannels([ch], registry);
+    if (added > 0) persist(result);
+    const name = registryNameForRadioChannel(ch).toLowerCase();
+    const target = result.find((e) => e.channel.toLowerCase() === name);
+    if (target) setEditingChannel(target);
+  }, [editChannelKey, channels, registry, persist]);
 
   function handleEditSave(channelName: string, patch: Partial<RegistryChannel>) {
     persist(updateChannel(channelName, patch, registry));

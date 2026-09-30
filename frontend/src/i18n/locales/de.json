@@ -4017,5 +4017,14 @@
   "settings_fanout_publish_own_neighbors": "Eigene Nachbarn veröffentlichen (neighbors-Topic)",
   "settings_fanout_publish_own_neighbors_desc": "Die Nachbartabelle dieses Nodes vom Host-Repeater, einmal nach jeder abgeschlossenen Nachbarabfrage veröffentlicht (Einstellungen > Host-Repeater > Nachbarabfrage). Nur solange der Host-Repeater im Shadow- oder Armed-Modus ist. Standardmäßig aus.",
   "settings_host_repeater_filter_add": "Hinzufügen",
-  "settings_host_repeater_no_forward_poll": "Es wird nichts weitergeleitet. Die Nachbarabfrage sendet alle {hours} h."
+  "settings_host_repeater_no_forward_poll": "Es wird nichts weitergeleitet. Die Nachbarabfrage sendet alle {hours} h.",
+  "nav_knowledge_base": "Wissensdatenbank",
+  "knowledge_base_desc": "Deine eigene Sammlung nützlicher Links. Verwendet die Links aus Einstellungen > Praktische Infos > Links; das Buch-Symbol dort fügt einen Link hinzu oder entfernt ihn.",
+  "knowledge_base_add": "Link hinzufügen",
+  "knowledge_base_empty": "Noch keine Links. Füge hier einen hinzu oder nutze das Buch-Symbol bei einem Link unter Einstellungen > Praktische Infos > Links.",
+  "settings_handy_kb_add_aria": "{name} zur Wissensdatenbank hinzufügen",
+  "settings_handy_kb_remove_aria": "{name} aus der Wissensdatenbank entfernen",
+  "settings_handy_toast_kb_added": "Zur Wissensdatenbank hinzugefügt",
+  "settings_handy_toast_kb_removed": "Aus der Wissensdatenbank entfernt",
+  "channel_edit_in_registry": "Im Kanalregister bearbeiten"
 }

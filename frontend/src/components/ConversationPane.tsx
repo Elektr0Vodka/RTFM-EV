@@ -55,6 +55,9 @@ const PacketHistoryView = lazy(() =>
   import('./PacketHistoryView').then((m) => ({ default: m.PacketHistoryView }))
 );
 const ManualView = lazy(() => import('./ManualView').then((m) => ({ default: m.ManualView })));
+const KnowledgeBaseView = lazy(() =>
+  import('./KnowledgeBaseView').then((m) => ({ default: m.KnowledgeBaseView }))
+);
 const LinkDetailView = lazy(() =>
   import('./LinkDetailView').then((m) => ({ default: m.LinkDetailView }))
 );
@@ -168,6 +171,8 @@ interface ConversationPaneProps {
   regionDiscoveryLoading?: boolean;
   onDiscoverRegions?: (publicKeys?: string[]) => Promise<void>;
   onSaveAppSettings?: (update: import('../types').AppSettingsUpdate) => Promise<void> | void;
+  /** Handy Info overlay; the Knowledge base view lists its flagged links. */
+  handyInfo?: import('../types').HandyInfoSettings | null;
   /** Handlers the desktop full-page contact-info view needs beyond the ones
    *  ConversationPane already receives (contacts/config/favorite/blocked/analyzer). */
   contactInfoViewProps?: {
@@ -303,6 +308,7 @@ export function ConversationPane({
   regionDiscoveryLoading = false,
   onDiscoverRegions,
   onSaveAppSettings,
+  handyInfo,
   contactInfoViewProps,
 }: ConversationPaneProps) {
   const t = useT();
@@ -472,6 +478,14 @@ export function ConversationPane({
     );
   }
 
+  if (activeConversation.type === 'knowledge-base') {
+    return (
+      <Suspense fallback={<LoadingPane label={t('common_loading')} />}>
+        <KnowledgeBaseView handyInfo={handyInfo} onSaveAppSettings={onSaveAppSettings} />
+      </Suspense>
+    );
+  }
+
   if (activeConversation.type === 'search') {
     return null;
   }
@@ -483,7 +497,11 @@ export function ConversationPane({
   if (activeConversation.type === 'channel-registry') {
     return (
       <Suspense fallback={<LoadingPane label="Loading channel registry..." />}>
-        <ChannelRegistryView channels={channels} onAddToChannels={onAddRegistryChannels} />
+        <ChannelRegistryView
+          channels={channels}
+          onAddToChannels={onAddRegistryChannels}
+          editChannelKey={activeConversation.registryEditKey}
+        />
       </Suspense>
     );
   }
@@ -605,6 +623,14 @@ export function ConversationPane({
 
   const showRoomChat = !activeContactIsRoom || roomAuthenticated;
 
+  const openChannelInRegistry = (channelKey: string) =>
+    onSelectConversation({
+      type: 'channel-registry',
+      id: 'channel-registry',
+      name: 'Channel Registry',
+      registryEditKey: channelKey,
+    });
+
   return (
     <>
       <ChatHeader
@@ -638,6 +664,7 @@ export function ConversationPane({
         onOpenContactInfo={onOpenContactInfo}
         onOpenChannelInfo={onOpenChannelInfo}
         onInsertLocation={onInsertLocation}
+        onEditInRegistry={openChannelInRegistry}
       />
       {activeConversation.type === 'contact' && isPrefixOnlyActiveContact && (
         <ContactResolutionBanner variant="prefix-only" />

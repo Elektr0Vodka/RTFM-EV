@@ -4016,5 +4016,14 @@
   "settings_fanout_publish_own_neighbors": "Publish own neighbours (neighbors topic)",
   "settings_fanout_publish_own_neighbors_desc": "This node’s neighbours table from the host repeater, published once after each completed neighbour poll (Settings > Host repeater > Neighbour poll). Only while the host repeater is in shadow or armed mode. Off by default.",
   "settings_host_repeater_filter_add": "Add",
-  "settings_host_repeater_no_forward_poll": "Nothing is forwarded. The neighbour poll transmits every {hours} h."
+  "settings_host_repeater_no_forward_poll": "Nothing is forwarded. The neighbour poll transmits every {hours} h.",
+  "nav_knowledge_base": "Knowledge base",
+  "knowledge_base_desc": "Your own collection of handy links. It uses the links from Settings > Handy Info > Links; the book icon there adds or removes a link.",
+  "knowledge_base_add": "Add link",
+  "knowledge_base_empty": "No links yet. Add one here, or use the book icon on a link in Settings > Handy Info > Links.",
+  "settings_handy_kb_add_aria": "Add {name} to the Knowledge base",
+  "settings_handy_kb_remove_aria": "Remove {name} from the Knowledge base",
+  "settings_handy_toast_kb_added": "Added to the Knowledge base",
+  "settings_handy_toast_kb_removed": "Removed from the Knowledge base",
+  "channel_edit_in_registry": "Edit in Channel Registry"
 }

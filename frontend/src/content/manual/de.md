@@ -286,11 +286,15 @@ Volltextsuche in Direkt- und Kanalnachrichten. Mit `user:` oder `channel:` grenz
 
 ### Channel Registry (Kanalregister)
 
-Ein lokaler Katalog bekannter Kanäle. Es ist eine Nachschlageliste, nicht die Liste der Kanäle, die die App beobachtet. Du kannst Einträge hinzufügen, bearbeiten, filtern, importieren und exportieren, von einer externen Liste synchronisieren und mit **Zu Kanälen hinzufügen** einen Kanal beobachten. Private Einträge werden nie exportiert.
+Ein lokaler Katalog bekannter Kanäle. Es ist eine Nachschlageliste, nicht die Liste der Kanäle, die die App beobachtet. Du kannst Einträge hinzufügen, bearbeiten, filtern, importieren und exportieren, von einer externen Liste synchronisieren und mit **Zu Kanälen hinzufügen** einen Kanal beobachten. Private Einträge werden nie exportiert. In einem Kanal öffnet das Register-Symbol in der Kopfzeile (oder **Im Kanalregister bearbeiten** im Kanal-Infobereich) den Eintrag dieses Kanals direkt im Bearbeitungsmodus; fehlt er, wird er zuerst hinzugefügt.
 
 ### Kanalfinder
 
 **Kanalfinder anzeigen** öffnet einen Bereich, der versucht, die Namen von Kanälen zu finden, für die du keinen Schlüssel hast, mit Wortlisten und Brute Force auf deiner GPU. Das braucht einen Browser mit WebGPU (zum Beispiel Chrome oder Edge ab Version 113) und HTTPS, wenn du nicht auf `localhost` arbeitest. Gefundene Kanäle können gespeicherte Pakete entschlüsseln.
+
+### Wissensdatenbank
+
+Deine eigene Liste nützlicher Links, nach Kategorie gruppiert. **Link hinzufügen** legt einen neuen an; das X entfernt einen Link aus der Wissensdatenbank, lässt ihn aber unter Einstellungen > Praktische Infos > Links stehen. Dort nimmt das Buch-Symbol bei jedem Link (eingebaut oder eigen) ihn in die Wissensdatenbank auf oder entfernt ihn.
 
 ### Benutzerhandbuch
 
@@ -345,7 +349,7 @@ Datenbankübersicht, Speicherbereinigung, **Datenaufbewahrung**, Sicherung und W
 
 ### Praktische Infos
 
-**Einrichten** listet externe Knoten-Analyzer und Synchronisationsquellen auf. Die Namensauflösung über einen Analyzer sendet pro Abfrage nur einen öffentlichen Schlüssel, und nur, wenn du auf eine Schaltfläche drückst. **Links** enthält nützliche Nachschlageseiten.
+**Einrichten** listet externe Knoten-Analyzer und Synchronisationsquellen auf. Die Namensauflösung über einen Analyzer sendet pro Abfrage nur einen öffentlichen Schlüssel, und nur, wenn du auf eine Schaltfläche drückst. **Links** enthält nützliche Nachschlageseiten; mit dem Buch-Symbol bei einem Link erscheint er unter Werkzeuge > Wissensdatenbank.
 
 ### Über
 

@@ -8,6 +8,7 @@ import {
   ChartNetwork,
   Activity,
   BookOpen,
+  BookMarked,
   CheckCheck,
   ChevronDown,
   ChevronRight,
@@ -542,7 +543,8 @@ export function Sidebar({
       | 'mesh-discovery'
       | 'analyze'
       | 'packet-history'
-      | 'manual',
+      | 'manual'
+      | 'knowledge-base',
     id: string
   ) => activeConversation?.type === type && activeConversation?.id === id;
 
@@ -1505,6 +1507,20 @@ export function Sidebar({
             }),
           iconOnly,
         });
+      case 'knowledge-base':
+        return renderSidebarActionRow({
+          key: 'tool-knowledge-base',
+          active: isActive('knowledge-base', 'knowledge-base'),
+          icon: <BookMarked className="h-4 w-4" />,
+          label: t('nav_knowledge_base'),
+          onClick: () =>
+            handleSelectConversation({
+              type: 'knowledge-base',
+              id: 'knowledge-base',
+              name: t('nav_knowledge_base'),
+            }),
+          iconOnly,
+        });
       case 'manual':
         return renderSidebarActionRow({
           key: 'tool-manual',
@@ -1935,6 +1951,7 @@ export function Sidebar({
     search: t('nav_message_search'),
     'channel-registry': 'Channel Registry',
     cracker: t('nav_show_channel_finder'),
+    'knowledge-base': t('nav_knowledge_base'),
     manual: t('nav_user_guide'),
   };
   const favoriteGroupLabels: Record<FavoriteGroupKey, string> = {

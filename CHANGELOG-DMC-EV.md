@@ -11,6 +11,25 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-30 (Registry edit shortcut + Knowledge base, feat/registry-edit-knowledge-base)
+
+### Channels: edit in Channel Registry
+- New **Edit in Channel Registry** action in the channel header (registry icon)
+  and in the channel info panel. It opens Tools > Channel Registry with that
+  channel's edit dialog already open; a channel missing from the registry is
+  added first. The registry itself stays browser-local.
+
+### Tools: Knowledge base
+- New **Tools > Knowledge base** view: your own handy links, grouped by the
+  Handy Info categories. **Add link** creates a custom link that is shown there;
+  removing a link only takes it out of the Knowledge base (it stays in Handy
+  Info).
+- Settings > Handy Info > Links: a book icon on every link (built-in or custom)
+  adds it to or removes it from the Knowledge base.
+- Stored as a `kb` flag in the existing `handy_info` settings overlay (built-in
+  override or custom entry; links only). No migration. Editing a link keeps
+  its flag.
+
 ## Update 2026-09-30 (Power source: DTIS nodes + per-contact override, power-source-contact-override)
 
 ### Contacts: power source override

@@ -516,6 +516,55 @@ class TestUpdateSettings:
         assert fresh.handy_info == result.handy_info
 
     @pytest.mark.asyncio
+    async def test_handy_info_knowledge_base_flag_round_trip(self, test_db):
+        overlay = HandyInfoSettings(
+            overrides={"link-meshwiki": HandyInfoOverride(kb=True)},
+            custom=[
+                HandyInfoCustomEntry(
+                    id="c1",
+                    group="links",
+                    category="tools",
+                    label="KB link",
+                    url="https://example.com/kb",
+                    kb=True,
+                ),
+                HandyInfoCustomEntry(
+                    id="c2",
+                    group="links",
+                    category="fun",
+                    label="Plain link",
+                    url="https://example.com/plain",
+                ),
+            ],
+        )
+        result = await update_settings(AppSettingsUpdate(handy_info=overlay))
+        assert result.handy_info.overrides["link-meshwiki"].kb is True
+        assert result.handy_info.overrides["link-meshwiki"].hidden is False
+        assert result.handy_info.custom[0].kb is True
+        assert result.handy_info.custom[1].kb is False
+
+        fresh = await AppSettingsRepository.get()
+        assert fresh.handy_info == result.handy_info
+
+    @pytest.mark.asyncio
+    async def test_handy_info_rejects_knowledge_base_flag_on_non_link(self, test_db):
+        overlay = HandyInfoSettings(
+            custom=[
+                HandyInfoCustomEntry(
+                    id="s1",
+                    group="sync",
+                    label="bad",
+                    url="https://example.com/api",
+                    apply_kind="region_sync",
+                    kb=True,
+                )
+            ],
+        )
+        with pytest.raises(HTTPException) as exc:
+            await update_settings(AppSettingsUpdate(handy_info=overlay))
+        assert exc.value.status_code == 400
+
+    @pytest.mark.asyncio
     async def test_handy_info_custom_analyzer_round_trip(self, test_db):
         overlay = HandyInfoSettings(
             custom=[

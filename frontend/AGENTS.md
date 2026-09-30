@@ -135,6 +135,7 @@ frontend/src/
 │   ├── RawPacketFeedView.tsx   # Live raw packet feed (list + filters + inspector); stats moved to Mesh Trends
 │   ├── RawPacketDetailModal.tsx # On-demand packet inspector dialog + RawPacketPasteInspector (shared paste-hex body)
 │   ├── MeshTrendsView.tsx      # Tools view: Live / Historical tabs (consolidated stats)
+│   ├── KnowledgeBaseView.tsx   # Tools view "Knowledge base" (#knowledge-base): Handy Info links with `kb` set, grouped by category; add = flagged custom link, remove = unflag (handy_info overlay)
 │   ├── ManualView.tsx          # Tools view "User Guide" (#manual): renders content/manual/{en,nl,de}.md for the active locale (EN fallback) with a section TOC; TOC scrolls in-pane and never changes the hash
 │   ├── PacketFeedStatsPanel.tsx # Live tab: session packet-stat breakdowns (reads rawPacketStore)
 │   ├── MeshTrendsHistoricalPanel.tsx # Historical tab: server-backed stats (GET /api/statistics)
@@ -438,6 +439,8 @@ Supported routes:
 - `#contact/{publicKey}/{label}`
 - `#link/{pubkeyA}/{pubkeyB}` - link detail page (`LinkDetailView`); conversation type `link` with id `a~b`
 - `#manual` - User Guide (`ManualView`); conversation type `manual`
+- `#knowledge-base` - Knowledge base (`KnowledgeBaseView`); conversation type `knowledge-base`
+- `#channel-registry` never carries an edit target: the channel header / info panel shortcut navigates with `Conversation.registryEditKey`, which `ChannelRegistryView` (`editChannelKey`) uses once to open that channel's edit modal (seeding the entry if missing)
 
 Where `{section}` is one of `radio`, `local`, `radio-app`, `database`, `fanout`, `openhop`, `handy-info`, or `about`.
 

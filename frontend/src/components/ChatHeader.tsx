@@ -5,6 +5,7 @@ import {
   ChevronsLeftRight,
   Globe2,
   Info,
+  Library,
   MapPin,
   Route,
   Star,
@@ -59,6 +60,8 @@ interface ChatHeaderProps {
   onOpenContactInfo?: (publicKey: string) => void;
   onOpenChannelInfo?: (channelKey: string) => void;
   onInsertLocation?: (lat: number, lon: number, label: string) => void;
+  /** Open this channel's Channel Registry entry in edit mode. */
+  onEditInRegistry?: (channelKey: string) => void;
 }
 
 export function ChatHeader({
@@ -92,6 +95,7 @@ export function ChatHeader({
   onOpenContactInfo,
   onOpenChannelInfo,
   onInsertLocation,
+  onEditInRegistry,
 }: ChatHeaderProps) {
   const t = useT();
   const [showKey, setShowKey] = useState(false);
@@ -669,6 +673,17 @@ export function ChatHeader({
               )}
             </div>
           )}
+        {conversation.type === 'channel' && onEditInRegistry && (
+          <button
+            type="button"
+            className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={() => onEditInRegistry(conversation.id)}
+            title={t('channel_edit_in_registry')}
+            aria-label={t('channel_edit_in_registry')}
+          >
+            <Library className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          </button>
+        )}
         {(conversation.type === 'channel' || conversation.type === 'contact') && (
           <button
             className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
