@@ -11,6 +11,24 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-30 (Power source: DTIS nodes + per-contact override, power-source-contact-override)
+
+### Contacts: power source override
+- New **Power source** dropdown in the contact info annotations (next to
+  Battery chemistry): Auto (shows what the name gives) / Mains / Battery /
+  Solar / Solar + battery / Unknown. Stored in `contacts.power_source`
+  (migration `_126`, nullable, NULL = auto) via
+  `POST /api/contacts/{key}/annotations`; 422 on any other value.
+- Precedence (`resolvePowerSource` in `frontend/src/utils/powerSource.ts`):
+  manual override, then DTIS name prefix, then the power icons in the name.
+  Used by the map Power source filter and the Mesh Health Power Outage tab.
+
+### Power source detection: DTIS nodes
+- Nodes whose name starts with `DTIS |` (case-insensitive) run on a P1 Pro with
+  solar and are classified as **Solar + battery**, over any icon in the name.
+- Unknown keeps its own label and still counts as going dark, like Mains.
+  Help text and User Guide (EN/NL/DE) updated.
+
 ## Update 2026-09-30 (Host repeater DMC filter + MQTT sync with dmc-observer-dev, feat/host-repeater-dmc-filter-sync)
 
 ### Host repeater: DMC packet filter

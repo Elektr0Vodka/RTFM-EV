@@ -51,6 +51,12 @@ import { toast } from './ui/sonner';
 import { useDistanceUnit } from '../contexts/DistanceUnitContext';
 import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
 import { createContactGroup, toggleGroupMember } from '../utils/sidebarLayout';
+import {
+  classifyPowerSource,
+  POWER_SOURCE_LABEL_KEY,
+  POWER_SOURCE_OVERRIDES,
+  powerSourceFromOverride,
+} from '../utils/powerSource';
 import { CONTACT_TYPE_REPEATER } from '../types';
 import type {
   AnalyzerSite,
@@ -64,6 +70,7 @@ import type {
   ContactLocationHistoryEntry,
   LppSensor,
   PartialNodeResolution,
+  PowerSourceOverride,
   RadioConfig,
   TelemetryHistoryEntry,
   TelemetryLppSensor,
@@ -1291,6 +1298,7 @@ function ContactAnnotations({
     contact.manual_lon != null ? String(contact.manual_lon) : ''
   );
   const [batteryChemistry, setBatteryChemistry] = useState(contact.battery_chemistry ?? '');
+  const [powerSource, setPowerSource] = useState(contact.power_source ?? '');
 
   // Re-seed local state when the pane switches contact or the row updates over WS.
   useEffect(() => {
@@ -1300,6 +1308,7 @@ function ContactAnnotations({
     setManualLat(contact.manual_lat != null ? String(contact.manual_lat) : '');
     setManualLon(contact.manual_lon != null ? String(contact.manual_lon) : '');
     setBatteryChemistry(contact.battery_chemistry ?? '');
+    setPowerSource(contact.power_source ?? '');
   }, [
     contact.public_key,
     contact.notes,
@@ -1308,6 +1317,7 @@ function ContactAnnotations({
     contact.manual_lat,
     contact.manual_lon,
     contact.battery_chemistry,
+    contact.power_source,
   ]);
 
   const ownerContact = ownerKey ? (contacts.find((c) => c.public_key === ownerKey) ?? null) : null;
@@ -1523,6 +1533,40 @@ function ContactAnnotations({
         </select>
         <p className="text-xs text-muted-foreground mt-1">
           {t('contact_battery_chemistry_description')}
+        </p>
+      </div>
+
+      {/* Power source override (null = auto, detected from the name) */}
+      <div>
+        <label
+          htmlFor={`power-source-${contact.public_key}`}
+          className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium block mb-1"
+        >
+          {t('contact_power_source_label')}
+        </label>
+        <select
+          id={`power-source-${contact.public_key}`}
+          className="w-full text-sm rounded border border-border bg-background p-2"
+          value={powerSource}
+          onChange={(e) => {
+            const value = e.target.value as '' | PowerSourceOverride;
+            setPowerSource(value);
+            save({ power_source: value === '' ? null : value });
+          }}
+        >
+          <option value="">
+            {t('contact_power_source_auto', {
+              source: t(POWER_SOURCE_LABEL_KEY[classifyPowerSource(contact.name)]),
+            })}
+          </option>
+          {POWER_SOURCE_OVERRIDES.map((value) => (
+            <option key={value} value={value}>
+              {t(POWER_SOURCE_LABEL_KEY[powerSourceFromOverride(value) ?? 'Unknown'])}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-muted-foreground mt-1">
+          {t('contact_power_source_description')}
         </p>
       </div>
     </div>

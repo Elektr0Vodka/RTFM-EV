@@ -213,6 +213,7 @@ class ContactRepository:
             battery_chemistry=(
                 row["battery_chemistry"] if "battery_chemistry" in available_columns else None
             ),
+            power_source=row["power_source"] if "power_source" in available_columns else None,
         )
 
     @staticmethod
@@ -487,6 +488,7 @@ class ContactRepository:
         "manual_lat",
         "manual_lon",
         "battery_chemistry",
+        "power_source",
     )
 
     @staticmethod

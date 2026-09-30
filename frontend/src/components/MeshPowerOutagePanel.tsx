@@ -1,8 +1,9 @@
 /**
  * MeshPowerOutagePanel.tsx
  *
- * The "Power Outage" view of the Mesh Health page. Classifies each node by the
- * power icon in its name (see utils/powerSource.ts) and shows which nodes would
+ * The "Power Outage" view of the Mesh Health page. Classifies each node by its
+ * power source (manual contact override, else DTIS prefix or power icon in the
+ * name; see utils/powerSource.ts) and shows which nodes would
  * stay online when the grid goes down: Battery, Solar and Solar+battery nodes
  * survive, Mains and Unknown go dark. Surviving nodes are grouped into islands
  * (connected over advert-path links between two surviving nodes) so it is
@@ -22,8 +23,8 @@ import { CONTACT_TYPE_REPEATER, CONTACT_TYPE_ROOM } from '../types';
 import {
   POWER_SOURCES,
   POWER_SOURCE_LABEL_KEY,
-  classifyPowerSource,
   survivesOutage,
+  resolvePowerSource,
   type PowerSource,
 } from '../utils/powerSource';
 import { computeResilience } from '../utils/powerResilience';
@@ -148,7 +149,7 @@ export function MeshPowerOutagePanel({
       .map((c) => ({
         contact: c,
         key: c.public_key.toLowerCase(),
-        power: classifyPowerSource(c.name),
+        power: resolvePowerSource(c),
       }));
     // refreshKey re-evaluates the heard cutoff against the current time.
     // eslint-disable-next-line react-hooks/exhaustive-deps

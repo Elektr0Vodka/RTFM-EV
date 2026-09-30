@@ -136,6 +136,8 @@ class Contact(BaseModel):
     telemetry_perms: int | None = None
     # Per-node battery chemistry override; None = use the global app_settings default.
     battery_chemistry: Literal["lipo", "lifepo4", "lipo_hv", "nmc"] | None = None
+    # Per-node power source override; None = auto (frontend detects it from the name).
+    power_source: Literal["mains", "battery", "solar", "solar_battery", "unknown"] | None = None
     last_contacted: int | None = None  # Last time we sent/received a message
     last_read_at: int | None = None  # Server-side read state tracking
     first_seen: int | None = None
@@ -312,6 +314,10 @@ class ContactAnnotationsUpdate(BaseModel):
     battery_chemistry: Literal["lipo", "lifepo4", "lipo_hv", "nmc"] | None = Field(
         default=None,
         description="Per-node battery chemistry override; null uses the global default",
+    )
+    power_source: Literal["mains", "battery", "solar", "solar_battery", "unknown"] | None = Field(
+        default=None,
+        description="Per-node power source override; null detects it from the node name",
     )
 
 

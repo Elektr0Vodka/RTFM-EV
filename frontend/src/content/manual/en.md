@@ -165,7 +165,7 @@ Click an avatar or name to open a contact's info. On desktop it is a full page i
 - **Message routes (scored):** the routes your direct messages used, ranked by delivery and speed. Display only.
 - **Positions** over time, **Recent Advert Paths**, and the nearest repeaters by hops and by distance.
 - **Also Known As** when a contact has used several names.
-- Notes, owner info, a manual fallback location and a battery chemistry override, all saved on the server.
+- Notes, owner info, a manual fallback location, a battery chemistry override and a power source override (Auto detects it from the name), all saved on the server.
 - **Radio residency:** Auto, Pin (always keep on the radio) or App only (never put on the radio).
 - **Telemetry sharing:** what your radio shares when this contact asks for telemetry.
 - **Contact link:** show or copy a `meshcore://` link.
@@ -211,7 +211,7 @@ The map controls are grouped under **Display**, **Size & colors**, **Filters** a
 
 - **Display:** basemap (Nova dark, OpenFreeMap, OpenStreetMap, OpenTopoMap and Esri layers), 2D or 3D with tilt and 3D buildings, labels (off, name or ID tag) and a legend. Fullscreen and **Export GPX** (the nodes currently shown, as waypoints) are also here.
 - **Size & colors:** node size, equal node sizes, neon nodes and a color per node role.
-- **Filters:** **Since** (a preset or custom time range), **Heard by server** (all, hide never-heard, or only never-heard), **Node roles**, **Power source** (by the power icon in the node name: ⚡/🔌 mains, 🔋 battery, ☀️/🌞/🔆 or the word "solar" for solar, both for solar + battery, no icon is Unknown), **Analyzer nodes** and **Hide nodes reporting wrong location** (at 0,0 or more than 300 km from the nearest node that heard them).
+- **Filters:** **Since** (a preset or custom time range), **Heard by server** (all, hide never-heard, or only never-heard), **Node roles**, **Power source** (the override set on the contact, else the power icon in the node name: ⚡/🔌 mains, 🔋 battery, ☀️/🌞/🔆 or the word "solar" for solar, both for solar + battery, no icon is Unknown; nodes named "DTIS | ..." are solar + battery), **Analyzer nodes** and **Hide nodes reporting wrong location** (at 0,0 or more than 300 km from the nearest node that heard them).
 
 **Overlays** are off until you turn them on, and are remembered per browser:
 
@@ -250,7 +250,7 @@ The battery, noise floor and airtime charts show the current radio plus the hist
 - **Requests:** request and response traffic this node has heard.
 - **Prefix Collisions:** contacts that share a 1, 2 or 3 byte public key prefix. Shared prefixes make hops ambiguous.
 - **Relay reception:** for flooded packets heard more than once, which relay delivered each copy and with what signal. The totals and the per-relay table cover the whole window, with no row limit. The per-relay table also shows how often a relay's copy arrived first and how many packets you heard only through it. Expand a relay (the arrow before its name) for its activity and signal over time, packet types, hop counts and recent copies. The per-packet table pages through stored copies; pick the rows per page below it. Stored copies are kept 2 days by default; before that they are folded into an hourly per-relay history (kept 365 days by default, **Relay history, hourly** under Data retention), so windows longer than the stored copies still show per-relay totals and charts.
-- **Power Outage:** which nodes would stay online when the grid goes down, based on the power icon in each node name. Battery and solar nodes stay online; mains and unknown nodes go dark. Shows the share that survives, the power source mix, and the islands the surviving nodes form over heard advert-path links (only between nodes with a location), so you can see where the mesh would split. Choose repeaters + rooms or all nodes, and how recently they were heard.
+- **Power Outage:** which nodes would stay online when the grid goes down, based on each node's power source (the contact override, else the power icon in the name; DTIS nodes are solar + battery). Battery and solar nodes stay online; mains and unknown nodes go dark (unknown counts as mains). Shows the share that survives, the power source mix, and the islands the surviving nodes form over heard advert-path links (only between nodes with a location), so you can see where the mesh would split. Choose repeaters + rooms or all nodes, and how recently they were heard.
 
 ### Mesh Trends
 
