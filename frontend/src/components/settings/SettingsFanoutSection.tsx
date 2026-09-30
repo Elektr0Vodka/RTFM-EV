@@ -78,6 +78,9 @@ function createCommunityConfigDefaults(
     publish_status: true,
     publish_packets: true,
     publish_config: false,
+    publish_filter: false,
+    publish_own_neighbors: false,
+    filter_interval_ms: 60000,
     status_interval_ms: 300000,
     ...overrides,
   };
@@ -378,6 +381,13 @@ function normalizeIntegrationConfigForSave(
     normalized.publish_status = normalized.publish_status !== false;
     normalized.publish_packets = normalized.publish_packets !== false;
     normalized.publish_config = normalized.publish_config === true;
+    normalized.publish_filter = normalized.publish_filter === true;
+    normalized.publish_own_neighbors = normalized.publish_own_neighbors === true;
+    const filterInterval = Number(normalized.filter_interval_ms);
+    normalized.filter_interval_ms =
+      Number.isInteger(filterInterval) && filterInterval >= 60000 && filterInterval <= 600000
+        ? filterInterval
+        : 60000;
     const interval =
       typeof normalized.status_interval_ms === 'string'
         ? Number.parseInt(normalized.status_interval_ms, 10)
@@ -1473,6 +1483,11 @@ function CommunityTopicControls({
     if (!Number.isFinite(ms) || ms <= 0) return 5;
     return Math.round(ms / 60000);
   })();
+  const filterIntervalSeconds = (() => {
+    const ms = Number(config.filter_interval_ms);
+    if (!Number.isFinite(ms) || ms <= 0) return 60;
+    return Math.round(ms / 1000);
+  })();
 
   return (
     <div className="space-y-2">
@@ -1505,6 +1520,48 @@ function CommunityTopicControls({
         <span className="text-sm">{t('settings_fanout_publish_config')}</span>
       </label>
       <p className="text-xs text-muted-foreground">{t('settings_fanout_publish_config_desc')}</p>
+      <label className="flex items-center gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={config.publish_filter === true}
+          onChange={(e) => onChange({ ...config, publish_filter: e.target.checked })}
+          className="h-4 w-4 rounded border-border"
+        />
+        <span className="text-sm">{t('settings_fanout_publish_filter')}</span>
+      </label>
+      <p className="text-xs text-muted-foreground">{t('settings_fanout_publish_filter_desc')}</p>
+      {config.publish_filter === true && (
+        <div className="space-y-2">
+          <Label htmlFor="fanout-comm-filter-interval">
+            {t('settings_fanout_filter_interval_sec')}
+          </Label>
+          <Input
+            id="fanout-comm-filter-interval"
+            type="number"
+            min="60"
+            max="600"
+            className="w-32"
+            value={filterIntervalSeconds}
+            onChange={(e) => {
+              const s = Number.parseInt(e.target.value, 10);
+              const clamped = Number.isNaN(s) ? 60 : Math.min(600, Math.max(60, s));
+              onChange({ ...config, filter_interval_ms: clamped * 1000 });
+            }}
+          />
+        </div>
+      )}
+      <label className="flex items-center gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={config.publish_own_neighbors === true}
+          onChange={(e) => onChange({ ...config, publish_own_neighbors: e.target.checked })}
+          className="h-4 w-4 rounded border-border"
+        />
+        <span className="text-sm">{t('settings_fanout_publish_own_neighbors')}</span>
+      </label>
+      <p className="text-xs text-muted-foreground">
+        {t('settings_fanout_publish_own_neighbors_desc')}
+      </p>
       <div className="space-y-2">
         <Label htmlFor="fanout-comm-interval">{t('settings_fanout_status_interval_min')}</Label>
         <Input

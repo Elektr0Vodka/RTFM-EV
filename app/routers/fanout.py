@@ -189,6 +189,19 @@ def _validate_mqtt_community_config(config: dict) -> None:
     config["publish_regions"] = bool(config.get("publish_regions", False))
     # DMC ``config`` topic (node config snapshot): opt-in like the firmware's ``set mqtt.config 1``.
     config["publish_config"] = bool(config.get("publish_config", False))
+    # DMC observer ``filter`` topic and this node's own ``neighbors`` topic, fed by the
+    # host repeater: opt-in, and only published while the host repeater is active.
+    config["publish_filter"] = bool(config.get("publish_filter", False))
+    config["publish_own_neighbors"] = bool(config.get("publish_own_neighbors", False))
+    filter_interval = config.get("filter_interval_ms", 60000)
+    if (
+        not isinstance(filter_interval, int)
+        or isinstance(filter_interval, bool)
+        or filter_interval < 60000
+        or filter_interval > 600000
+    ):
+        filter_interval = 60000
+    config["filter_interval_ms"] = filter_interval
 
     interval = config.get("status_interval_ms", 300000)
     if (

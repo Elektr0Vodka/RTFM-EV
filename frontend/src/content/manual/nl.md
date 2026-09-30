@@ -317,7 +317,7 @@ Open Instellingen met de knop in de bovenbalk. Op een telefoon klapt elke sectie
 
 ### Host-repeater
 
-RTFM-EV kan elk ontvangen pakket beoordelen zoals een repeater dat zou doen. **Schaduwmodus** telt wat doorgestuurd of weggegooid zou worden en verstuurt nooit iets. Regiofilters, een zendtijdbudget, timing en beleidsregels zijn instelbaar, met live statistieken. Live herhalen (gewapende modus) vereist de serverinstelling `MESHCORE_HOST_REPEATER_ENABLED=true`, ondersteunde firmware, een toegestane frequentieband en een uitdrukkelijke bevestiging. **Ontwapenen (noodstop)** stopt het, en na een herstart is hij altijd ontwapend. Zorg dat je op jouw locatie een repeater mag gebruiken.
+RTFM-EV kan elk ontvangen pakket beoordelen zoals een repeater dat zou doen. **Schaduwmodus** telt wat doorgestuurd of weggegooid zou worden en stuurt nooit iets door. Regiofilters, een zendtijdbudget, timing en beleidsregels zijn instelbaar, met live statistieken. Live herhalen (gewapende modus) vereist de serverinstelling `MESHCORE_HOST_REPEATER_ENABLED=true`, ondersteunde firmware, een toegestane frequentieband en een uitdrukkelijke bevestiging. **Ontwapenen (noodstop)** stopt het, en na een herstart is hij altijd ontwapend. Zorg dat je op jouw locatie een repeater mag gebruiken. Het **DMC-pakketfilter** volgt de DMC-observerfirmware: hop- en snelheidslimieten, geblokkeerde kanalen en padprefixen, afzender- en tekstregels, een advertvenster per node, een maximale berichtleeftijd en een **Dry-run**-schakelaar die alleen telt. Het optionele **Buren opvragen** zendt uit: elke 12-336 uur stuurt het één zero-hop discover en vraagt het elke naburige repeater naar zijn regio’s.
 
 ### Lokale configuratie
 

@@ -317,7 +317,7 @@ Diese Seite. Öffne sie unter Werkzeuge oder über die Adresse `#manual`. Sie fo
 
 ### Host-Repeater
 
-RTFM-EV kann jedes empfangene Paket so beurteilen, wie ein Repeater es tun würde. Der **Schattenmodus** zählt, was weitergeleitet oder verworfen würde, und sendet nie. Regionsfilter, ein Sendezeitbudget, Timing und Richtlinienregeln sind einstellbar, mit Live-Statistiken. Live-Wiederholen (scharfer Modus) braucht die Servereinstellung `MESHCORE_HOST_REPEATER_ENABLED=true`, unterstützte Firmware, ein zulässiges Frequenzband und eine ausdrückliche Bestätigung. **Entschärfen (Notaus)** stoppt es, und nach einem Neustart ist er immer entschärft. Stelle sicher, dass du an deinem Standort einen Repeater betreiben darfst.
+RTFM-EV kann jedes empfangene Paket so beurteilen, wie ein Repeater es tun würde. Der **Schattenmodus** zählt, was weitergeleitet oder verworfen würde, und leitet nie etwas weiter. Regionsfilter, ein Sendezeitbudget, Timing und Richtlinienregeln sind einstellbar, mit Live-Statistiken. Live-Wiederholen (scharfer Modus) braucht die Servereinstellung `MESHCORE_HOST_REPEATER_ENABLED=true`, unterstützte Firmware, ein zulässiges Frequenzband und eine ausdrückliche Bestätigung. **Entschärfen (Notaus)** stoppt es, und nach einem Neustart ist er immer entschärft. Stelle sicher, dass du an deinem Standort einen Repeater betreiben darfst. Der **DMC-Paketfilter** folgt der DMC-Observer-Firmware: Hop- und Ratenlimits, blockierte Kanäle und Pfad-Präfixe, Absender- und Textregeln, ein Advert-Fenster pro Node, ein maximales Nachrichtenalter und ein **Probelauf**-Schalter, der nur zählt. Die optionale **Nachbarabfrage** sendet: alle 12-336 Stunden ein Zero-Hop-Discover und eine Regionsanfrage an jeden benachbarten Repeater.
 
 ### Lokale Konfiguration
 

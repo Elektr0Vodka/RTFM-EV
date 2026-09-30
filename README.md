@@ -314,10 +314,13 @@ Detection is automatic from the radio's device info; each control disables itsel
 
 RTFM-EV can judge every packet its radio receives the way a repeater would: MeshCore forwarding rules, `flood.max`, region and loop settings, the DMC packet filter, DMC duty-cycle region gating, OpenHop-style policy rules (modelled on the [jhuebert/MeshCore](https://github.com/jhuebert/MeshCore) repeater filter) and an advert limiter. Configure it under **Settings > Host repeater**.
 
-- **Shadow mode** shows what would be forwarded or dropped, host latency and the airtime forwards would use. It never transmits.
+- **Shadow mode** shows what would be forwarded or dropped, host latency and the airtime forwards would use. It never forwards; only the opt-in neighbour poll (below) transmits.
 - **Armed mode** forwards for real. It needs all of: `MESHCORE_HOST_REPEATER_ENABLED=true`, the admin switch in Settings, a non-OpenHop radio with firmware raw send (companion v1.16+), firmware client repeat off, an EU sub-band whose duty-cycle limit meets the configured minimum, and a confirmation in the browser.
 - It disarms itself when the radio disconnects (opt-in re-arm on reconnect), when firmware client repeat is found on, when the radio's frequency, modulation or identity changes, when raw sends keep failing, when measured TX airtime over the last hour exceeds the sub-band limit, or when the forward queue is stuck. **Disarm** in Settings and `POST /api/radio/host-repeater/disarm` are the kill switch; it always starts disarmed after a restart, and a **Repeating** badge shows in the top bar while armed.
 - It forwards on the main mesh frequency, like an OpenHop repeater. Make sure you are allowed to operate a repeater where you are.
+- The DMC packet filter follows the `dmc-observer-dev` firmware: hop and rate limits (with soft cutoff), minimum path hash size, blocked channels, the malformed scan, a per-node advert window, blocked path prefixes, sender and text rules (block, throttle or a share of matches) on Public and watched `#` channels, a message age limit, and a dry-run mode that counts drops without dropping.
+- **Neighbour poll** (opt-in, transmits): every 12-336 hours it sends one zero-hop repeater discover and asks each neighbour for its flood regions, like a DMC observer repeater. The neighbours table also fills from zero-hop repeater adverts.
+- With the community MQTT integration, the host repeater can publish the DMC observer `filter` topic (filter counters and region gate state) and this node's own `neighbors` topic. Both are opt-in per integration and only publish while the host repeater is in shadow or armed mode; shadow counters are marked `dryrun`.
 
 ## Documentation
 

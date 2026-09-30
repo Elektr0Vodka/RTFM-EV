@@ -949,6 +949,9 @@ describe('SettingsFanoutSection', () => {
           publish_status: true,
           publish_packets: true,
           publish_config: false,
+          publish_filter: false,
+          publish_own_neighbors: false,
+          filter_interval_ms: 60000,
           status_interval_ms: 300000,
         },
         scope: { messages: 'none', raw_packets: 'all' },
@@ -1715,6 +1718,49 @@ describe('SettingsFanoutSection', () => {
             publish_packets: false,
             publish_config: true,
             status_interval_ms: 600000,
+          }),
+        })
+      )
+    );
+  });
+
+  it('community filter and own-neighbour topics are opt-in with a filter interval', async () => {
+    const created: FanoutConfig = {
+      id: 'comm-filter',
+      type: 'mqtt_community',
+      name: 'DMC-1',
+      enabled: true,
+      config: {},
+      scope: { messages: 'none', raw_packets: 'all' },
+      sort_order: 0,
+      created_at: 4000,
+    };
+    mockedApi.createFanoutConfig.mockResolvedValue(created);
+    mockedApi.getFanoutConfigs.mockResolvedValueOnce([]).mockResolvedValueOnce([created]);
+
+    renderSection();
+    await createCommunityPreset('dutchmeshcore-1');
+
+    fireEvent.change(screen.getByLabelText(/Owner Email/), {
+      target: { value: 'user@example.com' },
+    });
+    fireEvent.change(screen.getByLabelText('Region Code (IATA)'), { target: { value: 'ams' } });
+    // The interval input only shows once the filter topic is switched on.
+    expect(screen.queryByLabelText('Filter interval (seconds, 60-600)')).toBeNull();
+    fireEvent.click(screen.getByText('Publish filter statistics (filter topic)'));
+    fireEvent.change(screen.getByLabelText('Filter interval (seconds, 60-600)'), {
+      target: { value: '900' }, // clamped to 600
+    });
+    fireEvent.click(screen.getByText('Publish own neighbours (neighbors topic)'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save as Enabled' }));
+
+    await waitFor(() =>
+      expect(mockedApi.createFanoutConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            publish_filter: true,
+            publish_own_neighbors: true,
+            filter_interval_ms: 600000,
           }),
         })
       )

@@ -11,8 +11,11 @@ Where the defaults come from:
   (``openhop_repeater/repeater/engine.py``, ``airtime.py``).
 - ``flood_max*`` and ``loop_detect`` follow the stock repeater firmware
   (MeshCore ``examples/simple_repeater/MyMesh.cpp``, ``src/helpers/RoutingPolicy.h``).
-- The ``filter_*`` block ports the DMC ``dmc-dev`` repeater RF packet filter
-  (``examples/simple_repeater/Filter.{h,cpp}``, ``Limiter.h``).
+- The ``filter_*`` block ports the DMC ``dmc-observer-dev`` repeater RF packet filter
+  (``examples/simple_repeater/Filter.{h,cpp}``, ``Limiter.h``, ``AdvertLimiter.h``,
+  ``PathBlock.h``, ``SenderRules.h``, ``MessageAge.h``).
+- ``neighbor_poll_*`` follows the DMC observer's periodic neighbours table
+  (``MyMesh::sendNodeDiscoverReq`` / ``startNeighborDiscover``, 12-336 h, default 24 h).
 - ``policy`` uses the OpenHop policy-engine rule format (``repeater/policy_engine.py``).
 - ``regions``, ``home_region`` and ``dc_gate*`` follow the DMC ``dmc-dev`` repeater
   region map and duty-cycle region gating (``src/helpers/RegionMap.{h,cpp}``,
@@ -103,10 +106,18 @@ POLICY_OBJECT_GROUPS: tuple[str, ...] = ("channel_hash_groups", "pubkey_groups")
 MAX_POLICY_RULES = 100
 MAX_CONDITION_DEPTH = 4
 MAX_FILTER_CHANNELS = 16  # DMC FILTER_CHANNEL_COUNT
+MAX_FILTER_PATHS = 8  # DMC FILTER_PATH_COUNT
+MAX_FILTER_RULES = 8  # DMC FILTER_RULE_COUNT (sender rules, and separately text rules)
+MAX_FILTER_WATCH = 4  # DMC FILTER_WATCH_COUNT
+MAX_SENDER_PATTERN = 15  # SenderRule name[16] incl. NUL
+MAX_TEXT_PATTERN = 23  # TextRule text[24] incl. NUL
+MAX_ADVERT_WINDOW_HOURS = 720  # ADVERT_MAX_HOURS
+MAX_AGE_MINUTES = 10080  # FILTER_AGE_MAX_MINS
 MAX_REGIONS = 32  # RegionMap MAX_REGION_ENTRIES
 MAX_REGION_NAME = 30  # RegionEntry name[31]
 
 _HEX_BYTE = re.compile(r"^[0-9a-f]{2}$")
+_HEX_PREFIX = re.compile(r"^(?:[0-9A-F]{2}){1,4}$")
 _OBJECT_REF = re.compile(r"^@([a-z_]+)\.(.+)$")
 
 
@@ -186,6 +197,39 @@ class BlockedChannel(BaseModel):
         if not _HEX_BYTE.match(value):
             raise ValueError("channel hash must be one byte as 2 hex characters")
         return value
+
+
+class FilterRule(BaseModel):
+    """One DMC sender or text rule (``SenderRules.h``).
+
+    ``secs`` 0 blocks every match; 1-65535 throttles (one match per window slips
+    past, the excess is dropped). ``prob`` is the share of matches the rule decides;
+    a rule that steps aside leaves the packet to the next rule.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    pattern: str = Field(min_length=1)
+    secs: int = Field(default=0, ge=0, le=65535)
+    prob: int = Field(default=100, ge=1, le=100)
+
+    @field_validator("pattern")
+    @classmethod
+    def _check_pattern(cls, value: str) -> str:
+        if not value or any(c.isspace() for c in value):
+            raise ValueError("pattern is one word without spaces")
+        return value
+
+
+def _check_rules(rules: list[FilterRule], max_len: int, kind: str) -> list[FilterRule]:
+    seen: set[str] = set()
+    for rule in rules:
+        if len(rule.pattern.encode("utf-8")) > max_len:
+            raise ValueError(f"{kind} pattern '{rule.pattern}' is longer than {max_len} bytes")
+        if rule.pattern in seen:
+            raise ValueError(f"duplicate {kind} rule '{rule.pattern}'")
+        seen.add(rule.pattern)
+    return rules
 
 
 class PolicyObjects(BaseModel):
@@ -358,6 +402,26 @@ class HostRepeaterSettings(BaseModel):
     filter_channels: list[BlockedChannel] = Field(
         default_factory=list, max_length=MAX_FILTER_CHANNELS
     )
+    # dmc-observer-dev additions. Dry-run: every filter drop is counted but the packet
+    # is still forwarded.
+    filter_dryrun: bool = False
+    # Per-origin advert window: each origin's flood advert passes at most once per N h.
+    filter_advert_hours: int = Field(default=0, ge=0, le=MAX_ADVERT_WINDOW_HOURS)
+    # Blocked path prefixes (1-4 bytes as upper-case hex), matched per path entry.
+    filter_paths: list[str] = Field(default_factory=list, max_length=MAX_FILTER_PATHS)
+    # Group-text sender / text rules, evaluated in order on Public + watched channels.
+    filter_sender_rules: list[FilterRule] = Field(default_factory=list, max_length=MAX_FILTER_RULES)
+    filter_text_rules: list[FilterRule] = Field(default_factory=list, max_length=MAX_FILTER_RULES)
+    # Hashtag channels (``#name``) the content rules and the age limit may read.
+    filter_watch: list[str] = Field(default_factory=list, max_length=MAX_FILTER_WATCH)
+    # Drop group texts stamped more than N minutes ago (0 = off).
+    filter_age_minutes: int = Field(default=0, ge=0, le=MAX_AGE_MINUTES)
+
+    # Neighbour poll (DMC observer neighbours table). TRANSMITS: one zero-hop repeater
+    # discover, then one direct anon region request per neighbour, every N hours.
+    # Opt-in; runs while the host repeater is shadow or armed.
+    neighbor_poll_enabled: bool = False
+    neighbor_poll_interval_hours: int = Field(default=24, ge=12, le=336)
 
     # Per-source advert limiter (OpenHop ``advert_rate_limit``): a token bucket per
     # advertising public key, refilled with ``advert_refill_tokens`` every
@@ -409,6 +473,47 @@ class HostRepeaterSettings(BaseModel):
         merged = default_filter_types()
         merged.update(value)
         return merged
+
+    @field_validator("filter_paths")
+    @classmethod
+    def _check_filter_paths(cls, value: list[str]) -> list[str]:
+        out: list[str] = []
+        for raw in value:
+            prefix = raw.strip().upper()
+            if not _HEX_PREFIX.match(prefix):
+                raise ValueError(f"path prefix '{raw}' must be 2-8 hex digits (1-4 bytes)")
+            if prefix in out:
+                raise ValueError(f"duplicate path prefix '{prefix}'")
+            out.append(prefix)
+        return out
+
+    @field_validator("filter_sender_rules")
+    @classmethod
+    def _check_sender_rules(cls, value: list[FilterRule]) -> list[FilterRule]:
+        return _check_rules(value, MAX_SENDER_PATTERN, "sender")
+
+    @field_validator("filter_text_rules")
+    @classmethod
+    def _check_text_rules(cls, value: list[FilterRule]) -> list[FilterRule]:
+        for rule in value:
+            if rule.pattern == "^":
+                raise ValueError("text pattern '^' needs text after it")
+        return _check_rules(value, MAX_TEXT_PATTERN, "text")
+
+    @field_validator("filter_watch")
+    @classmethod
+    def _check_filter_watch(cls, value: list[str]) -> list[str]:
+        out: list[str] = []
+        for raw in value:
+            name = raw.strip()
+            if not name.startswith("#") or len(name) < 2 or any(c.isspace() for c in name):
+                raise ValueError(f"watch channel '{raw}' must be a #name hashtag channel")
+            if len(name.encode("utf-8")) > 31:
+                raise ValueError(f"watch channel '{raw}' is longer than 31 bytes")
+            if name in out:
+                raise ValueError(f"duplicate watch channel '{name}'")
+            out.append(name)
+        return out
 
     @field_validator("home_region")
     @classmethod

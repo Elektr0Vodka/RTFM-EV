@@ -22,6 +22,141 @@ function reasonKey(reason: string): string {
     : `settings_host_repeater_reason_${reason}`;
 }
 
+/** Reason label; filter dry-run hits ("dryrun:<reason>") get a dry-run prefix. */
+function reasonLabel(t: ReturnType<typeof useT>, reason: string): string {
+  if (reason.startsWith('dryrun:')) {
+    return t('settings_host_repeater_reason_dryrun', {
+      reason: t(reasonKey(reason.slice('dryrun:'.length))),
+    });
+  }
+  return t(reasonKey(reason));
+}
+
+function FilterDetail({ stats }: { stats: HostRepeaterStats }) {
+  const t = useT();
+  const f = stats.filter;
+  if (!f || (!f.enabled && f.dryrun_hits === 0)) return null;
+  const totals = Object.entries(f.totals).filter(([, n]) => n > 0);
+  const malformed = Object.entries(f.malformed).filter(([, n]) => n > 0);
+  return (
+    <div className="grid gap-1 rounded border border-input p-2 text-sm">
+      <span className="font-semibold">
+        {t(
+          f.dryrun
+            ? 'settings_host_repeater_filter_stats_dryrun'
+            : 'settings_host_repeater_filter_stats'
+        )}
+      </span>
+      <span className="text-muted-foreground">
+        {totals.length > 0
+          ? totals.map(([k, n]) => `${k}: ${n}`).join(' | ')
+          : t('settings_host_repeater_filter_stats_none')}
+      </span>
+      <span className="text-muted-foreground">
+        {t('settings_host_repeater_filter_stats_air', { ms: Math.round(f.air_ms) })}
+      </span>
+      {malformed.length > 0 && (
+        <span className="text-muted-foreground">
+          {t('settings_host_repeater_filter_stats_malformed', {
+            list: malformed.map(([k, n]) => `${k}: ${n}`).join(', '),
+          })}
+        </span>
+      )}
+      {f.top_sources.length > 0 && (
+        <span className="text-muted-foreground">
+          {t('settings_host_repeater_filter_stats_top', {
+            list: f.top_sources.map((s) => `${s.hash}: ${s.drops}`).join(', '),
+          })}
+        </span>
+      )}
+      {f.advert.window_h > 0 && (
+        <span className="text-muted-foreground">
+          {t('settings_host_repeater_filter_stats_advert', {
+            hours: f.advert.window_h,
+            cache: f.advert.cache,
+            size: f.advert.cache_size,
+          })}
+        </span>
+      )}
+      {f.age.max_mins > 0 && !f.age.clock_set && (
+        <span className="text-warning">{t('settings_host_repeater_filter_stats_clock_unset')}</span>
+      )}
+    </div>
+  );
+}
+
+function NeighbourDetail({ stats }: { stats: HostRepeaterStats }) {
+  const t = useT();
+  const nb = stats.neighbors;
+  if (!nb || (nb.count === 0 && nb.poll.last_finished == null && nb.poll.next_due == null)) {
+    return null;
+  }
+  const when = (ts: number | null) =>
+    ts == null
+      ? '-'
+      : formatDateTime(new Date(ts * 1000), {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+  return (
+    <div className="grid gap-1 rounded border border-input p-2 text-sm">
+      <span className="font-semibold">
+        {t('settings_host_repeater_neighbors_stats', { count: nb.count })}
+      </span>
+      <span className="text-muted-foreground">
+        {nb.poll.running
+          ? t('settings_host_repeater_neighbors_polling')
+          : t('settings_host_repeater_neighbors_poll_summary', {
+              last: when(nb.poll.last_finished),
+              next: when(nb.poll.next_due),
+              discovered: nb.poll.discovered,
+              responded: nb.poll.responded,
+              queried: nb.poll.queried,
+            })}
+      </span>
+      {nb.poll.last_error && (
+        <span className="text-warning">
+          {t('settings_host_repeater_tx_last_error', { error: nb.poll.last_error })}
+        </span>
+      )}
+      {nb.neighbors.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="text-xs">
+            <thead>
+              <tr className="text-left text-muted-foreground">
+                <th className="pr-3">{t('settings_host_repeater_neighbors_col_key')}</th>
+                <th className="pr-3">{t('settings_host_repeater_neighbors_col_snr')}</th>
+                <th className="pr-3">{t('settings_host_repeater_neighbors_col_heard')}</th>
+                <th className="pr-3">{t('settings_host_repeater_neighbors_col_scopes')}</th>
+                <th className="pr-3">{t('settings_host_repeater_neighbors_col_status')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {nb.neighbors.map((n) => (
+                <tr key={n.pubkey}>
+                  <td className="pr-3 font-mono">{n.pubkey.slice(0, 12)}</td>
+                  <td className="pr-3 tabular-nums">{n.snr ?? '-'}</td>
+                  <td className="pr-3 tabular-nums">
+                    {t('settings_host_repeater_neighbors_ago', {
+                      minutes: Math.round(n.heard_secs_ago / 60),
+                    })}
+                  </td>
+                  <td className="pr-3 font-mono">{n.scopes || '-'}</td>
+                  <td className="pr-3">
+                    {t(`settings_host_repeater_neighbors_status_${n.status}`)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Percentiles({ label, p }: { label: string; p: HostRepeaterPercentiles }) {
   const t = useT();
   return (
@@ -175,6 +310,9 @@ export function HostRepeaterStatsPane({ stats, onReset }: Props) {
         )}
       </div>
 
+      <FilterDetail stats={stats} />
+      <NeighbourDetail stats={stats} />
+
       {tx && (tx.armed || tx.sent > 0 || tx.send_errors > 0) && (
         <div
           className={
@@ -273,7 +411,7 @@ export function HostRepeaterStatsPane({ stats, onReset }: Props) {
             {reasons.map(([reason, count]) => (
               <li key={reason} className="flex justify-between gap-2">
                 <span className={reason.startsWith('forward:') ? 'text-primary' : ''}>
-                  {t(reasonKey(reason))}
+                  {reasonLabel(t, reason)}
                 </span>
                 <span className="tabular-nums">{count}</span>
               </li>
