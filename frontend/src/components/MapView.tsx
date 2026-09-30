@@ -92,8 +92,8 @@ import {
 import {
   POWER_SOURCES,
   POWER_SOURCE_LABEL_KEY,
-  classifyPowerSource,
   parseHiddenPowerSources,
+  resolvePowerSource,
   serializeHiddenPowerSources,
   type PowerSource,
 } from '../utils/powerSource';
@@ -183,7 +183,7 @@ const MAP_HEARD_STORAGE_KEY = 'remoteterm-map-heard';
 // --- Node role filter (repeater / room / companion / sensor toggles) ---
 const MAP_HIDDEN_ROLES_STORAGE_KEY = 'remoteterm-map-hidden-roles';
 
-// --- Power source filter (from the power icon in the node name) ---
+// --- Power source filter (contact override, else DTIS prefix or power icon in the name) ---
 const MAP_HIDDEN_POWER_STORAGE_KEY = 'remoteterm-map-hidden-power';
 
 const MAP_NODE_SCALE_STORAGE_KEY = 'remoteterm-map-node-scale';
@@ -1125,12 +1125,13 @@ export function MapView({
     // is never silently removed by a role being switched off.
     const isRoleVisible = (c: Contact) =>
       c.public_key === focusedKey || isRoleVisibleForFilter(c.type, hiddenRoles);
-    // Power toggles hide nodes by the power icon in their name. The focused
-    // node is exempt, like the role filter.
+    // Power toggles hide nodes by their power source (manual override, else
+    // DTIS prefix or power icon in the name). The focused node is exempt, like
+    // the role filter.
     const isPowerVisible = (c: Contact) =>
       hiddenPower.size === 0 ||
       c.public_key === focusedKey ||
-      !hiddenPower.has(classifyPowerSource(c.name));
+      !hiddenPower.has(resolvePowerSource(c));
     // Project the effective location (advertised-wins, manual-fallback) onto
     // lat/lon so a node with only manual coordinates is placed and rendered by
     // the standard downstream consumers that read c.lat / c.lon.

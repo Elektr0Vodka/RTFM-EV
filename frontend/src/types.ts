@@ -301,12 +301,17 @@ export interface Contact {
   manual_lon?: number | null;
   /** Per-node battery chemistry override; null = use the global default (Settings). */
   battery_chemistry?: BatteryChemistry | null;
+  /** Per-node power source override; null = auto (detected from the name, utils/powerSource.ts). */
+  power_source?: PowerSourceOverride | null;
 }
 
 export type RadioPolicy = 'auto' | 'pinned' | 'excluded';
 
 /** Battery chemistry used to convert millivolts to a percentage (see utils/batteryDisplay.ts). */
 export type BatteryChemistry = 'lipo' | 'lifepo4' | 'lipo_hv' | 'nmc';
+
+/** Stored per-contact power source override (contacts.power_source, see utils/powerSource.ts). */
+export type PowerSourceOverride = 'mains' | 'battery' | 'solar' | 'solar_battery' | 'unknown';
 
 export interface ContactTelemetryPermissions {
   base: boolean;
@@ -338,6 +343,7 @@ export interface ContactAnnotationsUpdate {
   manual_lat?: number | null;
   manual_lon?: number | null;
   battery_chemistry?: BatteryChemistry | null;
+  power_source?: PowerSourceOverride | null;
 }
 
 export type RadioResidencyReason =

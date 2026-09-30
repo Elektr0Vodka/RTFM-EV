@@ -165,7 +165,7 @@ Klicke auf einen Avatar oder Namen, um die Info eines Kontakts zu öffnen. Am Co
 - **Nachrichtenrouten (bewertet):** die Routen, die deine Direktnachrichten genommen haben, sortiert nach Zustellung und Geschwindigkeit. Nur zur Information.
 - **Positionen** im Zeitverlauf, **Letzte Ankündigungspfade** und die nächsten Repeater nach Hops und nach Entfernung.
 - **Auch bekannt als**, wenn ein Kontakt mehrere Namen verwendet hat.
-- Notizen, Besitzerinfo, einen manuellen Ersatzstandort und eine abweichende Akkuchemie, alles auf dem Server gespeichert.
+- Notizen, Besitzerinfo, einen manuellen Ersatzstandort, eine abweichende Akkuchemie und eine abweichende Stromquelle (Automatisch erkennt sie am Namen), alles auf dem Server gespeichert.
 - **Funk-Belegung:** Auto, Anheften (immer auf dem Funkgerät halten) oder Nur App (nie aufs Funkgerät laden).
 - **Telemetrie-Freigabe:** was dein Funkgerät teilt, wenn dieser Kontakt Telemetrie anfragt.
 - **Kontaktlink:** einen `meshcore://`-Link anzeigen oder kopieren.
@@ -211,7 +211,7 @@ Die Kartenbedienung ist in **Anzeige**, **Größe & Farben**, **Filter** und **O
 
 - **Anzeige:** Grundkarte (Nova dunkel, OpenFreeMap, OpenStreetMap, OpenTopoMap und Esri-Ebenen), 2D oder 3D mit Neigung und 3D-Gebäuden, Beschriftungen (aus, Name oder ID-Tag) und eine Legende. Vollbild und **GPX exportieren** (die aktuell sichtbaren Knoten als Wegpunkte) findest du hier ebenfalls.
 - **Größe & Farben:** Knotengröße, gleiche Knotengrößen, Neon-Knoten und eine Farbe pro Knotenrolle.
-- **Filter:** **Seit** (ein fester oder eigener Zeitraum), **Vom Server gehört** (alle, nie gehörte ausblenden oder nur nie gehörte), **Knotenrollen**, **Stromquelle** (nach dem Strom-Symbol im Knotennamen: ⚡/🔌 Netz, 🔋 Akku, ☀️/🌞/🔆 oder das Wort "solar" für Solar, beides für Solar + Akku, kein Symbol ist Unbekannt), **Analyzer-Knoten** und **Knoten mit falschem Standort ausblenden** (bei 0,0 oder mehr als 300 km vom nächsten Knoten entfernt, der sie gehört hat).
+- **Filter:** **Seit** (ein fester oder eigener Zeitraum), **Vom Server gehört** (alle, nie gehörte ausblenden oder nur nie gehörte), **Knotenrollen**, **Stromquelle** (die Einstellung am Kontakt, sonst das Strom-Symbol im Knotennamen: ⚡/🔌 Netz, 🔋 Akku, ☀️/🌞/🔆 oder das Wort "solar" für Solar, beides für Solar + Akku, kein Symbol ist Unbekannt; Knoten mit dem Namen "DTIS | ..." sind Solar + Akku), **Analyzer-Knoten** und **Knoten mit falschem Standort ausblenden** (bei 0,0 oder mehr als 300 km vom nächsten Knoten entfernt, der sie gehört hat).
 
 **Overlays** sind aus, bis du sie einschaltest, und werden pro Browser gespeichert:
 
@@ -250,7 +250,7 @@ Die Diagramme für Akku, Grundrauschen und Sendezeit zeigen das aktuelle Funkger
 - **Anfragen:** Anfrage- und Antwortverkehr, den dieser Knoten gehört hat.
 - **Präfix-Kollisionen:** Kontakte, die ein Präfix des öffentlichen Schlüssels von 1, 2 oder 3 Bytes teilen. Gemeinsame Präfixe machen Hops mehrdeutig.
 - **Empfang je Relay:** für mehrfach gehörte Flood-Pakete, welches Relay jede Kopie geliefert hat und mit welchem Signal. Die Summen und die Tabelle je Relay umfassen das ganze Fenster, ohne Zeilenlimit. Die Tabelle je Relay zeigt auch, wie oft die Kopie eines Relays zuerst ankam und wie viele Pakete du nur über dieses Relay gehört hast. Klappe ein Relay auf (der Pfeil vor dem Namen) für seine Aktivität und sein Signal im Zeitverlauf, Pakettypen, Anzahl Hops und letzte Kopien. Die Tabelle je Paket blättert durch gespeicherte Kopien; wähle darunter die Zeilen pro Seite. Gespeicherte Kopien werden standardmäßig 2 Tage behalten; vorher werden sie in einen stündlichen Verlauf je Relay zusammengefasst (standardmäßig 365 Tage behalten, **Relay-Verlauf stündlich** unter Datenaufbewahrung), sodass Fenster, die länger sind als die gespeicherten Kopien, weiterhin Summen und Diagramme je Relay zeigen.
-- **Stromausfall:** welche Knoten bei einem Stromausfall online bleiben, basierend auf dem Strom-Symbol im Knotennamen. Akku- und Solarknoten bleiben online; Netz- und unbekannte Knoten fallen aus. Zeigt den überlebenden Anteil, die Verteilung der Stromquellen und die Inseln, die die überlebenden Knoten über gehörte Advert-Pfadlinks bilden (nur zwischen Knoten mit Standort), damit sichtbar wird, wo das Mesh zerfallen würde. Wähle Repeater + Räume oder alle Knoten und wie kürzlich sie gehört wurden.
+- **Stromausfall:** welche Knoten bei einem Stromausfall online bleiben, basierend auf der Stromquelle jedes Knotens (die Einstellung am Kontakt, sonst das Strom-Symbol im Namen; DTIS-Knoten sind Solar + Akku). Akku- und Solarknoten bleiben online; Netz- und unbekannte Knoten fallen aus (Unbekannt zählt als Netz). Zeigt den überlebenden Anteil, die Verteilung der Stromquellen und die Inseln, die die überlebenden Knoten über gehörte Advert-Pfadlinks bilden (nur zwischen Knoten mit Standort), damit sichtbar wird, wo das Mesh zerfallen würde. Wähle Repeater + Räume oder alle Knoten und wie kürzlich sie gehört wurden.
 
 ### Mesh-Trends
 

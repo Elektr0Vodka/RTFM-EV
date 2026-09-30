@@ -1,11 +1,43 @@
+import type { PowerSourceOverride } from '../types';
+
 // Power source of a node, read from the icons (or the word "solar") in its
 // advertised name. Mirrors the EU-Meshcore-Analyzer classifier (power-util.js):
 //   solar:   ☀ U+2600, 🌞 U+1F31E, 🔆 U+1F506, or the word "solar"
 //   battery: 🔋 U+1F50B
 //   mains:   ⚡ U+26A1, 🔌 U+1F50C
 // Solar wins over mains, and solar + battery is its own category.
+// Fork additions, checked before the icons:
+//   - a contact's manual override (contacts.power_source) wins over everything;
+//   - DTIS nodes (name starts with "DTIS |") run on a P1 Pro with solar, so
+//     they are Solar + battery.
 
 export type PowerSource = 'Mains' | 'Battery' | 'Solar' | 'SolarBattery' | 'Unknown';
+
+export type { PowerSourceOverride };
+
+/** Override values, in dropdown order. */
+export const POWER_SOURCE_OVERRIDES: readonly PowerSourceOverride[] = [
+  'mains',
+  'battery',
+  'solar',
+  'solar_battery',
+  'unknown',
+];
+
+const OVERRIDE_TO_SOURCE: Record<PowerSourceOverride, PowerSource> = {
+  mains: 'Mains',
+  battery: 'Battery',
+  solar: 'Solar',
+  solar_battery: 'SolarBattery',
+  unknown: 'Unknown',
+};
+
+/** Map a stored override to its category; anything else (null, junk) is null. */
+export function powerSourceFromOverride(value: string | null | undefined): PowerSource | null {
+  return value != null && Object.prototype.hasOwnProperty.call(OVERRIDE_TO_SOURCE, value)
+    ? OVERRIDE_TO_SOURCE[value as PowerSourceOverride]
+    : null;
+}
 
 /** All categories, in display order. */
 export const POWER_SOURCES: readonly PowerSource[] = [
@@ -25,7 +57,14 @@ export const POWER_SOURCE_LABEL_KEY: Record<PowerSource, string> = {
   Unknown: 'power_source_unknown',
 };
 
+/** DTIS nodes: name starts with "DTIS |" (case-insensitive, spaces around the bar optional). */
+export function isDtisName(name: string | null | undefined): boolean {
+  return /^\s*dtis\s*\|/i.test(String(name ?? ''));
+}
+
+/** Power source detected from the node name alone (DTIS prefix, then icons). */
 export function classifyPowerSource(name: string | null | undefined): PowerSource {
+  if (isDtisName(name)) return 'SolarBattery';
   const n = String(name ?? '');
   const lower = n.toLowerCase();
   const solar =
@@ -40,6 +79,17 @@ export function classifyPowerSource(name: string | null | undefined): PowerSourc
   if (battery) return 'Battery';
   if (mains) return 'Mains';
   return 'Unknown';
+}
+
+/**
+ * Effective power source of a contact: the manual override when set, else what
+ * the name says (see classifyPowerSource).
+ */
+export function resolvePowerSource(contact: {
+  name: string | null | undefined;
+  power_source?: string | null;
+}): PowerSource {
+  return powerSourceFromOverride(contact.power_source) ?? classifyPowerSource(contact.name);
 }
 
 /**

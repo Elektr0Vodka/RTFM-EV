@@ -165,7 +165,7 @@ Klik op een avatar of naam om de info van een contact te openen. Op een computer
 - **Berichtroutes (gescoord):** de routes die je directe berichten namen, gerangschikt op aflevering en snelheid. Alleen ter informatie.
 - **Posities** door de tijd, **Recente Advertentiepaden**, en de dichtstbijzijnde repeaters op hops en op afstand.
 - **Ook Bekend Als** wanneer een contact meerdere namen heeft gebruikt.
-- Notities, eigenaarsinformatie, een handmatige reservelocatie en een afwijkende batterijchemie, allemaal opgeslagen op de server.
+- Notities, eigenaarsinformatie, een handmatige reservelocatie, een afwijkende batterijchemie en een afwijkende stroombron (Automatisch leidt die af uit de naam), allemaal opgeslagen op de server.
 - **Radioplaatsing:** Auto, Vastzetten (altijd op de radio houden) of Alleen app (nooit op de radio zetten).
 - **Telemetrie delen:** wat je radio deelt als dit contact om telemetrie vraagt.
 - **Contactlink:** een `meshcore://`-link tonen of kopiëren.
@@ -211,7 +211,7 @@ De kaartbediening is verdeeld over **Weergave**, **Grootte & kleuren**, **Filter
 
 - **Weergave:** achtergrondkaart (Nova donker, OpenFreeMap, OpenStreetMap, OpenTopoMap en Esri-lagen), 2D of 3D met kanteling en 3D-gebouwen, labels (uit, naam of ID-tag) en een legenda. Volledig scherm en **GPX exporteren** (de nodes die nu zichtbaar zijn, als waypoints) staan hier ook.
 - **Grootte & kleuren:** nodegrootte, gelijke nodegroottes, neon-nodes en een kleur per noderol.
-- **Filters:** **Sinds** (een vaste of eigen tijdsperiode), **Gehoord door server** (alle, nooit-gehoord verbergen, of alleen nooit-gehoord), **Node-rollen**, **Stroombron** (op het stroomicoon in de nodenaam: ⚡/🔌 net, 🔋 accu, ☀️/🌞/🔆 of het woord "solar" voor zon, beide voor zon + accu, geen icoon is Onbekend), **Analyzer-nodes** en **Nodes met foutieve locatie verbergen** (op 0,0 of meer dan 300 km van de dichtstbijzijnde node die ze hoorde).
+- **Filters:** **Sinds** (een vaste of eigen tijdsperiode), **Gehoord door server** (alle, nooit-gehoord verbergen, of alleen nooit-gehoord), **Node-rollen**, **Stroombron** (de instelling op het contact, anders het stroomicoon in de nodenaam: ⚡/🔌 net, 🔋 accu, ☀️/🌞/🔆 of het woord "solar" voor zon, beide voor zon + accu, geen icoon is Onbekend; nodes met de naam "DTIS | ..." zijn zon + accu), **Analyzer-nodes** en **Nodes met foutieve locatie verbergen** (op 0,0 of meer dan 300 km van de dichtstbijzijnde node die ze hoorde).
 
 **Overlays** staan uit tot je ze aanzet, en worden per browser onthouden:
 
@@ -250,7 +250,7 @@ De grafieken voor batterij, ruisvloer en zendtijd tonen de huidige radio plus de
 - **Verzoeken:** verzoek- en antwoordverkeer dat deze node gehoord heeft.
 - **Prefix-botsingen:** contacten die een publieke-sleutelprefix van 1, 2 of 3 bytes delen. Gedeelde prefixen maken hops dubbelzinnig.
 - **Ontvangst per relay:** voor flood-pakketten die vaker dan eens gehoord zijn, welke relay elke kopie bracht en met welk signaal. De totalen en de tabel per relay beslaan het hele venster, zonder rijlimiet. De tabel per relay toont ook hoe vaak de kopie van een relay als eerste aankwam en hoeveel pakketten je alleen via die relay hoorde. Klap een relay open (het pijltje voor de naam) voor zijn activiteit en signaal door de tijd, pakkettypen, aantal hops en recente kopieën. De tabel per pakket bladert door opgeslagen kopieën; kies het aantal rijen per pagina eronder. Opgeslagen kopieën blijven standaard 2 dagen bewaard; daarvoor worden ze samengevat in een uurgeschiedenis per relay (standaard 365 dagen bewaard, **Relay-geschiedenis per uur** onder Databewaring), zodat vensters langer dan de opgeslagen kopieën nog totalen en grafieken per relay tonen.
-- **Stroomuitval:** welke nodes online blijven als het stroomnet uitvalt, op basis van het stroomicoon in de nodenaam. Accu- en zonnenodes blijven online; netgevoede en onbekende nodes vallen uit. Toont het aandeel dat overleeft, de mix van stroombronnen, en de eilanden die de overlevende nodes vormen via gehoorde advert-padlinks (alleen tussen nodes met locatie), zodat je ziet waar de mesh zou opsplitsen. Kies repeaters + rooms of alle nodes, en hoe recent ze gehoord zijn.
+- **Stroomuitval:** welke nodes online blijven als het stroomnet uitvalt, op basis van de stroombron van elke node (de instelling op het contact, anders het stroomicoon in de naam; DTIS-nodes zijn zon + accu). Accu- en zonnenodes blijven online; netgevoede en onbekende nodes vallen uit (onbekend telt als net). Toont het aandeel dat overleeft, de mix van stroombronnen, en de eilanden die de overlevende nodes vormen via gehoorde advert-padlinks (alleen tussen nodes met locatie), zodat je ziet waar de mesh zou opsplitsen. Kies repeaters + rooms of alle nodes, en hoe recent ze gehoord zijn.
 
 ### Mesh-trends
 

@@ -156,6 +156,34 @@ describe('ContactInfoPane', () => {
     );
   });
 
+  it('shows the auto-detected power source and saves an override', async () => {
+    const user = userEvent.setup();
+    const contact = createContact({ name: 'DTIS | NL AMS | 1018WS' });
+    getContactAnalytics.mockResolvedValue(createAnalytics(contact));
+
+    render(<ContactInfoPane {...baseProps} contactKey={contact.public_key} />);
+
+    const select = await screen.findByLabelText('Power source');
+    expect(select).toHaveValue('');
+    expect(
+      screen.getByRole('option', { name: 'Auto (from name): Solar + battery' })
+    ).toBeInTheDocument();
+
+    await user.selectOptions(select, 'mains');
+    await waitFor(() =>
+      expect(updateContactAnnotations).toHaveBeenCalledWith(contact.public_key, {
+        power_source: 'mains',
+      })
+    );
+
+    await user.selectOptions(select, '');
+    await waitFor(() =>
+      expect(updateContactAnnotations).toHaveBeenLastCalledWith(contact.public_key, {
+        power_source: null,
+      })
+    );
+  });
+
   it('lists stored positions from the location history, newest first', async () => {
     const contact = createContact();
     getContactAnalytics.mockResolvedValue(createAnalytics(contact));

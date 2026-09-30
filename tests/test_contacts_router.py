@@ -1142,6 +1142,37 @@ class TestContactAnnotations:
         assert resp.status_code == 422
 
     @pytest.mark.asyncio
+    async def test_set_power_source_override_and_clear(self, test_db, client):
+        """The per-node override is stored and null reverts to name detection."""
+        await _insert_contact(KEY_A)
+        resp = await client.post(
+            f"/api/contacts/{KEY_A}/annotations",
+            json={"power_source": "solar_battery"},
+        )
+        assert resp.status_code == 200
+        get = await client.get("/api/contacts")
+        row = next(c for c in get.json() if c["public_key"] == KEY_A)
+        assert row["power_source"] == "solar_battery"
+
+        clear = await client.post(
+            f"/api/contacts/{KEY_A}/annotations",
+            json={"power_source": None},
+        )
+        assert clear.status_code == 200
+        get = await client.get("/api/contacts")
+        row = next(c for c in get.json() if c["public_key"] == KEY_A)
+        assert row["power_source"] is None
+
+    @pytest.mark.asyncio
+    async def test_power_source_rejects_unknown_value(self, test_db, client):
+        await _insert_contact(KEY_A)
+        resp = await client.post(
+            f"/api/contacts/{KEY_A}/annotations",
+            json={"power_source": "nuclear"},
+        )
+        assert resp.status_code == 422
+
+    @pytest.mark.asyncio
     async def test_owner_key_must_reference_existing_contact(self, test_db, client):
         await _insert_contact(KEY_A)
         resp = await client.post(f"/api/contacts/{KEY_A}/annotations", json={"owner_key": KEY_C})

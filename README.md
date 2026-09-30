@@ -54,14 +54,14 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 ### Map
 
 - MapLibre GL map with Nova dark, OpenFreeMap, OpenStreetMap, OpenTopoMap and Esri basemaps, 2D or 3D with buildings, labels and neon nodes.
-- Filters by time range, node role, power source (from the power icon in the node name), heard-by-server and wrong-location nodes.
+- Filters by time range, node role, power source (contact override, else the power icon in the node name; DTIS nodes are solar + battery), heard-by-server and wrong-location nodes.
 - Overlays: animated packets with replay and optional sound, links (liveness, advert paths or all traffic) with per-link traffic and signal history, telemetry, shared locations, guessed locations and relay signal.
 - GPX export of the nodes currently shown, a configurable start view, and a server-side tile cache for offline use (off by default).
 
 ### Tools and diagnostics
 
 - **My Node:** radio charts including airtime utilization, receive errors, RSSI/SNR with noise floor and a directly heard radar.
-- **Mesh Health:** advert counts and alerts, request traffic, public key prefix collisions, relay reception, and a power outage view (which nodes stay online, from the power icon in their name).
+- **Mesh Health:** advert counts and alerts, request traffic, public key prefix collisions, relay reception, and a power outage view (which nodes stay online, from each node's power source).
 - **Mesh Trends:** stored network, message and packet breakdowns plus live session statistics.
 - **Packet Feed** (live) and **Packet History** (everything stored, with search and CSV export).
 - **Analyze Packet**, **Mesh Visualizer** (3D graph), **Trace** (with a hop map), **Mesh Discovery** (repeaters, sensors, regions).
