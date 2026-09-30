@@ -246,6 +246,10 @@ def test_format_node_config_mirrors_dmc_sections():
         "tx_power": 22,
         "max_tx_power": 22,
         "multi_acks": 0,
+        # Host repeater timing (fw rx_delay / tx_delay_factor / direct_tx_delay_factor).
+        "rx_delay": 0.0,
+        "tx_delay_factor": 1.0,
+        "direct_tx_delay_factor": 0.5,
     }
     assert payload["repeat"]["disable_fwd"] is False  # armed
     assert payload["repeat"]["flood_max"] == 32

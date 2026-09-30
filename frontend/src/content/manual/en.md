@@ -317,7 +317,7 @@ Open Settings with the button in the top bar. On a phone each section expands in
 
 ### Host repeater
 
-RTFM-EV can judge every received packet the way a repeater would. **Shadow mode** counts what would be forwarded or dropped, and never transmits. Region gating, an airtime budget, timing and policy rules are configurable, with live statistics. Live repeating (armed mode) needs the server setting `MESHCORE_HOST_REPEATER_ENABLED=true`, supported firmware, a permitted frequency band and an explicit confirmation. **Disarm (kill switch)** stops it, and it always starts disarmed after a restart. Make sure you are allowed to run a repeater where you are.
+RTFM-EV can judge every received packet the way a repeater would. **Shadow mode** counts what would be forwarded or dropped, and never forwards anything. Region gating, an airtime budget, timing and policy rules are configurable, with live statistics. Live repeating (armed mode) needs the server setting `MESHCORE_HOST_REPEATER_ENABLED=true`, supported firmware, a permitted frequency band and an explicit confirmation. **Disarm (kill switch)** stops it, and it always starts disarmed after a restart. Make sure you are allowed to run a repeater where you are. The **DMC packet filter** matches the DMC observer firmware: hop and rate limits, blocked channels and path prefixes, sender and text rules, a per-node advert window, a message age limit and a **Dry-run** switch that only counts. The optional **Neighbour poll** transmits: every 12-336 hours it sends one zero-hop discover and asks each neighbouring repeater for its regions.
 
 ### Local Configuration
 

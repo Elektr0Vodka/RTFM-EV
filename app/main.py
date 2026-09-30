@@ -164,6 +164,11 @@ async def lifespan(app: FastAPI):
         # Defaults (everything off) stay active; the API retries the load on first use.
         logger.warning("Could not load host repeater settings at startup", exc_info=True)
 
+    # Host repeater neighbour poll (opt-in, transmits; idle unless enabled and active).
+    from app.services.host_repeater_neighbor_poll import neighbor_poller
+
+    neighbor_poller.start()
+
     # External-map node overlay sync loop (radio-independent; guarded by the
     # external_map_enabled / interval settings each tick).
     start_external_map_sync()
@@ -211,6 +216,7 @@ async def lifespan(app: FastAPI):
     from app.services.host_repeater_tx import host_repeater_tx
 
     await host_repeater_tx.stop()
+    await neighbor_poller.stop()
     await host_repeater.stop()
     await stop_link_edge_backfill()
     await stop_periodic_advert()

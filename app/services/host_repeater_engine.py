@@ -16,7 +16,8 @@ Order of checks:
    multipart ACK), flood payload-type switch, dedup (seen table), packets for us.
 4. Repeater firmware gates for floods (``simple_repeater`` ``allowPacketForward``):
    region map (with DMC duty-cycle region gating) / unscoped, flood.max*, loop detect.
-5. DMC RF packet filter for floods (last, like DMC's hook).
+5. DMC RF packet filter for floods (last, like DMC's hook); in dry-run a filter hit is
+   counted and the flood carries on.
 6. Per-source advert token bucket (OpenHop ``advert_rate_limit``), adverts only.
 7. Raw-send size limit and the OpenHop duty-cycle window.
 
@@ -44,8 +45,10 @@ import hmac
 import math
 import random
 from collections import OrderedDict, deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 from Crypto.Cipher import AES
 
@@ -56,6 +59,7 @@ from app.region_resolver import compute_transport_code
 from app.services.host_repeater_policy import PolicyDecision, PolicyState, evaluate_policy
 from app.services.host_repeater_settings import (
     PAYLOAD_TYPE_NAMES,
+    FilterRule,
     HostRepeaterSettings,
     sub_band_duty_limit,
 )
@@ -136,6 +140,27 @@ ADVERT_LIMITER_RETENTION_SECONDS = 7 * 24 * 3600.0
 DMC_PUBLIC_CHANNEL_HASH = 0x11
 DMC_INVALID_TIMESTAMP_WINDOW = 7 * 24 * 60 * 60
 DMC_ACL_TYPES = frozenset({PT_REQ, PT_RESPONSE, PT_TXT_MSG, PT_ANON_REQ, PT_PATH})
+# MessageAge.h: 1 Jan 2026 UTC; a clock below this has not been set.
+DMC_CLOCK_SET_AFTER = 1767225600
+# AdvertLimiter.h
+DMC_ADVERT_CACHE_SIZE = 256
+DMC_ADVERT_KEY_LEN = 4
+# FilterStats.h malformed reasons, in check order.
+MALFORMED_REASONS = ("short", "time", "empty", "utf8")
+TOP_SOURCES = 8
+# DMC filter reasons (drop reasons, and dry-run hits).
+FILTER_REASONS = (
+    "filter_hash",
+    "filter_path",
+    "filter_hops",
+    "filter_advert",
+    "filter_channel",
+    "filter_malformed",
+    "filter_age",
+    "filter_sender",
+    "filter_text",
+    "filter_rate",
+)
 
 FORWARD_KINDS = ("flood", "direct", "trace", "ack", "multipart_ack")
 DROP_REASONS = (
@@ -161,11 +186,7 @@ DROP_REASONS = (
     "flood_max",
     "loop",
     "path_full",
-    "filter_hash",
-    "filter_hops",
-    "filter_rate",
-    "filter_channel",
-    "filter_malformed",
+    *FILTER_REASONS,
     "advert_rate",
     "too_large",
     "duty_cycle",
@@ -208,17 +229,7 @@ class RxFacts:
 
 # Drop reasons that mean "traffic you explicitly targeted" (rule and rate-limiter
 # drops, the fork's ``air:`` accounting); their airtime counts as saved.
-SAVED_AIRTIME_REASONS = frozenset(
-    {
-        "policy_drop",
-        "filter_hash",
-        "filter_hops",
-        "filter_rate",
-        "filter_channel",
-        "filter_malformed",
-        "advert_rate",
-    }
-)
+SAVED_AIRTIME_REASONS = frozenset({"policy_drop", *FILTER_REASONS, "advert_rate"})
 
 
 @dataclass(frozen=True)
@@ -242,6 +253,8 @@ class Decision:
     saved_airtime_ms: float | None = None
     # Reception score used for the delays (None when SNR or SF is unknown).
     score: float | None = None
+    # Filter dry-run: the DMC filter reason this forwarded flood would have been dropped for.
+    filter_dryrun: str | None = None
 
     @property
     def payload_type_name(self) -> str:
@@ -356,41 +369,194 @@ def _header_and_codes(raw: bytes, env: ParsedPacketEnvelope) -> bytes:
     return raw[: 5 if env.transport_codes is not None else 1]
 
 
-def _dmc_message_valid(data: bytes, now: float) -> bool:
-    """DMC ``Filter::validMessageContent`` on a decrypted Public channel payload."""
+def dmc_clock_set(now: float) -> bool:
+    """``MessageAge::clockSet``: a clock below 1 Jan 2026 has not been set."""
+    return int(now) >= DMC_CLOCK_SET_AFTER
+
+
+def _dmc_message_invalid(data: bytes, now: float) -> str | None:
+    """DMC ``Filter::validMessageContent``: the malformed reason, or None when valid."""
     if len(data) <= 5:
-        return False
+        return "short"
     timestamp = int.from_bytes(data[0:4], "little")
-    if not timestamp or abs(timestamp - int(now)) > DMC_INVALID_TIMESTAMP_WINDOW:
-        return False
+    # MessageAge::implausible: zero is always bad; +-1 week only once the clock is set.
+    if not timestamp or (
+        dmc_clock_set(now) and abs(timestamp - int(now)) > DMC_INVALID_TIMESTAMP_WINDOW
+    ):
+        return "time"
     if (data[4] >> 2) != 0:  # not TXT_TYPE_PLAIN: not checked further
-        return True
+        return None
     text = data[5:].split(b"\x00", 1)[0]
     if not text:
-        return False
+        return "empty"
     try:
         text.decode("utf-8", errors="strict")
     except UnicodeDecodeError:
-        return False
-    return True
+        return "utf8"
+    return None
 
 
-def _dmc_public_payload_malformed(payload: bytes, now: float) -> bool:
-    """DMC malformed scan: MAC-then-decrypt with the Public secret, then validate.
+def dmc_channel_secret(name: str) -> bytes:
+    """``Filter::getChannelHash`` secret: Public's key, else sha256(name)[:16] (``#name``)."""
+    if name == "Public":
+        return bytes.fromhex(PUBLIC_CHANNEL_KEY)
+    return hashlib.sha256(name.encode("utf-8")).digest()[:16]
 
-    Faithful to DMC: a GRP_TXT whose channel hash is the Public hash but whose MAC
-    does not verify with the Public key (another channel on the same hash byte)
-    decrypts to nothing and counts as malformed.
+
+def dmc_channel_hash(secret: bytes) -> int:
+    """First byte of sha256(secret): the channel hash a GRP_TXT carries."""
+    return hashlib.sha256(secret).digest()[0]
+
+
+def _dmc_decrypt(secret: bytes, payload: bytes) -> bytes:
+    """``Utils::MACThenDecrypt`` over payload[1:]: the plaintext, or b"" on a MAC failure.
+
+    Faithful to DMC: a GRP_TXT on a watched hash byte whose MAC does not verify with
+    that key (another channel on the same byte) decrypts to nothing.
     """
-    key = bytes.fromhex(PUBLIC_CHANNEL_KEY)
     mac = payload[1:3]
     ciphertext = payload[3:]
     if not ciphertext or len(ciphertext) % 16:
+        return b""
+    if hmac.new(secret + bytes(16), ciphertext, hashlib.sha256).digest()[:2] != mac:
+        return b""
+    return AES.new(secret, AES.MODE_ECB).decrypt(ciphertext)
+
+
+def dmc_parse_group_text(data: bytes) -> tuple[bytes, bytes] | None:
+    """``FilterRules::parseGroupText``: (sender, text) of a plain group text, else None."""
+    if len(data) < 6 or (data[4] >> 2) != 0:
+        return None
+    body = data[5:].split(b"\x00", 1)[0]
+    index = body.find(b": ")
+    if index <= 0:
+        return None
+    return body[:index], body[index + 2 :]
+
+
+def dmc_match_name(pattern: str, sender: bytes) -> bool:
+    """Exact, or prefix when the pattern ends in ``*`` (a lone ``*`` matches all)."""
+    raw = pattern.encode("utf-8")
+    if raw.endswith(b"*"):
+        return sender.startswith(raw[:-1])
+    return sender == raw
+
+
+def dmc_match_text(pattern: str, text: bytes) -> bool:
+    """Substring, or prefix when the pattern starts with ``^``. Case-sensitive."""
+    raw = pattern.encode("utf-8")
+    if raw.startswith(b"^"):
+        return len(raw) > 1 and text.startswith(raw[1:])
+    return raw in text
+
+
+def dmc_path_match(path: bytes, hash_size: int, prefixes: list[bytes]) -> int:
+    """``FilterPath::findMatch``: index of the first prefix starting any path entry, or -1.
+
+    A prefix longer than the hash size never matches (``A1B2`` is one 2-byte ID).
+    """
+    if hash_size <= 0:
+        return -1
+    entries = [path[i : i + hash_size] for i in range(0, len(path) - hash_size + 1, hash_size)]
+    for slot, prefix in enumerate(prefixes):
+        if not prefix or len(prefix) > hash_size:
+            continue
+        if any(entry.startswith(prefix) for entry in entries):
+            return slot
+    return -1
+
+
+class AdvertOriginWindow:
+    """Port of DMC ``AdvertLimiter.h``: each origin's flood advert passes once per window.
+
+    Keyed on the first 4 bytes of the public key, in a 256-entry ring that
+    overwrites the oldest entry once full. In memory only, like the firmware.
+    """
+
+    def __init__(self, hours: int) -> None:
+        self.hours = hours
+        self._keys: list[bytes] = []
+        self._seen: list[float] = []
+        self._head = 0
+
+    def clear(self) -> None:
+        self._keys.clear()
+        self._seen.clear()
+        self._head = 0
+
+    @property
+    def count(self) -> int:
+        return len(self._keys)
+
+    def allow(self, key: bytes, now: float) -> bool:
+        if self.hours <= 0:
+            return True
+        key = key[:DMC_ADVERT_KEY_LEN]
+        window = self.hours * 3600.0
+        for i, known in enumerate(self._keys):
+            if known != key:
+                continue
+            if now - self._seen[i] < window:
+                return False
+            self._seen[i] = now  # window elapsed: pass, and start a new window
+            return True
+        if len(self._keys) < DMC_ADVERT_CACHE_SIZE:
+            self._keys.append(key)
+            self._seen.append(now)
+        else:
+            self._keys[self._head] = key
+            self._seen[self._head] = now
+            self._head = (self._head + 1) % DMC_ADVERT_CACHE_SIZE
         return True
-    if hmac.new(key + bytes(16), ciphertext, hashlib.sha256).digest()[:2] != mac:
-        return True
-    data = AES.new(key, AES.MODE_ECB).decrypt(ciphertext)
-    return not _dmc_message_valid(data, now)
+
+
+@dataclass
+class FilterCounters:
+    """DMC ``FilterStats.h`` counters, in memory (cleared with the shadow stats)."""
+
+    hops: dict[str, int] = field(default_factory=dict)
+    rate: dict[str, int] = field(default_factory=dict)
+    channel: dict[str, int] = field(default_factory=dict)
+    hash_size: list[int] = field(default_factory=lambda: [0, 0, 0, 0])
+    hash_type: dict[str, int] = field(default_factory=dict)
+    malformed: dict[str, int] = field(default_factory=lambda: dict.fromkeys(MALFORMED_REASONS, 0))
+    advert: int = 0
+    path: dict[str, int] = field(default_factory=dict)
+    sender: dict[str, int] = field(default_factory=dict)
+    sender_pass: dict[str, int] = field(default_factory=dict)
+    text: dict[str, int] = field(default_factory=dict)
+    text_pass: dict[str, int] = field(default_factory=dict)
+    age: int = 0
+    sources: dict[int, int] = field(default_factory=dict)
+    air_ms: float = 0.0
+    dryrun_hits: int = 0
+
+    def totals(self) -> dict[str, int]:
+        return {
+            "hops": sum(self.hops.values()),
+            "rate": sum(self.rate.values()),
+            "channel": sum(self.channel.values()),
+            "hash": sum(self.hash_size),
+            "malformed": sum(self.malformed.values()),
+            "advert": self.advert,
+            "path": sum(self.path.values()),
+            "sender": sum(self.sender.values()),
+            "text": sum(self.text.values()),
+            "age": self.age,
+        }
+
+
+def _bump(counter: dict, key: Any, amount: int = 1) -> None:
+    counter[key] = counter.get(key, 0) + amount
+
+
+def _dmc_src_hash(ptype: int, payload: bytes) -> int | None:
+    """``Filter::srcHash``: the originator's 1-byte hash where the payload carries one."""
+    if ptype == PT_ADVERT:
+        return payload[0] if payload else None
+    if ptype in DMC_ACL_TYPES:
+        return payload[1] if len(payload) >= 2 else None
+    return None
 
 
 class AdvertLimiter:
@@ -532,6 +698,14 @@ class ForwardingEngine:
         self._max_depth = 0
         self._build_region_tree()
         self._policy_state = PolicyState()
+        self.filter_counters = FilterCounters()
+        self._advert_window = AdvertOriginWindow(settings.filter_advert_hours)
+        # Throttle state per (rule list, pattern), monotonic like the firmware's millis.
+        self._rule_last: dict[tuple[str, str], float] = {}
+        self._watched: dict[int, bytes] = {}
+        self._path_prefixes: list[bytes] = []
+        self._pending_dryrun: str | None = None
+        self._build_filter_content()
 
     # ── configuration ────────────────────────────────────────────────────
 
@@ -547,6 +721,8 @@ class ForwardingEngine:
             self._build_limiters()
             self._build_region_tree()
             self._advert_limiter = self._build_advert_limiter()
+            self._advert_window.hours = settings.filter_advert_hours
+            self._build_filter_content()
         if public_key is not None and public_key != self.public_key:
             self.public_key = public_key
             self._seen.clear()
@@ -576,6 +752,85 @@ class ForwardingEngine:
         self._build_limiters()
         self._advert_limiter = self._build_advert_limiter()
         self._policy_state.clear()
+        self._advert_window.clear()
+        self._rule_last.clear()
+
+    def reset_filter_counters(self) -> None:
+        """``clear stats``: counters only; settings and the advert cache stay."""
+        self.filter_counters = FilterCounters()
+
+    def _build_filter_content(self) -> None:
+        """Keys the content checks may read (``watchedSecret``: Public plus the watch
+        list) and the parsed path prefixes. Throttle state of removed rules is dropped."""
+        s = self.settings
+        secrets: dict[int, bytes] = {}
+        for name in ["Public", *s.filter_watch]:
+            secret = dmc_channel_secret(name)
+            secrets.setdefault(dmc_channel_hash(secret), secret)
+        self._watched = secrets
+        self._path_prefixes = [bytes.fromhex(p) for p in s.filter_paths]
+        live = {("sender", r.pattern) for r in s.filter_sender_rules} | {
+            ("text", r.pattern) for r in s.filter_text_rules
+        }
+        self._rule_last = {k: v for k, v in self._rule_last.items() if k in live}
+
+    def filter_snapshot(self, wall_now: float) -> dict:
+        """Counters plus the configuration they are read against (DMC ``filter`` topic shape)."""
+        s = self.settings
+        c = self.filter_counters
+        top = sorted(c.sources.items(), key=lambda kv: (-kv[1], kv[0]))[:TOP_SOURCES]
+        hash_top = sorted(c.hash_type.items(), key=lambda kv: (-kv[1], kv[0]))[:3]
+
+        def rules(items: list, drops: dict[str, int], passes: dict[str, int]) -> list[dict]:
+            return [
+                {
+                    "pattern": r.pattern,
+                    "secs": r.secs,
+                    "prob": r.prob,
+                    "drops": drops.get(r.pattern, 0),
+                    "pass": passes.get(r.pattern, 0),
+                }
+                for r in items
+            ]
+
+        return {
+            "enabled": s.filter_enabled,
+            "dryrun": s.filter_dryrun,
+            "totals": c.totals(),
+            "air_ms": round(c.air_ms, 1),
+            "dryrun_hits": c.dryrun_hits,
+            "hops": dict(c.hops),
+            "rate": dict(c.rate),
+            "hash": {
+                "size": {f"{i + 1}B": n for i, n in enumerate(c.hash_size)},
+                "top_types": dict(hash_top),
+            },
+            "malformed": dict(c.malformed),
+            "channels": [
+                {"hash": e.hash, "name": e.label, "drops": c.channel.get(e.hash, 0)}
+                for e in s.filter_channels
+            ],
+            "top_sources": [{"hash": f"{h:02x}", "drops": n} for h, n in top],
+            "advert": {
+                "window_h": s.filter_advert_hours,
+                "cache": self._advert_window.count,
+                "cache_size": DMC_ADVERT_CACHE_SIZE,
+            },
+            "age": {"max_mins": s.filter_age_minutes, "clock_set": dmc_clock_set(wall_now)},
+            "paths": [{"prefix": p, "drops": c.path.get(p, 0)} for p in s.filter_paths],
+            "senders": rules(s.filter_sender_rules, c.sender, c.sender_pass),
+            "texts": rules(s.filter_text_rules, c.text, c.text_pass),
+            "watch": list(s.filter_watch),
+            "config": {
+                name: {
+                    "limit": t.rate_limit,
+                    "secs": t.rate_secs,
+                    "soft": t.soft,
+                    "hops_max": t.hops_max,
+                }
+                for name, t in s.filter_types.items()
+            },
+        }
 
     def _build_advert_limiter(self) -> AdvertLimiter:
         s = self.settings
@@ -718,6 +973,7 @@ class ForwardingEngine:
         )
 
         score = packet_score(facts.snr, self.radio.sf, rx_len) if self.radio else None
+        self._pending_dryrun = None
 
         def drop(reason: str, policy: PolicyDecision | None = None) -> Decision:
             saved = None
@@ -729,6 +985,8 @@ class ForwardingEngine:
                 else:
                     sent_len = max(1, rx_len - env.hash_size)
                 saved = lora_airtime_ms(sent_len, self.radio, self.settings.preamble_symbols)
+                if reason in FILTER_REASONS:
+                    self.filter_counters.air_ms += saved
             return Decision(
                 False,
                 reason,
@@ -770,6 +1028,7 @@ class ForwardingEngine:
         if isinstance(result, str):
             return drop(result, policy)
         forwarded, kind, priority, delay_ms = result
+        dryrun = self._pending_dryrun
 
         if len(forwarded) > MAX_RAW_SEND_LEN:
             return drop("too_large", policy)
@@ -815,6 +1074,7 @@ class ForwardingEngine:
             route_type=route,
             hop_count=hops,
             rx_len=rx_len,
+            filter_dryrun=dryrun,
         )
 
     def _our_hash(self, size: int) -> bytes:
@@ -968,7 +1228,15 @@ class ForwardingEngine:
         if s.filter_enabled:
             reason = self._dmc_filter(env, facts, now, wall_now)
             if reason is not None:
-                return reason
+                if not s.filter_dryrun:
+                    return reason
+                # Dry-run (Filter::drop): counted and billed as "would have saved", forwarded.
+                self._pending_dryrun = reason
+                self.filter_counters.dryrun_hits += 1
+                assert self.radio is not None
+                self.filter_counters.air_ms += lora_airtime_ms(
+                    len(raw) + env.hash_size, self.radio, s.preamble_symbols
+                )
 
         if (
             ptype == PT_ADVERT
@@ -1014,38 +1282,145 @@ class ForwardingEngine:
     ) -> str | None:
         """DMC ``Filter::allowPacketForward`` for a flood packet, or None to pass.
 
-        Two DMC issues are not copied: channel-blocked packets no longer consume the
-        GRP_TXT rate budget (channel checks run before the limiter), and values are
-        range-checked by the settings model instead of wrapping.
+        Order follows dmc-observer-dev: hash size, path prefixes, hops, per-origin
+        advert window, group-text checks, rate limiter. Two DMC issues are not copied:
+        a packet a group-text check drops (channel, malformed, age, sender, text) no
+        longer consumes the GRP_TXT rate budget (those checks run before the limiter),
+        and values are range-checked by the settings model instead of wrapping.
         """
         s = self.settings
+        c = self.filter_counters
         ptype = env.payload_type
         payload = env.payload
+        name = PAYLOAD_TYPE_NAMES.get(ptype, f"TYPE_{ptype}")
         if (
             ptype in DMC_ACL_TYPES
             and len(payload) >= 2
             and (payload[0] in facts.acl_hashes or payload[1] in facts.acl_hashes)
         ):
             return None
+        # FilterStat::recordSrc: only these reasons attribute a source.
+        src = _dmc_src_hash(ptype, payload)
+
+        def sourced(reason: str) -> str:
+            if src is not None:
+                _bump(c.sources, src)
+            return reason
+
         if env.hash_size < s.filter_min_hash_bytes:
-            return "filter_hash"
-        name = PAYLOAD_TYPE_NAMES.get(ptype)
-        limits = s.filter_types.get(name) if name else None
+            c.hash_size[min(env.hash_size, 4) - 1] += 1
+            _bump(c.hash_type, name)
+            return sourced("filter_hash")
+        slot = dmc_path_match(env.path, env.hash_size, self._path_prefixes)
+        if slot >= 0:
+            _bump(c.path, s.filter_paths[slot])
+            return sourced("filter_path")
+        limits = s.filter_types.get(name)
         if limits is not None and env.hop_count >= limits.hops_max:
-            return "filter_hops"
+            _bump(c.hops, name)
+            return sourced("filter_hops")
+        # Ahead of the per-type limiter, so a repeat advert never eats a legitimate one's budget.
+        if (
+            ptype == PT_ADVERT
+            and len(payload) >= DMC_ADVERT_KEY_LEN
+            and not self._advert_window.allow(bytes(payload[:DMC_ADVERT_KEY_LEN]), now)
+        ):
+            c.advert += 1
+            return sourced("filter_advert")
         if ptype == PT_GRP_TXT:
-            if len(payload) <= 1 + CIPHER_MAC_SIZE:
-                return "filter_malformed"
-            channel_hash = f"{payload[0]:02x}"
-            if any(entry.hash == channel_hash for entry in s.filter_channels):
-                return "filter_channel"
-            if s.filter_malformed and payload[0] == DMC_PUBLIC_CHANNEL_HASH:
-                when = wall_now if wall_now is not None else datetime.now().timestamp()
-                if _dmc_public_payload_malformed(payload, when):
-                    return "filter_malformed"
+            reason = self._dmc_group_text(payload, now, wall_now)
+            if reason is not None:
+                return reason
         limiter = self._limiters.get(ptype)
         if limiter is not None and not limiter.allow(now, self._rng.randrange(256)):
-            return "filter_rate"
+            _bump(c.rate, name)
+            return sourced("filter_rate")
+        return None
+
+    def _dmc_group_text(self, payload: bytes, now: float, wall_now: float | None) -> str | None:
+        """GRP_TXT checks: channel block, malformed scan (Public), then age limit and
+        sender / text rules on Public plus the watch list. Decrypts once."""
+        s = self.settings
+        c = self.filter_counters
+        if len(payload) <= 1 + CIPHER_MAC_SIZE:
+            c.malformed["short"] += 1
+            return "filter_malformed"
+        channel = f"{payload[0]:02x}"
+        if any(entry.hash == channel for entry in s.filter_channels):
+            _bump(c.channel, channel)
+            return "filter_channel"
+
+        want_malformed = s.filter_malformed and payload[0] == DMC_PUBLIC_CHANNEL_HASH
+        want_rules = bool(s.filter_sender_rules or s.filter_text_rules)
+        secret = self._watched.get(payload[0]) if (want_rules or s.filter_age_minutes > 0) else None
+        if not want_malformed and secret is None:
+            return None
+        when = wall_now if wall_now is not None else datetime.now().timestamp()
+        data = _dmc_decrypt(
+            secret if secret is not None else bytes.fromhex(PUBLIC_CHANNEL_KEY), payload
+        )
+
+        if want_malformed:
+            reason = _dmc_message_invalid(data, when)
+            if reason is not None:
+                c.malformed[reason] += 1
+                return "filter_malformed"
+
+        # MessageAge::tooOld; a failed MAC (len < 4) has no timestamp to read.
+        if secret is not None and s.filter_age_minutes > 0 and len(data) >= 4:
+            stamp = int.from_bytes(data[0:4], "little")
+            now_s = int(when)
+            if dmc_clock_set(when) and stamp < now_s and now_s - stamp > s.filter_age_minutes * 60:
+                c.age += 1
+                return "filter_age"
+
+        if secret is not None and want_rules and data:
+            parsed = dmc_parse_group_text(data)
+            if parsed is not None:
+                sender, text = parsed
+                roll = self._rng.randrange(100)  # one roll for both lists, like the firmware
+                pattern = self._evaluate_rules(
+                    "sender", s.filter_sender_rules, lambda p: dmc_match_name(p, sender), now, roll
+                )
+                if pattern is not None:
+                    _bump(c.sender, pattern)
+                    return "filter_sender"
+                pattern = self._evaluate_rules(
+                    "text", s.filter_text_rules, lambda p: dmc_match_text(p, text), now, roll
+                )
+                if pattern is not None:
+                    _bump(c.text, pattern)
+                    return "filter_text"
+        return None
+
+    def _evaluate_rules(
+        self,
+        kind: str,
+        rules: list[FilterRule],
+        match: Callable[[str], bool],
+        now: float,
+        roll: int,
+    ) -> str | None:
+        """``FilterRules::evaluate``: the pattern of the first rule that decides to drop.
+
+        A failed roll or a within-budget throttle pass steps aside to the next rule;
+        a throttle window is not extended by over-rate matches.
+        """
+        c = self.filter_counters
+        passes = c.sender_pass if kind == "sender" else c.text_pass
+        for rule in rules:
+            if not match(rule.pattern):
+                continue
+            if rule.prob < 100 and roll >= rule.prob:
+                continue
+            if rule.secs > 0:
+                key = (kind, rule.pattern)
+                last = self._rule_last.get(key)
+                if last is None or now - last >= rule.secs:
+                    self._rule_last[key] = now
+                    _bump(passes, rule.pattern)
+                    continue
+            return rule.pattern
         return None
 
     def _policy_fields(self, env: ParsedPacketEnvelope, facts: RxFacts) -> dict:

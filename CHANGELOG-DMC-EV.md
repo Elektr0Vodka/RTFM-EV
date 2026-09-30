@@ -11,6 +11,49 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-30 (Host repeater DMC filter + MQTT sync with dmc-observer-dev, feat/host-repeater-dmc-filter-sync)
+
+### Host repeater: DMC packet filter
+- The filter follows DMC `dmc-observer-dev` (`923fc428`): new **dry-run**
+  (count drops, still forward), **per-node advert window** (each origin's flood
+  advert once per 0-720 h, 256-entry cache), **blocked path prefixes** (up to 8,
+  1-4 bytes, whole-entry match), **sender and text rules** (up to 8 each; block,
+  throttle one match per N s, or decide a share of matches; first rule that
+  decides drops) read on Public plus up to 4 watched `#` channels, and a
+  **message age limit** (1-10080 min). The malformed scan's +-1 week check and
+  the age limit are skipped while the clock reads before 2026, like the firmware.
+- Check order is the firmware's (hash, path, hops, advert window, group-text
+  checks, rate limit), except that group-text content drops still never consume
+  the GRP_TXT rate budget (existing deliberate deviation).
+- New per-reason filter counters (per-type hops / rate, hash size split, malformed
+  reasons, per channel / prefix / rule drops and throttle passes, top sources,
+  saved airtime, dry-run hits) in the stats pane and `stats.filter`. No migration:
+  the settings document gains fields with defaults.
+
+### Host repeater: neighbours
+- The host repeater keeps a neighbours table like a DMC observer repeater:
+  signed zero-hop repeater adverts and discover replies, max 50.
+- New opt-in **Neighbour poll** (Settings > Host repeater), 12-336 h, default
+  24 h. It **transmits**: one zero-hop repeater discover (60 s listen), then per
+  neighbour an anon regions request sent zero-hop. Runs while the host repeater
+  is shadow or armed on a connected non-OpenHop radio; the first poll waits 2
+  minutes. The radio contact used for a request is restored (or removed) after.
+
+### Community MQTT
+- New opt-in `filter` topic (`publish_filter`, 60-600 s, default 60 s): the host
+  repeater's filter counters, per-type config and live `region_gate`, in the
+  observer `MQTTFilterStatsJson` shape. `dryrun` is true unless the host repeater
+  is armed; `host_repeater.state` says which.
+- New opt-in own `neighbors` topic (`publish_own_neighbors`), sent once per
+  completed neighbour poll with `self.scopes` / `default_scope`.
+- Both only publish while the host repeater is shadow or armed.
+- `config` topic: adds `boot_id`, `radio.rx_delay` / `tx_delay_factor` /
+  `direct_tx_delay_factor` (host repeater timing), `mqtt.filter_interval`,
+  `mqtt.own_neighbors` and `mqtt.neighbors_interval` (while the poll is on).
+- Docs: README host repeater section, `app/AGENTS.md`,
+  `app/fanout/AGENTS_fanout.md`, `frontend/AGENTS.md`, `docs/parity-audit.md`,
+  `docs/sources-of-truth.md`.
+
 ## Update 2026-09-30 (SQLite reader pool + traffic-links index, perf/sqlite-reader-pool)
 
 ### Backend: database concurrency

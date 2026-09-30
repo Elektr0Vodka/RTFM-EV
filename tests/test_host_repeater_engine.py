@@ -18,6 +18,7 @@ from app.channel_constants import PUBLIC_CHANNEL_KEY
 from app.region_resolver import compute_transport_code
 from app.services.host_repeater_engine import (
     AdvertLimiter,
+    AdvertOriginWindow,
     AirtimeBudget,
     DmcLimiter,
     ForwardingEngine,
@@ -31,6 +32,7 @@ from app.services.host_repeater_engine import (
 from app.services.host_repeater_settings import (
     BlockedChannel,
     DmcTypeLimits,
+    FilterRule,
     HostRepeaterSettings,
     PolicyConfig,
     PolicyRule,
@@ -587,6 +589,161 @@ def test_dmc_malformed_public_scan():
     assert decide(eng, frame(FLOOD, GRP_TXT, 0x00, b"", empty)).reason == "filter_malformed"
     bad_utf8 = _public_grp(int(time.time()), b"\xff\xfe")
     assert decide(eng, frame(FLOOD, GRP_TXT, 0x00, b"", bad_utf8)).reason == "filter_malformed"
+    assert eng.filter_counters.malformed == {"short": 0, "time": 1, "empty": 1, "utf8": 1}
+
+
+def test_dmc_malformed_skips_the_week_window_while_the_clock_is_unset():
+    eng = engine(filter_enabled=True, filter_malformed=True)
+    unset_clock = 1715731200.0  # 15 May 2024, the fw default boot date
+    old = _public_grp(int(unset_clock) - 30 * 86400, b"alice: hi")
+    raw = frame(FLOOD, GRP_TXT, 0x00, b"", old)
+    assert eng.decide(raw, RxFacts(), NOW, wall_now=unset_clock).forward
+    zero = frame(FLOOD, GRP_TXT, 0x00, b"", _public_grp(0, b"alice: hi"))
+    assert eng.decide(zero, RxFacts(), NOW, wall_now=unset_clock).reason == "filter_malformed"
+
+
+def _hashtag_grp(name: str, timestamp: int, text: bytes) -> bytes:
+    secret = hashlib.sha256(name.encode()).digest()[:16]
+    plain = timestamp.to_bytes(4, "little") + b"\x00" + text
+    plain += bytes(-len(plain) % 16)
+    ct = AES.new(secret, AES.MODE_ECB).encrypt(plain)
+    mac = hmac.new(secret + bytes(16), ct, hashlib.sha256).digest()[:2]
+    return bytes([hashlib.sha256(secret).digest()[0]]) + mac + ct
+
+
+def test_dmc_path_prefix_block_matches_whole_entries():
+    eng = engine(filter_enabled=True, filter_paths=["a1b2", "C3"])
+    assert eng.settings.filter_paths == ["A1B2", "C3"]
+    two_byte = frame(FLOOD, GRP_TXT, 0x41, bytes([0xA1, 0xB2]), grp_payload(1))  # 1 hop, 2-byte
+    assert decide(eng, two_byte).reason == "filter_path"
+    # A1B2 is one 2-byte ID: the 1-byte entries A1 then B2 do not match it.
+    one_byte = frame(FLOOD, GRP_TXT, 0x02, bytes([0xA1, 0xB2]), grp_payload(2))
+    assert decide(eng, one_byte).forward
+    via_c3 = frame(FLOOD, GRP_TXT, 0x02, bytes([0x10, 0xC3]), grp_payload(3))
+    assert decide(eng, via_c3).reason == "filter_path"
+    assert eng.filter_snapshot(time.time())["paths"] == [
+        {"prefix": "A1B2", "drops": 1},
+        {"prefix": "C3", "drops": 1},
+    ]
+    with pytest.raises(ValueError):
+        HostRepeaterSettings(filter_paths=["abc"])
+    with pytest.raises(ValueError):
+        HostRepeaterSettings(filter_paths=["a1", "A1"])
+
+
+def test_dmc_advert_origin_window():
+    window = AdvertOriginWindow(2)
+    assert window.allow(b"\x01\x02\x03\x04rest", 0.0)
+    assert not window.allow(b"\x01\x02\x03\x04other", 3600.0)  # keyed on the first 4 bytes
+    assert window.allow(b"\x01\x02\x03\x05", 3600.0)
+    assert window.allow(b"\x01\x02\x03\x04", 7200.0)  # window elapsed
+    assert AdvertOriginWindow(0).allow(b"\x01\x02\x03\x04", 0.0)
+
+    key = SigningKey.generate()
+    eng = engine(filter_enabled=True, filter_advert_hours=1)
+    assert decide(eng, _signed_advert(key, 1)).forward
+    assert decide(eng, _signed_advert(key, 2), now=NOW + 60).reason == "filter_advert"
+    assert decide(eng, _signed_advert(key, 3), now=NOW + 3601).forward
+    snap = eng.filter_snapshot(time.time())
+    assert snap["advert"] == {"window_h": 1, "cache": 1, "cache_size": 256}
+    assert snap["totals"]["advert"] == 1
+
+
+def test_dmc_sender_rules_block_throttle_and_first_match():
+    now_wall = int(time.time())
+    eng = engine(
+        filter_enabled=True,
+        filter_sender_rules=[
+            FilterRule(pattern="Bob", secs=60),
+            FilterRule(pattern="Spam*"),
+        ],
+    )
+
+    def msg(n: int, text: bytes, now: float = NOW):
+        return decide(eng, frame(FLOOD, GRP_TXT, 0x00, b"", _public_grp(now_wall + n, text)), now)
+
+    assert msg(1, b"SpamBot: buy").reason == "filter_sender"
+    assert msg(2, b"Bob: one").forward  # throttle pass
+    assert msg(3, b"Bob: two", NOW + 10).reason == "filter_sender"
+    assert msg(4, b"Bob: three", NOW + 61).forward  # next window
+    assert msg(5, b"Alice: hi").forward
+    snap = eng.filter_snapshot(time.time())
+    assert snap["senders"] == [
+        {"pattern": "Bob", "secs": 60, "prob": 100, "drops": 1, "pass": 2},
+        {"pattern": "Spam*", "secs": 0, "prob": 100, "drops": 1, "pass": 0},
+    ]
+
+
+def test_dmc_text_rules_and_watch_list():
+    now_wall = int(time.time())
+    eng = engine(filter_enabled=True, filter_text_rules=[FilterRule(pattern="^BEACON")])
+    beacon = _hashtag_grp("#bots", now_wall, b"bot: BEACON 1")
+    # #bots is not watched: its text cannot be read.
+    assert decide(eng, frame(FLOOD, GRP_TXT, 0x00, b"", beacon)).forward
+    watched = engine(
+        filter_enabled=True,
+        filter_text_rules=[FilterRule(pattern="^BEACON")],
+        filter_watch=["#bots"],
+    )
+    assert decide(watched, frame(FLOOD, GRP_TXT, 0x00, b"", beacon)).reason == "filter_text"
+    mid = _hashtag_grp("#bots", now_wall, b"bot: a BEACON")
+    assert decide(watched, frame(FLOOD, GRP_TXT, 0x00, b"", mid)).forward  # ^ = prefix only
+    with pytest.raises(ValueError):
+        HostRepeaterSettings(filter_watch=["bots"])
+    with pytest.raises(ValueError):
+        HostRepeaterSettings(filter_sender_rules=[FilterRule(pattern="x" * 16)])
+
+
+def test_dmc_rule_dosing_steps_aside_on_a_failed_roll():
+    eng = engine(filter_enabled=True, filter_sender_rules=[FilterRule(pattern="*", prob=50)])
+    now_wall = int(time.time())
+    reasons = [
+        decide(eng, frame(FLOOD, GRP_TXT, 0x00, b"", _public_grp(now_wall + n, b"a: b"))).reason
+        for n in range(200)
+    ]
+    dropped = reasons.count("filter_sender")
+    assert 60 < dropped < 140
+
+
+def test_dmc_message_age_limit():
+    now_wall = time.time()
+    eng = engine(filter_enabled=True, filter_age_minutes=60)
+    old = frame(FLOOD, GRP_TXT, 0x00, b"", _public_grp(int(now_wall) - 3700, b"a: old"))
+    assert eng.decide(old, RxFacts(), NOW, wall_now=now_wall).reason == "filter_age"
+    fresh = frame(FLOOD, GRP_TXT, 0x00, b"", _public_grp(int(now_wall) - 60, b"a: new"))
+    assert eng.decide(fresh, RxFacts(), NOW, wall_now=now_wall).forward
+    future = frame(FLOOD, GRP_TXT, 0x00, b"", _public_grp(int(now_wall) + 7200, b"a: f"))
+    assert eng.decide(future, RxFacts(), NOW, wall_now=now_wall).forward
+    # Inactive while the clock is unset.
+    unset = 1715731200.0
+    stale = frame(FLOOD, GRP_TXT, 0x00, b"", _public_grp(int(unset) - 86400, b"a: x"))
+    assert eng.decide(stale, RxFacts(), NOW, wall_now=unset).forward
+    assert eng.filter_snapshot(unset)["age"] == {"max_mins": 60, "clock_set": False}
+
+
+def test_dmc_dryrun_counts_but_forwards():
+    types = {"GRP_TXT": DmcTypeLimits(hops_max=2, rate_limit=0, rate_secs=60)}
+    eng = engine(filter_enabled=True, filter_dryrun=True, filter_types=types)
+    result = decide(eng, frame(FLOOD, GRP_TXT, 0x02, b"\x11\x22", grp_payload(1)))
+    assert result.forward and result.filter_dryrun == "filter_hops"
+    snap = eng.filter_snapshot(time.time())
+    assert snap["dryrun"] is True and snap["dryrun_hits"] == 1
+    assert snap["hops"] == {"GRP_TXT": 1} and snap["air_ms"] > 0
+    clean = decide(eng, frame(FLOOD, GRP_TXT, 0x00, b"", grp_payload(2)))
+    assert clean.forward and clean.filter_dryrun is None
+    eng.reset_filter_counters()
+    assert eng.filter_snapshot(time.time())["totals"]["hops"] == 0
+
+
+def test_dmc_filter_snapshot_counts_hash_and_sources():
+    eng = engine(filter_enabled=True, filter_min_hash_bytes=2)
+    raw = frame(FLOOD, TXT, 0x01, b"\x11", bytes([0x55, 0x66]) + bytes(18))
+    assert decide(eng, raw).reason == "filter_hash"
+    snap = eng.filter_snapshot(time.time())
+    assert snap["hash"]["size"] == {"1B": 1, "2B": 0, "3B": 0, "4B": 0}
+    assert snap["hash"]["top_types"] == {"TXT_MSG": 1}
+    assert snap["top_sources"] == [{"hash": "66", "drops": 1}]
+    assert snap["config"]["GRP_TXT"] == {"limit": 20, "secs": 60, "soft": 0, "hops_max": 32}
 
 
 # ── Phase 4: score-based delays ─────────────────────────────────────────

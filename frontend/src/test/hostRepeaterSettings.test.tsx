@@ -60,6 +60,15 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     filter_malformed: false,
     filter_types: { GRP_TXT: { hops_max: 32, rate_limit: 20, rate_secs: 60, soft: 0 } },
     filter_channels: [],
+    filter_dryrun: false,
+    filter_advert_hours: 0,
+    filter_paths: [],
+    filter_sender_rules: [],
+    filter_text_rules: [],
+    filter_watch: [],
+    filter_age_minutes: 0,
+    neighbor_poll_enabled: false,
+    neighbor_poll_interval_hours: 24,
     advert_limiter_enabled: false,
     advert_bucket_capacity: 2,
     advert_refill_tokens: 1,
@@ -236,6 +245,135 @@ describe('HostRepeaterSettings', () => {
     expect(saved.advert_limiter_enabled).toBe(true);
     expect(saved.advert_bucket_capacity).toBe(3);
     expect(saved.advert_min_interval_seconds).toBe(3600);
+  });
+
+  it('saves the dmc-observer-dev filter options and the neighbour poll', async () => {
+    vi.spyOn(api, 'getHostRepeater').mockResolvedValue(state(2));
+    const save = vi.spyOn(api, 'saveHostRepeaterSettings').mockResolvedValue(state(3));
+    render(<HostRepeaterSettings health={health(false)} floodScopeRegions={[]} repeaters={[]} />);
+    await screen.findByRole('checkbox', { name: 'Shadow mode' });
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Dry-run' }));
+    const hours = screen.getByLabelText('Advert window per node (hours)');
+    await userEvent.clear(hours);
+    await userEvent.type(hours, '48');
+    const age = screen.getByLabelText('Message age limit (minutes)');
+    await userEvent.clear(age);
+    await userEvent.type(age, '60');
+
+    // "Block" buttons: blocked channel, then path prefix. "Add": sender, text, watch.
+    const blockPath = () => screen.getAllByRole('button', { name: 'Block' })[1];
+    const add = (i: number) => screen.getAllByRole('button', { name: 'Add' })[i];
+    const pathInput = screen.getByLabelText('Hex prefix');
+    await userEvent.type(pathInput, 'abc');
+    expect(blockPath()).toBeDisabled(); // 3 hex digits is not a whole byte
+    await userEvent.type(pathInput, 'd');
+    await userEvent.click(blockPath());
+    expect(screen.getByText('ABCD')).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText('Sender name'), 'Bob');
+    await userEvent.clear(screen.getByLabelText('Sender rules Seconds (0 = block)'));
+    await userEvent.type(screen.getByLabelText('Sender rules Seconds (0 = block)'), '60');
+    await userEvent.click(add(0));
+    await userEvent.type(screen.getByLabelText('Text pattern'), '^BEACON');
+    await userEvent.click(add(1));
+    await userEvent.type(screen.getByLabelText('#channel'), 'bots');
+    expect(add(2)).toBeDisabled(); // needs the leading '#'
+    await userEvent.clear(screen.getByLabelText('#channel'));
+    await userEvent.type(screen.getByLabelText('#channel'), '#bots');
+    await userEvent.click(add(2));
+
+    await userEvent.click(
+      screen.getByRole('checkbox', { name: 'Poll neighbours periodically (transmits)' })
+    );
+    const interval = screen.getByLabelText('Poll interval (hours)');
+    await userEvent.clear(interval);
+    await userEvent.type(interval, '48');
+    await userEvent.click(screen.getByRole('button', { name: 'Save host repeater settings' }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledOnce());
+    const saved = save.mock.calls[0][1];
+    expect(saved.filter_dryrun).toBe(true);
+    expect(saved.filter_advert_hours).toBe(48);
+    expect(saved.filter_age_minutes).toBe(60);
+    expect(saved.filter_paths).toEqual(['ABCD']);
+    expect(saved.filter_sender_rules).toEqual([{ pattern: 'Bob', secs: 60, prob: 100 }]);
+    expect(saved.filter_text_rules).toEqual([{ pattern: '^BEACON', secs: 0, prob: 100 }]);
+    expect(saved.filter_watch).toEqual(['#bots']);
+    expect(saved.neighbor_poll_enabled).toBe(true);
+    expect(saved.neighbor_poll_interval_hours).toBe(48);
+  });
+
+  it('shows filter dry-run hits, rule counters and the neighbours table', async () => {
+    vi.spyOn(api, 'getHostRepeater').mockResolvedValue(
+      state(
+        2,
+        settings({
+          shadow_enabled: true,
+          filter_enabled: true,
+          filter_dryrun: true,
+          filter_sender_rules: [{ pattern: 'Bob', secs: 60, prob: 100 }],
+        })
+      )
+    );
+    vi.spyOn(api, 'getHostRepeaterStats').mockResolvedValue({
+      ...emptyStats,
+      by_reason: { 'forward:flood': 5, 'dryrun:filter_sender': 2 },
+      filter: {
+        enabled: true,
+        dryrun: true,
+        totals: { hops: 0, sender: 2 },
+        air_ms: 812.4,
+        dryrun_hits: 2,
+        hops: {},
+        rate: {},
+        hash: { size: { '1B': 0, '2B': 0, '3B': 0, '4B': 0 }, top_types: {} },
+        malformed: { short: 0, time: 0, empty: 0, utf8: 0 },
+        channels: [],
+        top_sources: [],
+        advert: { window_h: 0, cache: 0, cache_size: 256 },
+        age: { max_mins: 0, clock_set: true },
+        paths: [],
+        senders: [{ pattern: 'Bob', secs: 60, prob: 100, drops: 2, pass: 1 }],
+        texts: [],
+        watch: [],
+      },
+      neighbors: {
+        count: 1,
+        version: 1,
+        poll: {
+          running: false,
+          last_started: 1_700_000_000,
+          last_finished: 1_700_000_070,
+          next_due: 1_700_086_470,
+          discovered: 1,
+          queried: 1,
+          responded: 1,
+          last_error: null,
+        },
+        neighbors: [
+          {
+            pubkey: 'ab'.repeat(32),
+            snr: 6.5,
+            heard_secs_ago: 120,
+            scopes: '*,nl',
+            status: 'responded',
+          },
+        ],
+      },
+    });
+    render(<HostRepeaterSettings health={health(false)} floodScopeRegions={[]} repeaters={[]} />);
+
+    expect(
+      await screen.findByText('DMC filter (dry-run: counted, still forwarded)')
+    ).toBeInTheDocument();
+    expect(screen.getByText('Dry-run: Filter: sender rule')).toBeInTheDocument();
+    expect(screen.getByText('Saved airtime: 812 ms')).toBeInTheDocument();
+    expect(screen.getByText('2 dropped, 1 passed')).toBeInTheDocument();
+    expect(screen.getByText('Neighbours: 1')).toBeInTheDocument();
+    expect(screen.getByText('abababababab')).toBeInTheDocument();
+    expect(screen.getByText('*,nl')).toBeInTheDocument();
+    expect(screen.getByText('responded')).toBeInTheDocument();
   });
 
   it('shows the lifetime totals and resets them separately from the session', async () => {

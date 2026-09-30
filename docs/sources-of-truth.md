@@ -60,8 +60,16 @@ machine this was authored on and may differ elsewhere.
   3600 ms) and `repeater/policy_engine.py` (rule format and operators) are the model
   for `app/services/host_repeater_*.py`. Forwarding rules themselves come from
   MeshCore `src/Mesh.cpp`, repeater gates from `examples/simple_repeater/MyMesh.cpp`
-  and `src/helpers/RoutingPolicy.h`, the packet filter from DMC `dmc-dev`
-  `examples/simple_repeater/Filter.{h,cpp}` / `Limiter.h`, and the EU sub-band table
+  and `src/helpers/RoutingPolicy.h`, the packet filter from DMC `dmc-observer-dev`
+  (`923fc428`, 2026-09-30) `examples/simple_repeater/Filter.{h,cpp}`, `Limiter.h`,
+  `AdvertLimiter.h`, `PathBlock.h`, `SenderRules.h`, `MessageAge.h` and
+  `docs/packet_filter_reference.md`; the MQTT `filter` topic from
+  `src/helpers/MQTTFilterStatsJson.h`, the `config` extras from
+  `src/helpers/MQTTMessageBuilder.cpp` `buildConfigMessage`, and the neighbours table,
+  poll and `neighbors` topic from `examples/simple_repeater/MyMesh.cpp`
+  (`putNeighbour`, `onAdvertRecv`, `sendNodeDiscoverReq`, `startNeighborDiscover`,
+  `sendAnonRegionsReq`, `finishNeighborDiscover`) and `src/helpers/MQTTPayloadBuilder.cpp`
+  `buildNeighborsMessage`. The EU sub-band table
   from DMC `src/helpers/DutyCycleLimits.cpp`. The region map and duty-cycle region
   gating follow DMC `dmc-dev` `src/helpers/RegionMap.{h,cpp}` (`findMatch`,
   `depthOf`, `getMaxGateLevel`, `applyDutyGate`), `examples/simple_repeater/MyMesh.cpp`

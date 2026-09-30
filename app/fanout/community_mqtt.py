@@ -45,6 +45,17 @@ _STATUS_INTERVAL_DEFAULT_MS = 300000
 _STATUS_INTERVAL_MIN_MS = 1000
 _STATUS_INTERVAL_MAX_MS = 3600000
 
+# DMC observer ``filter`` topic cadence (``set mqtt.filter.interval``, 60-600 s, default 60 s).
+_FILTER_INTERVAL_DEFAULT_MS = 60000
+_FILTER_INTERVAL_MIN_MS = 60000
+_FILTER_INTERVAL_MAX_MS = 600000
+# The periodic wake fires every ~60 s; allow for its jitter when an interval is due.
+_WAKE_SLACK_SECONDS = 2.0
+# Host repeater states in which the filter / own-neighbour topics are published.
+_HOST_REPEATER_ACTIVE = ("shadow", "armed")
+# Seeds the config topic's ``boot_id`` (fw: one id per boot).
+_PROCESS_START = time.time()
+
 
 def _clamp_status_interval_ms(value: object) -> int:
     """Clamp a status interval to [1000, 3600000] ms, else the 300000 default."""
@@ -57,6 +68,13 @@ def _clamp_status_interval_ms(value: object) -> int:
 
 # Route type mapping: bottom 2 bits of first byte
 _ROUTE_MAP = {0: "F", 1: "F", 2: "D", 3: "T"}
+
+
+def _clamp_filter_interval_ms(value: object) -> int:
+    """Clamp the ``filter`` topic interval to the firmware's 60-600 s band."""
+    if not isinstance(value, int) or isinstance(value, bool):
+        return _FILTER_INTERVAL_DEFAULT_MS
+    return max(_FILTER_INTERVAL_MIN_MS, min(_FILTER_INTERVAL_MAX_MS, value))
 
 
 def _format_utc_timestamp(dt: datetime | None = None) -> str:
@@ -389,6 +407,7 @@ def _format_node_config(
         "origin": device_name or "MeshCore Device",
         "origin_id": public_key_hex.upper(),
         "client_version": _get_client_version(),
+        "boot_id": _boot_id(_PROCESS_START),
     }
     if device_info:
         payload["model"] = device_info.get("model", "unknown")
@@ -418,6 +437,11 @@ def _format_node_config(
 
     hr = host_repeater_settings
     if hr is not None:
+        # The host repeater's timing knobs (fw rx_delay / tx_delay_factor / direct_tx_delay_factor).
+        radio = payload.setdefault("radio", {})
+        radio["rx_delay"] = hr.rx_delay_base
+        radio["tx_delay_factor"] = hr.tx_delay_factor
+        radio["direct_tx_delay_factor"] = hr.direct_tx_delay_factor
         armed = host_repeater_state == "armed"
         payload["repeat"] = {
             "disable_fwd": not armed,
@@ -458,11 +482,153 @@ def _format_node_config(
         "status_interval": _clamp_status_interval_ms(
             fanout_config.get("status_interval_ms", _STATUS_INTERVAL_DEFAULT_MS)
         ),
+        # fw: 0 = the filter topic is off.
+        "filter_interval": _clamp_filter_interval_ms(
+            fanout_config.get("filter_interval_ms", _FILTER_INTERVAL_DEFAULT_MS)
+        )
+        if fanout_config.get("publish_filter", False)
+        else 0,
+        "own_neighbors": bool(fanout_config.get("publish_own_neighbors", False)),
     }
+    if hr is not None and hr.neighbor_poll_enabled:
+        payload["mqtt"]["neighbors_interval"] = hr.neighbor_poll_interval_hours * 3_600_000
     iata = str(fanout_config.get("iata", "")).upper().strip()
     if iata:
         payload["mqtt"]["iata"] = iata
     return payload
+
+
+def _type_key(name: str) -> str:
+    """Payload type name -> the firmware's two-digit type id (``%02d``)."""
+    from app.services.host_repeater_settings import PAYLOAD_TYPE_BY_NAME
+
+    code = PAYLOAD_TYPE_BY_NAME.get(name)
+    return f"{code:02d}" if code is not None else name
+
+
+def _boot_id(since: float) -> int:
+    """Per-counter-run id (fw seeds it from the boot clock, ``& 0xFFFF | 1``).
+
+    Our counters start with the host repeater stats, so a stats reset is a new "boot".
+    """
+    return (int(since) & 0xFFFF) | 1
+
+
+def _format_filter_stats(
+    *,
+    device_name: str,
+    public_key_hex: str,
+    host_repeater_state: str,
+    since: float,
+    filter_snapshot: dict[str, Any],
+    region_gate: dict[str, Any],
+    now: float | None = None,
+) -> dict[str, Any]:
+    """Build the DMC observer ``filter`` topic payload (``MQTTFilterStatsJson::fill``).
+
+    The counters are the host repeater's DMC filter statistics. ``dryrun`` is true
+    whenever nothing is really dropped: the filter dry-run setting, or the host
+    repeater not being armed (shadow judges but never forwards). ``host_repeater``
+    is an RTFM-EV addition that says which.
+    """
+    wall = now if now is not None else time.time()
+    f = filter_snapshot
+    armed = host_repeater_state == "armed"
+    payload: dict[str, Any] = {
+        "timestamp": _format_utc_timestamp(datetime.fromtimestamp(wall, UTC)),
+        "origin": device_name or "MeshCore Device",
+        "origin_id": public_key_hex.upper(),
+        "uptime_secs": max(0, int(wall - since)),
+        "boot_id": _boot_id(since),
+        "enabled": bool(f.get("enabled")),
+        "dryrun": bool(f.get("dryrun")) or not armed,
+        "totals": dict(f.get("totals") or {}),
+        "air_ms": int(f.get("air_ms") or 0),
+        "hops": {_type_key(k): v for k, v in (f.get("hops") or {}).items() if v},
+        "rate": {_type_key(k): v for k, v in (f.get("rate") or {}).items() if v},
+    }
+    hash_info = f.get("hash") or {}
+    sizes = dict(hash_info.get("size") or {})
+    if not sizes.get("4B"):
+        sizes.pop("4B", None)
+    hash_out: dict[str, Any] = {"size": sizes}
+    top_types = hash_info.get("top_types") or {}
+    if top_types:
+        hash_out["top_types"] = {_type_key(k): v for k, v in top_types.items()}
+    payload["hash"] = hash_out
+    payload["malformed"] = dict(f.get("malformed") or {})
+    if f.get("channels"):
+        payload["channels"] = list(f["channels"])
+    if f.get("top_sources"):
+        payload["top_sources"] = list(f["top_sources"])
+    payload["advert"] = dict(f.get("advert") or {})
+    payload["age"] = dict(f.get("age") or {})
+    for key in ("paths", "senders", "texts", "watch"):
+        if f.get(key):
+            payload[key] = list(f[key])
+    payload["config"] = {_type_key(k): v for k, v in (f.get("config") or {}).items()}
+    duty = region_gate.get("budget_used_percent")
+    payload["region_gate"] = {
+        "enabled": bool(region_gate.get("enabled")),
+        "duty": int(duty) if isinstance(duty, (int, float)) else 0,
+        "level": int(region_gate.get("level") or 0),
+        "max_level": int(region_gate.get("max_level") or 0),
+        "threshold": region_gate.get("threshold"),
+        "hysteresis": region_gate.get("hysteresis"),
+    }
+    payload["host_repeater"] = {"state": host_repeater_state}
+    return payload
+
+
+def _host_repeater_scopes(host_repeater_settings: Any | None) -> str:
+    """``getLocalScopes``: flood-allowed names (``exportNamesTo(REGION_DENY_FLOOD)``)."""
+    if host_repeater_settings is None:
+        return ""
+    names = ["*"] if host_repeater_settings.unscoped_flood_allow else []
+    names += [r.name for r in host_repeater_settings.regions if not r.deny_flood]
+    return ",".join(names)
+
+
+def _format_own_neighbors(
+    *,
+    device_name: str,
+    public_key_hex: str,
+    table: dict[str, Any],
+    self_scopes: str,
+    default_scope: str | None,
+) -> dict[str, Any]:
+    """Build the DMC observer ``neighbors`` topic payload for this node's own table.
+
+    Mirrors ``MQTTPayloadBuilder::buildNeighborsMessage`` after a completed poll:
+    progress metadata, ``self`` scopes and one entry per neighbour, newest first.
+    Unlike the forwarded ``node_neighbors`` kind there is no ``subject_id``: the
+    subject is the publisher itself.
+    """
+    neighbors = table.get("neighbors") or []
+    poll = table.get("poll") or {}
+    default = (default_scope or "").strip().removeprefix("#") or "*"
+    return {
+        "timestamp": _format_utc_timestamp(),
+        "origin": device_name or "MeshCore Device",
+        "origin_id": public_key_hex.upper(),
+        "total_neighbors": len(neighbors),
+        "queried_neighbors": int(poll.get("queried") or 0),
+        "truncated": False,
+        "self": {"scopes": self_scopes, "default_scope": default},
+        "neighbors": [
+            {
+                "pubkey": str(entry.get("pubkey", "")).upper(),
+                "snr": entry.get("snr"),
+                "heard_secs_ago": entry.get("heard_secs_ago"),
+                "scopes": entry.get("scopes") or "",
+                # fw maps anything not answered or failed to "timeout".
+                "status": entry.get("status")
+                if entry.get("status") in ("responded", "send_failed")
+                else "timeout",
+            }
+            for entry in neighbors
+        ],
+    }
 
 
 def _build_config_topic(settings: CommunityMqttSettings, pubkey_hex: str) -> str:
@@ -475,6 +641,12 @@ def _build_status_topic(settings: CommunityMqttSettings, pubkey_hex: str) -> str
     """Build the ``meshcore/{IATA}/{PUBKEY}/status`` topic string."""
     iata = settings.community_mqtt_iata.upper().strip()
     return f"meshcore/{iata}/{pubkey_hex}/status"
+
+
+def _build_node_topic(settings: CommunityMqttSettings, pubkey_hex: str, kind: str) -> str:
+    """Build ``meshcore/{IATA}/{PUBKEY}/{kind}`` (``filter``, ``neighbors``)."""
+    iata = settings.community_mqtt_iata.upper().strip()
+    return f"meshcore/{iata}/{pubkey_hex}/{kind}"
 
 
 def _build_radio_info() -> str:
@@ -520,6 +692,8 @@ class CommunityMqttPublisher(BaseMqttPublisher):
         self._stats_supported: bool | None = None
         self._last_stats_fetch: float = 0.0
         self._last_status_publish: float = 0.0
+        self._last_filter_publish: float = 0.0
+        self._own_neighbors_published: int | None = None
 
     async def start(self, settings: object) -> None:
         self._key_unavailable_warned = False
@@ -528,6 +702,8 @@ class CommunityMqttPublisher(BaseMqttPublisher):
         self._stats_supported = None
         self._last_stats_fetch = 0.0
         self._last_status_publish = 0.0
+        self._last_filter_publish = 0.0
+        self._own_neighbors_published = None
         await super().start(settings)
 
     def _on_not_configured(self) -> None:
@@ -843,10 +1019,85 @@ class CommunityMqttPublisher(BaseMqttPublisher):
         )
         await self.publish(_build_config_topic(settings, pubkey_hex), payload, retain=True)
 
+    def _self_identity(self) -> tuple[str, str] | None:
+        """(device name, upper-case public key hex) of the local radio, or None."""
+        from app.keystore import get_public_key
+        from app.services.radio_runtime import radio_runtime as radio_manager
+
+        public_key = get_public_key()
+        if public_key is None:
+            return None
+        name = ""
+        if radio_manager.meshcore and radio_manager.meshcore.self_info:
+            name = radio_manager.meshcore.self_info.get("name", "") or ""
+        return name, public_key.hex().upper()
+
+    async def _publish_filter(self, settings: CommunityMqttSettings) -> bool:
+        """Publish the DMC ``filter`` topic (opt-in; only while the host repeater is active)."""
+        if not getattr(settings, "community_mqtt_publish_filter", False):
+            return False
+        from app.services.host_repeater import host_repeater
+
+        state = host_repeater.state
+        if state not in _HOST_REPEATER_ACTIVE:
+            return False
+        identity = self._self_identity()
+        if identity is None:
+            return False
+        device_name, pubkey_hex = identity
+        wall = time.time()
+        payload = _format_filter_stats(
+            device_name=device_name,
+            public_key_hex=pubkey_hex,
+            host_repeater_state=state,
+            since=host_repeater.stats.since,
+            filter_snapshot=host_repeater.engine.filter_snapshot(wall),
+            region_gate=host_repeater.engine.gate_snapshot(time.monotonic()),
+            now=wall,
+        )
+        await self.publish(_build_node_topic(settings, pubkey_hex, "filter"), payload)
+        self._last_filter_publish = time.monotonic()
+        return True
+
+    async def _publish_own_neighbors(self, settings: CommunityMqttSettings) -> bool:
+        """Publish this node's ``neighbors`` topic once per completed neighbour poll."""
+        if not getattr(settings, "community_mqtt_publish_own_neighbors", False):
+            return False
+        from app.services.host_repeater import host_repeater
+
+        if host_repeater.state not in _HOST_REPEATER_ACTIVE:
+            return False
+        table = host_repeater.neighbors
+        if table.poll.last_finished is None or table.version == self._own_neighbors_published:
+            return False
+        identity = self._self_identity()
+        if identity is None:
+            return False
+        device_name, pubkey_hex = identity
+        default_scope: str | None = None
+        try:
+            from app.repository import AppSettingsRepository
+
+            default_scope = (await AppSettingsRepository.get()).flood_scope or None
+        except Exception:
+            logger.debug("Community MQTT: app settings unavailable for neighbors", exc_info=True)
+        payload = _format_own_neighbors(
+            device_name=device_name,
+            public_key_hex=pubkey_hex,
+            table=table.snapshot(),
+            self_scopes=_host_repeater_scopes(host_repeater.settings),
+            default_scope=default_scope,
+        )
+        await self.publish(_build_node_topic(settings, pubkey_hex, "neighbors"), payload)
+        self._own_neighbors_published = table.version
+        return True
+
     async def _on_connected_async(self, settings: object) -> None:
-        """Publish the retained online status (and, opt-in, config) after connecting."""
+        """Publish the retained online status (and, opt-in, config / filter) after connecting."""
         await self._publish_status(settings)  # type: ignore[arg-type]
         await self._publish_config(settings)  # type: ignore[arg-type]
+        await self._publish_filter(settings)  # type: ignore[arg-type]
+        await self._publish_own_neighbors(settings)  # type: ignore[arg-type]
 
     async def _on_periodic_wake(self, elapsed: float) -> None:
         if not self._settings:
@@ -862,6 +1113,12 @@ class CommunityMqttPublisher(BaseMqttPublisher):
             # Config changes rarely; the firmware reuses its filter interval,
             # we reuse the status cadence.
             await self._publish_config(self._settings)
+        filter_ms = _clamp_filter_interval_ms(
+            getattr(self._settings, "community_mqtt_filter_interval_ms", None)
+        )
+        if now - self._last_filter_publish >= filter_ms / 1000.0 - _WAKE_SLACK_SECONDS:
+            await self._publish_filter(self._settings)
+        await self._publish_own_neighbors(self._settings)
 
     def _on_error(self) -> tuple[str, str]:
         return (

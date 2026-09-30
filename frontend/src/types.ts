@@ -2098,6 +2098,13 @@ export interface HostRepeaterBlockedChannel {
   label: string;
 }
 
+/** DMC filter sender / text rule: secs 0 = block, else throttle; prob = share decided. */
+export interface HostRepeaterFilterRule {
+  pattern: string;
+  secs: number;
+  prob: number;
+}
+
 /** One host repeater region map entry (firmware RegionEntry); name without '#'. */
 export interface HostRepeaterRegion {
   name: string;
@@ -2135,6 +2142,21 @@ export interface HostRepeaterSettings {
   filter_malformed: boolean;
   filter_types: Record<string, HostRepeaterTypeLimits>;
   filter_channels: HostRepeaterBlockedChannel[];
+  /** DMC filter dry-run: count drops but still forward. */
+  filter_dryrun: boolean;
+  /** Per-origin advert window in hours (0 = off). */
+  filter_advert_hours: number;
+  /** Blocked path prefixes, upper-case hex (1-4 bytes). */
+  filter_paths: string[];
+  filter_sender_rules: HostRepeaterFilterRule[];
+  filter_text_rules: HostRepeaterFilterRule[];
+  /** Hashtag channels (#name) the content rules may read besides Public. */
+  filter_watch: string[];
+  /** Drop group texts older than this many minutes (0 = off). */
+  filter_age_minutes: number;
+  /** Neighbour poll (transmits): zero-hop discover + region request per neighbour. */
+  neighbor_poll_enabled: boolean;
+  neighbor_poll_interval_hours: number;
   /** Per-node advert token bucket (OpenHop advert_rate_limit). */
   advert_limiter_enabled: boolean;
   advert_bucket_capacity: number;
@@ -2266,7 +2288,60 @@ export interface HostRepeaterDecision {
   score?: number | null;
   policy_rule_id: string | null;
   policy_action: string | null;
+  /** Filter dry-run: the reason this forwarded flood would have been dropped for. */
+  filter_dryrun?: string | null;
   packet_hash: string;
+}
+
+export interface HostRepeaterFilterRuleStats extends HostRepeaterFilterRule {
+  drops: number;
+  pass: number;
+}
+
+/** DMC filter counters (`stats.filter`), the same shape as the observer `filter` topic. */
+export interface HostRepeaterFilterStats {
+  enabled: boolean;
+  dryrun: boolean;
+  totals: Record<string, number>;
+  air_ms: number;
+  dryrun_hits: number;
+  hops: Record<string, number>;
+  rate: Record<string, number>;
+  hash: { size: Record<string, number>; top_types: Record<string, number> };
+  malformed: Record<string, number>;
+  channels: { hash: string; name: string; drops: number }[];
+  top_sources: { hash: string; drops: number }[];
+  advert: { window_h: number; cache: number; cache_size: number };
+  age: { max_mins: number; clock_set: boolean };
+  paths: { prefix: string; drops: number }[];
+  senders: HostRepeaterFilterRuleStats[];
+  texts: HostRepeaterFilterRuleStats[];
+  watch: string[];
+}
+
+export type HostRepeaterNeighbourStatus = 'unsent' | 'responded' | 'timeout' | 'send_failed';
+
+/** Directly heard repeaters (`stats.neighbors`), DMC observer neighbours table. */
+export interface HostRepeaterNeighbours {
+  count: number;
+  version: number;
+  poll: {
+    running: boolean;
+    last_started: number | null;
+    last_finished: number | null;
+    next_due: number | null;
+    discovered: number;
+    queried: number;
+    responded: number;
+    last_error: string | null;
+  };
+  neighbors: {
+    pubkey: string;
+    snr: number | null;
+    heard_secs_ago: number;
+    scopes: string;
+    status: HostRepeaterNeighbourStatus;
+  }[];
 }
 
 export interface HostRepeaterStats {
@@ -2329,6 +2404,8 @@ export interface HostRepeaterStats {
     delay_ms: HostRepeaterPercentiles;
   };
   advert_limiter?: { enabled: boolean; tracked: number; allowed: number; dropped: number };
+  filter?: HostRepeaterFilterStats;
+  neighbors?: HostRepeaterNeighbours;
   /** Totals that survive restarts (host_repeater_stats row). */
   lifetime?: {
     since: number;

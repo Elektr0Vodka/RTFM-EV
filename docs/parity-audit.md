@@ -147,7 +147,7 @@ discovery rows were re-marked afterwards. §7 holds the current per-item status.
 |---|---|---|---|---|
 | Message region scope | both | Partial | App | `_063` exists; not yet surfaced/complete. |
 | RegionMap scope tree display | DMC | Present | Adapt | Repeater tree via the RF regions request (`RepeaterRegionsPane`); own tree in Settings > Host repeater (published on the `config` topic). Companion `CMD_GET_DEFAULT_FLOOD_SCOPE 64` shown read-only in Settings > Radio (`GET /radio/default-flood-scope`). |
-| Region-gating (duty-cycle) state | DMC | Partial | Adapt | Own host repeater gate state is in Settings > Host repeater stats and on the `config` topic; other repeaters' `region_gate{}` only exists on the DMC MQTT `filter`/`config` topics (needs an MQTT subscriber; not built). |
+| Region-gating (duty-cycle) state | DMC | Partial | Adapt | Own host repeater gate state is in Settings > Host repeater stats, on the `config` topic and (live) on the opt-in `filter` topic; other repeaters' `region_gate{}` only exists on the DMC MQTT `filter`/`config` topics (needs an MQTT subscriber; not built). |
 | IATA routing code | DMC | Partial | App | Community MQTT has `iata`. |
 
 ### MQTT export (RTFM-EV as the companion bridge)
@@ -158,8 +158,8 @@ discovery rows were re-marked afterwards. §7 holds the current per-item status.
 | `raw` topic | DMC | Partial | App | Private MQTT has `.../raw/...`; no per-broker toggle. |
 | Per-broker per-topic toggles | DMC | Absent | App | DMC: `mqtt_status_enabled=1`, `mqtt_raw_enabled=0` default off. |
 | Configurable status interval | DMC | Absent | App | DMC limits: 1-60 min (CLI) / 1000ms-3600000ms (bridge), default 5 min. |
-| `neighbors` topic publish | DMC | Absent | Adapt | Reconstruct host-side. |
-| `filter` stats topic | DMC | Absent | N/A | Repeater packet-filter concept; no companion analog. |
+| `neighbors` topic publish | DMC | Present | Adapt | Opt-in `publish_own_neighbors`: own table from the host repeater (zero-hop repeater adverts + the opt-in neighbour poll: zero-hop discover, zero-hop anon regions request per neighbour), sent once per completed poll while the host repeater is shadow or armed. Remote repeaters' tables ride on `node_neighbors` (plan [24]). |
+| `filter` stats topic | DMC | Present | Adapt | Opt-in `publish_filter` (60-600 s): the host repeater's DMC filter counters, config and `region_gate` in the observer shape; only while the host repeater is shadow or armed, `dryrun: true` unless armed. |
 | `config` topic (NEW this branch) | DMC | Present | Adapt | Opt-in `publish_config`: own config snapshot (identity, radio, host repeater `repeat` / `region_gate` / `region.scopes[]`, mqtt toggles); firmware-only sections omitted. |
 | Wire-compatible DMC payload schemas | DMC | Absent | App | Mirror `MQTTPayloadBuilder`/`MQTTMessageBuilder` JSON shapes. |
 

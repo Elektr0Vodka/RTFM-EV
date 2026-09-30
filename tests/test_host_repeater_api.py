@@ -296,6 +296,53 @@ async def test_shadow_counts_forward_duplicate_and_echo_gap(test_db):
 
 
 @pytest.mark.asyncio
+async def test_shadow_filter_dryrun_stats_and_passive_neighbours(test_db):
+    from nacl.signing import SigningKey
+
+    from app.services.host_repeater_settings import DmcTypeLimits
+
+    rt = HostRepeaterRuntime()
+    rt.settings = HostRepeaterSettings(
+        shadow_enabled=True,
+        filter_enabled=True,
+        filter_dryrun=True,
+        filter_types={"GRP_TXT": DmcTypeLimits(hops_max=0, rate_limit=0, rate_secs=60)},
+    )
+    rt.engine.configure(settings=rt.settings)
+    radio = snapshot(bytes([0xAB]) + bytes(31))
+    out = await rt.observe(
+        _grp(1), snr=5.0, rssi=-80, arrival=time.monotonic(), result={}, pre=PreFacts(), radio=radio
+    )
+    assert out is not None and out.forward and out.filter_dryrun == "filter_hops"
+
+    # A signed zero-hop repeater advert lands in the neighbours table.
+    key = SigningKey.generate()
+    pub = bytes(key.verify_key)
+    stamp = (5).to_bytes(4, "little")
+    app_data = b"\x82rpt"
+    advert = pub + stamp + key.sign(pub + stamp + app_data).signature + app_data
+    await rt.observe(
+        bytes([(0x04 << 2) | 1, 0x00]) + advert,
+        snr=7.25,
+        rssi=-70,
+        arrival=time.monotonic(),
+        result={},
+        pre=PreFacts(),
+        radio=radio,
+    )
+
+    stats = rt.stats_snapshot(869.618)
+    assert stats["by_reason"]["dryrun:filter_hops"] == 1
+    assert stats["filter"]["dryrun_hits"] == 1 and stats["filter"]["hops"] == {"GRP_TXT": 1}
+    assert stats["recent"][-1]["filter_dryrun"] == "filter_hops"
+    assert stats["neighbors"]["count"] == 1
+    assert stats["neighbors"]["neighbors"][0]["pubkey"] == pub.hex()
+    assert stats["neighbors"]["neighbors"][0]["snr"] == 7.25
+    rt.reset_stats()
+    assert rt.stats_snapshot(869.618)["filter"]["dryrun_hits"] == 0
+
+
+@pytest.mark.asyncio
 async def test_shadow_skips_openhop_radio(test_db):
     rt = HostRepeaterRuntime()
     rt.settings = HostRepeaterSettings(shadow_enabled=True)
@@ -427,6 +474,7 @@ FORBIDDEN_IMPORTS = (
         "app.services.host_repeater_policy",
         "app.services.host_repeater_settings",
         "app.services.host_repeater",
+        "app.services.host_repeater_neighbors",
     ],
 )
 def test_shadow_modules_do_not_import_the_radio(module_name):

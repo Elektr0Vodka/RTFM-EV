@@ -21,6 +21,7 @@ import { OpenHopPolicyRules } from '../openhop/OpenHopPolicyRules';
 import type { ConditionVocabulary } from '../openhop/OpenHopConditionBuilder';
 import { HostRepeaterStatsPane } from './HostRepeaterStatsPane';
 import { HostRepeaterRegions } from './HostRepeaterRegions';
+import { HostRepeaterFilterExtras } from './HostRepeaterFilterExtras';
 
 /** Policy fields the host evaluates (app/services/host_repeater_settings.py POLICY_FIELDS). */
 const POLICY_VOCABULARY: ConditionVocabulary = {
@@ -302,7 +303,11 @@ export function HostRepeaterSettings({ health, floodScopeRegions, repeaters }: P
         <span className="text-xs text-muted-foreground">
           {armed
             ? t('settings_host_repeater_transmitting')
-            : t('settings_host_repeater_no_transmit')}
+            : state.state === 'shadow' && state.settings.neighbor_poll_enabled
+              ? t('settings_host_repeater_no_forward_poll', {
+                  hours: state.settings.neighbor_poll_interval_hours,
+                })
+              : t('settings_host_repeater_no_transmit')}
         </span>
       </div>
 
@@ -893,6 +898,34 @@ export function HostRepeaterSettings({ health, floodScopeRegions, repeaters }: P
               </Button>
             </div>
           </div>
+          <HostRepeaterFilterExtras draft={draft} set={set} stats={hr.stats?.filter} />
+        </div>
+      </details>
+
+      <details className="rounded border border-input p-3">
+        <summary className="cursor-pointer text-sm font-semibold">
+          {t('settings_host_repeater_neighbors_heading')}
+        </summary>
+        <div className="mt-3 space-y-3">
+          <p className="text-xs text-muted-foreground">
+            {t('settings_host_repeater_neighbors_desc')}
+          </p>
+          <Toggle
+            id="hr-neighbor-poll"
+            label={t('settings_host_repeater_neighbors_poll')}
+            desc={t('settings_host_repeater_neighbors_poll_desc')}
+            checked={draft.neighbor_poll_enabled}
+            onChange={(v) => set({ neighbor_poll_enabled: v })}
+          />
+          <NumField
+            id="hr-neighbor-interval"
+            label={t('settings_host_repeater_neighbors_interval')}
+            value={draft.neighbor_poll_interval_hours}
+            min={12}
+            max={336}
+            hint={t('settings_host_repeater_neighbors_interval_hint')}
+            onChange={(v) => set({ neighbor_poll_interval_hours: v })}
+          />
         </div>
       </details>
 

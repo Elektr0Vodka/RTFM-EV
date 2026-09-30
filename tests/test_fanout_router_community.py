@@ -64,3 +64,24 @@ def test_community_status_interval_in_range_preserved():
     cfg = _base() | {"status_interval_ms": 600000}
     _validate_mqtt_community_config(cfg)
     assert cfg["status_interval_ms"] == 600000
+
+
+def test_filter_and_own_neighbor_topics_default_off_and_interval_clamped():
+    """The DMC ``filter`` and own ``neighbors`` topics are opt-in per integration."""
+    cfg = _base()
+    _validate_mqtt_community_config(cfg)
+    assert cfg["publish_filter"] is False
+    assert cfg["publish_own_neighbors"] is False
+    assert cfg["filter_interval_ms"] == 60000
+    cfg = _base() | {
+        "publish_filter": 1,
+        "publish_own_neighbors": "yes",
+        "filter_interval_ms": 300000,
+    }
+    _validate_mqtt_community_config(cfg)
+    assert cfg["publish_filter"] is True and cfg["publish_own_neighbors"] is True
+    assert cfg["filter_interval_ms"] == 300000
+    for bad in (59999, 600001, "x", True):
+        cfg = _base() | {"filter_interval_ms": bad}
+        _validate_mqtt_community_config(cfg)
+        assert cfg["filter_interval_ms"] == 60000

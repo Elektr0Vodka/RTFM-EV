@@ -57,6 +57,7 @@ from app.services.host_repeater_engine import (
     RxFacts,
     lora_airtime_ms,
 )
+from app.services.host_repeater_neighbors import NeighbourTable, zero_hop_repeater_advert
 from app.services.host_repeater_settings import HostRepeaterSettings, sub_band_duty_limit
 from app.websocket import broadcast_event
 
@@ -291,6 +292,9 @@ class HostRepeaterRuntime:
         # Armed-mode sender (``host_repeater_tx``), attached by that module at import.
         # Kept as an opaque attribute: this module must not import the send path.
         self._tx: ForwardSink | None = None
+        # Directly heard repeaters (DMC observer neighbours table); the poll that
+        # transmits is ``host_repeater_neighbor_poll``.
+        self.neighbors = NeighbourTable()
 
     # ── settings ─────────────────────────────────────────────────────────
 
@@ -522,6 +526,10 @@ class HostRepeaterRuntime:
         env = parse_packet_envelope(raw)
         self.engine.configure(public_key=radio.public_key, radio=radio.radio)
         await self._refresh_contacts()
+        if env is not None:
+            neighbour = zero_hop_repeater_advert(env.payload_type, env.hop_count, env.payload)
+            if neighbour is not None and bytes.fromhex(neighbour) != (radio.public_key or b"")[:32]:
+                self.neighbors.put(neighbour, snr)
 
         facts = RxFacts(
             snr=snr,
@@ -724,6 +732,10 @@ class HostRepeaterRuntime:
             lt_counts["forward"] += 1
             s.by_reason[f"forward:{decision.reason}"] += 1
             lt.by_reason[f"forward:{decision.reason}"] += 1
+            if decision.filter_dryrun:
+                # Filter dry-run: forwarded, but counted against the reason it would drop for.
+                s.by_reason[f"dryrun:{decision.filter_dryrun}"] += 1
+                lt.by_reason[f"dryrun:{decision.filter_dryrun}"] += 1
             if decision.delay_ms is not None:
                 s.delay_ms.append(decision.delay_ms)
             if decision.airtime_ms is not None:
@@ -769,6 +781,7 @@ class HostRepeaterRuntime:
                 "score": round(decision.score, 3) if decision.score is not None else None,
                 "policy_rule_id": decision.policy_rule_id,
                 "policy_action": decision.policy_action,
+                "filter_dryrun": decision.filter_dryrun,
                 "packet_hash": decision.packet_hash,
             }
         )
@@ -857,6 +870,7 @@ class HostRepeaterRuntime:
 
     def reset_stats(self) -> None:
         self.stats.reset()
+        self.engine.reset_filter_counters()
         self._echo.clear()
         self._last_radio_counters = None
         self._pushes_at_last_sample = 0
@@ -933,6 +947,8 @@ class HostRepeaterRuntime:
             },
             "advert_limiter": self.engine.advert_limiter_snapshot(),
             "region_gate": self.engine.gate_snapshot(time.monotonic()),
+            "filter": self.engine.filter_snapshot(wall),
+            "neighbors": self.neighbors.snapshot(wall),
             "tx": self._tx.snapshot() if self._tx is not None else None,
             "lifetime": {
                 "since": self.lifetime.since,
