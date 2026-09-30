@@ -6,11 +6,12 @@
  * panel:
  *  - MeshAdvertsPanel: advert-frequency health (the original page).
  *  - MeshRequestsPanel: single-node REQUEST/RESPONSE traffic view.
+ *  - MeshPowerOutagePanel: which nodes stay online in a power outage.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Activity, RefreshCw } from 'lucide-react';
-import type { RadioConfig } from '../types';
+import type { Contact, RadioConfig } from '../types';
 import { useT } from '../i18n';
 import { type TimeWindow } from './meshHealthShared';
 import { TimeRangeSelector } from './TimeRangeSelector';
@@ -21,8 +22,14 @@ import { MeshAdvertsPanel } from './MeshAdvertsPanel';
 import { MeshRequestsPanel } from './MeshRequestsPanel';
 import { MeshPrefixCollisionsPanel } from './MeshPrefixCollisionsPanel';
 import { MeshRelayReceptionPanel } from './MeshRelayReceptionPanel';
+import { MeshPowerOutagePanel } from './MeshPowerOutagePanel';
 
-type MeshHealthTab = 'adverts' | 'requests' | 'relay-reception' | 'prefix-collisions';
+type MeshHealthTab =
+  | 'adverts'
+  | 'requests'
+  | 'relay-reception'
+  | 'prefix-collisions'
+  | 'power-outage';
 
 // Mesh Health keeps 30m as a shorter extra and adopts the shared base set. The
 // panels fetch now-relative ranges from selectedWindow.hours, so a From/To
@@ -41,7 +48,13 @@ const MESH_HEALTH_TAB_KEY = 'rtfm-meshhealth-tab';
 function loadStoredTab(): MeshHealthTab {
   try {
     const v = localStorage.getItem(MESH_HEALTH_TAB_KEY);
-    if (v === 'requests' || v === 'relay-reception' || v === 'prefix-collisions') return v;
+    if (
+      v === 'requests' ||
+      v === 'relay-reception' ||
+      v === 'prefix-collisions' ||
+      v === 'power-outage'
+    )
+      return v;
     return 'adverts';
   } catch {
     return 'adverts';
@@ -61,6 +74,8 @@ function windowFromId(id: string): TimeWindow {
 
 interface Props {
   config: RadioConfig | null;
+  /** All known contacts (the Power Outage tab classifies them by name). */
+  contacts?: Contact[];
   onNavigateToMap?: (focusKey?: string) => void;
   /** Opens a node's detail page (contact conversation) by public key. */
   onOpenNode?: (publicKey: string, name: string | null) => void;
@@ -73,6 +88,7 @@ interface Props {
 
 export function MeshHealthView({
   config,
+  contacts = [],
   onNavigateToMap,
   onOpenNode,
   focusKey,
@@ -116,6 +132,7 @@ export function MeshHealthView({
     { key: 'requests', label: t('mesh_health_tab_requests') },
     { key: 'relay-reception', label: t('mesh_health_tab_relay_reception') },
     { key: 'prefix-collisions', label: t('mesh_health_tab_prefix_collisions') },
+    { key: 'power-outage', label: t('mesh_health_tab_power_outage') },
   ];
 
   return (
@@ -168,8 +185,9 @@ export function MeshHealthView({
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-4xl space-y-4 p-4">
           {/* Unified time-range selector (shared by the window-scoped tabs). The
-              prefix-collisions tab is point-in-time, so it is hidden there. */}
-          {activeTab !== 'prefix-collisions' && (
+              prefix-collisions tab is point-in-time and power-outage has its
+              own heard-within selector, so it is hidden there. */}
+          {activeTab !== 'prefix-collisions' && activeTab !== 'power-outage' && (
             <TimeRangeSelector
               value={selectedWindowId}
               onChange={setSelectedWindowId}
@@ -216,6 +234,15 @@ export function MeshHealthView({
               refreshKey={refreshKey}
               onLoadingChange={handleLoadingChange}
               onOpenNode={onOpenNode}
+            />
+          )}
+          {activeTab === 'power-outage' && (
+            <MeshPowerOutagePanel
+              contacts={contacts}
+              refreshKey={refreshKey}
+              onLoadingChange={handleLoadingChange}
+              onOpenNode={onOpenNode}
+              onNavigateToMap={onNavigateToMap}
             />
           )}
         </div>

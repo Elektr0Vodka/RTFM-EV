@@ -11,6 +11,24 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-30 (Power source filter + Power Outage tab, power-source-filtering-resiliency)
+
+### Map: power source filter
+- New **Power source** section in the map Filters panel: show or hide nodes by
+  the power icon in their name (⚡/🔌 mains, 🔋 battery, ☀️/🌞/🔆 or the word
+  "solar" for solar, solar + battery, no icon = Unknown). Classification
+  mirrors EU-Meshcore-Analyzer (`frontend/src/utils/powerSource.ts`). Choice
+  persists in `remoteterm-map-hidden-power`; the focused node is exempt.
+
+### Mesh Health: Power Outage tab
+- New **Power Outage** tab (`MeshPowerOutagePanel`) showing which nodes would
+  stay online when the grid goes down: Battery/Solar/Solar+battery survive,
+  Mains/Unknown go dark. Stat tiles, power source mix, and surviving
+  "islands" (connected components over heard advert-path links where both ends
+  survive, `frontend/src/utils/powerResilience.ts`) with a per-node table
+  (status filter, open node, show on map). Scope: repeaters + rooms or all
+  nodes; heard within 24h/7d/30d/all. Frontend only, no migration.
+
 ## Update 2026-09-30 (Guessed locations visible from farther out, fix/guessed-locations-min-zoom)
 
 ### Map: guessed locations

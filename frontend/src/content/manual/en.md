@@ -211,7 +211,7 @@ The map controls are grouped under **Display**, **Size & colors**, **Filters** a
 
 - **Display:** basemap (Nova dark, OpenFreeMap, OpenStreetMap, OpenTopoMap and Esri layers), 2D or 3D with tilt and 3D buildings, labels (off, name or ID tag) and a legend. Fullscreen and **Export GPX** (the nodes currently shown, as waypoints) are also here.
 - **Size & colors:** node size, equal node sizes, neon nodes and a color per node role.
-- **Filters:** **Since** (a preset or custom time range), **Heard by server** (all, hide never-heard, or only never-heard), **Node roles**, **Analyzer nodes** and **Hide nodes reporting wrong location** (at 0,0 or more than 300 km from the nearest node that heard them).
+- **Filters:** **Since** (a preset or custom time range), **Heard by server** (all, hide never-heard, or only never-heard), **Node roles**, **Power source** (by the power icon in the node name: ⚡/🔌 mains, 🔋 battery, ☀️/🌞/🔆 or the word "solar" for solar, both for solar + battery, no icon is Unknown), **Analyzer nodes** and **Hide nodes reporting wrong location** (at 0,0 or more than 300 km from the nearest node that heard them).
 
 **Overlays** are off until you turn them on, and are remembered per browser:
 
@@ -250,6 +250,7 @@ The battery, noise floor and airtime charts show the current radio plus the hist
 - **Requests:** request and response traffic this node has heard.
 - **Prefix Collisions:** contacts that share a 1, 2 or 3 byte public key prefix. Shared prefixes make hops ambiguous.
 - **Relay reception:** for flooded packets heard more than once, which relay delivered each copy and with what signal.
+- **Power Outage:** which nodes would stay online when the grid goes down, based on the power icon in each node name. Battery and solar nodes stay online; mains and unknown nodes go dark. Shows the share that survives, the power source mix, and the islands the surviving nodes form over heard advert-path links (only between nodes with a location), so you can see where the mesh would split. Choose repeaters + rooms or all nodes, and how recently they were heard.
 
 ### Mesh Trends
 
