@@ -211,7 +211,7 @@ Die Kartenbedienung ist in **Anzeige**, **Größe & Farben**, **Filter** und **O
 
 - **Anzeige:** Grundkarte (Nova dunkel, OpenFreeMap, OpenStreetMap, OpenTopoMap und Esri-Ebenen), 2D oder 3D mit Neigung und 3D-Gebäuden, Beschriftungen (aus, Name oder ID-Tag) und eine Legende. Vollbild und **GPX exportieren** (die aktuell sichtbaren Knoten als Wegpunkte) findest du hier ebenfalls.
 - **Größe & Farben:** Knotengröße, gleiche Knotengrößen, Neon-Knoten und eine Farbe pro Knotenrolle.
-- **Filter:** **Seit** (ein fester oder eigener Zeitraum), **Vom Server gehört** (alle, nie gehörte ausblenden oder nur nie gehörte), **Knotenrollen**, **Analyzer-Knoten** und **Knoten mit falschem Standort ausblenden** (bei 0,0 oder mehr als 300 km vom nächsten Knoten entfernt, der sie gehört hat).
+- **Filter:** **Seit** (ein fester oder eigener Zeitraum), **Vom Server gehört** (alle, nie gehörte ausblenden oder nur nie gehörte), **Knotenrollen**, **Stromquelle** (nach dem Strom-Symbol im Knotennamen: ⚡/🔌 Netz, 🔋 Akku, ☀️/🌞/🔆 oder das Wort "solar" für Solar, beides für Solar + Akku, kein Symbol ist Unbekannt), **Analyzer-Knoten** und **Knoten mit falschem Standort ausblenden** (bei 0,0 oder mehr als 300 km vom nächsten Knoten entfernt, der sie gehört hat).
 
 **Overlays** sind aus, bis du sie einschaltest, und werden pro Browser gespeichert:
 
@@ -250,6 +250,7 @@ Die Diagramme für Akku, Grundrauschen und Sendezeit zeigen das aktuelle Funkger
 - **Anfragen:** Anfrage- und Antwortverkehr, den dieser Knoten gehört hat.
 - **Präfix-Kollisionen:** Kontakte, die ein Präfix des öffentlichen Schlüssels von 1, 2 oder 3 Bytes teilen. Gemeinsame Präfixe machen Hops mehrdeutig.
 - **Empfang je Relay:** für mehrfach gehörte Flood-Pakete, welches Relay jede Kopie geliefert hat und mit welchem Signal.
+- **Stromausfall:** welche Knoten bei einem Stromausfall online bleiben, basierend auf dem Strom-Symbol im Knotennamen. Akku- und Solarknoten bleiben online; Netz- und unbekannte Knoten fallen aus. Zeigt den überlebenden Anteil, die Verteilung der Stromquellen und die Inseln, die die überlebenden Knoten über gehörte Advert-Pfadlinks bilden (nur zwischen Knoten mit Standort), damit sichtbar wird, wo das Mesh zerfallen würde. Wähle Repeater + Räume oder alle Knoten und wie kürzlich sie gehört wurden.
 
 ### Mesh-Trends
 

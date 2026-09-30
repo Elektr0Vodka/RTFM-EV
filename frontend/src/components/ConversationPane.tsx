@@ -501,6 +501,7 @@ export function ConversationPane({
       <Suspense fallback={<LoadingPane label="Loading mesh health..." />}>
         <MeshHealthView
           config={config}
+          contacts={contacts}
           onNavigateToMap={(focusKey?: string) =>
             onSelectConversation({
               type: 'map',

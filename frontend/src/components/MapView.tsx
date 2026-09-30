@@ -11,6 +11,7 @@ import {
   MapPin,
   HelpCircle,
   Signal,
+  BatteryCharging,
 } from 'lucide-react';
 import type {
   AdvertLinkEdge,
@@ -88,6 +89,14 @@ import {
   parseHiddenRoles,
   serializeHiddenRoles,
 } from '../map/roleFilter';
+import {
+  POWER_SOURCES,
+  POWER_SOURCE_LABEL_KEY,
+  classifyPowerSource,
+  parseHiddenPowerSources,
+  serializeHiddenPowerSources,
+  type PowerSource,
+} from '../utils/powerSource';
 import { computeWrongLocationKeys } from '../map/wrongLocation';
 import { useSharedLocations } from '../map/useSharedLocations';
 import { useGuessedLocations } from '../map/useGuessedLocations';
@@ -174,6 +183,9 @@ const MAP_HEARD_STORAGE_KEY = 'remoteterm-map-heard';
 // --- Node role filter (repeater / room / companion / sensor toggles) ---
 const MAP_HIDDEN_ROLES_STORAGE_KEY = 'remoteterm-map-hidden-roles';
 
+// --- Power source filter (from the power icon in the node name) ---
+const MAP_HIDDEN_POWER_STORAGE_KEY = 'remoteterm-map-hidden-power';
+
 const MAP_NODE_SCALE_STORAGE_KEY = 'remoteterm-map-node-scale';
 
 // --- Line / arc thickness (multipliers, 0.5-4x) ---
@@ -237,6 +249,14 @@ function getSavedHeardMode(): HeardFilterMode {
 function getSavedHiddenRoles(): Set<number> {
   try {
     return parseHiddenRoles(localStorage.getItem(MAP_HIDDEN_ROLES_STORAGE_KEY));
+  } catch {
+    return new Set();
+  }
+}
+
+function getSavedHiddenPower(): Set<PowerSource> {
+  try {
+    return parseHiddenPowerSources(localStorage.getItem(MAP_HIDDEN_POWER_STORAGE_KEY));
   } catch {
     return new Set();
   }
@@ -377,6 +397,7 @@ export function MapView({
   const [sinceId, setSinceId] = useState<MapSinceId>(getSavedSinceId);
   const [heardFilter, setHeardFilter] = useState<HeardFilterMode>(getSavedHeardMode);
   const [hiddenRoles, setHiddenRoles] = useState<Set<number>>(getSavedHiddenRoles);
+  const [hiddenPower, setHiddenPower] = useState<Set<PowerSource>>(getSavedHiddenPower);
   const [hideWrongLocation, setHideWrongLocation] = useState<boolean>(getSavedHideWrongLocation);
   const [customSince, setCustomSince] = useState(() => {
     try {
@@ -900,6 +921,14 @@ export function MapView({
 
   useEffect(() => {
     try {
+      localStorage.setItem(MAP_HIDDEN_POWER_STORAGE_KEY, serializeHiddenPowerSources(hiddenPower));
+    } catch {
+      /* ignore */
+    }
+  }, [hiddenPower]);
+
+  useEffect(() => {
+    try {
       localStorage.setItem(MAP_HIDE_WRONG_LOCATION_STORAGE_KEY, hideWrongLocation ? '1' : '0');
     } catch {
       /* ignore */
@@ -1096,6 +1125,12 @@ export function MapView({
     // is never silently removed by a role being switched off.
     const isRoleVisible = (c: Contact) =>
       c.public_key === focusedKey || isRoleVisibleForFilter(c.type, hiddenRoles);
+    // Power toggles hide nodes by the power icon in their name. The focused
+    // node is exempt, like the role filter.
+    const isPowerVisible = (c: Contact) =>
+      hiddenPower.size === 0 ||
+      c.public_key === focusedKey ||
+      !hiddenPower.has(classifyPowerSource(c.name));
     // Project the effective location (advertised-wins, manual-fallback) onto
     // lat/lon so a node with only manual coordinates is placed and rendered by
     // the standard downstream consumers that read c.lat / c.lon.
@@ -1111,7 +1146,8 @@ export function MapView({
             discoveredKeys.has(c.public_key) &&
             !isBlocked(c) &&
             !isHiddenForWrongLocation(c) &&
-            isRoleVisible(c)
+            isRoleVisible(c) &&
+            isPowerVisible(c)
         )
         .map(withEffectiveCoords)
         .filter((c): c is Contact => c !== null);
@@ -1127,7 +1163,8 @@ export function MapView({
             isWithinSinceWindow: isWithinSinceWindow(c.last_seen),
           }) &&
           !isHiddenForWrongLocation(c) &&
-          isRoleVisible(c)
+          isRoleVisible(c) &&
+          isPowerVisible(c)
       )
       .map(withEffectiveCoords)
       .filter((c): c is Contact => c !== null);
@@ -1136,6 +1173,7 @@ export function MapView({
     focusedKey,
     heardFilter,
     hiddenRoles,
+    hiddenPower,
     isWithinSinceWindow,
     showPackets,
     discoveryMode,
@@ -2097,6 +2135,31 @@ export function MapView({
         <p className="text-xs text-muted-foreground">{t('map_roles_help')}</p>
       </div>
     );
+    const togglePower = (source: PowerSource) =>
+      setHiddenPower((prev) => {
+        const next = new Set(prev);
+        if (next.has(source)) next.delete(source);
+        else next.add(source);
+        return next;
+      });
+    const hiddenPowerCount = POWER_SOURCES.filter((s) => hiddenPower.has(s)).length;
+    const powerPanel = (
+      <div className="space-y-2">
+        <div role="group" aria-label={t('map_power_label')} className="flex flex-col gap-1">
+          {POWER_SOURCES.map((s) => (
+            <label key={s} className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={!hiddenPower.has(s)}
+                onChange={() => togglePower(s)}
+              />
+              {t(POWER_SOURCE_LABEL_KEY[s])}
+            </label>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">{t('map_power_help')}</p>
+      </div>
+    );
     // Show the active timeframe on the Since FAB itself (compact preset code
     // like "7d"/"All", or a clock icon for a custom range).
     const sinceValueText =
@@ -2140,6 +2203,15 @@ export function MapView({
             : t('map_roles_label'),
         icon: <Boxes size={20} aria-hidden />,
         panel: rolesPanel,
+      },
+      {
+        id: 'power',
+        label:
+          hiddenPowerCount > 0
+            ? `${t('map_power_label')} (${POWER_SOURCES.length - hiddenPowerCount}/${POWER_SOURCES.length})`
+            : t('map_power_label'),
+        icon: <BatteryCharging size={20} aria-hidden />,
+        panel: powerPanel,
       },
       {
         id: 'external',
@@ -2261,6 +2333,7 @@ export function MapView({
     sinceId,
     heardFilter,
     hiddenRoles,
+    hiddenPower,
     customSince,
     customUntil,
     showPackets,

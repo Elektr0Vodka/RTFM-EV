@@ -211,7 +211,7 @@ De kaartbediening is verdeeld over **Weergave**, **Grootte & kleuren**, **Filter
 
 - **Weergave:** achtergrondkaart (Nova donker, OpenFreeMap, OpenStreetMap, OpenTopoMap en Esri-lagen), 2D of 3D met kanteling en 3D-gebouwen, labels (uit, naam of ID-tag) en een legenda. Volledig scherm en **GPX exporteren** (de nodes die nu zichtbaar zijn, als waypoints) staan hier ook.
 - **Grootte & kleuren:** nodegrootte, gelijke nodegroottes, neon-nodes en een kleur per noderol.
-- **Filters:** **Sinds** (een vaste of eigen tijdsperiode), **Gehoord door server** (alle, nooit-gehoord verbergen, of alleen nooit-gehoord), **Node-rollen**, **Analyzer-nodes** en **Nodes met foutieve locatie verbergen** (op 0,0 of meer dan 300 km van de dichtstbijzijnde node die ze hoorde).
+- **Filters:** **Sinds** (een vaste of eigen tijdsperiode), **Gehoord door server** (alle, nooit-gehoord verbergen, of alleen nooit-gehoord), **Node-rollen**, **Stroombron** (op het stroomicoon in de nodenaam: ⚡/🔌 net, 🔋 accu, ☀️/🌞/🔆 of het woord "solar" voor zon, beide voor zon + accu, geen icoon is Onbekend), **Analyzer-nodes** en **Nodes met foutieve locatie verbergen** (op 0,0 of meer dan 300 km van de dichtstbijzijnde node die ze hoorde).
 
 **Overlays** staan uit tot je ze aanzet, en worden per browser onthouden:
 
@@ -250,6 +250,7 @@ De grafieken voor batterij, ruisvloer en zendtijd tonen de huidige radio plus de
 - **Verzoeken:** verzoek- en antwoordverkeer dat deze node gehoord heeft.
 - **Prefix-botsingen:** contacten die een publieke-sleutelprefix van 1, 2 of 3 bytes delen. Gedeelde prefixen maken hops dubbelzinnig.
 - **Ontvangst per relay:** voor flood-pakketten die vaker dan eens gehoord zijn, welke relay elke kopie bracht en met welk signaal.
+- **Stroomuitval:** welke nodes online blijven als het stroomnet uitvalt, op basis van het stroomicoon in de nodenaam. Accu- en zonnenodes blijven online; netgevoede en onbekende nodes vallen uit. Toont het aandeel dat overleeft, de mix van stroombronnen, en de eilanden die de overlevende nodes vormen via gehoorde advert-padlinks (alleen tussen nodes met locatie), zodat je ziet waar de mesh zou opsplitsen. Kies repeaters + rooms of alle nodes, en hoe recent ze gehoord zijn.
 
 ### Mesh-trends
 
