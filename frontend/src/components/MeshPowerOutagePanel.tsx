@@ -9,16 +9,19 @@
  * (connected over advert-path links between two surviving nodes) so it is
  * visible where the mesh would split.
  *
+ * The node table sorts by column header and paginates with the shared Mesh
+ * Health page size (mesh_health_page_size, also used by the Adverts table).
+ *
  * Uses its own scope and heard-within selectors, so the shell hides the shared
  * time-window selector on this tab. Rendered inside the MeshHealthView shell;
  * returns only its content blocks.
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { MapPin } from 'lucide-react';
+import { ChevronDown, ChevronUp, ChevronsUpDown, MapPin } from 'lucide-react';
 import { api, isAbortError } from '../api';
 import { useT } from '../i18n';
-import type { AdvertLinkEdge, Contact } from '../types';
+import type { AdvertLinkEdge, AppSettingsUpdate, Contact } from '../types';
 import { CONTACT_TYPE_REPEATER, CONTACT_TYPE_ROOM } from '../types';
 import {
   POWER_SOURCES,
@@ -34,6 +37,11 @@ import { DistBars, StatTile, relTime } from './meshHealthShared';
 type Scope = 'infra' | 'all';
 type HeardWithin = '24h' | '7d' | '30d' | 'all';
 type StatusFilter = 'all' | 'online' | 'dark';
+type SortKey = 'name' | 'role' | 'power' | 'status' | 'island' | 'heard';
+type SortDir = 'asc' | 'desc';
+
+/** Allowed page sizes; 0 = show all. Mirrors the Adverts table options. */
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 0] as const;
 
 const HEARD_WITHIN_SEC: Record<HeardWithin, number | null> = {
   '24h': 24 * 3600,
@@ -60,6 +68,18 @@ interface Props {
   onOpenNode?: (publicKey: string, name: string | null) => void;
   /** Opens the map focused on a node. */
   onNavigateToMap?: (focusKey?: string) => void;
+  /** Server-persisted Mesh Health page size (shared with Adverts); 0 = show all. */
+  pageSize?: number;
+  onSaveAppSettings?: (update: AppSettingsUpdate) => Promise<void> | void;
+}
+
+function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
+  if (col !== sortKey) return <ChevronsUpDown className="ml-1 inline h-3 w-3 opacity-40" />;
+  return sortDir === 'asc' ? (
+    <ChevronUp className="ml-1 inline h-3 w-3" />
+  ) : (
+    <ChevronDown className="ml-1 inline h-3 w-3" />
+  );
 }
 
 function Pill<T extends string>({
@@ -100,11 +120,16 @@ export function MeshPowerOutagePanel({
   onLoadingChange,
   onOpenNode,
   onNavigateToMap,
+  pageSize = 50,
+  onSaveAppSettings,
 }: Props) {
   const t = useT();
   const [scope, setScope] = useState<Scope>('infra');
   const [heardWithin, setHeardWithin] = useState<HeardWithin>('7d');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [sortKey, setSortKey] = useState<SortKey>('island');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [page, setPage] = useState(0);
   const [edges, setEdges] = useState<AdvertLinkEdge[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -181,13 +206,73 @@ export function MeshPowerOutagePanel({
       if (statusFilter === 'all') return true;
       return statusFilter === 'online' ? survivesOutage(n.power) : !survivesOutage(n.power);
     });
+    const dir = sortDir === 'asc' ? 1 : -1;
+    const byName = (x: (typeof filtered)[number], y: (typeof filtered)[number]) =>
+      (x.contact.name ?? x.key).localeCompare(y.contact.name ?? y.key);
     return filtered.sort((x, y) => {
-      const ix = result.islandOf.get(x.key) ?? Number.MAX_SAFE_INTEGER;
-      const iy = result.islandOf.get(y.key) ?? Number.MAX_SAFE_INTEGER;
-      if (ix !== iy) return ix - iy;
-      return (x.contact.name ?? '').localeCompare(y.contact.name ?? '');
+      let cmp = 0;
+      switch (sortKey) {
+        case 'name':
+          cmp = byName(x, y);
+          break;
+        case 'role':
+          cmp = contactTypeLabel(x.contact.type, t).localeCompare(
+            contactTypeLabel(y.contact.type, t)
+          );
+          break;
+        case 'power':
+          cmp = POWER_SOURCES.indexOf(x.power) - POWER_SOURCES.indexOf(y.power);
+          break;
+        case 'status':
+          cmp = (survivesOutage(x.power) ? 0 : 1) - (survivesOutage(y.power) ? 0 : 1);
+          break;
+        case 'island': {
+          // Nodes without an island (dark nodes) stay last in both directions.
+          const ix = result.islandOf.get(x.key);
+          const iy = result.islandOf.get(y.key);
+          if (ix == null || iy == null) {
+            if (ix != null) return -1;
+            if (iy != null) return 1;
+            break;
+          }
+          cmp = ix - iy;
+          break;
+        }
+        case 'heard':
+          cmp = (x.contact.last_seen ?? 0) - (y.contact.last_seen ?? 0);
+          break;
+      }
+      return cmp !== 0 ? dir * cmp : byName(x, y);
     });
-  }, [nodes, statusFilter, result]);
+  }, [nodes, statusFilter, result, sortKey, sortDir, t]);
+
+  // Back to the first page whenever the row set or its order changes.
+  useEffect(() => {
+    setPage(0);
+  }, [scope, heardWithin, statusFilter, sortKey, sortDir, pageSize]);
+
+  const handleSort = (col: SortKey) => {
+    if (col === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(col);
+      setSortDir(col === 'heard' ? 'desc' : 'asc');
+    }
+  };
+
+  // pageSize 0 means "show all": one page holding every row.
+  const showAll = pageSize <= 0;
+  const effectivePageSize = showAll ? Math.max(rows.length, 1) : pageSize;
+  const totalPages = showAll ? 1 : Math.max(1, Math.ceil(rows.length / effectivePageSize));
+  // Clamp in case the row count shrank (e.g. contacts refreshed) past the page.
+  const currentPage = Math.min(page, totalPages - 1);
+  const pageRows = showAll
+    ? rows
+    : rows.slice(currentPage * effectivePageSize, (currentPage + 1) * effectivePageSize);
+  const thClass =
+    'cursor-pointer select-none px-3 py-1.5 font-medium transition-colors hover:text-foreground';
+  const pageBtnClass =
+    'rounded px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-30';
 
   const total = nodes.length;
   const pct = (n: number) => (total > 0 ? Math.round((n / total) * 100) : 0);
@@ -269,16 +354,38 @@ export function MeshPowerOutagePanel({
 
       <p className="text-[10px] text-muted-foreground">{t('mesh_health_po_note')}</p>
 
-      <Pill<StatusFilter>
-        label={t('mesh_health_po_status_label')}
-        value={statusFilter}
-        onChange={setStatusFilter}
-        options={[
-          { id: 'all', label: t('mesh_health_po_filter_all') },
-          { id: 'online', label: t('mesh_health_po_status_online') },
-          { id: 'dark', label: t('mesh_health_po_status_dark') },
-        ]}
-      />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Pill<StatusFilter>
+          label={t('mesh_health_po_status_label')}
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={[
+            { id: 'all', label: t('mesh_health_po_filter_all') },
+            { id: 'online', label: t('mesh_health_po_status_online') },
+            { id: 'dark', label: t('mesh_health_po_status_dark') },
+          ]}
+        />
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-muted-foreground">
+            {t('mesh_health_po_rows_summary', { count: rows.length })}
+            {totalPages > 1 &&
+              t('mesh_health_page_indicator', { page: currentPage + 1, total: totalPages })}
+          </span>
+          <select
+            value={pageSize}
+            onChange={(e) => onSaveAppSettings?.({ mesh_health_page_size: Number(e.target.value) })}
+            aria-label={t('mesh_health_page_size_label')}
+            title={t('mesh_health_page_size_label')}
+            className="h-7 rounded-md border border-input bg-background px-1.5 text-[11px] text-foreground"
+          >
+            {PAGE_SIZE_OPTIONS.map((n) => (
+              <option key={n} value={n}>
+                {n === 0 ? t('mesh_health_page_size_all') : n}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
       {rows.length === 0 ? (
         <div className="rounded-lg border border-border bg-card px-4 py-6 text-center text-sm text-muted-foreground">
@@ -289,17 +396,71 @@ export function MeshPowerOutagePanel({
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-border text-left text-[10px] uppercase tracking-wide text-muted-foreground">
-                <th className="px-3 py-1.5 font-medium">{t('mesh_health_po_col_node')}</th>
-                <th className="px-3 py-1.5 font-medium">{t('mesh_health_po_col_role')}</th>
-                <th className="px-3 py-1.5 font-medium">{t('mesh_health_po_col_power')}</th>
-                <th className="px-3 py-1.5 font-medium">{t('mesh_health_po_col_status')}</th>
-                <th className="px-3 py-1.5 font-medium">{t('mesh_health_po_col_island')}</th>
-                <th className="px-3 py-1.5 font-medium">{t('mesh_health_po_col_heard')}</th>
+                <th
+                  className={thClass}
+                  onClick={() => handleSort('name')}
+                  aria-sort={
+                    sortKey === 'name' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'
+                  }
+                >
+                  {t('mesh_health_po_col_node')}
+                  <SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
+                </th>
+                <th
+                  className={thClass}
+                  onClick={() => handleSort('role')}
+                  aria-sort={
+                    sortKey === 'role' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'
+                  }
+                >
+                  {t('mesh_health_po_col_role')}
+                  <SortIcon col="role" sortKey={sortKey} sortDir={sortDir} />
+                </th>
+                <th
+                  className={thClass}
+                  onClick={() => handleSort('power')}
+                  aria-sort={
+                    sortKey === 'power' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'
+                  }
+                >
+                  {t('mesh_health_po_col_power')}
+                  <SortIcon col="power" sortKey={sortKey} sortDir={sortDir} />
+                </th>
+                <th
+                  className={thClass}
+                  onClick={() => handleSort('status')}
+                  aria-sort={
+                    sortKey === 'status' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'
+                  }
+                >
+                  {t('mesh_health_po_col_status')}
+                  <SortIcon col="status" sortKey={sortKey} sortDir={sortDir} />
+                </th>
+                <th
+                  className={thClass}
+                  onClick={() => handleSort('island')}
+                  aria-sort={
+                    sortKey === 'island' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'
+                  }
+                >
+                  {t('mesh_health_po_col_island')}
+                  <SortIcon col="island" sortKey={sortKey} sortDir={sortDir} />
+                </th>
+                <th
+                  className={thClass}
+                  onClick={() => handleSort('heard')}
+                  aria-sort={
+                    sortKey === 'heard' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'
+                  }
+                >
+                  {t('mesh_health_po_col_heard')}
+                  <SortIcon col="heard" sortKey={sortKey} sortDir={sortDir} />
+                </th>
                 {onNavigateToMap && <th className="px-3 py-1.5" />}
               </tr>
             </thead>
             <tbody>
-              {rows.map((n) => {
+              {pageRows.map((n) => {
                 const online = survivesOutage(n.power);
                 const island = result.islandOf.get(n.key);
                 const islandSize = island ? result.islandSizes[island - 1] : 0;
@@ -375,6 +536,68 @@ export function MeshPowerOutagePanel({
               })}
             </tbody>
           </table>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
+              <span className="text-[10px] text-muted-foreground">
+                {t('mesh_health_pagination_range', {
+                  start: currentPage * effectivePageSize + 1,
+                  end: Math.min((currentPage + 1) * effectivePageSize, rows.length),
+                  total: rows.length,
+                })}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setPage(0)}
+                  disabled={currentPage === 0}
+                  className={pageBtnClass}
+                >
+                  «
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPage(currentPage - 1)}
+                  disabled={currentPage === 0}
+                  className={pageBtnClass}
+                >
+                  {t('mesh_health_pagination_prev')}
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i)
+                  .filter((i) => Math.abs(i - currentPage) <= 2)
+                  .map((i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setPage(i)}
+                      aria-current={i === currentPage ? 'page' : undefined}
+                      className={`rounded px-2 py-0.5 text-xs transition-colors ${
+                        i === currentPage
+                          ? 'bg-primary font-medium text-primary-foreground'
+                          : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                <button
+                  type="button"
+                  onClick={() => setPage(currentPage + 1)}
+                  disabled={currentPage >= totalPages - 1}
+                  className={pageBtnClass}
+                >
+                  {t('mesh_health_pagination_next')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPage(totalPages - 1)}
+                  disabled={currentPage >= totalPages - 1}
+                  className={pageBtnClass}
+                >
+                  »
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </>

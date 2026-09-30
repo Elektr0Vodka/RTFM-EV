@@ -3953,6 +3953,11 @@
   "mesh_health_po_col_heard": "Zuletzt gehört",
   "mesh_health_po_island_title": "Insel mit {count} überlebenden Knoten",
   "mesh_health_po_show_on_map": "Auf Karte zeigen",
+  "mesh_health_po_rows_summary": {
+    "one": "{count} Knoten",
+    "other": "{count} Knoten"
+  },
+  "mesh_health_scroll_top": "Nach oben",
   "settings_host_repeater_filter_dryrun": "Probelauf (Dry-run)",
   "settings_host_repeater_filter_dryrun_desc": "Jeden Filter-Drop zählen, das Paket aber trotzdem weiterleiten, um eine Einstellung vor dem Erzwingen abzustimmen. Die Filterstatistik zeigt, was verworfen worden wäre.",
   "settings_host_repeater_filter_advert_hours": "Advert-Fenster pro Node (Stunden)",
