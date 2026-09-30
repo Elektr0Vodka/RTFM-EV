@@ -11,6 +11,27 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-30 (SQLite reader pool + traffic-links index, perf/sqlite-reader-pool)
+
+### Backend: database concurrency
+- Reads no longer queue behind writes. `Database.readonly()` now hands out one
+  of three read-only reader connections (WAL, `PRAGMA query_only`, LIFO pool so
+  sequential reads reuse a warm cache) instead of sharing the single writer
+  connection under its lock. `tx()` is unchanged. A slow analytics read no
+  longer stalls packet ingest or other writes: on a copy of a live database,
+  a contact mark-read during two looping `traffic-links` requests went from a
+  13 s median (31 s max) to 50 ms. Each reader has a 64 MB page cache, so
+  SQLite cache memory can grow by up to 192 MB under concurrent reads.
+  `:memory:` databases (tests) keep the single connection and switch
+  `query_only` on during reads, so a write inside `readonly()` fails in tests.
+
+### Backend: traffic-links index
+- Migration `_125` adds a covering index `ix_link_edge_events_group`
+  (`a_pubkey, b_pubkey, hop_width, ts, raw_packet_id, confidence`), so the
+  map's All-traffic link aggregation reads only the index. On a 226k-row
+  `link_edge_events` the query went from about 2.7 s to 0.2 s warm. Costs about
+  35 MB of disk at that size; building it took 23 s once at startup.
+
 ## Update 2026-09-30 (Relay reception without the 5000-copy cap, hourly history and per-relay details, feat/relay-reception-history)
 
 ### Mesh Health: Relay reception covers the whole window (backend, frontend)

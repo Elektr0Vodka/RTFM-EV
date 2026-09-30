@@ -369,7 +369,13 @@ class TestUndecryptedTextPacketStreaming:
             [],
         ]
 
-        def fake_execute(*_args, **_kwargs):
+        real_execute = test_db.conn.execute
+
+        def fake_execute(*args, **kwargs):
+            # readonly() on a :memory: DB toggles PRAGMA query_only around the
+            # block; let those through to the real connection.
+            if args and str(args[0]).startswith("PRAGMA"):
+                return real_execute(*args, **kwargs)
             batch = batches.pop(0)
 
             class FakeCursor:
