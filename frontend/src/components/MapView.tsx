@@ -1613,6 +1613,7 @@ export function MapView({
     enabled: showGuessedLocations,
     contacts,
     nowSec,
+    labelMode,
   });
 
   const {

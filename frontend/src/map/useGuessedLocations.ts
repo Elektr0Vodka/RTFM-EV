@@ -7,7 +7,7 @@
 // fetch and is never written back to the contact, never included in a GPX
 // export, and never sent anywhere.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Popup as MlPopup, type Map as MlMap } from 'maplibre-gl';
 
 import { api, isAbortError } from '../api';
@@ -15,6 +15,7 @@ import type { Contact, ContactAdvertPathSummary } from '../types';
 import { useT } from '../i18n';
 import { computeGuessedLocations, type GuessedLocation } from './guessedLocations';
 import { createGuessedLocationsLayer } from './layers/guessedLocationsLayer';
+import type { NodeLabelMode } from './layers/nodesLayer';
 
 type Translate = ReturnType<typeof useT>;
 
@@ -22,6 +23,8 @@ export interface UseGuessedLocationsOptions {
   enabled: boolean;
   contacts: Contact[];
   nowSec: number;
+  /** The map's node-label mode; guessed markers are labelled the same way. */
+  labelMode: NodeLabelMode;
 }
 
 function contactName(publicKey: string, contacts: Contact[]): string {
@@ -76,7 +79,7 @@ export function useGuessedLocations(opts: UseGuessedLocationsOptions) {
   const tRef = useRef(t);
   tRef.current = t;
 
-  const { enabled } = opts;
+  const { enabled, labelMode, contacts, nowSec } = opts;
 
   useEffect(() => {
     if (!enabled) {
@@ -94,7 +97,10 @@ export function useGuessedLocations(opts: UseGuessedLocationsOptions) {
     return () => controller.abort();
   }, [enabled]);
 
-  const guesses = enabled ? computeGuessedLocations(opts.contacts, pathSummaries, opts.nowSec) : [];
+  const guesses = useMemo(
+    () => (enabled ? computeGuessedLocations(contacts, pathSummaries, nowSec) : []),
+    [enabled, contacts, pathSummaries, nowSec]
+  );
   guessesRef.current = guesses;
 
   const openPopup = useCallback((publicKey: string) => {
@@ -107,14 +113,12 @@ export function useGuessedLocations(opts: UseGuessedLocationsOptions) {
     popupRef.current = popup.setLngLat([guess.lon, guess.lat]).setDOMContent(el).addTo(map);
   }, []);
 
-  const names = new Map(
-    opts.contacts.map((c) => [c.public_key.toLowerCase(), c.name ?? c.public_key])
-  );
-
   useEffect(() => {
-    layerRef.current?.setData(guesses, names);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    layerRef.current?.setData(guesses, optsRef.current.contacts);
   }, [guesses]);
+  useEffect(() => {
+    layerRef.current?.setLabelMode(labelMode);
+  }, [labelMode]);
   useEffect(() => {
     layerRef.current?.setVisible(enabled);
     if (!enabled) popupRef.current?.remove();
@@ -133,11 +137,11 @@ export function useGuessedLocations(opts: UseGuessedLocationsOptions) {
       mapRef.current = map;
       const layer = createGuessedLocationsLayer(map, { onClick: openPopup });
       layer.ensure();
-      layer.setData(guessesRef.current, names);
+      layer.setLabelMode(optsRef.current.labelMode);
+      layer.setData(guessesRef.current, optsRef.current.contacts);
       layer.setVisible(optsRef.current.enabled);
       layerRef.current = layer;
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [openPopup]
   );
 
@@ -146,9 +150,8 @@ export function useGuessedLocations(opts: UseGuessedLocationsOptions) {
     const layer = layerRef.current;
     if (!layer) return;
     layer.reattach();
-    layer.setData(guessesRef.current, names);
+    layer.setData(guessesRef.current, optsRef.current.contacts);
     layer.setVisible(optsRef.current.enabled);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return { attach, reattach, guesses };

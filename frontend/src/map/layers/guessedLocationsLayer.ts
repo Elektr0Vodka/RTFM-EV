@@ -1,21 +1,31 @@
 import type { Map as MlMap } from 'maplibre-gl';
+import type { Contact } from '../../types';
 import type { GuessedLocation } from '../guessedLocations';
-import { NODE_LABEL_FONT } from './nodesLayer';
+import {
+  LABEL_MIN_ZOOM,
+  NODE_LABEL_FONT,
+  nodeLabel,
+  nodeLabelLayout,
+  type NodeLabelMode,
+} from './nodesLayer';
 
 // Guessed-location layer: an estimated position for a node with no advertised
 // or manual location, computed in guessedLocations.ts. Drawn as a HOLLOW
 // circle with a "~" glyph so it never reads as a real, located node (which is
 // always a filled circle, see nodesLayer.ts) -- these coordinates are a guess
-// and must never be mistaken for a reported position. Only shown at zoom 8+
-// (native `minzoom`; meshcore-open's `_guessedZoomThreshold` is 12, lowered
-// here so the markers are visible from a regional view), and off by default.
-
-export const GUESSED_LOCATIONS_MIN_ZOOM = 8;
+// and must never be mistaken for a reported position. Shown at every zoom
+// level like real node markers (meshcore-open hides them below zoom 12), and
+// off by default. A name/tag label follows the map's node-label mode and
+// zoom, like real node labels (see nodesLayer.ts).
 
 const SOURCE_ID = 'rt-guessed-locations';
 const CIRCLE_LAYER_ID = 'rt-guessed-locations';
 const GLYPH_LAYER_ID = 'rt-guessed-locations-glyph';
-const LAYER_IDS = [CIRCLE_LAYER_ID, GLYPH_LAYER_ID];
+export const GUESSED_LOCATIONS_LABEL_LAYER_ID = 'rt-guessed-locations-label';
+const LAYER_IDS = [CIRCLE_LAYER_ID, GLYPH_LAYER_ID, GUESSED_LOCATIONS_LABEL_LAYER_ID];
+// Real node labels; the guessed label layer goes below it so real names win a
+// label collision (MapLibre places the topmost symbol layer first).
+const NODE_LABELS_LAYER_ID = 'rt-node-labels';
 
 // Muted for a low-confidence (single-anchor) guess; role-neutral so it reads
 // as "uncertain" regardless of node type, matching meshcore-open's low-
@@ -26,24 +36,31 @@ const HIGH_CONFIDENCE_COLOR = '#f59e0b';
 export interface GuessedLocationProps {
   public_key: string;
   name: string;
+  label: string;
   high_confidence: boolean;
 }
 
 export function buildGuessedLocationFeatures(
   guesses: GuessedLocation[],
-  names: Map<string, string>
+  contacts: Contact[],
+  labelMode: NodeLabelMode = 'off'
 ) {
+  const byKey = new Map(contacts.map((c) => [c.public_key.toLowerCase(), c]));
   return {
     type: 'FeatureCollection' as const,
-    features: guesses.map((g) => ({
-      type: 'Feature' as const,
-      geometry: { type: 'Point' as const, coordinates: [g.lon, g.lat] },
-      properties: {
-        public_key: g.public_key,
-        name: names.get(g.public_key.toLowerCase()) ?? g.public_key.slice(0, 12),
-        high_confidence: g.highConfidence,
-      } satisfies GuessedLocationProps,
-    })),
+    features: guesses.map((g) => {
+      const c = byKey.get(g.public_key.toLowerCase());
+      return {
+        type: 'Feature' as const,
+        geometry: { type: 'Point' as const, coordinates: [g.lon, g.lat] },
+        properties: {
+          public_key: g.public_key,
+          name: c?.name ?? g.public_key.slice(0, 12),
+          label: c ? nodeLabel(c, labelMode) : '',
+          high_confidence: g.highConfidence,
+        } satisfies GuessedLocationProps,
+      };
+    }),
   };
 }
 
@@ -56,6 +73,9 @@ export function createGuessedLocationsLayer(map: MlMap, opts: GuessedLocationsLa
   const m = map as any;
   let listenersBound = false;
   let visible = false;
+  let labelMode: NodeLabelMode = 'off';
+  let lastGuesses: GuessedLocation[] = [];
+  let lastContacts: Contact[] = [];
   let lastData: ReturnType<typeof buildGuessedLocationFeatures> = {
     type: 'FeatureCollection',
     features: [],
@@ -69,7 +89,6 @@ export function createGuessedLocationsLayer(map: MlMap, opts: GuessedLocationsLa
       id: CIRCLE_LAYER_ID,
       type: 'circle',
       source: SOURCE_ID,
-      minzoom: GUESSED_LOCATIONS_MIN_ZOOM,
       layout: { visibility },
       paint: {
         // Hollow: transparent fill, coloured ring only.
@@ -88,7 +107,6 @@ export function createGuessedLocationsLayer(map: MlMap, opts: GuessedLocationsLa
       id: GLYPH_LAYER_ID,
       type: 'symbol',
       source: SOURCE_ID,
-      minzoom: GUESSED_LOCATIONS_MIN_ZOOM,
       layout: {
         visibility,
         'text-field': '~',
@@ -111,6 +129,25 @@ export function createGuessedLocationsLayer(map: MlMap, opts: GuessedLocationsLa
         'text-halo-width': 1,
       },
     });
+    // Name/tag label, styled like the real node labels. Empty labels (mode
+    // 'off') render nothing. No role sort key: guesses carry no `sortKey`.
+    const labelLayout = { ...nodeLabelLayout(), visibility };
+    delete labelLayout['symbol-sort-key'];
+    m.addLayer(
+      {
+        id: GUESSED_LOCATIONS_LABEL_LAYER_ID,
+        type: 'symbol',
+        source: SOURCE_ID,
+        minzoom: LABEL_MIN_ZOOM,
+        layout: labelLayout,
+        paint: {
+          'text-color': '#f8fafc',
+          'text-halo-color': '#0f172a',
+          'text-halo-width': 1.5,
+        },
+      },
+      m.getLayer(NODE_LABELS_LAYER_ID) ? NODE_LABELS_LAYER_ID : undefined
+    );
   }
 
   function bindListeners() {
@@ -129,9 +166,16 @@ export function createGuessedLocationsLayer(map: MlMap, opts: GuessedLocationsLa
     });
   }
 
-  function setData(guesses: GuessedLocation[], names: Map<string, string>) {
-    lastData = buildGuessedLocationFeatures(guesses, names);
+  function setData(guesses: GuessedLocation[], contacts: Contact[]) {
+    lastGuesses = guesses;
+    lastContacts = contacts;
+    lastData = buildGuessedLocationFeatures(guesses, contacts, labelMode);
     m.getSource(SOURCE_ID)?.setData(lastData);
+  }
+
+  function setLabelMode(mode: NodeLabelMode) {
+    labelMode = mode;
+    setData(lastGuesses, lastContacts);
   }
 
   function setVisible(on: boolean) {
@@ -150,5 +194,5 @@ export function createGuessedLocationsLayer(map: MlMap, opts: GuessedLocationsLa
     addSourceAndLayer();
   }
 
-  return { ensure, reattach, setData, setVisible };
+  return { ensure, reattach, setData, setLabelMode, setVisible };
 }
