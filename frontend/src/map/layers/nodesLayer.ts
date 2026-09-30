@@ -63,7 +63,7 @@ export function observedIdTag(publicKey: string, hashMode: number | null | undef
   return publicKey.slice(0, (mode + 1) * 2).toUpperCase();
 }
 
-function nodeLabel(c: Contact, mode: NodeLabelMode): string {
+export function nodeLabel(c: Contact, mode: NodeLabelMode): string {
   if (mode === 'name') return c.name ?? c.public_key.slice(0, 12);
   if (mode === 'tag') return observedIdTag(c.public_key, c.direct_path_hash_mode);
   return '';

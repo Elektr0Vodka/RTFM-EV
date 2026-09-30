@@ -219,7 +219,7 @@ Die Kartenbedienung ist in **Anzeige**, **Größe & Farben**, **Filter** und **O
 - **Verbindungen** zwischen Knoten, aus Liveness, Advert-Pfaden oder dem gesamten Verkehr, mit Zuverlässigkeitsstufe, maximaler Entfernung und Altersfenster. Klicke auf eine Verbindung und dann auf **Details** für ihren Verkehrs- und Signalverlauf.
 - **Telemetrie (Akku/Temp)**.
 - **Geteilte Standorte:** Stecknadeln für im Chat geteilte Standorte. Klicke darauf, um zu sehen, wer sie geteilt hat, und auf **Im Chat öffnen**.
-- **Geschätzte Standorte:** geschätzte Positionen für Knoten ohne Standort, als hohle Markierungen ab Zoomstufe 8. Werden nie gespeichert oder gesendet.
+- **Geschätzte Standorte:** geschätzte Positionen für Knoten ohne Standort, als hohle Markierungen auf jeder Zoomstufe, beschriftet gemäß der Karteneinstellung Beschriftungen. Werden nie gespeichert oder gesendet.
 - **Relay-Signal:** Ringe um Relays, die Flood-Pakete an dein Funkgerät weitergegeben haben, eingefärbt nach durchschnittlichem SNR.
 
 **Analyzer-Knoten** zeigt Knoten aus dem Knotenverzeichnis eines externen Analyzers. Dieses Verzeichnis wird nur gefüllt, wenn **Externe Analyzer-Knotenebene** in Einstellungen > Radio eingeschaltet und synchronisiert ist.

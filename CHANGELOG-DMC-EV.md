@@ -11,6 +11,17 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-09-30 (Guessed locations at every zoom + labels, fix/guessed-locations-no-min-zoom)
+
+### Map: guessed locations
+- Guessed-location markers no longer have a minimum zoom; they draw at every
+  zoom level like real node markers (removes the zoom 8 limit from #252).
+- Guessed markers now get a name / ID-tag label that follows the map's Labels
+  setting (off / name / ID tag) and shows from the same zoom as real node
+  labels (`LABEL_MIN_ZOOM`, 11). The label layer sits below the real node
+  labels, so a real node's label wins a collision. Help text, User Guide
+  (EN/NL/DE) and `frontend/AGENTS.md` updated.
+
 ## Update 2026-09-30 (Power source filter + Power Outage tab, power-source-filtering-resiliency)
 
 ### Map: power source filter
