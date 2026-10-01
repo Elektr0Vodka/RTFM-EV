@@ -28,11 +28,20 @@ the change. Upstream development is on hold; the fork is the active repository.
   `monitor` / `no_tx`) and true/false fields.
 - Rule summaries show names next to numbers (`route_type equals 0
   TRANSPORT_FLOOD`).
-- Conditions in a Match all / Match any group can be removed and moved up or
-  down. A hint under `channel_message_body` advises putting
-  `channel_decryptable` or `channel_hash` above it. The Settings > Host
-  repeater policy editor shares the builder and gets the same pickers,
-  per-field operators and typed values.
+- Rule layout follows OpenHop's own editor: **Match logic** (Match all (AND)
+  / Match any (OR)) sits next to **Action** and applies to every condition
+  below it. A new rule starts as Match all with one row; there is no
+  "Single condition" mode and no per-row match selector any more, and
+  **Add condition** is always visible. Conditions can be removed and moved
+  up or down. A hint under `channel_message_body` advises putting
+  `channel_decryptable` or `channel_hash` above it.
+- A rule whose rows are all empty is saved without conditions (`{}`, never
+  matches) instead of `all: []`, which OpenHop treats as match-everything.
+  Nested groups from older or hand-written rules are still shown; for the
+  OpenHop API they carry a warning, because OpenHop does not evaluate them
+  (such a group always counts as matched).
+- The Settings > Host repeater policy editor shares the builder and gets
+  the same layout, pickers, per-field operators and typed values.
 
 ## Update 2026-10-01 (meshcore 2.3.14 dependency bump, #261)
 

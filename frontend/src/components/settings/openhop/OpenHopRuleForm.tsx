@@ -11,9 +11,14 @@ import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { Checkbox } from '../../ui/checkbox';
 import {
+  EMPTY_CONDITION,
   OPENHOP_ACTIONS,
-  OpenHopConditionBuilder,
+  OpenHopConditionList,
+  fromConditionGroup,
+  toConditionGroup,
+  type ConditionGroup,
   type ConditionVocabulary,
+  type MatchLogic,
 } from './OpenHopConditionBuilder';
 
 interface PolicyObjects {
@@ -53,16 +58,10 @@ function buildThen(
   return then;
 }
 
-function hasCondition(c: OpenHopCondition): boolean {
-  return typeof c === 'object' && c !== null && ('field' in c || 'all' in c || 'any' in c);
-}
-
-function normalizeCondition(c: OpenHopCondition): OpenHopCondition {
-  // An all-empty single condition collapses to {} (no condition).
-  if (typeof c === 'object' && c !== null && 'field' in c && !c.field && !c.value) {
-    return {};
-  }
-  return c;
+/** The rule's conditions as an editable list; a rule without conditions starts with one row. */
+function initialGroup(c: OpenHopCondition): ConditionGroup {
+  const group = toConditionGroup(c);
+  return group.items.length > 0 ? group : { ...group, items: [EMPTY_CONDITION] };
 }
 
 export function OpenHopRuleForm({ rule, objects, onSave, onCancel, vocabulary }: Props) {
@@ -75,10 +74,8 @@ export function OpenHopRuleForm({ rule, objects, onSave, onCancel, vocabulary }:
   const [throttleKey, setThrottleKey] = useState<PolicyThrottleKey>(
     rule.then.throttle_key ?? 'rule'
   );
+  const [group, setGroup] = useState<ConditionGroup>(() => initialGroup(rule.if));
   const gates = vocabulary?.ruleGates === true;
-  const cond: OpenHopCondition = hasCondition(draft.if)
-    ? draft.if
-    : { field: '', op: 'equals', value: '' };
 
   return (
     <div className="space-y-3 rounded border border-input p-3">
@@ -98,28 +95,45 @@ export function OpenHopRuleForm({ rule, objects, onSave, onCancel, vocabulary }:
         />
         <Label htmlFor="oh-rule-enabled">{t('openhop_rule_enabled')}</Label>
       </div>
-      <div className="space-y-1">
-        <Label htmlFor="oh-rule-action">{t('openhop_rule_action')}</Label>
-        <select
-          id="oh-rule-action"
-          className={selectClass}
-          value={draft.then.action}
-          onChange={(e) =>
-            setDraft({ ...draft, then: { ...draft.then, action: e.target.value as OpenHopAction } })
-          }
-        >
-          {OPENHOP_ACTIONS.map((a) => (
-            <option key={a} value={a}>
-              {a}
-            </option>
-          ))}
-        </select>
+      <div className="flex flex-wrap gap-4">
+        <div className="space-y-1">
+          <Label htmlFor="oh-rule-action">{t('openhop_rule_action')}</Label>
+          <select
+            id="oh-rule-action"
+            className={selectClass}
+            value={draft.then.action}
+            onChange={(e) =>
+              setDraft({
+                ...draft,
+                then: { ...draft.then, action: e.target.value as OpenHopAction },
+              })
+            }
+          >
+            {OPENHOP_ACTIONS.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="oh-rule-logic">{t('openhop_rule_match_logic')}</Label>
+          <select
+            id="oh-rule-logic"
+            className={selectClass}
+            value={group.logic}
+            onChange={(e) => setGroup({ ...group, logic: e.target.value as MatchLogic })}
+          >
+            <option value="all">{t('openhop_rule_match_all')}</option>
+            <option value="any">{t('openhop_rule_match_any')}</option>
+          </select>
+        </div>
       </div>
-      <OpenHopConditionBuilder
-        value={cond}
+      <OpenHopConditionList
+        items={group.items}
         objects={objects}
         vocabulary={vocabulary}
-        onChange={(c) => setDraft({ ...draft, if: c })}
+        onChange={(items) => setGroup({ ...group, items })}
       />
       {gates && (
         <div className="grid gap-3 sm:grid-cols-3">
@@ -172,7 +186,7 @@ export function OpenHopRuleForm({ rule, objects, onSave, onCancel, vocabulary }:
           onClick={() =>
             onSave({
               ...draft,
-              if: normalizeCondition(draft.if),
+              if: fromConditionGroup(group),
               then: gates
                 ? buildThen(
                     draft.then.action,

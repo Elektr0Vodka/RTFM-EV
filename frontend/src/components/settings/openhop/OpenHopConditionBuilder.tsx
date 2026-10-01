@@ -193,6 +193,42 @@ function isAny(c: OpenHopCondition): c is { any: OpenHopCondition[] } {
   return typeof c === 'object' && c !== null && 'any' in c;
 }
 
+export type MatchLogic = 'all' | 'any';
+/** A rule's `if` as OpenHop's own editor shows it: Match all / Match any over a list. */
+export interface ConditionGroup {
+  logic: MatchLogic;
+  items: OpenHopCondition[];
+}
+
+export const EMPTY_CONDITION: OpenHopSimpleCondition = { field: '', op: 'equals', value: '' };
+
+/** Read a rule's `if`; a bare condition (OpenHop's implicit form) becomes a one-row Match all. */
+export function toConditionGroup(c: OpenHopCondition): ConditionGroup {
+  if (isAll(c)) return { logic: 'all', items: c.all };
+  if (isAny(c)) return { logic: 'any', items: c.any };
+  if (isSimple(c)) return { logic: 'all', items: [c] };
+  return { logic: 'all', items: [] };
+}
+
+function cleanCondition(c: OpenHopCondition): OpenHopCondition | null {
+  if (isSimple(c)) return c.field ? c : null;
+  if (isAll(c) || isAny(c)) {
+    const group = fromConditionGroup(toConditionGroup(c));
+    return isAll(group) || isAny(group) ? group : null;
+  }
+  return null;
+}
+
+/**
+ * Build the stored `if`. Rows without a field are dropped, and an empty list becomes `{}`
+ * (never matches): OpenHop evaluates `all: []` as true, so a drop rule would drop everything.
+ */
+export function fromConditionGroup(group: ConditionGroup): OpenHopCondition {
+  const items = group.items.map(cleanCondition).filter((c): c is OpenHopCondition => c !== null);
+  if (items.length === 0) return {};
+  return group.logic === 'all' ? { all: items } : { any: items };
+}
+
 const selectClass = 'rounded border border-input bg-background px-2 py-1 text-sm';
 
 /** Field/operator lists the builder offers. Defaults to the OpenHop API's own. */
@@ -203,58 +239,32 @@ export interface ConditionVocabulary {
   ruleGates?: boolean;
 }
 
-interface Props {
-  value: OpenHopCondition;
-  objects: PolicyObjects;
-  onChange: (c: OpenHopCondition) => void;
-  vocabulary?: ConditionVocabulary;
-}
-
 /** Keep a loaded rule's unknown field/operator selectable so it renders as stored. */
 function withCurrent<T extends string>(list: readonly T[], current: T): T[] {
   return !current || list.includes(current) ? [...list] : [current, ...list];
 }
 
-export function OpenHopConditionBuilder({ value, objects, onChange, vocabulary }: Props) {
+interface RowProps {
+  value: OpenHopSimpleCondition;
+  objects: PolicyObjects;
+  onChange: (c: OpenHopSimpleCondition) => void;
+  vocabulary?: ConditionVocabulary;
+}
+
+function ConditionRow({ value, objects, onChange, vocabulary }: RowProps) {
   const t = useT();
-  const mode = isAll(value) ? 'all' : isAny(value) ? 'any' : 'single';
-  const children: OpenHopCondition[] = isAll(value) ? value.all : isAny(value) ? value.any : [];
-  const simple: OpenHopSimpleCondition = isSimple(value)
-    ? value
-    : { field: '', op: 'equals', value: '' };
   const vocabularyOps = vocabulary?.operators ?? OPENHOP_OPERATORS;
-  const fields = withCurrent(vocabulary?.fields ?? OPENHOP_FIELDS, simple.field);
-  const operators = withCurrent(operatorsFor(simple.field, vocabularyOps), simple.op);
-  const options = FIELD_SPECS[simple.field]?.options;
-  const valueText = Array.isArray(simple.value) ? simple.value.join(',') : String(simple.value);
+  const fields = withCurrent(vocabulary?.fields ?? OPENHOP_FIELDS, value.field);
+  const operators = withCurrent(operatorsFor(value.field, vocabularyOps), value.op);
+  const options = FIELD_SPECS[value.field]?.options;
+  const valueText = Array.isArray(value.value) ? value.value.join(',') : String(value.value);
   const showPicker =
     options !== undefined && (valueText === '' || options.some((o) => o.value === valueText));
 
   const setField = (field: string) => {
     const allowed = operatorsFor(field, vocabularyOps);
-    const op = allowed.includes(simple.op) ? simple.op : (allowed[0] ?? simple.op);
+    const op = allowed.includes(value.op) ? value.op : (allowed[0] ?? value.op);
     onChange({ field, op, value: toFieldValue(field, valueText) });
-  };
-
-  const setMode = (next: 'single' | 'all' | 'any') => {
-    if (next === mode) return;
-    if (next === 'single') {
-      onChange(children[0] ?? simple);
-      return;
-    }
-    const list = mode === 'single' ? [simple] : children;
-    onChange(next === 'all' ? { all: list } : { any: list });
-  };
-
-  const wrapChildren = (next: OpenHopCondition[]) =>
-    onChange(mode === 'all' ? { all: next } : { any: next });
-
-  const moveChild = (i: number, delta: number) => {
-    const j = i + delta;
-    if (j < 0 || j >= children.length) return;
-    const next = [...children];
-    [next[i], next[j]] = [next[j], next[i]];
-    wrapChildren(next);
   };
 
   const groupRefs = [
@@ -263,148 +273,206 @@ export function OpenHopConditionBuilder({ value, objects, onChange, vocabulary }
   ];
 
   return (
+    <div className="space-y-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          aria-label={t('openhop_rule_field')}
+          className={selectClass}
+          value={value.field}
+          onChange={(e) => setField(e.target.value)}
+        >
+          <option value="">--</option>
+          {fields.map((f) => (
+            <option key={f} value={f}>
+              {f}
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label={t('openhop_rule_op')}
+          className={selectClass}
+          value={value.op}
+          onChange={(e) => onChange({ ...value, op: e.target.value as OpenHopOperator })}
+        >
+          {operators.map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
+        </select>
+        {showPicker ? (
+          <select
+            aria-label={t('openhop_rule_value')}
+            className={selectClass}
+            value={valueText}
+            onChange={(e) =>
+              onChange({ ...value, value: toFieldValue(value.field, e.target.value) })
+            }
+          >
+            <option value="">--</option>
+            {options.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            aria-label={t('openhop_rule_value')}
+            className={selectClass}
+            value={valueText}
+            onChange={(e) =>
+              onChange({ ...value, value: toFieldValue(value.field, e.target.value) })
+            }
+          />
+        )}
+        {groupRefs.length > 0 && (
+          <select
+            aria-label={t('openhop_rule_use_group')}
+            className={selectClass}
+            value=""
+            onChange={(e) => {
+              if (e.target.value) onChange({ ...value, value: e.target.value });
+            }}
+          >
+            <option value="">{t('openhop_rule_use_group')}</option>
+            {groupRefs.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+      {value.field === 'channel_message_body' && (
+        <p className="text-xs text-muted-foreground">{t('openhop_rule_body_order_hint')}</p>
+      )}
+    </div>
+  );
+}
+
+interface GroupProps {
+  value: OpenHopCondition;
+  objects: PolicyObjects;
+  onChange: (c: OpenHopCondition) => void;
+  vocabulary?: ConditionVocabulary;
+}
+
+/**
+ * A group nested inside the rule's list. The editor never creates these (OpenHop's own
+ * editor has none); they are shown so a hand-written or older rule keeps its structure.
+ */
+function NestedGroup({ value, objects, onChange, vocabulary }: GroupProps) {
+  const t = useT();
+  const group = toConditionGroup(value);
+  const emit = (next: ConditionGroup) =>
+    onChange(next.logic === 'all' ? { all: next.items } : { any: next.items });
+  return (
     <div className="space-y-2 rounded border border-input p-2">
       <select
         aria-label={t('openhop_condition_mode')}
         className={selectClass}
-        value={mode}
-        onChange={(e) => setMode(e.target.value as 'single' | 'all' | 'any')}
+        value={group.logic}
+        onChange={(e) => emit({ ...group, logic: e.target.value as MatchLogic })}
       >
-        <option value="single">{t('openhop_rule_match_single')}</option>
         <option value="all">{t('openhop_rule_match_all')}</option>
         <option value="any">{t('openhop_rule_match_any')}</option>
       </select>
+      {!vocabulary && (
+        <p className="text-xs text-destructive">{t('openhop_rule_nested_unsupported')}</p>
+      )}
+      <OpenHopConditionList
+        items={group.items}
+        objects={objects}
+        vocabulary={vocabulary}
+        onChange={(items) => emit({ ...group, items })}
+      />
+    </div>
+  );
+}
 
-      {mode === 'single' ? (
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              aria-label={t('openhop_rule_field')}
-              className={selectClass}
-              value={simple.field}
-              onChange={(e) => setField(e.target.value)}
-            >
-              <option value="">--</option>
-              {fields.map((f) => (
-                <option key={f} value={f}>
-                  {f}
-                </option>
-              ))}
-            </select>
-            <select
-              aria-label={t('openhop_rule_op')}
-              className={selectClass}
-              value={simple.op}
-              onChange={(e) => onChange({ ...simple, op: e.target.value as OpenHopOperator })}
-            >
-              {operators.map((o) => (
-                <option key={o} value={o}>
-                  {o}
-                </option>
-              ))}
-            </select>
-            {showPicker ? (
-              <select
-                aria-label={t('openhop_rule_value')}
-                className={selectClass}
-                value={valueText}
-                onChange={(e) =>
-                  onChange({ ...simple, value: toFieldValue(simple.field, e.target.value) })
-                }
-              >
-                <option value="">--</option>
-                {options.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
+interface ListProps {
+  items: OpenHopCondition[];
+  objects: PolicyObjects;
+  onChange: (items: OpenHopCondition[]) => void;
+  vocabulary?: ConditionVocabulary;
+}
+
+/** The rule's condition rows; Match all / Match any is chosen once, in the rule form. */
+export function OpenHopConditionList({ items, objects, onChange, vocabulary }: ListProps) {
+  const t = useT();
+
+  const replace = (i: number, c: OpenHopCondition) => {
+    const next = [...items];
+    next[i] = c;
+    onChange(next);
+  };
+
+  const move = (i: number, delta: number) => {
+    const j = i + delta;
+    if (j < 0 || j >= items.length) return;
+    const next = [...items];
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  };
+
+  return (
+    <div className="space-y-2">
+      {items.map((item, i) => (
+        <div key={i} className="flex items-start gap-1">
+          <div className="min-w-0 flex-1">
+            {isSimple(item) ? (
+              <ConditionRow
+                value={item}
+                objects={objects}
+                vocabulary={vocabulary}
+                onChange={(c) => replace(i, c)}
+              />
             ) : (
-              <input
-                aria-label={t('openhop_rule_value')}
-                className={selectClass}
-                value={valueText}
-                onChange={(e) =>
-                  onChange({ ...simple, value: toFieldValue(simple.field, e.target.value) })
-                }
+              <NestedGroup
+                value={item}
+                objects={objects}
+                vocabulary={vocabulary}
+                onChange={(c) => replace(i, c)}
               />
             )}
-            {groupRefs.length > 0 && (
-              <select
-                aria-label={t('openhop_rule_use_group')}
-                className={selectClass}
-                value=""
-                onChange={(e) => {
-                  if (e.target.value) onChange({ ...simple, value: e.target.value });
-                }}
-              >
-                <option value="">{t('openhop_rule_use_group')}</option>
-                {groupRefs.map((g) => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
-                ))}
-              </select>
-            )}
           </div>
-          {simple.field === 'channel_message_body' && (
-            <p className="text-xs text-muted-foreground">{t('openhop_rule_body_order_hint')}</p>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-2 pl-2">
-          {children.map((child, i) => (
-            <div key={i} className="flex items-start gap-1">
-              <div className="min-w-0 flex-1">
-                <OpenHopConditionBuilder
-                  value={child}
-                  objects={objects}
-                  vocabulary={vocabulary}
-                  onChange={(c) => {
-                    const next = [...children];
-                    next[i] = c;
-                    wrapChildren(next);
-                  }}
-                />
-              </div>
-              <button
-                type="button"
-                aria-label={t('openhop_condition_up')}
-                className="px-1"
-                disabled={i === 0}
-                onClick={() => moveChild(i, -1)}
-              >
-                &uarr;
-              </button>
-              <button
-                type="button"
-                aria-label={t('openhop_condition_down')}
-                className="px-1"
-                disabled={i === children.length - 1}
-                onClick={() => moveChild(i, 1)}
-              >
-                &darr;
-              </button>
-              <button
-                type="button"
-                aria-label={t('openhop_condition_remove')}
-                className="px-1 text-destructive"
-                disabled={children.length <= 1}
-                onClick={() => wrapChildren(children.filter((_, k) => k !== i))}
-              >
-                &times;
-              </button>
-            </div>
-          ))}
           <button
             type="button"
-            className="text-xs underline"
-            onClick={() => wrapChildren([...children, { field: '', op: 'equals', value: '' }])}
+            aria-label={t('openhop_condition_up')}
+            className="px-1"
+            disabled={i === 0}
+            onClick={() => move(i, -1)}
           >
-            {t('openhop_rule_add_condition')}
+            &uarr;
+          </button>
+          <button
+            type="button"
+            aria-label={t('openhop_condition_down')}
+            className="px-1"
+            disabled={i === items.length - 1}
+            onClick={() => move(i, 1)}
+          >
+            &darr;
+          </button>
+          <button
+            type="button"
+            aria-label={t('openhop_condition_remove')}
+            className="px-1 text-destructive"
+            disabled={items.length <= 1}
+            onClick={() => onChange(items.filter((_, k) => k !== i))}
+          >
+            &times;
           </button>
         </div>
-      )}
+      ))}
+      <button
+        type="button"
+        className="text-xs underline"
+        onClick={() => onChange([...items, EMPTY_CONDITION])}
+      >
+        {t('openhop_rule_add_condition')}
+      </button>
     </div>
   );
 }
