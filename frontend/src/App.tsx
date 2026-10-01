@@ -816,6 +816,7 @@ export function App() {
     meshDiscovery,
     meshDiscoveryLoadingTarget,
     onDiscoverMesh: handleDiscoverMesh,
+    onAdvertise: handleAdvertise,
     regionDiscovery,
     regionDiscoveryLoading,
     onDiscoverRegions: handleDiscoverRegions,

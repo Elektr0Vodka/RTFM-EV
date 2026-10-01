@@ -11,6 +11,16 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-02 (Advert panel on Mesh Discovery, feat/mesh-discovery-advert-panel)
+
+### Tools (frontend)
+- **Tools > Mesh Discovery has an Advert panel** at the top with two
+  buttons: **Direct (0 hop)** (zero-hop advert, only nodes in direct radio
+  range) and **Flood advert** (forwarded by repeaters). They send the same
+  adverts as Settings > Radio > Send Advertisement, which is unchanged, and
+  are disabled while the radio is disconnected or an advert is being sent.
+  No backend change.
+
 ## Update 2026-10-01 (OpenHop policy editor: all fields + typed values, policy-filtering-options)
 
 ### OpenHop: Policy rules
