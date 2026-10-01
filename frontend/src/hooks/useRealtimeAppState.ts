@@ -18,6 +18,7 @@ import {
   seedRawPacketStore,
 } from '../stores/rawPacketStore';
 import { emitStatusDotPulse } from '../utils/statusDotPulse';
+import { emitBuddyEvent } from '../buddy/buddyEvents';
 import { isMessageHiddenByHopWidth } from '../utils/pathUtils';
 import type {
   Channel,
@@ -184,7 +185,12 @@ export function useRealtimeAppState({
                 : undefined,
             });
             fetchConfig();
+            emitBuddyEvent({ kind: 'radio', state: 'connected' });
           } else {
+            emitBuddyEvent({
+              kind: 'radio',
+              state: nextRadioState === 'paused' ? 'paused' : 'disconnected',
+            });
             if (nextRadioState === 'paused') {
               toast.success('Radio connection paused');
             } else {
@@ -262,6 +268,20 @@ export function useRealtimeAppState({
           });
         }
 
+        if (
+          msg.type === 'PRIV' &&
+          !msg.outgoing &&
+          isNewMessage &&
+          !isForActiveConversation &&
+          !isSilenced
+        ) {
+          emitBuddyEvent({
+            kind: 'dm',
+            publicKey: msg.conversation_key,
+            senderName: msg.sender_name ?? null,
+          });
+        }
+
         // Surface the mention ticker only for a new channel message that
         // @mentions the user while they are not viewing that channel. Muted
         // channels are excluded - muting means "don't surface this channel".
@@ -274,6 +294,12 @@ export function useRealtimeAppState({
           checkMention(msg.text)
         ) {
           onChannelMention?.(msg);
+          emitBuddyEvent({
+            kind: 'mention',
+            channelKey: msg.conversation_key,
+            messageId: msg.id,
+            senderName: msg.sender_name ?? null,
+          });
         }
       },
       onContact: (contact: Contact) => {
@@ -348,6 +374,12 @@ export function useRealtimeAppState({
       },
       onNewNode: (payload: NewNodePayload) => {
         notifyNewNode?.(payload);
+        emitBuddyEvent({
+          kind: 'new-node',
+          count: payload.count,
+          publicKey: payload.public_key,
+          name: payload.name,
+        });
       },
     }),
     [

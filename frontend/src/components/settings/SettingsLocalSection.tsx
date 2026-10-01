@@ -30,6 +30,7 @@ import {
 } from '../../utils/lastViewedConversation';
 import { ThemeSelector } from './ThemeSelector';
 import { CrtEffects } from './CrtEffects';
+import { BuddySettings } from './BuddySettings';
 import { BrandingSettings } from './BrandingSettings';
 import { LanguageSelector } from './LanguageSelector';
 import { getLocalLabel, setLocalLabel, type LocalLabel } from '../../utils/localLabel';
@@ -397,6 +398,8 @@ export function SettingsLocalSection({
         {/* CRT phosphor colours are themes in the selector above; the CRT screen
             effects (universal overlay) toggle here. */}
         <CrtEffects />
+        {/* Desktop buddy: always under Windows 95, elsewhere once Windows 95 was used. */}
+        <BuddySettings />
         <ThemePreview className="mt-6" />
       </div>
 

@@ -1394,3 +1394,31 @@
     opacity: 0.95;
   }
 }
+
+/* Desktop buddy (clippyjs, buddy/BuddyHost.tsx) on the CRT. It sits just below
+   the scanline and vignette overlays above (z-index 9996), so scanlines,
+   curvature and flicker cover it like the rest of the screen. Under a CRT theme
+   the sprite and its speech balloon are recoloured to the phosphor; the glow
+   effect adds a phosphor halo on any theme, like the text glow. The filter is
+   only set when one of these applies, so other themes render it untouched. */
+:root[data-theme^='crt-'] {
+  --buddy-crt-tint: grayscale(1) sepia(1) saturate(5) hue-rotate(85deg) brightness(1.1);
+}
+:root[data-theme='crt-amber'] {
+  --buddy-crt-tint: grayscale(1) sepia(1) saturate(5) brightness(1.05);
+}
+:root[data-theme='crt-white'] {
+  --buddy-crt-tint: grayscale(1) brightness(1.1);
+}
+:root[data-theme='crt-blue'] {
+  --buddy-crt-tint: grayscale(1) sepia(1) saturate(5) hue-rotate(200deg) brightness(1.2);
+}
+:root[data-crt-glow='1'] {
+  --buddy-crt-glow: drop-shadow(0 0 3px hsl(var(--crt-phosphor) / 0.7));
+}
+:root[data-theme^='crt-'] [data-buddy],
+:root[data-theme^='crt-'] [data-buddy-balloon],
+:root[data-crt-glow='1'] [data-buddy],
+:root[data-crt-glow='1'] [data-buddy-balloon] {
+  filter: var(--buddy-crt-tint, grayscale(0)) var(--buddy-crt-glow, grayscale(0));
+}

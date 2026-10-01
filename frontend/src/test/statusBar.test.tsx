@@ -152,6 +152,22 @@ describe('StatusBar', () => {
     expect(document.documentElement.dataset.theme).toBe('cyberpunk');
   });
 
+  it('offers the desktop buddy picker in the theme modal once Windows 95 is picked', () => {
+    localStorage.clear();
+    localStorage.setItem('remoteterm-theme', 'original');
+
+    render(<StatusBar health={baseHealth} config={null} onSettingsClick={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open theme settings' }));
+    expect(screen.queryByLabelText('Desktop buddy')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Windows 95' }));
+    expect(screen.getByLabelText('Desktop buddy')).toHaveValue('clippy');
+
+    fireEvent.change(screen.getByLabelText('Desktop buddy'), { target: { value: 'genie' } });
+    expect(localStorage.getItem('rtfm-buddy-agent')).toBe('genie');
+    localStorage.clear();
+  });
+
   it('renders the default RTFM-EV wordmark when unset', () => {
     render(<StatusBar health={baseHealth} config={null} onSettingsClick={vi.fn()} />);
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('RTFM-EV');

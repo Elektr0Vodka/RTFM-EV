@@ -37,6 +37,40 @@ the change. Upstream development is on hold; the fork is the active repository.
   `LOG_LEVEL`, and at DEBUG it would log the radio's private key export and
   channel secrets as hex to stdout and the debug log buffer.
 
+## Update 2026-10-01 (Windows 95 desktop buddy, clippy-win95-buddy)
+
+### Interface: desktop buddy (Windows 95 theme, then any theme)
+- New **Desktop buddy** picker under Settings > Local Configuration (below the
+  theme picker) and in the header theme dialog: Off or one of the 10 `clippyjs` agents (Clippy, Merlin, Bonzi,
+  F1, Genie, Genius, Links, Peedy, Rocky, Rover). Under Windows 95 Clippy is on
+  by default until the user picks another buddy or Off (stored as `off`).
+  Other themes only offer the picker once this browser has used Windows 95
+  (`rtfm-buddy-discovered`) and default to Off; an explicit choice applies to
+  every theme. Per-browser settings (localStorage), like the theme.
+- Mounted in `AppShell` next to the Channel Finder, so it stays on screen while
+  navigating. It announces new nodes (the existing batched `new_node` WS
+  event), DMs and @mentions outside the open conversation, radio
+  disconnect/reconnect/pause, an RTFM-EV update and an OpenHop firmware update
+  (only when OpenHop management is configured), plus a short tip the first
+  time each page is opened in a session.
+- Battery warnings with a configurable threshold (default 20%): own radio from
+  health `battery_mv`, nodes from `GET /contacts/telemetry/latest` (polled every
+  10 minutes while the buddy is shown; telemetry older than 24 h and nodes set
+  to mains power are skipped). Warns once per drop, re-arms 5 points above the
+  threshold.
+- Click the balloon to open what it is about (node, DM, mention, My Node,
+  settings page). Drag to move (position saved per browser), double-click for
+  an animation, right-click to dismiss until reload; idle animations every few
+  minutes.
+- CRT themes: the buddy and its balloon sit just below the scanline and
+  vignette overlays (z-index 9996, still above every app layer), so scanlines,
+  curvature and flicker cover them; under a CRT theme they are recoloured to the
+  phosphor (CSS filter in `themes.css`), and the glow effect adds a phosphor
+  halo.
+- New dependency `clippyjs` ^0.1.0 (MIT library; characters and sprite sheets
+  are Microsoft's). Each agent is a lazy chunk (0.9 to 2.5 MB), only fetched
+  when picked; sounds are never loaded. No backend change, no migration.
+
 ## Update 2026-09-30 (Power Outage tab: sorting + pagination, power-tab-sorting-pagination)
 
 ### Mesh Health: Power Outage table

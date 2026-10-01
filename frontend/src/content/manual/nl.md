@@ -61,6 +61,8 @@ Geschiedenis van voordat radio's werden bijgehouden, wordt automatisch aan de ve
 
 De interface is beschikbaar in het Engels, Nederlands en Duits. Wissel van taal met het taalmenu in de bovenbalk (vlag en taalcode) of onder **Instellingen > Lokale configuratie**. De keuze wordt per browser bewaard. Het zon- of maanpictogram in de bovenbalk opent de themakiezer.
 
+Het thema **Windows 95** heeft een **Bureaubladmaatje**: Clippy verschijnt zodra je dat thema kiest, tot je onder **Instellingen > Lokale configuratie** (onder de themakiezer) of in het themavenster achter het zon- of maanpictogram een ander maatje (Merlin, Bonzi, F1, Genie, Genius, Links, Peedy, Rocky of Rover) of **Uit** kiest. Heb je Windows 95 eenmaal gebruikt, dan is dezelfde instelling bij elk thema beschikbaar; andere thema's beginnen met **Uit**, en een maatje dat je daar kiest verschijnt bij alle thema's. Het maatje blijft in beeld terwijl je navigeert en vertelt je over nieuwe nodes, bijna lege batterijen (je radio en nodes met telemetrie van de afgelopen 24 uur, onder de drempel die je instelt; nodes op netstroom worden overgeslagen), privéberichten en @vermeldingen, een verbroken radioverbinding en beschikbare updates. De eerste keer dat je een pagina opent, geeft het ook een korte tip. Klik op het tekstballonnetje om te openen waar het over gaat. Sleep het maatje om het te verplaatsen (de plek wordt per browser onthouden), dubbelklik voor een kunstje en rechtsklik om het weg te sturen tot je de pagina herlaadt. Met een CRT-thema krijgt het maatje de fosforkleur en volgt het de CRT-schermeffecten (scanlijnen, fosforgloed, schermkromming en flikkering). De afbeeldingen van een maatje worden pas gedownload als je het kiest, en het speelt geen geluid af.
+
 <!-- id: layout -->
 
 ## De indeling
@@ -325,7 +327,7 @@ RTFM-EV kan elk ontvangen pakket beoordelen zoals een repeater dat zou doen. **S
 
 ### Lokale configuratie
 
-Instellingen voor deze browser of dit apparaat: taal, kleurthema (inclusief vier CRT-fosforthema's) en CRT-schermeffecten, branding (appnaam en pictogram, gedeeld door alle apparaten), een lokaal label, **Afstandseenheden**, **Coördinaatformaat**, **Datum- en tijdnotatie**, relatieve lettergrootte, UI-aanpassingen (zoals laatste gesprek opnieuw openen, batterijweergave en **Vervangen tijdens het typen**), het geluid bij vermeldingen en DM's, meldingen voor nieuwe nodes, **Chatverwerking** en **Web Push-meldingen**.
+Instellingen voor deze browser of dit apparaat: taal, kleurthema (inclusief vier CRT-fosforthema's) en CRT-schermeffecten, het **Bureaubladmaatje** (nadat je het thema Windows 95 hebt gebruikt), branding (appnaam en pictogram, gedeeld door alle apparaten), een lokaal label, **Afstandseenheden**, **Coördinaatformaat**, **Datum- en tijdnotatie**, relatieve lettergrootte, UI-aanpassingen (zoals laatste gesprek opnieuw openen, batterijweergave en **Vervangen tijdens het typen**), het geluid bij vermeldingen en DM's, meldingen voor nieuwe nodes, **Chatverwerking** en **Web Push-meldingen**.
 
 ### MQTT en automatisering
 
