@@ -61,6 +61,8 @@ Verlauf aus der Zeit vor der Funkgeräte-Erfassung wird automatisch dem verbunde
 
 Die Oberfläche gibt es auf Englisch, Niederländisch und Deutsch. Die Sprache wechselst du über das Sprachmenü in der oberen Leiste (Flagge und Sprachkürzel) oder unter **Einstellungen > Lokale Konfiguration**. Die Wahl wird pro Browser gespeichert. Das Sonnen- oder Mondsymbol in der oberen Leiste öffnet die Designauswahl.
 
+Zum Design **Windows 95** gehört ein **Desktop-Assistent**: Clippy erscheint, sobald du dieses Design wählst, bis du unter **Einstellungen > Lokale Konfiguration** (unter der Designauswahl) oder im Designfenster über das Sonnen- oder Mondsymbol einen anderen Assistenten (Merlin, Bonzi, F1, Genie, Genius, Links, Peedy, Rocky oder Rover) oder **Aus** wählst. Sobald du Windows 95 einmal benutzt hast, gibt es dieselbe Einstellung in jedem Design; andere Designs starten mit **Aus**, und ein dort gewählter Assistent erscheint in allen Designs. Der Assistent bleibt beim Navigieren sichtbar und informiert dich über neue Knoten, schwache Akkus (dein Funkgerät und Knoten mit Telemetrie aus den letzten 24 Stunden, unter dem eingestellten Schwellenwert; Knoten mit Netzstrom werden übersprungen), Direktnachrichten und @Erwähnungen, eine getrennte Funkverbindung und verfügbare Updates. Beim ersten Öffnen einer Seite gibt er außerdem einen kurzen Tipp. Klick auf die Sprechblase, um zu öffnen, worum es geht. Zieh den Assistenten, um ihn zu verschieben (die Stelle wird pro Browser gespeichert), doppelklick für einen Trick und rechtsklick, um ihn bis zum Neuladen der Seite wegzuschicken. Mit einem CRT-Design nimmt der Assistent die Phosphorfarbe an und folgt den CRT-Bildschirmeffekten (Scanlinien, Phosphorglühen, Bildschirmkrümmung und Flackern). Die Bilder eines Assistenten werden erst heruntergeladen, wenn du ihn wählst, und er spielt keine Töne ab.
+
 <!-- id: layout -->
 
 ## Der Aufbau
@@ -325,7 +327,7 @@ RTFM-EV kann jedes empfangene Paket so beurteilen, wie ein Repeater es tun würd
 
 ### Lokale Konfiguration
 
-Einstellungen für diesen Browser oder dieses Gerät: Sprache, Farbthema (einschließlich vier CRT-Phosphor-Themen) und CRT-Bildschirmeffekte, Branding (App-Name und Symbol, von allen Geräten geteilt), ein lokales Label, **Entfernungseinheiten**, **Koordinatenformat**, **Datums- und Zeitformat**, relative Schriftgröße, UI-Anpassungen (etwa letzte Unterhaltung erneut öffnen, Akkuanzeige und **Beim Tippen ersetzen**), der Ton bei Erwähnungen und DMs, Benachrichtigungen für neue Knoten, **Chat-Erkennung** und **Web-Push-Benachrichtigungen**.
+Einstellungen für diesen Browser oder dieses Gerät: Sprache, Farbthema (einschließlich vier CRT-Phosphor-Themen) und CRT-Bildschirmeffekte, der **Desktop-Assistent** (nachdem du das Design Windows 95 benutzt hast), Branding (App-Name und Symbol, von allen Geräten geteilt), ein lokales Label, **Entfernungseinheiten**, **Koordinatenformat**, **Datums- und Zeitformat**, relative Schriftgröße, UI-Anpassungen (etwa letzte Unterhaltung erneut öffnen, Akkuanzeige und **Beim Tippen ersetzen**), der Ton bei Erwähnungen und DMs, Benachrichtigungen für neue Knoten, **Chat-Erkennung** und **Web-Push-Benachrichtigungen**.
 
 ### MQTT & Automatisierung
 
