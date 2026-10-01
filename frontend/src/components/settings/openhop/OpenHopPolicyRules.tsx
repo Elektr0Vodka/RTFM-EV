@@ -3,7 +3,7 @@ import type { OpenHopCondition, OpenHopPolicyEngine, OpenHopRule } from '../../.
 import { useT } from '../../../i18n';
 import { Button } from '../../ui/button';
 import { OpenHopRuleForm } from './OpenHopRuleForm';
-import type { ConditionVocabulary } from './OpenHopConditionBuilder';
+import { formatConditionValue, type ConditionVocabulary } from './OpenHopConditionBuilder';
 
 /** Per-rule counters shown next to each rule (host repeater shadow / armed stats). */
 export interface RuleStats {
@@ -39,7 +39,7 @@ export function summarizeCondition(c: OpenHopCondition): string {
   if (typeof c !== 'object' || c === null) return '';
   if ('all' in c) return c.all.map(summarizeCondition).join(' AND ');
   if ('any' in c) return c.any.map(summarizeCondition).join(' OR ');
-  if ('field' in c) return `${c.field || '?'} ${c.op} ${c.value}`;
+  if ('field' in c) return `${c.field || '?'} ${c.op} ${formatConditionValue(c.field, c.value)}`;
   return '(any)';
 }
 

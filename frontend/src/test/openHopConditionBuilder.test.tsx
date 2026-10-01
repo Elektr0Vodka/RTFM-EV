@@ -1,12 +1,13 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { OpenHopConditionBuilder } from '../components/settings/openhop/OpenHopConditionBuilder';
+import { OpenHopRuleForm } from '../components/settings/openhop/OpenHopRuleForm';
+import { summarizeCondition } from '../components/settings/openhop/OpenHopPolicyRules';
+import type { OpenHopRule } from '../types';
 
-const objects = {
-  channel_hash_groups: { grpA: ['0x1F'] },
-  pubkey_groups: {},
-};
+const objects = { channel_hash_groups: {}, pubkey_groups: {} };
+const groupObjects = { channel_hash_groups: { grpA: ['0x1F'] }, pubkey_groups: {} };
 
 describe('OpenHopConditionBuilder', () => {
   it('emits a simple condition when field and value change', async () => {
@@ -14,7 +15,7 @@ describe('OpenHopConditionBuilder', () => {
     render(
       <OpenHopConditionBuilder
         value={{ field: '', op: 'equals', value: '' }}
-        objects={objects}
+        objects={groupObjects}
         onChange={onChange}
       />
     );
@@ -32,7 +33,7 @@ describe('OpenHopConditionBuilder', () => {
     render(
       <OpenHopConditionBuilder
         value={{ field: 'channel_hash', op: 'equals', value: '0x1f' }}
-        objects={objects}
+        objects={groupObjects}
         onChange={onChange}
       />
     );
@@ -47,7 +48,7 @@ describe('OpenHopConditionBuilder', () => {
     render(
       <OpenHopConditionBuilder
         value={{ field: 'channel_hash', op: 'equals', value: '' }}
-        objects={objects}
+        objects={groupObjects}
         onChange={onChange}
       />
     );
@@ -55,5 +56,143 @@ describe('OpenHopConditionBuilder', () => {
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ value: '@channel_hash_groups.grpA' })
     );
+  });
+});
+
+// Rule 1 as exported by an OpenHop node's own policy editor.
+const openHopRule: OpenHopRule = {
+  id: '1',
+  name: '1- T-flood txt-msg 1byte spam',
+  enabled: true,
+  if: {
+    all: [
+      { field: 'route_type', op: 'equals', value: 0 },
+      { field: 'payload_type', op: 'equals', value: 2 },
+      { field: 'path_hash_size', op: 'equals', value: 1 },
+    ],
+  },
+  then: { action: 'drop' },
+};
+
+function renderBuilder(value: Parameters<typeof OpenHopConditionBuilder>[0]['value']) {
+  const onChange = vi.fn();
+  render(<OpenHopConditionBuilder value={value} objects={objects} onChange={onChange} />);
+  return onChange;
+}
+
+describe('OpenHop condition builder (OpenHop API vocabulary)', () => {
+  it('offers every field the OpenHop policy engine evaluates', () => {
+    renderBuilder({ field: '', op: 'equals', value: '' });
+    const field = screen.getByLabelText(/^field$/i);
+    for (const name of [
+      'route_type',
+      'payload_type',
+      'payload_length',
+      'path_hash_size',
+      'hop_count',
+      'rssi',
+      'snr',
+      'mode',
+      'local_transmission',
+      'path_hashes',
+      'channel_hash',
+      'channel_decryptable',
+      'channel_message_body',
+      'channel_sender',
+      'payload_hex',
+      'transport_code_0',
+      'transport_code_1',
+    ]) {
+      expect(within(field).getByRole('option', { name })).toBeInTheDocument();
+    }
+  });
+
+  it('stores the route type picker choice as a number', async () => {
+    const onChange = renderBuilder({ field: 'route_type', op: 'equals', value: '' });
+    expect(screen.getByRole('option', { name: '0 TRANSPORT_FLOOD' })).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText(/^value$/i), '0');
+    expect(onChange).toHaveBeenLastCalledWith({ field: 'route_type', op: 'equals', value: 0 });
+  });
+
+  it('stores the path hash size picker choice as a number', async () => {
+    const onChange = renderBuilder({ field: 'path_hash_size', op: 'equals', value: '' });
+    await userEvent.selectOptions(screen.getByLabelText(/^value$/i), '2');
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ value: 2 }));
+  });
+
+  it('stores a typed numeric value as a number', () => {
+    const onChange = renderBuilder({ field: 'rssi', op: 'less_than', value: '' });
+    fireEvent.change(screen.getByLabelText(/^value$/i), { target: { value: '-110' } });
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ value: -110 }));
+  });
+
+  it('stores boolean fields as booleans', async () => {
+    const onChange = renderBuilder({ field: 'channel_decryptable', op: 'equals', value: '' });
+    await userEvent.selectOptions(screen.getByLabelText(/^value$/i), 'true');
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ value: true }));
+  });
+
+  it('keeps text fields and group references as strings', () => {
+    const onChange = renderBuilder({ field: 'channel_sender', op: 'equals', value: '' });
+    fireEvent.change(screen.getByLabelText(/^value$/i), { target: { value: '123' } });
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ value: '123' }));
+  });
+
+  it('only offers the operators that apply to the field', () => {
+    renderBuilder({ field: 'path_hashes', op: 'contains', value: '' });
+    const ops = within(screen.getByLabelText(/^operator$/i))
+      .getAllByRole('option')
+      .map((o) => o.textContent);
+    expect(ops).toEqual(['contains', 'intersects']);
+  });
+
+  it('switches to a valid operator when the field changes', async () => {
+    const onChange = renderBuilder({ field: 'channel_sender', op: 'starts_with', value: '' });
+    await userEvent.selectOptions(screen.getByLabelText(/^field$/i), 'hop_count');
+    expect(onChange).toHaveBeenLastCalledWith({ field: 'hop_count', op: 'equals', value: '' });
+  });
+
+  it('shows the decrypt-order hint for channel_message_body', () => {
+    renderBuilder({ field: 'channel_message_body', op: 'contains', value: 'spam' });
+    expect(screen.getByText(/checked top to bottom/i)).toBeInTheDocument();
+  });
+
+  it('removes and reorders conditions inside a group', async () => {
+    const onChange = renderBuilder(openHopRule.if);
+    await userEvent.click(screen.getAllByRole('button', { name: /remove condition/i })[0]);
+    expect(onChange).toHaveBeenLastCalledWith({
+      all: [
+        { field: 'payload_type', op: 'equals', value: 2 },
+        { field: 'path_hash_size', op: 'equals', value: 1 },
+      ],
+    });
+    await userEvent.click(screen.getAllByRole('button', { name: /move condition down/i })[0]);
+    expect(onChange).toHaveBeenLastCalledWith({
+      all: [
+        { field: 'payload_type', op: 'equals', value: 2 },
+        { field: 'route_type', op: 'equals', value: 0 },
+        { field: 'path_hash_size', op: 'equals', value: 1 },
+      ],
+    });
+  });
+});
+
+describe('OpenHop rules from a node', () => {
+  it('summarizes numeric values with their names', () => {
+    expect(summarizeCondition(openHopRule.if)).toBe(
+      'route_type equals 0 TRANSPORT_FLOOD AND payload_type equals 2 TXT_MSG AND path_hash_size equals 1 byte'
+    );
+  });
+
+  it('keeps numeric values numeric when an unchanged rule is saved', async () => {
+    const onSave = vi.fn();
+    render(
+      <OpenHopRuleForm rule={openHopRule} objects={objects} onSave={onSave} onCancel={vi.fn()} />
+    );
+    expect(
+      screen.getAllByLabelText(/^value$/i).map((el) => (el as HTMLSelectElement).value)
+    ).toEqual(['0', '2', '1']);
+    await userEvent.click(screen.getByRole('button', { name: /save rule/i }));
+    expect(onSave).toHaveBeenCalledWith(openHopRule);
   });
 });
