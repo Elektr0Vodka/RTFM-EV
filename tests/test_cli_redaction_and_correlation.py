@@ -177,6 +177,26 @@ class TestLibraryLogFilter:
         CliSecretRedactFilter().filter(record)
         assert record.getMessage() == "Sending command to aa: ver"
 
+    def test_setup_logging_caps_meshcore_logger_at_info(self, monkeypatch):
+        # meshcore >= 2.3.10 no longer forces its logger to INFO, and its DEBUG
+        # lines dump the private key export and channel secrets as hex.
+        from app import config
+
+        root = logging.getLogger()
+        mc_logger = logging.getLogger("meshcore")
+        saved = (root.level, root.handlers[:], mc_logger.level, mc_logger.filters[:])
+        monkeypatch.setattr(config.settings, "log_level", "DEBUG")
+        try:
+            config.setup_logging()
+            assert root.isEnabledFor(logging.DEBUG)
+            assert not mc_logger.isEnabledFor(logging.DEBUG)
+            assert mc_logger.isEnabledFor(logging.INFO)
+        finally:
+            root.setLevel(saved[0])
+            root.handlers[:] = saved[1]
+            mc_logger.setLevel(saved[2])
+            mc_logger.filters[:] = saved[3]
+
 
 class TestCommandLoggingRedaction:
     @pytest.mark.asyncio

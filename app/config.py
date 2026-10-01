@@ -229,3 +229,7 @@ def setup_logging() -> None:
     # Keep remote CLI secrets (passwords, private keys) out of the library's
     # send_cmd debug line, which would otherwise reach /api/debug at DEBUG level.
     logging.getLogger("meshcore").addFilter(CliSecretRedactFilter())
+    # Cap the library at INFO. meshcore <= 2.3.9.1 forced this on every
+    # MeshCore(); 2.3.10+ leaves it to the app, and its DEBUG lines dump the
+    # radio's private key export and channel secrets as hex.
+    logging.getLogger("meshcore").setLevel(logging.INFO)

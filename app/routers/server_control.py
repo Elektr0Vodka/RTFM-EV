@@ -50,12 +50,13 @@ def get_server_contact_label(contact: Contact) -> str:
 def _cli_command_destination(contact: Contact) -> dict[str, object]:
     """Destination payload for meshcore ``send_cmd``.
 
-    meshcore 2.3.9.1's ``send_cmd`` inspects the destination's adv type to pick
-    the CLI text subtype (``dst_type = dst["type"]`` when not passed explicitly).
-    Handing it a bare pubkey string makes it index a ``str`` with ``"type"`` and
-    raise ``TypeError: string indices must be integers``. Passing a
-    ``{public_key, type}`` dict gives it both the address and the type, so it
-    takes the CLI_DATA branch (correct for repeaters and rooms) without warning.
+    meshcore's ``send_cmd`` picks the CLI text subtype from the destination's
+    adv type (``dst["type"]`` when ``dst_type`` is not passed): CLI_CMD for chat
+    contacts, CLI_DATA for everything else. Up to 2.3.13 a bare pubkey string
+    raised ``TypeError: string indices must be integers``; 2.3.14 instead logs a
+    warning and assumes a repeater. Passing a ``{public_key, type}`` dict gives
+    it both the address and the type, so it takes the CLI_DATA branch (correct
+    for repeaters and rooms) without warning.
     RTFM's ``Contact.type`` matches the meshcore AdvType (repeater=2, room=3).
     """
     return {"public_key": contact.public_key, "type": contact.type}

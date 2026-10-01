@@ -11,6 +11,32 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-01 (meshcore 2.3.14 dependency bump, #261)
+
+### Dependencies
+- Bump `meshcore` 2.3.9.1 -> 2.3.14 (`pyproject.toml`, `uv.lock`). Upstream
+  changes in that range:
+  - 2.3.10: duplicate of an undecryptable channel frame no longer raises
+    `KeyError` in the parser; ADVERT_PATH path parsed by length instead of
+    stripping zero bytes; serial port fds closed on connect timeout; BLE
+    reconnect tears down the stale client (no duplicate notifications); the
+    library no longer configures the root logger or forces its own level.
+  - 2.3.11: serial connect asserts DTR (same as before) and, if the radio does
+    not answer, retries once with DTR inverted. `APP_START` on connect and on
+    auto-reconnect now times out after 2 s instead of the 15 s default.
+  - 2.3.12-2.3.13: `send_msg_with_retry` rework (fixed timestamp across
+    attempts, accepts a late ACK for any attempt). RTFM does not call it; its
+    own DM retry loop already behaves this way.
+  - 2.3.14: `send_cmd` honours an explicit `dst_type` and no longer raises on a
+    bare pubkey string (it assumes a repeater). RTFM keeps passing a
+    `{public_key, type}` destination.
+
+### Logging
+- The `meshcore` logger is now capped at INFO in `setup_logging`. Up to 2.3.9.1
+  the library forced INFO on every connect; from 2.3.10 it inherits
+  `LOG_LEVEL`, and at DEBUG it would log the radio's private key export and
+  channel secrets as hex to stdout and the debug log buffer.
+
 ## Update 2026-09-30 (Power Outage tab: sorting + pagination, power-tab-sorting-pagination)
 
 ### Mesh Health: Power Outage table
