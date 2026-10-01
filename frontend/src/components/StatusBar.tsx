@@ -20,6 +20,7 @@ import { useUpdateStatus } from '../hooks/useUpdateStatus';
 import { useHostRepeaterArmed } from '../hooks/useHostRepeaterArmed';
 import { ThemeSelector } from './settings/ThemeSelector';
 import { CrtEffects } from './settings/CrtEffects';
+import { BuddySettings } from './settings/BuddySettings';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import {
   BATTERY_DISPLAY_CHANGE_EVENT,
@@ -346,6 +347,7 @@ export function StatusBar({
           </DialogHeader>
           <ThemeSelector />
           <CrtEffects />
+          <BuddySettings />
         </DialogContent>
       </Dialog>
     </header>

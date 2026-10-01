@@ -20,6 +20,7 @@ import { MentionTicker, type MentionEvent } from './MentionTicker';
 import { CommandPalette } from './CommandPalette';
 import { SecurityWarningModal } from './SecurityWarningModal';
 import { RadioIdentityPrompt } from './RadioIdentityPrompt';
+import { BuddyHost } from '../buddy/BuddyHost';
 import { Toaster } from './ui/sonner';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './ui/sheet';
 import {
@@ -33,6 +34,7 @@ import { useT } from '../i18n';
 import type { CrackerPanelProps } from './CrackerPanel';
 import type { SearchViewProps } from './SearchView';
 import type { SettingsModalProps } from './SettingsModal';
+import type { Conversation } from '../types';
 import { cn } from '@/lib/utils';
 
 const SettingsModal = lazy(() =>
@@ -151,6 +153,23 @@ export function AppShell({
       if (!showSettings) onToggleSettingsView();
     },
     [onSettingsSectionChange, onToggleSettingsView, showSettings]
+  );
+
+  // Desktop buddy click-to-jump: leave the settings page when opening a conversation.
+  const selectConversation = sidebarProps.onSelectConversation;
+  const handleBuddySelectConversation = useCallback(
+    (conv: Conversation) => {
+      if (showSettings) onCloseSettingsView();
+      selectConversation(conv);
+    },
+    [onCloseSettingsView, selectConversation, showSettings]
+  );
+  const handleBuddyMention = useCallback(
+    (channelKey: string, messageId: number) => {
+      if (showSettings) onCloseSettingsView();
+      onNavigateMentionToMessage?.(channelKey, messageId);
+    },
+    [onCloseSettingsView, onNavigateMentionToMessage, showSettings]
   );
 
   const searchMounted = useRef(false);
@@ -399,6 +418,15 @@ export function AppShell({
         onOpenSettings={handleOpenSettings}
         onRepeaterAutoLogin={onRepeaterAutoLogin}
         isOpenHop={statusProps.health?.radio_device_info?.is_openhop === true}
+      />
+      <BuddyHost
+        health={statusProps.health}
+        contacts={sidebarProps.contacts}
+        channels={sidebarProps.channels}
+        activePage={showSettings ? 'settings' : (activeType ?? null)}
+        onSelectConversation={handleBuddySelectConversation}
+        onOpenSettings={handleOpenSettings}
+        onNavigateMentionToMessage={handleBuddyMention}
       />
       <SecurityWarningModal health={statusProps.health} />
       <RadioIdentityPrompt health={statusProps.health} />
