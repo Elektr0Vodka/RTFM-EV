@@ -1107,10 +1107,12 @@ export type OpenHopOperator =
 export type PolicyThrottleKey = 'rule' | 'sender' | 'channel' | 'path_first';
 export type OpenHopGroupKind = 'channel_hashes' | 'pubkeys';
 
+/** OpenHop compares with plain `==`, so numeric/boolean fields need JSON numbers/booleans. */
+export type OpenHopConditionValue = string | number | boolean | (string | number | boolean)[];
 export interface OpenHopSimpleCondition {
   field: string;
   op: OpenHopOperator;
-  value: string;
+  value: OpenHopConditionValue;
 }
 export type OpenHopCondition =
   | OpenHopSimpleCondition

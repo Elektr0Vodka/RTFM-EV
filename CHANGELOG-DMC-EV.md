@@ -11,6 +11,29 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-01 (OpenHop policy editor: all fields + typed values, policy-filtering-options)
+
+### OpenHop: Policy rules
+- The rule editor now offers every field the OpenHop policy engine evaluates:
+  `route_type`, `payload_type`, `payload_length`, `path_hash_size`,
+  `hop_count`, `rssi`, `snr`, `mode` and `local_transmission` were missing
+  next to the channel / path / transport / payload hex fields.
+- Fix: numeric and boolean values are saved as JSON numbers and booleans.
+  OpenHop compares values without type conversion, so a rule saved from
+  RTFM-EV with `"0"` never matched a route type of `0`, and editing a rule
+  made on the node turned its numbers into text.
+- Each field only offers the operators that apply to it (`intersects` and
+  `ends_with` added). Pickers for route type, payload type (now with
+  `15 RAW_CUSTOM`), path hash size (1/2/3 bytes), mode (`forward` /
+  `monitor` / `no_tx`) and true/false fields.
+- Rule summaries show names next to numbers (`route_type equals 0
+  TRANSPORT_FLOOD`).
+- Conditions in a Match all / Match any group can be removed and moved up or
+  down. A hint under `channel_message_body` advises putting
+  `channel_decryptable` or `channel_hash` above it. The Settings > Host
+  repeater policy editor shares the builder and gets the same pickers,
+  per-field operators and typed values.
+
 ## Update 2026-10-01 (meshcore 2.3.14 dependency bump, #261)
 
 ### Dependencies

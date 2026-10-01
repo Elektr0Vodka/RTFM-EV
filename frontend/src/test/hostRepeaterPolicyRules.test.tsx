@@ -187,7 +187,7 @@ describe('host repeater policy rule gates', () => {
       />
     );
     await userEvent.selectOptions(screen.getByLabelText(/^value$/i), '5');
-    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ value: '5' }));
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ value: 5 }));
     expect(screen.getByRole('option', { name: /GRP_TXT/ })).toBeInTheDocument();
   });
 
