@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import {
-  OpenHopConditionBuilder,
+  OpenHopConditionList,
   type ConditionVocabulary,
 } from '../components/settings/openhop/OpenHopConditionBuilder';
 import { OpenHopPolicyRules } from '../components/settings/openhop/OpenHopPolicyRules';
@@ -160,34 +160,34 @@ describe('host repeater policy rule gates', () => {
   it('offers the matches operator and a payload type picker from the host vocabulary', async () => {
     const onChange = vi.fn();
     render(
-      <OpenHopConditionBuilder
-        value={{ field: 'channel_sender', op: 'equals', value: '' }}
+      <OpenHopConditionList
+        items={[{ field: 'channel_sender', op: 'equals', value: '' }]}
         objects={objects}
         vocabulary={hostVocabulary}
         onChange={onChange}
       />
     );
     await userEvent.selectOptions(screen.getByLabelText(/^operator$/i), 'matches');
-    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ op: 'matches' }));
+    expect(onChange).toHaveBeenLastCalledWith([expect.objectContaining({ op: 'matches' })]);
     onChange.mockClear();
     await userEvent.selectOptions(screen.getByLabelText(/^field$/i), 'payload_type');
-    expect(onChange).toHaveBeenLastCalledWith(
-      expect.objectContaining({ field: 'payload_type', value: '' })
-    );
+    expect(onChange).toHaveBeenLastCalledWith([
+      expect.objectContaining({ field: 'payload_type', value: '' }),
+    ]);
   });
 
   it('renders payload type names as the value picker', async () => {
     const onChange = vi.fn();
     render(
-      <OpenHopConditionBuilder
-        value={{ field: 'payload_type', op: 'equals', value: '' }}
+      <OpenHopConditionList
+        items={[{ field: 'payload_type', op: 'equals', value: '' }]}
         objects={objects}
         vocabulary={hostVocabulary}
         onChange={onChange}
       />
     );
     await userEvent.selectOptions(screen.getByLabelText(/^value$/i), '5');
-    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ value: 5 }));
+    expect(onChange).toHaveBeenLastCalledWith([expect.objectContaining({ value: 5 })]);
     expect(screen.getByRole('option', { name: /GRP_TXT/ })).toBeInTheDocument();
   });
 
