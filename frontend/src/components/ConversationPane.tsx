@@ -13,6 +13,7 @@ import type {
   HealthStatus,
   Message,
   PathDiscoveryResponse,
+  RadioAdvertMode,
   RadioConfig,
   RadioDiscoveryResponse,
   RadioDiscoveryTarget,
@@ -167,6 +168,7 @@ interface ConversationPaneProps {
   meshDiscovery?: RadioDiscoveryResponse | null;
   meshDiscoveryLoadingTarget?: RadioDiscoveryTarget | null;
   onDiscoverMesh?: (target: RadioDiscoveryTarget) => Promise<void>;
+  onAdvertise?: (mode: RadioAdvertMode) => Promise<void>;
   regionDiscovery?: RadioRegionDiscoveryResponse | null;
   regionDiscoveryLoading?: boolean;
   onDiscoverRegions?: (publicKeys?: string[]) => Promise<void>;
@@ -304,6 +306,7 @@ export function ConversationPane({
   meshDiscovery = null,
   meshDiscoveryLoadingTarget = null,
   onDiscoverMesh,
+  onAdvertise,
   regionDiscovery = null,
   regionDiscoveryLoading = false,
   onDiscoverRegions,
@@ -424,6 +427,7 @@ export function ConversationPane({
           meshDiscovery={meshDiscovery}
           meshDiscoveryLoadingTarget={meshDiscoveryLoadingTarget}
           onDiscoverMesh={onDiscoverMesh}
+          onAdvertise={onAdvertise}
           regionDiscovery={regionDiscovery}
           regionDiscoveryLoading={regionDiscoveryLoading}
           onDiscoverRegions={onDiscoverRegions}

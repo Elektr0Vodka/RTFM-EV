@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import type {
   HealthStatus,
+  RadioAdvertMode,
   RadioDiscoveryResponse,
   RadioDiscoveryTarget,
   RadioRegionDiscoveryResponse,
@@ -13,12 +14,14 @@ import { toast } from './ui/sonner';
 // Standalone Tools view for the mesh discovery sweep and repeater region
 // discovery, both of which used to live in Settings > Radio. Sweep and region
 // state live in useRadioControl so the last results survive navigation, and
-// region discovery prefers repeaters from the last sweep.
+// region discovery prefers repeaters from the last sweep. The Advert panel is a
+// shortcut to the same zero-hop / flood advert sends as Settings > Radio.
 export function MeshDiscoveryView({
   health,
   meshDiscovery,
   meshDiscoveryLoadingTarget,
   onDiscoverMesh,
+  onAdvertise,
   regionDiscovery = null,
   regionDiscoveryLoading = false,
   onDiscoverRegions,
@@ -28,6 +31,7 @@ export function MeshDiscoveryView({
   meshDiscovery: RadioDiscoveryResponse | null;
   meshDiscoveryLoadingTarget: RadioDiscoveryTarget | null;
   onDiscoverMesh: (target: RadioDiscoveryTarget) => Promise<void>;
+  onAdvertise?: (mode: RadioAdvertMode) => Promise<void>;
   regionDiscovery?: RadioRegionDiscoveryResponse | null;
   regionDiscoveryLoading?: boolean;
   onDiscoverRegions?: (publicKeys?: string[]) => Promise<void>;
@@ -36,6 +40,19 @@ export function MeshDiscoveryView({
   const t = useT();
   const [discoverError, setDiscoverError] = useState<string | null>(null);
   const [seedingRegions, setSeedingRegions] = useState(false);
+  const [advertisingMode, setAdvertisingMode] = useState<RadioAdvertMode | null>(null);
+
+  // onAdvertise (useRadioControl.handleAdvertise) reports success/failure via
+  // toast itself; this only tracks which button shows "Sending...".
+  const handleAdvertise = async (mode: RadioAdvertMode) => {
+    if (!onAdvertise) return;
+    setAdvertisingMode(mode);
+    try {
+      await onAdvertise(mode);
+    } finally {
+      setAdvertisingMode(null);
+    }
+  };
 
   const handleDiscover = async (target: RadioDiscoveryTarget) => {
     setDiscoverError(null);
@@ -88,6 +105,39 @@ export function MeshDiscoveryView({
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         <div className="mx-auto max-w-3xl space-y-3">
+          {onAdvertise && (
+            <div className="space-y-2 rounded-md border border-input bg-muted/20 p-3">
+              <span className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
+                {t('mesh_discovery_advert_label')}
+              </span>
+              <p className="text-[0.8125rem] text-muted-foreground">
+                {t('mesh_discovery_advert_desc')}
+              </p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleAdvertise('zero_hop')}
+                  disabled={advertisingMode !== null || !health?.radio_connected}
+                  className="w-full"
+                >
+                  {advertisingMode === 'zero_hop'
+                    ? t('common_sending')
+                    : t('mesh_discovery_advert_direct_button')}
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => handleAdvertise('flood')}
+                  disabled={advertisingMode !== null || !health?.radio_connected}
+                  className="w-full bg-warning hover:bg-warning/90 text-warning-foreground"
+                >
+                  {advertisingMode === 'flood'
+                    ? t('common_sending')
+                    : t('mesh_discovery_advert_flood_button')}
+                </Button>
+              </div>
+            </div>
+          )}
           <p className="text-[0.8125rem] text-muted-foreground md:hidden">
             {t('settings_radio_mesh_discovery_desc')}
           </p>

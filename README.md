@@ -64,7 +64,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - **Mesh Health:** advert counts and alerts, request traffic, public key prefix collisions, relay reception, and a power outage view (which nodes stay online, from each node's power source).
 - **Mesh Trends:** stored network, message and packet breakdowns plus live session statistics.
 - **Packet Feed** (live) and **Packet History** (everything stored, with search and CSV export).
-- **Analyze Packet**, **Mesh Visualizer** (3D graph), **Trace** (with a hop map), **Mesh Discovery** (repeaters, sensors, regions).
+- **Analyze Packet**, **Mesh Visualizer** (3D graph), **Trace** (with a hop map), **Mesh Discovery** (repeaters, sensors, regions, plus Direct (0 hop) and Flood advert buttons).
 - **Channel Registry** with remote sync (open a channel's entry in edit mode from its header or info panel), and **Channel Finder** (WebGPU channel name search).
 - **Knowledge base**: your own handy links, picked from Settings > Handy Info > Links or added directly.
 - One time-range selector across the analysis views; charts zoom and pan.
