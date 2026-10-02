@@ -257,7 +257,7 @@ class TestDebugEndpoint:
                 "fanout_statuses": {
                     "ok-id": {
                         "name": "OK Fanout",
-                        "type": "bot",
+                        "type": "webhook",
                         "status": "connected",
                         "last_error": None,
                     },
@@ -268,7 +268,6 @@ class TestDebugEndpoint:
                         "last_error": "broker down",
                     },
                 },
-                "bots_disabled_source": None,
                 "basic_auth_enabled": False,
             },
             radio_state="connected",
@@ -310,7 +309,6 @@ class TestDebugEndpoint:
         assert response.status_code == 200
         payload = response.json()
         assert "app_info" not in payload["health"]
-        assert "bots_disabled" not in payload["health"]
         assert "connection_info" not in payload["health"]
         assert "fanout_statuses" not in payload["health"]
         assert "radio_connected" not in payload["health"]

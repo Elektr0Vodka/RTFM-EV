@@ -25,7 +25,6 @@ const health = {
   database_size_mb: 1.2,
   oldest_undecrypted_timestamp: null,
   fanout_statuses: {},
-  bots_disabled: false,
 } as const;
 
 describe('SettingsAboutSection', () => {

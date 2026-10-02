@@ -1177,14 +1177,6 @@ export const api = {
     fetchJson<{ deleted: boolean }>(`/fanout/${id}`, {
       method: 'DELETE',
     }),
-  disableBotsUntilRestart: () =>
-    fetchJson<{
-      status: string;
-      bots_disabled: boolean;
-      bots_disabled_source: 'env' | 'until_restart';
-    }>('/fanout/bots/disable-until-restart', {
-      method: 'POST',
-    }),
 
   // Statistics
   getStatistics: () => fetchJson<StatisticsResponse>('/statistics'),

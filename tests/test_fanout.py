@@ -1759,7 +1759,7 @@ class TestEnforceScopeDataPlaceholders:
             _enforce_scope("webhook", {"messages": "all", "data_placeholders": "yes"})
         assert exc_info.value.status_code == 400
 
-    @pytest.mark.parametrize("config_type", ["bot", "mqtt_community", "map_upload"])
+    @pytest.mark.parametrize("config_type", ["mqtt_community", "map_upload"])
     def test_fixed_scope_types_never_forward_placeholders(self, config_type):
         scope = _enforce_scope(config_type, {"messages": "all", "data_placeholders": "all"})
         assert scope.get("data_placeholders", "none") == "none"

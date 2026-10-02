@@ -195,7 +195,7 @@ class AppriseModule(FanoutModule):
 
     async def on_message(self, data: dict) -> None:
         # Skip outgoing messages by default. Operators can opt in when they
-        # want RemoteTerm-originated manual/bot sends mirrored to Apprise.
+        # want RemoteTerm-originated manual sends mirrored to Apprise.
         if data.get("outgoing") and not self.config.get("include_outgoing", False):
             return
 

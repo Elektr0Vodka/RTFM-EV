@@ -130,7 +130,6 @@ frontend/src/
 │   ├── CommunitiesPanel.tsx    # meshcore-open communities: join (paste JSON / camera / QR image), add hashtag, export JSON/QR
 │   ├── SearchView.tsx          # Full-text message search pane
 │   ├── SettingsModal.tsx       # Layout shell - delegates to settings/ sections
-│   ├── SecurityWarningModal.tsx # Startup warning for trusted-network / bot execution posture
 │   ├── RawPacketList.tsx
 │   ├── RawPacketFeedView.tsx   # Live raw packet feed (list + filters + inspector); stats moved to Mesh Trends
 │   ├── RawPacketDetailModal.tsx # On-demand packet inspector dialog + RawPacketPasteInspector (shared paste-hex body)
@@ -151,7 +150,6 @@ frontend/src/
 │   ├── PathRouteMap.tsx
 │   ├── TraceRouteMap.tsx        # Draws a TracePane result on a map (hops at known/manual locations, dashed gap over skipped hops, SNR tooltip); shares marker/colour helpers with PathRouteMap via map/routeMapVisuals.ts
 │   ├── CrackerPanel.tsx       # Browser channel finder; wordlist = bundled ENGLISH_WORDLIST + remote sync + registry names ("Sync from channels" button, meshcore-wordlist-registry-cache)
-│   ├── BotCodeEditor.tsx
 │   ├── ContactAvatar.tsx
 │   ├── ContactInfoPane.tsx     # Contact detail sheet (mobile; wraps ContactInfoBody)
 │   ├── ContactInfoBody.tsx     # Shared contact-info section stack (region-aware: Sheet + full page)
@@ -174,7 +172,7 @@ frontend/src/
 │   │   ├── settingsConstants.ts          # Settings section type, ordering, labels
 │   │   ├── SettingsRadioSection.tsx      # Name, keys, advert interval, max contacts, radio preset, freq/bw/sf/cr, txPower, lat/lon, reboot, known regions
 │   │   ├── SettingsLocalSection.tsx      # Browser-local settings: theme, relative font scale, local label, reopen last conversation
-│   │   ├── SettingsFanoutSection.tsx     # Fanout integrations: MQTT, bots, config CRUD
+│   │   ├── SettingsFanoutSection.tsx     # Fanout integrations: MQTT, webhooks, config CRUD
 │   │   ├── SettingsRadioAppSection.tsx    # Radio-App Management: tracked telemetry, contact management, blocked lists, partial-node sync, loadouts (channel sets)
 │   │   ├── ChannelSetsSettings.tsx        # Loadouts (channel sets, plan 08): save named groups of channels + contacts, "Load onto radio" with per-channel slot and per-contact results (/api/channel-sets)
 │   │   ├── LoadoutDisconnectDialog.tsx    # Plan 08 slice 3: Disconnect (Settings > Radio) offers to load a loadout first; asks again when anything failed
@@ -225,7 +223,6 @@ frontend/src/
     ├── repeaterLogin.test.tsx
     ├── repeaterMessageParsing.test.ts
     ├── roomServerPanel.test.tsx
-    ├── securityWarningModal.test.tsx
     ├── localLabel.test.ts
     ├── messageInput.test.tsx
     ├── newMessageModal.test.tsx
@@ -271,7 +268,6 @@ frontend/src/
 - search/settings surface switching
 - global cracker mount/focus behavior
 - new-message modal and info panes
-- trusted-network `SecurityWarningModal`
 
 High-level state is delegated to hooks:
 - `useAppShell`: app-shell view state (settings section, sidebar, cracker, new-message modal)
@@ -371,7 +367,7 @@ jsdom has no layout engine, so none of this is observable from the vitest suite 
 
 ### Radio identities (plan 18)
 
-- `RadioIdentityPrompt.tsx` (mounted in `AppShell` next to `SecurityWarningModal`) opens while `health.radio_identity.status === 'pending'`. `new_key`: new radio, or "replaces" an earlier radio that is not already replaced, with carry-over checkboxes (stats, owned nodes, note). `legacy_history`: whether pre-tracking history belongs to this radio. "Decide later" hides it per browser session (`sessionStorage`); it never blocks the app. The answer form (`RadioIdentityResolver`) is reused by `settings/RadioIdentitiesSettings.tsx`.
+- `RadioIdentityPrompt.tsx` (mounted in `AppShell`) opens while `health.radio_identity.status === 'pending'`. `new_key`: new radio, or "replaces" an earlier radio that is not already replaced, with carry-over checkboxes (stats, owned nodes, note). `legacy_history`: whether pre-tracking history belongs to this radio. "Decide later" hides it per browser session (`sessionStorage`); it never blocks the app. The answer form (`RadioIdentityResolver`) is reused by `settings/RadioIdentitiesSettings.tsx`.
 - Settings > Radio > Radios (`RadioIdentitiesSettings`) lists every radio with pending answers, the replacement link (carry-over toggles, undo) and a note. It also renders when no radio is connected (`SettingsModal` "Radio is not available" branch).
 - My Node charts read the active radio's lineage by default; `RadioStatPicker` (only when there is more than one radio or unassigned history) passes a `RadioStatFilter` to `api.getBatteryRange` / `getNoiseFloorHistory` / `getAirtimeRange`. With a filter set, live windows read from the DB instead of the in-memory samples.
 - The sidebar Owned section matches `owner_key` against `ownPublicKey` plus `health.radio_identity.owned_keys`.
@@ -510,9 +506,9 @@ its `1m/5m/10m`/`session` windows stay in-memory (`isRawFeedLiveWindow`).
 - `auto_resend_channel`
 - `telemetry_interval_hours`
 
-Note: MQTT, bot, and community MQTT settings were migrated to the `fanout_configs` table (managed via `/api/fanout`). They are no longer part of `AppSettings`.
+Note: MQTT, bot (since removed), and community MQTT settings were migrated to the `fanout_configs` table (managed via `/api/fanout`). They are no longer part of `AppSettings`.
 
-`HealthStatus` includes `fanout_statuses: Record<string, FanoutStatusEntry>` mapping config IDs to `{name, type, status}`. Also includes `bots_disabled: boolean`.
+`HealthStatus` includes `fanout_statuses: Record<string, FanoutStatusEntry>` mapping config IDs to `{name, type, status}`.
 
 `FanoutConfig` represents a single fanout integration: `{id, type, name, enabled, config, scope, sort_order, created_at}`.
 
@@ -699,7 +695,6 @@ Traffic and sender figures use different denominators (all channels vs. decrypta
 
 - No authentication UI.
 - Frontend assumes trusted network usage.
-- Bot editor intentionally allows arbitrary backend bot code configuration.
 
 ## Testing
 

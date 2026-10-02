@@ -1,7 +1,5 @@
 """Tests for database migration(s)."""
 
-import json
-
 import aiosqlite
 import pytest
 
@@ -45,16 +43,16 @@ class TestMigration013:
             # Run migration 13 (plus remaining which also run)
             await run_migrations(conn)
 
-            # Bots were migrated from app_settings to fanout_configs (migration 37)
-            # and the bots column was dropped (migration 38)
-            cursor = await conn.execute("SELECT * FROM fanout_configs WHERE type = 'bot'")
+            # Bots were migrated from app_settings to fanout_configs (migration 37),
+            # the bots column was dropped (migration 38), and bot fanout rows were
+            # deleted when the bot system was removed (migration 127).
+            cursor = await conn.execute("SELECT COUNT(*) FROM fanout_configs WHERE type = 'bot'")
             row = await cursor.fetchone()
-            assert row is not None
+            assert row[0] == 0
 
-            config = json.loads(row["config"])
-            assert config["code"] == 'def bot(): return "hello"'
-            assert row["name"] == "Bot 1"
-            assert bool(row["enabled"])
+            cursor = await conn.execute("PRAGMA table_info(app_settings)")
+            columns = {r["name"] for r in await cursor.fetchall()}
+            assert not {"bot_enabled", "bot_code", "bots"} & columns
         finally:
             await conn.close()
 

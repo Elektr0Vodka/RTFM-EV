@@ -18,7 +18,6 @@ import { ContactInfoPane } from './ContactInfoPane';
 import { ChannelInfoPane } from './ChannelInfoPane';
 import { MentionTicker, type MentionEvent } from './MentionTicker';
 import { CommandPalette } from './CommandPalette';
-import { SecurityWarningModal } from './SecurityWarningModal';
 import { RadioIdentityPrompt } from './RadioIdentityPrompt';
 import { BuddyHost } from '../buddy/BuddyHost';
 import { Toaster } from './ui/sonner';
@@ -428,7 +427,6 @@ export function AppShell({
         onOpenSettings={handleOpenSettings}
         onNavigateMentionToMessage={handleBuddyMention}
       />
-      <SecurityWarningModal health={statusProps.health} />
       <RadioIdentityPrompt health={statusProps.health} />
       <ContactInfoPane {...contactInfoPaneProps} />
       <ChannelInfoPane {...channelInfoPaneProps} />

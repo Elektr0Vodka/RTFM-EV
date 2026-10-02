@@ -15,7 +15,7 @@ Was du damit tun kannst:
 Zwei Dinge vorab:
 
 - **Die App verwaltet dein Funkgerät.** Sobald ein Funkgerät verbunden ist, werden seine Kontakte und Kanäle in die App übernommen, und die App entscheidet, welche Kontakte auf dem Funkgerät geladen bleiben. Deshalb passt sie schlecht, wenn du oft Funkgeräte wechselst und jedes seinen eigenen Zustand behalten soll. Nur der Verlauf von Akku, Grundrauschen und Sendezeit wird pro Funkgerät gespeichert (siehe Funkgerät wechseln).
-- **Nutze die App nur in einem vertrauenswürdigen Netzwerk.** Es gibt keine Benutzerkonten. Wer die Seite erreicht, kann sie benutzen. Die optionale HTTP-Basic-Authentifizierung ist nur eine grobe Hürde und gehört immer zusammen mit HTTPS. Bots führen beliebigen Python-Code aus, deshalb ist das Botsystem standardmäßig aus.
+- **Nutze die App nur in einem vertrauenswürdigen Netzwerk.** Es gibt keine Benutzerkonten. Wer die Seite erreicht, kann sie benutzen. Die optionale HTTP-Basic-Authentifizierung ist nur eine grobe Hürde und gehört immer zusammen mit HTTPS.
 
 <!-- id: getting-started -->
 
@@ -366,15 +366,12 @@ Version, Links zum Changelog und zum Melden von Fehlern, eine Update-Prüfung un
 - **Privates MQTT:** Nachrichten an deinen eigenen Broker weiterleiten, roh und/oder entschlüsselt. Entschlüsselte Nachrichten gehen im Klartext hinaus, nutze also einen Broker, dem du vertraust.
 - **Community MQTT/meshcoretomqtt:** ein Feed roher Pakete für Community-Aggregatoren, sodass dein Funkgerät als Beobachter dienen kann. Regionale Voreinstellungen sind eingebaut.
 - **Home Assistant MQTT Discovery:** Geräte und Entitäten erscheinen automatisch in Home Assistant: ein Gerät für das lokale Funkgerät, ein Nachrichtenereignis, Telemetriesensoren für verfolgte Repeater und GPS-Tracker für ausgewählte Kontakte. Repeater müssen erst für Telemetrie verfolgt werden, bevor sie in der Auswahl erscheinen.
-- **Python-Bot:** kleine Python-Funktionen, die auf Nachrichten antworten.
 - **Webhook:** entschlüsselte Nachrichten an eine URL, optional signiert.
 - **Apprise:** leitet Nachrichten an Discord, Telegram, E-Mail und viele weitere Dienste weiter.
 - **Amazon SQS:** rohe oder entschlüsselte Pakete an eine Warteschlange.
 - **Karten-Upload:** lädt gehörte Repeater und Room-Server zu map.meshcore.io oder einem kompatiblen Endpunkt hoch, mit Probelauf und optionalem Geofence.
 
 Jede Integration hat einen **Nachrichtenumfang**: alle Nachrichten, keine, nur die aufgeführten Kanäle und Kontakte oder alle außer den aufgeführten.
-
-Bots sind standardmäßig deaktiviert. Um sie einzuschalten, starte den Server mit `MESHCORE_DISABLE_BOTS=false`. Ein Bot führt beliebigen Python-Code auf dem Server aus und sieht alle Nachrichten, auch deine eigenen, achte also auf Antwortschleifen.
 
 <!-- id: backup-retention -->
 

@@ -12,7 +12,6 @@ const baseHealth: HealthStatus = {
   database_size_mb: 1.2,
   oldest_undecrypted_timestamp: null,
   fanout_statuses: {},
-  bots_disabled: false,
 };
 
 const FULL_KEY = '0123456789abcdef'.repeat(4); // 64-char hex

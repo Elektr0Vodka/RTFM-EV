@@ -50,7 +50,7 @@ In the app, go to **Settings → About → "Open debug support snapshot"** (or n
 > 🔒 The snapshot includes recent logs and basic environment/radio status. It never
 > exposes your private key. Logs *may* contain channel names or keys. If you'd rather
 > not share those, copy only **up to the `STOP COPYING HERE` marker** - everything
-> above it reveals nothing sensitive beyond your bot names.
+> above it reveals nothing sensitive beyond your integration names.
 
 **Advanced - full debug-level logs:**
 Restart the backend with debug logging enabled to capture detailed radio

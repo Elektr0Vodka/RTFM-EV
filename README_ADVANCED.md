@@ -199,7 +199,7 @@ On Linux systems, this is the recommended installation method if you want Remote
 bash scripts/setup/install_service.sh
 ```
 
-You can also rerun the script later to change transport, bot, or auth settings. If the service is already running, the installer stops it, rewrites the unit file, reloads systemd, and starts it again with the new configuration.
+You can also rerun the script later to change transport or auth settings. If the service is already running, the installer stops it, rewrites the unit file, reloads systemd, and starts it again with the new configuration.
 
 ## Debug Logging And Bug Reports
 
@@ -209,7 +209,7 @@ If you're experiencing issues or opening a bug report, please start the backend 
 MESHCORE_LOG_LEVEL=DEBUG uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-You can also navigate to `/api/debug` (or go to Settings -> About -> "Open debug support snapshot" at the bottom). This debug block contains information about the operating environment, expectations around keys and channels, and radio status. It also includes the most recent logs. **Non-log information reveals no keys, channel names, or other privilege information beyond the names of your bots. The logs, however, may contain channel names or keys (but never your private key).** If you do not wish to include this information, copy up to the `STOP COPYING HERE` marker in the debug body.
+You can also navigate to `/api/debug` (or go to Settings -> About -> "Open debug support snapshot" at the bottom). This debug block contains information about the operating environment, expectations around keys and channels, and radio status. It also includes the most recent logs. **Non-log information reveals no keys, channel names, or other privilege information beyond the names of your integrations. The logs, however, may contain channel names or keys (but never your private key).** If you do not wish to include this information, copy up to the `STOP COPYING HERE` marker in the debug body.
 
 ## Customisation And Branding
 

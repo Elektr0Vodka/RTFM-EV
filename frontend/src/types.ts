@@ -185,8 +185,6 @@ export interface HealthStatus {
   database_size_mb: number;
   oldest_undecrypted_timestamp: number | null;
   fanout_statuses: Record<string, FanoutStatusEntry>;
-  bots_disabled: boolean;
-  bots_disabled_source?: 'env' | 'until_restart' | null;
   basic_auth_enabled?: boolean;
   /** The active radio (plan 18); status "pending" means the connect-time question is open. */
   radio_identity?: RadioIdentityHealth | null;

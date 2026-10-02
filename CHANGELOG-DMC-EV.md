@@ -11,6 +11,28 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-02 (Python bot system removed, remove-bot-functionality)
+
+### Integrations: bots removed (backend + frontend)
+- The upstream Python bot system is gone: the `bot` fanout type, its code
+  executor (`app/fanout/bot_exec.py`, `app/fanout/bot.py`), the bot code
+  editor and the "Python Bot" option in Settings > Integrations. Creating a
+  `bot` integration through `/api/fanout` now returns 400 (unknown type).
+- Migration `_127` deletes existing `fanout_configs` rows with
+  `type = 'bot'`. Their bot code is not kept; a pre-upgrade backup still has
+  it.
+- `MESHCORE_DISABLE_BOTS` is removed (a leftover value in an env file is
+  ignored), as are `POST /api/fanout/bots/disable-until-restart`, the
+  `bots_disabled` / `bots_disabled_source` health fields, the
+  `disable_bots` debug field and the startup "Unprotected bot execution"
+  warning modal.
+- The service and Docker installers no longer ask about bots. The service
+  installer now always offers HTTP Basic Auth (default No); before, it only
+  asked when bots were enabled.
+- The code editor dependencies (`@uiw/react-codemirror`,
+  `@codemirror/lang-python`, `@codemirror/theme-one-dark`) were only used by
+  the bot editor and are dropped.
+
 ## Update 2026-10-02 (Advert panel on Mesh Discovery, feat/mesh-discovery-advert-panel)
 
 ### Tools (frontend)

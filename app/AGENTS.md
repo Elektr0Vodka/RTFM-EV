@@ -65,7 +65,7 @@ app/
 │   ├── vapid.py                 # VAPID key generation, storage, caching
 │   ├── send.py                  # pywebpush wrapper (async via thread executor)
 │   └── manager.py               # Push dispatch: filter, build payload, concurrent send
-├── fanout/              # Fanout bus: MQTT, bots, webhooks, Apprise, SQS (see fanout/AGENTS_fanout.md)
+├── fanout/              # Fanout bus: MQTT, webhooks, Apprise, SQS (see fanout/AGENTS_fanout.md)
 ├── telemetry_interval.py # Shared telemetry interval math for tracked-repeater scheduler
 ├── path_utils.py        # Path hex rendering and hop-width helpers
 ├── region_scope.py      # Normalize/validate regional flood-scope values
@@ -307,7 +307,7 @@ preference, the same way `message` broadcasts do.
 
 ### Fanout bus
 
-- All external integrations (MQTT, bots, webhooks, Apprise, SQS) are managed through the fanout bus (`app/fanout/`).
+- All external integrations (MQTT, webhooks, Apprise, SQS) are managed through the fanout bus (`app/fanout/`).
 - Configs stored in `fanout_configs` table, managed via `GET/POST/PATCH/DELETE /api/fanout`.
 - `broadcast_event()` in `websocket.py` dispatches to the fanout manager for `message`, `raw_packet`, and `contact` events.
 - `on_message` and `on_raw` are scope-gated. `on_contact`, `on_telemetry`, and `on_health` are dispatched to all modules unconditionally (modules filter internally).
@@ -540,7 +540,6 @@ and the path modal (`hooks/useSoftResolutions.ts`).
 - `POST /fanout` - create new fanout config
 - `PATCH /fanout/{id}` - update fanout config (triggers module reload)
 - `DELETE /fanout/{id}` - delete fanout config (stops module)
-- `POST /fanout/bots/disable-until-restart` - stop bot modules and keep bots disabled until restart
 
 ### Statistics
 - `GET /statistics` - aggregated mesh network stats (entity counts, message/packet splits, activity windows, busiest channels, `region_scope_24h` regional adoption)
@@ -598,7 +597,7 @@ Main tables:
 - `contact_name_history` (tracks name changes over time)
 - `repeater_telemetry_history` (time-series telemetry snapshots for tracked repeaters)
 - `contact_telemetry_history` (time-series LPP telemetry snapshots for tracked contacts; same schema as repeater table)
-- `fanout_configs` (MQTT, bot, webhook, Apprise, SQS integration configs)
+- `fanout_configs` (MQTT, webhook, Apprise, SQS integration configs)
 - `push_subscriptions` (Web Push browser subscriptions with delivery metadata; UNIQUE on endpoint)
 - `app_settings` (includes `vapid_private_key` and `vapid_public_key` for Web Push VAPID signing)
 
@@ -649,13 +648,12 @@ Repository writes should prefer typed models such as `ContactUpsert` over ad hoc
 
 A new `AppSettings` field needs the repository, the router's separate `AppSettingsUpdate` model and its kwargs, a migration, and the inline `AppSettings` test fixtures updated together.
 
-Note: MQTT, community MQTT, and bot configs were migrated to the `fanout_configs` table (migrations 36-38).
+Note: MQTT, community MQTT, and bot configs were migrated to the `fanout_configs` table (migrations 36-38). The bot system was later removed and migration 127 deletes any remaining `type='bot'` rows.
 
 ## Security Posture (intentional)
 
 - No per-user authn/authz model; optionally, operators may enable app-wide HTTP Basic auth for both HTTP and WS entrypoints.
 - No CORS restriction (`*`).
-- Bot code executes user-provided Python via `exec()`.
 
 These are product decisions for trusted-network deployments; do not flag as accidental vulnerabilities.
 
@@ -676,7 +674,6 @@ tests/
 ├── test_api.py                 # REST endpoint integration tests
 ├── test_analyzer_resolution.py # Analyzer name resolution: directory, cache TTLs, opted-in sites, endpoints
 ├── test_block_lists.py         # Blocked keys/names filtering across list/search surfaces
-├── test_bot.py                 # Bot execution and sandboxing
 ├── test_channel_sender_backfill.py # Sender-key backfill uniqueness rules for channel messages
 ├── test_channels_router.py     # Channels router endpoints
 ├── test_community_mqtt.py      # Community MQTT publisher (JWT, packet format, hash, broadcast)
@@ -685,7 +682,6 @@ tests/
 ├── test_contacts_router.py     # Contacts router endpoints
 ├── test_decoder.py             # Packet parsing/decryption
 ├── test_device_history.py      # Contact location history + repeater pane snapshots (plan 14)
-├── test_disable_bots.py        # MESHCORE_DISABLE_BOTS=true feature
 ├── test_echo_dedup.py          # Echo/repeat deduplication (incl. concurrent)
 ├── test_fanout.py              # Fanout bus CRUD, scope matching, manager dispatch
 ├── test_fanout_hitlist.py      # Fanout-related hitlist regression tests
@@ -721,7 +717,7 @@ tests/
 ├── test_room_routes.py         # Room-server login/status/telemetry/ACL endpoints
 ├── test_rx_log_data.py         # on_rx_log_data event handler integration
 ├── test_security.py            # Optional Basic Auth middleware / config behavior
-├── test_send_messages.py       # Outgoing messages, bot triggers, concurrent sends
+├── test_send_messages.py       # Outgoing messages, concurrent sends
 ├── test_settings_router.py     # Settings endpoints, advert validation
 ├── test_push_send.py           # Web Push send/dispatch
 ├── test_radio_stats.py         # Radio stats sampling and noise-floor history

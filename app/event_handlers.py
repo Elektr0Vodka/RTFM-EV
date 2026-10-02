@@ -54,7 +54,7 @@ async def on_contact_message(event: "Event") -> None:
     1. The private key couldn't be exported (firmware without ENABLE_PRIVATE_KEY_EXPORT)
     2. The packet processor couldn't match the sender to a known contact
 
-    The packet processor handles: decryption, storage, broadcast, bot trigger.
+    The packet processor handles: decryption, storage, broadcast, fanout.
     This handler adapts CONTACT_MSG_RECV payloads into the shared DM ingest
     workflow, which reconciles duplicates against the packet pipeline when possible.
     """

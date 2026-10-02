@@ -375,7 +375,7 @@ async def process_raw_packet(
         "region": None,
     }
 
-    # Compute packet hash once for threading into message broadcasts (used by bot fanout).
+    # Compute packet hash once for threading into message broadcasts (used by fanout).
     pkt_hash = calculate_packet_hash(raw_bytes)
 
     # Resolve regional flood-scope for transport-routed packets. The transport code

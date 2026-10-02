@@ -25,16 +25,6 @@ export default defineConfig({
     baseURL: 'http://localhost:8001',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    // Dismiss the security warning modal that blocks interaction on fresh browser contexts
-    storageState: {
-      cookies: [],
-      origins: [
-        {
-          origin: 'http://localhost:8001',
-          localStorage: [{ name: 'meshcore_security_warning_acknowledged', value: 'true' }],
-        },
-      ],
-    },
   },
 
   projects: [
@@ -63,8 +53,6 @@ export default defineConfig({
     timeout: 180_000,
     env: {
       MESHCORE_DATABASE_PATH: path.join(tmpDir, 'e2e-test.db'),
-      // This fork defaults bots off; bot.spec.ts needs them on.
-      MESHCORE_DISABLE_BOTS: 'false',
       // Pass through the serial port from the environment
       ...(process.env.MESHCORE_SERIAL_PORT
         ? { MESHCORE_SERIAL_PORT: process.env.MESHCORE_SERIAL_PORT }

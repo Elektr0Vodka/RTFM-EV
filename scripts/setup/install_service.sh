@@ -168,52 +168,35 @@ case "$FRONTEND_CHOICE" in
 esac
 echo
 
-# ── bots ──────────────────────────────────────────────────────────────────────
+# ── basic auth ────────────────────────────────────────────────────────────────
 
-echo -e "${BOLD}─── Bot System ──────────────────────────────────────────────────────${NC}"
-echo -e "${YELLOW}Warning:${NC} The bot system executes arbitrary Python code on the server."
-echo    "It is not recommended on untrusted networks. You can always enable"
-echo    "it later by editing the service file."
-echo
-read -rp "Enable bots? [y/N]: " ENABLE_BOTS
-ENABLE_BOTS="${ENABLE_BOTS:-N}"
-echo
-
-ENABLE_AUTH="N"
 AUTH_USERNAME=""
 AUTH_PASSWORD=""
 
-if [[ "$ENABLE_BOTS" =~ ^[Yy] ]]; then
-    echo -e "${GREEN}Bots enabled.${NC}"
-    echo
+echo -e "${BOLD}─── HTTP Basic Auth ─────────────────────────────────────────────────${NC}"
+echo "HTTP Basic Auth adds a coarse access gate to the service. Recommended if"
+echo "this service will be accessible beyond your local machine."
+echo
+read -rp "Set up HTTP Basic Auth? [y/N]: " ENABLE_AUTH
+ENABLE_AUTH="${ENABLE_AUTH:-N}"
+echo
 
-    echo -e "${BOLD}─── HTTP Basic Auth ─────────────────────────────────────────────────${NC}"
-    echo "With bots enabled, HTTP Basic Auth is strongly recommended if this"
-    echo "service will be accessible beyond your local machine."
-    echo
-    read -rp "Set up HTTP Basic Auth? [Y/n]: " ENABLE_AUTH
-    ENABLE_AUTH="${ENABLE_AUTH:-Y}"
-    echo
-
-    if [[ "$ENABLE_AUTH" =~ ^[Yy] ]]; then
+if [[ "$ENABLE_AUTH" =~ ^[Yy] ]]; then
+    read -rp "Username: " AUTH_USERNAME
+    while [ -z "$AUTH_USERNAME" ]; do
+        echo -e "${RED}Username cannot be empty.${NC}"
         read -rp "Username: " AUTH_USERNAME
-        while [ -z "$AUTH_USERNAME" ]; do
-            echo -e "${RED}Username cannot be empty.${NC}"
-            read -rp "Username: " AUTH_USERNAME
-        done
+    done
+    read -rsp "Password: " AUTH_PASSWORD
+    echo
+    while [ -z "$AUTH_PASSWORD" ]; do
+        echo -e "${RED}Password cannot be empty.${NC}"
         read -rsp "Password: " AUTH_PASSWORD
         echo
-        while [ -z "$AUTH_PASSWORD" ]; do
-            echo -e "${RED}Password cannot be empty.${NC}"
-            read -rsp "Password: " AUTH_PASSWORD
-            echo
-        done
-        echo -e "${GREEN}Basic Auth configured for user '${AUTH_USERNAME}'.${NC}"
-        echo -e "${YELLOW}Note:${NC} Basic Auth credentials are not safe over plain HTTP."
-        echo    "See README_ADVANCED.md for HTTPS setup."
-    fi
-else
-    echo -e "${GREEN}Bots disabled.${NC}"
+    done
+    echo -e "${GREEN}Basic Auth configured for user '${AUTH_USERNAME}'.${NC}"
+    echo -e "${YELLOW}Note:${NC} Basic Auth credentials are not safe over plain HTTP."
+    echo    "See README_ADVANCED.md for HTTPS setup."
 fi
 echo
 
@@ -324,13 +307,8 @@ generate_service_file() {
             ;;
     esac
 
-    # Bots
-    if [[ ! "$ENABLE_BOTS" =~ ^[Yy] ]]; then
-        echo "Environment=MESHCORE_DISABLE_BOTS=true"
-    fi
-
     # Basic auth
-    if [[ "$ENABLE_BOTS" =~ ^[Yy] ]] && [[ "$ENABLE_AUTH" =~ ^[Yy] ]]; then
+    if [[ "$ENABLE_AUTH" =~ ^[Yy] ]]; then
         echo "Environment=MESHCORE_BASIC_AUTH_USERNAME=$(systemd_escape_env_value "$AUTH_USERNAME")"
         echo "Environment=MESHCORE_BASIC_AUTH_PASSWORD=$(systemd_escape_env_value "$AUTH_PASSWORD")"
     fi
@@ -383,15 +361,10 @@ else
     echo -e "  Frontend  : ${YELLOW}Prebuilt download${NC}"
 fi
 
-if [[ "$ENABLE_BOTS" =~ ^[Yy] ]]; then
-    echo -e "  Bots      : ${YELLOW}Enabled${NC}"
-    if [[ "$ENABLE_AUTH" =~ ^[Yy] ]]; then
-        echo -e "  Basic Auth: ${GREEN}Enabled (user: ${AUTH_USERNAME})${NC}"
-    else
-        echo -e "  Basic Auth: ${YELLOW}Not configured${NC}"
-    fi
+if [[ "$ENABLE_AUTH" =~ ^[Yy] ]]; then
+    echo -e "  Basic Auth: ${GREEN}Enabled (user: ${AUTH_USERNAME})${NC}"
 else
-    echo -e "  Bots      : ${GREEN}Disabled${NC} (edit ${SERVICE_FILE} to enable)"
+    echo -e "  Basic Auth: ${YELLOW}Not configured${NC}"
 fi
 echo
 

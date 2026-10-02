@@ -17,11 +17,6 @@ vi.mock('../api', () => ({
   },
 }));
 
-// Suppress BotCodeEditor lazy load in tests
-vi.mock('../components/BotCodeEditor', () => ({
-  BotCodeEditor: () => <textarea data-testid="bot-code-editor" />,
-}));
-
 import { api } from '../api';
 
 const mockedApi = vi.mocked(api);
@@ -34,7 +29,6 @@ const baseHealth: HealthStatus = {
   database_size_mb: 1.2,
   oldest_undecrypted_timestamp: null,
   fanout_statuses: {},
-  bots_disabled: false,
 };
 
 const webhookConfig: FanoutConfig = {
@@ -213,8 +207,9 @@ describe('SettingsFanoutSection', () => {
       .getAllByRole('button')
       .filter((button) => button.hasAttribute('aria-pressed'));
     // The per-broker community presets were collapsed into a single Community
-    // MQTT type with an in-editor preset picker, leaving 8 integration types.
-    expect(optionButtons).toHaveLength(8);
+    // MQTT type with an in-editor preset picker, and the Python Bot type was
+    // removed, leaving 7 integration types.
+    expect(optionButtons).toHaveLength(7);
     expect(within(dialog).getByRole('button', { name: 'Close' })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Create' })).toBeInTheDocument();
     for (const name of [
@@ -224,7 +219,6 @@ describe('SettingsFanoutSection', () => {
       'Webhook',
       'Apprise',
       'Amazon SQS',
-      'Python Bot',
       'Map Upload',
     ]) {
       expect(
@@ -243,35 +237,6 @@ describe('SettingsFanoutSection', () => {
     expect(
       within(dialog).queryByRole('button', { name: startsWithAccessibleName('DMC-1') })
     ).not.toBeInTheDocument();
-  });
-
-  it('shows bot option in add integration dialog when bots are enabled', async () => {
-    renderSection();
-    const dialog = await openCreateIntegrationDialog();
-    expect(
-      within(dialog).getByRole('button', { name: startsWithAccessibleName('Python Bot') })
-    ).toBeInTheDocument();
-  });
-
-  it('shows bots disabled banner when bots_disabled', async () => {
-    renderSection({ health: { ...baseHealth, bots_disabled: true } });
-    await waitFor(() => {
-      expect(screen.getByText(/Bot system is disabled/)).toBeInTheDocument();
-    });
-  });
-
-  it('shows restart-scoped bots disabled messaging when disabled until restart', async () => {
-    renderSection({
-      health: { ...baseHealth, bots_disabled: true, bots_disabled_source: 'until_restart' },
-    });
-    await waitFor(() => {
-      expect(screen.getByText(/disabled until the server restarts/i)).toBeInTheDocument();
-    });
-  });
-
-  it('hides bot option from add integration dialog when bots_disabled', async () => {
-    renderSection({ health: { ...baseHealth, bots_disabled: true } });
-    const dialog = await openCreateIntegrationDialog();
     expect(
       within(dialog).queryByRole('button', { name: startsWithAccessibleName('Python Bot') })
     ).not.toBeInTheDocument();
