@@ -1,13 +1,4 @@
-import {
-  useState,
-  useEffect,
-  useCallback,
-  useMemo,
-  useRef,
-  lazy,
-  Suspense,
-  type ReactNode,
-} from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from 'react';
 import { ChevronDown, Info } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -36,16 +27,11 @@ import {
   type CommunityPresetRegion,
 } from './communityMqttPresets';
 
-const BotCodeEditor = lazy(() =>
-  import('../BotCodeEditor').then((m) => ({ default: m.BotCodeEditor }))
-);
-
 function getTypeLabels(t: TFn): Record<string, string> {
   return {
     mqtt_private: t('settings_fanout_type_private_mqtt'),
     mqtt_community: t('settings_fanout_type_community_sharing'),
     mqtt_ha: t('settings_fanout_type_home_assistant'),
-    bot: t('settings_fanout_type_python_bot'),
     webhook: t('settings_fanout_type_webhook'),
     apprise: t('settings_fanout_type_apprise'),
     sqs: t('settings_fanout_type_amazon_sqs'),
@@ -86,61 +72,6 @@ function createCommunityConfigDefaults(
   };
 }
 
-const DEFAULT_BOT_CODE = `def bot(**kwargs) -> str | list[str] | None:
-    """
-    Process messages and optionally return a reply.
-
-    Args:
-        kwargs keys currently provided:
-            sender_name: Display name of sender (may be None)
-            sender_key: 64-char hex public key (None for channel msgs)
-            message_text: The message content
-            is_dm: True for direct messages, False for channel
-            channel_key: 32-char hex key for channels, None for DMs
-            channel_name: Channel name with hash (e.g. "#bot"), None for DMs
-            sender_timestamp: Sender's timestamp (unix seconds, may be None)
-            path: Hex-encoded routing path (may be None)
-            is_outgoing: True if this is our own outgoing message
-            path_bytes_per_hop: Bytes per hop in path (1, 2, or 3) when known
-            scoped: True if the message carried a regional flood scope,
-                False for plain/unscoped flood. Check this first. Set for
-                scoped DMs too.
-            region: Only meaningful when scoped is True (else always None).
-                When scoped, it's the decoded region name, or None if the
-                scope matched none of your known_regions. region alone can't
-                distinguish unscoped from unrecognized - use scoped.
-
-    Returns:
-        None for no reply, a string for a single reply,
-        a list of strings to send multiple messages in order, or a dict
-        {"region": <name or None>, "message": <str or list[str]>} to scope a
-        channel reply to a region for that send only (None/"" = unscoped flood;
-        region is ignored for DM replies).
-    """
-    sender_name = kwargs.get("sender_name")
-    message_text = kwargs.get("message_text", "")
-    channel_name = kwargs.get("channel_name")
-    is_outgoing = kwargs.get("is_outgoing", False)
-    path_bytes_per_hop = kwargs.get("path_bytes_per_hop")
-
-    # Don't reply to our own outgoing messages
-    if is_outgoing:
-        return None
-    
-    # If you want to make use of persistant data between calls to this function, 
-    # you can put that data into the global _bot_globals dictionary, e.g.:
-    #
-    # bot_globals = globals()["_bot_globals"] 
-    # if not "known_sender_names" in bot_globals:
-    #     bot_globals["known_sender_names"] = set()
-    #
-    # bot_globals["known_sender_names"].add(sender_name)
-
-    # Example: Only respond in #bot channel to "!pling" command
-    if channel_name == "#bot" and "!pling" in message_text.lower():
-        return "[BOT] Plong!"
-    return None`;
-
 type DraftType =
   | 'mqtt_private'
   | 'mqtt_ha'
@@ -148,7 +79,6 @@ type DraftType =
   | 'webhook'
   | 'apprise'
   | 'sqs'
-  | 'bot'
   | 'map_upload';
 
 type CreateIntegrationDefinition = {
@@ -280,21 +210,6 @@ function getCreateIntegrationDefinitions(t: TFn): readonly CreateIntegrationDefi
           access_key_id: '',
           secret_access_key: '',
           session_token: '',
-        },
-        scope: { messages: 'all', raw_packets: 'none' },
-      },
-    },
-    {
-      value: 'bot',
-      savedType: 'bot',
-      label: t('settings_fanout_type_python_bot'),
-      section: t('settings_fanout_section_automation'),
-      description: t('settings_fanout_desc_bot'),
-      defaultName: 'Bot',
-      nameMode: 'counted',
-      defaults: {
-        config: {
-          code: DEFAULT_BOT_CODE,
         },
         scope: { messages: 'all', raw_packets: 'none' },
       },
@@ -681,7 +596,7 @@ function getDefaultIntegrationName(
 
 function getStatusLabel(status: string | undefined, type: string | undefined, t: TFn) {
   if (status === 'connected')
-    return type === 'bot' || type === 'webhook' || type === 'apprise' || type === 'map_upload'
+    return type === 'webhook' || type === 'apprise' || type === 'map_upload'
       ? t('settings_fanout_status_active')
       : t('settings_fanout_status_connected');
   if (status === 'error') return t('settings_fanout_status_error');
@@ -1846,87 +1761,6 @@ function MqttCommunityConfigEditor({
       </div>
 
       <CommunityTopicControls config={config} onChange={onChange} />
-    </div>
-  );
-}
-
-function BotConfigEditor({
-  config,
-  onChange,
-}: {
-  config: Record<string, unknown>;
-  onChange: (config: Record<string, unknown>) => void;
-}) {
-  const t = useT();
-  const code = (config.code as string) || '';
-  return (
-    <div className="space-y-3">
-      <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-md">
-        <p className="text-sm text-destructive">
-          <strong>{t('settings_fanout_bot_experimental_label')}</strong>{' '}
-          {t('settings_fanout_bot_experimental_desc')}
-        </p>
-      </div>
-
-      <div className="p-3 bg-warning/10 border border-warning/30 rounded-md">
-        <p className="text-sm text-warning">
-          <strong>{t('settings_fanout_bot_security_warning_label')}</strong>{' '}
-          {t('settings_fanout_bot_security_warning_desc')}
-        </p>
-      </div>
-
-      <div className="p-3 bg-warning/10 border border-warning/30 rounded-md">
-        <p className="text-sm text-warning">
-          <strong>{t('settings_fanout_bot_dont_wreck_label')}</strong>{' '}
-          {t('settings_fanout_bot_dont_wreck_desc')}
-        </p>
-      </div>
-
-      <div className="flex items-center justify-between">
-        <p className="text-[0.8125rem] text-muted-foreground">
-          {t('settings_fanout_bot_define_prefix')}{' '}
-          {/* eslint-disable-next-line i18next/no-literal-string */}
-          <code className="bg-muted px-1 rounded">bot()</code>{' '}
-          {t('settings_fanout_bot_define_suffix')}
-        </p>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => onChange({ ...config, code: DEFAULT_BOT_CODE })}
-        >
-          {t('settings_fanout_bot_reset_to_example')}
-        </Button>
-      </div>
-
-      <Suspense
-        fallback={
-          <div className="h-64 md:h-96 rounded-md border border-input bg-code-editor-bg flex items-center justify-center text-muted-foreground">
-            {t('settings_fanout_bot_loading_editor')}
-          </div>
-        }
-      >
-        <BotCodeEditor value={code} onChange={(c) => onChange({ ...config, code: c })} />
-      </Suspense>
-
-      <div className="text-[0.8125rem] text-muted-foreground space-y-1">
-        <p>
-          <strong>{t('settings_fanout_bot_available_label')}</strong>{' '}
-          {t('settings_fanout_bot_available_desc')}
-        </p>
-        <p>
-          <strong>{t('settings_fanout_bot_limits_label')}</strong>{' '}
-          {t('settings_fanout_bot_limits_desc')}
-        </p>
-        <p>
-          <strong>{t('settings_fanout_bot_note_label')}</strong>{' '}
-          {t('settings_fanout_bot_note_prefix')}{' '}
-          {/* eslint-disable-next-line i18next/no-literal-string */}
-          <code>sender_key</code> {t('settings_fanout_bot_note_is')}{' '}
-          {/* eslint-disable-next-line i18next/no-literal-string */}
-          <code>None</code>. {t('settings_fanout_bot_note_suffix')}
-        </p>
-      </div>
     </div>
   );
 }
@@ -3162,13 +2996,7 @@ export function SettingsFanoutSection({
     [createIntegrationDefinitions]
   );
 
-  const availableCreateOptions = useMemo(
-    () =>
-      createIntegrationDefinitions.filter(
-        (definition) => definition.savedType !== 'bot' || !health?.bots_disabled
-      ),
-    [createIntegrationDefinitions, health?.bots_disabled]
-  );
+  const availableCreateOptions = createIntegrationDefinitions;
 
   useEffect(() => {
     if (!createDialogOpen) return;
@@ -3429,8 +3257,6 @@ export function SettingsFanoutSection({
           <MqttCommunityConfigEditor config={editConfig} onChange={setEditConfig} />
         )}
 
-        {detailType === 'bot' && <BotConfigEditor config={editConfig} onChange={setEditConfig} />}
-
         {detailType === 'apprise' && (
           <AppriseConfigEditor
             config={editConfig}
@@ -3496,14 +3322,6 @@ export function SettingsFanoutSection({
       <div className="rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-warning">
         {t('settings_fanout_experimental_beta_notice')}
       </div>
-
-      {health?.bots_disabled && (
-        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {health.bots_disabled_source === 'until_restart'
-            ? t('settings_fanout_bots_disabled_until_restart')
-            : t('settings_fanout_bots_disabled_by_config')}
-        </div>
-      )}
 
       <div className="flex flex-wrap gap-2">
         <Button type="button" size="sm" onClick={() => setCreateDialogOpen(true)}>

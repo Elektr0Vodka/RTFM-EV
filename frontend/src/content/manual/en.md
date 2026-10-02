@@ -15,7 +15,7 @@ What you can do with it:
 Two things to know before you start:
 
 - **The app manages your radio.** Once a radio is connected, its contacts and channels are imported into the app, and the app decides which contacts stay loaded on the radio. This makes it a poor fit if you swap radios in and out and want each radio to keep its own state. Only battery, noise floor and airtime history is kept per radio (see Swapping radios).
-- **Use it on a trusted network only.** There are no user accounts. Anyone who can reach the page can use it. Optional HTTP Basic auth is only a coarse gate and must be paired with HTTPS. Bots run arbitrary Python, so the bot system is off by default.
+- **Use it on a trusted network only.** There are no user accounts. Anyone who can reach the page can use it. Optional HTTP Basic auth is only a coarse gate and must be paired with HTTPS.
 
 <!-- id: getting-started -->
 
@@ -366,15 +366,12 @@ Open **Settings > MQTT & Automation** and choose **Add Integration**. Types:
 - **Private MQTT:** forward messages to your own broker, raw and/or decrypted. Decrypted messages are sent in plain text, so use a broker you trust.
 - **Community MQTT/meshcoretomqtt:** a raw packet feed for community aggregators, so your radio can act as an observer. Regional presets are built in.
 - **Home Assistant MQTT Discovery:** devices and entities appear in Home Assistant automatically: a local radio device, a message event, telemetry sensors for tracked repeaters, and GPS trackers for selected contacts. Repeaters must be tracked for telemetry before they show up in the picker.
-- **Python Bot:** small Python functions that reply to messages.
 - **Webhook:** decrypted messages to a URL, optionally signed.
 - **Apprise:** forwards messages to Discord, Telegram, email and many other services.
 - **Amazon SQS:** raw or decrypted packets to a queue.
 - **Map Upload:** uploads heard repeaters and room servers to map.meshcore.io or a compatible endpoint, with a dry run mode and an optional geofence.
 
 Every integration has a **Message Scope**: all messages, none, only listed channels and contacts, or all except listed ones.
-
-Bots are disabled by default. To enable them, start the server with `MESHCORE_DISABLE_BOTS=false`. A bot runs arbitrary Python on the server and sees all messages, including your own, so be careful to avoid reply loops.
 
 <!-- id: backup-retention -->
 

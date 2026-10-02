@@ -7,7 +7,7 @@
 - Pull requests must be fully understood and explicitly endorsed by a human before merge. AI assistance is great, and this repo is optimized for it, but we keep quality by keeping our agents on track to write clear code, useful (not useless) tests, good architecture, and big-picture thinking.
 - No pull request should introduce new failing lint, typecheck, test, or build results.
 - Every pull request should have an associated issue or discussion thread; a brand new feature appearing first in a PR is an antipattern.
-- No truly automated radio traffic. Bot replies are already the practical edge of what this project wants to automate; any kind of traffic that would be intervalized or automated is not what this project is about.
+- No truly automated radio traffic. Any kind of traffic that would be intervalized or automated is not what this project is about.
 - No ingestion from the internet onto the mesh. This project is a radio client, not a bridge for outside traffic to enter the network. The mesh is strong because it is a radio mesh, not the internet with some weird wireless links.
 
 ## Local Development
@@ -143,8 +143,7 @@ The test suite sends `!echo please give incoming message` to the echo channel (d
 
 Setup:
 1. Set up a second MeshCore radio within RF range of your test radio
-2. Run a RemoteTerm instance on the second radio
-3. Configure a bot on the second radio that monitors the echo channel and replies when it sees the trigger. Example bot code:
+2. Run an auto-responder on the second radio that monitors the echo channel and replies when it sees the trigger. This fork no longer ships a bot system, so use another tool, for example an upstream RemoteTerm instance with a Python bot like:
    ```python
    def bot(sender_name, sender_key, message_text, is_dm,
            channel_key, channel_name, sender_timestamp, path):
@@ -152,7 +151,7 @@ Setup:
            return f"[ECHO] {message_text}"
        return None
    ```
-4. The test suite calls `nudgeEchoBot()` automatically - no manual intervention needed
+3. The test suite calls `nudgeEchoBot()` automatically - no manual intervention needed
 
 Without the echo bot, `@mesh-traffic` tests rely on organic traffic from other nodes. In a quiet RF environment they will time out.
 

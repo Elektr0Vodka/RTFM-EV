@@ -82,7 +82,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 ### Integrations and automation
 
 - Private MQTT, community MQTT (observer feed, with regional presets such as LetsMesh, MeshRank and the DMC collectors) and Home Assistant MQTT discovery ([README_HA.md](README_HA.md)).
-- Python bots (disabled by default), webhooks, Apprise, Amazon SQS and Map Upload to map.meshcore.io or a compatible endpoint.
+- Webhooks, Apprise, Amazon SQS and Map Upload to map.meshcore.io or a compatible endpoint.
 - Every integration has its own message scope.
 - REST API with interactive docs at `/docs`.
 
@@ -277,7 +277,6 @@ Settings are environment variables with the `MESHCORE_` prefix. Only one transpo
 | `MESHCORE_BLE_PIN`               |                                 | BLE PIN (required when `MESHCORE_BLE_ADDRESS` is set)                                                                                    |
 | `MESHCORE_LOG_LEVEL`             | `INFO`                          | `DEBUG`, `INFO`, `WARNING` or `ERROR`                                                                                                    |
 | `MESHCORE_DATABASE_PATH`         | `data/meshcore.db`              | SQLite database path                                                                                                                     |
-| `MESHCORE_DISABLE_BOTS`          | `true`                          | Disables the bot system (no execution, no bot config changes). Fork default is `true` (upstream: `false`); set `false` to enable bots    |
 | `MESHCORE_BASIC_AUTH_USERNAME`   |                                 | Optional app-wide HTTP Basic auth username; set together with the password                                                               |
 | `MESHCORE_BASIC_AUTH_PASSWORD`   |                                 | Optional app-wide HTTP Basic auth password; set together with the username                                                               |
 | `MESHCORE_VAPID_SUBJECT`         | `mailto:noreply@meshcore.local` | Web Push VAPID `sub` claim (`mailto:` or `https:`). Apple rejects the default `.local` domain, so set a real address for iOS/Safari push |
@@ -291,7 +290,7 @@ Remediation and advanced variables (`MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK`, `ME
 - **Trusted networks only.** The app has no user accounts, sessions or per-feature permissions. Do not put it on an untrusted network or open it to the public.
 - **Basic auth is a coarse gate.** `MESHCORE_BASIC_AUTH_USERNAME` and `MESHCORE_BASIC_AUTH_PASSWORD` enable app-wide HTTP Basic auth. Pair it with HTTPS, since Basic credentials are not safe over plain HTTP ([HTTPS setup](README_ADVANCED.md#https)).
 - **Permissive CORS by design.** The backend allows all origins so any device on your network can reach it. Cross-origin browser JavaScript is therefore not a reliable way to use the Basic auth gate.
-- **Bots run arbitrary Python.** Anyone with access to the app can run code on the server through bots. In this fork the bot system is disabled by default (`MESHCORE_DISABLE_BOTS=true`); set `MESHCORE_DISABLE_BOTS=false` to enable it.
+- **No Python bots.** This fork removed the upstream bot system, so the app has no feature that runs user-supplied code on the server.
 - For stronger access control, put the app behind a reverse proxy such as Nginx. Full access control and user management are outside the scope of this app.
 
 ## Firmware and node support

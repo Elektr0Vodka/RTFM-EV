@@ -38,7 +38,6 @@ TCP_HOST=""
 TCP_PORT="5000"
 BLE_ADDRESS=""
 BLE_PIN=""
-ENABLE_BOTS="N"
 ENABLE_AUTH="N"
 AUTH_USERNAME=""
 AUTH_PASSWORD=""
@@ -346,28 +345,8 @@ case "$TRANSPORT_CHOICE" in
 esac
 echo
 
-echo -e "${BOLD}─── Bot System ──────────────────────────────────────────────────────${NC}"
-echo -e "${YELLOW}Warning:${NC} The bot system executes arbitrary Python code on the server."
-echo "It is not recommended on untrusted networks."
-echo
-read -r -p "Enable bots? [y/N]: " ENABLE_BOTS
-ENABLE_BOTS="${ENABLE_BOTS:-N}"
-echo
-
-if [[ "$ENABLE_BOTS" =~ ^[Yy]$ ]]; then
-    echo -e "${GREEN}Bots enabled.${NC}"
-else
-    echo -e "${GREEN}Bots disabled.${NC}"
-fi
-echo
-
 echo -e "${BOLD}─── HTTP Basic Auth ─────────────────────────────────────────────────${NC}"
-if [[ "$ENABLE_BOTS" =~ ^[Yy]$ ]]; then
-    echo "With bots enabled, HTTP Basic Auth is strongly recommended if this"
-    echo "service will be reachable beyond your local machine."
-else
-    echo "HTTP Basic Auth adds a coarse access gate to the service."
-fi
+echo "HTTP Basic Auth adds a coarse access gate to the service."
 echo
 read -r -p "Set up HTTP Basic Auth? [y/N]: " ENABLE_AUTH
 ENABLE_AUTH="${ENABLE_AUTH:-N}"
@@ -478,9 +457,6 @@ mkdir -p "$REPO_DIR/data"
     else
         echo "      MESHCORE_BLE_ADDRESS: $(yaml_quote "$BLE_ADDRESS")"
         echo "      MESHCORE_BLE_PIN: $(yaml_quote "$BLE_PIN")"
-    fi
-    if ! [[ "$ENABLE_BOTS" =~ ^[Yy]$ ]]; then
-        echo "      MESHCORE_DISABLE_BOTS: $(yaml_quote "true")"
     fi
     if [[ "$ENABLE_AUTH" =~ ^[Yy]$ ]]; then
         echo "      MESHCORE_BASIC_AUTH_USERNAME: $(yaml_quote "$AUTH_USERNAME")"

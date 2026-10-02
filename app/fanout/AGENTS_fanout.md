@@ -41,7 +41,7 @@ Each config has a `scope` JSON blob controlling what events reach it:
 ```
 Community MQTT always enforces `{"messages": "none", "raw_packets": "all"}`.
 
-A third key, `data_placeholders` (`"all"` | `"none"`, missing = `"none"`), gates the GRP_DATA placeholder rows (`txt_type` 0x40, `TXT_TYPE_GROUP_DATA`: the "Image (not supported)" / "Data (not supported)" rows stored for meshcore-open channel datagrams). `_scope_matches_message` drops them unless the scope says `"all"`; the `messages` filter still applies on top. `_enforce_scope` in `routers/fanout.py` validates the key for webhook, Apprise, HA MQTT, private MQTT and SQS (the "Forward channel data placeholders" checkbox in `ScopeSelector`); bots, community MQTT and the map upload have a fixed scope and never receive them.
+A third key, `data_placeholders` (`"all"` | `"none"`, missing = `"none"`), gates the GRP_DATA placeholder rows (`txt_type` 0x40, `TXT_TYPE_GROUP_DATA`: the "Image (not supported)" / "Data (not supported)" rows stored for meshcore-open channel datagrams). `_scope_matches_message` drops them unless the scope says `"all"`; the `messages` filter still applies on top. `_enforce_scope` in `routers/fanout.py` validates the key for webhook, Apprise, HA MQTT, private MQTT and SQS (the "Forward channel data placeholders" checkbox in `ScopeSelector`); community MQTT and the map upload have a fixed scope and never receive them.
 
 Scope only gates `on_message` and `on_raw`. The `on_contact`, `on_telemetry`, and `on_health` hooks are dispatched to all modules unconditionally - modules that care about specific contacts or repeaters filter internally based on their own config.
 
@@ -125,15 +125,6 @@ Wraps `CommunityMqttPublisher` from `app/fanout/community_mqtt.py`. Config blob:
   - `publish_own_neighbors` (bool, default `false`) - this node's own `meshcore/{IATA}/{PUBKEY}/neighbors` topic (firmware `buildNeighborsMessage` shape: `total_neighbors`, `queried_neighbors`, `truncated`, `self{scopes, default_scope}`, `neighbors[{pubkey, snr, heard_secs_ago, scopes, status}]`). Built by `_format_own_neighbors` from `host_repeater.neighbors`; `CommunityMqttPublisher._publish_own_neighbors` sends it once per completed neighbour poll (`NeighbourTable.version`). Only while the host repeater is shadow or armed. `self.scopes` = `*` (when unscoped floods are allowed) plus the flood-allowed host repeater regions; `default_scope` = app `flood_scope` without `#`, else `*`. Unlike `node_neighbors` there is no `subject_id`.
   - `publish_telemetry` / `publish_neighbors` / `publish_regions` (bool, default `false`, API-only; plan [24]) - forward remote-node reports with `subject_id` attribution on the `node_telemetry` / `node_neighbors` / `node_regions` kinds.
 
-### bot (bot.py)
-Wraps bot code execution via `app/fanout/bot_exec.py`. Config blob:
-- `code` - Python bot function source code
-- Executes in a thread pool with timeout and semaphore concurrency control
-- Rate-limits outgoing messages for repeater compatibility
-- Channel `message_text` passed to bot code is normalized for human readability by stripping a leading `"{sender_name}: "` prefix when it matches the payload sender.
-- The `bot(...)` function receives, in order: `sender_name`, `sender_key`, `message_text`, `is_dm`, `channel_key`, `channel_name`, `sender_timestamp`, `path`, then optionally `is_outgoing`, `path_bytes_per_hop`, `packet_hash`. Two further kwargs - `region` (resolved region name; `None` for unscoped flood or a transport code matching no known region) and `scoped` (`bool`: whether the message carried a regional flood scope) - are delivered **only** to bots that use `**kwargs` or explicitly name the parameter; they are intentionally not added to the positional call styles so existing bot signatures keep binding unchanged. `scoped` disambiguates a `None` region: `not scoped` = unscoped, `scoped and region is None` = scoped-but-unknown-region, `scoped and region` = that named region. Unlike `region` (channel-only historically), `scoped` is also set for scoped DMs (flood-direct messages can carry a scope), which resolves the DM half of #300. `_analyze_bot_signature` in `bot_exec.py` picks the call style from the bot's actual signature.
-- **Return shapes** (`execute_bot_code` → `process_bot_response`): `None` (no reply), a `str`, a `list[str]` (sent in order), or a `dict` `{"region": <name|None>, "message": <str|list[str]>}`. The dict form (`BotReply`) scopes the reply send to a region **for that send only**: a region name applies it, `None`/empty clears it (unscoped/plain flood), and an absent `region` key falls back to the channel's persisted `flood_scope_override`. Region scoping applies to channel replies only - it is ignored for DM replies (DMs are not region-scoped). Outgoing scope reuses the existing `send_channel_message_with_effective_scope` set-scope/send/restore machinery via a per-send `flood_scope_override` on `SendChannelMessageRequest`. Note the bot can scope to any region name; whether the echo is *labeled* still depends on the operator's `app_settings.known_regions` (that list only drives decode, not transmit).
-
 ### webhook (webhook.py)
 HTTP webhook delivery. Config blob:
 - `url`, `method` (POST/PUT/PATCH)
@@ -145,7 +136,7 @@ HTTP webhook delivery. Config blob:
 Push notifications via Apprise library. Config blob:
 - `urls` - newline-separated Apprise notification service URLs
 - `preserve_identity` - suppress Discord webhook name/avatar override
-- `include_outgoing` - when true, RemoteTerm-originated manual and bot-sent messages are forwarded to Apprise; missing/false preserves the legacy incoming-only behavior
+- `include_outgoing` - when true, RemoteTerm-originated manual messages are forwarded to Apprise; missing/false preserves the legacy incoming-only behavior
 - `include_path` - include routing path in notification body
 - Channel notifications normalize stored message text by stripping a leading `"{sender_name}: "` prefix when it matches the payload sender so alerts do not duplicate the name.
 
@@ -223,7 +214,7 @@ Three changes needed:
 
 **a)** Add to `_VALID_TYPES` set:
 ```python
-_VALID_TYPES = {"mqtt_private", "mqtt_community", "bot", "webhook", "apprise", "sqs", "my_type"}
+_VALID_TYPES = {"mqtt_private", "mqtt_community", "webhook", "apprise", "sqs", "my_type"}
 ```
 
 **b)** Add a validation function:
@@ -283,7 +274,7 @@ function MyTypeConfigEditor({
 }
 ```
 
-If your type does NOT have user-configurable scope (like bot or community MQTT), omit the `scope`/`onScopeChange` props and the `ScopeSelector`.
+If your type does NOT have user-configurable scope (like community MQTT), omit the `scope`/`onScopeChange` props and the `ScopeSelector`.
 
 The `ScopeSelector` component is defined within the same file. It accepts an optional `showRawPackets` prop:
 - **Without `showRawPackets`** (webhook, apprise): shows message scope only (all/only/except - no "none" option since that would make the integration a no-op). A warning appears when the effective selection matches nothing.
@@ -357,6 +348,7 @@ Migrations:
 - **36**: Creates `fanout_configs` table, migrates existing MQTT settings from `app_settings`
 - **37**: Migrates bot configs from `app_settings.bots` JSON column into fanout rows
 - **38**: Drops legacy `mqtt_*`, `community_mqtt_*`, and `bots` columns from `app_settings`
+- **127**: Deletes `type='bot'` rows (the bot fanout type was removed)
 
 ## Key Files
 
@@ -367,8 +359,6 @@ Migrations:
 - `app/fanout/community_mqtt.py` - CommunityMqttPublisher (community MQTT with JWT auth)
 - `app/fanout/mqtt_private.py` - Private MQTT fanout module
 - `app/fanout/mqtt_community.py` - Community MQTT fanout module
-- `app/fanout/bot.py` - Bot fanout module
-- `app/fanout/bot_exec.py` - Bot code execution, response processing, rate limiting
 - `app/fanout/webhook.py` - Webhook fanout module
 - `app/fanout/apprise_mod.py` - Apprise fanout module
 - `app/fanout/sqs.py` - Amazon SQS fanout module

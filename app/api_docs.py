@@ -74,7 +74,7 @@ API_TAGS_METADATA: list[dict[str, Any]] = [
     },
     {
         "name": "fanout",
-        "description": "MQTT, bots, webhooks, Apprise, SQS, Home Assistant, and map upload integrations.",
+        "description": "MQTT, webhooks, Apprise, SQS, Home Assistant, and map upload integrations.",
     },
     {
         "name": "statistics",

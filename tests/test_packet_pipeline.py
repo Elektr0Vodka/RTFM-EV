@@ -1594,7 +1594,7 @@ class TestCreateDMMessageFromDecrypted:
     @pytest.mark.asyncio
     async def test_dm_includes_region_scope_in_broadcast(self, test_db, captured_broadcasts):
         """A region-scoped (transport-routed) flood DM threads transport_code/region
-        into the stored row and the broadcast, so bots see `scoped`/`region` for DMs
+        into the stored row and the broadcast, so fanout consumers see `scoped`/`region` for DMs
         (issue #300 DM half) and the UI can badge the scope."""
         from app.decoder import DecryptedDirectMessage
         from app.packet_processor import create_dm_message_from_decrypted
@@ -1628,7 +1628,7 @@ class TestCreateDMMessageFromDecrypted:
         message_broadcasts = [b for b in broadcasts if b["type"] == "message"]
         assert len(message_broadcasts) == 1
         broadcast = message_broadcasts[0]["data"]
-        # Bots derive `scoped = transport_code is not None` and read `region`.
+        # Consumers derive `scoped = transport_code is not None` and read `region`.
         assert broadcast["transport_code"] == 0x1234
         assert broadcast["region"] == "#Esperance"
 

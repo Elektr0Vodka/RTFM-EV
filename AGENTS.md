@@ -28,7 +28,7 @@ A web interface for MeshCore mesh radio networks. The backend connects to a Mesh
 - `docs/plans/` and `docs/superpowers/` - Local-only planning backlog and per-feature spec/plan notes. These are git-ignored (kept on disk, not tracked), so they are present only in local checkouts that have them.
 
 Ancillary AGENTS.md files which should generally not be reviewed unless specific work is being performed on those features include:
-- `app/fanout/AGENTS_fanout.md` - Fanout bus architecture (MQTT, bots, webhooks, Apprise, SQS)
+- `app/fanout/AGENTS_fanout.md` - Fanout bus architecture (MQTT, webhooks, Apprise, SQS)
 - `frontend/src/components/visualizer/AGENTS_packet_visualizer.md` - Packet visualizer (force-directed graph, advert-path identity, layout engine)
 
 ## Architecture Overview
@@ -84,7 +84,7 @@ Ancillary AGENTS.md files which should generally not be reviewed unless specific
 - Raw packet feed - a debug/observation tool ("radio aquarium"); interesting to watch or copy packets from, but not critical infrastructure
 - Map view - visual display of node locations from advertisements
 - Network visualizer - force-directed graph of mesh topology
-- Fanout integrations (MQTT, bots, webhooks, Apprise, SQS) - see `app/fanout/AGENTS_fanout.md`
+- Fanout integrations (MQTT, webhooks, Apprise, SQS) - see `app/fanout/AGENTS_fanout.md`
 - Read state tracking / mark-all-read - convenience feature for unread badges; no need for transactional atomicity or race-condition hardening
 
 ## Error Handling Philosophy
@@ -117,7 +117,8 @@ The following are **deliberate design choices**, not bugs. They are documented i
 
 1. **No CORS restrictions**: The backend allows all origins (`allow_origins=["*"]`). This lets users access their radio from any device/origin on their network without configuration hassle.
 2. **Minimal optional access control only**: The app has no user accounts, sessions, authorization model, or per-feature permissions. Operators may optionally set `MESHCORE_BASIC_AUTH_USERNAME` and `MESHCORE_BASIC_AUTH_PASSWORD` for app-wide HTTP Basic auth, but this is only a coarse gate and still requires HTTPS plus a trusted network posture.
-3. **Arbitrary bot code execution**: The bot system (`app/fanout/bot_exec.py`) executes user-provided Python via `exec()` with full `__builtins__`. This is intentional - bots are a power-user feature for automation. The README explicitly warns that anyone on the network can execute arbitrary code through this. This fork defaults `MESHCORE_DISABLE_BOTS` to `true` (upstream defaults to `false`); operators set `MESHCORE_DISABLE_BOTS=false` to opt in. When disabled, the bot system is off at startup - this skips all bot execution, returns 403 on bot settings updates, and shows a disabled message in the frontend.
+
+The upstream Python bot system (user code run via `exec()`) was removed from this fork; there is no server-side code-execution feature.
 
 ## Intentional Packet Handling Decision
 
@@ -207,7 +208,7 @@ This message-layer echo/path handling is independent of raw-packet storage dedup
 │   ├── decoder.py          # Packet decryption
 │   ├── websocket.py        # Real-time broadcasts
 │   ├── push/               # Web Push notification subsystem (VAPID keys, dispatch, send)
-│   └── fanout/             # Fanout bus: MQTT, bots, webhooks, Apprise, SQS (see fanout/AGENTS_fanout.md)
+│   └── fanout/             # Fanout bus: MQTT, webhooks, Apprise, SQS (see fanout/AGENTS_fanout.md)
 ├── frontend/               # React frontend
 │   ├── AGENTS.md           # Frontend documentation
 │   ├── src/
@@ -294,7 +295,7 @@ Key test files:
 - `tests/test_api.py` - Broad API integration coverage across routers and read-state flows
 - `tests/test_packet_pipeline.py` - End-to-end packet processing, decrypt, dedup, and message creation
 - `tests/test_event_handlers.py` - ACK tracking, fallback DM handling, and event subscription cleanup
-- `tests/test_send_messages.py` - Outgoing DM/channel send workflows, retries, and bot-trigger wiring
+- `tests/test_send_messages.py` - Outgoing DM/channel send workflows and retries
 - `tests/test_packets_router.py` - Historical decrypt, maintenance, and raw-packet detail endpoints
 - `tests/test_repeater_routes.py` - Repeater command/telemetry/trace pane endpoints
 - `tests/test_room_routes.py` - Room-server login/status/ACL/telemetry endpoints
@@ -328,7 +329,7 @@ This table is a representative subset, not the full route list (for example the 
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/health` | Connection status, fanout statuses, bots_disabled flag |
+| GET | `/api/health` | Connection status, fanout statuses |
 | GET | `/api/debug` | Support snapshot: recent logs, live radio probe, contact/channel drift audit, and running version/git info |
 | GET | `/api/radio/config` | Radio configuration, including `path_hash_mode`, `path_hash_mode_supported`, advert-location on/off, and `multi_acks_enabled` |
 | PATCH | `/api/radio/config` | Update name, location, advert-location on/off, `multi_acks_enabled`, radio params, and `path_hash_mode` when supported |
@@ -415,7 +416,6 @@ This table is a representative subset, not the full route list (for example the 
 | POST | `/api/fanout` | Create new fanout config |
 | PATCH | `/api/fanout/{id}` | Update fanout config (triggers module reload) |
 | DELETE | `/api/fanout/{id}` | Delete fanout config (stops module) |
-| POST | `/api/fanout/bots/disable-until-restart` | Stop bot fanout modules and keep bots disabled until the process restarts |
 | GET | `/api/statistics` | Aggregated mesh network statistics, including `region_scope_24h` regional flood-scope adoption |
 | GET | `/api/push/vapid-public-key` | VAPID public key for browser push subscription |
 | POST | `/api/push/subscribe` | Register/upsert a push subscription |
@@ -472,7 +472,7 @@ Read state (`last_read_at`) is tracked **server-side** for consistency across de
 
 **Note:** These are NOT the same as `Message.conversation_key` (the database field).
 
-### Fanout Bus (MQTT, Bots, Webhooks, Apprise, SQS)
+### Fanout Bus (MQTT, Webhooks, Apprise, SQS)
 
 All external integrations are managed through the fanout bus (`app/fanout/`). Each integration is a `FanoutModule` with scope-based event filtering, stored in the `fanout_configs` table and managed via `GET/POST/PATCH/DELETE /api/fanout`.
 
@@ -531,7 +531,6 @@ mc.subscribe(EventType.ACK, handler)
 | `MESHCORE_SERIAL_BAUDRATE` | `115200` | Serial baud rate |
 | `MESHCORE_LOG_LEVEL` | `INFO` | Logging level (`DEBUG`/`INFO`/`WARNING`/`ERROR`) |
 | `MESHCORE_DATABASE_PATH` | `data/meshcore.db` | SQLite database location |
-| `MESHCORE_DISABLE_BOTS` | `true` | Disable bot system entirely (blocks execution and config). Fork default `true`; upstream `false` |
 | `MESHCORE_BASIC_AUTH_USERNAME` | *(none)* | Optional app-wide HTTP Basic auth username; must be set together with `MESHCORE_BASIC_AUTH_PASSWORD` |
 | `MESHCORE_BASIC_AUTH_PASSWORD` | *(none)* | Optional app-wide HTTP Basic auth password; must be set together with `MESHCORE_BASIC_AUTH_USERNAME` |
 | `MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK` | `false` | Switch the always-on radio audit task from hourly checks to aggressive 10-second polling; the audit checks both missed message drift and channel-slot cache drift |
@@ -542,7 +541,7 @@ mc.subscribe(EventType.ACK, handler)
 | `MESHCORE_UPDATE_CHECK_ENABLED` | `true` | Check GitHub for a newer fork build and show the in-app update indicator (Settings > About also has a manual re-check). Set `false` to disable the outbound request. |
 | `MESHCORE_VAPID_SUBJECT` | `mailto:noreply@meshcore.local` | Subject (`sub`) claim for Web Push VAPID tokens; must be a `mailto:` or `https:` contact. Apple's push service (APNs) rejects the default `.local` domain with `403 BadJwtToken`, so iOS/Safari operators must set this to a real address. Google FCM (Chrome/Android) accepts the default. |
 
-**Note:** Runtime app settings are stored in the database (`app_settings` table), not environment variables. These include `max_radio_contacts`, `auto_decrypt_dm_on_advert`, `advert_interval`, `last_advert_time`, `last_message_times`, `flood_scope`, `known_regions`, `blocked_keys`, `blocked_names`, `discovery_blocked_types`, `tracked_telemetry_repeaters`, `tracked_telemetry_contacts`, `auto_resend_channel`, and `telemetry_interval_hours`, plus the retention, sidebar, packet-view, map-home, date/time-format, chat-parsing, branding, backup, and OpenHop settings (full list in `app/AGENTS.md`). `max_radio_contacts` is the configured radio contact capacity baseline used by background maintenance: favorites reload first, non-favorite fill targets about 80% of that value, and full offload/reload triggers around 95% occupancy. They are configured via `GET/PATCH /api/settings`. MQTT, bot, webhook, Apprise, and SQS configs are stored in the `fanout_configs` table, managed via `/api/fanout`. If the radio's channel slots appear unstable or another client is mutating them underneath this app, operators can force the old always-reconfigure send path with `MESHCORE_FORCE_CHANNEL_SLOT_RECONFIGURE=true`.
+**Note:** Runtime app settings are stored in the database (`app_settings` table), not environment variables. These include `max_radio_contacts`, `auto_decrypt_dm_on_advert`, `advert_interval`, `last_advert_time`, `last_message_times`, `flood_scope`, `known_regions`, `blocked_keys`, `blocked_names`, `discovery_blocked_types`, `tracked_telemetry_repeaters`, `tracked_telemetry_contacts`, `auto_resend_channel`, and `telemetry_interval_hours`, plus the retention, sidebar, packet-view, map-home, date/time-format, chat-parsing, branding, backup, and OpenHop settings (full list in `app/AGENTS.md`). `max_radio_contacts` is the configured radio contact capacity baseline used by background maintenance: favorites reload first, non-favorite fill targets about 80% of that value, and full offload/reload triggers around 95% occupancy. They are configured via `GET/PATCH /api/settings`. MQTT, webhook, Apprise, and SQS configs are stored in the `fanout_configs` table, managed via `/api/fanout`. If the radio's channel slots appear unstable or another client is mutating them underneath this app, operators can force the old always-reconfigure send path with `MESHCORE_FORCE_CHANNEL_SLOT_RECONFIGURE=true`.
 
 Byte-perfect channel retries are user-triggered via `POST /api/messages/channel/{message_id}/resend` and are allowed for 30 seconds after the original send.
 

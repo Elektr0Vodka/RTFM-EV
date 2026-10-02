@@ -1,7 +1,5 @@
 """REST API for fanout config CRUD."""
 
-import ast
-import inspect
 import logging
 import re
 import string
@@ -9,7 +7,6 @@ import string
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from app.fanout.bot_exec import _analyze_bot_signature
 from app.fanout.manager import fanout_manager
 from app.repository.fanout import FanoutConfigRepository
 
@@ -20,7 +17,6 @@ _VALID_TYPES = {
     "mqtt_private",
     "mqtt_community",
     "mqtt_ha",
-    "bot",
     "webhook",
     "apprise",
     "sqs",
@@ -95,8 +91,6 @@ def _validate_and_normalize_config(config_type: str, config: dict) -> dict:
         _validate_mqtt_private_config(normalized)
     elif config_type == "mqtt_community":
         _validate_mqtt_community_config(normalized)
-    elif config_type == "bot":
-        _validate_bot_config(normalized)
     elif config_type == "webhook":
         _validate_webhook_config(normalized)
     elif config_type == "apprise":
@@ -212,80 +206,6 @@ def _validate_mqtt_community_config(config: dict) -> None:
     ):
         interval = 300000
     config["status_interval_ms"] = interval
-
-
-def _validate_bot_config(config: dict) -> None:
-    """Validate bot config blob (syntax-check the code and supported signature)."""
-    code = config.get("code", "")
-    if not code or not code.strip():
-        raise HTTPException(status_code=400, detail="Bot code cannot be empty")
-    try:
-        tree = ast.parse(code, filename="<bot_code>", mode="exec")
-    except SyntaxError as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Bot code has syntax error at line {e.lineno}: {e.msg}",
-        ) from None
-
-    bot_def = next(
-        (
-            node
-            for node in tree.body
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "bot"
-        ),
-        None,
-    )
-    if bot_def is None:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Bot code must define a callable bot() function. "
-                "Use the default bot template as a reference."
-            ),
-        )
-
-    try:
-        parameters: list[inspect.Parameter] = []
-        positional_args = [
-            *((arg, inspect.Parameter.POSITIONAL_ONLY) for arg in bot_def.args.posonlyargs),
-            *((arg, inspect.Parameter.POSITIONAL_OR_KEYWORD) for arg in bot_def.args.args),
-        ]
-        positional_defaults_start = len(positional_args) - len(bot_def.args.defaults)
-        sentinel_default = object()
-
-        for index, (arg, kind) in enumerate(positional_args):
-            has_default = index >= positional_defaults_start
-            parameters.append(
-                inspect.Parameter(
-                    arg.arg,
-                    kind=kind,
-                    default=sentinel_default if has_default else inspect.Parameter.empty,
-                )
-            )
-        if bot_def.args.vararg is not None:
-            parameters.append(
-                inspect.Parameter(bot_def.args.vararg.arg, kind=inspect.Parameter.VAR_POSITIONAL)
-            )
-        for kwonly_arg, kw_default in zip(
-            bot_def.args.kwonlyargs, bot_def.args.kw_defaults, strict=True
-        ):
-            parameters.append(
-                inspect.Parameter(
-                    kwonly_arg.arg,
-                    kind=inspect.Parameter.KEYWORD_ONLY,
-                    default=(
-                        sentinel_default if kw_default is not None else inspect.Parameter.empty
-                    ),
-                )
-            )
-        if bot_def.args.kwarg is not None:
-            parameters.append(
-                inspect.Parameter(bot_def.args.kwarg.arg, kind=inspect.Parameter.VAR_KEYWORD)
-            )
-
-        _analyze_bot_signature(inspect.Signature(parameters))
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from None
 
 
 def _validate_apprise_config(config: dict) -> None:
@@ -409,7 +329,7 @@ def _data_placeholders_scope(scope: dict) -> str:
 def _enforce_scope(config_type: str, scope: dict) -> dict:
     """Enforce type-specific scope constraints. Returns normalized scope.
 
-    Bots, community MQTT and the map upload have a fixed scope and never
+    Community MQTT and the map upload have a fixed scope and never
     receive GRP_DATA placeholder rows; the other types opt in per config via
     ``scope.data_placeholders`` (default ``"none"``).
     """
@@ -417,8 +337,6 @@ def _enforce_scope(config_type: str, scope: dict) -> dict:
         return {"messages": "none", "raw_packets": "all"}
     if config_type == "map_upload":
         return {"messages": "none", "raw_packets": "all"}
-    if config_type == "bot":
-        return {"messages": "all", "raw_packets": "none"}
     if config_type in ("webhook", "apprise", "mqtt_ha"):
         messages = scope.get("messages", "all")
         if messages not in ("all", "none") and not isinstance(messages, dict):
@@ -451,15 +369,6 @@ def _enforce_scope(config_type: str, scope: dict) -> dict:
     }
 
 
-def _bot_system_disabled_detail() -> str | None:
-    source = fanout_manager.get_bots_disabled_source()
-    if source == "env":
-        return "Bot system disabled by server configuration (MESHCORE_DISABLE_BOTS)"
-    if source == "until_restart":
-        return "Bot system disabled until the server restarts"
-    return None
-
-
 @router.get("")
 async def list_fanout_configs() -> list[dict]:
     """List all fanout configs."""
@@ -474,11 +383,6 @@ async def create_fanout_config(body: FanoutConfigCreate) -> dict:
             status_code=400,
             detail=f"Invalid type '{body.type}'. Must be one of: {', '.join(sorted(_VALID_TYPES))}",
         )
-
-    if body.type == "bot":
-        disabled_detail = _bot_system_disabled_detail()
-        if disabled_detail:
-            raise HTTPException(status_code=403, detail=disabled_detail)
 
     normalized_config = _validate_and_normalize_config(body.type, body.config)
     scope = _enforce_scope(body.type, body.scope)
@@ -505,11 +409,6 @@ async def update_fanout_config(config_id: str, body: FanoutConfigUpdate) -> dict
     existing = await FanoutConfigRepository.get(config_id)
     if existing is None:
         raise HTTPException(status_code=404, detail="Fanout config not found")
-
-    if existing["type"] == "bot":
-        disabled_detail = _bot_system_disabled_detail()
-        if disabled_detail:
-            raise HTTPException(status_code=403, detail=disabled_detail)
 
     kwargs = {}
     if body.name is not None:
@@ -546,19 +445,3 @@ async def delete_fanout_config(config_id: str) -> dict:
 
     logger.info("Deleted fanout config %s", config_id)
     return {"deleted": True}
-
-
-@router.post("/bots/disable-until-restart")
-async def disable_bots_until_restart() -> dict:
-    """Stop active bot modules and prevent them from running again until restart."""
-    source = await fanout_manager.disable_bots_until_restart()
-
-    from app.services.radio_runtime import radio_runtime as radio_manager
-    from app.websocket import broadcast_health
-
-    broadcast_health(radio_manager.is_connected, radio_manager.connection_info)
-    return {
-        "status": "ok",
-        "bots_disabled": True,
-        "bots_disabled_source": source,
-    }

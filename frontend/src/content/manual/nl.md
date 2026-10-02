@@ -15,7 +15,7 @@ Wat je ermee kunt:
 Twee dingen om vooraf te weten:
 
 - **De app beheert je radio.** Zodra een radio verbonden is, worden de contacten en kanalen in de app geïmporteerd en bepaalt de app welke contacten op de radio geladen blijven. Daardoor past de app minder goed als je vaak van radio wisselt en elke radio zijn eigen toestand wilt laten houden. Alleen de geschiedenis van batterij, ruisvloer en zendtijd wordt per radio bewaard (zie Van radio wisselen).
-- **Gebruik de app alleen op een vertrouwd netwerk.** Er zijn geen gebruikersaccounts. Iedereen die de pagina kan bereiken, kan hem gebruiken. De optionele HTTP Basic-authenticatie is slechts een grove drempel en hoort altijd samen te gaan met HTTPS. Bots voeren willekeurige Python-code uit, daarom staat het botsysteem standaard uit.
+- **Gebruik de app alleen op een vertrouwd netwerk.** Er zijn geen gebruikersaccounts. Iedereen die de pagina kan bereiken, kan hem gebruiken. De optionele HTTP Basic-authenticatie is slechts een grove drempel en hoort altijd samen te gaan met HTTPS.
 
 <!-- id: getting-started -->
 
@@ -366,15 +366,12 @@ Open **Instellingen > MQTT en automatisering** en kies **Integratie toevoegen**.
 - **Privé-MQTT:** berichten doorsturen naar je eigen broker, ruw en/of ontsleuteld. Ontsleutelde berichten gaan als platte tekst, dus gebruik een broker die je vertrouwt.
 - **Community MQTT/meshcoretomqtt:** een feed van ruwe pakketten voor community-aggregators, zodat je radio als observer kan dienen. Regionale voorinstellingen zijn ingebouwd.
 - **Home Assistant MQTT Discovery:** apparaten en entiteiten verschijnen automatisch in Home Assistant: een apparaat voor de lokale radio, een berichtgebeurtenis, telemetriesensoren voor gevolgde repeaters en GPS-trackers voor gekozen contacten. Repeaters moeten eerst gevolgd worden voor telemetrie voordat ze in de keuzelijst verschijnen.
-- **Python-bot:** kleine Python-functies die op berichten reageren.
 - **Webhook:** ontsleutelde berichten naar een URL, optioneel ondertekend.
 - **Apprise:** stuurt berichten door naar Discord, Telegram, e-mail en vele andere diensten.
 - **Amazon SQS:** ruwe of ontsleutelde pakketten naar een wachtrij.
 - **Kaartupload:** uploadt gehoorde repeaters en roomservers naar map.meshcore.io of een vergelijkbaar eindpunt, met een proefmodus en een optionele geofence.
 
 Elke integratie heeft een **Berichtbereik**: alle berichten, geen, alleen de opgegeven kanalen en contacten, of alles behalve de opgegeven.
-
-Bots staan standaard uit. Om ze aan te zetten, start je de server met `MESHCORE_DISABLE_BOTS=false`. Een bot voert willekeurige Python-code uit op de server en ziet alle berichten, ook je eigen, dus pas op voor antwoordlussen.
 
 <!-- id: backup-retention -->
 

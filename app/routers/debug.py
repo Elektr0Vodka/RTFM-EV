@@ -5,7 +5,7 @@ import platform
 import struct
 import sys
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Any
 
 from fastapi import APIRouter
 from meshcore import EventType
@@ -105,7 +105,6 @@ class DebugHealthSummary(BaseModel):
     database_size_mb: float
     oldest_undecrypted_timestamp: int | None
     fanouts_with_errors: dict[str, FanoutStatusResponse] = Field(default_factory=dict)
-    bots_disabled_source: Literal["env", "until_restart"] | None = None
     basic_auth_enabled: bool = False
 
 
@@ -118,7 +117,6 @@ class DebugEnvironment(BaseModel):
     ble_address: str
     log_level: str
     database_path: str
-    disable_bots: bool
     enable_message_poll_fallback: bool
     force_channel_slot_reconfigure: bool
     load_with_autoevict: bool
@@ -228,7 +226,6 @@ def _build_environment() -> DebugEnvironment:
         ble_address=settings.ble_address,
         log_level=settings.log_level,
         database_path=settings.database_path,
-        disable_bots=settings.disable_bots,
         enable_message_poll_fallback=settings.enable_message_poll_fallback,
         force_channel_slot_reconfigure=settings.force_channel_slot_reconfigure,
         load_with_autoevict=settings.load_with_autoevict,
@@ -285,7 +282,6 @@ def _build_debug_health_summary(
         database_size_mb=health_data["database_size_mb"],
         oldest_undecrypted_timestamp=health_data["oldest_undecrypted_timestamp"],
         fanouts_with_errors=fanouts_with_errors,
-        bots_disabled_source=health_data["bots_disabled_source"],
         basic_auth_enabled=health_data["basic_auth_enabled"],
     )
 

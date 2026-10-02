@@ -1,5 +1,5 @@
 import os
-from typing import Any, Literal
+from typing import Any
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
@@ -87,8 +87,6 @@ class HealthResponse(BaseModel):
     database_size_mb: float
     oldest_undecrypted_timestamp: int | None
     fanout_statuses: dict[str, FanoutStatusResponse] = Field(default_factory=dict)
-    bots_disabled: bool = False
-    bots_disabled_source: Literal["env", "until_restart"] | None = None
     basic_auth_enabled: bool = False
     radio_identity: RadioIdentityHealth | None = None
 
@@ -129,14 +127,10 @@ async def build_health_data(radio_connected: bool, connection_info: str | None) 
 
     # Fanout module statuses
     fanout_statuses: dict[str, Any] = {}
-    bots_disabled_source = "env" if _read_optional_bool_setting("disable_bots") else None
     try:
         from app.fanout.manager import fanout_manager
 
         fanout_statuses = fanout_manager.get_statuses()
-        manager_bots_disabled_source = fanout_manager.get_bots_disabled_source()
-        if manager_bots_disabled_source is not None:
-            bots_disabled_source = manager_bots_disabled_source
     except Exception:
         pass
 
@@ -217,8 +211,6 @@ async def build_health_data(radio_connected: bool, connection_info: str | None) 
         "database_size_mb": db_size_mb,
         "oldest_undecrypted_timestamp": oldest_ts,
         "fanout_statuses": fanout_statuses,
-        "bots_disabled": bots_disabled_source is not None,
-        "bots_disabled_source": bots_disabled_source,
         "basic_auth_enabled": _read_optional_bool_setting("basic_auth_enabled"),
         "radio_identity": radio_identity,
     }
