@@ -5,6 +5,7 @@ import type {
 import type {
   AdvertLinkEdge,
   ContactLocationHistoryEntry,
+  ContactRouteSuggestions,
   DeviceConfigHistoryEntry,
   LinkPacketRow,
   LinkSummary,
@@ -1311,6 +1312,10 @@ export const api = {
     fetchJson<DeviceConfigHistoryEntry[]>(`/contacts/${publicKey}/room/config-history`),
   contactLocationHistory: (publicKey: string) =>
     fetchJson<ContactLocationHistoryEntry[]>(`/contacts/${publicKey}/location-history`),
+  contactRouteSuggestions: (publicKey: string, validate = false) =>
+    fetchJson<ContactRouteSuggestions>(
+      `/contacts/${publicKey}/route-suggestions${validate ? '?validate=true' : ''}`
+    ),
   // Contact telemetry (universal, any contact type)
   requestContactTelemetry: (publicKey: string) =>
     fetchJson<ContactTelemetryResponse>(`/contacts/${publicKey}/telemetry`, {

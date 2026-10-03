@@ -23,6 +23,7 @@ from app.models import (
     ContactLocationHistory,
     ContactRadioPolicyRequest,
     ContactRadioResidency,
+    ContactRouteSuggestions,
     ContactRoutingOverrideRequest,
     ContactTelemetryPermissionsRequest,
     ContactTelemetryResponse,
@@ -55,6 +56,11 @@ from app.repository import (
     MessageRepository,
 )
 from app.repository.contacts import ContactLocationHistoryRepository
+from app.services.analyzer_path_check import (
+    AnalyzerCheckError,
+    analyzer_base_url,
+    validate_suggestions,
+)
 from app.services.analyzer_resolution import resolve_pubkey_name
 from app.services.contact_reconciliation import (
     promote_prefix_contacts_for_contact,
@@ -63,6 +69,7 @@ from app.services.contact_reconciliation import (
 )
 from app.services.path_scoring import score_paths
 from app.services.radio_runtime import radio_runtime as radio_manager
+from app.services.route_suggestions import HeardPath, suggest_routes
 
 logger = logging.getLogger(__name__)
 
@@ -890,6 +897,53 @@ async def set_contact_routing_override(
         await _broadcast_contact_update(updated_contact)
 
     return {"status": "ok", "public_key": contact.public_key}
+
+
+@router.get("/{public_key}/route-suggestions", response_model=ContactRouteSuggestions)
+async def get_contact_route_suggestions(
+    public_key: str,
+    validate: bool = Query(
+        default=False,
+        description="Also check the routes against the analyzer (sends the key and hops to it)",
+    ),
+) -> ContactRouteSuggestions:
+    """Routes for direct messages to a contact, from paths it was heard on (suggest only)."""
+    contact = await _resolve_contact_or_404(public_key)
+    settings = await AppSettingsRepository.get()
+
+    advert_paths = await ContactAdvertPathRepository.get_recent_for_contact(
+        contact.public_key, limit=settings.advert_paths_per_contact
+    )
+    heard = [
+        HeardPath(p.path, p.path_len, p.last_seen, p.heard_count, "advert") for p in advert_paths
+    ]
+    for dm_path in await MessageRepository.get_incoming_dm_paths(contact.public_key):
+        # A direct-routed DM also arrives with an empty path, so 0 hops proves nothing.
+        if dm_path.path_len:
+            heard.append(HeardPath(dm_path.path, dm_path.path_len, dm_path.received_at, 1, "dm"))
+
+    suggestions = suggest_routes(
+        heard,
+        await ContactPathOutcomeRepository.get_for_contact(contact.public_key),
+        contact.effective_route,
+    )
+    result = ContactRouteSuggestions(
+        public_key=contact.public_key,
+        suggestions=suggestions,
+        analyzer_url=analyzer_base_url(settings.external_map_sync_url),
+    )
+    if validate and suggestions:
+        try:
+            verdicts = await validate_suggestions(
+                result.analyzer_url, contact.public_key, suggestions
+            )
+        except AnalyzerCheckError as err:
+            result.validation_error = str(err)
+        else:
+            for suggestion, verdict in zip(suggestions, verdicts, strict=True):
+                suggestion.validation = verdict
+            result.validated = True
+    return result
 
 
 @router.get("/{public_key}/location-history", response_model=list[ContactLocationHistory])
