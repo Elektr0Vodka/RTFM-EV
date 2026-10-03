@@ -19,6 +19,7 @@ vi.mock('../api', () => ({
     contactTelemetryHistory,
     updateContactAnnotations,
     contactLocationHistory: vi.fn().mockResolvedValue([]),
+    contactRouteSuggestions: vi.fn().mockResolvedValue({ suggestions: [] }),
   },
   isAbortError: () => false,
 }));

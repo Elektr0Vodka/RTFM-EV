@@ -444,6 +444,58 @@ class ContactPathScore(ContactPathOutcome):
     weight: float
 
 
+class ContactRouteValidation(BaseModel):
+    """What an analyzer's observed link graph says about one suggested route."""
+
+    status: Literal["confirmed", "partial", "unconfirmed", "not_checked"]
+    chain: Literal["observed", "speculative", "unknown", "not_checked"] = Field(
+        description="Whether the analyzer has seen every hop-to-hop link of the route"
+    )
+    last_hop: Literal[
+        "two_way", "contact_hears_hop", "hop_hears_contact", "not_seen", "not_checked"
+    ] = Field(description="Link between the contact and the hop next to it, per direction")
+    hop_names: list[str] = Field(
+        default_factory=list, description="Analyzer's best guess at the hop names, in route order"
+    )
+    ambiguous_hops: int = Field(
+        default=0, description="Hops whose prefix matches more than one analyzer node"
+    )
+
+
+class ContactRouteSuggestion(BaseModel):
+    """A route for direct messages to a contact, built from a path it was heard on."""
+
+    path: str = Field(description="Hex-encoded route in send order (empty for direct)")
+    path_len: int = Field(description="Hop count (0 = direct neighbour)")
+    path_hash_mode: int = Field(description="0=1-byte, 1=2-byte, 2=3-byte hop identifiers")
+    route: str = Field(description="The same route as routing-override text")
+    sources: list[Literal["advert", "dm"]] = Field(
+        description="Traffic the path was heard on: adverts, incoming direct messages"
+    )
+    heard_count: int
+    last_seen: int
+    attempt_count: int = 0
+    success_count: int = 0
+    failure_count: int = 0
+    score: float
+    freshness: float
+    heard: float
+    hops: float
+    delivery: float
+    is_current: bool = Field(default=False, description="Already the contact's effective route")
+    validation: ContactRouteValidation | None = None
+
+
+class ContactRouteSuggestions(BaseModel):
+    """Ranked route suggestions for one contact (suggest only, nothing is applied)."""
+
+    public_key: str
+    suggestions: list[ContactRouteSuggestion] = Field(default_factory=list)
+    analyzer_url: str = Field(description="Analyzer host a validation request goes to")
+    validated: bool = False
+    validation_error: str | None = None
+
+
 class ContactNameHistory(BaseModel):
     """A historical name used by a contact."""
 

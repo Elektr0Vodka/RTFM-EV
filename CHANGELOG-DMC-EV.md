@@ -11,6 +11,29 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-03 (suggested DM routes for companions, feat/contact-route-suggestions)
+
+### Contacts: suggested routes (backend + frontend)
+- The contact pane of a companion now lists **Suggested routes**: the paths
+  the contact was heard on (adverts and incoming direct messages), reversed
+  for sending and ranked by freshness, times heard, hop count and past DM
+  delivery on that route. New endpoint
+  `GET /api/contacts/{public_key}/route-suggestions`
+  (`app/services/route_suggestions.py`). No migration.
+- Suggest only. Nothing changes how a DM is routed until you press **Use**,
+  which sets that route as the existing routing override. The final DM
+  retry still floods.
+- **Check with analyzer** (optional, per click) asks the analyzer behind the
+  external map sync URL whether it has seen the hop links
+  (`/api/paths/inspect`) and the link between the last hop and the contact
+  (`/api/nodes/{pubkey}/reach`). This sends the contact's public key and the
+  hop IDs to that host; the pane names the host. The analyzer only
+  validates: it never changes the ranking and never adds a route RTFM-EV did
+  not hear itself (`app/services/analyzer_path_check.py`).
+- Not included: channel messages as a path source (their sender is matched
+  by name), automatic route selection, and the kiekr API (not open to third
+  party clients).
+
 ## Update 2026-10-02 (Python bot system removed, remove-bot-functionality)
 
 ### Integrations: bots removed (backend + frontend)

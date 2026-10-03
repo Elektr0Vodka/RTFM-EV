@@ -22,6 +22,7 @@ vi.mock('../api', () => ({
     getContactAnalytics,
     contactTelemetryHistory,
     contactLocationHistory: vi.fn().mockResolvedValue([]),
+    contactRouteSuggestions: vi.fn().mockResolvedValue({ suggestions: [] }),
     listPartialResolutions,
     deletePartialResolution,
   },

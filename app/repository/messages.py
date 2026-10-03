@@ -1069,6 +1069,21 @@ class MessageRepository:
         return row["cnt"] if row else 0
 
     @staticmethod
+    async def get_incoming_dm_paths(contact_key: str, limit: int = 50) -> list[MessagePath]:
+        """Paths the newest incoming direct messages from a contact arrived on."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT paths FROM messages WHERE type = 'PRIV' AND conversation_key = ? "
+                "AND outgoing = 0 AND paths IS NOT NULL ORDER BY received_at DESC LIMIT ?",
+                (contact_key.lower(), limit),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        paths: list[MessagePath] = []
+        for row in rows:
+            paths.extend(MessageRepository._parse_paths(row["paths"]) or [])
+        return paths
+
+    @staticmethod
     async def count_channel_messages_by_sender(sender_key: str) -> int:
         """Count channel messages sent by a specific contact."""
         async with db.readonly() as conn:

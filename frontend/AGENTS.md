@@ -156,6 +156,7 @@ frontend/src/
 │   ├── ContactInfoView.tsx     # Desktop full-page contact info (3 columns + minimizable repeater/room login)
 │   ├── ContactStatusInfo.tsx   # Contact status info component
 │   ├── ContactPathDiscoveryModal.tsx # Forward/return path discovery dialog
+│   ├── ContactRouteSuggestions.tsx   # Suggested DM routes for companions + on-request analyzer check
 │   ├── ContactRoutingOverrideModal.tsx # Manual direct-route override editor
 │   ├── RepeaterDashboard.tsx   # Layout shell - delegates to repeater/ panes
 │   ├── RepeaterLogin.tsx       # Repeater login form (password + guest)
@@ -527,6 +528,8 @@ Counts are incremented live over WebSocket while `first_unread_ids` only arrives
 `ContactInfoBody`'s Network region also lists **Positions** (`ContactPositionsSection`, plan 14): the advertised positions from `GET /api/contacts/{key}/location-history` (`api.contactLocationHistory`, rounded to 4 decimals server-side), newest first, formatted with the coordinate-format preference and first/last seen; hidden until at least one is stored (`data-testid="contact-positions"`).
 
 `ContactInfoBody`'s Network region lists **Message routes (scored)** from `analytics.path_scores` (`ContactPathScore` in `types.ts`, from `GET /contacts/analytics`): hops via `parsePathHops`, `Flood` for `path_len` -1, `(direct)` for an empty path, then `contact_path_score_detail` (score as a percentage, delivered/attempts, last trip time) and the last-used time. Rows carry `data-testid="contact-path-score"`. Display only; the backend does the scoring (plan 28 item 1.15).
+
+`ContactInfoBody`'s Network region shows **Suggested routes** for companions (`ContactRouteSuggestionsSection` in `components/ContactRouteSuggestions.tsx`, contact type 1 with a full key) from `GET /api/contacts/{key}/route-suggestions` (`api.contactRouteSuggestions`, `ContactRouteSuggestions` in `types.ts`). Each row has a **Use** button that calls `api.setContactRoutingOverride(key, suggestion.route)`; nothing is applied otherwise. **Check with analyzer** refetches with `validate=true` and shows the verdict per route; the hint names the analyzer host because that request sends the contact key and hop IDs to it. The section is hidden when there are no suggestions.
 
 Clicking a contact's avatar in `ChatHeader` or `MessageList` opens a `ContactInfoPane` sheet (right drawer) showing comprehensive contact details fetched from `GET /api/contacts/analytics` using either `?public_key=...` or `?name=...`:
 

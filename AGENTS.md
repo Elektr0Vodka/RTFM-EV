@@ -152,6 +152,7 @@ MeshCore firmware can encode path hops as 1-byte, 2-byte, or 3-byte identifiers.
 - Route precedence for direct-message sends is: explicit override, then learned direct route, then flood.
 - The learned direct route is sourced from radio contact sync (`out_path`) and PATH/path-discovery updates, matching how firmware updates `ContactInfo.out_path`.
 - Advertisement paths are informational only. They are retained in `contact_advert_paths` for the contact pane and visualizer, but they are not used as DM send routes.
+- Route suggestions (`GET /api/contacts/{public_key}/route-suggestions`) reverse heard advert and incoming-DM paths into candidate DM routes and rank them. They are suggest only: a suggestion becomes a send route only when the user sets it as the routing override.
 - `path_len` in API payloads is always hop count, not byte count. The actual path byte length is `hop_count * hash_size`.
 
 ## Data Flow
@@ -353,6 +354,7 @@ This table is a representative subset, not the full route list (for example the 
 | POST | `/api/contacts/{public_key}/mark-read` | Mark contact conversation as read |
 | POST | `/api/contacts/{public_key}/command` | Send CLI command to repeater |
 | POST | `/api/contacts/{public_key}/routing-override` | Set or clear a forced routing override |
+| GET | `/api/contacts/{public_key}/route-suggestions` | Ranked DM route suggestions from paths the contact was heard on; `validate=true` also checks them against the analyzer (suggest only) |
 | POST | `/api/contacts/{public_key}/trace` | Trace route to contact |
 | POST | `/api/contacts/{public_key}/path-discovery` | Discover forward/return paths and persist the learned direct route |
 | POST | `/api/contacts/{public_key}/repeater/login` | Log in to a repeater (escalates to one flood retry if the first attempt draws no reply) |

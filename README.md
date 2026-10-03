@@ -48,6 +48,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - Room server dashboard with telemetry, ACL, sensor data, console and ACL change history.
 - Scheduled telemetry tracking for repeaters and up to 8 other contacts.
 - Routing override, Path Discovery and Direct Trace per contact.
+- Suggested DM routes for companions, built from the paths they were heard on, with an optional analyzer check. Suggest only: you pick one to set it as the routing override.
 - Name resolution for contacts known only by public key, from the synced analyzer map or opt-in analyzer lookups.
 - Triangulate link-out to the DMC triangulator.
 

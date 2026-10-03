@@ -39,6 +39,8 @@ app/
 │   ├── dm_ack_apply.py          # Shared DM ACK application over pending/buffered ACK state
 │   ├── dm_path_outcomes.py      # Which route each DM attempt used + ACK/failed outcomes (plan 28 1.15)
 │   ├── path_scoring.py          # meshcore-open path score port (display only, pure)
+│   ├── route_suggestions.py     # DM route suggestions from heard paths, reversed + ranked (suggest only, pure)
+│   ├── analyzer_path_check.py   # On-request analyzer check of suggested routes (reach + paths/inspect)
 │   ├── dm_ack_tracker.py        # Pending DM ACK state
 │   ├── contact_reconciliation.py # Prefix-claim, sender-key backfill, name-history wiring
 │   ├── flood_scope.py           # Firmware-version-aware flood-scope set/clear command seam
@@ -170,6 +172,8 @@ for a source whose terms forbid bulk downloading.
 - Advertisement paths are stored only in `contact_advert_paths` for analytics/visualization. They are not part of `Contact.to_radio_dict()` or DM route selection.
 - `contact_advert_paths` identity is `(public_key, path_hex, path_len)` because the same hex bytes can represent different routes at different hop widths.
 - `contact_path_outcomes` (migration `_115`, `ContactPathOutcomeRepository`) is the scored path history (plan 28 item 1.15): one row per `(public_key, path_hex, path_len)` a DM was sent on (`path_len` -1 = flood, 0 = direct neighbour) with attempts, successes, failures, trip times and a meshcore-open route weight. `services/dm_path_outcomes.py` is fed by `message_send` (`record_attempt` after every `send_msg`, route read from the radio's contact record `out_path`/`out_path_len`), by `dm_ack_apply` / the immediate-match branch (`record_ack`: last attempt gets the send-to-ACK trip time) and by `_mark_direct_message_failed` (`record_failed`: one failure per distinct route). `services/path_scoring.py` ranks the rows for `GET /contacts/analytics` (`path_scores`). Display only: nothing reads it for routing. Recording errors are swallowed so a send never fails because of it.
+- Route suggestions (`services/route_suggestions.py`, `GET /contacts/{public_key}/route-suggestions`) turn the paths a contact was heard on into candidate DM routes: advert paths (`contact_advert_paths`) plus the paths incoming DMs arrived on (`messages.paths`, 0-hop entries skipped because a direct-routed DM also arrives with an empty path), hop order reversed, merged per `(route, hop count, hop width)` and ranked by freshness, times heard, hop count and `contact_path_outcomes` delivery (weights 0.35 / 0.2 / 0.15 / 0.3), top 5. Suggest only: a route is used only when the user sets it through `routing-override`. Channel messages are not a source (sender matched by name).
+- `services/analyzer_path_check.py` checks those suggestions against an analyzer, only when the request passes `validate=true`: `GET {host}/api/nodes/{pubkey}/reach` (contact neighbours with per-direction counts) and `POST {host}/api/paths/inspect` (hop prefixes, at most 8) on the host of `external_map_sync_url`. It sends the contact's public key and the hop prefixes there. The verdict (`confirmed` / `partial` / `unconfirmed` / `not_checked`) never changes the ranking and never adds a route that was not heard locally; an analyzer failure leaves the suggestions intact and sets `validation_error`.
 - `contacts.flags` mirrors the radio's `ContactInfo.flags`: bit 0 is the radio favourite bit, bits 1-3 are the firmware `TELEM_PERM_*` bits (base, location, environment) that the companion reads as `flags >> 1` when a telemetry mode is Per-Contact. `ContactUpsert.flags=None` keeps the stored value, so advert/DM upserts never zero it; a radio snapshot writes the radio's value.
 - `contacts.telemetry_perms` (migration `_106`, nullable) is the app-set permission value and wins over the radio: `Contact.to_radio_dict()` overlays it on `flags`, and `sync_contacts_from_radio` pushes it with `change_contact_flags` to any radio contact whose bits differ. `NULL` means never set in the app, so the radio's bits are kept.
 
@@ -393,6 +397,7 @@ RTFM-EV judges received frames as a repeater would; shadow mode never transmits,
 - `POST /contacts/{public_key}/telemetry-permissions` - body `{base, location, environment}` (all required); stores `telemetry_perms`, pushes the flag bits to the radio when the contact is loaded there (never adds it just for this), returns `applied_to_radio`; broadcasts `contact`
 - `POST /contacts/{public_key}/trace`
 - `POST /contacts/{public_key}/path-discovery` - discover forward/return paths, persist the learned direct route, and sync it back to the radio best-effort
+- `GET /contacts/{public_key}/route-suggestions?validate=` - ranked DM route suggestions from heard paths (`ContactRouteSuggestions`); `validate=true` also asks the analyzer and fills each suggestion's `validation`. Read-only, changes no route
 - `POST /contacts/{public_key}/repeater/login` - one attempt on the effective route, then one flood retry on timeout
 - `POST /contacts/{public_key}/repeater/status`
 - `POST /contacts/{public_key}/repeater/lpp-telemetry`
@@ -673,6 +678,8 @@ tests/
 ├── test_ack_tracking_wiring.py # DM ACK tracking extraction and wiring
 ├── test_api.py                 # REST endpoint integration tests
 ├── test_analyzer_resolution.py # Analyzer name resolution: directory, cache TTLs, opted-in sites, endpoints
+├── test_route_suggestions.py   # DM route suggestions: path reversal, source merge, score terms, ranking
+├── test_analyzer_path_check.py # Analyzer route check: verdict mapping, reach/inspect calls, failures
 ├── test_block_lists.py         # Blocked keys/names filtering across list/search surfaces
 ├── test_channel_sender_backfill.py # Sender-key backfill uniqueness rules for channel messages
 ├── test_channels_router.py     # Channels router endpoints
