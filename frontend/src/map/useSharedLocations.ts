@@ -13,10 +13,16 @@ import type { SearchNavigateTarget } from '../components/SearchView';
 import type { Contact, RadioConfig, SharedLocation } from '../types';
 import { useT } from '../i18n';
 import { formatTime } from '../utils/messageParser';
-import { calculateDistance, formatDistance, isValidLocation } from '../utils/pathUtils';
 import type { DistanceUnit } from '../utils/distanceUnits';
 import { formatCoordinates, type CoordinateFormat } from '../utils/coordinateFormat';
 import { createSharedLocationsLayer, sharedLocationTitle } from './layers/sharedLocationsLayer';
+import {
+  appendContactDetailsLink,
+  appendDistanceAndHops,
+  appendPopupActions,
+  appendPopupLine,
+  knownContactKey,
+} from './locationPopup';
 
 const FETCH_DEBOUNCE_MS = 300;
 
@@ -43,13 +49,6 @@ export interface UseSharedLocationsOptions {
 
 type Translate = ReturnType<typeof useT>;
 
-function hopCount(loc: SharedLocation): number | null {
-  const counts = (loc.paths ?? [])
-    .map((p) => (p.path_len != null ? p.path_len : Math.floor(p.path.length / 2)))
-    .filter((n) => Number.isFinite(n));
-  return counts.length ? Math.min(...counts) : null;
-}
-
 function precisionLabel(metres: number): string {
   return metres >= 1000 ? `${metres / 1000} km` : `${metres} m`;
 }
@@ -64,9 +63,7 @@ function conversationLabel(loc: SharedLocation, t: Translate): string {
 /** Contact key of whoever sent the share, when it is a known contact. */
 function senderContactKey(loc: SharedLocation, contacts: Contact[]): string | null {
   if (loc.outgoing) return null;
-  const key = (loc.type === 'PRIV' ? loc.conversation_key : loc.sender_key)?.toLowerCase();
-  if (!key) return null;
-  return contacts.some((c) => c.public_key.toLowerCase() === key) ? key : null;
+  return knownContactKey(loc.type === 'PRIV' ? loc.conversation_key : loc.sender_key, contacts);
 }
 
 export interface SharedLocationPopupDeps {
@@ -90,13 +87,7 @@ export function buildSharedLocationPopup(
   const el = document.createElement('div');
   el.className = 'text-sm space-y-0.5';
 
-  const line = (text: string, className = 'text-xs text-muted-foreground') => {
-    const div = document.createElement('div');
-    div.className = className;
-    div.textContent = text;
-    el.append(div);
-    return div;
-  };
+  const line = (text: string, className?: string) => appendPopupLine(el, text, className);
 
   line(sharedLocationTitle(loc, ownName) || t('map_shared_location'), 'font-medium');
 
@@ -105,17 +96,7 @@ export function buildSharedLocationPopup(
     : loc.sender_name || loc.conversation_name || t('map_shared_locations_unknown_sender');
   const fromLine = line(t('map_shared_locations_from', { sender }));
   const senderKey = senderContactKey(loc, deps.contacts);
-  if (senderKey && deps.onOpenContactInfo) {
-    const details = document.createElement('button');
-    details.type = 'button';
-    details.className = 'ml-1 text-primary underline hover:text-primary/80';
-    details.textContent = t('map_node_details');
-    details.addEventListener('click', () => {
-      deps.onOpenContactInfo?.(senderKey);
-      deps.onAction?.();
-    });
-    fromLine.append(details);
-  }
+  if (senderKey) appendContactDetailsLink(fromLine, senderKey, deps);
   line(conversationLabel(loc, t));
   line(t('map_shared_locations_received', { time: formatTime(loc.received_at) }));
 
@@ -134,48 +115,18 @@ export function buildSharedLocationPopup(
   }
   line(t(FORMAT_KEYS[loc.format]));
 
-  const own = deps.config;
-  if (own && isValidLocation(own.lat, own.lon)) {
-    const km = calculateDistance(own.lat, own.lon, loc.lat, loc.lon);
-    if (km != null) {
-      line(t('map_shared_locations_distance', { distance: formatDistance(km, deps.distanceUnit) }));
-    }
-  }
-  const hops = hopCount(loc);
-  if (hops != null) {
-    line(
-      hops === 0
-        ? t('map_shared_locations_direct')
-        : t('map_shared_locations_hops', { count: hops })
-    );
-  }
-
-  const actions = document.createElement('div');
-  actions.className = 'flex flex-wrap gap-3 pt-1';
-  if (deps.onNavigateToMessage) {
-    const open = document.createElement('button');
-    open.type = 'button';
-    open.className = 'text-xs text-primary underline hover:text-primary/80';
-    open.textContent = t('map_shared_locations_open_in_chat');
-    open.addEventListener('click', () => {
-      deps.onNavigateToMessage?.({
-        id: loc.message_id,
-        type: loc.type,
-        conversation_key: loc.conversation_key,
-        conversation_name: loc.conversation_name || loc.conversation_key.slice(0, 12),
-      });
-      deps.onAction?.();
-    });
-    actions.append(open);
-  }
-  const external = document.createElement('a');
-  external.className = 'text-xs text-primary underline hover:text-primary/80';
-  external.href = `https://www.openstreetmap.org/?mlat=${loc.lat}&mlon=${loc.lon}#map=16/${loc.lat}/${loc.lon}`;
-  external.target = '_blank';
-  external.rel = 'noopener noreferrer';
-  external.textContent = t('map_shared_locations_open_osm');
-  actions.append(external);
-  el.append(actions);
+  appendDistanceAndHops(el, loc, deps);
+  appendPopupActions(
+    el,
+    loc,
+    {
+      id: loc.message_id,
+      type: loc.type,
+      conversation_key: loc.conversation_key,
+      conversation_name: loc.conversation_name || loc.conversation_key.slice(0, 12),
+    },
+    deps
+  );
   return el;
 }
 

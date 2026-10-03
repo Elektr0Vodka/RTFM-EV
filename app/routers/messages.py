@@ -14,6 +14,7 @@ from app.models import (
     SendChannelMessageRequest,
     SendDirectMessageRequest,
     SharedLocationsResponse,
+    TeamBeaconsResponse,
 )
 from app.reaction_payloads import (
     build_reaction_text,
@@ -36,6 +37,7 @@ from app.services.message_send import (
 )
 from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.shared_locations import collect_shared_locations
+from app.services.team_beacons import collect_team_beacons
 from app.websocket import broadcast_error, broadcast_event
 
 logger = logging.getLogger(__name__)
@@ -88,6 +90,32 @@ async def list_shared_locations(
     """
     return await collect_shared_locations(
         since=since, until=until, latest_per_sender=latest_per_sender
+    )
+
+
+@router.get("/beacons", response_model=TeamBeaconsResponse)
+async def list_team_beacons(
+    since: int | None = Query(
+        default=None, description="Only messages received after this Unix time (exclusive)"
+    ),
+    until: int | None = Query(
+        default=None, description="Only messages received at or before this Unix time"
+    ),
+    latest_per_sender: bool = Query(
+        default=True, description="Keep only the newest beacon per sender"
+    ),
+    sender_key: str | None = Query(
+        default=None, description="Only this contact's beacons and waypoints (public key)"
+    ),
+) -> TeamBeaconsResponse:
+    """MeshCore TEAM beacons and waypoints found in channel messages, newest first.
+
+    Recognizes ``#TEL:`` and ``#T:`` position beacons (also sent by
+    signalk-meshcore) and ``#WAY:`` waypoints with their ``#WRC:`` route parts.
+    For the local map and contact history only; never forwarded.
+    """
+    return await collect_team_beacons(
+        since=since, until=until, latest_per_sender=latest_per_sender, sender_key=sender_key
     )
 
 

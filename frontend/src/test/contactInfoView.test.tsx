@@ -19,6 +19,9 @@ vi.mock('../api', () => ({
     contactTelemetryHistory,
     updateContactAnnotations,
     contactLocationHistory: vi.fn().mockResolvedValue([]),
+    getTeamBeacons: vi
+      .fn()
+      .mockResolvedValue({ beacons: [], waypoints: [], scanned: 0, truncated: false }),
   },
   isAbortError: () => false,
 }));

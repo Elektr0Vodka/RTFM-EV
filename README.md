@@ -28,6 +28,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 ### Messaging
 
 - Direct messages, private channels and hashtag channels, with reactions and replies in the plain-text format other MeshCore clients use.
+- MeshCore TEAM and signalk-meshcore tracking messages (`#TEL:`, `#T:`, `#WAY:`, `#CAP:`) shown as cards with a map preview. TEAM waypoints can be shared from the location picker, and an optional periodic `#TEL:` position beacon (off by default) can be switched on in Settings.
 - Emoji picker with search, recent emoji, skin tones and per-emoji byte cost.
 - Direct messages with no acknowledgement after all retries show **Failed**, with a **Retry** action.
 - Mark a conversation unread from any message (stored server-side) and delete a message from your local history (nothing is sent over RF).
@@ -55,7 +56,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 
 - MapLibre GL map with Nova dark, OpenFreeMap, OpenStreetMap, OpenTopoMap and Esri basemaps, 2D or 3D with buildings, labels and neon nodes.
 - Filters by time range, node role, power source (contact override, else the power icon in the node name; DTIS nodes are solar + battery), heard-by-server and wrong-location nodes.
-- Overlays: animated packets with replay and optional sound, links (liveness, advert paths or all traffic) with per-link traffic and signal history, telemetry, shared locations, guessed locations and relay signal.
+- Overlays: animated packets with replay and optional sound, links (liveness, advert paths or all traffic) with per-link traffic and signal history, telemetry, shared locations, MeshCore TEAM beacons (positions, trails, waypoints and routes), guessed locations and relay signal.
 - GPX export of the nodes currently shown, a configurable start view, and a server-side tile cache for offline use (off by default).
 
 ### Tools and diagnostics

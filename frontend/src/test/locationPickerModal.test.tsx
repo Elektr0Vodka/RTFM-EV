@@ -19,7 +19,7 @@ beforeEach(() => {
   localStorage.setItem('remoteterm-map-layer', 'light');
 });
 
-function renderModal(onConfirm = vi.fn()) {
+function renderModal(onConfirm = vi.fn(), teamWaypointAllowed = false) {
   render(
     <I18nProvider>
       <LocationPickerModal
@@ -29,6 +29,7 @@ function renderModal(onConfirm = vi.fn()) {
         contacts={[]}
         initialCenter={[52.123456, 4.123456]}
         initialLabel=""
+        teamWaypointAllowed={teamWaypointAllowed}
       />
     </I18nProvider>
   );
@@ -51,5 +52,33 @@ describe('LocationPickerModal', () => {
     act(() => stub.fire('click', { point: { x: 10, y: 10 }, lngLat: { lat: 51.5, lng: 5.25 } }));
     fireEvent.click(screen.getByRole('button', { name: /insert/i }));
     expect(onConfirm).toHaveBeenCalledWith(51.5, 5.25, '');
+  });
+});
+
+describe('LocationPickerModal TEAM waypoint', () => {
+  it('does not offer the TEAM format unless allowed', () => {
+    renderModal();
+    expect(screen.queryByLabelText(/format/i)).not.toBeInTheDocument();
+  });
+
+  it('confirms a TEAM waypoint with the chosen type', () => {
+    const onConfirm = renderModal(vi.fn(), true);
+    stub.fire('load');
+    fireEvent.change(screen.getByLabelText(/label/i), { target: { value: 'Spring' } });
+    fireEvent.change(screen.getByLabelText(/format/i), { target: { value: 'team' } });
+    fireEvent.change(screen.getByLabelText(/waypoint type/i), { target: { value: 'water' } });
+    fireEvent.click(screen.getByRole('button', { name: /insert/i }));
+
+    expect(onConfirm).toHaveBeenCalledWith(52.123456, 4.123456, 'Spring', {
+      teamWaypointType: 'water',
+    });
+  });
+
+  it('still confirms a plain marker when the format is left alone', () => {
+    const onConfirm = renderModal(vi.fn(), true);
+    stub.fire('load');
+    fireEvent.click(screen.getByRole('button', { name: /insert/i }));
+
+    expect(onConfirm).toHaveBeenCalledWith(52.123456, 4.123456, '');
   });
 });

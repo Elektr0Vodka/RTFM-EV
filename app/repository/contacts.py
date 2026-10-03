@@ -214,6 +214,7 @@ class ContactRepository:
                 row["battery_chemistry"] if "battery_chemistry" in available_columns else None
             ),
             power_source=row["power_source"] if "power_source" in available_columns else None,
+            vessel_type=row["vessel_type"] if "vessel_type" in available_columns else None,
         )
 
     @staticmethod
@@ -489,6 +490,7 @@ class ContactRepository:
         "manual_lon",
         "battery_chemistry",
         "power_source",
+        "vessel_type",
     )
 
     @staticmethod

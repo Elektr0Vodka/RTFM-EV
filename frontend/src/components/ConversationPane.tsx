@@ -131,7 +131,12 @@ interface ConversationPaneProps {
   onHiddenHopWidthsChange?: (widths: number[]) => void;
   analyzerSites?: import('../types').AnalyzerSite[];
   onHashtagAdded?: (channelName: string) => void;
-  onInsertLocation?: (lat: number, lon: number, label: string) => void;
+  onInsertLocation?: (
+    lat: number,
+    lon: number,
+    label: string,
+    options?: { teamWaypointType: string }
+  ) => void;
   onCoordinateClick?: (lat: number, lon: number, label: string) => void;
   /** Open a chat message by id (map shared-locations popup). */
   onNavigateToMessage?: (target: SearchNavigateTarget) => void;
@@ -179,6 +184,7 @@ interface ConversationPaneProps {
    *  ConversationPane already receives (contacts/config/favorite/blocked/analyzer). */
   contactInfoViewProps?: {
     onNavigateToChannel?: (channelKey: string) => void;
+    onNavigateToMessage?: (target: SearchNavigateTarget) => void;
     onSearchMessagesByKey?: (publicKey: string) => void;
     onToggleBlockedKey?: (key: string) => void;
     onToggleBlockedName?: (name: string) => void;

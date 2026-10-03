@@ -177,6 +177,34 @@ describe('useConversationActions', () => {
     expect(args.messageInputRef.current?.appendText).toHaveBeenCalledWith('@[Alice] ');
   });
 
+  it('inserts a picked location as a meshcore-open marker', () => {
+    const args = createArgs();
+    const { result } = renderHook(() => useConversationActions(args));
+
+    act(() => {
+      result.current.handleInsertLocation(52.0907, 5.1214, 'Dom');
+    });
+
+    expect(args.messageInputRef.current?.appendText).toHaveBeenCalledWith(
+      'm:52.090700,5.121400|Dom|poi '
+    );
+  });
+
+  it('inserts a picked location as a MeshCore TEAM waypoint when asked', () => {
+    const args = createArgs();
+    const { result } = renderHook(() => useConversationActions(args));
+
+    act(() => {
+      result.current.handleInsertLocation(52.0907, 5.1214, 'Spring', {
+        teamWaypointType: 'water',
+      });
+    });
+
+    expect(args.messageInputRef.current?.appendText).toHaveBeenCalledWith(
+      expect.stringMatching(/^#WAY:[0-9a-f]{8}\|Spring\|52\.090700\|5\.121400\|\|WATER\| $/)
+    );
+  });
+
   it('appends a new-timestamp resend immediately for the active channel', async () => {
     const resentMessage: Message = {
       ...sentMessage,

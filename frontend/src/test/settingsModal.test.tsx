@@ -125,6 +125,7 @@ const baseSettings: AppSettings = {
   wordlist_sync_url: '',
   analyzer_sites: [],
   handy_info: { overrides: {}, custom: [] },
+  team_beacon: { enabled: false, channel_key: '', interval_seconds: 240 },
   external_map_enabled: false,
   external_map_sync_url: '',
   external_map_sync_interval_hours: 0,

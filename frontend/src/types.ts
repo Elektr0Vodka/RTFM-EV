@@ -301,7 +301,20 @@ export interface Contact {
   battery_chemistry?: BatteryChemistry | null;
   /** Per-node power source override; null = auto (detected from the name, utils/powerSource.ts). */
   power_source?: PowerSourceOverride | null;
+  /** Hand-set vessel type; picks the icon of this contact's MeshCore TEAM beacons on the map. */
+  vessel_type?: VesselType | null;
 }
+
+/** Stored per-contact vessel type (contacts.vessel_type). Never detected: beacons carry none. */
+export type VesselType =
+  | 'sailing'
+  | 'motor'
+  | 'fishing'
+  | 'cargo'
+  | 'passenger'
+  | 'tug'
+  | 'sar'
+  | 'other';
 
 export type RadioPolicy = 'auto' | 'pinned' | 'excluded';
 
@@ -342,6 +355,7 @@ export interface ContactAnnotationsUpdate {
   manual_lon?: number | null;
   battery_chemistry?: BatteryChemistry | null;
   power_source?: PowerSourceOverride | null;
+  vessel_type?: VesselType | null;
 }
 
 export type RadioResidencyReason =
@@ -724,6 +738,81 @@ export interface SharedLocationsResponse {
   truncated: boolean;
 }
 
+/** Periodic MeshCore TEAM #TEL: beacon sent by this radio (app_settings.team_beacon). */
+export interface TeamBeaconSettings {
+  /** Master toggle; off by default. */
+  enabled: boolean;
+  /** Key of the private channel to send on. */
+  channel_key: string;
+  /** 60 to 3600. */
+  interval_seconds: number;
+}
+
+/** GET /messages/beacons: a MeshCore TEAM position beacon (#TEL: / #T:) from a channel. */
+export interface TeamBeaconPoint {
+  message_id: number;
+  conversation_key: string;
+  /** Channel name, when known. */
+  conversation_name: string | null;
+  sender_key: string | null;
+  sender_name: string | null;
+  outgoing: boolean;
+  received_at: number;
+  sender_timestamp: number | null;
+  /** tel: #TEL: beacon; topology: #T: beacon. */
+  kind: 'tel' | 'topology';
+  /** signalk: a #TEL: with forwarding status 0, as signalk-meshcore sends. */
+  source: 'team' | 'signalk';
+  lat: number;
+  lon: number;
+  radio_battery_mv: number | null;
+  phone_battery_mv: number | null;
+  /** signalk-meshcore only. */
+  phone_battery_pct: number | null;
+  autonomous: boolean;
+  needs_forwarding: boolean | null;
+  max_path_observed: number | null;
+  node_count: number | null;
+  neighbor_count: number | null;
+  paths: MessagePath[] | null;
+}
+
+/** GET /messages/beacons: a MeshCore TEAM waypoint or route (#WAY:) from a channel. */
+export interface TeamWaypointPin {
+  message_id: number;
+  conversation_key: string;
+  conversation_name: string | null;
+  sender_key: string | null;
+  sender_name: string | null;
+  outgoing: boolean;
+  received_at: number;
+  sender_timestamp: number | null;
+  mesh_id: string | null;
+  name: string;
+  description: string;
+  /** As sent, e.g. CAMP, WATER, ROUTE. */
+  waypoint_type: string;
+  /** Route colour as #rrggbb. */
+  color: string | null;
+  lat: number;
+  lon: number;
+  /** [lat, lon] points; empty unless every part arrived. */
+  route: [number, number][];
+  /** False when a multi-part route is missing parts. */
+  route_complete: boolean;
+  paths: MessagePath[] | null;
+}
+
+export interface TeamBeaconsResponse {
+  /** Newest first. */
+  beacons: TeamBeaconPoint[];
+  /** Newest first, one per waypoint. */
+  waypoints: TeamWaypointPin[];
+  scanned: number;
+  /** True when the window held more beacon messages than the server scans. */
+  truncated: boolean;
+}
+
 export interface ResendChannelMessageResponse {
   status: string;
   message_id: number;
@@ -1064,6 +1153,7 @@ export interface AppSettings {
   wordlist_sync_url: string;
   analyzer_sites: AnalyzerSite[];
   handy_info: HandyInfoSettings;
+  team_beacon: TeamBeaconSettings;
   external_map_enabled: boolean;
   external_map_sync_url: string;
   external_map_sync_interval_hours: number;
@@ -1410,6 +1500,7 @@ export interface AppSettingsUpdate {
   wordlist_sync_url?: string;
   analyzer_sites?: AnalyzerSite[];
   handy_info?: HandyInfoSettings;
+  team_beacon?: TeamBeaconSettings;
   external_map_enabled?: boolean;
   external_map_sync_url?: string;
   external_map_sync_interval_hours?: number;

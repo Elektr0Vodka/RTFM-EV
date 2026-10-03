@@ -101,6 +101,7 @@ from app.services.link_edge_backfill import start_link_edge_backfill, stop_link_
 from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.radio_stats import start_radio_stats_sampling, stop_radio_stats_sampling
 from app.services.retention_pruner import start_retention_prune, stop_retention_prune
+from app.services.team_beacon_sender import stop_team_beacon
 from app.version_info import get_app_build_info
 
 setup_logging()
@@ -220,6 +221,7 @@ async def lifespan(app: FastAPI):
     await host_repeater.stop()
     await stop_link_edge_backfill()
     await stop_periodic_advert()
+    await stop_team_beacon()
     await stop_periodic_sync()
     await stop_telemetry_collect()
     if radio_manager.meshcore:

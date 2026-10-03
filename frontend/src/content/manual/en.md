@@ -221,6 +221,8 @@ The map controls are grouped under **Display**, **Size & colors**, **Filters** a
 - **Links** between nodes, from liveness, advert paths or all traffic, with a confidence level, a maximum distance and an age window. Click a link and then **Details** for its traffic and signal history.
 - **Telemetry (battery/temp)**.
 - **Shared locations:** pins for locations sent in chat. Click one for who shared it and **Open in chat**.
+- **Beacons:** positions, waypoints and routes sent by MeshCore TEAM and signalk-meshcore in channels you follow. Each sender's newest position is a pin with an icon for the kind of sender (boat, autonomous radio or person), and waypoints carry their TEAM type icon; switch on **Trails** to draw its track over the time window. Click a pin for batteries, status and **Open in chat**. A contact that sent such beacons also gets a **Beacon history** section in its contact info.
+- **Sending in TEAM format:** in a private channel, **Share location > Pick on map** can insert a MeshCore TEAM waypoint instead of a location marker. **Settings > Radio-App Management > MeshCore TEAM beacon** can send this radio's position as a TEAM beacon on one private channel at a set interval. It is off by default and transmits on the radio each time. To give a boat its own map icon, set **Vessel type** in its contact info.
 - **Guessed locations:** estimated positions for nodes without a location, shown as hollow markers at every zoom, labelled per the map's Labels setting. Never saved or sent.
 - **Relay signal:** rings around relays that passed flooded packets to your radio, colored by average SNR.
 

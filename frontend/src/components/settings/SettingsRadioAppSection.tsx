@@ -1,3 +1,4 @@
+import { TeamBeaconSettings } from './TeamBeaconSettings';
 import { useState, useEffect, useRef } from 'react';
 import { Label } from '../ui/label';
 import { Button } from '../ui/button';
@@ -475,6 +476,14 @@ export function SettingsRadioAppSection({
           </div>
         )}
       </div>
+
+      <Separator />
+
+      <TeamBeaconSettings
+        config={appSettings.team_beacon}
+        channels={channels}
+        onSaveAppSettings={onSaveAppSettings}
+      />
 
       <Separator />
 

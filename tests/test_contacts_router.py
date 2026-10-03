@@ -1164,6 +1164,37 @@ class TestContactAnnotations:
         assert row["power_source"] is None
 
     @pytest.mark.asyncio
+    async def test_set_vessel_type_and_clear(self, test_db, client):
+        """The per-contact vessel type (map beacon icon) is stored and null clears it."""
+        await _insert_contact(KEY_A)
+        resp = await client.post(
+            f"/api/contacts/{KEY_A}/annotations",
+            json={"vessel_type": "sailing"},
+        )
+        assert resp.status_code == 200
+        get = await client.get("/api/contacts")
+        row = next(c for c in get.json() if c["public_key"] == KEY_A)
+        assert row["vessel_type"] == "sailing"
+
+        clear = await client.post(
+            f"/api/contacts/{KEY_A}/annotations",
+            json={"vessel_type": None},
+        )
+        assert clear.status_code == 200
+        get = await client.get("/api/contacts")
+        row = next(c for c in get.json() if c["public_key"] == KEY_A)
+        assert row["vessel_type"] is None
+
+    @pytest.mark.asyncio
+    async def test_vessel_type_rejects_unknown_value(self, test_db, client):
+        await _insert_contact(KEY_A)
+        resp = await client.post(
+            f"/api/contacts/{KEY_A}/annotations",
+            json={"vessel_type": "submarine"},
+        )
+        assert resp.status_code == 422
+
+    @pytest.mark.asyncio
     async def test_power_source_rejects_unknown_value(self, test_db, client):
         await _insert_contact(KEY_A)
         resp = await client.post(

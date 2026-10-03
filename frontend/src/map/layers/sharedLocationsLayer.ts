@@ -155,6 +155,41 @@ export function buildPinImage(fill: string) {
   return { width, height, data };
 }
 
+/**
+ * A pin in `fill` with `emoji` in its head, for pins that differ by type.
+ * Drawn with a 2D canvas; where that is unavailable the plain pin is returned.
+ */
+export function buildEmojiPinImage(fill: string, emoji: string) {
+  const base = buildPinImage(fill);
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = base.width;
+    canvas.height = base.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return base;
+    ctx.putImageData(
+      new ImageData(new Uint8ClampedArray(base.data), base.width, base.height),
+      0,
+      0
+    );
+    const cx = HEAD.x * PIN_SCALE;
+    const cy = HEAD.y * PIN_SCALE;
+    // A white disc so the emoji reads on any fill colour.
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(cx, cy, (HEAD.r - 1.6) * PIN_SCALE, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.font = `${12 * PIN_SCALE}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(emoji, cx, cy + PIN_SCALE);
+    const drawn = ctx.getImageData(0, 0, base.width, base.height);
+    return { width: base.width, height: base.height, data: new Uint8Array(drawn.data.buffer) };
+  } catch {
+    return base;
+  }
+}
+
 export interface SharedLocationsLayerOptions {
   onClick?: (messageId: number) => void;
 }

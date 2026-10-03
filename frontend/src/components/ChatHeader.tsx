@@ -59,7 +59,12 @@ interface ChatHeaderProps {
   onDeleteContact: (publicKey: string) => void;
   onOpenContactInfo?: (publicKey: string) => void;
   onOpenChannelInfo?: (channelKey: string) => void;
-  onInsertLocation?: (lat: number, lon: number, label: string) => void;
+  onInsertLocation?: (
+    lat: number,
+    lon: number,
+    label: string,
+    options?: { teamWaypointType: string }
+  ) => void;
   /** Open this channel's Channel Registry entry in edit mode. */
   onEditInRegistry?: (channelKey: string) => void;
 }
@@ -750,10 +755,12 @@ export function ChatHeader({
         <LocationPickerModal
           open={pickerOpen}
           onClose={() => setPickerOpen(false)}
-          onConfirm={(lat, lon, label) => {
+          onConfirm={(lat, lon, label, options) => {
             setPickerOpen(false);
-            onInsertLocation(lat, lon, label);
+            onInsertLocation(lat, lon, label, options);
           }}
+          // TEAM keeps waypoints off the Public channel and hashtag channels.
+          teamWaypointAllowed={isPrivateChannel && !isPublicChannelKey(conversation.id)}
           contacts={contacts}
           initialCenter={pickerCenter}
           initialLabel={contactLocationAvailable ? contactLabel : ''}

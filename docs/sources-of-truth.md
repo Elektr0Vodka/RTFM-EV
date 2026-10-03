@@ -137,6 +137,18 @@ machine this was authored on and may differ elsewhere.
 - Location-share wire format: meshcore-open `m:<lat>,<lon>|<label>|<flags>`
   (`lib/screens/map_screen.dart` `_formatMarkerMessage` / `parseMarkerText`,
   https://github.com/zjs81/meshcore-open).
+- MeshCore TEAM wire formats (`#TEL:`, `#T:`, `#WAY:`, `#WRC:`, `#CAP:`):
+  https://github.com/tmacinc/MeshCore-TEAM (`dev` branch), `lib/models/`
+  `telemetry_message.dart`, `topology_message.dart`,
+  `waypoint_mesh_message.dart`, `route_payload.dart`, `capability_message.dart`,
+  `network_topology.dart` (bitmap bit order) and `waypoint.dart` (waypoint
+  types). signalk-meshcore's independent `#TEL:` codec: `index.js`
+  `decodeTEL` / `encodeTEL` in https://github.com/Banzarykey/signalk-meshcore.
+  Ported in `app/team_payloads.py` and `frontend/src/utils/teamPayloads.ts`.
+  RTFM-EV sends only `#TEL:` (`encode_telemetry`, TEAM's form) and single
+  `#WAY:` waypoints (`buildTeamWaypointPayload`); the vessel types are
+  RTFM-EV's own list, not part of either format. No real traffic sample was available
+  when this was written; the fixtures are built from those encoders.
 - Community key derivation and QR JSON: meshcore-open `lib/models/community.dart`
   (channel names in `lib/screens/channels_screen.dart` and
   `community_qr_scanner_screen.dart`), ported in `app/communities.py`. meshcore-open

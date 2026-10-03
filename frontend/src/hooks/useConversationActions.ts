@@ -1,3 +1,4 @@
+import { buildTeamWaypointPayload } from '../utils/teamPayloads';
 import { useCallback, type MutableRefObject, type RefObject } from 'react';
 import { api } from '../api';
 import { toast } from '../components/ui/sonner';
@@ -42,7 +43,12 @@ interface UseConversationActionsResult {
   handleReplyToMessage: (message: Message) => void;
   handleDeleteMessage: (message: Message) => Promise<void>;
   handleMarkUnreadFromMessage: (message: Message) => Promise<void>;
-  handleInsertLocation: (lat: number, lon: number, label: string) => void;
+  handleInsertLocation: (
+    lat: number,
+    lon: number,
+    label: string,
+    options?: { teamWaypointType: string }
+  ) => void;
   handleTrace: () => Promise<void>;
   handlePathDiscovery: (publicKey: string) => Promise<PathDiscoveryResponse>;
 }
@@ -242,8 +248,17 @@ export function useConversationActions({
   );
 
   const handleInsertLocation = useCallback(
-    (lat: number, lon: number, label: string) => {
-      messageInputRef.current?.appendText(`${buildMarkerPayload(lat, lon, label)} `);
+    (lat: number, lon: number, label: string, options?: { teamWaypointType: string }) => {
+      // Either way the text only lands in the composer; the user sends it.
+      const payload = options
+        ? buildTeamWaypointPayload({
+            name: label,
+            lat,
+            lon,
+            waypointType: options.teamWaypointType,
+          })
+        : buildMarkerPayload(lat, lon, label);
+      messageInputRef.current?.appendText(`${payload} `);
     },
     [messageInputRef]
   );

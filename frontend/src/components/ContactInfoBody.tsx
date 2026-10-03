@@ -51,6 +51,9 @@ import { toast } from './ui/sonner';
 import { useDistanceUnit } from '../contexts/DistanceUnitContext';
 import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
 import { createContactGroup, toggleGroupMember } from '../utils/sidebarLayout';
+import { teamBeaconDetails, teamBeaconStatus } from '../utils/teamPayloadText';
+import { TEAM_VESSEL_ICONS, TEAM_VESSEL_TYPES } from '../utils/teamPayloads';
+import type { SearchNavigateTarget } from './SearchView';
 import {
   classifyPowerSource,
   POWER_SOURCE_LABEL_KEY,
@@ -72,8 +75,10 @@ import type {
   PartialNodeResolution,
   PowerSourceOverride,
   RadioConfig,
+  TeamBeaconPoint,
   TelemetryHistoryEntry,
   TelemetryLppSensor,
+  VesselType,
 } from '../types';
 
 /** GPS mini-map for a contact: a single blue marker over a MapSurface with the
@@ -131,6 +136,8 @@ export interface ContactInfoBodyProps {
   fromChannel?: boolean;
   onToggleFavorite: (type: 'channel' | 'contact', id: string) => void;
   onNavigateToChannel?: (channelKey: string) => void;
+  /** Jump to a message in its conversation (beacon history rows). */
+  onNavigateToMessage?: (target: SearchNavigateTarget) => void;
   onSearchMessagesByKey?: (publicKey: string) => void;
   onToggleBlockedKey?: (key: string) => void;
   onToggleBlockedName?: (name: string) => void;
@@ -172,6 +179,7 @@ export function ContactInfoBody({
   fromChannel = false,
   onToggleFavorite,
   onNavigateToChannel,
+  onNavigateToMessage,
   onSearchMessagesByKey,
   onToggleBlockedKey,
   onToggleBlockedName,
@@ -698,6 +706,14 @@ export function ContactInfoBody({
       )}
 
       {show('network') && <ContactPositionsSection publicKey={contact.public_key} t={t} />}
+
+      {show('network') && (
+        <ContactBeaconHistorySection
+          publicKey={contact.public_key}
+          t={t}
+          onNavigateToMessage={onNavigateToMessage}
+        />
+      )}
 
       {show('network') && !isRepeater && (
         <>
@@ -1234,6 +1250,105 @@ function ContactPositionsSection({ publicKey, t }: { publicKey: string; t: TFn }
   );
 }
 
+// Beacon history rows shown before "Show all".
+const BEACON_HISTORY_PREVIEW = 10;
+
+/**
+ * MeshCore TEAM position beacons (#TEL: / #T:) this contact sent in followed
+ * channels, newest first. Read-only; renders nothing for a node that never
+ * sent one, so the section only exists for TEAM / signalk-meshcore nodes.
+ */
+export function ContactBeaconHistorySection({
+  publicKey,
+  t,
+  onNavigateToMessage,
+}: {
+  publicKey: string;
+  t: TFn;
+  onNavigateToMessage?: (target: SearchNavigateTarget) => void;
+}) {
+  const coordinateFormat = useCoordinateFormat();
+  const [beacons, setBeacons] = useState<TeamBeaconPoint[]>([]);
+  const [showAll, setShowAll] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setBeacons([]);
+    setShowAll(false);
+    api
+      .getTeamBeacons({ senderKey: publicKey, latestPerSender: false })
+      .then((res) => {
+        if (!cancelled) setBeacons(res.beacons);
+      })
+      .catch(() => {
+        if (!cancelled) setBeacons([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [publicKey]);
+
+  if (beacons.length === 0) return null;
+  const visible = showAll ? beacons : beacons.slice(0, BEACON_HISTORY_PREVIEW);
+  return (
+    <div className="px-5 py-3 border-b border-border" data-testid="contact-beacons">
+      <SectionLabel>{t('contact_beacons_heading')}</SectionLabel>
+      <p className="text-xs text-muted-foreground mb-1">{t('contact_beacons_note')}</p>
+      <div className="space-y-1.5">
+        {visible.map((beacon) => {
+          const channel = beacon.conversation_name || beacon.conversation_key.slice(0, 12);
+          const details = teamBeaconDetails(teamBeaconStatus(beacon), t);
+          return (
+            <div key={beacon.message_id} className="text-sm" data-testid="contact-beacon-row">
+              <div className="flex justify-between items-center gap-2">
+                <span className="font-mono truncate">
+                  {formatCoordinates(beacon.lat, beacon.lon, coordinateFormat, 5)}
+                </span>
+                <span className="text-xs text-muted-foreground flex-shrink-0">
+                  {formatTime(beacon.received_at)}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                {details.map((detail, index) => (
+                  <span key={index}>{detail}</span>
+                ))}
+                <span>{channel}</span>
+                {onNavigateToMessage && (
+                  <button
+                    type="button"
+                    className="text-primary underline hover:text-primary/80"
+                    onClick={() =>
+                      onNavigateToMessage({
+                        id: beacon.message_id,
+                        type: 'CHAN',
+                        conversation_key: beacon.conversation_key,
+                        conversation_name: channel,
+                      })
+                    }
+                  >
+                    {t('map_shared_locations_open_in_chat')}
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {beacons.length > BEACON_HISTORY_PREVIEW && (
+        <button
+          type="button"
+          className="mt-1 text-xs text-primary underline hover:text-primary/80"
+          onClick={() => setShowAll((all) => !all)}
+        >
+          {showAll
+            ? t('contact_beacons_show_fewer')
+            : t('contact_beacons_show_all', { count: beacons.length })}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function ResolveNameButton({ publicKey, t }: { publicKey: string; t: TFn }) {
   const [busy, setBusy] = useState(false);
   const run = async () => {
@@ -1299,6 +1414,7 @@ function ContactAnnotations({
   );
   const [batteryChemistry, setBatteryChemistry] = useState(contact.battery_chemistry ?? '');
   const [powerSource, setPowerSource] = useState(contact.power_source ?? '');
+  const [vesselType, setVesselType] = useState(contact.vessel_type ?? '');
 
   // Re-seed local state when the pane switches contact or the row updates over WS.
   useEffect(() => {
@@ -1309,6 +1425,7 @@ function ContactAnnotations({
     setManualLon(contact.manual_lon != null ? String(contact.manual_lon) : '');
     setBatteryChemistry(contact.battery_chemistry ?? '');
     setPowerSource(contact.power_source ?? '');
+    setVesselType(contact.vessel_type ?? '');
   }, [
     contact.public_key,
     contact.notes,
@@ -1318,6 +1435,7 @@ function ContactAnnotations({
     contact.manual_lon,
     contact.battery_chemistry,
     contact.power_source,
+    contact.vessel_type,
   ]);
 
   const ownerContact = ownerKey ? (contacts.find((c) => c.public_key === ownerKey) ?? null) : null;
@@ -1568,6 +1686,34 @@ function ContactAnnotations({
         <p className="text-xs text-muted-foreground mt-1">
           {t('contact_power_source_description')}
         </p>
+      </div>
+
+      {/* Vessel type (null = none): icon of this contact's TEAM beacons on the map */}
+      <div>
+        <label
+          htmlFor={`vessel-type-${contact.public_key}`}
+          className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium block mb-1"
+        >
+          {t('contact_vessel_type_label')}
+        </label>
+        <select
+          id={`vessel-type-${contact.public_key}`}
+          className="w-full text-sm rounded border border-border bg-background p-2"
+          value={vesselType}
+          onChange={(e) => {
+            const value = e.target.value as '' | VesselType;
+            setVesselType(value);
+            save({ vessel_type: value === '' ? null : value });
+          }}
+        >
+          <option value="">{t('contact_vessel_type_none')}</option>
+          {TEAM_VESSEL_TYPES.map((value) => (
+            <option key={value} value={value}>
+              {TEAM_VESSEL_ICONS[value]} {t(`vessel_type_${value}`)}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-muted-foreground mt-1">{t('contact_vessel_type_description')}</p>
       </div>
     </div>
   );
