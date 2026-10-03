@@ -17,6 +17,7 @@ from app.models import (
     MentionSoundMeta,
     SidebarFavoriteSortOrders,
     SidebarHidden,
+    TeamBeaconSettings,
 )
 from app.path_utils import bucket_path_hash_widths, bucket_region_scope, parse_packet_envelope
 from app.telemetry_interval import DEFAULT_TELEMETRY_INTERVAL_HOURS
@@ -65,7 +66,7 @@ class AppSettingsRepository:
                    chat_parse_pubkeys, chat_parse_coordinates,
                    chat_url_previews, chat_linkify_urls,
                    registry_sync_url, region_sync_url,
-                   wordlist_sync_url, analyzer_sites, handy_info,
+                   wordlist_sync_url, analyzer_sites, handy_info, team_beacon,
                    external_map_enabled, external_map_sync_url,
                    external_map_sync_interval_hours,
                    backup_to_path_enabled, backup_destination_path,
@@ -394,6 +395,16 @@ class AppSettingsRepository:
         except (json.JSONDecodeError, TypeError, KeyError, ValueError):
             handy_info = HandyInfoSettings()
 
+        # Parse team_beacon JSON (migration _128 adds the column with default
+        # '{}'). Malformed content degrades to the default: beacon off.
+        team_beacon = TeamBeaconSettings()
+        try:
+            raw_team_beacon = row["team_beacon"]
+            if raw_team_beacon:
+                team_beacon = TeamBeaconSettings.model_validate(json.loads(raw_team_beacon))
+        except (json.JSONDecodeError, TypeError, KeyError, IndexError, ValueError):
+            team_beacon = TeamBeaconSettings()
+
         # External-map overlay settings (migration _076 adds the columns).
         try:
             external_map_enabled = bool(row["external_map_enabled"])
@@ -547,6 +558,7 @@ class AppSettingsRepository:
             wordlist_sync_url=wordlist_sync_url,
             analyzer_sites=analyzer_sites,
             handy_info=handy_info,
+            team_beacon=team_beacon,
             external_map_enabled=external_map_enabled,
             external_map_sync_url=external_map_sync_url,
             external_map_sync_interval_hours=external_map_sync_interval_hours,
@@ -628,6 +640,7 @@ class AppSettingsRepository:
         wordlist_sync_url: str | None = None,
         analyzer_sites: list[AnalyzerSite] | None = None,
         handy_info: HandyInfoSettings | None = None,
+        team_beacon: TeamBeaconSettings | None = None,
         external_map_enabled: bool | None = None,
         external_map_sync_url: str | None = None,
         external_map_sync_interval_hours: int | None = None,
@@ -865,6 +878,10 @@ class AppSettingsRepository:
             updates.append("handy_info = ?")
             params.append(json.dumps(handy_info.model_dump()))
 
+        if team_beacon is not None:
+            updates.append("team_beacon = ?")
+            params.append(json.dumps(team_beacon.model_dump()))
+
         if external_map_enabled is not None:
             updates.append("external_map_enabled = ?")
             params.append(1 if external_map_enabled else 0)
@@ -987,6 +1004,7 @@ class AppSettingsRepository:
         wordlist_sync_url: str | None = None,
         analyzer_sites: list[AnalyzerSite] | None = None,
         handy_info: HandyInfoSettings | None = None,
+        team_beacon: TeamBeaconSettings | None = None,
         external_map_enabled: bool | None = None,
         external_map_sync_url: str | None = None,
         external_map_sync_interval_hours: int | None = None,
@@ -1066,6 +1084,7 @@ class AppSettingsRepository:
                 wordlist_sync_url=wordlist_sync_url,
                 analyzer_sites=analyzer_sites,
                 handy_info=handy_info,
+                team_beacon=team_beacon,
                 external_map_enabled=external_map_enabled,
                 external_map_sync_url=external_map_sync_url,
                 external_map_sync_interval_hours=external_map_sync_interval_hours,

@@ -113,6 +113,11 @@ class ContactUpsert(BaseModel):
         )
 
 
+# Vessel types a contact can be given by hand. A MeshCore TEAM / signalk-meshcore
+# beacon carries no vessel or AIS type, so this is never detected.
+VesselType = Literal["sailing", "motor", "fishing", "cargo", "passenger", "tug", "sar", "other"]
+
+
 class Contact(BaseModel):
     public_key: str = Field(description="Public key (64-char hex)")
     name: str | None = None
@@ -138,6 +143,8 @@ class Contact(BaseModel):
     battery_chemistry: Literal["lipo", "lifepo4", "lipo_hv", "nmc"] | None = None
     # Per-node power source override; None = auto (frontend detects it from the name).
     power_source: Literal["mains", "battery", "solar", "solar_battery", "unknown"] | None = None
+    # Hand-set vessel type; picks the icon of this contact's MeshCore TEAM beacons on the map.
+    vessel_type: VesselType | None = None
     last_contacted: int | None = None  # Last time we sent/received a message
     last_read_at: int | None = None  # Server-side read state tracking
     first_seen: int | None = None
@@ -318,6 +325,10 @@ class ContactAnnotationsUpdate(BaseModel):
     power_source: Literal["mains", "battery", "solar", "solar_battery", "unknown"] | None = Field(
         default=None,
         description="Per-node power source override; null detects it from the node name",
+    )
+    vessel_type: VesselType | None = Field(
+        default=None,
+        description="Hand-set vessel type for the map's beacon icon; null clears it",
     )
 
 
@@ -758,6 +769,72 @@ class SharedLocationsResponse(BaseModel):
     scanned: int = Field(description="Messages examined in the window")
     truncated: bool = Field(
         description="True when the window held more messages than the scan limit (oldest skipped)"
+    )
+
+
+class TeamBeaconPoint(BaseModel):
+    """A MeshCore TEAM position beacon (``#TEL:`` / ``#T:``) from a channel message."""
+
+    message_id: int
+    conversation_key: str = Field(description="Channel key")
+    conversation_name: str | None = Field(default=None, description="Channel name, when known")
+    sender_key: str | None = None
+    sender_name: str | None = Field(default=None, description="Channel sender name")
+    outgoing: bool = False
+    received_at: int
+    sender_timestamp: int | None = None
+    kind: Literal["tel", "topology"] = Field(description="tel: #TEL: beacon; topology: #T: beacon")
+    source: Literal["team", "signalk"] = Field(
+        description="signalk: a #TEL: with forwarding status 0, as signalk-meshcore sends"
+    )
+    lat: float
+    lon: float
+    radio_battery_mv: int | None = None
+    phone_battery_mv: int | None = None
+    phone_battery_pct: int | None = Field(default=None, description="signalk-meshcore only")
+    autonomous: bool = Field(default=False, description="Radio tracking without a phone")
+    needs_forwarding: bool | None = Field(default=None, description="TEAM #TEL: only")
+    max_path_observed: int | None = Field(default=None, description="TEAM #TEL: only")
+    node_count: int | None = Field(default=None, description="#T: only: sender's known nodes")
+    neighbor_count: int | None = Field(
+        default=None, description="#T: only: nodes the sender hears directly"
+    )
+    paths: list[MessagePath] | None = None
+
+
+class TeamWaypointPin(BaseModel):
+    """A MeshCore TEAM waypoint or route (``#WAY:``) from a channel message."""
+
+    message_id: int
+    conversation_key: str = Field(description="Channel key")
+    conversation_name: str | None = Field(default=None, description="Channel name, when known")
+    sender_key: str | None = None
+    sender_name: str | None = Field(default=None, description="Channel sender name")
+    outgoing: bool = False
+    received_at: int
+    sender_timestamp: int | None = None
+    mesh_id: str | None = None
+    name: str
+    description: str = ""
+    waypoint_type: str = Field(description="As sent, e.g. CAMP, WATER, ROUTE")
+    color: str | None = Field(default=None, description="Route colour as #rrggbb")
+    lat: float
+    lon: float
+    route: list[tuple[float, float]] = Field(
+        default_factory=list, description="(lat, lon) points; empty unless every part arrived"
+    )
+    route_complete: bool = Field(
+        default=True, description="False when a multi-part route is missing parts"
+    )
+    paths: list[MessagePath] | None = None
+
+
+class TeamBeaconsResponse(BaseModel):
+    beacons: list[TeamBeaconPoint] = Field(description="Newest first")
+    waypoints: list[TeamWaypointPin] = Field(description="Newest first, one per waypoint")
+    scanned: int = Field(description="Candidate messages examined in the window")
+    truncated: bool = Field(
+        description="True when the window held more candidates than the scan limit (oldest skipped)"
     )
 
 
@@ -1696,6 +1773,21 @@ RETENTION_DEFAULTS: dict[str, int] = {
 }
 
 
+class TeamBeaconSettings(BaseModel):
+    """Periodic MeshCore TEAM ``#TEL:`` position beacon sent by this radio.
+
+    Off by default. When enabled, the radio's own advertised position is sent
+    on one private channel every ``interval_seconds``. TEAM treats a peer it has
+    not heard for 5 minutes as stale, hence the default below that.
+    """
+
+    enabled: bool = False
+    channel_key: str = Field(
+        default="", description="Key (32 hex) of the private channel to send on"
+    )
+    interval_seconds: int = Field(default=240, ge=60, le=3600)
+
+
 class AppSettings(BaseModel):
     """Application settings stored in the database."""
 
@@ -2023,6 +2115,10 @@ class AppSettings(BaseModel):
             "User-configured external analyzer sites for client-side node/packet "
             "deep-link lookups (name + URL templates). Empty by default."
         ),
+    )
+    team_beacon: TeamBeaconSettings = Field(
+        default_factory=TeamBeaconSettings,
+        description="Periodic MeshCore TEAM #TEL: position beacon. Off by default.",
     )
     handy_info: HandyInfoSettings = Field(
         default_factory=HandyInfoSettings,

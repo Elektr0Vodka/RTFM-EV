@@ -35,6 +35,7 @@ import { buildMentionEvent, type MentionEvent } from './components/MentionTicker
 import { getStateKey } from './utils/conversationState';
 import { isConversationSoundMuted, toggleConversationSoundMuted } from './lib/mentionSoundMute';
 import { getContactDisplayName } from './utils/pubkey';
+import type { SearchNavigateTarget } from './components/SearchView';
 import type {
   BulkCreateHashtagChannelsResult,
   Channel,
@@ -905,6 +906,7 @@ export function App() {
     blockedNames: appSettings?.blocked_names,
     contactInfoViewProps: {
       onNavigateToChannel: handleNavigateToChannel,
+      onNavigateToMessage: handleNavigateToMessage,
       onSearchMessagesByKey: (publicKey: string) => {
         handleOpenSearchWithQuery(`user:${publicKey}`);
       },
@@ -991,6 +993,10 @@ export function App() {
     config,
     onToggleFavorite: handleToggleFavorite,
     onNavigateToChannel: handleNavigateToChannel,
+    onNavigateToMessage: (target: SearchNavigateTarget) => {
+      handleCloseContactInfo();
+      handleNavigateToMessage(target);
+    },
     onSearchMessagesByKey: (publicKey: string) => {
       handleOpenSearchWithQuery(`user:${publicKey}`);
     },

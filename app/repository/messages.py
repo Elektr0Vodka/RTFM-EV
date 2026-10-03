@@ -1,7 +1,7 @@
 import json
 import re
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -698,12 +698,15 @@ class MessageRepository:
         limit: int,
         blocked_keys: list[str] | None = None,
         blocked_names: list[str] | None = None,
+        msg_type: str | None = None,
+        text_contains_any: Sequence[str] | None = None,
     ) -> list[tuple["Message", str | None]]:
         """Messages of every conversation received in (since, until], newest first.
 
         Each comes with its conversation's name (channel name or contact name,
         None when unknown). Lower bound exclusive, upper inclusive (the map's
-        window convention). ``packet_id`` is not looked up.
+        window convention). ``packet_id`` is not looked up. ``msg_type`` and
+        ``text_contains_any`` (case-sensitive substrings, any one) narrow the rows.
         """
         query = (
             "SELECT messages.*, COALESCE(channels.name, contacts.name) AS conversation_name "
@@ -721,6 +724,13 @@ class MessageRepository:
         if blocked_clause:
             query += f" AND {blocked_clause}"
             params.extend(blocked_params)
+        if msg_type is not None:
+            query += " AND messages.type = ?"
+            params.append(msg_type)
+        if text_contains_any:
+            matchers = " OR ".join("instr(messages.text, ?) > 0" for _ in text_contains_any)
+            query += f" AND ({matchers})"
+            params.extend(text_contains_any)
         if since is not None:
             query += " AND messages.received_at > ?"
             params.append(since)

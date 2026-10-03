@@ -17,6 +17,7 @@ import type {
   MessagePath,
   RadioConfig,
   RawPacket,
+  VesselType,
 } from '../types';
 import { buildChannelLookupUrl, buildNodeLookupUrl } from '../utils/analyzerLink';
 import { CONTACT_TYPE_ROOM, TXT_TYPE_GROUP_DATA } from '../types';
@@ -37,7 +38,24 @@ import {
   parseMarker,
   type ParsedMarker,
 } from '../utils/meshcoreOpenPayloads';
-import { FileQuestion, ImageOff, ListFilter, MapPin } from 'lucide-react';
+import {
+  parseTeamPayload,
+  teamBeaconIcon,
+  teamWaypointIcon,
+  type TeamCapabilityPayload,
+  type TeamPayload,
+} from '../utils/teamPayloads';
+import { teamBeaconDetails, teamWaypointTypeName } from '../utils/teamPayloadText';
+import {
+  FileQuestion,
+  ImageOff,
+  ListFilter,
+  MapPin,
+  MapPinOff,
+  Megaphone,
+  Radio,
+  Route,
+} from 'lucide-react';
 import { useRichPayloads } from '../contexts/RichPayloadContext';
 import { useLocationPreview } from '../contexts/LocationPreviewContext';
 import { usePathHopWidth } from '../contexts/PathHopWidthContext';
@@ -190,11 +208,17 @@ const UrlPreviewCard = lazy(() =>
 function MarkerMessage({
   marker,
   sourceText,
+  mapLabel,
+  details,
   onCoordinateClick,
 }: {
   marker: ParsedMarker;
   /** Original text when it differs from the shown position (an MGRS reference). */
   sourceText?: string;
+  /** Label handed to the map when it differs from the card's (default: the marker label). */
+  mapLabel?: string;
+  /** Extra lines shown under the card, above the map preview. */
+  details?: ReactNode;
   onCoordinateClick?: (lat: number, lon: number, label: string) => void;
 }) {
   const t = useT();
@@ -217,7 +241,7 @@ function MarkerMessage({
     <button
       type="button"
       className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/50 px-2 py-1 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      onClick={() => onCoordinateClick(marker.lat, marker.lon, marker.label)}
+      onClick={() => onCoordinateClick(marker.lat, marker.lon, mapLabel ?? marker.label)}
       title={t('chat_location_show_on_map')}
       aria-label={t('chat_location_show_on_map_aria', { place: marker.label || coords })}
     >
@@ -228,12 +252,22 @@ function MarkerMessage({
   );
 
   if (!showLocationPreview) {
-    return card;
+    return details ? (
+      <span className="inline-flex flex-col items-start gap-1">
+        {card}
+        {details}
+      </span>
+    ) : (
+      card
+    );
   }
 
   return (
     <span className="flex w-full max-w-sm flex-col gap-1">
-      {card}
+      <span className="inline-flex flex-col items-start gap-1">
+        {card}
+        {details}
+      </span>
       <Suspense
         fallback={
           <div className="mt-1 h-[140px] rounded border border-border bg-muted/30 animate-pulse" />
@@ -246,6 +280,152 @@ function MarkerMessage({
         />
       </Suspense>
     </span>
+  );
+}
+
+// Status phrases under a MeshCore TEAM card.
+function TeamDetails({ items }: { items: string[] }) {
+  if (items.length === 0) return null;
+  return (
+    <span
+      className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-muted-foreground"
+      data-testid="team-payload-details"
+    >
+      {items.map((item, index) => (
+        <span key={index}>{item}</span>
+      ))}
+    </span>
+  );
+}
+
+// A MeshCore TEAM payload with no position to show: a titled card with details.
+function TeamInfoCard({ icon, title, items }: { icon: ReactNode; title: string; items: string[] }) {
+  return (
+    <span
+      className="inline-flex flex-col gap-0.5 rounded-md border border-border bg-background/50 px-2 py-1"
+      data-testid="team-payload-card"
+    >
+      <span className="inline-flex items-center gap-1.5 font-medium">
+        {icon}
+        {title}
+      </span>
+      <TeamDetails items={items} />
+    </span>
+  );
+}
+
+function teamCapabilityDetails(capability: TeamCapabilityPayload, t: TFn): string[] {
+  const items: string[] = [];
+  if (capability.alias) items.push(t('team_cap_alias', { alias: capability.alias }));
+  if (capability.customFirmware) items.push(t('team_cap_custom_firmware'));
+  if (capability.forwardingCapable) items.push(t('team_cap_forwarding'));
+  if (capability.autonomousEnabled) items.push(t('team_cap_autonomous_enabled'));
+  else if (capability.autonomousCapable) items.push(t('team_cap_autonomous_capable'));
+  if (capability.smartForwardingActive) items.push(t('team_cap_smart_forwarding'));
+  return items;
+}
+
+// Renders a MeshCore TEAM payload (see utils/teamPayloads.ts). Beacons with a
+// fix and waypoints reuse the location card, so they get the same map preview;
+// the rest are small info cards instead of raw "#CAP:..." text.
+function TeamPayloadMessage({
+  payload,
+  senderName,
+  vesselType,
+  onCoordinateClick,
+}: {
+  payload: TeamPayload;
+  senderName: string | null;
+  /** Vessel type set by hand on the sending contact, if any. */
+  vesselType?: VesselType | null;
+  onCoordinateClick?: (lat: number, lon: number, label: string) => void;
+}) {
+  const t = useT();
+  const iconClass = 'h-4 w-4 flex-shrink-0';
+  switch (payload.type) {
+    case 'beacon': {
+      const name = t(payload.kind === 'topology' ? 'team_topology_beacon' : 'team_beacon');
+      const title = `${teamBeaconIcon(payload, vesselType)} ${name}`;
+      const items = teamBeaconDetails(payload, t);
+      if (payload.lat === null || payload.lon === null) {
+        return (
+          <TeamInfoCard
+            icon={<MapPinOff className={iconClass} aria-hidden="true" />}
+            title={title}
+            items={[t('team_no_fix'), ...items]}
+          />
+        );
+      }
+      return (
+        <MarkerMessage
+          marker={{ lat: payload.lat, lon: payload.lon, label: title, flags: '' }}
+          mapLabel={senderName ?? name}
+          details={<TeamDetails items={items} />}
+          onCoordinateClick={onCoordinateClick}
+        />
+      );
+    }
+    case 'waypoint': {
+      const items = [teamWaypointTypeName(payload.waypointType, t)];
+      if (payload.description) items.push(payload.description);
+      if (payload.partNum !== null && payload.totalParts !== null) {
+        items.push(t('team_route_part', { part: payload.partNum, total: payload.totalParts }));
+      }
+      const label = `${teamWaypointIcon(payload.waypointType)} ${payload.name}`;
+      return (
+        <MarkerMessage
+          marker={{ lat: payload.lat, lon: payload.lon, label, flags: '' }}
+          mapLabel={payload.name}
+          details={<TeamDetails items={items} />}
+          onCoordinateClick={onCoordinateClick}
+        />
+      );
+    }
+    case 'routePart':
+      return (
+        <TeamInfoCard
+          icon={<Route className={iconClass} aria-hidden="true" />}
+          title={t('team_route_part', { part: payload.partNum, total: payload.totalParts })}
+          items={[]}
+        />
+      );
+    case 'capability':
+      return (
+        <TeamInfoCard
+          icon={<Radio className={iconClass} aria-hidden="true" />}
+          title={t('team_capabilities')}
+          items={teamCapabilityDetails(payload, t)}
+        />
+      );
+    case 'capabilityRequest':
+      return (
+        <TeamInfoCard
+          icon={<Megaphone className={iconClass} aria-hidden="true" />}
+          title={t('team_advert_request', { name: payload.targetRadioName })}
+          items={[]}
+        />
+      );
+  }
+}
+
+// A MeshCore TEAM payload as its card, or null. Always on: unlike GIFs these
+// cards load nothing from outside, so they do not wait for the rich-payload
+// preference.
+function renderTeamPayload(
+  content: string,
+  senderName: string | null,
+  vesselType: VesselType | null | undefined,
+  onCoordinateClick?: (lat: number, lon: number, label: string) => void
+): ReactNode | null {
+  const payload = parseTeamPayload(content);
+  if (!payload) return null;
+  return (
+    <TeamPayloadMessage
+      payload={payload}
+      senderName={senderName}
+      vesselType={vesselType}
+      onCoordinateClick={onCoordinateClick}
+    />
   );
 }
 
@@ -1786,13 +1966,19 @@ export function MessageList({
             const richPayload =
               msg.txt_type === TXT_TYPE_GROUP_DATA
                 ? renderGroupDataPlaceholder(content, t)
-                : renderRichPayloads
-                  ? renderMeshcoreOpenPayload(content, radioName, hashtagCtx, onCoordinateClick, {
-                      messageId: msg.id,
-                      onJumpToMessage: jumpToMessage,
-                      analyzerLookup: reactionAnalyzerLookup,
-                    })
-                  : null;
+                : (renderTeamPayload(
+                    content,
+                    msg.sender_name || sender,
+                    msg.type === 'CHAN' ? getContact(msg.sender_key)?.vessel_type : null,
+                    onCoordinateClick
+                  ) ??
+                  (renderRichPayloads
+                    ? renderMeshcoreOpenPayload(content, radioName, hashtagCtx, onCoordinateClick, {
+                        messageId: msg.id,
+                        onJumpToMessage: jumpToMessage,
+                        analyzerLookup: reactionAnalyzerLookup,
+                      })
+                    : null));
             const previewUrl = showUrlPreviews && !richPayload ? firstUrlIn(content) : null;
             const directSenderName =
               msg.type === 'PRIV' && isRoomServer ? msg.sender_name || null : null;

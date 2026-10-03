@@ -91,6 +91,7 @@ import type {
   MessagesAroundResponse,
   ReactionTargetResponse,
   SharedLocationsResponse,
+  TeamBeaconsResponse,
   RawPacket,
   RadioAdvertMode,
   RadioConfig,
@@ -674,6 +675,22 @@ export const api = {
     }
     const query = qs.toString();
     return fetchJson<SharedLocationsResponse>(`/messages/locations${query ? `?${query}` : ''}`, {
+      signal,
+    });
+  },
+  getTeamBeacons: (
+    params: { since?: number; until?: number; latestPerSender?: boolean; senderKey?: string },
+    signal?: AbortSignal
+  ) => {
+    const qs = new URLSearchParams();
+    if (params.since !== undefined) qs.set('since', String(params.since));
+    if (params.until !== undefined) qs.set('until', String(params.until));
+    if (params.latestPerSender !== undefined) {
+      qs.set('latest_per_sender', String(params.latestPerSender));
+    }
+    if (params.senderKey !== undefined) qs.set('sender_key', params.senderKey);
+    const query = qs.toString();
+    return fetchJson<TeamBeaconsResponse>(`/messages/beacons${query ? `?${query}` : ''}`, {
       signal,
     });
   },

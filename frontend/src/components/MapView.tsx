@@ -12,6 +12,7 @@ import {
   HelpCircle,
   Signal,
   BatteryCharging,
+  Navigation,
 } from 'lucide-react';
 import type {
   AdvertLinkEdge,
@@ -99,6 +100,7 @@ import {
 } from '../utils/powerSource';
 import { computeWrongLocationKeys } from '../map/wrongLocation';
 import { useSharedLocations } from '../map/useSharedLocations';
+import { useTeamBeacons } from '../map/useTeamBeacons';
 import { useGuessedLocations } from '../map/useGuessedLocations';
 import { useRelaySignal } from '../map/useRelaySignal';
 import { useDistanceUnit } from '../contexts/DistanceUnitContext';
@@ -526,6 +528,17 @@ export function MapView({
   // Off = newest share per sender; on = every share in the window.
   const [sharedLocationsAll, setSharedLocationsAll] = usePersistedMapSetting(
     'remoteterm-map-shared-locations-all',
+    false,
+    isBool
+  );
+  const [showBeacons, setShowBeacons] = usePersistedMapSetting(
+    'remoteterm-map-beacons',
+    false,
+    isBool
+  );
+  // Off = newest beacon per sender; on = every beacon in the window, as a track.
+  const [beaconTrails, setBeaconTrails] = usePersistedMapSetting(
+    'remoteterm-map-beacons-trails',
     false,
     isBool
   );
@@ -1607,6 +1620,25 @@ export function MapView({
   });
 
   const {
+    attach: attachTeamBeacons,
+    reattach: reattachTeamBeacons,
+    senderCount: beaconSenderCount,
+    waypointCount: beaconWaypointCount,
+    truncated: beaconsTruncated,
+  } = useTeamBeacons({
+    enabled: showBeacons,
+    trails: beaconTrails,
+    since: sinceCutoffSec,
+    until: sinceUntilSec,
+    contacts,
+    config,
+    distanceUnit,
+    coordinateFormat,
+    onNavigateToMessage,
+    onOpenContactInfo,
+  });
+
+  const {
     attach: attachGuessedLocations,
     reattach: reattachGuessedLocations,
     guesses: guessedLocations,
@@ -1670,6 +1702,8 @@ export function MapView({
       attachRelaySignal(map);
       // Chat location shares sit above the nodes so their pins stay clickable.
       attachSharedLocations(map);
+      // TEAM beacons and waypoints, above the nodes for the same reason.
+      attachTeamBeacons(map);
       // Guessed locations sit above real nodes too, and above shared-location
       // pins, so a guess marker is never obscured by a real one.
       attachGuessedLocations(map);
@@ -1754,6 +1788,7 @@ export function MapView({
     externalRef.current?.reattach();
     externalRef.current?.setData(visibleExternalRef.current);
     reattachSharedLocations();
+    reattachTeamBeacons();
     reattachGuessedLocations();
     reattachRelaySignal();
   }, [
@@ -1764,6 +1799,7 @@ export function MapView({
     telemetryOn,
     latestTelemetry,
     reattachSharedLocations,
+    reattachTeamBeacons,
     reattachGuessedLocations,
     reattachRelaySignal,
   ]);
@@ -2282,6 +2318,42 @@ export function MapView({
         ),
       },
       {
+        id: 'beacons',
+        label: t('map_beacons_label'),
+        icon: <Navigation size={20} aria-hidden />,
+        panel: (
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={showBeacons}
+                onChange={(e) => setShowBeacons(e.target.checked)}
+              />
+              {t('map_beacons_enable')}
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={beaconTrails}
+                disabled={!showBeacons}
+                onChange={(e) => setBeaconTrails(e.target.checked)}
+              />
+              {t('map_beacons_trails')}
+            </label>
+            <p className="text-xs text-muted-foreground">{t('map_beacons_help')}</p>
+            {showBeacons && (
+              <p className="text-xs text-muted-foreground" aria-live="polite">
+                {t('map_beacons_count', {
+                  senders: beaconSenderCount,
+                  waypoints: beaconWaypointCount,
+                })}
+                {beaconsTruncated && ` ${t('map_beacons_truncated')}`}
+              </p>
+            )}
+          </div>
+        ),
+      },
+      {
         id: 'relay-signal',
         label: t('map_relay_signal_label'),
         icon: <Signal size={20} aria-hidden />,
@@ -2359,8 +2431,15 @@ export function MapView({
     sharedLocationsAll,
     sharedLocations.length,
     sharedLocationsTruncated,
+    showBeacons,
+    beaconTrails,
+    beaconSenderCount,
+    beaconWaypointCount,
+    beaconsTruncated,
     setShowSharedLocations,
     setSharedLocationsAll,
+    setShowBeacons,
+    setBeaconTrails,
     showGuessedLocations,
     guessedLocations.length,
     setShowGuessedLocations,

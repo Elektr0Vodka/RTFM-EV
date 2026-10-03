@@ -981,7 +981,7 @@ def _own_radio_public_key() -> str | None:
 @router.post("/{public_key}/annotations")
 async def set_contact_annotations(public_key: str, request: ContactAnnotationsUpdate) -> dict:
     """Update user-editable annotations (notes, owner info, owner pubkey, manual GPS,
-    battery chemistry override, power source override).
+    battery chemistry override, power source override, vessel type).
 
     Only fields explicitly present in the request body are changed; a field sent
     as ``null`` clears it. ``owner_key`` must reference an existing contact or be
@@ -991,6 +991,8 @@ async def set_contact_annotations(public_key: str, request: ContactAnnotationsUp
     in Settings.
     Clearing ``power_source`` (null) reverts the node to auto-detection from its
     name.
+    ``vessel_type`` is never detected (TEAM beacons carry none); it only picks
+    the icon of this contact's beacons on the map.
     """
     contact = await _resolve_contact_or_404(public_key)
 

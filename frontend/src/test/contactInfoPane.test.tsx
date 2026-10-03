@@ -21,6 +21,9 @@ vi.mock('../api', () => ({
     contactTelemetryHistory,
     updateContactAnnotations,
     contactLocationHistory: vi.fn().mockResolvedValue([]),
+    getTeamBeacons: vi
+      .fn()
+      .mockResolvedValue({ beacons: [], waypoints: [], scanned: 0, truncated: false }),
     contactRouteSuggestions: vi.fn().mockResolvedValue({ suggestions: [] }),
     listPartialResolutions: vi.fn().mockResolvedValue([]),
     resolveContactName: vi.fn().mockResolvedValue({
@@ -181,6 +184,31 @@ describe('ContactInfoPane', () => {
     await waitFor(() =>
       expect(updateContactAnnotations).toHaveBeenLastCalledWith(contact.public_key, {
         power_source: null,
+      })
+    );
+  });
+
+  it('saves and clears a vessel type', async () => {
+    const user = userEvent.setup();
+    const contact = createContact({ name: 'Boat' });
+    getContactAnalytics.mockResolvedValue(createAnalytics(contact));
+
+    render(<ContactInfoPane {...baseProps} contactKey={contact.public_key} />);
+
+    const select = await screen.findByLabelText('Vessel type');
+    expect(select).toHaveValue('');
+
+    await user.selectOptions(select, 'sailing');
+    await waitFor(() =>
+      expect(updateContactAnnotations).toHaveBeenCalledWith(contact.public_key, {
+        vessel_type: 'sailing',
+      })
+    );
+
+    await user.selectOptions(select, '');
+    await waitFor(() =>
+      expect(updateContactAnnotations).toHaveBeenLastCalledWith(contact.public_key, {
+        vessel_type: null,
       })
     );
   });

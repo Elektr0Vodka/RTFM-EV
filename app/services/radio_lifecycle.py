@@ -39,6 +39,7 @@ async def run_post_connect_setup(radio_manager) -> None:
         sync_radio_time,
     )
     from app.services.radio_identity import register_connected_radio
+    from app.services.team_beacon_sender import start_team_beacon
 
     if not radio_manager.meshcore:
         return
@@ -295,6 +296,7 @@ async def run_post_connect_setup(radio_manager) -> None:
                 # These tasks acquire their own locks when they need radio access.
                 start_periodic_sync()
                 start_periodic_advert()
+                start_team_beacon()
                 start_message_polling()
                 start_telemetry_collect()
 

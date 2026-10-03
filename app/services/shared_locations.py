@@ -14,7 +14,7 @@ from app.repository import AppSettingsRepository, MessageRepository
 SCAN_LIMIT = 20000
 
 
-def _sender_identity(msg: Message, sender_name: str | None) -> str:
+def sender_identity(msg: Message, sender_name: str | None) -> str:
     # One pin per person: our own shares are one sender; a DM partner is its
     # conversation; channel senders by key when known, else by name.
     if msg.outgoing:
@@ -83,7 +83,7 @@ async def collect_shared_locations(
         if location is None:
             continue
         if latest_per_sender:
-            identity = _sender_identity(msg, location.sender_name)
+            identity = sender_identity(msg, location.sender_name)
             if identity in seen_senders:
                 continue
             seen_senders.add(identity)

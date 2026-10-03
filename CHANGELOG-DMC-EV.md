@@ -11,6 +11,80 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-03 (MeshCore TEAM support, feat/meshcore-team-support)
+
+### Chat: MeshCore TEAM and signalk-meshcore payloads (backend + frontend)
+- Channel messages sent by MeshCore TEAM (tmacinc/MeshCore-TEAM) and
+  signalk-meshcore (Banzarykey/signalk-meshcore) are now parsed.
+  - `#TEL:` position beacon (11 bytes, Base64, padded or not): position,
+    radio battery, phone battery, forwarding status, autonomous flag.
+  - `#T:` topology beacon: position, batteries, known node count and how many
+    of them the sender hears directly (the neighbour bitmap itself is not
+    resolved to nodes).
+  - `#WAY:` waypoints and routes, with the `@C:` colour prefix and multi-part
+    routes continued in `#WRC:` messages.
+  - `#CAP:` capability adverts (v1 and v2) and `#CAP:R:` advert requests.
+- A `#TEL:` with forwarding status 0 is treated as signalk-meshcore (TEAM
+  never sends 0 there): its phone byte is read as a percentage instead of a
+  voltage.
+- In chat these render as cards instead of raw text. Beacons and waypoints use
+  the existing location card, so they get the inline map preview when that
+  preference is on. The cards are always on: they load nothing from outside,
+  so they do not depend on the "Render MeshCore Open GIFs & Reactions"
+  preference. They stay normal messages for unread counts and notifications.
+- Parsers: `app/team_payloads.py` and `frontend/src/utils/teamPayloads.ts`
+  (mirrored, same test vectors).
+
+### Map: Beacons overlay (backend + frontend)
+- New overlay **Beacons** (Map > Overlays, off by default): each sender's
+  newest beacon as a pin, waypoints as pins in a second colour, and routes as
+  lines in the colour TEAM sent. **Trails** draws every beacon of a sender in
+  the map's time window as a dashed track. Pin popups show sender, channel,
+  time, position, batteries, distance, hops and **Open in chat**.
+- Pins carry an icon by type. Beacons: a boat for signalk-meshcore senders, a
+  radio for autonomous TEAM radios, a person for TEAM phone users (the chat
+  cards and popups use the same icons). Waypoints: TEAM's own type icon
+  (camp, meetup, danger, game area, deer stand, water, vehicle, route,
+  custom). The `#TEL:` payload has no vessel or AIS type, so that cannot be
+  detected: see the vessel type below.
+- New endpoint `GET /api/messages/beacons` (`since`, `until`,
+  `latest_per_sender`, `sender_key`): beacons and waypoints from followed
+  channels, derived from stored messages. Multi-part routes are
+  reassembled per sender, channel and mesh id; an incomplete route gets a pin
+  but no line. Beacons without a GPS fix are left out. Blocked senders are
+  skipped. Local view only, never forwarded.
+
+### Contacts: beacon history (frontend)
+- The contact info pane and page show a **Beacon history** section (time,
+  position, status, channel, **Open in chat**) for nodes that sent TEAM
+  beacons in a followed channel. Nodes that never sent one do not get the
+  section.
+- New per-contact **Vessel type** (contact info, next to the power source):
+  sailing vessel, motor boat, fishing vessel, cargo ship, passenger ship, tug,
+  search and rescue, other. Set by hand; it replaces the sender-kind icon of
+  that contact's beacons on the map, in popups and on chat cards. Stored in
+  `contacts.vessel_type` through `POST /api/contacts/{key}/annotations`.
+
+### Sending: TEAM waypoints and an optional position beacon (backend + frontend)
+- **Share location > Pick on map** offers a second format in private channels:
+  **MeshCore TEAM waypoint**, with a waypoint type. It puts a
+  `#WAY:<meshId>|<name>|<lat>|<lon>||<TYPE>|` message in the composer; you
+  still send it yourself. Not offered on the Public channel, hashtag channels
+  or DMs. Routes are not sent.
+- **Settings > Radio-App Management > MeshCore TEAM beacon**: a master toggle
+  (off by default), a private channel and an interval (60 to 3600 s, default
+  240). When on, the radio's own advertised position is sent as a TEAM
+  `#TEL:` message on that channel through the normal channel send path, with
+  the radio battery when known. Nothing is sent without a connected radio and
+  a set position. The Public channel and hashtag channels are refused, both
+  when saving and again before every send. The default interval stays under
+  the 5 minutes after which TEAM treats a node as stale. `#T:` and `#CAP:`
+  are not sent.
+- Setting: `team_beacon` (`enabled`, `channel_key`, `interval_seconds`) in
+  `GET` / `PATCH /api/settings`. Service: `app/services/team_beacon_sender.py`.
+- Migration `_128` adds `contacts.vessel_type` and `app_settings.team_beacon`.
+- Not verified on air: the sender is tested with a mocked send only.
+
 ## Update 2026-10-03 (suggested DM routes for companions, feat/contact-route-suggestions)
 
 ### Contacts: suggested routes (backend + frontend)

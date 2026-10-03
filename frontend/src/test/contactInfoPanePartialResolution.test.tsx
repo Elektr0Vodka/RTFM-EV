@@ -22,6 +22,9 @@ vi.mock('../api', () => ({
     getContactAnalytics,
     contactTelemetryHistory,
     contactLocationHistory: vi.fn().mockResolvedValue([]),
+    getTeamBeacons: vi
+      .fn()
+      .mockResolvedValue({ beacons: [], waypoints: [], scanned: 0, truncated: false }),
     contactRouteSuggestions: vi.fn().mockResolvedValue({ suggestions: [] }),
     listPartialResolutions,
     deletePartialResolution,

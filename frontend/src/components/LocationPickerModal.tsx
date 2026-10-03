@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Marker as MlMarker, type Map as MlMap } from 'maplibre-gl';
 import { isValidLocation } from '../utils/pathUtils';
+import { TEAM_WAYPOINT_TYPES, teamWaypointIcon } from '../utils/teamPayloads';
 import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
 import { Button } from './ui/button';
 import type { Contact } from '../types';
@@ -10,12 +11,20 @@ import { MiniMap } from '../map/MiniMap';
 interface LocationPickerModalProps {
   open: boolean;
   onClose: () => void;
-  onConfirm: (lat: number, lon: number, label: string) => void;
+  /** `options.teamWaypointType` is set when the user chose the MeshCore TEAM format. */
+  onConfirm: (
+    lat: number,
+    lon: number,
+    label: string,
+    options?: { teamWaypointType: string }
+  ) => void;
   contacts: Contact[];
   /** Initial map center and default selected point ([lat, lon]). */
   initialCenter: [number, number];
   /** Prefill for the label field. */
   initialLabel?: string;
+  /** Offer the MeshCore TEAM waypoint format (private channels only). */
+  teamWaypointAllowed?: boolean;
 }
 
 export function LocationPickerModal({
@@ -25,11 +34,15 @@ export function LocationPickerModal({
   contacts,
   initialCenter,
   initialLabel = '',
+  teamWaypointAllowed = false,
 }: LocationPickerModalProps) {
   const t = useT();
   const coordinateFormat = useCoordinateFormat();
   const [selected, setSelected] = useState<[number, number]>(initialCenter); // [lat, lon]
   const [label, setLabel] = useState(initialLabel);
+  const [format, setFormat] = useState<'marker' | 'team'>('marker');
+  const [waypointType, setWaypointType] = useState('custom');
+  const asTeamWaypoint = teamWaypointAllowed && format === 'team';
   const mapRef = useRef<MlMap | null>(null);
   const selMarkerRef = useRef<MlMarker | null>(null);
 
@@ -142,11 +155,46 @@ export function LocationPickerModal({
             placeholder={t('location_picker_label_placeholder')}
           />
         </label>
+        {teamWaypointAllowed && (
+          <label className="flex flex-col gap-1 text-sm">
+            <span>{t('location_picker_format_field')}</span>
+            <select
+              value={format}
+              onChange={(e) => setFormat(e.target.value as 'marker' | 'team')}
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="marker">{t('location_picker_format_marker')}</option>
+              <option value="team">{t('location_picker_format_team')}</option>
+            </select>
+          </label>
+        )}
+        {asTeamWaypoint && (
+          <label className="flex flex-col gap-1 text-sm">
+            <span>{t('location_picker_team_type_field')}</span>
+            <select
+              value={waypointType}
+              onChange={(e) => setWaypointType(e.target.value)}
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              {TEAM_WAYPOINT_TYPES.filter((type) => type !== 'route').map((type) => (
+                <option key={type} value={type}>
+                  {teamWaypointIcon(type)} {t(`team_waypoint_type_${type}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={onClose}>
             {t('common_cancel')}
           </Button>
-          <Button onClick={() => onConfirm(selected[0], selected[1], label)}>
+          <Button
+            onClick={() =>
+              asTeamWaypoint
+                ? onConfirm(selected[0], selected[1], label, { teamWaypointType: waypointType })
+                : onConfirm(selected[0], selected[1], label)
+            }
+          >
             {t('location_picker_insert_button')}
           </Button>
         </div>

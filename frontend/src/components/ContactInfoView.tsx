@@ -1,3 +1,4 @@
+import type { SearchNavigateTarget } from './SearchView';
 import { useState } from 'react';
 import { Bell, ChevronDown, ChevronLeft, ChevronUp, Lock, Route, Trash2 } from 'lucide-react';
 
@@ -30,6 +31,7 @@ export interface ContactInfoViewProps {
   onBack: () => void;
   onToggleFavorite: (type: 'channel' | 'contact', id: string) => void | Promise<void>;
   onNavigateToChannel?: (channelKey: string) => void;
+  onNavigateToMessage?: (target: SearchNavigateTarget) => void;
   onSearchMessagesByKey?: (publicKey: string) => void;
   onToggleBlockedKey?: (key: string) => void;
   onToggleBlockedName?: (name: string) => void;
@@ -75,6 +77,7 @@ export function ContactInfoView({
   onBack,
   onToggleFavorite,
   onNavigateToChannel,
+  onNavigateToMessage,
   onSearchMessagesByKey,
   onToggleBlockedKey,
   onToggleBlockedName,
@@ -149,6 +152,7 @@ export function ContactInfoView({
     onFetchTelemetry: fetchTelemetry,
     onToggleFavorite,
     onNavigateToChannel,
+    onNavigateToMessage,
     onSearchMessagesByKey,
     onToggleBlockedKey,
     onToggleBlockedName,

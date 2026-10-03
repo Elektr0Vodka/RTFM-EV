@@ -6,6 +6,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
+from app.channel_constants import is_public_channel_key
 from app.models import (
     BATTERY_CHEMISTRIES,
     CONTACT_TYPE_REPEATER,
@@ -18,6 +19,7 @@ from app.models import (
     HandyInfoSettings,
     SidebarFavoriteSortOrders,
     SidebarHidden,
+    TeamBeaconSettings,
 )
 from app.region_scope import normalize_region_scope
 from app.repository import (
@@ -245,6 +247,29 @@ def _clean_handy_custom(raw: HandyInfoCustomEntry) -> HandyInfoCustomEntry:
         channel_url_template=channel_tpl,
         node_api_url_template=api_tpl,
         kb=raw.kb,
+    )
+
+
+async def _validate_team_beacon(raw: TeamBeaconSettings) -> TeamBeaconSettings:
+    """Normalize the TEAM beacon settings; enabling needs a private channel.
+
+    TEAM keeps tracking traffic off public and hashtag channels, and a periodic
+    beacon there would flood every listener, so those are refused.
+    """
+    channel_key = raw.channel_key.strip().upper()
+    if raw.enabled:
+        if len(channel_key) != 32 or any(c not in "0123456789ABCDEF" for c in channel_key):
+            raise HTTPException(status_code=400, detail="TEAM beacon needs a channel")
+        channel = await ChannelRepository.get_by_key(channel_key)
+        if channel is None:
+            raise HTTPException(status_code=400, detail="TEAM beacon channel not found")
+        if is_public_channel_key(channel_key) or channel.is_hashtag:
+            raise HTTPException(
+                status_code=400,
+                detail="TEAM beacon cannot use the Public channel or a hashtag channel",
+            )
+    return TeamBeaconSettings(
+        enabled=raw.enabled, channel_key=channel_key, interval_seconds=raw.interval_seconds
     )
 
 
@@ -554,6 +579,13 @@ class AppSettingsUpdate(BaseModel):
         description=(
             "External analyzer sites for client-side node/packet deep-link lookups. "
             "Each node_url_template must be an http(s) URL containing a {pubkey} placeholder."
+        ),
+    )
+    team_beacon: TeamBeaconSettings | None = Field(
+        default=None,
+        description=(
+            "Periodic MeshCore TEAM #TEL: beacon. Enabling it needs a known private "
+            "channel (not Public, not a hashtag channel)."
         ),
     )
     handy_info: HandyInfoSettings | None = Field(
@@ -1013,6 +1045,9 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
     # and normalized; the whole overlay is replaced on each update.
     if update.handy_info is not None:
         kwargs["handy_info"] = _validate_handy_info(update.handy_info)
+
+    if update.team_beacon is not None:
+        kwargs["team_beacon"] = await _validate_team_beacon(update.team_beacon)
 
     # Branding
     if update.brand_name is not None:

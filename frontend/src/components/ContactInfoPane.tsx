@@ -1,3 +1,4 @@
+import type { SearchNavigateTarget } from './SearchView';
 import { Ban, Search } from 'lucide-react';
 import { formatTime } from '../utils/messageParser';
 import { useT } from '../i18n';
@@ -23,6 +24,7 @@ interface ContactInfoPaneProps {
   config: RadioConfig | null;
   onToggleFavorite: (type: 'channel' | 'contact', id: string) => void;
   onNavigateToChannel?: (channelKey: string) => void;
+  onNavigateToMessage?: (target: SearchNavigateTarget) => void;
   onSearchMessagesByKey?: (publicKey: string) => void;
   onSearchMessagesByName?: (name: string) => void;
   blockedKeys?: string[];
@@ -46,6 +48,7 @@ export function ContactInfoPane({
   config,
   onToggleFavorite,
   onNavigateToChannel,
+  onNavigateToMessage,
   onSearchMessagesByKey,
   onSearchMessagesByName,
   blockedKeys = [],
@@ -196,6 +199,7 @@ export function ContactInfoPane({
               fromChannel={fromChannel}
               onToggleFavorite={onToggleFavorite}
               onNavigateToChannel={onNavigateToChannel}
+              onNavigateToMessage={onNavigateToMessage}
               onSearchMessagesByKey={onSearchMessagesByKey}
               onToggleBlockedKey={onToggleBlockedKey}
               onToggleBlockedName={onToggleBlockedName}
