@@ -12,7 +12,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from meshcore import EventType
 
-from app.repository import ContactAdvertPathRepository, ContactRepository, MessageRepository
+from app.models import ContactRouteValidation
+from app.repository import (
+    ContactAdvertPathRepository,
+    ContactPathOutcomeRepository,
+    ContactRepository,
+    MessageRepository,
+)
+from app.services.analyzer_path_check import AnalyzerCheckError
 
 # Sample 64-char hex public keys for testing
 KEY_A = "aa" * 32  # aaaa...aa
@@ -765,6 +772,125 @@ class TestRoutingOverride:
 
         assert response.status_code == 400
         assert "same width" in response.json()["detail"].lower()
+
+
+class TestRouteSuggestions:
+    """Test GET /api/contacts/{public_key}/route-suggestions."""
+
+    @pytest.mark.asyncio
+    async def test_builds_reversed_routes_from_adverts_and_incoming_dms(self, test_db, client):
+        now = 2_000_000_000
+        await _insert_contact(KEY_A, "Alice", type=1)
+        await ContactAdvertPathRepository.record_observation(KEY_A, "aa11bb22", now, hop_count=2)
+        # Same route again on an incoming DM, plus one only DMs came in on.
+        for text, path, path_len in (("one", "aa11bb22", 2), ("two", "cc", 1), ("three", "", 0)):
+            await MessageRepository.create(
+                msg_type="PRIV",
+                text=text,
+                conversation_key=KEY_A,
+                sender_timestamp=now,
+                received_at=now,
+                path=path,
+                path_len=path_len,
+            )
+        # Paths of our own messages are not paths the contact was heard on.
+        await MessageRepository.create(
+            msg_type="PRIV",
+            text="mine",
+            conversation_key=KEY_A,
+            sender_timestamp=now,
+            received_at=now,
+            path="dd",
+            path_len=1,
+            outgoing=True,
+        )
+        await ContactPathOutcomeRepository.record_attempt(KEY_A, "bb22aa11", 2, now)
+        await ContactPathOutcomeRepository.record_success(KEY_A, "bb22aa11", 2, now, 900)
+
+        with patch("app.services.route_suggestions.time.time", return_value=now):
+            response = await client.get(f"/api/contacts/{KEY_A}/route-suggestions")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["public_key"] == KEY_A
+        assert data["validated"] is False
+        assert data["analyzer_url"] == "https://meshcore-analyzer.eu"
+        by_route = {s["route"]: s for s in data["suggestions"]}
+        assert set(by_route) == {"bb22,aa11", "cc"}
+        assert by_route["bb22,aa11"]["sources"] == ["advert", "dm"]
+        assert by_route["bb22,aa11"]["heard_count"] == 2
+        assert by_route["bb22,aa11"]["success_count"] == 1
+        assert by_route["bb22,aa11"]["validation"] is None
+        assert by_route["cc"]["sources"] == ["dm"]
+
+    @pytest.mark.asyncio
+    async def test_marks_the_route_already_in_use(self, test_db, client):
+        await _insert_contact(KEY_A, direct_path="bbaa", direct_path_len=2, direct_path_hash_mode=0)
+        await ContactAdvertPathRepository.record_observation(KEY_A, "aabb", 1000, hop_count=2)
+
+        response = await client.get(f"/api/contacts/{KEY_A}/route-suggestions")
+
+        [only] = response.json()["suggestions"]
+        assert (only["route"], only["is_current"]) == ("bb,aa", True)
+
+    @pytest.mark.asyncio
+    async def test_does_not_ask_the_analyzer_unless_told_to(self, test_db, client):
+        await _insert_contact(KEY_A)
+        await ContactAdvertPathRepository.record_observation(KEY_A, "aabb", 1000, hop_count=2)
+
+        with patch("app.routers.contacts.validate_suggestions", new=AsyncMock()) as mock_validate:
+            await client.get(f"/api/contacts/{KEY_A}/route-suggestions")
+            mock_validate.assert_not_awaited()
+
+            mock_validate.return_value = [
+                ContactRouteValidation(status="partial", chain="observed", last_hop="not_seen")
+            ]
+            response = await client.get(
+                f"/api/contacts/{KEY_A}/route-suggestions", params={"validate": "true"}
+            )
+
+        data = response.json()
+        assert data["validated"] is True
+        assert data["suggestions"][0]["validation"]["status"] == "partial"
+        base_url, contact_key, suggestions = mock_validate.await_args.args
+        assert (base_url, contact_key) == ("https://meshcore-analyzer.eu", KEY_A)
+        assert [s.route for s in suggestions] == ["bb,aa"]
+
+    @pytest.mark.asyncio
+    async def test_analyzer_failure_still_returns_the_suggestions(self, test_db, client):
+        await _insert_contact(KEY_A)
+        await ContactAdvertPathRepository.record_observation(KEY_A, "aabb", 1000, hop_count=2)
+
+        with patch(
+            "app.routers.contacts.validate_suggestions",
+            new=AsyncMock(side_effect=AnalyzerCheckError("Analyzer returned HTTP 503")),
+        ):
+            response = await client.get(
+                f"/api/contacts/{KEY_A}/route-suggestions", params={"validate": "true"}
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["validated"] is False
+        assert data["validation_error"] == "Analyzer returned HTTP 503"
+        assert [s["route"] for s in data["suggestions"]] == ["bb,aa"]
+
+    @pytest.mark.asyncio
+    async def test_no_heard_paths_means_no_suggestions_and_no_analyzer_call(self, test_db, client):
+        await _insert_contact(KEY_A)
+
+        with patch("app.routers.contacts.validate_suggestions", new=AsyncMock()) as mock_validate:
+            response = await client.get(
+                f"/api/contacts/{KEY_A}/route-suggestions", params={"validate": "true"}
+            )
+
+        assert response.json()["suggestions"] == []
+        mock_validate.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_unknown_contact_is_404(self, test_db, client):
+        response = await client.get(f"/api/contacts/{KEY_A}/route-suggestions")
+        assert response.status_code == 404
 
 
 class TestContactTelemetry:

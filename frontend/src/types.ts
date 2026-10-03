@@ -421,6 +421,47 @@ export interface ContactAdvertPathSummary {
   paths: ContactAdvertPath[];
 }
 
+/** What the analyzer's observed link graph says about one suggested route. */
+export interface ContactRouteValidation {
+  status: 'confirmed' | 'partial' | 'unconfirmed' | 'not_checked';
+  chain: 'observed' | 'speculative' | 'unknown' | 'not_checked';
+  last_hop: 'two_way' | 'contact_hears_hop' | 'hop_hears_contact' | 'not_seen' | 'not_checked';
+  hop_names: string[];
+  ambiguous_hops: number;
+}
+
+/** A DM route built from a path the contact was heard on (suggest only). */
+export interface ContactRouteSuggestion {
+  /** Route in send order; empty for direct. */
+  path: string;
+  path_len: number;
+  path_hash_mode: number;
+  /** The same route as routing-override text ("0" for direct). */
+  route: string;
+  sources: ('advert' | 'dm')[];
+  heard_count: number;
+  last_seen: number;
+  attempt_count: number;
+  success_count: number;
+  failure_count: number;
+  score: number;
+  freshness: number;
+  heard: number;
+  hops: number;
+  delivery: number;
+  is_current: boolean;
+  validation: ContactRouteValidation | null;
+}
+
+export interface ContactRouteSuggestions {
+  public_key: string;
+  suggestions: ContactRouteSuggestion[];
+  /** Analyzer host a validation request goes to. */
+  analyzer_url: string;
+  validated: boolean;
+  validation_error: string | null;
+}
+
 export interface ContactNameHistory {
   name: string;
   first_seen: number;

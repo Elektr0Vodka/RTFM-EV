@@ -45,6 +45,7 @@ import { ContactAvatar } from './ContactAvatar';
 import { ContactRadioResidencyControl } from './ContactRadioResidencyControl';
 import { ContactTelemetryPermissionsControl } from './ContactTelemetryPermissionsControl';
 import { ContactLinkShare } from './ContactLinkShare';
+import { ContactRouteSuggestionsSection } from './ContactRouteSuggestions';
 import { formatContactShare } from '../utils/chatEntities';
 import { LppSensorRow, formatLppLabel } from './repeater/repeaterPaneShared';
 import { toast } from './ui/sonner';
@@ -60,7 +61,7 @@ import {
   POWER_SOURCE_OVERRIDES,
   powerSourceFromOverride,
 } from '../utils/powerSource';
-import { CONTACT_TYPE_REPEATER } from '../types';
+import { CONTACT_TYPE_CLIENT, CONTACT_TYPE_REPEATER } from '../types';
 import type {
   AnalyzerSite,
   Contact,
@@ -681,6 +682,12 @@ export function ContactInfoBody({
           </div>
         </div>
       )}
+
+      {show('network') &&
+        contact.type === CONTACT_TYPE_CLIENT &&
+        contact.public_key.length === 64 && (
+          <ContactRouteSuggestionsSection publicKey={contact.public_key} />
+        )}
 
       {show('network') && fromChannel && (
         <ChannelAttributionWarning

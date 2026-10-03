@@ -116,6 +116,9 @@ machine this was authored on and may differ elsewhere.
   candidate source for partial-node resolution; `app/services/external_map.py`), and
   `https://meshcore-analyzer.eu/api/regions/scopes` is the example
   `region_sync_url` (default empty; `app/routers/regions.py`).
+  On request only (contact pane, "Check with analyzer"), `GET /api/nodes/{pubkey}/reach`
+  and `POST /api/paths/inspect` on the host of `external_map_sync_url` validate
+  suggested DM routes (`app/services/analyzer_path_check.py`).
 - Cornmeister / Argus analyzer (node/packet lookup reference; Go): https://github.com/Elektr0Vodka/Argus-mesh-analyzer
   (local `G:\Github\repositories\Elektr0Vodka\cornmeister-mesh-analyzer`).
   Public site: https://cornmeister.nl (node URL scheme `#node?id=<64-hex>`).

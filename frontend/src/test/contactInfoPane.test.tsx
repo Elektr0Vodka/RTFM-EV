@@ -24,6 +24,7 @@ vi.mock('../api', () => ({
     getTeamBeacons: vi
       .fn()
       .mockResolvedValue({ beacons: [], waypoints: [], scanned: 0, truncated: false }),
+    contactRouteSuggestions: vi.fn().mockResolvedValue({ suggestions: [] }),
     listPartialResolutions: vi.fn().mockResolvedValue([]),
     resolveContactName: vi.fn().mockResolvedValue({
       status: 'resolved',
@@ -238,6 +239,26 @@ describe('ContactInfoPane', () => {
 
     await screen.findByLabelText('Notes');
     expect(screen.queryByTestId('contact-positions')).not.toBeInTheDocument();
+  });
+
+  it('asks for route suggestions for companions only', async () => {
+    const companion = createContact();
+    getContactAnalytics.mockResolvedValue(createAnalytics(companion));
+    const { unmount } = render(
+      <ContactInfoPane {...baseProps} contactKey={companion.public_key} />
+    );
+    await screen.findByLabelText('Notes');
+    expect(api.contactRouteSuggestions).toHaveBeenCalledWith(companion.public_key);
+    unmount();
+
+    vi.mocked(api.contactRouteSuggestions).mockClear();
+    const repeater = createContact({ public_key: 'BB'.repeat(32), type: 2 });
+    getContactAnalytics.mockResolvedValue(createAnalytics(repeater));
+    render(
+      <ContactInfoPane {...baseProps} contacts={[repeater]} contactKey={repeater.public_key} />
+    );
+    await screen.findByLabelText('Notes');
+    expect(api.contactRouteSuggestions).not.toHaveBeenCalled();
   });
 
   it('offers analyzer name resolution for an unnamed full-key contact and applies the answer', async () => {
