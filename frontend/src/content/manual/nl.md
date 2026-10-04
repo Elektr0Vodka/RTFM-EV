@@ -69,7 +69,7 @@ Het thema **Windows 95** heeft een **Bureaubladmaatje**: Clippy verschijnt zodra
 
 ### Bovenbalk
 
-Van links naar rechts toont de bovenbalk de appnaam, het statuslampje van de verbinding, een badge **Herhaalt** zolang de host-repeater gewapend is, en de batterij van de radio als je die inschakelt in **Instellingen > Lokale configuratie**. Op brede schermen zie je ook een grafiekje met het live pakkettempo, de verbindingsstatus in tekst, en de radionaam met de korte publieke sleutel (klik op de sleutel om de volledige sleutel te kopiëren). Als de radio niet verbonden of gepauzeerd is, verschijnt een knop **Opnieuw verbinden** of **Verbinden**. Daarna volgen de knop **Instellingen** (een stip erop betekent dat er een nieuwere versie is), het taalmenu en de themaknop.
+Van links naar rechts toont de bovenbalk de appnaam, het statuslampje van de verbinding, een badge **Herhaalt** zolang de host-repeater gewapend is, en de batterij van de radio als je die inschakelt in **Instellingen > Lokale configuratie**. Op brede schermen zie je ook een grafiekje met het live pakkettempo, de verbindingsstatus in tekst, en de radionaam met de korte publieke sleutel (klik op de sleutel om de volledige sleutel te kopiëren). Als de radio niet verbonden of gepauzeerd is, verschijnt een knop **Opnieuw verbinden** of **Verbinden**. Daarna volgen de knop **Chatvenster** (opent het venster met alleen chat, zie hieronder), de knop **Instellingen** (een stip erop betekent dat er een nieuwere versie is), het taalmenu en de themaknop.
 
 Op smalle schermen opent een menuknop helemaal links de zijbalk.
 
@@ -104,6 +104,21 @@ Druk op Ctrl+K (Cmd+K op macOS) om het opdrachtenpalet te openen en typ om naar 
 ### Gespreksvenster
 
 Het grote vlak rechts toont wat je gekozen hebt: een chat, een contactpagina, een repeaterdashboard of een hulpmiddel. Het adres in de browser volgt de weergave (bijvoorbeeld `#map` of `#settings/radio`), zodat je weergaven als bladwijzer kunt opslaan. Met **Laatste gesprek opnieuw openen** aan (Instellingen > Lokale configuratie) opent het kale adres je laatste chat weer.
+
+### Chatvenster
+
+De knop **Chatvenster** in de bovenbalk opent een apart, lichter venster dat alleen berichten doet, ingedeeld als een klassieke IRC-client: gesprekken links, de chat in het midden en de recente afzenders van die chat rechts. Het werkt zelfstandig, dus je kunt het hoofdtabblad sluiten en alleen dit venster open houden. Het laadt de kaart, de pakketfeed en de andere hulpmiddelen niet, en vraagt de server om de ruwe pakketstroom weg te laten.
+
+Alles in een chat werkt zoals in de hoofdapp: de knoppen in de chatkop, berichtacties, het invoerveld, inloggen op rooms, contact- en kanaalinfo, **Nieuw** (een gesprek starten of een kanaal toevoegen) en **Zoeken**. Alles wat geen chat is (de kaart, het kanaalregister, een repeaterdashboard, Instellingen) opent in de hoofdapp.
+
+De knoppenbalk heeft deze extra's:
+
+- **Regels / Ballonnen:** klassieke regels (`[tijd] <Naam> tekst`) of de gewone berichtballonnen. Bij regels klik je op een naam om die afzender te noemen en op het stipje ervoor om de contactinfo te openen.
+- **Skin:** **mIRC**, **mIRC donker**, of **App-thema** om het thema uit de hoofdapp te volgen.
+- **Losmaken:** opent de huidige chat in een eigen klein venster.
+- **Hoofdapp:** opent de volledige app op hetzelfde gesprek.
+
+Skin en weergave worden per browser bewaard. Zolang er een hoofdtabblad open is, laat het chatvenster het vermeldingsgeluid en de browsermeldingen aan dat tabblad over, zodat niets dubbel klinkt. De lijst rechts toont wie er in de geladen berichten heeft gesproken; MeshCore-kanalen hebben geen ledenlijst.
 
 <!-- id: messaging -->
 

@@ -6,7 +6,12 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.websocket import SEND_TIMEOUT_SECONDS, WebSocketManager
+from app.websocket import (
+    EVENT_PROFILES,
+    SEND_TIMEOUT_SECONDS,
+    WebSocketManager,
+    resolve_event_profile,
+)
 
 
 @pytest.fixture
@@ -171,6 +176,64 @@ class TestWebSocketBroadcast:
         """Broadcast should handle empty connection list gracefully."""
         # Should not raise
         await ws_manager.broadcast("test", {"data": "value"})
+
+
+class TestWebSocketEventProfiles:
+    """Per-connection event filtering (the chat popup's `?events=chat`)."""
+
+    @pytest.mark.asyncio
+    async def test_excluded_event_is_not_sent_to_that_client(self, ws_manager: WebSocketManager):
+        full = AsyncMock()
+        chat = AsyncMock()
+
+        await ws_manager.connect(full)
+        await ws_manager.connect(chat, exclude=EVENT_PROFILES["chat"])
+
+        await ws_manager.broadcast("raw_packet", {"id": 1})
+
+        full.send_text.assert_called_once()
+        chat.send_text.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_other_events_still_reach_a_filtered_client(self, ws_manager: WebSocketManager):
+        chat = AsyncMock()
+        await ws_manager.connect(chat, exclude=EVENT_PROFILES["chat"])
+
+        await ws_manager.broadcast("message", {"id": 1})
+        await ws_manager.broadcast("health", {"radio_connected": True})
+
+        assert chat.send_text.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_disconnect_forgets_the_filter(self, ws_manager: WebSocketManager):
+        chat = AsyncMock()
+        await ws_manager.connect(chat, exclude=EVENT_PROFILES["chat"])
+        await ws_manager.disconnect(chat)
+
+        # Same object reconnecting without a profile gets the full stream.
+        await ws_manager.connect(chat)
+        await ws_manager.broadcast("raw_packet", {"id": 1})
+
+        chat.send_text.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_failed_filtered_client_is_cleaned_up(self, ws_manager: WebSocketManager):
+        chat = AsyncMock()
+        chat.send_text.side_effect = Exception("gone")
+        await ws_manager.connect(chat, exclude=EVENT_PROFILES["chat"])
+
+        await ws_manager.broadcast("message", {"id": 1})
+
+        assert chat not in ws_manager.active_connections
+        assert chat not in ws_manager._excluded
+
+    def test_chat_profile_excludes_only_non_chat_events(self):
+        assert EVENT_PROFILES["chat"] == frozenset({"raw_packet", "host_repeater"})
+
+    def test_unknown_profile_means_full_stream(self):
+        assert resolve_event_profile("nope") == frozenset()
+        assert resolve_event_profile(None) == frozenset()
+        assert resolve_event_profile("chat") == EVENT_PROFILES["chat"]
 
 
 class TestWebSocketConnectionManagement:

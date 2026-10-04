@@ -60,4 +60,14 @@ describe('useWebSocket lifecycle', () => {
     // Unmount-triggered socket close should not start a new connection.
     expect(MockWebSocket.instances).toHaveLength(1);
   });
+
+  it('asks for the full stream by default and the chat profile on request', () => {
+    const full = renderHook(() => useWebSocket({}));
+    expect(MockWebSocket.instances[0].url).toMatch(/\/api\/ws$/);
+    act(() => full.unmount());
+
+    const chat = renderHook(() => useWebSocket({}, 'chat'));
+    expect(MockWebSocket.instances[1].url).toMatch(/\/api\/ws\?events=chat$/);
+    act(() => chat.unmount());
+  });
 });

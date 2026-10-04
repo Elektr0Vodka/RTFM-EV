@@ -11,6 +11,49 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-04 (mIRC style chat window, feat/mirc-chat-popup)
+
+### Interface: chat-only popup window (frontend + backend)
+- New **Chat window** button in the top bar. It opens the app in a separate
+  popup (`?popout=chat`) that only does messaging: a conversation list
+  (Channels, Direct, Rooms, with unread counts and a filter), the chat, and the
+  recent senders of the open chat. It works without the main tab.
+- The popup is the same app with a different shell (`popout/ChatPopoutShell`),
+  so the chat itself (`ChatHeader`, `MessageList`, `MessageInput`, room login,
+  contact and channel info, New conversation, Search) is the same code as in
+  the main app. It does not mount the sidebar, status bar, desktop buddy,
+  command palette, channel finder or settings, and it skips the packet seed
+  (`GET /api/packets/recent`).
+- Views that are not a chat (map, Channel Registry, repeater dashboards,
+  Settings) open in the main app instead. Known limit: "Edit in Channel
+  Registry" from the popup opens the registry, not that channel's edit form.
+- **Detach** opens one conversation in a small window of its own
+  (`?popout=single`).
+- Message layout is switchable per browser: **Lines** (`[time] <Name> text`,
+  the popup default) or the regular **Bubbles**. Both layouts are built from the
+  same row pieces in `MessageList` (body, hop / direct / scope badges, delivery
+  status, URL preview, row actions), selected through `MessageLayoutContext`.
+  The main app always uses bubbles.
+- Skins, per browser: **mIRC** (default), **mIRC dark**, or **App theme**
+  (follows the theme saved in the main app, also when it changes while the
+  popup is open). The two mIRC skins are popup-only and are applied without
+  saving, so the main app's theme is not changed.
+- While a main tab is open the popup leaves the mention sound, browser
+  notifications and new-node notifications to that tab (`BroadcastChannel`
+  presence in `popout/mainPresence.ts`), so they do not fire twice. If the main
+  tab dies without unloading, the popup takes over after one unanswered probe.
+
+### WebSocket: per-connection event profile (backend)
+- `WS /api/ws?events=chat` opts a connection out of `raw_packet` and
+  `host_repeater` events (`EVENT_PROFILES` in `app/websocket.py`). The chat
+  popup uses it. Without the parameter, or with an unknown value, the full
+  stream is sent as before.
+
+### Not measured
+- No CPU or memory figures are claimed for the popup. What is verified is what
+  it leaves out: the views listed above, the packet seed request and the raw
+  packet events.
+
 ## Update 2026-10-03 (MeshCore TEAM support, feat/meshcore-team-support)
 
 ### Chat: MeshCore TEAM and signalk-meshcore payloads (backend + frontend)

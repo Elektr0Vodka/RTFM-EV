@@ -142,4 +142,18 @@ describe('useConversationNavigation', () => {
       expect.objectContaining({ type: 'contact-info', id: contact.public_key, name: 'Dana' })
     );
   });
+
+  it('opens contact info as the sheet on desktop when forced (chat popup)', () => {
+    setViewport(false);
+    const args = createArgs({ forceInfoSheet: true });
+    const { result } = renderHook(() => useConversationNavigation(args));
+
+    act(() => {
+      result.current.handleOpenContactInfo('aa'.repeat(32), true);
+    });
+
+    expect(args.handleSelectConversation).not.toHaveBeenCalled();
+    expect(result.current.infoPaneContactKey).toBe('aa'.repeat(32));
+    expect(result.current.infoPaneFromChannel).toBe(true);
+  });
 });

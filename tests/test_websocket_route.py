@@ -21,8 +21,10 @@ from app.websocket import ws_manager
 def _clean_ws_manager():
     """Ensure ws_manager has no stale connections between tests."""
     ws_manager.active_connections.clear()
+    ws_manager._excluded.clear()
     yield
     ws_manager.active_connections.clear()
+    ws_manager._excluded.clear()
 
 
 class TestWebSocketEndpoint:
@@ -201,3 +203,39 @@ class TestWebSocketEndpoint:
 
             # After context manager exits, the WebSocket is closed
             assert len(ws_manager.active_connections) == 0
+
+    def test_events_chat_registers_the_chat_profile(self):
+        """`?events=chat` (the chat popup) opts that connection out of raw packets."""
+        with (
+            patch("app.routers.ws.radio_manager") as mock_ws_rm,
+            patch("app.routers.health.radio_manager") as mock_health_rm,
+            patch("app.routers.health.RawPacketRepository") as mock_repo,
+            patch("app.routers.health.settings") as mock_settings,
+            patch("app.routers.health.os.path.getsize", return_value=0),
+        ):
+            mock_ws_rm.is_connected = True
+            mock_ws_rm.connection_info = "Serial: /dev/ttyUSB0"
+            mock_health_rm.is_connected = True
+            mock_health_rm.connection_info = "Serial: /dev/ttyUSB0"
+            mock_health_rm.is_setup_in_progress = False
+            mock_health_rm.is_setup_complete = True
+            mock_health_rm.connection_desired = True
+            mock_health_rm.is_reconnecting = False
+            mock_health_rm.device_info_loaded = False
+            mock_repo.get_oldest_undecrypted = AsyncMock(return_value=None)
+            mock_settings.database_path = "/tmp/test.db"
+
+            from app.main import app
+            from app.websocket import EVENT_PROFILES
+
+            client = TestClient(app)
+
+            with client.websocket_connect("/api/ws?events=chat") as ws:
+                assert ws.receive_json()["type"] == "health"
+                assert list(ws_manager._excluded.values()) == [EVENT_PROFILES["chat"]]
+
+            assert ws_manager._excluded == {}
+
+            with client.websocket_connect("/api/ws") as ws:
+                ws.receive_json()
+                assert ws_manager._excluded == {}

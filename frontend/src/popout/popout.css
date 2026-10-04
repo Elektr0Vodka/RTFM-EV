@@ -1,0 +1,176 @@
+/* Chat popup (popout/ChatPopoutShell.tsx).
+   `mirc` and `mirc-dark` are popup-only skins: popoutSkin.ts sets them as
+   data-theme without saving, so they never appear in the main app's theme
+   picker. The third skin, "App theme", uses whatever theme is saved. */
+
+/* ── mIRC (classic) ───────────────────────────────────────── */
+:root[data-theme='mirc'] {
+  --badge-new: 120 60% 30%;
+  --background: 0 0% 100%;
+  --foreground: 0 0% 0%;
+  --card: 0 0% 75%;
+  --card-foreground: 0 0% 0%;
+  --popover: 0 0% 75%;
+  --popover-foreground: 0 0% 0%;
+  --primary: 240 100% 25%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 84%;
+  --secondary-foreground: 0 0% 0%;
+  --muted: 0 0% 80%;
+  --muted-foreground: 0 0% 30%;
+  --accent: 0 0% 88%;
+  --accent-foreground: 0 0% 0%;
+  --destructive: 0 100% 40%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 47%;
+  --input: 0 0% 47%;
+  --ring: 240 100% 25%;
+  --radius: 0px;
+  --msg-outgoing: 210 100% 92%;
+  --msg-incoming: 0 0% 92%;
+  --status-connected: 142 75% 28%;
+  --status-disconnected: 0 0% 35%;
+  --warning: 45 100% 34%;
+  --warning-foreground: 0 0% 0%;
+  --success: 142 75% 28%;
+  --success-foreground: 0 0% 100%;
+  --info: 210 100% 38%;
+  --info-foreground: 0 0% 100%;
+  --region-override: 300 100% 28%;
+  --favorite: 44 100% 42%;
+  --console: 120 100% 22%;
+  --console-command: 120 100% 28%;
+  --console-bg: 0 0% 0%;
+  --toast-error: 0 0% 86%;
+  --toast-error-foreground: 0 72% 30%;
+  --toast-error-border: 0 0% 38%;
+  --code-editor-bg: 0 0% 94%;
+  --font-sans: Tahoma, 'MS Sans Serif', 'Segoe UI', sans-serif;
+  --font-mono: Fixedsys, 'Lucida Console', 'Courier New', monospace;
+  --scrollbar: 0 0% 62%;
+  --scrollbar-hover: 0 0% 48%;
+  --overlay: 0 0% 0%;
+  --popout-bevel-light: 0 0% 100%;
+  --popout-bevel-dark: 0 0% 34%;
+}
+
+/* ── mIRC dark ────────────────────────────────────────────── */
+:root[data-theme='mirc-dark'] {
+  --badge-new: 120 60% 55%;
+  --background: 0 0% 4%;
+  --foreground: 0 0% 82%;
+  --card: 0 0% 17%;
+  --card-foreground: 0 0% 86%;
+  --popover: 0 0% 17%;
+  --popover-foreground: 0 0% 86%;
+  --primary: 212 100% 62%;
+  --primary-foreground: 0 0% 4%;
+  --secondary: 0 0% 22%;
+  --secondary-foreground: 0 0% 86%;
+  --muted: 0 0% 20%;
+  --muted-foreground: 0 0% 58%;
+  --accent: 0 0% 26%;
+  --accent-foreground: 0 0% 94%;
+  --destructive: 0 90% 62%;
+  --destructive-foreground: 0 0% 4%;
+  --border: 0 0% 32%;
+  --input: 0 0% 32%;
+  --ring: 212 100% 62%;
+  --radius: 0px;
+  --msg-outgoing: 212 45% 20%;
+  --msg-incoming: 0 0% 13%;
+  --status-connected: 120 70% 55%;
+  --status-disconnected: 0 0% 55%;
+  --warning: 45 100% 58%;
+  --warning-foreground: 0 0% 4%;
+  --success: 120 70% 55%;
+  --success-foreground: 0 0% 4%;
+  --info: 200 100% 62%;
+  --info-foreground: 0 0% 4%;
+  --region-override: 300 90% 72%;
+  --favorite: 44 100% 55%;
+  --console: 120 100% 55%;
+  --console-command: 120 100% 65%;
+  --console-bg: 0 0% 0%;
+  --toast-error: 0 0% 14%;
+  --toast-error-foreground: 0 90% 70%;
+  --toast-error-border: 0 60% 40%;
+  --code-editor-bg: 0 0% 8%;
+  --font-sans: Tahoma, 'MS Sans Serif', 'Segoe UI', sans-serif;
+  --font-mono: Fixedsys, 'Lucida Console', 'Courier New', monospace;
+  --scrollbar: 0 0% 34%;
+  --scrollbar-hover: 0 0% 46%;
+  --overlay: 0 0% 0%;
+  --popout-bevel-light: 0 0% 34%;
+  --popout-bevel-dark: 0 0% 0%;
+}
+
+[data-theme^='mirc'] body {
+  background: hsl(var(--card));
+}
+
+/* Sunken panes (conversation list, chat, recent senders). */
+[data-theme^='mirc'] .popout-inset {
+  box-shadow:
+    inset 1px 1px 0 hsl(var(--popout-bevel-dark)),
+    inset -1px -1px 0 hsl(var(--popout-bevel-light));
+  padding: 1px;
+}
+
+/* Raised toolbar buttons that sink while pressed or active. */
+[data-theme^='mirc'] .popout-shell button,
+[data-theme^='mirc'] .popout-shell input,
+[data-theme^='mirc'] .popout-shell select,
+[data-theme^='mirc'] .popout-shell textarea {
+  border-radius: 0 !important;
+}
+
+[data-theme^='mirc'] .popout-tool {
+  background: hsl(var(--card));
+  box-shadow:
+    inset 1px 1px 0 hsl(var(--popout-bevel-light)),
+    inset -1px -1px 0 hsl(var(--popout-bevel-dark));
+}
+
+[data-theme^='mirc'] .popout-tool:active,
+[data-theme^='mirc'] .popout-tool[aria-pressed='true'] {
+  background: hsl(var(--accent));
+  box-shadow:
+    inset 1px 1px 0 hsl(var(--popout-bevel-dark)),
+    inset -1px -1px 0 hsl(var(--popout-bevel-light));
+}
+
+[data-theme^='mirc'] select.popout-tool {
+  background: hsl(var(--background));
+  box-shadow:
+    inset 1px 1px 0 hsl(var(--popout-bevel-dark)),
+    inset -1px -1px 0 hsl(var(--popout-bevel-light));
+}
+
+/* The text pane is fixed-width, the chrome around it is not. */
+[data-theme^='mirc'] .popout-pane {
+  font-family: var(--font-mono);
+}
+
+[data-theme^='mirc'] .popout-pane .conversation-header {
+  background: hsl(var(--card));
+  font-family: var(--font-sans);
+}
+
+[data-theme^='mirc'] .popout-pane .message-input-shell {
+  background: hsl(var(--card));
+}
+
+[data-theme^='mirc'] * {
+  scrollbar-color: hsl(var(--scrollbar)) hsl(var(--secondary));
+}
+
+/* Classic-lines nick colours: the hue comes from the sender, the lightness
+   from whether the active skin is light or dark (set by popoutSkin.ts). */
+:root[data-popout-tone='light'] {
+  --nick-l: 32%;
+}
+
+:root[data-popout-tone='dark'] {
+  --nick-l: 68%;
+}

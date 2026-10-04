@@ -6,7 +6,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.routers.health import build_health_data
 from app.services.radio_runtime import radio_runtime as radio_manager
-from app.websocket import ws_manager
+from app.websocket import resolve_event_profile, ws_manager
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -18,8 +18,13 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
     Only sends health status on initial connect. Contacts and channels
     are fetched via REST endpoints for faster parallel loading.
+
+    `?events=chat` opts the connection out of the events a chat-only client
+    never uses (see `EVENT_PROFILES`); without it the full stream is sent.
     """
-    await ws_manager.connect(websocket)
+    await ws_manager.connect(
+        websocket, exclude=resolve_event_profile(websocket.query_params.get("events"))
+    )
 
     # Send initial health status
     try:

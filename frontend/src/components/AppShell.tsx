@@ -92,6 +92,8 @@ interface AppShellProps {
   onNavigateMentionToMessage?: (channelKey: string, messageId: number) => void;
   onDismissMention?: (key: number) => void;
   onRepeaterAutoLogin: (publicKey: string, displayName: string) => void;
+  /** Open the chat-only popup window (status bar button). */
+  onOpenChatWindow?: () => void;
 }
 
 export function AppShell({
@@ -126,6 +128,7 @@ export function AppShell({
   onNavigateMentionToMessage,
   onDismissMention,
   onRepeaterAutoLogin,
+  onOpenChatWindow,
 }: AppShellProps) {
   const t = useT();
   const swipeHandlers = useSwipeable({
@@ -287,6 +290,7 @@ export function AppShell({
         brandIcon={statusProps.brandIcon}
         settingsMode={showSettings}
         onSettingsClick={onToggleSettingsView}
+        onOpenChatWindow={onOpenChatWindow}
         onMenuClick={showSettings ? undefined : () => onSidebarOpenChange(true)}
       />
       <div data-toast-anchor="statusbar" aria-hidden="true" />

@@ -36,7 +36,11 @@ export interface UseWebSocketOptions {
   onReconnect?: () => void;
 }
 
-export function useWebSocket(options: UseWebSocketOptions) {
+/**
+ * `events` names a server-side event profile (`/ws?events=`). The chat popup
+ * passes 'chat' so the busy `raw_packet` stream is never sent to it.
+ */
+export function useWebSocket(options: UseWebSocketOptions, events?: 'chat') {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const shouldReconnectRef = useRef(true);
@@ -60,7 +64,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     // Resolve relative to the page so sub-path reverse proxies work
     const base = new URL('./api/ws', window.location.href);
-    const wsUrl = `${protocol}//${base.host}${base.pathname}`;
+    const wsUrl = `${protocol}//${base.host}${base.pathname}${events ? `?events=${events}` : ''}`;
 
     const ws = new WebSocket(wsUrl);
 
@@ -179,6 +183,8 @@ export function useWebSocket(options: UseWebSocketOptions) {
     };
 
     wsRef.current = ws;
+    // `events` is fixed for the lifetime of the page (it follows the URL).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // No dependencies - handlers accessed through ref
 
   useEffect(() => {

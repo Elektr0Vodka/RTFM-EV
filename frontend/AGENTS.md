@@ -43,11 +43,19 @@ frontend/src/
 │   ├── DistanceUnitContext.tsx # Browser-local distance-unit context/provider
 │   ├── PathHopWidthContext.tsx # Browser-local path hop-width display preference
 │   ├── RichPayloadContext.tsx  # Browser-local rich MeshCore payload rendering preference
+│   ├── MessageLayoutContext.tsx # MessageList row layout: 'bubbles' (default) or 'lines' (chat popup)
 │   └── PushSubscriptionContext.tsx # Push subscription state context/provider
 ├── lib/
 │   └── utils.ts            # cn() - clsx + tailwind-merge helper
 ├── networkGraph/
 │   └── packetNetworkGraph.ts # Packet→network graph construction shared by visualizer surfaces
+├── popout/                 # Chat-only popup window (`?popout=chat|single`), see "Chat popup"
+│   ├── popoutMode.ts       # Mode from the URL, popup/main URLs, window.open helpers, chat-vs-tool check
+│   ├── ChatPopoutShell.tsx # Popup shell: toolbar, conversation list, ConversationPane, recent senders
+│   ├── popoutLists.ts      # Pure: conversation list sections + recent senders
+│   ├── popoutSkin.ts       # Skin (mirc / mirc-dark / theme) + layout persistence, applied without saving the theme
+│   ├── mainPresence.ts     # BroadcastChannel "is a main tab open?" (popup stays silent if so)
+│   └── popout.css          # mirc / mirc-dark tokens and bevels (imported in main.tsx)
 ├── stores/
 │   └── rawPacketStore.ts   # Overheard packet stream + session stats, outside React
 ├── hooks/
@@ -300,6 +308,20 @@ That gives the store a load-bearing invariant: **no ancestor of `MessageList` ma
 - room-server auth/status gate before room chat
 - normal chat chrome (`ChatHeader` + `MessageList` + `MessageInput`)
 
+### Chat popup (`popout/`)
+
+The **Chat window** button in `StatusBar` opens the same SPA with `?popout=chat` (multi-chat) or `?popout=single` (one detached conversation); the conversation stays in the hash, so `useConversationRouter` is unchanged. `App.tsx` reads the mode once (`getPopoutMode`) and then:
+
+- renders `ChatPopoutShell` instead of `AppShell`, passing the same prop bundles. The shell reuses `ConversationPane` as it is, so chat behaviour cannot drift from the main app. It does not mount `Sidebar`, `StatusBar`, `BuddyHost`, `CommandPalette`, `CrackerPanel`, `MentionTicker`, `SettingsModal` or `RadioIdentityPrompt`.
+- skips the raw packet seed and connects with `useWebSocket(handlers, 'chat')` (`/api/ws?events=chat`).
+- passes `redirectConversation` to `useConversationRouter`: selecting anything that is not a channel, a non-repeater contact or search calls `openInMainApp` and is dropped. A popup opened on a non-chat hash shows a placeholder instead of the view.
+- passes `forceInfoSheet` to `useConversationNavigation`, so contact info opens as the sheet (`ContactInfoPane`), never as the full-page `contact-info` view.
+- gates `notifyIncomingMessage`, `notifyNewNode` and `notifyMentionSound` on `mainPresenceRef`: silent while a main tab answers on the presence channel. The main tab announces itself from `main.tsx`.
+
+`MessageList` reads `useMessageLayout()`. Each row's content (body, badges, delivery status, URL preview, row actions) is built once as local pieces and placed by one of two wrappers; a change to a piece applies to both layouts. In `lines` the row actions float over the line end on hover (they would otherwise take ~100px from every line), and the virtualizer uses `ESTIMATED_LINE_HEIGHT` and calls `measure()` when the layout switches.
+
+Skins: `applyPopoutSkin` sets `data-theme` (`mirc`, `mirc-dark`, or the saved theme) without calling `applyTheme`, so the saved theme is never changed; `mirc*` are not in `THEMES`. It also sets `data-popout-tone` (`light`/`dark`), which `popout.css` uses for the nick lightness, and forces the CRT effect attributes off under the mIRC skins. Not observable in jsdom: the real window layout, fonts and `window.open` behaviour; check those in a browser.
+
 ### Initial load + realtime
 
 - Initial data: REST fetches (`api.ts`) for config/settings/channels/contacts/unreads.
@@ -411,6 +433,7 @@ jsdom has no layout engine, so none of this is observable from the vitest suite 
 ## WebSocket (`useWebSocket.ts`)
 
 - Auto reconnect (3s) with cleanup guard on unmount.
+- Optional second argument `events` (`'chat'`) appends `?events=chat` to the URL; the backend then leaves out `raw_packet` and `host_repeater` for that connection (chat popup).
 - Heartbeat ping every 30s.
 - Incoming JSON is parsed through `wsEvents.ts`, which validates the top-level envelope and known event type strings, then casts payloads at the handler boundary. It does not schema-validate per-event payload shapes.
 - Event handlers: `health`, `message`, `contact`, `contact_resolved`, `channel`, `raw_packet`, `message_acked`, `message_deleted`, `contact_deleted`, `channel_deleted`, `error`, `success`, `pong` (ignored).

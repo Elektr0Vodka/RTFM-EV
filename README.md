@@ -101,6 +101,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - English, Dutch and German; date/time format, distance units and coordinate format (decimal, DMS or MGRS) are configurable.
 - Installable as a PWA; app name and icon can be rebranded server-side.
 - Command palette (Ctrl+K / Cmd+K) and bookmarkable views.
+- Chat window: a separate, lighter window with only messaging, laid out like a classic IRC client (conversation list, chat, recent senders). Classic lines or the regular bubbles, a mIRC, dark mIRC or app-theme skin, and a detached window per conversation. It does not load the map or packet views and skips the raw packet stream.
 - In-app update indicator that checks GitHub for a newer fork build (can be disabled).
 
 ## Requirements

@@ -9,6 +9,8 @@ interface UseConversationNavigationArgs {
   channels: Channel[];
   contacts: Contact[];
   handleSelectConversation: (conv: Conversation) => void;
+  /** Always open contact info as the side sheet, never as the full-page view. */
+  forceInfoSheet?: boolean;
 }
 
 interface UseConversationNavigationResult {
@@ -35,8 +37,9 @@ export function useConversationNavigation({
   channels,
   contacts,
   handleSelectConversation,
+  forceInfoSheet = false,
 }: UseConversationNavigationArgs): UseConversationNavigationResult {
-  const isMobile = useIsMobile();
+  const isMobile = useIsMobile() || forceInfoSheet;
   const [targetMessageId, setTargetMessageId] = useState<number | null>(null);
   const [infoPaneContactKey, setInfoPaneContactKey] = useState<string | null>(null);
   const [infoPaneFromChannel, setInfoPaneFromChannel] = useState(false);

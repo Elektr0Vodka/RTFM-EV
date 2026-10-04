@@ -5,6 +5,7 @@ import { App } from './App';
 import './index.css';
 import './themes.css';
 import './styles.css';
+import './popout/popout.css';
 import { getSavedTheme, applyTheme, initFollowOSListener } from './utils/theme';
 import { applyCrt } from './utils/crt';
 import { applyFontScale, getSavedFontScale } from './utils/fontScale';
@@ -12,6 +13,9 @@ import { PushSubscriptionProvider } from './contexts/PushSubscriptionContext';
 import { I18nProvider } from './i18n';
 import { setCountryFlagFontActive } from './utils/countryFlagFont';
 import { loadTileProxyConfig } from './map/engine/tileProxy';
+import { getPopoutMode } from './popout/popoutMode';
+import { applyPopoutSkin, getSavedPopoutSkin } from './popout/popoutSkin';
+import { announceMainPresence } from './popout/mainPresence';
 
 // Inject the bundled Twemoji flag font on browsers that support color emoji but
 // not regional-indicator flags (Windows/Chromium). No-op on macOS/Linux/Firefox.
@@ -27,6 +31,13 @@ applyCrt();
 // Re-apply when the OS color-scheme preference changes, if on "Follow OS".
 initFollowOSListener();
 applyFontScale(getSavedFontScale());
+if (getPopoutMode() !== null) {
+  // Chat popup: paint its own skin over the saved theme before first render.
+  applyPopoutSkin(getSavedPopoutSkin());
+} else {
+  // Lets an open chat popup know a main tab is handling sound and notifications.
+  announceMainPresence();
+}
 // Learn early whether map tiles go through the backend tile cache, so the first
 // map mount already routes them (MapLibre reads it per request).
 void loadTileProxyConfig();

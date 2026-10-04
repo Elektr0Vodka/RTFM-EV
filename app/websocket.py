@@ -14,24 +14,43 @@ logger = logging.getLogger(__name__)
 # Prevents a slow client from blocking broadcasts to other clients
 SEND_TIMEOUT_SECONDS = 5.0
 
+# Named event profiles a client can ask for with `/ws?events=<name>`. Each maps
+# to the event types that connection does NOT receive. The chat popup uses
+# "chat": it never renders packets, and `raw_packet` is by far the busiest event.
+EVENT_PROFILES: dict[str, frozenset[str]] = {
+    "chat": frozenset({"raw_packet", "host_repeater"}),
+}
+
+
+def resolve_event_profile(name: str | None) -> frozenset[str]:
+    """Excluded event types for a profile name; unknown or missing = full stream."""
+    if not name:
+        return frozenset()
+    return EVENT_PROFILES.get(name, frozenset())
+
 
 class WebSocketManager:
     """Manages WebSocket connections and broadcasts events."""
 
     def __init__(self):
         self.active_connections: list[WebSocket] = []
+        # Event types each filtered connection opted out of (absent = full stream).
+        self._excluded: dict[WebSocket, frozenset[str]] = {}
         self._lock = asyncio.Lock()
 
-    async def connect(self, websocket: WebSocket) -> None:
+    async def connect(self, websocket: WebSocket, exclude: frozenset[str] = frozenset()) -> None:
         await websocket.accept()
         async with self._lock:
             self.active_connections.append(websocket)
+            if exclude:
+                self._excluded[websocket] = exclude
         logger.info("WebSocket client connected (%d total)", len(self.active_connections))
 
     async def disconnect(self, websocket: WebSocket) -> None:
         async with self._lock:
             if websocket in self.active_connections:
                 self.active_connections.remove(websocket)
+            self._excluded.pop(websocket, None)
         logger.info("WebSocket client disconnected (%d remaining)", len(self.active_connections))
 
     async def broadcast(self, event_type: str, data: Any) -> None:
@@ -47,7 +66,11 @@ class WebSocketManager:
 
         # Copy connection list under lock to avoid holding lock during I/O
         async with self._lock:
-            connections = list(self.active_connections)
+            connections = [
+                conn
+                for conn in self.active_connections
+                if event_type not in self._excluded.get(conn, ())
+            ]
 
         if not connections:
             return
@@ -75,6 +98,7 @@ class WebSocketManager:
                 for conn in disconnected:
                     if conn in self.active_connections:
                         self.active_connections.remove(conn)
+                    self._excluded.pop(conn, None)
             logger.debug("Removed %d disconnected WebSocket clients", len(disconnected))
 
     async def send_personal(self, websocket: WebSocket, event_type: str, data: Any) -> None:

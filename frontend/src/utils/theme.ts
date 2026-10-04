@@ -128,7 +128,7 @@ export const THEMES: Theme[] = [
   },
 ];
 
-const THEME_KEY = 'remoteterm-theme';
+export const THEME_KEY = 'remoteterm-theme';
 
 export function getSavedTheme(): string {
   try {
