@@ -5,6 +5,7 @@ import {
   BatteryMedium,
   BatteryWarning,
   Menu,
+  MessagesSquare,
   Moon,
   Sun,
 } from 'lucide-react';
@@ -44,6 +45,8 @@ interface StatusBarProps {
   settingsMode?: boolean;
   onSettingsClick: () => void;
   onMenuClick?: () => void;
+  /** Open the chat-only popup window. The button is hidden when omitted. */
+  onOpenChatWindow?: () => void;
   brandName?: string;
   brandHidden?: boolean;
   brandIcon?: string;
@@ -55,6 +58,7 @@ export function StatusBar({
   settingsMode = false,
   onSettingsClick,
   onMenuClick,
+  onOpenChatWindow,
   brandName,
   brandHidden = false,
   brandIcon,
@@ -307,6 +311,17 @@ export function StatusBar({
             : radioState === 'paused'
               ? t('common_connect')
               : t('common_reconnect')}
+        </button>
+      )}
+      {onOpenChatWindow && (
+        <button
+          type="button"
+          onClick={onOpenChatWindow}
+          className="p-0.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+          title={t('popout_open_chat_window_title')}
+          aria-label={t('popout_open_chat_window')}
+        >
+          <MessagesSquare className="h-4 w-4" aria-hidden="true" />
         </button>
       )}
       <button

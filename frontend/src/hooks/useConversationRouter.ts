@@ -96,6 +96,12 @@ interface UseConversationRouterArgs {
   setSidebarOpen: (open: boolean) => void;
   pendingDeleteFallbackRef: MutableRefObject<boolean>;
   hasSetDefaultConversation: MutableRefObject<boolean>;
+  /**
+   * Called before a conversation is selected. Returning true means the caller
+   * dealt with it elsewhere (the chat popup hands non-chat views to the main
+   * app) and the selection here is dropped.
+   */
+  redirectConversation?: (conv: Conversation) => boolean;
 }
 
 export function useConversationRouter({
@@ -106,6 +112,7 @@ export function useConversationRouter({
   setSidebarOpen,
   pendingDeleteFallbackRef,
   hasSetDefaultConversation,
+  redirectConversation,
 }: UseConversationRouterArgs) {
   const [activeConversation, setActiveConversationState] = useState<Conversation | null>(null);
   const activeConversationRef = useRef<Conversation | null>(null);
@@ -126,7 +133,11 @@ export function useConversationRouter({
     contactsRef.current = contacts;
   }, [contacts]);
 
+  const redirectConversationRef = useRef(redirectConversation);
+  redirectConversationRef.current = redirectConversation;
+
   const setActiveConversation = useCallback((conv: Conversation | null) => {
+    if (conv && redirectConversationRef.current?.(conv)) return;
     hashSyncEnabledRef.current = true;
     shouldPushHistoryRef.current = true;
     setActiveConversationState(conv);

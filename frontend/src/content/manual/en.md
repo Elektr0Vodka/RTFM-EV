@@ -69,7 +69,7 @@ The **Windows 95** theme comes with a **Desktop buddy**: Clippy shows up when yo
 
 ### Top bar
 
-From left to right the top bar shows the app name, the connection status dot, a **Repeating** badge while the host repeater is armed, and the radio battery when you enable it in **Settings > Local Configuration**. On wide screens it also shows a live packet rate graph, the connection status text, and the radio name with its short public key (click the key to copy the full key). When the radio is disconnected or paused, a **Reconnect** or **Connect** button appears. Then come the **Settings** button (a dot on it means a newer build is available), the language menu and the theme button.
+From left to right the top bar shows the app name, the connection status dot, a **Repeating** badge while the host repeater is armed, and the radio battery when you enable it in **Settings > Local Configuration**. On wide screens it also shows a live packet rate graph, the connection status text, and the radio name with its short public key (click the key to copy the full key). When the radio is disconnected or paused, a **Reconnect** or **Connect** button appears. Then come the **Chat window** button (opens the chat-only window, see below), the **Settings** button (a dot on it means a newer build is available), the language menu and the theme button.
 
 On narrow screens a menu button at the far left opens the sidebar.
 
@@ -104,6 +104,21 @@ Press Ctrl+K (Cmd+K on macOS) to open the command palette and jump to conversati
 ### Conversation pane
 
 The large area on the right shows what you selected: a chat, a contact page, a repeater dashboard or a tool. The browser address follows the view (for example `#map` or `#settings/radio`), so you can bookmark views. With **Reopen Last Conversation** on (Settings > Local Configuration), loading the bare address reopens your last chat.
+
+### Chat window
+
+The **Chat window** button in the top bar opens a separate, lighter window that only does messaging, laid out like a classic IRC client: conversations on the left, the chat in the middle and the recent senders of that chat on the right. It runs on its own, so you can close the main tab and keep only this window. It does not load the map, the packet feed or the other tools, and it asks the server to leave out the raw packet stream.
+
+Everything in a chat works as in the main app: the chat header buttons, message actions, the composer, room login, contact and channel info, **New** (start a conversation or add a channel) and **Search**. Anything that is not a chat (the map, the Channel Registry, a repeater dashboard, Settings) opens in the main app instead.
+
+The toolbar has these extras:
+
+- **Lines / Bubbles:** classic lines (`[time] <Name> text`) or the regular message bubbles. In lines, click a name to mention that sender and the small dot in front of it to open their contact info.
+- **Skin:** **mIRC**, **mIRC dark**, or **App theme** to follow the theme chosen in the main app.
+- **Detach:** opens the current chat in a small window of its own.
+- **Main app:** opens the full app on the same conversation.
+
+Skin and layout are saved per browser. While a main tab is open, the chat window leaves the mention sound and browser notifications to that tab, so nothing sounds twice. The right-hand list shows who has spoken in the loaded messages; MeshCore channels have no member list.
 
 <!-- id: messaging -->
 

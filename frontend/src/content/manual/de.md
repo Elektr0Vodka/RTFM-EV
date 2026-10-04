@@ -69,7 +69,7 @@ Zum Design **Windows 95** gehört ein **Desktop-Assistent**: Clippy erscheint, s
 
 ### Obere Leiste
 
-Von links nach rechts zeigt die obere Leiste den App-Namen, den Verbindungsstatus als Punkt, ein Abzeichen **Wiederholt**, solange der Host-Repeater scharf ist, und den Akku des Funkgeräts, wenn du ihn in **Einstellungen > Lokale Konfiguration** einschaltest. Auf breiten Bildschirmen siehst du außerdem ein kleines Diagramm der aktuellen Paketrate, den Verbindungsstatus als Text sowie den Funkgerätenamen mit dem kurzen öffentlichen Schlüssel (klicke auf den Schlüssel, um den vollständigen Schlüssel zu kopieren). Ist das Funkgerät getrennt oder pausiert, erscheint eine Schaltfläche **Erneut verbinden** oder **Verbinden**. Danach folgen die Schaltfläche **Einstellungen** (ein Punkt darauf bedeutet, dass eine neuere Version verfügbar ist), das Sprachmenü und die Design-Schaltfläche.
+Von links nach rechts zeigt die obere Leiste den App-Namen, den Verbindungsstatus als Punkt, ein Abzeichen **Wiederholt**, solange der Host-Repeater scharf ist, und den Akku des Funkgeräts, wenn du ihn in **Einstellungen > Lokale Konfiguration** einschaltest. Auf breiten Bildschirmen siehst du außerdem ein kleines Diagramm der aktuellen Paketrate, den Verbindungsstatus als Text sowie den Funkgerätenamen mit dem kurzen öffentlichen Schlüssel (klicke auf den Schlüssel, um den vollständigen Schlüssel zu kopieren). Ist das Funkgerät getrennt oder pausiert, erscheint eine Schaltfläche **Erneut verbinden** oder **Verbinden**. Danach folgen die Schaltfläche **Chatfenster** (öffnet das reine Chatfenster, siehe unten), die Schaltfläche **Einstellungen** (ein Punkt darauf bedeutet, dass eine neuere Version verfügbar ist), das Sprachmenü und die Design-Schaltfläche.
 
 Auf schmalen Bildschirmen öffnet eine Menü-Schaltfläche ganz links die Seitenleiste.
 
@@ -104,6 +104,21 @@ Drücke Strg+K (Cmd+K unter macOS), um die Befehlspalette zu öffnen, und spring
 ### Unterhaltungsbereich
 
 Die große Fläche rechts zeigt, was du ausgewählt hast: einen Chat, eine Kontaktseite, ein Repeater-Dashboard oder ein Werkzeug. Die Adresse im Browser folgt der Ansicht (zum Beispiel `#map` oder `#settings/radio`), sodass du Ansichten als Lesezeichen speichern kannst. Mit **Letzte Unterhaltung erneut öffnen** (Einstellungen > Lokale Konfiguration) öffnet die reine Adresse deinen letzten Chat wieder.
+
+### Chatfenster
+
+Die Schaltfläche **Chatfenster** in der oberen Leiste öffnet ein eigenes, leichteres Fenster nur für Nachrichten, aufgebaut wie ein klassischer IRC-Client: Unterhaltungen links, der Chat in der Mitte und die letzten Absender dieses Chats rechts. Es läuft eigenständig, du kannst also den Haupt-Tab schließen und nur dieses Fenster offen lassen. Es lädt weder die Karte noch den Paket-Feed oder die anderen Werkzeuge und bittet den Server, den Rohpaket-Datenstrom wegzulassen.
+
+Alles in einem Chat funktioniert wie in der Haupt-App: die Schaltflächen im Chatkopf, Nachrichtenaktionen, das Eingabefeld, die Raum-Anmeldung, Kontakt- und Kanalinfo, **Neu** (eine Unterhaltung beginnen oder einen Kanal hinzufügen) und **Suchen**. Alles, was kein Chat ist (die Karte, das Kanalregister, ein Repeater-Dashboard, die Einstellungen), öffnet sich in der Haupt-App.
+
+Die Werkzeugleiste bietet zusätzlich:
+
+- **Zeilen / Blasen:** klassische Zeilen (`[Zeit] <Name> Text`) oder die gewohnten Nachrichtenblasen. In der Zeilenansicht erwähnt ein Klick auf einen Namen diesen Absender, der kleine Punkt davor öffnet seine Kontaktinfo.
+- **Skin:** **mIRC**, **mIRC dunkel** oder **App-Design**, um dem Design der Haupt-App zu folgen.
+- **Abdocken:** öffnet den aktuellen Chat in einem eigenen kleinen Fenster.
+- **Haupt-App:** öffnet die vollständige App mit derselben Unterhaltung.
+
+Skin und Ansicht werden pro Browser gespeichert. Solange ein Haupt-Tab offen ist, überlässt das Chatfenster ihm den Erwähnungston und die Browser-Benachrichtigungen, damit nichts doppelt ertönt. Die Liste rechts zeigt, wer in den geladenen Nachrichten geschrieben hat; MeshCore-Kanäle haben keine Mitgliederliste.
 
 <!-- id: messaging -->
 

@@ -23,6 +23,16 @@ import {
 } from './hooks';
 import { toast } from './components/ui/sonner';
 import { AppShell } from './components/AppShell';
+import { ChatPopoutShell } from './popout/ChatPopoutShell';
+import {
+  getPopoutMode,
+  isChatConversation,
+  isPopoutView,
+  openChatPopout,
+  openInMainApp,
+  openMainAppAt,
+} from './popout/popoutMode';
+import { createMainPresenceTracker, type MainPresenceTracker } from './popout/mainPresence';
 import { ChannelImportExportModal } from './components/ChannelImportExportModal';
 import type { MessageInputHandle } from './components/MessageInput';
 import { DistanceUnitProvider } from './contexts/DistanceUnitContext';
@@ -48,7 +58,8 @@ import { shouldAutoFocusInput } from './utils/autoFocusInput';
 import { computeRegionSeed } from './lib/regionSeed';
 import { loadRegistry, recordMention, saveRegistry } from './lib/channelManager';
 import { buildNameSet } from './lib/hashtagChannelState';
-import { useLocale } from './i18n';
+import { useLocale, useT } from './i18n';
+import { getSettingsHash } from './utils/urlHash';
 import { resolveDateTimeFormat, setActiveDateTimeFormat } from './utils/dateTimeFormat';
 import { DEFAULT_BATTERY_CHEMISTRY, setActiveBatteryChemistry } from './utils/batteryDisplay';
 
@@ -96,6 +107,24 @@ export function App() {
   const quoteSearchOperatorValue = useCallback((value: string) => {
     return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
   }, []);
+
+  const t = useT();
+  // Chat popup (`?popout=`): the same app with a chat-only shell. Fixed for the
+  // lifetime of the page, since it comes from the URL the window was opened with.
+  const [popoutMode] = useState(getPopoutMode);
+  // A popup stays silent (sound, notifications) while a main tab is open: both
+  // receive the same messages. Without a tracker (the main app) this is true.
+  const mainPresenceRef = useRef<MainPresenceTracker | null>(null);
+  useEffect(() => {
+    if (popoutMode === null) return;
+    const tracker = createMainPresenceTracker();
+    mainPresenceRef.current = tracker;
+    return () => {
+      mainPresenceRef.current = null;
+      tracker.close();
+    };
+  }, [popoutMode]);
+  const shouldNotifyHere = useCallback(() => !mainPresenceRef.current?.isMainOpen(), []);
 
   const messageInputRef = useRef<MessageInputHandle>(null);
   const [channelUnreadMarker, setChannelUnreadMarker] = useState<ChannelUnreadMarker | null>(null);
@@ -370,6 +399,19 @@ export function App() {
     [handleSaveAppSettings]
   );
 
+  // In the chat popup, anything that is not a chat (map, registry, repeater
+  // dashboards, ...) opens in the main app instead of rendering here.
+  const contactsRef = useRef(contacts);
+  contactsRef.current = contacts;
+  const redirectToMainApp = useCallback(
+    (conv: Conversation) => {
+      if (popoutMode === null || isPopoutView(conv, contactsRef.current)) return false;
+      openInMainApp(conv);
+      return true;
+    },
+    [popoutMode]
+  );
+
   // useConversationRouter is called second - it receives channels/contacts as inputs
   const {
     activeConversation,
@@ -384,6 +426,7 @@ export function App() {
     setSidebarOpen,
     pendingDeleteFallbackRef,
     hasSetDefaultConversation,
+    redirectConversation: redirectToMainApp,
   });
 
   // Wire up the ref bridge so useContactsAndChannels handlers reach the real setter
@@ -408,6 +451,8 @@ export function App() {
     channels,
     contacts,
     handleSelectConversation,
+    // The popup has no room for the full-page contact view; use the sheet.
+    forceInfoSheet: popoutMode !== null,
   });
 
   // Custom hooks for conversation-specific functionality
@@ -529,6 +574,25 @@ export function App() {
     });
   }, [activeConversation, unreadCounts, firstUnreadIds]);
 
+  const gatedNotifyIncomingMessage = useCallback(
+    (...args: Parameters<typeof notifyIncomingMessage>) => {
+      if (shouldNotifyHere()) notifyIncomingMessage(...args);
+    },
+    [notifyIncomingMessage, shouldNotifyHere]
+  );
+  const gatedNotifyNewNode = useCallback(
+    (...args: Parameters<typeof handleNewNodeEvent>) => {
+      if (shouldNotifyHere()) handleNewNodeEvent(...args);
+    },
+    [handleNewNodeEvent, shouldNotifyHere]
+  );
+  const gatedNotifyMentionSound = useCallback(
+    (...args: Parameters<typeof notifyMentionSound>) => {
+      if (shouldNotifyHere()) notifyMentionSound(...args);
+    },
+    [notifyMentionSound, shouldNotifyHere]
+  );
+
   const wsHandlers = useRealtimeAppState({
     prevHealthRef,
     setHealth,
@@ -555,10 +619,10 @@ export function App() {
     receiveMessageAck,
     receiveMessageFailed,
     removeMessage,
-    notifyIncomingMessage,
-    notifyNewNode: handleNewNodeEvent,
+    notifyIncomingMessage: gatedNotifyIncomingMessage,
+    notifyNewNode: gatedNotifyNewNode,
     onChannelMention: handleChannelMention,
-    notifyMentionSound,
+    notifyMentionSound: gatedNotifyMentionSound,
   });
   const handleVisibilityPolicyChanged = useCallback(() => {
     clearConversationMessages();
@@ -894,6 +958,10 @@ export function App() {
       await pushSubscription.toggleConversation(key);
     },
     onOpenPushSettings: () => {
+      if (popoutMode !== null) {
+        openMainAppAt(getSettingsHash('local'));
+        return;
+      }
       setSettingsSection('local');
       if (!showSettings) handleToggleSettingsView();
     },
@@ -1042,8 +1110,16 @@ export function App() {
     },
   };
 
-  // Connect to WebSocket
-  useWebSocket(wsHandlers);
+  // Connect to WebSocket. The popup asks for the chat profile, which leaves
+  // out the raw packet stream it never renders.
+  useWebSocket(wsHandlers, popoutMode !== null ? 'chat' : undefined);
+
+  const handleOpenChatWindow = useCallback(() => {
+    const conv = isChatConversation(activeConversation, contacts) ? activeConversation : null;
+    if (!openChatPopout('chat', conv)) {
+      toast.error(t('popout_blocked'));
+    }
+  }, [activeConversation, contacts, t]);
 
   // Initial fetch for config, settings, and data
   useEffect(() => {
@@ -1053,10 +1129,13 @@ export function App() {
 
     // Seed the raw packet feed from the DB so recent history is present on load
     // (and after a full reload), not just packets observed live over the WS.
-    api
-      .getRecentPackets({ limit: MAX_RAW_PACKETS })
-      .then((data) => seedRawPacketStore({ packets: Array.isArray(data) ? data : [] }))
-      .catch(console.error);
+    // The chat popup has no packet views, so it skips this.
+    if (popoutMode === null) {
+      api
+        .getRecentPackets({ limit: MAX_RAW_PACKETS })
+        .then((data) => seedRawPacketStore({ packets: Array.isArray(data) ? data : [] }))
+        .catch(console.error);
+    }
 
     // Fetch contacts and channels via REST (parallel, faster than WS serial push)
     takePrefetchOrFetch('channels', api.getChannels).then(setChannels).catch(console.error);
@@ -1077,6 +1156,7 @@ export function App() {
     setChannels,
     setContacts,
     setContactsLoaded,
+    popoutMode,
   ]);
   return (
     <DistanceUnitProvider distanceUnit={distanceUnit} setDistanceUnit={setDistanceUnit}>
@@ -1092,46 +1172,65 @@ export function App() {
             showLocationPreview={showLocationPreview}
             setShowLocationPreview={setShowLocationPreview}
           >
-            <AppShell
-              localLabel={localLabel}
-              showNewMessage={showNewMessage}
-              showBulkAddResults={bulkAddResult !== null}
-              showSettings={showSettings}
-              settingsSection={settingsSection}
-              sidebarOpen={sidebarOpen}
-              showCracker={showCracker}
-              onSettingsSectionChange={setSettingsSection}
-              onSidebarOpenChange={setSidebarOpen}
-              onCrackerRunningChange={setCrackerRunning}
-              onToggleSettingsView={handleToggleSettingsView}
-              onCloseSettingsView={handleCloseSettingsView}
-              onCloseNewMessage={handleCloseNewMessage}
-              onCloseBulkAddResults={handleCloseBulkAddResults}
-              onLocalLabelChange={setLocalLabel}
-              statusProps={statusProps}
-              sidebarProps={sidebarProps}
-              conversationPaneProps={conversationPaneProps}
-              searchProps={searchProps}
-              settingsProps={settingsProps}
-              crackerProps={crackerProps}
-              newMessageModalProps={newMessageModalProps}
-              bulkAddChannelResultModalProps={bulkAddChannelResultModalProps}
-              contactInfoPaneProps={contactInfoPaneProps}
-              channelInfoPaneProps={channelInfoPaneProps}
-              showMentionTicker={appSettings?.show_mention_ticker ?? true}
-              mentionTickerEvents={pendingMentions}
-              onNavigateMentionToMessage={(channelKey, messageId) => {
-                const ch = channelsRef.current.find((c) => c.key === channelKey);
-                handleNavigateToMessage({
-                  id: messageId,
-                  type: 'CHAN',
-                  conversation_key: channelKey,
-                  conversation_name: ch ? `#${ch.name}` : channelKey,
-                });
-              }}
-              onDismissMention={handleDismissMention}
-              onRepeaterAutoLogin={handleRepeaterAutoLogin}
-            />
+            {popoutMode !== null ? (
+              <ChatPopoutShell
+                mode={popoutMode}
+                showNewMessage={showNewMessage}
+                showBulkAddResults={bulkAddResult !== null}
+                onCloseNewMessage={handleCloseNewMessage}
+                onCloseBulkAddResults={handleCloseBulkAddResults}
+                statusProps={statusProps}
+                sidebarProps={sidebarProps}
+                conversationPaneProps={conversationPaneProps}
+                searchProps={searchProps}
+                newMessageModalProps={newMessageModalProps}
+                bulkAddChannelResultModalProps={bulkAddChannelResultModalProps}
+                contactInfoPaneProps={contactInfoPaneProps}
+                channelInfoPaneProps={channelInfoPaneProps}
+              />
+            ) : (
+              <AppShell
+                onOpenChatWindow={handleOpenChatWindow}
+                localLabel={localLabel}
+                showNewMessage={showNewMessage}
+                showBulkAddResults={bulkAddResult !== null}
+                showSettings={showSettings}
+                settingsSection={settingsSection}
+                sidebarOpen={sidebarOpen}
+                showCracker={showCracker}
+                onSettingsSectionChange={setSettingsSection}
+                onSidebarOpenChange={setSidebarOpen}
+                onCrackerRunningChange={setCrackerRunning}
+                onToggleSettingsView={handleToggleSettingsView}
+                onCloseSettingsView={handleCloseSettingsView}
+                onCloseNewMessage={handleCloseNewMessage}
+                onCloseBulkAddResults={handleCloseBulkAddResults}
+                onLocalLabelChange={setLocalLabel}
+                statusProps={statusProps}
+                sidebarProps={sidebarProps}
+                conversationPaneProps={conversationPaneProps}
+                searchProps={searchProps}
+                settingsProps={settingsProps}
+                crackerProps={crackerProps}
+                newMessageModalProps={newMessageModalProps}
+                bulkAddChannelResultModalProps={bulkAddChannelResultModalProps}
+                contactInfoPaneProps={contactInfoPaneProps}
+                channelInfoPaneProps={channelInfoPaneProps}
+                showMentionTicker={appSettings?.show_mention_ticker ?? true}
+                mentionTickerEvents={pendingMentions}
+                onNavigateMentionToMessage={(channelKey, messageId) => {
+                  const ch = channelsRef.current.find((c) => c.key === channelKey);
+                  handleNavigateToMessage({
+                    id: messageId,
+                    type: 'CHAN',
+                    conversation_key: channelKey,
+                    conversation_name: ch ? `#${ch.name}` : channelKey,
+                  });
+                }}
+                onDismissMention={handleDismissMention}
+                onRepeaterAutoLogin={handleRepeaterAutoLogin}
+              />
+            )}
             <ChannelImportExportModal
               open={showChannelImportExport}
               onClose={() => setShowChannelImportExport(false)}

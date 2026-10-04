@@ -565,6 +565,7 @@ and the path modal (`hooks/useSoftResolutions.ts`).
 
 ### WebSocket
 - `WS /ws`
+- `WS /ws?events=chat` - same stream minus the event types in `EVENT_PROFILES["chat"]` (`raw_packet`, `host_repeater`); used by the frontend chat popup. `WebSocketManager` keeps the excluded set per connection and `broadcast()` skips those connections. Unknown profile names mean the full stream.
 
 ## WebSocket Events
 

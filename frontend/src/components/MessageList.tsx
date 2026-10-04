@@ -57,6 +57,7 @@ import {
   Route,
 } from 'lucide-react';
 import { useRichPayloads } from '../contexts/RichPayloadContext';
+import { useMessageLayout } from '../contexts/MessageLayoutContext';
 import { useLocationPreview } from '../contexts/LocationPreviewContext';
 import { usePathHopWidth } from '../contexts/PathHopWidthContext';
 import {
@@ -70,6 +71,7 @@ import { getDirectContactRoute, getEffectiveLocation } from '../utils/pathUtils'
 import { classifyMessageScope, formatTransportCode } from '../utils/messageScope';
 import { getSavedHideUnscoped, setSavedHideUnscoped } from '../utils/messageHopFilterPreference';
 import { ContactAvatar } from './ContactAvatar';
+import { hashString } from '../utils/contactAvatar';
 import { PathModal } from './PathModal';
 import { RawPacketInspectorDialog } from './RawPacketDetailModal';
 import { MessageRowActions } from './MessageRowActions';
@@ -557,6 +559,8 @@ function renderMeshcoreOpenPayload(
  * Rows are measured for real once they scroll into view.
  */
 const ESTIMATED_MESSAGE_HEIGHT = 64;
+// Classic-lines rows (the chat popup) are a single line of text by default.
+const ESTIMATED_LINE_HEIGHT = 22;
 
 /** Stand-in viewport height for when the scroll container cannot be measured. */
 const FALLBACK_VIEWPORT_HEIGHT = 800;
@@ -1019,6 +1023,8 @@ export function MessageList({
   const CORRUPT_SENDER_LABEL = t('chat_corrupt_sender_label');
   const ANALYZE_PACKET_NOTICE = t('chat_analyze_packet_notice');
   const { renderRichPayloads } = useRichPayloads();
+  const layout = useMessageLayout();
+  const estimatedRowHeight = layout === 'lines' ? ESTIMATED_LINE_HEIGHT : ESTIMATED_MESSAGE_HEIGHT;
   const listRef = useRef<HTMLDivElement>(null);
   const prevMessagesLengthRef = useRef<number>(0);
   const isInitialLoadRef = useRef<boolean>(true);
@@ -1301,7 +1307,7 @@ export function MessageList({
   const virtualizer = useVirtualizer({
     count: sortedMessages.length,
     getScrollElement: () => listRef.current,
-    estimateSize: () => ESTIMATED_MESSAGE_HEIGHT,
+    estimateSize: () => estimatedRowHeight,
     // Rows do not start at the scroll container's origin: the container has p-4
     // padding and may render an "older messages" banner above them. Without this
     // the virtualizer's offsets are short by that distance, so every
@@ -1315,7 +1321,7 @@ export function MessageList({
     overscan: 8,
     // A row that measures zero has not really been laid out yet (hidden pane, images
     // still loading). Keep the estimate instead, or the window balloons to compensate.
-    measureElement: (element) => element.getBoundingClientRect().height || ESTIMATED_MESSAGE_HEIGHT,
+    measureElement: (element) => element.getBoundingClientRect().height || estimatedRowHeight,
     // A viewport that measures zero (before first layout, a hidden tab, jsdom) would
     // otherwise collapse the window to nothing and render an empty list. Fall back to a
     // nominal height so we always mount a plausible screenful.
@@ -1333,6 +1339,14 @@ export function MessageList({
     },
   });
   const virtualRows = virtualizer.getVirtualItems();
+
+  // Switching layout changes every row's height: drop the cached measurements.
+  const measuredLayoutRef = useRef(layout);
+  useEffect(() => {
+    if (measuredLayoutRef.current === layout) return;
+    measuredLayoutRef.current = layout;
+    virtualizer.measure();
+  }, [layout, virtualizer]);
 
   // Re-measured whenever something above the rows can change height.
   useLayoutEffect(() => {
@@ -2061,6 +2075,158 @@ export function MessageList({
                 ? t('a11y_view_info_for', { name: avatarName })
                 : t('a11y_view_info_for', { name: avatarKey.slice(0, 12) });
 
+            const openPathModal = () =>
+              setSelectedPath({
+                paths: msg.paths!,
+                senderInfo: getSenderInfo(msg, contact, directSenderName || sender),
+                messageId: msg.id,
+                packetId: msg.packet_id,
+              });
+            const openSenderInfo = () =>
+              onOpenContactInfo?.(
+                avatarKey,
+                msg.type === 'CHAN' || (msg.type === 'PRIV' && isRoomServer)
+              );
+            // The row's content, shared by both layouts so they cannot drift apart:
+            // each layout below only decides where these pieces go.
+            const renderMeta = (variant: 'header' | 'inline') => (
+              <>
+                {!msg.outgoing && msg.paths && msg.paths.length > 0 && (
+                  <HopCountBadge paths={msg.paths} variant={variant} onClick={openPathModal} />
+                )}
+                {!msg.outgoing && isDirectMessage(msg.paths) && <DirectBadge />}
+                {!msg.outgoing && (
+                  <ScopeBadge transportCode={msg.transport_code} region={msg.region} />
+                )}
+              </>
+            );
+            const renderSender = (label: string) =>
+              canClickSender ? (
+                <span
+                  className="cursor-pointer hover:text-primary transition-colors"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={handleKeyboardActivate}
+                  onClick={() => onSenderClick(displaySender)}
+                  title={t('a11y_mention_sender', { name: displaySender })}
+                >
+                  {label}
+                </span>
+              ) : (
+                label
+              );
+            const body = (
+              <>
+                {richPayload ||
+                  content.split('\n').map((line, i, arr) => (
+                    <span key={i}>
+                      {renderTokens(line, radioName, hashtagCtx, entityOpts, tokenDeps)}
+                      {i < arr.length - 1 && <br />}
+                    </span>
+                  ))}
+              </>
+            );
+            const outgoingStatus = (
+              <>
+                {msg.outgoing &&
+                  (msg.acked > 0 ? (
+                    msg.paths && msg.paths.length > 0 ? (
+                      <span
+                        className="msg-ack text-muted-foreground cursor-pointer hover:text-primary"
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={handleKeyboardActivate}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedPath({
+                            paths: msg.paths!,
+                            senderInfo: selfSenderInfo,
+                            messageId: msg.id,
+                            packetId: msg.packet_id,
+                            isOutgoingChan: msg.type === 'CHAN' && !!onResendChannelMessage,
+                          });
+                        }}
+                        title={t('chat_view_echo_paths')}
+                        aria-label={t('a11y_acknowledged_echoes', { count: msg.acked })}
+                      >{` ✓${msg.acked > 1 ? msg.acked : ''}`}</span>
+                    ) : (
+                      <span className="msg-ack text-muted-foreground">{` ✓${msg.acked > 1 ? msg.acked : ''}`}</span>
+                    )
+                  ) : onResendChannelMessage && msg.type === 'CHAN' ? (
+                    <span
+                      className="text-muted-foreground cursor-pointer hover:text-primary"
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={handleKeyboardActivate}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedPath({
+                          paths: [],
+                          senderInfo: selfSenderInfo,
+                          messageId: msg.id,
+                          packetId: msg.packet_id,
+                          isOutgoingChan: true,
+                        });
+                      }}
+                      title={t('chat_message_status')}
+                      aria-label={t('a11y_no_echoes_view_status')}
+                    >
+                      {' '}
+                      ?
+                    </span>
+                  ) : msg.failed_at != null ? (
+                    <span
+                      className="msg-ack-failed font-semibold text-destructive"
+                      title={t('chat_message_failed_title')}
+                      aria-label={t('chat_message_failed_title')}
+                    >
+                      {` ✕ ${t('chat_message_failed')}`}
+                    </span>
+                  ) : (
+                    <span
+                      className="msg-ack-pending text-muted-foreground"
+                      title={t('chat_no_repeats_heard_yet')}
+                    >
+                      {' '}
+                      ?
+                    </span>
+                  ))}
+              </>
+            );
+            const preview = previewUrl && (
+              <Suspense fallback={null}>
+                <UrlPreviewCard url={previewUrl} />
+              </Suspense>
+            );
+            const rowActions = (
+              <MessageRowActions
+                onReact={
+                  msg.sender_timestamp != null && !isReactionPayload(content) && onReactToMessage
+                    ? (emoji) => onReactToMessage(msg.id, emoji)
+                    : undefined
+                }
+                onReply={
+                  msg.sender_timestamp != null && !isReactionPayload(content) && onReplyToMessage
+                    ? () => onReplyToMessage(msg)
+                    : undefined
+                }
+                onRetry={
+                  isRetryable(msg) && onRetryDirectMessage
+                    ? () => onRetryDirectMessage(msg.id)
+                    : undefined
+                }
+                onMarkUnread={
+                  msg.sender_timestamp != null &&
+                  !isReactionPayload(content) &&
+                  !msg.outgoing &&
+                  onMarkUnreadFromMessage
+                    ? () => onMarkUnreadFromMessage(msg)
+                    : undefined
+                }
+                onDelete={onDeleteMessage ? () => onDeleteMessage(msg) : undefined}
+              />
+            );
+
             return (
               // Absolutely positioned so the scroll container keeps a stable total height
               // while only the visible window is mounted. `flex flex-col` matters: it makes
@@ -2101,235 +2267,144 @@ export function MessageList({
                       <span className="h-px flex-1 bg-border" />
                     </div>
                   ))}
-                <div
-                  data-message-id={msg.id}
-                  className={cn(
-                    'group flex items-start max-w-[85%]',
-                    msg.outgoing && 'flex-row-reverse self-end',
-                    isFirstInGroup && !isFirstMessage && 'mt-3'
-                  )}
-                >
-                  {!msg.outgoing && (
-                    <div className="w-10 flex-shrink-0 flex items-start pt-0.5">
-                      {showAvatar &&
-                        avatarKey &&
-                        (onOpenContactInfo ? (
-                          <button
-                            type="button"
-                            className="avatar-action-button rounded-full border-none bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            aria-label={avatarActionLabel}
-                            onClick={() =>
-                              onOpenContactInfo(
-                                avatarKey,
-                                msg.type === 'CHAN' || (msg.type === 'PRIV' && isRoomServer)
-                              )
-                            }
-                          >
-                            <ContactAvatar
-                              name={avatarName}
-                              publicKey={avatarKey}
-                              size={32}
-                              clickable
-                              variant={avatarVariant}
-                            />
-                          </button>
-                        ) : (
-                          <span>
-                            <ContactAvatar
-                              name={avatarName}
-                              publicKey={avatarKey}
-                              size={32}
-                              variant={avatarVariant}
-                            />
-                          </span>
-                        ))}
-                    </div>
-                  )}
+                {layout === 'lines' ? (
                   <div
+                    data-message-id={msg.id}
                     className={cn(
-                      'py-1.5 px-3 rounded-lg min-w-0',
-                      msg.outgoing ? 'bg-msg-outgoing' : 'bg-msg-incoming',
+                      'group relative flex w-full items-start gap-1.5 px-1 leading-snug',
                       highlightedMessageId === msg.id && 'message-highlight'
                     )}
                   >
-                    {showAvatar && (
-                      <div className="text-[0.8125rem] font-semibold text-foreground mb-0.5">
-                        {canClickSender ? (
-                          <span
-                            className="cursor-pointer hover:text-primary transition-colors"
-                            role="button"
-                            tabIndex={0}
-                            onKeyDown={handleKeyboardActivate}
-                            onClick={() => onSenderClick(displaySender)}
-                            title={t('a11y_mention_sender', { name: displaySender })}
-                          >
-                            {displaySender}
-                          </span>
-                        ) : (
-                          displaySender
-                        )}
-                        <span className="font-normal text-muted-foreground ml-2 text-[0.6875rem]">
-                          {formatTime(msg.received_at)}
-                        </span>
-                        {!msg.outgoing && msg.paths && msg.paths.length > 0 && (
-                          <HopCountBadge
-                            paths={msg.paths}
-                            variant="header"
-                            onClick={() =>
-                              setSelectedPath({
-                                paths: msg.paths!,
-                                senderInfo: getSenderInfo(msg, contact, directSenderName || sender),
-                                messageId: msg.id,
-                                packetId: msg.packet_id,
-                              })
+                    <span className="flex-shrink-0 text-muted-foreground">
+                      {`[${formatTime(msg.received_at)}]`}
+                    </span>
+                    {!msg.outgoing && avatarKey && onOpenContactInfo && (
+                      <button
+                        type="button"
+                        className="avatar-action-button mt-0.5 flex-shrink-0 rounded-full border-none bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-label={avatarActionLabel}
+                        onClick={openSenderInfo}
+                      >
+                        <ContactAvatar
+                          name={avatarName}
+                          publicKey={avatarKey}
+                          size={14}
+                          clickable
+                          variant={avatarVariant}
+                        />
+                      </button>
+                    )}
+                    <span
+                      className={cn(
+                        'max-w-[45%] flex-shrink-0 truncate font-semibold',
+                        msg.outgoing && 'text-primary'
+                      )}
+                      style={
+                        msg.outgoing
+                          ? undefined
+                          : {
+                              color: `hsl(${hashString(avatarKey || displaySender) % 360} 70% var(--nick-l, 55%))`,
                             }
-                          />
-                        )}
-                        {!msg.outgoing && isDirectMessage(msg.paths) && <DirectBadge />}
-                        {!msg.outgoing && (
-                          <ScopeBadge transportCode={msg.transport_code} region={msg.region} />
-                        )}
+                      }
+                    >
+                      {'<'}
+                      {renderSender(msg.outgoing ? radioName || displaySender : displaySender)}
+                      {'>'}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="break-words whitespace-pre-wrap">
+                        {body}
+                        {renderMeta('inline')}
+                        {outgoingStatus}
+                      </div>
+                      {preview}
+                    </div>
+                    {/* Floated over the line's end on hover so the hidden buttons do
+                        not take width away from the text; touch has no hover, so
+                        there they stay in the flow. */}
+                    <div className="absolute right-0 top-0 z-10 rounded bg-card opacity-0 shadow-sm empty:hidden group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:static [@media(hover:none)]:bg-transparent [@media(hover:none)]:opacity-100 [@media(hover:none)]:shadow-none">
+                      {rowActions}
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    data-message-id={msg.id}
+                    className={cn(
+                      'group flex items-start max-w-[85%]',
+                      msg.outgoing && 'flex-row-reverse self-end',
+                      isFirstInGroup && !isFirstMessage && 'mt-3'
+                    )}
+                  >
+                    {!msg.outgoing && (
+                      <div className="w-10 flex-shrink-0 flex items-start pt-0.5">
+                        {showAvatar &&
+                          avatarKey &&
+                          (onOpenContactInfo ? (
+                            <button
+                              type="button"
+                              className="avatar-action-button rounded-full border-none bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              aria-label={avatarActionLabel}
+                              onClick={() =>
+                                onOpenContactInfo(
+                                  avatarKey,
+                                  msg.type === 'CHAN' || (msg.type === 'PRIV' && isRoomServer)
+                                )
+                              }
+                            >
+                              <ContactAvatar
+                                name={avatarName}
+                                publicKey={avatarKey}
+                                size={32}
+                                clickable
+                                variant={avatarVariant}
+                              />
+                            </button>
+                          ) : (
+                            <span>
+                              <ContactAvatar
+                                name={avatarName}
+                                publicKey={avatarKey}
+                                size={32}
+                                variant={avatarVariant}
+                              />
+                            </span>
+                          ))}
                       </div>
                     )}
-                    <div className="break-words whitespace-pre-wrap">
-                      {richPayload ||
-                        content.split('\n').map((line, i, arr) => (
-                          <span key={i}>
-                            {renderTokens(line, radioName, hashtagCtx, entityOpts, tokenDeps)}
-                            {i < arr.length - 1 && <br />}
-                          </span>
-                        ))}
-                      {!showAvatar && (
-                        <>
-                          <span className="text-[0.625rem] text-muted-foreground ml-2">
+                    <div
+                      className={cn(
+                        'py-1.5 px-3 rounded-lg min-w-0',
+                        msg.outgoing ? 'bg-msg-outgoing' : 'bg-msg-incoming',
+                        highlightedMessageId === msg.id && 'message-highlight'
+                      )}
+                    >
+                      {showAvatar && (
+                        <div className="text-[0.8125rem] font-semibold text-foreground mb-0.5">
+                          {renderSender(displaySender)}
+                          <span className="font-normal text-muted-foreground ml-2 text-[0.6875rem]">
                             {formatTime(msg.received_at)}
                           </span>
-                          {!msg.outgoing && msg.paths && msg.paths.length > 0 && (
-                            <HopCountBadge
-                              paths={msg.paths}
-                              variant="inline"
-                              onClick={() =>
-                                setSelectedPath({
-                                  paths: msg.paths!,
-                                  senderInfo: getSenderInfo(
-                                    msg,
-                                    contact,
-                                    directSenderName || sender
-                                  ),
-                                  messageId: msg.id,
-                                  packetId: msg.packet_id,
-                                })
-                              }
-                            />
-                          )}
-                          {!msg.outgoing && isDirectMessage(msg.paths) && <DirectBadge />}
-                          {!msg.outgoing && (
-                            <ScopeBadge transportCode={msg.transport_code} region={msg.region} />
-                          )}
-                        </>
+                          {renderMeta('header')}
+                        </div>
                       )}
-                      {msg.outgoing &&
-                        (msg.acked > 0 ? (
-                          msg.paths && msg.paths.length > 0 ? (
-                            <span
-                              className="msg-ack text-muted-foreground cursor-pointer hover:text-primary"
-                              role="button"
-                              tabIndex={0}
-                              onKeyDown={handleKeyboardActivate}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedPath({
-                                  paths: msg.paths!,
-                                  senderInfo: selfSenderInfo,
-                                  messageId: msg.id,
-                                  packetId: msg.packet_id,
-                                  isOutgoingChan: msg.type === 'CHAN' && !!onResendChannelMessage,
-                                });
-                              }}
-                              title={t('chat_view_echo_paths')}
-                              aria-label={t('a11y_acknowledged_echoes', { count: msg.acked })}
-                            >{` ✓${msg.acked > 1 ? msg.acked : ''}`}</span>
-                          ) : (
-                            <span className="msg-ack text-muted-foreground">{` ✓${msg.acked > 1 ? msg.acked : ''}`}</span>
-                          )
-                        ) : onResendChannelMessage && msg.type === 'CHAN' ? (
-                          <span
-                            className="text-muted-foreground cursor-pointer hover:text-primary"
-                            role="button"
-                            tabIndex={0}
-                            onKeyDown={handleKeyboardActivate}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedPath({
-                                paths: [],
-                                senderInfo: selfSenderInfo,
-                                messageId: msg.id,
-                                packetId: msg.packet_id,
-                                isOutgoingChan: true,
-                              });
-                            }}
-                            title={t('chat_message_status')}
-                            aria-label={t('a11y_no_echoes_view_status')}
-                          >
-                            {' '}
-                            ?
-                          </span>
-                        ) : msg.failed_at != null ? (
-                          <span
-                            className="msg-ack-failed font-semibold text-destructive"
-                            title={t('chat_message_failed_title')}
-                            aria-label={t('chat_message_failed_title')}
-                          >
-                            {` ✕ ${t('chat_message_failed')}`}
-                          </span>
-                        ) : (
-                          <span
-                            className="msg-ack-pending text-muted-foreground"
-                            title={t('chat_no_repeats_heard_yet')}
-                          >
-                            {' '}
-                            ?
-                          </span>
-                        ))}
+                      <div className="break-words whitespace-pre-wrap">
+                        {body}
+                        {!showAvatar && (
+                          <>
+                            <span className="text-[0.625rem] text-muted-foreground ml-2">
+                              {formatTime(msg.received_at)}
+                            </span>
+                            {renderMeta('inline')}
+                          </>
+                        )}
+                        {outgoingStatus}
+                      </div>
+                      {preview}
                     </div>
-                    {previewUrl && (
-                      <Suspense fallback={null}>
-                        <UrlPreviewCard url={previewUrl} />
-                      </Suspense>
-                    )}
+                    {/* Renders nothing when no action applies to this row. */}
+                    {rowActions}
                   </div>
-                  {/* Renders nothing when no action applies to this row. */}
-                  <MessageRowActions
-                    onReact={
-                      msg.sender_timestamp != null &&
-                      !isReactionPayload(content) &&
-                      onReactToMessage
-                        ? (emoji) => onReactToMessage(msg.id, emoji)
-                        : undefined
-                    }
-                    onReply={
-                      msg.sender_timestamp != null &&
-                      !isReactionPayload(content) &&
-                      onReplyToMessage
-                        ? () => onReplyToMessage(msg)
-                        : undefined
-                    }
-                    onRetry={
-                      isRetryable(msg) && onRetryDirectMessage
-                        ? () => onRetryDirectMessage(msg.id)
-                        : undefined
-                    }
-                    onMarkUnread={
-                      msg.sender_timestamp != null &&
-                      !isReactionPayload(content) &&
-                      !msg.outgoing &&
-                      onMarkUnreadFromMessage
-                        ? () => onMarkUnreadFromMessage(msg)
-                        : undefined
-                    }
-                    onDelete={onDeleteMessage ? () => onDeleteMessage(msg) : undefined}
-                  />
-                </div>
+                )}
               </div>
             );
           })}
