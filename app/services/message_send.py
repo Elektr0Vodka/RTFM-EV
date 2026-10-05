@@ -201,17 +201,17 @@ async def send_channel_message_with_effective_scope(
         desired_scope = normalize_region_scope(flood_scope_override)
         scope_explicit = True
 
-    # Fetch the radio's standing scope as the restore target whenever we might
-    # change it: a non-empty desired scope, or an explicit request to go unscoped.
+    # An explicit override is always sent to the radio, also when it equals the
+    # saved global scope: the radio's live scope cannot be read back and drifts
+    # from that setting (a rebooted radio falls back to its stored default scope).
+    # Without an override the radio is left untouched.
+    apply_scope = scope_explicit
+
+    # The saved global scope is the restore target after the send.
     baseline_scope = ""
-    if desired_scope or scope_explicit:
+    if apply_scope:
         settings = await app_settings_repository.get()
         baseline_scope = normalize_region_scope(settings.flood_scope)
-
-    # Apply only when the desired scope differs from the radio's baseline. A blank
-    # desired scope forces unscoped only when explicitly requested; the implicit
-    # (channel-default) path leaves the radio untouched when no override is set.
-    apply_scope = desired_scope != baseline_scope and (bool(desired_scope) or scope_explicit)
 
     # Path hash mode per-channel override
     override_phm = channel.path_hash_mode_override

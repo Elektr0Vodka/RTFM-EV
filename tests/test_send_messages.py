@@ -610,9 +610,13 @@ class TestOutgoingChannelBroadcast:
         ]
 
     @pytest.mark.asyncio
-    async def test_send_channel_msg_skips_temporary_scope_when_override_matches_global(
-        self, test_db
-    ):
+    async def test_send_channel_msg_pushes_override_even_when_it_matches_global(self, test_db):
+        """An override equal to the global scope is still sent to the radio.
+
+        The app cannot read the radio's live scope, and it drifts from the saved
+        global scope (a rebooted radio falls back to its stored default), so an
+        explicit override is never assumed to be in effect already.
+        """
         mc = _make_mc(name="MyNode")
         chan_key = "df" * 16
         await ChannelRepository.upsert(key=chan_key, name="#matching")
@@ -627,7 +631,30 @@ class TestOutgoingChannelBroadcast:
             request = SendChannelMessageRequest(channel_key=chan_key, text="hello")
             await send_channel_message(request)
 
+        # Apply the override, then restore the (identical) global scope.
+        assert mc.commands.set_flood_scope.await_args_list == [
+            call("#Esperance"),
+            call("#Esperance"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_send_channel_msg_without_override_leaves_radio_scope_alone(self, test_db):
+        """A channel with no override sends no scope command at all."""
+        mc = _make_mc(name="MyNode")
+        chan_key = "d4" * 16
+        await ChannelRepository.upsert(key=chan_key, name="#inherit")
+        await AppSettingsRepository.update(flood_scope="Esperance")
+
+        with (
+            patch("app.routers.messages.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch("app.routers.messages.broadcast_event"),
+        ):
+            request = SendChannelMessageRequest(channel_key=chan_key, text="hello")
+            await send_channel_message(request)
+
         mc.commands.set_flood_scope.assert_not_awaited()
+        mc.commands.send.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_send_channel_msg_request_override_beats_channel_override(self, test_db):

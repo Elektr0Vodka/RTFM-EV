@@ -172,6 +172,40 @@ class TestRadioManagerConnect:
             old_mc.disconnect.assert_awaited_once()
             assert rm.meshcore is new_mc
 
+    @pytest.mark.asyncio
+    async def test_connect_flags_library_reconnects(self):
+        """A CONNECTED event marked reconnected is flagged; the first connect is not."""
+        from meshcore.events import Event
+
+        from app.radio import RadioManager
+
+        mock_mc = MagicMock()
+        mock_mc.is_connected = True
+
+        with (
+            patch("app.radio.settings") as mock_settings,
+            patch("app.radio.MeshCore") as mock_meshcore,
+        ):
+            mock_settings.connection_type = "tcp"
+            mock_settings.tcp_host = "10.0.0.1"
+            mock_settings.tcp_port = 4000
+            mock_meshcore.create_tcp = AsyncMock(return_value=mock_mc)
+
+            rm = RadioManager()
+            await rm.connect()
+
+        mock_mc.subscribe.assert_called_once()
+        event_type, on_connected = mock_mc.subscribe.call_args.args
+        assert event_type == EventType.CONNECTED
+
+        on_connected(Event(EventType.CONNECTED, {"connection_info": "10.0.0.1"}))
+        assert rm.library_reconnect_pending is False
+
+        on_connected(
+            Event(EventType.CONNECTED, {"connection_info": "10.0.0.1", "reconnected": True})
+        )
+        assert rm.library_reconnect_pending is True
+
 
 class TestConnectionMonitor:
     """Tests for the background connection monitor loop."""
@@ -303,6 +337,52 @@ class TestConnectionMonitor:
                 await rm.stop_connection_monitor()
 
         rm.post_connect_setup.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_monitor_reruns_setup_after_library_reconnect(self):
+        """A transport reconnect done by meshcore itself re-runs post-connect setup.
+
+        The library reconnects within about a second, so the 5 s poll never sees
+        the drop. A radio that rebooted in between has lost its RAM-only state
+        (e.g. the flood-scope override), so setup has to run again.
+        """
+        from app.radio import RadioManager
+
+        rm = RadioManager()
+        rm._connection_info = "TCP: test:4000"
+        mock_mc = MagicMock()
+        mock_mc.is_connected = True
+        rm._meshcore = mock_mc
+        rm._last_connected = True
+        rm._setup_complete = True
+        rm._library_reconnect_pending = True
+
+        async def _mock_setup():
+            # The real setup clears the flag when it starts.
+            rm._library_reconnect_pending = False
+
+        rm.post_connect_setup = AsyncMock(side_effect=_mock_setup)
+
+        sleep_count = 0
+
+        async def _sleep(_seconds: float):
+            nonlocal sleep_count
+            sleep_count += 1
+            if sleep_count >= 4:
+                raise asyncio.CancelledError()
+
+        with (
+            patch("app.radio.asyncio.sleep", side_effect=_sleep),
+            patch("app.websocket.broadcast_health"),
+        ):
+            await rm.start_connection_monitor()
+            try:
+                await rm._reconnect_task
+            finally:
+                await rm.stop_connection_monitor()
+
+        # Once for the reconnect, then the settled connection is left alone.
+        rm.post_connect_setup.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_monitor_does_not_reconnect_when_connection_is_paused(self):
@@ -865,6 +945,53 @@ class TestPostConnectSetupOrdering:
 
         assert observed_during is True
         assert rm.is_setup_in_progress is False
+
+    @pytest.mark.asyncio
+    async def test_setup_clears_library_reconnect_flag_at_start(self):
+        """Setup clears a pending library reconnect, but keeps one that arrives mid-setup."""
+        from app.models import AppSettings
+        from app.radio import RadioManager
+
+        rm = RadioManager()
+        mock_mc = MagicMock()
+        mock_mc.start_auto_message_fetching = AsyncMock()
+        mock_mc.commands.set_flood_scope = AsyncMock()
+        rm._meshcore = mock_mc
+        rm._library_reconnect_pending = True
+
+        observed_during = None
+
+        async def mock_drain(mc):
+            nonlocal observed_during
+            observed_during = rm.library_reconnect_pending
+            # The transport drops and comes back while setup is still running.
+            rm._library_reconnect_pending = True
+            return 0
+
+        with (
+            patch("app.event_handlers.register_event_handlers"),
+            patch("app.keystore.export_and_store_private_key", new_callable=AsyncMock),
+            patch("app.radio_sync.sync_radio_time", new_callable=AsyncMock),
+            patch(
+                "app.repository.AppSettingsRepository.get",
+                new_callable=AsyncMock,
+                return_value=AppSettings(),
+            ),
+            patch("app.radio_sync.sync_and_offload_all", new_callable=AsyncMock, return_value={}),
+            patch("app.radio_sync.start_periodic_sync"),
+            patch("app.radio_sync.send_advertisement", new_callable=AsyncMock, return_value=False),
+            patch("app.radio_sync.start_periodic_advert"),
+            patch(
+                "app.radio_sync.drain_pending_messages",
+                new_callable=AsyncMock,
+                side_effect=mock_drain,
+            ),
+            patch("app.radio_sync.start_message_polling"),
+        ):
+            await rm.post_connect_setup()
+
+        assert observed_during is False
+        assert rm.library_reconnect_pending is True
 
     @pytest.mark.asyncio
     async def test_setup_clears_in_progress_flag_on_failure(self):
