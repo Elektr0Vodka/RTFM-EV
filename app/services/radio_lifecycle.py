@@ -52,6 +52,9 @@ async def run_post_connect_setup(radio_manager) -> None:
             return
         radio_manager._setup_in_progress = True
         radio_manager._setup_complete = False
+        # Cleared here, not at the end: a reconnect that lands while setup is
+        # still running must trigger another run.
+        radio_manager._library_reconnect_pending = False
         # A loadout's contacts stay protected only until the next connect.
         clear_loadout_protection()
         try:
@@ -415,6 +418,18 @@ async def connection_monitor_loop(radio_manager) -> None:
                 and not radio_manager.is_setup_in_progress
             ):
                 logger.info("Retrying post-connect setup...")
+                await prepare_connected_radio(radio_manager, broadcast_on_success=True)
+                consecutive_setup_failures = 0
+
+            elif (
+                current_connected
+                and radio_manager.library_reconnect_pending
+                and not radio_manager.is_setup_in_progress
+            ):
+                # meshcore reconnected the transport faster than this loop polls,
+                # so the drop was never seen. The radio may have rebooted and lost
+                # its RAM-only state (flood scope), so set it up again.
+                logger.info("Radio transport reconnected; re-running post-connect setup")
                 await prepare_connected_radio(radio_manager, broadcast_on_success=True)
                 consecutive_setup_failures = 0
 

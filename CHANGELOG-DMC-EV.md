@@ -11,6 +11,41 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-05 (Flood scope lost after a radio reboot, fix/flood-scope-after-radio-reboot)
+
+### Radio connection: set the radio up again after a silent reconnect (backend)
+- Fixed: after the radio rebooted, channel messages went out with the radio's
+  own stored default scope (for example `nl-nh`) instead of the app's
+  "Flood Scope / Region" (for example `nl`), until the server was restarted or
+  the scope was saved again. A per-channel regional override equal to the
+  global scope did not help, because the app only sent a scope command when
+  the override differed from the global scope.
+- Cause: the scope the app sets (`CMD_SET_FLOOD_SCOPE`) lives in radio RAM and
+  is gone after a reboot. meshcore reconnects a dropped transport by itself
+  within about a second, which the 5 s connection monitor usually does not
+  see, so post-connect setup (which applies the scope) never ran again.
+- `RadioManager.connect()` now subscribes to the library's `CONNECTED` event
+  and flags a reconnect (`library_reconnect_pending`); the connection monitor
+  then re-runs post-connect setup, the same as after a drop it did see. Setup
+  clears the flag when it starts, so a reconnect during setup triggers one
+  more run.
+- Side effect: every library-level reconnect now runs the full post-connect
+  setup (time sync, flood scope, contact/channel sync, and the startup advert
+  when that is enabled and not throttled), where it used to do nothing.
+
+### Channels: a regional override is always sent to the radio (backend)
+- A channel's regional override (and a per-send `flood_scope_override`) is now
+  applied on every send, also when it equals the global "Flood Scope / Region".
+  Before, an override equal to the global scope sent no scope command, on the
+  assumption that the radio was already on that scope. The radio's live scope
+  cannot be read back and can drift from the saved setting, so that assumption
+  does not hold.
+- After the send the radio is set back to the global scope, as before. That
+  also puts a drifted radio back on the global scope.
+- Cost: two extra local radio commands (apply, restore) per send on a channel
+  whose override equals the global scope. Nothing extra goes on air. Channels
+  without an override still send no scope command.
+
 ## Update 2026-10-04 (mIRC style chat window, feat/mirc-chat-popup)
 
 ### Interface: chat-only popup window (frontend + backend)

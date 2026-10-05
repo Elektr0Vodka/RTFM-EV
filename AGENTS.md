@@ -451,7 +451,7 @@ This table is a representative subset, not the full route list (for example the 
 - Hashtag channels: `SHA256("#name")[:16]` converted to hex
 - Hashtag channel names are hashed **verbatim** (any character - `&`, capitals, spaces, accents - is valid), matching `meshcore_py` / meshcore-cli / meshcore.js, which impose no character restriction (firmware never validates or even sees the name; it only receives the precomputed secret). The New-Conversation UI defaults to normalizing names to lowercase `[a-z0-9-]`, but a "Permit capitals, whitespace, and extended characters" toggle hashes the name exactly as typed for cross-client interop. The only server-side limit is non-empty and ≤32 UTF-8 bytes including the leading `#` (the on-radio name field size).
 - Custom channels: User-provided or generated
-- Channels may also persist `flood_scope_override`; when set, channel sends temporarily switch the radio flood scope to that value for the duration of the send, then restore the global app setting.
+- Channels may also persist `flood_scope_override`; when set, channel sends temporarily switch the radio flood scope to that value for the duration of the send, then restore the global app setting. This also happens when the override equals the global app setting: the radio's live scope cannot be read back and can drift from that setting, so an explicit override is never assumed to be in effect already. Channels without an override send no scope command.
 - Channels may persist `path_hash_mode_override` (0/1/2); when set, channel sends temporarily switch the radio path hash mode for the duration of the send, then restore the radio default.
 
 ### Message Types

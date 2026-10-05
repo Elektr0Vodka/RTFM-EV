@@ -7,7 +7,7 @@ from collections import OrderedDict
 from contextlib import asynccontextmanager, nullcontext
 from pathlib import Path
 
-from meshcore import MeshCore
+from meshcore import EventType, MeshCore
 from serial.serialutil import SerialException
 
 from app.config import settings
@@ -165,6 +165,9 @@ class RadioManager:
         self._setup_lock: asyncio.Lock | None = None
         self._setup_in_progress: bool = False
         self._setup_complete: bool = False
+        # Set when meshcore re-established the transport on its own; the
+        # connection monitor then re-runs post-connect setup.
+        self._library_reconnect_pending: bool = False
         self._frontend_reconnect_error_broadcasts: int = 0
         self.device_info_loaded: bool = False
         self.max_contacts: int | None = None
@@ -219,6 +222,7 @@ class RadioManager:
     def _reset_connected_runtime_state(self) -> None:
         """Clear cached runtime state after a transport teardown completes."""
         self._setup_complete = False
+        self._library_reconnect_pending = False
         self.device_info_loaded = False
         self.max_contacts = None
         self.device_model = None
@@ -436,6 +440,10 @@ class RadioManager:
         return self._setup_complete
 
     @property
+    def library_reconnect_pending(self) -> bool:
+        return self._library_reconnect_pending
+
+    @property
     def connection_desired(self) -> bool:
         return self._connection_desired
 
@@ -497,6 +505,31 @@ class RadioManager:
             await self._connect_ble()
         else:
             await self._connect_serial()
+        self._watch_library_reconnects()
+
+    def _watch_library_reconnects(self) -> None:
+        """Flag transport reconnects that meshcore performs on its own.
+
+        The library re-establishes a dropped transport within about a second,
+        which the connection monitor's 5 s poll usually misses. A radio that
+        rebooted in between has lost its RAM-only state (e.g. the flood-scope
+        override, so it falls back to its stored default scope), so post-connect
+        setup has to run again.
+        """
+        mc = self._meshcore
+        if mc is None:
+            return
+
+        def _on_connected(event) -> None:
+            payload = event.payload if isinstance(event.payload, dict) else {}
+            if payload.get("reconnected") and self._meshcore is mc:
+                logger.info(
+                    "Radio transport was re-established by the library; "
+                    "post-connect setup will re-run"
+                )
+                self._library_reconnect_pending = True
+
+        mc.subscribe(EventType.CONNECTED, _on_connected)
 
     async def _connect_serial(self) -> None:
         """Connect to the radio over serial."""

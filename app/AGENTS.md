@@ -149,6 +149,7 @@ for a source whose terms forbid bulk downloading.
 ### Connection lifecycle
 
 - `RadioManager.start_connection_monitor()` checks health every 5s.
+- meshcore reconnects a dropped transport by itself within about a second (`auto_reconnect=True`), which the 5s poll usually does not see. `RadioManager.connect()` therefore subscribes to `EventType.CONNECTED` and sets `library_reconnect_pending` on an event with `reconnected: true`; the monitor then re-runs post-connect setup. Setup clears the flag when it starts, so a reconnect during setup triggers one more run. Without this a rebooted radio keeps running on its boot state: the flood-scope override (`CMD_SET_FLOOD_SCOPE`) lives in radio RAM only, so the radio sends with its stored default scope instead of the app's "Flood Scope / Region".
 - `RadioManager.post_connect_setup()` delegates to `services/radio_lifecycle.py`.
 - Routers, startup/lifespan code, fanout helpers, and `radio_sync.py` should reach radio state through `services/radio_runtime.py`, not by importing `app.radio.radio_manager` directly.
 - Shared reconnect/setup helpers in `services/radio_lifecycle.py` are used by startup, the monitor, and manual reconnect/reboot flows before broadcasting healthy state.
