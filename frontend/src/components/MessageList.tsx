@@ -102,6 +102,14 @@ interface MessageListProps {
   hiddenHopWidths?: readonly number[];
   /** Persist a new hidden-width selection (sorted, deduplicated). */
   onHiddenHopWidthsChange?: (widths: number[]) => void;
+  /**
+   * Whether the "Hide malformed" filter hides messages the server flagged as
+   * malformed. Stored server-side (app setting `hide_malformed`); when omitted
+   * the filter is kept in local component state only.
+   */
+  hideMalformed?: boolean;
+  /** Persist the "Hide malformed" filter. */
+  onHideMalformedChange?: (hide: boolean) => void;
   onDismissUnreadMarker?: () => void;
   /** Called when the unread boundary is not in loaded history and must be jumped to. */
   onNavigateToUnread?: (messageId: number) => void;
@@ -986,6 +994,8 @@ export function MessageList({
   unreadMarkerMessageId: rawUnreadMarkerMessageId,
   hiddenHopWidths: hiddenHopWidthsProp,
   onHiddenHopWidthsChange,
+  hideMalformed: hideMalformedProp,
+  onHideMalformedChange,
   onDismissUnreadMarker,
   onNavigateToUnread,
   onJumpToMessage,
@@ -1082,6 +1092,10 @@ export function MessageList({
   // Hide messages that carry no regional flood-scope ("unscoped"), e.g. global
   // noise. Persisted like the hop-width filter.
   const [hideUnscoped, setHideUnscoped] = useState<boolean>(() => getSavedHideUnscoped());
+  // Hide messages the server flagged as malformed (generated gibberish spam).
+  // Controlled by the server-side app setting like the hop-width filter.
+  const [localHideMalformed, setLocalHideMalformed] = useState(false);
+  const hideMalformed = hideMalformedProp ?? localHideMalformed;
   const [hopFilterOpen, setHopFilterOpen] = useState(false);
   const hopFilterRef = useRef<HTMLDivElement>(null);
   const toggleHopWidth = useCallback(
@@ -1108,6 +1122,13 @@ export function MessageList({
       return next;
     });
   }, []);
+  const toggleHideMalformed = useCallback(() => {
+    if (onHideMalformedChange) {
+      onHideMalformedChange(!hideMalformed);
+    } else {
+      setLocalHideMalformed(!hideMalformed);
+    }
+  }, [hideMalformed, onHideMalformedChange]);
 
   // Close the hop-size filter panel on an outside click.
   useEffect(() => {
@@ -1190,7 +1211,7 @@ export function MessageList({
     [messages, preSorted]
   );
   const sortedMessages = useMemo(() => {
-    if (hiddenHopWidths.size === 0 && !hideUnscoped) {
+    if (hiddenHopWidths.size === 0 && !hideUnscoped && !hideMalformed) {
       return allSortedMessages;
     }
     // Apply the view-only message filters. Two kinds of message are always
@@ -1208,9 +1229,12 @@ export function MessageList({
       if (hideUnscoped && !m.region) {
         return false;
       }
+      if (hideMalformed && m.malformed) {
+        return false;
+      }
       return true;
     });
-  }, [allSortedMessages, hiddenHopWidths, hideUnscoped, targetMessageId]);
+  }, [allSortedMessages, hiddenHopWidths, hideUnscoped, hideMalformed, targetMessageId]);
 
   // The unread divider sits on the first *visible* unread message. When the
   // server's boundary is a message the filters hide, move it forward to the
@@ -1882,7 +1906,7 @@ export function MessageList({
           title={t('chat_hop_filter_button')}
           className={cn(
             'flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card/90 shadow-sm backdrop-blur transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-            hiddenHopWidths.size > 0 || hideUnscoped
+            hiddenHopWidths.size > 0 || hideUnscoped || hideMalformed
               ? 'text-status-connected'
               : 'text-muted-foreground'
           )}
@@ -1929,6 +1953,19 @@ export function MessageList({
             </label>
             <div className="mt-1 px-1 text-[0.6875rem] text-muted-foreground">
               {t('chat_filter_unscoped_hint')}
+            </div>
+            <div className="my-1.5 h-px bg-border" />
+            <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-[0.8125rem] hover:bg-accent">
+              <input
+                type="checkbox"
+                className="accent-current"
+                checked={hideMalformed}
+                onChange={toggleHideMalformed}
+              />
+              {t('chat_filter_hide_malformed')}
+            </label>
+            <div className="mt-1 px-1 text-[0.6875rem] text-muted-foreground">
+              {t('chat_filter_malformed_hint')}
             </div>
           </div>
         )}

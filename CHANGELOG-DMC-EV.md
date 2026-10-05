@@ -11,6 +11,44 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-05 (Malformed message filter, feat/malformed-message-filter)
+
+### Chat: "Hide malformed" filter for generated channel spam (backend + frontend)
+- New **Hide malformed** checkbox in the chat filter popover, below the hop
+  size and "Hide unscoped" filters. Off by default. When on, incoming channel
+  messages flagged as malformed are hidden in chat and left out of unread
+  counts, mention flags, the unread divider, conversation recency, in-app
+  notifications and sounds, and Web Push. Your own messages always stay
+  visible. Nothing is deleted: turning the filter off shows them again.
+- Background: on 2026-10-05 a sender flooded `Public`, `#public`, `#nl` and
+  `#nl-public` (region `nl`) with messages of random code points from mixed
+  Unicode blocks under a new random sender name each time, at normal 2-byte
+  hop width, so the hop size filter did not help. Every one of them carried a
+  sender timestamp counted from the MeshCore default clock (15 May 2024).
+- A message is flagged when it arrives, at the decrypt step of raw packet
+  ingest (`app/malformed.py`), by either rule:
+  - Text: the body has no ASCII letter or digit and contains an invalid code
+    point (a noncharacter, or planes 4 to 16 outside the tag block), letters
+    from two or more script families, or letters next to box-drawing
+    characters. Emoji-only, punctuation-only and single-script messages are
+    not flagged. Japanese kana with kanji counts as one family.
+  - Clock: the sender timestamp is within 30 days after the MeshCore default
+    RTC epoch (1715770351) and the message arrives more than a week after it.
+    This also flags a real user whose node booted without a clock sync.
+- Measured on the live database before the change (7852 incoming channel
+  messages): both rules matched all 59 stored spam messages; the text rule
+  matched no other message and neither did the clock rule.
+- The raw packet header alone cannot identify this spam (same route type, hop
+  width, hop counts and relays as normal traffic), so channels the app has no
+  key for are not covered.
+- The flag is stored (`messages.malformed`, migration `_129`, which also
+  backfills existing incoming channel text) and sent with every message
+  (`malformed: true`). The filter is the server setting
+  `app_settings.hide_malformed`, so it is shared by all browsers.
+- Not changed: a channel packet whose decrypted text is not valid UTF-8 was
+  already dropped by the decoder and never became a message. In the same
+  burst that was 117 more packets on the four channels.
+
 ## Update 2026-10-05 (Flood scope lost after a radio reboot, fix/flood-scope-after-radio-reboot)
 
 ### Radio connection: set the radio up again after a silent reconnect (backend)

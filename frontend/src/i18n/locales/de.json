@@ -701,6 +701,8 @@
   "map_beacons_trail_points": "{count} Positionen in diesem Zeitfenster",
   "chat_filter_hide_unscoped": "Ohne Region ausblenden",
   "chat_filter_unscoped_hint": "Eigene Nachrichten bleiben sichtbar.",
+  "chat_filter_hide_malformed": "Fehlerhafte ausblenden",
+  "chat_filter_malformed_hint": "Spam aus zufälligen Zeichen und Absender mit nie gestellter Uhr.",
   "chat_no_repeats_heard_yet": "Noch keine Wiederholungen empfangen",
   "chat_open_gif_on_giphy": "GIF auf Giphy öffnen",
   "chat_permit_extended_chars": "Großbuchstaben, Leerzeichen und erweiterte Zeichen zulassen",

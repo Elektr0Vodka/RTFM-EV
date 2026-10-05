@@ -58,7 +58,8 @@ class AppSettingsRepository:
                    advert_retention_days,
                    last_message_times,
                    advert_interval, last_advert_time, flood_scope, known_regions,
-                   blocked_keys, blocked_names, hidden_hop_widths, discovery_blocked_types,
+                   blocked_keys, blocked_names, hidden_hop_widths, hide_malformed,
+                   discovery_blocked_types,
                    tracked_telemetry_repeaters, tracked_telemetry_contacts,
                    auto_resend_channel,
                    telemetry_interval_hours, telemetry_routed_hourly,
@@ -274,6 +275,12 @@ class AppSettingsRepository:
                     )
         except (json.JSONDecodeError, TypeError, KeyError, IndexError):
             hidden_hop_widths = []
+
+        # Parse hide_malformed boolean (migration _129)
+        try:
+            hide_malformed = bool(row["hide_malformed"])
+        except (KeyError, TypeError, IndexError):
+            hide_malformed = False
 
         # Parse discovery_blocked_types JSON
         discovery_blocked_types: list[int] = []
@@ -541,6 +548,7 @@ class AppSettingsRepository:
             blocked_keys=blocked_keys,
             blocked_names=blocked_names,
             hidden_hop_widths=hidden_hop_widths,
+            hide_malformed=hide_malformed,
             discovery_blocked_types=discovery_blocked_types,
             tracked_telemetry_repeaters=tracked_telemetry_repeaters,
             tracked_telemetry_contacts=tracked_telemetry_contacts,
@@ -623,6 +631,7 @@ class AppSettingsRepository:
         blocked_keys: list[str] | None = None,
         blocked_names: list[str] | None = None,
         hidden_hop_widths: list[int] | None = None,
+        hide_malformed: bool | None = None,
         discovery_blocked_types: list[int] | None = None,
         tracked_telemetry_repeaters: list[str] | None = None,
         tracked_telemetry_contacts: list[str] | None = None,
@@ -810,6 +819,10 @@ class AppSettingsRepository:
             updates.append("hidden_hop_widths = ?")
             params.append(json.dumps(sorted({w for w in hidden_hop_widths if w in (1, 2, 3)})))
 
+        if hide_malformed is not None:
+            updates.append("hide_malformed = ?")
+            params.append(1 if hide_malformed else 0)
+
         if discovery_blocked_types is not None:
             updates.append("discovery_blocked_types = ?")
             params.append(json.dumps(discovery_blocked_types))
@@ -987,6 +1000,7 @@ class AppSettingsRepository:
         blocked_keys: list[str] | None = None,
         blocked_names: list[str] | None = None,
         hidden_hop_widths: list[int] | None = None,
+        hide_malformed: bool | None = None,
         discovery_blocked_types: list[int] | None = None,
         tracked_telemetry_repeaters: list[str] | None = None,
         tracked_telemetry_contacts: list[str] | None = None,
@@ -1067,6 +1081,7 @@ class AppSettingsRepository:
                 blocked_keys=blocked_keys,
                 blocked_names=blocked_names,
                 hidden_hop_widths=hidden_hop_widths,
+                hide_malformed=hide_malformed,
                 discovery_blocked_types=discovery_blocked_types,
                 tracked_telemetry_repeaters=tracked_telemetry_repeaters,
                 tracked_telemetry_contacts=tracked_telemetry_contacts,

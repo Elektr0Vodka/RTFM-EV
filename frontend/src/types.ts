@@ -726,6 +726,12 @@ export interface Message {
   region?: string | null;
   /** Unix time an outgoing DM was marked failed (retries ran out, no ACK). Null when not failed. */
   failed_at?: number | null;
+  /**
+   * True when the server flagged this incoming channel message as malformed at
+   * ingest (gibberish mixed-script text, or a sender clock still at the
+   * firmware default). Hidden by the chat "Hide malformed" filter.
+   */
+  malformed?: boolean;
 }
 
 export interface MessagesAroundResponse {
@@ -1149,6 +1155,12 @@ export interface AppSettings {
   blocked_names: string[];
   /** Per-hop path byte widths (1/2/3) hidden by the chat "Hide by hop size" filter. */
   hidden_hop_widths: number[];
+  /**
+   * Chat "Hide malformed" filter: hide incoming channel messages the server
+   * flagged as malformed, and keep them out of unread counts, mentions and
+   * Web Push.
+   */
+  hide_malformed: boolean;
   sidebar_section_order: string[];
   sidebar_tool_order: string[];
   sidebar_favorites_order: string[];
@@ -1508,6 +1520,7 @@ export interface AppSettingsUpdate {
   blocked_keys?: string[];
   blocked_names?: string[];
   hidden_hop_widths?: number[];
+  hide_malformed?: boolean;
   sidebar_section_order?: string[];
   sidebar_tool_order?: string[];
   sidebar_favorites_order?: string[];
