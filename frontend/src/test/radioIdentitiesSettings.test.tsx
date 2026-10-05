@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   updateRadioLink: vi.fn(),
   removeRadioLink: vi.fn(),
   updateRadioNotes: vi.fn(),
+  removeRadio: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
@@ -16,6 +17,7 @@ vi.mock('../api', () => ({
     updateRadioLink: mocks.updateRadioLink,
     removeRadioLink: mocks.removeRadioLink,
     updateRadioNotes: mocks.updateRadioNotes,
+    removeRadio: mocks.removeRadio,
   },
 }));
 
@@ -58,6 +60,7 @@ describe('RadioIdentitiesSettings (plan 18)', () => {
     mocks.updateRadioLink.mockResolvedValue(base);
     mocks.removeRadioLink.mockResolvedValue(base);
     mocks.updateRadioNotes.mockResolvedValue(base);
+    mocks.removeRadio.mockResolvedValue({ status: 'ok' });
   });
 
   it('lists radios with the replacement link and unassigned-history note', async () => {
@@ -96,5 +99,56 @@ describe('RadioIdentitiesSettings (plan 18)', () => {
     await user.click(saves[1]);
 
     await waitFor(() => expect(mocks.updateRadioNotes).toHaveBeenCalledWith(1, 'Lost at the fair'));
+  });
+
+  it('offers removal for every radio except the current one', async () => {
+    render(<RadioIdentitiesSettings health={null} />);
+
+    await screen.findByText('Alpha (aaaaaaaaaaaa)');
+    expect(screen.getAllByRole('button', { name: 'Remove radio' })).toHaveLength(1);
+  });
+
+  it('removes a radio after confirmation and keeps its history by default', async () => {
+    const user = userEvent.setup();
+    render(<RadioIdentitiesSettings health={null} />);
+
+    await user.click(await screen.findByRole('button', { name: 'Remove radio' }));
+    expect(mocks.removeRadio).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Remove Alpha (aaaaaaaaaaaa)?')).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Remove radio' }));
+
+    await waitFor(() => expect(mocks.removeRadio).toHaveBeenCalledWith(1, false));
+    await waitFor(() => expect(mocks.getRadioIdentities).toHaveBeenCalledTimes(2));
+    expect(mocks.toast.success).toHaveBeenCalledWith('Radio removed');
+  });
+
+  it('deletes the stat history too when the box is ticked', async () => {
+    const user = userEvent.setup();
+    render(<RadioIdentitiesSettings health={null} />);
+
+    await user.click(await screen.findByRole('button', { name: 'Remove radio' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(
+      within(dialog).getByLabelText(
+        'Also delete this radio’s battery, noise floor and airtime history'
+      )
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Remove radio' }));
+
+    await waitFor(() => expect(mocks.removeRadio).toHaveBeenCalledWith(1, true));
+  });
+
+  it('cancelling the confirmation removes nothing', async () => {
+    const user = userEvent.setup();
+    render(<RadioIdentitiesSettings health={null} />);
+
+    await user.click(await screen.findByRole('button', { name: 'Remove radio' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(mocks.removeRadio).not.toHaveBeenCalled();
   });
 });

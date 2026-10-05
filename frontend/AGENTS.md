@@ -392,7 +392,7 @@ jsdom has no layout engine, so none of this is observable from the vitest suite 
 ### Radio identities (plan 18)
 
 - `RadioIdentityPrompt.tsx` (mounted in `AppShell`) opens while `health.radio_identity.status === 'pending'`. `new_key`: new radio, or "replaces" an earlier radio that is not already replaced, with carry-over checkboxes (stats, owned nodes, note). `legacy_history`: whether pre-tracking history belongs to this radio. "Decide later" hides it per browser session (`sessionStorage`); it never blocks the app. The answer form (`RadioIdentityResolver`) is reused by `settings/RadioIdentitiesSettings.tsx`.
-- Settings > Radio > Radios (`RadioIdentitiesSettings`) lists every radio with pending answers, the replacement link (carry-over toggles, undo) and a note. It also renders when no radio is connected (`SettingsModal` "Radio is not available" branch).
+- Settings > Radio > Radios (`RadioIdentitiesSettings`) lists every radio with pending answers, the replacement link (carry-over toggles, undo) and a note. Every radio except the current one has **Remove radio**: a confirmation dialog with a checkbox (off by default) to also delete that radio's stat history (`api.removeRadio(id, deleteStats)`). It also renders when no radio is connected (`SettingsModal` "Radio is not available" branch).
 - My Node charts read the active radio's lineage by default; `RadioStatPicker` (only when there is more than one radio or unassigned history) passes a `RadioStatFilter` to `api.getBatteryRange` / `getNoiseFloorHistory` / `getAirtimeRange`. With a filter set, live windows read from the DB instead of the in-memory samples.
 - The sidebar Owned section matches `owner_key` against `ownPublicKey` plus `health.radio_identity.owned_keys`.
 
