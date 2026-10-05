@@ -289,7 +289,7 @@ High-level state is delegated to hooks:
 - `useConversationActions`: send/resend/trace/path-discovery/block handlers and channel override updates
 - `useConversationMessages`: conversation switch loading, embedded conversation-scoped cache, jump-target loading, pagination, dedup/update helpers, reconnect reconciliation, and pending ACK buffering
 - `useUnreadCounts`: unread counters, mention tracking, recent-sort timestamps, server `last_read_ats`, `first_unread_ids` (the unread-divider anchor), and `markConversationUnreadFromMessage` ("mark unread from here")
-- `useRealtimeAppState`: typed WS event application, reconnect recovery, cache/unread coordination; incoming messages hidden by the hop-size filter (`hiddenHopWidthsRef`) are stored but raise no unread count, recency bump, notification, sound or mention ticker, like a muted channel
+- `useRealtimeAppState`: typed WS event application, reconnect recovery, cache/unread coordination; incoming messages hidden by the hop-size filter (`hiddenHopWidthsRef`) are stored but raise no unread count, recency bump, notification, sound or mention ticker, like a muted channel; the same applies to messages the server flagged `malformed` while the "Hide malformed" filter is on (`hideMalformedRef`, app setting `hide_malformed`)
 - `useRepeaterDashboard`: repeater dashboard state (login, pane data/retries, console, actions)
 
 `App.tsx` intentionally still does the final `AppShell` prop assembly. That composition layer is considered acceptable here because it keeps the shell contract visible in one place and avoids a prop-bundling hook with little original logic.

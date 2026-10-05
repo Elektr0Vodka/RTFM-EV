@@ -804,6 +804,61 @@ describe('MessageList hop-size filter', () => {
     expect(row(container, 2)).not.toBeNull();
   });
 
+  const malformedIncoming = (id: number) =>
+    createMessage({
+      id,
+      sender_name: 'Sam.2pup',
+      text: `Sam.2pup: gibberish ${id}`,
+      malformed: true,
+      received_at: 1700000000 + id,
+    });
+  const malformedOutgoing = (id: number) =>
+    createMessage({
+      id,
+      outgoing: true,
+      text: `mine ${id}`,
+      malformed: true,
+      received_at: 1700000000 + id,
+    });
+
+  it('hides malformed incoming messages while keeping normal and own messages', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <MessageList
+        messages={[twoByte(20), malformedIncoming(21), malformedOutgoing(22)]}
+        contacts={[]}
+        loading={false}
+      />
+    );
+    expect(row(container, 21)).not.toBeNull(); // shown until the filter is on
+
+    await openFilterAndCheck(user, /hide malformed/i);
+
+    expect(row(container, 20)).not.toBeNull();
+    expect(row(container, 21)).toBeNull();
+    expect(row(container, 22)).not.toBeNull(); // your own message always stays
+  });
+
+  it('follows the server-backed malformed setting and reports toggles', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const { container } = render(
+      <MessageList
+        messages={[twoByte(20), malformedIncoming(21)]}
+        contacts={[]}
+        loading={false}
+        hideMalformed={true}
+        onHideMalformedChange={onChange}
+      />
+    );
+    // Filtered on first render from the saved setting.
+    expect(row(container, 21)).toBeNull();
+    expect(row(container, 20)).not.toBeNull();
+
+    await openFilterAndCheck(user, /hide malformed/i);
+    expect(onChange).toHaveBeenCalledWith(false);
+  });
+
   const scoped = (id: number) =>
     createMessage({
       id,

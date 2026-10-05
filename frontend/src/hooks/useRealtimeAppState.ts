@@ -44,6 +44,8 @@ interface UseRealtimeAppStateArgs {
   blockedNamesRef: MutableRefObject<string[]>;
   /** Per-hop byte widths hidden by the chat "Hide by hop size" filter. */
   hiddenHopWidthsRef?: MutableRefObject<ReadonlySet<number>>;
+  /** Whether the chat "Hide malformed" filter is on. */
+  hideMalformedRef?: MutableRefObject<boolean>;
   channelsRef: MutableRefObject<Channel[]>;
   activeConversationRef: MutableRefObject<Conversation | null>;
   observeMessage: (msg: Message) => { added: boolean; activeConversation: boolean };
@@ -122,6 +124,7 @@ export function useRealtimeAppState({
   blockedKeysRef,
   blockedNamesRef,
   hiddenHopWidthsRef,
+  hideMalformedRef,
   channelsRef,
   activeConversationRef,
   observeMessage,
@@ -238,15 +241,16 @@ export function useRealtimeAppState({
           msg.type === 'CHAN' &&
           !!msg.conversation_key &&
           channelsRef.current.some((c) => c.key === msg.conversation_key && c.muted);
-        // Hidden by the chat hop-size filter: stored (the list filters it from
-        // view) but treated like a muted channel, so it raises no unread count,
-        // notification, sound or mention ticker. Matches the server's /unreads
-        // and Web Push, which apply the same setting.
+        // Hidden by the chat hop-size or malformed filter: stored (the list
+        // filters it from view) but treated like a muted channel, so it raises
+        // no unread count, notification, sound or mention ticker. Matches the
+        // server's /unreads and Web Push, which apply the same settings.
         const isHopHidden =
           !msg.outgoing &&
           !!hiddenHopWidthsRef &&
           isMessageHiddenByHopWidth(msg.paths, hiddenHopWidthsRef.current);
-        const isSilenced = isMutedChannel || isHopHidden;
+        const isMalformedHidden = !msg.outgoing && !!msg.malformed && !!hideMalformedRef?.current;
+        const isSilenced = isMutedChannel || isHopHidden || isMalformedHidden;
 
         const { added: isNewMessage, activeConversation: isForActiveConversation } =
           observeMessage(msg);
@@ -387,6 +391,7 @@ export function useRealtimeAppState({
       blockedKeysRef,
       blockedNamesRef,
       hiddenHopWidthsRef,
+      hideMalformedRef,
       checkMention,
       fetchAllContacts,
       fetchConfig,

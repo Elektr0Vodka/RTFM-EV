@@ -231,6 +231,7 @@ export function App() {
     fetchAppSettings,
     handleSaveAppSettings,
     handleSetHiddenHopWidths,
+    handleSetHideMalformed,
     hiddenHopWidthsVersion,
     handleToggleBlockedKey,
     handleToggleBlockedName,
@@ -296,6 +297,13 @@ export function App() {
   useEffect(() => {
     hiddenHopWidthsRef.current = new Set(hiddenHopWidths);
   }, [hiddenHopWidths]);
+
+  // Chat "Hide malformed" filter (server setting), same consumers.
+  const hideMalformed = appSettings?.hide_malformed ?? false;
+  const hideMalformedRef = useRef(false);
+  useEffect(() => {
+    hideMalformedRef.current = hideMalformed;
+  }, [hideMalformed]);
 
   // Check if a message mentions the user
   const checkMention = useCallback(
@@ -525,8 +533,8 @@ export function App() {
   useFaviconBadge(unreadCounts, mentions, channels, appSettings?.brand_icon || undefined);
   useUnreadTitle(unreadCounts, contacts, channels, appSettings?.brand_name || undefined);
 
-  // The server excludes hop-hidden messages from unread counts, so re-fetch
-  // them once it has stored a new "Hide by hop size" selection.
+  // The server excludes hop-hidden and malformed-hidden messages from unread
+  // counts, so re-fetch them once it has stored a new filter selection.
   useEffect(() => {
     if (hiddenHopWidthsVersion > 0) void refreshUnreads();
   }, [hiddenHopWidthsVersion, refreshUnreads]);
@@ -605,6 +613,7 @@ export function App() {
     blockedKeysRef,
     blockedNamesRef,
     hiddenHopWidthsRef,
+    hideMalformedRef,
     channelsRef,
     activeConversationRef,
     observeMessage,
@@ -894,6 +903,8 @@ export function App() {
     showUrlPreviews: appSettings?.chat_url_previews ?? false,
     hiddenHopWidths,
     onHiddenHopWidthsChange: handleSetHiddenHopWidths,
+    hideMalformed,
+    onHideMalformedChange: handleSetHideMalformed,
     analyzerSites: appSettings?.analyzer_sites ?? [],
     onHashtagAdded: handleHashtagAdded,
     onInsertLocation: handleInsertLocation,

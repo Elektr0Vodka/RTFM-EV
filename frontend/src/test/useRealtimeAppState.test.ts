@@ -527,6 +527,52 @@ describe('useRealtimeAppState', () => {
     });
   });
 
+  describe('malformed filter', () => {
+    const malformedChan: Message = { ...incomingChan, malformed: true };
+
+    function run(msg: Message, hideMalformed: boolean) {
+      const fns = {
+        recordMessageEvent: vi.fn(),
+        notifyIncomingMessage: vi.fn(),
+        notifyMentionSound: vi.fn(),
+        onChannelMention: vi.fn(),
+      };
+      const { args } = createRealtimeArgs({
+        ...fns,
+        hideMalformedRef: { current: hideMalformed },
+        checkMention: vi.fn(() => true),
+        observeMessage: vi.fn(() => ({ added: true, activeConversation: false })),
+      });
+      const { result } = renderHook(() => useRealtimeAppState(args));
+      act(() => {
+        result.current.onMessage?.(msg);
+      });
+      return { ...fns, observeMessage: args.observeMessage };
+    }
+
+    it('stores but does not count or notify a malformed message when hidden', () => {
+      const fns = run(malformedChan, true);
+      // Still stored, so it is there if the filter is switched off again.
+      expect(fns.observeMessage).toHaveBeenCalledWith(malformedChan);
+      expect(fns.recordMessageEvent).not.toHaveBeenCalled();
+      expect(fns.notifyIncomingMessage).not.toHaveBeenCalled();
+      expect(fns.notifyMentionSound).not.toHaveBeenCalled();
+      expect(fns.onChannelMention).not.toHaveBeenCalled();
+    });
+
+    it('counts and notifies a malformed message while the filter is off', () => {
+      const fns = run(malformedChan, false);
+      expect(fns.recordMessageEvent).toHaveBeenCalled();
+      expect(fns.notifyIncomingMessage).toHaveBeenCalledWith(malformedChan);
+    });
+
+    it('counts and notifies an unflagged message while the filter is on', () => {
+      const fns = run(incomingChan, true);
+      expect(fns.recordMessageEvent).toHaveBeenCalled();
+      expect(fns.notifyIncomingMessage).toHaveBeenCalledWith(incomingChan);
+    });
+  });
+
   it('does not fire notifyMentionSound for a muted channel', () => {
     const notifyMentionSound = vi.fn();
     const { args } = createRealtimeArgs({

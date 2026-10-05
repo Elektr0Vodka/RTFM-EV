@@ -17,8 +17,8 @@ export function useAppSettings() {
   const hasMigratedRef = useRef(false);
   const hasMigratedOrdersRef = useRef(false);
   const hasMigratedHopWidthsRef = useRef(false);
-  // Bumped each time the server confirms a new hop-size filter, so the app can
-  // re-fetch the unread counts the server derives from it.
+  // Bumped each time the server confirms a new hop-size or malformed filter, so
+  // the app can re-fetch the unread counts the server derives from it.
   const [hiddenHopWidthsVersion, setHiddenHopWidthsVersion] = useState(0);
 
   const fetchAppSettings = useCallback(async () => {
@@ -49,6 +49,23 @@ export function useAppSettings() {
       setHiddenHopWidthsVersion((v) => v + 1);
     } catch (err) {
       console.error('Failed to save hop-size filter:', err);
+      try {
+        setAppSettings(await api.getSettings());
+      } catch {
+        // If refetch also fails, leave optimistic state
+      }
+    }
+  }, []);
+
+  // Chat "Hide malformed" filter. Optimistic like the hop-size filter; the
+  // server copy drives unread counts and Web Push.
+  const handleSetHideMalformed = useCallback(async (hide: boolean) => {
+    setAppSettings((prev) => (prev ? { ...prev, hide_malformed: hide } : prev));
+    try {
+      setAppSettings(await api.updateSettings({ hide_malformed: hide }));
+      setHiddenHopWidthsVersion((v) => v + 1);
+    } catch (err) {
+      console.error('Failed to save malformed filter:', err);
       try {
         setAppSettings(await api.getSettings());
       } catch {
@@ -264,6 +281,7 @@ export function useAppSettings() {
     fetchAppSettings,
     handleSaveAppSettings,
     handleSetHiddenHopWidths,
+    handleSetHideMalformed,
     hiddenHopWidthsVersion,
     handleToggleBlockedKey,
     handleToggleBlockedName,

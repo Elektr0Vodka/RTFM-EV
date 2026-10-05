@@ -5,6 +5,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from app.decoder import TXT_TYPE_GROUP_DATA
+from app.malformed import is_malformed_channel_message
 from app.models import Message, MessagePath
 from app.repository import ContactRepository, MessageRepository, RawPacketRepository
 from app.smaz import decode_message_text
@@ -74,6 +75,7 @@ def build_message_model(
     packet_id: int | None = None,
     transport_code: int | None = None,
     region: str | None = None,
+    malformed: bool = False,
 ) -> Message:
     """Build a Message model with the canonical backend payload shape."""
     return Message(
@@ -94,6 +96,7 @@ def build_message_model(
         packet_id=packet_id,
         transport_code=transport_code,
         region=region,
+        malformed=malformed,
     )
 
 
@@ -291,6 +294,7 @@ async def create_message_from_decrypted(
     message_text = decode_message_text(message_text)
     text = f"{sender}: {message_text}" if sender else message_text
     channel_key_normalized = channel_key.upper()
+    malformed = is_malformed_channel_message(message_text, timestamp, received)
 
     resolved_sender_key: str | None = None
     if sender:
@@ -312,6 +316,7 @@ async def create_message_from_decrypted(
         sender_key=resolved_sender_key,
         transport_code=transport_code,
         region=region,
+        malformed=malformed,
     )
 
     if msg_id is None:
@@ -355,6 +360,7 @@ async def create_message_from_decrypted(
             packet_id=packet_id,
             transport_code=transport_code,
             region=region,
+            malformed=malformed,
         ),
         broadcast_fn=broadcast_fn,
         realtime=realtime,
@@ -590,6 +596,7 @@ async def create_fallback_channel_message(
     conversation_key_normalized = conversation_key.upper()
     message_text = decode_message_text(message_text)
     text = f"{sender_name}: {message_text}" if sender_name else message_text
+    malformed = is_malformed_channel_message(message_text, sender_timestamp, received_at)
 
     resolved_sender_key: str | None = None
     if sender_name:
@@ -608,6 +615,7 @@ async def create_fallback_channel_message(
         txt_type=txt_type,
         sender_name=sender_name,
         sender_key=resolved_sender_key,
+        malformed=malformed,
     )
     if msg_id is None:
         await handle_duplicate_message(
@@ -636,6 +644,7 @@ async def create_fallback_channel_message(
         sender_name=sender_name,
         sender_key=resolved_sender_key,
         channel_name=channel_name,
+        malformed=malformed,
     )
     broadcast_message(message=message, broadcast_fn=broadcast_fn)
     return message

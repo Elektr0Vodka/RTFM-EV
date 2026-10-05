@@ -12,11 +12,12 @@ OTHER_KEY = "cd" * 32
 CHAN_KEY = "AA" * 16
 
 
-def _settings(blocked_keys=(), blocked_names=(), hidden_hop_widths=()):
+def _settings(blocked_keys=(), blocked_names=(), hidden_hop_widths=(), hide_malformed=False):
     return SimpleNamespace(
         blocked_keys=list(blocked_keys),
         blocked_names=list(blocked_names),
         hidden_hop_widths=list(hidden_hop_widths),
+        hide_malformed=hide_malformed,
     )
 
 
@@ -142,4 +143,24 @@ async def test_direct_message_without_hops_still_pushed():
         _chan_msg([{"path": "", "path_len": 0, "received_at": 1}]),
         _settings(hidden_hop_widths=[1, 2, 3]),
     )
+    send.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_malformed_channel_message_gets_no_push_when_hidden():
+    msg = {**_chan_msg([]), "malformed": True}
+    send = await _dispatch(msg, _settings(hide_malformed=True))
+    send.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_malformed_channel_message_still_pushed_when_filter_off():
+    msg = {**_chan_msg([]), "malformed": True}
+    send = await _dispatch(msg, _settings())
+    send.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_unflagged_channel_message_still_pushed_when_hiding_malformed():
+    send = await _dispatch(_chan_msg([]), _settings(hide_malformed=True))
     send.assert_called_once()

@@ -129,6 +129,8 @@ interface ConversationPaneProps {
   showUrlPreviews?: boolean;
   hiddenHopWidths?: readonly number[];
   onHiddenHopWidthsChange?: (widths: number[]) => void;
+  hideMalformed?: boolean;
+  onHideMalformedChange?: (hide: boolean) => void;
   analyzerSites?: import('../types').AnalyzerSite[];
   onHashtagAdded?: (channelName: string) => void;
   onInsertLocation?: (
@@ -274,6 +276,8 @@ export function ConversationPane({
   showUrlPreviews,
   hiddenHopWidths,
   onHiddenHopWidthsChange,
+  hideMalformed,
+  onHideMalformedChange,
   analyzerSites,
   onHashtagAdded,
   onInsertLocation,
@@ -732,6 +736,8 @@ export function ConversationPane({
           showUrlPreviews={showUrlPreviews}
           hiddenHopWidths={hiddenHopWidths}
           onHiddenHopWidthsChange={onHiddenHopWidthsChange}
+          hideMalformed={hideMalformed}
+          onHideMalformedChange={onHideMalformedChange}
           analyzerSites={analyzerSites}
           onHashtagAdded={onHashtagAdded}
           onCoordinateClick={onCoordinateClick}

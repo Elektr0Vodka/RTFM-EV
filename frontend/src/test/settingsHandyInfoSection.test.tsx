@@ -42,6 +42,7 @@ function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings {
     blocked_keys: [],
     blocked_names: [],
     hidden_hop_widths: [],
+    hide_malformed: false,
     sidebar_section_order: [],
     sidebar_tool_order: [],
     sidebar_favorites_order: [],

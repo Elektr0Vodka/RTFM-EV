@@ -700,6 +700,14 @@ class Message(BaseModel):
             "without an ACK). None when not failed; a late ACK clears it."
         ),
     )
+    malformed: bool = Field(
+        default=False,
+        description=(
+            "True when an incoming channel message was flagged as malformed at ingest "
+            "(gibberish mixed-script text, or a sender clock still at the firmware default). "
+            "Hidden by the chat 'Hide malformed messages' filter."
+        ),
+    )
 
 
 class MessagesAroundResponse(BaseModel):
@@ -1908,6 +1916,13 @@ class AppSettings(BaseModel):
         description=(
             "Per-hop path byte widths (1/2/3) whose incoming messages are hidden in chat "
             "and excluded from unread counts, mentions and Web Push ('Hide by hop size')."
+        ),
+    )
+    hide_malformed: bool = Field(
+        default=False,
+        description=(
+            "Hide incoming channel messages flagged as malformed in chat and exclude them "
+            "from unread counts, mentions and Web Push ('Hide malformed messages')."
         ),
     )
     sidebar_hidden: SidebarHidden = Field(

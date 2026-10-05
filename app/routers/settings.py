@@ -497,6 +497,13 @@ class AppSettingsUpdate(BaseModel):
             "and excluded from unread counts, mentions and Web Push. Invalid widths are dropped."
         ),
     )
+    hide_malformed: bool | None = Field(
+        default=None,
+        description=(
+            "Hide incoming channel messages flagged as malformed in chat and exclude them "
+            "from unread counts, mentions and Web Push."
+        ),
+    )
     discovery_blocked_types: list[int] | None = Field(
         default=None,
         description=(
@@ -819,6 +826,9 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
         kwargs["hidden_hop_widths"] = sorted(
             {w for w in update.hidden_hop_widths if w in (1, 2, 3)}
         )
+
+    if update.hide_malformed is not None:
+        kwargs["hide_malformed"] = update.hide_malformed
 
     # Discovery blocked types
     if update.discovery_blocked_types is not None:

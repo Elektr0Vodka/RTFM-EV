@@ -67,6 +67,7 @@ class MessageRepository:
         sender_key: str | None = None,
         transport_code: int | None = None,
         region: str | None = None,
+        malformed: bool = False,
     ) -> int | None:
         """Create a message, returning the ID or None if duplicate.
 
@@ -97,8 +98,9 @@ class MessageRepository:
                 """
                 INSERT OR IGNORE INTO messages (type, conversation_key, text, sender_timestamp,
                                                 received_at, paths, txt_type, signature, outgoing,
-                                                sender_name, sender_key, transport_code, region)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                                sender_name, sender_key, transport_code, region,
+                                                malformed)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     msg_type,
@@ -114,6 +116,7 @@ class MessageRepository:
                     normalized_sender_key,
                     transport_code,
                     region,
+                    1 if malformed else 0,
                 ),
             ) as cursor:
                 rowcount = cursor.rowcount
@@ -387,12 +390,23 @@ class MessageRepository:
         )
 
     @staticmethod
+    def _build_hidden_malformed_clause(
+        message_alias: str = "", hide_malformed: bool = False
+    ) -> str:
+        """Exclude incoming messages hidden by the chat 'Hide malformed messages' filter."""
+        if not hide_malformed:
+            return ""
+        prefix = f"{message_alias}." if message_alias else ""
+        return f"NOT ({prefix}outgoing = 0 AND {prefix}malformed = 1)"
+
+    @staticmethod
     def _row_to_message(row: Any) -> Message:
         """Convert a database row to a Message model."""
         packet_id = None
         transport_code = None
         region = None
         failed_at = None
+        malformed = False
         if hasattr(row, "keys"):
             row_keys = row.keys()
             if "packet_id" in row_keys:
@@ -403,6 +417,8 @@ class MessageRepository:
                 region = row["region"]
             if "failed_at" in row_keys:
                 failed_at = row["failed_at"]
+            if "malformed" in row_keys:
+                malformed = bool(row["malformed"])
 
         return Message(
             id=row["id"],
@@ -422,6 +438,7 @@ class MessageRepository:
             transport_code=transport_code,
             region=region,
             failed_at=failed_at,
+            malformed=malformed,
         )
 
     @staticmethod
@@ -878,6 +895,7 @@ class MessageRepository:
         blocked_keys: list[str] | None = None,
         blocked_names: list[str] | None = None,
         hidden_hop_widths: list[int] | None = None,
+        hide_malformed: bool = False,
     ) -> dict:
         """Get unread message counts, mention flags, and last message times for all conversations.
 
@@ -888,6 +906,8 @@ class MessageRepository:
             hidden_hop_widths: Per-hop byte widths (1/2/3) whose incoming messages the
                 chat hop-size filter hides; excluded from counts, mentions, the unread
                 boundary and last message times, like blocked traffic.
+            hide_malformed: Exclude incoming messages flagged as malformed
+                (``messages.malformed``) the same way.
 
         Returns:
             Dict with 'counts', 'mentions', 'last_message_times', 'last_read_ats',
@@ -909,10 +929,13 @@ class MessageRepository:
         hidden_clause = MessageRepository._build_hidden_hop_width_clause("m", hidden_hop_widths)
         if hidden_clause:
             blocked_sql += f" AND {hidden_clause}"
+        malformed_clause = MessageRepository._build_hidden_malformed_clause("m", hide_malformed)
+        if malformed_clause:
+            blocked_sql += f" AND {malformed_clause}"
 
         # Last message times for all conversations (including read ones),
-        # excluding blocked and hop-hidden incoming traffic so refresh matches
-        # live WS behavior.
+        # excluding blocked, hop-hidden and malformed-hidden incoming traffic so
+        # refresh matches live WS behavior.
         last_time_clause, last_time_params = MessageRepository._build_blocked_incoming_clause(
             blocked_keys=blocked_keys, blocked_names=blocked_names
         )
@@ -921,6 +944,7 @@ class MessageRepository:
             for c in (
                 last_time_clause,
                 MessageRepository._build_hidden_hop_width_clause("", hidden_hop_widths),
+                MessageRepository._build_hidden_malformed_clause("", hide_malformed),
             )
             if c
         ]

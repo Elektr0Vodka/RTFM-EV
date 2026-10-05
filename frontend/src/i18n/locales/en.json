@@ -618,6 +618,8 @@
   "chat_hop_filter_hint": "Messages with no known hop size stay visible.",
   "chat_filter_hide_unscoped": "Hide unscoped",
   "chat_filter_unscoped_hint": "Your own messages stay visible.",
+  "chat_filter_hide_malformed": "Hide malformed",
+  "chat_filter_malformed_hint": "Random-character spam and senders whose clock was never set.",
   "chat_scope_direct": "Direct",
   "chat_scope_direct_title": "Heard directly (0 hops): the sender is within direct radio range of your node.",
   "chat_scope_unscoped": "Unscoped",

@@ -151,4 +151,21 @@ describe('useAppSettings legacy hop-size filter migration', () => {
     expect(result.current.appSettings?.hidden_hop_widths).toEqual([1, 3]);
     expect(result.current.hiddenHopWidthsVersion).toBe(1);
   });
+
+  it('saves the malformed filter and bumps the version so unreads refresh', async () => {
+    mocks.api.getSettings.mockResolvedValue(makeServerSettings({ hide_malformed: false }));
+    mocks.api.updateSettings.mockResolvedValue(makeServerSettings({ hide_malformed: true }));
+
+    const { result } = renderHook(() => useAppSettings());
+    await act(async () => {
+      await result.current.fetchAppSettings();
+    });
+    await act(async () => {
+      await result.current.handleSetHideMalformed(true);
+    });
+
+    expect(mocks.api.updateSettings).toHaveBeenCalledWith({ hide_malformed: true });
+    expect(result.current.appSettings?.hide_malformed).toBe(true);
+    expect(result.current.hiddenHopWidthsVersion).toBe(1);
+  });
 });
