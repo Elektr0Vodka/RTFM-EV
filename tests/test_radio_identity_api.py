@@ -124,6 +124,45 @@ class TestRegistryEndpoints:
         assert resp.status_code == 200
         assert resp.json()["notes"] == "lost"
 
+    @pytest.mark.asyncio
+    async def test_delete_keeps_stats_by_default(self, test_db, client, _no_broadcast):
+        a, b = await _two_radios()
+        await BatteryHistoryRepository.insert(100, 3900, a.id)
+
+        resp = await client.delete(f"/api/radio-identities/{a.id}")
+
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "ok"}
+        assert _no_broadcast == ["health"]
+        listing = (await client.get("/api/radio-identities")).json()
+        assert [r["id"] for r in listing["radios"]] == [b.id]
+        assert listing["has_unassigned_history"] is True
+
+    @pytest.mark.asyncio
+    async def test_delete_with_stats(self, test_db, client):
+        a, _ = await _two_radios()
+        await BatteryHistoryRepository.insert(100, 3900, a.id)
+
+        resp = await client.delete(f"/api/radio-identities/{a.id}?delete_stats=true")
+
+        assert resp.status_code == 200
+        listing = (await client.get("/api/radio-identities")).json()
+        assert listing["has_unassigned_history"] is False
+
+    @pytest.mark.asyncio
+    async def test_delete_current_radio_is_409(self, test_db, client, _no_broadcast):
+        _, b = await _two_radios()
+
+        resp = await client.delete(f"/api/radio-identities/{b.id}")
+
+        assert resp.status_code == 409
+        assert _no_broadcast == []
+
+    @pytest.mark.asyncio
+    async def test_delete_unknown_radio_is_404(self, test_db, client):
+        resp = await client.delete("/api/radio-identities/999")
+        assert resp.status_code == 404
+
 
 class TestScopedStatistics:
     @pytest.mark.asyncio

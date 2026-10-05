@@ -157,6 +157,20 @@ async def _copy_note(conn: aiosqlite.Connection, old: RadioIdentity, new: RadioI
         pass
 
 
+async def _release_samples(
+    conn: aiosqlite.Connection, identity_id: int, *, delete_stats: bool
+) -> None:
+    """Delete ``identity_id``'s stat samples, or leave them owned by no radio."""
+    for table in SCOPED_STAT_TABLES:
+        sql = (
+            f"DELETE FROM {table} WHERE radio_identity_id = ?"
+            if delete_stats
+            else f"UPDATE {table} SET radio_identity_id = NULL WHERE radio_identity_id = ?"
+        )
+        async with conn.execute(sql, (identity_id,)):
+            pass
+
+
 async def _set_confirmed(conn: aiosqlite.Connection, identity_id: int) -> None:
     async with conn.execute(
         "UPDATE radio_identities SET status = 'confirmed', pending_reason = NULL WHERE id = ?",
@@ -361,6 +375,30 @@ class RadioIdentityRepository:
             ):
                 pass
             return await _fetch(conn, old_id)
+
+    @staticmethod
+    async def delete(identity_id: int, *, delete_stats: bool) -> None:
+        """Remove a radio from the registry. The active radio cannot be removed.
+
+        ``delete_stats`` deletes its stat samples; otherwise they stay and
+        become unassigned. A replacement link that pointed at this radio is
+        cleared, so the older radio stands alone again.
+        """
+        async with db.tx() as conn:
+            identity = await _fetch(conn, identity_id)
+            if identity.is_active:
+                raise RadioIdentityConflict(
+                    f"radio identity {identity_id} is the current radio and cannot be removed"
+                )
+            async with conn.execute(
+                "UPDATE radio_identities SET replaced_by = NULL, carry_stats = 0, "
+                "carry_owned = 0 WHERE replaced_by = ?",
+                (identity_id,),
+            ):
+                pass
+            await _release_samples(conn, identity_id, delete_stats=delete_stats)
+            async with conn.execute("DELETE FROM radio_identities WHERE id = ?", (identity_id,)):
+                pass
 
     @staticmethod
     async def set_notes(identity_id: int, notes: str | None) -> RadioIdentity:

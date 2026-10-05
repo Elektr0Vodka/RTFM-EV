@@ -1244,6 +1244,10 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ notes }),
     }),
+  removeRadio: (id: number, deleteStats: boolean) =>
+    fetchJson<{ status: string }>(`/radio-identities/${id}?delete_stats=${deleteStats}`, {
+      method: 'DELETE',
+    }),
   getRawFeedStats: (startTs: number, endTs: number) =>
     fetchJson<RawFeedHistoricalStats>(
       `/packets/raw-feed-stats?start_ts=${startTs}&end_ts=${endTs}`

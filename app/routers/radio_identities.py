@@ -3,7 +3,7 @@
 Rows are created at connect (``app/services/radio_identity.py``). These
 endpoints answer the connect-time question (new radio, replacement, or
 whether pre-registry history belongs to the radio), edit a replacement link
-and its carry-over flags, and set a note. Every change is one transaction
+and its carry-over flags, set a note, and remove a radio that is not current. Every change is one transaction
 (``app/repository/radio_identities.py``) and is followed by a ``health``
 broadcast so every open tab drops or updates its prompt. Nothing here touches
 the radio or transmits.
@@ -11,7 +11,7 @@ the radio or transmits.
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.models import RadioIdentity
@@ -133,6 +133,25 @@ async def remove_replacement_link(identity_id: int) -> RadioIdentity:
         raise _http_error(exc) from exc
     _announce()
     return identity
+
+
+@router.delete("/{identity_id}")
+async def delete_radio_identity(
+    identity_id: int,
+    delete_stats: bool = Query(
+        default=False,
+        description="Also delete this radio's battery, noise floor and airtime samples. "
+        "False keeps them as unassigned history.",
+    ),
+) -> dict:
+    """Remove a radio from the registry. The current radio cannot be removed."""
+    try:
+        await RadioIdentityRepository.delete(identity_id, delete_stats=delete_stats)
+    except (RadioIdentityNotFound, RadioIdentityConflict) as exc:
+        raise _http_error(exc) from exc
+    logger.info("Removed radio identity %d (delete_stats=%s)", identity_id, delete_stats)
+    _announce()
+    return {"status": "ok"}
 
 
 @router.patch("/{identity_id}", response_model=RadioIdentity)

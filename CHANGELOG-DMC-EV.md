@@ -11,6 +11,29 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-05 (Remove a radio, feat/radio-removal)
+
+### Settings > Radio > Radios: remove a radio (backend + frontend)
+- Requested by Richard (2026-10-04): a radio in the Radios list could not be
+  removed, so a radio that connected once for a test stayed listed forever.
+- Every radio except the current one now has a **Remove radio** button. It
+  opens a confirmation with one checkbox, off by default: "Also delete this
+  radio's battery, noise floor and airtime history". Unticked, the samples are
+  kept without a radio (they show as "Before radio tracking" in the My Node
+  radio picker). Ticked, they are deleted and cannot be restored.
+- The current radio cannot be removed (`409`): it would be registered again
+  as a new radio on the next connect.
+- A replacement link that pointed at the removed radio is cleared, so the
+  older radio stands alone again. Contacts, messages and packets are not
+  touched. A removed radio that connects again is treated as a new radio.
+- New endpoint `DELETE /api/radio-identities/{id}?delete_stats=false`
+  (`RadioIdentityRepository.delete`, one transaction, followed by a
+  `health` broadcast). No migration.
+- Tests: `tests/test_radio_identities.py` (`TestDelete`),
+  `tests/test_radio_identity_api.py`, frontend
+  `radioIdentitiesSettings.test.tsx` and `api.radioIdentity.test.ts`.
+- Docs: `app/AGENTS.md`, `frontend/AGENTS.md`, in-app manual (EN/NL/DE).
+
 ## Update 2026-10-05 (Malformed message filter, feat/malformed-message-filter)
 
 ### Chat: "Hide malformed" filter for generated channel spam (backend + frontend)

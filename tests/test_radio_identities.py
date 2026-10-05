@@ -423,3 +423,106 @@ class TestScopedStatReads:
         air = await AirtimeHistoryRepository.get_range(0, 1000, StatScope(ids=[2]))
         assert [s["tx_air_secs"] for s in air] == [3]
         assert air[0]["radio_identity_id"] == 2
+
+
+class TestDelete:
+    async def _count(self, db, table: str, radio_id: int | None) -> int:
+        where = "IS NULL" if radio_id is None else "= ?"
+        params = () if radio_id is None else (radio_id,)
+        async with db.readonly() as conn:
+            async with conn.execute(
+                f"SELECT COUNT(*) FROM {table} WHERE radio_identity_id {where}", params
+            ) as cur:
+                row = await cur.fetchone()
+        return row[0]
+
+    async def _two_radios_with_samples(self):
+        a = await RadioIdentityRepository.register_connect(KEY_A, "Alpha", 1000)
+        b = await RadioIdentityRepository.register_connect(KEY_B, "Bravo", 2000)
+        for radio in (a, b):
+            await BatteryHistoryRepository.insert(100, 4000, radio.id)
+            await NoiseFloorRepository.insert(100, -110, radio.id)
+            await AirtimeHistoryRepository.insert(100, 1, 2, radio_identity_id=radio.id)
+        return a, b
+
+    @pytest.mark.asyncio
+    async def test_delete_removes_the_radio(self, db):
+        a, b = await self._two_radios_with_samples()
+
+        await RadioIdentityRepository.delete(a.id, delete_stats=False)
+
+        assert [r.id for r in await RadioIdentityRepository.list_all()] == [b.id]
+
+    @pytest.mark.asyncio
+    async def test_delete_keeps_samples_as_unassigned(self, db):
+        a, b = await self._two_radios_with_samples()
+
+        await RadioIdentityRepository.delete(a.id, delete_stats=False)
+
+        for table in ("battery_history", "noise_floor_samples", "airtime_history"):
+            assert await self._count(db, table, a.id) == 0
+            assert await self._count(db, table, None) == 1
+            assert await self._count(db, table, b.id) == 1
+
+    @pytest.mark.asyncio
+    async def test_delete_with_stats_removes_only_that_radios_samples(self, db):
+        a, b = await self._two_radios_with_samples()
+        await BatteryHistoryRepository.insert(50, 3700)  # recorded before radio tracking
+
+        await RadioIdentityRepository.delete(a.id, delete_stats=True)
+
+        for table in ("battery_history", "noise_floor_samples", "airtime_history"):
+            assert await self._count(db, table, a.id) == 0
+            assert await self._count(db, table, b.id) == 1
+        assert await self._count(db, "battery_history", None) == 1
+        assert await self._count(db, "noise_floor_samples", None) == 0
+
+    @pytest.mark.asyncio
+    async def test_delete_rejects_the_current_radio(self, db):
+        _, b = await self._two_radios_with_samples()
+
+        with pytest.raises(RadioIdentityConflict):
+            await RadioIdentityRepository.delete(b.id, delete_stats=True)
+
+        assert await RadioIdentityRepository.get(b.id) is not None
+        assert await self._count(db, "battery_history", b.id) == 1
+
+    @pytest.mark.asyncio
+    async def test_delete_unknown_id_not_found(self, db):
+        with pytest.raises(RadioIdentityNotFound):
+            await RadioIdentityRepository.delete(999, delete_stats=False)
+
+    @pytest.mark.asyncio
+    async def test_delete_clears_the_link_that_pointed_at_it(self, db):
+        a = await RadioIdentityRepository.register_connect(KEY_A, "Alpha", 1000)
+        b = await RadioIdentityRepository.register_connect(KEY_B, "Bravo", 2000)
+        await RadioIdentityRepository.link_replacement(
+            b.id, a.id, carry_stats=True, carry_owned=True, carry_note=False
+        )
+        c = await RadioIdentityRepository.register_connect(KEY_C, "Charlie", 3000)
+        await RadioIdentityRepository.link_replacement(
+            c.id, b.id, carry_stats=True, carry_owned=True, carry_note=False
+        )
+
+        await RadioIdentityRepository.delete(b.id, delete_stats=False)
+
+        old = await RadioIdentityRepository.get(a.id)
+        assert old is not None
+        assert old.replaced_by is None
+        assert not old.carry_stats and not old.carry_owned
+        assert await RadioIdentityRepository.lineage_ids(c.id, "stats") == [c.id]
+
+    @pytest.mark.asyncio
+    async def test_delete_failure_rolls_back(self, db, monkeypatch):
+        a, _ = await self._two_radios_with_samples()
+
+        async def failing(conn, identity_id, *, delete_stats):
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(radio_identities_module, "_release_samples", failing)
+
+        with pytest.raises(RuntimeError):
+            await RadioIdentityRepository.delete(a.id, delete_stats=True)
+
+        assert await RadioIdentityRepository.get(a.id) is not None
+        assert await self._count(db, "battery_history", a.id) == 1

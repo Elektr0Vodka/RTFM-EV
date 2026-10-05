@@ -61,4 +61,12 @@ describe('radio identity api (plan 18)', () => {
     expect(url(1)).toContain('/radio-identities/2/legacy-history');
     expect(mockFetch.mock.calls[2][1].method).toBe('DELETE');
   });
+
+  it('removes a radio, keeping or deleting its stat history', async () => {
+    await api.removeRadio(3, false);
+    await api.removeRadio(4, true);
+    expect(url(0)).toMatch(/\/radio-identities\/3\?delete_stats=false$/);
+    expect(mockFetch.mock.calls[0][1].method).toBe('DELETE');
+    expect(url(1)).toMatch(/\/radio-identities\/4\?delete_stats=true$/);
+  });
 });
