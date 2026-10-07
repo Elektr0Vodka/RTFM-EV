@@ -103,18 +103,25 @@ const NUMBER_OPS: readonly OpenHopOperator[] = [
   'equals',
   'not_equals',
   'greater_than',
+  'less_than',
+];
+/** OpenHop's own editor offers `>=` / `<=` only on the measured fields (length, hops, signal). */
+const RANGE_OPS: readonly OpenHopOperator[] = [
+  'equals',
+  'not_equals',
+  'greater_than',
   'greater_or_equal',
   'less_than',
   'less_or_equal',
 ];
 const BOOLEAN_OPS: readonly OpenHopOperator[] = ['equals', 'not_equals'];
+/** `matches` is the host repeater's addition; the OpenHop API vocabulary filters it out. */
 const TEXT_OPS: readonly OpenHopOperator[] = [
-  'equals',
-  'not_equals',
   'contains',
   'starts_with',
   'ends_with',
-  'in',
+  'equals',
+  'not_equals',
   'matches',
 ];
 
@@ -123,6 +130,7 @@ const num = (options?: readonly ValueOption[]): FieldSpec => ({
   ops: NUMBER_OPS,
   options,
 });
+const range: FieldSpec = { kind: 'number', ops: RANGE_OPS };
 const bool: FieldSpec = { kind: 'boolean', ops: BOOLEAN_OPS, options: BOOLEAN_OPTIONS };
 
 /**
@@ -134,18 +142,18 @@ const bool: FieldSpec = { kind: 'boolean', ops: BOOLEAN_OPS, options: BOOLEAN_OP
 const FIELD_SPECS: Record<string, FieldSpec> = {
   route_type: num(ROUTE_TYPE_OPTIONS),
   payload_type: num(PAYLOAD_TYPE_OPTIONS),
-  payload_length: num(),
+  payload_length: range,
   path_hash_size: num(PATH_HASH_SIZE_OPTIONS),
-  hop_count: num(),
-  rssi: num(),
-  snr: num(),
+  hop_count: range,
+  rssi: range,
+  snr: range,
   transport_code_0: num(),
   transport_code_1: num(),
   mode: { kind: 'text', ops: ['equals', 'not_equals', 'in'], options: MODE_OPTIONS },
   local_transmission: bool,
   channel_decryptable: bool,
   path_hashes: { kind: 'text', ops: ['contains', 'intersects'] },
-  channel_hash: { kind: 'text', ops: ['equals', 'not_equals', 'contains', 'in', 'intersects'] },
+  channel_hash: { kind: 'text', ops: ['equals', 'not_equals', 'in'] },
   channel_message_body: { kind: 'text', ops: TEXT_OPS },
   channel_sender: { kind: 'text', ops: TEXT_OPS },
   payload_hex: { kind: 'text', ops: TEXT_OPS },
@@ -173,9 +181,10 @@ export function formatConditionValue(field: string, value: OpenHopConditionValue
   return FIELD_SPECS[field]?.options?.find((o) => o.value === text)?.label ?? text;
 }
 
+/** In the field's own order (OpenHop's editor order); the first one is the field's default. */
 function operatorsFor(field: string, vocabulary: readonly OpenHopOperator[]): OpenHopOperator[] {
   const spec = FIELD_SPECS[field];
-  return spec ? vocabulary.filter((o) => spec.ops.includes(o)) : [...vocabulary];
+  return spec ? spec.ops.filter((o) => vocabulary.includes(o)) : [...vocabulary];
 }
 
 interface PolicyObjects {
