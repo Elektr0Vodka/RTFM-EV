@@ -11,6 +11,34 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-07 (OpenHop policy operators match the OpenHop editor, fix/openhop-policy-operators)
+
+### OpenHop: Policy rules (frontend)
+- Reported by Richard (2026-10-06): OpenHop's rule editor offers **Greater or
+  Equal** and **Less or Equal** on `payload_length`, `hop_count`, `rssi` and
+  `snr`. RTFM-EV already offered both there (since the 2026-10-01 update),
+  but also on every other numeric field.
+- The operator list per field now matches OpenHop's own editor
+  (`openhop-dev/openhop_repeater`, branch `dev`, 2026-10-06):
+  `route_type`, `payload_type`, `path_hash_size`, `transport_code_0` and
+  `transport_code_1` offer `equals`, `not_equals`, `greater_than` and
+  `less_than` only. The four fields above keep all six.
+- `channel_hash` offers `equals`, `not_equals` and `in` (`contains` and
+  `intersects` removed). `channel_message_body`, `channel_sender` and
+  `payload_hex` offer `contains`, `starts_with`, `ends_with`, `equals` and
+  `not_equals` (`in` removed), in that order: switching a condition to one
+  of these fields now falls back to `contains` instead of `equals`, as in
+  OpenHop's editor.
+- An existing rule that uses a removed operator on one of those fields is
+  not changed: the operator stays selected and selectable in the editor,
+  and both engines still evaluate it. It is only no longer offered for new
+  conditions on those fields.
+- The Settings > Host repeater policy editor shares the builder, so the
+  same fields follow the same lists there; its `matches` operator on the
+  text fields is kept. No backend change, no migration.
+- Tests: `frontend/src/test/openHopConditionBuilder.test.tsx`.
+- Docs: `frontend/AGENTS.md`.
+
 ## Update 2026-10-05 (Remove a radio, feat/radio-removal)
 
 ### Settings > Radio > Radios: remove a radio (backend + frontend)

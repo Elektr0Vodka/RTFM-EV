@@ -133,6 +133,82 @@ describe('OpenHopConditionList', () => {
     expect(ops).toEqual(['contains', 'intersects']);
   });
 
+  const operatorsOf = (condition: OpenHopCondition) => {
+    const { unmount } = render(
+      <OpenHopConditionList items={[condition]} objects={objects} onChange={vi.fn()} />
+    );
+    const ops = within(screen.getByLabelText(/^operator$/i))
+      .getAllByRole('option')
+      .map((o) => o.textContent);
+    unmount();
+    return ops;
+  };
+
+  it.each(['payload_length', 'hop_count', 'rssi', 'snr'])(
+    'offers greater/less or equal for %s, like the OpenHop editor',
+    (field) => {
+      expect(operatorsOf({ field, op: 'equals', value: '' })).toEqual([
+        'equals',
+        'not_equals',
+        'greater_than',
+        'greater_or_equal',
+        'less_than',
+        'less_or_equal',
+      ]);
+    }
+  );
+
+  it.each(['route_type', 'payload_type', 'path_hash_size', 'transport_code_0', 'transport_code_1'])(
+    'offers no greater/less or equal for %s, like the OpenHop editor',
+    (field) => {
+      expect(operatorsOf({ field, op: 'equals', value: '' })).toEqual([
+        'equals',
+        'not_equals',
+        'greater_than',
+        'less_than',
+      ]);
+    }
+  );
+
+  it('offers equals, not_equals and in for channel_hash, like the OpenHop editor', () => {
+    expect(operatorsOf({ field: 'channel_hash', op: 'equals', value: '' })).toEqual([
+      'equals',
+      'not_equals',
+      'in',
+    ]);
+  });
+
+  it.each(['channel_message_body', 'channel_sender', 'payload_hex'])(
+    'offers the OpenHop editor operators, in its order, for the text field %s',
+    (field) => {
+      expect(operatorsOf({ field, op: 'equals', value: '' })).toEqual([
+        'contains',
+        'starts_with',
+        'ends_with',
+        'equals',
+        'not_equals',
+      ]);
+    }
+  );
+
+  it('defaults a text field to contains, like the OpenHop editor', async () => {
+    const onChange = renderRow({ field: 'hop_count', op: 'greater_than', value: '' });
+    await userEvent.selectOptions(screen.getByLabelText(/^field$/i), 'channel_sender');
+    expect(onChange).toHaveBeenLastCalledWith([
+      { field: 'channel_sender', op: 'contains', value: '' },
+    ]);
+  });
+
+  it('keeps a stored greater_or_equal selectable on a field that no longer offers it', () => {
+    expect(operatorsOf({ field: 'route_type', op: 'greater_or_equal', value: 1 })).toEqual([
+      'greater_or_equal',
+      'equals',
+      'not_equals',
+      'greater_than',
+      'less_than',
+    ]);
+  });
+
   it('switches to a valid operator when the field changes', async () => {
     const onChange = renderRow({ field: 'channel_sender', op: 'starts_with', value: '' });
     await userEvent.selectOptions(screen.getByLabelText(/^field$/i), 'hop_count');
