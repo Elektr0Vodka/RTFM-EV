@@ -11,21 +11,21 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
-## Update 2026-10-09 (28 more desktop buddies, feat/buddy-acs-characters)
+## Update 2026-10-09 (26 more desktop buddies, feat/buddy-acs-characters)
 
 No migration.
 
-### Interface: desktop buddy (28 more characters)
-- The **Desktop buddy** picker lists 28 more characters after the 10
-  `clippyjs` agents: the Office assistants The Dot, Office Logo and Mother
-  Nature, the Windows XP search assistants Courtney and Earl, the
+### Interface: desktop buddy (26 more characters)
+- The **Desktop buddy** picker lists 26 more characters after the 10
+  `clippyjs` agents: the Office assistant Mother Nature, the Windows XP
+  search assistants Courtney and Earl, the
   Microsoft Agent characters Birdie, Cami, Charlie, E-Man, E-Woman, Electra,
   Gar, Hanz, Milton, Oscar, Plany, Santa, VRGirl, Wabbit and WartNose, and
   from the older Agent 1.5 format Al, Checkmate, Gourdy, Max, Ozzar, Sharky,
   Spaceman and Totem.
 - They were converted from Microsoft Agent `.acs` files with the new
   converter below and live in `frontend/src/buddy/custom/<id>/` (`agent.json`
-  + `map.png`, 18 MB in total). Each is its own lazy chunk and its sprite
+  + `map.png`, 17 MB in total). Each is its own lazy chunk and its sprite
   sheet a separate asset file, so a browser downloads only the buddy it
   picked. The characters and sprite sheets are Microsoft's and third parties'
   artwork, not ours.

@@ -47,12 +47,11 @@ repository and run the converter with `python -I`.
 
 Converted on 2026-10-08 and 2026-10-09 with default options, from a local
 collection that is not part of this repository. `Miku.acs` (1.5) was left out:
-it is one still picture.
+it is one still picture. The Dot (`DOT.ACS`) and Office Logo (`LOGO.ACS`)
+were added and then removed again on request.
 
 | Id | Name | Source file | Frame | Sheet |
 | --- | --- | --- | --- | --- |
-| `dot` | The Dot | `DOT.ACS` | 124x93 | 131 KiB |
-| `logo` | Office Logo | `LOGO.ACS` | 124x93 | 390 KiB |
 | `mothernature` | Mother Nature | `MNATURE.ACS` | 124x93 | 790 KiB |
 | `courtney` | Courtney | `courtney.acs` | 80x80 | 303 KiB |
 | `earl` | Earl | `earl.acs` | 80x80 | 495 KiB |

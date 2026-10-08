@@ -16,17 +16,7 @@ export interface CustomBuddyAgent {
 }
 
 export const CUSTOM_BUDDY_AGENTS = {
-  // Office assistants
-  dot: {
-    name: 'The Dot',
-    agent: () => import('./custom/dot/agent.json'),
-    map: () => import('./custom/dot/map.png?url'),
-  },
-  logo: {
-    name: 'Office Logo',
-    agent: () => import('./custom/logo/agent.json'),
-    map: () => import('./custom/logo/map.png?url'),
-  },
+  // Office assistant
   mothernature: {
     name: 'Mother Nature',
     agent: () => import('./custom/mothernature/agent.json'),
