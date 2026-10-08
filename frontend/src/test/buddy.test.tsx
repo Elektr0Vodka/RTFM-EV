@@ -172,6 +172,7 @@ describe('pageTipKey', () => {
   it('maps pages to tips and returns null for pages without one', () => {
     expect(pageTipKey('map')).toBe('buddy_tip_map');
     expect(pageTipKey('settings')).toBe('buddy_tip_settings');
+    expect(pageTipKey('snmp')).toBe('buddy_tip_snmp');
     expect(pageTipKey('link')).toBeNull();
     expect(pageTipKey(null)).toBeNull();
   });

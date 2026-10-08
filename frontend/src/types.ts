@@ -889,6 +889,7 @@ type ConversationType =
   | 'mesh-health'
   | 'mesh-trends'
   | 'mesh-discovery'
+  | 'snmp'
   | 'analyze'
   | 'packet-history'
   | 'manual'
@@ -1758,6 +1759,13 @@ export interface SnmpPollResponse {
 export interface SnmpHistoryEntry {
   timestamp: number;
   values: SnmpValues;
+}
+
+/** One contact with SNMP set up (Tools > SNMP): settings, outcome, newest stored poll. */
+export interface SnmpNodeOverview extends ContactSnmpConfig {
+  name: string | null;
+  type: number | null;
+  latest: SnmpHistoryEntry | null;
 }
 
 /** Settings of RTFM-EV's own SNMP agent (read-only SNMPv2c, off by default). */

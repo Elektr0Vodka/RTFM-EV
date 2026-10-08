@@ -201,7 +201,7 @@ Als je een repeater opent, zie je een inlogformulier: log in met het wachtwoord 
 
 Met Instellingen bewerken wijzig je één repeaterinstelling tegelijk: je past aan, bevestigt het exacte CLI-commando, het wordt via RF verstuurd en de waarde wordt teruggelezen ter controle. Voor het wijzigen van frequentie, bandbreedte, spreading factor of coding rate moet je eerst de naam van de repeater typen, omdat een verkeerde waarde hem uit de lucht kan halen. De groep Observer-firmware (SNMP-agent aan/uit) werkt alleen op DMC observer- en agessaman observer-firmware: gebruik eerst de eigen knop Lezen en herstart de repeater na een wijziging.
 
-Repeaters en roomservers met observer-firmware kun je ook via je netwerk uitlezen. Op de contactpagina vraagt de kaart **SNMP (LAN)** om het IP-adres, de poort en de community van de node; met **Nu uitlezen** zie je daarna radio-, MQTT-, geheugen- en wifi-waarden zonder RF te gebruiken. SNMP moet op de node aan staan (groep Observer-firmware in Instellingen bewerken, daarna herstarten) en de server moet de node via UDP kunnen bereiken. Zet **Volgens schema uitlezen** aan om de server de node om de paar minuten te laten uitlezen en de resultaten te bewaren; de kaart toont dan een historiegrafiek voor de gekozen waarde en periode. Als de Home Assistant-integratie de repeater volgt, verschijnen de waarden daar ook als SNMP-sensoren. **Adres aan node vragen** stuurt één commando via RF om het IP op te vragen en vereist een admin-login.
+Repeaters en roomservers met observer-firmware kun je ook via je netwerk uitlezen. Op de contactpagina vraagt de kaart **SNMP (LAN)** om het IP-adres, de poort en de community van de node; met **Nu uitlezen** zie je daarna radio-, MQTT-, geheugen- en wifi-waarden zonder RF te gebruiken. SNMP moet op de node aan staan (groep Observer-firmware in Instellingen bewerken, daarna herstarten) en de server moet de node via UDP kunnen bereiken. Zet **Volgens schema uitlezen** aan om de server de node om de paar minuten te laten uitlezen en de resultaten te bewaren; de kaart toont dan een historiegrafiek voor de gekozen waarde en periode. Als de Home Assistant-integratie de repeater volgt, verschijnen de waarden daar ook als SNMP-sensoren. **Adres aan node vragen** stuurt één commando via RF om het IP op te vragen en vereist een admin-login. De pagina **SNMP** onder Hulpmiddelen toont alle nodes met SNMP naast elkaar.
 
 ### Roomservers
 
@@ -280,6 +280,12 @@ De grafieken voor batterij, ruisvloer en zendtijd tonen de huidige radio plus de
 ### Mesh-detectie
 
 **Repeaters Ontdekken**, **Sensoren Ontdekken** of **Beide Ontdekken** verstuurt een kort detectieverzoek via RF en toont de nodes die antwoorden. **Regio's Ontdekken** vraagt repeaters in de buurt welke regio's ze floodden, zodat je die aan je bekende regio's kunt toevoegen.
+
+### SNMP
+
+Alle nodes waarvoor op de contactpagina SNMP is ingesteld, in één tabel. Elke rij toont de status, de naam, het adres, het schema, de laatste geslaagde uitlezing en de laatste fout, met de belangrijkste waarden naast elkaar: firmwareversie, uptime, vrije heap, grootste vrije blok, verbonden MQTT-slots, diepte van de pakketwachtrij, wifi-RSSI, ruisvloer, ontvangstfouten, laatste RSSI en laatste SNR. Een node waarvan de laatste uitlezing mislukte, is rood gemarkeerd met **Mislukt** en staat bovenaan; de waarden zijn dan die van de laatste geslaagde uitlezing. Klik op een kolomkop om te sorteren.
+
+Klik op de pijl voor een rij voor alle 22 waarden van die node, gegroepeerd, en de historiegrafiek. **Nu uitlezen** leest één node uit en **Alles nu uitlezen** leest ze na elkaar uit. Uitlezen gaat via je netwerk (UDP) en gebruikt nooit RF. **Automatisch verversen** leest alleen opnieuw wat de server heeft bewaard, elke 10, 30 of 60 seconden, of niet. Hoe vaak een node wordt uitgelezen stel je in met **Volgens schema uitlezen** op de contactpagina. Klik op de naam van een node om die pagina te openen.
 
 ### Pakketfeed
 

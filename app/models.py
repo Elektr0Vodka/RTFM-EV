@@ -1150,6 +1150,31 @@ class SnmpHistoryEntry(BaseModel):
     values: dict[str, int | float | str | None]
 
 
+class SnmpNodeOverview(BaseModel):
+    """One contact with SNMP set up, for the SNMP overview page.
+
+    The stored settings and poll outcome plus the newest stored poll. The
+    community itself is never returned.
+    """
+
+    public_key: str
+    name: str | None = Field(default=None, description="Contact name")
+    type: int | None = Field(default=None, description="Contact type (2 repeater, 3 room)")
+    host: str
+    port: int
+    community_is_default: bool = Field(
+        description="True when the stored community is the firmware default 'public'"
+    )
+    poll_enabled: bool
+    poll_interval_minutes: int = Field(description="Minutes between scheduled polls")
+    last_ok_at: int | None = Field(default=None, description="Unix time of the last good poll")
+    last_error: str | None = Field(default=None, description="Error of the last failed poll")
+    last_error_at: int | None = Field(default=None, description="Unix time of that failure")
+    latest: SnmpHistoryEntry | None = Field(
+        default=None, description="Newest stored poll, or null when none is stored"
+    )
+
+
 class SnmpAgentSettings(BaseModel):
     """Settings of RTFM-EV's own SNMP agent (read-only SNMPv2c, off by default)."""
 

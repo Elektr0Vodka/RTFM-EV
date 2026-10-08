@@ -3,6 +3,9 @@
 Config and polling use UDP to the node's WiFi address and never touch the
 radio. The one exception is ``discover-address``, which sends a single CLI
 command over RF to ask the node for that address.
+
+``nodes_router`` serves the overview of every contact with SNMP set up
+(database only, no polling and no radio).
 """
 
 import logging
@@ -15,6 +18,7 @@ from app.models import (
     ContactSnmpConfigUpdate,
     SnmpDiscoverAddressResponse,
     SnmpHistoryEntry,
+    SnmpNodeOverview,
     SnmpPollResponse,
 )
 from app.repository.contact_snmp import ContactSnmpRepository, SnmpHistoryRepository
@@ -28,6 +32,7 @@ from app.snmp.address import parse_wifi_status_ip
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/contacts", tags=["snmp"])
+nodes_router = APIRouter(prefix="/snmp", tags=["snmp"])
 
 DEFAULT_COMMUNITY = "public"
 # Largest history payload: longer ranges are thinned to this many rows.
@@ -46,6 +51,18 @@ def _to_model(row: dict) -> ContactSnmpConfig:
         last_error=row["last_error"],
         last_error_at=row["last_error_at"],
     )
+
+
+@nodes_router.get("/nodes", response_model=list[SnmpNodeOverview])
+async def get_snmp_nodes() -> list[SnmpNodeOverview]:
+    """Every contact with SNMP set up: settings, last poll outcome and the
+    newest stored poll (read-only, polls nothing)."""
+    rows = await ContactSnmpRepository.list_overview(default_community=DEFAULT_COMMUNITY)
+    nodes: list[SnmpNodeOverview] = []
+    for row in rows:
+        latest = await SnmpHistoryRepository.get_latest(row["public_key"])
+        nodes.append(SnmpNodeOverview(**row, latest=SnmpHistoryEntry(**latest) if latest else None))
+    return nodes
 
 
 @router.get("/{public_key}/snmp/config", response_model=ContactSnmpConfig | None)

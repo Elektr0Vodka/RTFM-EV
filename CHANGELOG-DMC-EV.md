@@ -11,6 +11,52 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-08 (SNMP page under Tools, feat/snmp-tools-page)
+
+Builds on the SNMP polling of `feat/snmp-observer-support` (#277). No
+migration.
+
+### Tools: SNMP page (frontend)
+- New **SNMP** entry in the sidebar Tools section (`#snmp`). It lists every
+  node that has SNMP set up on its contact page, one row per node: status,
+  name, address, schedule, last good poll, last error, and the main values
+  side by side (firmware version, uptime, free heap, largest free block,
+  connected MQTT slots, packet queue depth, WiFi RSSI, noise floor, receive
+  errors, last RSSI and last SNR).
+- A node whose last poll failed is marked **Failing**, gets a red row and
+  shows the error. Failing nodes are listed first by default. Their values
+  are those of the last good poll, shown dimmed.
+- Every column header sorts the table; a second click reverses the order.
+  Nodes without a value for that column stay at the bottom.
+- The arrow in front of a row opens the full data of that node in place: all
+  22 values grouped (system, radio, MQTT, memory, network) and the history
+  chart with its value and range pickers. Several nodes can be open at once.
+  Opening a row polls nothing; it shows the newest stored poll.
+- **Poll now** per node and **Poll all now**, which polls the nodes one after
+  the other in the order shown. Both use the existing per contact poll over
+  UDP on the LAN. Nothing on this page transmits over RF; "Ask node for its
+  address" stays on the contact page.
+- **Auto refresh** (off, 10 s, 30 s or 60 s; default 30 s, remembered per
+  browser) re-reads the stored data so scheduled polls show up. It does not
+  poll the nodes: how often a node is polled is still its own schedule in
+  minutes. **Refresh** reloads right away.
+- The node name opens that contact's page. With no node set up, the page
+  explains how to set SNMP up there.
+- The per contact **SNMP (LAN)** card behaves as before. Its value list and
+  time format moved into shared helpers (`SnmpValueGroups`,
+  `formatSnmpTime`) that the page uses too.
+
+### SNMP overview (backend)
+- New read-only endpoint `GET /api/snmp/nodes`: every contact with SNMP
+  settings, with its name, type, host, port, schedule, last good poll, last
+  error and the newest stored poll (`latest`, null when none is stored). It
+  reads the database only: no poll, no radio access.
+- The community is not in the response, only `community_is_default`, as on
+  the per contact config endpoint. The query behind it
+  (`ContactSnmpRepository.list_overview`) does not select the community.
+- Checked in a browser against two net-snmp 5.9.4 agents on loopback, one
+  node with a wrong community. Not tested against a real observer node.
+
 ## Update 2026-10-08 (SNMP for observer firmware 3/3: RTFM-EV as SNMP agent, feat/snmp-observer-support)
 
 ### Settings: SNMP agent (frontend)

@@ -4,6 +4,7 @@
 // SNMPAgent.cpp. The server already turns last_snr from dB x 4 into dB.
 
 import { formatDuration } from '../repeater/repeaterPaneShared';
+import { formatDateTime } from '../../utils/dateTimeFormat';
 import type { SnmpValues } from '../../types';
 
 export type SnmpGroup = 'system' | 'radio' | 'mqtt' | 'memory' | 'network';
@@ -53,6 +54,16 @@ export const SNMP_FIELDS: SnmpField[] = [
   { key: 'psram_free', group: 'memory', labelKey: 'snmp_field_psram_free', unit: 'bytes' },
   { key: 'wifi_rssi', group: 'network', labelKey: 'snmp_field_wifi_rssi', unit: 'dbm' },
 ];
+
+/** Short date and time of a server timestamp (Unix seconds). */
+export function formatSnmpTime(seconds: number): string {
+  return formatDateTime(seconds * 1000, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
 export function formatBytes(bytes: number): string {
   if (Math.abs(bytes) < 1024) return `${bytes} B`;

@@ -965,6 +965,12 @@ describe('Sidebar customisation (plan 17)', () => {
     });
   });
 
+  it('shows an SNMP tool that opens the SNMP view', () => {
+    const { onSelectConversation } = renderSidebar();
+    fireEvent.click(screen.getByRole('button', { name: 'SNMP' }));
+    expect(onSelectConversation).toHaveBeenCalledWith({ type: 'snmp', id: 'snmp', name: 'SNMP' });
+  });
+
   it('renders tools in a stored custom order', () => {
     renderSidebar({
       sidebarToolOrder: [

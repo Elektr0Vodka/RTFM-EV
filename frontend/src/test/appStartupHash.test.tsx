@@ -136,6 +136,10 @@ vi.mock('../components/MeshDiscoveryView', () => ({
   MeshDiscoveryView: () => null,
 }));
 
+vi.mock('../components/SnmpView', () => ({
+  SnmpView: () => null,
+}));
+
 vi.mock('../components/AnalyzePacketView', () => ({
   AnalyzePacketView: () => null,
 }));
@@ -340,6 +344,19 @@ describe('App startup hash resolution', () => {
     await waitFor(() => {
       for (const node of screen.getAllByTestId('active-conversation')) {
         expect(node).toHaveTextContent('mesh-discovery:mesh-discovery:');
+      }
+    });
+  });
+
+  it('restores the SNMP view from the URL hash even when channels are unavailable', async () => {
+    setHash('#snmp');
+    mocks.api.getChannels.mockResolvedValue([]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      for (const node of screen.getAllByTestId('active-conversation')) {
+        expect(node).toHaveTextContent('snmp:snmp:');
       }
     });
   });
