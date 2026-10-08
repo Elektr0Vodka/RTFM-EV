@@ -27,6 +27,22 @@ Firmware facts relied on here (CommonCLI.cpp, same commit):
 - ``name`` rejects ``[ ] \\ : , ? *`` and is stored in ``char[32]``;
   ``guest.password`` in ``char[16]``; ``owner.info`` in ``char[120]`` with ``|``
   translated to newline (and back on ``get``).
+
+Observer-only keys (``observer=True``) are not in the stock CLI. They come from
+the observer firmware's ``src/helpers/CommonCLI_Observer.cpp``
+(Dutch-MeshCore/MeshCore ``dmc-observer-dev`` at 923fc428; the same handlers
+are in agessaman/MeshCore ``observer-firmware`` and ``observer-firmware-dev``):
+
+- ``set snmp on|off`` stores the flag and replies ``OK - restart to apply``;
+  ``get snmp`` replies ``on`` / ``off``. Any value starting with ``on`` counts
+  as on in the firmware, so only the exact words are accepted here. The SNMP
+  agent starts after a reboot and only on builds compiled with ``WITH_SNMP``;
+  the handlers are compiled under ``WITH_MQTT_BRIDGE``, so a build without the
+  agent still accepts and stores the flag.
+- ``snmp.community`` is deliberately not on the list.
+
+Observer keys are left out of ``default_read_keys()`` so a stock repeater is
+never sent a ``get`` it does not know.
 """
 
 from __future__ import annotations
@@ -74,6 +90,7 @@ class SettingSpec:
     reboot_required: bool = False
     strong_confirm: bool = False
     secret: bool = False
+    observer: bool = False
 
 
 # --- value parsers ----------------------------------------------------------
@@ -274,6 +291,8 @@ SETTINGS: dict[str, SettingSpec] = {
     "flood.advert.interval": SettingSpec(
         "flood.advert.interval", _int_in(3, 168, allow_zero=True), _numeric(0)
     ),
+    # Observer firmware only (see module docstring); applies after a reboot.
+    "snmp": SettingSpec("snmp", _choice(_ON_OFF), _exact_ci, reboot_required=True, observer=True),
 }
 
 
@@ -282,6 +301,11 @@ def get_spec(setting: str) -> SettingSpec:
     if spec is None:
         raise SettingValidationError(f"setting '{setting}' is not editable")
     return spec
+
+
+def default_read_keys() -> list[str]:
+    """Keys read when the caller names none: everything except observer-only keys."""
+    return [key for key, spec in SETTINGS.items() if not spec.observer]
 
 
 def build_set_command(setting: str, value: str) -> tuple[SettingSpec, str, str]:

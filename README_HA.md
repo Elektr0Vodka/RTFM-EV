@@ -81,6 +81,25 @@ An LPP-only reading for a repeater (the **Request** button on its contact info p
 
 If RemoteTerm already has a cached telemetry snapshot for that repeater, it republishes it on startup so HA can populate the sensors immediately instead of waiting for the next collection cycle.
 
+#### SNMP sensors (observer firmware)
+
+A tracked repeater that also has **SNMP (LAN)** set up on its contact page gets 22 more sensors on the same device. They come from the SNMP agent of the DMC observer and agessaman observer firmware, polled over your network, and update on every good poll (scheduled or **Poll now**).
+
+| Entity | Type | Unit | Description |
+|--------|------|------|-------------|
+| `sensor.<repeater_name>_snmp_uptime` | Duration | s | Uptime since last reboot |
+| `sensor.<repeater_name>_snmp_firmware_version`, `_snmp_node_name` | -- | -- | Text reported by the node |
+| `sensor.<repeater_name>_snmp_packets_received`, `_snmp_packets_sent`, `_snmp_receive_errors` | -- | count | Radio counters |
+| `sensor.<repeater_name>_snmp_flood_packets_sent`, `_snmp_direct_packets_sent`, `_snmp_flood_packets_received`, `_snmp_direct_packets_received` | -- | count | Radio counters by route type |
+| `sensor.<repeater_name>_snmp_noise_floor`, `_snmp_last_rssi` | Signal strength | dBm | Radio levels |
+| `sensor.<repeater_name>_snmp_last_snr` | -- | dB | Last signal-to-noise ratio |
+| `sensor.<repeater_name>_snmp_total_air_time` | Duration | s | Total transmit time |
+| `sensor.<repeater_name>_snmp_mqtt_connected_slots`, `_snmp_mqtt_queue_depth`, `_snmp_mqtt_skipped_publishes` | -- | count | The node's own MQTT bridge |
+| `sensor.<repeater_name>_snmp_free_heap`, `_snmp_largest_free_block`, `_snmp_free_internal_ram`, `_snmp_free_psram` | Data size | B | Memory |
+| `sensor.<repeater_name>_snmp_wifi_rssi` | Signal strength | dBm | WiFi signal of the node |
+
+With **Poll on a schedule** on, these sensors go unavailable after three missed polls (at least 10 minutes). A node you only poll by hand keeps its last values. The counters reset when the node reboots. The node's address and SNMP community are never published.
+
 ### Contact Devices
 
 One HA device per tracked contact, which can expose two kinds of entities.
@@ -530,6 +549,7 @@ Runtime/state topics (where data is published):
 |-------|---------|-----------------|
 | `meshcore/{node_id}/health` | `{"connected": bool, "noise_floor_dbm": int, "battery_volts": float, ...}` (also `uptime_secs`, `last_rssi`, `last_snr`, `tx_air_secs`, `rx_air_secs`, `packets_recv`, `packets_sent`) | Every 60s |
 | `meshcore/{node_id}/telemetry` | `{"battery_volts": float, ...}` | ~8h or manual |
+| `meshcore/{node_id}/snmp` | `{"free_heap": int, "wifi_rssi": int, ...}` (the values the node served, keys as in `app/snmp/mib.py`) | Every good SNMP poll |
 | `meshcore/{node_id}/gps` | `{"latitude": float, "longitude": float, ...}` | On advert |
 | `meshcore/{node_id}/events/message` | `{"event_type": "message_received", ...}` | On message |
 
@@ -541,6 +561,7 @@ Discovery topics (entity registration, under `homeassistant/`):
 | `homeassistant/sensor/meshcore_<node_id>/noise_floor/config` | Noise floor sensor (radio and repeaters) |
 | `homeassistant/sensor/meshcore_<node_id>/battery_voltage/config` | Repeater battery |
 | `homeassistant/sensor/meshcore_<node_id>/*/config` | Other radio, repeater, and LPP sensors |
+| `homeassistant/sensor/meshcore_<node_id>/snmp_*/config` | SNMP sensors of a tracked repeater with SNMP set up |
 | `homeassistant/device_tracker/meshcore_<node_id>/config` | Contact GPS tracker |
 | `homeassistant/event/meshcore_<node_id>/messages/config` | Message event entity |
 

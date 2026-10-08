@@ -366,9 +366,17 @@ This table is a representative subset, not the full route list (for example the 
 | POST | `/api/contacts/{public_key}/repeater/radio-settings` | Fetch repeater radio config via CLI |
 | POST | `/api/contacts/{public_key}/repeater/regions` | Fetch repeater region hierarchy via CLI, falling back to the guest anon flood-allowed region names (`source`: `cli` or `anon`) |
 | POST | `/api/contacts/{public_key}/repeater/advert-intervals` | Fetch advert intervals |
-| POST | `/api/contacts/{public_key}/repeater/settings/read` | Read allow-listed editor settings via CLI `get` |
+| POST | `/api/contacts/{public_key}/repeater/settings/read` | Read allow-listed editor settings via CLI `get` (no key list = every non-observer key; observer keys such as `snmp` only when named) |
 | POST | `/api/contacts/{public_key}/repeater/settings/set` | Send one allow-listed CLI `set` over RF, then read it back (400 for anything off the allow-list) |
 | POST | `/api/contacts/{public_key}/repeater/owner-info` | Fetch owner info |
+| GET | `/api/snmp-agent` | Settings and live state of RTFM-EV's own SNMP agent |
+| PUT | `/api/snmp-agent` | Save the agent settings (`enabled`, `port`, `community`) and start, restart or stop the listener |
+| GET | `/api/contacts/{public_key}/snmp/config` | Stored SNMP polling settings of a repeater or room server, or null (the community is never returned) |
+| PUT | `/api/contacts/{public_key}/snmp/config` | Save SNMP host, port and community (null community keeps the stored one) |
+| DELETE | `/api/contacts/{public_key}/snmp/config` | Remove the SNMP settings |
+| POST | `/api/contacts/{public_key}/snmp/poll` | Poll the node's SNMP agent once over UDP (no radio access); a failed poll is `ok: false` |
+| GET | `/api/contacts/{public_key}/snmp/history` | Stored SNMP polls of the last `hours` (default 24), oldest first, thinned to 1500 rows |
+| POST | `/api/contacts/{public_key}/snmp/discover-address` | Ask the node for its WiFi IP with one CLI `get wifi.status` over RF; saves nothing |
 | GET | `/api/contacts/{public_key}/repeater/telemetry-history` | Stored telemetry history for a repeater (read-only, no radio access) |
 | POST | `/api/contacts/{public_key}/telemetry` | Fetch CayenneLPP telemetry from any contact (single attempt, 10s timeout) |
 | GET | `/api/contacts/{public_key}/telemetry-history` | Stored LPP telemetry history for a contact (read-only, no radio access) |

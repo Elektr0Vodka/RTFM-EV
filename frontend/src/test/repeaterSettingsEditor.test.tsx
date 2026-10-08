@@ -8,6 +8,7 @@ import {
 } from '../components/repeater/RepeaterSettingsEditorPane';
 import {
   SETTING_DEFS,
+  SETTING_GROUPS,
   validateSetting,
   type SettingDef,
 } from '../components/repeater/repeaterSettingsDefs';
@@ -99,6 +100,24 @@ describe('validateSetting (client mirror of the server allow-list)', () => {
     ['radio', '869.525,250,13,8'],
   ])('rejects %s=%s', (key, raw) => {
     expect(validateSetting(def(key), raw).ok).toBe(false);
+  });
+});
+
+describe('observer group definitions', () => {
+  it('offers snmp on/off only, with no community setting', () => {
+    expect(SETTING_DEFS.filter((d) => d.group === 'observer').map((d) => d.key)).toEqual(['snmp']);
+    expect(SETTING_DEFS.some((d) => d.key === 'snmp.community')).toBe(false);
+  });
+
+  it('validates snmp as exactly on or off', () => {
+    expect(validateSetting(def('snmp'), 'ON')).toEqual({ ok: true, value: 'on' });
+    expect(validateSetting(def('snmp'), 'off')).toEqual({ ok: true, value: 'off' });
+    expect(validateSetting(def('snmp'), 'online').ok).toBe(false);
+    expect(validateSetting(def('snmp'), 'yes').ok).toBe(false);
+  });
+
+  it('is the only separately read group', () => {
+    expect(SETTING_GROUPS.filter((g) => g.separateRead).map((g) => g.group)).toEqual(['observer']);
   });
 });
 
@@ -326,5 +345,80 @@ describe('SettingsEditorPane', () => {
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByLabelText('Frequency (MHz)')).toHaveValue('869.618');
     expect(within(dialog).getByLabelText('Bandwidth (kHz)')).toHaveValue('62.5');
+  });
+});
+
+describe('SettingsEditorPane observer group (SNMP)', () => {
+  const READ_OBSERVER = 'Read Observer firmware settings';
+
+  it('keeps snmp locked until the observer group is read', () => {
+    renderPane();
+    const row = screen.getByTestId('setting-row-snmp');
+    expect(within(row).getByText('not read')).toBeInTheDocument();
+    expect(within(row).getByRole('button')).toBeDisabled();
+    expect(screen.getByText(/Only on observer firmware/)).toBeInTheDocument();
+  });
+
+  it('Read current values does not name snmp and does not unlock it', async () => {
+    const onRead = vi.fn().mockResolvedValue({ values: { 'loop.detect': 'moderate' } });
+    renderPane(vi.fn(), onRead);
+    fireEvent.click(screen.getByRole('button', { name: 'Read current values' }));
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId('setting-row-loop.detect')).getByText('Moderate')
+      ).toBeInTheDocument()
+    );
+    expect(onRead).toHaveBeenCalledTimes(1);
+    expect(onRead.mock.calls[0][0]).toBeUndefined();
+    expect(within(screen.getByTestId('setting-row-snmp')).getByRole('button')).toBeDisabled();
+  });
+
+  it('the group Read button reads only snmp and unlocks the row', async () => {
+    const onRead = vi.fn().mockResolvedValue({ values: { snmp: 'off' } });
+    renderPane(vi.fn(), onRead);
+    fireEvent.click(screen.getByRole('button', { name: READ_OBSERVER }));
+    const row = screen.getByTestId('setting-row-snmp');
+    await waitFor(() => expect(within(row).getByText('Off')).toBeInTheDocument());
+    expect(onRead).toHaveBeenCalledTimes(1);
+    expect(onRead).toHaveBeenCalledWith(['snmp']);
+    expect(within(row).getByRole('button')).not.toBeDisabled();
+  });
+
+  it('stays locked when the repeater does not know snmp (stock firmware)', async () => {
+    const onRead = vi.fn().mockResolvedValue({ values: { snmp: null } });
+    renderPane(vi.fn(), onRead);
+    fireEvent.click(screen.getByRole('button', { name: READ_OBSERVER }));
+    const row = screen.getByTestId('setting-row-snmp');
+    await waitFor(() => expect(within(row).getByText('-')).toBeInTheDocument());
+    expect(within(row).getByRole('button')).toBeDisabled();
+  });
+
+  it('sends set snmp on and tells the user to reboot', async () => {
+    const onRead = vi.fn().mockResolvedValue({ values: { snmp: 'off' } });
+    const onApply = vi
+      .fn()
+      .mockResolvedValue(
+        okResult('snmp', 'on', { set_reply: 'OK - restart to apply', reboot_required: true })
+      );
+    renderPane(onApply, onRead);
+    fireEvent.click(screen.getByRole('button', { name: READ_OBSERVER }));
+    const row = screen.getByTestId('setting-row-snmp');
+    await waitFor(() => expect(within(row).getByRole('button')).not.toBeDisabled());
+
+    const dialog = openEditor('snmp');
+    fireEvent.change(within(dialog).getByLabelText('New value'), { target: { value: 'on' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Review change' }));
+    expect(within(dialog).getByTestId('confirm-old')).toHaveTextContent('Off');
+    expect(within(dialog).getByTestId('confirm-command')).toHaveTextContent('set snmp on');
+    expect(within(dialog).queryByLabelText(/to confirm/)).toBeNull();
+    expect(onApply).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Send to repeater' }));
+    await waitFor(() => expect(screen.getByTestId('setting-result')).toBeInTheDocument());
+    expect(onApply).toHaveBeenCalledTimes(1);
+    expect(onApply).toHaveBeenCalledWith('snmp', 'on');
+    expect(screen.getByTestId('setting-result')).toHaveTextContent(
+      'Reboot the repeater to apply this change.'
+    );
   });
 });

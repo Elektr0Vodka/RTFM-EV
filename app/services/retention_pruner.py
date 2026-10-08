@@ -68,6 +68,7 @@ async def prune_once(now: int | None = None) -> dict[str, int]:
             "advert_events": s.advert_retention_days,
             "repeater_telemetry": s.telemetry_retention_days,
             "contact_telemetry": s.telemetry_retention_days,
+            "snmp": s.telemetry_retention_days,
             "link_signal": s.link_signal_retention_days,
             "noise_floor": s.noise_floor_retention_days,
             "battery": s.battery_retention_days,

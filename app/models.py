@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, computed_field, field_serializer
+from pydantic import BaseModel, Field, computed_field, field_serializer, field_validator
 
 from app.path_utils import normalize_contact_route, normalize_route_override
+from app.snmp.address import normalize_host
 
 # Valid MeshCore contact types: 0=unknown, 1=client, 2=repeater, 3=room, 4=sensor.
 # Corrupted radio data can produce values outside this range.
@@ -1072,7 +1073,7 @@ class RepeaterSettingSetResponse(BaseModel):
 
 
 class RepeaterSettingsReadRequest(BaseModel):
-    """Which allow-listed settings to read; omit for all of them."""
+    """Which allow-listed settings to read; omit for every non-observer setting."""
 
     settings: list[str] | None = Field(default=None, description="Setting keys to read")
 
@@ -1081,6 +1082,109 @@ class RepeaterSettingsReadResponse(BaseModel):
     """Current values of allow-listed settings (None when not heard or unsupported)."""
 
     values: dict[str, str | None] = Field(default_factory=dict)
+
+
+class ContactSnmpConfigUpdate(BaseModel):
+    """SNMP polling settings for one contact (observer firmware, LAN only)."""
+
+    host: str = Field(min_length=1, max_length=253, description="IP address or hostname")
+    port: int = Field(default=161, ge=1, le=65535, description="UDP port of the SNMP agent")
+    community: str | None = Field(
+        default=None,
+        max_length=64,
+        description="SNMP community. Omit or null to keep the stored one ('public' when new)",
+    )
+    poll_enabled: bool = Field(default=False, description="Include in scheduled polling")
+    poll_interval_minutes: int = Field(
+        default=5, ge=1, le=1440, description="Minutes between scheduled polls"
+    )
+
+    @field_validator("host")
+    @classmethod
+    def _valid_host(cls, value: str) -> str:
+        return normalize_host(value)
+
+    @field_validator("community")
+    @classmethod
+    def _valid_community(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        if not value.isascii() or not value.isprintable():
+            raise ValueError("community must be printable ASCII")
+        return value
+
+
+class ContactSnmpConfig(BaseModel):
+    """Stored SNMP polling settings. The community itself is never returned."""
+
+    public_key: str
+    host: str
+    port: int
+    community_is_default: bool = Field(
+        description="True when the stored community is the firmware default 'public'"
+    )
+    poll_enabled: bool
+    poll_interval_minutes: int = Field(description="Minutes between scheduled polls")
+    last_ok_at: int | None = Field(default=None, description="Unix time of the last good poll")
+    last_error: str | None = Field(default=None, description="Error of the last failed poll")
+    last_error_at: int | None = Field(default=None, description="Unix time of that failure")
+
+
+class SnmpPollResponse(BaseModel):
+    """Outcome of one SNMP poll of a contact."""
+
+    ok: bool
+    timestamp: int = Field(description="Unix time the poll finished")
+    host: str
+    port: int
+    error: str | None = Field(default=None, description="Why the poll failed (ok = false)")
+    values: dict[str, int | float | str | None] | None = Field(
+        default=None, description="MeshCore OID table by key (see app/snmp/mib.py)"
+    )
+
+
+class SnmpHistoryEntry(BaseModel):
+    """One stored SNMP poll (a row of ``snmp_history``)."""
+
+    timestamp: int
+    values: dict[str, int | float | str | None]
+
+
+class SnmpAgentSettings(BaseModel):
+    """Settings of RTFM-EV's own SNMP agent (read-only SNMPv2c, off by default)."""
+
+    enabled: bool = False
+    port: int = Field(default=161, ge=1, le=65535, description="UDP port to listen on")
+    community: str = Field(
+        default="public", min_length=1, max_length=64, description="Community a manager must send"
+    )
+
+    @field_validator("community")
+    @classmethod
+    def _printable_community(cls, value: str) -> str:
+        if not value.isascii() or not value.isprintable():
+            raise ValueError("community must be printable ASCII")
+        return value
+
+
+class SnmpAgentState(BaseModel):
+    """The agent's stored settings and what the listener is doing right now."""
+
+    settings: SnmpAgentSettings
+    running: bool = Field(description="True while the UDP listener is bound")
+    error: str | None = Field(default=None, description="Why the listener is not running")
+    requests: int = Field(default=0, description="Requests answered since the listener started")
+    bad_community: int = Field(
+        default=0, description="Requests dropped for a wrong community since the listener started"
+    )
+
+
+class SnmpDiscoverAddressResponse(BaseModel):
+    """Result of asking a node for its WiFi address with ``get wifi.status`` (RF)."""
+
+    status: Literal["ok", "no_address", "unsupported", "no_reply"]
+    ip: str | None = Field(default=None, description="IP address the node reported")
+    reply: str | None = Field(default=None, description="The node's reply text, if any")
 
 
 class RepeaterAdvertIntervalsResponse(BaseModel):

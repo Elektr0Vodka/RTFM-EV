@@ -7,7 +7,8 @@ integration. No custom HA component is needed.
 Entity types created:
 - Local radio: binary_sensor (connectivity) + sensors (noise floor, battery,
   uptime, RSSI, SNR, airtime, packet counts)
-- Per tracked repeater: sensor entities for telemetry fields
+- Per tracked repeater: sensor entities for telemetry fields, plus SNMP
+  sensors when the repeater has SNMP polling set up
 - Per tracked contact: device_tracker for GPS position
 - Messages: event entity for scope-matched messages
 """
@@ -21,6 +22,7 @@ from typing import Any
 
 from app.fanout.base import FanoutModule, get_fanout_message_text
 from app.fanout.mqtt_base import BaseMqttPublisher
+from app.snmp import mib
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +119,143 @@ _LPP_HA_META: dict[str, dict[str, Any]] = {
     "direction": {"device_class": None, "unit": "°", "precision": 0},
     "altitude": {"device_class": None, "unit": "m", "precision": 1},
 }
+
+
+# ── SNMP sensor definitions (observer firmware, polled over the LAN) ───────
+#
+# One HA sensor per entry of the MeshCore OID table (app/snmp/mib.py), on a
+# state topic of its own so the telemetry sensors are not touched.
+
+_SNMP_NAMES: dict[str, str] = {
+    "uptime_secs": "SNMP Uptime",
+    "firmware_version": "SNMP Firmware Version",
+    "node_name": "SNMP Node Name",
+    "packets_recv": "SNMP Packets Received",
+    "packets_sent": "SNMP Packets Sent",
+    "recv_errors": "SNMP Receive Errors",
+    "noise_floor": "SNMP Noise Floor",
+    "last_rssi": "SNMP Last RSSI",
+    "last_snr": "SNMP Last SNR",
+    "sent_flood": "SNMP Flood Packets Sent",
+    "sent_direct": "SNMP Direct Packets Sent",
+    "recv_flood": "SNMP Flood Packets Received",
+    "recv_direct": "SNMP Direct Packets Received",
+    "total_air_time_secs": "SNMP Total Air Time",
+    "mqtt_connected_slots": "SNMP MQTT Connected Slots",
+    "mqtt_queue_depth": "SNMP MQTT Queue Depth",
+    "mqtt_skipped_publishes": "SNMP MQTT Skipped Publishes",
+    "free_heap": "SNMP Free Heap",
+    "max_alloc": "SNMP Largest Free Block",
+    "internal_free": "SNMP Free Internal RAM",
+    "psram_free": "SNMP Free PSRAM",
+    "wifi_rssi": "SNMP WiFi RSSI",
+}
+
+# The firmware resets these on reboot; total_increasing lets HA cope with that.
+_SNMP_COUNTERS = frozenset(
+    {
+        "packets_recv",
+        "packets_sent",
+        "recv_errors",
+        "sent_flood",
+        "sent_direct",
+        "recv_flood",
+        "recv_direct",
+        "total_air_time_secs",
+        "mqtt_skipped_publishes",
+    }
+)
+
+
+def _snmp_sensor(entry: mib.MibEntry) -> dict[str, Any]:
+    device_class: str | None = None
+    state_class: str | None = "measurement"
+    if entry.kind == "str":
+        state_class = None
+    elif entry.key in _SNMP_COUNTERS:
+        state_class = "total_increasing"
+    if entry.unit == "dBm":
+        device_class = "signal_strength"
+    elif entry.unit == "B":
+        device_class = "data_size"
+    elif entry.unit == "s":
+        device_class = "duration"
+        if entry.key == "uptime_secs":
+            # Same as the telemetry uptime sensor: a duration, not a statistic.
+            state_class = None
+    return {
+        "field": entry.key,
+        "name": _SNMP_NAMES[entry.key],
+        "object_id": f"snmp_{entry.key}",
+        "device_class": device_class,
+        "state_class": state_class,
+        "unit": entry.unit,
+    }
+
+
+_SNMP_SENSORS: list[dict[str, Any]] = [_snmp_sensor(entry) for entry in mib.ENTRIES]
+
+# A scheduled node's sensors go unavailable after this many missed polls.
+_SNMP_EXPIRE_MISSED_POLLS = 3
+_SNMP_EXPIRE_MIN_SECONDS = 600
+
+
+def _snmp_state_topic(prefix: str, pub_key: str) -> str:
+    return f"{prefix}/{_node_id(pub_key)}/snmp"
+
+
+def _snmp_discovery_topic(pub_key: str, object_id: str) -> str:
+    return f"homeassistant/sensor/meshcore_{_node_id(pub_key)}/{object_id}/config"
+
+
+def _snmp_state_payload(values: dict[str, Any]) -> dict[str, Any]:
+    """Flat HA state payload for one SNMP poll.
+
+    Values the node did not serve are left out, not sent as null: an absent
+    key renders empty, which HA ignores, keeping the last value.
+    """
+    return {
+        sensor["field"]: values[sensor["field"]]
+        for sensor in _SNMP_SENSORS
+        if values.get(sensor["field"]) is not None
+    }
+
+
+def _snmp_discovery_configs(
+    prefix: str,
+    pub_key: str,
+    name: str,
+    radio_key: str | None,
+    *,
+    expire_after: int | None,
+) -> list[tuple[str, dict]]:
+    """HA discovery configs for the SNMP sensors of a tracked repeater.
+
+    ``expire_after`` is set for a node on a poll schedule and left out for a
+    node that is only polled by hand.
+    """
+    nid = _node_id(pub_key)
+    device = _device_payload(pub_key, name, "Repeater", via_device_key=radio_key)
+    state_topic = _snmp_state_topic(prefix, pub_key)
+    configs: list[tuple[str, dict]] = []
+    for sensor in _SNMP_SENSORS:
+        cfg: dict[str, Any] = {
+            "name": sensor["name"],
+            "unique_id": f"meshcore_{nid}_{sensor['object_id']}",
+            "device": device,
+            "state_topic": state_topic,
+            "value_template": "{{ value_json." + sensor["field"] + " }}",
+        }
+        if sensor["device_class"]:
+            cfg["device_class"] = sensor["device_class"]
+        if sensor["state_class"]:
+            cfg["state_class"] = sensor["state_class"]
+        if sensor["unit"]:
+            cfg["unit_of_measurement"] = sensor["unit"]
+        if expire_after:
+            cfg["expire_after"] = expire_after
+        configs.append((_snmp_discovery_topic(pub_key, sensor["object_id"]), cfg))
+    return configs
 
 
 def _lpp_sensor_key(type_name: str, channel: int) -> str:
@@ -672,6 +811,28 @@ class MqttHaModule(FanoutModule):
                         _repeater_telemetry_payload(latest_data),
                     )
                 )
+            # SNMP sensors, only for a repeater that has SNMP polling set up.
+            snmp_config = await self._resolve_snmp_config(pub_key)
+            if snmp_config is not None:
+                expire_after = None
+                if snmp_config["poll_enabled"]:
+                    expire_after = max(
+                        _SNMP_EXPIRE_MIN_SECONDS,
+                        snmp_config["poll_interval_minutes"] * 60 * _SNMP_EXPIRE_MISSED_POLLS,
+                    )
+                configs.extend(
+                    _snmp_discovery_configs(
+                        self._prefix, pub_key, rname, self._radio_key, expire_after=expire_after
+                    )
+                )
+                latest_snmp = await self._resolve_latest_snmp(pub_key)
+                if latest_snmp:
+                    cached_repeater_states.append(
+                        (
+                            _snmp_state_topic(self._prefix, pub_key),
+                            _snmp_state_payload(latest_snmp["values"]),
+                        )
+                    )
 
         # Tracked contacts - resolve names and LPP sensors from DB best-effort
         for pub_key in self._tracked_contacts:
@@ -775,6 +936,34 @@ class MqttHaModule(FanoutModule):
         except Exception:
             pass
         return None
+
+    @staticmethod
+    async def _resolve_snmp_config(pub_key: str) -> dict | None:
+        """Schedule fields of a repeater's SNMP settings, or None when SNMP is
+        not set up. Only ``poll_enabled`` and ``poll_interval_minutes`` leave
+        the repository row; the address and community do not."""
+        try:
+            from app.repository.contact_snmp import ContactSnmpRepository
+
+            row = await ContactSnmpRepository.get(pub_key)
+        except Exception:
+            return None
+        if row is None:
+            return None
+        return {
+            "poll_enabled": row["poll_enabled"],
+            "poll_interval_minutes": row["poll_interval_minutes"],
+        }
+
+    @staticmethod
+    async def _resolve_latest_snmp(pub_key: str) -> dict | None:
+        """The newest stored SNMP poll of a repeater, or None."""
+        try:
+            from app.repository.contact_snmp import SnmpHistoryRepository
+
+            return await SnmpHistoryRepository.get_latest(pub_key)
+        except Exception:
+            return None
 
     @staticmethod
     async def _resolve_latest_contact_telemetry(pub_key: str) -> dict | None:
@@ -921,6 +1110,25 @@ class MqttHaModule(FanoutModule):
             gps_attrs = _extract_gps_reading(lpp_sensors)
             if gps_attrs is not None:
                 await self._publisher.publish(f"{self._prefix}/{nid}/gps", gps_attrs)
+
+    async def on_snmp(self, data: dict) -> None:
+        if not self._publisher.connected:
+            return
+
+        pub_key = data.get("public_key", "")
+        if pub_key not in self._tracked_repeaters:
+            return
+
+        # SNMP may have been set up after the last discovery run: publish the
+        # sensor configs before the first state so HA knows the entities.
+        probe = _snmp_discovery_topic(pub_key, _SNMP_SENSORS[0]["object_id"])
+        if probe not in self._discovery_topics:
+            await self._publish_discovery()
+
+        await self._publisher.publish(
+            _snmp_state_topic(self._prefix, pub_key),
+            _snmp_state_payload(data.get("values") or {}),
+        )
 
     async def on_message(self, data: dict) -> None:
         if not self._publisher.connected or not self._radio_key:

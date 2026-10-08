@@ -44,6 +44,11 @@ class FanoutModule:
     async def on_telemetry(self, data: dict) -> None:
         """Called for repeater telemetry snapshots. Override if needed."""
 
+    async def on_snmp(self, data: dict) -> None:
+        """Called for a good SNMP poll of a contact (``public_key``,
+        ``timestamp``, ``values``). Never carries the address or community.
+        Override if needed."""
+
     async def on_neighbor(self, data: dict) -> None:
         """Called for a remote node's forwarded neighbor table. Override if needed."""
 

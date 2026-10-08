@@ -1,4 +1,5 @@
 import { TeamBeaconSettings } from './TeamBeaconSettings';
+import { SnmpAgentSettings } from './SnmpAgentSettings';
 import { useState, useEffect, useRef } from 'react';
 import { Label } from '../ui/label';
 import { Button } from '../ui/button';
@@ -484,6 +485,10 @@ export function SettingsRadioAppSection({
         channels={channels}
         onSaveAppSettings={onSaveAppSettings}
       />
+
+      <Separator />
+
+      <SnmpAgentSettings />
 
       <Separator />
 

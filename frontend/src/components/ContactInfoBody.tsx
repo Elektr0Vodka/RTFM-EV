@@ -46,6 +46,7 @@ import { ContactRadioResidencyControl } from './ContactRadioResidencyControl';
 import { ContactTelemetryPermissionsControl } from './ContactTelemetryPermissionsControl';
 import { ContactLinkShare } from './ContactLinkShare';
 import { ContactRouteSuggestionsSection } from './ContactRouteSuggestions';
+import { ContactSnmpSection } from './snmp/ContactSnmpSection';
 import { formatContactShare } from '../utils/chatEntities';
 import { LppSensorRow, formatLppLabel } from './repeater/repeaterPaneShared';
 import { toast } from './ui/sonner';
@@ -61,7 +62,7 @@ import {
   POWER_SOURCE_OVERRIDES,
   powerSourceFromOverride,
 } from '../utils/powerSource';
-import { CONTACT_TYPE_CLIENT, CONTACT_TYPE_REPEATER } from '../types';
+import { CONTACT_TYPE_CLIENT, CONTACT_TYPE_REPEATER, CONTACT_TYPE_ROOM } from '../types';
 import type {
   AnalyzerSite,
   Contact,
@@ -393,6 +394,13 @@ export function ContactInfoBody({
           onToggleTracked={onToggleTrackedTelemetryContact}
         />
       )}
+
+      {/* Observer firmware runs as a repeater or a room server. */}
+      {show('data') &&
+        !isPrefixOnlyResolvedContact &&
+        (isRepeater || contact.type === CONTACT_TYPE_ROOM) && (
+          <ContactSnmpSection contact={contact} />
+        )}
 
       {show('identity') && (
         <div className="px-5 py-3 border-b border-border">

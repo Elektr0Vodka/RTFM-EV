@@ -104,7 +104,7 @@ history is kept. Every value is a number of days, and `0` means keep forever.
 | Raw packets | 0 (forever) | Also bounds how far back Packet History reaches |
 | Messages | 0 (forever) | Pruning a message also deletes its stored raw packet, so it cannot be decrypted back |
 | Advert events (Mesh Health) | 30 | Bounds the Mesh Health time windows |
-| Repeater and contact telemetry | 30 days, 1000 rows per node | Rows per node keeps the newest; `0` = no cap |
+| Repeater and contact telemetry, stored SNMP polls | 30 days, 1000 rows per node | Rows per node keeps the newest; `0` = no cap. The row cap does not apply to SNMP polls |
 | Link signal history | 30 | |
 | Noise floor, battery, airtime (My Node) | 0 (forever) | About one sample per minute each |
 | Advert paths | 10 per contact | Most recent unique paths; minimum 1 |
@@ -200,6 +200,38 @@ bash scripts/setup/install_service.sh
 ```
 
 You can also rerun the script later to change transport or auth settings. If the service is already running, the installer stops it, rewrites the unit file, reloads systemd, and starts it again with the new configuration.
+
+## SNMP agent
+
+RTFM-EV can answer SNMP requests so a monitoring system can poll it like an observer firmware node. It is off by default. Turn it on in **Settings > Radio-App Management > SNMP agent**, where you also set the UDP port (default 161) and the community (default `public`).
+
+- Protocol: SNMPv2c, read-only (GET, GETNEXT, GETBULK). SNMPv1 and SNMPv3 are not spoken.
+- OIDs: the same 22 scalars as the firmware, under `1.3.6.1.4.1.99999` (a temporary, unregistered enterprise number that the firmware uses too).
+- Docker: publish the UDP port next to the web port:
+
+  ```yaml
+  ports:
+    - "8000:8000"
+    - "161:161/udp"
+  ```
+
+- Without Docker: a port below 1024 needs root. Pick a higher port, for example 1161, or grant the capability yourself. The settings card shows the bind error when the port cannot be opened.
+- Test it from another machine:
+
+  ```bash
+  snmpwalk -v2c -c public <host> 1.3.6.1.4.1.99999
+  ```
+
+What differs from a firmware node:
+
+| Group | On this host |
+|-------|--------------|
+| System, radio | From the connected radio and its 60 second stats sample. `0` or empty before the first sample or with no radio |
+| MQTT | Connected slots = connected MQTT integrations. Queue depth and skipped publishes are always `0` |
+| Memory | The host's available memory, capped at 2147483647 because the OIDs are 32-bit. `0` where `/proc/meminfo` does not exist. PSRAM is `0` |
+| Network | WiFi RSSI is always `-127` |
+
+SNMPv2c is not encrypted and the community is the only check. Anyone who can reach the port and knows the community can read these values, so set your own community and do not expose the port to the internet.
 
 ## Debug Logging And Bug Reports
 

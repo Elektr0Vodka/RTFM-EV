@@ -280,6 +280,15 @@ class FanoutManager:
             log_label="on_telemetry",
         )
 
+    async def broadcast_snmp(self, data: dict) -> None:
+        """Dispatch a good SNMP poll of a contact to all modules."""
+        await self._dispatch_matching(
+            data,
+            matcher=_always_match,
+            handler_name="on_snmp",
+            log_label="on_snmp",
+        )
+
     async def broadcast_neighbor(self, data: dict) -> None:
         """Dispatch a forwarded remote-node neighbor table to all modules."""
         await self._dispatch_matching(

@@ -199,7 +199,9 @@ Klik op het routelabel naast de naam van een contact (bijvoorbeeld het aantal ho
 
 Als je een repeater opent, zie je een inlogformulier: log in met het wachtwoord of als gast. Het dashboard heeft daarna panelen voor Node-info, Telemetrie, Radio-instellingen (met advertintervallen), LPP-sensoren, Buren, ACL, Regio's en Eigenaarsinfo, plus Acties (Zero-hop-advertentie, Flood-advertentie, Klok synchroniseren, Herstarten), een Console met CLI-toegang, telemetriegeschiedenis en een paneel Geschiedenis dat laat zien wat er tussen opgeslagen momentopnamen veranderd is. **Alles laden** haalt alle panelen na elkaar op.
 
-Met Instellingen bewerken wijzig je één repeaterinstelling tegelijk: je past aan, bevestigt het exacte CLI-commando, het wordt via RF verstuurd en de waarde wordt teruggelezen ter controle. Voor het wijzigen van frequentie, bandbreedte, spreading factor of coding rate moet je eerst de naam van de repeater typen, omdat een verkeerde waarde hem uit de lucht kan halen.
+Met Instellingen bewerken wijzig je één repeaterinstelling tegelijk: je past aan, bevestigt het exacte CLI-commando, het wordt via RF verstuurd en de waarde wordt teruggelezen ter controle. Voor het wijzigen van frequentie, bandbreedte, spreading factor of coding rate moet je eerst de naam van de repeater typen, omdat een verkeerde waarde hem uit de lucht kan halen. De groep Observer-firmware (SNMP-agent aan/uit) werkt alleen op DMC observer- en agessaman observer-firmware: gebruik eerst de eigen knop Lezen en herstart de repeater na een wijziging.
+
+Repeaters en roomservers met observer-firmware kun je ook via je netwerk uitlezen. Op de contactpagina vraagt de kaart **SNMP (LAN)** om het IP-adres, de poort en de community van de node; met **Nu uitlezen** zie je daarna radio-, MQTT-, geheugen- en wifi-waarden zonder RF te gebruiken. SNMP moet op de node aan staan (groep Observer-firmware in Instellingen bewerken, daarna herstarten) en de server moet de node via UDP kunnen bereiken. Zet **Volgens schema uitlezen** aan om de server de node om de paar minuten te laten uitlezen en de resultaten te bewaren; de kaart toont dan een historiegrafiek voor de gekozen waarde en periode. Als de Home Assistant-integratie de repeater volgt, verschijnen de waarden daar ook als SNMP-sensoren. **Adres aan node vragen** stuurt één commando via RF om het IP op te vragen en vereist een admin-login.
 
 ### Roomservers
 
@@ -357,6 +359,8 @@ Alleen zichtbaar als de verbonden node een OpenHop-node is. Stel het adres en de
 ### Radio-app-beheer
 
 **Gevolgde Repeatertelemetrie** en **Gevolgde Contacttelemetrie**, namen opzoeken voor naamloze contacten, **Contactbeheer** (nieuwe nodetypen blokkeren, geblokkeerde sleutels en namen, verwijderen in bulk), **Loadouts**, en **Synchronisatie deels bekende nodes**, dat nodes die je alleen van een prefix kent vergelijkt met de nodelijst van de analyzer. Je beoordeelt elke match voordat hij als omkeerbare zachte koppeling wordt opgeslagen.
+
+**SNMP-agent** (standaard uit) laat een monitoringsysteem zoals LibreNMS of Zabbix deze node via SNMP uitlezen, met dezelfde waarden als de observer-firmware. Stel de UDP-poort en een eigen community in; publiceer in Docker ook de poort. De agent is alleen-lezen en gebruikt de radio nooit.
 
 ### Kaart
 

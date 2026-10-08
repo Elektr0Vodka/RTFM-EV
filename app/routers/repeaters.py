@@ -521,10 +521,14 @@ async def repeater_settings_read(
 ) -> RepeaterSettingsReadResponse:
     """Read allow-listed editor settings via ``get <verb>`` (admin login needed).
 
-    Only allow-listed keys are read. Error sentinels (unknown config on older
-    firmware, unsupported hardware) come back as None.
+    Only allow-listed keys are read. With no key list, observer-only keys are
+    skipped (``repeater_settings.default_read_keys``); they are read only when
+    named. Error sentinels (unknown config on older firmware, unsupported
+    hardware) come back as None.
     """
-    keys = request.settings if request.settings is not None else list(repeater_settings.SETTINGS)
+    keys = (
+        request.settings if request.settings is not None else repeater_settings.default_read_keys()
+    )
     try:
         specs = [(key, repeater_settings.get_spec(key)) for key in keys]
     except repeater_settings.SettingValidationError as exc:

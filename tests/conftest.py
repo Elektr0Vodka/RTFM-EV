@@ -93,6 +93,7 @@ async def test_db():
         battery_history,
         channels,
         communities,
+        contact_snmp,
         contact_telemetry,
         contacts,
         device_config_history,
@@ -112,6 +113,7 @@ async def test_db():
         request_traffic,
         retention,
         settings,
+        snmp_agent,
         wordlists,
     )
     from app.repository import fanout as fanout_repo
@@ -134,6 +136,8 @@ async def test_db():
         settings,
         fanout_repo,
         repeater_telemetry,
+        contact_snmp,
+        snmp_agent,
         contact_telemetry,
         noise_floor,
         battery_history,

@@ -86,6 +86,8 @@ from app.routers import (
     retention,
     rooms,
     settings,
+    snmp,
+    snmp_agent,
     statistics,
     tiles,
     unfurl,
@@ -101,6 +103,8 @@ from app.services.link_edge_backfill import start_link_edge_backfill, stop_link_
 from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.radio_stats import start_radio_stats_sampling, stop_radio_stats_sampling
 from app.services.retention_pruner import start_retention_prune, stop_retention_prune
+from app.services.snmp_agent import start_snmp_agent, stop_snmp_agent
+from app.services.snmp_poll import start_snmp_poll_schedule, stop_snmp_poll_schedule
 from app.services.team_beacon_sender import stop_team_beacon
 from app.version_info import get_app_build_info
 
@@ -183,6 +187,12 @@ async def lifespan(app: FastAPI):
     # Scheduled snapshots into the server-side backup directory (off by default).
     start_backup_schedule()
 
+    # Scheduled SNMP polls of contacts that have it turned on (LAN only, no radio).
+    start_snmp_poll_schedule()
+
+    # RTFM-EV's own SNMP agent (off unless enabled in its settings).
+    await start_snmp_agent()
+
     # Always start connection monitor (even if initial connection failed)
     await radio_manager.start_connection_monitor()
 
@@ -213,6 +223,8 @@ async def lifespan(app: FastAPI):
     await stop_radio_stats_sampling()
     await stop_external_map_sync()
     await stop_backup_schedule()
+    await stop_snmp_poll_schedule()
+    await stop_snmp_agent()
     await stop_retention_prune()
     from app.services.host_repeater_tx import host_repeater_tx
 
@@ -288,6 +300,8 @@ app.include_router(host_repeater.router, prefix="/api")
 app.include_router(contacts.router, prefix="/api")
 app.include_router(repeaters.router, prefix="/api")
 app.include_router(rooms.router, prefix="/api")
+app.include_router(snmp.router, prefix="/api")
+app.include_router(snmp_agent.router, prefix="/api")
 app.include_router(channels.router, prefix="/api")
 app.include_router(channel_sets.router, prefix="/api")
 app.include_router(communities.router, prefix="/api")

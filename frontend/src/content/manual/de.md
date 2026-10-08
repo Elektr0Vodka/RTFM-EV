@@ -199,7 +199,9 @@ Klicke auf die Routenangabe neben dem Namen eines Kontakts (zum Beispiel die Hop
 
 Beim Öffnen eines Repeaters erscheint ein Anmeldeformular: melde dich mit dem Passwort oder als Gast an. Das Dashboard hat dann Bereiche für Node-Info, Telemetrie, Radioeinstellungen (mit Advert-Intervallen), LPP-Sensoren, Nachbarn, ACL, Regionen und Besitzerinfo, dazu Aktionen (Zero-Hop-Advert, Flood-Advert, Uhr synchronisieren, Neustart), eine Konsole mit CLI-Zugang, den Telemetrieverlauf und einen Bereich Verlauf, der zeigt, was sich zwischen gespeicherten Momentaufnahmen geändert hat. **Alles laden** ruft alle Bereiche nacheinander ab.
 
-Mit Einstellungen bearbeiten änderst du jeweils eine Repeater-Einstellung: du bearbeitest, bestätigst den genauen CLI-Befehl, er wird über Funk gesendet, und der Wert wird zur Kontrolle zurückgelesen. Für Änderungen an Frequenz, Bandbreite, Spreading Factor oder Coding Rate musst du zuerst den Namen des Repeaters eintippen, weil ein falscher Wert ihn vom Netz nehmen kann.
+Mit Einstellungen bearbeiten änderst du jeweils eine Repeater-Einstellung: du bearbeitest, bestätigst den genauen CLI-Befehl, er wird über Funk gesendet, und der Wert wird zur Kontrolle zurückgelesen. Für Änderungen an Frequenz, Bandbreite, Spreading Factor oder Coding Rate musst du zuerst den Namen des Repeaters eintippen, weil ein falscher Wert ihn vom Netz nehmen kann. Die Gruppe Observer-Firmware (SNMP-Agent ein/aus) funktioniert nur auf DMC-Observer- und agessaman-Observer-Firmware: nutze zuerst die eigene Schaltfläche Lesen und starte den Repeater nach einer Änderung neu.
+
+Repeater und Room-Server mit Observer-Firmware lassen sich auch über dein Netzwerk abfragen. Auf der Kontaktseite nimmt die Karte **SNMP (LAN)** IP-Adresse, Port und Community des Nodes entgegen; **Jetzt abfragen** zeigt dann Funk-, MQTT-, Speicher- und WLAN-Werte, ohne Funk zu nutzen. SNMP muss auf dem Node eingeschaltet sein (Gruppe Observer-Firmware in Einstellungen bearbeiten, danach neu starten) und der Server muss den Node per UDP erreichen können. Schalte **Nach Zeitplan abfragen** ein, damit der Server den Node alle paar Minuten abfragt und die Ergebnisse speichert; die Karte zeigt dann ein Verlaufsdiagramm für den gewählten Wert und Zeitraum. Wenn die Home-Assistant-Integration den Repeater verfolgt, erscheinen die Werte dort auch als SNMP-Sensoren. **Node nach seiner Adresse fragen** sendet einen Befehl über Funk, um die IP abzufragen, und braucht eine Admin-Anmeldung.
 
 ### Room-Server
 
@@ -357,6 +359,8 @@ Nur sichtbar, wenn der verbundene Knoten ein OpenHop-Knoten ist. Lege Adresse un
 ### Radio-App-Verwaltung
 
 **Verfolgte Repeater-Telemetrie** und **Verfolgte Kontakt-Telemetrie**, Namensauflösung für unbenannte Kontakte, **Kontaktverwaltung** (neue Knotentypen blockieren, blockierte Schlüssel und Namen, Massenlöschen), **Loadouts** und **Teilbekannte Knoten synchronisieren**, das Knoten, die du nur über ein Präfix kennst, mit dem Knotenverzeichnis des Analyzers abgleicht. Du prüfst jeden Treffer, bevor er als umkehrbare weiche Verknüpfung gespeichert wird.
+
+**SNMP-Agent** (standardmäßig aus) lässt ein Monitoring-System wie LibreNMS oder Zabbix diesen Node per SNMP abfragen, mit denselben Werten wie die Observer-Firmware. Stelle den UDP-Port und eine eigene Community ein; veröffentliche in Docker auch den Port. Der Agent ist nur lesend und nutzt das Funkgerät nie.
 
 ### Karte
 
