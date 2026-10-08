@@ -50,6 +50,9 @@ const MeshDiscoveryView = lazy(() =>
   import('./MeshDiscoveryView').then((m) => ({ default: m.MeshDiscoveryView }))
 );
 const SnmpView = lazy(() => import('./SnmpView').then((m) => ({ default: m.SnmpView })));
+const SnmpNodeView = lazy(() =>
+  import('./SnmpNodeView').then((m) => ({ default: m.SnmpNodeView }))
+);
 const AnalyzePacketView = lazy(() =>
   import('./AnalyzePacketView').then((m) => ({ default: m.AnalyzePacketView }))
 );
@@ -451,7 +454,22 @@ export function ConversationPane({
   if (activeConversation.type === 'snmp') {
     return (
       <Suspense fallback={<LoadingPane label={t('common_loading_snmp')} />}>
-        <SnmpView onOpenContactInfo={(publicKey) => onOpenContactInfo(publicKey)} />
+        {activeConversation.id === 'snmp' ? (
+          <SnmpView
+            onOpenContactInfo={(publicKey) => onOpenContactInfo(publicKey)}
+            onOpenNode={(publicKey) =>
+              onSelectConversation({ type: 'snmp', id: publicKey, name: t('nav_snmp') })
+            }
+          />
+        ) : (
+          <SnmpNodeView
+            // A fresh page per node: no state of the previous node lingers.
+            key={activeConversation.id}
+            publicKey={activeConversation.id}
+            onBack={() => onSelectConversation({ type: 'snmp', id: 'snmp', name: t('nav_snmp') })}
+            onOpenContactInfo={(publicKey) => onOpenContactInfo(publicKey)}
+          />
+        )}
       </Suspense>
     );
   }

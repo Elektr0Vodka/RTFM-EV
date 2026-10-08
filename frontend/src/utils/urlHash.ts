@@ -96,6 +96,12 @@ export function parseHashConversation(): ParsedHashConversation | null {
     return { type: 'snmp', name: 'snmp' };
   }
 
+  // SNMP page of one node: #snmp/<public key>
+  if (hash.startsWith('snmp/')) {
+    const key = decodeURIComponent(hash.slice('snmp/'.length));
+    return { type: 'snmp', name: key || 'snmp' };
+  }
+
   if (hash === 'analyze') {
     return { type: 'analyze', name: 'analyze' };
   }
@@ -250,7 +256,10 @@ export function getConversationHash(conv: Conversation | null): string {
   if (conv.type === 'mesh-health') return '#mesh-health';
   if (conv.type === 'mesh-trends') return '#mesh-trends';
   if (conv.type === 'mesh-discovery') return '#mesh-discovery';
-  if (conv.type === 'snmp') return '#snmp';
+  if (conv.type === 'snmp') {
+    // id 'snmp' is the overview; any other id is the public key of one node.
+    return conv.id === 'snmp' ? '#snmp' : `#snmp/${encodeURIComponent(conv.id)}`;
+  }
   if (conv.type === 'analyze') return '#analyze';
   if (conv.type === 'packet-history') return '#packet-history';
   if (conv.type === 'manual') return '#manual';

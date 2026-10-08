@@ -4,31 +4,27 @@
  * The overview reads stored data only (`GET /api/snmp/nodes`). "Poll now" and
  * "Poll all now" go through the per contact poll endpoint, which talks UDP on
  * the LAN. Nothing on this page uses the radio: the address lookup that does
- * (one CLI command over RF) stays on the contact page.
+ * (one CLI command over RF) stays on the contact page. A row opens the node's
+ * own page (`SnmpNodeView`) with all values and graphs.
  */
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  AlertTriangle,
-  ChevronDown,
-  ChevronRight,
-  ChevronUp,
-  ChevronsUpDown,
-  RefreshCw,
-} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, RefreshCw } from 'lucide-react';
 import { api, isAbortError } from '../api';
 import { useT } from '../i18n';
 import { cn } from '@/lib/utils';
-import type { SnmpNodeOverview, SnmpPollResponse } from '../types';
+import type { SnmpNodeOverview } from '../types';
 import { contactTypeLabel } from './ContactInfoBody';
 import { Button } from './ui/button';
-import { SnmpHistoryChart } from './snmp/SnmpHistoryChart';
-import { SnmpValueGroups } from './snmp/SnmpValueGroups';
+import { SnmpRefreshSelect, useSnmpRefreshSeconds } from './snmp/SnmpRefreshSelect';
 import { SNMP_FIELDS, formatSnmpTime, formatSnmpValue, type SnmpField } from './snmp/snmpFields';
+import {
+  SnmpStatusBadge,
+  applySnmpPoll,
+  snmpNodeName,
+  snmpNodeStatus,
+  type SnmpNodeStatus,
+} from './snmp/snmpNode';
 
-const REFRESH_STORAGE_KEY = 'rtfm-snmp-refresh-seconds';
-/** Auto refresh choices in seconds; 0 is off. */
-const REFRESH_CHOICES = [0, 10, 30, 60];
-const DEFAULT_REFRESH_SECONDS = 30;
 const NO_VALUE = '-';
 
 // The values shown side by side in the overview, in column order.
@@ -59,49 +55,14 @@ const BASE_COLUMNS: { key: string; labelKey: string }[] = [
   { key: 'last_ok', labelKey: 'snmp_page_col_last_ok' },
   { key: 'last_error', labelKey: 'snmp_page_col_last_error' },
 ];
-// Expand toggle + base columns + value columns + actions.
-const COLUMN_COUNT = 1 + BASE_COLUMNS.length + VALUE_COLUMNS.length + 1;
 
 type SortDir = 'asc' | 'desc';
-type NodeStatus = 'failing' | 'never' | 'ok';
 
 // Failing nodes first: that is the default order.
-const STATUS_RANK: Record<NodeStatus, number> = { failing: 0, never: 1, ok: 2 };
-const STATUS_LABEL_KEY: Record<NodeStatus, string> = {
-  failing: 'snmp_page_status_failing',
-  never: 'snmp_page_status_never',
-  ok: 'snmp_page_status_ok',
-};
+const STATUS_RANK: Record<SnmpNodeStatus, number> = { failing: 0, never: 1, ok: 2 };
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
-}
-
-function loadRefreshSeconds(): number {
-  try {
-    const stored = Number(localStorage.getItem(REFRESH_STORAGE_KEY) ?? NaN);
-    return REFRESH_CHOICES.includes(stored) ? stored : DEFAULT_REFRESH_SECONDS;
-  } catch {
-    return DEFAULT_REFRESH_SECONDS;
-  }
-}
-
-function saveRefreshSeconds(seconds: number): void {
-  try {
-    localStorage.setItem(REFRESH_STORAGE_KEY, String(seconds));
-  } catch {
-    // Ignore storage write failures (private mode, disabled storage).
-  }
-}
-
-/** A node whose most recent poll failed is failing; a good poll clears the error. */
-export function snmpNodeStatus(node: SnmpNodeOverview): NodeStatus {
-  if (node.last_error) return 'failing';
-  return node.last_ok_at ? 'ok' : 'never';
-}
-
-function displayName(node: SnmpNodeOverview): string {
-  return node.name || `${node.public_key.slice(0, 12)}...`;
 }
 
 function sortValue(node: SnmpNodeOverview, key: string): number | string | null {
@@ -109,7 +70,7 @@ function sortValue(node: SnmpNodeOverview, key: string): number | string | null 
     case 'status':
       return STATUS_RANK[snmpNodeStatus(node)];
     case 'name':
-      return displayName(node).toLowerCase();
+      return snmpNodeName(node).toLowerCase();
     case 'address':
       return `${node.host}:${node.port}`;
     case 'schedule':
@@ -144,22 +105,10 @@ export function sortSnmpNodes(
     } else {
       cmp = String(x).localeCompare(String(y)) * sign;
     }
-    return cmp || displayName(a).localeCompare(displayName(b), undefined, { sensitivity: 'base' });
+    return (
+      cmp || snmpNodeName(a).localeCompare(snmpNodeName(b), undefined, { sensitivity: 'base' })
+    );
   });
-}
-
-/** The row after one poll: same bookkeeping as the server does on the settings row. */
-function applyPoll(node: SnmpNodeOverview, result: SnmpPollResponse): SnmpNodeOverview {
-  if (!result.ok) {
-    return { ...node, last_error: result.error, last_error_at: result.timestamp };
-  }
-  return {
-    ...node,
-    last_ok_at: result.timestamp,
-    last_error: null,
-    last_error_at: null,
-    latest: { timestamp: result.timestamp, values: result.values ?? {} },
-  };
 }
 
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
@@ -173,22 +122,24 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
 
 export function SnmpView({
   onOpenContactInfo,
+  onOpenNode,
 }: {
   /** Opens a contact's page, where its SNMP settings live. */
   onOpenContactInfo: (publicKey: string) => void;
+  /** Opens the SNMP page of one node (all values and graphs). */
+  onOpenNode: (publicKey: string) => void;
 }) {
   const t = useT();
   const [nodes, setNodes] = useState<SnmpNodeOverview[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState('status');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [polling, setPolling] = useState<ReadonlySet<string>>(new Set());
   const [pollErrors, setPollErrors] = useState<Record<string, string>>({});
   const [pollAllProgress, setPollAllProgress] = useState<{ current: number; total: number } | null>(
     null
   );
-  const [refreshSeconds, setRefreshSeconds] = useState(loadRefreshSeconds);
+  const [refreshSeconds, setRefreshSeconds] = useSnmpRefreshSeconds();
   // Polls in flight. An auto refresh that started before a poll finished could
   // put older data back over the poll's result, so it waits for the next tick.
   const pollsInFlight = useRef(0);
@@ -237,14 +188,6 @@ export function SnmpView({
     }
   };
 
-  const toggleExpanded = (publicKey: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (!next.delete(publicKey)) next.add(publicKey);
-      return next;
-    });
-  };
-
   const pollOne = useCallback(async (publicKey: string) => {
     pollsInFlight.current += 1;
     setPolling((prev) => new Set(prev).add(publicKey));
@@ -257,8 +200,9 @@ export function SnmpView({
       const result = await api.pollSnmp(publicKey);
       setNodes(
         (prev) =>
-          prev?.map((node) => (node.public_key === publicKey ? applyPoll(node, result) : node)) ??
-          prev
+          prev?.map((node) =>
+            node.public_key === publicKey ? applySnmpPoll(node, result) : node
+          ) ?? prev
       );
     } catch (err) {
       setPollErrors((prev) => ({ ...prev, [publicKey]: errorMessage(err) }));
@@ -281,11 +225,6 @@ export function SnmpView({
       await pollOne(keys[index]);
     }
     if (mounted.current) setPollAllProgress(null);
-  };
-
-  const changeRefresh = (seconds: number) => {
-    setRefreshSeconds(seconds);
-    saveRefreshSeconds(seconds);
   };
 
   const hasNodes = sorted.length > 0;
@@ -318,22 +257,7 @@ export function SnmpView({
           <h2 className="text-base font-semibold text-foreground">{t('nav_snmp')}</h2>
           <p className="text-xs text-muted-foreground">{t('snmp_page_intro')}</p>
         </div>
-        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          {t('snmp_page_auto_refresh')}
-          <select
-            value={refreshSeconds}
-            onChange={(e) => changeRefresh(Number(e.target.value))}
-            className="h-9 rounded-md border border-input bg-background px-2 text-xs text-foreground"
-          >
-            {REFRESH_CHOICES.map((seconds) => (
-              <option key={seconds} value={seconds}>
-                {seconds === 0
-                  ? t('snmp_page_auto_refresh_off')
-                  : t('snmp_page_auto_refresh_seconds', { seconds })}
-              </option>
-            ))}
-          </select>
-        </label>
+        <SnmpRefreshSelect value={refreshSeconds} onChange={setRefreshSeconds} />
         <Button type="button" variant="outline" size="sm" onClick={() => void load()}>
           <RefreshCw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
           {t('snmp_page_refresh')}
@@ -403,188 +327,132 @@ export function SnmpView({
                   const publicKey = node.public_key;
                   const status = snmpNodeStatus(node);
                   const failing = status === 'failing';
-                  const name = displayName(node);
-                  const open = expanded.has(publicKey);
+                  const name = snmpNodeName(node);
                   const busy = polling.has(publicKey);
                   const values = node.latest?.values ?? {};
                   return (
-                    <Fragment key={publicKey}>
-                      <tr
-                        data-testid={`snmp-node-${publicKey}`}
-                        data-status={status}
+                    // A click anywhere on the row opens the node's page; the
+                    // buttons in it stop the click so they keep their own job.
+                    <tr
+                      key={publicKey}
+                      data-testid={`snmp-node-${publicKey}`}
+                      data-status={status}
+                      onClick={() => onOpenNode(publicKey)}
+                      className={cn(
+                        'group cursor-pointer border-b border-border transition-colors last:border-0',
+                        failing ? 'bg-destructive/10' : 'hover:bg-background'
+                      )}
+                    >
+                      <td
                         className={cn(
-                          'group border-b border-border transition-colors',
-                          failing ? 'bg-destructive/10' : 'hover:bg-background'
+                          'border-l-4 px-2 py-1.5',
+                          failing ? 'border-l-destructive' : 'border-l-transparent'
                         )}
                       >
-                        <td
-                          className={cn(
-                            'border-l-4 px-2 py-1.5',
-                            failing ? 'border-l-destructive' : 'border-l-transparent'
-                          )}
+                        <button
+                          type="button"
+                          aria-label={t('snmp_page_open_node', { name })}
+                          title={t('snmp_page_open_node', { name })}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenNode(publicKey);
+                          }}
+                          className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
                         >
-                          <button
-                            type="button"
-                            aria-expanded={open}
-                            aria-label={t(
-                              open ? 'snmp_page_hide_details' : 'snmp_page_show_details',
-                              { name }
-                            )}
-                            onClick={() => toggleExpanded(publicKey)}
-                            className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-                          >
-                            {open ? (
-                              <ChevronDown className="h-4 w-4" aria-hidden />
-                            ) : (
-                              <ChevronRight className="h-4 w-4" aria-hidden />
-                            )}
-                          </button>
-                        </td>
-                        <td className="whitespace-nowrap px-2 py-1.5">
-                          <span
-                            className={cn(
-                              'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium',
-                              failing && 'bg-destructive text-destructive-foreground',
-                              status === 'ok' && 'bg-success/15 text-success',
-                              status === 'never' && 'bg-muted text-muted-foreground'
-                            )}
-                          >
-                            {failing && <AlertTriangle className="h-3 w-3" aria-hidden />}
-                            {t(STATUS_LABEL_KEY[status])}
+                          <ChevronRight className="h-4 w-4" aria-hidden />
+                        </button>
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-1.5">
+                        <SnmpStatusBadge status={status} />
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-1.5">
+                        <button
+                          type="button"
+                          title={t('snmp_page_open_contact', { name })}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenContactInfo(publicKey);
+                          }}
+                          className="text-left text-primary hover:underline"
+                        >
+                          {name}
+                        </button>
+                        {node.type !== null && (
+                          <span className="ml-1.5 text-muted-foreground">
+                            {contactTypeLabel(node.type, t)}
                           </span>
-                        </td>
-                        <td className="whitespace-nowrap px-2 py-1.5">
-                          <button
-                            type="button"
-                            title={t('snmp_page_open_contact', { name })}
-                            onClick={() => onOpenContactInfo(publicKey)}
-                            className="text-left text-primary hover:underline"
-                          >
-                            {name}
-                          </button>
-                          {node.type !== null && (
-                            <span className="ml-1.5 text-muted-foreground">
-                              {contactTypeLabel(node.type, t)}
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-1.5 font-mono">
+                        {node.host}:{node.port}
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-1.5">
+                        {node.poll_enabled
+                          ? t('snmp_page_schedule_minutes', {
+                              minutes: node.poll_interval_minutes,
+                            })
+                          : t('snmp_page_schedule_off')}
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-1.5">
+                        {node.last_ok_at ? formatSnmpTime(node.last_ok_at) : NO_VALUE}
+                      </td>
+                      <td className="px-2 py-1.5">
+                        {node.last_error ? (
+                          <span className="flex flex-col text-destructive">
+                            <span className="max-w-[18rem] truncate" title={node.last_error}>
+                              {node.last_error}
                             </span>
-                          )}
-                        </td>
-                        <td className="whitespace-nowrap px-2 py-1.5 font-mono">
-                          {node.host}:{node.port}
-                        </td>
-                        <td className="whitespace-nowrap px-2 py-1.5">
-                          {node.poll_enabled
-                            ? t('snmp_page_schedule_minutes', {
-                                minutes: node.poll_interval_minutes,
-                              })
-                            : t('snmp_page_schedule_off')}
-                        </td>
-                        <td className="whitespace-nowrap px-2 py-1.5">
-                          {node.last_ok_at ? formatSnmpTime(node.last_ok_at) : NO_VALUE}
-                        </td>
-                        <td className="px-2 py-1.5">
-                          {node.last_error ? (
-                            <span className="flex flex-col text-destructive">
-                              <span className="max-w-[18rem] truncate" title={node.last_error}>
-                                {node.last_error}
+                            {node.last_error_at && (
+                              <span className="text-[10px] opacity-80">
+                                {formatSnmpTime(node.last_error_at)}
                               </span>
-                              {node.last_error_at && (
-                                <span className="text-[10px] opacity-80">
-                                  {formatSnmpTime(node.last_error_at)}
-                                </span>
-                              )}
-                            </span>
-                          ) : (
-                            NO_VALUE
-                          )}
-                        </td>
-                        {VALUE_COLUMNS.map((field) => (
-                          <td
-                            key={field.key}
-                            data-testid={`snmp-cell-${field.key}`}
-                            className={cn(
-                              'whitespace-nowrap px-2 py-1.5 font-mono',
-                              !TEXT_VALUE_KEYS.has(field.key) && 'text-right',
-                              failing && 'text-muted-foreground'
                             )}
-                          >
-                            {formatSnmpValue(field, values)}
-                          </td>
-                        ))}
+                          </span>
+                        ) : (
+                          NO_VALUE
+                        )}
+                      </td>
+                      {VALUE_COLUMNS.map((field) => (
                         <td
+                          key={field.key}
+                          data-testid={`snmp-cell-${field.key}`}
                           className={cn(
-                            'sticky right-0 whitespace-nowrap px-2 py-1.5 text-right transition-colors',
-                            failing
-                              ? 'bg-[color-mix(in_srgb,hsl(var(--destructive))_10%,hsl(var(--card)))]'
-                              : 'bg-card group-hover:bg-background'
+                            'whitespace-nowrap px-2 py-1.5 font-mono',
+                            !TEXT_VALUE_KEYS.has(field.key) && 'text-right',
+                            failing && 'text-muted-foreground'
                           )}
                         >
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-2 text-xs"
-                            disabled={busy || pollAllProgress !== null}
-                            onClick={() => void pollOne(publicKey)}
-                          >
-                            {busy ? t('snmp_polling') : t('snmp_poll_now')}
-                          </Button>
-                          {pollErrors[publicKey] && (
-                            <p className="mt-1 text-destructive" role="alert">
-                              {t('snmp_page_poll_failed', { error: pollErrors[publicKey] })}
-                            </p>
-                          )}
+                          {formatSnmpValue(field, values)}
                         </td>
-                      </tr>
-                      {open && (
-                        <tr
-                          data-testid={`snmp-detail-${publicKey}`}
-                          className="border-b border-border bg-background/60"
+                      ))}
+                      <td
+                        className={cn(
+                          'sticky right-0 whitespace-nowrap px-2 py-1.5 text-right transition-colors',
+                          failing
+                            ? 'bg-[color-mix(in_srgb,hsl(var(--destructive))_10%,hsl(var(--card)))]'
+                            : 'bg-card group-hover:bg-background'
+                        )}
+                      >
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          disabled={busy || pollAllProgress !== null}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void pollOne(publicKey);
+                          }}
                         >
-                          <td
-                            colSpan={COLUMN_COUNT}
-                            className={cn(
-                              'border-l-4 px-4 py-3',
-                              failing ? 'border-l-destructive' : 'border-l-transparent'
-                            )}
-                          >
-                            <div className="max-w-5xl space-y-3">
-                              <p className="text-[0.6875rem] text-muted-foreground">
-                                {node.latest
-                                  ? t('snmp_page_values_from', {
-                                      time: formatSnmpTime(node.latest.timestamp),
-                                    })
-                                  : t('snmp_page_no_values', { button: t('snmp_poll_now') })}
-                                {failing && node.latest ? ` ${t('snmp_page_stale_values')}` : ''}
-                                {node.community_is_default
-                                  ? ` ${t('snmp_community_is_default')}`
-                                  : ''}
-                              </p>
-                              {node.last_error && (
-                                <p className="break-words text-xs text-destructive">
-                                  {t('snmp_last_error', {
-                                    time: node.last_error_at
-                                      ? formatSnmpTime(node.last_error_at)
-                                      : NO_VALUE,
-                                    error: node.last_error,
-                                  })}
-                                </p>
-                              )}
-                              {node.latest && (
-                                <SnmpValueGroups
-                                  values={node.latest.values}
-                                  className="grid gap-x-8 gap-y-3 sm:grid-cols-2 xl:grid-cols-3"
-                                />
-                              )}
-                              {/* A good poll stores a row and moves this timestamp, which reloads the chart. */}
-                              <SnmpHistoryChart
-                                publicKey={publicKey}
-                                version={node.latest?.timestamp ?? 0}
-                              />
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
+                          {busy ? t('snmp_polling') : t('snmp_poll_now')}
+                        </Button>
+                        {pollErrors[publicKey] && (
+                          <p className="mt-1 text-destructive" role="alert">
+                            {t('snmp_page_poll_failed', { error: pollErrors[publicKey] })}
+                          </p>
+                        )}
+                      </td>
+                    </tr>
                   );
                 })}
               </tbody>

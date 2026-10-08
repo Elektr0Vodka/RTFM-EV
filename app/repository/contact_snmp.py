@@ -202,23 +202,26 @@ class SnmpHistoryRepository:
 
     @staticmethod
     async def get_history(
-        public_key: str, since_timestamp: int, *, max_points: int
+        public_key: str,
+        since_timestamp: int,
+        *,
+        max_points: int,
+        until_timestamp: int | None = None,
     ) -> list[dict[str, Any]]:
-        """Rows since ``since_timestamp``, oldest first.
+        """Rows since ``since_timestamp`` (up to ``until_timestamp`` when
+        given, both inclusive), oldest first.
 
         When there are more than ``max_points`` rows, every n-th row is
         returned (the newest row always included) so a long range stays a
         bounded payload.
         """
+        query = "SELECT timestamp, data FROM snmp_history WHERE public_key = ? AND timestamp >= ?"
+        params: list[Any] = [public_key, since_timestamp]
+        if until_timestamp is not None:
+            query += " AND timestamp <= ?"
+            params.append(until_timestamp)
         async with db.readonly() as conn:
-            async with conn.execute(
-                """
-                SELECT timestamp, data FROM snmp_history
-                 WHERE public_key = ? AND timestamp >= ?
-                 ORDER BY timestamp ASC, id ASC
-                """,
-                (public_key, since_timestamp),
-            ) as cursor:
+            async with conn.execute(query + " ORDER BY timestamp ASC, id ASC", params) as cursor:
                 rows = list(await cursor.fetchall())
         if max_points > 0 and len(rows) > max_points:
             stride = -(-len(rows) // max_points)

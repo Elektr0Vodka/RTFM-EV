@@ -57,7 +57,7 @@ function resolveConversationFromHash(
     case 'mesh-discovery':
       return { type: 'mesh-discovery', id: 'mesh-discovery', name: 'Mesh Discovery' };
     case 'snmp':
-      return { type: 'snmp', id: 'snmp', name: 'SNMP' };
+      return { type: 'snmp', id: hashConv.name, name: 'SNMP' };
     case 'analyze':
       return { type: 'analyze', id: 'analyze', name: 'Analyze Packet' };
     case 'packet-history':
@@ -214,7 +214,7 @@ export function useConversationRouter({
       return;
     }
     if (hashConv?.type === 'snmp') {
-      setActiveConversationState({ type: 'snmp', id: 'snmp', name: 'SNMP' });
+      setActiveConversationState({ type: 'snmp', id: hashConv.name, name: 'SNMP' });
       hasSetDefaultConversation.current = true;
       return;
     }

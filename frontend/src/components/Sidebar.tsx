@@ -1408,7 +1408,8 @@ export function Sidebar({
       case 'snmp':
         return renderSidebarActionRow({
           key: 'tool-snmp',
-          active: isActive('snmp', 'snmp'),
+          // Also current on the page of one node (#snmp/<public key>).
+          active: activeConversation?.type === 'snmp',
           icon: <Network className="h-4 w-4" />,
           label: t('nav_snmp'),
           onClick: () =>

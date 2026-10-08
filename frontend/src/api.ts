@@ -1321,6 +1321,12 @@ export const api = {
     fetchJson<SnmpPollResponse>(`/contacts/${publicKey}/snmp/poll`, { method: 'POST' }),
   snmpHistory: (publicKey: string, hours: number, signal?: AbortSignal) =>
     fetchJson<SnmpHistoryEntry[]>(`/contacts/${publicKey}/snmp/history?hours=${hours}`, { signal }),
+  // Stored polls from startTs up to endTs (now when left out), oldest first.
+  snmpHistoryRange: (publicKey: string, startTs: number, endTs?: number, signal?: AbortSignal) =>
+    fetchJson<SnmpHistoryEntry[]>(
+      `/contacts/${publicKey}/snmp/history?start=${startTs}${endTs === undefined ? '' : `&end=${endTs}`}`,
+      { signal }
+    ),
   // Every contact with SNMP set up, with its newest stored poll (read-only).
   snmpNodes: (signal?: AbortSignal) => fetchJson<SnmpNodeOverview[]>('/snmp/nodes', { signal }),
   getSnmpAgent: (signal?: AbortSignal) => fetchJson<SnmpAgentState>('/snmp-agent', { signal }),

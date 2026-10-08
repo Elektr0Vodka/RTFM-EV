@@ -366,6 +366,90 @@ class TestHistory:
 # --- schedule ---------------------------------------------------------------
 
 
+class TestHistoryRange:
+    """``start`` / ``end`` pick an absolute period instead of the last N hours."""
+
+    @pytest.mark.asyncio
+    async def test_start_and_end_bound_the_rows(self, test_db):
+        await _insert_contact()
+        now = int(time.time())
+        for age, heap in ((5000, 1), (4000, 2), (3000, 3), (2000, 4), (1000, 5)):
+            await SnmpHistoryRepository.record(KEY_A, now - age, {"free_heap": heap})
+
+        rows = await get_snmp_history(KEY_A, hours=24, start=now - 4000, end=now - 2000)
+
+        assert [entry.values["free_heap"] for entry in rows] == [2, 3, 4]
+        assert rows[0].timestamp < rows[-1].timestamp
+
+    @pytest.mark.asyncio
+    async def test_start_alone_runs_until_now_and_overrides_hours(self, test_db):
+        await _insert_contact()
+        now = int(time.time())
+        await SnmpHistoryRepository.record(KEY_A, now - 3 * 3600, {"free_heap": 1})
+        await SnmpHistoryRepository.record(KEY_A, now - 1200, {"free_heap": 2})
+        await SnmpHistoryRepository.record(KEY_A, now - 60, {"free_heap": 3})
+
+        # A window shorter than the one hour minimum of ``hours``.
+        short = await get_snmp_history(KEY_A, hours=24, start=now - 1500)
+        assert [entry.values["free_heap"] for entry in short] == [2, 3]
+        # ``hours`` is ignored once ``start`` is given.
+        wide = await get_snmp_history(KEY_A, hours=1, start=now - 4 * 3600)
+        assert [entry.values["free_heap"] for entry in wide] == [1, 2, 3]
+
+    @pytest.mark.asyncio
+    async def test_without_start_the_last_hours_still_apply(self, test_db):
+        await _insert_contact()
+        now = int(time.time())
+        await SnmpHistoryRepository.record(KEY_A, now - 30 * 3600, {"free_heap": 1})
+        await SnmpHistoryRepository.record(KEY_A, now - 60, {"free_heap": 2})
+
+        assert [e.values["free_heap"] for e in await get_snmp_history(KEY_A, hours=24)] == [2]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(("start", "end"), [(2000, 1000), (1000, 1000), (None, 1000)])
+    async def test_a_bad_period_is_rejected(self, test_db, start, end):
+        await _insert_contact()
+        with pytest.raises(HTTPException) as exc:
+            await get_snmp_history(KEY_A, hours=24, start=start, end=end)
+        assert exc.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_a_long_period_is_thinned_and_keeps_its_newest_row(self, test_db):
+        await _insert_contact()
+        now = int(time.time())
+        for index in range(40):
+            await SnmpHistoryRepository.record(KEY_A, now - 4000 + index * 10, {"free_heap": index})
+
+        with patch("app.routers.snmp.HISTORY_MAX_POINTS", 10):
+            rows = await get_snmp_history(KEY_A, hours=24, start=now - 4000, end=now - 3700)
+
+        # 31 rows in the period (index 0 to 30), thinned to at most 10.
+        assert len(rows) <= 10
+        assert rows[-1].values["free_heap"] == 30
+
+    @pytest.mark.asyncio
+    async def test_http_query_parameters(self, test_db, client):
+        await _insert_contact()
+        now = int(time.time())
+        await SnmpHistoryRepository.record(KEY_A, now - 3000, {"free_heap": 1})
+        await SnmpHistoryRepository.record(KEY_A, now - 1000, {"free_heap": 2})
+
+        async with client:
+            ranged = await client.get(
+                f"/api/contacts/{KEY_A}/snmp/history", params={"start": now - 1500, "end": now}
+            )
+            plain = await client.get(f"/api/contacts/{KEY_A}/snmp/history")
+            bad = await client.get(
+                f"/api/contacts/{KEY_A}/snmp/history", params={"start": now, "end": now - 10}
+            )
+            negative = await client.get(f"/api/contacts/{KEY_A}/snmp/history", params={"start": -5})
+
+        assert [row["values"]["free_heap"] for row in ranged.json()] == [2]
+        assert [row["values"]["free_heap"] for row in plain.json()] == [1, 2]
+        assert bad.status_code == 400
+        assert negative.status_code == 422
+
+
 class TestSchedule:
     def test_is_due(self):
         base = {"poll_interval_minutes": 5, "last_ok_at": None, "last_error_at": None}

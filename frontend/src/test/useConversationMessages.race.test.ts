@@ -937,3 +937,99 @@ describe('useConversationMessages forward pagination', () => {
     expect(result.current.hasNewerMessages).toBe(true);
   });
 });
+
+describe('useConversationMessages on pages that are not a chat', () => {
+  const KEY = 'ab'.repeat(32);
+
+  beforeEach(() => {
+    mockGetMessages.mockReset();
+    conversationMessageCache.clear();
+  });
+
+  it.each<[Conversation['type'], string]>([
+    ['node', 'node'],
+    ['mesh-health', 'mesh-health'],
+    ['mesh-trends', 'mesh-trends'],
+    ['mesh-discovery', 'mesh-discovery'],
+    ['snmp', 'snmp'],
+    // The page of one SNMP node: its id is a public key, but it is not a chat.
+    ['snmp', KEY],
+    ['analyze', 'analyze'],
+    ['packet-history', 'packet-history'],
+    ['knowledge-base', 'knowledge-base'],
+    ['channel-registry', 'channel-registry'],
+    ['link', `${KEY}~${'cd'.repeat(32)}`],
+    ['raw', 'raw'],
+    ['map', 'map'],
+    ['visualizer', 'visualizer'],
+    ['search', 'search'],
+    ['trace', 'trace'],
+    ['manual', 'manual'],
+  ])('does not load messages for %s (%s)', async (type, id) => {
+    mockGetMessages.mockResolvedValue([]);
+
+    const { result } = renderHook(() => useConversationMessages({ type, id, name: 'Page' }));
+    await act(async () => {});
+
+    expect(mockGetMessages).not.toHaveBeenCalled();
+    expect(result.current.messages).toEqual([]);
+  });
+
+  it.each<[Conversation['type'], 'PRIV' | 'CHAN']>([
+    ['contact', 'PRIV'],
+    ['channel', 'CHAN'],
+    // The contact page keeps that contact's messages ready: its chat is one click away.
+    ['contact-info', 'PRIV'],
+  ])('still loads messages for %s', async (type, messageType) => {
+    mockGetMessages.mockResolvedValue([]);
+
+    renderHook(() => useConversationMessages({ type, id: KEY, name: 'Chat' }));
+
+    await waitFor(() => expect(mockGetMessages).toHaveBeenCalledTimes(1));
+    expect(mockGetMessages.mock.calls[0][0]).toMatchObject({
+      type: messageType,
+      conversation_key: KEY,
+    });
+  });
+
+  it('loads the chat when the contact page is opened from the SNMP page of the same node', async () => {
+    const dm = createMessage({ id: 7, conversation_key: KEY, outgoing: false });
+    mockGetMessages.mockResolvedValue([dm]);
+
+    const { result, rerender } = renderHook(
+      ({ conversation }: { conversation: Conversation }) => useConversationMessages(conversation),
+      { initialProps: { conversation: { type: 'snmp', id: KEY, name: 'SNMP' } as Conversation } }
+    );
+    await act(async () => {});
+    expect(mockGetMessages).not.toHaveBeenCalled();
+
+    // Same id, other kind of page: this must count as a switch.
+    rerender({ conversation: { type: 'contact-info', id: KEY, name: 'Room' } });
+    await waitFor(() => expect(result.current.messages.map((m) => m.id)).toEqual([7]));
+    expect(mockGetMessages).toHaveBeenCalledTimes(1);
+
+    // Contact page to chat is the same message context: nothing is thrown away or reloaded.
+    rerender({ conversation: { type: 'contact', id: KEY, name: 'Room' } });
+    await act(async () => {});
+    expect(result.current.messages.map((m) => m.id)).toEqual([7]);
+    expect(mockGetMessages).toHaveBeenCalledTimes(1);
+  });
+
+  it('brings the chat back after a visit to the SNMP page of the same node', async () => {
+    const dm = createMessage({ id: 9, conversation_key: KEY, outgoing: false });
+    mockGetMessages.mockResolvedValue([dm]);
+
+    const { result, rerender } = renderHook(
+      ({ conversation }: { conversation: Conversation }) => useConversationMessages(conversation),
+      { initialProps: { conversation: { type: 'contact', id: KEY, name: 'Room' } as Conversation } }
+    );
+    await waitFor(() => expect(result.current.messages.map((m) => m.id)).toEqual([9]));
+
+    rerender({ conversation: { type: 'snmp', id: KEY, name: 'SNMP' } });
+    await act(async () => {});
+    expect(result.current.messages).toEqual([]);
+
+    rerender({ conversation: { type: 'contact', id: KEY, name: 'Room' } });
+    await waitFor(() => expect(result.current.messages.map((m) => m.id)).toEqual([9]));
+  });
+});

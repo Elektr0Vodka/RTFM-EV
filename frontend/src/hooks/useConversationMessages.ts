@@ -307,11 +307,14 @@ interface UseConversationMessagesResult {
   clearConversationMessages: () => void;
 }
 
+// Only a chat has messages. The contact page counts as one: it is about the
+// same contact and its chat is one click away, so that contact's messages are
+// kept ready. Every other page (tools, link detail, SNMP) loads none, also when
+// its id happens to be a public key.
+const MESSAGE_CONVERSATION_TYPES: Conversation['type'][] = ['contact', 'channel', 'contact-info'];
+
 function isMessageConversation(conversation: Conversation | null): conversation is Conversation {
-  return (
-    !!conversation &&
-    !['raw', 'map', 'visualizer', 'search', 'trace', 'manual'].includes(conversation.type)
-  );
+  return !!conversation && MESSAGE_CONVERSATION_TYPES.includes(conversation.type);
 }
 
 function isActiveConversationMessage(
@@ -416,6 +419,7 @@ export function useConversationMessages(
   const hasOlderMessagesRef = useRef(false);
   const hasNewerMessagesRef = useRef(false);
   const prevConversationIdRef = useRef<string | null>(null);
+  const prevIsMessageRef = useRef(false);
   const prevReloadVersionRef = useRef(0);
   const [reloadVersion, setReloadVersion] = useState(0);
 
@@ -733,7 +737,11 @@ export function useConversationMessages(
 
     const prevId = prevConversationIdRef.current;
     const newId = activeConversation?.id ?? null;
-    const conversationChanged = prevId !== newId;
+    // A page that is not a chat can share its id with one (the SNMP page of a
+    // node and that contact's chat), so going between the two is a switch too.
+    const isMessage = isMessageConversation(activeConversation);
+    const conversationChanged = prevId !== newId || prevIsMessageRef.current !== isMessage;
+    prevIsMessageRef.current = isMessage;
     const reloadRequested = prevReloadVersionRef.current !== reloadVersion;
     fetchingConversationIdRef.current = newId;
     prevConversationIdRef.current = newId;

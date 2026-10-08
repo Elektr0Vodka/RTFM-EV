@@ -375,7 +375,7 @@ This table is a representative subset, not the full route list (for example the 
 | PUT | `/api/contacts/{public_key}/snmp/config` | Save SNMP host, port and community (null community keeps the stored one) |
 | DELETE | `/api/contacts/{public_key}/snmp/config` | Remove the SNMP settings |
 | POST | `/api/contacts/{public_key}/snmp/poll` | Poll the node's SNMP agent once over UDP (no radio access); a failed poll is `ok: false` |
-| GET | `/api/contacts/{public_key}/snmp/history` | Stored SNMP polls of the last `hours` (default 24), oldest first, thinned to 1500 rows |
+| GET | `/api/contacts/{public_key}/snmp/history` | Stored SNMP polls of the last `hours` (default 24), or from `start` to `end` (Unix seconds, `end` defaults to now), oldest first, thinned to 1500 rows |
 | POST | `/api/contacts/{public_key}/snmp/discover-address` | Ask the node for its WiFi IP with one CLI `get wifi.status` over RF; saves nothing |
 | GET | `/api/snmp/nodes` | Every contact with SNMP set up: name, type, address, schedule, last poll outcome and the newest stored poll (database only, no poll, no radio access; the community is never returned) |
 | GET | `/api/contacts/{public_key}/repeater/telemetry-history` | Stored telemetry history for a repeater (read-only, no radio access) |

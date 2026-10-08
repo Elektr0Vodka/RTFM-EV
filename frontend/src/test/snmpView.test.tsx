@@ -105,12 +105,13 @@ function field(key: string) {
 }
 
 const onOpenContactInfo = vi.fn();
+const onOpenNode = vi.fn();
 
 async function renderView(nodes: SnmpNodeOverview[]) {
   mocks.snmpNodes.mockResolvedValue(nodes);
   render(
     <I18nProvider>
-      <SnmpView onOpenContactInfo={onOpenContactInfo} />
+      <SnmpView onOpenContactInfo={onOpenContactInfo} onOpenNode={onOpenNode} />
     </I18nProvider>
   );
   await waitFor(() => expect(mocks.snmpNodes).toHaveBeenCalled());
@@ -220,7 +221,7 @@ describe('SnmpView overview', () => {
     mocks.snmpNodes.mockRejectedValue(new Error('boom'));
     render(
       <I18nProvider>
-        <SnmpView onOpenContactInfo={onOpenContactInfo} />
+        <SnmpView onOpenContactInfo={onOpenContactInfo} onOpenNode={onOpenNode} />
       </I18nProvider>
     );
 
@@ -228,42 +229,41 @@ describe('SnmpView overview', () => {
   });
 });
 
-describe('SnmpView full data view', () => {
-  it('expands a row to all 22 grouped values and the history chart', async () => {
+describe('SnmpView full page link', () => {
+  it('opens the full page of a node from the arrow, without polling or expanding', async () => {
     await renderView([ALPHA, BRAVO]);
     await screen.findByTestId(`snmp-node-${KEY_A}`);
-    expect(screen.queryByTestId(`snmp-detail-${KEY_A}`)).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show all values of Alpha' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open the SNMP page of Alpha' }));
 
-    const detail = within(screen.getByTestId(`snmp-detail-${KEY_A}`));
-    expect(SNMP_FIELDS).toHaveLength(22);
-    for (const f of SNMP_FIELDS) {
-      expect(detail.getByTestId(`snmp-row-${f.key}`)).toHaveTextContent(
-        formatSnmpValue(f, values())
-      );
-    }
-    for (const group of ['System', 'Radio', 'MQTT', 'Memory', 'Network']) {
-      expect(detail.getByText(group)).toBeInTheDocument();
-    }
-    expect(detail.getByTestId('snmp-history')).toBeInTheDocument();
-    await waitFor(() => expect(mocks.snmpHistory).toHaveBeenCalled());
-    expect(mocks.snmpHistory.mock.calls[0][0]).toBe(KEY_A);
-    // The other node stays closed, and nothing was polled to show this.
-    expect(screen.queryByTestId(`snmp-detail-${KEY_B}`)).toBeNull();
+    expect(onOpenNode).toHaveBeenCalledTimes(1);
+    expect(onOpenNode).toHaveBeenCalledWith(KEY_A);
+    expect(screen.queryByTestId('snmp-values')).toBeNull();
+    expect(screen.queryByTestId('snmp-history')).toBeNull();
     expect(mocks.pollSnmp).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Hide values of Alpha' }));
-    expect(screen.queryByTestId(`snmp-detail-${KEY_A}`)).toBeNull();
+    expect(mocks.snmpHistory).not.toHaveBeenCalled();
   });
 
-  it('says so when a node has no stored values yet', async () => {
-    await renderView([FAILING]);
-    fireEvent.click(await screen.findByRole('button', { name: 'Show all values of Zulu' }));
+  it('opens the full page from a click on the row', async () => {
+    await renderView([ALPHA, BRAVO]);
 
-    const detail = within(screen.getByTestId(`snmp-detail-${KEY_C}`));
-    expect(detail.getByText(/No stored values yet/)).toBeInTheDocument();
-    expect(detail.queryByTestId('snmp-row-free_heap')).toBeNull();
+    fireEvent.click(
+      within(await screen.findByTestId(`snmp-node-${KEY_B}`)).getByText('bravo.lan:1161')
+    );
+
+    expect(onOpenNode).toHaveBeenCalledWith(KEY_B);
+  });
+
+  it('keeps the name and Poll now to their own jobs', async () => {
+    await renderView([ALPHA]);
+    mocks.pollSnmp.mockResolvedValue(pollOk());
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Alpha' }));
+    expect(onOpenContactInfo).toHaveBeenCalledWith(KEY_A);
+    fireEvent.click(within(rowOf(KEY_A)).getByRole('button', { name: 'Poll now' }));
+    await waitFor(() => expect(mocks.pollSnmp).toHaveBeenCalledWith(KEY_A));
+
+    expect(onOpenNode).not.toHaveBeenCalled();
   });
 });
 
@@ -303,17 +303,6 @@ describe('SnmpView polling', () => {
     expect(within(rowOf(KEY_A)).getByTestId('snmp-cell-free_heap')).toHaveTextContent(
       formatSnmpValue(field('free_heap'), values())
     );
-  });
-
-  it('reloads the open history chart after a poll', async () => {
-    await renderView([ALPHA]);
-    mocks.pollSnmp.mockResolvedValue(pollOk());
-    fireEvent.click(await screen.findByRole('button', { name: 'Show all values of Alpha' }));
-    await waitFor(() => expect(mocks.snmpHistory).toHaveBeenCalledTimes(1));
-
-    fireEvent.click(within(rowOf(KEY_A)).getByRole('button', { name: 'Poll now' }));
-
-    await waitFor(() => expect(mocks.snmpHistory).toHaveBeenCalledTimes(2));
   });
 
   it('polls every node one after the other with Poll all now', async () => {
@@ -374,7 +363,7 @@ describe('SnmpView refresh', () => {
       mocks.snmpNodes.mockResolvedValue([ALPHA]);
       render(
         <I18nProvider>
-          <SnmpView onOpenContactInfo={onOpenContactInfo} />
+          <SnmpView onOpenContactInfo={onOpenContactInfo} onOpenNode={onOpenNode} />
         </I18nProvider>
       );
     });

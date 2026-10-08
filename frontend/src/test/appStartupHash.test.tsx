@@ -361,6 +361,20 @@ describe('App startup hash resolution', () => {
     });
   });
 
+  it('restores the SNMP page of one node from the URL hash', async () => {
+    const key = 'ab'.repeat(32);
+    setHash(`#snmp/${key}`);
+    mocks.api.getChannels.mockResolvedValue([]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      for (const node of screen.getAllByTestId('active-conversation')) {
+        expect(node).toHaveTextContent(`snmp:${key}:`);
+      }
+    });
+  });
+
   it('restores the Analyze Packet view from the URL hash even when channels are unavailable', async () => {
     setHash('#analyze');
     mocks.api.getChannels.mockResolvedValue([]);
