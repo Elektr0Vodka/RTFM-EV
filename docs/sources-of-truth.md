@@ -148,8 +148,9 @@ machine this was authored on and may differ elsewhere.
   types). signalk-meshcore's independent `#TEL:` codec: `index.js`
   `decodeTEL` / `encodeTEL` in https://github.com/Banzarykey/signalk-meshcore.
   Ported in `app/team_payloads.py` and `frontend/src/utils/teamPayloads.ts`.
-  RTFM-EV sends only `#TEL:` (`encode_telemetry`, TEAM's form) and single
-  `#WAY:` waypoints (`buildTeamWaypointPayload`); the vessel types are
+  RTFM-EV sends only `#TEL:` (`encode_telemetry` for the periodic beacon and
+  its frontend mirror `buildTeamTelemetryPayload` for the manual one, TEAM's
+  form) and single `#WAY:` waypoints (`buildTeamWaypointPayload`); the vessel types are
   RTFM-EV's own list, not part of either format. No real traffic sample was available
   when this was written; the fixtures are built from those encoders.
 - Community key derivation and QR JSON: meshcore-open `lib/models/community.dart`

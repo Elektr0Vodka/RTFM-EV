@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  buildTeamTelemetryPayload,
   buildTeamWaypointPayload,
   decodeTeamRoute,
   parseTeamPayload,
@@ -360,5 +361,52 @@ describe('buildTeamWaypointPayload', () => {
     });
 
     expect(text).toMatch(/^#WAY:[0-9a-f]{8}\|ab c\|1\.500000\|2\.500000\|\|WATER\|$/);
+  });
+});
+
+describe('buildTeamTelemetryPayload', () => {
+  // Expected strings are the output of encode_telemetry in app/team_payloads.py
+  // for the same arguments (the first one is also asserted in the backend test).
+  it.each([
+    [52.0907, 5.1214, 3998, '#TEL:Hwxo+AMNdrDSAQE'],
+    [52.0907, 5.1214, undefined, '#TEL:Hwxo+AMNdrABAQE'],
+    [-33.865143, -151.2099, 2750, '#TEL:69CW2qXfM0gCAQE'],
+    [52.123456, 4.123456, 4200, '#TEL:HxFogAJ1MIDzAQE'],
+  ])('matches the backend encoder for %f, %f at %s mV', (lat, lon, mv, expected) => {
+    expect(buildTeamTelemetryPayload(lat, lon, mv)).toBe(expected);
+  });
+
+  it('builds a #TEL: beacon the parser reads back as TEAM, with no phone attached', () => {
+    expect(parseTeamPayload(buildTeamTelemetryPayload(52.0907, 5.1214, 3998))).toEqual({
+      type: 'beacon',
+      kind: 'tel',
+      source: 'team',
+      lat: 52.0907,
+      lon: 5.1214,
+      radioBatteryMv: 3998,
+      phoneBatteryMv: null,
+      phoneBatteryPct: null,
+      autonomous: false,
+      needsForwarding: false,
+      maxPathObserved: 0,
+      nodeCount: null,
+      neighborCount: null,
+    });
+  });
+
+  it('sends an unknown, null or zero battery as unknown and clamps the rest to 2-254', () => {
+    const radioMv = (mv?: number | null) => {
+      const beacon = parseTeamPayload(buildTeamTelemetryPayload(52, 5, mv));
+      return beacon?.type === 'beacon' ? beacon.radioBatteryMv : undefined;
+    };
+    expect(radioMv()).toBeNull();
+    expect(radioMv(null)).toBeNull();
+    expect(radioMv(0)).toBeNull();
+    // A 12 V supply is clamped to TEAM's top value (254), never the 0xFF sentinel.
+    expect(radioMv(12600)).toBe(2750 + 252 * 6);
+    expect(radioMv(2000)).toBe(2750);
+    // Same strings as encode_telemetry(52.0, 5.0, 9999) and (52.0, 5.0, 1000).
+    expect(buildTeamTelemetryPayload(52, 5, 9999)).toBe('#TEL:Hv6SAAL68ID+AQE');
+    expect(buildTeamTelemetryPayload(52, 5, 1000)).toBe('#TEL:Hv6SAAL68IACAQE');
   });
 });

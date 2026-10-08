@@ -205,6 +205,30 @@ describe('useConversationActions', () => {
     );
   });
 
+  it('inserts a picked location as a MeshCore TEAM beacon with the radio battery', () => {
+    const args = createArgs({ radioBatteryMv: 3998 });
+    const { result } = renderHook(() => useConversationActions(args));
+
+    act(() => {
+      result.current.handleInsertLocation(52.0907, 5.1214, 'ignored', { teamBeacon: true });
+    });
+
+    // Only composer text: nothing is sent until the user presses Send.
+    expect(args.messageInputRef.current?.appendText).toHaveBeenCalledWith('#TEL:Hwxo+AMNdrDSAQE ');
+    expect(mocks.api.sendChannelMessage).not.toHaveBeenCalled();
+  });
+
+  it('builds the TEAM beacon with an unknown battery when no reading is known', () => {
+    const args = createArgs();
+    const { result } = renderHook(() => useConversationActions(args));
+
+    act(() => {
+      result.current.handleInsertLocation(52.0907, 5.1214, '', { teamBeacon: true });
+    });
+
+    expect(args.messageInputRef.current?.appendText).toHaveBeenCalledWith('#TEL:Hwxo+AMNdrABAQE ');
+  });
+
   it('appends a new-timestamp resend immediately for the active channel', async () => {
     const resentMessage: Message = {
       ...sentMessage,

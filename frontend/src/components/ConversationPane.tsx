@@ -137,7 +137,7 @@ interface ConversationPaneProps {
     lat: number,
     lon: number,
     label: string,
-    options?: { teamWaypointType: string }
+    options?: import('../utils/teamPayloads').TeamLocationFormat
   ) => void;
   onCoordinateClick?: (lat: number, lon: number, label: string) => void;
   /** Open a chat message by id (map shared-locations popup). */

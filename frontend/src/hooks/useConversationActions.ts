@@ -1,4 +1,8 @@
-import { buildTeamWaypointPayload } from '../utils/teamPayloads';
+import {
+  buildTeamTelemetryPayload,
+  buildTeamWaypointPayload,
+  type TeamLocationFormat,
+} from '../utils/teamPayloads';
 import { useCallback, type MutableRefObject, type RefObject } from 'react';
 import { api } from '../api';
 import { toast } from '../components/ui/sonner';
@@ -24,6 +28,8 @@ interface UseConversationActionsArgs {
     id: string;
     messageId: number;
   }) => Promise<void>;
+  /** Latest radio battery reading, put in a TEAM #TEL: beacon built for the composer. */
+  radioBatteryMv?: number | null;
 }
 
 interface UseConversationActionsResult {
@@ -47,7 +53,7 @@ interface UseConversationActionsResult {
     lat: number,
     lon: number,
     label: string,
-    options?: { teamWaypointType: string }
+    options?: TeamLocationFormat
   ) => void;
   handleTrace: () => Promise<void>;
   handlePathDiscovery: (publicKey: string) => Promise<PathDiscoveryResponse>;
@@ -62,6 +68,7 @@ export function useConversationActions({
   removeMessage,
   messageInputRef,
   markConversationUnreadFromMessage,
+  radioBatteryMv,
 }: UseConversationActionsArgs): UseConversationActionsResult {
   const t = useT();
   const mergeChannelIntoList = useCallback(
@@ -248,19 +255,24 @@ export function useConversationActions({
   );
 
   const handleInsertLocation = useCallback(
-    (lat: number, lon: number, label: string, options?: { teamWaypointType: string }) => {
-      // Either way the text only lands in the composer; the user sends it.
-      const payload = options
-        ? buildTeamWaypointPayload({
-            name: label,
-            lat,
-            lon,
-            waypointType: options.teamWaypointType,
-          })
-        : buildMarkerPayload(lat, lon, label);
+    (lat: number, lon: number, label: string, options?: TeamLocationFormat) => {
+      // Whatever the format, the text only lands in the composer; the user sends it.
+      let payload: string;
+      if (!options) {
+        payload = buildMarkerPayload(lat, lon, label);
+      } else if ('teamBeacon' in options) {
+        payload = buildTeamTelemetryPayload(lat, lon, radioBatteryMv);
+      } else {
+        payload = buildTeamWaypointPayload({
+          name: label,
+          lat,
+          lon,
+          waypointType: options.teamWaypointType,
+        });
+      }
       messageInputRef.current?.appendText(`${payload} `);
     },
-    [messageInputRef]
+    [messageInputRef, radioBatteryMv]
   );
 
   const handleTrace = useCallback(async () => {
