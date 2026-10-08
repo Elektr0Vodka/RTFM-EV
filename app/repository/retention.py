@@ -12,6 +12,7 @@ AGE_TABLES: dict[str, tuple[str, str]] = {
     "advert_events": ("advert_events", "first_seen"),
     "repeater_telemetry": ("repeater_telemetry_history", "timestamp"),
     "contact_telemetry": ("contact_telemetry_history", "timestamp"),
+    "snmp": ("snmp_history", "timestamp"),
     "link_signal": ("link_signal", "observed_at"),
     "noise_floor": ("noise_floor_samples", "timestamp"),
     "battery": ("battery_history", "timestamp"),

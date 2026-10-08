@@ -6,9 +6,14 @@
 // step, not after a request. Ranges come from the stock repeater CLI
 // (meshcore-dev/MeshCore src/helpers/CommonCLI.cpp); see the Python module for
 // the per-setting firmware notes. `prv.key` is deliberately absent.
+//
+// The `observer` group holds keys that only exist on observer firmware
+// (CommonCLI_Observer.cpp in the DMC / agessaman observer builds). It is read
+// with its own button and never by "Read current values", so a stock repeater
+// is not sent a `get` it does not know. `snmp.community` is deliberately absent.
 
 export type SettingKind = 'int' | 'decimal' | 'choice' | 'text' | 'textarea' | 'radio';
-export type SettingGroup = 'identity' | 'radio' | 'routing' | 'adverts';
+export type SettingGroup = 'identity' | 'radio' | 'routing' | 'adverts' | 'observer';
 
 export interface SettingOption {
   value: string;
@@ -223,13 +228,35 @@ export const SETTING_DEFS: SettingDef[] = [
     max: 168,
     allowZero: true,
   },
+  {
+    key: 'snmp',
+    group: 'observer',
+    labelKey: 'repeater_settings_snmp',
+    kind: 'choice',
+    options: ON_OFF,
+  },
 ];
 
-export const SETTING_GROUPS: { group: SettingGroup; labelKey: string }[] = [
+export interface SettingGroupDef {
+  group: SettingGroup;
+  labelKey: string;
+  /** Read with its own button, not by "Read current values"; rows stay locked until read. */
+  separateRead?: boolean;
+  /** i18n key of a short note shown under the group title. */
+  noteKey?: string;
+}
+
+export const SETTING_GROUPS: SettingGroupDef[] = [
   { group: 'identity', labelKey: 'repeater_settings_group_identity' },
   { group: 'radio', labelKey: 'repeater_settings_group_radio' },
   { group: 'routing', labelKey: 'repeater_settings_group_routing' },
   { group: 'adverts', labelKey: 'repeater_settings_group_adverts' },
+  {
+    group: 'observer',
+    labelKey: 'repeater_settings_group_observer',
+    separateRead: true,
+    noteKey: 'repeater_settings_group_observer_note',
+  },
 ];
 
 /** A validation failure: i18n key plus interpolation params. */

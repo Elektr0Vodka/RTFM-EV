@@ -199,7 +199,9 @@ Click the route label next to a contact's name (for example the hop count or "fl
 
 Opening a repeater shows a login form: log in with the password or as a guest. The dashboard then has panes for Node Info, Telemetry, Radio Settings (with advert intervals), LPP Sensors, Neighbors, ACL, Regions and Owner Info, plus Actions (Zero Hop Advert, Flood Advert, Sync Clock, Reboot), a Console with CLI access, telemetry history and a History pane that shows what changed between stored snapshots. **Load All** fetches every pane one after another.
 
-The Settings Editor changes one repeater setting at a time: you edit, confirm the exact CLI command, it is sent over RF, and the value is read back to check it. Changing frequency, bandwidth, spreading factor or coding rate requires typing the repeater name first, because a wrong value can take it off the air.
+The Settings Editor changes one repeater setting at a time: you edit, confirm the exact CLI command, it is sent over RF, and the value is read back to check it. Changing frequency, bandwidth, spreading factor or coding rate requires typing the repeater name first, because a wrong value can take it off the air. The Observer firmware group (SNMP agent on/off) only works on DMC observer and agessaman observer firmware: use its own Read button first, and reboot the repeater after a change.
+
+Repeaters and room servers on observer firmware can also be read over your network. On the contact page, the **SNMP (LAN)** card takes the node's IP address, port and community; **Poll now** then shows radio, MQTT, memory and WiFi values without using RF. SNMP must be on on the node (Observer firmware group in the Settings Editor, then reboot) and the server must be able to reach it over UDP. Turn on **Poll on a schedule** to have the server poll the node every few minutes and keep the results; the card then shows a history chart for the value and range you pick. If the Home Assistant integration tracks the repeater, the values also appear there as SNMP sensors. **Ask node for its address** sends one command over RF to look up the IP and needs an admin login.
 
 ### Room servers
 
@@ -357,6 +359,8 @@ Only shown when the connected node is an OpenHop node. Set the OpenHop API addre
 ### Radio-App Management
 
 **Tracked Repeater Telemetry** and **Tracked Contact Telemetry**, name resolution for unnamed contacts, **Contact Management** (block new node types, blocked keys and names, bulk delete), **Loadouts**, and **Partial node sync**, which matches nodes you only know by prefix against the analyzer directory. You review each match before it is saved as a reversible soft link.
+
+**SNMP agent** (off by default) lets a monitoring system such as LibreNMS or Zabbix poll this node over SNMP, with the same values as the observer firmware. Set the UDP port and your own community; in Docker, publish the port as well. It is read-only and never uses the radio.
 
 ### Map
 

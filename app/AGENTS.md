@@ -29,6 +29,7 @@ app/
 ├── channel_constants.py # Public/default channel constants shared across sync/send logic
 ├── database.py          # SQLite writer connection (tx(), locked) + reader pool (readonly(), WAL, query_only) + base schema + migration runner
 ├── migrations/          # Schema migrations (SQLite user_version, per-version modules)
+├── snmp/                # Small SNMPv2c implementation for observer firmware nodes: ber.py (BER codec), message.py (framing), mib.py (the MeshCore OID table, single source for keys/units), client.py (async UDP GET), agent.py (read-only GET/GETNEXT/GETBULK responder, pure `handle_request` + UDP protocol), address.py (host validation, wifi.status parsing). Read-only, no dependency. LAN only, never the radio.
 ├── models.py            # Pydantic request/response models and typed write contracts (for example ContactUpsert)
 ├── version_info.py      # Unified version/build metadata resolution for debug + startup surfaces
 ├── repository/          # Data access layer (contacts incl. name/location history, channels, communities, messages, raw_packets, packet_receptions, relay_history, settings, fanout, push_subscriptions, repeater_telemetry, contact_telemetry, device_config_history, analyzer_names, radio_identities)
@@ -411,8 +412,8 @@ RTFM-EV judges received frames as a repeater would; shadow mode never transmits,
 - `POST /contacts/{public_key}/repeater/radio-settings`
 - `POST /contacts/{public_key}/repeater/regions` - CLI region hierarchy, falling back to the guest anon flood-allowed names (`source`: `cli` or `anon`)
 - `POST /contacts/{public_key}/repeater/advert-intervals`
-- `POST /contacts/{public_key}/repeater/settings/read` - `get` of allow-listed editor settings (`{settings?: [...]}`; omit for all); error sentinels come back as null
-- `POST /contacts/{public_key}/repeater/settings/set` - ONE allow-listed `set <verb> <value>` over RF then `get <verb>` read-back; returns `status` `ok`/`mismatch`/`rejected`/`unverified` + `reboot_required`. Allow-list + value ranges live in `app/services/repeater_settings.py` (from the stock `CommonCLI.cpp`); anything off-list or out of range is a 400 before the radio is touched. `prv.key` and the admin `password` are deliberately not on the list.
+- `POST /contacts/{public_key}/repeater/settings/read` - `get` of allow-listed editor settings (`{settings?: [...]}`; omit for every non-observer key, see `repeater_settings.default_read_keys()`); observer-only keys (`SettingSpec.observer`, currently `snmp`) are read only when named; error sentinels come back as null
+- `POST /contacts/{public_key}/repeater/settings/set` - ONE allow-listed `set <verb> <value>` over RF then `get <verb>` read-back; returns `status` `ok`/`mismatch`/`rejected`/`unverified` + `reboot_required`. Allow-list + value ranges live in `app/services/repeater_settings.py` (from the stock `CommonCLI.cpp`, plus the observer firmware's `CommonCLI_Observer.cpp` for `snmp`); anything off-list or out of range is a 400 before the radio is touched. `prv.key`, the admin `password` and `snmp.community` are deliberately not on the list.
 - `POST /contacts/{public_key}/repeater/owner-info` - also auto-fills the contact's stored `owner_info` when empty (never overwrites) and returns `stored_owner_info` + `owner_info_updated`
 - `GET /contacts/{public_key}/repeater/telemetry-history` - stored telemetry history for a repeater (read-only, no radio access)
 - `POST /contacts/{public_key}/telemetry` - on-demand CayenneLPP telemetry from any contact (persists in `contact_telemetry_history`)
@@ -424,6 +425,30 @@ RTFM-EV judges received frames as a repeater would; shadow mode never transmits,
 - `POST /contacts/{public_key}/room/lpp-telemetry`
 - `POST /contacts/{public_key}/room/acl` - also stores an `acl` snapshot in `device_config_history` (plan 14): `{pubkey_prefix, permission}` pairs sorted by prefix, resolved names left out; an empty list (timeout) is not stored
 - `GET /contacts/{public_key}/room/config-history?kind=` - stored room pane snapshots (today only `acl`), newest first; same shape as the repeater endpoint, 400 for a non-room contact
+
+### SNMP polling (observer firmware, LAN)
+
+Router `routers/snmp.py`, service `services/snmp_poll.py` (poll, schedule loop), repository `repository/contact_snmp.py`, tables `contact_snmp` (migration `_130`) and `snmp_history` (migration `_131`). Polls the SNMP agent of the DMC / agessaman observer firmware (SNMPv2c, read-only, 22 scalar OIDs under the temporary enterprise number 99999, see `app/snmp/mib.py`). Repeaters and room servers only.
+
+- `GET /contacts/{public_key}/snmp/config` - stored settings or null. Returns `community_is_default`, never the community.
+- `PUT /contacts/{public_key}/snmp/config` - `{host, port, community?, poll_enabled, poll_interval_minutes}` (interval 1-1440, default 5); a null or empty community keeps the stored one (`public` for a new row). Host must be an IP address or hostname (`app/snmp/address.normalize_host`).
+- `DELETE /contacts/{public_key}/snmp/config`
+- `POST /contacts/{public_key}/snmp/poll` - one GET of the whole table over UDP, no radio access. A failed poll is a normal 200 with `ok: false` and `error`; the outcome is written to `last_ok_at` / `last_error` / `last_error_at`. An agent that answers but serves none of the MeshCore OIDs counts as a failure.
+- `GET /contacts/{public_key}/snmp/history?hours=` - stored polls (`snmp_history`, one JSON row per good poll, same shape as the poll `values`), oldest first; more than `HISTORY_MAX_POINTS` (1500) rows are thinned by stride with the newest row kept.
+- `POST /contacts/{public_key}/snmp/discover-address` - the only SNMP endpoint that transmits: ONE `get wifi.status` over RF, parsed for the IP. Saves nothing. Status `ok` / `no_address` / `unsupported` / `no_reply`.
+
+Schedule: `start_snmp_poll_schedule()` (lifespan) runs `run_scheduled_polls_once()` every `SCHEDULE_TICK_SECONDS` (30). A contact with `poll_enabled` is due when `poll_interval_minutes` has passed since its last attempt, good or failed (`is_due`), so a dead node is not polled every tick. At most `MAX_CONCURRENT_POLLS` (4) run at once; one failing contact never stops the others. Every good poll (scheduled or "Poll now") writes a `snmp_history` row and is handed to the fanout bus (`fanout_manager.broadcast_snmp`, hook `on_snmp`, payload `{public_key, timestamp, values}`); a failed poll does neither. The HA MQTT module turns it into SNMP sensors for tracked repeaters. Retention: key `snmp` in `repository/retention.py`, pruned by `telemetry_retention_days`; the per-node row cap (`TELEMETRY_TABLES`) does not include it.
+
+The community is a credential: it lives only in `contact_snmp`, never on the contact row, and must not be put in a response, a WebSocket event, a fanout payload or a log line. `last_snr` is served by the firmware as dB x 4 and returned by the API in dB.
+
+### SNMP agent (this host, off by default)
+
+Router `routers/snmp_agent.py`, service `services/snmp_agent.py`, repository `repository/snmp_agent.py`, table `snmp_agent` (migration `_132`, one row), protocol `app/snmp/agent.py`.
+
+- `GET /snmp-agent` - `{settings: {enabled, port, community}, running, error, requests, bad_community}`
+- `PUT /snmp-agent` - save the settings and apply them right away; a bind failure is returned in `error`, not raised
+
+The agent serves the firmware's OID table (`app/snmp/mib.py`) for this host: `host_values()` reads the latest radio stats sample, the radio name and firmware version, the count of connected MQTT fanout modules and `/proc/meminfo`; `build_table()` turns that into INTEGER / OCTET STRING varbinds sorted by OID (unknown numbers 0, unknown names empty, values clamped to int32, `last_snr` back to dB x 4). `_safe_table()` serves zeros when a source fails, so a request is never dropped for that. `apply_snmp_agent_settings()` closes the old listener and yields to the loop before binding again, with one retry on `EADDRINUSE`, because `transport.close()` only schedules the close. Wrong community, SNMPv1/v3 and malformed datagrams get no reply; SET gets `notWritable`. Lifespan: `start_snmp_agent()` / `stop_snmp_agent()`. It never uses the radio.
 
 ### Channels
 - `GET /channels`

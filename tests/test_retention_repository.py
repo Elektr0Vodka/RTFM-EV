@@ -9,6 +9,7 @@ from app.repository import ContactRepository, MessageRepository
 from app.repository.advert_events import AdvertEventRepository
 from app.repository.airtime_history import AirtimeHistoryRepository
 from app.repository.battery_history import BatteryHistoryRepository
+from app.repository.contact_snmp import SnmpHistoryRepository
 from app.repository.contact_telemetry import ContactTelemetryRepository
 from app.repository.contacts import ContactAdvertPathRepository, ContactLocationHistoryRepository
 from app.repository.device_config_history import DeviceConfigHistoryRepository
@@ -86,6 +87,7 @@ async def test_prune_older_than_each_age_table(test_db):
                 (ts, ts),
             )
         await DeviceConfigHistoryRepository.record(KEY_A, "node_info", ts, {"v": ts})
+        await SnmpHistoryRepository.record(KEY_A, ts, {"v": ts})
         await ContactLocationHistoryRepository.record_location(KEY_A, 52.0 + ts % 7, 4.3, ts)
 
     cutoff = now - 30 * DAY

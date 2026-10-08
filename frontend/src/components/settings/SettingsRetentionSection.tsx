@@ -48,7 +48,7 @@ const ROWS: RowDef[] = [
   { id: 'advert_events', statKeys: ['advert_events'], fields: [DAYS('advert_retention_days')] },
   {
     id: 'telemetry',
-    statKeys: ['repeater_telemetry', 'contact_telemetry'],
+    statKeys: ['repeater_telemetry', 'contact_telemetry', 'snmp'],
     fields: [
       DAYS('telemetry_retention_days'),
       { field: 'telemetry_max_rows_per_node', unit: 'rows', min: 0, max: 100000 },

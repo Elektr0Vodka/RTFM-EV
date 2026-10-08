@@ -23,6 +23,7 @@ vi.mock('../api', () => ({
       .fn()
       .mockResolvedValue({ beacons: [], waypoints: [], scanned: 0, truncated: false }),
     contactRouteSuggestions: vi.fn().mockResolvedValue({ suggestions: [] }),
+    getSnmpConfig: vi.fn().mockResolvedValue(null),
   },
   isAbortError: () => false,
 }));

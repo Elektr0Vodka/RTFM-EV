@@ -12,6 +12,7 @@ Base class that all integration modules extend:
 - `on_raw(data)` - receive raw RF packets (scope-gated)
 - `on_contact(data)` - receive contact upserts; dispatched to all modules
 - `on_telemetry(data)` - receive repeater telemetry snapshots; dispatched to all modules
+- `on_snmp(data)` - receive a good SNMP poll of a contact; dispatched to all modules
 - `on_health(data)` - receive periodic radio health snapshots; dispatched to all modules
 - `status` property (**must override**) - return `"connected"`, `"disconnected"`, or `"error"`
 
@@ -26,6 +27,7 @@ Singleton that owns all active modules and dispatches events:
 - `broadcast_raw(data)` - scope-check + dispatch `on_raw`
 - `broadcast_contact(data)` - dispatch `on_contact` to all modules
 - `broadcast_telemetry(data)` - dispatch `on_telemetry` to all modules
+- `broadcast_snmp(data)` - dispatch `on_snmp` to all modules
 - `broadcast_health_fanout(data)` - dispatch `on_health` to all modules
 - `stop_all()` - shutdown
 - `get_statuses()` - health endpoint data
@@ -92,6 +94,17 @@ Identical shape from both auto-collect (`radio_sync.py`) and manual fetch (`rout
 - `packets_received`, `packets_sent`, `airtime_seconds`, `rx_airtime_seconds`
 - `uptime_seconds`, `sent_flood`, `sent_direct`, `recv_flood`, `recv_direct`
 - `flood_dups`, `direct_dups`, `full_events`, `tx_queue_len`
+
+### on_snmp(data)
+A good SNMP poll of a contact, broadcast by `services/snmp_poll.poll_contact` after the history row is
+stored (scheduled polls and "Poll now"). A failed poll is not broadcast.
+- `public_key`, `timestamp`
+- `values`: the MeshCore OID table by key (`app/snmp/mib.py`), a value is `None` when the node did not serve it
+
+The event never carries the node's address or SNMP community. The HA MQTT module publishes it for
+tracked repeaters on `<prefix>/<node_id>/snmp` (see `_SNMP_SENSORS` in `mqtt_ha.py`): discovery
+configs are added in `_publish_discovery` for tracked repeaters that have a `contact_snmp` row, with
+`expire_after` only when scheduled polling is on.
 
 ### on_health(data)
 Radio health + stats snapshot, broadcast every 60s by the stats sampling loop in `radio_stats.py`:

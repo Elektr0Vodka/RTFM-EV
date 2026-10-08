@@ -124,6 +124,13 @@ import type {
   RepeaterRegionsResponse,
   RepeaterSettingSetResponse,
   RepeaterSettingsReadResponse,
+  ContactSnmpConfig,
+  ContactSnmpConfigUpdate,
+  SnmpPollResponse,
+  SnmpHistoryEntry,
+  SnmpAgentSettings,
+  SnmpAgentState,
+  SnmpDiscoverAddressResponse,
   RepeaterStatusResponse,
   TelemetryHistoryEntry,
   TelemetrySchedule,
@@ -1295,6 +1302,30 @@ export const api = {
     fetchJson<RepeaterSettingSetResponse>(`/contacts/${publicKey}/repeater/settings/set`, {
       method: 'POST',
       body: JSON.stringify({ setting, value }),
+    }),
+  // SNMP polling of observer firmware nodes. LAN only (UDP), no radio access,
+  // except discoverSnmpAddress, which sends ONE CLI command over RF.
+  getSnmpConfig: (publicKey: string, signal?: AbortSignal) =>
+    fetchJson<ContactSnmpConfig | null>(`/contacts/${publicKey}/snmp/config`, { signal }),
+  saveSnmpConfig: (publicKey: string, update: ContactSnmpConfigUpdate) =>
+    fetchJson<ContactSnmpConfig>(`/contacts/${publicKey}/snmp/config`, {
+      method: 'PUT',
+      body: JSON.stringify(update),
+    }),
+  deleteSnmpConfig: (publicKey: string) =>
+    fetchJson<{ status: string; deleted: boolean }>(`/contacts/${publicKey}/snmp/config`, {
+      method: 'DELETE',
+    }),
+  pollSnmp: (publicKey: string) =>
+    fetchJson<SnmpPollResponse>(`/contacts/${publicKey}/snmp/poll`, { method: 'POST' }),
+  snmpHistory: (publicKey: string, hours: number, signal?: AbortSignal) =>
+    fetchJson<SnmpHistoryEntry[]>(`/contacts/${publicKey}/snmp/history?hours=${hours}`, { signal }),
+  getSnmpAgent: (signal?: AbortSignal) => fetchJson<SnmpAgentState>('/snmp-agent', { signal }),
+  saveSnmpAgent: (settings: SnmpAgentSettings) =>
+    fetchJson<SnmpAgentState>('/snmp-agent', { method: 'PUT', body: JSON.stringify(settings) }),
+  discoverSnmpAddress: (publicKey: string) =>
+    fetchJson<SnmpDiscoverAddressResponse>(`/contacts/${publicKey}/snmp/discover-address`, {
+      method: 'POST',
     }),
   repeaterAdvertIntervals: (publicKey: string) =>
     fetchJson<RepeaterAdvertIntervalsResponse>(`/contacts/${publicKey}/repeater/advert-intervals`, {

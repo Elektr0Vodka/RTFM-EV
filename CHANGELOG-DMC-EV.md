@@ -11,6 +11,146 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-08 (SNMP for observer firmware 3/3: RTFM-EV as SNMP agent, feat/snmp-observer-support)
+
+### Settings: SNMP agent (frontend)
+- **Settings > Radio-App Management > SNMP agent** (off by default). When on,
+  a monitoring system such as LibreNMS or Zabbix can poll this node over
+  SNMP. Settings: on/off, UDP port (default 161) and community (default
+  `public`). The card shows whether the listener is running, how many
+  requests it answered and how many it refused for a wrong community, or why
+  it could not start.
+
+### SNMP agent (backend)
+- RTFM-EV answers SNMPv2c GET, GETNEXT and GETBULK with the same 22 OIDs as
+  the observer firmware (`1.3.6.1.4.1.99999`, see `app/snmp/mib.py`), so one
+  monitoring template fits a firmware node and this host. Read-only: a SET is
+  refused with `notWritable`. A wrong community, SNMPv1 or a malformed
+  request gets no answer.
+- Where the values come from:
+  - system and radio: the connected radio's name, firmware version and the
+    60 second stats sample (uptime, packet counters, noise floor, RSSI, SNR,
+    air time). Before the first sample, or with no radio, they are 0 or
+    empty.
+  - mqtt: connected slots is the number of connected MQTT integrations.
+    Queue depth and skipped publishes are always 0 (this app has neither).
+  - memory: the host's available memory from `/proc/meminfo`, not a heap.
+    The OIDs are 32-bit integers, so values stop at 2147483647 (2 GiB). On a
+    host without `/proc/meminfo` they are 0. PSRAM is always 0.
+  - network: WiFi RSSI is always `-127`, the firmware's own value for "no
+    RSSI".
+- New endpoints `GET` / `PUT /api/snmp-agent`. New table `snmp_agent`
+  (migration `_132`, one row). The listener binds `0.0.0.0` on the chosen
+  port. It never uses the radio.
+- Docker: publish the UDP port as well, for example `- "161:161/udp"` under
+  `ports:` (the line is in `docker-compose.example.yml`, commented out).
+  Outside Docker, a port below 1024 needs root; the card shows the bind
+  error if the port cannot be opened.
+- Security: SNMPv2c has no encryption and the community is the only check.
+  Anyone who can reach the port and knows the community can read these
+  values. Leave it off unless you use it, and set your own community.
+- Checked against net-snmp 5.9.4 (`snmpget`, `snmpwalk`, `snmpbulkwalk`,
+  `snmpset`). Not tested with LibreNMS or Zabbix.
+
+## Update 2026-10-08 (SNMP for observer firmware 2/3: polling of observer nodes, feat/snmp-observer-support)
+
+### Contacts: SNMP (LAN) card (frontend)
+- Repeater and room server contact pages have a new **SNMP (LAN)** card in
+  "Your data & telemetry". It polls the SNMP agent of the DMC observer and
+  agessaman observer firmware over your network. It works without a repeater
+  login, because nothing goes over RF.
+- Set up: host or IP address, port (default 161) and community. **Poll now**
+  reads all 22 values the firmware serves and shows them grouped (system,
+  radio, MQTT, memory, network) with units. A failed poll shows the reason
+  and keeps the time of the last good poll.
+- **Ask node for its address** fills in the IP the node reports. It sends one
+  CLI command (`get wifi.status`) over RF, so it asks for a second click
+  first, and it needs an admin login on the node. Nothing is saved until you
+  save the form.
+- The community is write-only in the UI: it is never sent back to the
+  browser. Leaving the field empty on an edit keeps the stored one.
+- **Poll on a schedule** (off by default) with an interval per contact
+  (1 to 1440 minutes, default 5). The server polls in the background; the
+  card shows "Scheduled every N min" and the last good poll or failure.
+- **History**: every good poll, scheduled or manual, is stored. The card has
+  a chart with a value picker (any of the numeric values) and a range picker
+  (24 hours, 7 days, 30 days), with the usual zoom and pan.
+
+### Home Assistant: SNMP sensors (backend)
+- A repeater that the HA MQTT integration tracks and that has SNMP set up
+  gets 22 extra sensors on its existing HA device (`SNMP Free Heap`, `SNMP
+  WiFi RSSI`, `SNMP MQTT Connected Slots` and so on). They use their own
+  state topic, `<prefix>/<node_id>/snmp`, so the telemetry sensors are not
+  touched.
+- Every good poll, scheduled or manual, is published. Values the node did not
+  serve are left out of the payload. The newest stored poll is replayed when
+  discovery is published, so the sensors fill in right away.
+- With scheduled polling on, the sensors go unavailable after three missed
+  polls (at least 10 minutes). A node that is only polled by hand has no
+  expiry. Removing the SNMP settings removes the sensors from HA.
+- The address and the community are never published.
+- New fanout hook `on_snmp` (`broadcast_snmp`), dispatched to all modules;
+  only the HA MQTT module uses it.
+- Room servers cannot be picked as tracked repeaters, so their SNMP values
+  are not published to HA.
+
+### SNMP (backend)
+- New package `app/snmp/`: a small SNMPv2c implementation written for this
+  (BER codec, message framing, the MeshCore OID table, an async UDP GET
+  client). Read-only, no SNMPv1 or v3, no new dependency. Checked against
+  net-snmp 5.9.4 (`snmpd`, `snmpget`, `snmpwalk`).
+- New endpoints under `/api/contacts/{key}/snmp/`: `config` (GET, PUT,
+  DELETE), `poll` (POST) and `discover-address` (POST, the only one that
+  uses the radio).
+- New table `contact_snmp` (migration `_130`): host, port, community and the
+  outcome of the last polls. It is separate from `contacts` so the community
+  never rides along in contact payloads, WebSocket events or fanout. It is
+  stored in plain text and is part of database backups.
+- New table `snmp_history` and column `contact_snmp.poll_interval_minutes`
+  (migration `_131`). `GET /api/contacts/{key}/snmp/history?hours=` returns
+  the stored polls, thinned to at most 1500 rows for long ranges.
+- Scheduler (`app/services/snmp_poll.py`): checks every 30 seconds, polls a
+  contact when its interval has passed since its last attempt (good or
+  failed), at most 4 polls at a time. A failed poll stores no history row.
+- Stored polls are pruned by age with the existing **telemetry** retention
+  setting (default 30 days) and are counted in its row in Settings >
+  Database. The per-node row cap of that setting does not apply to them.
+- Size, for planning: one stored poll is about 0.4 kB, so a node polled every
+  5 minutes adds roughly 115 kB per day.
+- The server needs to reach the node on UDP (default port 161). SNMP is off
+  by default on the firmware; turn it on with the settings editor's
+  Observer firmware group or `set snmp on`, then reboot the node.
+- Not verified against a real node yet: tested against net-snmp serving the
+  same OIDs.
+
+## Update 2026-10-08 (SNMP for observer firmware 1/3: on/off in the repeater settings editor, feat/snmp-observer-support)
+
+### Repeater dashboard: Observer firmware group (frontend)
+- The Settings Editor has a new **Observer firmware** group with one row,
+  **SNMP agent** (on/off). It maps to the `snmp` CLI key of the DMC observer
+  and agessaman observer firmware.
+- The group has its own **Read** button and is not part of "Read current
+  values", so a repeater on stock firmware is never asked for a key it does
+  not know. The row's Edit button stays locked until the repeater has reported
+  `on` or `off`. A repeater that does not know the key shows `-` and stays
+  locked.
+- The change is saved by the firmware and applies after a reboot. The result
+  dialog says so; the editor does not reboot the repeater.
+- Limits: the SNMP agent only runs on firmware builds compiled with SNMP. An
+  observer build without it still accepts and stores the flag, and the CLI
+  cannot tell the two apart. The community string is not shown or changed
+  here (firmware default `public`).
+
+### Repeaters (backend)
+- `snmp` (`on` / `off`, reboot required) is on the settings allow-list
+  (`app/services/repeater_settings.py`), flagged as an observer-only key.
+  Only the exact words `on` and `off` are accepted, because the firmware
+  treats any value starting with `on` as on.
+- `POST /api/contacts/{key}/repeater/settings/read` without a key list now
+  reads every non-observer key (`default_read_keys()`); observer keys are read
+  only when named. The 21 existing keys are read as before. No migration.
+- `snmp.community` is deliberately not on the allow-list.
+
 ## Update 2026-10-08 (Manual MeshCore TEAM beacon from the chat, feat/team-beacon-chat-button)
 
 ### Chat: Share location (frontend)

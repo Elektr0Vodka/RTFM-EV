@@ -449,7 +449,13 @@ function SettingEditDialog({
                   </p>
                 )}
                 {result.reboot_required && result.status !== 'rejected' && (
-                  <p className="font-medium">{t('repeater_settings_result_reboot')}</p>
+                  <p className="font-medium">
+                    {t(
+                      def.strongConfirm
+                        ? 'repeater_settings_result_reboot'
+                        : 'repeater_settings_result_reboot_generic'
+                    )}
+                  </p>
                 )}
               </>
             ) : null}
@@ -493,11 +499,12 @@ export function SettingsEditorPane({
   const seeded = useMemo(() => seedFromPanes(seed), [seed]);
   const currentOf = (key: string) => (key in readValues ? readValues[key] : seeded[key]);
 
-  const readAll = async () => {
+  // No key list = the server's default set (every non-observer setting).
+  const read = async (settings?: string[]) => {
     setReading(true);
     setReadError(null);
     try {
-      const res = await onRead();
+      const res = await onRead(settings);
       setReadValues((prev) => ({ ...prev, ...res.values }));
     } catch (err) {
       setReadError(err instanceof Error ? err.message : String(err));
@@ -526,7 +533,7 @@ export function SettingsEditorPane({
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => void readAll()}
+          onClick={() => void read()}
           disabled={disabled || reading}
           className="h-7 px-2 text-xs"
         >
@@ -535,45 +542,76 @@ export function SettingsEditorPane({
       </div>
       <div className="p-3 space-y-3">
         {readError && <p className="text-xs text-destructive">{readError}</p>}
-        {SETTING_GROUPS.map(({ group, labelKey }) => (
-          <div key={group}>
-            <div className="text-xs font-medium text-muted-foreground mb-1">{t(labelKey)}</div>
-            <div className="divide-y divide-border/50">
-              {SETTING_DEFS.filter((d) => d.group === group).map((def) => {
-                const result = results[def.key];
-                // Radio f/bw/sf/cr must start from the repeater's real values,
-                // never from defaults, so it stays locked until read.
-                const needsRead =
-                  def.strongConfirm === true && parseRadio(currentOf(def.key)) == null;
-                return (
-                  <div
-                    key={def.key}
-                    className="flex items-center justify-between gap-2 py-1 text-sm"
-                    data-testid={`setting-row-${def.key}`}
+        {SETTING_GROUPS.map(({ group, labelKey, separateRead, noteKey }) => {
+          const defs = SETTING_DEFS.filter((d) => d.group === group);
+          return (
+            <div key={group} data-testid={`setting-group-${group}`}>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-muted-foreground">{t(labelKey)}</span>
+                {separateRead && (
+                  <button
+                    type="button"
+                    onClick={() => void read(defs.map((d) => d.key))}
+                    disabled={disabled || reading}
+                    className="rounded border border-border px-1.5 py-0.5 text-xs hover:bg-accent disabled:opacity-50"
+                    aria-label={t('repeater_settings_read_group_label', { group: t(labelKey) })}
                   >
-                    <span className="text-muted-foreground">{t(def.labelKey)}</span>
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className="truncate whitespace-pre-wrap text-right">
-                        {formatValue(t, def, currentOf(def.key))}
+                    {t('repeater_settings_read_group')}
+                  </button>
+                )}
+              </div>
+              {noteKey && (
+                <p className="mb-1 text-[0.6875rem] text-muted-foreground">{t(noteKey)}</p>
+              )}
+              <div className="divide-y divide-border/50">
+                {defs.map((def) => {
+                  const result = results[def.key];
+                  const current = currentOf(def.key);
+                  // Radio f/bw/sf/cr must start from the repeater's real values,
+                  // never from defaults, so it stays locked until read.
+                  const radioNeedsRead = def.strongConfirm === true && parseRadio(current) == null;
+                  // A separately read group only exists on some firmware. Stay
+                  // locked until the repeater reported a real value, so no `set`
+                  // goes to a repeater that does not know the key.
+                  const groupNeedsRead = separateRead === true && typeof current !== 'string';
+                  const needsRead = radioNeedsRead || groupNeedsRead;
+                  const lockTitle = groupNeedsRead
+                    ? t('repeater_settings_group_read_first')
+                    : radioNeedsRead
+                      ? t('repeater_settings_read_first')
+                      : undefined;
+                  return (
+                    <div
+                      key={def.key}
+                      className="flex items-center justify-between gap-2 py-1 text-sm"
+                      data-testid={`setting-row-${def.key}`}
+                    >
+                      <span className="text-muted-foreground">{t(def.labelKey)}</span>
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate whitespace-pre-wrap text-right">
+                          {formatValue(t, def, current)}
+                        </span>
+                        {result && <StatusBadge status={result.status} />}
+                        <button
+                          type="button"
+                          onClick={() => setEditing(def)}
+                          disabled={disabled || reading || needsRead}
+                          title={lockTitle}
+                          className="rounded border border-border px-1.5 py-0.5 text-xs hover:bg-accent disabled:opacity-50"
+                          aria-label={t('repeater_settings_edit_label', {
+                            setting: t(def.labelKey),
+                          })}
+                        >
+                          {t('repeater_settings_edit')}
+                        </button>
                       </span>
-                      {result && <StatusBadge status={result.status} />}
-                      <button
-                        type="button"
-                        onClick={() => setEditing(def)}
-                        disabled={disabled || reading || needsRead}
-                        title={needsRead ? t('repeater_settings_read_first') : undefined}
-                        className="rounded border border-border px-1.5 py-0.5 text-xs hover:bg-accent disabled:opacity-50"
-                        aria-label={t('repeater_settings_edit_label', { setting: t(def.labelKey) })}
-                      >
-                        {t('repeater_settings_edit')}
-                      </button>
-                    </span>
-                  </div>
-                );
-              })}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       {editing && (
         <SettingEditDialog

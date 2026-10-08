@@ -1722,6 +1722,65 @@ export interface RepeaterSettingsReadResponse {
   values: Record<string, string | null>;
 }
 
+/** Stored SNMP polling settings of a contact. The community is never returned. */
+export interface ContactSnmpConfig {
+  public_key: string;
+  host: string;
+  port: number;
+  community_is_default: boolean;
+  poll_enabled: boolean;
+  poll_interval_minutes: number;
+  last_ok_at: number | null;
+  last_error: string | null;
+  last_error_at: number | null;
+}
+
+export interface ContactSnmpConfigUpdate {
+  host: string;
+  port: number;
+  /** null keeps the stored community ('public' for a new config). */
+  community: string | null;
+  poll_enabled: boolean;
+  poll_interval_minutes: number;
+}
+
+export type SnmpValues = Record<string, number | string | null>;
+
+export interface SnmpPollResponse {
+  ok: boolean;
+  timestamp: number;
+  host: string;
+  port: number;
+  error: string | null;
+  values: SnmpValues | null;
+}
+
+export interface SnmpHistoryEntry {
+  timestamp: number;
+  values: SnmpValues;
+}
+
+/** Settings of RTFM-EV's own SNMP agent (read-only SNMPv2c, off by default). */
+export interface SnmpAgentSettings {
+  enabled: boolean;
+  port: number;
+  community: string;
+}
+
+export interface SnmpAgentState {
+  settings: SnmpAgentSettings;
+  running: boolean;
+  error: string | null;
+  requests: number;
+  bad_community: number;
+}
+
+export interface SnmpDiscoverAddressResponse {
+  status: 'ok' | 'no_address' | 'unsupported' | 'no_reply';
+  ip: string | null;
+  reply: string | null;
+}
+
 export interface RepeaterAdvertIntervalsResponse {
   advert_interval: string | null;
   flood_advert_interval: string | null;

@@ -104,7 +104,18 @@ def _sent_commands(mc) -> list[str]:
 class TestAllowList:
     @pytest.mark.parametrize(
         "setting",
-        ["prv.key", "password", "freq", "af", "rxdelay", "bridge.secret", "", "tx ", "TX"],
+        [
+            "prv.key",
+            "password",
+            "freq",
+            "af",
+            "rxdelay",
+            "bridge.secret",
+            "snmp.community",
+            "",
+            "tx ",
+            "TX",
+        ],
     )
     def test_rejects_non_allow_listed(self, setting):
         with pytest.raises(rs.SettingValidationError):
@@ -137,10 +148,11 @@ class TestAllowList:
             "direct.txdelay",
             "advert.interval",
             "flood.advert.interval",
+            "snmp",
         }
 
-    def test_only_radio_needs_reboot_and_strong_confirm(self):
-        assert [k for k, s in rs.SETTINGS.items() if s.reboot_required] == ["radio"]
+    def test_reboot_and_strong_confirm_flags(self):
+        assert [k for k, s in rs.SETTINGS.items() if s.reboot_required] == ["radio", "snmp"]
         assert [k for k, s in rs.SETTINGS.items() if s.strong_confirm] == ["radio"]
 
 
@@ -277,6 +289,42 @@ class TestClassify:
     def test_missed_set_reply_but_matching_readback_is_ok(self):
         spec = rs.get_spec("tx")
         assert rs.classify_result(spec, "20", None, "20") == "ok"
+
+
+class TestObserverSnmp:
+    """`snmp` only exists on observer firmware (CommonCLI_Observer.cpp)."""
+
+    def test_snmp_is_the_only_observer_key(self):
+        assert [k for k, s in rs.SETTINGS.items() if s.observer] == ["snmp"]
+
+    def test_default_read_keys_skip_observer_keys(self):
+        keys = rs.default_read_keys()
+        assert "snmp" not in keys
+        assert keys == [k for k in rs.SETTINGS if k != "snmp"]
+
+    def test_community_is_not_editable(self):
+        assert "snmp.community" not in rs.SETTINGS
+
+    @pytest.mark.parametrize(
+        ("value", "expected_cmd"),
+        [("on", "set snmp on"), ("OFF", "set snmp off"), (" on ", "set snmp on")],
+    )
+    def test_accepts_on_and_off(self, value, expected_cmd):
+        _spec, _normalized, cmd = rs.build_set_command("snmp", value)
+        assert cmd == expected_cmd
+
+    # The firmware treats anything starting with "on" as on, so "online" would
+    # silently enable the agent. Only the two exact words are allowed.
+    @pytest.mark.parametrize("value", ["yes", "1", "", "online", "on public"])
+    def test_rejects_anything_else(self, value):
+        with pytest.raises(rs.SettingValidationError):
+            rs.build_set_command("snmp", value)
+
+    def test_classify_restart_reply(self):
+        spec = rs.get_spec("snmp")
+        assert rs.classify_result(spec, "on", "OK - restart to apply", "on") == "ok"
+        assert rs.classify_result(spec, "on", "OK - restart to apply", "off") == "mismatch"
+        assert rs.classify_result(spec, "on", "unknown config: snmp on", None) == "rejected"
 
 
 # --- set endpoint (stubbed radio) ------------------------------------------
@@ -427,6 +475,29 @@ class TestSetEndpoint:
         assert response.reboot_required is True
 
     @pytest.mark.asyncio
+    async def test_snmp_is_one_set_then_get_and_flags_reboot(self, test_db):
+        mc = _mock_mc()
+        await _insert_repeater()
+        mc.commands.get_msg = AsyncMock(
+            side_effect=[_cli_reply("OK - restart to apply"), _cli_reply("> on")]
+        )
+
+        with (
+            patch("app.routers.repeaters.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch(_MONOTONIC, side_effect=lambda: 0.0),
+        ):
+            response = await repeater_settings_set(
+                KEY_A, RepeaterSettingSetRequest(setting="snmp", value="on")
+            )
+
+        assert _sent_commands(mc) == ["set snmp on", "get snmp"]
+        assert response.status == "ok"
+        assert response.set_reply == "OK - restart to apply"
+        assert response.readback == "on"
+        assert response.reboot_required is True
+
+    @pytest.mark.asyncio
     async def test_not_a_repeater_is_400(self, test_db):
         mc = _mock_mc()
         await ContactRepository.upsert(
@@ -479,7 +550,7 @@ class TestReadEndpoint:
         assert response.values == {"loop.detect": "strict", "int.thresh": None}
 
     @pytest.mark.asyncio
-    async def test_default_reads_every_allow_listed_key_with_get_only(self, test_db):
+    async def test_default_reads_every_non_observer_key_with_get_only(self, test_db):
         mc = _mock_mc()
         await _insert_repeater()
         mc.commands.get_msg = AsyncMock(side_effect=[_cli_reply("> x")] * len(rs.SETTINGS))
@@ -492,5 +563,42 @@ class TestReadEndpoint:
             response = await repeater_settings_read(KEY_A, RepeaterSettingsReadRequest())
 
         sent = _sent_commands(mc)
-        assert sent == [f"get {spec.verb}" for spec in rs.SETTINGS.values()]
-        assert set(response.values) == set(rs.SETTINGS)
+        assert sent == [f"get {rs.SETTINGS[key].verb}" for key in rs.default_read_keys()]
+        assert "get snmp" not in sent
+        assert set(response.values) == set(rs.default_read_keys())
+
+    @pytest.mark.asyncio
+    async def test_named_read_of_snmp_returns_the_flag(self, test_db):
+        mc = _mock_mc()
+        await _insert_repeater()
+        mc.commands.get_msg = AsyncMock(side_effect=[_cli_reply("> off")])
+
+        with (
+            patch("app.routers.repeaters.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch(_MONOTONIC, side_effect=lambda: 0.0),
+        ):
+            response = await repeater_settings_read(
+                KEY_A, RepeaterSettingsReadRequest(settings=["snmp"])
+            )
+
+        assert _sent_commands(mc) == ["get snmp"]
+        assert response.values == {"snmp": "off"}
+
+    @pytest.mark.asyncio
+    async def test_named_read_of_snmp_on_stock_firmware_is_null(self, test_db):
+        mc = _mock_mc()
+        await _insert_repeater()
+        mc.commands.get_msg = AsyncMock(side_effect=[_cli_reply("??: snmp")])
+
+        with (
+            patch("app.routers.repeaters.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch(_MONOTONIC, side_effect=lambda: 0.0),
+        ):
+            response = await repeater_settings_read(
+                KEY_A, RepeaterSettingsReadRequest(settings=["snmp"])
+            )
+
+        assert _sent_commands(mc) == ["get snmp"]
+        assert response.values == {"snmp": None}
