@@ -11,6 +11,16 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-08 (Handy Info: meshcore-info.eu link, feat/handy-info-meshcore-info-eu)
+
+### Settings > Handy Info: Links (frontend)
+- Added `https://meshcore-info.eu/` as a built-in link under **Community
+  sites**, listed after MeshCore.io (id `link-meshcore-info-eu`, label
+  `meshcore-info.eu`). It shows up for existing users as well, including
+  those who have customized the list, and can be hidden, edited or flagged
+  for the Knowledge base like any other built-in. No backend change, no
+  migration.
+
 ## Update 2026-10-07 (OpenHop policy operators match the OpenHop editor, fix/openhop-policy-operators)
 
 ### OpenHop: Policy rules (frontend)
