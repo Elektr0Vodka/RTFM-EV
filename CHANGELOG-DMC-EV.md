@@ -11,6 +11,45 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-08 (20 more desktop buddies, feat/buddy-acs-characters)
+
+No migration.
+
+### Interface: desktop buddy (20 more characters)
+- The **Desktop buddy** picker lists 20 more characters after the 10
+  `clippyjs` agents: the Office assistants The Dot, Office Logo and Mother
+  Nature, the Windows XP search assistants Courtney and Earl, and the
+  Microsoft Agent characters Birdie, Cami, Charlie, E-Man, E-Woman, Electra,
+  Gar, Hanz, Milton, Oscar, Plany, Santa, VRGirl, Wabbit and WartNose.
+- They were converted from Microsoft Agent 2.0 `.acs` files with the new
+  converter below and live in `frontend/src/buddy/custom/<id>/` (`agent.json`
+  + `map.png`, 15 MB in total). Each is its own lazy chunk and its sprite
+  sheet a separate asset file, so a browser downloads only the buddy it
+  picked. The characters and sprite sheets are Microsoft's and third parties'
+  artwork, not ours.
+- `frontend/.prettierignore` (new) skips the generated `agent.json` files.
+
+### Interface: desktop buddy (tooling)
+- New `scripts/buddy/acs_to_clippy.py` (standard library only): converts a
+  Microsoft Agent 2.0 character file (`.acs`) into the `agent.json` and
+  `map.png` that `clippyjs` reads, so more buddies can be added next to the 10
+  the library ships. `--info` lists what a file contains, `--preview` writes a
+  self-contained page to play every animation. It also adds what `clippyjs`
+  needs and Agent files leave to their states: exact `Show`, `Hide` and
+  `Idle...` names, and return animations appended to the animations that name
+  one. Mouth overlays are dropped. Agent 1.5 files are not supported.
+- New `scripts/buddy/compare_with_clippyjs.mjs`: compares a conversion with the
+  same character as shipped by `clippyjs`. On real files, Clippit, F1, Links
+  and Rover come out identical (0 field and 0 pixel differences); Genius and
+  Rocky differ in 1 and 97 frames, exactly where the file gives an image an
+  offset that the `clippyjs` data dropped. See `scripts/buddy/README.md` for
+  the format mapping and what is and is not verified. Tests:
+  `tests/test_acs_to_clippy.py` (synthetic files, no third-party artwork).
+- New `frontend/src/buddy/customAgents.ts`: registry for converted buddies.
+  An entry adds the buddy to the picker after the `clippyjs` ones and loads it
+  as its own lazy chunk. `BUDDY_AGENT_IDS` and `BUDDY_AGENT_NAMES` in
+  `buddy/agents.ts` now merge both sources.
+
 ## Update 2026-10-08 (SNMP page under Tools, feat/snmp-tools-page)
 
 Builds on the SNMP polling of `feat/snmp-observer-support` (#277). No
