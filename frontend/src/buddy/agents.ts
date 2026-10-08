@@ -1,4 +1,5 @@
 import type { initAgent } from 'clippyjs';
+import { CUSTOM_BUDDY_AGENTS, type CustomBuddyAgent } from './customAgents';
 
 /**
  * The desktop buddies shipped by `clippyjs` (MIT library code; the characters
@@ -6,7 +7,7 @@ import type { initAgent } from 'clippyjs';
  * Vite emits it as a separate chunk and a browser only downloads the sprite
  * sheet (0.9-2.5 MB) of the buddy it picked. Sounds are never loaded.
  */
-export const BUDDY_AGENT_IDS = [
+const CLIPPYJS_AGENT_IDS = [
   'clippy',
   'merlin',
   'bonzi',
@@ -19,10 +20,21 @@ export const BUDDY_AGENT_IDS = [
   'rover',
 ] as const;
 
-export type BuddyAgentId = (typeof BUDDY_AGENT_IDS)[number];
+type ClippyjsAgentId = (typeof CLIPPYJS_AGENT_IDS)[number];
+type CustomAgentId = keyof typeof CUSTOM_BUDDY_AGENTS;
+
+export type BuddyAgentId = ClippyjsAgentId | CustomAgentId;
+
+/** Buddies converted from `.acs` files (see `customAgents.ts`), keyed by id. */
+const CUSTOM_AGENTS: Record<string, CustomBuddyAgent> = CUSTOM_BUDDY_AGENTS;
+
+export const BUDDY_AGENT_IDS: readonly BuddyAgentId[] = [
+  ...CLIPPYJS_AGENT_IDS,
+  ...(Object.keys(CUSTOM_AGENTS) as CustomAgentId[]),
+];
 
 /** Character names are proper nouns, identical in every UI language. */
-export const BUDDY_AGENT_NAMES: Record<BuddyAgentId, string> = {
+const CLIPPYJS_AGENT_NAMES: Record<ClippyjsAgentId, string> = {
   clippy: 'Clippy',
   merlin: 'Merlin',
   bonzi: 'Bonzi',
@@ -35,6 +47,11 @@ export const BUDDY_AGENT_NAMES: Record<BuddyAgentId, string> = {
   rover: 'Rover',
 };
 
+export const BUDDY_AGENT_NAMES = {
+  ...CLIPPYJS_AGENT_NAMES,
+  ...Object.fromEntries(Object.entries(CUSTOM_AGENTS).map(([id, custom]) => [id, custom.name])),
+} as Record<BuddyAgentId, string>;
+
 export type BuddyAgent = Awaited<ReturnType<typeof initAgent>>;
 
 interface AgentModuleLoaders {
@@ -42,7 +59,7 @@ interface AgentModuleLoaders {
   map: () => Promise<{ default: string }>;
 }
 
-const AGENT_MODULES: Record<BuddyAgentId, () => Promise<{ default: AgentModuleLoaders }>> = {
+const AGENT_MODULES: Record<ClippyjsAgentId, () => Promise<{ default: AgentModuleLoaders }>> = {
   clippy: () => import('clippyjs/agents/clippy'),
   merlin: () => import('clippyjs/agents/merlin'),
   bonzi: () => import('clippyjs/agents/bonzi'),
@@ -61,9 +78,10 @@ export function isBuddyAgentId(value: unknown): value is BuddyAgentId {
 
 /** Load the agent's data + sprite sheet and create it (hidden, appended to body). */
 export async function loadBuddyAgent(id: BuddyAgentId): Promise<BuddyAgent> {
-  const [{ initAgent: init }, { default: loaders }] = await Promise.all([
+  const custom: AgentModuleLoaders | undefined = CUSTOM_AGENTS[id];
+  const [{ initAgent: init }, loaders] = await Promise.all([
     import('clippyjs'),
-    AGENT_MODULES[id](),
+    custom ?? AGENT_MODULES[id as ClippyjsAgentId]().then((module) => module.default),
   ]);
   return init({
     agent: loaders.agent,

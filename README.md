@@ -100,7 +100,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 ### Interface
 
 - Themes including DarkDutch and four CRT phosphor themes, with optional CRT screen effects.
-- Desktop buddy (Clippy and nine friends, via clippyjs): on by default with the Windows 95 theme, optional on every other theme after that; announces new nodes, low batteries, DMs and mentions, radio disconnects and updates, and stays on screen while navigating.
+- Desktop buddy (Clippy and 35 friends: the clippyjs agents plus 26 converted Microsoft Agent characters): on by default with the Windows 95 theme, optional on every other theme after that; announces new nodes, low batteries, DMs and mentions, radio disconnects and updates, and stays on screen while navigating.
 - English, Dutch and German; date/time format, distance units and coordinate format (decimal, DMS or MGRS) are configurable.
 - Installable as a PWA; app name and icon can be rebranded server-side.
 - Command palette (Ctrl+K / Cmd+K) and bookmarkable views.
