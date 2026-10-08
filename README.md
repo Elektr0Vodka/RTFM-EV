@@ -28,7 +28,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 ### Messaging
 
 - Direct messages, private channels and hashtag channels, with reactions and replies in the plain-text format other MeshCore clients use.
-- MeshCore TEAM and signalk-meshcore tracking messages (`#TEL:`, `#T:`, `#WAY:`, `#CAP:`) shown as cards with a map preview. TEAM waypoints can be shared from the location picker, and an optional periodic `#TEL:` position beacon (off by default) can be switched on in Settings.
+- MeshCore TEAM and signalk-meshcore tracking messages (`#TEL:`, `#T:`, `#WAY:`, `#CAP:`) shown as cards with a map preview. TEAM waypoints can be shared from the location picker, a single `#TEL:` position beacon can be put in the composer from the Share location menu of a private channel (radio position, browser GPS or a point picked on the map), and an optional periodic `#TEL:` position beacon (off by default) can be switched on in Settings.
 - Emoji picker with search, recent emoji, skin tones and per-emoji byte cost.
 - Direct messages with no acknowledgement after all retries show **Failed**, with a **Retry** action.
 - Mark a conversation unread from any message (stored server-side) and delete a message from your local history (nothing is sent over RF).

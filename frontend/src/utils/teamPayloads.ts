@@ -4,8 +4,9 @@
  * MeshCore TEAM (github.com/tmacinc/MeshCore-TEAM) and signalk-meshcore
  * (github.com/Banzarykey/signalk-meshcore) put tracking data on a channel as
  * prefixed text. Mirrors `app/team_payloads.py`, which documents the formats
- * in full. Everything is parsed; the only message built here for sending is a
- * single #WAY: waypoint (`buildTeamWaypointPayload`).
+ * in full. Everything is parsed; the only messages built here for sending are
+ * a single #WAY: waypoint (`buildTeamWaypointPayload`) and a #TEL: beacon
+ * (`buildTeamTelemetryPayload`), both only as composer text.
  *
  *   #TEL:<base64>   11 bytes: lat, lon (int32 BE x 1e7), radio battery, phone
  *                   battery, forwarding status
@@ -490,3 +491,40 @@ export function buildTeamWaypointPayload(waypoint: {
   const type = waypoint.waypointType.toUpperCase();
   return `${WAYPOINT_PREFIX}${meshId}|${name}|${waypoint.lat.toFixed(6)}|${waypoint.lon.toFixed(6)}||${type}|`;
 }
+
+/** TEAM's battery byte: 1 for unknown, else 2-254 (clamped to its range). */
+function encodeBattery(millivolts: number | null | undefined): number {
+  if (!millivolts) return 1;
+  return Math.max(
+    2,
+    Math.min(254, Math.floor((millivolts - BATTERY_MIN_MV) / BATTERY_STEP_MV) + 2)
+  );
+}
+
+/**
+ * Build a TEAM `#TEL:` beacon for a radio with no phone attached. Mirrors
+ * `encode_telemetry` in `app/team_payloads.py`: unpadded Base64, phone battery
+ * "unknown" (1), forwarding status 1 (no forwarding needed, no path observed).
+ * TEAM only reads it when it is the whole message. Sending is the user's own
+ * action; nothing here transmits.
+ */
+export function buildTeamTelemetryPayload(
+  lat: number,
+  lon: number,
+  radioBatteryMv?: number | null
+): string {
+  const raw = new Uint8Array(TEL_SIZE);
+  const view = new DataView(raw.buffer);
+  view.setInt32(0, Math.round(lat * 1e7));
+  view.setInt32(4, Math.round(lon * 1e7));
+  raw[8] = encodeBattery(radioBatteryMv);
+  raw[9] = 1;
+  raw[10] = 1;
+  return TEL_PREFIX + btoa(String.fromCharCode(...raw)).replace(/=+$/, '');
+}
+
+/**
+ * How a shared location is written into the composer when it is not the
+ * default meshcore-open marker: a TEAM waypoint of some type, or a TEAM beacon.
+ */
+export type TeamLocationFormat = { teamWaypointType: string } | { teamBeacon: true };

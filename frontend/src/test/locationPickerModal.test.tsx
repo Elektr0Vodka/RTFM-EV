@@ -19,7 +19,7 @@ beforeEach(() => {
   localStorage.setItem('remoteterm-map-layer', 'light');
 });
 
-function renderModal(onConfirm = vi.fn(), teamWaypointAllowed = false) {
+function renderModal(onConfirm = vi.fn(), teamFormatsAllowed = false) {
   render(
     <I18nProvider>
       <LocationPickerModal
@@ -29,7 +29,7 @@ function renderModal(onConfirm = vi.fn(), teamWaypointAllowed = false) {
         contacts={[]}
         initialCenter={[52.123456, 4.123456]}
         initialLabel=""
-        teamWaypointAllowed={teamWaypointAllowed}
+        teamFormatsAllowed={teamFormatsAllowed}
       />
     </I18nProvider>
   );
@@ -80,5 +80,30 @@ describe('LocationPickerModal TEAM waypoint', () => {
     fireEvent.click(screen.getByRole('button', { name: /insert/i }));
 
     expect(onConfirm).toHaveBeenCalledWith(52.123456, 4.123456, '');
+  });
+});
+
+describe('LocationPickerModal TEAM beacon', () => {
+  it('confirms a TEAM beacon for the picked point, without a label', () => {
+    const onConfirm = renderModal(vi.fn(), true);
+    act(() => stub.fire('load'));
+    fireEvent.change(screen.getByLabelText(/label/i), { target: { value: 'Typed first' } });
+    fireEvent.change(screen.getByLabelText(/format/i), { target: { value: 'beacon' } });
+    act(() => stub.fire('click', { point: { x: 10, y: 10 }, lngLat: { lat: 51.5, lng: 5.25 } }));
+
+    // #TEL: has no name field, so the label and waypoint type inputs go away.
+    expect(screen.queryByLabelText(/label/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/waypoint type/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /insert/i }));
+    expect(onConfirm).toHaveBeenCalledWith(51.5, 5.25, '', { teamBeacon: true });
+  });
+
+  it('brings the label field back when the format returns to marker', () => {
+    renderModal(vi.fn(), true);
+    stub.fire('load');
+    fireEvent.change(screen.getByLabelText(/format/i), { target: { value: 'beacon' } });
+    fireEvent.change(screen.getByLabelText(/format/i), { target: { value: 'marker' } });
+    expect(screen.getByLabelText(/label/i)).toBeInTheDocument();
   });
 });

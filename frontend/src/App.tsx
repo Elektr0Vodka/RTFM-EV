@@ -678,6 +678,7 @@ export function App() {
     removeMessage,
     messageInputRef,
     markConversationUnreadFromMessage,
+    radioBatteryMv: health?.radio_stats?.battery_mv,
   });
   const handleCreateCrackedChannel = useCallback(
     async (name: string, key: string) => {

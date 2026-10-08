@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Marker as MlMarker, type Map as MlMap } from 'maplibre-gl';
 import { isValidLocation } from '../utils/pathUtils';
-import { TEAM_WAYPOINT_TYPES, teamWaypointIcon } from '../utils/teamPayloads';
+import {
+  TEAM_WAYPOINT_TYPES,
+  teamWaypointIcon,
+  type TeamLocationFormat,
+} from '../utils/teamPayloads';
 import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
 import { Button } from './ui/button';
 import type { Contact } from '../types';
@@ -11,20 +15,15 @@ import { MiniMap } from '../map/MiniMap';
 interface LocationPickerModalProps {
   open: boolean;
   onClose: () => void;
-  /** `options.teamWaypointType` is set when the user chose the MeshCore TEAM format. */
-  onConfirm: (
-    lat: number,
-    lon: number,
-    label: string,
-    options?: { teamWaypointType: string }
-  ) => void;
+  /** `options` is set when the user chose a MeshCore TEAM format (waypoint or beacon). */
+  onConfirm: (lat: number, lon: number, label: string, options?: TeamLocationFormat) => void;
   contacts: Contact[];
   /** Initial map center and default selected point ([lat, lon]). */
   initialCenter: [number, number];
   /** Prefill for the label field. */
   initialLabel?: string;
-  /** Offer the MeshCore TEAM waypoint format (private channels only). */
-  teamWaypointAllowed?: boolean;
+  /** Offer the MeshCore TEAM formats, waypoint and beacon (private channels only). */
+  teamFormatsAllowed?: boolean;
 }
 
 export function LocationPickerModal({
@@ -34,15 +33,17 @@ export function LocationPickerModal({
   contacts,
   initialCenter,
   initialLabel = '',
-  teamWaypointAllowed = false,
+  teamFormatsAllowed = false,
 }: LocationPickerModalProps) {
   const t = useT();
   const coordinateFormat = useCoordinateFormat();
   const [selected, setSelected] = useState<[number, number]>(initialCenter); // [lat, lon]
   const [label, setLabel] = useState(initialLabel);
-  const [format, setFormat] = useState<'marker' | 'team'>('marker');
+  const [format, setFormat] = useState<'marker' | 'team' | 'beacon'>('marker');
   const [waypointType, setWaypointType] = useState('custom');
-  const asTeamWaypoint = teamWaypointAllowed && format === 'team';
+  const asTeamWaypoint = teamFormatsAllowed && format === 'team';
+  // A #TEL: beacon carries a position only, so it has no label.
+  const asTeamBeacon = teamFormatsAllowed && format === 'beacon';
   const mapRef = useRef<MlMap | null>(null);
   const selMarkerRef = useRef<MlMarker | null>(null);
 
@@ -145,26 +146,29 @@ export function LocationPickerModal({
         <div className="font-mono text-xs text-muted-foreground">
           {formatCoordinates(selected[0], selected[1], coordinateFormat, 6)}
         </div>
-        <label className="flex flex-col gap-1 text-sm">
-          <span>{t('location_picker_label_field')}</span>
-          <input
-            type="text"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            className="rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            placeholder={t('location_picker_label_placeholder')}
-          />
-        </label>
-        {teamWaypointAllowed && (
+        {!asTeamBeacon && (
+          <label className="flex flex-col gap-1 text-sm">
+            <span>{t('location_picker_label_field')}</span>
+            <input
+              type="text"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              placeholder={t('location_picker_label_placeholder')}
+            />
+          </label>
+        )}
+        {teamFormatsAllowed && (
           <label className="flex flex-col gap-1 text-sm">
             <span>{t('location_picker_format_field')}</span>
             <select
               value={format}
-              onChange={(e) => setFormat(e.target.value as 'marker' | 'team')}
+              onChange={(e) => setFormat(e.target.value as 'marker' | 'team' | 'beacon')}
               className="rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
               <option value="marker">{t('location_picker_format_marker')}</option>
               <option value="team">{t('location_picker_format_team')}</option>
+              <option value="beacon">{t('location_picker_format_team_beacon')}</option>
             </select>
           </label>
         )}
@@ -189,11 +193,12 @@ export function LocationPickerModal({
             {t('common_cancel')}
           </Button>
           <Button
-            onClick={() =>
-              asTeamWaypoint
-                ? onConfirm(selected[0], selected[1], label, { teamWaypointType: waypointType })
-                : onConfirm(selected[0], selected[1], label)
-            }
+            onClick={() => {
+              if (asTeamBeacon) onConfirm(selected[0], selected[1], '', { teamBeacon: true });
+              else if (asTeamWaypoint)
+                onConfirm(selected[0], selected[1], label, { teamWaypointType: waypointType });
+              else onConfirm(selected[0], selected[1], label);
+            }}
           >
             {t('location_picker_insert_button')}
           </Button>

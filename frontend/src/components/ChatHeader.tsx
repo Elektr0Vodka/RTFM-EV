@@ -22,6 +22,7 @@ import { isPublicChannelKey } from '../utils/publicChannel';
 import { stripRegionScopePrefix, floodScopeOverrideLabel } from '../utils/regionScope';
 import { isPrefixOnlyContact } from '../utils/pubkey';
 import { isValidLocation } from '../utils/pathUtils';
+import type { TeamLocationFormat } from '../utils/teamPayloads';
 import { LocationPickerModal } from './LocationPickerModal';
 import { cn } from '../lib/utils';
 import { ContactAvatar } from './ContactAvatar';
@@ -63,7 +64,7 @@ interface ChatHeaderProps {
     lat: number,
     lon: number,
     label: string,
-    options?: { teamWaypointType: string }
+    options?: TeamLocationFormat
   ) => void;
   /** Open this channel's Channel Registry entry in edit mode. */
   onEditInRegistry?: (channelKey: string) => void;
@@ -227,9 +228,13 @@ export function ChatHeader({
       ? [config!.lat, config!.lon]
       : [20, 0];
 
-  const insertRadioLocation = () => {
+  // TEAM keeps waypoints and beacons off the Public channel and hashtag channels.
+  const teamFormatsAllowed = isPrivateChannel && !isPublicChannelKey(conversation.id);
+
+  const insertRadioLocation = (format?: TeamLocationFormat) => {
     if (!onInsertLocation || !config) return;
-    onInsertLocation(config.lat, config.lon, radioLabel);
+    if (format) onInsertLocation(config.lat, config.lon, radioLabel, format);
+    else onInsertLocation(config.lat, config.lon, radioLabel);
     setLocationMenuOpen(false);
   };
 
@@ -245,7 +250,7 @@ export function ChatHeader({
     setLocationMenuOpen(false);
   };
 
-  const insertGpsLocation = () => {
+  const insertGpsLocation = (format?: TeamLocationFormat) => {
     if (!onInsertLocation || !('geolocation' in navigator)) {
       toast.error('Geolocation is not available');
       return;
@@ -255,7 +260,9 @@ export function ChatHeader({
       (position) => {
         setGettingLocation(false);
         setLocationMenuOpen(false);
-        onInsertLocation(position.coords.latitude, position.coords.longitude, radioLabel);
+        const { latitude, longitude } = position.coords;
+        if (format) onInsertLocation(latitude, longitude, radioLabel, format);
+        else onInsertLocation(latitude, longitude, radioLabel);
       },
       (err) => {
         setGettingLocation(false);
@@ -642,7 +649,7 @@ export function ChatHeader({
                     <button
                       type="button"
                       className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      onClick={insertRadioLocation}
+                      onClick={() => insertRadioLocation()}
                     >
                       {t('chat_insert_my_radio_location')}
                     </button>
@@ -650,7 +657,7 @@ export function ChatHeader({
                   <button
                     type="button"
                     className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-                    onClick={insertGpsLocation}
+                    onClick={() => insertGpsLocation()}
                     disabled={gettingLocation}
                   >
                     {gettingLocation ? 'Locating…' : 'My current GPS'}
@@ -674,6 +681,31 @@ export function ChatHeader({
                   >
                     {t('chat_pick_on_map')}
                   </button>
+                  {teamFormatsAllowed && (
+                    <>
+                      <div className="my-1 border-t border-border" role="separator" />
+                      <div className="px-2 py-1 text-[0.6875rem] font-semibold uppercase tracking-wide text-muted-foreground">
+                        {t('chat_team_beacon_heading')}
+                      </div>
+                      {radioLocationAvailable && (
+                        <button
+                          type="button"
+                          className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          onClick={() => insertRadioLocation({ teamBeacon: true })}
+                        >
+                          {t('chat_team_beacon_radio')}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                        onClick={() => insertGpsLocation({ teamBeacon: true })}
+                        disabled={gettingLocation}
+                      >
+                        {t('chat_team_beacon_gps')}
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -759,8 +791,7 @@ export function ChatHeader({
             setPickerOpen(false);
             onInsertLocation(lat, lon, label, options);
           }}
-          // TEAM keeps waypoints off the Public channel and hashtag channels.
-          teamWaypointAllowed={isPrivateChannel && !isPublicChannelKey(conversation.id)}
+          teamFormatsAllowed={teamFormatsAllowed}
           contacts={contacts}
           initialCenter={pickerCenter}
           initialLabel={contactLocationAvailable ? contactLabel : ''}

@@ -11,6 +11,37 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-08 (Manual MeshCore TEAM beacon from the chat, feat/team-beacon-chat-button)
+
+### Chat: Share location (frontend)
+- On a private channel the Share location menu (map pin in the chat header)
+  has a **TEAM beacon (#TEL:)** group with two entries: **Beacon: my radio
+  location** (only when the radio has a position) and **Beacon: my current
+  GPS** (browser geolocation). The map picker's Format select has a third
+  option, **MeshCore TEAM beacon (#TEL:)**; with it chosen the label field is
+  hidden, because `#TEL:` carries a position only.
+- Each entry only writes the `#TEL:` text into the composer. Nothing is
+  transmitted until you press Send, the same as the marker and TEAM waypoint
+  entries. The periodic beacon (Settings, off by default) is unchanged.
+- Not offered on the Public channel, hashtag channels or direct messages, the
+  same rule as the TEAM waypoint and the periodic beacon.
+- The text is built by `buildTeamTelemetryPayload` in
+  `frontend/src/utils/teamPayloads.ts`, a mirror of the backend
+  `encode_telemetry`: 11 bytes, unpadded Base64, phone battery unknown,
+  forwarding status 1. The radio battery byte comes from the latest radio
+  stats (`health.radio_stats.battery_mv`) when there is a reading, otherwise
+  it is sent as unknown.
+- Limits: TEAM only reads a `#TEL:` that is the whole message, so text typed
+  before or after it in the composer makes it an ordinary message. The picker
+  and GPS entries send whatever position you choose, not necessarily the
+  radio's. Not tested against a real MeshCore TEAM client.
+- No backend change, no migration.
+- Tests: `frontend/src/test/teamPayloads.test.ts` (same strings as the Python
+  encoder), `chatHeaderLocation.test.tsx`, `locationPickerModal.test.tsx`,
+  `useConversationActions.test.ts`.
+- Docs: `README.md`, `frontend/AGENTS.md`, `docs/sources-of-truth.md`,
+  `docs/parity-audit.md`.
+
 ## Update 2026-10-08 (Handy Info: meshcore-info.eu link, feat/handy-info-meshcore-info-eu)
 
 ### Settings > Handy Info: Links (frontend)
