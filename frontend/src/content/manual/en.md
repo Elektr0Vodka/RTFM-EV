@@ -201,7 +201,7 @@ Opening a repeater shows a login form: log in with the password or as a guest. T
 
 The Settings Editor changes one repeater setting at a time: you edit, confirm the exact CLI command, it is sent over RF, and the value is read back to check it. Changing frequency, bandwidth, spreading factor or coding rate requires typing the repeater name first, because a wrong value can take it off the air. The Observer firmware group (SNMP agent on/off) only works on DMC observer and agessaman observer firmware: use its own Read button first, and reboot the repeater after a change.
 
-Repeaters and room servers on observer firmware can also be read over your network. On the contact page, the **SNMP (LAN)** card takes the node's IP address, port and community; **Poll now** then shows radio, MQTT, memory and WiFi values without using RF. SNMP must be on on the node (Observer firmware group in the Settings Editor, then reboot) and the server must be able to reach it over UDP. Turn on **Poll on a schedule** to have the server poll the node every few minutes and keep the results; the card then shows a history chart for the value and range you pick. If the Home Assistant integration tracks the repeater, the values also appear there as SNMP sensors. **Ask node for its address** sends one command over RF to look up the IP and needs an admin login.
+Repeaters and room servers on observer firmware can also be read over your network. On the contact page, the **SNMP (LAN)** card takes the node's IP address, port and community; **Poll now** then shows radio, MQTT, memory and WiFi values without using RF. SNMP must be on on the node (Observer firmware group in the Settings Editor, then reboot) and the server must be able to reach it over UDP. Turn on **Poll on a schedule** to have the server poll the node every few minutes and keep the results; the card then shows a history chart for the value and range you pick. If the Home Assistant integration tracks the repeater, the values also appear there as SNMP sensors. **Ask node for its address** sends one command over RF to look up the IP and needs an admin login. The **SNMP** page under Tools shows all nodes with SNMP set up side by side.
 
 ### Room servers
 
@@ -280,6 +280,12 @@ The battery, noise floor and airtime charts show the current radio plus the hist
 ### Mesh Discovery
 
 **Discover Repeaters**, **Discover Sensors** or **Discover Both** sends a short discovery request over RF and lists the nodes that answer. **Discover Regions** asks nearby repeaters which regions they flood, so you can add them to your known regions.
+
+### SNMP
+
+Every node that has SNMP set up on its contact page, in one table. Each row shows the status, name, address, schedule, last good poll and last error, with the main values side by side: firmware version, uptime, free heap, largest free block, connected MQTT slots, packet queue depth, WiFi RSSI, noise floor, receive errors, last RSSI and last SNR. A node whose last poll failed is marked **Failing** in red and listed first; its values are then those of the last good poll. Click a column header to sort.
+
+Click the arrow in front of a row for all 22 values of that node, grouped, and its history chart. **Poll now** reads one node and **Poll all now** reads them one after the other. Polling goes over your network (UDP) and never uses RF. **Auto refresh** only re-reads what the server has stored, every 10, 30 or 60 seconds, or not at all. How often a node is polled is set with **Poll on a schedule** on its contact page. Click a node's name to open that page.
 
 ### Packet Feed
 

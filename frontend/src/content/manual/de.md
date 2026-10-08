@@ -201,7 +201,7 @@ Beim Öffnen eines Repeaters erscheint ein Anmeldeformular: melde dich mit dem P
 
 Mit Einstellungen bearbeiten änderst du jeweils eine Repeater-Einstellung: du bearbeitest, bestätigst den genauen CLI-Befehl, er wird über Funk gesendet, und der Wert wird zur Kontrolle zurückgelesen. Für Änderungen an Frequenz, Bandbreite, Spreading Factor oder Coding Rate musst du zuerst den Namen des Repeaters eintippen, weil ein falscher Wert ihn vom Netz nehmen kann. Die Gruppe Observer-Firmware (SNMP-Agent ein/aus) funktioniert nur auf DMC-Observer- und agessaman-Observer-Firmware: nutze zuerst die eigene Schaltfläche Lesen und starte den Repeater nach einer Änderung neu.
 
-Repeater und Room-Server mit Observer-Firmware lassen sich auch über dein Netzwerk abfragen. Auf der Kontaktseite nimmt die Karte **SNMP (LAN)** IP-Adresse, Port und Community des Nodes entgegen; **Jetzt abfragen** zeigt dann Funk-, MQTT-, Speicher- und WLAN-Werte, ohne Funk zu nutzen. SNMP muss auf dem Node eingeschaltet sein (Gruppe Observer-Firmware in Einstellungen bearbeiten, danach neu starten) und der Server muss den Node per UDP erreichen können. Schalte **Nach Zeitplan abfragen** ein, damit der Server den Node alle paar Minuten abfragt und die Ergebnisse speichert; die Karte zeigt dann ein Verlaufsdiagramm für den gewählten Wert und Zeitraum. Wenn die Home-Assistant-Integration den Repeater verfolgt, erscheinen die Werte dort auch als SNMP-Sensoren. **Node nach seiner Adresse fragen** sendet einen Befehl über Funk, um die IP abzufragen, und braucht eine Admin-Anmeldung.
+Repeater und Room-Server mit Observer-Firmware lassen sich auch über dein Netzwerk abfragen. Auf der Kontaktseite nimmt die Karte **SNMP (LAN)** IP-Adresse, Port und Community des Nodes entgegen; **Jetzt abfragen** zeigt dann Funk-, MQTT-, Speicher- und WLAN-Werte, ohne Funk zu nutzen. SNMP muss auf dem Node eingeschaltet sein (Gruppe Observer-Firmware in Einstellungen bearbeiten, danach neu starten) und der Server muss den Node per UDP erreichen können. Schalte **Nach Zeitplan abfragen** ein, damit der Server den Node alle paar Minuten abfragt und die Ergebnisse speichert; die Karte zeigt dann ein Verlaufsdiagramm für den gewählten Wert und Zeitraum. Wenn die Home-Assistant-Integration den Repeater verfolgt, erscheinen die Werte dort auch als SNMP-Sensoren. **Node nach seiner Adresse fragen** sendet einen Befehl über Funk, um die IP abzufragen, und braucht eine Admin-Anmeldung. Die Seite **SNMP** unter Werkzeuge zeigt alle Nodes mit SNMP nebeneinander.
 
 ### Room-Server
 
@@ -280,6 +280,12 @@ Die Diagramme für Akku, Grundrauschen und Sendezeit zeigen das aktuelle Funkger
 ### Mesh-Erkennung
 
 **Repeater ermitteln**, **Sensoren ermitteln** oder **Beide ermitteln** sendet eine kurze Erkennungsanfrage über Funk und listet die Knoten auf, die antworten. **Regionen ermitteln** fragt Repeater in der Nähe, welche Regionen sie fluten, damit du sie zu deinen bekannten Regionen hinzufügen kannst.
+
+### SNMP
+
+Alle Nodes, für die auf der Kontaktseite SNMP eingerichtet ist, in einer Tabelle. Jede Zeile zeigt Status, Name, Adresse, Zeitplan, die letzte erfolgreiche Abfrage und den letzten Fehler, dazu die wichtigsten Werte nebeneinander: Firmware-Version, Laufzeit, freier Heap, größter freier Block, verbundene MQTT-Slots, Tiefe der Paketwarteschlange, WLAN-RSSI, Grundrauschen, Empfangsfehler, letzter RSSI und letzter SNR. Ein Node, dessen letzte Abfrage fehlgeschlagen ist, ist rot mit **Fehlgeschlagen** markiert und steht oben; seine Werte sind dann die der letzten erfolgreichen Abfrage. Klicke auf eine Spaltenüberschrift, um zu sortieren.
+
+Klicke auf den Pfeil vor einer Zeile für alle 22 Werte dieses Nodes, gruppiert, und sein Verlaufsdiagramm. **Jetzt abfragen** fragt einen Node ab, **Alle jetzt abfragen** fragt sie nacheinander ab. Die Abfrage läuft über dein Netzwerk (UDP) und nutzt nie Funk. **Automatisch aktualisieren** liest nur neu ein, was der Server gespeichert hat, alle 10, 30 oder 60 Sekunden oder gar nicht. Wie oft ein Node abgefragt wird, legst du mit **Nach Zeitplan abfragen** auf seiner Kontaktseite fest. Klicke auf den Namen eines Nodes, um diese Seite zu öffnen.
 
 ### Paket-Feed
 

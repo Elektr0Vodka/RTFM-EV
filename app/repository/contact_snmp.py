@@ -121,6 +121,44 @@ class ContactSnmpRepository:
                 rows = await cursor.fetchall()
         return [_row_to_dict(row) for row in rows]
 
+    @staticmethod
+    async def list_overview(*, default_community: str) -> list[dict[str, Any]]:
+        """Every contact with SNMP settings, with its name and type, by name.
+
+        Made for the browser: the community is not selected, only whether it
+        equals ``default_community``.
+        """
+        async with db.readonly() as conn:
+            async with conn.execute(
+                """
+                SELECT s.public_key, c.name, c.type, s.host, s.port,
+                       s.community = ? AS community_is_default,
+                       s.poll_enabled, s.poll_interval_minutes,
+                       s.last_ok_at, s.last_error, s.last_error_at
+                  FROM contact_snmp s
+                  LEFT JOIN contacts c ON c.public_key = s.public_key
+                 ORDER BY c.name COLLATE NOCASE, s.public_key
+                """,
+                (default_community,),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [
+            {
+                "public_key": row["public_key"],
+                "name": row["name"],
+                "type": row["type"],
+                "host": row["host"],
+                "port": int(row["port"]),
+                "community_is_default": bool(row["community_is_default"]),
+                "poll_enabled": bool(row["poll_enabled"]),
+                "poll_interval_minutes": int(row["poll_interval_minutes"]),
+                "last_ok_at": row["last_ok_at"],
+                "last_error": row["last_error"],
+                "last_error_at": row["last_error_at"],
+            }
+            for row in rows
+        ]
+
 
 class SnmpHistoryRepository:
     """Stored SNMP poll results (table ``snmp_history``), one row per good poll.

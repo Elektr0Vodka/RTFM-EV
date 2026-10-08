@@ -2,13 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { Network } from 'lucide-react';
 import { ApiError, api, isAbortError } from '../../api';
 import { useT } from '../../i18n';
-import { formatDateTime } from '../../utils/dateTimeFormat';
 import type { Contact, ContactSnmpConfig, SnmpPollResponse } from '../../types';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { SnmpHistoryChart } from './SnmpHistoryChart';
-import { SNMP_FIELDS, SNMP_GROUPS, formatSnmpValue } from './snmpFields';
+import { SnmpValueGroups } from './SnmpValueGroups';
+import { formatSnmpTime } from './snmpFields';
 
 const DEFAULT_PORT = '161';
 const DEFAULT_INTERVAL = '5';
@@ -37,16 +37,6 @@ const EMPTY_FORM: FormState = {
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
-}
-
-/** Server timestamps are Unix seconds. */
-function formatTs(seconds: number): string {
-  return formatDateTime(seconds * 1000, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 /**
@@ -381,7 +371,7 @@ export function ContactSnmpSection({ contact }: { contact: Contact }) {
           </div>
           <p className="text-[0.6875rem] text-muted-foreground" data-testid="snmp-status">
             {config.last_ok_at
-              ? t('snmp_last_ok', { time: formatTs(config.last_ok_at) })
+              ? t('snmp_last_ok', { time: formatSnmpTime(config.last_ok_at) })
               : t('snmp_never_polled')}
             {config.community_is_default ? ` ${t('snmp_community_is_default')}` : ''}{' '}
             {config.poll_enabled
@@ -391,7 +381,7 @@ export function ContactSnmpSection({ contact }: { contact: Contact }) {
           {config.last_error && (
             <p className="text-xs text-destructive" role="alert" data-testid="snmp-last-error">
               {t('snmp_last_error', {
-                time: config.last_error_at ? formatTs(config.last_error_at) : '-',
+                time: config.last_error_at ? formatSnmpTime(config.last_error_at) : '-',
                 error: config.last_error,
               })}
             </p>
@@ -402,25 +392,7 @@ export function ContactSnmpSection({ contact }: { contact: Contact }) {
       {config && !editing && <SnmpHistoryChart publicKey={publicKey} version={historyVersion} />}
 
       {poll?.ok && poll.values && !editing && (
-        <div className="space-y-2" data-testid="snmp-values">
-          {SNMP_GROUPS.map(({ group, labelKey }) => (
-            <div key={group}>
-              <div className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
-                {t(labelKey)}
-              </div>
-              <dl className="grid grid-cols-[1fr_auto] gap-x-3 text-xs">
-                {SNMP_FIELDS.filter((field) => field.group === group).map((field) => (
-                  <div key={field.key} className="contents" data-testid={`snmp-row-${field.key}`}>
-                    <dt className="text-muted-foreground">{t(field.labelKey)}</dt>
-                    <dd className="text-right font-mono">
-                      {formatSnmpValue(field, poll.values ?? {})}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-          ))}
-        </div>
+        <SnmpValueGroups values={poll.values} className="space-y-2" />
       )}
     </div>
   );

@@ -6,7 +6,7 @@ RTFM-EV is a fork of [RemoteTerm for MeshCore](https://github.com/jkingsman/Remo
 
 - support for the [meshcomod (DMC / DMC-EV)](https://github.com/Elektr0Vodka/meshcomod) companion firmware and management of [OpenHop](https://github.com/openhop-dev/openhop_repeater) nodes
 - a MapLibre and deck.gl map with packet replay, link history and several overlays
-- analysis views: My Node, Mesh Health, Mesh Trends, Packet History, Mesh Discovery
+- analysis views: My Node, Mesh Health, Mesh Trends, Packet History, Mesh Discovery, SNMP
 - a host repeater that judges every received packet the way a repeater would (shadow mode, optional live forwarding)
 - loadouts, a radio identity registry, database backup/restore and per-class data retention
 - an interface in English, Dutch and German, extra themes and an in-app User Guide
@@ -69,6 +69,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - **Mesh Trends:** stored network, message and packet breakdowns plus live session statistics.
 - **Packet Feed** (live) and **Packet History** (everything stored, with search and CSV export).
 - **Analyze Packet**, **Mesh Visualizer** (3D graph), **Trace** (with a hop map), **Mesh Discovery** (repeaters, sensors, regions, plus Direct (0 hop) and Flood advert buttons).
+- **SNMP:** every node with SNMP set up in one sortable table, with failing polls marked, all 22 values and the history chart per node, and Poll now / Poll all now over your LAN (no RF).
 - **Channel Registry** with remote sync (open a channel's entry in edit mode from its header or info panel), and **Channel Finder** (WebGPU channel name search).
 - **Knowledge base**: your own handy links, picked from Settings > Handy Info > Links or added directly.
 - One time-range selector across the analysis views; charts zoom and pan.

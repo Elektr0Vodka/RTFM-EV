@@ -18,6 +18,7 @@ import {
   Logs,
   History,
   Map,
+  Network,
   PanelLeftClose,
   PanelLeftOpen,
   Pencil,
@@ -541,6 +542,7 @@ export function Sidebar({
       | 'mesh-health'
       | 'mesh-trends'
       | 'mesh-discovery'
+      | 'snmp'
       | 'analyze'
       | 'packet-history'
       | 'manual'
@@ -1403,6 +1405,16 @@ export function Sidebar({
             }),
           iconOnly,
         });
+      case 'snmp':
+        return renderSidebarActionRow({
+          key: 'tool-snmp',
+          active: isActive('snmp', 'snmp'),
+          icon: <Network className="h-4 w-4" />,
+          label: t('nav_snmp'),
+          onClick: () =>
+            handleSelectConversation({ type: 'snmp', id: 'snmp', name: t('nav_snmp') }),
+          iconOnly,
+        });
       case 'raw':
         return renderSidebarActionRow({
           key: 'tool-raw',
@@ -1942,6 +1954,7 @@ export function Sidebar({
     'mesh-health': t('nav_mesh_health'),
     'mesh-trends': t('nav_mesh_trends'),
     'mesh-discovery': t('nav_mesh_discovery'),
+    snmp: t('nav_snmp'),
     raw: t('nav_packet_feed'),
     'packet-history': t('nav_packet_history'),
     analyze: t('nav_analyze_packet'),

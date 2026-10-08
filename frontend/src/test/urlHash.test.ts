@@ -413,3 +413,24 @@ describe('manual (User Guide) route', () => {
     );
   });
 });
+
+describe('snmp (Tools > SNMP) route', () => {
+  let originalHash: string;
+
+  beforeEach(() => {
+    originalHash = window.location.hash;
+  });
+
+  afterEach(() => {
+    window.location.hash = originalHash;
+  });
+
+  it('parses #snmp', () => {
+    window.location.hash = '#snmp';
+    expect(parseHashConversation()).toEqual({ type: 'snmp', name: 'snmp' });
+  });
+
+  it('builds #snmp from an snmp conversation', () => {
+    expect(getConversationHash({ type: 'snmp', id: 'snmp', name: 'SNMP' })).toBe('#snmp');
+  });
+});

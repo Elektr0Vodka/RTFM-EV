@@ -44,6 +44,7 @@ const PAGE_TIP_KEYS: Partial<Record<PageType, string>> = {
   'mesh-health': 'buddy_tip_mesh_health',
   'mesh-trends': 'buddy_tip_mesh_trends',
   'mesh-discovery': 'buddy_tip_mesh_discovery',
+  snmp: 'buddy_tip_snmp',
   analyze: 'buddy_tip_analyze',
   'packet-history': 'buddy_tip_packet_history',
   manual: 'buddy_tip_manual',

@@ -18,6 +18,7 @@ interface ParsedHashConversation {
     | 'mesh-health'
     | 'mesh-trends'
     | 'mesh-discovery'
+    | 'snmp'
     | 'analyze'
     | 'packet-history'
     | 'manual'
@@ -89,6 +90,10 @@ export function parseHashConversation(): ParsedHashConversation | null {
 
   if (hash === 'mesh-discovery') {
     return { type: 'mesh-discovery', name: 'mesh-discovery' };
+  }
+
+  if (hash === 'snmp') {
+    return { type: 'snmp', name: 'snmp' };
   }
 
   if (hash === 'analyze') {
@@ -245,6 +250,7 @@ export function getConversationHash(conv: Conversation | null): string {
   if (conv.type === 'mesh-health') return '#mesh-health';
   if (conv.type === 'mesh-trends') return '#mesh-trends';
   if (conv.type === 'mesh-discovery') return '#mesh-discovery';
+  if (conv.type === 'snmp') return '#snmp';
   if (conv.type === 'analyze') return '#analyze';
   if (conv.type === 'packet-history') return '#packet-history';
   if (conv.type === 'manual') return '#manual';

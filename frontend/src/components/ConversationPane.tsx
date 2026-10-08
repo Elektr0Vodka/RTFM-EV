@@ -49,6 +49,7 @@ const MeshTrendsView = lazy(() =>
 const MeshDiscoveryView = lazy(() =>
   import('./MeshDiscoveryView').then((m) => ({ default: m.MeshDiscoveryView }))
 );
+const SnmpView = lazy(() => import('./SnmpView').then((m) => ({ default: m.SnmpView })));
 const AnalyzePacketView = lazy(() =>
   import('./AnalyzePacketView').then((m) => ({ default: m.AnalyzePacketView }))
 );
@@ -443,6 +444,14 @@ export function ConversationPane({
           onDiscoverRegions={onDiscoverRegions}
           onSeedKnownRegions={onSeedKnownRegions}
         />
+      </Suspense>
+    );
+  }
+
+  if (activeConversation.type === 'snmp') {
+    return (
+      <Suspense fallback={<LoadingPane label={t('common_loading_snmp')} />}>
+        <SnmpView onOpenContactInfo={(publicKey) => onOpenContactInfo(publicKey)} />
       </Suspense>
     );
   }
