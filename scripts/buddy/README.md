@@ -2,14 +2,15 @@
 
 ## `acs_to_clippy.py`
 
-Converts a Microsoft Agent 2.0 character file (`.acs`) into the two files the
+Converts a Microsoft Agent character file (`.acs`, Agent 2.0 or the older
+Agent 1.5) into the two files the
 `clippyjs` library reads for an agent: `agent.json` (animation data) and
 `map.png` (sprite sheet). The app's desktop buddy can then load that character
 next to the 10 that `clippyjs` ships, without changes to the library.
 
-Standard library only (Python 3.11+). Format reference:
+Standard library only (Python 3.11+). Format reference for Agent 2.0:
 [MS Agent Character Data Specification](https://uploads.s.zeid.me/ms-agent-format-spec.html)
-by Remy Lebeau.
+by Remy Lebeau. Agent 1.5 is not covered there; see "Agent 1.5 files" below.
 
 ### Usage
 
@@ -44,8 +45,9 @@ repository and run the converter with `python -I`.
 
 ### Buddies converted so far
 
-Converted on 2026-10-08 with default options, from a local collection that is
-not part of this repository.
+Converted on 2026-10-08 and 2026-10-09 with default options, from a local
+collection that is not part of this repository. `Miku.acs` (1.5) was left out:
+it is one still picture.
 
 | Id | Name | Source file | Frame | Sheet |
 | --- | --- | --- | --- | --- |
@@ -69,6 +71,14 @@ not part of this repository.
 | `vrgirl` | VRGirl | `Vrgirl.acs` | 128x128 | 219 KiB |
 | `wabbit` | Wabbit | `Wabbit.acs` | 200x238 | 525 KiB |
 | `wartnose` | WartNose | `Wartnose.acs` | 128x128 | 1393 KiB |
+| `al` | Al | `Al.acs` (1.5) | 128x128 | 653 KiB |
+| `checkmate` | Checkmate | `Check.acs` (1.5) | 128x128 | 41 KiB |
+| `gourdy` | Gourdy | `Gourdy.acs` (1.5) | 128x128 | 185 KiB |
+| `max` | Max | `Max.acs` (1.5) | 128x128 | 220 KiB |
+| `ozzar` | Ozzar | `Ozzar.acs` (1.5) | 128x128 | 1366 KiB |
+| `sharky` | Sharky | `Sharky.acs` (1.5) | 250x250 | 273 KiB |
+| `spaceman` | Spaceman | `Spaceman.acs` (1.5) | 128x128 | 66 KiB |
+| `totem` | Totem | `Totem.acs` (1.5) | 200x200 | 436 KiB |
 
 The largest sprite sheets are Wabbit (4600x4522 pixels) and E-Man and E-Woman
 (4096x3968). Clippy's own sheet in `clippyjs` is 3348x3162. Sheets this large
@@ -114,11 +124,44 @@ resolves them. Every such change is printed as a note.
 - **One-byte image entries** (an image deleted in the character editor) are
   drawn as nothing.
 
+### Agent 1.5 files
+
+An Agent 1.5 `.acs` file is an OLE compound file with one `char.acf` stream
+(character data) and one `.aaf` stream per animation. No public description
+of these streams was found, so the layout was worked out from nine real files.
+It is written down next to the reader in `acs_to_clippy.py`. In short:
+
+- Both stream types hold one block in the same compression as Agent 2.0.
+- Strings have no terminator. Version 1.30 has one byte less in the balloon
+  data than 1.31.
+- Every animation carries its own images and sounds. Each image is as large
+  as the character, so there are no offsets and no layers.
+- A frame is one image, a sound, a duration and branches. There are no exit
+  branches. An animation can name a return animation, which is appended like
+  in 2.0.
+
+A stream is only accepted when it is read to its last byte and its stated
+size matches. A damaged animation stream costs that one animation; the
+converter prints which one.
+
+Result for the nine files (2026-10-09):
+
+| File | Name | Version | Frame | Animations | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `Al.acs` | Al | 1.31 | 128x128 | 97 | |
+| `Check.acs` | Checkmate | 1.31 | 128x128 | 20 | |
+| `Gourdy.acs` | Gourdy | 1.31 | 128x128 | 15 | |
+| `Max.acs` | Max | 1.31 | 128x128 | 20 | Idle names taken from the states |
+| `Miku.acs` | Miku | 1.31 | 128x256 | 4 | One picture: every animation is a single frame |
+| `Ozzar.acs` | Ozzar | 1.31 | 128x128 | 104 of 106 | Two streams in this copy are damaged (`DontRecognizeReturn`, `StopListening`) |
+| `Sharky.acs` | Sharky | 1.30 | 250x250 | 45 | `Show` from `Appearing`; the file itself maps hiding to `Idle3` |
+| `Spaceman.acs` | Spaceman | 1.31 | 128x128 | 35 | Idle names taken from the states |
+| `Totem.acs` | Totem | 1.31 | 200x200 | 23 | `Show` and `Hide` from `appear` and `disappear` |
+
 ### Not carried over
 
 - Mouth overlays (lip sync while speaking). `clippyjs` has no lip sync.
 - Voice, balloon style, tray icon and region data. They are parsed past, not used.
-- Agent 1.5 files (OLE containers) are rejected with a clear message.
 
 ### What is verified
 
@@ -151,6 +194,14 @@ Agent 2.0 files of which 3 are duplicates, 9 Agent 1.5 files).
 - **Decompression.** The worked example from the spec, and a round trip against
   an encoder written separately from the spec that covers every offset width
   (6, 9, 12 and 20 bit) and long length codes (`tests/test_acs_to_clippy.py`).
+  On real data: every compressed block states its size, and for 1749 of 1751
+  blocks from 12 files the decoder's length rule gives exactly that size, across
+  all 48 combinations of offset width and length prefix. The two other blocks
+  are the damaged Ozzar streams.
+- **Agent 1.5.** For 8 of the 9 files every animation stream is read to its
+  last byte; for Ozzar 104 of 106. The rest pose of all nine was looked at in a
+  contact sheet (right way up, right colours). The eight that ship were loaded
+  in a production build like the others.
 - **Spec corrections found.** The voice block follows flag bit 5 (`0x20`), not
   bit 4. Palette entries are stored blue, green, red. Image rows are bottom-up.
 - **In the app.** Converted characters were registered and observed in a
@@ -175,7 +226,10 @@ node scripts/buddy/compare_with_clippyjs.mjs out/clippit clippy
 - Appending return animations is this converter's own choice. The `clippyjs`
   data for Merlin keeps them separate and never plays them after the main
   animation.
-- Agent 1.5 files are not supported.
+- Agent 1.5 has no ground truth to compare with: none of those characters ships
+  with `clippyjs`. Two fields that are 0 in every file seen are skipped without
+  knowing their meaning, and mouth overlays with a non-zero flag byte were
+  never seen.
 
 ### Licensing
 

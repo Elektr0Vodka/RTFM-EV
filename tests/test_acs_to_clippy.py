@@ -372,8 +372,8 @@ class TestParse:
     def test_rejects_other_files(self):
         with pytest.raises(acs.AcsError, match="signature"):
             acs.parse_acs(b"not an acs file at all")
-        with pytest.raises(acs.AcsError, match="Agent 1.5"):
-            acs.parse_acs(b"\xd0\xcf\x11\xe0" + bytes(64))
+        with pytest.raises(acs.AcsError, match="not an OLE compound file"):
+            acs.parse_acs(acs.OLE_SIGNATURE + bytes(64))
 
 
 class TestConvert:
@@ -596,5 +596,323 @@ class TestCli:
         source = tmp_path / "junk.acs"
         source.write_bytes(b"junk" * 20)
         assert acs.main([str(source), "--out", str(tmp_path / "out")]) == 1
-        assert "not an Agent 2.0 character file" in capsys.readouterr().err
+        assert "not an Agent character file" in capsys.readouterr().err
         assert not (tmp_path / "out").exists()
+
+
+# --------------------------------------------------------------------------- #
+# Agent 1.5: an OLE compound file with char.acf and one .aaf stream per animation
+# --------------------------------------------------------------------------- #
+
+_SECTOR, _MINI, _CUTOFF = 512, 64, 4096
+_END, _FREE, _FAT_SECTOR = 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFD
+
+# Same size as the character, as every Agent 1.5 image is.
+ALT = [
+    [2, 2, 2, 2, 2, 2],
+    [1, 0, 3, 3, 0, 1],
+    [1, 0, 0, 0, 0, 1],
+    [3, 3, 3, 3, 3, 3],
+]
+
+
+def build_compound_file(streams: dict[str, bytes]) -> bytes:
+    """Minimal OLE compound file (version 3). Streams under 4096 bytes go into
+    the mini stream, as in real files."""
+    sectors: list[bytes] = []
+    fat: list[int] = []
+
+    def add_chain(data: bytes) -> int:
+        if not data:
+            return _END
+        start = len(sectors)
+        chunks = [data[i : i + _SECTOR] for i in range(0, len(data), _SECTOR)]
+        for n, chunk in enumerate(chunks):
+            sectors.append(chunk.ljust(_SECTOR, b"\x00"))
+            fat.append(start + n + 1 if n < len(chunks) - 1 else _END)
+        return start
+
+    mini_stream = bytearray()
+    minifat: list[int] = []
+    entries = []
+    for name, data in streams.items():
+        if len(data) >= _CUTOFF:
+            entries.append((name, 2, add_chain(data), len(data)))
+            continue
+        start = len(minifat) if data else _END
+        chunks = [data[i : i + _MINI] for i in range(0, len(data), _MINI)]
+        for n, chunk in enumerate(chunks):
+            mini_stream += chunk.ljust(_MINI, b"\x00")
+            minifat.append(start + n + 1 if n < len(chunks) - 1 else _END)
+        entries.append((name, 2, start, len(data)))
+    mini_start = add_chain(bytes(mini_stream))
+    minifat_start = add_chain(struct.pack(f"<{len(minifat)}I", *minifat))
+
+    directory = b""
+    listing = [("Root Entry", 5, mini_start, len(mini_stream)), *entries]
+    for i, (name, kind, start, size) in enumerate(listing):
+        raw = name.encode("utf-16-le") + b"\x00\x00"
+        child = 1 if i == 0 and entries else _FREE
+        right = i + 1 if 0 < i < len(listing) - 1 else _FREE
+        directory += raw.ljust(64, b"\x00")
+        directory += struct.pack("<HBBIII", len(raw), kind, 1, _FREE, right, child)
+        directory += bytes(36) + struct.pack("<IQ", start, size)
+    dir_start = add_chain(directory)
+
+    per_sector = _SECTOR // 4
+    fat_sectors = 1
+    while len(fat) + fat_sectors > fat_sectors * per_sector:
+        fat_sectors += 1
+    fat_start = len(sectors)
+    table = fat + [_FAT_SECTOR] * fat_sectors
+    table += [_FREE] * (fat_sectors * per_sector - len(table))
+    for i in range(fat_sectors):
+        sectors.append(
+            struct.pack(f"<{per_sector}I", *table[i * per_sector : (i + 1) * per_sector])
+        )
+
+    header = acs.OLE_SIGNATURE + bytes(16) + struct.pack("<HHHHH", 0x3E, 3, 0xFFFE, 9, 6)
+    header += bytes(6)
+    header += struct.pack("<9I", 0, fat_sectors, dir_start, 0, _CUTOFF, minifat_start, 1, _END, 0)
+    header += struct.pack(
+        "<109I", *range(fat_start, fat_start + fat_sectors), *[_FREE] * (109 - fat_sectors)
+    )
+    assert len(header) == _SECTOR
+    return header + b"".join(sectors)
+
+
+def _string15(text: str) -> bytes:
+    return struct.pack("<I", len(text)) + text.encode("utf-16-le")
+
+
+def _pixels15(rows: list[list[int]]) -> bytes:
+    stride = (len(rows[0]) + 3) & ~3
+    return b"".join(bytes(row) + b"\x00" * (stride - len(row)) for row in reversed(rows))
+
+
+def _acf15(
+    animations: list[tuple[str, str, str]],
+    states: dict[str, list[str]],
+    minor: int = 31,
+    flags: int = 0x220,
+) -> bytes:
+    body = struct.pack("<HHH", minor, 1, len(animations))
+    for name, stream, return_animation in animations:
+        body += _string15(name) + _string15(stream) + _string15(return_animation)
+        body += struct.pack("<I", 0)
+    body += bytes(16) + _string15("Oldie") + _string15("An Agent 1.5 test") + _string15("")
+    body += struct.pack("<HHBI", WIDTH, HEIGHT, CLEAR, flags)
+    if flags & 0x20:
+        body += bytes(16) + bytes(16) + struct.pack("<IH", 0xFFFFFFFF, 0xFFFF)
+    if flags & 0x200:
+        body += struct.pack("<BB", 2, 28) + bytes(12) + _string15("Arial")
+        body += struct.pack("<ii", -13, 400) + bytes(2 if minor >= 31 else 1)
+    palette = [(255, 0, 255), (255, 0, 0), (0, 255, 0), (0, 0, 255)]
+    body += struct.pack("<I", len(palette))
+    body += b"".join(bytes((blue, green, red, 0)) for red, green, blue in palette)
+    body += struct.pack("<H", len(states))
+    for state, names in states.items():
+        body += _string15(state) + struct.pack("<H", len(names))
+        body += b"".join(_string15(name) for name in names)
+    packed = lz_compress(body)
+    return struct.pack("<III", acs.ACF_V15_SIGNATURE, len(body), len(packed)) + packed
+
+
+def _frame15(image, sound=0xFFFF, duration=10, branches=(), overlays=()) -> bytes:
+    out = struct.pack("<HHHI", image, sound, duration, 0)
+    out += struct.pack("<B", len(branches))
+    out += b"".join(struct.pack("<HH", *branch) for branch in branches)
+    out += struct.pack("<B", len(overlays))
+    for shape, rows in overlays:
+        if rows is None:
+            out += struct.pack("<BI", shape, 0)
+            continue
+        pixels = _pixels15(rows)
+        out += struct.pack("<BIBhhHH", shape, len(pixels), 0, 3, 1, len(rows[0]), len(rows))
+        out += pixels
+    return out
+
+
+def _aaf15(images, frames, sounds=(), compressed=True, minor=31) -> bytes:
+    body = struct.pack("<H", len(sounds))
+    body += b"".join(struct.pack("<I", len(sound)) + sound for sound in sounds)
+    body += struct.pack("<H", len(images))
+    for rows in images:
+        pixels, region = _pixels15(rows), b"\xbb" * 6
+        body += struct.pack("<IB", len(pixels), 0) + pixels
+        body += struct.pack("<I", len(region)) + region
+    body += struct.pack("<H", len(frames)) + b"".join(frames)
+    head = struct.pack("<HHI", minor, 1, 0)
+    if not compressed:
+        return head + b"\x00" + body
+    packed = lz_compress(body)
+    return head + b"\x01" + struct.pack("<II", len(body), len(packed)) + packed
+
+
+RIFF = b"RIFF\x04\x00\x00\x00WAVE"
+
+
+def oldie_streams(minor: int = 31, flags: int = 0x220) -> dict[str, bytes]:
+    return {
+        "char.acf": _acf15(
+            [
+                ("Showing", "anim1.aaf", ""),
+                ("LookLeft", "anim2.aaf", "LookLeftReturn"),
+                ("LookLeftReturn", "anim3.aaf", ""),
+                ("Idle1_1", "ANIM4.AAF", ""),
+            ],
+            {"SHOWING": ["Showing"], "IDLINGLEVEL1": ["Idle1_1"]},
+            minor=minor,
+            flags=flags,
+        ),
+        "anim1.aaf": _aaf15([BODY], [_frame15(0)], minor=minor),
+        "anim2.aaf": _aaf15(
+            [ALT, BODY],
+            [
+                _frame15(
+                    0,
+                    sound=0,
+                    duration=5,
+                    branches=[(0, 40)],
+                    overlays=[(0, None), (1, PATCH)],
+                ),
+                _frame15(1),
+            ],
+            sounds=[RIFF],
+            minor=minor,
+        ),
+        "anim3.aaf": _aaf15([BODY], [_frame15(0)], compressed=False, minor=minor),
+        # Over 4096 bytes, so it is stored in full sectors, not the mini stream.
+        "anim4.aaf": _aaf15(
+            [BODY, ALT] * 60, [_frame15(1), _frame15(118)], compressed=False, minor=minor
+        ),
+    }
+
+
+def build_oldie(**kwargs) -> bytes:
+    return build_compound_file(oldie_streams(**kwargs))
+
+
+class TestCompoundFile:
+    def test_reads_mini_and_full_sector_streams(self):
+        streams = oldie_streams()
+        assert len(streams["anim4.aaf"]) >= _CUTOFF > len(streams["anim2.aaf"])
+        assert acs.read_compound_file(build_compound_file(streams)) == streams
+
+    def test_reads_an_empty_stream(self):
+        assert acs.read_compound_file(build_compound_file({"empty": b"", "a": b"abc"})) == {
+            "empty": b"",
+            "a": b"abc",
+        }
+
+    def test_rejects_a_broken_sector_chain(self):
+        data = bytearray(build_oldie())
+        # Point the directory at a sector far outside the file.
+        struct.pack_into("<I", data, 48, 0x00FFFFFF)
+        with pytest.raises(acs.AcsError, match="chain is broken"):
+            acs.read_compound_file(bytes(data))
+
+    def test_rejects_a_compound_file_that_is_not_a_character(self):
+        with pytest.raises(acs.AcsError, match="no char.acf"):
+            acs.parse_acs(build_compound_file({"other": b"x" * 10}))
+
+
+class TestAgent15:
+    def test_reads_character(self):
+        char = acs.parse_acs(build_oldie())
+        assert (char.name, char.description) == ("Oldie", "An Agent 1.5 test")
+        assert char.version == (1, 31)
+        assert (char.width, char.height, char.transparent_index) == (WIDTH, HEIGHT, CLEAR)
+        assert char.palette == [(255, 0, 255), (255, 0, 0), (0, 255, 0), (0, 0, 255)]
+        assert char.states == {"SHOWING": ["Showing"], "IDLINGLEVEL1": ["Idle1_1"]}
+        assert [a.name for a in char.animations] == [
+            "Showing",
+            "LookLeft",
+            "LookLeftReturn",
+            "Idle1_1",
+        ]
+        assert char.sounds == [RIFF]
+        assert char.warnings == []
+
+    def test_reads_frames_with_character_wide_indexes(self):
+        char = acs.parse_acs(build_oldie())
+        look = char.animations[1]
+        assert (look.transition, look.return_animation) == (
+            acs.TRANSITION_RETURN,
+            "LookLeftReturn",
+        )
+        first, second = look.frames
+        # anim1 holds image 0, so the two images of anim2 are 1 and 2.
+        assert [(i.image_index, i.x, i.y) for i in first.images] == [(1, 0, 0)]
+        assert [(i.image_index, i.x, i.y) for i in second.images] == [(2, 0, 0)]
+        assert (first.sound_index, first.duration, first.exit_frame) == (0, 5, -1)
+        assert first.branches == [(0, 40)]
+        assert first.overlay_count == 2
+        assert second.sound_index == acs.NO_SOUND
+        assert char.animations[0].transition == acs.TRANSITION_NONE
+        assert [f.images[0].image_index for f in char.animations[3].frames] == [5, 122]
+
+    @pytest.mark.parametrize("minor", [30, 31])
+    @pytest.mark.parametrize("flags", [0x220, 0x020, 0x200, 0x000])
+    def test_versions_and_optional_blocks(self, minor, flags):
+        char = acs.parse_acs(build_oldie(minor=minor, flags=flags))
+        assert char.version == (1, minor)
+        assert len(char.animations) == 4
+
+    def test_converts_like_a_2_0_character(self):
+        result = acs.convert(acs.parse_acs(build_oldie()), columns=2)
+        animations = result.agent["animations"]
+        assert animations["Show"] == animations["Showing"]
+        assert '"Show" copies "Showing"' in result.notes
+        # LookLeft runs on into LookLeftReturn.
+        look = animations["LookLeft"]["frames"]
+        assert len(look) == 3
+        assert look[0]["branching"] == {"branches": [{"frameIndex": 0, "weight": 40}]}
+        assert look[0]["sound"] == "1"
+        assert "useExitBranching" not in animations["LookLeft"]
+        image = decode_png(result.png)
+        assert result.cells == 2
+        assert cell(image, animations["Showing"]["frames"][0]["images"][0]) == BODY
+        assert cell(image, look[0]["images"][0]) == ALT
+        assert (
+            look[1]["images"] == look[2]["images"] == animations["Showing"]["frames"][0]["images"]
+        )
+
+    def test_damaged_animation_costs_only_that_animation(self):
+        streams = oldie_streams()
+        # Claim two bytes more than the block holds, as seen in a real file.
+        blob = bytearray(streams["anim2.aaf"])
+        struct.pack_into("<I", blob, 9, struct.unpack_from("<I", blob, 9)[0] + 2)
+        streams["anim2.aaf"] = bytes(blob)
+        del streams["anim3.aaf"]
+        char = acs.parse_acs(build_compound_file(streams))
+        assert [a.name for a in char.animations] == ["Showing", "Idle1_1"]
+        assert len(char.warnings) == 2
+        assert 'animation "LookLeft" left out: anim2.aaf is damaged' in char.warnings[0]
+        assert (
+            char.warnings[1] == 'animation "LookLeftReturn" left out: stream anim3.aaf is missing'
+        )
+        # Images of the animations that were left out do not shift the others.
+        assert [f.images[0].image_index for f in char.animations[1].frames] == [2, 119]
+        assert char.sounds == []
+        assert acs.convert(char).cells == 2
+
+    def test_unread_bytes_reject_an_animation(self):
+        streams = oldie_streams()
+        streams["anim1.aaf"] = _aaf15([BODY], [_frame15(0) + b"\x00"], compressed=False)
+        char = acs.parse_acs(build_compound_file(streams))
+        assert 'animation "Showing" left out: animation has unread bytes' in char.warnings
+
+    def test_image_of_another_size_rejects_an_animation(self):
+        streams = oldie_streams()
+        streams["anim1.aaf"] = _aaf15([PATCH], [_frame15(0)])
+        char = acs.parse_acs(build_compound_file(streams))
+        assert "left out: image has 8 bytes, the character size needs 32" in char.warnings[0]
+
+    def test_cli_converts_an_agent_1_5_file(self, tmp_path, capsys):
+        source = tmp_path / "oldie.acs"
+        source.write_bytes(build_oldie())
+        assert acs.main([str(source), "--out", str(tmp_path / "out"), "--info"]) == 0
+        printed = capsys.readouterr().out
+        assert "version:      1.31" in printed
+        assert "4 animations, 6 frames, 2 unique cells" in printed

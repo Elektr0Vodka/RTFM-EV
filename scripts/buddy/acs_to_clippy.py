@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Convert a Microsoft Agent 2.0 character file (.acs) into a clippyjs agent.
+"""Convert a Microsoft Agent character file (.acs) into a clippyjs agent.
 
-SPIKE. Answers one question: can more desktop buddies be made from .acs files
-without touching the clippyjs library? See scripts/buddy/README.md.
+Reads Agent 2.0 files and the older Agent 1.5 files (OLE containers). The
+result loads in the clippyjs library as it is, so the app's desktop buddy can
+show the character. See scripts/buddy/README.md.
 
 Usage:
     python scripts/buddy/acs_to_clippy.py Robby.acs --info
@@ -14,8 +15,9 @@ Output (in --out):
     preview.html  self-contained player to eyeball the result (--preview)
     sounds/N.wav  the character's sound effects (--sounds)
 
-Format reference: "MS Agent Character Data Specification" by Remy Lebeau
-(https://uploads.s.zeid.me/ms-agent-format-spec.html). Standard library only.
+Format reference for 2.0: "MS Agent Character Data Specification" by Remy
+Lebeau (https://uploads.s.zeid.me/ms-agent-format-spec.html). The 1.5 layout
+is described next to its reader below. Standard library only.
 """
 
 from __future__ import annotations
@@ -121,9 +123,11 @@ def decompress(src: bytes) -> bytes:
 
 
 class Reader:
-    def __init__(self, data: bytes, pos: int = 0) -> None:
+    def __init__(self, data: bytes, pos: int = 0, terminated_strings: bool = True) -> None:
         self.data = data
         self.pos = pos
+        # Agent 2.0 strings end in an uncounted terminator, 1.5 strings do not.
+        self.terminated_strings = terminated_strings
 
     def _take(self, fmt: str, size: int) -> int:
         if self.pos + size > len(self.data):
@@ -155,11 +159,11 @@ class Reader:
         return chunk
 
     def string(self) -> str:
-        """Character count, UTF-16LE characters, then an uncounted terminator."""
+        """Character count, then UTF-16LE characters (and their terminator)."""
         count = self.u32()
         if count == 0:
             return ""
-        chunk = self.raw((count + 1) * 2)
+        chunk = self.raw((count + self.terminated_strings) * 2)
         return chunk[: count * 2].decode("utf-16-le", errors="replace")
 
     def locator(self) -> tuple[int, int]:
@@ -340,12 +344,288 @@ def _read_image(data: bytes, offset: int) -> Image:
     return Image(width, height, pixels[:expected])
 
 
+# --------------------------------------------------------------------------- #
+# Agent 1.5 files
+# --------------------------------------------------------------------------- #
+#
+# An Agent 1.5 .acs file is an OLE compound file holding one "char.acf" stream
+# and one ".aaf" stream per animation. The spec above does not cover it; this
+# layout was worked out from real files and is accepted only when a stream is
+# read to its last byte.
+#
+#   char.acf   ULONG 0xABCDABC1, ULONG size, ULONG compressed size, then the
+#              block (same compression as 2.0):
+#                USHORT minor, USHORT major
+#                USHORT count, then per animation: STRING name, STRING stream
+#                  name, STRING return animation, ULONG checksum
+#                GUID, STRING name, STRING description, STRING extra data
+#                USHORT width, USHORT height, BYTE transparent index, ULONG flags
+#                voice (flag 0x20): GUID, GUID, ULONG speed, USHORT pitch
+#                balloon (flag 0x200): as in 2.0, in version 1.30 one byte shorter
+#                ULONG count, RGBQUAD palette
+#                USHORT count, states as in 2.0
+#              Strings are a ULONG character count and UTF-16LE characters,
+#              without the terminator 2.0 adds.
+#   *.aaf      USHORT minor, USHORT major, ULONG checksum, BYTE compressed,
+#              [ULONG size, ULONG compressed size], then the block:
+#                USHORT count, sounds: ULONG size, RIFF data
+#                USHORT count, images: ULONG size, BYTE 0, pixels, ULONG size,
+#                  region data. Every image has the size of the character.
+#                USHORT count, frames: USHORT image, USHORT sound (0xFFFF none),
+#                  USHORT duration, ULONG 0, BYTE count + branches as in 2.0,
+#                  BYTE count + mouth overlays: BYTE shape, ULONG size and, when
+#                  the size is not 0: BYTE 0, SHORT x, SHORT y, USHORT width,
+#                  USHORT height, pixels.
+#              There are no exit branches and no layered images.
+
+OLE_SIGNATURE = bytes.fromhex("d0cf11e0a1b11ae1")
+ACF_V15_SIGNATURE = 0xABCDABC1
+_CFB_END_OF_CHAIN = 0xFFFFFFFE  # 0xFFFFFFFF marks a free sector
+_CFB_STREAM, _CFB_ROOT = 2, 5
+
+
+def read_compound_file(data: bytes) -> dict[str, bytes]:
+    """Streams of an OLE compound file, by lower-case name."""
+    if data[:8] != OLE_SIGNATURE or len(data) < 512:
+        raise AcsError("not an OLE compound file")
+    sector_shift, mini_shift = struct.unpack_from("<HH", data, 30)
+    if sector_shift not in (9, 12) or mini_shift != 6:
+        raise AcsError("unsupported compound file sector size")
+    fat_count, dir_start, _tx, cutoff, minifat_start, _n, difat_start, _m = struct.unpack_from(
+        "<8I", data, 44
+    )
+    size = 1 << sector_shift
+    per_sector = size // 4
+
+    def sector(index: int) -> bytes:
+        start = (index + 1) << sector_shift
+        if start >= len(data):
+            raise AcsError("compound file sector is outside the file")
+        return data[start : start + size].ljust(size, b"\x00")
+
+    def chain(start: int, table, read) -> bytes:
+        out = bytearray()
+        index, steps = start, 0
+        while index < _CFB_END_OF_CHAIN:
+            if index >= len(table) or steps > len(table):
+                raise AcsError("compound file sector chain is broken")
+            out += read(index)
+            index = table[index]
+            steps += 1
+        return bytes(out)
+
+    difat = list(struct.unpack_from("<109I", data, 76))
+    more = difat_start
+    while more < _CFB_END_OF_CHAIN and len(difat) < fat_count + per_sector:
+        entries = struct.unpack(f"<{per_sector}I", sector(more))
+        difat += entries[:-1]
+        more = entries[-1]
+    fat: list[int] = []
+    for index in difat[:fat_count]:
+        fat += struct.unpack(f"<{per_sector}I", sector(index))
+
+    directory = chain(dir_start, fat, sector)
+    entries = []
+    for pos in range(0, len(directory) - 127, 128):
+        name_size, kind = struct.unpack_from("<HB", directory, pos + 64)
+        start, length = struct.unpack_from("<II", directory, pos + 116)
+        name = directory[pos : pos + max(min(name_size, 64) - 2, 0)].decode("utf-16-le", "replace")
+        entries.append((name, kind, start, length))
+    root = next((entry for entry in entries if entry[1] == _CFB_ROOT), None)
+    if root is None:
+        raise AcsError("compound file has no root entry")
+
+    # Streams below the cutoff live in 64-byte sectors inside the root's stream.
+    mini_stream = chain(root[2], fat, sector)[: root[3]]
+    mini_raw = chain(minifat_start, fat, sector)
+    minifat = struct.unpack(f"<{len(mini_raw) // 4}I", mini_raw)
+    mini = 1 << mini_shift
+
+    def mini_sector(index: int) -> bytes:
+        return mini_stream[index * mini : (index + 1) * mini]
+
+    streams: dict[str, bytes] = {}
+    for name, kind, start, length in entries:
+        if kind != _CFB_STREAM:
+            continue
+        if length < cutoff:
+            body = chain(start, minifat, mini_sector)
+        else:
+            body = chain(start, fat, sector)
+        streams[name.lower()] = body[:length]
+    return streams
+
+
+def _unpack_v15_stream(blob: bytes, name: str) -> bytes:
+    """The block inside char.acf or an .aaf stream, decompressed."""
+    r = Reader(blob)
+    if blob[:4] == struct.pack("<I", ACF_V15_SIGNATURE):
+        r.u32()
+    else:
+        r.raw(2 + 2 + 4)  # version, checksum
+        if not r.u8():
+            return blob[r.pos :]
+    size, packed = r.u32(), r.u32()
+    body = decompress(r.raw(packed)) if packed else r.raw(size)
+    if len(body) != size:
+        raise AcsError(f"{name} is damaged ({len(body)} bytes where {size} are stated)")
+    return body
+
+
+def _read_v15_character_info(
+    body: bytes, voice_flag: int, balloon_flag: int, balloon_tail: int
+) -> dict:
+    r = Reader(body, terminated_strings=False)
+    minor, major = r.u16(), r.u16()
+    animations = []
+    for _ in range(r.u16()):
+        name, stream, return_animation = r.string(), r.string(), r.string()
+        r.u32()  # checksum
+        animations.append((name, stream, return_animation))
+    r.raw(16)  # GUID
+    name, description = r.string(), r.string()
+    r.string()  # extra data
+    width, height = r.u16(), r.u16()
+    transparent_index = r.u8()
+    flags = r.u32()
+    if flags & voice_flag:
+        r.raw(16 + 16 + 4 + 2)  # engine id, mode id, speed, pitch
+    if balloon_flag == 0 or flags & balloon_flag:
+        r.raw(2 + 4 + 4 + 4)  # lines, chars per line, three colours
+        r.string()  # font name
+        r.raw(4 + 4 + balloon_tail)  # height, weight, italic (and one more byte)
+
+    palette_count = r.u32()
+    if not 1 <= palette_count <= 256:
+        raise AcsError(f"implausible palette size {palette_count}")
+    palette = []
+    for _ in range(palette_count):
+        blue, green, red, _reserved = r.raw(4)
+        palette.append((red, green, blue))
+
+    states: dict[str, list[str]] = {}
+    for _ in range(r.u16()):
+        state = r.string()
+        states[state] = [r.string() for _ in range(r.u16())]
+    if r.pos != len(body):
+        raise AcsError("character info has unread bytes")
+    return {
+        "version": (major, minor),
+        "animations": animations,
+        "name": name,
+        "description": description,
+        "width": width,
+        "height": height,
+        "transparent_index": transparent_index,
+        "flags": flags,
+        "palette": palette,
+        "states": states,
+    }
+
+
+def _read_v15_animation(
+    body: bytes, width: int, height: int, image_base: int, sound_base: int
+) -> tuple[list[Frame], list[Image], list[bytes]]:
+    r = Reader(body)
+    sounds = [r.raw(r.u32()) for _ in range(r.u16())]
+    expected = ((width + 3) & ~3) * height
+    images = []
+    for _ in range(r.u16()):
+        size = r.u32()
+        r.u8()  # always 0
+        if size != expected:
+            raise AcsError(f"image has {size} bytes, the character size needs {expected}")
+        images.append(Image(width, height, r.raw(size)))
+        r.raw(r.u32())  # region data
+
+    frames = []
+    for _ in range(r.u16()):
+        image_index, sound_index, duration = r.u16(), r.u16(), r.u16()
+        r.u32()  # always 0
+        branches = [(r.u16(), r.u16()) for _ in range(r.u8())]
+        overlay_count = r.u8()
+        for _ in range(overlay_count):
+            r.u8()  # mouth shape
+            size = r.u32()
+            if size:
+                r.raw(1 + 2 + 2 + 2 + 2)  # always 0, x, y, width, height
+                r.raw(size)
+        placed = [FrameImage(image_base + image_index, 0, 0)] if image_index < len(images) else []
+        sound = sound_base + sound_index if sound_index < len(sounds) else NO_SOUND
+        frames.append(Frame(placed, sound, duration, -1, branches, overlay_count))
+    if r.pos != len(body):
+        raise AcsError("animation has unread bytes")
+    return frames, images, sounds
+
+
+def parse_v15(data: bytes) -> Character:
+    streams = read_compound_file(data)
+    if "char.acf" not in streams:
+        raise AcsError("compound file has no char.acf stream: not an Agent 1.5 character")
+    body = _unpack_v15_stream(streams["char.acf"], "char.acf")
+    info = None
+    layout = _FLAG_LAYOUTS[0]
+    error: AcsError | None = None
+    # Version 1.30 has one byte after the balloon font weight, 1.31 has two.
+    # The right combination is the one that ends on the last byte.
+    for layout, balloon_tail in ((flags, tail) for flags in _FLAG_LAYOUTS for tail in (2, 1)):
+        try:
+            info = _read_v15_character_info(body, *layout, balloon_tail)
+            break
+        except AcsError as exc:
+            error = exc
+    if info is None:
+        raise AcsError(f"cannot read character info: {error}")
+
+    warnings: list[str] = []
+    animations: list[Animation] = []
+    images: list[Image | None] = []
+    sounds: list[bytes] = []
+    for name, stream, return_animation in info["animations"]:
+        try:
+            if stream.lower() not in streams:
+                raise AcsError(f"stream {stream} is missing")
+            frames, new_images, new_sounds = _read_v15_animation(
+                _unpack_v15_stream(streams[stream.lower()], stream),
+                info["width"],
+                info["height"],
+                len(images),
+                len(sounds),
+            )
+        except AcsError as exc:
+            # One damaged stream costs one animation, not the character.
+            warnings.append(f'animation "{name}" left out: {exc}')
+            continue
+        images += new_images
+        sounds += new_sounds
+        transition = TRANSITION_RETURN if return_animation else TRANSITION_NONE
+        animations.append(Animation(name, transition, return_animation, frames))
+
+    return Character(
+        name=info["name"],
+        description=info["description"],
+        version=info["version"],
+        width=info["width"],
+        height=info["height"],
+        transparent_index=info["transparent_index"],
+        flags=info["flags"],
+        flag_layout=layout,
+        palette=info["palette"],
+        states=info["states"],
+        animations=animations,
+        images=images,
+        sounds=sounds,
+        warnings=warnings,
+    )
+
+
 def parse_acs(data: bytes) -> Character:
+    if data[:8] == OLE_SIGNATURE:
+        return parse_v15(data)
     r = Reader(data)
     signature = r.u32()
     if signature != ACS_SIGNATURE:
-        hint = " (looks like an Agent 1.5 OLE file)" if data[:4] == b"\xd0\xcf\x11\xe0" else ""
-        raise AcsError(f"not an Agent 2.0 character file: signature 0x{signature:08X}{hint}")
+        raise AcsError(f"not an Agent character file: signature 0x{signature:08X}")
     info_loc, anim_loc, image_loc, audio_loc = r.locator(), r.locator(), r.locator(), r.locator()
 
     info = None

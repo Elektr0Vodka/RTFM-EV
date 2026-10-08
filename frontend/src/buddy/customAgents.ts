@@ -119,4 +119,45 @@ export const CUSTOM_BUDDY_AGENTS = {
     agent: () => import('./custom/wartnose/agent.json'),
     map: () => import('./custom/wartnose/map.png?url'),
   },
+  // Microsoft Agent 1.5 characters (the older OLE file format)
+  al: {
+    name: 'Al',
+    agent: () => import('./custom/al/agent.json'),
+    map: () => import('./custom/al/map.png?url'),
+  },
+  checkmate: {
+    name: 'Checkmate',
+    agent: () => import('./custom/checkmate/agent.json'),
+    map: () => import('./custom/checkmate/map.png?url'),
+  },
+  gourdy: {
+    name: 'Gourdy',
+    agent: () => import('./custom/gourdy/agent.json'),
+    map: () => import('./custom/gourdy/map.png?url'),
+  },
+  max: {
+    name: 'Max',
+    agent: () => import('./custom/max/agent.json'),
+    map: () => import('./custom/max/map.png?url'),
+  },
+  ozzar: {
+    name: 'Ozzar',
+    agent: () => import('./custom/ozzar/agent.json'),
+    map: () => import('./custom/ozzar/map.png?url'),
+  },
+  sharky: {
+    name: 'Sharky',
+    agent: () => import('./custom/sharky/agent.json'),
+    map: () => import('./custom/sharky/map.png?url'),
+  },
+  spaceman: {
+    name: 'Spaceman',
+    agent: () => import('./custom/spaceman/agent.json'),
+    map: () => import('./custom/spaceman/map.png?url'),
+  },
+  totem: {
+    name: 'Totem',
+    agent: () => import('./custom/totem/agent.json'),
+    map: () => import('./custom/totem/map.png?url'),
+  },
 } satisfies Record<string, CustomBuddyAgent>;
