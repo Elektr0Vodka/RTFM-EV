@@ -1,23 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip as RechartsTooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
 import { api, isAbortError } from '../../api';
 import { useT } from '../../i18n';
-import { formatDateTime } from '../../utils/dateTimeFormat';
-import type { ChartWindow } from '../../lib/chartZoom';
 import type { SnmpHistoryEntry } from '../../types';
-import { ZoomableChart } from '../charts/ZoomableChart';
+import { SnmpSeriesChart } from './SnmpSeriesChart';
 import { SNMP_FIELDS, formatSnmpValue, type SnmpField } from './snmpFields';
+import { toChartPoints } from './snmpSeries';
 
-const TIME_MIN_SPAN = 30; // smallest zoom window, in seconds
-const CHART_HEIGHT = 120;
+export { toChartPoints, type SnmpChartPoint } from './snmpSeries';
+
 const CHART_COLOR = '#0ea5e9';
 
 const RANGES: { hours: number; labelKey: string }[] = [
@@ -31,35 +21,6 @@ const CHART_FIELDS: SnmpField[] = SNMP_FIELDS.filter(
   (field) => field.key !== 'node_name' && field.key !== 'firmware_version'
 );
 const DEFAULT_METRIC = 'free_heap';
-
-const TOOLTIP_STYLE = {
-  contentStyle: {
-    backgroundColor: 'hsl(var(--popover))',
-    border: '1px solid hsl(var(--border))',
-    borderRadius: '6px',
-    fontSize: '11px',
-    color: 'hsl(var(--popover-foreground))',
-  },
-  itemStyle: { color: 'hsl(var(--popover-foreground))' },
-  labelStyle: { color: 'hsl(var(--muted-foreground))' },
-} as const;
-
-export interface SnmpChartPoint {
-  time: number;
-  value: number;
-}
-
-/** History rows to chart points for one value; rows without a number are skipped. */
-export function toChartPoints(history: SnmpHistoryEntry[], key: string): SnmpChartPoint[] {
-  const points: SnmpChartPoint[] = [];
-  for (const entry of history) {
-    const value = entry.values[key];
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      points.push({ time: entry.timestamp, value });
-    }
-  }
-  return points;
-}
 
 /**
  * Stored SNMP polls of one contact as a chart: pick a value and a range.
@@ -88,10 +49,19 @@ export function SnmpHistoryChart({ publicKey, version }: { publicKey: string; ve
   }, [publicKey, hours, version]);
 
   const field = CHART_FIELDS.find((f) => f.key === metric) ?? CHART_FIELDS[0];
-  const points = useMemo(() => toChartPoints(history ?? [], field.key), [history, field.key]);
-  const full: ChartWindow =
-    points.length > 0 ? [points[0].time, points[points.length - 1].time] : [0, 0];
-  const format = (value: number) => formatSnmpValue(field, { [field.key]: value });
+  const label = t(field.labelKey);
+  const series = useMemo(
+    () => [
+      {
+        key: field.key,
+        label,
+        color: CHART_COLOR,
+        points: toChartPoints(history ?? [], field.key),
+      },
+    ],
+    [history, field.key, label]
+  );
+  const pointCount = series[0].points.length;
 
   return (
     <div className="space-y-1" data-testid="snmp-history">
@@ -130,77 +100,17 @@ export function SnmpHistoryChart({ publicKey, version }: { publicKey: string; ve
           {error}
         </p>
       )}
-      {history !== null && points.length < 2 && !error && (
+      {history !== null && pointCount < 2 && !error && (
         <p className="text-[0.6875rem] text-muted-foreground" data-testid="snmp-history-empty">
           {t('snmp_history_empty')}
         </p>
       )}
-      {points.length >= 2 && (
-        <div role="img" aria-label={t('snmp_history_chart_label', { value: t(field.labelKey) })}>
-          <ZoomableChart full={full} minSpan={TIME_MIN_SPAN} inset={{ left: 48, right: 4 }}>
-            {({ domain, isPanning }) => (
-              <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-                <AreaChart data={points}>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="hsl(var(--border))"
-                    vertical={false}
-                  />
-                  <XAxis
-                    dataKey="time"
-                    type="number"
-                    allowDataOverflow
-                    domain={domain}
-                    tickFormatter={(timestamp: number) =>
-                      formatDateTime(timestamp * 1000, {
-                        month: 'numeric',
-                        day: 'numeric',
-                        hour: 'numeric',
-                        minute: '2-digit',
-                      })
-                    }
-                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                    tickLine={false}
-                    axisLine={false}
-                    width={48}
-                    domain={['auto', 'auto']}
-                  />
-                  {!isPanning && (
-                    <RechartsTooltip
-                      {...TOOLTIP_STYLE}
-                      labelFormatter={(timestamp) =>
-                        formatDateTime(Number(timestamp) * 1000, {
-                          year: 'numeric',
-                          month: 'numeric',
-                          day: 'numeric',
-                          hour: 'numeric',
-                          minute: '2-digit',
-                          second: '2-digit',
-                        })
-                      }
-                      formatter={(value) => [format(Number(value)), t(field.labelKey)]}
-                    />
-                  )}
-                  <Area
-                    type="monotone"
-                    dataKey="value"
-                    name={t(field.labelKey)}
-                    stroke={CHART_COLOR}
-                    fill={CHART_COLOR}
-                    fillOpacity={0.15}
-                    dot={false}
-                    isAnimationActive={false}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </ZoomableChart>
-        </div>
+      {pointCount >= 2 && (
+        <SnmpSeriesChart
+          series={series}
+          format={(value) => formatSnmpValue(field, { [field.key]: value })}
+          ariaLabel={t('snmp_history_chart_label', { value: label })}
+        />
       )}
     </div>
   );

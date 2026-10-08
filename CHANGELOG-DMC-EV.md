@@ -57,6 +57,61 @@ No migration.
   An entry adds the buddy to the picker after the `clippyjs` ones and loads it
   as its own lazy chunk. `BUDDY_AGENT_IDS` and `BUDDY_AGENT_NAMES` in
   `buddy/agents.ts` now merge both sources.
+## Update 2026-10-08 (SNMP node page with graphs, feat/snmp-node-page)
+
+### Tools: SNMP node page (frontend)
+- A row on the SNMP page now opens a full page for that node
+  (`#snmp/<public key>`), in the style of My Node. It replaces the in-place
+  expand: the arrow in front of a row, or a click anywhere on the row, opens
+  the page. The node name still opens the contact page and **Poll now** still
+  polls.
+- Header: back to all SNMP nodes, name, type, status, address, last good
+  poll, schedule, the last error when the node is failing, **Open contact
+  page** and **Poll now**.
+- Time range selector as on My Node (20 m up to 30 d and **Custom** with a
+  start and an end), remembered per browser.
+- Tiles with the newest values (uptime, firmware version, free heap, WiFi
+  RSSI, noise floor, connected MQTT slots) and the number of reboots in the
+  period (counted from drops in the uptime).
+- Graphs of the stored polls, grouped as the values are, each with wheel
+  zoom, drag pan and hover values: uptime, packets received and sent,
+  received and sent by route (flood, direct), receive errors, air time,
+  noise floor, last RSSI, last SNR, connected MQTT slots, packet queue depth,
+  skipped publishes, memory (free heap, largest free block, free internal
+  RAM), free PSRAM (only when the node reports any) and WiFi RSSI.
+- **Counters: Rates / Totals.** Packets, errors, air time and skipped
+  publishes are counters that only go up since the node started. **Rates**
+  (default) shows the increase between two polls, per minute, and air time
+  as a percentage of the time. An interval with a reboot is left out, so a
+  restart does not draw a negative spike. **Totals** shows the counter
+  itself. The choice is remembered per browser.
+- All 22 values of the newest poll, grouped, at the bottom.
+- **Auto refresh** and **Refresh** work as on the overview and share its
+  setting. They re-read stored data and never poll the node.
+- Nothing on this page transmits over RF.
+
+### Tool pages no longer load chat messages (frontend)
+- Opening a page that is not a chat sent a needless
+  `GET /api/messages?type=PRIV&conversation_key=<page>` in the background:
+  My Node, Mesh Health, Mesh Trends, Mesh Discovery, SNMP, Analyze Packet,
+  Packet History, Knowledge base, Channel Registry and the link detail page.
+  The message loader listed the pages that are not a chat, and new pages
+  were not added to it. It now lists what is a chat instead: a contact, a
+  channel, and the contact page (so the messages are ready when you open the
+  chat from there).
+- A page can share its id with a chat: the SNMP page of a node and that
+  contact. Going between the two now counts as a switch, so the chat loads
+  its messages after a visit to the node's SNMP page and nothing of the chat
+  lingers on the SNMP page.
+
+### SNMP history period (backend)
+- `GET /api/contacts/{public_key}/snmp/history` takes optional `start` and
+  `end` (Unix seconds). With `start` it returns the polls from `start` up to
+  `end` (now when `end` is left out) and ignores `hours`. `end` without
+  `start`, or an `end` that is not after `start`, is a 400. Without `start`
+  nothing changes: the last `hours`, default 24. Read-only, no migration.
+- Checked in a browser against net-snmp 5.9.4 agents on loopback with eight
+  hours of generated history that includes two reboots.
 
 ## Update 2026-10-08 (SNMP page under Tools, feat/snmp-tools-page)
 

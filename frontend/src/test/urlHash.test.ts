@@ -433,4 +433,20 @@ describe('snmp (Tools > SNMP) route', () => {
   it('builds #snmp from an snmp conversation', () => {
     expect(getConversationHash({ type: 'snmp', id: 'snmp', name: 'SNMP' })).toBe('#snmp');
   });
+
+  it('parses #snmp/<public key> as the full page of one node', () => {
+    const key = 'ab'.repeat(32);
+    window.location.hash = `#snmp/${key}`;
+    expect(parseHashConversation()).toEqual({ type: 'snmp', name: key });
+  });
+
+  it('falls back to the overview for #snmp/ without a key', () => {
+    window.location.hash = '#snmp/';
+    expect(parseHashConversation()).toEqual({ type: 'snmp', name: 'snmp' });
+  });
+
+  it('builds #snmp/<public key> from the conversation of one node', () => {
+    const key = 'ab'.repeat(32);
+    expect(getConversationHash({ type: 'snmp', id: key, name: 'SNMP' })).toBe(`#snmp/${key}`);
+  });
 });

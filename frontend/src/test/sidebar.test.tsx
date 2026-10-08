@@ -10,6 +10,7 @@ import {
   type Channel,
   type Contact,
   type ContactGroup,
+  type Conversation,
 } from '../types';
 import { getStateKey, type ConversationTimes } from '../utils/conversationState';
 import { PUBLIC_CHANNEL_KEY } from '../utils/publicChannel';
@@ -67,6 +68,7 @@ function renderSidebar(overrides?: {
   sidebarHidden?: { sections: string[]; tools: string[]; favorites: string[] };
   contactGroups?: ContactGroup[];
   contacts?: Contact[];
+  activeConversation?: Conversation | null;
   ownPublicKey?: string | null;
   ownedKeys?: string[];
   onSaveSidebarOrder?: (update: {
@@ -105,7 +107,7 @@ function renderSidebar(overrides?: {
       ownPublicKey={overrides?.ownPublicKey}
       ownedKeys={overrides?.ownedKeys}
       channels={channels}
-      activeConversation={null}
+      activeConversation={overrides?.activeConversation ?? null}
       onSelectConversation={onSelectConversation}
       onNewMessage={vi.fn()}
       lastMessageTimes={overrides?.lastMessageTimes ?? {}}
@@ -969,6 +971,17 @@ describe('Sidebar customisation (plan 17)', () => {
     const { onSelectConversation } = renderSidebar();
     fireEvent.click(screen.getByRole('button', { name: 'SNMP' }));
     expect(onSelectConversation).toHaveBeenCalledWith({ type: 'snmp', id: 'snmp', name: 'SNMP' });
+  });
+
+  it('marks the SNMP tool as current on the overview and on a node page', () => {
+    const { unmount } = renderSidebar({
+      activeConversation: { type: 'snmp', id: 'snmp', name: 'SNMP' },
+    });
+    expect(screen.getByRole('button', { name: 'SNMP' })).toHaveAttribute('aria-current', 'page');
+    unmount();
+
+    renderSidebar({ activeConversation: { type: 'snmp', id: 'ab'.repeat(32), name: 'SNMP' } });
+    expect(screen.getByRole('button', { name: 'SNMP' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('renders tools in a stored custom order', () => {
