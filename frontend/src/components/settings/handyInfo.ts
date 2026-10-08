@@ -158,6 +158,13 @@ export const HANDY_BUILTINS: HandyBuiltin[] = [
     url: 'https://meshcore.io/',
   },
   {
+    id: 'link-meshcore-info-eu',
+    group: 'links',
+    category: 'community',
+    label: 'meshcore-info.eu',
+    url: 'https://meshcore-info.eu/',
+  },
+  {
     id: 'link-meshcore-nl',
     group: 'links',
     category: 'community',

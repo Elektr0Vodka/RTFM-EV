@@ -145,6 +145,8 @@ describe('SettingsHandyInfoSection', () => {
     expect(screen.getByText('DMC channel browser')).toBeInTheDocument();
     expect(screen.getByText('Region list (meshwiki)')).toBeInTheDocument();
     expect(screen.getByText('MeshCore.io')).toBeInTheDocument();
+    expect(screen.getByText('meshcore-info.eu')).toBeInTheDocument();
+    expect(document.querySelector('a[href="https://meshcore-info.eu/"]')).not.toBeNull();
     expect(screen.getByText('Triangulator')).toBeInTheDocument();
     expect(screen.getByText('Zweerbericht')).toBeInTheDocument();
   });
