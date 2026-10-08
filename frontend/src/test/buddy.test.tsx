@@ -257,11 +257,15 @@ describe('BuddyHost', () => {
     const props = hostProps({ activePage: 'map' });
     render(<BuddyHost {...props} />);
 
-    await waitFor(() => expect(fake.agent.show).toHaveBeenCalled());
-    expect(loadBuddyAgentMock).toHaveBeenCalledWith('clippy');
-    expect(fake.spoken).toContain(
-      "It looks like you're looking at the map. Drag to pan, scroll to zoom."
+    // The host shows the agent first and only then puts it in React state; the
+    // tip is said by an effect after that render. Wait for the tip itself, not
+    // for show(): on a slow machine the effect has not run yet when show() has.
+    await waitFor(() =>
+      expect(fake.spoken).toContain(
+        "It looks like you're looking at the map. Drag to pan, scroll to zoom."
+      )
     );
+    expect(loadBuddyAgentMock).toHaveBeenCalledWith('clippy');
 
     act(() => {
       emitBuddyEvent({ kind: 'dm', publicKey: ALICE_KEY, senderName: null });
@@ -284,7 +288,9 @@ describe('BuddyHost', () => {
     loadBuddyAgentMock.mockResolvedValue(fake.agent);
     const props = hostProps({ activePage: 'map' });
     const { rerender } = render(<BuddyHost {...props} />);
-    await waitFor(() => expect(fake.agent.show).toHaveBeenCalled());
+    // Wait until the map tip sits in the held queue (see the test above), so
+    // leaving the page really happens while that tip is still waiting.
+    await waitFor(() => expect(fake.agent._addToQueue).toHaveBeenCalled());
 
     rerender(<BuddyHost {...props} activePage="search" />);
     act(() => fake.release());
