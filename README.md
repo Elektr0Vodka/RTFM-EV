@@ -69,7 +69,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - **Mesh Trends:** stored network, message and packet breakdowns plus live session statistics.
 - **Packet Feed** (live) and **Packet History** (everything stored, with search and CSV export).
 - **Analyze Packet**, **Mesh Visualizer** (3D graph), **Trace** (with a hop map), **Mesh Discovery** (repeaters, sensors, regions, plus Direct (0 hop) and Flood advert buttons).
-- **SNMP:** every node with SNMP set up in one sortable table, with failing polls marked, all 22 values and the history chart per node, and Poll now / Poll all now over your LAN (no RF).
+- **SNMP:** every node with SNMP set up in one sortable table, with failing polls marked and Poll now / Poll all now over your LAN (no RF). Each node has its own page with all 22 values and graphs over a time range you choose (counters as rates or totals, reboots counted).
 - **Channel Registry** with remote sync (open a channel's entry in edit mode from its header or info panel), and **Channel Finder** (WebGPU channel name search).
 - **Knowledge base**: your own handy links, picked from Settings > Handy Info > Links or added directly.
 - One time-range selector across the analysis views; charts zoom and pan.

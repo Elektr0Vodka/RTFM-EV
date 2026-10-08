@@ -10,6 +10,7 @@ command over RF to ask the node for that address.
 
 import logging
 import time
+from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -119,16 +120,25 @@ async def poll_snmp(public_key: str) -> SnmpPollResponse:
 
 @router.get("/{public_key}/snmp/history", response_model=list[SnmpHistoryEntry])
 async def get_snmp_history(
-    public_key: str, hours: int = Query(default=24, ge=1, le=24 * 365)
+    public_key: str,
+    hours: int = Query(default=24, ge=1, le=24 * 365),
+    start: Annotated[int | None, Query(ge=0, description="Period start, Unix seconds")] = None,
+    end: Annotated[int | None, Query(ge=0, description="Period end, Unix seconds")] = None,
 ) -> list[SnmpHistoryEntry]:
-    """Stored SNMP polls of the last ``hours``, oldest first (read-only).
+    """Stored SNMP polls, oldest first (read-only).
 
-    A long range is thinned to at most ``HISTORY_MAX_POINTS`` rows.
+    Without ``start`` this is the last ``hours``. With ``start`` it is the
+    period from ``start`` to ``end`` (now when omitted) and ``hours`` is
+    ignored. A long range is thinned to at most ``HISTORY_MAX_POINTS`` rows.
     """
+    if start is None and end is not None:
+        raise HTTPException(status_code=400, detail="end needs start")
+    if start is not None and end is not None and end <= start:
+        raise HTTPException(status_code=400, detail="end must be after start")
     contact = await _resolve_contact_or_404(public_key)
-    since = int(time.time()) - hours * 3600
+    since = start if start is not None else int(time.time()) - hours * 3600
     rows = await SnmpHistoryRepository.get_history(
-        contact.public_key, since, max_points=HISTORY_MAX_POINTS
+        contact.public_key, since, max_points=HISTORY_MAX_POINTS, until_timestamp=end
     )
     return [SnmpHistoryEntry(**row) for row in rows]
 
