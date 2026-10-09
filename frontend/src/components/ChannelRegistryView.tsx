@@ -1722,7 +1722,7 @@ function ChannelRow({
       <span className="font-medium text-sm truncate flex items-center gap-1" title={entry.channel}>
         {entry.private && (
           <Lock
-            className="h-3 w-3 text-destructive flex-shrink-0"
+            className="h-3 w-3 text-destructive shrink-0"
             aria-label={t('channel_registry_private_badge_aria')}
           />
         )}

@@ -32,7 +32,7 @@ jobs:
   publish-aur:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Resolve version from event
         id: version
@@ -52,7 +52,7 @@ jobs:
           sed -i "s/^pkgrel=.*/pkgrel=1/" pkg/aur/PKGBUILD
 
       - name: Publish to AUR
-        uses: KSXGitHub/github-actions-deploy-aur@v4.1.2
+        uses: KSXGitHub/github-actions-deploy-aur@v4.2.0
         with:
           pkgname: remoteterm-meshcore
           pkgbuild: pkg/aur/PKGBUILD

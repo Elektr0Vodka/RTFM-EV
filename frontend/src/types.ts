@@ -307,14 +307,7 @@ export interface Contact {
 
 /** Stored per-contact vessel type (contacts.vessel_type). Never detected: beacons carry none. */
 export type VesselType =
-  | 'sailing'
-  | 'motor'
-  | 'fishing'
-  | 'cargo'
-  | 'passenger'
-  | 'tug'
-  | 'sar'
-  | 'other';
+  'sailing' | 'motor' | 'fishing' | 'cargo' | 'passenger' | 'tug' | 'sar' | 'other';
 
 export type RadioPolicy = 'auto' | 'pinned' | 'excluded';
 
@@ -359,11 +352,7 @@ export interface ContactAnnotationsUpdate {
 }
 
 export type RadioResidencyReason =
-  | 'pinned'
-  | 'loadout'
-  | 'favorite'
-  | 'recent-dm'
-  | 'recent-advert';
+  'pinned' | 'loadout' | 'favorite' | 'recent-dm' | 'recent-advert';
 
 export interface ContactRadioResidency {
   public_key: string;
@@ -478,12 +467,7 @@ export interface ContactLocationHistoryEntry {
 
 /** Repeater or room dashboard pane stored in `device_config_history` (plan 14). */
 export type DeviceConfigKind =
-  | 'node_info'
-  | 'radio_settings'
-  | 'advert_intervals'
-  | 'owner_info'
-  | 'regions'
-  | 'acl';
+  'node_info' | 'radio_settings' | 'advert_intervals' | 'owner_info' | 'regions' | 'acl';
 
 /** One stored repeater or room pane snapshot (JSON of the pane response). */
 export interface DeviceConfigHistoryEntry {

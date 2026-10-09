@@ -121,7 +121,7 @@ export function ManualView() {
         <li key={section.id}>
           <button
             type="button"
-            className="w-full rounded px-2 py-1 text-left text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="w-full rounded px-2 py-1 text-left text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => scrollToSection(section.id)}
           >
             {section.title}

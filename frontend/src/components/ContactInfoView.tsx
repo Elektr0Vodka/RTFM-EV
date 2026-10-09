@@ -176,7 +176,7 @@ export function ContactInfoView({
           onClick={onBack}
           aria-label={t('common_back')}
           title={t('common_back')}
-          className="p-1 flex-shrink-0 rounded hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="p-1 shrink-0 rounded hover:bg-accent transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
@@ -207,7 +207,7 @@ export function ContactInfoView({
             </div>
           )}
         </div>
-        <span className="ml-1 flex-shrink-0 text-[0.625rem] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">
+        <span className="ml-1 shrink-0 text-[0.625rem] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">
           {contactTypeLabel(contact.type, t)}
         </span>
         {(isRepeater || isRoom) && (
@@ -215,7 +215,7 @@ export function ContactInfoView({
             {onPathDiscovery && (
               <button
                 type="button"
-                className="p-1 rounded hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="p-1 rounded hover:bg-accent transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => setPathDiscoveryOpen(true)}
                 title={t('chat_path_discovery_description')}
                 aria-label={t('a11y_path_discovery')}
@@ -226,7 +226,7 @@ export function ContactInfoView({
             {onTrace && (
               <button
                 type="button"
-                className="p-1 rounded hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="p-1 rounded hover:bg-accent transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={onTrace}
                 title={t('a11y_direct_trace')}
                 aria-label={t('a11y_direct_trace')}
@@ -237,7 +237,7 @@ export function ContactInfoView({
             {notificationsSupported && onToggleNotifications && (
               <button
                 type="button"
-                className="p-1 rounded hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="p-1 rounded hover:bg-accent transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={onToggleNotifications}
                 title={
                   notificationsEnabled
@@ -262,7 +262,7 @@ export function ContactInfoView({
             {onDeleteContact && (
               <button
                 type="button"
-                className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => onDeleteContact(contact.public_key)}
                 title={t('common_delete')}
                 aria-label={t('common_delete')}
@@ -365,7 +365,7 @@ function LoginRegion({
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
         aria-label={label}
-        className="w-full flex items-center justify-between gap-2 px-4 py-2 bg-muted/40 text-sm font-medium hover:bg-muted/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        className="w-full flex items-center justify-between gap-2 px-4 py-2 bg-muted/40 text-sm font-medium hover:bg-muted/60 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         <span className="flex items-center gap-2">
           <Lock className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
@@ -414,7 +414,7 @@ function MinimalTopBar({
         onClick={onBack}
         aria-label={t('common_back')}
         title={t('common_back')}
-        className="p-1 rounded hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="p-1 rounded hover:bg-accent transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
       >
         <ChevronLeft className="h-5 w-5" />
       </button>

@@ -31,7 +31,7 @@ const SKIN_TONE_ORDER: readonly SkinTone[] = [
 const textEncoder = new TextEncoder();
 
 const EMOJI_BUTTON_CLASS =
-  'flex h-8 w-8 items-center justify-center rounded-sm text-xl leading-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+  'flex h-8 w-8 items-center justify-center rounded-sm text-xl leading-none focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring';
 
 function CategoryHeader({ category, className, ...props }: EmojiPickerListCategoryHeaderProps) {
   return (
@@ -130,7 +130,7 @@ export function EmojiPicker({ onSelect }: EmojiPickerProps) {
       emojibaseUrl={EMOJIBASE_URL}
       resolveEmojiData={resolve}
       onEmojiSelect={({ emoji }) => select(emoji)}
-      className="flex h-[24rem] w-[18.5rem] max-w-[calc(100vw-2rem)] flex-col isolate"
+      className="flex h-96 w-74 max-w-[calc(100vw-2rem)] flex-col isolate"
     >
       <div className="flex items-center gap-1 p-2 pb-1">
         <Picker.Search
@@ -138,7 +138,7 @@ export function EmojiPicker({ onSelect }: EmojiPickerProps) {
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('chat_emoji_search')}
           aria-label={t('chat_emoji_search')}
-          className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
         />
         <Picker.SkinTone>
           {({ skinTone, setSkinTone, skinToneVariations }) => {
@@ -191,7 +191,7 @@ export function EmojiPicker({ onSelect }: EmojiPickerProps) {
         </div>
       )}
 
-      <Picker.Viewport className="relative min-h-0 flex-1 border-t border-border outline-none">
+      <Picker.Viewport className="relative min-h-0 flex-1 border-t border-border outline-hidden">
         <Picker.Loading className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
           {loadFailed ? t('chat_emoji_load_failed') : t('chat_emoji_loading')}
         </Picker.Loading>

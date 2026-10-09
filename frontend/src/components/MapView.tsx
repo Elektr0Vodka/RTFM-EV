@@ -1365,7 +1365,7 @@ export function MapView({
 
       if (contact.notes) {
         const notes = document.createElement('div');
-        notes.className = 'text-xs mt-1 whitespace-pre-wrap break-words';
+        notes.className = 'text-xs mt-1 whitespace-pre-wrap wrap-break-word';
         notes.textContent =
           contact.notes.length > 140 ? contact.notes.slice(0, 140) + '…' : contact.notes;
         root.appendChild(notes);
@@ -2530,7 +2530,7 @@ export function MapView({
         }
       >
         {showPackets && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-4 z-[500] flex justify-center px-2">
+          <div className="pointer-events-none absolute inset-x-0 bottom-4 z-500 flex justify-center px-2">
             <PlaybackBar
               snapshot={playSnap}
               range={playRange}

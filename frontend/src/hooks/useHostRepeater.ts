@@ -185,8 +185,7 @@ export function useHostRepeater(enabled: boolean) {
 }
 
 export type HostRepeaterModeResult =
-  | { ok: true }
-  | { ok: false; blockers: string[]; message?: string };
+  { ok: true } | { ok: false; blockers: string[]; message?: string };
 
 /** The live (non-settings) part of a state response, applied over local edits. */
 function pickLive(next: HostRepeaterState): Partial<HostRepeaterState> {

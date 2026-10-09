@@ -1,0 +1,10 @@
+/*
+  Theme, component and pop-out styles, placed in Tailwind's `utilities` cascade
+  layer after the generated classes. Unlayered CSS would beat every Tailwind
+  utility regardless of specificity; inside the layer they compete on
+  specificity and source order, as they did under Tailwind 3.
+  Imported from main.tsx right after index.css, which declares the layer order.
+*/
+@import './themes.css' layer(utilities);
+@import './styles.css' layer(utilities);
+@import './popout/popout.css' layer(utilities);

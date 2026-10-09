@@ -609,7 +609,7 @@ export function ContactInfoBody({
                   <div key={r.public_key} className="flex justify-between items-center text-sm">
                     <span className="truncate">{r.name || r.public_key.slice(0, 12)}</span>
                     {/* eslint-disable i18next/no-literal-string */}
-                    <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">
+                    <span className="text-xs text-muted-foreground shrink-0 ml-2">
                       {r.path_len === 0
                         ? t('contact_direct')
                         : t('contact_hop_count', { count: r.path_len })}{' '}
@@ -647,7 +647,7 @@ export function ContactInfoBody({
                     : t('contact_direct_path')}
                 </span>
                 {/* eslint-disable i18next/no-literal-string */}
-                <span className="text-xs text-muted-foreground flex-shrink-0">
+                <span className="text-xs text-muted-foreground shrink-0">
                   {p.heard_count}x · {formatTime(p.last_seen)}
                 </span>
                 {/* eslint-enable i18next/no-literal-string */}
@@ -675,7 +675,7 @@ export function ContactInfoBody({
                       ? parsePathHops(p.path, p.path_len).join(' → ')
                       : t('contact_direct_path')}
                 </span>
-                <span className="text-xs text-muted-foreground flex-shrink-0 text-right">
+                <span className="text-xs text-muted-foreground shrink-0 text-right">
                   {t('contact_path_score_detail', {
                     score: Math.round(p.score * 100),
                     ok: p.success_count,
@@ -711,7 +711,7 @@ export function ContactInfoBody({
             {analytics.name_history.map((h) => (
               <div key={h.name} className="flex justify-between items-center text-sm">
                 <span className="font-medium truncate">{h.name}</span>
-                <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">
+                <span className="text-xs text-muted-foreground shrink-0 ml-2">
                   {formatTime(h.first_seen)} &ndash; {formatTime(h.last_seen)}
                 </span>
               </div>
@@ -847,7 +847,7 @@ export function MostActiveChannelsSection({
                 ? channel.channel_name
                 : `#${channel.channel_name}`}
             </span>
-            <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">
+            <span className="text-xs text-muted-foreground shrink-0 ml-2">
               {t('common_msg_count', {
                 count: channel.message_count,
                 n: channel.message_count.toLocaleString(),
@@ -1122,7 +1122,7 @@ function NearbyRepeatersSection({
         {nearby.map((r) => (
           <div key={r.publicKey} className="flex justify-between items-center text-sm">
             <span className="truncate">{r.name}</span>
-            <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">
+            <span className="text-xs text-muted-foreground shrink-0 ml-2">
               {formatDistance(r.distance, distanceUnit)}
             </span>
           </div>
@@ -1255,7 +1255,7 @@ function ContactPositionsSection({ publicKey, t }: { publicKey: string; t: TFn }
             <span className="font-mono truncate">
               {formatCoordinates(p.lat, p.lon, coordinateFormat, 4)}
             </span>
-            <span className="text-xs text-muted-foreground flex-shrink-0">
+            <span className="text-xs text-muted-foreground shrink-0">
               {formatTime(p.first_seen)} &ndash; {formatTime(p.last_seen)}
             </span>
           </div>
@@ -1319,7 +1319,7 @@ export function ContactBeaconHistorySection({
                 <span className="font-mono truncate">
                   {formatCoordinates(beacon.lat, beacon.lon, coordinateFormat, 5)}
                 </span>
-                <span className="text-xs text-muted-foreground flex-shrink-0">
+                <span className="text-xs text-muted-foreground shrink-0">
                   {formatTime(beacon.received_at)}
                 </span>
               </div>

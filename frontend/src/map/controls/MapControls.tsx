@@ -124,7 +124,7 @@ export interface MapControlsProps {
 const FAB_CLASS =
   'relative flex h-11 w-11 items-center justify-center rounded-full border border-border ' +
   'bg-card text-card-foreground shadow-lg transition-colors hover:border-foreground/40 ' +
-  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary';
+  'focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-primary';
 
 type PanelPos = { x: number; y: number };
 const DEFAULT_LEGEND_POS: PanelPos = { x: 64, y: 8 };
@@ -207,7 +207,7 @@ function PinnedPanel({
   return (
     <div
       ref={cardRef}
-      className="pointer-events-auto absolute z-[1300] w-56 rounded-md border border-border bg-popover text-popover-foreground shadow-lg"
+      className="pointer-events-auto absolute z-1300 w-56 rounded-md border border-border bg-popover text-popover-foreground shadow-lg"
       style={{ left: pos.x, top: pos.y }}
     >
       <div
@@ -783,7 +783,7 @@ export function MapControls(props: MapControlsProps) {
       <div
         data-testid="map-fab-stack"
         className={
-          'pointer-events-none absolute top-3 z-[1200] flex items-start gap-2 transition-[left] duration-200 ' +
+          'pointer-events-none absolute top-3 z-1200 flex items-start gap-2 transition-[left] duration-200 ' +
           (isMobile && sidebarOpen ? 'left-[288px]' : 'left-3')
         }
       >

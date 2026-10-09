@@ -1,98 +1,271 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
 
-/* DarkDutch fonts (declared globally; only the DarkDutch theme consumes them) */
-@font-face {
-  font-family: 'Aldrich';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('/fonts/aldrich-v22-latin-400.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'IBM Plex Sans';
-  font-style: normal;
-  font-weight: 100 700;
-  font-display: swap;
-  src: url('/fonts/ibm-plex-sans-latin-var.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'IBM Plex Mono';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('/fonts/ibm-plex-mono-latin-400.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'IBM Plex Mono';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url('/fonts/ibm-plex-mono-latin-600.woff2') format('woff2');
+@plugin 'tailwindcss-animate';
+
+@custom-variant dark (&:is(.dark *));
+/* Tailwind 4 applies hover: only on devices that report a hover-capable
+   pointer. Keep the Tailwind 3 behaviour: hover styles on :hover, everywhere. */
+@custom-variant hover (&:hover);
+
+@theme {
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --color-msg-outgoing: hsl(var(--msg-outgoing));
+  --color-msg-incoming: hsl(var(--msg-incoming));
+  --color-status-connected: hsl(var(--status-connected));
+  --color-status-disconnected: hsl(var(--status-disconnected));
+
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+
+  --color-info: hsl(var(--info));
+  --color-info-foreground: hsl(var(--info-foreground));
+
+  --color-favorite: hsl(var(--favorite));
+  --color-console: hsl(var(--console));
+  --color-console-command: hsl(var(--console-command));
+  --color-console-bg: hsl(var(--console-bg));
+  --color-code-editor-bg: hsl(var(--code-editor-bg));
+  --color-overlay: hsl(var(--overlay));
+
+  --color-badge-unread: hsl(var(--badge-unread));
+  --color-badge-unread-foreground: hsl(var(--badge-unread-foreground));
+
+  --color-badge-mention: hsl(var(--badge-mention));
+  --color-badge-mention-foreground: hsl(var(--badge-mention-foreground));
+
+  --color-badge-new: hsl(var(--badge-new));
+  --color-badge-new-foreground: hsl(var(--badge-new-foreground));
+
+  --color-toast-error: hsl(var(--toast-error));
+  --color-toast-error-foreground: hsl(var(--toast-error-foreground));
+  --color-toast-error-border: hsl(var(--toast-error-border));
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  /* Tailwind 4 redefined its default palette in OKLCH, which shifts every shade a
+     little. These are Tailwind 3's sRGB values for the shades this app uses, so
+     status and badge colours stay exactly as they were. Add a shade here when a
+     new one is used. */
+  --color-gray-200: #e5e7eb;
+  --color-red-500: #ef4444;
+  --color-orange-400: #fb923c;
+  --color-orange-500: #f97316;
+  --color-orange-600: #ea580c;
+  --color-orange-700: #c2410c;
+  --color-amber-400: #fbbf24;
+  --color-amber-500: #f59e0b;
+  --color-amber-600: #d97706;
+  --color-yellow-300: #fde047;
+  --color-yellow-400: #facc15;
+  --color-yellow-500: #eab308;
+  --color-yellow-600: #ca8a04;
+  --color-yellow-700: #a16207;
+  --color-lime-500: #84cc16;
+  --color-lime-600: #65a30d;
+  --color-green-400: #4ade80;
+  --color-green-500: #22c55e;
+  --color-green-600: #16a34a;
+  --color-emerald-400: #34d399;
+  --color-emerald-500: #10b981;
+  --color-emerald-600: #059669;
+  --color-cyan-500: #06b6d4;
+  --color-cyan-600: #0891b2;
+  --color-sky-500: #0ea5e9;
+  --color-sky-600: #0284c7;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-violet-500: #8b5cf6;
+  --color-violet-600: #7c3aed;
+  --color-purple-400: #c084fc;
+  --color-purple-500: #a855f7;
+  --color-fuchsia-500: #d946ef;
+  --color-fuchsia-600: #c026d3;
+  --color-rose-500: #f43f5e;
+  --color-rose-600: #e11d48;
+
+  /* Tailwind 4 gives the text-size utilities a relative line-height, which a
+     child with another font-size then scales. Tailwind 3 used these absolute
+     values; keeping them keeps every line where it was. */
+  --text-xs--line-height: 1rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl--line-height: 2rem;
+  --text-3xl--line-height: 2.25rem;
+  --text-4xl--line-height: 2.5rem;
+
+  --animate-ticker: ticker 30s linear infinite;
+
+  @keyframes ticker {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-100%);
+    }
+  }
 }
 
-/* MCEU fonts (SIL Open Font License; the Latin and Latin Extended subsets the EU
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+/* Tailwind 4's reset gives buttons the default cursor; Tailwind 3 used pointer. */
+@layer base {
+  /* Was the first rule of styles.css. It has to sit below Tailwind's utilities:
+     space-* and divide-* have zero specificity in Tailwind 4 and a later
+     `* { margin: 0 }` would cancel them. */
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+@layer utilities {
+  /* DarkDutch fonts (declared globally; only the DarkDutch theme consumes them) */
+  @font-face {
+    font-family: 'Aldrich';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/fonts/aldrich-v22-latin-400.woff2') format('woff2');
+  }
+  @font-face {
+    font-family: 'IBM Plex Sans';
+    font-style: normal;
+    font-weight: 100 700;
+    font-display: swap;
+    src: url('/fonts/ibm-plex-sans-latin-var.woff2') format('woff2');
+  }
+  @font-face {
+    font-family: 'IBM Plex Mono';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/fonts/ibm-plex-mono-latin-400.woff2') format('woff2');
+  }
+  @font-face {
+    font-family: 'IBM Plex Mono';
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url('/fonts/ibm-plex-mono-latin-600.woff2') format('woff2');
+  }
+
+  /* MCEU fonts (SIL Open Font License; the Latin and Latin Extended subsets the EU
    MeshCore Analyzer ships). Declared globally; only the MCEU themes consume
    them, and the browser fetches a file only when a glyph in its range is drawn. */
-@font-face {
-  font-family: 'Bricolage Grotesque';
-  font-style: normal;
-  font-weight: 500 700;
-  font-stretch: 100%;
-  font-display: swap;
-  src: url('/fonts/bricolage-grotesque-latin-ext.woff2') format('woff2');
-  unicode-range:
-    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
-    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
-    U+A720-A7FF;
-}
-@font-face {
-  font-family: 'Bricolage Grotesque';
-  font-style: normal;
-  font-weight: 500 700;
-  font-stretch: 100%;
-  font-display: swap;
-  src: url('/fonts/bricolage-grotesque-latin.woff2') format('woff2');
-  unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
-    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: 'Figtree';
-  font-style: normal;
-  font-weight: 400 700;
-  font-display: swap;
-  src: url('/fonts/figtree-latin-ext.woff2') format('woff2');
-  unicode-range:
-    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
-    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
-    U+A720-A7FF;
-}
-@font-face {
-  font-family: 'Figtree';
-  font-style: normal;
-  font-weight: 400 700;
-  font-display: swap;
-  src: url('/fonts/figtree-latin.woff2') format('woff2');
-  unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
-    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: 'JetBrains Mono';
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url('/fonts/jetbrains-mono-latin.woff2') format('woff2');
-  unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
-    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
+  @font-face {
+    font-family: 'Bricolage Grotesque';
+    font-style: normal;
+    font-weight: 500 700;
+    font-stretch: 100%;
+    font-display: swap;
+    src: url('/fonts/bricolage-grotesque-latin-ext.woff2') format('woff2');
+    unicode-range:
+      U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+      U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+      U+A720-A7FF;
+  }
+  @font-face {
+    font-family: 'Bricolage Grotesque';
+    font-style: normal;
+    font-weight: 500 700;
+    font-stretch: 100%;
+    font-display: swap;
+    src: url('/fonts/bricolage-grotesque-latin.woff2') format('woff2');
+    unicode-range:
+      U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+      U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+  @font-face {
+    font-family: 'Figtree';
+    font-style: normal;
+    font-weight: 400 700;
+    font-display: swap;
+    src: url('/fonts/figtree-latin-ext.woff2') format('woff2');
+    unicode-range:
+      U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+      U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+      U+A720-A7FF;
+  }
+  @font-face {
+    font-family: 'Figtree';
+    font-style: normal;
+    font-weight: 400 700;
+    font-display: swap;
+    src: url('/fonts/figtree-latin.woff2') format('woff2');
+    unicode-range:
+      U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+      U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+  @font-face {
+    font-family: 'JetBrains Mono';
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url('/fonts/jetbrains-mono-latin.woff2') format('woff2');
+    unicode-range:
+      U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+      U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
 
-/* Tricolour top stripe: hidden by default; DarkDutch enables it (see themes.css) */
-.page-stripe {
-  display: none;
+  /* Tricolour top stripe: hidden by default; DarkDutch enables it (see themes.css) */
+  .page-stripe {
+    display: none;
+  }
 }
 
 @layer base {
@@ -204,99 +377,306 @@
   }
 }
 
-/* The chat emoji picker (frimousse) renders emojis with its own font stack,
-   set inline on its root, which lacks the flag polyfill font above. Prepend it
-   so country flags render as flags instead of two-letter codes. */
-[frimousse-list] {
-  --frimousse-emoji-font:
-    'Twemoji Country Flags', 'Apple Color Emoji', 'Noto Color Emoji', 'Twemoji Mozilla',
-    'Android Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', EmojiSymbols, sans-serif;
-}
+/*
+  space-x-* and space-y-* with their Tailwind 3 behaviour.
 
-/* Custom scrollbar - thin, unobtrusive, matches palette */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: hsl(var(--scrollbar));
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--scrollbar-hover));
-}
-
-/* Firefox scrollbar */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: hsl(var(--scrollbar)) transparent;
-}
-
-/* Message highlight animation for jump-to-message */
-@keyframes message-highlight {
-  0% {
-    box-shadow: 0 0 0 2px hsl(var(--primary));
+  Tailwind 4 spaces children with a margin on the end of every child but the
+  last, at zero specificity. Tailwind 3 put it on the start of every child but
+  the first, at class specificity. The two differ in real layouts: an end margin
+  does nothing on an inline child (a <span> or <label> above a field loses its
+  gap), and a child's own margin class now wins where it used to lose. The app
+  has several hundred space-y containers written against the old behaviour, so
+  the first rule cancels Tailwind 4's margins and the rest restore Tailwind 3's.
+  The list is Tailwind 3's default spacing scale.
+*/
+@layer utilities {
+  :where([class*='space-y-'] > :not(:last-child)) {
+    margin-block-start: 0;
+    margin-block-end: 0;
   }
-  100% {
-    box-shadow: 0 0 0 2px transparent;
+  :where([class*='space-x-'] > :not(:last-child)) {
+    margin-inline-start: 0;
+    margin-inline-end: 0;
+  }
+  .space-y-0 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+  .space-y-px > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 1px;
+    margin-bottom: 0;
+  }
+  .space-y-0\.5 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.125rem;
+    margin-bottom: 0;
+  }
+  .space-y-1 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.25rem;
+    margin-bottom: 0;
+  }
+  .space-y-1\.5 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.375rem;
+    margin-bottom: 0;
+  }
+  .space-y-2 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.5rem;
+    margin-bottom: 0;
+  }
+  .space-y-2\.5 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.625rem;
+    margin-bottom: 0;
+  }
+  .space-y-3 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.75rem;
+    margin-bottom: 0;
+  }
+  .space-y-3\.5 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.875rem;
+    margin-bottom: 0;
+  }
+  .space-y-4 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 1rem;
+    margin-bottom: 0;
+  }
+  .space-y-5 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 1.25rem;
+    margin-bottom: 0;
+  }
+  .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 1.5rem;
+    margin-bottom: 0;
+  }
+  .space-y-7 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 1.75rem;
+    margin-bottom: 0;
+  }
+  .space-y-8 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 2rem;
+    margin-bottom: 0;
+  }
+  .space-y-9 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 2.25rem;
+    margin-bottom: 0;
+  }
+  .space-y-10 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 2.5rem;
+    margin-bottom: 0;
+  }
+  .space-y-11 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 2.75rem;
+    margin-bottom: 0;
+  }
+  .space-y-12 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 3rem;
+    margin-bottom: 0;
+  }
+  .space-y-14 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 3.5rem;
+    margin-bottom: 0;
+  }
+  .space-y-16 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 4rem;
+    margin-bottom: 0;
+  }
+  .space-y-20 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 5rem;
+    margin-bottom: 0;
+  }
+  .space-y-24 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 6rem;
+    margin-bottom: 0;
+  }
+  .space-x-0 > :not([hidden]) ~ :not([hidden]) {
+    margin-right: 0;
+    margin-left: 0;
+  }
+  .space-x-px > :not([hidden]) ~ :not([hidden]) {
+    margin-right: 0;
+    margin-left: 1px;
+  }
+  .space-x-0\.5 > :not([hidden]) ~ :not([hidden]) {
+    margin-right: 0;
+    margin-left: 0.125rem;
+  }
+  .space-x-1 > :not([hidden]) ~ :not([hidden]) {
+    margin-right: 0;
+    margin-left: 0.25rem;
+  }
+  .space-x-1\.5 > :not([hidden]) ~ :not([hidden]) {
+    margin-right: 0;
+    margin-left: 0.375rem;
+  }
+  .space-x-2 > :not([hidden]) ~ :not([hidden]) {
+    margin-right: 0;
+    margin-left: 0.5rem;
+  }
+  .space-x-2\.5 > :not([hidden]) ~ :not([hidden]) {
+    margin-right: 0;
+    margin-left: 0.625rem;
+  }
+  .space-x-3 > :not([hidden]) ~ :not([hidden]) {
+    margin-right: 0;
+    margin-left: 0.75rem;
+  }
+  .space-x-3\.5 > :not([hidden]) ~ :not([hidden]) {
+    margin-right: 0;
+    margin-left: 0.875rem;
+  }
+  .space-x-4 > :not([hidden]) ~ :not([hidden]) {
+    margin-right: 0;
+    margin-left: 1rem;
+  }
+  .space-x-5 > :not([hidden]) ~ :not([hidden]) {
+    margin-right: 0;
+    margin-left: 1.25rem;
+  }
+  .space-x-6 > :not([hidden]) ~ :not([hidden]) {
+    margin-right: 0;
+    margin-left: 1.5rem;
+  }
+  .space-x-7 > :not([hidden]) ~ :not([hidden]) {
+    margin-right: 0;
+    margin-left: 1.75rem;
+  }
+  .space-x-8 > :not([hidden]) ~ :not([hidden]) {
+    margin-right: 0;
+    margin-left: 2rem;
+  }
+  .space-x-9 > :not([hidden]) ~ :not([hidden]) {
+    margin-right: 0;
+    margin-left: 2.25rem;
+  }
+  .space-x-10 > :not([hidden]) ~ :not([hidden]) {
+    margin-right: 0;
+    margin-left: 2.5rem;
+  }
+  .space-x-11 > :not([hidden]) ~ :not([hidden]) {
+    margin-right: 0;
+    margin-left: 2.75rem;
+  }
+  .space-x-12 > :not([hidden]) ~ :not([hidden]) {
+    margin-right: 0;
+    margin-left: 3rem;
+  }
+  .space-x-14 > :not([hidden]) ~ :not([hidden]) {
+    margin-right: 0;
+    margin-left: 3.5rem;
+  }
+  .space-x-16 > :not([hidden]) ~ :not([hidden]) {
+    margin-right: 0;
+    margin-left: 4rem;
+  }
+  .space-x-20 > :not([hidden]) ~ :not([hidden]) {
+    margin-right: 0;
+    margin-left: 5rem;
+  }
+  .space-x-24 > :not([hidden]) ~ :not([hidden]) {
+    margin-right: 0;
+    margin-left: 6rem;
   }
 }
-.message-highlight {
-  animation: message-highlight 2s ease-out forwards;
-}
 
-.sidebar-tool-icon {
-  display: inline-flex;
-  height: 1.5rem;
-  width: 1.5rem;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  border-radius: 0.45rem;
-  color: var(--sidebar-icon-color);
-  opacity: 1;
-  transition:
-    color 150ms ease,
-    opacity 150ms ease;
-}
+/*
+  Tailwind 4 puts its utilities in a cascade layer, and unlayered CSS beats
+  every layer regardless of specificity. Under Tailwind 3 these rules and the
+  utilities competed on specificity and source order, so they stay in the
+  utilities layer, after the generated classes (see also app-layers.css).
+*/
+@layer utilities {
+  /* The chat emoji picker (frimousse) renders emojis with its own font stack,
+     set inline on its root, which lacks the flag polyfill font above. Prepend it
+     so country flags render as flags instead of two-letter codes. */
+  [frimousse-list] {
+    --frimousse-emoji-font:
+      'Twemoji Country Flags', 'Apple Color Emoji', 'Noto Color Emoji', 'Twemoji Mozilla',
+      'Android Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', EmojiSymbols, sans-serif;
+  }
 
-.sidebar-tool-icon svg {
-  stroke-width: 2.35;
-}
+  /* Custom scrollbar - thin, unobtrusive, matches palette */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--scrollbar));
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--scrollbar-hover));
+  }
 
-.sidebar-tool-label {
-  color: var(--sidebar-label-color);
-  transition: color 150ms ease;
-}
+  /* Firefox scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--scrollbar)) transparent;
+  }
 
-.sidebar-action-row:hover .sidebar-tool-icon,
-.sidebar-action-row:focus-visible .sidebar-tool-icon {
-  color: var(--sidebar-icon-hover-color);
-  opacity: 1;
-}
+  /* Message highlight animation for jump-to-message */
+  @keyframes message-highlight {
+    0% {
+      box-shadow: 0 0 0 2px hsl(var(--primary));
+    }
+    100% {
+      box-shadow: 0 0 0 2px transparent;
+    }
+  }
+  .message-highlight {
+    animation: message-highlight 2s ease-out forwards;
+  }
 
-.sidebar-action-row:hover .sidebar-tool-label,
-.sidebar-action-row:focus-visible .sidebar-tool-label {
-  color: var(--sidebar-label-hover-color);
-}
+  .sidebar-tool-icon {
+    display: inline-flex;
+    height: 1.5rem;
+    width: 1.5rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.45rem;
+    color: var(--sidebar-icon-color);
+    opacity: 1;
+    transition:
+      color 150ms ease,
+      opacity 150ms ease;
+  }
 
-.sidebar-action-row[data-active='true'] .sidebar-tool-icon {
-  color: var(--sidebar-icon-active-color);
-  opacity: 1;
-}
+  .sidebar-tool-icon svg {
+    stroke-width: 2.35;
+  }
 
-.sidebar-action-row[data-active='true'] .sidebar-tool-label {
-  color: var(--sidebar-label-active-color);
-}
+  .sidebar-tool-label {
+    color: var(--sidebar-label-color);
+    transition: color 150ms ease;
+  }
 
-/* Constrain CodeMirror editor width */
-.cm-editor {
-  max-width: 100% !important;
-  contain: inline-size;
-}
-.cm-editor .cm-scroller {
-  overflow-x: auto !important;
+  .sidebar-action-row:hover .sidebar-tool-icon,
+  .sidebar-action-row:focus-visible .sidebar-tool-icon {
+    color: var(--sidebar-icon-hover-color);
+    opacity: 1;
+  }
+
+  .sidebar-action-row:hover .sidebar-tool-label,
+  .sidebar-action-row:focus-visible .sidebar-tool-label {
+    color: var(--sidebar-label-hover-color);
+  }
+
+  .sidebar-action-row[data-active='true'] .sidebar-tool-icon {
+    color: var(--sidebar-icon-active-color);
+    opacity: 1;
+  }
+
+  .sidebar-action-row[data-active='true'] .sidebar-tool-label {
+    color: var(--sidebar-label-active-color);
+  }
+
+  /* Constrain CodeMirror editor width */
+  .cm-editor {
+    max-width: 100% !important;
+    contain: inline-size;
+  }
+  .cm-editor .cm-scroller {
+    overflow-x: auto !important;
+  }
 }

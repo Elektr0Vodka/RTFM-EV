@@ -78,7 +78,7 @@ export function DragList<T extends string>({
             )}
           >
             <GripVertical
-              className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/50 cursor-grab active:cursor-grabbing"
+              className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50 cursor-grab active:cursor-grabbing"
               aria-hidden="true"
             />
             <span
@@ -92,7 +92,7 @@ export function DragList<T extends string>({
             {canHide && (
               <button
                 type="button"
-                className="p-0.5 rounded text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="p-0.5 rounded text-muted-foreground hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => onToggleHidden?.(item)}
                 aria-label={isHidden ? showLabel : hideLabel}
                 aria-pressed={isHidden}
@@ -107,7 +107,7 @@ export function DragList<T extends string>({
             )}
             <button
               type="button"
-              className="p-0.5 rounded text-muted-foreground hover:text-foreground disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="p-0.5 rounded text-muted-foreground hover:text-foreground disabled:opacity-30 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => onReorder(move(items, i, i - 1))}
               disabled={i === 0}
               aria-label={moveUpLabel}
@@ -117,7 +117,7 @@ export function DragList<T extends string>({
             </button>
             <button
               type="button"
-              className="p-0.5 rounded text-muted-foreground hover:text-foreground disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="p-0.5 rounded text-muted-foreground hover:text-foreground disabled:opacity-30 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => onReorder(move(items, i, i + 1))}
               disabled={i === items.length - 1}
               aria-label={moveDownLabel}

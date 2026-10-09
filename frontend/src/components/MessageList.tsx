@@ -237,7 +237,7 @@ function MarkerMessage({
   const coords = formatCoordinates(marker.lat, marker.lon, coordinateFormat, 6);
   const inner = (
     <>
-      <MapPin className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+      <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
       <span className="flex flex-col text-left">
         {marker.label && <span className="font-medium leading-tight">{marker.label}</span>}
         {sourceText && sourceText !== coords && (
@@ -250,7 +250,7 @@ function MarkerMessage({
   const card = onCoordinateClick ? (
     <button
       type="button"
-      className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/50 px-2 py-1 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/50 px-2 py-1 transition-colors hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
       onClick={() => onCoordinateClick(marker.lat, marker.lon, mapLabel ?? marker.label)}
       title={t('chat_location_show_on_map')}
       aria-label={t('chat_location_show_on_map_aria', { place: marker.label || coords })}
@@ -351,7 +351,7 @@ function TeamPayloadMessage({
   onCoordinateClick?: (lat: number, lon: number, label: string) => void;
 }) {
   const t = useT();
-  const iconClass = 'h-4 w-4 flex-shrink-0';
+  const iconClass = 'h-4 w-4 shrink-0';
   switch (payload.type) {
     case 'beacon': {
       const name = t(payload.kind === 'topology' ? 'team_topology_beacon' : 'team_beacon');
@@ -613,7 +613,7 @@ function renderHashtag(label: string, key: string, ctx: HashtagRenderCtx): React
       title={title}
       className={cn(
         className,
-        'inline border-0 bg-transparent p-0 align-baseline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+        'inline border-0 bg-transparent p-0 align-baseline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring'
       )}
       onClick={() => ctx.onChannelReferenceClick!(label)}
     >
@@ -634,7 +634,7 @@ function renderHashtag(label: string, key: string, ctx: HashtagRenderCtx): React
           aria-label={ctx.addAriaLabel(label)}
           title={ctx.addAriaLabel(label)}
           onClick={() => ctx.onAdd!(label)}
-          className="ml-0.5 inline-flex items-center rounded border border-border px-1 text-[0.625rem] leading-none text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="ml-0.5 inline-flex items-center rounded border border-border px-1 text-[0.625rem] leading-none text-muted-foreground hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
         >
           +
         </button>
@@ -693,7 +693,7 @@ function ContactShareToken({
         type="button"
         className={cn(
           chipClass,
-          'hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+          'hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring'
         )}
         title={t('chat_contact_share_open', { name: known.name || name, key: short })}
         onClick={() => deps.onOpenContactInfo!(publicKey)}
@@ -719,7 +719,7 @@ function ContactShareToken({
               setAdding(false)
             );
           }}
-          className="rounded border border-border px-1 text-[0.6875rem] leading-tight text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          className="rounded border border-border px-1 text-[0.6875rem] leading-tight text-foreground hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           title={t('chat_contact_share_add_title', { name, key: short })}
         >
           {t('chat_contact_share_add')}
@@ -741,7 +741,7 @@ function PubkeyToken({ value, deps }: { value: string; deps: TokenDeps }) {
     return (
       <button
         type="button"
-        className="rounded px-0.5 font-mono text-primary underline hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="rounded px-0.5 font-mono text-primary underline hover:text-primary/80 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
         title={t('chat_pubkey_open_contact', { name: known.name || short })}
         onClick={() => deps.onOpenContactInfo!(value)}
       >
@@ -761,7 +761,7 @@ function PubkeyToken({ value, deps }: { value: string; deps: TokenDeps }) {
           href={url}
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded border border-border px-1 text-[0.625rem] leading-none text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="rounded border border-border px-1 text-[0.625rem] leading-none text-muted-foreground hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
           title={t('chat_pubkey_lookup_analyzer', { site: site.name })}
           aria-label={t('chat_pubkey_lookup_analyzer', { site: site.name })}
         >
@@ -1905,7 +1905,7 @@ export function MessageList({
           aria-expanded={hopFilterOpen}
           title={t('chat_hop_filter_button')}
           className={cn(
-            'flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card/90 shadow-sm backdrop-blur transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card/90 shadow-xs backdrop-blur-sm transition-colors hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
             hiddenHopWidths.size > 0 || hideUnscoped || hideMalformed
               ? 'text-status-connected'
               : 'text-muted-foreground'
@@ -1990,7 +1990,7 @@ export function MessageList({
         )}
         <div
           ref={virtualSpacerRef}
-          className="relative w-full flex-shrink-0"
+          className="relative w-full shrink-0"
           style={{ height: virtualizer.getTotalSize() }}
         >
           {virtualRows.map((virtualRow) => {
@@ -2283,7 +2283,7 @@ export function MessageList({
                     <button
                       ref={setUnreadMarkerElement}
                       type="button"
-                      className="my-2 flex w-full items-center gap-3 text-left text-xs font-medium text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="my-2 flex w-full items-center gap-3 text-left text-xs font-medium text-primary transition-colors hover:text-primary/80 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                       onClick={onDismissUnreadMarker}
                     >
                       <span className="h-px flex-1 bg-border" />
@@ -2312,13 +2312,13 @@ export function MessageList({
                       highlightedMessageId === msg.id && 'message-highlight'
                     )}
                   >
-                    <span className="flex-shrink-0 text-muted-foreground">
+                    <span className="shrink-0 text-muted-foreground">
                       {`[${formatTime(msg.received_at)}]`}
                     </span>
                     {!msg.outgoing && avatarKey && onOpenContactInfo && (
                       <button
                         type="button"
-                        className="avatar-action-button mt-0.5 flex-shrink-0 rounded-full border-none bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="avatar-action-button mt-0.5 shrink-0 rounded-full border-none bg-transparent p-0 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                         aria-label={avatarActionLabel}
                         onClick={openSenderInfo}
                       >
@@ -2333,7 +2333,7 @@ export function MessageList({
                     )}
                     <span
                       className={cn(
-                        'max-w-[45%] flex-shrink-0 truncate font-semibold',
+                        'max-w-[45%] shrink-0 truncate font-semibold',
                         msg.outgoing && 'text-primary'
                       )}
                       style={
@@ -2349,7 +2349,7 @@ export function MessageList({
                       {'>'}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <div className="break-words whitespace-pre-wrap">
+                      <div className="wrap-break-word whitespace-pre-wrap">
                         {body}
                         {renderMeta('inline')}
                         {outgoingStatus}
@@ -2359,7 +2359,7 @@ export function MessageList({
                     {/* Floated over the line's end on hover so the hidden buttons do
                         not take width away from the text; touch has no hover, so
                         there they stay in the flow. */}
-                    <div className="absolute right-0 top-0 z-10 rounded bg-card opacity-0 shadow-sm empty:hidden group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:static [@media(hover:none)]:bg-transparent [@media(hover:none)]:opacity-100 [@media(hover:none)]:shadow-none">
+                    <div className="absolute right-0 top-0 z-10 rounded bg-card opacity-0 shadow-xs empty:hidden group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:static [@media(hover:none)]:bg-transparent [@media(hover:none)]:opacity-100 [@media(hover:none)]:shadow-none">
                       {rowActions}
                     </div>
                   </div>
@@ -2373,13 +2373,13 @@ export function MessageList({
                     )}
                   >
                     {!msg.outgoing && (
-                      <div className="w-10 flex-shrink-0 flex items-start pt-0.5">
+                      <div className="w-10 shrink-0 flex items-start pt-0.5">
                         {showAvatar &&
                           avatarKey &&
                           (onOpenContactInfo ? (
                             <button
                               type="button"
-                              className="avatar-action-button rounded-full border-none bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              className="avatar-action-button rounded-full border-none bg-transparent p-0 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                               aria-label={avatarActionLabel}
                               onClick={() =>
                                 onOpenContactInfo(
@@ -2424,7 +2424,7 @@ export function MessageList({
                           {renderMeta('header')}
                         </div>
                       )}
-                      <div className="break-words whitespace-pre-wrap">
+                      <div className="wrap-break-word whitespace-pre-wrap">
                         {body}
                         {!showAvatar && (
                           <>
@@ -2479,7 +2479,7 @@ export function MessageList({
                 setJumpToUnreadDismissed(true);
                 setShowJumpToUnread(false);
               }}
-              className="h-full px-3 text-sm font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-full px-3 text-sm font-medium hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             >
               {t('chat_jump_to_unread')}
             </button>
@@ -2489,7 +2489,7 @@ export function MessageList({
                 setJumpToUnreadDismissed(true);
                 setShowJumpToUnread(false);
               }}
-              className="flex h-full w-9 items-center justify-center border-l border-border text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-full w-9 items-center justify-center border-l border-border text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
               aria-label={t('a11y_dismiss_jump_to_unread')}
               title={t('a11y_dismiss_jump_to_unread')}
             >
@@ -2501,7 +2501,7 @@ export function MessageList({
       {showScrollToBottom && (
         <button
           onClick={scrollToBottom}
-          className="absolute bottom-4 right-4 w-9 h-9 rounded-full bg-card hover:bg-accent border border-border flex items-center justify-center shadow-lg transition-all hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="absolute bottom-4 right-4 w-9 h-9 rounded-full bg-card hover:bg-accent border border-border flex items-center justify-center shadow-lg transition-all hover:scale-105 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
           title={t('a11y_scroll_to_bottom')}
           aria-label={t('a11y_scroll_to_bottom')}
         >

@@ -118,7 +118,7 @@ function ToolButton({
   return (
     <button
       type="button"
-      className="popout-tool inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-pressed:bg-accent"
+      className="popout-tool inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring aria-pressed:bg-accent"
       title={title ?? label}
       aria-pressed={pressed}
       disabled={disabled}
@@ -153,7 +153,7 @@ function ConversationList({
 
   return (
     <nav
-      className="popout-tree popout-inset flex w-44 flex-shrink-0 flex-col bg-background"
+      className="popout-tree popout-inset flex w-44 shrink-0 flex-col bg-background"
       aria-label={t('popout_conversations')}
     >
       <input
@@ -162,7 +162,7 @@ function ConversationList({
         onChange={(event) => onQueryChange(event.target.value)}
         placeholder={t('popout_filter_placeholder')}
         aria-label={t('popout_filter_placeholder')}
-        className="popout-filter m-1 border border-border bg-background px-1.5 py-0.5 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        className="popout-filter m-1 border border-border bg-background px-1.5 py-0.5 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
       />
       <div className="min-h-0 flex-1 overflow-y-auto pb-1">
         {groups.map(
@@ -182,7 +182,7 @@ function ConversationList({
                       type="button"
                       aria-current={active ? 'true' : undefined}
                       className={cn(
-                        'popout-tree-row flex w-full items-center gap-1 px-2 py-0.5 text-left text-[0.8125rem] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring',
+                        'popout-tree-row flex w-full items-center gap-1 px-2 py-0.5 text-left text-[0.8125rem] focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring',
                         active
                           ? 'bg-primary text-primary-foreground'
                           : 'text-foreground hover:bg-accent',
@@ -194,7 +194,7 @@ function ConversationList({
                       {entry.unread > 0 && (
                         <span
                           className={cn(
-                            'flex-shrink-0 font-semibold',
+                            'shrink-0 font-semibold',
                             !active && (entry.mention ? 'text-destructive' : 'text-primary')
                           )}
                           aria-label={t('popout_unread_count', { count: entry.unread })}
@@ -226,7 +226,7 @@ function SenderList({
   const t = useT();
   return (
     <aside
-      className="popout-inset hidden w-32 flex-shrink-0 flex-col bg-background sm:flex"
+      className="popout-inset hidden w-32 shrink-0 flex-col bg-background sm:flex"
       aria-label={t('popout_senders')}
     >
       <div className="px-2 pt-1.5 text-[0.6875rem] uppercase tracking-wide text-muted-foreground">
@@ -237,7 +237,7 @@ function SenderList({
           <button
             key={sender.name}
             type="button"
-            className="popout-tree-row block w-full truncate px-2 py-0.5 text-left text-[0.8125rem] text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+            className="popout-tree-row block w-full truncate px-2 py-0.5 text-left text-[0.8125rem] text-foreground hover:bg-accent focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
             title={t('a11y_view_info_for', { name: sender.name })}
             onClick={() => onOpen(sender)}
           >
@@ -399,7 +399,7 @@ export function ChatPopoutShell({
             />
           </div>
           <select
-            className="popout-tool rounded border border-border bg-background px-1 py-1 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="popout-tool rounded border border-border bg-background px-1 py-1 text-xs text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             aria-label={t('popout_skin_label')}
             title={t('popout_skin_label')}
             value={skin}
@@ -492,7 +492,7 @@ export function ChatPopoutShell({
               : t('popout_status_disconnected')}
             {statusProps.config?.name ? ` · ${statusProps.config.name}` : ''}
           </span>
-          <span className="flex-shrink-0">{t('popout_status_stream')}</span>
+          <span className="shrink-0">{t('popout_status_stream')}</span>
         </div>
 
         <NewMessageModal

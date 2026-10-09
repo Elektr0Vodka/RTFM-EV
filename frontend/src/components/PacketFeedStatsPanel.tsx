@@ -621,7 +621,7 @@ export function PacketFeedStatsPanel({ contacts }: { contacts: Contact[] }) {
   );
 
   return (
-    <div className="h-full overflow-y-auto bg-background p-4 [contain:layout_paint]">
+    <div className="h-full overflow-y-auto bg-background p-4 contain-[layout_paint]">
       <p className="mb-3 text-xs text-muted-foreground">
         {t('packet_collecting_stats_since', {
           timestamp: formatTimestamp(rawPacketStatsSession.sessionStartedAt),

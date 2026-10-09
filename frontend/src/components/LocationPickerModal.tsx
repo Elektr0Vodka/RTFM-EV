@@ -132,7 +132,7 @@ export function LocationPickerModal({
 
   return (
     <div
-      className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-1000 flex items-center justify-center bg-black/50 p-4"
       role="dialog"
       aria-modal="true"
       aria-label={t('location_picker_title')}
@@ -153,7 +153,7 @@ export function LocationPickerModal({
               type="text"
               value={label}
               onChange={(e) => setLabel(e.target.value)}
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
               placeholder={t('location_picker_label_placeholder')}
             />
           </label>

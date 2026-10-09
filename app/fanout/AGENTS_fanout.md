@@ -185,6 +185,7 @@ Create a class extending `FanoutModule`:
 ```python
 from app.fanout.base import FanoutModule
 
+
 class MyTypeModule(FanoutModule):
     def __init__(self, config_id: str, config: dict, *, name: str = "") -> None:
         super().__init__(config_id, config, name=name)
@@ -218,6 +219,7 @@ Add import and mapping in `_register_module_types()`:
 
 ```python
 from app.fanout.my_type import MyTypeModule
+
 _MODULE_TYPES["my_type"] = MyTypeModule
 ```
 

@@ -170,7 +170,7 @@ export function RepeaterDashboardBody({
           size="sm"
           onClick={loadAll}
           disabled={anyLoading}
-          className="h-7 flex-shrink-0 px-2 text-[0.6875rem] leading-none border-success text-success hover:bg-success/10 hover:text-success sm:h-8 sm:px-3 sm:text-xs"
+          className="h-7 shrink-0 px-2 text-[0.6875rem] leading-none border-success text-success hover:bg-success/10 hover:text-success sm:h-8 sm:px-3 sm:text-xs"
         >
           {anyLoading ? t('common_loading') : t('repeater_load_all')}
         </Button>

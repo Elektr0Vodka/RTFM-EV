@@ -112,7 +112,7 @@ export function VisualizerControls({
   return (
     <>
       {showControls && (
-        <div className="absolute bottom-4 left-4 bg-background/80 backdrop-blur-sm rounded-lg p-3 text-xs border border-border z-10">
+        <div className="absolute bottom-4 left-4 bg-background/80 backdrop-blur-xs rounded-lg p-3 text-xs border border-border z-10">
           <div className="flex gap-6">
             <div className="flex flex-col gap-1.5">
               <div className="text-muted-foreground font-medium mb-1">
@@ -153,7 +153,7 @@ export function VisualizerControls({
       )}
 
       <div
-        className={`absolute top-4 left-4 bg-background/80 backdrop-blur-sm rounded-lg p-3 text-xs border border-border z-10 transition-opacity ${!showControls ? 'opacity-40 hover:opacity-100' : ''}`}
+        className={`absolute top-4 left-4 bg-background/80 backdrop-blur-xs rounded-lg p-3 text-xs border border-border z-10 transition-opacity ${!showControls ? 'opacity-40 hover:opacity-100' : ''}`}
       >
         <div className="flex flex-col gap-2">
           <div className="flex flex-col gap-2">

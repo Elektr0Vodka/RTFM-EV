@@ -59,7 +59,7 @@ export function VisualizerView({ contacts, channels, config }: VisualizerViewPro
           {paneFullScreen ? t('visualizer_fullscreen_page_title') : t('nav_mesh_visualizer')}
         </span>
         <button
-          className="hidden md:inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="hidden md:inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
           onClick={toggleFullScreen}
           title={
             paneFullScreen ? t('visualizer_exit_fullscreen') : t('visualizer_fullscreen_title')
@@ -114,7 +114,7 @@ export function VisualizerView({ contacts, channels, config }: VisualizerViewPro
         <div
           className={cn(
             'overflow-hidden transition-all duration-200',
-            fullScreen ? 'w-0' : 'w-[31rem] lg:w-[38rem]'
+            fullScreen ? 'w-0' : 'w-124 lg:w-152'
           )}
         >
           <div className="h-full flex flex-col">

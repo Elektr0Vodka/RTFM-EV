@@ -11,7 +11,11 @@ export default tseslint.config(
       'react-hooks': reactHooks,
     },
     rules: {
-      ...reactHooks.configs.recommended.rules,
+      // The two classic hooks rules, spelled out. Since eslint-plugin-react-hooks 6
+      // the `recommended` preset also turns on the React Compiler rules; those are
+      // for code written for the compiler, which this app does not use.
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
       // Allow unused vars prefixed with _
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       // Allow any in specific cases (can tighten later)

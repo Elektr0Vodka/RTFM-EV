@@ -15,12 +15,7 @@ import type { ContactGroup, FavoriteSortOrder, SidebarFavoriteSortOrders } from 
 // `group:<id>` so it slots into the same order/hide/collapse machinery as the
 // four built-in sections below (see groupSectionKey/isGroupSectionKey).
 export type SidebarSectionKey =
-  | 'tools'
-  | 'favorites'
-  | 'owned'
-  | 'channels'
-  | 'contacts'
-  | `group:${string}`;
+  'tools' | 'favorites' | 'owned' | 'channels' | 'contacts' | `group:${string}`;
 
 // `owned` (plan 17 phase 3) lists contacts whose owner key is the radio's own
 // public key; it renders only when non-empty but is always orderable/hideable.

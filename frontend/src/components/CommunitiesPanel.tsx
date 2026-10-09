@@ -193,7 +193,7 @@ function JoinForm({ onJoined }: { onJoined: (community: Community) => void }) {
         spellCheck={false}
         placeholder={t('community_paste_placeholder')}
         aria-label={t('community_paste_aria')}
-        className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
       />
       <div className="flex flex-wrap gap-2">
         <Button

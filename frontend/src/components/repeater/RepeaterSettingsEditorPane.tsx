@@ -252,7 +252,7 @@ function SettingEditDialog({
                     id="setting-radio-bw"
                     value={radio.bw}
                     onChange={(e) => setRadio({ ...radio, bw: e.target.value })}
-                    className="block h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm"
+                    className="block h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs"
                   >
                     {LORA_BANDWIDTHS_KHZ.map((bw) => (
                       <option key={bw} value={bw}>
@@ -267,7 +267,7 @@ function SettingEditDialog({
                     id="setting-radio-sf"
                     value={radio.sf}
                     onChange={(e) => setRadio({ ...radio, sf: e.target.value })}
-                    className="block h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm"
+                    className="block h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs"
                   >
                     {SPREADING_FACTORS.map((sf) => (
                       <option key={sf} value={sf}>
@@ -282,7 +282,7 @@ function SettingEditDialog({
                     id="setting-radio-cr"
                     value={radio.cr}
                     onChange={(e) => setRadio({ ...radio, cr: e.target.value })}
-                    className="block h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm"
+                    className="block h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs"
                   >
                     {CODING_RATES.map((cr) => (
                       <option key={cr} value={cr}>
@@ -300,7 +300,7 @@ function SettingEditDialog({
                     id="setting-value"
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
-                    className="block h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm"
+                    className="block h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs"
                   >
                     {!def.options?.some((o) => o.value === draft) && <option value={draft} />}
                     {def.options?.map((o) => (
@@ -315,7 +315,7 @@ function SettingEditDialog({
                     value={draft}
                     rows={3}
                     onChange={(e) => setDraft(e.target.value)}
-                    className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm"
+                    className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs"
                   />
                 ) : (
                   <Input

@@ -113,10 +113,7 @@ export function RadioSettingsPane({
           aria-label={t('repeater_refresh_advert_intervals')}
         >
           <RefreshIcon
-            className={cn(
-              'w-3 h-3',
-              advertState.loading && 'animate-spin [animation-direction:reverse]'
-            )}
+            className={cn('w-3 h-3', advertState.loading && 'animate-spin direction-reverse')}
           />
         </button>
       </div>

@@ -50,7 +50,7 @@ export function UrlPreviewCard({ url }: { url: string }) {
           src={preview.image}
           alt=""
           loading="lazy"
-          className="h-14 w-14 flex-shrink-0 rounded object-cover"
+          className="h-14 w-14 shrink-0 rounded object-cover"
         />
       )}
       <span className="flex min-w-0 flex-col">

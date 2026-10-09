@@ -56,7 +56,7 @@ export function HeaderLanguageMenu() {
         aria-expanded={open}
         aria-label={t('settings_language')}
         title={t('settings_language')}
-        className="flex items-center gap-1 px-1.5 py-1 rounded-sm text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex items-center gap-1 px-1.5 py-1 rounded-sm text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
       >
         <span aria-hidden="true">{LANG_LABELS[locale].flag}</span>
         <span className="text-[0.6875rem] font-medium">{locale.toUpperCase()}</span>
@@ -66,7 +66,7 @@ export function HeaderLanguageMenu() {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 mt-1 min-w-[9rem] rounded-md border border-border bg-card p-1 shadow-lg z-50"
+          className="absolute right-0 mt-1 min-w-36 rounded-md border border-border bg-card p-1 shadow-lg z-50"
         >
           {LOCALES.map((l) => (
             <button
@@ -76,7 +76,7 @@ export function HeaderLanguageMenu() {
               aria-checked={locale === l}
               onClick={() => handleSelect(l)}
               className={cn(
-                'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-left transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-left transition-colors hover:bg-accent/50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
                 locale === l ? 'text-foreground' : 'text-muted-foreground'
               )}
             >

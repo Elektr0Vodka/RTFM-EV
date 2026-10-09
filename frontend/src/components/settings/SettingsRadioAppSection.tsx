@@ -224,7 +224,7 @@ export function SettingsRadioAppSection({
                   setIntervalDraft(prevValue)
                 );
               }}
-              className="h-9 px-3 rounded-md border border-input bg-background text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              className="h-9 px-3 rounded-md border border-input bg-background text-sm ring-offset-background focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2"
             >
               {(schedule?.options ?? [1, 2, 3, 4, 6, 8, 12, 24]).map((hrs) => (
                 <option key={hrs} value={hrs}>
@@ -326,7 +326,7 @@ export function SettingsRadioAppSection({
                         variant="ghost"
                         size="sm"
                         onClick={() => onToggleTrackedTelemetry(key)}
-                        className="h-7 text-xs flex-shrink-0 text-destructive hover:text-destructive"
+                        className="h-7 text-xs shrink-0 text-destructive hover:text-destructive"
                       >
                         {t('settings_radioapp_remove_button')}
                       </Button>
@@ -437,7 +437,7 @@ export function SettingsRadioAppSection({
                         variant="ghost"
                         size="sm"
                         onClick={() => onToggleTrackedTelemetryContact(key)}
-                        className="h-7 text-xs flex-shrink-0 text-destructive hover:text-destructive"
+                        className="h-7 text-xs shrink-0 text-destructive hover:text-destructive"
                       >
                         {t('settings_radioapp_remove_button')}
                       </Button>
@@ -584,7 +584,7 @@ export function SettingsRadioAppSection({
                             variant="ghost"
                             size="sm"
                             onClick={() => onToggleBlockedKey(key)}
-                            className="h-7 text-xs flex-shrink-0"
+                            className="h-7 text-xs shrink-0"
                           >
                             {t('settings_radioapp_unblock_button')}
                           </Button>
@@ -608,7 +608,7 @@ export function SettingsRadioAppSection({
                             variant="ghost"
                             size="sm"
                             onClick={() => onToggleBlockedName(name)}
-                            className="h-7 text-xs flex-shrink-0"
+                            className="h-7 text-xs shrink-0"
                           >
                             {t('settings_radioapp_unblock_button')}
                           </Button>

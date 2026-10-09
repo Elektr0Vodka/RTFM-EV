@@ -240,7 +240,7 @@ export function SnmpView({
         type="button"
         onClick={() => handleSort(key)}
         className={cn(
-          'inline-flex max-w-[7rem] items-end uppercase leading-tight tracking-wide hover:text-foreground',
+          'inline-flex max-w-28 items-end uppercase leading-tight tracking-wide hover:text-foreground',
           align === 'right' && 'text-right'
         )}
       >

@@ -11,6 +11,88 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-09 (dependency updates, chore/dependency-updates)
+
+Every dependency in the repo moved to its newest release that the rest of the
+toolchain supports. No migration, no feature change. Screens are meant to look
+exactly as before; see "Tailwind 4" for how that was checked.
+
+### Backend (`pyproject.toml`, `uv.lock`)
+- `uv lock --upgrade`: 58 packages. Largest steps: FastAPI 0.136 to 0.143,
+  Starlette 1.3 to 1.7, uvicorn 0.40 to 0.54, pydantic 2.12 to 2.14,
+  websockets 15 to 17, cryptography 48 to 50, apprise 1.9 to 2.0,
+  pydantic-settings 2.12 to 2.15, urllib3 2.7 to 2.8, oauthlib 3 to 4,
+  boto3 1.42 to 1.43, bleak 2 to 3, dbus-fast 3 to 5.
+- `meshcore` pin 2.3.14 to 2.3.15. Tests pass; not tried on a radio.
+- Tooling: ruff 0.14 to 0.16, pyright 1.1.408 to 1.1.414, pytest 9.0 to 9.1.
+  ruff 0.16 also formats Python code blocks in Markdown under `app/`, which
+  reformatted two blocks in `app/fanout/AGENTS_fanout.md`.
+
+### Frontend (`frontend/package.json`)
+- **React 18 to 19.** One type fix (`RefObject<HTMLDivElement | null>` in
+  `useChartZoom`); no runtime change needed.
+- **TypeScript 5.9 to 6.0.** Not 7.0: `typescript-eslint` (8.71.1, also its
+  canary) supports `<6.1.0` and stops with "does not support TS 7.0", and lint
+  is a CI gate. TypeScript 6 checks side-effect imports, so stylesheet imports
+  are declared in `src/types/vite-css.d.ts`.
+- **Tailwind CSS 3.4 to 4.3** (see below).
+- **ESLint 9 to 10**, `eslint-plugin-react-hooks` 5 to 7, `typescript-eslint`
+  8.56 to 8.71. The hooks plugin's `recommended` preset now includes the React
+  Compiler rules (209 findings in code not written for the compiler), so
+  `eslint.config.js` names the two classic rules instead. ESLint 10's new
+  `no-useless-assignment` and `no-unassigned-vars` flagged four lines, fixed in
+  `novaRecolor.ts` and `rawPacketInspector.ts`.
+- **Vitest 4 to 5**, jsdom 25 to 30, `@testing-library/jest-dom` 6 to 7,
+  Prettier 3.8 to 3.9 (eight files reformatted).
+- lucide-react 0.562 to 1.54, three 0.182 to 0.186, maplibre-gl 6.10 to 6.13,
+  recharts 3.8 to 3.10, Vite 8.1 to 8.3, the Radix packages, and the rest of
+  the minor and patch updates. `autoprefixer` is gone (Tailwind 4 prefixes).
+- jsdom 30 asks for Node 22.22.2+, 24.15+ or 26+ to run the tests. Building is
+  unchanged.
+
+### Tailwind 4
+- Migrated with the official upgrade tool, then corrected by hand: the tool
+  also renames words that are not class names. It turned the host repeater mode
+  value `'shadow'` into `'shadow-sm'` (in `types.ts`, `api.ts`, the hook and
+  the settings screen) and `variant="outline"` into `"outline-solid"`. Those
+  lines were restored by hand; `tsc` and the tests confirm none is left.
+- Configuration moved from `tailwind.config.js` (removed) into `@theme` in
+  `src/index.css`. PostCSS uses `@tailwindcss/postcss`.
+- Rules added so the result matches Tailwind 3, each one explained where it
+  stands in `index.css`:
+  - `themes.css`, `styles.css` and `popout.css` are imported through
+    `src/app-layers.css` into Tailwind's `utilities` cascade layer. Unlayered
+    they would beat every utility regardless of specificity.
+  - The universal `* { margin: 0; padding: 0 }` reset moved from `styles.css`
+    to `@layer base`. Left after the utilities it cancelled every `space-y-*`.
+  - `space-x-*` / `space-y-*` keep their Tailwind 3 behaviour (margin on the
+    start of each child but the first, at class specificity). Tailwind 4's
+    end margin does nothing on an inline child, which removed the gap under
+    `<span>` and `<label>` headings.
+  - `hover:` applies on `:hover` everywhere, not only on hover-capable
+    pointers; buttons keep `cursor: pointer`; the text-size utilities keep
+    absolute line-heights; the 36 default-palette shades the app uses keep
+    their Tailwind 3 sRGB values (Tailwind 4 redefined the palette in OKLCH).
+- Check: computed styles (43 properties) and positions of every element were
+  compared between the build before and after the migration, on a scratch
+  backend with a copy of the live database. Ten screens in the default theme
+  (channel chat, Mesh Health, Packet Feed, SNMP, Channel Registry, My Node,
+  Mesh Discovery, Message Search, Mesh Trends, Settings) and the channel chat
+  in Light, CRT Green, MCEU Light, Windows 95 and DarkDutch: no style
+  difference except `divide-y`, whose 1px line now belongs to the row above
+  instead of the row below (same pixels). Not covered: the map, the
+  visualizer, repeater dashboards (need a radio login) and dialogs.
+- Tailwind 4 needs Safari 16.4, Chrome 111 or Firefox 128 and newer.
+
+### Build and CI
+- Dockerfile: uv image 0.6 to 0.13. Node 24 and Python 3.14 stay: Node 26 is
+  not LTS yet and Python 3.15 is a release candidate.
+- GitHub Actions: checkout v7, setup-node v7, setup-python v7, setup-uv
+  v10.3.0 (no moving major tag exists after v7), codeql-action v4, docker
+  build-push v7, metadata v6, login v4, setup-buildx v4, deploy-aur v4.2.0.
+  These only run on GitHub and have not run yet.
+- `tests/e2e`: Playwright 1.58 to 1.64 (lockfile only, suite not run).
+
 ## Update 2026-10-09 (MCEU themes, feat/mceu-theme)
 
 No migration, no backend change, no new dependency. Five font files added
