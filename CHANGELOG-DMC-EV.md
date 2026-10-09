@@ -11,6 +11,46 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-09 (MCEU themes, feat/mceu-theme)
+
+No migration, no backend change, no new dependency. Five font files added
+(160 KB, SIL Open Font License).
+
+### Interface: MCEU Light and MCEU Dark themes
+- Two new entries in the theme picker, **MCEU Light** and **MCEU Dark**
+  (`mceu-light`, `mceu-dark`), after the look of the EU MeshCore Analyzer's
+  new design ("Atlas"). The colours are that design's own tokens
+  (`web/next/css/atlas.css` in EU-Meshcore-Analyzer): warm paper ground with
+  white cards and a blue accent in the light theme, near-black ground with
+  a lighter blue in the dark one.
+- Text colours use the base token where it reaches 4.5:1 on the ground and
+  the token's darker or lighter "ink" variant where it does not (warning and
+  success in the light theme; warning, success and destructive in the dark
+  one). Five values have no Atlas token and are derived: the scrollbar thumb
+  (light), its hover (dark), the dark error toast border, the dark overlay
+  and the dark float shadow.
+- Shapes, shared by both themes: the sidebar and top bar sit on the ground
+  and only cards are raised; sidebar rows are inset pills and the open one is
+  a card with a hairline ring; cards and dialogs get a 20px radius, controls
+  12px and 10px; menus and popovers get the Atlas float shadow; fields and
+  outline buttons are surfaces; message bubbles get a 16px radius, incoming
+  as a bordered surface and outgoing in the soft accent.
+- Fonts: Bricolage Grotesque on headings, Figtree for text and JetBrains Mono
+  for monospace, the same Latin and Latin Extended subsets the analyzer
+  serves, in `frontend/public/fonts`. The browser fetches them only while an
+  MCEU theme is active.
+- Outgoing bubbles use the soft accent with normal text, not the solid accent
+  with white text of the Atlas chat mockup: links and muted text inside a
+  bubble take their colour from the theme and would not be readable on the
+  solid accent.
+
+### Not included
+- The Atlas page layout (six-area sidebar, page headers, phone tab bar). The
+  themes restyle the existing screens; no component changed.
+- An entry that follows the OS light/dark setting. The existing "OS
+  Light/Dark Mode" entry still switches between Light and Original.
+- Atlas's orange "live" colour is not used: no state in this app maps to it.
+
 ## Update 2026-10-09 (desktop buddy: unacknowledged DMs, integrations and SNMP, feat/buddy-expression-quiet)
 
 No migration, no backend change, no new dependency.

@@ -251,7 +251,11 @@ Customisation heading and the branding block below it.
 - **Themes**: the swatch grid selects the colour theme (per-device). Four CRT
   phosphor themes sit in the grid alongside the rest: **CRT Green**, **CRT
   Amber**, **CRT White**, and **CRT Blue** (C64), each applying a monochrome
-  phosphor palette.
+  phosphor palette. **MCEU Light** and **MCEU Dark** follow the look of the EU
+  MeshCore Analyzer (its "Atlas" design): warm paper or near-black ground,
+  raised cards, a blue accent, large rounded corners and the analyzer's fonts
+  (Bricolage Grotesque, Figtree, JetBrains Mono, served by the app itself). They
+  restyle the existing screens; the page layout stays the same.
 - **CRT screen effects**: scanline, phosphor-glow, screen-curvature, and flicker
   toggles that sit beneath the theme grid. They are a universal overlay: they
   work on top of any theme, not only the CRT ones. They default on when a CRT

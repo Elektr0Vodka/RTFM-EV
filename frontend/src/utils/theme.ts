@@ -99,6 +99,20 @@ export const THEMES: Theme[] = [
     swatches: ['#060709', '#12151b', '#1976e8', '#1b1f27', '#df2020', '#3ecf8e'],
     metaThemeColor: '#060709',
   },
+  // MCEU: the "Atlas" look of the EU MeshCore Analyzer, in its light and dark
+  // variant. Tokens and shape rules are in themes.css.
+  {
+    id: 'mceu-light',
+    name: 'MCEU Light',
+    swatches: ['#F5F3EE', '#FFFFFF', '#2446D8', '#EFECE5', '#C77700', '#1E8A4C'],
+    metaThemeColor: '#F5F3EE',
+  },
+  {
+    id: 'mceu-dark',
+    name: 'MCEU Dark',
+    swatches: ['#121317', '#1A1C22', '#7C94FF', '#20232A', '#F0C064', '#6FD39B'],
+    metaThemeColor: '#121317',
+  },
   // CRT phosphor themes. Selecting one applies the monochrome palette (see
   // themes.css) and turns the CRT screen effects on by default; the effect
   // toggles beneath the theme picker then work on top of any theme.
