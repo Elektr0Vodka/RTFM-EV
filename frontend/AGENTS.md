@@ -784,6 +784,14 @@ trust CI. Do not "fix" files you did not touch.
 directory used by the downloadable prebuilt release zip; normal development and
 validation should stick to `npm run build`.
 
+Waits in tests (`waitFor`, `findBy*`) get 5 s, set once in `src/test/setup.ts`
+(Testing Library's own default is 1 s); a whole test gets 20 s
+(`vitest.config.ts`). Both are headroom for load: the suite runs one worker per
+CPU thread, and a wait on an asynchronous render that settles in a few hundred
+ms alone has been measured past 1 s inside a full run. Do not lower either to
+make a failing test report sooner, and prefer waiting for the thing you assert
+(`findByTestId`, a specific `waitFor`) over a fixed delay.
+
 When touching cross-layer contracts, also run backend tests from repo root:
 
 ```bash

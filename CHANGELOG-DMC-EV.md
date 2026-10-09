@@ -11,6 +11,58 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-09 (Frontend test flakes: waits under load, fix/frontend-wait-flakes)
+
+### Tests: `toggles settings page mode and syncs selected section into SettingsModal` (frontend)
+- `src/test/appFavorites.test.tsx` could fail in a full `npm run test:run`
+  with `Unable to find an element by: [data-testid="settings-modal-section"]`
+  (2 of 6 full runs on a 16-core Windows machine) while passing every time on
+  its own. `SettingsModal` is `React.lazy` in `AppShell`: the click commits
+  the settings view with its Suspense fallback, and the modal arrives in a
+  later render outside `act()`. The test gave that render `waitFor`'s default
+  1 s. Measured with timed copies of the test inside the full suite, the wait
+  took 166 ms to 5.1 s and passed 1 s in 6 of 18 samples (208 ms on its own).
+  The import of the mocked module itself took 0 ms, so that is not the slow
+  part. A copy of the test with the module made 1.5 s slow to load fails with
+  the same error.
+- The test now waits for the modal by its test id with a 10 s allowance and
+  checks the "Back to Chat" button once afterwards, not on every poll. With
+  that, the same measurement gave 27 ms to 1.2 s over 18 samples (one still
+  past 1 s, which is why the allowance stays), the slow-module copy passes,
+  and the test passed in three full runs. Code unchanged: lazy loading the
+  settings page is intended.
+
+### Tests: waits get 5 s by default (frontend)
+- `src/test/setup.ts` now sets Testing Library's `asyncUtilTimeout` to 5 s for
+  every test file (`waitFor`, `findBy*`); it was the library default of 1 s.
+  Two files already set this value for themselves (`appStartupHash.test.tsx`,
+  `appChatPopout.test.tsx`), for the same reason. `testSetup.test.ts` guards
+  the setting.
+- Why suite-wide: the settings test above was not the only one. The emoji
+  picker test `every button in the picker is a non-submit button` in
+  `messageInput.test.tsx` failed the same way once (at 1.2 s). With every
+  wait timed over three full runs, waits that needed an asynchronous render
+  took 500 ms or more 13 times, in 10 tests across 7 files, and passed 1 s
+  twice (1027 ms in `messageInput`, 1095 ms in `appFavorites`). The emoji
+  picker waits take 300 to 730 ms even with only two other files running.
+- What it costs: a wait that really fails now takes 5 s to report, not 1 s.
+  No passing test gets slower: over five full runs with a 15 s allowance not
+  one wait failed, so no test relies on a wait timing out.
+- Not chosen: fewer test workers. With 8 workers (16 is the default on this
+  16-thread machine) two full runs took 191 s and 215 s, against 112 to 174 s
+  for most runs that day, and a single test still ran 10.6 s. It also does not
+  help when the load comes from outside the test run.
+- Verified: a wait that needs 1.5 s fails before the change and passes after
+  it, and three full runs passed, 2849 of 2849 each, with the machine at 83
+  to 97% CPU from other work before each run.
+- Not fixed: whole tests reaching the 20 s `testTimeout`. Seen in two of the
+  day's full runs (two tests in `mapView.test.tsx`, one in
+  `hostRepeaterSettings.test.tsx`), both in runs that took over 215 s because
+  the machine was busy with other work. With other processes holding the
+  CPU at 88 to 100% (sampled around that run), one `hostRepeaterSettings`
+  test reached 20 s with the file run on its own. That is a different limit
+  from the one changed here.
+
 ## Update 2026-10-09 (MCEU themes, feat/mceu-theme)
 
 No migration, no backend change, no new dependency. Five font files added
