@@ -11,6 +11,60 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-09 (desktop buddy: expression, switches and quiet periods, feat/buddy-expression-quiet)
+
+No migration, no backend change, no new dependency.
+
+### Interface: desktop buddy (expression)
+- The buddy plays a fitting animation before each line: attention for a DM or
+  mention, a cheer for a new node or a reconnected radio, an alert for a lost
+  radio or a low battery, an announcement for an update, an explanation for a
+  page tip. Characters differ in what they have, so each mood is a chain and
+  the first animation the character knows is played (`buddy/buddyMood.ts`). A
+  character with none of them (Gourdy) just speaks, as before.
+- When the thing a line is about is on screen, the buddy gestures toward it
+  while it talks: the sender's or channel's row in the sidebar, the radio
+  status, the battery indicator, the Settings button (for an update). These
+  elements carry a `data-buddy-anchor` attribute (`buddy/buddyAnchors.ts`); the
+  lookup happens when the line is said, and an element that is absent or off
+  screen means no gesture. `clippyjs` reduces a point to one of four
+  directions, so this is a direction, not a precise pointer.
+- An animation before a line is told to wrap up after 3 seconds (a gesture
+  after 2) and gets 1.5 seconds for its exit frames. A running idle animation
+  gets up to 4 seconds to hand over first, so the mood animation is not cut to
+  a few frames when two lines follow each other.
+
+### Interface: desktop buddy (switches, mute, quiet hours)
+- Settings > Local Configuration, below the buddy picker: **Tell me about**
+  (six switches: direct messages and mentions, new nodes, radio connection,
+  low batteries, updates, page tips), **Mute** (15 minutes, 1 hour, until
+  reload, end now) and **Quiet hours** (daily from and to in the browser's
+  local time; the range may wrap midnight). The header theme dialog keeps only
+  the picker and the battery threshold.
+- While the buddy is quiet nothing gets through. When the quiet period ends it
+  says one line with what it kept back, counted per topic ("While I was quiet:
+  2 messages, 3 new nodes."). Page tips are not kept; they are given on a later
+  visit instead. The app's own toasts are unaffected.
+- A low battery warning is no longer repeated after a reload: the warned state
+  is stored per browser (`rtfm-buddy-battery-warned`) with the same re-arm rule
+  (threshold + 5 points). Nodes without telemetry in the last 24 hours are
+  forgotten, so they warn afresh when they report again.
+- New per-browser keys: `rtfm-buddy-groups-off`, `rtfm-buddy-mute-until`,
+  `rtfm-buddy-quiet-hours`, `rtfm-buddy-battery-warned`.
+
+### Interface: desktop buddy (internals)
+- New `buddy/buddyCatalog.ts`: one table of line kinds (group and mood) and one
+  builder per kind. Battery, update and tip lines used to be built inline in
+  `BuddyHost.tsx`; all lines now go through the same `say(line)`. Adding a kind
+  is a table row, a builder and a trigger.
+- New `buddy/buddyQuiet.ts` (quiet rules and the held-back counter) and
+  `buddy/buddyHistory.ts` (the last 20 lines, in memory; nothing reads it yet).
+- The buddy relies on more `clippyjs` 0.1.0 private members
+  (`_playInternal`, `_getDirection`, `_animator.exitAnimation`,
+  `_animator.currentAnimationName`). Each call is guarded: a missing member
+  costs the animation, not the line. `frontend/AGENTS.md` now lists all of
+  them under "Desktop buddy".
+
 ## Update 2026-10-09 (26 more desktop buddies, feat/buddy-acs-characters)
 
 No migration.

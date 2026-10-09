@@ -161,9 +161,32 @@ describe('StatusBar', () => {
 
     fireEvent.click(screen.getByRole('radio', { name: 'Windows 95' }));
     expect(screen.getByLabelText('Desktop buddy')).toHaveValue('clippy');
+    // The dialog keeps to the picker and threshold; the rest lives in Settings.
+    expect(screen.queryByText('Tell me about')).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Desktop buddy'), { target: { value: 'genie' } });
     expect(localStorage.getItem('rtfm-buddy-agent')).toBe('genie');
+    localStorage.clear();
+  });
+
+  it('tags the elements the desktop buddy points at', () => {
+    localStorage.setItem('remoteterm-show-battery-percent', 'true');
+    render(
+      <StatusBar
+        health={{
+          ...baseHealth,
+          status: 'ok',
+          radio_connected: true,
+          radio_stats: { battery_mv: 3900 } as HealthStatus['radio_stats'],
+        }}
+        config={null}
+        onSettingsClick={vi.fn()}
+      />
+    );
+    const anchor = (id: string) => document.querySelector(`[data-buddy-anchor="${id}"]`);
+    expect(anchor('status-radio')).toBe(screen.getByRole('status', { name: 'Radio OK' }));
+    expect(anchor('status-battery')).toHaveAttribute('role', 'status');
+    expect(anchor('status-update')).toHaveTextContent('Settings');
     localStorage.clear();
   });
 

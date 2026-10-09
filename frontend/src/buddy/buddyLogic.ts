@@ -6,24 +6,57 @@ export const BATTERY_REARM_MARGIN = 5;
 /** Node telemetry older than this is not worth warning about. */
 export const BATTERY_TELEMETRY_MAX_AGE_SECONDS = 24 * 60 * 60;
 
+/** What the buddy talks about, as switched on or off in the settings. */
+export const BUDDY_GROUPS = ['messages', 'nodes', 'radio', 'batteries', 'updates', 'tips'] as const;
+
+export type BuddyGroup = (typeof BUDDY_GROUPS)[number];
+
 /**
  * Warn-once-per-drop tracker: a key warns when it first reads below the
- * threshold, then stays quiet until it climbs to threshold + margin.
+ * threshold, then stays quiet until it climbs to threshold + margin. Seeded
+ * with the keys warned before (so a reload does not repeat a warning);
+ * `onChange` gets the warned keys whenever they change.
  */
 export class BatteryWatch {
-  private warned = new Set<string>();
+  private warned: Set<string>;
+
+  constructor(
+    warned: Iterable<string> = [],
+    private onChange?: (warned: string[]) => void
+  ) {
+    this.warned = new Set(warned);
+  }
 
   /** Returns true when this reading should raise a warning. */
   observe(key: string, percent: number, threshold: number): boolean {
     if (this.warned.has(key)) {
-      if (percent >= threshold + BATTERY_REARM_MARGIN) this.warned.delete(key);
+      if (percent >= threshold + BATTERY_REARM_MARGIN) {
+        this.warned.delete(key);
+        this.changed();
+      }
       return false;
     }
     if (percent < threshold) {
       this.warned.add(key);
+      this.changed();
       return true;
     }
     return false;
+  }
+
+  /** Forget warned keys the caller no longer tracks (e.g. nodes without recent telemetry). */
+  prune(keep: (key: string) => boolean): void {
+    let removed = false;
+    for (const key of [...this.warned]) {
+      if (keep(key)) continue;
+      this.warned.delete(key);
+      removed = true;
+    }
+    if (removed) this.changed();
+  }
+
+  private changed(): void {
+    this.onChange?.([...this.warned]);
   }
 }
 

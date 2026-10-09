@@ -434,6 +434,12 @@ describe('Sidebar section summaries', () => {
 
     const selectedIds = onSelectConversation.mock.calls.map(([conv]) => conv.id);
     expect(new Set(selectedIds)).toEqual(new Set([channelA.key, channelB.key]));
+
+    // Each row is tagged so the desktop buddy can point at it.
+    const row = document.querySelector(
+      `[data-buddy-anchor="conversation:channel:${channelA.key.toLowerCase()}"]`
+    );
+    expect(row).toHaveTextContent('#shared');
   });
 
   it('shows a notification bell for conversations with notifications enabled', () => {

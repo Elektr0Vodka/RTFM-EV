@@ -1,24 +1,43 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
-import { useT, type TFn } from '../i18n';
+import { useT } from '../i18n';
 import { useUpdateStatus } from '../hooks/useUpdateStatus';
 import { mvToPercent } from '../utils/batteryDisplay';
-import { getContactDisplayName } from '../utils/pubkey';
 import { getEffectiveTheme, THEME_CHANGE_EVENT } from '../utils/theme';
 import type { SettingsSection } from '../components/settings/settingsConstants';
 import type { Channel, Contact, Conversation, HealthStatus } from '../types';
 import { loadBuddyAgent, type BuddyAgent, type BuddyAgentId } from './agents';
-import { subscribeBuddyEvents, type BuddyEvent } from './buddyEvents';
-import { BATTERY_TELEMETRY_MAX_AGE_SECONDS, BatteryWatch, pageTipKey } from './buddyLogic';
+import { findAnchorPoint } from './buddyAnchors';
+import {
+  batteryNodesLine,
+  batteryOwnLine,
+  describeBuddyEvent,
+  quietSummaryLine,
+  tipLine,
+  updateAppLine,
+  updateOpenHopLine,
+  type BuddyLine,
+  type BuddyPage,
+  type BuddyTarget,
+} from './buddyCatalog';
+import { subscribeBuddyEvents } from './buddyEvents';
+import { recordBuddyLine } from './buddyHistory';
+import { BATTERY_TELEMETRY_MAX_AGE_SECONDS, BatteryWatch } from './buddyLogic';
+import { pickAnimation } from './buddyMood';
 import {
   BUDDY_PREFS_CHANGE_EVENT,
   BUDDY_THEME_ID,
   getBuddyAgent,
   getBuddyBatteryThreshold,
   getBuddyPosition,
+  getWarnedBatteries,
+  isBuddyGroupOn,
+  isBuddyQuiet,
   markBuddyDiscovered,
   setBuddyPosition,
+  setWarnedBatteries,
 } from './buddyPrefs';
+import { HeldBack } from './buddyQuiet';
 
 /** Speech waiting in the agent's queue beyond this many lines is dropped. */
 const MAX_PENDING_SPEECH = 3;
@@ -38,14 +57,19 @@ const NODE_BATTERY_POLL_MS = 10 * 60 * 1000;
 const BUDDY_Z_INDEX = '9996';
 const IDLE_MIN_MS = 3 * 60 * 1000;
 const IDLE_MAX_MS = 6 * 60 * 1000;
-
-/** What clicking the speech balloon opens. */
-export type BuddyTarget =
-  | { kind: 'conversation'; conversation: Conversation }
-  | { kind: 'settings'; section: SettingsSection }
-  | { kind: 'mention'; channelKey: string; messageId: number };
-
-export type BuddyPage = Conversation['type'] | 'settings';
+/** An animation before a line is told to wrap up after this long. */
+const MOOD_ANIMATION_MAX_MS = 3000;
+const GESTURE_MAX_MS = 2000;
+/** Time an animation gets for its exit frames before the line is said anyway. */
+const ANIMATION_EXIT_GRACE_MS = 1500;
+/** Longest wait for a running idle animation to make way for the next one. */
+const IDLE_HANDOVER_MAX_MS = 4000;
+const IDLE_HANDOVER_POLL_MS = 100;
+/** How often the end of a mute or of the quiet hours is looked for. */
+const QUIET_CHECK_MS = 20 * 1000;
+/** clippyjs `Animator.States` (not exported by the library). */
+const ANIMATION_EXITED = 0;
+const ANIMATION_WAITING = 1;
 
 export interface BuddyHostProps {
   health: HealthStatus | null;
@@ -61,82 +85,109 @@ export interface BuddyHostProps {
 // Session-wide (survive the host re-mounting or switching buddies).
 const tipsSaid = new Set<BuddyPage>();
 const updatesSaid = new Set<'app' | 'openhop'>();
+const heldBack = new HeldBack();
 
 /** Test helper: forget which tips/updates were already said this session. */
 export function __resetBuddySessionState(): void {
   tipsSaid.clear();
   updatesSaid.clear();
+  heldBack.takeSummary();
 }
 
-function contactName(contacts: Contact[], publicKey: string, fallback?: string | null): string {
-  const contact = contacts.find((c) => c.public_key === publicKey);
-  if (contact) return getContactDisplayName(contact.name, contact.public_key, contact.last_advert);
-  return fallback || publicKey.slice(0, 12);
+/** Add a line to the history: said (`shown`) or kept back during a quiet period. */
+function remember(line: BuddyLine, shown: boolean): void {
+  recordBuddyLine({
+    at: Date.now(),
+    kind: line.kind,
+    group: line.group,
+    text: line.text,
+    target: line.target,
+    shown,
+  });
 }
 
-function contactInfoTarget(contacts: Contact[], publicKey: string, name?: string | null) {
-  return {
-    kind: 'conversation',
-    conversation: {
-      type: 'contact-info',
-      id: publicKey,
-      name: contactName(contacts, publicKey, name),
-    },
-  } satisfies BuddyTarget;
+/**
+ * Play one animation, then call `done` (exactly once). An animation that holds
+ * its last pose is told to exit right away; one that runs past `maxMs` is told
+ * to exit and gets a short grace for its exit frames. `done` is also called
+ * straight away when there is nothing to play or the library internals this
+ * relies on (`_playInternal`, `_animator.exitAnimation`,
+ * `_animator.currentAnimationName`) are gone, so a line is never lost over an
+ * animation.
+ */
+function playBriefly(
+  agent: BuddyAgent,
+  name: string | null,
+  maxMs: number,
+  done: () => void
+): void {
+  if (!name || typeof agent._playInternal !== 'function') {
+    done();
+    return;
+  }
+  let finished = false;
+  let timer = 0;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    window.clearTimeout(timer);
+    done();
+  };
+  const exit = () => {
+    try {
+      agent._animator.exitAnimation();
+    } catch {
+      // The grace timer below still ends it.
+    }
+  };
+  /** Start the clock: `maxMs` to play, then the exit grace. */
+  const arm = () => {
+    timer = window.setTimeout(() => {
+      exit();
+      timer = window.setTimeout(finish, ANIMATION_EXIT_GRACE_MS);
+    }, maxMs);
+  };
+  try {
+    agent._playInternal(name, (_name: string, state: number) => {
+      if (state === ANIMATION_WAITING) exit();
+      else if (state === ANIMATION_EXITED) finish();
+    });
+    if (agent._animator.currentAnimationName === name) {
+      arm();
+    } else {
+      // An idle animation is still on and the library plays ours after it (the
+      // usual case right after another line). Ask the idle one to wrap up and
+      // start the clock when ours begins, so it is not cut to a few frames.
+      exit();
+      const giveUpAt = Date.now() + IDLE_HANDOVER_MAX_MS;
+      const waitForStart = () => {
+        if (finished) return;
+        if (agent._animator.currentAnimationName === name || Date.now() >= giveUpAt) arm();
+        else timer = window.setTimeout(waitForStart, IDLE_HANDOVER_POLL_MS);
+      };
+      timer = window.setTimeout(waitForStart, IDLE_HANDOVER_POLL_MS);
+    }
+  } catch {
+    finish();
+  }
 }
 
-/** Text + click target for an app event, or null when there is nothing to say. */
-export function describeBuddyEvent(
-  event: BuddyEvent,
-  t: TFn,
-  contacts: Contact[],
-  channels: Channel[]
-): { text: string; target: BuddyTarget | null } | null {
-  switch (event.kind) {
-    case 'new-node': {
-      if (event.count === 1 && event.publicKey) {
-        const name = contactName(contacts, event.publicKey, event.name);
-        return {
-          text: t('buddy_new_node', { name }),
-          target: contactInfoTarget(contacts, event.publicKey, event.name),
-        };
-      }
-      if (event.count < 1) return null;
-      return {
-        text: t('buddy_new_nodes', { count: event.count }),
-        target: {
-          kind: 'conversation',
-          conversation: { type: 'mesh-health', id: 'mesh-health', name: t('nav_mesh_health') },
-        },
-      };
-    }
-    case 'radio':
-      if (event.state === 'connected') return { text: t('buddy_radio_connected'), target: null };
-      if (event.state === 'paused') return { text: t('buddy_radio_paused'), target: null };
-      return {
-        text: t('buddy_radio_disconnected'),
-        target: { kind: 'settings', section: 'radio' },
-      };
-    case 'dm': {
-      const name = contactName(contacts, event.publicKey, event.senderName);
-      return {
-        text: t('buddy_dm', { name }),
-        target: {
-          kind: 'conversation',
-          conversation: { type: 'contact', id: event.publicKey, name },
-        },
-      };
-    }
-    case 'mention': {
-      const channel = channels.find((c) => c.key === event.channelKey);
-      return {
-        text: t('buddy_mention', {
-          name: event.senderName || '?',
-          channel: channel?.name ?? event.channelKey.slice(0, 8),
-        }),
-        target: { kind: 'mention', channelKey: event.channelKey, messageId: event.messageId },
-      };
-    }
+/**
+ * The animation that points toward an anchor (see buddyAnchors), or null: no
+ * anchor, not on screen, or the character has no gesture that way. clippyjs
+ * only knows four directions, so this is a direction, not a precise pointer.
+ */
+function gestureAnimation(agent: BuddyAgent, anchor: string | null): string | null {
+  if (!anchor || typeof agent._getDirection !== 'function') return null;
+  try {
+    const point = findAnchorPoint(anchor);
+    if (!point) return null;
+    const direction = agent._getDirection(point.x, point.y);
+    return (
+      [`Gesture${direction}`, `Look${direction}`].find((name) => agent.hasAnimation(name)) ?? null
+    );
+  } catch {
+    return null;
   }
 }
 
@@ -198,7 +249,11 @@ function ActiveBuddy({
 
   const targetRef = useRef<BuddyTarget | null>(null);
   const pendingRef = useRef(0);
-  const batteryWatchRef = useRef(new BatteryWatch());
+  /** The agent on screen; null once it is disposed, so late timers do nothing. */
+  const liveAgentRef = useRef<BuddyAgent | null>(null);
+  /** Seeded from storage, so a reload does not repeat a battery warning. */
+  const [batteryWatch] = useState(() => new BatteryWatch(getWarnedBatteries(), setWarnedBatteries));
+  const wasQuietRef = useRef(false);
 
   useEffect(() => {
     const syncThreshold = () => setThreshold(getBuddyBatteryThreshold());
@@ -271,11 +326,13 @@ function ActiveBuddy({
 
         a.show(false);
         a.reposition();
+        liveAgentRef.current = a;
         setAgent(a);
       })
       .catch((err) => console.error('buddy: failed to load agent', err));
     return () => {
       cancelled = true;
+      liveAgentRef.current = null;
       created?.dispose();
       targetRef.current = null;
       pendingRef.current = 0;
@@ -284,18 +341,26 @@ function ActiveBuddy({
   }, [agentId, onDismiss, openTarget]);
 
   /**
-   * Queue a line; returns false when it was dropped. Tips leave one slot free
-   * for warnings and pass `relevant`, checked when their turn comes: a tip for a
-   * page the user already left is skipped instead of said late.
+   * Say a line, or keep it back while the buddy is quiet. Returns false when
+   * the line was dropped: its group is switched off, too many lines are waiting,
+   * or it is a tip during a quiet period. Tips leave one slot free for warnings
+   * and pass `relevant`, checked when their turn comes: a tip for a page the
+   * user already left is skipped instead of said late.
    */
   const say = useCallback(
-    (
-      text: string,
-      target: BuddyTarget | null = null,
-      opts: { tip?: boolean; relevant?: () => boolean } = {}
-    ): boolean => {
-      if (!agent || !text) return false;
-      if (pendingRef.current >= (opts.tip ? MAX_PENDING_SPEECH - 1 : MAX_PENDING_SPEECH)) {
+    (line: BuddyLine | null, opts: { relevant?: () => boolean } = {}): boolean => {
+      if (!agent || !line?.text) return false;
+      if (line.group && !isBuddyGroupOn(line.group)) return false;
+      const isTip = line.kind === 'tip';
+      if (line.group && isBuddyQuiet()) {
+        wasQuietRef.current = true;
+        // A tip is not kept: it is given on a later visit instead.
+        if (isTip) return false;
+        heldBack.add(line.group, line.count);
+        remember(line, false);
+        return true;
+      }
+      if (pendingRef.current >= (isTip ? MAX_PENDING_SPEECH - 1 : MAX_PENDING_SPEECH)) {
         return false;
       }
       pendingRef.current += 1;
@@ -306,9 +371,24 @@ function ActiveBuddy({
           complete();
           return;
         }
-        targetRef.current = target;
-        // Same as agent.speak(), but decided at play time.
-        agent._balloon.speak(complete, text, false);
+        remember(line, true);
+        // Mood first. Then the text, said while the buddy gestures toward what
+        // the line is about (looked up only now, so it follows the layout of
+        // this moment): waiting for the gesture too kept the text back for up
+        // to 7 seconds. The queue moves on once both are done.
+        const mood = pickAnimation((name) => agent.hasAnimation(name), line.mood);
+        playBriefly(agent, mood, MOOD_ANIMATION_MAX_MS, () => {
+          if (liveAgentRef.current !== agent) return;
+          let open = 2;
+          const part = () => {
+            open -= 1;
+            if (open === 0) complete();
+          };
+          playBriefly(agent, gestureAnimation(agent, line.anchor), GESTURE_MAX_MS, part);
+          targetRef.current = line.target;
+          // Same as agent.speak(), but decided at play time.
+          agent._balloon.speak(part, line.text, false);
+        });
       });
       agent._addToQueue((complete: () => void) => {
         pendingRef.current = Math.max(0, pendingRef.current - 1);
@@ -330,19 +410,35 @@ function ActiveBuddy({
     if (!agent) return;
     return subscribeBuddyEvents((event) => {
       const p = propsRef.current;
-      const line = describeBuddyEvent(event, tRef.current, p.contacts, p.channels);
-      if (line) say(line.text, line.target);
+      say(describeBuddyEvent(event, tRef.current, p.contacts, p.channels));
     });
+  }, [agent, say]);
+
+  // End of a mute or of the quiet hours: one line about what was kept back.
+  useEffect(() => {
+    if (!agent) return;
+    const check = () => {
+      const quiet = isBuddyQuiet();
+      if (wasQuietRef.current && !quiet) {
+        const summary = heldBack.takeSummary();
+        if (summary) say(quietSummaryLine(tRef.current, summary));
+      }
+      wasQuietRef.current = quiet;
+    };
+    check();
+    const timer = window.setInterval(check, QUIET_CHECK_MS);
+    window.addEventListener(BUDDY_PREFS_CHANGE_EVENT, check);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener(BUDDY_PREFS_CHANGE_EVENT, check);
+    };
   }, [agent, say]);
 
   // Page tips, once per page per session.
   const activePage = props.activePage;
   useEffect(() => {
     if (!agent || !activePage || tipsSaid.has(activePage)) return;
-    const key = pageTipKey(activePage);
-    if (!key) return;
-    const queued = say(tRef.current(key), null, {
-      tip: true,
+    const queued = say(tipLine(tRef.current, activePage), {
       relevant: () => {
         const stillHere = propsRef.current.activePage === activePage;
         // Left before it was said: allow the tip again on the next visit.
@@ -358,13 +454,10 @@ function ActiveBuddy({
   useEffect(() => {
     if (!agent || !ownBatteryMv || ownBatteryMv <= 0) return;
     const pct = mvToPercent(ownBatteryMv);
-    if (batteryWatchRef.current.observe('self', pct, threshold)) {
-      say(tRef.current('buddy_battery_own', { pct }), {
-        kind: 'conversation',
-        conversation: { type: 'node', id: 'node', name: tRef.current('nav_my_node') },
-      });
+    if (batteryWatch.observe('self', pct, threshold)) {
+      say(batteryOwnLine(tRef.current, pct));
     }
-  }, [agent, ownBatteryMv, threshold, say]);
+  }, [agent, batteryWatch, ownBatteryMv, threshold, say]);
 
   // Node batteries from stored telemetry (repeater + contact history).
   useEffect(() => {
@@ -376,43 +469,21 @@ function ActiveBuddy({
         .then((latest) => {
           const contacts = propsRef.current.contacts;
           const nowSec = Date.now() / 1000;
-          const low: { publicKey: string; name: string; pct: number }[] = [];
+          const fresh = new Set<string>();
+          const low: { publicKey: string; pct: number }[] = [];
           for (const [publicKey, entry] of Object.entries(latest)) {
             const volts = entry.battery_volts;
             if (!volts || volts <= 0) continue;
             if (nowSec - entry.timestamp > BATTERY_TELEMETRY_MAX_AGE_SECONDS) continue;
+            fresh.add(publicKey);
             const contact = contacts.find((c) => c.public_key === publicKey);
             if (contact?.power_source === 'mains') continue;
             const pct = mvToPercent(Math.round(volts * 1000), contact?.battery_chemistry);
-            if (batteryWatchRef.current.observe(publicKey, pct, threshold)) {
-              low.push({ publicKey, name: contactName(contacts, publicKey), pct });
-            }
+            if (batteryWatch.observe(publicKey, pct, threshold)) low.push({ publicKey, pct });
           }
-          if (low.length === 1) {
-            const [node] = low;
-            say(
-              tRef.current('buddy_battery_node', { name: node.name, pct: node.pct }),
-              contactInfoTarget(contacts, node.publicKey, node.name)
-            );
-          } else if (low.length > 1) {
-            say(
-              tRef.current('buddy_battery_nodes', {
-                count: low.length,
-                names: low
-                  .slice(0, 3)
-                  .map((n) => n.name)
-                  .join(', '),
-              }),
-              {
-                kind: 'conversation',
-                conversation: {
-                  type: 'mesh-health',
-                  id: 'mesh-health',
-                  name: tRef.current('nav_mesh_health'),
-                },
-              }
-            );
-          }
+          // A node without recent telemetry warns afresh when it reports again.
+          batteryWatch.prune((key) => key === 'self' || fresh.has(key));
+          say(batteryNodesLine(tRef.current, contacts, low));
         })
         .catch((err) => {
           if (!controller.signal.aborted) console.warn('buddy: telemetry poll failed', err);
@@ -424,16 +495,13 @@ function ActiveBuddy({
       controller.abort();
       window.clearInterval(timer);
     };
-  }, [agent, threshold, say]);
+  }, [agent, batteryWatch, threshold, say]);
 
   // RTFM-EV update (shared, cached /update-status check).
   useEffect(() => {
     if (!agent || !updateStatus?.update_available || updatesSaid.has('app')) return;
     updatesSaid.add('app');
-    say(tRef.current('buddy_update_app', { count: updateStatus.commits_behind }), {
-      kind: 'settings',
-      section: 'about',
-    });
+    say(updateAppLine(tRef.current, updateStatus.commits_behind));
   }, [agent, updateStatus, say]);
 
   // OpenHop firmware update, only when OpenHop management is configured.
@@ -448,10 +516,7 @@ function ActiveBuddy({
           return;
         }
         updatesSaid.add('openhop');
-        say(tRef.current('buddy_update_openhop', { version: update.latest_version ?? '' }), {
-          kind: 'settings',
-          section: 'openhop',
-        });
+        say(updateOpenHopLine(tRef.current, update.latest_version ?? ''));
       })
       .catch(() => {
         // OpenHop unreachable or not present: nothing to announce.

@@ -4300,6 +4300,46 @@
   "buddy_tip_manual": "It looks like you're reading the manual. Good for you!",
   "buddy_tip_knowledge_base": "The Knowledge base collects handy links.",
   "buddy_tip_settings": "It looks like you're changing settings. Settings under Local Configuration only affect this browser.",
+  "buddy_quiet_summary": "While I was quiet: {items}.",
+  "buddy_quiet_part_messages": {
+    "one": "{count} message",
+    "other": "{count} messages"
+  },
+  "buddy_quiet_part_nodes": {
+    "one": "{count} new node",
+    "other": "{count} new nodes"
+  },
+  "buddy_quiet_part_radio": {
+    "one": "{count} radio change",
+    "other": "{count} radio changes"
+  },
+  "buddy_quiet_part_batteries": {
+    "one": "{count} battery warning",
+    "other": "{count} battery warnings"
+  },
+  "buddy_quiet_part_updates": {
+    "one": "{count} update",
+    "other": "{count} updates"
+  },
+  "settings_buddy_groups_label": "Tell me about",
+  "settings_buddy_group_messages": "Direct messages and mentions",
+  "settings_buddy_group_nodes": "New nodes",
+  "settings_buddy_group_radio": "Radio connection",
+  "settings_buddy_group_batteries": "Low batteries",
+  "settings_buddy_group_updates": "Updates",
+  "settings_buddy_group_tips": "Page tips",
+  "settings_buddy_mute_label": "Mute",
+  "settings_buddy_mute_15m": "15 minutes",
+  "settings_buddy_mute_1h": "1 hour",
+  "settings_buddy_mute_reload": "Until reload",
+  "settings_buddy_mute_end": "End now",
+  "settings_buddy_mute_until": "Muted until {time}.",
+  "settings_buddy_mute_until_reload": "Muted until you reload the page.",
+  "settings_buddy_mute_description": "While muted the buddy says nothing. Afterwards it tells you in one line what it kept back.",
+  "settings_buddy_quiet_hours_label": "Quiet hours",
+  "settings_buddy_quiet_hours_from": "From",
+  "settings_buddy_quiet_hours_to": "To",
+  "settings_buddy_quiet_hours_description": "Every day between these times the buddy stays silent, in this browser's local time. It needs both times; leave them empty for none.",
   "popout_open_chat_window": "Chat window",
   "popout_open_chat_window_title": "Open chats in a separate, lighter window",
   "popout_blocked": "The browser blocked the chat window. Allow pop-ups for this site.",

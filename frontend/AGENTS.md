@@ -324,6 +324,18 @@ The **Chat window** button in `StatusBar` opens the same SPA with `?popout=chat`
 
 Skins: `applyPopoutSkin` sets `data-theme` (`mirc`, `mirc-dark`, or the saved theme) without calling `applyTheme`, so the saved theme is never changed; `mirc*` are not in `THEMES`. It also sets `data-popout-tone` (`light`/`dark`), which `popout.css` uses for the nick lightness, and forces the CRT effect attributes off under the mIRC skins. Not observable in jsdom: the real window layout, fonts and `window.open` behaviour; check those in a browser.
 
+### Desktop buddy (`buddy/`)
+
+`BuddyHost` (mounted once in `AppShell`) is a gate: it only tracks the preference and theme. Everything else (sprite download, polling, update checks) lives in the inner `ActiveBuddy` and runs only while a buddy is shown. App code never talks to the buddy directly: realtime handlers call `emitBuddyEvent` (`buddyEvents.ts`), which is a no-op without a listener.
+
+- `buddyCatalog.ts` is the table of line kinds (`LINE_KINDS`: group and mood per kind) plus one builder per kind that returns a `BuddyLine` (`kind`, `group`, `mood`, `anchor`, `text`, `target`, `count`). Every line the buddy says goes through `say(line)` in `BuddyHost`. A new kind needs a row, a builder and a trigger; a new Tools page still needs its tip key in `PAGE_TIP_KEYS` (`buddyLogic.ts`).
+- `say()` order: group switched off = dropped; quiet (mute or quiet hours, `isBuddyQuiet`) = stored in `buddyHistory.ts` as not shown and counted in `HeldBack` by `line.count` (a page tip is dropped instead and not marked as said); otherwise queued, capped at 3 pending lines. When quiet ends (checked every 20 s and on every prefs change) one `quiet-summary` line is said.
+- Expression: `buddyMood.ts` maps a mood to an animation chain and `pickAnimation` takes the first one the character has (characters differ; Gourdy has none). `playBriefly` plays the mood animation before the text (3 s cap, then 1.5 s grace for the exit frames) and waits up to 4 s for a running idle animation to hand over before it starts that clock. The gesture toward `line.anchor` plays while the text is shown; the queue step completes when both are done.
+- Anchors (`buddyAnchors.ts`): components tag an element with `data-buddy-anchor` (`Sidebar` conversation rows via `conversationAnchor`, and `status-radio` / `status-battery` / `status-update` in `StatusBar`). `findAnchorPoint` runs when the line is said and returns null for an element that is absent, has no size or is off screen; then there is no gesture. clippyjs only knows four directions.
+- Prefs (`buddyPrefs.ts`, localStorage): `rtfm-buddy-groups-off`, `rtfm-buddy-mute-until` (a mute "until reload" is kept in memory only), `rtfm-buddy-quiet-hours`, `rtfm-buddy-battery-warned` (seed for `BatteryWatch`, so a reload does not repeat a warning). `BuddySettings` renders everything in Settings > Local Configuration and only the picker and threshold in the theme dialog (`compact`).
+- The buddy relies on clippyjs 0.1.0 private members; recheck them on any clippyjs upgrade: `_addToQueue`, `_balloon._balloon`, `_balloon.speak`, `_balloon.CLOSE_BALLOON_DELAY`, `_onQueueEmpty`, `_animator._data`, `_animator.exitAnimation`, `_animator.currentAnimationName`, `_playInternal`, `_getDirection`, and the `Animator.States` values (0 = exited, 1 = waiting). `playBriefly` and `gestureAnimation` guard their calls, so a missing member costs the animation, not the line.
+- Not observable in jsdom: which animation frames play and how long they take. Check those in a browser (frames show as `background-position` on the `[data-buddy]` element).
+
 ### Initial load + realtime
 
 - Initial data: REST fetches (`api.ts`) for config/settings/channels/contacts/unreads.

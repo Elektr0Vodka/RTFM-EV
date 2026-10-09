@@ -1,5 +1,7 @@
 import { getEffectiveTheme } from '../utils/theme';
 import { isBuddyAgentId, type BuddyAgentId } from './agents';
+import { BUDDY_GROUPS, type BuddyGroup } from './buddyLogic';
+import { isQuiet, isValidQuietHours, type BuddyMute, type QuietHours } from './buddyQuiet';
 
 /**
  * Per-browser desktop-buddy preferences (localStorage, like the theme).
@@ -14,6 +16,10 @@ const AGENT_KEY = 'rtfm-buddy-agent';
 const BATTERY_THRESHOLD_KEY = 'rtfm-buddy-battery-threshold';
 const POSITION_KEY = 'rtfm-buddy-position';
 const DISCOVERED_KEY = 'rtfm-buddy-discovered';
+const GROUPS_OFF_KEY = 'rtfm-buddy-groups-off';
+const MUTE_UNTIL_KEY = 'rtfm-buddy-mute-until';
+const QUIET_HOURS_KEY = 'rtfm-buddy-quiet-hours';
+const BATTERY_WARNED_KEY = 'rtfm-buddy-battery-warned';
 
 /** The theme the buddy belongs to (always available, Clippy on by default). */
 export const BUDDY_THEME_ID = 'windows-95';
@@ -121,4 +127,92 @@ export function getBuddyPosition(): BuddyPosition | null {
 
 export function setBuddyPosition(pos: BuddyPosition): void {
   write(POSITION_KEY, JSON.stringify({ x: Math.round(pos.x), y: Math.round(pos.y) }));
+}
+
+function readJson(key: string): unknown {
+  const raw = read(key);
+  if (raw === null) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+/** Groups of lines the user switched off (everything is on by default). */
+export function getBuddyGroupsOff(): BuddyGroup[] {
+  const stored = readJson(GROUPS_OFF_KEY);
+  if (!Array.isArray(stored)) return [];
+  return BUDDY_GROUPS.filter((group) => stored.includes(group));
+}
+
+export function isBuddyGroupOn(group: BuddyGroup): boolean {
+  return !getBuddyGroupsOff().includes(group);
+}
+
+export function setBuddyGroupOn(group: BuddyGroup, on: boolean): void {
+  const off = new Set(getBuddyGroupsOff());
+  if (on) off.delete(group);
+  else off.add(group);
+  write(GROUPS_OFF_KEY, off.size > 0 ? JSON.stringify([...off].sort()) : null);
+  notify();
+}
+
+// "Until reload" must not outlive the page, so it is not stored.
+let mutedUntilReload = false;
+
+/** The mute that is running at `now` (epoch ms), or null. */
+export function getBuddyMute(now: number = Date.now()): BuddyMute {
+  if (mutedUntilReload) return { kind: 'reload' };
+  const until = Number(read(MUTE_UNTIL_KEY));
+  return Number.isFinite(until) && until > now ? { kind: 'until', until } : null;
+}
+
+export function muteBuddyFor(durationMs: number, now: number = Date.now()): void {
+  mutedUntilReload = false;
+  write(MUTE_UNTIL_KEY, String(Math.round(now + durationMs)));
+  notify();
+}
+
+export function muteBuddyUntilReload(): void {
+  mutedUntilReload = true;
+  write(MUTE_UNTIL_KEY, null);
+  notify();
+}
+
+export function unmuteBuddy(): void {
+  mutedUntilReload = false;
+  write(MUTE_UNTIL_KEY, null);
+  notify();
+}
+
+/** Test helper: forget a mute "until reload" (a reload cannot be simulated). */
+export function __resetBuddyMuteForTests(): void {
+  mutedUntilReload = false;
+}
+
+/** Daily quiet hours, or null when none are set. */
+export function getBuddyQuietHours(): QuietHours | null {
+  const stored = readJson(QUIET_HOURS_KEY);
+  return isValidQuietHours(stored) ? { from: stored.from, to: stored.to } : null;
+}
+
+export function setBuddyQuietHours(hours: QuietHours | null): void {
+  write(QUIET_HOURS_KEY, hours && isValidQuietHours(hours) ? JSON.stringify(hours) : null);
+  notify();
+}
+
+/** Whether a mute or the quiet hours keep the buddy silent at `now`. */
+export function isBuddyQuiet(now: Date = new Date()): boolean {
+  return isQuiet(now, getBuddyMute(now.getTime()), getBuddyQuietHours());
+}
+
+/** Battery keys ("self" or a node's public key) that were already warned about. */
+export function getWarnedBatteries(): string[] {
+  const stored = readJson(BATTERY_WARNED_KEY);
+  return Array.isArray(stored) ? stored.filter((key) => typeof key === 'string') : [];
+}
+
+export function setWarnedBatteries(keys: string[]): void {
+  write(BATTERY_WARNED_KEY, keys.length > 0 ? JSON.stringify(keys) : null);
 }

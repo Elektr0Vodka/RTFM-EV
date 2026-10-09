@@ -4301,6 +4301,46 @@
   "buddy_tip_manual": "Het lijkt erop dat je de handleiding leest. Goed bezig!",
   "buddy_tip_knowledge_base": "De Kennisbank verzamelt handige links.",
   "buddy_tip_settings": "Het lijkt erop dat je instellingen aanpast. Instellingen onder Lokale configuratie gelden alleen voor deze browser.",
+  "buddy_quiet_summary": "Terwijl ik stil was: {items}.",
+  "buddy_quiet_part_messages": {
+    "one": "{count} bericht",
+    "other": "{count} berichten"
+  },
+  "buddy_quiet_part_nodes": {
+    "one": "{count} nieuwe node",
+    "other": "{count} nieuwe nodes"
+  },
+  "buddy_quiet_part_radio": {
+    "one": "{count} radiowijziging",
+    "other": "{count} radiowijzigingen"
+  },
+  "buddy_quiet_part_batteries": {
+    "one": "{count} batterijwaarschuwing",
+    "other": "{count} batterijwaarschuwingen"
+  },
+  "buddy_quiet_part_updates": {
+    "one": "{count} update",
+    "other": "{count} updates"
+  },
+  "settings_buddy_groups_label": "Vertel me over",
+  "settings_buddy_group_messages": "Privéberichten en vermeldingen",
+  "settings_buddy_group_nodes": "Nieuwe nodes",
+  "settings_buddy_group_radio": "Radioverbinding",
+  "settings_buddy_group_batteries": "Lege batterijen",
+  "settings_buddy_group_updates": "Updates",
+  "settings_buddy_group_tips": "Paginatips",
+  "settings_buddy_mute_label": "Dempen",
+  "settings_buddy_mute_15m": "15 minuten",
+  "settings_buddy_mute_1h": "1 uur",
+  "settings_buddy_mute_reload": "Tot herladen",
+  "settings_buddy_mute_end": "Nu beëindigen",
+  "settings_buddy_mute_until": "Gedempt tot {time}.",
+  "settings_buddy_mute_until_reload": "Gedempt tot je de pagina herlaadt.",
+  "settings_buddy_mute_description": "Zolang het maatje gedempt is, zegt het niets. Daarna vertelt het in één regel wat het heeft achtergehouden.",
+  "settings_buddy_quiet_hours_label": "Stille uren",
+  "settings_buddy_quiet_hours_from": "Van",
+  "settings_buddy_quiet_hours_to": "Tot",
+  "settings_buddy_quiet_hours_description": "Elke dag tussen deze tijden blijft het maatje stil, in de lokale tijd van deze browser. Beide tijden zijn nodig; laat ze leeg voor geen.",
   "popout_open_chat_window": "Chatvenster",
   "popout_open_chat_window_title": "Open chats in een apart, lichter venster",
   "popout_blocked": "De browser heeft het chatvenster geblokkeerd. Sta pop-ups toe voor deze site.",

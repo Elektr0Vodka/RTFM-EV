@@ -62,6 +62,7 @@ import {
 import { isPublicChannelKey } from '../utils/publicChannel';
 import { getContactDisplayName } from '../utils/pubkey';
 import { handleKeyboardActivate } from '../utils/a11y';
+import { conversationAnchor } from '../buddy/buddyAnchors';
 import {
   resolveSectionOrder,
   resolveToolOrder,
@@ -1031,6 +1032,7 @@ export function Sidebar({
     return (
       <div
         key={row.key}
+        data-buddy-anchor={conversationAnchor(row.type, row.id)}
         className={cn(
           'px-3 py-2 cursor-pointer flex items-center gap-2 border-l-2 border-transparent hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           isActive(row.type, row.id) && 'bg-accent border-l-primary',
