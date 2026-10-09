@@ -254,8 +254,17 @@ Customisation heading and the branding block below it.
   phosphor palette. **MCEU Light** and **MCEU Dark** follow the look of the EU
   MeshCore Analyzer (its "Atlas" design): warm paper or near-black ground,
   raised cards, a blue accent, large rounded corners and the analyzer's fonts
-  (Bricolage Grotesque, Figtree, JetBrains Mono, served by the app itself). They
-  restyle the existing screens; the page layout stays the same.
+  (Bricolage Grotesque, Figtree, JetBrains Mono, served by the app itself). On
+  desktop they also use the analyzer's shell: the app name, a "Search anything"
+  button (the command palette, Ctrl+K / Cmd+K) and the Settings, chat window,
+  language and theme controls sit in a full-height sidebar, and the top bar
+  shrinks to a radio-status bar above the page. On phones a bottom tab bar
+  replaces the menu button: **Chats** opens the conversation list, **Map** and
+  **My Node** go to their page, and **More** opens the tools together with
+  Settings, chat window, language and theme. Chat messages are cards under
+  these themes: sender and time on top, the text, then hop count, region and
+  delivery mark as a row of chips. Pages open with a larger title without a
+  rule under it, and bordered panels and stat tiles are raised cards.
 - **CRT screen effects**: scanline, phosphor-glow, screen-curvature, and flicker
   toggles that sit beneath the theme grid. They are a universal overlay: they
   work on top of any theme, not only the CRT ones. They default on when a CRT

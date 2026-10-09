@@ -112,6 +112,168 @@ were already in this fork, so nothing from upstream needed porting.
 - `5e1a0c89`, `1a7883da`, `f85304a3`, `50d20b94`, `44778327`: lint tidy-up,
   lazy loading (already present), PWA manifest and rebranding.
 
+## Update 2026-10-09 (MCEU themes: page heads and cards, feat/mceu-layout)
+
+No migration, no backend change, no new dependency, no new strings. CSS only.
+Fourth of four layout parts for the MCEU themes.
+
+### Interface: page heads and cards under the MCEU themes
+- **Page head:** the title of every page (tools, settings, map, search and
+  the chat header) is set in the display font at heading size (22px, 19px on
+  phones), and the rule under the head is gone.
+- **Cards:** a bordered, rounded panel that sits directly on the page
+  ground is a raised surface, in both themes. That covers the stat tiles
+  (Mesh Health's counters, for example) and the plain bordered panels.
+  Panels with their own tint, selected state or hover fill keep it, and so
+  do the wells inside a card.
+
+### Not included
+- The analyzer's one-line lead under each title and its reordered page
+  actions. A lead needs new copy for about 15 pages in three languages, and
+  no page here has a shared head component to put it in.
+- Pages that build their tiles differently (Mesh Trends uses filled wells)
+  look as before.
+- On phones a two-word title can wrap next to a page's tabs (seen on Mesh
+  Health), where the smaller title used to fit on one line.
+
+## Update 2026-10-09 (MCEU themes: chat messages as cards, feat/mceu-layout)
+
+No migration, no backend change, no new dependency, no new strings. Third of
+four layout parts for the MCEU themes.
+
+### Interface: chat messages as cards under the MCEU themes
+- With **MCEU Light** or **MCEU Dark**, a chat message is a card instead of
+  a bubble, after the analyzer's channel page: avatar, sender name in the
+  accent colour and the time on top, the text below, then a row of chips.
+- The chips are what the bubble showed inline: the hop count (a route icon
+  and the number, still a click to the path view), **Direct**, the region or
+  **Unscoped** / **Scoped**, and on your own messages the delivery mark.
+- Every card has its own header; messages from the same sender are not
+  grouped. Your own cards stay on the left and differ by their tint.
+- React, reply, mark unread and delete sit at the right of the header.
+- Cards are capped at a reading width on wide windows and fill the width on
+  phones. Other themes keep the bubbles, and the chat window keeps its own
+  choice of lines or bubbles.
+
+### Not included
+- The analyzer's observer count, SNR chip and "Open packet" chip: this app
+  shows those through the path view and the packet analyzer, not per message.
+
+## Update 2026-10-09 (MCEU themes: phone tab bar, feat/mceu-layout)
+
+No migration, no backend change, no new dependency. Second of four layout
+parts for the MCEU themes.
+
+### Interface: bottom tab bar on phones under the MCEU themes
+- On a phone-width window (768px and narrower) with **MCEU Light** or **MCEU
+  Dark**, a bottom tab bar replaces the menu button: **Chats**, **Map**,
+  **My Node** and **More**. The tab of the page on screen is lit.
+- **Chats** opens the drawer with the conversation sections (favorites,
+  channels, contacts and the rest, in your order). **More** opens it with the
+  tools, followed by Settings, Chat window, language and theme. **Map** and
+  **My Node** go straight to their page.
+- The top bar on phones keeps the app name and the radio state (status dot,
+  battery, Reconnect). Settings, chat window, language and theme moved behind
+  More, so the bar no longer runs out of room.
+- Swiping in from the left edge still opens the drawer, on the Chats half.
+- Other themes and desktop are unchanged.
+
+### Fixed
+- Opening a conversation or page while Settings was open could land on the
+  conversation that was open before Settings instead: closing Settings steps
+  back in browser history and the router re-selected that entry afterwards.
+  Seen with the new tab bar; the desktop buddy's click-to-open goes through
+  the same code. The selection now waits for that history step.
+
+### Not included
+- "Add Channel/Contact" and the sidebar search still show at the top of the
+  More half of the drawer.
+- A buddy mention opened from the Settings page (jump to a message) uses a
+  separate path that was not changed or checked.
+
+## Update 2026-10-09 (MCEU themes: desktop shell, feat/mceu-layout)
+
+No migration, no backend change, no new dependency. First of four layout
+parts for the MCEU themes; the phone tab bar, chat cards and page headers are
+not in this change.
+
+### Interface: the analyzer's shell under the MCEU themes (desktop)
+- With **MCEU Light** or **MCEU Dark** active on a desktop-width window, the
+  app takes the shell of the EU MeshCore Analyzer design. Every other theme
+  is unchanged. Phones (768px and narrower) got their own part, see above.
+- **Sidebar head:** the app name and logo, and a **Search anything** button
+  that opens the command palette (also Ctrl+K / Cmd+K).
+- **Sidebar foot:** Settings (it reads **Back to Chat** while settings are
+  open), Chat window, the language switcher (its menu opens upwards) and the
+  theme dialog. The update dot sits on the Settings row.
+- **Top bar:** a slim bar above the page with only radio state: the packet
+  sparkline, a status pill, battery, node name and key, and Reconnect.
+- The sidebar keeps its content, your custom order and hidden items. Collapsed
+  to the rail, head and foot shrink to icons; the language switcher is left
+  out there (it is in Settings and in the expanded sidebar).
+- The theme dialog now stays open when a pick changes the layout, in both
+  directions.
+
+### Internals
+- A theme asks for a layout with `layout` on its entry in `utils/theme.ts`;
+  `useThemeLayout()` reads it. `AppShell` is the only place that branches on
+  it. `<main>` is not moved between layouts, so the open page is not
+  remounted on a theme switch.
+- `StatusBar` gets `variant="topbar"`; the brand and the theme dialog moved
+  to `components/shell/` so both layouts share them. New string
+  `nav_search_anything` in English, Dutch and German.
+## Update 2026-10-09 (Frontend test flakes: waits under load, fix/frontend-wait-flakes)
+
+### Tests: `toggles settings page mode and syncs selected section into SettingsModal` (frontend)
+- `src/test/appFavorites.test.tsx` could fail in a full `npm run test:run`
+  with `Unable to find an element by: [data-testid="settings-modal-section"]`
+  (2 of 6 full runs on a 16-core Windows machine) while passing every time on
+  its own. `SettingsModal` is `React.lazy` in `AppShell`: the click commits
+  the settings view with its Suspense fallback, and the modal arrives in a
+  later render outside `act()`. The test gave that render `waitFor`'s default
+  1 s. Measured with timed copies of the test inside the full suite, the wait
+  took 166 ms to 5.1 s and passed 1 s in 6 of 18 samples (208 ms on its own).
+  The import of the mocked module itself took 0 ms, so that is not the slow
+  part. A copy of the test with the module made 1.5 s slow to load fails with
+  the same error.
+- The test now waits for the modal by its test id with a 10 s allowance and
+  checks the "Back to Chat" button once afterwards, not on every poll. With
+  that, the same measurement gave 27 ms to 1.2 s over 18 samples (one still
+  past 1 s, which is why the allowance stays), the slow-module copy passes,
+  and the test passed in three full runs. Code unchanged: lazy loading the
+  settings page is intended.
+
+### Tests: waits get 5 s by default (frontend)
+- `src/test/setup.ts` now sets Testing Library's `asyncUtilTimeout` to 5 s for
+  every test file (`waitFor`, `findBy*`); it was the library default of 1 s.
+  Two files already set this value for themselves (`appStartupHash.test.tsx`,
+  `appChatPopout.test.tsx`), for the same reason. `testSetup.test.ts` guards
+  the setting.
+- Why suite-wide: the settings test above was not the only one. The emoji
+  picker test `every button in the picker is a non-submit button` in
+  `messageInput.test.tsx` failed the same way once (at 1.2 s). With every
+  wait timed over three full runs, waits that needed an asynchronous render
+  took 500 ms or more 13 times, in 10 tests across 7 files, and passed 1 s
+  twice (1027 ms in `messageInput`, 1095 ms in `appFavorites`). The emoji
+  picker waits take 300 to 730 ms even with only two other files running.
+- What it costs: a wait that really fails now takes 5 s to report, not 1 s.
+  No passing test gets slower: over five full runs with a 15 s allowance not
+  one wait failed, so no test relies on a wait timing out.
+- Not chosen: fewer test workers. With 8 workers (16 is the default on this
+  16-thread machine) two full runs took 191 s and 215 s, against 112 to 174 s
+  for most runs that day, and a single test still ran 10.6 s. It also does not
+  help when the load comes from outside the test run.
+- Verified: a wait that needs 1.5 s fails before the change and passes after
+  it, and three full runs passed, 2849 of 2849 each, with the machine at 83
+  to 97% CPU from other work before each run.
+- Not fixed: whole tests reaching the 20 s `testTimeout`. Seen in two of the
+  day's full runs (two tests in `mapView.test.tsx`, one in
+  `hostRepeaterSettings.test.tsx`), both in runs that took over 215 s because
+  the machine was busy with other work. With other processes holding the
+  CPU at 88 to 100% (sampled around that run), one `hostRepeaterSettings`
+  test reached 20 s with the file run on its own. That is a different limit
+  from the one changed here.
+
 ## Update 2026-10-09 (MCEU themes, feat/mceu-theme)
 
 No migration, no backend change, no new dependency. Five font files added

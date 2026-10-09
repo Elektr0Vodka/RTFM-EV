@@ -43,7 +43,7 @@ frontend/src/
 │   ├── DistanceUnitContext.tsx # Browser-local distance-unit context/provider
 │   ├── PathHopWidthContext.tsx # Browser-local path hop-width display preference
 │   ├── RichPayloadContext.tsx  # Browser-local rich MeshCore payload rendering preference
-│   ├── MessageLayoutContext.tsx # MessageList row layout: 'bubbles' (default) or 'lines' (chat popup)
+│   ├── MessageLayoutContext.tsx # MessageList row layout: 'bubbles' (default), 'lines' (chat popup) or 'cards' (Atlas layout)
 │   └── PushSubscriptionContext.tsx # Push subscription state context/provider
 ├── lib/
 │   └── utils.ts            # cn() - clsx + tailwind-merge helper
@@ -178,6 +178,7 @@ frontend/src/
 │   ├── ChannelPathHashModeOverrideModal.tsx # Per-channel path hash mode override editor
 │   ├── BulkAddChannelResultModal.tsx # Results dialog for bulk channel creation
 │   ├── CommandPalette.tsx      # Command palette overlay
+│   ├── shell/                  # Pieces of the app shell shared by the classic and the Atlas layout (AppBrand, ThemeSettingsDialog, AtlasSidebar head/foot)
 │   ├── DirectTraceIcon.tsx     # Shared direct-trace glyph used in header/dashboard
 │   ├── NeighborsMiniMap.tsx    # Leaflet mini-map for repeater neighbor locations
 │   ├── settings/
@@ -726,6 +727,33 @@ batching/warm-up).
 UI styling is mostly utility-class driven (Tailwind-style classes in JSX) plus shared globals in `index.css` and `styles.css`.
 Do not rely on old class-only layout assumptions.
 
+### Theme-driven layout (Atlas shell)
+
+A theme can ask for another app shell with `layout` on its `THEMES` entry (`utils/theme.ts`). Only `'atlas'` exists, set on `mceu-light` and `mceu-dark`; every other theme is `'classic'`. Read it with `useThemeLayout()` (or `getThemeLayout()` outside React), never by matching theme ids.
+
+`AppShell` is the only place that branches on it: `atlasShell` on desktop (`layout === 'atlas' && !useIsMobile()`) and `atlasPhone` on phones.
+
+Desktop:
+
+- The sidebar gets `shellHead` / `shellFoot` render props (`components/shell/AtlasSidebar.tsx`): brand plus a "Search anything" button that opens the command palette (`utils/commandPalette.ts` `openCommandPalette()`), and rows for Settings / Back to Chat, chat window, language and theme. Both take `rail` for the collapsed sidebar. The settings nav in `AppShell` renders the same head and foot.
+- `StatusBar variant="topbar"` renders inside `<main>` and shows radio state only (sparkline, status pill, battery, node name, reconnect).
+- `<main>` itself is never moved or wrapped, so switching theme or crossing the breakpoint does not remount the conversation pane. Keep it that way.
+- The theme dialog's open state lives in `AppShell` (`ThemeSettingsDialog`), because picking a theme with another layout unmounts whichever control opened it.
+
+Phones:
+
+- `StatusBar variant="phonebar"` keeps the brand and radio state and drops the menu button and the app controls.
+- `components/shell/AtlasTabBar.tsx` sits at the bottom: Chats, Map, My Node, More. Chats and More open the existing left drawer with `Sidebar sectionFilter="chats"` or `"tools"`; the More half ends in `AtlasSidebarFoot`. Map and My Node select their page.
+- The drawer always renders the conversation sidebar there, also while settings are open.
+
+Chat rows: `AppShell` wraps `ConversationPane` in `MessageLayoutProvider value="cards"` under the Atlas layout (desktop and phone). `MessageList` then renders each message as a full-width card with its own header and a chip row (`HopCountBadge variant="chip"`, the scope badges, the delivery mark). The pieces of a row (`body`, `renderMeta`, `outgoingStatus`, `preview`, `rowActions`) are shared by all three layouts; a layout only decides where they go. The chat popup has its own provider and never gets cards.
+
+Page heads and panels are CSS only (`themes.css`, the two "MCEU: page head" and "MCEU: panels are cards" blocks). They match what pages already have: a `border-b border-border px-4` bar holding an `h2.text-base.font-semibold` title (or that h2 being the bar), and bordered rounded boxes inside `<main>` without a background utility or with `bg-background`. A new page gets the look by following that pattern; a page that names its title or tiles differently does not, and nothing fails when that happens.
+
+`selectLeavingSettings` in `AppShell` (the tab bar, the phone drawer and the desktop buddy use it) waits for the history step that closing settings triggers before it selects: the conversation router re-selects the entry that step lands on, and an immediate select loses to it.
+
+Not observable in jsdom: the real column layout, the upward language menu, the rail, the drawer and the history race above. Check those in a browser.
+
 ### Canonical style reference
 
 `SettingsLocalSection.tsx` contains a **ThemePreview** component with a collapsible "Canonical style reference" section. This is the authoritative catalog of text sizes, button variants, badge patterns, and interactive elements used throughout the app. **When adding or modifying UI, match the patterns shown there rather than inventing new ones.**
@@ -787,6 +815,14 @@ trust CI. Do not "fix" files you did not touch.
 `npm run packaged-build` is release-only. It writes the fallback `frontend/prebuilt`
 directory used by the downloadable prebuilt release zip; normal development and
 validation should stick to `npm run build`.
+
+Waits in tests (`waitFor`, `findBy*`) get 5 s, set once in `src/test/setup.ts`
+(Testing Library's own default is 1 s); a whole test gets 20 s
+(`vitest.config.ts`). Both are headroom for load: the suite runs one worker per
+CPU thread, and a wait on an asynchronous render that settles in a few hundred
+ms alone has been measured past 1 s inside a full run. Do not lower either to
+make a failing test report sooner, and prefer waiting for the thing you assert
+(`findByTestId`, a specific `waitFor`) over a fixed delay.
 
 When touching cross-layer contracts, also run backend tests from repo root:
 
