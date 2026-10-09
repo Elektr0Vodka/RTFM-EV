@@ -38,6 +38,7 @@ import type {
   CommunityJoinResult,
   Channel,
   ChannelDetail,
+  ChannelUnreadSummary,
   CommandResponse,
   BulkDeleteContactsResult,
   Contact,
@@ -599,6 +600,10 @@ export const api = {
       `/channels/${key}/mark-read${messageId === undefined ? '' : `?message_id=${messageId}`}`,
       { method: 'POST' }
     ),
+  summarizeChannelUnread: (key: string, after: number) =>
+    fetchJson<ChannelUnreadSummary>(`/channels/${key}/summarize-unread?after=${after}`, {
+      method: 'POST',
+    }),
   markChannelUnread: (key: string, messageId: number) =>
     fetchJson<{ status: string; key: string; message_id: number; last_read_at: number }>(
       `/channels/${key}/mark-unread`,
@@ -607,6 +612,11 @@ export const api = {
         body: JSON.stringify({ message_id: messageId }),
       }
     ),
+  setContactFloodScopeOverride: (publicKey: string, floodScopeOverride: string) =>
+    fetchJson<Contact>(`/contacts/${publicKey}/flood-scope-override`, {
+      method: 'POST',
+      body: JSON.stringify({ flood_scope_override: floodScopeOverride }),
+    }),
   setChannelFloodScopeOverride: (key: string, floodScopeOverride: string) =>
     fetchJson<Channel>(`/channels/${key}/flood-scope-override`, {
       method: 'POST',

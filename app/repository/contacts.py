@@ -205,6 +205,9 @@ class ContactRepository:
             last_contacted=row["last_contacted"],
             last_read_at=row["last_read_at"],
             first_seen=row["first_seen"],
+            flood_scope_override=(
+                row["flood_scope_override"] if "flood_scope_override" in available_columns else None
+            ),
             notes=row["notes"] if "notes" in available_columns else None,
             owner_info=row["owner_info"] if "owner_info" in available_columns else None,
             owner_key=row["owner_key"] if "owner_key" in available_columns else None,
@@ -830,6 +833,19 @@ class ContactRepository:
                 WHERE public_key = ?
                 """,
                 (ts, ts, public_key.lower()),
+            ) as cursor:
+                rowcount = cursor.rowcount
+        return rowcount > 0
+
+    @staticmethod
+    async def update_flood_scope_override(
+        public_key: str, flood_scope_override: str | None
+    ) -> bool:
+        """Set or clear a contact's flood-scope override."""
+        async with db.tx() as conn:
+            async with conn.execute(
+                "UPDATE contacts SET flood_scope_override = ? WHERE public_key = ?",
+                (flood_scope_override, public_key.lower()),
             ) as cursor:
                 rowcount = cursor.rowcount
         return rowcount > 0

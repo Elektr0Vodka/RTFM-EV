@@ -19,6 +19,8 @@ import { Label } from './ui/label';
 import { useT } from '../i18n';
 
 interface ChannelFloodScopeOverrideModalProps {
+  /** Which kind of conversation the override belongs to. Defaults to a channel. */
+  kind?: 'channel' | 'contact';
   open: boolean;
   onClose: () => void;
   roomName: string;
@@ -27,6 +29,7 @@ interface ChannelFloodScopeOverrideModalProps {
 }
 
 export function ChannelFloodScopeOverrideModal({
+  kind = 'channel',
   open,
   onClose,
   roomName,
@@ -57,7 +60,10 @@ export function ChannelFloodScopeOverrideModal({
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>{t('region_override_title')}</DialogTitle>
-          <DialogDescription>{t('region_override_description')}</DialogDescription>
+          <DialogDescription>
+            {t('region_override_description')}
+            {kind === 'contact' && <> {t('region_override_contact_note')}</>}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">

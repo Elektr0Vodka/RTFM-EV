@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS contacts (
     first_seen INTEGER,
     last_read_at INTEGER,
     last_read_message_id INTEGER,
+    flood_scope_override TEXT,
     favorite INTEGER DEFAULT 0,
     radio_policy TEXT NOT NULL DEFAULT 'auto',
     telemetry_perms INTEGER,

@@ -59,6 +59,7 @@ class AppSettingsRepository:
                    last_message_times,
                    advert_interval, last_advert_time, flood_scope, known_regions,
                    blocked_keys, blocked_names, hidden_hop_widths, hide_malformed,
+                   ollama_enabled, ollama_base_url, ollama_model,
                    discovery_blocked_types,
                    tracked_telemetry_repeaters, tracked_telemetry_contacts,
                    auto_resend_channel,
@@ -281,6 +282,16 @@ class AppSettingsRepository:
             hide_malformed = bool(row["hide_malformed"])
         except (KeyError, TypeError, IndexError):
             hide_malformed = False
+
+        # Ollama unread-summary settings (migration _136)
+        try:
+            ollama_enabled = bool(row["ollama_enabled"])
+            ollama_base_url = row["ollama_base_url"] or "http://localhost:11434"
+            ollama_model = row["ollama_model"] or ""
+        except (KeyError, TypeError, IndexError):
+            ollama_enabled = False
+            ollama_base_url = "http://localhost:11434"
+            ollama_model = ""
 
         # Parse discovery_blocked_types JSON
         discovery_blocked_types: list[int] = []
@@ -549,6 +560,9 @@ class AppSettingsRepository:
             blocked_names=blocked_names,
             hidden_hop_widths=hidden_hop_widths,
             hide_malformed=hide_malformed,
+            ollama_enabled=ollama_enabled,
+            ollama_base_url=ollama_base_url,
+            ollama_model=ollama_model,
             discovery_blocked_types=discovery_blocked_types,
             tracked_telemetry_repeaters=tracked_telemetry_repeaters,
             tracked_telemetry_contacts=tracked_telemetry_contacts,
@@ -632,6 +646,9 @@ class AppSettingsRepository:
         blocked_names: list[str] | None = None,
         hidden_hop_widths: list[int] | None = None,
         hide_malformed: bool | None = None,
+        ollama_enabled: bool | None = None,
+        ollama_base_url: str | None = None,
+        ollama_model: str | None = None,
         discovery_blocked_types: list[int] | None = None,
         tracked_telemetry_repeaters: list[str] | None = None,
         tracked_telemetry_contacts: list[str] | None = None,
@@ -823,6 +840,18 @@ class AppSettingsRepository:
             updates.append("hide_malformed = ?")
             params.append(1 if hide_malformed else 0)
 
+        if ollama_enabled is not None:
+            updates.append("ollama_enabled = ?")
+            params.append(1 if ollama_enabled else 0)
+
+        if ollama_base_url is not None:
+            updates.append("ollama_base_url = ?")
+            params.append(ollama_base_url)
+
+        if ollama_model is not None:
+            updates.append("ollama_model = ?")
+            params.append(ollama_model)
+
         if discovery_blocked_types is not None:
             updates.append("discovery_blocked_types = ?")
             params.append(json.dumps(discovery_blocked_types))
@@ -1001,6 +1030,9 @@ class AppSettingsRepository:
         blocked_names: list[str] | None = None,
         hidden_hop_widths: list[int] | None = None,
         hide_malformed: bool | None = None,
+        ollama_enabled: bool | None = None,
+        ollama_base_url: str | None = None,
+        ollama_model: str | None = None,
         discovery_blocked_types: list[int] | None = None,
         tracked_telemetry_repeaters: list[str] | None = None,
         tracked_telemetry_contacts: list[str] | None = None,
@@ -1082,6 +1114,9 @@ class AppSettingsRepository:
                 blocked_names=blocked_names,
                 hidden_hop_widths=hidden_hop_widths,
                 hide_malformed=hide_malformed,
+                ollama_enabled=ollama_enabled,
+                ollama_base_url=ollama_base_url,
+                ollama_model=ollama_model,
                 discovery_blocked_types=discovery_blocked_types,
                 tracked_telemetry_repeaters=tracked_telemetry_repeaters,
                 tracked_telemetry_contacts=tracked_telemetry_contacts,
