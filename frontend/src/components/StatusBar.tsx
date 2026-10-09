@@ -52,9 +52,11 @@ interface StatusBarProps {
   /**
    * 'topbar' is the Atlas layout's bar inside the content column: radio state
    * only. The brand and the settings, chat window, language and theme controls
-   * live in the sidebar there (see shell/AtlasSidebar).
+   * live in the sidebar there (see shell/AtlasSidebar). 'phonebar' is the Atlas
+   * layout on phones: brand and radio state, with the controls behind the tab
+   * bar's More tab instead of in the bar.
    */
-  variant?: 'bar' | 'topbar';
+  variant?: 'bar' | 'topbar' | 'phonebar';
   /**
    * Open the theme dialog owned by the parent. Without it the bar keeps its own
    * dialog. The shell owns it so the dialog survives a theme pick that changes
@@ -77,6 +79,7 @@ export function StatusBar({
   onOpenThemeSettings,
 }: StatusBarProps) {
   const topbar = variant === 'topbar';
+  const showControls = variant === 'bar';
   const t = useT();
   const { status: updateStatus } = useUpdateStatus();
   const repeaterArmed = useHostRepeaterArmed();
@@ -221,7 +224,7 @@ export function StatusBar({
       )}
     >
       {/* Mobile menu button - only visible on small screens */}
-      {!topbar && onMenuClick && (
+      {showControls && onMenuClick && (
         <button
           onClick={onMenuClick}
           className="md:hidden p-0.5 bg-transparent border-none text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
@@ -330,7 +333,7 @@ export function StatusBar({
               : t('common_reconnect')}
         </button>
       )}
-      {!topbar && (
+      {showControls && (
         <>
           {onOpenChatWindow && (
             <button

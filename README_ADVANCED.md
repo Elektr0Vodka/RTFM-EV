@@ -258,8 +258,10 @@ Customisation heading and the branding block below it.
   desktop they also use the analyzer's shell: the app name, a "Search anything"
   button (the command palette, Ctrl+K / Cmd+K) and the Settings, chat window,
   language and theme controls sit in a full-height sidebar, and the top bar
-  shrinks to a radio-status bar above the page. Phones keep the regular top bar
-  and drawer.
+  shrinks to a radio-status bar above the page. On phones a bottom tab bar
+  replaces the menu button: **Chats** opens the conversation list, **Map** and
+  **My Node** go to their page, and **More** opens the tools together with
+  Settings, chat window, language and theme.
 - **CRT screen effects**: scanline, phosphor-glow, screen-curvature, and flicker
   toggles that sit beneath the theme grid. They are a universal overlay: they
   work on top of any theme, not only the CRT ones. They default on when a CRT

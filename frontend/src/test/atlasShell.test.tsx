@@ -2,6 +2,7 @@ import { act, fireEvent, render, renderHook, screen } from '@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AtlasSidebarFoot, AtlasSidebarHead } from '../components/shell/AtlasSidebar';
+import { AtlasTabBar } from '../components/shell/AtlasTabBar';
 import { CommandPalette } from '../components/CommandPalette';
 import { StatusBar } from '../components/StatusBar';
 import { useThemeLayout } from '../hooks/useThemeLayout';
@@ -154,6 +155,52 @@ describe('StatusBar topbar variant', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open theme settings' }));
     expect(onOpenThemeSettings).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+});
+
+describe('StatusBar phonebar variant', () => {
+  it('keeps the brand and the radio state and drops the menu and app controls', () => {
+    render(
+      <StatusBar
+        health={health}
+        config={null}
+        brandName="My Mesh"
+        onSettingsClick={vi.fn()}
+        onMenuClick={vi.fn()}
+        onOpenChatWindow={vi.fn()}
+        variant="phonebar"
+      />
+    );
+
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('My Mesh');
+    expect(screen.getByRole('status', { name: 'Radio Disconnected' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reconnect' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open menu' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Chat window' })).not.toBeInTheDocument();
+  });
+});
+
+describe('AtlasTabBar', () => {
+  it('has four tabs, marks the active one and reports taps', () => {
+    const onSelect = vi.fn();
+    render(<AtlasTabBar active="map" onSelect={onSelect} />);
+
+    const names = screen.getAllByRole('button').map((b) => b.textContent);
+    expect(names).toEqual(['Chats', 'Map', 'My Node', 'More']);
+    expect(screen.getByRole('button', { name: 'Map' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: 'Chats' })).not.toHaveAttribute('aria-current');
+
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
+    expect(onSelect).toHaveBeenCalledWith('more');
+  });
+
+  it('marks no tab when the page has none', () => {
+    render(<AtlasTabBar active={null} onSelect={vi.fn()} />);
+
+    for (const button of screen.getAllByRole('button')) {
+      expect(button).not.toHaveAttribute('aria-current');
+    }
   });
 });
 

@@ -11,6 +11,38 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-09 (MCEU themes: phone tab bar, feat/mceu-layout)
+
+No migration, no backend change, no new dependency. Second of four layout
+parts for the MCEU themes.
+
+### Interface: bottom tab bar on phones under the MCEU themes
+- On a phone-width window (768px and narrower) with **MCEU Light** or **MCEU
+  Dark**, a bottom tab bar replaces the menu button: **Chats**, **Map**,
+  **My Node** and **More**. The tab of the page on screen is lit.
+- **Chats** opens the drawer with the conversation sections (favorites,
+  channels, contacts and the rest, in your order). **More** opens it with the
+  tools, followed by Settings, Chat window, language and theme. **Map** and
+  **My Node** go straight to their page.
+- The top bar on phones keeps the app name and the radio state (status dot,
+  battery, Reconnect). Settings, chat window, language and theme moved behind
+  More, so the bar no longer runs out of room.
+- Swiping in from the left edge still opens the drawer, on the Chats half.
+- Other themes and desktop are unchanged.
+
+### Fixed
+- Opening a conversation or page while Settings was open could land on the
+  conversation that was open before Settings instead: closing Settings steps
+  back in browser history and the router re-selected that entry afterwards.
+  Seen with the new tab bar; the desktop buddy's click-to-open goes through
+  the same code. The selection now waits for that history step.
+
+### Not included
+- "Add Channel/Contact" and the sidebar search still show at the top of the
+  More half of the drawer.
+- A buddy mention opened from the Settings page (jump to a message) uses a
+  separate path that was not changed or checked.
+
 ## Update 2026-10-09 (MCEU themes: desktop shell, feat/mceu-layout)
 
 No migration, no backend change, no new dependency. First of four layout
@@ -20,7 +52,7 @@ not in this change.
 ### Interface: the analyzer's shell under the MCEU themes (desktop)
 - With **MCEU Light** or **MCEU Dark** active on a desktop-width window, the
   app takes the shell of the EU MeshCore Analyzer design. Every other theme
-  is unchanged, and so are phones (768px and narrower) under MCEU.
+  is unchanged. Phones (768px and narrower) got their own part, see above.
 - **Sidebar head:** the app name and logo, and a **Search anything** button
   that opens the command palette (also Ctrl+K / Cmd+K).
 - **Sidebar foot:** Settings (it reads **Back to Chat** while settings are

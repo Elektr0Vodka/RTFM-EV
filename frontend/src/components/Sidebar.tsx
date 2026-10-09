@@ -269,6 +269,11 @@ interface SidebarProps {
    */
   shellHead?: (rail: boolean) => ReactNode;
   shellFoot?: (rail: boolean) => ReactNode;
+  /**
+   * Atlas phone drawer only: show just the conversation sections ('chats') or
+   * just the tools ('tools'). The two halves sit behind separate tabs there.
+   */
+  sectionFilter?: 'chats' | 'tools';
 }
 
 function loadInitialSectionSortOrders(): SidebarSectionSortOrders {
@@ -311,6 +316,7 @@ export function Sidebar({
   forceExpanded = false,
   shellHead,
   shellFoot,
+  sectionFilter,
 }: SidebarProps) {
   const t = useT();
   const isContactBlocked = useCallback(
@@ -1778,6 +1784,7 @@ export function Sidebar({
 
   const renderSection = (key: SidebarSectionKey): React.ReactNode => {
     if (hiddenSectionSet.has(key)) return null;
+    if (sectionFilter && (sectionFilter === 'tools') !== (key === 'tools')) return null;
     if (isGroupSectionKey(key)) {
       const group = contactGroups.find((g) => g.id === groupIdFromSectionKey(key));
       return group ? renderGroupSection(group) : null;
@@ -2207,26 +2214,29 @@ export function Sidebar({
               )}
 
               {/* Mark All Read */}
-              {!query && Object.values(unreadCounts).some((c) => c > 0) && (
-                <div
-                  className="px-3 py-2 cursor-pointer flex items-center gap-2 border-l-2 border-transparent hover:bg-accent transition-colors text-[0.8125rem] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={handleKeyboardActivate}
-                  onClick={onMarkAllRead}
-                >
-                  <CheckCheck className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                  <span className="flex-1 truncate text-muted-foreground">
-                    {t('chat_mark_all_read')}
-                  </span>
-                </div>
-              )}
+              {sectionFilter !== 'tools' &&
+                !query &&
+                Object.values(unreadCounts).some((c) => c > 0) && (
+                  <div
+                    className="px-3 py-2 cursor-pointer flex items-center gap-2 border-l-2 border-transparent hover:bg-accent transition-colors text-[0.8125rem] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={handleKeyboardActivate}
+                    onClick={onMarkAllRead}
+                  >
+                    <CheckCheck className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                    <span className="flex-1 truncate text-muted-foreground">
+                      {t('chat_mark_all_read')}
+                    </span>
+                  </div>
+                )}
 
               {/* Sections in user order */}
               {sectionOrder.map((sectionKey) => renderSection(sectionKey))}
 
               {/* Empty state */}
-              {nonFavoriteContacts.length === 0 &&
+              {sectionFilter !== 'tools' &&
+                nonFavoriteContacts.length === 0 &&
                 nonFavoriteRooms.length === 0 &&
                 nonFavoriteChannels.length === 0 &&
                 nonFavoriteRepeaters.length === 0 &&

@@ -33,6 +33,7 @@ import { useT } from '../i18n';
 import { useThemeLayout } from '../hooks/useThemeLayout';
 import { useIsMobile } from '../map/controls/breakpoints';
 import { AtlasSidebarFoot, AtlasSidebarHead } from './shell/AtlasSidebar';
+import { AtlasTabBar, type AtlasTab } from './shell/AtlasTabBar';
 import { ThemeSettingsDialog } from './shell/ThemeSettingsDialog';
 import type { CrackerPanelProps } from './CrackerPanel';
 import type { SearchViewProps } from './SearchView';
@@ -137,11 +138,14 @@ export function AppShell({
   const t = useT();
   // Themes with `layout: 'atlas'` get the analyzer's shell on desktop: the
   // brand and the app controls sit in a full-height sidebar and the top bar
-  // shrinks to a radio-status bar inside the content column. Phones keep the
-  // classic bar and drawer.
+  // shrinks to a radio-status bar inside the content column. On phones the
+  // menu button gives way to a bottom tab bar, and the drawer is split in two:
+  // conversations behind the Chats tab, tools and app controls behind More.
   const themeLayout = useThemeLayout();
   const isMobile = useIsMobile();
   const atlasShell = themeLayout === 'atlas' && !isMobile;
+  const atlasPhone = themeLayout === 'atlas' && isMobile;
+  const [drawerTab, setDrawerTab] = useState<'chats' | 'more'>('chats');
   // Owned here, not by the bar or the sidebar foot that opens it: picking a
   // theme with another layout unmounts whichever of the two opened it.
   const [themeSettingsOpen, setThemeSettingsOpen] = useState(false);
@@ -149,6 +153,7 @@ export function AppShell({
   const swipeHandlers = useSwipeable({
     onSwipedRight: ({ initial }) => {
       if (initial[0] < 30 && !sidebarOpen && window.innerWidth < 768) {
+        setDrawerTab('chats');
         onSidebarOpenChange(true);
       }
     },
@@ -172,12 +177,33 @@ export function AppShell({
     [onSettingsSectionChange, onToggleSettingsView, showSettings]
   );
 
-  // Desktop buddy click-to-jump: leave the settings page when opening a conversation.
+  // Desktop buddy click-to-jump and the Atlas phone navigation: leave the
+  // settings page when opening a conversation.
   const selectConversation = sidebarProps.onSelectConversation;
-  const handleBuddySelectConversation = useCallback(
+  const selectConversationRef = useRef(selectConversation);
+  selectConversationRef.current = selectConversation;
+  const selectLeavingSettings = useCallback(
     (conv: Conversation) => {
-      if (showSettings) onCloseSettingsView();
-      selectConversation(conv);
+      if (!showSettings) {
+        selectConversation(conv);
+        return;
+      }
+      // Closing settings steps back in history, and the conversation router
+      // then re-selects the conversation of the entry it lands on. Selecting
+      // right away would lose to that, so wait for the step to arrive. When
+      // settings were reached by back/forward nothing is popped: the timeout
+      // covers that case.
+      let done = false;
+      const select = () => {
+        if (done) return;
+        done = true;
+        window.removeEventListener('popstate', onPop);
+        selectConversationRef.current(conv);
+      };
+      const onPop = () => window.setTimeout(select, 0);
+      window.addEventListener('popstate', onPop);
+      window.setTimeout(select, 400);
+      onCloseSettingsView();
     },
     [onCloseSettingsView, selectConversation, showSettings]
   );
@@ -249,14 +275,61 @@ export function AppShell({
         onSettingsClick={onToggleSettingsView}
         onOpenChatWindow={onOpenChatWindow}
         onMenuClick={showSettings ? undefined : () => onSidebarOpenChange(true)}
-        variant={atlasShell ? 'topbar' : 'bar'}
+        variant={atlasShell ? 'topbar' : atlasPhone ? 'phonebar' : 'bar'}
         onOpenThemeSettings={openThemeSettings}
       />
       <div data-toast-anchor="statusbar" aria-hidden="true" />
     </>
   );
 
-  // `desktop` is the fixed sidebar; the mobile drawer never gets the Atlas parts.
+  // The phone drawer's More half ends in the same rows as the desktop foot.
+  // Each of them leaves the drawer.
+  const drawerFoot = () => (
+    <AtlasSidebarFoot
+      settingsMode={showSettings}
+      onSettingsClick={onToggleSettingsView}
+      onOpenChatWindow={
+        onOpenChatWindow &&
+        (() => {
+          onSidebarOpenChange(false);
+          onOpenChatWindow();
+        })
+      }
+      onOpenThemeSettings={() => {
+        onSidebarOpenChange(false);
+        openThemeSettings();
+      }}
+    />
+  );
+
+  const activeTab: AtlasTab | null = sidebarOpen
+    ? drawerTab
+    : showSettings
+      ? 'more'
+      : activeType === 'map'
+        ? 'map'
+        : activeType === 'node'
+          ? 'node'
+          : activeType === 'contact' || activeType === 'channel'
+            ? 'chats'
+            : activeType
+              ? 'more'
+              : null;
+  const handleTabSelect = (tab: AtlasTab) => {
+    if (tab === 'chats' || tab === 'more') {
+      setDrawerTab(tab);
+      onSidebarOpenChange(true);
+      return;
+    }
+    onSidebarOpenChange(false);
+    selectLeavingSettings(
+      tab === 'map'
+        ? { type: 'map', id: 'map', name: t('nav_node_map') }
+        : { type: 'node', id: 'node', name: t('nav_my_node') }
+    );
+  };
+
+  // `desktop` is the fixed sidebar; the classic mobile drawer gets no Atlas parts.
   const settingsSidebarContent = (desktop: boolean) => (
     <nav
       className="sidebar w-60 h-full min-h-0 overflow-hidden bg-card border-r border-border flex flex-col"
@@ -314,6 +387,19 @@ export function AppShell({
 
   const renderSidebar = (forceExpanded: boolean) => {
     const desktop = !forceExpanded;
+    if (forceExpanded && atlasPhone) {
+      // Always the conversation sidebar, also while settings are open: picking
+      // anything here leaves settings.
+      return (
+        <Sidebar
+          {...sidebarProps}
+          onSelectConversation={selectLeavingSettings}
+          forceExpanded
+          sectionFilter={drawerTab === 'more' ? 'tools' : 'chats'}
+          shellFoot={drawerTab === 'more' ? drawerFoot : undefined}
+        />
+      );
+    }
     return showSettings ? (
       settingsSidebarContent(desktop)
     ) : (
@@ -458,6 +544,8 @@ export function AppShell({
         )}
       </div>
 
+      {atlasPhone && <AtlasTabBar active={activeTab} onSelect={handleTabSelect} />}
+
       <NewMessageModal
         {...newMessageModalProps}
         open={showNewMessage}
@@ -482,7 +570,7 @@ export function AppShell({
         contacts={sidebarProps.contacts}
         channels={sidebarProps.channels}
         activePage={showSettings ? 'settings' : (activeType ?? null)}
-        onSelectConversation={handleBuddySelectConversation}
+        onSelectConversation={selectLeavingSettings}
         onOpenSettings={handleOpenSettings}
         onNavigateMentionToMessage={handleBuddyMention}
       />
