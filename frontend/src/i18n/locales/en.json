@@ -732,6 +732,7 @@
   "chat_retry_failed": "Retry failed",
   "chat_message_failed": "Failed",
   "chat_message_failed_title": "Not delivered: no acknowledgement after all retries. Use Retry to send it again.",
+  "chat_send_unconfirmed_title": "The radio did not confirm this send. The message may or may not be on air.",
   "chat_mark_unread_action": "Mark unread from here",
   "chat_mark_unread_success": "Marked unread",
   "chat_mark_unread_failed": "Failed to mark unread",
@@ -741,7 +742,7 @@
   "chat_scroll_down_newer": "Scroll down for newer messages",
   "chat_scroll_up_older": "Scroll up for older messages",
   "chat_select_conversation": "Select a conversation or start a new one",
-  "chat_truncated_by_radio": "likely truncated by radio",
+  "chat_too_long_to_send": "too long to send, shorten it",
   "chat_try_decrypt": {
     "one": "Try decrypting {n} stored packet",
     "other": "Try decrypting {n} stored packets"
@@ -3576,6 +3577,10 @@
   "bulkdelete_toast_deleted": {
     "one": "Deleted {count} contact",
     "other": "Deleted {count} contacts"
+  },
+  "bulkdelete_toast_radio_failed": {
+    "one": "{count} contact could not be removed from the radio and may come back on the next sync.",
+    "other": "{count} contacts could not be removed from the radio and may come back on the next sync."
   },
   "bulkdelete_toast_failed_title": "Bulk delete failed",
   "bulkdelete_channels_select_description": "Select channels to remove from the app.",

@@ -180,50 +180,96 @@ export class ConversationMessageCache {
   }
 }
 
+function messagesEqual(left: Message, right: Message): boolean {
+  return (
+    left.id === right.id &&
+    left.type === right.type &&
+    left.conversation_key === right.conversation_key &&
+    left.text === right.text &&
+    left.sender_timestamp === right.sender_timestamp &&
+    left.received_at === right.received_at &&
+    // Paths are compared by count: the server only appends to a message's
+    // path list, so an equal count means equal content.
+    (left.paths?.length ?? 0) === (right.paths?.length ?? 0) &&
+    left.txt_type === right.txt_type &&
+    left.signature === right.signature &&
+    left.sender_key === right.sender_key &&
+    left.outgoing === right.outgoing &&
+    left.acked === right.acked &&
+    (left.send_status ?? 'confirmed') === (right.send_status ?? 'confirmed') &&
+    left.sender_name === right.sender_name &&
+    (left.channel_name ?? null) === (right.channel_name ?? null) &&
+    (left.packet_id ?? null) === (right.packet_id ?? null) &&
+    (left.transport_code ?? null) === (right.transport_code ?? null) &&
+    (left.region ?? null) === (right.region ?? null) &&
+    (left.failed_at ?? null) === (right.failed_at ?? null) &&
+    Boolean(left.malformed) === Boolean(right.malformed)
+  );
+}
+
+/**
+ * Merge a freshly fetched page into the messages on screen. Returns null when
+ * nothing changed.
+ *
+ * A message on screen that the fetch does not contain was deleted on the
+ * server, provided it lies inside the range the fetch covers. When the page is
+ * full (`fetchedHasOlderMessages`), older pages loaded by scrolling are outside
+ * that range and stay. `messageIdsAtRequestStart` protects messages that
+ * arrived over the WebSocket while the request was in flight.
+ */
 export function reconcileConversationMessages(
   current: Message[],
-  fetched: Message[]
+  fetched: Message[],
+  fetchedHasOlderMessages = false,
+  messageIdsAtRequestStart?: ReadonlySet<number>
 ): Message[] | null {
-  const currentById = new Map<
-    number,
-    {
-      acked: number;
-      pathsLen: number;
-      text: string;
-      packetId: number | null | undefined;
-      failedAt: number | null;
-    }
-  >();
+  const currentById = new Map<number, Message>();
   for (const message of current) {
-    currentById.set(message.id, {
-      acked: message.acked,
-      pathsLen: message.paths?.length ?? 0,
-      text: message.text,
-      packetId: message.packet_id,
-      failedAt: message.failed_at ?? null,
-    });
+    currentById.set(message.id, message);
   }
 
-  let needsUpdate = false;
+  const comparePosition = (left: Message, right: Message): number =>
+    left.received_at === right.received_at
+      ? left.id - right.id
+      : left.received_at - right.received_at;
+
+  const fetchedIds = new Set(fetched.map((message) => message.id));
+  let oldestFetched: Message | null = null;
+  let newestFetched: Message | null = null;
   for (const message of fetched) {
-    const currentMessage = currentById.get(message.id);
-    if (
-      !currentMessage ||
-      currentMessage.acked !== message.acked ||
-      currentMessage.pathsLen !== (message.paths?.length ?? 0) ||
-      currentMessage.text !== message.text ||
-      currentMessage.packetId !== message.packet_id ||
-      currentMessage.failedAt !== (message.failed_at ?? null)
-    ) {
-      needsUpdate = true;
-      break;
+    if (!oldestFetched || comparePosition(message, oldestFetched) < 0) oldestFetched = message;
+    if (!newestFetched || comparePosition(message, newestFetched) > 0) newestFetched = message;
+  }
+
+  const isInsideFetchedRange = (message: Message): boolean => {
+    if (!fetchedHasOlderMessages) return true;
+    if (!oldestFetched || !newestFetched) return false;
+    return (
+      comparePosition(message, oldestFetched) >= 0 && comparePosition(message, newestFetched) <= 0
+    );
+  };
+  const mayRemove = (message: Message): boolean =>
+    messageIdsAtRequestStart === undefined || messageIdsAtRequestStart.has(message.id);
+
+  let needsUpdate = current.some(
+    (message) => !fetchedIds.has(message.id) && mayRemove(message) && isInsideFetchedRange(message)
+  );
+  if (!needsUpdate) {
+    for (const message of fetched) {
+      const currentMessage = currentById.get(message.id);
+      if (!currentMessage || !messagesEqual(currentMessage, message)) {
+        needsUpdate = true;
+        break;
+      }
     }
   }
   if (!needsUpdate) return null;
 
-  const fetchedIds = new Set(fetched.map((message) => message.id));
-  const olderMessages = current.filter((message) => !fetchedIds.has(message.id));
-  return [...fetched, ...olderMessages];
+  const messagesOutsideFetchedRange = current.filter(
+    (message) =>
+      !fetchedIds.has(message.id) && (!mayRemove(message) || !isInsideFetchedRange(message))
+  );
+  return [...fetched, ...messagesOutsideFetchedRange];
 }
 
 export const conversationMessageCache = new ConversationMessageCache();
@@ -479,6 +525,7 @@ export function useConversationMessages(
       }
 
       try {
+        const messageIdsAtRequestStart = new Set(messagesRef.current.map((message) => message.id));
         const data = await api.getMessages(
           {
             type: activeConversation.type === 'channel' ? 'CHAN' : 'PRIV',
@@ -493,7 +540,12 @@ export function useConversationMessages(
         }
 
         const messagesWithPendingAck = data.map((msg) => applyPendingAck(msg));
-        const merged = reconcileConversationMessages(messagesRef.current, messagesWithPendingAck);
+        const merged = reconcileConversationMessages(
+          messagesRef.current,
+          messagesWithPendingAck,
+          messagesWithPendingAck.length >= MESSAGE_PAGE_SIZE,
+          messageIdsAtRequestStart
+        );
         const nextMessages = merged ?? messagesRef.current;
         if (merged) {
           setMessages(merged);
@@ -520,6 +572,7 @@ export function useConversationMessages(
   const reconcileFromBackend = useCallback(
     (conversation: Conversation, signal: AbortSignal, requestId: number) => {
       const conversationId = conversation.id;
+      const messageIdsAtRequestStart = new Set(messagesRef.current.map((message) => message.id));
       api
         .getMessages(
           {
@@ -535,7 +588,12 @@ export function useConversationMessages(
 
           const dataWithPendingAck = data.map((msg) => applyPendingAck(msg));
           setHasOlderMessages(dataWithPendingAck.length >= MESSAGE_PAGE_SIZE);
-          const merged = reconcileConversationMessages(messagesRef.current, dataWithPendingAck);
+          const merged = reconcileConversationMessages(
+            messagesRef.current,
+            dataWithPendingAck,
+            dataWithPendingAck.length >= MESSAGE_PAGE_SIZE,
+            messageIdsAtRequestStart
+          );
           if (!merged) return;
 
           setMessages(merged);

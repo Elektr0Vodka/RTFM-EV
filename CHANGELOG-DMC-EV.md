@@ -11,6 +11,107 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-09 (community fork fixes, fix/community-fork-fixes)
+
+Bug fixes taken from the `Bjorkan/MESHRIK` fork of upstream (22 commits ahead
+of `33b3b8d`, reviewed at `5e1a0c89`), ported by hand onto this tree. Two
+migrations (`_133`, `_134`), no new dependency. The open upstream pull requests
+and issues were checked as well: the fixes they carry (companion repeat mode
+#362/#363, repeater CLI autocapitalise #349/#350, 422 for mesh timeouts #345)
+were already in this fork, so nothing from upstream needed porting.
+
+### Messaging
+- **Draft no longer follows you to another conversation** (MESHRIK `11e99e6a`).
+  Text typed but not sent stayed in the composer after switching conversation,
+  so it could be sent to the wrong channel or contact. The composer is now
+  recreated per conversation.
+- **Enter during IME composition no longer sends** (MESHRIK `8f173d15`).
+  Confirming a candidate with Enter (Japanese, Chinese, Korean input) sent the
+  half-composed message.
+- **Channel resend after a radio rename** (MESHRIK `f2037aa3`). A resend
+  stripped the sender prefix only when it matched the current radio name, so a
+  message sent under an earlier name went on air as `New: Old: text`. The
+  prefix is now taken from the stored `sender_name` first. A resend with a new
+  timestamp stores the row under the current name. Applies to the manual
+  resend and to the echo watchdog.
+- **A send the radio never answered is kept, not deleted** (MESHRIK
+  `85b71197`). When the radio gave no response to a send command the stored row
+  was removed, although the packet may have gone out. Such a message now stays
+  with `send_status = 'unknown'` and shows a warning mark; hearing it echoed
+  (or an ACK) turns it into a normal delivered message. The API still answers
+  422 with the same text, so the composer keeps the draft and the toast is
+  unchanged. Migration `_134` adds `messages.send_status`
+  (`pending`, `confirmed`, `unknown`; existing rows `confirmed`).
+- **Messages deleted on the server leave the open conversation** (MESHRIK
+  `ac58e0d9`). The background reconcile only added and updated, so a message
+  deleted elsewhere stayed on screen until a reload. Only messages inside the
+  fetched range are removed; older pages loaded by scrolling and messages that
+  arrived during the fetch stay.
+- **Reconcile compares every scalar field** (MESHRIK `257f3ed0`, in part). A
+  change to sender, region, transport code, signature, text type or channel
+  name was not picked up. Paths are still compared by count, not per path as
+  in MESHRIK: the server only ever appends to a message's path list
+  (`MessageRepository.add_path`, `json_insert(..., '$[#]', ...)`, the single
+  runtime writer), so for one message an equal count means equal content and
+  a per-path comparison can find nothing extra.
+- **A message over the byte limit is not sent** (MESHRIK `68734cc4`, with a
+  different threshold). The composer warned "likely truncated by radio" and
+  sent anyway. What the firmware does (`BaseChatMesh.cpp`, `MAX_TEXT_LEN` 160):
+  a channel message is cut to 160 bytes including the `Name: ` prefix and the
+  radio answers OK, so the stored text differs from what went on air, its echo
+  matches no stored row (echo matching is on exact text and timestamp) and
+  shows up as a second, incoming message while the original never gets an
+  echo count; a cut in the middle of a multi-byte character leaves invalid
+  UTF-8. A DM above 160 bytes is refused with `ERR_CODE_TABLE_FULL`. Send is
+  now disabled, and Enter does nothing, while the text is over the limit the
+  counter shows (156 bytes for a DM, 156 minus name and separator for a
+  channel); the hint reads "too long to send, shorten it". A message that
+  exactly fills the limit is still sent (MESHRIK blocks that one too). The
+  "likely truncated by radio" state is gone. Raw packets are not limited.
+
+### Read state
+- **Same-second arrivals stay unread** (MESHRIK `202e0f65`). `last_read_at`
+  has one-second resolution, so a message arriving in the second a conversation
+  was marked read never counted as unread. Migration `_133` adds
+  `last_read_message_id` to `contacts` and `channels`; a message is unread when
+  it is newer than `last_read_at`, or from that second with a higher id.
+  Existing rows are seeded so nothing old turns unread.
+- **A late unread answer no longer overwrites newer state** (MESHRIK
+  `3d6ec6f0`, reworked). `/api/read-state/unreads` is a snapshot, and it can
+  take seconds here (0.6 s to 16 s measured on the live instance). Two cases
+  were wrong: an older answer arriving after a newer one replaced it, and an
+  answer taken before a live message arrived dropped that message's count
+  again. Now only the newest request may apply its result, and when live
+  state changed during a request it is fetched again, at most three attempts,
+  the last of which is applied regardless. MESHRIK discards such a snapshot
+  without fetching again; with no retry a message arriving during the fetch
+  would leave every badge from that snapshot missing until the next refresh.
+- **Reads in the open conversation are saved** (MESHRIK `6f0b1d7b`). A message
+  arriving in the conversation on screen was shown as read but the server only
+  learned that at the next navigation or refresh, so another browser showed it
+  unread. The client now reports the newest message shown (250 ms debounce,
+  flushed on leaving) via `mark-read?message_id=`, which only moves forward.
+  Skipped while the conversation is held unread by "mark unread from here".
+
+### Contacts
+- **Radio refusing a contact removal is reported** (MESHRIK `5f29c84a`). Delete
+  and bulk delete ignored the radio's answer, so a contact the radio kept came
+  back at the next sync without explanation. Both endpoints now return what the
+  radio did and the UI shows a warning. One failing removal no longer skips the
+  rest of a bulk delete.
+- **Bulk delete with a key listed twice** counted and processed that contact
+  twice (MESHRIK `5f24e2dc`).
+
+### Interface
+- **Search "Searching..." indicator** disappeared when an older, aborted
+  request finished while a newer one was still running (MESHRIK `3f8bae66`).
+- **Notification click** now waits for the tab to be focused and navigated
+  before the service worker may be stopped (MESHRIK `2753d6fb`).
+
+### Not taken from MESHRIK
+- `5e1a0c89`, `1a7883da`, `f85304a3`, `50d20b94`, `44778327`: lint tidy-up,
+  lazy loading (already present), PWA manifest and rebranding.
+
 ## Update 2026-10-09 (MCEU themes, feat/mceu-theme)
 
 No migration, no backend change, no new dependency. Five font files added

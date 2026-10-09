@@ -230,7 +230,14 @@ export function BulkDeleteContactsModal({
     try {
       const keysToDelete = [...selectedKeys];
       const result = await api.bulkDeleteContacts(keysToDelete);
-      toast.success(t('bulkdelete_toast_deleted', { count: result.deleted }));
+      const deletedLabel = t('bulkdelete_toast_deleted', { count: result.deleted });
+      if (result.radio_failed > 0) {
+        toast.warning(deletedLabel, {
+          description: t('bulkdelete_toast_radio_failed', { count: result.radio_failed }),
+        });
+      } else {
+        toast.success(deletedLabel);
+      }
       onDeleted(keysToDelete);
       resetAndClose();
     } catch (err) {

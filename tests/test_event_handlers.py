@@ -381,6 +381,7 @@ class TestContactMessageCLIFiltering:
             "sender_key",
             "outgoing",
             "acked",
+            "send_status",
             "sender_name",
             "channel_name",
             "packet_id",

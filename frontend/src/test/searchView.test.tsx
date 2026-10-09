@@ -65,6 +65,16 @@ async function typeAndWaitForResults(query: string) {
   });
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 describe('SearchView', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -320,6 +330,76 @@ describe('SearchView', () => {
       expect.any(AbortSignal)
     );
     expect(screen.getByText(/No messages found/)).toBeInTheDocument();
+  });
+
+  it('keeps loading visible when an older aborted search settles', async () => {
+    const first = deferred<Message[]>();
+    const second = deferred<Message[]>();
+    mockGetMessages.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    render(<SearchView {...defaultProps} />);
+
+    const input = screen.getByLabelText('Search messages');
+    vi.useFakeTimers();
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'first' } });
+      await vi.advanceTimersByTimeAsync(350);
+    });
+    vi.useRealTimers();
+    expect(mockGetMessages).toHaveBeenCalledTimes(1);
+
+    vi.useFakeTimers();
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'second' } });
+      await vi.advanceTimersByTimeAsync(350);
+    });
+    vi.useRealTimers();
+    expect(mockGetMessages).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('status')).toHaveTextContent('Searching...');
+
+    await act(async () => {
+      first.reject(new DOMException('Aborted', 'AbortError'));
+      await Promise.resolve();
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('Searching...');
+
+    await act(async () => {
+      second.resolve([]);
+      await second.promise;
+    });
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByText(/No messages found for “second”/)).toBeInTheDocument();
+  });
+
+  it('keeps refetch loading visible when an aborted load-more request settles', async () => {
+    const pageResults = Array.from({ length: 50 }, (_, i) =>
+      createSearchResult({ id: i + 1, text: `result ${i}` })
+    );
+    const loadMore = deferred<Message[]>();
+    const refetch = deferred<Message[]>();
+    mockGetMessages
+      .mockResolvedValueOnce(pageResults)
+      .mockReturnValueOnce(loadMore.promise)
+      .mockReturnValueOnce(refetch.promise);
+
+    const { rerender } = render(<SearchView {...defaultProps} visibilityVersion={0} />);
+    await typeAndWaitForResults('result');
+    fireEvent.click(screen.getByText('Load more results'));
+    expect(screen.getByRole('status')).toHaveTextContent('Searching...');
+
+    rerender(<SearchView {...defaultProps} visibilityVersion={1} />);
+    expect(mockGetMessages).toHaveBeenCalledTimes(3);
+
+    await act(async () => {
+      loadMore.reject(new DOMException('Aborted', 'AbortError'));
+      await Promise.resolve();
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('Searching...');
+
+    await act(async () => {
+      refetch.resolve([]);
+      await refetch.promise;
+    });
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('aborts the load-more request on unmount', async () => {

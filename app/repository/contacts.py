@@ -760,16 +760,76 @@ class ContactRepository:
                 pass
 
     @staticmethod
-    async def update_last_read_at(public_key: str, timestamp: int | None = None) -> bool:
-        """Update the last_read_at timestamp for a contact.
+    async def update_last_read_at(
+        public_key: str,
+        timestamp: int | None = None,
+        message_id: int | None = None,
+    ) -> bool:
+        """Update the timestamp and message-ID read cursor for a contact.
 
-        Returns True if a row was updated, False if contact not found.
+        The cursor is the newest message at or before the timestamp, so a
+        message arriving later in that same second still counts as unread.
+
+        When ``message_id`` is given, advance only through that exact message
+        and never backwards. A delayed client can then acknowledge what was
+        on screen without consuming newer arrivals.
+
+        Returns True if a row was updated, False if contact not found
+        (or the message is not part of this conversation).
         """
-        ts = timestamp if timestamp is not None else int(time.time())
         async with db.tx() as conn:
+            if message_id is not None:
+                async with conn.execute(
+                    "SELECT last_read_at, last_read_message_id FROM contacts WHERE public_key = ?",
+                    (public_key.lower(),),
+                ) as cursor:
+                    current_row = await cursor.fetchone()
+                if current_row is None:
+                    return False
+
+                async with conn.execute(
+                    """
+                    SELECT received_at, id
+                    FROM messages
+                    WHERE id = ? AND type = 'PRIV' AND conversation_key = ?
+                    """,
+                    (message_id, public_key.lower()),
+                ) as cursor:
+                    boundary = await cursor.fetchone()
+                if boundary is None:
+                    return False
+
+                current = (
+                    current_row["last_read_at"] or 0,
+                    current_row["last_read_message_id"] or 0,
+                )
+                requested = (boundary["received_at"], boundary["id"])
+                if requested > current:
+                    await conn.execute(
+                        """
+                        UPDATE contacts
+                        SET last_read_at = ?, last_read_message_id = ?
+                        WHERE public_key = ?
+                        """,
+                        (*requested, public_key.lower()),
+                    )
+                return True
+
+            ts = timestamp if timestamp is not None else int(time.time())
             async with conn.execute(
-                "UPDATE contacts SET last_read_at = ? WHERE public_key = ?",
-                (ts, public_key.lower()),
+                """
+                UPDATE contacts
+                SET last_read_at = ?,
+                    last_read_message_id = COALESCE((
+                        SELECT MAX(m.id)
+                        FROM messages m
+                        WHERE m.type = 'PRIV'
+                          AND m.conversation_key = contacts.public_key
+                          AND m.received_at <= ?
+                    ), 0)
+                WHERE public_key = ?
+                """,
+                (ts, ts, public_key.lower()),
             ) as cursor:
                 rowcount = cursor.rowcount
         return rowcount > 0
@@ -828,7 +888,8 @@ class ContactRepository:
         async with db.tx() as conn:
             async with conn.execute(
                 """
-                SELECT public_key, last_seen, last_contacted, first_seen, last_read_at
+                SELECT public_key, last_seen, last_contacted, first_seen,
+                       last_read_at, last_read_message_id
                 FROM contacts
                 WHERE length(public_key) < 64
                   AND ? LIKE public_key || '%'
@@ -890,6 +951,15 @@ class ContactRepository:
                             WHEN ? < contacts.first_seen THEN ?
                             ELSE contacts.first_seen
                         END,
+                        last_read_message_id = CASE
+                            WHEN contacts.last_read_at IS NULL THEN ?
+                            WHEN ? IS NULL THEN contacts.last_read_message_id
+                            WHEN ? > contacts.last_read_at THEN ?
+                            WHEN ? = contacts.last_read_at
+                                 AND COALESCE(?, 0) > COALESCE(contacts.last_read_message_id, 0)
+                                THEN ?
+                            ELSE contacts.last_read_message_id
+                        END,
                         last_read_at = CASE
                             WHEN contacts.last_read_at IS NULL THEN ?
                             WHEN ? IS NULL THEN contacts.last_read_at
@@ -911,6 +981,16 @@ class ContactRepository:
                         row["first_seen"],
                         row["first_seen"],
                         row["first_seen"],
+                        # The cursor follows whichever last_read_at wins. SQLite
+                        # evaluates every SET expression against the row as it
+                        # was, so the order of the two assignments is free.
+                        row["last_read_message_id"],
+                        row["last_read_at"],
+                        row["last_read_at"],
+                        row["last_read_message_id"],
+                        row["last_read_at"],
+                        row["last_read_message_id"],
+                        row["last_read_message_id"],
                         row["last_read_at"],
                         row["last_read_at"],
                         row["last_read_at"],
@@ -930,7 +1010,20 @@ class ContactRepository:
     async def mark_all_read(timestamp: int) -> None:
         """Mark all contacts as read at the given timestamp."""
         async with db.tx() as conn:
-            async with conn.execute("UPDATE contacts SET last_read_at = ?", (timestamp,)):
+            async with conn.execute(
+                """
+                UPDATE contacts
+                SET last_read_at = ?,
+                    last_read_message_id = COALESCE((
+                        SELECT MAX(m.id)
+                        FROM messages m
+                        WHERE m.type = 'PRIV'
+                          AND m.conversation_key = contacts.public_key
+                          AND m.received_at <= ?
+                    ), 0)
+                """,
+                (timestamp, timestamp),
+            ):
                 pass
 
     @staticmethod
