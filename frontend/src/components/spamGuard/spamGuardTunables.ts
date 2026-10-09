@@ -91,6 +91,13 @@ export const TUNABLE_GROUPS: TunableGroup[] = [
       { key: 'max_total_rules', type: 'int', min: 20, max: 2000 },
     ],
   },
+  {
+    titleKey: 'spam_group_evidence',
+    items: [
+      { key: 'evidence_log', type: 'bool' },
+      { key: 'evidence_days', type: 'int', min: 1, max: 30, unit: 'days' },
+    ],
+  },
 ];
 
 export const UNIT_KEYS: Record<'seconds' | 'days' | 'percent', string> = {

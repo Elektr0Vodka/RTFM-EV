@@ -14,7 +14,9 @@ from collections.abc import Awaitable, Callable
 
 from app.repository import AppSettingsRepository
 from app.repository.retention import RetentionRepository
+from app.repository.spam import SpamEvidenceRepository, SpamGuardConfigRepository
 from app.services.relay_reception import rollup_relay_history
+from app.spam.evidence import retention_days as spam_evidence_days
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +110,14 @@ async def prune_once(now: int | None = None) -> dict[str, int]:
             "advert_paths",
             lambda: RetentionRepository.trim_advert_paths(s.advert_paths_per_contact),
         )
+
+        async def _prune_spam_evidence() -> int:
+            # Its own setting: Spam Guard's ``evidence_days`` (1 to 30, default 7).
+            stored = await SpamGuardConfigRepository.get()
+            days = spam_evidence_days(stored[1] if stored else None)
+            return await SpamEvidenceRepository.prune_older_than(_cutoff(days, now))
+
+        await _run_step(result, "spam_evidence", _prune_spam_evidence)
 
         if s.message_retention_days > 0:
             linked_raw: list[int] = []

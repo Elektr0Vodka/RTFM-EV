@@ -6,7 +6,9 @@ import pytest
 from fastapi import HTTPException
 
 from app.repository import ChannelRepository, MessageRepository
+from app.repository.spam import SpamEvidenceRepository
 from app.routers import spam as router_module
+from app.routers.spam import SpamGuardReplayRequest
 from app.services import spam_guard as spam_guard_module
 from app.services.host_repeater import HostRepeaterRuntime
 from app.services.spam_backend_host import HostBackend
@@ -271,3 +273,115 @@ async def test_routes_are_registered():
         "/api/spam-guard/rules",
         "/api/spam-guard/health",
     } <= paths
+
+
+# ── evidence export and replay ───────────────────────────────────────────
+
+
+async def evidence_body(response) -> list[dict]:
+    chunks = [chunk async for chunk in response.body_iterator]
+    text = "".join(c if isinstance(c, str) else c.decode() for c in chunks)
+    return [json.loads(line) for line in text.splitlines()]
+
+
+async def log_campaign(rt: SpamGuardRuntime) -> list[int]:
+    config = protect(evidence_log=True, dedupe_enabled=False, enable_hop_rules=False)
+    await rt.save_config(rt.version, config)
+    return await feed_campaign(rt)
+
+
+@pytest.mark.asyncio
+async def test_evidence_export_is_a_jsonl_download(runtime):
+    await log_campaign(runtime)
+    response = await router_module.get_spam_guard_evidence(days=7, scramble=False)
+    assert response.media_type == "application/x-ndjson"
+    assert "attachment" in response.headers["content-disposition"]
+    assert ".jsonl" in response.headers["content-disposition"]
+    meta, *records = await evidence_body(response)
+    assert meta["type"] == "meta" and meta["scrambled"] is False and meta["days"] == 7
+    assert [record["sender"] for record in records] == GENERATED
+
+
+@pytest.mark.asyncio
+async def test_scrambled_export_carries_no_name(runtime):
+    await log_campaign(runtime)
+    response = await router_module.get_spam_guard_evidence(days=7, scramble=True)
+    meta, *records = await evidence_body(response)
+    assert meta["scrambled"] is True
+    assert len(records) == 3
+    for record in records:
+        assert record["sender"].startswith("user-")
+        assert "channel_name" not in record
+    assert len({record["sender"] for record in records}) == 3
+
+
+@pytest.mark.asyncio
+async def test_export_only_reaches_back_the_days_asked_for(runtime):
+    await log_campaign(runtime)
+    await SpamEvidenceRepository.add(
+        {"type": "msg", "ts": runtime._clock() - 5 * 86400, "sender": "Old", "text": "old one"}
+    )
+    two_days = await evidence_body(
+        await router_module.get_spam_guard_evidence(days=2, scramble=False)
+    )
+    week = await evidence_body(await router_module.get_spam_guard_evidence(days=7, scramble=False))
+    assert "Old" not in [record.get("sender") for record in two_days]
+    assert "Old" in [record.get("sender") for record in week]
+
+
+@pytest.mark.asyncio
+async def test_replay_of_the_stored_log_with_the_current_settings(runtime):
+    await log_campaign(runtime)
+    result = await router_module.replay_spam_guard_evidence(SpamGuardReplayRequest(days=7))
+    assert result["source"] == "stored"
+    assert result["messages"] == 3
+    assert result["stopped"] == 1
+    assert result["recorded_stopped"] == 1
+    assert result["skipped"] == 0
+
+
+@pytest.mark.asyncio
+async def test_replay_with_other_settings_changes_nothing_stored(runtime):
+    await log_campaign(runtime)
+    version = runtime.version
+    strict = protect(dedupe_enabled=False, enable_hop_rules=False).model_copy(
+        update={"sensitivity": "strict"}
+    )
+    result = await router_module.replay_spam_guard_evidence(
+        SpamGuardReplayRequest(days=7, settings=strict)
+    )
+    assert result["stopped"] == 2
+    assert runtime.version == version
+    assert runtime.config.sensitivity == "balanced"
+
+
+@pytest.mark.asyncio
+async def test_replay_of_an_uploaded_scrambled_export(runtime):
+    await log_campaign(runtime)
+    response = await router_module.get_spam_guard_evidence(days=7, scramble=True)
+    chunks = [chunk async for chunk in response.body_iterator]
+    text = "".join(c if isinstance(c, str) else c.decode() for c in chunks)
+    result = await router_module.replay_spam_guard_evidence(
+        SpamGuardReplayRequest(evidence=text + "not json\n")
+    )
+    assert result["source"] == "upload"
+    assert result["scrambled"] is True
+    assert result["messages"] == 3
+    assert result["stopped"] == 1
+    assert result["skipped"] == 1
+
+
+@pytest.mark.asyncio
+async def test_replay_refuses_an_evidence_file_with_too_many_records(runtime, monkeypatch):
+    monkeypatch.setattr(router_module, "MAX_REPLAY_MESSAGES", 2)
+    await log_campaign(runtime)
+    with pytest.raises(HTTPException) as caught:
+        await router_module.replay_spam_guard_evidence(SpamGuardReplayRequest(days=7))
+    assert caught.value.status_code == 400
+
+
+def test_evidence_routes_are_registered():
+    from app.main import app
+
+    paths = {route.path for route in app.routes}
+    assert {"/api/spam-guard/evidence", "/api/spam-guard/replay"} <= paths

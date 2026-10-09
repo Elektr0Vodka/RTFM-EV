@@ -9,6 +9,7 @@ import type {
   Channel,
   Contact,
   SpamBlock,
+  SpamGuardReplayResult,
   SpamGuardState,
   SpamGuardTunables,
   SpamTotals,
@@ -20,6 +21,8 @@ const mocks = vi.hoisted(() => ({
   saveSpamGuardSettings: vi.fn(),
   spamGuardAction: vi.fn(),
   getSpamGuardRules: vi.fn(),
+  spamGuardEvidenceUrl: vi.fn(),
+  replaySpamGuard: vi.fn(),
 }));
 
 vi.mock('../api', () => ({
@@ -872,6 +875,130 @@ describe('SpamGuardView on an OpenHop radio', () => {
     openTab('Settings');
     expect(screen.getByLabelText('Club')).toBeChecked();
     expect(screen.queryByLabelText(/Also enforce on the OpenHop node/)).toBeNull();
+  });
+});
+
+const REPLAY_RESULT: SpamGuardReplayResult = {
+  source: 'stored',
+  scrambled: false,
+  skipped: 0,
+  messages: 120,
+  first_ts: NOW - 3600,
+  last_ts: NOW - 60,
+  stopped: 31,
+  flagged: 40,
+  recorded_stopped: 12,
+  blocks: { text: 2, hop: 1 },
+  duplicate_blocks: 9,
+  labels: { spam: 5, genuine: 2 },
+  caught: 3,
+  flagged_later: 1,
+  missed: 1,
+  passed: 1,
+  wrongly_held: 1,
+  missed_samples: [{ ts: NOW - 500, sender: 'TR9XK2LM', text: 'a one off advert', matched: null }],
+  wrongly_held_samples: [{ ts: NOW - 400, sender: 'Dave', text: 'evening all', matched: 'hop:27' }],
+};
+
+describe('SpamGuardView evidence log', () => {
+  beforeEach(() => {
+    mocks.spamGuardEvidenceUrl.mockImplementation(
+      (days: number, scramble: boolean) => `/evidence?days=${days}&scramble=${scramble}`
+    );
+    mocks.replaySpamGuard.mockResolvedValue(REPLAY_RESULT);
+  });
+
+  it('offers the evidence log switch and how long to keep it', async () => {
+    await renderView();
+    openTab('Settings');
+    const log = screen.getByTestId('spam-setting-evidence_log');
+    expect(within(log).getByText('Keep an evidence log')).toBeInTheDocument();
+    expect(within(log).getByRole('checkbox')).not.toBeChecked();
+    expect(screen.getByTestId('spam-setting-evidence_days')).toBeInTheDocument();
+  });
+
+  it('links to the plain and the scrambled download for the chosen period', async () => {
+    await renderView();
+    openTab('Settings');
+    expect(screen.getByRole('link', { name: 'Download' })).toHaveAttribute(
+      'href',
+      '/evidence?days=7&scramble=false'
+    );
+    fireEvent.change(screen.getByLabelText('Period'), { target: { value: '3' } });
+    expect(screen.getByRole('link', { name: 'Download scrambled' })).toHaveAttribute(
+      'href',
+      '/evidence?days=3&scramble=true'
+    );
+  });
+
+  it('replays the stored log with the settings in the form and shows the outcome', async () => {
+    const state = makeState();
+    await renderView(state);
+    openTab('Settings');
+    fireEvent.click(
+      within(screen.getByTestId('spam-setting-dedupe_enabled')).getByRole('checkbox')
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Replay with the settings in this form' }));
+    await waitFor(() => expect(mocks.replaySpamGuard).toHaveBeenCalledTimes(1));
+    const body = mocks.replaySpamGuard.mock.calls[0][0];
+    expect(body.days).toBe(7);
+    expect(body.evidence).toBeUndefined();
+    // The unsaved change in the form is what gets tried.
+    expect(body.settings.overrides).toEqual({ dedupe_enabled: false });
+    expect(mocks.saveSpamGuardSettings).not.toHaveBeenCalled();
+
+    expect(await screen.findByText('120 messages replayed')).toBeInTheDocument();
+    expect(screen.getByText('Stopped on arrival: 31 (at the time: 12)')).toBeInTheDocument();
+    expect(screen.getByText('Flagged as spam: 40')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Of 5 messages you marked as spam: 3 stopped, 1 flagged afterwards, 1 missed'
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Of 2 messages you marked as not spam: 1 let through, 1 wrongly held')
+    ).toBeInTheDocument();
+    expect(screen.getByText(/TR9XK2LM/)).toBeInTheDocument();
+    expect(screen.getByText(/evening all/)).toBeInTheDocument();
+  });
+
+  it('replays an evidence file', async () => {
+    mocks.replaySpamGuard.mockResolvedValue({
+      ...REPLAY_RESULT,
+      source: 'upload',
+      scrambled: true,
+      skipped: 2,
+      labels: { spam: 0, genuine: 0 },
+    });
+    await renderView();
+    openTab('Settings');
+    fireEvent.click(screen.getByLabelText('An evidence file'));
+    fireEvent.click(screen.getByRole('button', { name: 'Replay with the settings in this form' }));
+    expect(await screen.findByText('Choose an evidence file first.')).toBeInTheDocument();
+    expect(mocks.replaySpamGuard).not.toHaveBeenCalled();
+
+    const file = new File(['{"type":"meta"}\n{"type":"msg"}\n'], 'evidence.jsonl');
+    fireEvent.change(screen.getByLabelText('Evidence file'), { target: { files: [file] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Replay with the settings in this form' }));
+    await waitFor(() => expect(mocks.replaySpamGuard).toHaveBeenCalledTimes(1));
+    const body = mocks.replaySpamGuard.mock.calls[0][0];
+    expect(body.evidence).toBe('{"type":"meta"}\n{"type":"msg"}\n');
+    expect(body.days).toBeUndefined();
+    expect(
+      await screen.findByText('2 lines in the file were not usable and were skipped.')
+    ).toBeInTheDocument();
+    expect(screen.getByText(/This file is scrambled/)).toBeInTheDocument();
+    expect(screen.getByText(/nothing to score against/)).toBeInTheDocument();
+  });
+
+  it('says why a replay failed', async () => {
+    mocks.replaySpamGuard.mockRejectedValue(new Error('more than 20000 evidence records'));
+    await renderView();
+    openTab('Settings');
+    fireEvent.click(screen.getByRole('button', { name: 'Replay with the settings in this form' }));
+    expect(
+      await screen.findByText('The replay failed: more than 20000 evidence records')
+    ).toBeInTheDocument();
   });
 });
 

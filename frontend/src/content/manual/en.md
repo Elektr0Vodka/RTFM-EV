@@ -293,7 +293,7 @@ An **OpenHop** radio forwards on its own, so there Protect writes the blocks int
 - **Protection** lists the active blocks, each with the reason and when it ends. Every automatic block ends by itself. **Lockdown** is for a heavy attack: for a while only names it already knows get through. Under **Possibly genuine, held** you find messages from normal-looking names that were held; **Let through** trusts that name.
 - **Messages** shows what it read and why it did or did not act. Use **This is spam** and **Not spam** to correct it. The same two buttons are on every channel message in chat.
 - **Spam sources** shows which repeaters spam arrives through.
-- **Settings** has the channels it reads, every setting with a note on its side effects, and the exceptions (trusted names, repeaters never to block, allowed texts).
+- **Settings** has the channels it reads, every setting with a note on its side effects, and the exceptions (trusted names, repeaters never to block, allowed texts). With **Keep an evidence log** on, it keeps what it read and your This is spam / Not spam answers for the number of days you set. You can download that log, also scrambled (names replaced by codes, for sharing), and **replay** it with the settings in the form to see what they would have stopped. A replay changes nothing.
 
 A repeater is shared. What yours does not forward disappears for everyone behind it, and they cannot see why. There is on purpose no button to block a person by name.
 

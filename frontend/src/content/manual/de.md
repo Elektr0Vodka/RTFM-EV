@@ -293,7 +293,7 @@ Ein **OpenHop**-Funkgerät leitet selbst weiter. Dort schreibt Schützen die Spe
 - **Schutz** listet die aktiven Sperren, jeweils mit Grund und Ende. Jede automatische Sperre endet von selbst. **Lockdown** ist für einen starken Angriff: Eine Zeit lang kommen nur bereits bekannte Namen durch. Unter **Möglicherweise echt, zurückgehalten** stehen Nachrichten von normal aussehenden Namen, die zurückgehalten wurden; **Durchlassen** vertraut diesem Namen.
 - **Nachrichten** zeigt, was es gelesen hat und warum es eingegriffen hat oder nicht. Korrigiere es mit **Das ist Spam** und **Kein Spam**. Dieselben zwei Schaltflächen stehen an jeder Kanalnachricht im Chat.
 - **Spamquellen** zeigt, über welche Repeater Spam hereinkommt.
-- **Einstellungen** enthält die Kanäle, die es liest, jede Einstellung mit einem Hinweis auf ihre Nebenwirkungen und die Ausnahmen (vertrauenswürdige Namen, Repeater, die nie gesperrt werden, erlaubte Texte).
+- **Einstellungen** enthält die Kanäle, die es liest, jede Einstellung mit einem Hinweis auf ihre Nebenwirkungen und die Ausnahmen (vertrauenswürdige Namen, Repeater, die nie gesperrt werden, erlaubte Texte). Ist **Ein Beweisprotokoll führen** an, speichert es, was es gelesen hat, und deine Antworten Das ist Spam / Kein Spam, so viele Tage wie eingestellt. Du kannst das Protokoll herunterladen, auch anonymisiert (Namen durch Codes ersetzt, zum Teilen), und es mit den Einstellungen im Formular **wiederholen**, um zu sehen, was sie gestoppt hätten. Eine Wiederholung ändert nichts.
 
 Ein Repeater wird geteilt. Was deiner nicht weiterleitet, verschwindet für alle dahinter, und sie können nicht sehen, warum. Es gibt bewusst keine Schaltfläche, um eine Person nach Namen zu sperren.
 

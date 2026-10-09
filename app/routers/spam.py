@@ -7,17 +7,28 @@ in Monitor mode nothing is enforced and the numbers show what would have been
 stopped. Nothing here transmits.
 """
 
+import asyncio
+import time
+from collections.abc import AsyncIterator
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
+from app.repository.spam import SpamEvidenceRepository
 from app.services.spam_guard import spam_guard
+from app.spam.evidence import Scrambler, export_line, meta_record, parse_lines
+from app.spam.replay import replay
 from app.spam.rules import render
 from app.spam.settings import SpamConfig, effective
 
 router = APIRouter(prefix="/spam-guard", tags=["spam-guard"])
+
+# A replay costs several milliseconds per message (measured 6 to 8 ms on a busy
+# synthetic channel), so this is a minute or two at most. Fewer days fit more easily.
+MAX_REPLAY_MESSAGES = 20_000
+MAX_EVIDENCE_UPLOAD_CHARS = 40_000_000
 
 
 class SpamGuardSaveRequest(BaseModel):
@@ -47,6 +58,24 @@ class SpamGuardActionRequest(BaseModel):
 class SpamGuardActionResponse(BaseModel):
     result: dict[str, Any]
     state: dict[str, Any]
+
+
+class SpamGuardReplayRequest(BaseModel):
+    days: int | None = Field(
+        default=None,
+        ge=1,
+        le=30,
+        description="Replay the stored evidence of this many days (default: evidence_days)",
+    )
+    evidence: str | None = Field(
+        default=None,
+        max_length=MAX_EVIDENCE_UPLOAD_CHARS,
+        description="An evidence export (JSON Lines) to replay instead of the stored log",
+    )
+    settings: SpamConfig | None = Field(
+        default=None,
+        description="Settings to try; the saved settings when left out. Never stored.",
+    )
 
 
 @router.get("")
@@ -123,3 +152,65 @@ async def get_spam_guard_health() -> JSONResponse:
     await spam_guard.ensure_loaded()
     health = spam_guard.health()
     return JSONResponse(health, status_code=503 if health["state"] == "bad" else 200)
+
+
+@router.get("/evidence")
+async def get_spam_guard_evidence(
+    days: int = Query(default=7, ge=1, le=30, description="How many days back to export"),
+    scramble: bool = Query(
+        default=False,
+        description=(
+            "Replace every sender name and @[name] mention with a code that is stable "
+            "within this export, and leave the channel names out"
+        ),
+    ),
+) -> StreamingResponse:
+    """The evidence log as a JSON Lines download: a ``meta`` line, then one record per line.
+
+    Empty apart from the ``meta`` line unless the evidence log is, or was, switched on.
+    """
+    now = time.time()
+    scrambler = Scrambler() if scramble else None
+
+    async def lines() -> AsyncIterator[str]:
+        yield export_line(meta_record(now=now, days=days, scrambled=scramble))
+        async for record in SpamEvidenceRepository.iter_since(now - days * 86400):
+            yield export_line(scrambler.record(record) if scrambler else record)
+
+    stamp = time.strftime("%Y%m%d-%H%M", time.gmtime(now))
+    name = f"spam-guard-evidence-{stamp}{'-scrambled' if scramble else ''}.jsonl"
+    return StreamingResponse(
+        lines(),
+        media_type="application/x-ndjson",
+        headers={"Content-Disposition": f'attachment; filename="{name}"'},
+    )
+
+
+@router.post("/replay")
+async def replay_spam_guard_evidence(request: SpamGuardReplayRequest) -> dict[str, Any]:
+    """Run an evidence log through a fresh detector and score it against the user's labels.
+
+    Nothing is stored or changed: no settings, no blocks, no chat flags.
+    """
+    await spam_guard.ensure_loaded()
+    skipped, scrambled = 0, False
+    try:
+        if request.evidence is not None:
+            parsed = parse_lines(request.evidence, limit=MAX_REPLAY_MESSAGES)
+            records, skipped, scrambled = parsed.records, parsed.skipped, parsed.scrambled
+        else:
+            days = request.days or spam_guard.detector.tunables.evidence_days
+            records = await SpamEvidenceRepository.list_since(
+                time.time() - days * 86400, limit=MAX_REPLAY_MESSAGES
+            )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    config = request.settings or spam_guard.config
+    # Detection work on a large log takes seconds: keep it off the event loop.
+    result = await asyncio.to_thread(replay, records, config, scrambled=scrambled)
+    return {
+        **result,
+        "source": "upload" if request.evidence is not None else "stored",
+        "scrambled": scrambled,
+        "skipped": skipped,
+    }

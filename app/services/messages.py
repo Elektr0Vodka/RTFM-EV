@@ -623,6 +623,7 @@ async def create_fallback_channel_message(
 ) -> Message | None:
     """Store and broadcast a CHANNEL_MSG_RECV fallback channel message."""
     conversation_key_normalized = conversation_key.upper()
+    wire_text = message_text  # what Spam Guard reads, as in create_message_from_decrypted
     message_text = decode_message_text(message_text)
     text = f"{sender_name}: {message_text}" if sender_name else message_text
     malformed = is_malformed_channel_message(message_text, sender_timestamp, received_at)
@@ -661,6 +662,21 @@ async def create_fallback_channel_message(
         )
         return None
 
+    # No raw packet came with this message, so the host repeater never judged
+    # (or forwarded) it: Spam Guard reads it for chat flagging and learning only.
+    from app.services.spam_guard import spam_guard
+
+    spam = await spam_guard.on_channel_message(
+        message_id=msg_id,
+        channel_key=conversation_key_normalized,
+        sender=sender_name,
+        text=wire_text,
+        path=path,
+        path_len=path_len,
+        received_at=received_at,
+        raw_frame=False,
+    )
+
     message = build_message_model(
         message_id=msg_id,
         msg_type="CHAN",
@@ -674,6 +690,7 @@ async def create_fallback_channel_message(
         sender_key=resolved_sender_key,
         channel_name=channel_name,
         malformed=malformed,
+        spam=spam,
     )
     broadcast_message(message=message, broadcast_fn=broadcast_fn)
     return message

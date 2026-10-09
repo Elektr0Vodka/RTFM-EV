@@ -5,11 +5,19 @@ import time
 import pytest
 
 from app.repository import AppSettingsRepository, ChannelRepository, MessageRepository
-from app.repository.spam import SpamGuardConfigRepository, SpamGuardStateRepository
+from app.repository.spam import (
+    SpamEvidenceRepository,
+    SpamGuardConfigRepository,
+    SpamGuardStateRepository,
+)
 from app.routers.settings import AppSettingsUpdate, update_settings
 from app.services import spam_guard as spam_guard_module
 from app.services.host_repeater import HostRepeaterRuntime, _lifetime_rule_key
-from app.services.messages import create_message_from_decrypted
+from app.services.messages import (
+    create_fallback_channel_message,
+    create_message_from_decrypted,
+)
+from app.services.retention_pruner import prune_once
 from app.services.spam_backend_host import HostBackend
 from app.services.spam_guard import SpamGuardRuntime, default_config, split_path
 from app.spam.settings import SpamConfig
@@ -386,3 +394,127 @@ class TestRawPacketPipeline:
         assert len(event.path) == info.path_length
         assert "".join(event.path).lower() == info.path.hex()
         assert event.message_id == result["message_id"]
+
+
+class TestEvidenceLog:
+    async def rows(self) -> list[dict]:
+        return await SpamEvidenceRepository.list_since(0)
+
+    @pytest.mark.asyncio
+    async def test_nothing_is_kept_while_the_log_is_off(self, feed):
+        await feed.say("Dave", "evening all")
+        assert await self.rows() == []
+
+    @pytest.mark.asyncio
+    async def test_every_analysed_message_is_kept_while_it_is_on(self, feed):
+        await protect(feed, evidence_log=True, dedupe_enabled=False, enable_hop_rules=False)
+        for name in GENERATED:
+            await feed.say(name, SPAM)
+        await feed.say("Dave", "not on a protected channel", channel=OTHER)
+        rows = await self.rows()
+        assert [row["type"] for row in rows] == ["msg", "msg", "msg"]
+        assert [row["sender"] for row in rows] == GENERATED
+        assert rows[0]["path"] == ["27", "B1"]
+        assert rows[0]["channel_name"] == "Public"
+        assert rows[0]["length"] == 80
+        # The copy that confirmed the campaign was caught by its own block.
+        assert [bool(row["matched"]) for row in rows] == [False, False, True]
+        assert PUBLIC.lower() not in str(rows).lower()
+
+    @pytest.mark.asyncio
+    async def test_the_users_verdicts_are_kept_as_labels(self, feed):
+        await protect(feed, evidence_log=True, dedupe_enabled=False, enable_hop_rules=False)
+        spam = await feed.say("UD6DWREK", SPAM)
+        fine = await feed.say("Dave", "evening all")
+        await feed.runtime.action("mark_spam", {"text": SPAM, "channel": PUBLIC}, message_id=spam)
+        await feed.runtime.action("not_spam", {"sender": "Dave"}, message_id=fine)
+        labels = [row for row in await self.rows() if row["type"] == "label"]
+        assert [(row["label"], row["message_id"], row["sender"]) for row in labels] == [
+            ("spam", spam, "UD6DWREK"),
+            ("genuine", fine, "Dave"),
+        ]
+        assert labels[0]["text"] == SPAM
+
+    @pytest.mark.asyncio
+    async def test_a_verdict_without_a_message_is_not_a_label(self, feed):
+        await protect(feed, evidence_log=True)
+        await feed.runtime.action("not_spam", {"sender": "Dave"})
+        assert await self.rows() == []
+
+    @pytest.mark.asyncio
+    async def test_old_evidence_is_pruned_after_evidence_days(self, feed):
+        await protect(feed, evidence_log=True, evidence_days=3)
+        now = feed.clock.now
+        for age_days in (5, 2):
+            await SpamEvidenceRepository.add(
+                {"type": "msg", "ts": now - age_days * 86400, "sender": "x", "text": "y"}
+            )
+        result = await prune_once(now=int(now))
+        assert result["spam_evidence"] == 1
+        assert len(await self.rows()) == 1
+
+    @pytest.mark.asyncio
+    async def test_evidence_is_read_back_in_pages(self, feed):
+        for index in range(7):
+            await SpamEvidenceRepository.add(
+                {"type": "msg", "ts": 1000.0 + index, "sender": f"s{index}", "text": "t"}
+            )
+        seen = [row["sender"] async for row in SpamEvidenceRepository.iter_since(1002, batch=3)]
+        assert seen == ["s2", "s3", "s4", "s5", "s6"]
+        assert await SpamEvidenceRepository.count() == 7
+
+
+class TestFallbackMessages:
+    """Channel messages the radio hands over without a raw packet (CHANNEL_MSG_RECV)."""
+
+    async def pulled(self, feed, sender, text, *, channel=PUBLIC):
+        feed.clock.now += 5
+        return await create_fallback_channel_message(
+            conversation_key=channel,
+            message_text=text,
+            sender_timestamp=int(feed.clock.now),
+            received_at=int(feed.clock.now),
+            path=None,
+            path_len=2,
+            txt_type=0,
+            sender_name=sender,
+            channel_name="Public",
+            broadcast_fn=lambda event, data, **_: feed.events.append((event, data)),
+        )
+
+    @pytest.mark.asyncio
+    async def test_they_are_analysed_like_any_other_channel_message(self, feed):
+        await protect(feed, dedupe_enabled=False, enable_hop_rules=False, evidence_log=True)
+        messages = [await self.pulled(feed, name, SPAM) for name in GENERATED]
+        assert all(message is not None for message in messages)
+        assert [b for b in feed.runtime.detector.blocks.values() if b.source == "campaign"]
+        assert await feed.spam_flags() == {message.id: True for message in messages}
+        # No hop hashes come with such a message: it counts as heard directly.
+        assert feed.runtime.detector.events[-1].first_hop == "DIRECT"
+        assert len(await SpamEvidenceRepository.list_since(0)) == 3
+
+    @pytest.mark.asyncio
+    async def test_a_copy_of_blocked_spam_arrives_flagged(self, feed):
+        await protect(feed, dedupe_enabled=False, enable_hop_rules=False)
+        for name in GENERATED:
+            await feed.say(name, SPAM)
+        late = await self.pulled(feed, "Dave", SPAM + " again")
+        assert late is not None and late.spam is True
+        assert feed.of("message")[-1]["spam"] is True
+
+    @pytest.mark.asyncio
+    async def test_it_is_never_counted_as_caught_by_the_block_it_confirms(self, feed):
+        # The host engine judges raw frames; this message never was one.
+        await protect(feed, dedupe_enabled=False, enable_hop_rules=False)
+        for name in GENERATED:
+            await self.pulled(feed, name, SPAM)
+        assert [event.matched for event in feed.runtime.detector.events] == [None, None, None]
+
+    @pytest.mark.asyncio
+    async def test_other_channels_and_a_switched_off_guard_are_left_alone(self, feed):
+        other = await self.pulled(feed, "UD6DWREK", SPAM, channel=OTHER)
+        assert other is not None and other.spam is False
+        assert not feed.runtime.detector.events
+        await feed.runtime.set_enabled(False)
+        await self.pulled(feed, "UD6DWREK", SPAM)
+        assert not feed.runtime.detector.events

@@ -92,6 +92,40 @@ from scratch for this codebase; no SpamGuard source is copied.
   `GET /api/spam-guard/health` (503 when something is wrong). WS events
   `spam_guard` and `message_spam`.
 
+### Spam Guard: evidence log, export and replay
+- **Evidence log** (Settings tab, off by default): while it is on, every
+  message Spam Guard analyses is kept with what it made of it (route, name
+  signals, known or not, the block that caught it), and so is every This is
+  spam / Not spam answer. Kept for 1 to 30 days (`evidence_days`, default 7)
+  and deleted by the retention pruner. A record never holds a channel key,
+  only a short one-way id of it.
+- **Download** as JSON Lines: `GET /api/spam-guard/evidence?days=&scramble=`.
+  A scrambled download replaces every sender name and `@[name]` mention with
+  a code that is the same within that file and different in the next one,
+  and leaves out the channel names. A name typed into a message as plain
+  text cannot be recognised and stays.
+- **Replay** (`POST /api/spam-guard/replay`): runs the stored log, or an
+  uploaded evidence file, through a fresh detector with the settings in the
+  form (unsaved changes included) and shows what would have been stopped on
+  arrival next to what was stopped at the time, and for the messages you
+  labelled: caught, flagged afterwards, missed, let through, wrongly held.
+  Nothing is stored or changed. A replay starts cold, like a fresh install,
+  and leaves out blocks and exceptions made by hand. At most 20000 messages
+  per replay; measured cost is 6 to 8 ms per message on a busy synthetic
+  channel.
+- A scrambled file still replays properly: the look of each name (its score
+  and whether it was disguised) is recorded, and the replay uses that
+  instead of judging the codes. Trusted names do not apply to such a file.
+- Detector: the shared text of a running campaign is now worked out once
+  per set of copies instead of on every message.
+- Channel messages the radio hands over without their raw packet (the
+  `CHANNEL_MSG_RECV` fallback, for example messages it queued while RTFM-EV
+  was away) are now analysed too: they are flagged in chat, count towards
+  campaigns and known people, and go into the evidence log. They come
+  without hop hashes, so they count as heard directly and never lead to a
+  repeater block. They are timed at the moment they are pulled from the
+  radio, which can be later than when they were sent.
+
 ### Differences from openhop-spamguard (deliberate)
 - **Monitor writes no rules.** SpamGuard writes `log_only` rules in Monitor
   mode. Both OpenHop and the host engine stop at the first matching rule, so a
@@ -104,15 +138,12 @@ from scratch for this codebase; no SpamGuard source is copied.
   count as brand new again every 24 hours.
 
 ### Not in this change
-- Evidence log, export and replay.
 - If RTFM-EV stops without a clean shutdown, or cannot reach the node's API,
   rules already on an OpenHop node stay there until it reaches the node
   again. They can be removed by hand in the node's policy editor (names
   starting with `rtfm-spam:`).
 - RTFM-EV's own OpenHop policy editor lists the `rtfm-spam:` rules next to
   yours; a change made to them there is undone at the next check.
-- Channel messages that arrive without a raw packet (the `CHANNEL_MSG_RECV`
-  fallback) are not analysed.
 - Not tested on live RF. The OpenHop sync is tested against a fake of the
   node's policy API written from the OpenHop source, not against a real node.
 

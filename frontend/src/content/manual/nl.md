@@ -293,7 +293,7 @@ Een **OpenHop**-radio stuurt zelf door. Daar schrijft Beschermen de blokkades in
 - **Bescherming** toont de actieve blokkades, elk met de reden en wanneer ze eindigt. Elke automatische blokkade eindigt vanzelf. **Lockdown** is voor een zware aanval: een tijdlang komen alleen namen door die al bekend zijn. Onder **Mogelijk echt, tegengehouden** staan berichten van normaal ogende namen die zijn tegengehouden; **Doorlaten** vertrouwt die naam.
 - **Berichten** toont wat het heeft gelezen en waarom het wel of niet ingreep. Corrigeer het met **Dit is spam** en **Geen spam**. Dezelfde twee knoppen staan bij elk kanaalbericht in de chat.
 - **Spambronnen** toont via welke repeaters spam binnenkomt.
-- **Instellingen** bevat de kanalen die het leest, elke instelling met een opmerking over de bijwerkingen, en de uitzonderingen (vertrouwde namen, repeaters die nooit worden geblokkeerd, toegestane teksten).
+- **Instellingen** bevat de kanalen die het leest, elke instelling met een opmerking over de bijwerkingen, en de uitzonderingen (vertrouwde namen, repeaters die nooit worden geblokkeerd, toegestane teksten). Met **Een bewijslog bijhouden** aan bewaart het wat het las en je antwoorden Dit is spam / Geen spam, zoveel dagen als je instelt. Je kunt dat log downloaden, ook geanonimiseerd (namen vervangen door codes, om te delen), en het **herhalen** met de instellingen in het formulier om te zien wat die hadden tegengehouden. Een herhaling verandert niets.
 
 Een repeater is gedeeld. Wat de jouwe niet doorstuurt verdwijnt voor iedereen erachter, en zij kunnen niet zien waarom. Er is bewust geen knop om iemand op naam te blokkeren.
 

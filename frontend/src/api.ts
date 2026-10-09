@@ -67,6 +67,8 @@ import type {
   HostRepeaterStats,
   HostRepeaterValidateResult,
   SpamGuardActionResult,
+  SpamGuardReplayRequest,
+  SpamGuardReplayResult,
   SpamGuardRules,
   SpamGuardSettings,
   SpamGuardState,
@@ -329,6 +331,14 @@ export const api = {
     }),
   getSpamGuardRules: (preview = false) =>
     fetchJson<SpamGuardRules>(`/spam-guard/rules${preview ? '?preview=true' : ''}`),
+  /** Where the browser downloads the evidence log from (JSON Lines). */
+  spamGuardEvidenceUrl: (days: number, scramble: boolean) =>
+    `${API_BASE}/spam-guard/evidence?days=${days}&scramble=${scramble}`,
+  replaySpamGuard: (body: SpamGuardReplayRequest) =>
+    fetchJson<SpamGuardReplayResult>('/spam-guard/replay', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   getGpsConfig: () => fetchJson<GpsConfig>('/radio/gps'),
   getRadioDefaultFloodScope: (signal?: AbortSignal) =>
     fetchJson<RadioDefaultFloodScope>('/radio/default-flood-scope', { signal }),

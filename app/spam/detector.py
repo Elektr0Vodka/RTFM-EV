@@ -46,7 +46,6 @@ from app.spam.text import (
     is_disguised,
     longest_piece,
     middle_piece,
-    name_score,
     normalise,
     rule_length,
     shared_text,
@@ -56,6 +55,7 @@ from app.spam.text import (
     strip_emoji,
     strip_mentions,
 )
+from app.spam.text import name_score as _name_score  # ``ingest`` has a parameter of that name
 
 BlockKind = Literal["text", "words", "hop", "suffix", "links", "lockdown"]
 BlockSource = Literal["manual", "hop", "campaign", "dedupe", "rotation", "links", "lockdown"]
@@ -76,6 +76,7 @@ MAX_SENDER_HISTORY = 5000
 MAX_KNOWN = 5000
 MAX_ROUTES = 5000
 MAX_CAMPAIGN_EVENTS = 400
+SHARED_CACHE_SIZE = 64
 MIN_CAMPAIGN_CHARS = 8
 MAX_VARIANT_BLOCKS = 5
 HISTORY_HOURS = 8 * 24
@@ -235,6 +236,11 @@ class SpamDetector:
         self._sim_threshold = 0.0
         self._sim_shingles: dict[str, frozenset[str]] = {}
         self._sim_links: dict[str, set[str]] = {}
+        # Shared text / words per set of copies. ``decide`` runs for every
+        # message, and a running campaign's copies rarely change in between.
+        self._shared_cache: dict[
+            tuple[int, tuple[str, ...]], tuple[str | None, list[str] | None]
+        ] = {}
         self.configure(config)
 
     # ── configuration ────────────────────────────────────────────────────
@@ -452,13 +458,23 @@ class SpamDetector:
         channel: str,
         length: int = 0,
         message_id: int | None = None,
+        name_score: int | None = None,
+        name_disguised: bool | None = None,
     ) -> Event:
+        """Take in one channel message.
+
+        ``name_score`` and ``name_disguised`` replace what the sender name looks
+        like. They are for replaying a scrambled evidence export, where the name
+        is a code and only the recorded signals say what it was.
+        """
         now = self._clock()
         sender = sender or "?"
         hops = tuple(hop.upper() for hop in path)
         norm = normalise(text)
-        score = name_score(sender, self._patterns)
-        disguised = is_disguised(strip_mentions(text)) or is_disguised(sender, name=True)
+        score = _name_score(sender, self._patterns) if name_score is None else name_score
+        if name_disguised is None:
+            name_disguised = is_disguised(sender, name=True)
+        disguised = is_disguised(strip_mentions(text)) or name_disguised
         trusted = sender in self.allow_senders
         event = Event(
             ts=ts,
@@ -660,11 +676,18 @@ class SpamDetector:
     def _shared(self, originals: Sequence[str]) -> tuple[str | None, list[str] | None]:
         """(shared text, shared words) worth a rule for these copies."""
         minimum = self.tunables.min_rule_chars
+        key = (minimum, tuple(originals))
+        cached = self._shared_cache.get(key)
+        if cached is not None:
+            return cached[0], list(cached[1]) if cached[1] else cached[1]
         stripped = [strip_mentions(text) for text in originals]
         common = self._one_piece(shared_text(stripped, minimum), originals, minimum)
         words = shared_words(stripped, minimum)
         if words and common and len(common) >= 0.6 * len(strip_emoji(stripped[-1])):
             words = None  # the shared text already covers the copies
+        if len(self._shared_cache) >= SHARED_CACHE_SIZE:
+            self._shared_cache.clear()
+        self._shared_cache[key] = (common, list(words) if words else words)
         return common, words
 
     def _block_campaigns(self) -> None:

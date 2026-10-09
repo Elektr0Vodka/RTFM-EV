@@ -31,13 +31,18 @@ from pydantic import ValidationError
 
 from app.channel_constants import PUBLIC_CHANNEL_KEY
 from app.repository import AppSettingsRepository, MessageRepository
-from app.repository.spam import SpamGuardConfigRepository, SpamGuardStateRepository
+from app.repository.spam import (
+    SpamEvidenceRepository,
+    SpamGuardConfigRepository,
+    SpamGuardStateRepository,
+)
 from app.services.host_repeater import host_repeater
 from app.services.host_repeater_engine import lora_airtime_ms
 from app.services.host_repeater_link import radio_snapshot
 from app.services.spam_backend_host import HostBackend
 from app.services.spam_backend_openhop import FAILURES_BAD, OpenHopBackend
 from app.spam.detector import DecideResult, Event, SpamDetector
+from app.spam.evidence import label_record, message_record
 from app.spam.rules import RuleSet, render
 from app.spam.settings import PRESETS, ProtectedChannel, SpamConfig, SpamTunables
 from app.websocket import broadcast_event
@@ -89,6 +94,7 @@ class SpamGuardRuntime:
         self.last_message_at: float | None = None
         self.last_error: str | None = None
         self._channel_keys: frozenset[str] = frozenset()
+        self._channel_names: dict[str, str] = {}
         self._lock = asyncio.Lock()
         self._dirty = False
         self._saved_at = 0.0
@@ -99,6 +105,7 @@ class SpamGuardRuntime:
 
     def _index_channels(self) -> None:
         self._channel_keys = frozenset(channel.key for channel in self.config.channels)
+        self._channel_names = {channel.key: channel.name for channel in self.config.channels}
 
     async def load(self) -> None:
         settings = await AppSettingsRepository.get()
@@ -234,11 +241,16 @@ class SpamGuardRuntime:
         path_len: int | None,
         received_at: int,
         packet_len: int | None = None,
+        raw_frame: bool = True,
     ) -> bool:
         """Feed one newly stored channel message. True when it is flagged as spam.
 
         Called from message ingest before the message is broadcast. Never raises:
         a detector problem must not cost a message.
+
+        ``raw_frame`` is false for a message the radio handed over without its
+        raw packet (CHANNEL_MSG_RECV). The host engine never judged such a
+        message, so a block it confirms does not count it as caught.
         """
         if not (self.enabled and self.loaded) or channel_key.upper() not in self._channel_keys:
             return False
@@ -256,10 +268,18 @@ class SpamGuardRuntime:
                 self.last_message_at = self._clock()
                 # The host engine judges this frame after ingest, with the rules
                 # this call is about to apply; an OpenHop node already forwarded it.
-                on_host = self.backend_name() == "host"
+                on_host = raw_frame and self.backend_name() == "host"
                 result = self.detector.decide(rematch=event if on_host else None)
                 self._count_airtime(event)
                 await self._after_decide(result, arriving=message_id)
+                if self.detector.tunables.evidence_log:
+                    await self._keep_evidence(
+                        message_record(
+                            event,
+                            known=self.detector.is_known(event.sender),
+                            channel_name=self._channel_names.get(event.channel, ""),
+                        )
+                    )
                 await self.flush()
                 return message_id in result.flag
         except Exception:
@@ -329,6 +349,8 @@ class SpamGuardRuntime:
             outcome = self.detector.action(op, **body)
             if message_id is not None and op in ("mark_spam", "not_spam"):
                 await self.set_message_spam(message_id, op == "mark_spam")
+                if self.detector.tunables.evidence_log:
+                    await self._keep_label(op, body, message_id)
             exceptions = self.detector.exceptions()
             if any(getattr(self.config, name) != values for name, values in exceptions.items()):
                 # The action changed an exception list: it is part of the settings.
@@ -363,6 +385,41 @@ class SpamGuardRuntime:
             if block.kind == "text" and block.reason == "marked_spam" and block.value in event.text:
                 return block.key
         return event.matched
+
+    # ── evidence log ─────────────────────────────────────────────────────
+
+    async def _keep_evidence(self, record: dict[str, Any]) -> None:
+        """Write one evidence record. A failure costs the record, nothing else."""
+        try:
+            await SpamEvidenceRepository.add(record)
+        except Exception:
+            logger.warning("Could not write a Spam Guard evidence record", exc_info=True)
+
+    async def _keep_label(self, op: str, body: dict[str, Any], message_id: int) -> None:
+        """The user's 'This is spam' / 'Not spam' on a message, for replay to score against."""
+        event = next(
+            (e for e in reversed(self.detector.events) if e.message_id == message_id), None
+        )
+        if event is not None:
+            sender, text, channel = event.sender, event.text, event.channel
+        else:
+            # Older than the detector's window: take it from the stored message.
+            message = await MessageRepository.get_by_id(message_id)
+            sender = (message.sender_name if message else None) or str(body.get("sender") or "")
+            text = (message.text if message else None) or str(body.get("text") or "")
+            channel = (message.conversation_key if message else None) or str(
+                body.get("channel") or ""
+            )
+        await self._keep_evidence(
+            label_record(
+                ts=self._clock(),
+                label="spam" if op == "mark_spam" else "genuine",
+                message_id=message_id,
+                sender=sender,
+                text=text,
+                channel=channel,
+            )
+        )
 
     async def set_message_spam(self, message_id: int, spam: bool) -> None:
         """A user's 'This is spam' / 'Not spam' on one stored message."""

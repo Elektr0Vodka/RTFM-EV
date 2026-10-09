@@ -2936,6 +2936,47 @@ export interface SpamGuardActionResult {
   state: SpamGuardState;
 }
 
+export interface SpamGuardReplayRequest {
+  /** Replay the stored evidence of this many days. */
+  days?: number;
+  /** An evidence export (JSON Lines) to replay instead of the stored log. */
+  evidence?: string;
+  /** Settings to try; never stored. */
+  settings?: SpamGuardSettings;
+}
+
+export interface SpamReplaySample {
+  ts: number;
+  sender: string;
+  text: string;
+  matched: string | null;
+}
+
+/** What a set of settings would have done to an evidence log. */
+export interface SpamGuardReplayResult {
+  source: 'stored' | 'upload';
+  scrambled: boolean;
+  skipped: number;
+  messages: number;
+  first_ts: number | null;
+  last_ts: number | null;
+  /** Would not have been forwarded on arrival. */
+  stopped: number;
+  flagged: number;
+  /** What was stopped at the time the log was written. */
+  recorded_stopped: number;
+  blocks: Record<string, number>;
+  duplicate_blocks: number;
+  labels: { spam: number; genuine: number };
+  caught: number;
+  flagged_later: number;
+  missed: number;
+  passed: number;
+  wrongly_held: number;
+  missed_samples: SpamReplaySample[];
+  wrongly_held_samples: SpamReplaySample[];
+}
+
 export interface SpamGuardRules {
   backend: 'host' | 'openhop';
   before: SpamGuardRule[];

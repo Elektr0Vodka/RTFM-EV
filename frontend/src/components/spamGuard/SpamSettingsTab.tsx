@@ -14,6 +14,7 @@ import { isPublicChannelKey } from '../../utils/publicChannel';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { toast } from '../ui/sonner';
+import { SpamEvidenceSection } from './SpamEvidenceSection';
 import { TUNABLE_GROUPS, UNIT_KEYS, type TunableKey, type TunableSpec } from './spamGuardTunables';
 
 type TunableValue = SpamGuardTunables[TunableKey];
@@ -443,6 +444,8 @@ export function SpamSettingsTab({
           </div>
         )}
       </section>
+
+      <SpamEvidenceSection draft={draft} />
 
       <section className="space-y-2 rounded-md border border-border/60 p-3">
         <h3 className="text-sm font-semibold text-foreground">{t('spam_rules_title')}</h3>
