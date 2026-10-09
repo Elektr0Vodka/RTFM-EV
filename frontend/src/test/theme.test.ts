@@ -79,6 +79,28 @@ describe('theme module', () => {
     expect(document.documentElement.getAttribute('data-crt-scanlines')).toBe('1');
   });
 
+  it('exposes the MCEU light and dark themes in the selectable list', () => {
+    for (const id of ['mceu-light', 'mceu-dark']) {
+      expect(THEMES.find((t) => t.id === id)).toBeDefined();
+    }
+  });
+
+  it('applyTheme("mceu-dark") stamps the theme, keeps CRT effects off and sets the meta colour', () => {
+    const meta = document.createElement('meta');
+    meta.setAttribute('name', 'theme-color');
+    document.head.appendChild(meta);
+
+    applyTheme('mceu-dark');
+
+    expect(document.documentElement.dataset.theme).toBe('mceu-dark');
+    expect(localStorage.getItem('remoteterm-theme')).toBe('mceu-dark');
+    expect(getEffectiveTheme()).toBe('mceu-dark');
+    expect(document.documentElement.getAttribute('data-crt-scanlines')).not.toBe('1');
+    expect(meta.getAttribute('content')).toBe('#121317');
+
+    meta.remove();
+  });
+
   it('migrates a saved "crt" theme to the matching phosphor theme and persists it', () => {
     localStorage.setItem('remoteterm-theme', 'crt');
     localStorage.setItem('remoteterm-crt-phosphor', 'blue');

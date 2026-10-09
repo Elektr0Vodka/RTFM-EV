@@ -1212,6 +1212,207 @@
   color: hsl(44 90% 61%);
 }
 
+/* ── MCEU ("Atlas", the EU MeshCore Analyzer design) ───────────
+   Two themes, mceu-light and mceu-dark. The colours are the Atlas tokens of the
+   analyzer (web/next/css/atlas.css in EU-Meshcore-Analyzer), named in the
+   comments. Text colours take the base token where it reaches 4.5:1 on the
+   ground and the token's -ink variant where it does not. The shape rules below
+   the two palettes are shared ([data-theme^='mceu-']). */
+:root[data-theme='mceu-light'] {
+  --background: 43 26% 95%; /* ground */
+  --foreground: 223 13% 10%; /* ink */
+  --card: 0 0% 100%; /* surface */
+  --card-foreground: 223 13% 10%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 223 13% 10%;
+  --primary: 229 71% 49%; /* accent */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 42 24% 92%; /* ground-2 */
+  --secondary-foreground: 221 10% 32%; /* ink-2 */
+  --muted: 42 24% 92%;
+  --muted-foreground: 226 9% 46%; /* ink-3 */
+  --accent: 42 24% 92%; /* ground-2: hover */
+  --accent-foreground: 223 13% 10%;
+  --destructive: 4 63% 48%; /* bad */
+  --destructive-foreground: 0 0% 100%;
+  --border: 42 21% 88%; /* line */
+  --input: 42 21% 88%;
+  --ring: 229 71% 49%;
+  --radius: 0.875rem; /* controls come out at 12px and 10px, as in Atlas */
+  --msg-outgoing: 227 85% 95%; /* accent-soft */
+  --msg-incoming: 0 0% 100%;
+  --status-connected: 146 64% 33%; /* ok */
+  --status-disconnected: 226 9% 46%;
+  --warning: 36 100% 24%; /* warn-ink */
+  --warning-foreground: 0 0% 100%;
+  --success: 146 65% 25%; /* ok-ink */
+  --success-foreground: 0 0% 100%;
+  --info: 229 71% 49%;
+  --info-foreground: 0 0% 100%;
+  --region-override: 266 55% 51%; /* purple */
+  --favorite: 36 100% 39%; /* warn */
+  --console: 146 65% 25%;
+  --console-command: 229 76% 35%; /* accent-ink */
+  --console-bg: 42 24% 92%;
+  --badge-new: 146 64% 33%;
+  --toast-error: 5 73% 94%; /* bad-soft */
+  --toast-error-foreground: 4 66% 39%; /* bad-ink */
+  --toast-error-border: 6 62% 86%;
+  --code-editor-bg: 45 29% 97%; /* surface-2 */
+  --font-sans: 'Twemoji Country Flags', 'Figtree', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+  --scrollbar: 42 14% 78%;
+  --scrollbar-hover: 226 9% 46%;
+  --overlay: 223 13% 10%;
+  --sidebar-icon-color: hsl(221 10% 32%);
+  --sidebar-icon-hover-color: hsl(223 13% 10%);
+  --sidebar-icon-active-color: hsl(229 71% 49%);
+  --sidebar-label-color: hsl(221 10% 32%);
+  --mceu-float: 0 8px 24px rgb(23 25 30 / 0.12), 0 0 0 1px rgb(23 25 30 / 0.06);
+  --mceu-selected: 0 0% 100%; /* surface: the lit tab or segment */
+  --mceu-selected-foreground: 223 13% 10%;
+}
+
+:root[data-theme='mceu-dark'] {
+  --background: 228 12% 8%; /* ground */
+  --foreground: 43 20% 93%; /* ink */
+  --card: 225 13% 12%; /* surface */
+  --card-foreground: 43 20% 93%;
+  --popover: 225 13% 12%;
+  --popover-foreground: 43 20% 93%;
+  --primary: 229 100% 74%; /* accent */
+  --primary-foreground: 228 12% 8%; /* dark ink: white on this accent is 2.9:1 */
+  --secondary: 225 13% 13%; /* ground-2 */
+  --secondary-foreground: 226 10% 75%; /* ink-2 */
+  --muted: 225 13% 13%;
+  --muted-foreground: 223 9% 59%; /* ink-3 */
+  --accent: 222 14% 15%; /* surface-2: hover, visible on ground and on cards */
+  --accent-foreground: 43 20% 93%;
+  --destructive: 5 80% 75%; /* bad-ink */
+  --destructive-foreground: 228 12% 8%;
+  --border: 224 12% 19%; /* line */
+  --input: 224 12% 19%;
+  --ring: 229 100% 74%;
+  --radius: 0.875rem;
+  --msg-outgoing: 229 37% 22%; /* accent-soft */
+  --msg-incoming: 225 13% 12%;
+  --status-connected: 146 53% 63%; /* ok-ink */
+  --status-disconnected: 223 9% 59%;
+  --warning: 39 82% 67%; /* warn-ink */
+  --warning-foreground: 228 12% 8%;
+  --success: 146 53% 63%; /* ok-ink */
+  --success-foreground: 228 12% 8%;
+  --info: 229 100% 74%;
+  --info-foreground: 228 12% 8%;
+  --region-override: 265 75% 79%; /* purple-ink */
+  --favorite: 39 82% 67%;
+  --console: 146 53% 63%;
+  --console-command: 229 100% 82%; /* accent-ink */
+  --console-bg: 228 12% 8%;
+  --badge-new: 146 53% 63%;
+  --badge-new-foreground: 228 12% 8%;
+  --toast-error: 4 38% 16%; /* bad-soft */
+  --toast-error-foreground: 5 80% 75%; /* bad-ink */
+  --toast-error-border: 4 38% 26%;
+  --code-editor-bg: 228 12% 8%;
+  --font-sans: 'Twemoji Country Flags', 'Figtree', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+  --scrollbar: 224 12% 19%;
+  --scrollbar-hover: 221 10% 32%;
+  --overlay: 228 12% 4%;
+  --sidebar-icon-color: hsl(226 10% 75%);
+  --sidebar-icon-hover-color: hsl(43 20% 93%);
+  --sidebar-icon-active-color: hsl(229 100% 74%);
+  --sidebar-label-color: hsl(226 10% 75%);
+  --mceu-float: 0 8px 24px rgb(0 0 0 / 0.4), 0 0 0 1px rgb(255 255 255 / 0.06);
+  --mceu-selected: 229 37% 22%; /* accent-soft, as the dark Atlas segment */
+  --mceu-selected-foreground: 229 100% 82%;
+}
+
+/* MCEU: Bricolage Grotesque on headings, as Atlas does */
+[data-theme^='mceu-'] h1,
+[data-theme^='mceu-'] h2,
+[data-theme^='mceu-'] h3 {
+  font-family: 'Bricolage Grotesque', var(--font-sans);
+  letter-spacing: -0.02em;
+}
+
+/* MCEU: the shell sits on the ground; only cards are raised */
+[data-theme^='mceu-'] .sidebar,
+[data-theme^='mceu-'] .app-statusbar {
+  background: hsl(var(--background));
+}
+
+/* MCEU Light: the default logo is drawn white, which the paper ground swallows */
+[data-theme='mceu-light'] .app-statusbar h1 > svg {
+  color: hsl(var(--foreground));
+}
+
+/* MCEU: sidebar rows are inset pills; the open one is a card with a hairline */
+[data-theme^='mceu-'] .sidebar .border-l-2 {
+  margin-inline: 6px;
+  border-radius: 10px;
+}
+[data-theme^='mceu-'] .sidebar .border-l-2.w-full {
+  width: calc(100% - 12px);
+}
+/* Not scoped to .sidebar, so the sidebar preview in Settings shows it too. */
+[data-theme^='mceu-'] .bg-accent.border-l-primary {
+  border-radius: 10px;
+  background: hsl(var(--card));
+  border-left-color: transparent;
+  box-shadow:
+    0 1px 2px rgb(23 25 30 / 0.06),
+    0 0 0 1px hsl(var(--border));
+}
+
+/* MCEU: cards and dialogs take the large Atlas radius */
+[data-theme^='mceu-'] .bg-card.rounded-lg,
+[data-theme^='mceu-'] .bg-popover.rounded-lg {
+  border-radius: 1.25rem;
+}
+@media (min-width: 640px) {
+  [data-theme^='mceu-'] [role='dialog'].sm\:rounded-lg {
+    border-radius: 1.25rem;
+  }
+}
+
+/* MCEU: at this radius a 16px checkbox would come out as a circle */
+[data-theme^='mceu-'] [role='checkbox'] {
+  border-radius: 5px;
+}
+
+/* MCEU: menus and popovers float */
+[data-theme^='mceu-'] .bg-popover {
+  box-shadow: var(--mceu-float);
+}
+
+/* MCEU: fields and outline buttons are surfaces, not ground */
+[data-theme^='mceu-'] input:not([type='checkbox'], [type='radio'], [type='range'], [type='color']),
+[data-theme^='mceu-'] select,
+[data-theme^='mceu-'] textarea,
+[data-theme^='mceu-'] button.border-input.bg-background {
+  background-color: hsl(var(--card));
+}
+[data-theme^='mceu-'] button.border-input.bg-background:hover {
+  background-color: hsl(var(--accent));
+}
+
+/* MCEU: the lit tab is a surface on its track (accent-soft in the dark) */
+[data-theme^='mceu-'] [role='tab'][data-state='active'] {
+  background: hsl(var(--mceu-selected));
+  color: hsl(var(--mceu-selected-foreground));
+}
+
+/* MCEU: message bubbles. Incoming is a bordered surface, outgoing accent-soft. */
+[data-theme^='mceu-'] .bg-msg-incoming,
+[data-theme^='mceu-'] .bg-msg-outgoing {
+  border-radius: 1rem;
+}
+[data-theme^='mceu-'] .bg-msg-incoming {
+  box-shadow: inset 0 0 0 1px hsl(var(--border));
+}
+
 /* ── CRT (retro phosphor monitor) ──────────────────────────────
    Four phosphor themes (crt-green/amber/white/blue). Green is the shared base
    (matched by every crt-* theme); amber/white/blue override the hue-specific
