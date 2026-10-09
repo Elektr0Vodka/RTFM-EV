@@ -30,6 +30,10 @@ import {
 } from './settings/settingsConstants';
 import { getContrastTextColor, type LocalLabel } from '../utils/localLabel';
 import { useT } from '../i18n';
+import { useThemeLayout } from '../hooks/useThemeLayout';
+import { useIsMobile } from '../map/controls/breakpoints';
+import { AtlasSidebarFoot, AtlasSidebarHead } from './shell/AtlasSidebar';
+import { ThemeSettingsDialog } from './shell/ThemeSettingsDialog';
 import type { CrackerPanelProps } from './CrackerPanel';
 import type { SearchViewProps } from './SearchView';
 import type { SettingsModalProps } from './SettingsModal';
@@ -131,6 +135,17 @@ export function AppShell({
   onOpenChatWindow,
 }: AppShellProps) {
   const t = useT();
+  // Themes with `layout: 'atlas'` get the analyzer's shell on desktop: the
+  // brand and the app controls sit in a full-height sidebar and the top bar
+  // shrinks to a radio-status bar inside the content column. Phones keep the
+  // classic bar and drawer.
+  const themeLayout = useThemeLayout();
+  const isMobile = useIsMobile();
+  const atlasShell = themeLayout === 'atlas' && !isMobile;
+  // Owned here, not by the bar or the sidebar foot that opens it: picking a
+  // theme with another layout unmounts whichever of the two opened it.
+  const [themeSettingsOpen, setThemeSettingsOpen] = useState(false);
+  const openThemeSettings = useCallback(() => setThemeSettingsOpen(true), []);
   const swipeHandlers = useSwipeable({
     onSwipedRight: ({ initial }) => {
       if (initial[0] < 30 && !sidebarOpen && window.innerWidth < 768) {
@@ -204,24 +219,66 @@ export function AppShell({
     return () => window.removeEventListener('resize', measure);
   }, [hasLocalLabel, activeType, activeId, showSettings]);
 
-  const settingsSidebarContent = (
+  const atlasHead = (rail: boolean) => (
+    <AtlasSidebarHead
+      rail={rail}
+      brandName={statusProps.brandName}
+      brandHidden={statusProps.brandHidden}
+      brandIcon={statusProps.brandIcon}
+    />
+  );
+  const atlasFoot = (rail: boolean) => (
+    <AtlasSidebarFoot
+      rail={rail}
+      settingsMode={showSettings}
+      onSettingsClick={onToggleSettingsView}
+      onOpenChatWindow={onOpenChatWindow}
+      onOpenThemeSettings={openThemeSettings}
+    />
+  );
+
+  const statusBar = (
+    <>
+      <StatusBar
+        health={statusProps.health}
+        config={statusProps.config}
+        brandName={statusProps.brandName}
+        brandHidden={statusProps.brandHidden}
+        brandIcon={statusProps.brandIcon}
+        settingsMode={showSettings}
+        onSettingsClick={onToggleSettingsView}
+        onOpenChatWindow={onOpenChatWindow}
+        onMenuClick={showSettings ? undefined : () => onSidebarOpenChange(true)}
+        variant={atlasShell ? 'topbar' : 'bar'}
+        onOpenThemeSettings={openThemeSettings}
+      />
+      <div data-toast-anchor="statusbar" aria-hidden="true" />
+    </>
+  );
+
+  // `desktop` is the fixed sidebar; the mobile drawer never gets the Atlas parts.
+  const settingsSidebarContent = (desktop: boolean) => (
     <nav
       className="sidebar w-60 h-full min-h-0 overflow-hidden bg-card border-r border-border flex flex-col"
       aria-label={t('a11y_settings_nav')}
     >
+      {desktop && atlasShell && atlasHead(false)}
       <div className="flex justify-between items-center px-3 py-2.5 border-b border-border">
         <h2 className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
           {t('nav_settings_heading')}
         </h2>
-        <button
-          type="button"
-          onClick={onCloseSettingsView}
-          className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-status-connected/15 border border-status-connected/30 text-status-connected hover:bg-status-connected/25 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          title={t('a11y_back_to_conversations')}
-          aria-label={t('a11y_back_to_conversations')}
-        >
-          &larr; {t('nav_back_to_chat')}
-        </button>
+        {/* The Atlas foot already has a "Back to Chat" row. */}
+        {!(desktop && atlasShell) && (
+          <button
+            type="button"
+            onClick={onCloseSettingsView}
+            className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-status-connected/15 border border-status-connected/30 text-status-connected hover:bg-status-connected/25 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            title={t('a11y_back_to_conversations')}
+            aria-label={t('a11y_back_to_conversations')}
+          >
+            &larr; {t('nav_back_to_chat')}
+          </button>
+        )}
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto py-1 [contain:layout_paint]">
         {SETTINGS_SECTION_ORDER.filter(
@@ -251,15 +308,23 @@ export function AppShell({
           );
         })}
       </div>
+      {desktop && atlasShell && atlasFoot(false)}
     </nav>
   );
 
-  const renderSidebar = (forceExpanded: boolean) =>
-    showSettings ? (
-      settingsSidebarContent
+  const renderSidebar = (forceExpanded: boolean) => {
+    const desktop = !forceExpanded;
+    return showSettings ? (
+      settingsSidebarContent(desktop)
     ) : (
-      <Sidebar {...sidebarProps} forceExpanded={forceExpanded} />
+      <Sidebar
+        {...sidebarProps}
+        forceExpanded={forceExpanded}
+        shellHead={desktop && atlasShell ? atlasHead : undefined}
+        shellFoot={desktop && atlasShell ? atlasFoot : undefined}
+      />
     );
+  };
 
   return (
     <div className="flex flex-col h-full" {...swipeHandlers}>
@@ -282,18 +347,7 @@ export function AppShell({
         </div>
       )}
 
-      <StatusBar
-        health={statusProps.health}
-        config={statusProps.config}
-        brandName={statusProps.brandName}
-        brandHidden={statusProps.brandHidden}
-        brandIcon={statusProps.brandIcon}
-        settingsMode={showSettings}
-        onSettingsClick={onToggleSettingsView}
-        onOpenChatWindow={onOpenChatWindow}
-        onMenuClick={showSettings ? undefined : () => onSidebarOpenChange(true)}
-      />
-      <div data-toast-anchor="statusbar" aria-hidden="true" />
+      {!atlasShell && statusBar}
 
       <div className="flex flex-1 overflow-hidden">
         <div className="hidden md:block min-h-0 overflow-hidden">{renderSidebar(false)}</div>
@@ -318,6 +372,7 @@ export function AppShell({
         </Sheet>
 
         <main id="main-content" className="flex-1 flex flex-col bg-background min-w-0">
+          {atlasShell && statusBar}
           <MentionTicker
             enabled={showMentionTicker}
             mentions={mentionTickerEvents}
@@ -431,6 +486,7 @@ export function AppShell({
         onOpenSettings={handleOpenSettings}
         onNavigateMentionToMessage={handleBuddyMention}
       />
+      <ThemeSettingsDialog open={themeSettingsOpen} onOpenChange={setThemeSettingsOpen} />
       <RadioIdentityPrompt health={statusProps.health} />
       <ContactInfoPane {...contactInfoPaneProps} />
       <ChannelInfoPane {...channelInfoPaneProps} />

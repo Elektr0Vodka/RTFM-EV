@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Bell,
   BellOff,
@@ -263,6 +263,12 @@ interface SidebarProps {
   }) => void | Promise<void>;
   /** When true (mobile drawer mount), pin the rail open and hide the rail toggle. */
   forceExpanded?: boolean;
+  /**
+   * Atlas layout only: content above and below the list (brand and search,
+   * app controls). Called with whether the sidebar is collapsed to the rail.
+   */
+  shellHead?: (rail: boolean) => ReactNode;
+  shellFoot?: (rail: boolean) => ReactNode;
 }
 
 function loadInitialSectionSortOrders(): SidebarSectionSortOrders {
@@ -303,6 +309,8 @@ export function Sidebar({
   contactGroups = [],
   onSaveSidebarOrder,
   forceExpanded = false,
+  shellHead,
+  shellFoot,
 }: SidebarProps) {
   const t = useT();
   const isContactBlocked = useCallback(
@@ -1986,6 +1994,7 @@ export function Sidebar({
       )}
       aria-label={t('a11y_conversations_nav')}
     >
+      {shellHead?.(isRail)}
       {isRail ? (
         <div className="flex-1 min-h-0 overflow-y-auto flex flex-col items-stretch py-2">
           {toolIconRows}
@@ -2242,6 +2251,7 @@ export function Sidebar({
         </>
       )}
 
+      {shellFoot?.(isRail)}
       {!forceExpanded && (
         <div className="border-t border-border p-1 flex justify-center">
           <button

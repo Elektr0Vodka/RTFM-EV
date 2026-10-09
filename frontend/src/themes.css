@@ -1344,7 +1344,7 @@
 }
 
 /* MCEU Light: the default logo is drawn white, which the paper ground swallows */
-[data-theme='mceu-light'] .app-statusbar h1 > svg {
+[data-theme='mceu-light'] .app-brand-logo {
   color: hsl(var(--foreground));
 }
 

@@ -11,6 +11,37 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-09 (MCEU themes: desktop shell, feat/mceu-layout)
+
+No migration, no backend change, no new dependency. First of four layout
+parts for the MCEU themes; the phone tab bar, chat cards and page headers are
+not in this change.
+
+### Interface: the analyzer's shell under the MCEU themes (desktop)
+- With **MCEU Light** or **MCEU Dark** active on a desktop-width window, the
+  app takes the shell of the EU MeshCore Analyzer design. Every other theme
+  is unchanged, and so are phones (768px and narrower) under MCEU.
+- **Sidebar head:** the app name and logo, and a **Search anything** button
+  that opens the command palette (also Ctrl+K / Cmd+K).
+- **Sidebar foot:** Settings (it reads **Back to Chat** while settings are
+  open), Chat window, the language switcher (its menu opens upwards) and the
+  theme dialog. The update dot sits on the Settings row.
+- **Top bar:** a slim bar above the page with only radio state: the packet
+  sparkline, a status pill, battery, node name and key, and Reconnect.
+- The sidebar keeps its content, your custom order and hidden items. Collapsed
+  to the rail, head and foot shrink to icons; the language switcher is left
+  out there (it is in Settings and in the expanded sidebar).
+- The theme dialog now stays open when a pick changes the layout, in both
+  directions.
+
+### Internals
+- A theme asks for a layout with `layout` on its entry in `utils/theme.ts`;
+  `useThemeLayout()` reads it. `AppShell` is the only place that branches on
+  it. `<main>` is not moved between layouts, so the open page is not
+  remounted on a theme switch.
+- `StatusBar` gets `variant="topbar"`; the brand and the theme dialog moved
+  to `components/shell/` so both layouts share them. New string
+  `nav_search_anything` in English, Dutch and German.
 ## Update 2026-10-09 (Frontend test flakes: waits under load, fix/frontend-wait-flakes)
 
 ### Tests: `toggles settings page mode and syncs selected section into SettingsModal` (frontend)

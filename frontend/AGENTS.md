@@ -178,6 +178,7 @@ frontend/src/
 │   ├── ChannelPathHashModeOverrideModal.tsx # Per-channel path hash mode override editor
 │   ├── BulkAddChannelResultModal.tsx # Results dialog for bulk channel creation
 │   ├── CommandPalette.tsx      # Command palette overlay
+│   ├── shell/                  # Pieces of the app shell shared by the classic and the Atlas layout (AppBrand, ThemeSettingsDialog, AtlasSidebar head/foot)
 │   ├── DirectTraceIcon.tsx     # Shared direct-trace glyph used in header/dashboard
 │   ├── NeighborsMiniMap.tsx    # Leaflet mini-map for repeater neighbor locations
 │   ├── settings/
@@ -721,6 +722,19 @@ batching/warm-up).
 
 UI styling is mostly utility-class driven (Tailwind-style classes in JSX) plus shared globals in `index.css` and `styles.css`.
 Do not rely on old class-only layout assumptions.
+
+### Theme-driven layout (Atlas shell)
+
+A theme can ask for another app shell with `layout` on its `THEMES` entry (`utils/theme.ts`). Only `'atlas'` exists, set on `mceu-light` and `mceu-dark`; every other theme is `'classic'`. Read it with `useThemeLayout()` (or `getThemeLayout()` outside React), never by matching theme ids.
+
+`AppShell` is the only place that branches on it, and only on desktop (`atlasShell = layout === 'atlas' && !useIsMobile()`); phones keep the classic bar and drawer:
+
+- The sidebar gets `shellHead` / `shellFoot` render props (`components/shell/AtlasSidebar.tsx`): brand plus a "Search anything" button that opens the command palette (`utils/commandPalette.ts` `openCommandPalette()`), and rows for Settings / Back to Chat, chat window, language and theme. Both take `rail` for the collapsed sidebar. The settings nav in `AppShell` renders the same head and foot.
+- `StatusBar variant="topbar"` renders inside `<main>` and shows radio state only (sparkline, status pill, battery, node name, reconnect).
+- `<main>` itself is never moved or wrapped, so switching theme or crossing the breakpoint does not remount the conversation pane. Keep it that way.
+- The theme dialog's open state lives in `AppShell` (`ThemeSettingsDialog`), because picking a theme with another layout unmounts whichever control opened it.
+
+Not observable in jsdom: the real column layout, the upward language menu and the rail. Check those in a browser.
 
 ### Canonical style reference
 
