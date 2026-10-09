@@ -19,11 +19,9 @@ import { HeaderLanguageMenu } from './HeaderLanguageMenu';
 import { LivePacketSparkline } from './LivePacketSparkline';
 import { useUpdateStatus } from '../hooks/useUpdateStatus';
 import { useHostRepeaterArmed } from '../hooks/useHostRepeaterArmed';
-import { ThemeSelector } from './settings/ThemeSelector';
-import { CrtEffects } from './settings/CrtEffects';
-import { BuddySettings } from './settings/BuddySettings';
+import { AppBrand } from './shell/AppBrand';
+import { ThemeSettingsDialog } from './shell/ThemeSettingsDialog';
 import { BUDDY_ANCHORS } from '../buddy/buddyAnchors';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import {
   BATTERY_DISPLAY_CHANGE_EVENT,
   getShowBatteryPercent,
@@ -51,6 +49,20 @@ interface StatusBarProps {
   brandName?: string;
   brandHidden?: boolean;
   brandIcon?: string;
+  /**
+   * 'topbar' is the Atlas layout's bar inside the content column: radio state
+   * only. The brand and the settings, chat window, language and theme controls
+   * live in the sidebar there (see shell/AtlasSidebar). 'phonebar' is the Atlas
+   * layout on phones: brand and radio state, with the controls behind the tab
+   * bar's More tab instead of in the bar.
+   */
+  variant?: 'bar' | 'topbar' | 'phonebar';
+  /**
+   * Open the theme dialog owned by the parent. Without it the bar keeps its own
+   * dialog. The shell owns it so the dialog survives a theme pick that changes
+   * the layout, which moves this bar to another place in the tree.
+   */
+  onOpenThemeSettings?: () => void;
 }
 
 export function StatusBar({
@@ -63,7 +75,11 @@ export function StatusBar({
   brandName,
   brandHidden = false,
   brandIcon,
+  variant = 'bar',
+  onOpenThemeSettings,
 }: StatusBarProps) {
+  const topbar = variant === 'topbar';
+  const showControls = variant === 'bar';
   const t = useT();
   const { status: updateStatus } = useUpdateStatus();
   const repeaterArmed = useHostRepeaterArmed();
@@ -201,9 +217,14 @@ export function StatusBar({
   };
 
   return (
-    <header className="app-statusbar flex items-center gap-3 px-4 py-2.5 bg-card border-b border-border text-xs">
+    <header
+      className={cn(
+        'app-statusbar flex items-center gap-3 text-xs',
+        topbar ? 'app-topbar h-14 px-6' : 'px-4 py-2.5 bg-card border-b border-border'
+      )}
+    >
       {/* Mobile menu button - only visible on small screens */}
-      {onMenuClick && (
+      {showControls && onMenuClick && (
         <button
           onClick={onMenuClick}
           className="md:hidden p-0.5 bg-transparent border-none text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
@@ -213,33 +234,23 @@ export function StatusBar({
         </button>
       )}
 
-      <h1 className="text-base font-semibold tracking-tight mr-auto text-foreground flex items-center gap-1.5">
-        {brandIcon ? (
-          <img
-            src={brandIcon}
-            alt=""
-            aria-hidden="true"
-            className="h-4 w-4 shrink-0 object-contain"
-          />
-        ) : (
-          <svg
-            className="h-4 w-4 shrink-0 text-white"
-            viewBox="0 0 512 512"
-            fill="currentColor"
-            aria-hidden="true"
-          >
-            <path d="m455.68 85.902c-31.289 0-56.32 25.031-56.32 56.32 0 11.379 3.4141 21.617 8.5352 30.152l-106.38 135.39c12.516 6.2578 23.895 15.359 32.996 25.602l107.52-136.54c4.5508 1.1367 9.1016 1.707 13.652 1.707 31.289 0 56.32-25.031 56.32-56.32 0-30.719-25.031-56.32-56.32-56.32z" />
-            <path d="m256 343.04c-5.6875 0-10.809 0.57031-15.93 2.2773l-106.38-135.96c-9.1016 10.809-20.48 19.344-32.996 25.602l106.38 135.96c-5.1211 8.5352-7.3945 18.203-7.3945 28.445 0 31.289 25.031 56.32 56.32 56.32s56.32-25.031 56.32-56.32c0-31.293-25.031-56.324-56.32-56.324z" />
-            <path d="m356.69 114.91c3.9805-13.652 10.238-26.738 19.344-37.547-38.113-13.652-78.508-21.047-120.04-21.047-59.164 0-115.48 14.789-166.12 42.668-9.1016-6.8281-21.051-10.809-33.562-10.809-31.289-0.57031-56.32 25.027-56.32 55.75 0 31.289 25.031 56.32 56.32 56.32 31.289 0 56.32-25.031 56.32-56.32 0-3.4141-0.57031-6.8281-1.1367-9.6719 44.371-23.895 93.297-36.41 144.5-36.41 34.703 0 68.836 5.6914 100.69 17.066z" />
-          </svg>
-        )}
-        {!brandHidden && (brandName?.trim() ? brandName : 'RTFM-EV')}
-      </h1>
+      {!topbar && (
+        <h1 className="text-base font-semibold tracking-tight mr-auto text-foreground flex items-center gap-1.5">
+          <AppBrand brandName={brandName} brandHidden={brandHidden} brandIcon={brandIcon} />
+        </h1>
+      )}
 
-      <LivePacketSparkline className="hidden lg:flex items-center gap-1.5" />
+      <LivePacketSparkline
+        className={cn('hidden lg:flex items-center gap-1.5', topbar && 'mr-auto')}
+      />
+      {/* Below lg the sparkline is hidden, so this keeps the rest to the right. */}
+      {topbar && <span className="mr-auto lg:hidden" aria-hidden="true" />}
 
       <div
-        className="flex items-center gap-1.5"
+        className={cn(
+          'flex items-center gap-1.5',
+          topbar && 'h-8 rounded-full border border-border bg-card px-3'
+        )}
         role="status"
         aria-label={statusLabel}
         data-buddy-anchor={BUDDY_ANCHORS.radio}
@@ -258,7 +269,9 @@ export function StatusBar({
           style={connected && pulseKind ? { backgroundColor: pulseColorFor(pulseKind) } : undefined}
           aria-hidden="true"
         />
-        <span className="hidden lg:inline text-muted-foreground">{statusLabel}</span>
+        <span className={cn('text-muted-foreground', !topbar && 'hidden lg:inline')}>
+          {statusLabel}
+        </span>
       </div>
 
       {repeaterArmed && (
@@ -320,59 +333,55 @@ export function StatusBar({
               : t('common_reconnect')}
         </button>
       )}
-      {onOpenChatWindow && (
-        <button
-          type="button"
-          onClick={onOpenChatWindow}
-          className="p-0.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
-          title={t('popout_open_chat_window_title')}
-          aria-label={t('popout_open_chat_window')}
-        >
-          <MessagesSquare className="h-4 w-4" aria-hidden="true" />
-        </button>
+      {showControls && (
+        <>
+          {onOpenChatWindow && (
+            <button
+              type="button"
+              onClick={onOpenChatWindow}
+              className="p-0.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+              title={t('popout_open_chat_window_title')}
+              aria-label={t('popout_open_chat_window')}
+            >
+              <MessagesSquare className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
+          <button
+            onClick={onSettingsClick}
+            data-buddy-anchor={BUDDY_ANCHORS.update}
+            className={cn(
+              'relative px-3 py-1.5 rounded-md text-xs cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              settingsMode
+                ? 'bg-status-connected/15 border border-status-connected/30 text-status-connected hover:bg-status-connected/25'
+                : 'bg-secondary border border-border text-muted-foreground hover:bg-accent hover:text-foreground'
+            )}
+          >
+            {settingsMode ? t('nav_back_to_chat') : t('nav_settings_heading')}
+            {updateStatus?.update_available ? (
+              <span
+                aria-label={t('a11y_update_available')}
+                className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary"
+              />
+            ) : null}
+          </button>
+          <HeaderLanguageMenu />
+          <button
+            onClick={onOpenThemeSettings ?? (() => setThemeModalOpen(true))}
+            className="p-0.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+            title={t('a11y_open_theme_settings')}
+            aria-label={t('a11y_open_theme_settings')}
+          >
+            {currentTheme === 'light' ? (
+              <Moon className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <Sun className="h-4 w-4" aria-hidden="true" />
+            )}
+          </button>
+          {!onOpenThemeSettings && (
+            <ThemeSettingsDialog open={themeModalOpen} onOpenChange={setThemeModalOpen} />
+          )}
+        </>
       )}
-      <button
-        onClick={onSettingsClick}
-        data-buddy-anchor={BUDDY_ANCHORS.update}
-        className={cn(
-          'relative px-3 py-1.5 rounded-md text-xs cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          settingsMode
-            ? 'bg-status-connected/15 border border-status-connected/30 text-status-connected hover:bg-status-connected/25'
-            : 'bg-secondary border border-border text-muted-foreground hover:bg-accent hover:text-foreground'
-        )}
-      >
-        {settingsMode ? t('nav_back_to_chat') : t('nav_settings_heading')}
-        {updateStatus?.update_available ? (
-          <span
-            aria-label={t('a11y_update_available')}
-            className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary"
-          />
-        ) : null}
-      </button>
-      <HeaderLanguageMenu />
-      <button
-        onClick={() => setThemeModalOpen(true)}
-        className="p-0.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
-        title={t('a11y_open_theme_settings')}
-        aria-label={t('a11y_open_theme_settings')}
-      >
-        {currentTheme === 'light' ? (
-          <Moon className="h-4 w-4" aria-hidden="true" />
-        ) : (
-          <Sun className="h-4 w-4" aria-hidden="true" />
-        )}
-      </button>
-
-      <Dialog open={themeModalOpen} onOpenChange={setThemeModalOpen}>
-        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{t('settings_color_scheme')}</DialogTitle>
-          </DialogHeader>
-          <ThemeSelector />
-          <CrtEffects />
-          <BuddySettings compact />
-        </DialogContent>
-      </Dialog>
     </header>
   );
 }
