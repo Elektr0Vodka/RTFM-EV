@@ -6,11 +6,12 @@ spam flag on stored messages, renders the blocks as rules for the forwarding
 backend, and keeps the detector's state in the database.
 
 Backend: the host repeater's policy engine on a companion radio. When the
-connected radio is an OpenHop node the host repeater does not run; its managed
-rules are cleared there (the OpenHop policy sync is a separate module).
+connected radio is an OpenHop node the host repeater does not run and the node
+forwards on its own, so the rules are synced into its policy through its API
+(``spam_backend_openhop``). Exactly one backend holds our rules at a time.
 
-Nothing here transmits. Protect mode only withholds forwards, and on the host
-repeater only when it is armed.
+Nothing here transmits. Protect mode only withholds forwards: on the host
+repeater only when it is armed, on an OpenHop node once the rules are synced.
 
 Writes to disk follow the same policy as the reference implementation: at once
 for important changes (a real block, a newly known name, a user action),
@@ -35,8 +36,9 @@ from app.services.host_repeater import host_repeater
 from app.services.host_repeater_engine import lora_airtime_ms
 from app.services.host_repeater_link import radio_snapshot
 from app.services.spam_backend_host import HostBackend
+from app.services.spam_backend_openhop import FAILURES_BAD, OpenHopBackend
 from app.spam.detector import DecideResult, Event, SpamDetector
-from app.spam.rules import render
+from app.spam.rules import RuleSet, render
 from app.spam.settings import PRESETS, ProtectedChannel, SpamConfig, SpamTunables
 from app.websocket import broadcast_event
 
@@ -69,7 +71,9 @@ def split_path(path: str | None, hop_count: int | None) -> list[str]:
 
 
 class SpamGuardRuntime:
-    def __init__(self, *, clock: Callable[[], float] = time.time) -> None:
+    def __init__(
+        self, *, clock: Callable[[], float] = time.time, openhop: OpenHopBackend | None = None
+    ) -> None:
         self._clock = clock
         self.enabled = False
         self.loaded = False
@@ -77,6 +81,10 @@ class SpamGuardRuntime:
         self.config = default_config()
         self.detector = SpamDetector(self.config, clock=clock)
         self.host = HostBackend()
+        self.openhop = openhop or OpenHopBackend()
+        # A sync finishes on its own time; the page follows it through the summary.
+        self.openhop.on_change = self.broadcast
+        self._backend: str | None = None
         self.load_error: str | None = None
         self.last_message_at: float | None = None
         self.last_error: str | None = None
@@ -143,6 +151,9 @@ class SpamGuardRuntime:
 
     async def stop(self) -> None:
         await self._stop_tick()
+        # OpenHop rules do not expire by themselves: do not leave ours behind
+        # on a node while nothing here is deciding when a block ends.
+        await self.openhop.stop()
         await self.flush(force=True)
 
     async def _tick_loop(self) -> None:
@@ -167,21 +178,48 @@ class SpamGuardRuntime:
     # ── backend ──────────────────────────────────────────────────────────
 
     def backend_name(self) -> str:
-        return "openhop" if radio_snapshot().is_openhop else "host"
+        """``openhop`` when the radio is an OpenHop node, else ``host``.
+
+        The answer only changes while a radio is connected and has said what it
+        is. A dropped link to an OpenHop node must not look like a switch to
+        the host repeater: the node keeps forwarding, and blocks that end in
+        the meantime still have to be taken off it.
+        """
+        snapshot = radio_snapshot()
+        if self._backend is None or (snapshot.connected and snapshot.device_model):
+            self._backend = "openhop" if snapshot.is_openhop else "host"
+        return self._backend
+
+    def openhop_rules(self, *, preview: bool = False) -> RuleSet:
+        """The rule set for an OpenHop node, without private channels not agreed to."""
+        return render(
+            self.detector, "openhop", preview=preview, channels=self.config.shareable_channels()
+        )
 
     def apply_rules(self) -> None:
-        """Hand the current rule set to the host engine (empty when off or on OpenHop)."""
+        """Hand the current rule set to the active backend and clear the other one.
+
+        The host engine takes it at once. An OpenHop node is synced in the
+        background (``OpenHopBackend``); this only says what should be there.
+        """
         try:
-            if self.enabled and self.backend_name() == "host":
+            backend = self.backend_name() if self.enabled else None
+            if backend == "host":
                 self.host.apply(render(self.detector, "host"))
             else:
                 self.host.clear()
+            if backend == "openhop":
+                self.openhop.start()
+                self.openhop.want(self.openhop_rules())
+            else:
+                self.openhop.release()
             self.last_error = None
         except Exception as exc:
             # Never leave half a rule set behind: no managed rules is the safe state.
             logger.exception("Spam Guard could not apply its rules")
             self.last_error = str(exc)
             self.host.clear()
+            self.openhop.release()
 
     # ── feed ─────────────────────────────────────────────────────────────
 
@@ -233,6 +271,8 @@ class SpamGuardRuntime:
         if event.matched is None or self.config.mode != "protect" or self.config.paused:
             return
         if self.backend_name() == "host" and not host_repeater.armed:
+            return
+        if self.backend_name() == "openhop" and self.openhop.status()["state"] != "synced":
             return
         block = self.detector.blocks.get(event.matched)
         radio = radio_snapshot().radio
@@ -351,7 +391,9 @@ class SpamGuardRuntime:
     def health(self) -> dict[str, Any]:
         """Whether Spam Guard is doing its job: ``off``, ``ok``, ``warn`` or ``bad``."""
         backend = self.backend_name()
-        status = self.host.status()
+        on_openhop = backend == "openhop"
+        sync = self.openhop.status()
+        status = sync if on_openhop else self.host.status()
         ticking = self._tick_task is not None and not self._tick_task.done()
         protecting = self.config.mode == "protect" and not self.config.paused
         problems: list[str] = []
@@ -361,15 +403,22 @@ class SpamGuardRuntime:
                 problems.append("not_running")
             if self.last_error:
                 problems.append("rules_failed")
-            if backend == "host" and status["rules_expected"] != status["rules_present"]:
+            if not on_openhop and status["rules_expected"] != status["rules_present"]:
                 problems.append("rules_missing")
+            if on_openhop and sync["failures"] >= FAILURES_BAD:
+                problems.append("openhop_sync_failed")
             if self.load_error:
                 warnings.append("settings_invalid")
-            if protecting and backend == "host" and host_repeater.state != "armed":
+            if protecting and not on_openhop and host_repeater.state != "armed":
                 # Protect asks for drops, but nothing is being forwarded to drop.
                 warnings.append("host_not_armed")
-            if protecting and backend == "openhop":
-                warnings.append("openhop_not_synced")
+            if on_openhop and sync["state"] == "refused":
+                warnings.append("openhop_spamguard_present")
+            if protecting and on_openhop and sync["state"] == "unconfigured":
+                # No API url and token: there is no way to put a rule on the node.
+                warnings.append("openhop_not_configured")
+            if protecting and on_openhop and self.config.private_unshared_channels():
+                warnings.append("openhop_key_not_shared")
             if not self.config.channels:
                 warnings.append("no_channels")
         state = "off" if not self.enabled else "bad" if problems else "warn" if warnings else "ok"
@@ -379,14 +428,23 @@ class SpamGuardRuntime:
             "warnings": warnings,
             "running": ticking,
             "backend": backend,
-            "backend_state": host_repeater.state if backend == "host" else None,
+            "backend_state": self._backend_state(backend),
             "rules_expected": status["rules_expected"],
             "rules_present": status["rules_present"],
+            # OpenHop only: idle / pending / synced / unconfigured / refused / failed,
+            # how often our rules had to be put back, and the last good sync.
+            "sync_state": sync["state"] if on_openhop else None,
+            "repairs": sync["repairs"] if on_openhop else 0,
+            "last_sync_at": sync["last_sync_at"] if on_openhop else None,
             "last_message_at": self.last_message_at,
             "last_saved_at": self._saved_at or None,
-            "last_error": self.last_error,
+            "last_error": self.last_error or (sync["last_error"] if on_openhop else None),
             "load_error": self.load_error,
         }
+
+    def _backend_state(self, backend: str) -> str:
+        """Host: off / shadow / armed. OpenHop: the state of the rule sync."""
+        return host_repeater.state if backend == "host" else self.openhop.status()["state"]
 
     def snapshot(self) -> dict[str, Any]:
         """Everything the Spam Guard page shows."""
@@ -447,6 +505,9 @@ class SpamGuardRuntime:
             "activity": list(det.activity)[:RECENT_ACTIVITY],
             "known_names": det.known_names(),
             "suppressed": dict(det.suppressed),
+            # Protected channels whose key is a secret: on OpenHop each needs the
+            # user's agreement (``share_key``) before a rule may carry it.
+            "private_channels": [c.key for c in self.config.channels if not c.key_is_public],
         }
 
     def public_state(self) -> dict[str, Any]:
@@ -458,7 +519,7 @@ class SpamGuardRuntime:
             "mode": self.config.mode,
             "paused": self.config.paused,
             "backend": backend,
-            "backend_state": host_repeater.state if backend == "host" else None,
+            "backend_state": self._backend_state(backend),
             # Routine duplicate suppression is not counted: there is one such
             # block for nearly every long message, and they last minutes.
             "blocks": sum(1 for b in self.detector.blocks.values() if b.source != "dedupe"),

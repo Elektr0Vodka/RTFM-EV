@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { I18nProvider } from '../i18n/I18nProvider';
 import { SpamGuardView } from '../components/SpamGuardView';
@@ -149,6 +149,9 @@ function makeState(overrides: Partial<SpamGuardState> = {}): SpamGuardState {
       backend_state: 'off',
       rules_expected: 0,
       rules_present: 0,
+      sync_state: null,
+      repairs: 0,
+      last_sync_at: null,
       last_message_at: NOW - 120,
       last_saved_at: NOW - 30,
       last_error: null,
@@ -252,6 +255,7 @@ function makeState(overrides: Partial<SpamGuardState> = {}): SpamGuardState {
     activity: [{ ts: NOW - 60, event: 'block_started', key: 'hop:27', kind: 'hop' }],
     known_names: ['Dave'],
     suppressed: {},
+    private_channels: [],
     ...overrides,
   };
 }
@@ -273,11 +277,11 @@ const CONTACTS = [
   { public_key: '27ef' + '00'.repeat(30), name: 'Not a repeater', type: 1 },
 ] as Contact[];
 
-async function renderView(state: SpamGuardState = makeState()) {
+async function renderView(state: SpamGuardState = makeState(), channels: Channel[] = CHANNELS) {
   mocks.getSpamGuard.mockResolvedValue(state);
   render(
     <I18nProvider>
-      <SpamGuardView contacts={CONTACTS} channels={CHANNELS} />
+      <SpamGuardView contacts={CONTACTS} channels={channels} />
     </I18nProvider>
   );
   await screen.findByRole('tab', { name: 'Overview' });
@@ -709,7 +713,7 @@ describe('SpamGuardView settings', () => {
 
   it('does not offer the first-hop match mode on an OpenHop radio', async () => {
     const state = makeState();
-    await renderView({ ...state, backend: 'openhop', backend_state: null });
+    await renderView({ ...state, backend: 'openhop', backend_state: 'idle' });
     openTab('Settings');
     const select = screen.getByLabelText('How to block a repeater');
     expect(within(select).queryByText(/host repeater only/)).toBeNull();
@@ -717,7 +721,175 @@ describe('SpamGuardView settings', () => {
   });
 });
 
+const CLUB = 'CC'.repeat(16);
+const WITH_CLUB = [...CHANNELS, { key: CLUB, name: 'Club' }] as Channel[];
+
+function openHopState(
+  overrides: Partial<SpamGuardState> = {},
+  health: Partial<SpamGuardState['health']> = {}
+): SpamGuardState {
+  const state = makeState();
+  return {
+    ...state,
+    backend: 'openhop',
+    backend_state: 'synced',
+    ...overrides,
+    health: {
+      ...state.health,
+      backend: 'openhop',
+      backend_state: 'synced',
+      sync_state: 'synced',
+      ...health,
+    },
+  };
+}
+
+describe('SpamGuardView on an OpenHop radio', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('shows where the rule sync stands and how often rules were put back', async () => {
+    await renderView(
+      openHopState({}, { rules_expected: 3, rules_present: 3, repairs: 2, last_sync_at: NOW - 30 })
+    );
+    expect(
+      screen.getByText('Forwarding backend: OpenHop radio (rules in sync)')
+    ).toBeInTheDocument();
+    expect(screen.getByText('Forwarding rules in place: 3 of 3')).toBeInTheDocument();
+    expect(
+      screen.getByText('Rules put back after they were changed on the node: 2')
+    ).toBeInTheDocument();
+    expect(screen.getByText(/^Node last checked /)).toBeInTheDocument();
+  });
+
+  it('explains why nothing is written next to a real SpamGuard', async () => {
+    await renderView(
+      openHopState(
+        { backend_state: 'refused' },
+        { state: 'warn', warnings: ['openhop_spamguard_present'], sync_state: 'refused' }
+      )
+    );
+    expect(screen.getByText('Forwarding backend: OpenHop radio (not syncing)')).toBeInTheDocument();
+    expect(screen.getByText(/already has SpamGuard rules/)).toBeInTheDocument();
+  });
+
+  it.each([
+    ['openhop_not_configured', /API address and token are not set/],
+    ['openhop_sync_failed', /could not be synced to the OpenHop node/],
+    ['openhop_key_not_shared', /private channel is not enforced on the OpenHop node/],
+  ])('words the health issue %s', async (code, text) => {
+    await renderView(openHopState({}, { state: 'warn', warnings: [code] }));
+    expect(screen.getByText(text)).toBeInTheDocument();
+  });
+
+  it('asks before a private channel key is copied to the node', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValue(true);
+    const state = openHopState({ private_channels: [CLUB] });
+    await renderView(
+      {
+        ...state,
+        settings: {
+          ...state.settings,
+          channels: [
+            { key: PUBLIC, name: 'Public', share_key: false },
+            { key: CLUB, name: 'Club', share_key: false },
+          ],
+        },
+      },
+      WITH_CLUB
+    );
+    openTab('Settings');
+    const share = screen.getByLabelText(/Also enforce on the OpenHop node/);
+    expect(share).not.toBeChecked();
+
+    fireEvent.click(share);
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Club'));
+    expect(share).not.toBeChecked();
+
+    fireEvent.click(share);
+    expect(share).toBeChecked();
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    await waitFor(() => expect(mocks.saveSpamGuardSettings).toHaveBeenCalledTimes(1));
+    expect(mocks.saveSpamGuardSettings.mock.calls[0][1].channels).toEqual([
+      { key: PUBLIC, name: 'Public', share_key: false },
+      { key: CLUB, name: 'Club', share_key: true },
+    ]);
+  });
+
+  it('takes the agreement back without asking', async () => {
+    const confirm = vi.spyOn(window, 'confirm');
+    const state = openHopState({ private_channels: [CLUB] });
+    await renderView(
+      {
+        ...state,
+        settings: {
+          ...state.settings,
+          channels: [
+            { key: PUBLIC, name: 'Public' },
+            { key: CLUB, name: 'Club', share_key: true },
+          ],
+        },
+      },
+      WITH_CLUB
+    );
+    openTab('Settings');
+    const share = screen.getByLabelText(/Also enforce on the OpenHop node/);
+    expect(share).toBeChecked();
+    fireEvent.click(share);
+    expect(share).not.toBeChecked();
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it('offers it for a private channel that is being added, off by default', async () => {
+    const confirm = vi.spyOn(window, 'confirm');
+    await renderView(openHopState(), WITH_CLUB);
+    openTab('Settings');
+    expect(screen.queryByLabelText(/Also enforce on the OpenHop node/)).toBeNull();
+    fireEvent.click(screen.getByLabelText('Club'));
+    expect(screen.getByLabelText(/Also enforce on the OpenHop node/)).not.toBeChecked();
+    expect(confirm).not.toHaveBeenCalled();
+    // Public and hashtag channels have no secret key: nothing to agree to.
+    fireEvent.click(screen.getByLabelText('#other'));
+    expect(screen.getAllByLabelText(/Also enforce on the OpenHop node/)).toHaveLength(1);
+  });
+
+  it('does not bring it up on the host repeater', async () => {
+    const state = makeState({ private_channels: [CLUB] });
+    await renderView(
+      {
+        ...state,
+        settings: {
+          ...state.settings,
+          channels: [
+            { key: PUBLIC, name: 'Public' },
+            { key: CLUB, name: 'Club' },
+          ],
+        },
+      },
+      WITH_CLUB
+    );
+    openTab('Settings');
+    expect(screen.getByLabelText('Club')).toBeChecked();
+    expect(screen.queryByLabelText(/Also enforce on the OpenHop node/)).toBeNull();
+  });
+});
+
 describe('SpamGuardStatusLine', () => {
+  it('says that the rules go to the node on an OpenHop radio', async () => {
+    mocks.getSpamGuard.mockResolvedValue(
+      makeState({ mode: 'protect', backend: 'openhop', backend_state: 'synced' })
+    );
+    render(
+      <I18nProvider>
+        <SpamGuardStatusLine />
+      </I18nProvider>
+    );
+    expect(await screen.findByTestId('spam-guard-status-line')).toHaveTextContent(
+      /written to this node's policy/
+    );
+  });
+
   it('summarises Spam Guard while it is on', async () => {
     mocks.getSpamGuard.mockResolvedValue(makeState({ mode: 'protect', blocks: 3 }));
     render(

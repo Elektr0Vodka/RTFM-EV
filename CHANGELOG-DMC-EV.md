@@ -13,7 +13,8 @@ the change. Upstream development is on hold; the fork is the active repository.
 
 ## Update 2026-10-09 (Spam Guard: channel spam protection, feat/spam-guard)
 
-Migration `_137`. No new dependency. Off by default.
+Migration `_137`. No new dependency. Off by default. OpenHop rule sync added
+on `feat/spam-guard-openhop`.
 
 Behaviour is modelled on [openhop-spamguard](https://github.com/flackrat/openhop-spamguard)
 v5.11.3 (features, default numbers and worked examples). The code is written
@@ -28,7 +29,8 @@ from scratch for this codebase; no SpamGuard source is copied.
 - **Monitor and Protect.** It starts in Monitor, where spam is detected and
   shown but nothing is blocked. In Protect the host repeater does not forward
   what a block catches. Three sensitivity presets (relaxed, balanced, strict)
-  plus every tunable with a note on its side effects.
+  plus every tunable with a note on its side effects. On an OpenHop radio
+  Protect writes the rules into the node's policy (see below).
 - **Known people.** Names seen sending genuine messages pass the blocks that
   hold people (a spam repeater, links from unknown names, a lockdown).
   **Lockdown** lets only known names through for 30 minutes to 2 hours.
@@ -51,6 +53,35 @@ from scratch for this codebase; no SpamGuard source is copied.
 - **Settings > Local Configuration > Spam protection** has the master switch
   (`app_settings.spam_guard_enabled`) and Hide spam. The host repeater and
   OpenHop settings show a one line status.
+- **OpenHop radio:** an OpenHop node forwards on its own, so in Protect the
+  blocks are synced into its policy through its API
+  (`services/spam_backend_openhop.py`). RTFM-EV reads `/api/policy`, keeps
+  every rule that is not its own and writes its rules before and after them,
+  named `rtfm-spam:...` with integer ids, plus the known-people object
+  `@rtfmspam.known_senders`. Your rules, other objects, groups and
+  `default_action` are passed through as read.
+  - Written only on a change and at most every 2 seconds. The node is read
+    again every 60 seconds and rules that are missing or altered are put
+    back; Health counts those repairs and shows the sync state.
+  - Needs the API URL and token under OpenHop management. Switches the
+    node's policy engine on when there are rules to write, and never off.
+  - Monitor and Pause write no rules and remove the ones that are there.
+    Rules are also removed when Spam Guard is switched off, when another
+    radio connects and when RTFM-EV shuts down, because an OpenHop rule
+    does not expire by itself. A dropped link to the node does not remove
+    them; blocks that end in the meantime are still taken off the node.
+  - **Nothing is written to a node that has `spamguard:` rules** (a real
+    SpamGuard runs there); rules written earlier are taken out and Health
+    says why.
+  - **A private channel's key stays here until you agree.** OpenHop needs
+    the channel key inside a rule to read sender and text. For Public and
+    hashtag channels that key is public. For a private channel the Settings
+    tab asks, per channel, before the key is copied into the node's
+    `policy.yaml` (`share_key` in the settings); until then that channel
+    is left out of the rules and Health says so.
+  - `/api/policy_validate` is not used as a gate: read from the OpenHop
+    source, it only normalises the four top-level keys and cannot reject a
+    rule. Rule ids are untyped on the node; ours are integers.
 - **Host repeater:** blocks become managed policy rules evaluated around your
   own rules (`evaluate_layers` in `host_repeater_policy.py`). They are held in
   memory, never written into your stored policy, and are also evaluated while
@@ -73,12 +104,17 @@ from scratch for this codebase; no SpamGuard source is copied.
   count as brand new again every 24 hours.
 
 ### Not in this change
-- **OpenHop radios:** the detector runs and flags chat, but no rules are
-  written to the OpenHop node yet. The page says so.
 - Evidence log, export and replay.
+- If RTFM-EV stops without a clean shutdown, or cannot reach the node's API,
+  rules already on an OpenHop node stay there until it reaches the node
+  again. They can be removed by hand in the node's policy editor (names
+  starting with `rtfm-spam:`).
+- RTFM-EV's own OpenHop policy editor lists the `rtfm-spam:` rules next to
+  yours; a change made to them there is undone at the next check.
 - Channel messages that arrive without a raw packet (the `CHANNEL_MSG_RECV`
   fallback) are not analysed.
-- Not tested on live RF or against a real OpenHop node.
+- Not tested on live RF. The OpenHop sync is tested against a fake of the
+  node's policy API written from the OpenHop source, not against a real node.
 
 ## Update 2026-10-10 (community fork follow-ups, fix/community-fork-followups)
 

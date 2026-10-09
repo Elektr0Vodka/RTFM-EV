@@ -13,9 +13,12 @@ tuning advice carry over.
 from __future__ import annotations
 
 import re
+from hashlib import sha256
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from app.channel_constants import PUBLIC_CHANNEL_KEY
 
 Sensitivity = Literal["relaxed", "balanced", "strict"]
 Mode = Literal["monitor", "protect"]
@@ -153,6 +156,10 @@ class ProtectedChannel(BaseModel):
 
     key: str
     name: str = Field(default="", max_length=64)
+    # The user agreed that this channel's key is copied into an OpenHop node's
+    # policy file. OpenHop needs the key inside a rule to read sender and text.
+    # Only asked for a private channel: Public and hashtag keys are no secret.
+    share_key: bool = False
 
     @field_validator("key")
     @classmethod
@@ -161,6 +168,15 @@ class ProtectedChannel(BaseModel):
         if not _CHANNEL_KEY.fullmatch(key):
             raise ValueError("a channel key is 32 or 64 hex characters")
         return key
+
+    @property
+    def key_is_public(self) -> bool:
+        """The key is public knowledge: the Public channel, or derived from a #name."""
+        if self.key == PUBLIC_CHANNEL_KEY:
+            return True
+        if not self.name.startswith("#"):
+            return False
+        return sha256(self.name.encode("utf-8")).digest()[:16].hex().upper() == self.key
 
 
 class SpamConfig(BaseModel):
@@ -200,6 +216,14 @@ class SpamConfig(BaseModel):
             raise ValueError(f"unknown setting(s): {', '.join(unknown)}")
         effective(self)
         return self
+
+    def private_unshared_channels(self) -> list[ProtectedChannel]:
+        """Private channels whose key the user has not agreed to copy to an OpenHop node."""
+        return [c for c in self.channels if not (c.key_is_public or c.share_key)]
+
+    def shareable_channels(self) -> set[str]:
+        """Keys of the channels that may appear in rules written to an OpenHop node."""
+        return {c.key for c in self.channels if c.key_is_public or c.share_key}
 
 
 def effective(config: SpamConfig) -> SpamTunables:

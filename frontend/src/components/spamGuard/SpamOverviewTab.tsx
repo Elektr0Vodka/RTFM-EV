@@ -198,7 +198,9 @@ export function SpamOverviewTab({
         <ul className="space-y-1 text-[0.8125rem] text-muted-foreground">
           <li>
             {state.backend === 'openhop'
-              ? t('spam_backend_openhop')
+              ? t('spam_backend_openhop', {
+                  state: t(`spam_sync_state_${health.sync_state ?? 'idle'}`),
+                })
               : t('spam_backend_host', {
                   state: t(`spam_host_state_${state.backend_state ?? 'off'}`),
                 })}
@@ -209,6 +211,16 @@ export function SpamOverviewTab({
               expected: health.rules_expected,
             })}
           </li>
+          {state.backend === 'openhop' && health.last_sync_at !== null && (
+            <li>
+              {t('spam_health_last_sync', {
+                time: formatDuration(nowSeconds - health.last_sync_at, t),
+              })}
+            </li>
+          )}
+          {state.backend === 'openhop' && health.repairs > 0 && (
+            <li>{t('spam_health_repairs', { count: health.repairs })}</li>
+          )}
           <li>
             {health.last_message_at
               ? t('spam_health_last_message', {

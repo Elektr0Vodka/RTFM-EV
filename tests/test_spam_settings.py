@@ -1,9 +1,13 @@
 """Spam Guard settings: tunables, presets, layering."""
 
+from hashlib import sha256
+
 import pytest
 from pydantic import ValidationError
 
-from app.spam.settings import PRESETS, SpamConfig, SpamTunables, effective
+from app.spam.settings import PRESETS, ProtectedChannel, SpamConfig, SpamTunables, effective
+
+PUBLIC = "8B3387E9C5CDEA6AC9E5EDBAA115CD72"
 
 
 def test_defaults_are_the_balanced_preset():
@@ -86,3 +90,29 @@ def test_channel_key_normalised():
 def test_short_allowed_text_rejected():
     with pytest.raises(ValidationError):
         SpamConfig(allow_texts=["ab"])
+
+
+class TestKeySharing:
+    """Whether a channel's key may be copied into an OpenHop node's policy file."""
+
+    def test_public_and_hashtag_keys_are_public_knowledge(self):
+        assert ProtectedChannel(key=PUBLIC, name="Public").key_is_public
+        hashtag = sha256(b"#test").digest()[:16].hex()
+        assert ProtectedChannel(key=hashtag, name="#test").key_is_public
+
+    def test_a_private_key_is_not(self):
+        assert not ProtectedChannel(key="AA" * 16, name="Club").key_is_public
+        # A name that only looks like a hashtag does not make its key public.
+        assert not ProtectedChannel(key="AA" * 16, name="#test").key_is_public
+
+    def test_sharing_a_private_key_is_off_until_the_user_agrees(self):
+        cfg = SpamConfig(
+            channels=[
+                {"key": PUBLIC, "name": "Public"},
+                {"key": "AA" * 16, "name": "Club"},
+                {"key": "BB" * 16, "name": "Team", "share_key": True},
+            ]
+        )
+        assert [c.share_key for c in cfg.channels] == [False, False, True]
+        assert cfg.shareable_channels() == {PUBLIC, "BB" * 16}
+        assert [c.key for c in cfg.private_unshared_channels()] == ["AA" * 16]

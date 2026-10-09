@@ -335,14 +335,14 @@ RTFM-EV can judge every packet its radio receives the way a repeater would: Mesh
 
 ### Spam Guard
 
-Spam Guard detects channel spam behaviour and, in Protect mode, keeps the host repeater from forwarding it. It is modelled on [openhop-spamguard](https://github.com/flackrat/openhop-spamguard) and written from scratch for RTFM-EV. Switch it on in Settings > Local Configuration > Spam protection; a **Spam Guard** page then appears in the sidebar.
+Spam Guard detects channel spam behaviour and, in Protect mode, keeps the host repeater or a connected OpenHop node from forwarding it. It is modelled on [openhop-spamguard](https://github.com/flackrat/openhop-spamguard) and written from scratch for RTFM-EV. Switch it on in Settings > Local Configuration > Spam protection; a **Spam Guard** page then appears in the sidebar.
 
 - **It judges behaviour, never people or opinions:** the same text under several made-up or brand-new names, floods of copies, repeaters that spam enters the mesh through, and a repeater that keeps changing its identity. There is no "block this sender" button, and every automatic block expires.
 - **Monitor** (the starting mode) detects and shows spam without blocking anything. **Protect** makes the host repeater drop what a block catches. That only has an effect on air while the [host repeater](#host-repeater) is armed; in shadow mode you see what would have been dropped.
 - **Known people** (names seen sending genuine messages) pass the blocks that hold people. **Lockdown** lets only known names through for a while during a heavy attack. Messages from normal-looking names that were held are listed with a **Let through** button.
 - **In chat**, flagged messages carry a Spam marker and each channel message has **This is spam** / **Not spam**. **Hide spam** hides flagged messages and keeps them out of unread counts, mentions and push notifications.
 - **A repeater is shared.** What your repeater does not forward disappears for everyone downstream, and they cannot see why. Run Monitor for a day before switching to Protect.
-- On an OpenHop radio the detector runs and flags chat, but it does not write rules to the OpenHop node yet.
+- **On an OpenHop radio** the node forwards on its own, so Protect writes the blocks into the node's policy through its API, as rules named `rtfm-spam:...` placed before and after your own rules. Your own rules, objects and groups are passed through untouched. It needs the API URL and token under OpenHop management, switches the node's policy engine on, checks the node every minute and puts its rules back if they were changed there. The rules are removed when you switch to Monitor, pause, switch Spam Guard off, connect another radio or shut RTFM-EV down: an OpenHop rule does not expire by itself. A private channel is only enforced on the node after you agree, per channel, to its key being copied into the node's policy file. Nothing is written to a node that already has `spamguard:` rules. Not tested against a real OpenHop node yet.
 
 ## Documentation
 

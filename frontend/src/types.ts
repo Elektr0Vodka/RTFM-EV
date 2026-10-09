@@ -2704,6 +2704,11 @@ export type SpamGuardHoldLinks = 'campaign' | 'always' | 'off';
 export interface SpamGuardChannel {
   key: string;
   name: string;
+  /**
+   * The user agreed that this private channel's key is copied into an OpenHop
+   * node's policy file, which OpenHop needs to read sender and text.
+   */
+  share_key?: boolean;
 }
 
 /** Every detection tunable; the backend bounds are in `app/spam/settings.py`. */
@@ -2867,6 +2872,14 @@ export interface SpamGuardMetrics {
   since: number | null;
 }
 
+export type SpamGuardSyncState =
+  | 'idle'
+  | 'pending'
+  | 'synced'
+  | 'unconfigured'
+  | 'refused'
+  | 'failed';
+
 export interface SpamGuardHealth {
   state: 'off' | 'ok' | 'warn' | 'bad';
   problems: string[];
@@ -2876,6 +2889,11 @@ export interface SpamGuardHealth {
   backend_state: string | null;
   rules_expected: number;
   rules_present: number;
+  /** OpenHop only: where the rule sync to the node stands. */
+  sync_state: SpamGuardSyncState | null;
+  /** OpenHop only: how often our rules had to be put back on the node. */
+  repairs: number;
+  last_sync_at: number | null;
   last_message_at: number | null;
   last_saved_at: number | null;
   last_error: string | null;
@@ -2909,6 +2927,8 @@ export interface SpamGuardState extends SpamGuardSummary {
   activity: SpamActivityEntry[];
   known_names: string[];
   suppressed: Record<string, number>;
+  /** Keys of the protected channels whose key is not public knowledge. */
+  private_channels: string[];
 }
 
 export interface SpamGuardActionResult {

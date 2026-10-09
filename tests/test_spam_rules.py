@@ -400,3 +400,36 @@ class TestHostBackend:
         source = pathlib.Path("app/services/spam_backend_host.py").read_text(encoding="utf-8")
         for banned in ("app.radio", "radio_commands", "host_repeater_tx", "meshcore"):
             assert f"import {banned}" not in source and f"from {banned}" not in source
+
+
+class TestChannelFilter:
+    """An OpenHop rule carries the channel key, so a channel can be left out."""
+
+    def blocked(self):
+        det, _ = make(channels=[{"key": PUBLIC, "name": "Public"}, {"key": OTHER, "name": "Club"}])
+        det.action("block_text", text="cheap radios today", channel=OTHER)
+        det.action("block_text", text="other spam text here", channel=PUBLIC)
+        det.action("block_hop", hop="27", match="contains")
+        det.action("lockdown", minutes=30)
+        return det
+
+    def test_no_filter_renders_every_channel(self):
+        rules = render(self.blocked(), "openhop")
+        assert OTHER.lower() in str(rules.rules).lower()
+        assert len(rules.before) == 3
+
+    def test_a_channel_left_out_appears_in_no_rule(self):
+        rules = render(self.blocked(), "openhop", channels={PUBLIC})
+        assert OTHER.lower() not in str(rules.rules).lower()
+        # The Public text block and the repeater block (no channel in it) stay.
+        assert len(rules.before) == 2
+        names = [r["name"] for r in rules.after]
+        assert names == [
+            f"{OPENHOP_PREFIX}known-people:{PUBLIC}",
+            f"{OPENHOP_PREFIX}lockdown:{PUBLIC}",
+        ]
+
+    def test_no_channel_left_means_no_gated_rules(self):
+        rules = render(self.blocked(), "openhop", channels=set())
+        assert rules.after == []
+        assert [r["name"] for r in rules.before] == [f"{OPENHOP_PREFIX}hop:27"]

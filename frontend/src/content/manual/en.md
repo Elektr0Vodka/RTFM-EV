@@ -287,6 +287,8 @@ Spam Guard stops channel spam at your repeater. It looks at behaviour, never at 
 
 It starts in **Monitor**: spam is detected and shown, but nothing is blocked. Leave it there for a day and check what it would stop. **Protect** makes your host repeater stop forwarding what a block catches. That only changes anything on air while the host repeater is armed.
 
+An **OpenHop** radio forwards on its own, so there Protect writes the blocks into the node's policy, as rules whose names start with `rtfm-spam:`, placed around your own rules. Your own rules are left as they are. This needs the API URL and token under **OpenHop management** in Settings, and it switches the node's policy engine on. The rules are taken off the node again when you go back to Monitor, pause, switch Spam Guard off or shut RTFM-EV down. A private channel is only enforced on the node after you tick **Also enforce on the OpenHop node** for it under Settings on the Spam Guard page, because that copies the channel key to the node. Nothing is written to a node that already runs SpamGuard.
+
 - **Overview** shows the mode, whether everything is working, and how much spam was stopped or let through.
 - **Protection** lists the active blocks, each with the reason and when it ends. Every automatic block ends by itself. **Lockdown** is for a heavy attack: for a while only names it already knows get through. Under **Possibly genuine, held** you find messages from normal-looking names that were held; **Let through** trusts that name.
 - **Messages** shows what it read and why it did or did not act. Use **This is spam** and **Not spam** to correct it. The same two buttons are on every channel message in chat.

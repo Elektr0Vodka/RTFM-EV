@@ -32,6 +32,7 @@ Two dialects:
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -221,11 +222,22 @@ class _Renderer:
         return rules
 
 
-def render(detector: SpamDetector, dialect: Dialect, *, preview: bool = False) -> RuleSet:
+def render(
+    detector: SpamDetector,
+    dialect: Dialect,
+    *,
+    preview: bool = False,
+    channels: Collection[str] | None = None,
+) -> RuleSet:
     """The rule set that enforces the detector's current blocks on one backend.
 
     ``preview`` renders what Protect mode would apply whatever the current mode,
     for showing the user; it must never be handed to a backend.
+
+    ``channels``, when given, is the set of channel keys that may appear in a
+    rule: a block on any other channel is left out. An OpenHop rule carries the
+    channel key itself, so a private channel is only rendered for OpenHop once
+    the user agreed to that.
     """
     out = RuleSet()
     config = detector.config
@@ -233,7 +245,11 @@ def render(detector: SpamDetector, dialect: Dialect, *, preview: bool = False) -
         return out
 
     renderer = _Renderer(detector, dialect)
-    active = [b for b in detector.ordered_blocks() if not b.observe]
+    active = [
+        b
+        for b in detector.ordered_blocks()
+        if not b.observe and (channels is None or b.channel is None or b.channel in channels)
+    ]
     limit = detector.tunables.max_total_rules
     for block in active:
         if detector.gated(block):
@@ -245,7 +261,9 @@ def render(detector: SpamDetector, dialect: Dialect, *, preview: bool = False) -
         out.before += rules
 
     gated = sorted((b for b in active if detector.gated(b)), key=lambda b: b.created)
-    channel_keys = sorted(channel.key for channel in config.channels)
+    channel_keys = sorted(
+        channel.key for channel in config.channels if channels is None or channel.key in channels
+    )
     if gated and channel_keys:
         out.known_senders = detector.known_names()
         out.after += renderer.gated(

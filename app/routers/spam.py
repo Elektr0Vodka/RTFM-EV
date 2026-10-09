@@ -2,8 +2,9 @@
 
 Spam Guard detects channel spam behaviour and turns it into expiring blocks
 (``app/spam``). In Protect mode the blocks become forwarding rules on the host
-repeater; in Monitor mode nothing is enforced and the numbers show what would
-have been stopped. Nothing here transmits.
+repeater, or in the policy of an OpenHop node when that is the connected radio;
+in Monitor mode nothing is enforced and the numbers show what would have been
+stopped. Nothing here transmits.
 """
 
 from typing import Any
@@ -101,9 +102,12 @@ async def get_spam_guard_rules(
     """
     await spam_guard.ensure_loaded()
     backend = spam_guard.backend_name()
-    rules = render(
-        spam_guard.detector, "openhop" if backend == "openhop" else "host", preview=preview
-    )
+    if backend == "openhop":
+        # Exactly what is synced to the node: a private channel whose key the
+        # user has not agreed to copy there is left out.
+        rules = spam_guard.openhop_rules(preview=preview)
+    else:
+        rules = render(spam_guard.detector, "host", preview=preview)
     return {
         "backend": backend,
         "before": rules.before,

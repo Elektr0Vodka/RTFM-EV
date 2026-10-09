@@ -18,7 +18,8 @@ export function SpamGuardStatusLine() {
       data-testid="spam-guard-status-line"
     >
       {t('spam_status_line', { mode, blocks: state.blocks })}{' '}
-      {state.backend === 'openhop' ? t('spam_status_openhop_note') : t('spam_status_where')}
+      {state.backend === 'openhop' && `${t('spam_status_openhop_note')} `}
+      {t('spam_status_where')}
     </p>
   );
 }

@@ -10,6 +10,7 @@ import type {
   SpamGuardState,
   SpamGuardTunables,
 } from '../../types';
+import { isPublicChannelKey } from '../../utils/publicChannel';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { toast } from '../ui/sonner';
@@ -152,6 +153,30 @@ export function SpamSettingsTab({
     }));
   };
 
+  // An OpenHop rule has to carry the channel key. For a private channel that
+  // copies a secret to the node, so it only happens after the user agreed.
+  const keyIsPrivate = (channel: Channel) => {
+    const key = channel.key.toUpperCase();
+    // The server knows for the channels already saved; guess for a new one.
+    if (state.settings.channels.some((c) => c.key === key)) {
+      return state.private_channels.includes(key);
+    }
+    return !(isPublicChannelKey(key) || channel.is_hashtag || channel.name.startsWith('#'));
+  };
+
+  const setShareKey = (channel: Channel, on: boolean) => {
+    if (on && !window.confirm(t('spam_channels_share_key_confirm', { name: channel.name }))) {
+      return;
+    }
+    setDirty(true);
+    setDraft((prev) => ({
+      ...prev,
+      channels: prev.channels.map((c) =>
+        c.key === channel.key.toUpperCase() ? { ...c, share_key: on } : c
+      ),
+    }));
+  };
+
   const saveDraft = async () => {
     if (await guard.save(draft)) setDirty(false);
   };
@@ -252,17 +277,37 @@ export function SpamSettingsTab({
         <ul className="grid gap-1 md:grid-cols-2">
           {channels.map((channel) => {
             const id = `spam-channel-${channel.key}`;
+            const isProtected = protectedKeys.has(channel.key.toUpperCase());
+            const askForKey = state.backend === 'openhop' && isProtected && keyIsPrivate(channel);
             return (
-              <li key={channel.key} className="flex items-center gap-2 text-sm">
-                <input
-                  id={id}
-                  type="checkbox"
-                  className="h-4 w-4 accent-current"
-                  checked={protectedKeys.has(channel.key.toUpperCase())}
-                  disabled={disabled}
-                  onChange={(e) => toggleChannel(channel, e.target.checked)}
-                />
-                <label htmlFor={id}>{channel.name}</label>
+              <li key={channel.key} className="text-sm">
+                <div className="flex items-center gap-2">
+                  <input
+                    id={id}
+                    type="checkbox"
+                    className="h-4 w-4 accent-current"
+                    checked={isProtected}
+                    disabled={disabled}
+                    onChange={(e) => toggleChannel(channel, e.target.checked)}
+                  />
+                  <label htmlFor={id}>{channel.name}</label>
+                </div>
+                {askForKey && (
+                  <div className="ml-6 mt-1 flex items-start gap-2 text-[0.8125rem] text-muted-foreground">
+                    <input
+                      id={`${id}-share-key`}
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 accent-current"
+                      checked={
+                        draft.channels.find((c) => c.key === channel.key.toUpperCase())
+                          ?.share_key === true
+                      }
+                      disabled={disabled}
+                      onChange={(e) => setShareKey(channel, e.target.checked)}
+                    />
+                    <label htmlFor={`${id}-share-key`}>{t('spam_channels_share_key')}</label>
+                  </div>
+                )}
               </li>
             );
           })}
