@@ -22,6 +22,7 @@ import { useHostRepeaterArmed } from '../hooks/useHostRepeaterArmed';
 import { ThemeSelector } from './settings/ThemeSelector';
 import { CrtEffects } from './settings/CrtEffects';
 import { BuddySettings } from './settings/BuddySettings';
+import { BUDDY_ANCHORS } from '../buddy/buddyAnchors';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import {
   BATTERY_DISPLAY_CHANGE_EVENT,
@@ -237,7 +238,12 @@ export function StatusBar({
 
       <LivePacketSparkline className="hidden lg:flex items-center gap-1.5" />
 
-      <div className="flex items-center gap-1.5" role="status" aria-label={statusLabel}>
+      <div
+        className="flex items-center gap-1.5"
+        role="status"
+        aria-label={statusLabel}
+        data-buddy-anchor={BUDDY_ANCHORS.radio}
+      >
         <div
           className={cn(
             'w-2 h-2 rounded-full transition-colors',
@@ -274,6 +280,7 @@ export function StatusBar({
           })}
           role="status"
           aria-label={t('a11y_battery_percent', { pct: batteryInfo.pct })}
+          data-buddy-anchor={BUDDY_ANCHORS.battery}
         >
           <batteryInfo.Icon className="h-4 w-4" aria-hidden="true" />
           <span className="hidden sm:inline text-[0.6875rem]">{batteryInfo.label}</span>
@@ -326,6 +333,7 @@ export function StatusBar({
       )}
       <button
         onClick={onSettingsClick}
+        data-buddy-anchor={BUDDY_ANCHORS.update}
         className={cn(
           'relative px-3 py-1.5 rounded-md text-xs cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           settingsMode
@@ -362,7 +370,7 @@ export function StatusBar({
           </DialogHeader>
           <ThemeSelector />
           <CrtEffects />
-          <BuddySettings />
+          <BuddySettings compact />
         </DialogContent>
       </Dialog>
     </header>

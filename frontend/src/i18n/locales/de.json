@@ -4261,7 +4261,7 @@
   "channel_edit_in_registry": "Im Kanalregister bearbeiten",
   "settings_buddy_label": "Desktop-Assistent",
   "settings_buddy_off": "Aus",
-  "settings_buddy_description": "Ein Desktop-Assistent, der dich über neue Knoten, schwache Akkus, Nachrichten und Updates informiert. Zieh ihn an eine beliebige Stelle, Doppelklick für einen Trick, Rechtsklick schickt ihn bis zum Neuladen weg. Mit dem Windows-95-Design ist Clippy standardmäßig aktiv; andere Designs starten mit Aus.",
+  "settings_buddy_description": "Ein Desktop-Assistent, der dich über neue Knoten, schwache Akkus, Nachrichten und Updates informiert. Zieh ihn an eine beliebige Stelle, Klick öffnet ein Menü, Doppelklick für einen Trick, Rechtsklick schickt ihn bis zum Neuladen weg. Mit dem Windows-95-Design ist Clippy standardmäßig aktiv; andere Designs starten mit Aus.",
   "settings_buddy_battery_threshold_label": "Akkuwarnung unter (%)",
   "settings_buddy_battery_threshold_description": "Der Assistent warnt einmal, wenn dein Funkgerät oder ein Knoten mit aktueller Telemetrie unter diesen Wert fällt, und erst wieder, nachdem er sich um 5 Punkte erholt hat. Knoten mit Netzstrom werden übersprungen.",
   "buddy_new_node": "Hey! Gerade ist ein neuer Knoten aufgetaucht: {name}. Klick hier, um ihn anzusehen.",
@@ -4301,6 +4301,74 @@
   "buddy_tip_manual": "Sieht aus, als würdest du das Handbuch lesen. Sehr gut!",
   "buddy_tip_knowledge_base": "Die Wissensdatenbank sammelt nützliche Links.",
   "buddy_tip_settings": "Sieht aus, als würdest du Einstellungen ändern. Einstellungen unter Lokale Konfiguration gelten nur für diesen Browser.",
+  "buddy_menu_label": "Menü des Desktop-Assistenten",
+  "buddy_menu_recap": "Was habe ich verpasst?",
+  "buddy_menu_help": "Hilfe zu dieser Seite",
+  "buddy_menu_mute_15m": "15 Minuten stummschalten",
+  "buddy_menu_mute_1h": "1 Stunde stummschalten",
+  "buddy_menu_mute_reload": "Stumm bis zum Neuladen",
+  "buddy_menu_unmute": "Stummschaltung beenden",
+  "buddy_menu_switch": "Anderen Assistenten wählen",
+  "buddy_menu_hide": "Bis zum Neuladen ausblenden",
+  "buddy_recap_title": "Was ich gesagt habe",
+  "buddy_recap_empty": "Noch nichts.",
+  "buddy_recap_kept_back": "zurückgehalten",
+  "buddy_send_failed": "Deine Nachricht an {name} wurde nicht bestätigt. Klick, um den Chat zu öffnen.",
+  "buddy_service_down": "Die Integration {name} hat die Verbindung verloren. Klick, um ihre Einstellungen zu öffnen.",
+  "buddy_services_down": {
+    "one": "{count} Integration hat die Verbindung verloren: {names}. Klick, um die Einstellungen zu öffnen.",
+    "other": "{count} Integrationen haben die Verbindung verloren: {names}. Klick, um die Einstellungen zu öffnen."
+  },
+  "buddy_snmp_failing": "{name} antwortet nicht mehr auf SNMP. Klick zum Öffnen.",
+  "buddy_snmp_failing_many": {
+    "one": "{count} Knoten antwortet nicht mehr auf SNMP: {names}. Klick, um die SNMP-Seite zu öffnen.",
+    "other": "{count} Knoten antworten nicht mehr auf SNMP: {names}. Klick, um die SNMP-Seite zu öffnen."
+  },
+  "buddy_quiet_part_services": {
+    "one": "{count} Dienstwarnung",
+    "other": "{count} Dienstwarnungen"
+  },
+  "settings_buddy_group_services": "Integrationen und SNMP",
+  "buddy_quiet_summary": "Während ich still war: {items}. Klick, um sie zu sehen.",
+  "buddy_quiet_part_messages": {
+    "one": "{count} Nachricht",
+    "other": "{count} Nachrichten"
+  },
+  "buddy_quiet_part_nodes": {
+    "one": "{count} neuer Knoten",
+    "other": "{count} neue Knoten"
+  },
+  "buddy_quiet_part_radio": {
+    "one": "{count} Funkänderung",
+    "other": "{count} Funkänderungen"
+  },
+  "buddy_quiet_part_batteries": {
+    "one": "{count} Akkuwarnung",
+    "other": "{count} Akkuwarnungen"
+  },
+  "buddy_quiet_part_updates": {
+    "one": "{count} Update",
+    "other": "{count} Updates"
+  },
+  "settings_buddy_groups_label": "Informiere mich über",
+  "settings_buddy_group_messages": "Direktnachrichten und Erwähnungen",
+  "settings_buddy_group_nodes": "Neue Knoten",
+  "settings_buddy_group_radio": "Funkverbindung",
+  "settings_buddy_group_batteries": "Schwache Akkus",
+  "settings_buddy_group_updates": "Updates",
+  "settings_buddy_group_tips": "Seitentipps",
+  "settings_buddy_mute_label": "Stummschalten",
+  "settings_buddy_mute_15m": "15 Minuten",
+  "settings_buddy_mute_1h": "1 Stunde",
+  "settings_buddy_mute_reload": "Bis zum Neuladen",
+  "settings_buddy_mute_end": "Jetzt beenden",
+  "settings_buddy_mute_until": "Stumm bis {time}.",
+  "settings_buddy_mute_until_reload": "Stumm, bis du die Seite neu lädst.",
+  "settings_buddy_mute_description": "Solange der Assistent stumm ist, sagt er nichts. Danach fasst er in einer Zeile zusammen, was er zurückgehalten hat.",
+  "settings_buddy_quiet_hours_label": "Ruhezeiten",
+  "settings_buddy_quiet_hours_from": "Von",
+  "settings_buddy_quiet_hours_to": "Bis",
+  "settings_buddy_quiet_hours_description": "Jeden Tag zwischen diesen Zeiten bleibt der Assistent still, in der Ortszeit dieses Browsers. Es braucht beide Zeiten; leer lassen für keine.",
   "popout_open_chat_window": "Chatfenster",
   "popout_open_chat_window_title": "Chats in einem eigenen, leichteren Fenster öffnen",
   "popout_blocked": "Der Browser hat das Chatfenster blockiert. Pop-ups für diese Seite erlauben.",

@@ -13,6 +13,8 @@ export type BuddyEvent =
     }
   | { kind: 'radio'; state: 'connected' | 'disconnected' | 'paused' }
   | { kind: 'dm'; publicKey: string; senderName: string | null }
+  /** An own direct message got no ACK after all retries, in a chat that is not on screen. */
+  | { kind: 'send-failed'; publicKey: string; name: string | null }
   | {
       kind: 'mention';
       channelKey: string;

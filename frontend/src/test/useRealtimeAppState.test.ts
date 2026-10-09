@@ -1,6 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { subscribeBuddyEvents, type BuddyEvent } from '../buddy/buddyEvents';
+import { conversationMessageCache } from '../hooks/useConversationMessages';
 import { useRealtimeAppState } from '../hooks/useRealtimeAppState';
 import {
   getRawPacketStatsSession,
@@ -602,5 +604,55 @@ describe('useRealtimeAppState', () => {
 
     expect(getRawPackets()).toEqual([packet]);
     expect(getRawPacketStatsSession().totalObservedPackets).toBe(1);
+  });
+});
+
+describe('useRealtimeAppState: failed sends for the desktop buddy', () => {
+  const OTHER_KEY = 'cc'.repeat(32);
+  const sent = (id: number, conversationKey: string, acked = 0): Message =>
+    ({
+      id,
+      type: 'PRIV',
+      conversation_key: conversationKey,
+      text: 'ping',
+      outgoing: true,
+      acked,
+    }) as Message;
+
+  function capture(run: () => void): BuddyEvent[] {
+    const events: BuddyEvent[] = [];
+    const unsubscribe = subscribeBuddyEvents((event) => events.push(event));
+    run();
+    unsubscribe();
+    return events;
+  }
+
+  it('reports a failed message of a chat that is not on screen', () => {
+    conversationMessageCache.set(OTHER_KEY, {
+      messages: [sent(901, OTHER_KEY)],
+      hasOlderMessages: false,
+    });
+    const { args } = createRealtimeArgs();
+    const { result } = renderHook(() => useRealtimeAppState(args));
+    const events = capture(() => result.current.onMessageFailed?.(901, 1700000100));
+    expect(events).toEqual([{ kind: 'send-failed', publicKey: OTHER_KEY, name: null }]);
+  });
+
+  it('stays silent for the chat on screen, an acked message and an unknown message', () => {
+    conversationMessageCache.set(OTHER_KEY, {
+      messages: [sent(902, OTHER_KEY), sent(903, OTHER_KEY, 1)],
+      hasOlderMessages: false,
+    });
+    const active: Conversation = { type: 'contact', id: OTHER_KEY, name: 'Other' };
+    const { args: onScreenArgs } = createRealtimeArgs({
+      activeConversationRef: { current: active },
+    });
+    const onScreen = renderHook(() => useRealtimeAppState(onScreenArgs));
+    expect(capture(() => onScreen.result.current.onMessageFailed?.(902, 1))).toEqual([]);
+
+    const { args: elsewhereArgs } = createRealtimeArgs();
+    const elsewhere = renderHook(() => useRealtimeAppState(elsewhereArgs));
+    expect(capture(() => elsewhere.result.current.onMessageFailed?.(903, 1))).toEqual([]);
+    expect(capture(() => elsewhere.result.current.onMessageFailed?.(999, 1))).toEqual([]);
   });
 });

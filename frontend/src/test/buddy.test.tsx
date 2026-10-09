@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { Contact, HealthStatus } from '../types';
 
 const loadBuddyAgentMock = vi.fn();
@@ -10,6 +10,7 @@ vi.mock('../buddy/agents', async (importOriginal) => ({
 
 const apiMock = vi.hoisted(() => ({
   getLatestTelemetry: vi.fn(),
+  snmpNodes: vi.fn(),
   getOpenHopStatus: vi.fn(),
   getOpenHopUpdateStatus: vi.fn(),
 }));
@@ -20,7 +21,10 @@ vi.mock('../hooks/useUpdateStatus', () => ({
   useUpdateStatus: () => useUpdateStatusMock(),
 }));
 
-import { BuddyHost, describeBuddyEvent, __resetBuddySessionState } from '../buddy/BuddyHost';
+import { BuddyHost, __resetBuddySessionState } from '../buddy/BuddyHost';
+import { BUDDY_ANCHOR_ATTR, conversationAnchor } from '../buddy/buddyAnchors';
+import { describeBuddyEvent } from '../buddy/buddyCatalog';
+import { clearBuddyHistory, getBuddyHistory } from '../buddy/buddyHistory';
 import { BuddySettings } from '../components/settings/BuddySettings';
 import { BatteryWatch, pageTipKey } from '../buddy/buddyLogic';
 import { emitBuddyEvent } from '../buddy/buddyEvents';
@@ -28,14 +32,24 @@ import {
   DEFAULT_BATTERY_THRESHOLD,
   getBuddyAgent,
   getBuddyBatteryThreshold,
+  getBuddyMute,
   getBuddyPosition,
+  getBuddyQuietHours,
+  getWarnedBatteries,
+  getWarnedServices,
+  isBuddyGroupOn,
   isBuddyAvailable,
   isBuddyDiscovered,
   markBuddyDiscovered,
+  muteBuddyUntilReload,
   setBuddyAgent,
   setBuddyBatteryThreshold,
+  setBuddyGroupOn,
+  unmuteBuddy,
+  __resetBuddyMuteForTests,
 } from '../buddy/buddyPrefs';
 import { applyTheme } from '../utils/theme';
+import { takeManualSection } from '../utils/manualNavigation';
 
 const ALICE_KEY = 'a1'.repeat(32);
 const BOB_KEY = 'b2'.repeat(32);
@@ -44,30 +58,68 @@ function contact(publicKey: string, name: string, extra: Partial<Contact> = {}):
   return { public_key: publicKey, name, last_advert: 1, ...extra } as Contact;
 }
 
+const EXITED = 0;
+const WAITING = 1;
+const DEFAULT_ANIMATIONS = [
+  'GetAttention',
+  'Congratulate',
+  'Alert',
+  'Explain',
+  'GestureLeft',
+  'GestureRight',
+  'GestureUp',
+  'GestureDown',
+];
+
 /** Minimal stand-in for a clippyjs Agent: queue functions run immediately,
- *  unless the queue is held (then they run, in order, on release()). */
-function makeFakeAgent() {
+ *  unless the queue is held (then they run, in order, on release()).
+ *  `actions` lists animations and lines in the order they were started. */
+function makeFakeAgent(animations: string[] = DEFAULT_ANIMATIONS) {
   const el = document.createElement('div');
   const balloonEl = document.createElement('div');
   document.body.append(el, balloonEl);
   const spoken: string[] = [];
+  const actions: string[] = [];
+  /** Queue steps that reported they were done. */
+  const done = { count: 0 };
+  const complete = () => {
+    done.count += 1;
+  };
+  /** How a requested animation behaves; tests swap `run` to stall one, and
+   *  clear `starts` for one that waits behind an idle animation. */
+  const playback = {
+    starts: true,
+    run: (name: string, callback: (name: string, state: number) => void) => callback(name, EXITED),
+  };
   const held: Array<(complete: () => void) => void> = [];
   let holding = false;
   const agent = {
     _el: el,
-    _animator: { _data: { framesize: [124, 93] } },
+    _animator: {
+      _data: { framesize: [124, 93] },
+      exitAnimation: vi.fn(),
+      currentAnimationName: undefined as string | undefined,
+    },
     _balloon: {
       _balloon: balloonEl,
       CLOSE_BALLOON_DELAY: 2000,
       hide: vi.fn(),
       speak: vi.fn((complete: () => void, text: string) => {
         spoken.push(text);
+        actions.push(`say:${text}`);
         complete();
       }),
     },
+    hasAnimation: (name: string) => animations.includes(name),
+    _playInternal: vi.fn((name: string, callback: (name: string, state: number) => void) => {
+      actions.push(`play:${name}`);
+      if (playback.starts) agent._animator.currentAnimationName = name;
+      playback.run(name, callback);
+    }) as ReturnType<typeof vi.fn> | undefined,
+    _getDirection: vi.fn(() => 'Left'),
     _addToQueue: vi.fn((fn: (complete: () => void) => void) => {
       if (holding) held.push(fn);
-      else fn(() => {});
+      else fn(complete);
     }),
     _onQueueEmpty: vi.fn(),
     show: vi.fn(),
@@ -84,9 +136,18 @@ function makeFakeAgent() {
   };
   const release = () => {
     holding = false;
-    for (const fn of held.splice(0)) fn(() => {});
+    for (const fn of held.splice(0)) fn(complete);
   };
-  return { agent, spoken, el, balloonEl, hold, release };
+  return { agent, spoken, actions, done, playback, el, balloonEl, hold, release };
+}
+
+/** Puts an element the buddy can point at on screen. */
+function addAnchor(anchor: string): HTMLElement {
+  const el = document.createElement('div');
+  el.setAttribute(BUDDY_ANCHOR_ATTR, anchor);
+  el.getBoundingClientRect = () => ({ left: 0, top: 100, width: 200, height: 40 }) as DOMRect;
+  document.body.append(el);
+  return el;
 }
 
 function hostProps(overrides: Partial<Parameters<typeof BuddyHost>[0]> = {}) {
@@ -106,15 +167,20 @@ beforeEach(() => {
   localStorage.clear();
   applyTheme('original');
   __resetBuddySessionState();
+  __resetBuddyMuteForTests();
+  clearBuddyHistory();
   loadBuddyAgentMock.mockReset();
   apiMock.getLatestTelemetry.mockReset().mockResolvedValue({});
+  apiMock.snmpNodes.mockReset().mockResolvedValue([]);
   apiMock.getOpenHopStatus.mockReset().mockResolvedValue({ configured: false });
   apiMock.getOpenHopUpdateStatus.mockReset();
   useUpdateStatusMock.mockReset().mockReturnValue({ status: null });
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
+  document.body.replaceChildren();
   localStorage.clear();
 });
 
@@ -295,6 +361,11 @@ describe('BuddyHost', () => {
     rerender(<BuddyHost {...props} activePage="search" />);
     act(() => fake.release());
     expect(fake.spoken).toEqual(['Search through all stored messages from here.']);
+    // The skipped map tip did not get its animation either.
+    expect(fake.actions).toEqual([
+      'play:Explain',
+      'say:Search through all stored messages from here.',
+    ]);
 
     rerender(<BuddyHost {...props} activePage="map" />);
     expect(fake.spoken).toContain(
@@ -370,6 +441,553 @@ describe('BuddyHost', () => {
     );
     fireEvent.click(fake.balloonEl);
     expect(props.onOpenSettings).toHaveBeenCalledWith('about');
+  });
+
+  const DM_LINE = 'Alice sent you a direct message. Click to read it.';
+
+  async function showBuddy(fake: ReturnType<typeof makeFakeAgent>, props = hostProps()) {
+    applyTheme('windows-95');
+    setBuddyAgent('clippy');
+    loadBuddyAgentMock.mockResolvedValue(fake.agent);
+    const view = render(<BuddyHost {...props} />);
+    await waitFor(() => expect(fake.agent.show).toHaveBeenCalled());
+    // The agent reaches React state one render after show(); let that settle.
+    await act(async () => {});
+    return view;
+  }
+
+  function emitDm() {
+    act(() => {
+      emitBuddyEvent({ kind: 'dm', publicKey: ALICE_KEY, senderName: null });
+    });
+  }
+
+  it('plays the mood animation before the line', async () => {
+    const fake = makeFakeAgent();
+    await showBuddy(fake);
+    emitDm();
+    expect(fake.actions).toEqual(['play:GetAttention', `say:${DM_LINE}`]);
+  });
+
+  it('gestures toward the sidebar row of the sender when it is on screen', async () => {
+    const fake = makeFakeAgent();
+    await showBuddy(fake);
+    addAnchor(conversationAnchor('contact', ALICE_KEY));
+    emitDm();
+    expect(fake.agent._getDirection).toHaveBeenCalledWith(100, 120);
+    expect(fake.actions).toEqual(['play:GetAttention', 'play:GestureLeft', `say:${DM_LINE}`]);
+  });
+
+  it('speaks while it gestures, and only moves on when both are done', async () => {
+    const fake = makeFakeAgent();
+    // The mood animation ends at once; the gesture never reports back.
+    fake.playback.run = (name, callback) => {
+      if (!name.startsWith('Gesture')) callback(name, EXITED);
+    };
+    await showBuddy(fake);
+    addAnchor(conversationAnchor('contact', ALICE_KEY));
+    vi.useFakeTimers();
+    emitDm();
+    expect(fake.actions).toEqual(['play:GetAttention', 'play:GestureLeft', `say:${DM_LINE}`]);
+    expect(fake.done.count).toBe(0);
+    act(() => {
+      vi.advanceTimersByTime(2000 + 1500); // gesture cap + its exit grace
+    });
+    expect(fake.done.count).toBe(1);
+  });
+
+  it('just speaks when the character has no fitting animation', async () => {
+    const fake = makeFakeAgent([]);
+    await showBuddy(fake);
+    addAnchor(conversationAnchor('contact', ALICE_KEY));
+    emitDm();
+    expect(fake.actions).toEqual([`say:${DM_LINE}`]);
+  });
+
+  it('still speaks when the library no longer has the animation internals', async () => {
+    const fake = makeFakeAgent();
+    fake.agent._playInternal = undefined;
+    await showBuddy(fake);
+    emitDm();
+    expect(fake.spoken).toEqual([DM_LINE]);
+  });
+
+  it('ends an animation that holds its pose, then speaks', async () => {
+    const fake = makeFakeAgent();
+    let report: ((name: string, state: number) => void) | null = null;
+    fake.playback.run = (name, callback) => {
+      report = callback;
+      callback(name, WAITING);
+    };
+    await showBuddy(fake);
+    emitDm();
+    expect(fake.agent._animator.exitAnimation).toHaveBeenCalledTimes(1);
+    expect(fake.spoken).toEqual([]);
+    act(() => report?.('GetAttention', EXITED));
+    expect(fake.spoken).toEqual([DM_LINE]);
+  });
+
+  it('cuts off an animation that never reports back', async () => {
+    const fake = makeFakeAgent();
+    fake.playback.run = () => {};
+    await showBuddy(fake);
+    vi.useFakeTimers();
+    emitDm();
+    expect(fake.spoken).toEqual([]);
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(fake.agent._animator.exitAnimation).toHaveBeenCalled();
+    expect(fake.spoken).toEqual([]);
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(fake.spoken).toEqual([DM_LINE]);
+  });
+
+  it('lets a running idle animation hand over before it times the mood animation', async () => {
+    const fake = makeFakeAgent();
+    await showBuddy(fake);
+    fake.agent._animator.currentAnimationName = 'Idle1_1';
+    fake.playback.starts = false;
+    let report: ((name: string, state: number) => void) | null = null;
+    fake.playback.run = (_name, callback) => {
+      report = callback;
+    };
+    vi.useFakeTimers();
+    emitDm();
+    // The idle animation is asked to wrap up; the mood animation is not on yet.
+    expect(fake.agent._animator.exitAnimation).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    fake.agent._animator.currentAnimationName = 'GetAttention'; // idle ended, ours began
+    act(() => {
+      vi.advanceTimersByTime(100 + 2900);
+    });
+    // It has had 2.9 of its own 3 seconds: not cut off yet.
+    expect(fake.agent._animator.exitAnimation).toHaveBeenCalledTimes(1);
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(fake.agent._animator.exitAnimation).toHaveBeenCalledTimes(2);
+    act(() => report?.('GetAttention', EXITED));
+    expect(fake.spoken).toEqual([DM_LINE]);
+  });
+
+  it('speaks anyway when an idle animation never hands over', async () => {
+    const fake = makeFakeAgent();
+    await showBuddy(fake);
+    fake.agent._animator.currentAnimationName = 'Idle1_1';
+    fake.playback.starts = false;
+    fake.playback.run = () => {};
+    vi.useFakeTimers();
+    emitDm();
+    act(() => {
+      vi.advanceTimersByTime(4000 + 3000 + 1400); // handover wait + cap + most of the grace
+    });
+    expect(fake.spoken).toEqual([]);
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(fake.spoken).toEqual([DM_LINE]);
+  });
+
+  it('says nothing about a group that is switched off', async () => {
+    const fake = makeFakeAgent();
+    await showBuddy(fake);
+    act(() => setBuddyGroupOn('messages', false));
+    emitDm();
+    expect(fake.actions).toEqual([]);
+    expect(getBuddyHistory()).toEqual([]);
+  });
+
+  it('keeps lines back while muted and sums them up when the mute ends', async () => {
+    const fake = makeFakeAgent();
+    await showBuddy(fake);
+    act(() => muteBuddyUntilReload());
+    emitDm();
+    act(() => {
+      emitBuddyEvent({ kind: 'new-node', count: 3, publicKey: null, name: null });
+    });
+    expect(fake.actions).toEqual([]);
+    expect(getBuddyHistory().map((entry) => [entry.kind, entry.shown])).toEqual([
+      ['dm', false],
+      ['new-node', false],
+    ]);
+
+    act(() => unmuteBuddy());
+    // One held-back line about three nodes counts as three.
+    expect(fake.spoken).toEqual(['While I was quiet: 1 message, 3 new nodes. Click to see them.']);
+
+    emitDm();
+    expect(fake.spoken).toContain(DM_LINE);
+    expect(getBuddyHistory().slice(-1)[0]).toMatchObject({ kind: 'dm', shown: true });
+  });
+
+  it('says no summary when nothing was kept back', async () => {
+    const fake = makeFakeAgent();
+    await showBuddy(fake);
+    act(() => muteBuddyUntilReload());
+    act(() => unmuteBuddy());
+    expect(fake.spoken).toEqual([]);
+  });
+
+  it('drops a page tip while muted and gives it on a later visit', async () => {
+    const fake = makeFakeAgent();
+    act(() => muteBuddyUntilReload());
+    const props = hostProps({ activePage: 'map' });
+    const { rerender } = await showBuddy(fake, props);
+    expect(fake.spoken).toEqual([]);
+
+    act(() => unmuteBuddy());
+    expect(fake.spoken).toEqual([]); // tips are not part of the summary
+    rerender(<BuddyHost {...props} activePage="search" />);
+    rerender(<BuddyHost {...props} activePage="map" />);
+    expect(fake.spoken).toContain(
+      "It looks like you're looking at the map. Drag to pan, scroll to zoom."
+    );
+  });
+
+  it('does not repeat a battery warning after a reload', async () => {
+    const props = hostProps({
+      health: { radio_stats: { battery_mv: 3300 } } as unknown as HealthStatus,
+    });
+    const first = makeFakeAgent();
+    const view = await showBuddy(first, props);
+    expect(first.spoken.some((line) => line.includes("radio's battery"))).toBe(true);
+    expect(getWarnedBatteries()).toEqual(['self']);
+    view.unmount();
+
+    const second = makeFakeAgent();
+    await showBuddy(second, props);
+    expect(second.spoken.some((line) => line.includes("radio's battery"))).toBe(false);
+  });
+
+  it('forgets a warned node once its telemetry is gone', async () => {
+    localStorage.setItem('rtfm-buddy-battery-warned', JSON.stringify(['self', ALICE_KEY]));
+    const fake = makeFakeAgent();
+    await showBuddy(fake);
+    await waitFor(() => expect(getWarnedBatteries()).toEqual(['self']));
+  });
+
+  /** A single click on the buddy; the menu opens once a double-click is ruled out. */
+  function clickBuddy(fake: ReturnType<typeof makeFakeAgent>) {
+    vi.useFakeTimers();
+    fireEvent.mouseDown(fake.el, { clientX: 50, clientY: 50 });
+    fireEvent.mouseUp(window);
+    fireEvent.click(fake.el, { clientX: 50, clientY: 50, detail: 1 });
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    vi.useRealTimers();
+  }
+
+  it('opens a menu on a single click', async () => {
+    const fake = makeFakeAgent();
+    await showBuddy(fake);
+    expect(screen.queryByRole('menu')).toBeNull();
+    clickBuddy(fake);
+    const menu = screen.getByRole('menu', { name: 'Desktop buddy menu' });
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent)
+    ).toEqual([
+      'What did I miss?',
+      'Mute for 15 minutes',
+      'Mute for 1 hour',
+      'Mute until reload',
+      'Choose another buddy',
+      'Hide until reload',
+    ]);
+  });
+
+  it('keeps the menu closed for a double-click or a drag', async () => {
+    const fake = makeFakeAgent();
+    await showBuddy(fake);
+    vi.useFakeTimers();
+
+    // Double-click: the second click arrives before the menu would open.
+    fireEvent.mouseDown(fake.el, { clientX: 50, clientY: 50 });
+    fireEvent.click(fake.el, { clientX: 50, clientY: 50, detail: 1 });
+    fireEvent.click(fake.el, { clientX: 50, clientY: 50, detail: 2 });
+    fireEvent.dblClick(fake.el);
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    // Drag: the pointer ends somewhere else.
+    fireEvent.mouseDown(fake.el, { clientX: 50, clientY: 50 });
+    fireEvent.mouseUp(window);
+    fireEvent.click(fake.el, { clientX: 90, clientY: 120, detail: 1 });
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('closes the menu with Escape, a click elsewhere or a click on the buddy', async () => {
+    const fake = makeFakeAgent();
+    await showBuddy(fake);
+
+    clickBuddy(fake);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    clickBuddy(fake);
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    clickBuddy(fake);
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    clickBuddy(fake);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('closes the menu when the buddy starts to speak', async () => {
+    const fake = makeFakeAgent();
+    await showBuddy(fake);
+    clickBuddy(fake);
+    emitDm();
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('lists what it said and kept back, newest first, and opens an entry', async () => {
+    const fake = makeFakeAgent();
+    const props = hostProps();
+    await showBuddy(fake, props);
+    emitDm();
+    act(() => muteBuddyUntilReload());
+    act(() => {
+      emitBuddyEvent({ kind: 'radio', state: 'paused' });
+    });
+
+    clickBuddy(fake);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'What did I miss?' }));
+    const entries = screen.getAllByTestId('buddy-recap-entry');
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toHaveTextContent('The radio connection is paused.');
+    expect(entries[0]).toHaveTextContent('kept back');
+    expect(entries[1]).toHaveTextContent(DM_LINE);
+    expect(entries[1]).not.toHaveTextContent('kept back');
+
+    fireEvent.click(within(entries[1]).getByRole('button'));
+    expect(props.onSelectConversation).toHaveBeenCalledWith({
+      type: 'contact',
+      id: ALICE_KEY,
+      name: 'Alice',
+    });
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('says so when there is nothing to recap, and goes back to the menu', async () => {
+    const fake = makeFakeAgent();
+    await showBuddy(fake);
+    clickBuddy(fake);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'What did I miss?' }));
+    expect(screen.getByText('Nothing yet.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByRole('menuitem', { name: 'Hide until reload' })).toBeInTheDocument();
+  });
+
+  it('opens the recap from the summary line', async () => {
+    const fake = makeFakeAgent();
+    await showBuddy(fake);
+    act(() => muteBuddyUntilReload());
+    emitDm();
+    act(() => unmuteBuddy());
+    fireEvent.click(fake.balloonEl);
+    expect(screen.getAllByTestId('buddy-recap-entry')[1]).toHaveTextContent(DM_LINE);
+  });
+
+  it('mutes from the menu and offers to end the mute', async () => {
+    const fake = makeFakeAgent();
+    await showBuddy(fake);
+    clickBuddy(fake);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Mute for 15 minutes' }));
+    expect(getBuddyMute()?.kind).toBe('until');
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    clickBuddy(fake);
+    expect(screen.queryByRole('menuitem', { name: 'Mute for 1 hour' })).toBeNull();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'End mute' }));
+    expect(getBuddyMute()).toBeNull();
+  });
+
+  it('opens the manual at the section for the page on screen', async () => {
+    const fake = makeFakeAgent();
+    const props = hostProps({ activePage: 'map' });
+    await showBuddy(fake, props);
+    clickBuddy(fake);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Help for this page' }));
+    expect(props.onSelectConversation).toHaveBeenCalledWith({
+      type: 'manual',
+      id: 'manual',
+      name: 'User Guide',
+    });
+    expect(takeManualSection()).toBe('map');
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('opens the buddy settings and hides the buddy from the menu', async () => {
+    const fake = makeFakeAgent();
+    const props = hostProps();
+    await showBuddy(fake, props);
+
+    clickBuddy(fake);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Choose another buddy' }));
+    expect(props.onOpenSettings).toHaveBeenCalledWith('local');
+
+    clickBuddy(fake);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Hide until reload' }));
+    expect(fake.agent.hide).toHaveBeenCalled();
+    await waitFor(() => expect(fake.agent.dispose).toHaveBeenCalled());
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  const MQTT_DOWN_LINE =
+    'The Home MQTT integration has lost its connection. Click to open its settings.';
+
+  function healthWithFanout(status: string): HealthStatus {
+    return {
+      fanout_statuses: { m1: { name: 'Home MQTT', type: 'mqtt_private', status } },
+    } as unknown as HealthStatus;
+  }
+
+  it('announces an integration that stays disconnected for a minute', async () => {
+    const fake = makeFakeAgent();
+    const props = hostProps({ health: healthWithFanout('disconnected') });
+    const { rerender } = await showBuddy(fake, props);
+    vi.useFakeTimers();
+    // A fresh health object restarts the check under the fake clock.
+    rerender(<BuddyHost {...props} health={healthWithFanout('disconnected')} />);
+    act(() => {
+      vi.advanceTimersByTime(45_000);
+    });
+    expect(fake.spoken).toEqual([]);
+    act(() => {
+      vi.advanceTimersByTime(45_000);
+    });
+    expect(fake.spoken).toEqual([MQTT_DOWN_LINE]);
+    expect(getWarnedServices()).toEqual(['fanout:m1']);
+
+    fireEvent.click(fake.balloonEl);
+    expect(props.onOpenSettings).toHaveBeenCalledWith('fanout');
+
+    // Still down: said once.
+    act(() => {
+      vi.advanceTimersByTime(300_000);
+    });
+    expect(fake.spoken).toEqual([MQTT_DOWN_LINE]);
+  });
+
+  it('stays quiet about an integration that reconnects within the minute', async () => {
+    const fake = makeFakeAgent();
+    const props = hostProps({ health: healthWithFanout('error') });
+    const { rerender } = await showBuddy(fake, props);
+    vi.useFakeTimers();
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+    });
+    rerender(<BuddyHost {...props} health={healthWithFanout('connected')} />);
+    act(() => {
+      vi.advanceTimersByTime(180_000);
+    });
+    expect(fake.spoken).toEqual([]);
+    expect(getWarnedServices()).toEqual([]);
+  });
+
+  it('does not repeat an integration warning after a reload', async () => {
+    localStorage.setItem('rtfm-buddy-services-warned', JSON.stringify(['fanout:m1']));
+    const fake = makeFakeAgent();
+    const props = hostProps({ health: healthWithFanout('disconnected') });
+    const { rerender } = await showBuddy(fake, props);
+    vi.useFakeTimers();
+    rerender(<BuddyHost {...props} health={healthWithFanout('disconnected')} />);
+    act(() => {
+      vi.advanceTimersByTime(180_000);
+    });
+    expect(fake.spoken).toEqual([]);
+  });
+
+  function snmpNode(publicKey: string, name: string, lastError: string | null) {
+    return {
+      public_key: publicKey,
+      name,
+      poll_enabled: true,
+      last_ok_at: 1,
+      last_error: lastError,
+      last_error_at: lastError ? 2 : null,
+    };
+  }
+
+  it('announces an SNMP node that stopped answering and opens its page', async () => {
+    apiMock.snmpNodes.mockResolvedValue([
+      snmpNode(ALICE_KEY, 'Alice', 'timeout'),
+      snmpNode(BOB_KEY, 'Bob', null),
+    ]);
+    const fake = makeFakeAgent();
+    const props = hostProps();
+    await showBuddy(fake, props);
+    await waitFor(() =>
+      expect(fake.spoken).toEqual(['Alice stopped answering SNMP. Click to open it.'])
+    );
+    expect(getWarnedServices()).toEqual([`snmp:${ALICE_KEY}`]);
+    fireEvent.click(fake.balloonEl);
+    expect(props.onSelectConversation).toHaveBeenCalledWith({
+      type: 'snmp',
+      id: ALICE_KEY,
+      name: 'Alice',
+    });
+  });
+
+  it('ignores SNMP nodes whose polling is switched off', async () => {
+    apiMock.snmpNodes.mockResolvedValue([
+      { ...snmpNode(ALICE_KEY, 'Alice', 'timeout'), poll_enabled: false },
+    ]);
+    const fake = makeFakeAgent();
+    await showBuddy(fake);
+    await waitFor(() => expect(apiMock.snmpNodes).toHaveBeenCalled());
+    await act(async () => {});
+    expect(fake.spoken).toEqual([]);
+  });
+
+  it('does not ask for SNMP nodes while that topic is switched off', async () => {
+    setBuddyGroupOn('services', false);
+    const fake = makeFakeAgent();
+    const props = hostProps({ health: healthWithFanout('disconnected') });
+    const { rerender } = await showBuddy(fake, props);
+    await act(async () => {});
+    expect(apiMock.snmpNodes).not.toHaveBeenCalled();
+    vi.useFakeTimers();
+    rerender(<BuddyHost {...props} health={healthWithFanout('disconnected')} />);
+    act(() => {
+      vi.advanceTimersByTime(180_000);
+    });
+    expect(fake.spoken).toEqual([]);
+    // Nothing was said, so it may still be said once the topic is back on.
+    expect(getWarnedServices()).toEqual([]);
+  });
+
+  it('tells about a direct message that got no acknowledgement', async () => {
+    const fake = makeFakeAgent();
+    const props = hostProps();
+    await showBuddy(fake, props);
+    act(() => {
+      emitBuddyEvent({ kind: 'send-failed', publicKey: ALICE_KEY, name: null });
+    });
+    expect(fake.spoken).toEqual([
+      'Your message to Alice got no acknowledgement. Click to open the chat.',
+    ]);
+    fireEvent.click(fake.balloonEl);
+    expect(props.onSelectConversation).toHaveBeenCalledWith({
+      type: 'contact',
+      id: ALICE_KEY,
+      name: 'Alice',
+    });
   });
 
   it('saves the dragged position', async () => {
@@ -464,5 +1082,83 @@ describe('BuddySettings', () => {
     expect(getBuddyAgent()).toBeNull();
     expect(select).toHaveValue('off');
     expect(screen.queryByLabelText(/Battery warning below/)).toBeNull();
+    expect(screen.queryByText('Tell me about')).toBeNull();
+  });
+
+  it('switches a group of lines off and on again', () => {
+    applyTheme('windows-95');
+    render(<BuddySettings />);
+    const tips = screen.getByRole('checkbox', { name: 'Page tips' });
+    expect(tips).toBeChecked();
+    expect(screen.getAllByRole('checkbox')).toHaveLength(7);
+    expect(screen.getByRole('checkbox', { name: 'Integrations and SNMP' })).toBeChecked();
+
+    fireEvent.click(tips);
+    expect(isBuddyGroupOn('tips')).toBe(false);
+    expect(tips).not.toBeChecked();
+
+    fireEvent.click(tips);
+    expect(isBuddyGroupOn('tips')).toBe(true);
+  });
+
+  it('mutes for a while, shows until when, and ends the mute', () => {
+    applyTheme('windows-95');
+    render(<BuddySettings />);
+    const before = Date.now();
+    fireEvent.click(screen.getByRole('button', { name: '1 hour' }));
+
+    const mute = getBuddyMute();
+    expect(mute?.kind).toBe('until');
+    expect(mute?.kind === 'until' ? mute.until - before : 0).toBeGreaterThanOrEqual(3_600_000);
+    expect(screen.getByText(/^Muted until \d/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '1 hour' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'End now' }));
+    expect(getBuddyMute()).toBeNull();
+    expect(screen.getByRole('button', { name: '15 minutes' })).toBeInTheDocument();
+  });
+
+  it('mutes until the page is reloaded', () => {
+    applyTheme('windows-95');
+    render(<BuddySettings />);
+    fireEvent.click(screen.getByRole('button', { name: 'Until reload' }));
+    expect(getBuddyMute()).toEqual({ kind: 'reload' });
+    expect(screen.getByText('Muted until you reload the page.')).toBeInTheDocument();
+  });
+
+  it('saves quiet hours once both times are set, and clears them', () => {
+    applyTheme('windows-95');
+    render(<BuddySettings />);
+    const from = screen.getByLabelText('From');
+    const to = screen.getByLabelText('To');
+    expect(screen.queryByRole('button', { name: 'Clear' })).toBeNull();
+
+    fireEvent.change(from, { target: { value: '22:00' } });
+    expect(getBuddyQuietHours()).toBeNull();
+    fireEvent.change(to, { target: { value: '07:00' } });
+    expect(getBuddyQuietHours()).toEqual({ from: '22:00', to: '07:00' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(getBuddyQuietHours()).toBeNull();
+    expect(from).toHaveValue('');
+    expect(to).toHaveValue('');
+  });
+
+  it('shows stored quiet hours', () => {
+    applyTheme('windows-95');
+    localStorage.setItem('rtfm-buddy-quiet-hours', '{"from":"23:30","to":"06:15"}');
+    render(<BuddySettings />);
+    expect(screen.getByLabelText('From')).toHaveValue('23:30');
+    expect(screen.getByLabelText('To')).toHaveValue('06:15');
+  });
+
+  it('keeps the compact copy to the picker and the battery threshold', () => {
+    applyTheme('windows-95');
+    render(<BuddySettings compact />);
+    expect(screen.getByLabelText('Desktop buddy')).toHaveValue('clippy');
+    expect(screen.getByLabelText(/Battery warning below/)).toBeInTheDocument();
+    expect(screen.queryByText('Tell me about')).toBeNull();
+    expect(screen.queryByRole('button', { name: '15 minutes' })).toBeNull();
+    expect(screen.queryByLabelText('From')).toBeNull();
   });
 });

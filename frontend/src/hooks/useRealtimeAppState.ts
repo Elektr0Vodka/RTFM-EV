@@ -19,6 +19,7 @@ import {
 } from '../stores/rawPacketStore';
 import { emitStatusDotPulse } from '../utils/statusDotPulse';
 import { emitBuddyEvent } from '../buddy/buddyEvents';
+import { conversationMessageCache } from './useConversationMessages';
 import { isMessageHiddenByHopWidth } from '../utils/pathUtils';
 import type {
   Channel,
@@ -367,7 +368,17 @@ export function useRealtimeAppState({
         receiveMessageAck(messageId, ackCount, paths, packetId);
       },
       onMessageFailed: (messageId: number, failedAt: number) => {
+        const cached = conversationMessageCache.find(messageId);
         receiveMessageFailed?.(messageId, failedAt);
+        // The desktop buddy only tells about a chat that is not on screen;
+        // there the failed mark is in view already. A message this browser
+        // does not have cached (sent elsewhere) is not announced either.
+        if (cached?.type === 'PRIV' && !(cached.acked > 0)) {
+          const active = activeConversationRef.current;
+          if (!(active?.type === 'contact' && active.id === cached.conversation_key)) {
+            emitBuddyEvent({ kind: 'send-failed', publicKey: cached.conversation_key, name: null });
+          }
+        }
       },
       onMessageDeleted: (messageId: number) => {
         removeMessage?.(messageId);

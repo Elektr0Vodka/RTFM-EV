@@ -6,24 +6,118 @@ export const BATTERY_REARM_MARGIN = 5;
 /** Node telemetry older than this is not worth warning about. */
 export const BATTERY_TELEMETRY_MAX_AGE_SECONDS = 24 * 60 * 60;
 
+/** What the buddy talks about, as switched on or off in the settings. */
+export const BUDDY_GROUPS = [
+  'messages',
+  'nodes',
+  'radio',
+  'batteries',
+  'services',
+  'updates',
+  'tips',
+] as const;
+
+export type BuddyGroup = (typeof BUDDY_GROUPS)[number];
+
 /**
  * Warn-once-per-drop tracker: a key warns when it first reads below the
- * threshold, then stays quiet until it climbs to threshold + margin.
+ * threshold, then stays quiet until it climbs to threshold + margin. Seeded
+ * with the keys warned before (so a reload does not repeat a warning);
+ * `onChange` gets the warned keys whenever they change.
  */
 export class BatteryWatch {
-  private warned = new Set<string>();
+  private warned: Set<string>;
+
+  constructor(
+    warned: Iterable<string> = [],
+    private onChange?: (warned: string[]) => void
+  ) {
+    this.warned = new Set(warned);
+  }
 
   /** Returns true when this reading should raise a warning. */
   observe(key: string, percent: number, threshold: number): boolean {
     if (this.warned.has(key)) {
-      if (percent >= threshold + BATTERY_REARM_MARGIN) this.warned.delete(key);
+      if (percent >= threshold + BATTERY_REARM_MARGIN) {
+        this.warned.delete(key);
+        this.changed();
+      }
       return false;
     }
     if (percent < threshold) {
       this.warned.add(key);
+      this.changed();
       return true;
     }
     return false;
+  }
+
+  /** Forget warned keys the caller no longer tracks (e.g. nodes without recent telemetry). */
+  prune(keep: (key: string) => boolean): void {
+    let removed = false;
+    for (const key of [...this.warned]) {
+      if (keep(key)) continue;
+      this.warned.delete(key);
+      removed = true;
+    }
+    if (removed) this.changed();
+  }
+
+  private changed(): void {
+    this.onChange?.([...this.warned]);
+  }
+}
+
+/**
+ * Warn-once tracker for things that are up or down (an integration, an SNMP
+ * node). A key warns once it has been down for the grace period without a
+ * break, then stays quiet until it was seen up again. Seeded with the keys
+ * warned before, like `BatteryWatch`; `onChange` gets the warned keys.
+ */
+export class OutageWatch {
+  private warned: Set<string>;
+  private downSince = new Map<string, number>();
+
+  constructor(
+    private graceMs = 0,
+    warned: Iterable<string> = [],
+    private onChange?: (warned: string[]) => void
+  ) {
+    this.warned = new Set(warned);
+  }
+
+  /** Returns true when this observation should raise a warning. `now` in ms. */
+  observe(key: string, up: boolean, now: number, graceMs = this.graceMs): boolean {
+    if (up) {
+      this.downSince.delete(key);
+      if (this.warned.delete(key)) this.changed();
+      return false;
+    }
+    if (this.warned.has(key)) return false;
+    const since = this.downSince.get(key);
+    if (since === undefined) this.downSince.set(key, now);
+    if (now - (since ?? now) < graceMs) return false;
+    this.warned.add(key);
+    this.changed();
+    return true;
+  }
+
+  /** Forget keys the caller no longer tracks (a removed integration or node). */
+  prune(keep: (key: string) => boolean): void {
+    let removed = false;
+    for (const key of [...this.warned]) {
+      if (keep(key)) continue;
+      this.warned.delete(key);
+      removed = true;
+    }
+    for (const key of [...this.downSince.keys()]) {
+      if (!keep(key)) this.downSince.delete(key);
+    }
+    if (removed) this.changed();
+  }
+
+  private changed(): void {
+    this.onChange?.([...this.warned]);
   }
 }
 
@@ -54,4 +148,30 @@ const PAGE_TIP_KEYS: Partial<Record<PageType, string>> = {
 
 export function pageTipKey(page: PageType | null | undefined): string | null {
   return page ? (PAGE_TIP_KEYS[page] ?? null) : null;
+}
+
+/** User Guide section (`<!-- id: x -->` in content/manual) that covers a page. */
+const PAGE_HELP_SECTIONS: Partial<Record<PageType, string>> = {
+  channel: 'messaging',
+  contact: 'messaging',
+  'contact-info': 'contacts-nodes',
+  map: 'map',
+  raw: 'tools',
+  visualizer: 'tools',
+  search: 'tools',
+  trace: 'tools',
+  'channel-registry': 'tools',
+  node: 'tools',
+  'mesh-health': 'tools',
+  'mesh-trends': 'tools',
+  'mesh-discovery': 'tools',
+  snmp: 'tools',
+  analyze: 'tools',
+  'packet-history': 'tools',
+  'knowledge-base': 'tools',
+  settings: 'settings',
+};
+
+export function pageHelpSection(page: PageType | null | undefined): string | null {
+  return page ? (PAGE_HELP_SECTIONS[page] ?? null) : null;
 }
