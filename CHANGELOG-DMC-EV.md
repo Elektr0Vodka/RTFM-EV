@@ -11,6 +11,30 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-09 (MCEU themes: page heads and cards, feat/mceu-layout)
+
+No migration, no backend change, no new dependency, no new strings. CSS only.
+Fourth of four layout parts for the MCEU themes.
+
+### Interface: page heads and cards under the MCEU themes
+- **Page head:** the title of every page (tools, settings, map, search and
+  the chat header) is set in the display font at heading size (22px, 19px on
+  phones), and the rule under the head is gone.
+- **Cards:** a bordered, rounded panel that sits directly on the page
+  ground is a raised surface, in both themes. That covers the stat tiles
+  (Mesh Health's counters, for example) and the plain bordered panels.
+  Panels with their own tint, selected state or hover fill keep it, and so
+  do the wells inside a card.
+
+### Not included
+- The analyzer's one-line lead under each title and its reordered page
+  actions. A lead needs new copy for about 15 pages in three languages, and
+  no page here has a shared head component to put it in.
+- Pages that build their tiles differently (Mesh Trends uses filled wells)
+  look as before.
+- On phones a two-word title can wrap next to a page's tabs (seen on Mesh
+  Health), where the smaller title used to fit on one line.
+
 ## Update 2026-10-09 (MCEU themes: chat messages as cards, feat/mceu-layout)
 
 No migration, no backend change, no new dependency, no new strings. Third of

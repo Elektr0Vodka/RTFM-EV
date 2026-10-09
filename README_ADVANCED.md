@@ -263,7 +263,8 @@ Customisation heading and the branding block below it.
   **My Node** go to their page, and **More** opens the tools together with
   Settings, chat window, language and theme. Chat messages are cards under
   these themes: sender and time on top, the text, then hop count, region and
-  delivery mark as a row of chips.
+  delivery mark as a row of chips. Pages open with a larger title without a
+  rule under it, and bordered panels and stat tiles are raised cards.
 - **CRT screen effects**: scanline, phosphor-glow, screen-curvature, and flicker
   toggles that sit beneath the theme grid. They are a universal overlay: they
   work on top of any theme, not only the CRT ones. They default on when a CRT

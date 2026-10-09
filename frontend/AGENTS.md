@@ -744,6 +744,8 @@ Phones:
 
 Chat rows: `AppShell` wraps `ConversationPane` in `MessageLayoutProvider value="cards"` under the Atlas layout (desktop and phone). `MessageList` then renders each message as a full-width card with its own header and a chip row (`HopCountBadge variant="chip"`, the scope badges, the delivery mark). The pieces of a row (`body`, `renderMeta`, `outgoingStatus`, `preview`, `rowActions`) are shared by all three layouts; a layout only decides where they go. The chat popup has its own provider and never gets cards.
 
+Page heads and panels are CSS only (`themes.css`, the two "MCEU: page head" and "MCEU: panels are cards" blocks). They match what pages already have: a `border-b border-border px-4` bar holding an `h2.text-base.font-semibold` title (or that h2 being the bar), and bordered rounded boxes inside `<main>` without a background utility or with `bg-background`. A new page gets the look by following that pattern; a page that names its title or tiles differently does not, and nothing fails when that happens.
+
 `selectLeavingSettings` in `AppShell` (the tab bar, the phone drawer and the desktop buddy use it) waits for the history step that closing settings triggers before it selects: the conversation router re-selects the entry that step lands on, and an immediate select loses to it.
 
 Not observable in jsdom: the real column layout, the upward language menu, the rail, the drawer and the history race above. Check those in a browser.
