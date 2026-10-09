@@ -331,10 +331,15 @@ describe('App favorite toggle flow', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Radio & Config' }));
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Back to Chat' })).toBeInTheDocument();
-      expect(screen.getByTestId('settings-modal-section')).toHaveTextContent('radio');
-    });
+    // SettingsModal is React.lazy in AppShell: the click commits the settings
+    // view with its Suspense fallback, and the modal arrives in a later render
+    // outside act(). Under full-suite load that has taken over 5 s, past
+    // waitFor's default 1 s, so wait for the modal itself with room for it. The
+    // role query runs once afterwards, not on every poll: with it inside the
+    // polling loop the same wait measured several times longer.
+    const section = await screen.findByTestId('settings-modal-section', {}, { timeout: 10000 });
+    expect(section).toHaveTextContent('radio');
+    expect(screen.getByRole('button', { name: 'Back to Chat' })).toBeInTheDocument();
 
     fireEvent.click(screen.getAllByRole('button', { name: /Local Configuration/i })[0]);
 
