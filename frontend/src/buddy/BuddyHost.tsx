@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../api';
 import { useT } from '../i18n';
 import { useUpdateStatus } from '../hooks/useUpdateStatus';
 import { mvToPercent } from '../utils/batteryDisplay';
+import { requestManualSection } from '../utils/manualNavigation';
 import { getEffectiveTheme, THEME_CHANGE_EVENT } from '../utils/theme';
 import type { SettingsSection } from '../components/settings/settingsConstants';
 import type { Channel, Contact, Conversation, HealthStatus } from '../types';
@@ -22,7 +24,8 @@ import {
 } from './buddyCatalog';
 import { subscribeBuddyEvents } from './buddyEvents';
 import { recordBuddyLine } from './buddyHistory';
-import { BATTERY_TELEMETRY_MAX_AGE_SECONDS, BatteryWatch } from './buddyLogic';
+import { BATTERY_TELEMETRY_MAX_AGE_SECONDS, BatteryWatch, pageHelpSection } from './buddyLogic';
+import { BuddyMenu, type BuddyMenuView } from './BuddyMenu';
 import { pickAnimation } from './buddyMood';
 import {
   BUDDY_PREFS_CHANGE_EVENT,
@@ -65,6 +68,10 @@ const ANIMATION_EXIT_GRACE_MS = 1500;
 /** Longest wait for a running idle animation to make way for the next one. */
 const IDLE_HANDOVER_MAX_MS = 4000;
 const IDLE_HANDOVER_POLL_MS = 100;
+/** A click opens the menu after this long, unless a second click made it a double-click. */
+const DOUBLE_CLICK_MS = 250;
+/** The pointer may move this far between press and release and still count as a click. */
+const CLICK_SLOP_PX = 5;
 /** How often the end of a mute or of the quiet hours is looked for. */
 const QUIET_CHECK_MS = 20 * 1000;
 /** clippyjs `Animator.States` (not exported by the library). */
@@ -229,7 +236,7 @@ export function BuddyHost(props: BuddyHostProps) {
   return <ActiveBuddy key={agentId} agentId={agentId} onDismiss={onDismiss} {...props} />;
 }
 
-/** Renders nothing itself: the library appends its own fixed-position elements to <body>. */
+/** The library appends its own fixed-position elements to <body>; this only renders the click menu. */
 function ActiveBuddy({
   agentId,
   onDismiss,
@@ -245,6 +252,7 @@ function ActiveBuddy({
   useEffect(() => {
     propsRef.current = props;
     tRef.current = t;
+    menuOpenRef.current = menu !== null;
   });
 
   const targetRef = useRef<BuddyTarget | null>(null);
@@ -254,6 +262,10 @@ function ActiveBuddy({
   /** Seeded from storage, so a reload does not repeat a battery warning. */
   const [batteryWatch] = useState(() => new BatteryWatch(getWarnedBatteries(), setWarnedBatteries));
   const wasQuietRef = useRef(false);
+  /** The click menu: closed, the menu itself, or the recap of what was said. */
+  const [menu, setMenu] = useState<BuddyMenuView | null>(null);
+  const menuOpenRef = useRef(false);
+  const closeMenu = useCallback(() => setMenu(null), []);
 
   useEffect(() => {
     const syncThreshold = () => setThreshold(getBuddyBatteryThreshold());
@@ -263,15 +275,35 @@ function ActiveBuddy({
 
   const openTarget = useCallback((target: BuddyTarget) => {
     const p = propsRef.current;
-    if (target.kind === 'conversation') p.onSelectConversation(target.conversation);
-    else if (target.kind === 'settings') p.onOpenSettings(target.section);
-    else p.onNavigateMentionToMessage?.(target.channelKey, target.messageId);
+    switch (target.kind) {
+      case 'conversation':
+        p.onSelectConversation(target.conversation);
+        break;
+      case 'settings':
+        p.onOpenSettings(target.section);
+        break;
+      case 'mention':
+        p.onNavigateMentionToMessage?.(target.channelKey, target.messageId);
+        break;
+      case 'manual':
+        requestManualSection(target.section);
+        p.onSelectConversation({
+          type: 'manual',
+          id: 'manual',
+          name: tRef.current('nav_user_guide'),
+        });
+        break;
+      case 'recap':
+        setMenu('recap');
+        break;
+    }
   }, []);
 
   // Agent lifecycle: load on mount, dispose on unmount.
   useEffect(() => {
     let cancelled = false;
     let created: BuddyAgent | null = null;
+    let clickTimer = 0;
     loadBuddyAgent(agentId)
       .then((a) => {
         if (cancelled) {
@@ -294,7 +326,10 @@ function ActiveBuddy({
 
         // The library moves the buddy on mousedown + drag; its own mouseup
         // listener (registered first) clamps the position, then we save it.
-        el.addEventListener('mousedown', () => {
+        let press: { x: number; y: number; menuWasOpen: boolean } | null = null;
+        el.addEventListener('mousedown', (e) => {
+          press = { x: e.clientX, y: e.clientY, menuWasOpen: menuOpenRef.current };
+          setMenu(null);
           window.addEventListener(
             'mouseup',
             () => {
@@ -305,6 +340,17 @@ function ActiveBuddy({
             { once: true }
           );
         });
+
+        // A single click opens the menu (or closes an open one). It waits for
+        // the double-click window, so the double-click trick stays what it was,
+        // and a press that ended elsewhere was a drag.
+        el.addEventListener('click', (e) => {
+          window.clearTimeout(clickTimer);
+          if (e.detail > 1 || !press || press.menuWasOpen) return;
+          if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > CLICK_SLOP_PX) return;
+          clickTimer = window.setTimeout(() => setMenu('menu'), DOUBLE_CLICK_MS);
+        });
+        el.addEventListener('dblclick', () => window.clearTimeout(clickTimer));
 
         // Right-click: wave goodbye until the page is reloaded.
         el.addEventListener('contextmenu', (e) => {
@@ -332,6 +378,7 @@ function ActiveBuddy({
       .catch((err) => console.error('buddy: failed to load agent', err));
     return () => {
       cancelled = true;
+      window.clearTimeout(clickTimer);
       liveAgentRef.current = null;
       created?.dispose();
       targetRef.current = null;
@@ -386,6 +433,8 @@ function ActiveBuddy({
           };
           playBriefly(agent, gestureAnimation(agent, line.anchor), GESTURE_MAX_MS, part);
           targetRef.current = line.target;
+          // The balloon and the menu sit in the same spot.
+          setMenu(null);
           // Same as agent.speak(), but decided at play time.
           agent._balloon.speak(part, line.text, false);
         });
@@ -543,5 +592,24 @@ function ActiveBuddy({
     return () => window.clearTimeout(timer);
   }, [agent]);
 
-  return null;
+  const helpSection = pageHelpSection(activePage);
+  const helpTarget = useMemo<BuddyTarget | null>(
+    () => (helpSection ? { kind: 'manual', section: helpSection } : null),
+    [helpSection]
+  );
+
+  if (!agent || !menu) return null;
+  return createPortal(
+    <BuddyMenu
+      key={menu}
+      anchor={agent._el}
+      initialView={menu}
+      helpTarget={helpTarget}
+      zIndex={BUDDY_Z_INDEX}
+      onOpenTarget={openTarget}
+      onHide={() => agent.hide(false, onDismiss)}
+      onClose={closeMenu}
+    />,
+    document.body
+  );
 }

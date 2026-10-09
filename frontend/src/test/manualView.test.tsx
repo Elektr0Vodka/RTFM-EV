@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ManualView, manualSectionDomId } from '../components/ManualView';
 import { I18nProvider, STORAGE_KEY } from '../i18n';
+import { requestManualSection } from '../utils/manualNavigation';
 
 function renderManual() {
   return render(
@@ -36,6 +37,19 @@ describe('ManualView', () => {
     fireEvent.click(within(toc).getByRole('button', { name: 'Map' }));
     expect(scrollIntoView).toHaveBeenCalledTimes(1);
     expect(window.location.hash).toBe('#manual');
+  });
+
+  it('opens at a section that was asked for, also while it is already open', () => {
+    const scrolled: string[] = [];
+    Element.prototype.scrollIntoView = function (this: Element) {
+      scrolled.push(this.id);
+    };
+    requestManualSection('map');
+    renderManual();
+    expect(scrolled).toEqual([manualSectionDomId('map')]);
+
+    act(() => requestManualSection('tools'));
+    expect(scrolled).toEqual([manualSectionDomId('map'), manualSectionDomId('tools')]);
   });
 
   it('follows the interface language', () => {

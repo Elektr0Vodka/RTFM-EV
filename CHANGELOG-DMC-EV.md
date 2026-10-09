@@ -11,6 +11,33 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-09 (desktop buddy: click menu, feat/buddy-expression-quiet)
+
+No migration, no backend change, no new dependency.
+
+### Interface: desktop buddy (click menu)
+- A single click on the buddy opens a small menu next to it. The double-click
+  trick, dragging and the right-click goodbye are unchanged: the menu waits
+  for the double-click window (250 ms), and a press that ended somewhere else
+  was a drag.
+- **What did I miss?** lists the last 20 lines the buddy said or kept back
+  while it was quiet, newest first, with the time. A line that has something
+  to open (a contact, a mention, a settings page) opens it on click. The list
+  lives in memory and is empty after a reload.
+- **Help for this page** opens the User Guide at the section for the page on
+  screen (Messaging, Contacts and nodes, Map, Tools or Settings). The guide
+  stays one page (`#manual`); the section travels through the new
+  `utils/manualNavigation.ts`, so the URL hash does not change. Pages without
+  a section do not show the item.
+- **Mute** for 15 minutes, 1 hour or until reload, or **End mute** while one
+  is running. **Choose another buddy** opens Settings > Local Configuration.
+  **Hide until reload** does what a right-click does.
+- The summary line after a quiet period now ends with "Click to see them."
+  and opens the list.
+- The menu closes on Escape, a click elsewhere, a click on the buddy, and
+  when the buddy starts to speak. Nothing in it transmits: every item
+  navigates or changes a browser-local setting.
+
 ## Update 2026-10-09 (desktop buddy: expression, switches and quiet periods, feat/buddy-expression-quiet)
 
 No migration, no backend change, no new dependency.

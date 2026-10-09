@@ -88,3 +88,29 @@ const PAGE_TIP_KEYS: Partial<Record<PageType, string>> = {
 export function pageTipKey(page: PageType | null | undefined): string | null {
   return page ? (PAGE_TIP_KEYS[page] ?? null) : null;
 }
+
+/** User Guide section (`<!-- id: x -->` in content/manual) that covers a page. */
+const PAGE_HELP_SECTIONS: Partial<Record<PageType, string>> = {
+  channel: 'messaging',
+  contact: 'messaging',
+  'contact-info': 'contacts-nodes',
+  map: 'map',
+  raw: 'tools',
+  visualizer: 'tools',
+  search: 'tools',
+  trace: 'tools',
+  'channel-registry': 'tools',
+  node: 'tools',
+  'mesh-health': 'tools',
+  'mesh-trends': 'tools',
+  'mesh-discovery': 'tools',
+  snmp: 'tools',
+  analyze: 'tools',
+  'packet-history': 'tools',
+  'knowledge-base': 'tools',
+  settings: 'settings',
+};
+
+export function pageHelpSection(page: PageType | null | undefined): string | null {
+  return page ? (PAGE_HELP_SECTIONS[page] ?? null) : null;
+}

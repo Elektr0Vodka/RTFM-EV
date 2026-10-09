@@ -15,7 +15,10 @@ import {
   getBuddyHistory,
   recordBuddyLine,
 } from '../buddy/buddyHistory';
-import { BatteryWatch } from '../buddy/buddyLogic';
+import { BatteryWatch, pageHelpSection } from '../buddy/buddyLogic';
+import enManual from '../content/manual/en.md?raw';
+import { parseManual } from '../utils/manualMarkdown';
+import { requestManualSection, takeManualSection } from '../utils/manualNavigation';
 import { pickAnimation, type BuddyMood } from '../buddy/buddyMood';
 import {
   __resetBuddyMuteForTests,
@@ -367,14 +370,73 @@ describe('buddy catalog', () => {
     });
   });
 
-  it('sums up what was held back, without a group or click target', () => {
+  it('sums up what was held back, without a group, and opens the recap on click', () => {
     const line = quietSummaryLine(t, [
       { group: 'messages', count: 2 },
       { group: 'nodes', count: 1 },
     ]);
-    expect(line).toMatchObject({ kind: 'quiet-summary', group: null, mood: null, target: null });
+    expect(line).toMatchObject({
+      kind: 'quiet-summary',
+      group: null,
+      mood: null,
+      target: { kind: 'recap' },
+    });
     expect(line.text).toBe(
       'buddy_quiet_summary{"items":"buddy_quiet_part_messages{\\"count\\":2}, buddy_quiet_part_nodes{\\"count\\":1}"}'
     );
+  });
+});
+
+describe('page help', () => {
+  it('maps a page to the manual section that covers it', () => {
+    expect(pageHelpSection('channel')).toBe('messaging');
+    expect(pageHelpSection('contact-info')).toBe('contacts-nodes');
+    expect(pageHelpSection('map')).toBe('map');
+    expect(pageHelpSection('snmp')).toBe('tools');
+    expect(pageHelpSection('settings')).toBe('settings');
+    expect(pageHelpSection('manual')).toBeNull();
+    expect(pageHelpSection(null)).toBeNull();
+  });
+
+  it('only points at sections the manual has', () => {
+    const ids = new Set(parseManual(enManual).map((section) => section.id));
+    const pages = [
+      'channel',
+      'contact',
+      'contact-info',
+      'raw',
+      'map',
+      'visualizer',
+      'search',
+      'trace',
+      'channel-registry',
+      'node',
+      'mesh-health',
+      'mesh-trends',
+      'mesh-discovery',
+      'snmp',
+      'analyze',
+      'packet-history',
+      'knowledge-base',
+      'settings',
+    ] as const;
+    for (const page of pages) {
+      const section = pageHelpSection(page);
+      expect(section, page).not.toBeNull();
+      expect(ids.has(section as string), `${page} -> ${section}`).toBe(true);
+    }
+  });
+});
+
+describe('manual navigation', () => {
+  it('hands a requested section over once and tells listeners', () => {
+    const listener = vi.fn();
+    window.addEventListener('rtfm-manual-section', listener);
+    expect(takeManualSection()).toBeNull();
+    requestManualSection('map');
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(takeManualSection()).toBe('map');
+    expect(takeManualSection()).toBeNull();
+    window.removeEventListener('rtfm-manual-section', listener);
   });
 });

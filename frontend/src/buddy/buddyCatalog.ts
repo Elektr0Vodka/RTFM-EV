@@ -12,7 +12,11 @@ import type { HeldBackCount } from './buddyQuiet';
 export type BuddyTarget =
   | { kind: 'conversation'; conversation: Conversation }
   | { kind: 'settings'; section: SettingsSection }
-  | { kind: 'mention'; channelKey: string; messageId: number };
+  | { kind: 'mention'; channelKey: string; messageId: number }
+  /** The User Guide, opened at a section. */
+  | { kind: 'manual'; section: string }
+  /** The buddy's own list of what it said and kept back. */
+  | { kind: 'recap' };
 
 export type BuddyPage = Conversation['type'] | 'settings';
 
@@ -241,5 +245,5 @@ export function quietSummaryLine(t: TFn, summary: HeldBackCount[]): BuddyLine {
     })
     .filter((item): item is string => item !== null)
     .join(', ');
-  return line('quiet-summary', t('buddy_quiet_summary', { items }), null);
+  return line('quiet-summary', t('buddy_quiet_summary', { items }), { kind: 'recap' });
 }

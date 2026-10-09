@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { Contact, HealthStatus } from '../types';
 
 const loadBuddyAgentMock = vi.fn();
@@ -47,6 +47,7 @@ import {
   __resetBuddyMuteForTests,
 } from '../buddy/buddyPrefs';
 import { applyTheme } from '../utils/theme';
+import { takeManualSection } from '../utils/manualNavigation';
 
 const ALICE_KEY = 'a1'.repeat(32);
 const BOB_KEY = 'b2'.repeat(32);
@@ -615,7 +616,7 @@ describe('BuddyHost', () => {
 
     act(() => unmuteBuddy());
     // One held-back line about three nodes counts as three.
-    expect(fake.spoken).toEqual(['While I was quiet: 1 message, 3 new nodes.']);
+    expect(fake.spoken).toEqual(['While I was quiet: 1 message, 3 new nodes. Click to see them.']);
 
     emitDm();
     expect(fake.spoken).toContain(DM_LINE);
@@ -666,6 +667,182 @@ describe('BuddyHost', () => {
     const fake = makeFakeAgent();
     await showBuddy(fake);
     await waitFor(() => expect(getWarnedBatteries()).toEqual(['self']));
+  });
+
+  /** A single click on the buddy; the menu opens once a double-click is ruled out. */
+  function clickBuddy(fake: ReturnType<typeof makeFakeAgent>) {
+    vi.useFakeTimers();
+    fireEvent.mouseDown(fake.el, { clientX: 50, clientY: 50 });
+    fireEvent.mouseUp(window);
+    fireEvent.click(fake.el, { clientX: 50, clientY: 50, detail: 1 });
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    vi.useRealTimers();
+  }
+
+  it('opens a menu on a single click', async () => {
+    const fake = makeFakeAgent();
+    await showBuddy(fake);
+    expect(screen.queryByRole('menu')).toBeNull();
+    clickBuddy(fake);
+    const menu = screen.getByRole('menu', { name: 'Desktop buddy menu' });
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent)
+    ).toEqual([
+      'What did I miss?',
+      'Mute for 15 minutes',
+      'Mute for 1 hour',
+      'Mute until reload',
+      'Choose another buddy',
+      'Hide until reload',
+    ]);
+  });
+
+  it('keeps the menu closed for a double-click or a drag', async () => {
+    const fake = makeFakeAgent();
+    await showBuddy(fake);
+    vi.useFakeTimers();
+
+    // Double-click: the second click arrives before the menu would open.
+    fireEvent.mouseDown(fake.el, { clientX: 50, clientY: 50 });
+    fireEvent.click(fake.el, { clientX: 50, clientY: 50, detail: 1 });
+    fireEvent.click(fake.el, { clientX: 50, clientY: 50, detail: 2 });
+    fireEvent.dblClick(fake.el);
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    // Drag: the pointer ends somewhere else.
+    fireEvent.mouseDown(fake.el, { clientX: 50, clientY: 50 });
+    fireEvent.mouseUp(window);
+    fireEvent.click(fake.el, { clientX: 90, clientY: 120, detail: 1 });
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('closes the menu with Escape, a click elsewhere or a click on the buddy', async () => {
+    const fake = makeFakeAgent();
+    await showBuddy(fake);
+
+    clickBuddy(fake);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    clickBuddy(fake);
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    clickBuddy(fake);
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    clickBuddy(fake);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('closes the menu when the buddy starts to speak', async () => {
+    const fake = makeFakeAgent();
+    await showBuddy(fake);
+    clickBuddy(fake);
+    emitDm();
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('lists what it said and kept back, newest first, and opens an entry', async () => {
+    const fake = makeFakeAgent();
+    const props = hostProps();
+    await showBuddy(fake, props);
+    emitDm();
+    act(() => muteBuddyUntilReload());
+    act(() => {
+      emitBuddyEvent({ kind: 'radio', state: 'paused' });
+    });
+
+    clickBuddy(fake);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'What did I miss?' }));
+    const entries = screen.getAllByTestId('buddy-recap-entry');
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toHaveTextContent('The radio connection is paused.');
+    expect(entries[0]).toHaveTextContent('kept back');
+    expect(entries[1]).toHaveTextContent(DM_LINE);
+    expect(entries[1]).not.toHaveTextContent('kept back');
+
+    fireEvent.click(within(entries[1]).getByRole('button'));
+    expect(props.onSelectConversation).toHaveBeenCalledWith({
+      type: 'contact',
+      id: ALICE_KEY,
+      name: 'Alice',
+    });
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('says so when there is nothing to recap, and goes back to the menu', async () => {
+    const fake = makeFakeAgent();
+    await showBuddy(fake);
+    clickBuddy(fake);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'What did I miss?' }));
+    expect(screen.getByText('Nothing yet.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByRole('menuitem', { name: 'Hide until reload' })).toBeInTheDocument();
+  });
+
+  it('opens the recap from the summary line', async () => {
+    const fake = makeFakeAgent();
+    await showBuddy(fake);
+    act(() => muteBuddyUntilReload());
+    emitDm();
+    act(() => unmuteBuddy());
+    fireEvent.click(fake.balloonEl);
+    expect(screen.getAllByTestId('buddy-recap-entry')[1]).toHaveTextContent(DM_LINE);
+  });
+
+  it('mutes from the menu and offers to end the mute', async () => {
+    const fake = makeFakeAgent();
+    await showBuddy(fake);
+    clickBuddy(fake);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Mute for 15 minutes' }));
+    expect(getBuddyMute()?.kind).toBe('until');
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    clickBuddy(fake);
+    expect(screen.queryByRole('menuitem', { name: 'Mute for 1 hour' })).toBeNull();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'End mute' }));
+    expect(getBuddyMute()).toBeNull();
+  });
+
+  it('opens the manual at the section for the page on screen', async () => {
+    const fake = makeFakeAgent();
+    const props = hostProps({ activePage: 'map' });
+    await showBuddy(fake, props);
+    clickBuddy(fake);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Help for this page' }));
+    expect(props.onSelectConversation).toHaveBeenCalledWith({
+      type: 'manual',
+      id: 'manual',
+      name: 'User Guide',
+    });
+    expect(takeManualSection()).toBe('map');
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('opens the buddy settings and hides the buddy from the menu', async () => {
+    const fake = makeFakeAgent();
+    const props = hostProps();
+    await showBuddy(fake, props);
+
+    clickBuddy(fake);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Choose another buddy' }));
+    expect(props.onOpenSettings).toHaveBeenCalledWith('local');
+
+    clickBuddy(fake);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Hide until reload' }));
+    expect(fake.agent.hide).toHaveBeenCalled();
+    await waitFor(() => expect(fake.agent.dispose).toHaveBeenCalled());
+    expect(screen.queryByRole('menu')).toBeNull();
   });
 
   it('saves the dragged position', async () => {

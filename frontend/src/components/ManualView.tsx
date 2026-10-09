@@ -1,10 +1,11 @@
-import { useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo, type ReactNode } from 'react';
 
 import { useLocale, useT, type Locale } from '../i18n';
 import enManual from '../content/manual/en.md?raw';
 import nlManual from '../content/manual/nl.md?raw';
 import deManual from '../content/manual/de.md?raw';
 import { parseManual, type ManualBlock, type ManualInline } from '../utils/manualMarkdown';
+import { MANUAL_SECTION_EVENT, takeManualSection } from '../utils/manualNavigation';
 
 const MANUAL_SOURCES: Record<Locale, string> = { en: enManual, nl: nlManual, de: deManual };
 
@@ -98,6 +99,21 @@ export function ManualView() {
       target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
+
+  // Opened at a section someone asked for (the desktop buddy's page help):
+  // on arrival, and again when asked while the guide is already open.
+  useEffect(() => {
+    const openRequested = () => {
+      const sectionId = takeManualSection();
+      const target = sectionId ? document.getElementById(manualSectionDomId(sectionId)) : null;
+      if (target && typeof target.scrollIntoView === 'function') {
+        target.scrollIntoView({ block: 'start' });
+      }
+    };
+    openRequested();
+    window.addEventListener(MANUAL_SECTION_EVENT, openRequested);
+    return () => window.removeEventListener(MANUAL_SECTION_EVENT, openRequested);
+  }, []);
 
   const toc = (
     <ol className="space-y-0.5 text-sm">
