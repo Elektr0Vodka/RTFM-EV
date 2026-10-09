@@ -43,7 +43,7 @@ frontend/src/
 │   ├── DistanceUnitContext.tsx # Browser-local distance-unit context/provider
 │   ├── PathHopWidthContext.tsx # Browser-local path hop-width display preference
 │   ├── RichPayloadContext.tsx  # Browser-local rich MeshCore payload rendering preference
-│   ├── MessageLayoutContext.tsx # MessageList row layout: 'bubbles' (default) or 'lines' (chat popup)
+│   ├── MessageLayoutContext.tsx # MessageList row layout: 'bubbles' (default), 'lines' (chat popup) or 'cards' (Atlas layout)
 │   └── PushSubscriptionContext.tsx # Push subscription state context/provider
 ├── lib/
 │   └── utils.ts            # cn() - clsx + tailwind-merge helper
@@ -741,6 +741,8 @@ Phones:
 - `StatusBar variant="phonebar"` keeps the brand and radio state and drops the menu button and the app controls.
 - `components/shell/AtlasTabBar.tsx` sits at the bottom: Chats, Map, My Node, More. Chats and More open the existing left drawer with `Sidebar sectionFilter="chats"` or `"tools"`; the More half ends in `AtlasSidebarFoot`. Map and My Node select their page.
 - The drawer always renders the conversation sidebar there, also while settings are open.
+
+Chat rows: `AppShell` wraps `ConversationPane` in `MessageLayoutProvider value="cards"` under the Atlas layout (desktop and phone). `MessageList` then renders each message as a full-width card with its own header and a chip row (`HopCountBadge variant="chip"`, the scope badges, the delivery mark). The pieces of a row (`body`, `renderMeta`, `outgoingStatus`, `preview`, `rowActions`) are shared by all three layouts; a layout only decides where they go. The chat popup has its own provider and never gets cards.
 
 `selectLeavingSettings` in `AppShell` (the tab bar, the phone drawer and the desktop buddy use it) waits for the history step that closing settings triggers before it selects: the conversation router re-selects the entry that step lands on, and an immediate select loses to it.
 

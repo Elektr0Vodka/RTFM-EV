@@ -11,6 +11,29 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-09 (MCEU themes: chat messages as cards, feat/mceu-layout)
+
+No migration, no backend change, no new dependency, no new strings. Third of
+four layout parts for the MCEU themes.
+
+### Interface: chat messages as cards under the MCEU themes
+- With **MCEU Light** or **MCEU Dark**, a chat message is a card instead of
+  a bubble, after the analyzer's channel page: avatar, sender name in the
+  accent colour and the time on top, the text below, then a row of chips.
+- The chips are what the bubble showed inline: the hop count (a route icon
+  and the number, still a click to the path view), **Direct**, the region or
+  **Unscoped** / **Scoped**, and on your own messages the delivery mark.
+- Every card has its own header; messages from the same sender are not
+  grouped. Your own cards stay on the left and differ by their tint.
+- React, reply, mark unread and delete sit at the right of the header.
+- Cards are capped at a reading width on wide windows and fill the width on
+  phones. Other themes keep the bubbles, and the chat window keeps its own
+  choice of lines or bubbles.
+
+### Not included
+- The analyzer's observer count, SNR chip and "Open packet" chip: this app
+  shows those through the path view and the packet analyzer, not per message.
+
 ## Update 2026-10-09 (MCEU themes: phone tab bar, feat/mceu-layout)
 
 No migration, no backend change, no new dependency. Second of four layout

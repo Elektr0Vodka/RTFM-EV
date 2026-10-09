@@ -31,6 +31,7 @@ import {
 import { getContrastTextColor, type LocalLabel } from '../utils/localLabel';
 import { useT } from '../i18n';
 import { useThemeLayout } from '../hooks/useThemeLayout';
+import { MessageLayoutProvider } from '../contexts/MessageLayoutContext';
 import { useIsMobile } from '../map/controls/breakpoints';
 import { AtlasSidebarFoot, AtlasSidebarHead } from './shell/AtlasSidebar';
 import { AtlasTabBar, type AtlasTab } from './shell/AtlasTabBar';
@@ -472,7 +473,10 @@ export function AppShell({
                 'hidden'
             )}
           >
-            <ConversationPane {...conversationPaneProps} sidebarOpen={sidebarOpen} />
+            {/* Chat rows are cards under the Atlas layout, bubbles otherwise. */}
+            <MessageLayoutProvider value={themeLayout === 'atlas' ? 'cards' : 'bubbles'}>
+              <ConversationPane {...conversationPaneProps} sidebarOpen={sidebarOpen} />
+            </MessageLayoutProvider>
           </div>
 
           {searchMounted.current && (

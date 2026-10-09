@@ -261,7 +261,9 @@ Customisation heading and the branding block below it.
   shrinks to a radio-status bar above the page. On phones a bottom tab bar
   replaces the menu button: **Chats** opens the conversation list, **Map** and
   **My Node** go to their page, and **More** opens the tools together with
-  Settings, chat window, language and theme.
+  Settings, chat window, language and theme. Chat messages are cards under
+  these themes: sender and time on top, the text, then hop count, region and
+  delivery mark as a row of chips.
 - **CRT screen effects**: scanline, phosphor-glow, screen-curvature, and flicker
   toggles that sit beneath the theme grid. They are a universal overlay: they
   work on top of any theme, not only the CRT ones. They default on when a CRT
