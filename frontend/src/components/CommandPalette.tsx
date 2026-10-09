@@ -31,6 +31,7 @@ import {
 import type { Channel, Contact, Conversation } from '../types';
 import { CONTACT_TYPE_REPEATER, CONTACT_TYPE_ROOM } from '../types';
 import { useT, type TFn } from '../i18n';
+import { COMMAND_PALETTE_OPEN_EVENT } from '../utils/commandPalette';
 
 const MAX_PER_GROUP = 8;
 
@@ -153,8 +154,13 @@ export function CommandPalette({
         setOpen((prev) => !prev);
       }
     }
+    const onOpenRequest = () => setOpen(true);
     document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
+    window.addEventListener(COMMAND_PALETTE_OPEN_EVENT, onOpenRequest);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener(COMMAND_PALETTE_OPEN_EVENT, onOpenRequest);
+    };
   }, []);
 
   const select = useCallback((action: () => void) => {

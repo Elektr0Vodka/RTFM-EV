@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Bell,
   BellOff,
@@ -263,6 +263,17 @@ interface SidebarProps {
   }) => void | Promise<void>;
   /** When true (mobile drawer mount), pin the rail open and hide the rail toggle. */
   forceExpanded?: boolean;
+  /**
+   * Atlas layout only: content above and below the list (brand and search,
+   * app controls). Called with whether the sidebar is collapsed to the rail.
+   */
+  shellHead?: (rail: boolean) => ReactNode;
+  shellFoot?: (rail: boolean) => ReactNode;
+  /**
+   * Atlas phone drawer only: show just the conversation sections ('chats') or
+   * just the tools ('tools'). The two halves sit behind separate tabs there.
+   */
+  sectionFilter?: 'chats' | 'tools';
 }
 
 function loadInitialSectionSortOrders(): SidebarSectionSortOrders {
@@ -303,6 +314,9 @@ export function Sidebar({
   contactGroups = [],
   onSaveSidebarOrder,
   forceExpanded = false,
+  shellHead,
+  shellFoot,
+  sectionFilter,
 }: SidebarProps) {
   const t = useT();
   const isContactBlocked = useCallback(
@@ -1770,6 +1784,7 @@ export function Sidebar({
 
   const renderSection = (key: SidebarSectionKey): React.ReactNode => {
     if (hiddenSectionSet.has(key)) return null;
+    if (sectionFilter && (sectionFilter === 'tools') !== (key === 'tools')) return null;
     if (isGroupSectionKey(key)) {
       const group = contactGroups.find((g) => g.id === groupIdFromSectionKey(key));
       return group ? renderGroupSection(group) : null;
@@ -1986,6 +2001,7 @@ export function Sidebar({
       )}
       aria-label={t('a11y_conversations_nav')}
     >
+      {shellHead?.(isRail)}
       {isRail ? (
         <div className="flex-1 min-h-0 overflow-y-auto flex flex-col items-stretch py-2">
           {toolIconRows}
@@ -2198,26 +2214,29 @@ export function Sidebar({
               )}
 
               {/* Mark All Read */}
-              {!query && Object.values(unreadCounts).some((c) => c > 0) && (
-                <div
-                  className="px-3 py-2 cursor-pointer flex items-center gap-2 border-l-2 border-transparent hover:bg-accent transition-colors text-[0.8125rem] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={handleKeyboardActivate}
-                  onClick={onMarkAllRead}
-                >
-                  <CheckCheck className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                  <span className="flex-1 truncate text-muted-foreground">
-                    {t('chat_mark_all_read')}
-                  </span>
-                </div>
-              )}
+              {sectionFilter !== 'tools' &&
+                !query &&
+                Object.values(unreadCounts).some((c) => c > 0) && (
+                  <div
+                    className="px-3 py-2 cursor-pointer flex items-center gap-2 border-l-2 border-transparent hover:bg-accent transition-colors text-[0.8125rem] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={handleKeyboardActivate}
+                    onClick={onMarkAllRead}
+                  >
+                    <CheckCheck className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                    <span className="flex-1 truncate text-muted-foreground">
+                      {t('chat_mark_all_read')}
+                    </span>
+                  </div>
+                )}
 
               {/* Sections in user order */}
               {sectionOrder.map((sectionKey) => renderSection(sectionKey))}
 
               {/* Empty state */}
-              {nonFavoriteContacts.length === 0 &&
+              {sectionFilter !== 'tools' &&
+                nonFavoriteContacts.length === 0 &&
                 nonFavoriteRooms.length === 0 &&
                 nonFavoriteChannels.length === 0 &&
                 nonFavoriteRepeaters.length === 0 &&
@@ -2242,6 +2261,7 @@ export function Sidebar({
         </>
       )}
 
+      {shellFoot?.(isRail)}
       {!forceExpanded && (
         <div className="border-t border-border p-1 flex justify-center">
           <button

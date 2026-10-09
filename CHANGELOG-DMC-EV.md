@@ -11,6 +11,116 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-09 (MCEU themes: page heads and cards, feat/mceu-layout)
+
+No migration, no backend change, no new dependency, no new strings. CSS only.
+Fourth of four layout parts for the MCEU themes.
+
+### Interface: page heads and cards under the MCEU themes
+- **Page head:** the title of every page (tools, settings, map, search and
+  the chat header) is set in the display font at heading size (22px, 19px on
+  phones), and the rule under the head is gone.
+- **Cards:** a bordered, rounded panel that sits directly on the page
+  ground is a raised surface, in both themes. That covers the stat tiles
+  (Mesh Health's counters, for example) and the plain bordered panels.
+  Panels with their own tint, selected state or hover fill keep it, and so
+  do the wells inside a card.
+
+### Not included
+- The analyzer's one-line lead under each title and its reordered page
+  actions. A lead needs new copy for about 15 pages in three languages, and
+  no page here has a shared head component to put it in.
+- Pages that build their tiles differently (Mesh Trends uses filled wells)
+  look as before.
+- On phones a two-word title can wrap next to a page's tabs (seen on Mesh
+  Health), where the smaller title used to fit on one line.
+
+## Update 2026-10-09 (MCEU themes: chat messages as cards, feat/mceu-layout)
+
+No migration, no backend change, no new dependency, no new strings. Third of
+four layout parts for the MCEU themes.
+
+### Interface: chat messages as cards under the MCEU themes
+- With **MCEU Light** or **MCEU Dark**, a chat message is a card instead of
+  a bubble, after the analyzer's channel page: avatar, sender name in the
+  accent colour and the time on top, the text below, then a row of chips.
+- The chips are what the bubble showed inline: the hop count (a route icon
+  and the number, still a click to the path view), **Direct**, the region or
+  **Unscoped** / **Scoped**, and on your own messages the delivery mark.
+- Every card has its own header; messages from the same sender are not
+  grouped. Your own cards stay on the left and differ by their tint.
+- React, reply, mark unread and delete sit at the right of the header.
+- Cards are capped at a reading width on wide windows and fill the width on
+  phones. Other themes keep the bubbles, and the chat window keeps its own
+  choice of lines or bubbles.
+
+### Not included
+- The analyzer's observer count, SNR chip and "Open packet" chip: this app
+  shows those through the path view and the packet analyzer, not per message.
+
+## Update 2026-10-09 (MCEU themes: phone tab bar, feat/mceu-layout)
+
+No migration, no backend change, no new dependency. Second of four layout
+parts for the MCEU themes.
+
+### Interface: bottom tab bar on phones under the MCEU themes
+- On a phone-width window (768px and narrower) with **MCEU Light** or **MCEU
+  Dark**, a bottom tab bar replaces the menu button: **Chats**, **Map**,
+  **My Node** and **More**. The tab of the page on screen is lit.
+- **Chats** opens the drawer with the conversation sections (favorites,
+  channels, contacts and the rest, in your order). **More** opens it with the
+  tools, followed by Settings, Chat window, language and theme. **Map** and
+  **My Node** go straight to their page.
+- The top bar on phones keeps the app name and the radio state (status dot,
+  battery, Reconnect). Settings, chat window, language and theme moved behind
+  More, so the bar no longer runs out of room.
+- Swiping in from the left edge still opens the drawer, on the Chats half.
+- Other themes and desktop are unchanged.
+
+### Fixed
+- Opening a conversation or page while Settings was open could land on the
+  conversation that was open before Settings instead: closing Settings steps
+  back in browser history and the router re-selected that entry afterwards.
+  Seen with the new tab bar; the desktop buddy's click-to-open goes through
+  the same code. The selection now waits for that history step.
+
+### Not included
+- "Add Channel/Contact" and the sidebar search still show at the top of the
+  More half of the drawer.
+- A buddy mention opened from the Settings page (jump to a message) uses a
+  separate path that was not changed or checked.
+
+## Update 2026-10-09 (MCEU themes: desktop shell, feat/mceu-layout)
+
+No migration, no backend change, no new dependency. First of four layout
+parts for the MCEU themes; the phone tab bar, chat cards and page headers are
+not in this change.
+
+### Interface: the analyzer's shell under the MCEU themes (desktop)
+- With **MCEU Light** or **MCEU Dark** active on a desktop-width window, the
+  app takes the shell of the EU MeshCore Analyzer design. Every other theme
+  is unchanged. Phones (768px and narrower) got their own part, see above.
+- **Sidebar head:** the app name and logo, and a **Search anything** button
+  that opens the command palette (also Ctrl+K / Cmd+K).
+- **Sidebar foot:** Settings (it reads **Back to Chat** while settings are
+  open), Chat window, the language switcher (its menu opens upwards) and the
+  theme dialog. The update dot sits on the Settings row.
+- **Top bar:** a slim bar above the page with only radio state: the packet
+  sparkline, a status pill, battery, node name and key, and Reconnect.
+- The sidebar keeps its content, your custom order and hidden items. Collapsed
+  to the rail, head and foot shrink to icons; the language switcher is left
+  out there (it is in Settings and in the expanded sidebar).
+- The theme dialog now stays open when a pick changes the layout, in both
+  directions.
+
+### Internals
+- A theme asks for a layout with `layout` on its entry in `utils/theme.ts`;
+  `useThemeLayout()` reads it. `AppShell` is the only place that branches on
+  it. `<main>` is not moved between layouts, so the open page is not
+  remounted on a theme switch.
+- `StatusBar` gets `variant="topbar"`; the brand and the theme dialog moved
+  to `components/shell/` so both layouts share them. New string
+  `nav_search_anything` in English, Dutch and German.
 ## Update 2026-10-09 (Frontend test flakes: waits under load, fix/frontend-wait-flakes)
 
 ### Tests: `toggles settings page mode and syncs selected section into SettingsModal` (frontend)
