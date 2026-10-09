@@ -4313,6 +4313,22 @@
   "buddy_recap_title": "Wat ik zei",
   "buddy_recap_empty": "Nog niets.",
   "buddy_recap_kept_back": "achtergehouden",
+  "buddy_send_failed": "Je bericht aan {name} is niet bevestigd. Klik om de chat te openen.",
+  "buddy_service_down": "De integratie {name} is de verbinding kwijt. Klik om de instellingen te openen.",
+  "buddy_services_down": {
+    "one": "{count} integratie is de verbinding kwijt: {names}. Klik om de instellingen te openen.",
+    "other": "{count} integraties zijn de verbinding kwijt: {names}. Klik om de instellingen te openen."
+  },
+  "buddy_snmp_failing": "{name} reageert niet meer op SNMP. Klik om te openen.",
+  "buddy_snmp_failing_many": {
+    "one": "{count} node reageert niet meer op SNMP: {names}. Klik om de SNMP-pagina te openen.",
+    "other": "{count} nodes reageren niet meer op SNMP: {names}. Klik om de SNMP-pagina te openen."
+  },
+  "buddy_quiet_part_services": {
+    "one": "{count} dienstwaarschuwing",
+    "other": "{count} dienstwaarschuwingen"
+  },
+  "settings_buddy_group_services": "Integraties en SNMP",
   "buddy_quiet_summary": "Terwijl ik stil was: {items}. Klik om ze te zien.",
   "buddy_quiet_part_messages": {
     "one": "{count} bericht",

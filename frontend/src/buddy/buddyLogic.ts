@@ -7,7 +7,15 @@ export const BATTERY_REARM_MARGIN = 5;
 export const BATTERY_TELEMETRY_MAX_AGE_SECONDS = 24 * 60 * 60;
 
 /** What the buddy talks about, as switched on or off in the settings. */
-export const BUDDY_GROUPS = ['messages', 'nodes', 'radio', 'batteries', 'updates', 'tips'] as const;
+export const BUDDY_GROUPS = [
+  'messages',
+  'nodes',
+  'radio',
+  'batteries',
+  'services',
+  'updates',
+  'tips',
+] as const;
 
 export type BuddyGroup = (typeof BUDDY_GROUPS)[number];
 
@@ -51,6 +59,59 @@ export class BatteryWatch {
       if (keep(key)) continue;
       this.warned.delete(key);
       removed = true;
+    }
+    if (removed) this.changed();
+  }
+
+  private changed(): void {
+    this.onChange?.([...this.warned]);
+  }
+}
+
+/**
+ * Warn-once tracker for things that are up or down (an integration, an SNMP
+ * node). A key warns once it has been down for the grace period without a
+ * break, then stays quiet until it was seen up again. Seeded with the keys
+ * warned before, like `BatteryWatch`; `onChange` gets the warned keys.
+ */
+export class OutageWatch {
+  private warned: Set<string>;
+  private downSince = new Map<string, number>();
+
+  constructor(
+    private graceMs = 0,
+    warned: Iterable<string> = [],
+    private onChange?: (warned: string[]) => void
+  ) {
+    this.warned = new Set(warned);
+  }
+
+  /** Returns true when this observation should raise a warning. `now` in ms. */
+  observe(key: string, up: boolean, now: number, graceMs = this.graceMs): boolean {
+    if (up) {
+      this.downSince.delete(key);
+      if (this.warned.delete(key)) this.changed();
+      return false;
+    }
+    if (this.warned.has(key)) return false;
+    const since = this.downSince.get(key);
+    if (since === undefined) this.downSince.set(key, now);
+    if (now - (since ?? now) < graceMs) return false;
+    this.warned.add(key);
+    this.changed();
+    return true;
+  }
+
+  /** Forget keys the caller no longer tracks (a removed integration or node). */
+  prune(keep: (key: string) => boolean): void {
+    let removed = false;
+    for (const key of [...this.warned]) {
+      if (keep(key)) continue;
+      this.warned.delete(key);
+      removed = true;
+    }
+    for (const key of [...this.downSince.keys()]) {
+      if (!keep(key)) this.downSince.delete(key);
     }
     if (removed) this.changed();
   }

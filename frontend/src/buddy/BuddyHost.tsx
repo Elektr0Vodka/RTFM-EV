@@ -15,6 +15,8 @@ import {
   batteryOwnLine,
   describeBuddyEvent,
   quietSummaryLine,
+  servicesDownLine,
+  snmpFailingLine,
   tipLine,
   updateAppLine,
   updateOpenHopLine,
@@ -24,7 +26,12 @@ import {
 } from './buddyCatalog';
 import { subscribeBuddyEvents } from './buddyEvents';
 import { recordBuddyLine } from './buddyHistory';
-import { BATTERY_TELEMETRY_MAX_AGE_SECONDS, BatteryWatch, pageHelpSection } from './buddyLogic';
+import {
+  BATTERY_TELEMETRY_MAX_AGE_SECONDS,
+  BatteryWatch,
+  OutageWatch,
+  pageHelpSection,
+} from './buddyLogic';
 import { BuddyMenu, type BuddyMenuView } from './BuddyMenu';
 import { pickAnimation } from './buddyMood';
 import {
@@ -34,11 +41,13 @@ import {
   getBuddyBatteryThreshold,
   getBuddyPosition,
   getWarnedBatteries,
+  getWarnedServices,
   isBuddyGroupOn,
   isBuddyQuiet,
   markBuddyDiscovered,
   setBuddyPosition,
   setWarnedBatteries,
+  setWarnedServices,
 } from './buddyPrefs';
 import { HeldBack } from './buddyQuiet';
 
@@ -52,6 +61,12 @@ const BALLOON_LINGER_MS = 6000;
 const DEFAULT_RIGHT_GAP = 40;
 const DEFAULT_BOTTOM_GAP = 150;
 const NODE_BATTERY_POLL_MS = 10 * 60 * 1000;
+/** An integration is announced once it has been disconnected this long without a break. */
+const SERVICE_DOWN_GRACE_MS = 60 * 1000;
+const SERVICE_CHECK_MS = 30 * 1000;
+const SNMP_POLL_MS = 5 * 60 * 1000;
+const FANOUT_KEY = 'fanout:';
+const SNMP_KEY = 'snmp:';
 /**
  * Below the CRT scanline (9998) and vignette (9997) overlays in themes.css, so
  * those effects cover the buddy like the rest of the screen, yet above every
@@ -261,6 +276,10 @@ function ActiveBuddy({
   const liveAgentRef = useRef<BuddyAgent | null>(null);
   /** Seeded from storage, so a reload does not repeat a battery warning. */
   const [batteryWatch] = useState(() => new BatteryWatch(getWarnedBatteries(), setWarnedBatteries));
+  /** Integrations and SNMP nodes that are down; seeded from storage like the batteries. */
+  const [outageWatch] = useState(
+    () => new OutageWatch(SERVICE_DOWN_GRACE_MS, getWarnedServices(), setWarnedServices)
+  );
   const wasQuietRef = useRef(false);
   /** The click menu: closed, the menu itself, or the recap of what was said. */
   const [menu, setMenu] = useState<BuddyMenuView | null>(null);
@@ -545,6 +564,74 @@ function ActiveBuddy({
       window.clearInterval(timer);
     };
   }, [agent, batteryWatch, threshold, say]);
+
+  // Integrations (MQTT and the other fanout modules) that stay disconnected.
+  // Checked on every health update and on a timer, so the grace period also
+  // runs out while no update arrives. Nothing is tracked while the topic is
+  // switched off, so it can still be said once it is back on.
+  const fanoutStatuses = props.health?.fanout_statuses;
+  useEffect(() => {
+    if (!agent) return;
+    const check = () => {
+      const statuses = propsRef.current.health?.fanout_statuses;
+      if (!statuses || !isBuddyGroupOn('services')) return;
+      const now = Date.now();
+      const down: string[] = [];
+      for (const [id, entry] of Object.entries(statuses)) {
+        if (outageWatch.observe(FANOUT_KEY + id, entry.status === 'connected', now)) {
+          down.push(entry.name);
+        }
+      }
+      outageWatch.prune(
+        (key) => !key.startsWith(FANOUT_KEY) || key.slice(FANOUT_KEY.length) in statuses
+      );
+      say(servicesDownLine(tRef.current, down));
+    };
+    check();
+    const timer = window.setInterval(check, SERVICE_CHECK_MS);
+    return () => window.clearInterval(timer);
+  }, [agent, fanoutStatuses, outageWatch, say]);
+
+  // SNMP nodes that stopped answering. Reads stored poll results only
+  // (GET /api/snmp/nodes); it never starts a poll or a discovery itself.
+  useEffect(() => {
+    if (!agent) return;
+    const controller = new AbortController();
+    const poll = () => {
+      if (!isBuddyGroupOn('services')) return;
+      api
+        .snmpNodes(controller.signal)
+        .then((nodes) => {
+          const now = Date.now();
+          const polled = new Set<string>();
+          const failing: { publicKey: string; name: string }[] = [];
+          for (const node of nodes) {
+            if (!node.poll_enabled) continue;
+            polled.add(node.public_key);
+            // The server polls every few minutes, so one failed poll counts.
+            if (outageWatch.observe(SNMP_KEY + node.public_key, !node.last_error, now, 0)) {
+              failing.push({
+                publicKey: node.public_key,
+                name: node.name || node.public_key.slice(0, 12),
+              });
+            }
+          }
+          outageWatch.prune(
+            (key) => !key.startsWith(SNMP_KEY) || polled.has(key.slice(SNMP_KEY.length))
+          );
+          say(snmpFailingLine(tRef.current, failing));
+        })
+        .catch((err) => {
+          if (!controller.signal.aborted) console.warn('buddy: SNMP check failed', err);
+        });
+    };
+    poll();
+    const timer = window.setInterval(poll, SNMP_POLL_MS);
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+    };
+  }, [agent, outageWatch, say]);
 
   // RTFM-EV update (shared, cached /update-status check).
   useEffect(() => {

@@ -23,12 +23,15 @@ export type BuddyPage = Conversation['type'] | 'settings';
 export type BuddyLineKind =
   | 'dm'
   | 'mention'
+  | 'send-failed'
   | 'new-node'
   | 'radio-disconnected'
   | 'radio-connected'
   | 'radio-paused'
   | 'battery-own'
   | 'battery-node'
+  | 'service-down'
+  | 'snmp-failing'
   | 'update-app'
   | 'update-openhop'
   | 'tip'
@@ -56,12 +59,15 @@ export interface BuddyLine {
 const LINE_KINDS: Record<BuddyLineKind, { group: BuddyGroup | null; mood: BuddyMood | null }> = {
   dm: { group: 'messages', mood: 'attention' },
   mention: { group: 'messages', mood: 'attention' },
+  'send-failed': { group: 'messages', mood: 'alert' },
   'new-node': { group: 'nodes', mood: 'happy' },
   'radio-disconnected': { group: 'radio', mood: 'alert' },
   'radio-connected': { group: 'radio', mood: 'happy' },
   'radio-paused': { group: 'radio', mood: null },
   'battery-own': { group: 'batteries', mood: 'alert' },
   'battery-node': { group: 'batteries', mood: 'alert' },
+  'service-down': { group: 'services', mood: 'alert' },
+  'snmp-failing': { group: 'services', mood: 'alert' },
   'update-app': { group: 'updates', mood: 'info' },
   'update-openhop': { group: 'updates', mood: 'info' },
   tip: { group: 'tips', mood: 'explain' },
@@ -150,6 +156,15 @@ export function describeBuddyEvent(
         conversationAnchor('contact', event.publicKey)
       );
     }
+    case 'send-failed': {
+      const name = contactName(contacts, event.publicKey, event.name);
+      return line(
+        'send-failed',
+        t('buddy_send_failed', { name }),
+        { kind: 'conversation', conversation: { type: 'contact', id: event.publicKey, name } },
+        conversationAnchor('contact', event.publicKey)
+      );
+    }
     case 'mention': {
       const channel = channels.find((c) => c.key === event.channelKey);
       return line(
@@ -205,6 +220,44 @@ export function batteryNodesLine(
   );
 }
 
+/** One line for the integrations that just went down for good; null for none. */
+export function servicesDownLine(t: TFn, names: string[]): BuddyLine | null {
+  if (names.length === 0) return null;
+  const text =
+    names.length === 1
+      ? t('buddy_service_down', { name: names[0] })
+      : t('buddy_services_down', { count: names.length, names: names.slice(0, 3).join(', ') });
+  return line('service-down', text, { kind: 'settings', section: 'fanout' }, null, names.length);
+}
+
+/** One line for the SNMP nodes that stopped answering; null for none. */
+export function snmpFailingLine(
+  t: TFn,
+  nodes: { publicKey: string; name: string }[]
+): BuddyLine | null {
+  if (nodes.length === 0) return null;
+  if (nodes.length === 1) {
+    const [node] = nodes;
+    return line('snmp-failing', t('buddy_snmp_failing', { name: node.name }), {
+      kind: 'conversation',
+      conversation: { type: 'snmp', id: node.publicKey, name: node.name },
+    });
+  }
+  return line(
+    'snmp-failing',
+    t('buddy_snmp_failing_many', {
+      count: nodes.length,
+      names: nodes
+        .slice(0, 3)
+        .map((node) => node.name)
+        .join(', '),
+    }),
+    { kind: 'conversation', conversation: { type: 'snmp', id: 'snmp', name: t('nav_snmp') } },
+    null,
+    nodes.length
+  );
+}
+
 export function updateAppLine(t: TFn, commitsBehind: number): BuddyLine {
   return line(
     'update-app',
@@ -233,6 +286,7 @@ const QUIET_PART_KEYS: Partial<Record<BuddyGroup, string>> = {
   nodes: 'buddy_quiet_part_nodes',
   radio: 'buddy_quiet_part_radio',
   batteries: 'buddy_quiet_part_batteries',
+  services: 'buddy_quiet_part_services',
   updates: 'buddy_quiet_part_updates',
 };
 

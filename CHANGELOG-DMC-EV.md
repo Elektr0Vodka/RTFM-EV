@@ -11,6 +11,36 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-09 (desktop buddy: unacknowledged DMs, integrations and SNMP, feat/buddy-expression-quiet)
+
+No migration, no backend change, no new dependency.
+
+### Interface: desktop buddy (three more things to tell)
+- **A direct message of yours got no acknowledgement.** Said when the radio
+  gave up on a DM (WS `message_failed`) in a chat that is not on screen; the
+  chat on screen already shows the failed mark. Click to open the chat. A
+  message this browser has not loaded (sent from another device) is not
+  announced. It falls under the "Direct messages and mentions" switch.
+- **An integration has lost its connection.** Any enabled integration under
+  MQTT & Automation that has been disconnected or in error for a minute
+  without a break (`health.fanout_statuses`). Said once, and again only after
+  it was connected in between. Click to open MQTT & Automation.
+- **An SNMP node stopped answering.** Nodes with polling switched on whose
+  last poll failed. The buddy reads the stored results every 5 minutes
+  (`GET /api/snmp/nodes`); it never polls a node or starts a discovery itself.
+  Click to open the node's SNMP page, or the overview when there are several.
+- New switch **Integrations and SNMP** under "Tell me about" (seven in
+  total). While it is off the buddy does not ask for the SNMP nodes at all.
+- The warned state is stored per browser (`rtfm-buddy-services-warned`), so a
+  reload does not repeat a warning, and it is forgotten when the integration
+  or node is removed.
+
+### Not included
+- Favourite nodes going silent, radio queue or noise floor warnings, backup
+  failures, host repeater events, power outages and prefix collisions are not
+  announced: they need thresholds or data that have not been decided or
+  checked yet.
+
 ## Update 2026-10-09 (desktop buddy: click menu, feat/buddy-expression-quiet)
 
 No migration, no backend change, no new dependency.

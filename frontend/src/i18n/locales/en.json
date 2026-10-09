@@ -4312,6 +4312,22 @@
   "buddy_recap_title": "What I said",
   "buddy_recap_empty": "Nothing yet.",
   "buddy_recap_kept_back": "kept back",
+  "buddy_send_failed": "Your message to {name} got no acknowledgement. Click to open the chat.",
+  "buddy_service_down": "The {name} integration has lost its connection. Click to open its settings.",
+  "buddy_services_down": {
+    "one": "{count} integration has lost its connection: {names}. Click to open the settings.",
+    "other": "{count} integrations have lost their connection: {names}. Click to open the settings."
+  },
+  "buddy_snmp_failing": "{name} stopped answering SNMP. Click to open it.",
+  "buddy_snmp_failing_many": {
+    "one": "{count} node stopped answering SNMP: {names}. Click to open the SNMP page.",
+    "other": "{count} nodes stopped answering SNMP: {names}. Click to open the SNMP page."
+  },
+  "buddy_quiet_part_services": {
+    "one": "{count} service warning",
+    "other": "{count} service warnings"
+  },
+  "settings_buddy_group_services": "Integrations and SNMP",
   "buddy_quiet_summary": "While I was quiet: {items}. Click to see them.",
   "buddy_quiet_part_messages": {
     "one": "{count} message",

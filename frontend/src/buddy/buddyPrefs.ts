@@ -20,6 +20,7 @@ const GROUPS_OFF_KEY = 'rtfm-buddy-groups-off';
 const MUTE_UNTIL_KEY = 'rtfm-buddy-mute-until';
 const QUIET_HOURS_KEY = 'rtfm-buddy-quiet-hours';
 const BATTERY_WARNED_KEY = 'rtfm-buddy-battery-warned';
+const SERVICES_WARNED_KEY = 'rtfm-buddy-services-warned';
 
 /** The theme the buddy belongs to (always available, Clippy on by default). */
 export const BUDDY_THEME_ID = 'windows-95';
@@ -215,4 +216,14 @@ export function getWarnedBatteries(): string[] {
 
 export function setWarnedBatteries(keys: string[]): void {
   write(BATTERY_WARNED_KEY, keys.length > 0 ? JSON.stringify(keys) : null);
+}
+
+/** Integrations ("fanout:<id>") and SNMP nodes ("snmp:<public key>") already warned about. */
+export function getWarnedServices(): string[] {
+  const stored = readJson(SERVICES_WARNED_KEY);
+  return Array.isArray(stored) ? stored.filter((key) => typeof key === 'string') : [];
+}
+
+export function setWarnedServices(keys: string[]): void {
+  write(SERVICES_WARNED_KEY, keys.length > 0 ? JSON.stringify(keys) : null);
 }

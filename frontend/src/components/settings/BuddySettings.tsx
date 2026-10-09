@@ -37,6 +37,7 @@ const GROUP_LABEL_KEYS: Record<BuddyGroup, string> = {
   nodes: 'settings_buddy_group_nodes',
   radio: 'settings_buddy_group_radio',
   batteries: 'settings_buddy_group_batteries',
+  services: 'settings_buddy_group_services',
   updates: 'settings_buddy_group_updates',
   tips: 'settings_buddy_group_tips',
 };

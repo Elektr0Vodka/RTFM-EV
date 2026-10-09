@@ -6,6 +6,8 @@ import {
   batteryNodesLine,
   describeBuddyEvent,
   quietSummaryLine,
+  servicesDownLine,
+  snmpFailingLine,
   tipLine,
   updateAppLine,
 } from '../buddy/buddyCatalog';
@@ -15,7 +17,9 @@ import {
   getBuddyHistory,
   recordBuddyLine,
 } from '../buddy/buddyHistory';
-import { BatteryWatch, pageHelpSection } from '../buddy/buddyLogic';
+import { BatteryWatch, OutageWatch, pageHelpSection } from '../buddy/buddyLogic';
+import { ConversationMessageCache } from '../hooks/useConversationMessages';
+import type { Message } from '../types';
 import enManual from '../content/manual/en.md?raw';
 import { parseManual } from '../utils/manualMarkdown';
 import { requestManualSection, takeManualSection } from '../utils/manualNavigation';
@@ -26,6 +30,7 @@ import {
   getBuddyMute,
   getBuddyQuietHours,
   getWarnedBatteries,
+  getWarnedServices,
   isBuddyGroupOn,
   isBuddyQuiet,
   muteBuddyFor,
@@ -33,6 +38,7 @@ import {
   setBuddyGroupOn,
   setBuddyQuietHours,
   setWarnedBatteries,
+  setWarnedServices,
   unmuteBuddy,
 } from '../buddy/buddyPrefs';
 import { HeldBack, isQuiet, isWithinQuietHours } from '../buddy/buddyQuiet';
@@ -438,5 +444,125 @@ describe('manual navigation', () => {
     expect(takeManualSection()).toBe('map');
     expect(takeManualSection()).toBeNull();
     window.removeEventListener('rtfm-manual-section', listener);
+  });
+});
+
+describe('OutageWatch', () => {
+  it('warns once when something stays down for the grace period, and re-arms when it is back', () => {
+    const onChange = vi.fn();
+    const watch = new OutageWatch(60_000, [], onChange);
+    expect(watch.observe('a', false, 0)).toBe(false);
+    expect(watch.observe('a', false, 59_999)).toBe(false);
+    expect(watch.observe('a', false, 60_000)).toBe(true);
+    expect(onChange).toHaveBeenLastCalledWith(['a']);
+    expect(watch.observe('a', false, 120_000)).toBe(false);
+
+    expect(watch.observe('a', true, 130_000)).toBe(false);
+    expect(onChange).toHaveBeenLastCalledWith([]);
+    expect(watch.observe('a', false, 140_000)).toBe(false);
+    expect(watch.observe('a', false, 200_000)).toBe(true);
+  });
+
+  it('starts the grace period again after a short recovery', () => {
+    const watch = new OutageWatch(60_000);
+    expect(watch.observe('a', false, 0)).toBe(false);
+    expect(watch.observe('a', true, 30_000)).toBe(false);
+    expect(watch.observe('a', false, 50_000)).toBe(false);
+    expect(watch.observe('a', false, 100_000)).toBe(false);
+    expect(watch.observe('a', false, 110_000)).toBe(true);
+  });
+
+  it('warns at once without a grace period, but not for a key warned before', () => {
+    expect(new OutageWatch(0).observe('x', false, 5)).toBe(true);
+    expect(new OutageWatch(0, ['x']).observe('x', false, 5)).toBe(false);
+  });
+
+  it('prunes keys the caller no longer tracks', () => {
+    const onChange = vi.fn();
+    const watch = new OutageWatch(0, ['fanout:gone', 'snmp:kept'], onChange);
+    watch.prune((key) => key.startsWith('snmp:'));
+    expect(onChange).toHaveBeenLastCalledWith(['snmp:kept']);
+  });
+});
+
+describe('buddy prefs: warned services', () => {
+  it('round-trips the warned services and tolerates junk', () => {
+    expect(getWarnedServices()).toEqual([]);
+    setWarnedServices(['fanout:m1', 'snmp:abc']);
+    expect(getWarnedServices()).toEqual(['fanout:m1', 'snmp:abc']);
+    localStorage.setItem('rtfm-buddy-services-warned', '{}');
+    expect(getWarnedServices()).toEqual([]);
+  });
+
+  it('has a switch for integrations and SNMP', () => {
+    expect(isBuddyGroupOn('services')).toBe(true);
+    setBuddyGroupOn('services', false);
+    expect(getBuddyGroupsOff()).toEqual(['services']);
+  });
+});
+
+describe('buddy catalog: spec 3 lines', () => {
+  it('points a failed send at the chat it belongs to', () => {
+    const line = describeBuddyEvent(
+      { kind: 'send-failed', publicKey: 'AB12', name: 'Al' },
+      t,
+      [],
+      []
+    );
+    expect(line).toMatchObject({
+      kind: 'send-failed',
+      group: 'messages',
+      mood: 'alert',
+      anchor: 'conversation:contact:ab12',
+      text: 'buddy_send_failed{"name":"Al"}',
+      target: { kind: 'conversation', conversation: { type: 'contact', id: 'AB12', name: 'Al' } },
+    });
+  });
+
+  it('names one integration that is down, or counts several', () => {
+    expect(servicesDownLine(t, [])).toBeNull();
+    expect(servicesDownLine(t, ['Home MQTT'])).toMatchObject({
+      kind: 'service-down',
+      group: 'services',
+      mood: 'alert',
+      text: 'buddy_service_down{"name":"Home MQTT"}',
+      target: { kind: 'settings', section: 'fanout' },
+      count: 1,
+    });
+    expect(servicesDownLine(t, ['A', 'B'])).toMatchObject({
+      text: 'buddy_services_down{"count":2,"names":"A, B"}',
+      count: 2,
+    });
+  });
+
+  it('opens the node page for one failing SNMP node, or the overview for several', () => {
+    expect(snmpFailingLine(t, [])).toBeNull();
+    expect(snmpFailingLine(t, [{ publicKey: 'AA', name: 'Roof' }])).toMatchObject({
+      kind: 'snmp-failing',
+      group: 'services',
+      mood: 'alert',
+      text: 'buddy_snmp_failing{"name":"Roof"}',
+      target: { kind: 'conversation', conversation: { type: 'snmp', id: 'AA', name: 'Roof' } },
+    });
+    expect(
+      snmpFailingLine(t, [
+        { publicKey: 'AA', name: 'Roof' },
+        { publicKey: 'BB', name: 'Mast' },
+      ])
+    ).toMatchObject({
+      text: 'buddy_snmp_failing_many{"count":2,"names":"Roof, Mast"}',
+      target: { kind: 'conversation', conversation: { type: 'snmp', id: 'snmp' } },
+      count: 2,
+    });
+  });
+});
+
+describe('ConversationMessageCache.find', () => {
+  it('finds a cached message by id', () => {
+    const cache = new ConversationMessageCache();
+    const message = { id: 5, type: 'PRIV', conversation_key: 'k1', text: 'hi' } as Message;
+    cache.set('k1', { messages: [message], hasOlderMessages: false });
+    expect(cache.find(5)).toBe(message);
+    expect(cache.find(6)).toBeUndefined();
   });
 });

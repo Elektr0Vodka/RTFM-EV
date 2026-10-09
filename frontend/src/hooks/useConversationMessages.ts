@@ -108,6 +108,15 @@ export class ConversationMessageCache {
     }
   }
 
+  /** A cached message by id, from whichever cached conversation holds it. */
+  find(messageId: number): Message | undefined {
+    for (const entry of this.cache.values()) {
+      const message = entry.messages.find((m) => m.id === messageId);
+      if (message) return message;
+    }
+    return undefined;
+  }
+
   /** Mark a cached outgoing message as failed (no ACK after all retries). */
   updateFailed(messageId: number, failedAt: number): void {
     for (const entry of this.cache.values()) {

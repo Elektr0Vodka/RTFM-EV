@@ -10,6 +10,7 @@ vi.mock('../buddy/agents', async (importOriginal) => ({
 
 const apiMock = vi.hoisted(() => ({
   getLatestTelemetry: vi.fn(),
+  snmpNodes: vi.fn(),
   getOpenHopStatus: vi.fn(),
   getOpenHopUpdateStatus: vi.fn(),
 }));
@@ -35,6 +36,7 @@ import {
   getBuddyPosition,
   getBuddyQuietHours,
   getWarnedBatteries,
+  getWarnedServices,
   isBuddyGroupOn,
   isBuddyAvailable,
   isBuddyDiscovered,
@@ -169,6 +171,7 @@ beforeEach(() => {
   clearBuddyHistory();
   loadBuddyAgentMock.mockReset();
   apiMock.getLatestTelemetry.mockReset().mockResolvedValue({});
+  apiMock.snmpNodes.mockReset().mockResolvedValue([]);
   apiMock.getOpenHopStatus.mockReset().mockResolvedValue({ configured: false });
   apiMock.getOpenHopUpdateStatus.mockReset();
   useUpdateStatusMock.mockReset().mockReturnValue({ status: null });
@@ -845,6 +848,148 @@ describe('BuddyHost', () => {
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
+  const MQTT_DOWN_LINE =
+    'The Home MQTT integration has lost its connection. Click to open its settings.';
+
+  function healthWithFanout(status: string): HealthStatus {
+    return {
+      fanout_statuses: { m1: { name: 'Home MQTT', type: 'mqtt_private', status } },
+    } as unknown as HealthStatus;
+  }
+
+  it('announces an integration that stays disconnected for a minute', async () => {
+    const fake = makeFakeAgent();
+    const props = hostProps({ health: healthWithFanout('disconnected') });
+    const { rerender } = await showBuddy(fake, props);
+    vi.useFakeTimers();
+    // A fresh health object restarts the check under the fake clock.
+    rerender(<BuddyHost {...props} health={healthWithFanout('disconnected')} />);
+    act(() => {
+      vi.advanceTimersByTime(45_000);
+    });
+    expect(fake.spoken).toEqual([]);
+    act(() => {
+      vi.advanceTimersByTime(45_000);
+    });
+    expect(fake.spoken).toEqual([MQTT_DOWN_LINE]);
+    expect(getWarnedServices()).toEqual(['fanout:m1']);
+
+    fireEvent.click(fake.balloonEl);
+    expect(props.onOpenSettings).toHaveBeenCalledWith('fanout');
+
+    // Still down: said once.
+    act(() => {
+      vi.advanceTimersByTime(300_000);
+    });
+    expect(fake.spoken).toEqual([MQTT_DOWN_LINE]);
+  });
+
+  it('stays quiet about an integration that reconnects within the minute', async () => {
+    const fake = makeFakeAgent();
+    const props = hostProps({ health: healthWithFanout('error') });
+    const { rerender } = await showBuddy(fake, props);
+    vi.useFakeTimers();
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+    });
+    rerender(<BuddyHost {...props} health={healthWithFanout('connected')} />);
+    act(() => {
+      vi.advanceTimersByTime(180_000);
+    });
+    expect(fake.spoken).toEqual([]);
+    expect(getWarnedServices()).toEqual([]);
+  });
+
+  it('does not repeat an integration warning after a reload', async () => {
+    localStorage.setItem('rtfm-buddy-services-warned', JSON.stringify(['fanout:m1']));
+    const fake = makeFakeAgent();
+    const props = hostProps({ health: healthWithFanout('disconnected') });
+    const { rerender } = await showBuddy(fake, props);
+    vi.useFakeTimers();
+    rerender(<BuddyHost {...props} health={healthWithFanout('disconnected')} />);
+    act(() => {
+      vi.advanceTimersByTime(180_000);
+    });
+    expect(fake.spoken).toEqual([]);
+  });
+
+  function snmpNode(publicKey: string, name: string, lastError: string | null) {
+    return {
+      public_key: publicKey,
+      name,
+      poll_enabled: true,
+      last_ok_at: 1,
+      last_error: lastError,
+      last_error_at: lastError ? 2 : null,
+    };
+  }
+
+  it('announces an SNMP node that stopped answering and opens its page', async () => {
+    apiMock.snmpNodes.mockResolvedValue([
+      snmpNode(ALICE_KEY, 'Alice', 'timeout'),
+      snmpNode(BOB_KEY, 'Bob', null),
+    ]);
+    const fake = makeFakeAgent();
+    const props = hostProps();
+    await showBuddy(fake, props);
+    await waitFor(() =>
+      expect(fake.spoken).toEqual(['Alice stopped answering SNMP. Click to open it.'])
+    );
+    expect(getWarnedServices()).toEqual([`snmp:${ALICE_KEY}`]);
+    fireEvent.click(fake.balloonEl);
+    expect(props.onSelectConversation).toHaveBeenCalledWith({
+      type: 'snmp',
+      id: ALICE_KEY,
+      name: 'Alice',
+    });
+  });
+
+  it('ignores SNMP nodes whose polling is switched off', async () => {
+    apiMock.snmpNodes.mockResolvedValue([
+      { ...snmpNode(ALICE_KEY, 'Alice', 'timeout'), poll_enabled: false },
+    ]);
+    const fake = makeFakeAgent();
+    await showBuddy(fake);
+    await waitFor(() => expect(apiMock.snmpNodes).toHaveBeenCalled());
+    await act(async () => {});
+    expect(fake.spoken).toEqual([]);
+  });
+
+  it('does not ask for SNMP nodes while that topic is switched off', async () => {
+    setBuddyGroupOn('services', false);
+    const fake = makeFakeAgent();
+    const props = hostProps({ health: healthWithFanout('disconnected') });
+    const { rerender } = await showBuddy(fake, props);
+    await act(async () => {});
+    expect(apiMock.snmpNodes).not.toHaveBeenCalled();
+    vi.useFakeTimers();
+    rerender(<BuddyHost {...props} health={healthWithFanout('disconnected')} />);
+    act(() => {
+      vi.advanceTimersByTime(180_000);
+    });
+    expect(fake.spoken).toEqual([]);
+    // Nothing was said, so it may still be said once the topic is back on.
+    expect(getWarnedServices()).toEqual([]);
+  });
+
+  it('tells about a direct message that got no acknowledgement', async () => {
+    const fake = makeFakeAgent();
+    const props = hostProps();
+    await showBuddy(fake, props);
+    act(() => {
+      emitBuddyEvent({ kind: 'send-failed', publicKey: ALICE_KEY, name: null });
+    });
+    expect(fake.spoken).toEqual([
+      'Your message to Alice got no acknowledgement. Click to open the chat.',
+    ]);
+    fireEvent.click(fake.balloonEl);
+    expect(props.onSelectConversation).toHaveBeenCalledWith({
+      type: 'contact',
+      id: ALICE_KEY,
+      name: 'Alice',
+    });
+  });
+
   it('saves the dragged position', async () => {
     applyTheme('windows-95');
     setBuddyAgent('clippy');
@@ -945,7 +1090,8 @@ describe('BuddySettings', () => {
     render(<BuddySettings />);
     const tips = screen.getByRole('checkbox', { name: 'Page tips' });
     expect(tips).toBeChecked();
-    expect(screen.getAllByRole('checkbox')).toHaveLength(6);
+    expect(screen.getAllByRole('checkbox')).toHaveLength(7);
+    expect(screen.getByRole('checkbox', { name: 'Integrations and SNMP' })).toBeChecked();
 
     fireEvent.click(tips);
     expect(isBuddyGroupOn('tips')).toBe(false);

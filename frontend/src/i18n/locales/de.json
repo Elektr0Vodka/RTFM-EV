@@ -4313,6 +4313,22 @@
   "buddy_recap_title": "Was ich gesagt habe",
   "buddy_recap_empty": "Noch nichts.",
   "buddy_recap_kept_back": "zurückgehalten",
+  "buddy_send_failed": "Deine Nachricht an {name} wurde nicht bestätigt. Klick, um den Chat zu öffnen.",
+  "buddy_service_down": "Die Integration {name} hat die Verbindung verloren. Klick, um ihre Einstellungen zu öffnen.",
+  "buddy_services_down": {
+    "one": "{count} Integration hat die Verbindung verloren: {names}. Klick, um die Einstellungen zu öffnen.",
+    "other": "{count} Integrationen haben die Verbindung verloren: {names}. Klick, um die Einstellungen zu öffnen."
+  },
+  "buddy_snmp_failing": "{name} antwortet nicht mehr auf SNMP. Klick zum Öffnen.",
+  "buddy_snmp_failing_many": {
+    "one": "{count} Knoten antwortet nicht mehr auf SNMP: {names}. Klick, um die SNMP-Seite zu öffnen.",
+    "other": "{count} Knoten antworten nicht mehr auf SNMP: {names}. Klick, um die SNMP-Seite zu öffnen."
+  },
+  "buddy_quiet_part_services": {
+    "one": "{count} Dienstwarnung",
+    "other": "{count} Dienstwarnungen"
+  },
+  "settings_buddy_group_services": "Integrationen und SNMP",
   "buddy_quiet_summary": "Während ich still war: {items}. Klick, um sie zu sehen.",
   "buddy_quiet_part_messages": {
     "one": "{count} Nachricht",
