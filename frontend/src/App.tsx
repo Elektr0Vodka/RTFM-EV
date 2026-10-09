@@ -238,6 +238,7 @@ export function App() {
     handleSaveAppSettings,
     handleSetHiddenHopWidths,
     handleSetHideMalformed,
+    handleSetHideSpam,
     hiddenHopWidthsVersion,
     handleToggleBlockedKey,
     handleToggleBlockedName,
@@ -310,6 +311,36 @@ export function App() {
   useEffect(() => {
     hideMalformedRef.current = hideMalformed;
   }, [hideMalformed]);
+
+  // Spam Guard: the master switch decides whether the page and the chat
+  // actions exist at all; "Hide spam" works like "Hide malformed".
+  const spamGuardEnabled = appSettings?.spam_guard_enabled ?? false;
+  const hideSpam = appSettings?.hide_spam ?? false;
+  const hideSpamRef = useRef(false);
+  useEffect(() => {
+    hideSpamRef.current = hideSpam;
+  }, [hideSpam]);
+  // "This is spam" / "Not spam" on a chat message. The answer feeds the
+  // detector (a text block, or a trusted name) and sets the message's flag,
+  // which comes back to every browser as a `message_spam` event.
+  const handleSpamFeedback = useCallback(async (message: Message, spam: boolean) => {
+    const sender = message.sender_name ?? '';
+    const prefix = sender ? `${sender}: ` : '';
+    const text = message.text.startsWith(prefix) ? message.text.slice(prefix.length) : message.text;
+    try {
+      if (spam) {
+        await api.spamGuardAction(
+          'mark_spam',
+          { text, channel: message.conversation_key },
+          message.id
+        );
+      } else {
+        await api.spamGuardAction('not_spam', { sender }, message.id);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
 
   // Check if a message mentions the user
   const checkMention = useCallback(
@@ -484,6 +515,7 @@ export function App() {
     observeMessage,
     receiveMessageAck,
     receiveMessageFailed,
+    receiveMessageSpam,
     removeMessage,
     reconcileOnReconnect,
     renameConversationMessages,
@@ -621,6 +653,7 @@ export function App() {
     blockedNamesRef,
     hiddenHopWidthsRef,
     hideMalformedRef,
+    hideSpamRef,
     channelsRef,
     activeConversationRef,
     observeMessage,
@@ -634,6 +667,7 @@ export function App() {
     removeConversationMessages,
     receiveMessageAck,
     receiveMessageFailed,
+    receiveMessageSpam,
     removeMessage,
     notifyIncomingMessage: gatedNotifyIncomingMessage,
     notifyNewNode: gatedNotifyNewNode,
@@ -803,6 +837,7 @@ export function App() {
     contacts,
     channels,
     activeConversation,
+    spamGuardEnabled,
     onSelectConversation: handleSelectConversationWithTargetReset,
     onNewMessage: handleOpenNewMessage,
     lastMessageTimes,
@@ -921,6 +956,10 @@ export function App() {
     onHiddenHopWidthsChange: handleSetHiddenHopWidths,
     hideMalformed,
     onHideMalformedChange: handleSetHideMalformed,
+    spamGuardEnabled,
+    hideSpam,
+    onHideSpamChange: handleSetHideSpam,
+    onSpamFeedback: handleSpamFeedback,
     analyzerSites: appSettings?.analyzer_sites ?? [],
     onHashtagAdded: handleHashtagAdded,
     onInsertLocation: handleInsertLocation,

@@ -117,7 +117,8 @@ class PushManager:
             return
 
         # Skip blocked senders (contacts and channel sender names), and messages
-        # the chat 'Hide by hop size' and 'Hide malformed messages' filters hide.
+        # the chat 'Hide by hop size', 'Hide malformed messages' and 'Hide spam'
+        # filters hide.
         try:
             settings = await AppSettingsRepository.get()
             if _is_blocked(data, settings.blocked_keys, settings.blocked_names):
@@ -125,6 +126,8 @@ class PushManager:
             if message_hidden_by_hop_width(data.get("paths"), settings.hidden_hop_widths):
                 return
             if settings.hide_malformed and data.get("malformed"):
+                return
+            if settings.hide_spam and data.get("spam"):
                 return
         except Exception:
             logger.debug("Push dispatch: failed to check block lists", exc_info=True)

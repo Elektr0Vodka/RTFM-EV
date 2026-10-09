@@ -58,6 +58,8 @@ function resolveConversationFromHash(
       return { type: 'mesh-discovery', id: 'mesh-discovery', name: 'Mesh Discovery' };
     case 'snmp':
       return { type: 'snmp', id: hashConv.name, name: 'SNMP' };
+    case 'spam-guard':
+      return { type: 'spam-guard', id: 'spam-guard', name: 'Spam Guard' };
     case 'analyze':
       return { type: 'analyze', id: 'analyze', name: 'Analyze Packet' };
     case 'packet-history':
@@ -201,6 +203,11 @@ export function useConversationRouter({
     }
     if (hashConv?.type === 'mesh-trends') {
       setActiveConversationState({ type: 'mesh-trends', id: 'mesh-trends', name: 'Mesh Trends' });
+      hasSetDefaultConversation.current = true;
+      return;
+    }
+    if (hashConv?.type === 'spam-guard') {
+      setActiveConversationState({ type: 'spam-guard', id: 'spam-guard', name: 'Spam Guard' });
       hasSetDefaultConversation.current = true;
       return;
     }

@@ -114,6 +114,7 @@ async def test_db():
         retention,
         settings,
         snmp_agent,
+        spam,
         wordlists,
     )
     from app.repository import fanout as fanout_repo
@@ -138,6 +139,7 @@ async def test_db():
         repeater_telemetry,
         contact_snmp,
         snmp_agent,
+        spam,
         contact_telemetry,
         noise_floor,
         battery_history,

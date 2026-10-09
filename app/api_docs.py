@@ -80,6 +80,10 @@ API_TAGS_METADATA: list[dict[str, Any]] = [
         "name": "statistics",
         "description": "Aggregated mesh, message, packet, channel, and contact statistics.",
     },
+    {
+        "name": "spam-guard",
+        "description": "Channel spam detection: blocks, held messages, exceptions, rules, and health.",
+    },
 ]
 
 SWAGGER_UI_CSS_URL = "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css"

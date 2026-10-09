@@ -726,6 +726,12 @@ export interface Message {
    * firmware default). Hidden by the chat "Hide malformed" filter.
    */
   malformed?: boolean;
+  /**
+   * True when Spam Guard flagged this incoming channel message as spam, at
+   * ingest or afterwards (earlier copies of a campaign arrive in a
+   * `message_spam` event). Hidden by the chat "Hide spam" filter.
+   */
+  spam?: boolean;
 }
 
 /** DELETE /contacts/{key}: the row is always removed; the radio may refuse. */
@@ -907,6 +913,7 @@ type ConversationType =
   | 'mesh-trends'
   | 'mesh-discovery'
   | 'snmp'
+  | 'spam-guard'
   | 'analyze'
   | 'packet-history'
   | 'manual'
@@ -1183,6 +1190,13 @@ export interface AppSettings {
   ollama_enabled: boolean;
   ollama_base_url: string;
   ollama_model: string;
+  /** Master switch for Spam Guard (channel spam detection). */
+  spam_guard_enabled?: boolean;
+  /**
+   * Chat "Hide spam" filter: hide incoming channel messages Spam Guard flagged
+   * as spam, and keep them out of unread counts, mentions and Web Push.
+   */
+  hide_spam?: boolean;
   sidebar_section_order: string[];
   sidebar_tool_order: string[];
   sidebar_favorites_order: string[];
@@ -1546,6 +1560,8 @@ export interface AppSettingsUpdate {
   ollama_enabled?: boolean;
   ollama_base_url?: string;
   ollama_model?: string;
+  spam_guard_enabled?: boolean;
+  hide_spam?: boolean;
   sidebar_section_order?: string[];
   sidebar_tool_order?: string[];
   sidebar_favorites_order?: string[];
@@ -2675,4 +2691,249 @@ export interface HostRepeaterStats {
     saved_airtime_by_reason?: Record<string, number>;
   };
   recent: HostRepeaterDecision[];
+}
+
+// ── Spam Guard (channel spam detection) ─────────────────────────────────
+
+export type SpamGuardMode = 'monitor' | 'protect';
+export type SpamGuardSensitivity = 'relaxed' | 'balanced' | 'strict';
+/** `starts_at` (first hop equals the repeater) only exists on the host repeater. */
+export type SpamGuardHopMatch = 'contains_known' | 'exact_paths' | 'contains' | 'starts_at';
+export type SpamGuardHoldLinks = 'campaign' | 'always' | 'off';
+
+export interface SpamGuardChannel {
+  key: string;
+  name: string;
+}
+
+/** Every detection tunable; the backend bounds are in `app/spam/settings.py`. */
+export interface SpamGuardTunables {
+  enable_hop_rules: boolean;
+  hop_match_mode: SpamGuardHopMatch;
+  hop_random_senders: number;
+  hop_new_senders: number;
+  hop_campaign_senders: number;
+  hop_random_senders_long: number;
+  enable_rotation_guard: boolean;
+  rotate_first_hops: number;
+  route_memory_days: number;
+  max_paths_per_hop: number;
+  max_origins_per_route: number;
+  enable_text_rules: boolean;
+  text_distinct_senders: number;
+  similarity: number;
+  min_rule_chars: number;
+  dedupe_enabled: boolean;
+  dedupe_seconds: number;
+  dedupe_min_chars: number;
+  text_rule_chars: number;
+  known_min_msgs: number;
+  known_days: number;
+  hold_links: SpamGuardHoldLinks;
+  name_score_threshold: number;
+  random_name_patterns: string[];
+  window_seconds: number;
+  long_window_seconds: number;
+  block_ttl_seconds: number;
+  hop_block_ttl_seconds: number;
+  spam_text_days: number;
+  max_total_rules: number;
+  evidence_log: boolean;
+  evidence_days: number;
+}
+
+/** The stored settings document; `overrides` are the tunables changed from the preset. */
+export interface SpamGuardSettings {
+  mode: SpamGuardMode;
+  paused: boolean;
+  sensitivity: SpamGuardSensitivity;
+  overrides: Partial<SpamGuardTunables>;
+  channels: SpamGuardChannel[];
+  allow_hops: string[];
+  allow_senders: string[];
+  allow_texts: string[];
+}
+
+export type SpamBlockKind = 'text' | 'words' | 'hop' | 'suffix' | 'links' | 'lockdown';
+
+export interface SpamBlock {
+  key: string;
+  kind: SpamBlockKind;
+  /** text: string; words / links / suffix: string[]; hop: string; lockdown: null */
+  value: string | string[] | null;
+  channel: string | null;
+  /** Stable code for why the block exists; its numbers are in `detail`. */
+  reason: string;
+  source: string;
+  created: number;
+  expires: number;
+  detail: Record<string, unknown>;
+  hits: number;
+  last_hit: number | null;
+  /** Counted but left out of the forwarding rules. */
+  observe: boolean;
+  match: SpamGuardHopMatch | null;
+  sender: string | null;
+  paths: string[];
+  ignored_paths: string[];
+  user_allowed: string[];
+  /** Lets known people through. */
+  gated: boolean;
+  /** Hop blocks: the match mode in force. */
+  mode: SpamGuardHopMatch | null;
+  /** Suffix blocks: first hops let through. */
+  allowed_origins?: string[];
+}
+
+export interface SpamHeldMessage {
+  ts: number;
+  sender: string;
+  text: string;
+  channel: string;
+  path: string[];
+  matched: string;
+  kind: SpamBlockKind;
+  message_id: number | null;
+}
+
+export interface SpamGuardMessage {
+  ts: number;
+  message_id: number | null;
+  sender: string;
+  text: string;
+  channel: string;
+  path: string[];
+  name_score: number;
+  random: boolean;
+  disguised: boolean;
+  known: boolean;
+  exempt: boolean;
+  matched: string | null;
+  spam: boolean;
+  campaign: number | null;
+}
+
+export interface SpamCampaign {
+  id: number;
+  senders: number;
+  messages: number;
+  suspect: boolean;
+  strong: boolean;
+  confirmed: boolean;
+  sample: string;
+  last: number;
+}
+
+export interface SpamActivityEntry {
+  ts: number;
+  event: string;
+  [key: string]: unknown;
+}
+
+export interface SpamTotals {
+  messages: number;
+  stopped: number;
+  let_through: number;
+  held_genuine: number;
+  airtime_ms: number;
+  spam: number;
+  stop_rate: number | null;
+  spam_share: number | null;
+}
+
+export interface SpamPoint {
+  t: number;
+  messages: number;
+  stopped: number;
+  let_through: number;
+}
+
+export interface SpamSource {
+  hop: string;
+  d7: number;
+  d1: number;
+  last: number;
+  blocked: boolean;
+  allowed: boolean;
+}
+
+export interface SpamGuardMetrics {
+  d1: SpamTotals;
+  d7: SpamTotals;
+  hourly: SpamPoint[];
+  daily: SpamPoint[];
+  by_hour: number[];
+  sources: SpamSource[];
+  since: number | null;
+}
+
+export interface SpamGuardHealth {
+  state: 'off' | 'ok' | 'warn' | 'bad';
+  problems: string[];
+  warnings: string[];
+  running: boolean;
+  backend: 'host' | 'openhop';
+  backend_state: string | null;
+  rules_expected: number;
+  rules_present: number;
+  last_message_at: number | null;
+  last_saved_at: number | null;
+  last_error: string | null;
+  load_error: string | null;
+}
+
+/** The WS `spam_guard` event: a small summary; the page refetches the detail. */
+export interface SpamGuardSummary {
+  enabled: boolean;
+  version: number;
+  mode: SpamGuardMode;
+  paused: boolean;
+  backend: 'host' | 'openhop';
+  backend_state: string | null;
+  blocks: number;
+  lockdown: boolean;
+}
+
+export interface SpamGuardState extends SpamGuardSummary {
+  settings: SpamGuardSettings;
+  tunables: SpamGuardTunables;
+  presets: Record<SpamGuardSensitivity, Partial<SpamGuardTunables>>;
+  /** Every tunable's built-in default (the value with no preset and no override). */
+  defaults: SpamGuardTunables;
+  health: SpamGuardHealth;
+  metrics: SpamGuardMetrics;
+  block_list: SpamBlock[];
+  held: SpamHeldMessage[];
+  messages: SpamGuardMessage[];
+  campaigns: SpamCampaign[];
+  activity: SpamActivityEntry[];
+  known_names: string[];
+  suppressed: Record<string, number>;
+}
+
+export interface SpamGuardActionResult {
+  result: Record<string, unknown>;
+  state: SpamGuardState;
+}
+
+export interface SpamGuardRules {
+  backend: 'host' | 'openhop';
+  before: SpamGuardRule[];
+  after: SpamGuardRule[];
+  known_senders: string[];
+  truncated: boolean;
+}
+
+export interface SpamGuardRule {
+  id: string | number;
+  name: string;
+  enabled: boolean;
+  if: { all: { field: string; op: string; value: unknown }[] };
+  then: { action: string };
+}
+
+/** The WS `message_spam` event: the flag changed on messages already in chat. */
+export interface MessageSpamPayload {
+  message_ids: number[];
+  spam: boolean;
 }

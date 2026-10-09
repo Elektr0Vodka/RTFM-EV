@@ -281,6 +281,22 @@ The battery, noise floor and airtime charts show the current radio plus the hist
 
 **Discover Repeaters**, **Discover Sensors** or **Discover Both** sends a short discovery request over RF and lists the nodes that answer. **Discover Regions** asks nearby repeaters which regions they flood, so you can add them to your known regions.
 
+### Spam Guard
+
+Spam Guard stops channel spam at your repeater. It looks at behaviour, never at people or opinions: the same text sent under several made-up names, floods of copies, and repeaters that spam enters the mesh through. Switch it on in **Settings > Local Configuration > Spam protection**; the page then appears under Tools.
+
+It starts in **Monitor**: spam is detected and shown, but nothing is blocked. Leave it there for a day and check what it would stop. **Protect** makes your host repeater stop forwarding what a block catches. That only changes anything on air while the host repeater is armed.
+
+- **Overview** shows the mode, whether everything is working, and how much spam was stopped or let through.
+- **Protection** lists the active blocks, each with the reason and when it ends. Every automatic block ends by itself. **Lockdown** is for a heavy attack: for a while only names it already knows get through. Under **Possibly genuine, held** you find messages from normal-looking names that were held; **Let through** trusts that name.
+- **Messages** shows what it read and why it did or did not act. Use **This is spam** and **Not spam** to correct it. The same two buttons are on every channel message in chat.
+- **Spam sources** shows which repeaters spam arrives through.
+- **Settings** has the channels it reads, every setting with a note on its side effects, and the exceptions (trusted names, repeaters never to block, allowed texts).
+
+A repeater is shared. What yours does not forward disappears for everyone behind it, and they cannot see why. There is on purpose no button to block a person by name.
+
+In chat, **Hide spam** in the filter menu hides flagged messages and keeps them out of unread counts and notifications.
+
 ### SNMP
 
 Every node that has SNMP set up on its contact page, in one table. Each row shows the status, name, address, schedule, last good poll and last error, with the main values side by side: firmware version, uptime, free heap, largest free block, connected MQTT slots, packet queue depth, WiFi RSSI, noise floor, receive errors, last RSSI and last SNR. A node whose last poll failed is marked **Failing** in red and listed first; its values are then those of the last good poll. Click a column header to sort.

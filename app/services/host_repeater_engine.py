@@ -45,7 +45,7 @@ import hmac
 import math
 import random
 from collections import OrderedDict, deque
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -56,11 +56,12 @@ from app.channel_constants import PUBLIC_CHANNEL_KEY
 from app.decoder import verify_advert_signature
 from app.path_utils import MAX_PATH_SIZE, ParsedPacketEnvelope, parse_packet_envelope
 from app.region_resolver import compute_transport_code
-from app.services.host_repeater_policy import PolicyDecision, PolicyState, evaluate_policy
+from app.services.host_repeater_policy import PolicyDecision, PolicyState, evaluate_layers
 from app.services.host_repeater_settings import (
     PAYLOAD_TYPE_NAMES,
     FilterRule,
     HostRepeaterSettings,
+    PolicyRule,
     sub_band_duty_limit,
 )
 
@@ -698,6 +699,10 @@ class ForwardingEngine:
         self._max_depth = 0
         self._build_region_tree()
         self._policy_state = PolicyState()
+        # Rules generated at runtime (Spam Guard), evaluated around the user's
+        # policy rules. Not part of the settings, so ``configure`` leaves them.
+        self._managed_before: tuple[PolicyRule, ...] = ()
+        self._managed_after: tuple[PolicyRule, ...] = ()
         self.filter_counters = FilterCounters()
         self._advert_window = AdvertOriginWindow(settings.filter_advert_hours)
         # Throttle state per (rule list, pattern), monotonic like the firmware's millis.
@@ -728,6 +733,15 @@ class ForwardingEngine:
             self._seen.clear()
         if radio is not None:
             self.radio = radio
+
+    def set_managed_rules(self, before: Sequence[PolicyRule], after: Sequence[PolicyRule]) -> None:
+        """Replace the runtime rule layers placed before and after the user's rules."""
+        self._managed_before = tuple(before)
+        self._managed_after = tuple(after)
+
+    @property
+    def managed_rule_count(self) -> int:
+        return len(self._managed_before) + len(self._managed_after)
 
     def _build_region_tree(self) -> None:
         """Depth per region (wildcard children = 1), like ``RegionMap::depthOf``."""
@@ -1010,8 +1024,10 @@ class ForwardingEngine:
             return drop("no_radio")
 
         self._gate_catch_up(now)
-        policy = evaluate_policy(
+        policy = evaluate_layers(
+            self._managed_before,
             self.settings.policy,
+            self._managed_after,
             self._policy_fields(env, facts),
             packet_hash=pkt_hash,
             now=now,

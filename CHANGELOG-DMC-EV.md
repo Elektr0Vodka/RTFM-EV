@@ -11,6 +11,75 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-09 (Spam Guard: channel spam protection, feat/spam-guard)
+
+Migration `_137`. No new dependency. Off by default.
+
+Behaviour is modelled on [openhop-spamguard](https://github.com/flackrat/openhop-spamguard)
+v5.11.3 (features, default numbers and worked examples). The code is written
+from scratch for this codebase; no SpamGuard source is copied.
+
+### Spam Guard (new)
+- **Detects channel spam behaviour, never people or opinions:** the same or a
+  similar text under several made-up, disguised or brand-new names (also with
+  words added, look-alike letters, leetspeak or emoji tricks), floods of
+  copies, repeaters that spam enters the mesh through, and a spammer whose
+  repeater keeps changing its identity. Every automatic block expires.
+- **Monitor and Protect.** It starts in Monitor, where spam is detected and
+  shown but nothing is blocked. In Protect the host repeater does not forward
+  what a block catches. Three sensitivity presets (relaxed, balanced, strict)
+  plus every tunable with a note on its side effects.
+- **Known people.** Names seen sending genuine messages pass the blocks that
+  hold people (a spam repeater, links from unknown names, a lockdown).
+  **Lockdown** lets only known names through for 30 minutes to 2 hours.
+  Messages from normal-looking names that were held are listed under
+  "Possibly genuine, held" with **Let through**.
+- **No "block this sender by name".** A repeater is shared, such a block is
+  invisible downstream, and names can be copied.
+- **Chat:** flagged messages carry a Spam marker, earlier copies of a campaign
+  are flagged after the fact, and each incoming channel message has **This is
+  spam** / **Not spam**. The chat filter menu and Settings offer **Hide
+  spam**, which also keeps flagged messages out of unread counts, mentions and
+  Web Push (`messages.spam`, `app_settings.hide_spam`).
+- **Spam Guard page** in the sidebar Tools, listed only while the feature is
+  on: Overview (mode, health, numbers and charts for 24 hours, 7 days and hour
+  of day), Protection (blocks, held messages, lockdown, block a repeater or a
+  text yourself), Messages (what it read and the signals it saw), Spam sources
+  (first-hop repeaters in a table and on the map, with every contact that fits
+  a short route code listed rather than guessed) and Settings (protected
+  channels, tunables, exceptions, the rendered forwarding rules).
+- **Settings > Local Configuration > Spam protection** has the master switch
+  (`app_settings.spam_guard_enabled`) and Hide spam. The host repeater and
+  OpenHop settings show a one line status.
+- **Host repeater:** blocks become managed policy rules evaluated around your
+  own rules (`evaluate_layers` in `host_repeater_policy.py`). They are held in
+  memory, never written into your stored policy, and are also evaluated while
+  your own policy engine is off. A repeater block can match on the first hop
+  ("starts at this repeater"), which OpenHop rules cannot express.
+- API: `GET /api/spam-guard`, `PUT /api/spam-guard/settings` (versioned, 409
+  when stale), `POST /api/spam-guard/action`, `GET /api/spam-guard/rules`,
+  `GET /api/spam-guard/health` (503 when something is wrong). WS events
+  `spam_guard` and `message_spam`.
+
+### Differences from openhop-spamguard (deliberate)
+- **Monitor writes no rules.** SpamGuard writes `log_only` rules in Monitor
+  mode. Both OpenHop and the host engine stop at the first matching rule, so a
+  `log_only` rule ahead of your rules would let through a packet one of your
+  `drop` rules should stop.
+- **Rotation blocks let known people through and are evaluated last.** In
+  SpamGuard's order a rotation allow exception lets an unknown name past a
+  lockdown.
+- Sender history is pruned by last seen, not first seen, so a regular does not
+  count as brand new again every 24 hours.
+
+### Not in this change
+- **OpenHop radios:** the detector runs and flags chat, but no rules are
+  written to the OpenHop node yet. The page says so.
+- Evidence log, export and replay.
+- Channel messages that arrive without a raw packet (the `CHANNEL_MSG_RECV`
+  fallback) are not analysed.
+- Not tested on live RF or against a real OpenHop node.
+
 ## Update 2026-10-10 (community fork follow-ups, fix/community-fork-followups)
 
 Four follow-ups to the community fork work (#288, #289). No migration, no new

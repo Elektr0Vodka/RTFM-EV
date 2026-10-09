@@ -60,6 +60,7 @@ class AppSettingsRepository:
                    advert_interval, last_advert_time, flood_scope, known_regions,
                    blocked_keys, blocked_names, hidden_hop_widths, hide_malformed,
                    ollama_enabled, ollama_base_url, ollama_model,
+                   spam_guard_enabled, hide_spam,
                    discovery_blocked_types,
                    tracked_telemetry_repeaters, tracked_telemetry_contacts,
                    auto_resend_channel,
@@ -292,6 +293,13 @@ class AppSettingsRepository:
             ollama_enabled = False
             ollama_base_url = "http://localhost:11434"
             ollama_model = ""
+        # Parse the Spam Guard switches (migration _137)
+        try:
+            spam_guard_enabled = bool(row["spam_guard_enabled"])
+            hide_spam = bool(row["hide_spam"])
+        except (KeyError, TypeError, IndexError):
+            spam_guard_enabled = False
+            hide_spam = False
 
         # Parse discovery_blocked_types JSON
         discovery_blocked_types: list[int] = []
@@ -563,6 +571,8 @@ class AppSettingsRepository:
             ollama_enabled=ollama_enabled,
             ollama_base_url=ollama_base_url,
             ollama_model=ollama_model,
+            spam_guard_enabled=spam_guard_enabled,
+            hide_spam=hide_spam,
             discovery_blocked_types=discovery_blocked_types,
             tracked_telemetry_repeaters=tracked_telemetry_repeaters,
             tracked_telemetry_contacts=tracked_telemetry_contacts,
@@ -649,6 +659,8 @@ class AppSettingsRepository:
         ollama_enabled: bool | None = None,
         ollama_base_url: str | None = None,
         ollama_model: str | None = None,
+        spam_guard_enabled: bool | None = None,
+        hide_spam: bool | None = None,
         discovery_blocked_types: list[int] | None = None,
         tracked_telemetry_repeaters: list[str] | None = None,
         tracked_telemetry_contacts: list[str] | None = None,
@@ -851,6 +863,13 @@ class AppSettingsRepository:
         if ollama_model is not None:
             updates.append("ollama_model = ?")
             params.append(ollama_model)
+        if spam_guard_enabled is not None:
+            updates.append("spam_guard_enabled = ?")
+            params.append(1 if spam_guard_enabled else 0)
+
+        if hide_spam is not None:
+            updates.append("hide_spam = ?")
+            params.append(1 if hide_spam else 0)
 
         if discovery_blocked_types is not None:
             updates.append("discovery_blocked_types = ?")
@@ -1033,6 +1052,8 @@ class AppSettingsRepository:
         ollama_enabled: bool | None = None,
         ollama_base_url: str | None = None,
         ollama_model: str | None = None,
+        spam_guard_enabled: bool | None = None,
+        hide_spam: bool | None = None,
         discovery_blocked_types: list[int] | None = None,
         tracked_telemetry_repeaters: list[str] | None = None,
         tracked_telemetry_contacts: list[str] | None = None,
@@ -1117,6 +1138,8 @@ class AppSettingsRepository:
                 ollama_enabled=ollama_enabled,
                 ollama_base_url=ollama_base_url,
                 ollama_model=ollama_model,
+                spam_guard_enabled=spam_guard_enabled,
+                hide_spam=hide_spam,
                 discovery_blocked_types=discovery_blocked_types,
                 tracked_telemetry_repeaters=tracked_telemetry_repeaters,
                 tracked_telemetry_contacts=tracked_telemetry_contacts,

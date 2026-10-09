@@ -575,6 +575,56 @@ describe('useRealtimeAppState', () => {
     });
   });
 
+  describe('spam filter', () => {
+    const spamChan: Message = { ...incomingChan, spam: true };
+
+    function run(msg: Message, hideSpam: boolean) {
+      const fns = {
+        recordMessageEvent: vi.fn(),
+        notifyIncomingMessage: vi.fn(),
+      };
+      const { args } = createRealtimeArgs({
+        ...fns,
+        hideSpamRef: { current: hideSpam },
+        observeMessage: vi.fn(() => ({ added: true, activeConversation: false })),
+      });
+      const { result } = renderHook(() => useRealtimeAppState(args));
+      act(() => {
+        result.current.onMessage?.(msg);
+      });
+      return { ...fns, observeMessage: args.observeMessage };
+    }
+
+    it('stores but does not count or notify a spam message when hidden', () => {
+      const fns = run(spamChan, true);
+      expect(fns.observeMessage).toHaveBeenCalledWith(spamChan);
+      expect(fns.recordMessageEvent).not.toHaveBeenCalled();
+      expect(fns.notifyIncomingMessage).not.toHaveBeenCalled();
+    });
+
+    it('counts and notifies a spam message while the filter is off', () => {
+      const fns = run(spamChan, false);
+      expect(fns.recordMessageEvent).toHaveBeenCalled();
+      expect(fns.notifyIncomingMessage).toHaveBeenCalledWith(spamChan);
+    });
+
+    it('applies a message_spam event and refreshes unread counts only when hiding', () => {
+      for (const hideSpam of [false, true]) {
+        const receiveMessageSpam = vi.fn();
+        const { args } = createRealtimeArgs({
+          receiveMessageSpam,
+          hideSpamRef: { current: hideSpam },
+        });
+        const { result } = renderHook(() => useRealtimeAppState(args));
+        act(() => {
+          result.current.onMessageSpam?.([4, 5], true);
+        });
+        expect(receiveMessageSpam).toHaveBeenCalledWith([4, 5], true);
+        expect(args.refreshUnreads).toHaveBeenCalledTimes(hideSpam ? 1 : 0);
+      }
+    });
+  });
+
   it('does not fire notifyMentionSound for a muted channel', () => {
     const notifyMentionSound = vi.fn();
     const { args } = createRealtimeArgs({

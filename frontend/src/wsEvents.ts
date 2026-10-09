@@ -5,7 +5,9 @@ import type {
   HostRepeaterEventPayload,
   Message,
   MessagePath,
+  MessageSpamPayload,
   RawPacket,
+  SpamGuardSummary,
 } from './types';
 
 export interface MessageAckedPayload {
@@ -75,6 +77,8 @@ export type KnownWsEvent =
   | { type: 'message_deleted'; data: MessageDeletedPayload }
   | { type: 'new_node'; data: NewNodePayload }
   | { type: 'host_repeater'; data: HostRepeaterEventPayload }
+  | { type: 'spam_guard'; data: SpamGuardSummary }
+  | { type: 'message_spam'; data: MessageSpamPayload }
   | { type: 'error'; data: ToastPayload }
   | { type: 'success'; data: ToastPayload }
   | { type: 'pong'; data?: null };
@@ -112,6 +116,8 @@ export function parseWsEvent(raw: string): ParsedWsEvent {
     case 'message_deleted':
     case 'new_node':
     case 'host_repeater':
+    case 'spam_guard':
+    case 'message_spam':
     case 'error':
     case 'success':
       return {

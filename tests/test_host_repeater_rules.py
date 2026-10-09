@@ -14,7 +14,7 @@ from pydantic import ValidationError
 
 from app.services.host_repeater import HostRepeaterRuntime, LifetimeStats
 from app.services.host_repeater_engine import ForwardingEngine, RadioParams, RxFacts
-from app.services.host_repeater_policy import PolicyState, evaluate_policy
+from app.services.host_repeater_policy import PolicyState, evaluate_layers, evaluate_policy
 from app.services.host_repeater_settings import (
     HostRepeaterSettings,
     PolicyConfig,
@@ -338,3 +338,88 @@ def test_stats_count_rule_hits_passes_and_saved_airtime():
     assert restored.policy_passes == {"slow": 1}
     assert restored.saved_airtime_total_ms == pytest.approx(saved, abs=0.1)
     assert restored.saved_airtime_by_rule["slow"] == pytest.approx(saved, abs=0.1)
+
+
+# ── managed rule layers (Spam Guard) ────────────────────────────────────
+
+
+def managed(rid: str, cond: dict, action: str = "drop") -> PolicyRule:
+    return PolicyRule.model_validate({"id": rid, "if": cond, "then": {"action": action}})
+
+
+GROUP_TEXT = {"field": "payload_type", "op": "equals", "value": GRP_TXT}
+FROM_BOB = {"field": "channel_sender", "op": "equals", "value": "Bob"}
+
+
+def test_layers_without_managed_rules_equal_evaluate_policy():
+    p = policy(rule("u", GROUP_TEXT), default_action="drop")
+    for fields in ({"payload_type": GRP_TXT}, {"payload_type": TXT}):
+        assert evaluate_layers((), p, (), fields) == evaluate_policy(p, fields)
+    off = PolicyConfig()
+    assert evaluate_layers((), off, (), {"payload_type": TXT}) == evaluate_policy(
+        off, {"payload_type": TXT}
+    )
+
+
+def test_managed_rules_decide_while_the_user_policy_is_off():
+    before = [managed("spam:text:1", GROUP_TEXT)]
+    d = evaluate_layers(before, PolicyConfig(), (), {"payload_type": GRP_TXT})
+    assert (d.action, d.matched, d.rule_id) == ("drop", True, "spam:text:1")
+    d = evaluate_layers((), PolicyConfig(), before, {"payload_type": GRP_TXT})
+    assert (d.action, d.rule_id) == ("drop", "spam:text:1")
+    d = evaluate_layers(before, PolicyConfig(), (), {"payload_type": TXT})
+    assert (d.action, d.matched) == ("allow", False)
+
+
+def test_a_disabled_user_policy_contributes_neither_rules_nor_default():
+    off = PolicyConfig(enabled=False, default_action="drop", rules=[rule("u", GROUP_TEXT)])
+    d = evaluate_layers((), off, (), {"payload_type": GRP_TXT})
+    assert (d.action, d.matched) == ("allow", False)
+
+
+def test_layer_order_is_before_then_user_then_after():
+    fields = {"payload_type": GRP_TXT, "channel_sender": "Bob"}
+    user = policy(rule("user-allow", FROM_BOB, action="allow"))
+    after = [managed("spam:lockdown", GROUP_TEXT)]
+    # The user's own allow rule wins over a managed rule placed after it ...
+    assert evaluate_layers((), user, after, fields).rule_id == "user-allow"
+    # ... and a managed rule placed before the user's rules wins over it.
+    before = [managed("spam:text:1", GROUP_TEXT)]
+    assert evaluate_layers(before, user, after, fields).rule_id == "spam:text:1"
+    # Inside the after layer the first match decides: a known-people allow rule
+    # shields the sender from the block behind it.
+    after = [managed("spam:known", FROM_BOB, action="allow"), managed("spam:lockdown", GROUP_TEXT)]
+    d = evaluate_layers((), PolicyConfig(), after, fields)
+    assert (d.action, d.rule_id) == ("allow", "spam:known")
+    d = evaluate_layers((), PolicyConfig(), after, {"payload_type": GRP_TXT})
+    assert (d.action, d.rule_id) == ("drop", "spam:lockdown")
+
+
+def test_user_default_action_applies_after_every_layer():
+    user = policy(default_action="drop")
+    after = [managed("spam:known", FROM_BOB, action="allow")]
+    assert evaluate_layers((), user, after, {"channel_sender": "Bob"}).action == "allow"
+    d = evaluate_layers((), user, after, {"channel_sender": "Eve"})
+    assert (d.action, d.matched) == ("drop", False)
+
+
+def test_engine_applies_managed_rules_and_reports_the_rule():
+    raw = frame(FLOOD, GRP_TXT, 0x01, b"\x11", grp_payload())
+    eng = engine()
+    assert decide(eng, raw).forward
+    eng.set_managed_rules([managed("spam:hop:11", GROUP_TEXT)], [])
+    d = decide(eng, frame(FLOOD, GRP_TXT, 0x01, b"\x11", grp_payload(1)))
+    assert (d.forward, d.reason, d.policy_rule_id) == (False, "policy_drop", "spam:hop:11")
+    assert d.saved_airtime_ms is not None and d.saved_airtime_ms > 0
+    eng.set_managed_rules([], [managed("spam:lockdown", GROUP_TEXT)])
+    assert decide(eng, frame(FLOOD, GRP_TXT, 0x01, b"\x11", grp_payload(2))).reason == "policy_drop"
+    eng.set_managed_rules([], [])
+    assert decide(eng, frame(FLOOD, GRP_TXT, 0x01, b"\x11", grp_payload(3))).forward
+
+
+def test_engine_keeps_managed_rules_across_a_settings_change():
+    eng = engine()
+    eng.set_managed_rules([managed("spam:hop:11", GROUP_TEXT)], [])
+    eng.configure(settings=HostRepeaterSettings())
+    raw = frame(FLOOD, GRP_TXT, 0x01, b"\x11", grp_payload())
+    assert decide(eng, raw).policy_rule_id == "spam:hop:11"

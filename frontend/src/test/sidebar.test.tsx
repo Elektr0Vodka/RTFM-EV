@@ -69,6 +69,7 @@ function renderSidebar(overrides?: {
   contactGroups?: ContactGroup[];
   contacts?: Contact[];
   activeConversation?: Conversation | null;
+  spamGuardEnabled?: boolean;
   ownPublicKey?: string | null;
   ownedKeys?: string[];
   sectionFilter?: 'chats' | 'tools';
@@ -105,6 +106,7 @@ function renderSidebar(overrides?: {
   const view = render(
     <Sidebar
       contacts={overrides?.contacts ?? [alice, board, relay]}
+      spamGuardEnabled={overrides?.spamGuardEnabled}
       ownPublicKey={overrides?.ownPublicKey}
       ownedKeys={overrides?.ownedKeys}
       channels={channels}
@@ -990,6 +992,20 @@ describe('Sidebar customisation (plan 17)', () => {
       type: 'manual',
       id: 'manual',
       name: 'User Guide',
+    });
+  });
+
+  it('offers the Spam Guard tool only while Spam Guard is switched on', () => {
+    const off = renderSidebar();
+    expect(screen.queryByRole('button', { name: 'Spam Guard' })).toBeNull();
+    off.unmount();
+
+    const { onSelectConversation } = renderSidebar({ spamGuardEnabled: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Spam Guard' }));
+    expect(onSelectConversation).toHaveBeenCalledWith({
+      type: 'spam-guard',
+      id: 'spam-guard',
+      name: 'Spam Guard',
     });
   });
 

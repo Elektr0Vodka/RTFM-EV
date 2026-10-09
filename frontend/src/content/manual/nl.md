@@ -281,6 +281,22 @@ De grafieken voor batterij, ruisvloer en zendtijd tonen de huidige radio plus de
 
 **Repeaters Ontdekken**, **Sensoren Ontdekken** of **Beide Ontdekken** verstuurt een kort detectieverzoek via RF en toont de nodes die antwoorden. **Regio's Ontdekken** vraagt repeaters in de buurt welke regio's ze floodden, zodat je die aan je bekende regio's kunt toevoegen.
 
+### Spam Guard
+
+Spam Guard stopt kanaalspam bij je repeater. Het kijkt naar gedrag, nooit naar mensen of meningen: dezelfde tekst onder meerdere verzonnen namen, stortvloeden van kopieën en repeaters waarlangs spam het mesh binnenkomt. Zet het aan in **Instellingen > Lokale configuratie > Spambescherming**; de pagina verschijnt dan onder Tools.
+
+Het start in **Meekijken**: spam wordt herkend en getoond, maar er wordt niets geblokkeerd. Laat het een dag zo staan en bekijk wat het zou tegenhouden. Met **Beschermen** stuurt je host-repeater niet meer door wat een blokkade vangt. Dat verandert alleen iets in de ether zolang de host-repeater actief is.
+
+- **Overzicht** toont de modus, of alles werkt en hoeveel spam is gestopt of doorgelaten.
+- **Bescherming** toont de actieve blokkades, elk met de reden en wanneer ze eindigt. Elke automatische blokkade eindigt vanzelf. **Lockdown** is voor een zware aanval: een tijdlang komen alleen namen door die al bekend zijn. Onder **Mogelijk echt, tegengehouden** staan berichten van normaal ogende namen die zijn tegengehouden; **Doorlaten** vertrouwt die naam.
+- **Berichten** toont wat het heeft gelezen en waarom het wel of niet ingreep. Corrigeer het met **Dit is spam** en **Geen spam**. Dezelfde twee knoppen staan bij elk kanaalbericht in de chat.
+- **Spambronnen** toont via welke repeaters spam binnenkomt.
+- **Instellingen** bevat de kanalen die het leest, elke instelling met een opmerking over de bijwerkingen, en de uitzonderingen (vertrouwde namen, repeaters die nooit worden geblokkeerd, toegestane teksten).
+
+Een repeater is gedeeld. Wat de jouwe niet doorstuurt verdwijnt voor iedereen erachter, en zij kunnen niet zien waarom. Er is bewust geen knop om iemand op naam te blokkeren.
+
+In de chat verbergt **Spam verbergen** in het filtermenu gemarkeerde berichten en houdt ze buiten ongelezen-tellers en meldingen.
+
 ### SNMP
 
 Alle nodes waarvoor op de contactpagina SNMP is ingesteld, in één tabel. Elke rij toont de status, de naam, het adres, het schema, de laatste geslaagde uitlezing en de laatste fout, met de belangrijkste waarden naast elkaar: firmwareversie, uptime, vrije heap, grootste vrije blok, verbonden MQTT-slots, diepte van de pakketwachtrij, wifi-RSSI, ruisvloer, ontvangstfouten, laatste RSSI en laatste SNR. Een node waarvan de laatste uitlezing mislukte, is rood gemarkeerd met **Mislukt** en staat bovenaan; de waarden zijn dan die van de laatste geslaagde uitlezing. Klik op een kolomkop om te sorteren.

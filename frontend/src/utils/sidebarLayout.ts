@@ -50,6 +50,7 @@ export type SidebarToolKey =
   | 'mesh-trends'
   | 'mesh-discovery'
   | 'snmp'
+  | 'spam-guard'
   | 'raw'
   | 'packet-history'
   | 'analyze'
@@ -68,6 +69,7 @@ export const ALL_TOOL_KEYS: SidebarToolKey[] = [
   'mesh-trends',
   'mesh-discovery',
   'snmp',
+  'spam-guard',
   'raw',
   'packet-history',
   'analyze',

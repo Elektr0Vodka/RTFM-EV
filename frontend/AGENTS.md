@@ -432,6 +432,14 @@ jsdom has no layout engine, so none of this is observable from the vitest suite 
 - DMC filter sync: `HostRepeaterFilterExtras` (inside the DMC filter block) edits `filter_dryrun`, `filter_advert_hours`, `filter_age_minutes`, `filter_paths` (Block button, hex 1-4 bytes), sender / text rules (`RuleList`: pattern, seconds, share %) and the `filter_watch` list, with per-prefix / per-rule counters from `stats.filter`. A **Neighbour poll** block edits `neighbor_poll_enabled` (transmits; label says so) and `neighbor_poll_interval_hours`. `HostRepeaterStatsPane` adds `FilterDetail` (totals, saved airtime, malformed reasons, top sources, advert cache) and `NeighbourDetail` (poll summary + neighbours table); `dryrun:<reason>` stats keys render as "Dry-run: <reason label>".
 - Fanout (`SettingsFanoutSection` `CommunityTopicControls`): `publish_filter` + `filter_interval_ms` (seconds in the UI, 60-600) and `publish_own_neighbors`, all default off.
 
+### Spam Guard
+
+- Tools page `SpamGuardView` (conversation type `spam-guard`, hash `#spam-guard`, sidebar tool key `spam-guard`). The sidebar row and its Customize entry only exist while `appSettings.spam_guard_enabled` is on (`Sidebar` prop `spamGuardEnabled`).
+- `useSpamGuard` holds the page state: `GET /spam-guard`, refetched (debounced) on the WS `spam_guard` event via `utils/spamGuardEvents.ts` and on a 30 s poll; `action(op, args, messageId)` and `save(settings)` (versioned, reloads on 409).
+- Tabs live in `components/spamGuard/`: `SpamOverviewTab` (mode, pause, sensitivity, health, totals, CSS bar charts; hour of day arrives in UTC and is shifted to local time), `SpamProtectionTab` (lockdown, held messages, blocks; routine duplicate-suppression blocks stay hidden behind a checkbox), `SpamMessagesTab`, `SpamSourcesTab` (candidates are repeater contacts whose key starts with the route code; `SpamSourcesMap` is lazy-loaded), `SpamSettingsTab` (draft of the settings document, a tunable equal to its preset or default value is not stored as an override). `spamGuardTunables.ts` lists every tunable; its strings are `spam_set_<key>_label` / `_help` / `_risk`. `spamGuardText.ts` words block reasons and activity entries from the backend's codes.
+- Chat: `MessageList` props `spamGuardEnabled`, `hideSpam`, `onHideSpamChange`, `onSpamFeedback`. With the feature off nothing is hidden or marked, whatever `hide_spam` says. `MessageRowActions` gets `onMarkSpam` / `onNotSpam`. `useRealtimeAppState` treats a hidden spam message like a muted one and applies the WS `message_spam` event (`useConversationMessages.receiveMessageSpam`).
+- Settings: master switch and Hide spam in `SettingsLocalSection`; `SpamGuardStatusLine` in the host repeater and OpenHop settings.
+
 ### Chart zoom/pan (`lib/chartZoom.ts`, `hooks/useChartZoom.ts`, `components/charts/`)
 
 - Time-series charts support wheel-zoom-to-cursor, drag-pan, and double-click

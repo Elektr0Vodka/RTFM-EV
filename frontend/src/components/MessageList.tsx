@@ -110,6 +110,17 @@ interface MessageListProps {
   hideMalformed?: boolean;
   /** Persist the "Hide malformed" filter. */
   onHideMalformedChange?: (hide: boolean) => void;
+  /**
+   * Spam Guard master switch. While on, flagged messages carry a marker, the
+   * filter menu offers "Hide spam" and each incoming channel message gets
+   * "This is spam" / "Not spam".
+   */
+  spamGuardEnabled?: boolean;
+  /** Whether "Hide spam" hides messages Spam Guard flagged (app setting `hide_spam`). */
+  hideSpam?: boolean;
+  onHideSpamChange?: (hide: boolean) => void;
+  /** The user's answer on one message: true = this is spam, false = not spam. */
+  onSpamFeedback?: (message: Message, spam: boolean) => void;
   onDismissUnreadMarker?: () => void;
   /** Called when the unread boundary is not in loaded history and must be jumped to. */
   onNavigateToUnread?: (messageId: number) => void;
@@ -1003,6 +1014,10 @@ export function MessageList({
   onHiddenHopWidthsChange,
   hideMalformed: hideMalformedProp,
   onHideMalformedChange,
+  spamGuardEnabled = false,
+  hideSpam: hideSpamProp,
+  onHideSpamChange,
+  onSpamFeedback,
   onDismissUnreadMarker,
   onNavigateToUnread,
   onJumpToMessage,
@@ -1108,6 +1123,9 @@ export function MessageList({
   // Controlled by the server-side app setting like the hop-width filter.
   const [localHideMalformed, setLocalHideMalformed] = useState(false);
   const hideMalformed = hideMalformedProp ?? localHideMalformed;
+  // Hide messages Spam Guard flagged. Only while the feature is on: with it
+  // off there is no way to see or undo a flag, so nothing may stay hidden.
+  const hideSpam = spamGuardEnabled && (hideSpamProp ?? false);
   const [hopFilterOpen, setHopFilterOpen] = useState(false);
   const hopFilterRef = useRef<HTMLDivElement>(null);
   const toggleHopWidth = useCallback(
@@ -1134,6 +1152,10 @@ export function MessageList({
       return next;
     });
   }, []);
+  // Spam feedback is offered on incoming channel text only: that is all the
+  // detector reads.
+  const spamFeedbackFor = (msg: Message) =>
+    spamGuardEnabled && !!onSpamFeedback && msg.type === 'CHAN' && !msg.outgoing;
   const toggleHideMalformed = useCallback(() => {
     if (onHideMalformedChange) {
       onHideMalformedChange(!hideMalformed);
@@ -1223,7 +1245,7 @@ export function MessageList({
     [messages, preSorted]
   );
   const sortedMessages = useMemo(() => {
-    if (hiddenHopWidths.size === 0 && !hideUnscoped && !hideMalformed) {
+    if (hiddenHopWidths.size === 0 && !hideUnscoped && !hideMalformed && !hideSpam) {
       return allSortedMessages;
     }
     // Apply the view-only message filters. Two kinds of message are always
@@ -1244,9 +1266,12 @@ export function MessageList({
       if (hideMalformed && m.malformed) {
         return false;
       }
+      if (hideSpam && m.spam) {
+        return false;
+      }
       return true;
     });
-  }, [allSortedMessages, hiddenHopWidths, hideUnscoped, hideMalformed, targetMessageId]);
+  }, [allSortedMessages, hiddenHopWidths, hideUnscoped, hideMalformed, hideSpam, targetMessageId]);
 
   // The unread divider sits on the first *visible* unread message. When the
   // server's boundary is a message the filters hide, move it forward to the
@@ -1918,7 +1943,7 @@ export function MessageList({
           title={t('chat_hop_filter_button')}
           className={cn(
             'flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card/90 shadow-xs backdrop-blur-sm transition-colors hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
-            hiddenHopWidths.size > 0 || hideUnscoped || hideMalformed
+            hiddenHopWidths.size > 0 || hideUnscoped || hideMalformed || hideSpam
               ? 'text-status-connected'
               : 'text-muted-foreground'
           )}
@@ -1979,6 +2004,23 @@ export function MessageList({
             <div className="mt-1 px-1 text-[0.6875rem] text-muted-foreground">
               {t('chat_filter_malformed_hint')}
             </div>
+            {spamGuardEnabled && onHideSpamChange && (
+              <>
+                <div className="my-1.5 h-px bg-border" />
+                <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-[0.8125rem] hover:bg-accent">
+                  <input
+                    type="checkbox"
+                    className="accent-current"
+                    checked={hideSpam}
+                    onChange={() => onHideSpamChange(!hideSpam)}
+                  />
+                  {t('chat_filter_hide_spam')}
+                </label>
+                <div className="mt-1 px-1 text-[0.6875rem] text-muted-foreground">
+                  {t('chat_filter_spam_hint')}
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -2147,6 +2189,14 @@ export function MessageList({
                 {!msg.outgoing && (
                   <ScopeBadge transportCode={msg.transport_code} region={msg.region} />
                 )}
+                {spamGuardEnabled && !msg.outgoing && msg.spam && (
+                  <span
+                    className="ml-1.5 align-middle text-[0.625rem] uppercase tracking-wider px-1.5 py-0.5 rounded bg-warning/15 text-warning"
+                    title={t('chat_spam_badge_title')}
+                  >
+                    {t('chat_spam_badge')}
+                  </span>
+                )}
               </>
             );
             const renderSender = (label: string) =>
@@ -2281,6 +2331,12 @@ export function MessageList({
                   onMarkUnreadFromMessage
                     ? () => onMarkUnreadFromMessage(msg)
                     : undefined
+                }
+                onMarkSpam={
+                  spamFeedbackFor(msg) && !msg.spam ? () => onSpamFeedback?.(msg, true) : undefined
+                }
+                onNotSpam={
+                  spamFeedbackFor(msg) && msg.spam ? () => onSpamFeedback?.(msg, false) : undefined
                 }
                 onDelete={onDeleteMessage ? () => onDeleteMessage(msg) : undefined}
               />

@@ -129,6 +129,23 @@ class MessageRepository:
         return lastrowid
 
     @staticmethod
+    async def set_spam(message_ids: list[int], spam: bool = True) -> list[int]:
+        """Set or clear the spam flag; returns the ids whose flag actually changed."""
+        if not message_ids:
+            return []
+        value = 1 if spam else 0
+        changed: list[int] = []
+        async with db.tx() as conn:
+            for message_id in message_ids:
+                async with conn.execute(
+                    "UPDATE messages SET spam = ? WHERE id = ? AND spam != ?",
+                    (value, message_id, value),
+                ) as cursor:
+                    if cursor.rowcount:
+                        changed.append(message_id)
+        return changed
+
+    @staticmethod
     async def add_path(
         message_id: int,
         path: str,
@@ -402,6 +419,14 @@ class MessageRepository:
         return f"NOT ({prefix}outgoing = 0 AND {prefix}malformed = 1)"
 
     @staticmethod
+    def _build_hidden_spam_clause(message_alias: str = "", hide_spam: bool = False) -> str:
+        """Exclude incoming messages hidden by the chat 'Hide spam' filter."""
+        if not hide_spam:
+            return ""
+        prefix = f"{message_alias}." if message_alias else ""
+        return f"NOT ({prefix}outgoing = 0 AND {prefix}spam = 1)"
+
+    @staticmethod
     def _row_to_message(row: Any) -> Message:
         """Convert a database row to a Message model."""
         packet_id = None
@@ -410,6 +435,7 @@ class MessageRepository:
         failed_at = None
         malformed = False
         send_status = "confirmed"
+        spam = False
         if hasattr(row, "keys"):
             row_keys = row.keys()
             if "packet_id" in row_keys:
@@ -424,6 +450,8 @@ class MessageRepository:
                 malformed = bool(row["malformed"])
             if "send_status" in row_keys:
                 send_status = row["send_status"]
+            if "spam" in row_keys:
+                spam = bool(row["spam"])
 
         return Message(
             id=row["id"],
@@ -445,6 +473,7 @@ class MessageRepository:
             region=region,
             failed_at=failed_at,
             malformed=malformed,
+            spam=spam,
         )
 
     @staticmethod
@@ -962,6 +991,7 @@ class MessageRepository:
         blocked_names: list[str] | None = None,
         hidden_hop_widths: list[int] | None = None,
         hide_malformed: bool = False,
+        hide_spam: bool = False,
     ) -> dict:
         """Get unread message counts, mention flags, and last message times for all conversations.
 
@@ -974,6 +1004,8 @@ class MessageRepository:
                 boundary and last message times, like blocked traffic.
             hide_malformed: Exclude incoming messages flagged as malformed
                 (``messages.malformed``) the same way.
+            hide_spam: Exclude incoming messages flagged as spam (``messages.spam``)
+                the same way.
 
         Returns:
             Dict with 'counts', 'mentions', 'last_message_times', 'last_read_ats',
@@ -998,6 +1030,9 @@ class MessageRepository:
         malformed_clause = MessageRepository._build_hidden_malformed_clause("m", hide_malformed)
         if malformed_clause:
             blocked_sql += f" AND {malformed_clause}"
+        spam_clause = MessageRepository._build_hidden_spam_clause("m", hide_spam)
+        if spam_clause:
+            blocked_sql += f" AND {spam_clause}"
 
         # Last message times for all conversations (including read ones),
         # excluding blocked, hop-hidden and malformed-hidden incoming traffic so
@@ -1011,6 +1046,7 @@ class MessageRepository:
                 last_time_clause,
                 MessageRepository._build_hidden_hop_width_clause("", hidden_hop_widths),
                 MessageRepository._build_hidden_malformed_clause("", hide_malformed),
+                MessageRepository._build_hidden_spam_clause("", hide_spam),
             )
             if c
         ]

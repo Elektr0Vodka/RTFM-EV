@@ -746,6 +746,14 @@ class Message(BaseModel):
             "Hidden by the chat 'Hide malformed messages' filter."
         ),
     )
+    spam: bool = Field(
+        default=False,
+        description=(
+            "True when Spam Guard flagged an incoming channel message as spam, at ingest "
+            "or afterwards (earlier copies of a campaign). Hidden by the chat 'Hide spam' "
+            "filter."
+        ),
+    )
 
 
 class MessagesAroundResponse(BaseModel):
@@ -2106,6 +2114,20 @@ class AppSettings(BaseModel):
     ollama_model: str = Field(
         default="",
         description="Ollama model used for unread channel summaries (e.g. phi3:mini)",
+    )
+    spam_guard_enabled: bool = Field(
+        default=False,
+        description=(
+            "Master switch for Spam Guard (channel spam detection). Off by default; "
+            "while off no message is analysed and no forwarding rule is managed."
+        ),
+    )
+    hide_spam: bool = Field(
+        default=False,
+        description=(
+            "Hide incoming channel messages Spam Guard flagged as spam in chat and exclude "
+            "them from unread counts, mentions and Web Push ('Hide spam')."
+        ),
     )
     sidebar_hidden: SidebarHidden = Field(
         default_factory=SidebarHidden,

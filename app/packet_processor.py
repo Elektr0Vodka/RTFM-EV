@@ -90,6 +90,7 @@ async def create_message_from_decrypted(
     packet_hash: str | None = None,
     transport_code: int | None = None,
     region: str | None = None,
+    packet_len: int | None = None,
 ) -> int | None:
     """Store a decrypted channel message via the shared message service."""
     return await _create_message_from_decrypted(
@@ -109,6 +110,7 @@ async def create_message_from_decrypted(
         packet_hash=packet_hash,
         transport_code=transport_code,
         region=region,
+        packet_len=packet_len,
     )
 
 
@@ -565,6 +567,7 @@ async def _process_group_text(
             packet_hash=packet_hash,
             transport_code=transport_code,
             region=region,
+            packet_len=len(raw_bytes),
         )
 
         return {

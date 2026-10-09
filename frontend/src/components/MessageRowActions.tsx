@@ -1,17 +1,22 @@
 import { useState } from 'react';
-import { Mail, Reply, RotateCcw, SmilePlus, Trash2 } from 'lucide-react';
+import { Mail, Reply, RotateCcw, ShieldAlert, ShieldCheck, SmilePlus, Trash2 } from 'lucide-react';
 
 import { useT } from '../i18n';
 
 // Same quick set other MeshCore clients lead with; one tap sends the reaction.
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '🎉', '👏', '🔥'];
 
-/** Hover actions for a chat message: react, reply, retry a failed DM, mark unread, or delete. */
+/**
+ * Hover actions for a chat message: react, reply, retry a failed DM, mark unread,
+ * tell Spam Guard it is (not) spam, or delete.
+ */
 export function MessageRowActions({
   onReact,
   onReply,
   onRetry,
   onMarkUnread,
+  onMarkSpam,
+  onNotSpam,
   onDelete,
 }: {
   onReact?: (emoji: string) => void;
@@ -19,13 +24,18 @@ export function MessageRowActions({
   /** Only passed for a failed outgoing DM. Sends a new copy, so it transmits. */
   onRetry?: () => void | Promise<void>;
   onMarkUnread?: () => void;
+  /** Spam Guard feedback: blocks this text and flags the message. */
+  onMarkSpam?: () => void;
+  /** Spam Guard feedback: trusts the sender and clears the flag. */
+  onNotSpam?: () => void;
   onDelete?: () => void;
 }) {
   const t = useT();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [retrying, setRetrying] = useState(false);
 
-  if (!onReact && !onReply && !onRetry && !onMarkUnread && !onDelete) return null;
+  if (!onReact && !onReply && !onRetry && !onMarkUnread && !onMarkSpam && !onNotSpam && !onDelete)
+    return null;
 
   const buttonClass =
     'rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring';
@@ -83,6 +93,28 @@ export function MessageRowActions({
           onClick={onMarkUnread}
         >
           <Mail className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      )}
+      {onMarkSpam && (
+        <button
+          type="button"
+          className={buttonClass}
+          aria-label={t('chat_mark_spam_action')}
+          title={t('chat_mark_spam_action')}
+          onClick={onMarkSpam}
+        >
+          <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      )}
+      {onNotSpam && (
+        <button
+          type="button"
+          className={buttonClass}
+          aria-label={t('chat_not_spam_action')}
+          title={t('chat_not_spam_action')}
+          onClick={onNotSpam}
+        >
+          <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
       )}
       {onDelete && (

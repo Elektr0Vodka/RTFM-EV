@@ -281,6 +281,22 @@ Die Diagramme für Akku, Grundrauschen und Sendezeit zeigen das aktuelle Funkger
 
 **Repeater ermitteln**, **Sensoren ermitteln** oder **Beide ermitteln** sendet eine kurze Erkennungsanfrage über Funk und listet die Knoten auf, die antworten. **Regionen ermitteln** fragt Repeater in der Nähe, welche Regionen sie fluten, damit du sie zu deinen bekannten Regionen hinzufügen kannst.
 
+### Spam Guard
+
+Spam Guard stoppt Kanalspam an deinem Repeater. Bewertet wird Verhalten, nie Personen oder Meinungen: derselbe Text unter mehreren erfundenen Namen, Fluten von Kopien und Repeater, über die Spam ins Mesh kommt. Schalte es unter **Einstellungen > Lokale Konfiguration > Spamschutz** ein; die Seite erscheint dann unter Tools.
+
+Es startet im Modus **Beobachten**: Spam wird erkannt und angezeigt, aber nichts wird blockiert. Lass es einen Tag so laufen und prüfe, was es stoppen würde. Mit **Schützen** leitet dein Host-Repeater nicht mehr weiter, was eine Sperre erfasst. Das ändert nur dann etwas auf dem Funkweg, wenn der Host-Repeater scharf ist.
+
+- **Übersicht** zeigt den Modus, ob alles läuft und wie viel Spam gestoppt oder durchgelassen wurde.
+- **Schutz** listet die aktiven Sperren, jeweils mit Grund und Ende. Jede automatische Sperre endet von selbst. **Lockdown** ist für einen starken Angriff: Eine Zeit lang kommen nur bereits bekannte Namen durch. Unter **Möglicherweise echt, zurückgehalten** stehen Nachrichten von normal aussehenden Namen, die zurückgehalten wurden; **Durchlassen** vertraut diesem Namen.
+- **Nachrichten** zeigt, was es gelesen hat und warum es eingegriffen hat oder nicht. Korrigiere es mit **Das ist Spam** und **Kein Spam**. Dieselben zwei Schaltflächen stehen an jeder Kanalnachricht im Chat.
+- **Spamquellen** zeigt, über welche Repeater Spam hereinkommt.
+- **Einstellungen** enthält die Kanäle, die es liest, jede Einstellung mit einem Hinweis auf ihre Nebenwirkungen und die Ausnahmen (vertrauenswürdige Namen, Repeater, die nie gesperrt werden, erlaubte Texte).
+
+Ein Repeater wird geteilt. Was deiner nicht weiterleitet, verschwindet für alle dahinter, und sie können nicht sehen, warum. Es gibt bewusst keine Schaltfläche, um eine Person nach Namen zu sperren.
+
+Im Chat blendet **Spam ausblenden** im Filtermenü markierte Nachrichten aus und hält sie aus Ungelesen-Zählern und Benachrichtigungen heraus.
+
 ### SNMP
 
 Alle Nodes, für die auf der Kontaktseite SNMP eingerichtet ist, in einer Tabelle. Jede Zeile zeigt Status, Name, Adresse, Zeitplan, die letzte erfolgreiche Abfrage und den letzten Fehler, dazu die wichtigsten Werte nebeneinander: Firmware-Version, Laufzeit, freier Heap, größter freier Block, verbundene MQTT-Slots, Tiefe der Paketwarteschlange, WLAN-RSSI, Grundrauschen, Empfangsfehler, letzter RSSI und letzter SNR. Ein Node, dessen letzte Abfrage fehlgeschlagen ist, ist rot mit **Fehlgeschlagen** markiert und steht oben; seine Werte sind dann die der letzten erfolgreichen Abfrage. Klicke auf eine Spaltenüberschrift, um zu sortieren.

@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import type { Channel, HealthStatus, Contact, Message, MessagePath, RawPacket } from './types';
 import { parseWsEvent, type NewNodePayload } from './wsEvents';
 import { emitHostRepeaterEvent } from './utils/hostRepeaterEvents';
+import { emitSpamGuardEvent } from './utils/spamGuardEvents';
 
 interface ErrorEvent {
   message: string;
@@ -30,6 +31,8 @@ export interface UseWebSocketOptions {
   ) => void;
   onMessageFailed?: (messageId: number, failedAt: number) => void;
   onMessageDeleted?: (messageId: number) => void;
+  /** Spam Guard set or cleared the spam flag on messages already in chat. */
+  onMessageSpam?: (messageIds: number[], spam: boolean) => void;
   onNewNode?: (payload: NewNodePayload) => void;
   onError?: (error: ErrorEvent) => void;
   onSuccess?: (success: SuccessEvent) => void;
@@ -164,6 +167,12 @@ export function useWebSocket(options: UseWebSocketOptions, events?: 'chat') {
             break;
           case 'host_repeater':
             emitHostRepeaterEvent(msg.data);
+            break;
+          case 'spam_guard':
+            emitSpamGuardEvent(msg.data);
+            break;
+          case 'message_spam':
+            handlers.onMessageSpam?.(msg.data.message_ids, msg.data.spam);
             break;
           case 'error':
             handlers.onError?.(msg.data as ErrorEvent);
