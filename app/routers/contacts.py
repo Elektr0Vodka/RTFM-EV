@@ -633,6 +633,11 @@ def _radio_contact_removal_error(result) -> str | None:
     return None
 
 
+# Reported to the client when a removal raised. The exception text itself goes
+# to the log only: it can carry local details such as a device path.
+_RADIO_REMOVAL_FAILED = "Radio removal failed"
+
+
 @router.post("/bulk-delete")
 async def bulk_delete_contacts(request: BulkDeleteRequest) -> dict:
     """Delete multiple contacts from the database (and radio if present)."""
@@ -674,14 +679,18 @@ async def bulk_delete_contacts(request: BulkDeleteRequest) -> dict:
                             contact.public_key[:12],
                             exc,
                         )
-                        radio_failures.append({"public_key": contact.public_key, "error": str(exc)})
+                        radio_failures.append(
+                            {"public_key": contact.public_key, "error": _RADIO_REMOVAL_FAILED}
+                        )
                     finally:
                         radio_processed.add(contact.public_key)
         except Exception as e:
             logger.warning("Radio removal during bulk delete failed: %s", e)
             for contact in contacts_to_delete:
                 if contact.public_key not in radio_processed:
-                    radio_failures.append({"public_key": contact.public_key, "error": str(e)})
+                    radio_failures.append(
+                        {"public_key": contact.public_key, "error": _RADIO_REMOVAL_FAILED}
+                    )
 
     # Delete from database and broadcast events
     deleted = 0
