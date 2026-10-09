@@ -30,6 +30,12 @@ import {
 } from './settings/settingsConstants';
 import { getContrastTextColor, type LocalLabel } from '../utils/localLabel';
 import { useT } from '../i18n';
+import { useThemeLayout } from '../hooks/useThemeLayout';
+import { MessageLayoutProvider } from '../contexts/MessageLayoutContext';
+import { useIsMobile } from '../map/controls/breakpoints';
+import { AtlasSidebarFoot, AtlasSidebarHead } from './shell/AtlasSidebar';
+import { AtlasTabBar, type AtlasTab } from './shell/AtlasTabBar';
+import { ThemeSettingsDialog } from './shell/ThemeSettingsDialog';
 import type { CrackerPanelProps } from './CrackerPanel';
 import type { SearchViewProps } from './SearchView';
 import type { SettingsModalProps } from './SettingsModal';
@@ -131,9 +137,24 @@ export function AppShell({
   onOpenChatWindow,
 }: AppShellProps) {
   const t = useT();
+  // Themes with `layout: 'atlas'` get the analyzer's shell on desktop: the
+  // brand and the app controls sit in a full-height sidebar and the top bar
+  // shrinks to a radio-status bar inside the content column. On phones the
+  // menu button gives way to a bottom tab bar, and the drawer is split in two:
+  // conversations behind the Chats tab, tools and app controls behind More.
+  const themeLayout = useThemeLayout();
+  const isMobile = useIsMobile();
+  const atlasShell = themeLayout === 'atlas' && !isMobile;
+  const atlasPhone = themeLayout === 'atlas' && isMobile;
+  const [drawerTab, setDrawerTab] = useState<'chats' | 'more'>('chats');
+  // Owned here, not by the bar or the sidebar foot that opens it: picking a
+  // theme with another layout unmounts whichever of the two opened it.
+  const [themeSettingsOpen, setThemeSettingsOpen] = useState(false);
+  const openThemeSettings = useCallback(() => setThemeSettingsOpen(true), []);
   const swipeHandlers = useSwipeable({
     onSwipedRight: ({ initial }) => {
       if (initial[0] < 30 && !sidebarOpen && window.innerWidth < 768) {
+        setDrawerTab('chats');
         onSidebarOpenChange(true);
       }
     },
@@ -157,12 +178,33 @@ export function AppShell({
     [onSettingsSectionChange, onToggleSettingsView, showSettings]
   );
 
-  // Desktop buddy click-to-jump: leave the settings page when opening a conversation.
+  // Desktop buddy click-to-jump and the Atlas phone navigation: leave the
+  // settings page when opening a conversation.
   const selectConversation = sidebarProps.onSelectConversation;
-  const handleBuddySelectConversation = useCallback(
+  const selectConversationRef = useRef(selectConversation);
+  selectConversationRef.current = selectConversation;
+  const selectLeavingSettings = useCallback(
     (conv: Conversation) => {
-      if (showSettings) onCloseSettingsView();
-      selectConversation(conv);
+      if (!showSettings) {
+        selectConversation(conv);
+        return;
+      }
+      // Closing settings steps back in history, and the conversation router
+      // then re-selects the conversation of the entry it lands on. Selecting
+      // right away would lose to that, so wait for the step to arrive. When
+      // settings were reached by back/forward nothing is popped: the timeout
+      // covers that case.
+      let done = false;
+      const select = () => {
+        if (done) return;
+        done = true;
+        window.removeEventListener('popstate', onPop);
+        selectConversationRef.current(conv);
+      };
+      const onPop = () => window.setTimeout(select, 0);
+      window.addEventListener('popstate', onPop);
+      window.setTimeout(select, 400);
+      onCloseSettingsView();
     },
     [onCloseSettingsView, selectConversation, showSettings]
   );
@@ -204,24 +246,113 @@ export function AppShell({
     return () => window.removeEventListener('resize', measure);
   }, [hasLocalLabel, activeType, activeId, showSettings]);
 
-  const settingsSidebarContent = (
+  const atlasHead = (rail: boolean) => (
+    <AtlasSidebarHead
+      rail={rail}
+      brandName={statusProps.brandName}
+      brandHidden={statusProps.brandHidden}
+      brandIcon={statusProps.brandIcon}
+    />
+  );
+  const atlasFoot = (rail: boolean) => (
+    <AtlasSidebarFoot
+      rail={rail}
+      settingsMode={showSettings}
+      onSettingsClick={onToggleSettingsView}
+      onOpenChatWindow={onOpenChatWindow}
+      onOpenThemeSettings={openThemeSettings}
+    />
+  );
+
+  const statusBar = (
+    <>
+      <StatusBar
+        health={statusProps.health}
+        config={statusProps.config}
+        brandName={statusProps.brandName}
+        brandHidden={statusProps.brandHidden}
+        brandIcon={statusProps.brandIcon}
+        settingsMode={showSettings}
+        onSettingsClick={onToggleSettingsView}
+        onOpenChatWindow={onOpenChatWindow}
+        onMenuClick={showSettings ? undefined : () => onSidebarOpenChange(true)}
+        variant={atlasShell ? 'topbar' : atlasPhone ? 'phonebar' : 'bar'}
+        onOpenThemeSettings={openThemeSettings}
+      />
+      <div data-toast-anchor="statusbar" aria-hidden="true" />
+    </>
+  );
+
+  // The phone drawer's More half ends in the same rows as the desktop foot.
+  // Each of them leaves the drawer.
+  const drawerFoot = () => (
+    <AtlasSidebarFoot
+      settingsMode={showSettings}
+      onSettingsClick={onToggleSettingsView}
+      onOpenChatWindow={
+        onOpenChatWindow &&
+        (() => {
+          onSidebarOpenChange(false);
+          onOpenChatWindow();
+        })
+      }
+      onOpenThemeSettings={() => {
+        onSidebarOpenChange(false);
+        openThemeSettings();
+      }}
+    />
+  );
+
+  const activeTab: AtlasTab | null = sidebarOpen
+    ? drawerTab
+    : showSettings
+      ? 'more'
+      : activeType === 'map'
+        ? 'map'
+        : activeType === 'node'
+          ? 'node'
+          : activeType === 'contact' || activeType === 'channel'
+            ? 'chats'
+            : activeType
+              ? 'more'
+              : null;
+  const handleTabSelect = (tab: AtlasTab) => {
+    if (tab === 'chats' || tab === 'more') {
+      setDrawerTab(tab);
+      onSidebarOpenChange(true);
+      return;
+    }
+    onSidebarOpenChange(false);
+    selectLeavingSettings(
+      tab === 'map'
+        ? { type: 'map', id: 'map', name: t('nav_node_map') }
+        : { type: 'node', id: 'node', name: t('nav_my_node') }
+    );
+  };
+
+  // `desktop` is the fixed sidebar; the classic mobile drawer gets no Atlas parts.
+  const settingsSidebarContent = (desktop: boolean) => (
     <nav
       className="sidebar w-60 h-full min-h-0 overflow-hidden bg-card border-r border-border flex flex-col"
       aria-label={t('a11y_settings_nav')}
     >
+      {desktop && atlasShell && atlasHead(false)}
       <div className="flex justify-between items-center px-3 py-2.5 border-b border-border">
         <h2 className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-medium">
           {t('nav_settings_heading')}
         </h2>
-        <button
-          type="button"
-          onClick={onCloseSettingsView}
-          className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-status-connected/15 border border-status-connected/30 text-status-connected hover:bg-status-connected/25 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
-          title={t('a11y_back_to_conversations')}
-          aria-label={t('a11y_back_to_conversations')}
-        >
-          &larr; {t('nav_back_to_chat')}
-        </button>
+        {/* The Atlas foot already has a "Back to Chat" row. */}
+        {!(desktop && atlasShell) && (
+          <button
+            type="button"
+            onClick={onCloseSettingsView}
+            className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-status-connected/15 border border-status-connected/30 text-status-connected hover:bg-status-connected/25 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+            title={t('a11y_back_to_conversations')}
+            aria-label={t('a11y_back_to_conversations')}
+          >
+            &larr; {t('nav_back_to_chat')}
+          </button>
+        )}
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto py-1 contain-[layout_paint]">
         {SETTINGS_SECTION_ORDER.filter(
@@ -251,15 +382,36 @@ export function AppShell({
           );
         })}
       </div>
+      {desktop && atlasShell && atlasFoot(false)}
     </nav>
   );
 
-  const renderSidebar = (forceExpanded: boolean) =>
-    showSettings ? (
-      settingsSidebarContent
+  const renderSidebar = (forceExpanded: boolean) => {
+    const desktop = !forceExpanded;
+    if (forceExpanded && atlasPhone) {
+      // Always the conversation sidebar, also while settings are open: picking
+      // anything here leaves settings.
+      return (
+        <Sidebar
+          {...sidebarProps}
+          onSelectConversation={selectLeavingSettings}
+          forceExpanded
+          sectionFilter={drawerTab === 'more' ? 'tools' : 'chats'}
+          shellFoot={drawerTab === 'more' ? drawerFoot : undefined}
+        />
+      );
+    }
+    return showSettings ? (
+      settingsSidebarContent(desktop)
     ) : (
-      <Sidebar {...sidebarProps} forceExpanded={forceExpanded} />
+      <Sidebar
+        {...sidebarProps}
+        forceExpanded={forceExpanded}
+        shellHead={desktop && atlasShell ? atlasHead : undefined}
+        shellFoot={desktop && atlasShell ? atlasFoot : undefined}
+      />
     );
+  };
 
   return (
     <div className="flex flex-col h-full" {...swipeHandlers}>
@@ -282,18 +434,7 @@ export function AppShell({
         </div>
       )}
 
-      <StatusBar
-        health={statusProps.health}
-        config={statusProps.config}
-        brandName={statusProps.brandName}
-        brandHidden={statusProps.brandHidden}
-        brandIcon={statusProps.brandIcon}
-        settingsMode={showSettings}
-        onSettingsClick={onToggleSettingsView}
-        onOpenChatWindow={onOpenChatWindow}
-        onMenuClick={showSettings ? undefined : () => onSidebarOpenChange(true)}
-      />
-      <div data-toast-anchor="statusbar" aria-hidden="true" />
+      {!atlasShell && statusBar}
 
       <div className="flex flex-1 overflow-hidden">
         <div className="hidden md:block min-h-0 overflow-hidden">{renderSidebar(false)}</div>
@@ -318,6 +459,7 @@ export function AppShell({
         </Sheet>
 
         <main id="main-content" className="flex-1 flex flex-col bg-background min-w-0">
+          {atlasShell && statusBar}
           <MentionTicker
             enabled={showMentionTicker}
             mentions={mentionTickerEvents}
@@ -331,7 +473,10 @@ export function AppShell({
                 'hidden'
             )}
           >
-            <ConversationPane {...conversationPaneProps} sidebarOpen={sidebarOpen} />
+            {/* Chat rows are cards under the Atlas layout, bubbles otherwise. */}
+            <MessageLayoutProvider value={themeLayout === 'atlas' ? 'cards' : 'bubbles'}>
+              <ConversationPane {...conversationPaneProps} sidebarOpen={sidebarOpen} />
+            </MessageLayoutProvider>
           </div>
 
           {searchMounted.current && (
@@ -403,6 +548,8 @@ export function AppShell({
         )}
       </div>
 
+      {atlasPhone && <AtlasTabBar active={activeTab} onSelect={handleTabSelect} />}
+
       <NewMessageModal
         {...newMessageModalProps}
         open={showNewMessage}
@@ -427,10 +574,11 @@ export function AppShell({
         contacts={sidebarProps.contacts}
         channels={sidebarProps.channels}
         activePage={showSettings ? 'settings' : (activeType ?? null)}
-        onSelectConversation={handleBuddySelectConversation}
+        onSelectConversation={selectLeavingSettings}
         onOpenSettings={handleOpenSettings}
         onNavigateMentionToMessage={handleBuddyMention}
       />
+      <ThemeSettingsDialog open={themeSettingsOpen} onOpenChange={setThemeSettingsOpen} />
       <RadioIdentityPrompt health={statusProps.health} />
       <ContactInfoPane {...contactInfoPaneProps} />
       <ChannelInfoPane {...channelInfoPaneProps} />

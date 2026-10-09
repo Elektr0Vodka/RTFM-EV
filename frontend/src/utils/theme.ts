@@ -1,5 +1,8 @@
 import { applyCrt, CRT_CHANGE_EVENT, legacyCrtThemeId } from './crt';
 
+/** Page layout a theme asks for. 'atlas' is the EU MeshCore Analyzer shell. */
+export type ThemeLayout = 'classic' | 'atlas';
+
 export interface Theme {
   id: string;
   name: string;
@@ -7,6 +10,8 @@ export interface Theme {
   swatches: [string, string, string, string, string, string];
   /** Hex background color for the PWA theme-color meta tag */
   metaThemeColor: string;
+  /** Layout the app shell takes under this theme. Omitted means 'classic'. */
+  layout?: ThemeLayout;
 }
 
 export const THEME_CHANGE_EVENT = 'remoteterm-theme-change';
@@ -100,18 +105,21 @@ export const THEMES: Theme[] = [
     metaThemeColor: '#060709',
   },
   // MCEU: the "Atlas" look of the EU MeshCore Analyzer, in its light and dark
-  // variant. Tokens and shape rules are in themes.css.
+  // variant. Tokens and shape rules are in themes.css; `layout: 'atlas'` also
+  // switches the app shell (see useThemeLayout and AppShell).
   {
     id: 'mceu-light',
     name: 'MCEU Light',
     swatches: ['#F5F3EE', '#FFFFFF', '#2446D8', '#EFECE5', '#C77700', '#1E8A4C'],
     metaThemeColor: '#F5F3EE',
+    layout: 'atlas',
   },
   {
     id: 'mceu-dark',
     name: 'MCEU Dark',
     swatches: ['#121317', '#1A1C22', '#7C94FF', '#20232A', '#F0C064', '#6FD39B'],
     metaThemeColor: '#121317',
+    layout: 'atlas',
   },
   // CRT phosphor themes. Selecting one applies the monochrome palette (see
   // themes.css) and turns the CRT screen effects on by default; the effect
@@ -178,6 +186,11 @@ function resolveFollowOS(): 'original' | 'light' {
 export function getEffectiveTheme(): string {
   const saved = getSavedTheme();
   return saved === FOLLOW_OS_THEME_ID ? resolveFollowOS() : saved;
+}
+
+/** The layout the given theme (default: the one on screen) asks the shell for. */
+export function getThemeLayout(themeId: string = getEffectiveTheme()): ThemeLayout {
+  return THEMES.find((t) => t.id === themeId)?.layout ?? 'classic';
 }
 
 /**

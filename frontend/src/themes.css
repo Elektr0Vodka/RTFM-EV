@@ -1344,7 +1344,7 @@
 }
 
 /* MCEU Light: the default logo is drawn white, which the paper ground swallows */
-[data-theme='mceu-light'] .app-statusbar h1 > svg {
+[data-theme='mceu-light'] .app-brand-logo {
   color: hsl(var(--foreground));
 }
 
@@ -1402,6 +1402,42 @@
 [data-theme^='mceu-'] [role='tab'][data-state='active'] {
   background: hsl(var(--mceu-selected));
   color: hsl(var(--mceu-selected-foreground));
+}
+
+/* MCEU: page head. Every page opens with a `border-b px-4` bar that holds an
+   `h2.text-base.font-semibold` title, or is that h2 itself. Atlas sets the
+   title in the display face at heading size and draws no rule under the head.
+   Matched on those existing classes: no page has a head component to hook. */
+[data-theme^='mceu-'] main h2.font-semibold.text-base {
+  font-size: 1.375rem;
+  line-height: 1.2;
+}
+[data-theme^='mceu-'] main .border-b.border-border.px-4:has(h2.font-semibold.text-base),
+[data-theme^='mceu-'] main h2.border-b.border-border.px-4.font-semibold.text-base {
+  border-bottom-color: transparent;
+  padding-top: 1rem;
+}
+@media (max-width: 768px) {
+  [data-theme^='mceu-'] main h2.font-semibold.text-base {
+    font-size: 1.1875rem;
+  }
+}
+
+/* MCEU: panels are cards. A bordered, rounded box that sits on the page ground
+   is a raised surface, as in Atlas: boxes without a background of their own and
+   the `bg-background` tiles. Left alone: boxes with a tint, a selected state or
+   a hover fill, and boxes inside a card, where `bg-background` is the well. */
+[data-theme^='mceu-']
+  main
+  :is(.rounded, .rounded-md, .rounded-lg, .rounded-xl).border.border-border:is(
+    .bg-background,
+    :not([class*='bg-'])
+  ):not(.bg-card *) {
+  background-color: hsl(var(--card));
+}
+/* The stat tiles use the small `rounded`; as cards they take the control radius. */
+[data-theme^='mceu-'] main div.rounded.border.border-border.bg-background:not(.bg-card *) {
+  border-radius: calc(var(--radius) - 2px);
 }
 
 /* MCEU: message bubbles. Incoming is a bordered surface, outgoing accent-soft. */

@@ -569,6 +569,8 @@ function renderMeshcoreOpenPayload(
 const ESTIMATED_MESSAGE_HEIGHT = 64;
 // Classic-lines rows (the chat popup) are a single line of text by default.
 const ESTIMATED_LINE_HEIGHT = 22;
+// A card always carries its header and, for received messages, a chip row.
+const ESTIMATED_CARD_HEIGHT = 92;
 
 /** Stand-in viewport height for when the scroll container cannot be measured. */
 const FALLBACK_VIEWPORT_HEIGHT = 800;
@@ -867,7 +869,8 @@ function firstUrlIn(text: string): string | null {
 interface HopCountBadgeProps {
   paths: MessagePath[];
   onClick: () => void;
-  variant: 'header' | 'inline';
+  /** 'chip' is the cards layout: a pill with a route icon instead of brackets. */
+  variant: 'header' | 'inline' | 'chip';
 }
 
 function HopCountBadge({ paths, onClick, variant }: HopCountBadgeProps) {
@@ -875,10 +878,13 @@ function HopCountBadge({ paths, onClick, variant }: HopCountBadgeProps) {
   const { showPathHopWidth } = usePathHopWidth();
   const hopInfo = formatHopCounts(paths);
   const widthLabel = showPathHopWidth ? formatPathHopWidths(paths) : null;
-  const label = widthLabel ? `(${hopInfo.display} · ${widthLabel})` : `(${hopInfo.display})`;
+  const chip = variant === 'chip';
+  const plainLabel = widthLabel ? `${hopInfo.display} · ${widthLabel}` : hopInfo.display;
+  const label = chip ? plainLabel : `(${plainLabel})`;
 
-  const className =
-    variant === 'header'
+  const className = chip
+    ? 'inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[0.6875rem] font-medium text-muted-foreground cursor-pointer hover:text-primary'
+    : variant === 'header'
       ? 'font-normal text-muted-foreground ml-1 text-[0.6875rem] cursor-pointer hover:text-primary hover:underline'
       : 'text-[0.625rem] text-muted-foreground ml-1 cursor-pointer hover:text-primary hover:underline';
 
@@ -906,6 +912,7 @@ function HopCountBadge({ paths, onClick, variant }: HopCountBadgeProps) {
           : t('a11y_hop_count_view_path', { display: hopInfo.display })
       }
     >
+      {chip && <Route className="h-3 w-3" aria-hidden="true" />}
       {label}
     </span>
   );
@@ -1034,7 +1041,12 @@ export function MessageList({
   const ANALYZE_PACKET_NOTICE = t('chat_analyze_packet_notice');
   const { renderRichPayloads } = useRichPayloads();
   const layout = useMessageLayout();
-  const estimatedRowHeight = layout === 'lines' ? ESTIMATED_LINE_HEIGHT : ESTIMATED_MESSAGE_HEIGHT;
+  const estimatedRowHeight =
+    layout === 'lines'
+      ? ESTIMATED_LINE_HEIGHT
+      : layout === 'cards'
+        ? ESTIMATED_CARD_HEIGHT
+        : ESTIMATED_MESSAGE_HEIGHT;
   const listRef = useRef<HTMLDivElement>(null);
   const prevMessagesLengthRef = useRef<number>(0);
   const isInitialLoadRef = useRef<boolean>(true);
@@ -2126,7 +2138,7 @@ export function MessageList({
               );
             // The row's content, shared by both layouts so they cannot drift apart:
             // each layout below only decides where these pieces go.
-            const renderMeta = (variant: 'header' | 'inline') => (
+            const renderMeta = (variant: 'header' | 'inline' | 'chip') => (
               <>
                 {!msg.outgoing && msg.paths && msg.paths.length > 0 && (
                   <HopCountBadge paths={msg.paths} variant={variant} onClick={openPathModal} />
@@ -2362,6 +2374,63 @@ export function MessageList({
                     <div className="absolute right-0 top-0 z-10 rounded bg-card opacity-0 shadow-xs empty:hidden group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:static [@media(hover:none)]:bg-transparent [@media(hover:none)]:opacity-100 [@media(hover:none)]:shadow-none">
                       {rowActions}
                     </div>
+                  </div>
+                ) : layout === 'cards' ? (
+                  // Every message is a full-width card with its own header, so
+                  // there is no sender grouping here. Outgoing cards stay on the
+                  // left like the rest and differ by their tint.
+                  <div
+                    data-message-id={msg.id}
+                    className={cn(
+                      'msg-card group relative w-full max-w-3xl rounded-xl px-3.5 py-2.5',
+                      msg.outgoing ? 'bg-msg-outgoing' : 'bg-msg-incoming',
+                      !isFirstMessage && 'mt-1.5',
+                      highlightedMessageId === msg.id && 'message-highlight'
+                    )}
+                  >
+                    <div className="flex min-h-6 items-center gap-2">
+                      {!msg.outgoing &&
+                        avatarKey &&
+                        (onOpenContactInfo ? (
+                          <button
+                            type="button"
+                            className="avatar-action-button shrink-0 rounded-full border-none bg-transparent p-0 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+                            aria-label={avatarActionLabel}
+                            onClick={openSenderInfo}
+                          >
+                            <ContactAvatar
+                              name={avatarName}
+                              publicKey={avatarKey}
+                              size={20}
+                              clickable
+                              variant={avatarVariant}
+                            />
+                          </button>
+                        ) : (
+                          <span className="shrink-0">
+                            <ContactAvatar
+                              name={avatarName}
+                              publicKey={avatarKey}
+                              size={20}
+                              variant={avatarVariant}
+                            />
+                          </span>
+                        ))}
+                      <span className="min-w-0 truncate text-[0.8125rem] font-semibold text-primary">
+                        {renderSender(displaySender)}
+                      </span>
+                      <span className="shrink-0 text-[0.6875rem] text-muted-foreground">
+                        {formatTime(msg.received_at)}
+                      </span>
+                      <div className="ml-auto shrink-0">{rowActions}</div>
+                    </div>
+                    <div className="mt-0.5 wrap-break-word whitespace-pre-wrap">{body}</div>
+                    {/* The badges carry their own left margin for the other layouts. */}
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 empty:hidden [&>*]:ml-0">
+                      {renderMeta('chip')}
+                      {outgoingStatus}
+                    </div>
+                    {preview}
                   </div>
                 ) : (
                   <div

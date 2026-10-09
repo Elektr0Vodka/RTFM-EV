@@ -15,8 +15,12 @@ const LANG_LABELS: Record<Locale, { flag: string; name: string }> = {
  * toolbox: a flag + uppercase code trigger that opens a menu of flag + name
  * options with a check on the active one. Mirrors the full LanguageSelector in
  * Settings but sized for the status bar.
+ *
+ * `variant="row"` is the same switcher as a full-width row at the foot of the
+ * Atlas sidebar: it shows the language name and opens its menu upwards.
  */
-export function HeaderLanguageMenu() {
+export function HeaderLanguageMenu({ variant = 'header' }: { variant?: 'header' | 'row' }) {
+  const row = variant === 'row';
   const { locale, setLocale } = useLocale();
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -56,17 +60,37 @@ export function HeaderLanguageMenu() {
         aria-expanded={open}
         aria-label={t('settings_language')}
         title={t('settings_language')}
-        className="flex items-center gap-1 px-1.5 py-1 rounded-sm text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+        className={cn(
+          'flex items-center transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
+          row
+            ? 'atlas-foot-row w-full gap-2 border-l-2 border-transparent px-3 py-2 text-left text-[0.8125rem] hover:bg-accent focus-visible:ring-inset'
+            : 'gap-1 px-1.5 py-1 rounded-sm text-muted-foreground hover:text-foreground'
+        )}
       >
-        <span aria-hidden="true">{LANG_LABELS[locale].flag}</span>
-        <span className="text-[0.6875rem] font-medium">{locale.toUpperCase()}</span>
-        <ChevronDown className="h-3 w-3" aria-hidden="true" />
+        {row ? (
+          <>
+            <span className="flex h-4 w-4 items-center justify-center" aria-hidden="true">
+              {LANG_LABELS[locale].flag}
+            </span>
+            <span className="flex-1 truncate">{LANG_LABELS[locale].name}</span>
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+          </>
+        ) : (
+          <>
+            <span aria-hidden="true">{LANG_LABELS[locale].flag}</span>
+            <span className="text-[0.6875rem] font-medium">{locale.toUpperCase()}</span>
+            <ChevronDown className="h-3 w-3" aria-hidden="true" />
+          </>
+        )}
       </button>
 
       {open && (
         <div
           role="menu"
-          className="absolute right-0 mt-1 min-w-36 rounded-md border border-border bg-card p-1 shadow-lg z-50"
+          className={cn(
+            'absolute min-w-36 rounded-md border border-border bg-card p-1 shadow-lg z-50',
+            row ? 'bottom-full left-2 mb-1' : 'right-0 mt-1'
+          )}
         >
           {LOCALES.map((l) => (
             <button

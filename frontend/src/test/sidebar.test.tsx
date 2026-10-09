@@ -71,6 +71,7 @@ function renderSidebar(overrides?: {
   activeConversation?: Conversation | null;
   ownPublicKey?: string | null;
   ownedKeys?: string[];
+  sectionFilter?: 'chats' | 'tools';
   onSaveSidebarOrder?: (update: {
     sidebar_section_order?: string[];
     sidebar_tool_order?: string[];
@@ -125,6 +126,7 @@ function renderSidebar(overrides?: {
       sidebarHidden={overrides?.sidebarHidden}
       contactGroups={overrides?.contactGroups}
       onSaveSidebarOrder={onSaveSidebarOrder}
+      sectionFilter={overrides?.sectionFilter}
     />
   );
 
@@ -148,6 +150,24 @@ function getSectionHeaderContainer(title: string): HTMLElement {
 }
 
 describe('Sidebar section summaries', () => {
+  it('sectionFilter="tools" shows only the tools, without the mark-all-read row', () => {
+    const { opsChannel, aliceName } = renderSidebar({ sectionFilter: 'tools' });
+
+    expect(screen.getByText('Packet Feed')).toBeInTheDocument();
+    expect(screen.queryByText(opsChannel.name)).not.toBeInTheDocument();
+    expect(screen.queryByText(aliceName)).not.toBeInTheDocument();
+    expect(screen.queryByText('Mark all as read')).not.toBeInTheDocument();
+  });
+
+  it('sectionFilter="chats" shows the conversations and leaves the tools out', () => {
+    const { opsChannel, aliceName } = renderSidebar({ sectionFilter: 'chats' });
+
+    expect(screen.getByText(opsChannel.name)).toBeInTheDocument();
+    expect(screen.getByText(aliceName)).toBeInTheDocument();
+    expect(screen.getByText('Mark all as read')).toBeInTheDocument();
+    expect(screen.queryByText('Packet Feed')).not.toBeInTheDocument();
+  });
+
   beforeEach(() => {
     localStorage.clear();
   });
