@@ -101,6 +101,13 @@ is copied as is. Migration `_138`. No new dependency.
     by other means (`javascript:`, `data:`, `//other-site`) leads to a plain
     reload. Found by CodeQL (`js/xss-through-dom`) on the pull request: the
     first version passed the stored value to the navigation as it was.
+  - The query and the fragment of the address are percent-encoded once more
+    before use (`encodeURI`, plus the single quote). Escapes that are already
+    there are kept, so `?rd=https%3A%2F%2Fapp%2F` stays as it is; square
+    brackets, quotes and angle brackets become `%5B`, `%27`, `%3C` and so on.
+    CodeQL kept flagging those two parts after the scheme was fixed. Behind a
+    fixed `http(s)` scheme they cannot run script, so this changes what the
+    scanner can prove more than what a browser would do.
   - Not tried behind a real proxy: tests only.
 
 ### Interface

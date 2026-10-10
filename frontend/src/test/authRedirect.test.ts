@@ -99,6 +99,32 @@ describe('authRedirect', () => {
       expect(assign).toHaveBeenCalledWith('https://auth.example.com/start?rd=app');
     });
 
+    // The query and the fragment are the parts of the address that are passed
+    // on as written. They are percent-encoded once more, which must not change
+    // an address that was already encoded.
+    it.each([
+      // A typical portal address: a return address inside the query.
+      'https://auth.example.com/?rd=https%3A%2F%2Fapp.example.com%2F&x=a%20b',
+      'https://auth.example.com/login?a=1&b=two+words#section-2',
+      'https://auth.example.com/#/login?next=%2Fhome',
+      'https://auth.example.com/p?discount=100%&ok=1',
+      'https://auth.example.com/?p=%2525',
+      'https://auth.example.com:8443/a/b/?q=[1,2]',
+    ])('leaves %s as it is, apart from brackets', (address) => {
+      setAuthRedirectUrl(address);
+      triggerAuthRedirect();
+      const expected = address.replace('[', '%5B').replace(']', '%5D');
+      expect(assign).toHaveBeenCalledWith(expected);
+    });
+
+    it('encodes quotes and angle brackets in the query and the fragment', () => {
+      setAuthRedirectUrl(`https://auth.example.com/?q=<b>'x'"y"#it's<i>`);
+      triggerAuthRedirect();
+      expect(assign).toHaveBeenCalledWith(
+        'https://auth.example.com/?q=%3Cb%3E%27x%27%22y%22#it%27s%3Ci%3E'
+      );
+    });
+
     // The value is checked again at the moment it is used: what is in storage
     // may not have come through the settings field.
     it.each([

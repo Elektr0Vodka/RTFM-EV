@@ -113,21 +113,36 @@ export function triggerAuthRedirect(): void {
  * Checked at the moment of use, not only when it is saved: what is in storage
  * may not have come through the settings field. The result is rebuilt from the
  * parsed parts behind a literal `http://` or `https://`, so no other scheme
- * (`javascript:`, `data:`) can reach the navigation whatever was stored.
+ * (`javascript:`, `data:`) can reach the navigation whatever was stored. The
+ * query and the fragment, which the parser passes on as written, are
+ * percent-encoded once more.
  */
 function safeRedirectTarget(stored: string): string | null {
   const trimmed = stored.trim();
   if (trimmed === '' || !isSafeRedirectUrl(trimmed)) return null;
-  let parsed: URL;
+  let rest: string;
+  let protocol: string;
   try {
-    parsed = new URL(trimmed, window.location.origin);
+    const parsed = new URL(trimmed, window.location.origin);
+    protocol = parsed.protocol;
+    rest =
+      parsed.host + parsed.pathname + encodeUrlPart(parsed.search) + encodeUrlPart(parsed.hash);
   } catch {
     return null;
   }
-  const rest = parsed.host + parsed.pathname + parsed.search + parsed.hash;
-  if (parsed.protocol === 'https:') return 'https://' + rest;
-  if (parsed.protocol === 'http:') return 'http://' + rest;
+  if (protocol === 'https:') return 'https://' + rest;
+  if (protocol === 'http:') return 'http://' + rest;
   return null;
+}
+
+/**
+ * Percent-encode a query or fragment as the URL parser serialised it. Escapes
+ * that are already there stay as they are (`%2F` does not become `%252F`);
+ * what is added are the characters `encodeURI` covers plus the single quote,
+ * so the part holds no quote or angle bracket in any position.
+ */
+function encodeUrlPart(part: string): string {
+  return encodeURI(part).replace(/%25/g, '%').replace(/'/g, '%27');
 }
 
 /** Redirect when a failed response means the session is gone. */

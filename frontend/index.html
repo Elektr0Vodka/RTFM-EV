@@ -54,15 +54,22 @@
         if (!trimmed) return null;
         var isPath = trimmed.charAt(0) === '/' && trimmed.charAt(1) !== '/';
         if (!isPath && !/^https?:\/\//i.test(trimmed)) return null;
-        var parsed;
+        // The query and fragment are percent-encoded once more; escapes that
+        // are already there stay as they are.
+        var encodePart = function(part) {
+          return encodeURI(part).replace(/%25/g, '%').replace(/'/g, '%27');
+        };
+        var rest;
+        var protocol;
         try {
-          parsed = new URL(trimmed, window.location.origin);
+          var parsed = new URL(trimmed, window.location.origin);
+          protocol = parsed.protocol;
+          rest = parsed.host + parsed.pathname + encodePart(parsed.search) + encodePart(parsed.hash);
         } catch {
           return null;
         }
-        var rest = parsed.host + parsed.pathname + parsed.search + parsed.hash;
-        if (parsed.protocol === 'https:') return 'https://' + rest;
-        if (parsed.protocol === 'http:') return 'http://' + rest;
+        if (protocol === 'https:') return 'https://' + rest;
+        if (protocol === 'http:') return 'http://' + rest;
         return null;
       };
 
