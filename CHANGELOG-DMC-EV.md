@@ -163,7 +163,9 @@ were already in this fork, so nothing from upstream needed porting.
   and bulk delete ignored the radio's answer, so a contact the radio kept came
   back at the next sync without explanation. Both endpoints now return what the
   radio did and the UI shows a warning. One failing removal no longer skips the
-  rest of a bulk delete.
+  rest of a bulk delete. When a removal raises, the bulk response says
+  `Radio removal failed` and the exception text goes to the log only (CodeQL
+  `py/stack-trace-exposure` on the pull request).
 - **Bulk delete with a key listed twice** counted and processed that contact
   twice (MESHRIK `5f24e2dc`).
 

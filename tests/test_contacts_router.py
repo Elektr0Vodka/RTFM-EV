@@ -698,8 +698,40 @@ class TestBulkDeleteContacts:
         assert response.status_code == 200
         body = response.json()
         assert body["radio_deleted"] == 1
-        assert body["radio_failures"] == [{"public_key": KEY_A, "error": "serial hiccup"}]
+        # The exception text goes to the log only, not to the API client.
+        assert body["radio_failures"] == [{"public_key": KEY_A, "error": "Radio removal failed"}]
         assert mock_mc.commands.remove_contact.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_radio_operation_failure_reports_every_contact_without_exception_text(
+        self, test_db, client
+    ):
+        await _insert_contact(KEY_A, "Alice", on_radio=True)
+        await _insert_contact(KEY_B, "Bob", on_radio=True)
+
+        @asynccontextmanager
+        async def _failing_radio_operation(*_args, **_kwargs):
+            raise RuntimeError("/dev/ttyUSB0 went away")
+            yield  # pragma: no cover
+
+        with patch("app.routers.contacts.radio_manager") as mock_rm:
+            mock_rm.is_connected = True
+            mock_rm.radio_operation = _failing_radio_operation
+            response = await client.post(
+                "/api/contacts/bulk-delete",
+                json={"public_keys": [KEY_A, KEY_B]},
+            )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["deleted"] == 2
+        assert body["radio_deleted"] == 0
+        assert body["radio_failed"] == 2
+        assert body["radio_failures"] == [
+            {"public_key": KEY_A, "error": "Radio removal failed"},
+            {"public_key": KEY_B, "error": "Radio removal failed"},
+        ]
+        assert "ttyUSB0" not in response.text
 
     @pytest.mark.asyncio
     async def test_deduplicates_normalized_public_keys(self, test_db, client):
