@@ -11,6 +11,17 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-10 (Handy Info: Awesome MeshCore link, feat/handy-info-awesome-meshcore)
+
+### Settings > Handy Info: Links (frontend)
+- Added `https://github.com/samuk/awesome-meshcore` (a curated list of
+  MeshCore resources) as a built-in link under **Community sites**, listed
+  last in that group (id `link-awesome-meshcore`, label `Awesome MeshCore`).
+  It shows up for existing users as well, including those who have
+  customized the list, and can be hidden, edited or flagged for the
+  Knowledge base like any other built-in. No backend change, no migration.
+- Tests: `frontend/src/test/settingsHandyInfoSection.test.tsx`.
+
 ## Update 2026-10-09 (dependency updates, chore/dependency-updates)
 
 Every dependency in the repo moved to its newest release that the rest of the

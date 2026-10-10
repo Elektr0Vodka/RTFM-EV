@@ -150,6 +150,10 @@ describe('SettingsHandyInfoSection', () => {
     expect(screen.getByText('MeshCore.io')).toBeInTheDocument();
     expect(screen.getByText('meshcore-info.eu')).toBeInTheDocument();
     expect(document.querySelector('a[href="https://meshcore-info.eu/"]')).not.toBeNull();
+    expect(screen.getByText('Awesome MeshCore')).toBeInTheDocument();
+    expect(
+      document.querySelector('a[href="https://github.com/samuk/awesome-meshcore"]')
+    ).not.toBeNull();
     expect(screen.getByText('Triangulator')).toBeInTheDocument();
     expect(screen.getByText('Zweerbericht')).toBeInTheDocument();
   });

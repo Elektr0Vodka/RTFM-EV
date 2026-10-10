@@ -192,6 +192,13 @@ export const HANDY_BUILTINS: HandyBuiltin[] = [
     labelKey: 'settings_handy_link_meshwiki_label',
     url: 'https://meshwiki.nl/wiki/Lijst_van_regio%27s',
   },
+  {
+    id: 'link-awesome-meshcore',
+    group: 'links',
+    category: 'community',
+    label: 'Awesome MeshCore',
+    url: 'https://github.com/samuk/awesome-meshcore',
+  },
   // --- Monitoring / data ---
   {
     id: 'link-spamdetector',
