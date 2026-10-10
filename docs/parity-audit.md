@@ -116,6 +116,7 @@ discovery rows were re-marked afterwards. §7 holds the current per-item status.
 |---|---|---|---|---|
 | Repeater/room pairing + remote admin | Off | Present | App | Repeater console exists. Structured repeater settings editor (allow-listed `set` + `get` read-back, per-change confirm, typed-name confirm for radio f/bw/sf/cr; no `prv.key`) added in plan 28 item 1.2. Observer firmware `snmp` on/off added as a separately read group (no `snmp.community`). |
 | Run CLI on node | DMC | Partial | App | Companion `CMD_RUN_CLI_COMMAND 66` (v14+) available to host. |
+| Channel spam detection and blocking (Spam Guard) | N/A | Present | App | Not an official-app or DMC firmware feature: modelled on the separate openhop-spamguard add-on for OpenHop nodes and written from scratch. Detects spam behaviour on the protected channels, marks it in chat (with Hide spam) and, in Protect mode, has the host repeater drop what a block catches or writes the blocks into a connected OpenHop node's policy as `rtfm-spam:` rules. Off by default and starts in Monitor. The OpenHop sync is not tested against a real node. Migration `_137`. |
 
 ### Adverts / path / map
 | Feature | Ref | RTFM-EV | Appl. | Notes |
