@@ -90,7 +90,9 @@ from scratch for this codebase; no SpamGuard source is copied.
 - API: `GET /api/spam-guard`, `PUT /api/spam-guard/settings` (versioned, 409
   when stale), `POST /api/spam-guard/action`, `GET /api/spam-guard/rules`,
   `GET /api/spam-guard/health` (503 when something is wrong). WS events
-  `spam_guard` and `message_spam`.
+  `spam_guard` and `message_spam`. Health names what is wrong as codes only;
+  the error text, which can quote a stored value or a node URL, goes to the
+  server log.
 
 ### Spam Guard: evidence log, export and replay
 - **Evidence log** (Settings tab, off by default): while it is on, every

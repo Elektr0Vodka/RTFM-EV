@@ -118,7 +118,14 @@ class SpamGuardRuntime:
             try:
                 config = SpamConfig.model_validate(data)
             except ValidationError as exc:
-                logger.warning("Stored Spam Guard settings are invalid; using defaults")
+                # Which fields, not their values: a value can be a channel key.
+                fields = sorted(
+                    {".".join(str(part) for part in error["loc"]) for error in exc.errors()}
+                )
+                logger.warning(
+                    "Stored Spam Guard settings are invalid; using defaults (fields: %s)",
+                    ", ".join(fields) or "whole document",
+                )
                 self.load_error = str(exc)
                 config = default_config()
             self.version, self.config = version, config
@@ -495,8 +502,8 @@ class SpamGuardRuntime:
             "last_sync_at": sync["last_sync_at"] if on_openhop else None,
             "last_message_at": self.last_message_at,
             "last_saved_at": self._saved_at or None,
-            "last_error": self.last_error or (sync["last_error"] if on_openhop else None),
-            "load_error": self.load_error,
+            # No error text here: ``problems`` and ``warnings`` carry the codes, the
+            # text (which can quote stored values or a node URL) goes to the log.
         }
 
     def _backend_state(self, backend: str) -> str:

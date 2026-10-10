@@ -9,6 +9,7 @@ as HTTP 200 with ``success: false``.
 
 import asyncio
 import copy
+import json
 from typing import Any
 
 import httpx
@@ -647,7 +648,8 @@ class TestOpenHopHealth:
         health = guard.runtime.health()
         assert health["problems"] == ["openhop_sync_failed"]
         assert health["state"] == "bad"
-        assert health["last_error"] == "no route"
+        assert "no route" in guard.runtime.openhop.status()["last_error"]
+        assert "no route" not in json.dumps(health)
         guard.node.fail = None
         await guard.written(1)
         assert guard.runtime.health()["state"] == "ok"

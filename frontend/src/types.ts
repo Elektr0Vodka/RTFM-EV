@@ -2891,8 +2891,6 @@ export interface SpamGuardHealth {
   last_sync_at: number | null;
   last_message_at: number | null;
   last_saved_at: number | null;
-  last_error: string | null;
-  load_error: string | null;
 }
 
 /** The WS `spam_guard` event: a small summary; the page refetches the detail. */

@@ -157,8 +157,6 @@ function makeState(overrides: Partial<SpamGuardState> = {}): SpamGuardState {
       last_sync_at: null,
       last_message_at: NOW - 120,
       last_saved_at: NOW - 30,
-      last_error: null,
-      load_error: null,
     },
     metrics: {
       d1: totals(),

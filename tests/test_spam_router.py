@@ -249,10 +249,13 @@ async def test_health_states(runtime):
     body = json.loads((await router_module.get_spam_guard_health()).body)
     assert body["state"] == "warn" and body["warnings"] == ["host_not_armed"]
 
+    # What went wrong is a code; the exception text stays in the server log.
     runtime.last_error = "boom"
     response = await router_module.get_spam_guard_health()
     assert response.status_code == 503
     assert json.loads(response.body)["problems"] == ["rules_failed"]
+    assert b"boom" not in response.body
+    assert "boom" not in json.dumps(await router_module.get_spam_guard())
     runtime.last_error = None
 
     await runtime.set_enabled(False)

@@ -1,5 +1,6 @@
 """Spam Guard runtime: ingest hook, chat flag, persistence, settings and rule application."""
 
+import json
 import time
 
 import pytest
@@ -259,6 +260,11 @@ class TestPersistence:
         await again.load()
         assert again.config.mode == "monitor"
         assert again.load_error
+        # The reason can quote stored values, so it is not part of the payload.
+        again.enabled = True
+        health = again.health()
+        assert "settings_invalid" in health["warnings"]
+        assert "nonsense" not in json.dumps(health)
         await again.stop()
 
 
