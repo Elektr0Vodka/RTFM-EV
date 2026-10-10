@@ -66,6 +66,12 @@ import type {
   HostRepeaterState,
   HostRepeaterStats,
   HostRepeaterValidateResult,
+  SpamGuardActionResult,
+  SpamGuardReplayRequest,
+  SpamGuardReplayResult,
+  SpamGuardRules,
+  SpamGuardSettings,
+  SpamGuardState,
   OpenHopEnvelope,
   OpenHopGroupKind,
   OpenHopPolicyDoc,
@@ -311,6 +317,28 @@ export const api = {
       `/radio/host-repeater/stats/reset${lifetime ? '?lifetime=true' : ''}`,
       { method: 'POST' }
     ),
+  // Spam Guard: settings are versioned like the host repeater's (409 when stale).
+  getSpamGuard: () => fetchJson<SpamGuardState>('/spam-guard'),
+  saveSpamGuardSettings: (version: number, settings: SpamGuardSettings) =>
+    fetchJson<SpamGuardState>('/spam-guard/settings', {
+      method: 'PUT',
+      body: JSON.stringify({ version, settings }),
+    }),
+  spamGuardAction: (op: string, args: Record<string, unknown> = {}, messageId?: number | null) =>
+    fetchJson<SpamGuardActionResult>('/spam-guard/action', {
+      method: 'POST',
+      body: JSON.stringify({ op, args, message_id: messageId ?? null }),
+    }),
+  getSpamGuardRules: (preview = false) =>
+    fetchJson<SpamGuardRules>(`/spam-guard/rules${preview ? '?preview=true' : ''}`),
+  /** Where the browser downloads the evidence log from (JSON Lines). */
+  spamGuardEvidenceUrl: (days: number, scramble: boolean) =>
+    `${API_BASE}/spam-guard/evidence?days=${days}&scramble=${scramble}`,
+  replaySpamGuard: (body: SpamGuardReplayRequest) =>
+    fetchJson<SpamGuardReplayResult>('/spam-guard/replay', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   getGpsConfig: () => fetchJson<GpsConfig>('/radio/gps'),
   getRadioDefaultFloodScope: (signal?: AbortSignal) =>
     fetchJson<RadioDefaultFloodScope>('/radio/default-flood-scope', { signal }),

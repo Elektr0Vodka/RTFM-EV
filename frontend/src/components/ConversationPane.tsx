@@ -47,6 +47,9 @@ const MeshHealthView = lazy(() =>
 const MeshTrendsView = lazy(() =>
   import('./MeshTrendsView').then((m) => ({ default: m.MeshTrendsView }))
 );
+const SpamGuardView = lazy(() =>
+  import('./SpamGuardView').then((m) => ({ default: m.SpamGuardView }))
+);
 const MeshDiscoveryView = lazy(() =>
   import('./MeshDiscoveryView').then((m) => ({ default: m.MeshDiscoveryView }))
 );
@@ -139,6 +142,11 @@ interface ConversationPaneProps {
   onHiddenHopWidthsChange?: (widths: number[]) => void;
   hideMalformed?: boolean;
   onHideMalformedChange?: (hide: boolean) => void;
+  /** Spam Guard master switch: the page and the chat spam actions exist only while on. */
+  spamGuardEnabled?: boolean;
+  hideSpam?: boolean;
+  onHideSpamChange?: (hide: boolean) => void;
+  onSpamFeedback?: (message: Message, spam: boolean) => void;
   analyzerSites?: import('../types').AnalyzerSite[];
   onHashtagAdded?: (channelName: string) => void;
   onInsertLocation?: (
@@ -288,6 +296,10 @@ export function ConversationPane({
   onHiddenHopWidthsChange,
   hideMalformed,
   onHideMalformedChange,
+  spamGuardEnabled,
+  hideSpam,
+  onHideSpamChange,
+  onSpamFeedback,
   analyzerSites,
   onHashtagAdded,
   onInsertLocation,
@@ -434,6 +446,14 @@ export function ConversationPane({
     return (
       <Suspense fallback={<LoadingPane label={t('common_loading_mesh_trends')} />}>
         <MeshTrendsView contacts={contacts} />
+      </Suspense>
+    );
+  }
+
+  if (activeConversation.type === 'spam-guard') {
+    return (
+      <Suspense fallback={<LoadingPane label={t('common_loading_spam_guard')} />}>
+        <SpamGuardView contacts={contacts} channels={channels} />
       </Suspense>
     );
   }
@@ -783,6 +803,10 @@ export function ConversationPane({
           onHiddenHopWidthsChange={onHiddenHopWidthsChange}
           hideMalformed={hideMalformed}
           onHideMalformedChange={onHideMalformedChange}
+          spamGuardEnabled={spamGuardEnabled}
+          hideSpam={hideSpam}
+          onHideSpamChange={onHideSpamChange}
+          onSpamFeedback={onSpamFeedback}
           analyzerSites={analyzerSites}
           onHashtagAdded={onHashtagAdded}
           onCoordinateClick={onCoordinateClick}

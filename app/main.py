@@ -88,6 +88,7 @@ from app.routers import (
     settings,
     snmp,
     snmp_agent,
+    spam,
     statistics,
     tiles,
     unfurl,
@@ -169,6 +170,14 @@ async def lifespan(app: FastAPI):
         # Defaults (everything off) stay active; the API retries the load on first use.
         logger.warning("Could not load host repeater settings at startup", exc_info=True)
 
+    # Spam Guard (channel spam detection; off unless enabled in Settings).
+    from app.services.spam_guard import spam_guard
+
+    try:
+        await spam_guard.load()
+    except Exception:
+        logger.warning("Could not load Spam Guard at startup", exc_info=True)
+
     # Host repeater neighbour poll (opt-in, transmits; idle unless enabled and active).
     from app.services.host_repeater_neighbor_poll import neighbor_poller
 
@@ -230,6 +239,7 @@ async def lifespan(app: FastAPI):
 
     await host_repeater_tx.stop()
     await neighbor_poller.stop()
+    await spam_guard.stop()
     await host_repeater.stop()
     await stop_link_edge_backfill()
     await stop_periodic_advert()
@@ -317,6 +327,7 @@ app.include_router(regions.router, prefix="/api")
 app.include_router(external_map.router, prefix="/api")
 app.include_router(partial_resolution.router, prefix="/api")
 app.include_router(openhop.router, prefix="/api")
+app.include_router(spam.router, prefix="/api")
 app.include_router(statistics.router, prefix="/api")
 app.include_router(unfurl.router, prefix="/api")
 app.include_router(tiles.router, prefix="/api")

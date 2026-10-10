@@ -514,6 +514,17 @@ class AppSettingsUpdate(BaseModel):
     ollama_model: str | None = Field(
         default=None, description="Ollama model for unread summaries (e.g. phi3:mini)"
     )
+    spam_guard_enabled: bool | None = Field(
+        default=None,
+        description="Master switch for Spam Guard (channel spam detection).",
+    )
+    hide_spam: bool | None = Field(
+        default=None,
+        description=(
+            "Hide incoming channel messages flagged as spam in chat and exclude them "
+            "from unread counts, mentions and Web Push."
+        ),
+    )
     discovery_blocked_types: list[int] | None = Field(
         default=None,
         description=(
@@ -855,6 +866,11 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
     if update.ollama_model is not None:
         kwargs["ollama_model"] = update.ollama_model.strip()
         logger.info("Updating ollama_model to %r", kwargs["ollama_model"])
+    if update.spam_guard_enabled is not None:
+        kwargs["spam_guard_enabled"] = update.spam_guard_enabled
+
+    if update.hide_spam is not None:
+        kwargs["hide_spam"] = update.hide_spam
 
     # Discovery blocked types
     if update.discovery_blocked_types is not None:
@@ -1126,6 +1142,14 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
 
             logger.info("known_regions changed; scheduling region backfill")
             asyncio.create_task(backfill_message_regions(result.known_regions))
+
+        # The Spam Guard master switch takes effect at once: off clears its
+        # forwarding rules, on starts analysing new channel messages.
+        if "spam_guard_enabled" in kwargs:
+            from app.services.spam_guard import spam_guard
+
+            await spam_guard.ensure_loaded()
+            await spam_guard.set_enabled(result.spam_guard_enabled)
 
         return result
 

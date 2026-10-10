@@ -47,6 +47,8 @@ interface UseRealtimeAppStateArgs {
   hiddenHopWidthsRef?: MutableRefObject<ReadonlySet<number>>;
   /** Whether the chat "Hide malformed" filter is on. */
   hideMalformedRef?: MutableRefObject<boolean>;
+  /** Whether the chat "Hide spam" filter is on. */
+  hideSpamRef?: MutableRefObject<boolean>;
   channelsRef: MutableRefObject<Channel[]>;
   activeConversationRef: MutableRefObject<Conversation | null>;
   observeMessage: (msg: Message) => { added: boolean; activeConversation: boolean };
@@ -71,6 +73,8 @@ interface UseRealtimeAppStateArgs {
   ) => void;
   /** An outgoing DM ran out of retries without an ACK. */
   receiveMessageFailed?: (messageId: number, failedAt: number) => void;
+  /** Spam Guard set or cleared the spam flag on messages already in chat. */
+  receiveMessageSpam?: (messageIds: number[], spam: boolean) => void;
   /** A message row was removed on the server (e.g. a failed DM replaced by a retry). */
   removeMessage?: (messageId: number) => void;
   notifyIncomingMessage?: (msg: Message) => void;
@@ -126,6 +130,7 @@ export function useRealtimeAppState({
   blockedNamesRef,
   hiddenHopWidthsRef,
   hideMalformedRef,
+  hideSpamRef,
   channelsRef,
   activeConversationRef,
   observeMessage,
@@ -139,6 +144,7 @@ export function useRealtimeAppState({
   removeConversationMessages,
   receiveMessageAck,
   receiveMessageFailed,
+  receiveMessageSpam,
   removeMessage,
   notifyIncomingMessage,
   notifyNewNode,
@@ -242,7 +248,7 @@ export function useRealtimeAppState({
           msg.type === 'CHAN' &&
           !!msg.conversation_key &&
           channelsRef.current.some((c) => c.key === msg.conversation_key && c.muted);
-        // Hidden by the chat hop-size or malformed filter: stored (the list
+        // Hidden by the chat hop-size, malformed or spam filter: stored (the list
         // filters it from view) but treated like a muted channel, so it raises
         // no unread count, notification, sound or mention ticker. Matches the
         // server's /unreads and Web Push, which apply the same settings.
@@ -251,7 +257,8 @@ export function useRealtimeAppState({
           !!hiddenHopWidthsRef &&
           isMessageHiddenByHopWidth(msg.paths, hiddenHopWidthsRef.current);
         const isMalformedHidden = !msg.outgoing && !!msg.malformed && !!hideMalformedRef?.current;
-        const isSilenced = isMutedChannel || isHopHidden || isMalformedHidden;
+        const isSpamHidden = !msg.outgoing && !!msg.spam && !!hideSpamRef?.current;
+        const isSilenced = isMutedChannel || isHopHidden || isMalformedHidden || isSpamHidden;
 
         const { added: isNewMessage, activeConversation: isForActiveConversation } =
           observeMessage(msg);
@@ -380,6 +387,12 @@ export function useRealtimeAppState({
           }
         }
       },
+      onMessageSpam: (messageIds: number[], spam: boolean) => {
+        receiveMessageSpam?.(messageIds, spam);
+        // With "Hide spam" on, earlier copies that were counted as unread
+        // just left (or rejoined) the count: take the server's totals.
+        if (hideSpamRef?.current) void refreshUnreads();
+      },
       onMessageDeleted: (messageId: number) => {
         removeMessage?.(messageId);
         // Deleting an unread message changes its conversation's count (and
@@ -404,6 +417,7 @@ export function useRealtimeAppState({
       channelsRef,
       hiddenHopWidthsRef,
       hideMalformedRef,
+      hideSpamRef,
       checkMention,
       fetchAllContacts,
       fetchConfig,
@@ -417,6 +431,7 @@ export function useRealtimeAppState({
       recordMessageEvent,
       receiveMessageAck,
       receiveMessageFailed,
+      receiveMessageSpam,
       removeMessage,
       observeMessage,
       refreshUnreads,

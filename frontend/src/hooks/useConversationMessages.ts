@@ -117,6 +117,16 @@ export class ConversationMessageCache {
     return undefined;
   }
 
+  /** Set or clear the Spam Guard flag on cached messages. */
+  updateSpam(messageIds: ReadonlySet<number>, spam: boolean): void {
+    for (const entry of this.cache.values()) {
+      if (!entry.messages.some((message) => messageIds.has(message.id))) continue;
+      entry.messages = entry.messages.map((message) =>
+        messageIds.has(message.id) ? { ...message, spam } : message
+      );
+    }
+  }
+
   /** Mark a cached outgoing message as failed (no ACK after all retries). */
   updateFailed(messageId: number, failedAt: number): void {
     for (const entry of this.cache.values()) {
@@ -355,6 +365,7 @@ interface UseConversationMessagesResult {
     packetId?: number | null
   ) => void;
   receiveMessageFailed: (messageId: number, failedAt: number) => void;
+  receiveMessageSpam: (messageIds: number[], spam: boolean) => void;
   removeMessage: (messageId: number) => void;
   reconcileOnReconnect: () => void;
   renameConversationMessages: (oldId: string, newId: string) => void;
@@ -994,6 +1005,19 @@ export function useConversationMessages(
     [setMessages]
   );
 
+  const receiveMessageSpam = useCallback(
+    (messageIds: number[], spam: boolean) => {
+      const ids = new Set(messageIds);
+      setMessages((prev) =>
+        prev.some((m) => ids.has(m.id) && !!m.spam !== spam)
+          ? prev.map((m) => (ids.has(m.id) ? { ...m, spam } : m))
+          : prev
+      );
+      conversationMessageCache.updateSpam(ids, spam);
+    },
+    [setMessages]
+  );
+
   const removeMessage = useCallback(
     (messageId: number) => {
       const removed = messagesRef.current.find((m) => m.id === messageId);
@@ -1065,6 +1089,7 @@ export function useConversationMessages(
     observeMessage,
     receiveMessageAck,
     receiveMessageFailed,
+    receiveMessageSpam,
     removeMessage,
     reconcileOnReconnect,
     renameConversationMessages,

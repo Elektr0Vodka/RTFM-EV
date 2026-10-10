@@ -1,3 +1,4 @@
+import { SpamGuardStatusLine } from '../spamGuard/SpamGuardStatusLine';
 import { useEffect, useState } from 'react';
 import { api } from '../../api';
 import type { AppSettings, AppSettingsUpdate, HealthStatus, OpenHopStatus } from '../../types';
@@ -76,6 +77,7 @@ export function OpenHopSettings({ health, appSettings, onSaveAppSettings }: Prop
       <Separator />
       <h3 className="text-base font-semibold tracking-tight">{t('settings_openhop_heading')}</h3>
       <p className="text-xs text-muted-foreground">{t('settings_openhop_desc')}</p>
+      <SpamGuardStatusLine />
 
       <div className="space-y-2">
         <Label htmlFor="openhop-api-url">{t('settings_openhop_url_label')}</Label>

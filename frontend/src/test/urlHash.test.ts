@@ -414,6 +414,19 @@ describe('manual (User Guide) route', () => {
   });
 });
 
+describe('spam-guard (Tools > Spam Guard) route', () => {
+  it('parses #spam-guard', () => {
+    window.location.hash = '#spam-guard';
+    expect(parseHashConversation()).toEqual({ type: 'spam-guard', name: 'spam-guard' });
+  });
+
+  it('builds #spam-guard from a spam-guard conversation', () => {
+    expect(getConversationHash({ type: 'spam-guard', id: 'spam-guard', name: 'Spam Guard' })).toBe(
+      '#spam-guard'
+    );
+  });
+});
+
 describe('snmp (Tools > SNMP) route', () => {
   let originalHash: string;
 

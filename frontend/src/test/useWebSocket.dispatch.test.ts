@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useWebSocket } from '../useWebSocket';
 import { subscribeHostRepeaterEvents } from '../utils/hostRepeaterEvents';
+import { subscribeSpamGuardEvents } from '../utils/spamGuardEvents';
 import fixtures from './fixtures/websocket_events.json';
 
 class MockWebSocket {
@@ -213,6 +214,28 @@ describe('useWebSocket dispatch', () => {
     unsubscribe();
 
     expect(received).toEqual([payload]);
+  });
+
+  it('fans spam_guard events out to window listeners', () => {
+    const received: unknown[] = [];
+    const unsubscribe = subscribeSpamGuardEvents((payload) => received.push(payload));
+    renderHook(() => useWebSocket({}));
+
+    const payload = { enabled: true, version: 2, mode: 'protect', paused: false, blocks: 3 };
+    fireMessage({ type: 'spam_guard', data: payload });
+    unsubscribe();
+
+    expect(received).toEqual([payload]);
+  });
+
+  it('routes message_spam to onMessageSpam', () => {
+    const onMessageSpam = vi.fn();
+    renderHook(() => useWebSocket({ onMessageSpam }));
+
+    fireMessage({ type: 'message_spam', data: { message_ids: [4, 5], spam: true } });
+
+    expect(onMessageSpam).toHaveBeenCalledOnce();
+    expect(onMessageSpam).toHaveBeenCalledWith([4, 5], true);
   });
 
   it('routes error event to onError', () => {

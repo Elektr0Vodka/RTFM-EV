@@ -255,6 +255,19 @@ class LifetimeStats:
         }
 
 
+def _lifetime_rule_key(rule_id: str) -> str:
+    """Rule id to keep in the persisted totals.
+
+    Spam Guard's managed rules come and go with every spam text, so their ids
+    (``spam:text:<hash>``, ``spam:hop:27``) would grow the lifetime row without
+    bound. They are counted per kind there (``spam:text``); the session stats
+    keep the full id.
+    """
+    if rule_id.startswith("spam:"):
+        return ":".join(rule_id.split(":")[:2])
+    return rule_id
+
+
 def _float_map(raw: Any) -> dict[str, float]:
     if not isinstance(raw, dict):
         return {}
@@ -753,7 +766,7 @@ class HostRepeaterRuntime:
                 self._add_saved_airtime(decision)
         if decision.policy_rule_id:
             s.policy_matches[decision.policy_rule_id] += 1
-            lt.policy_matches[decision.policy_rule_id] += 1
+            lt.policy_matches[_lifetime_rule_key(decision.policy_rule_id)] += 1
         for rule_id in decision.policy_passes:
             s.policy_passes[rule_id] += 1
             lt.policy_passes[rule_id] += 1
@@ -794,8 +807,11 @@ class HostRepeaterRuntime:
             by_reason = stats.saved_airtime_by_reason
             by_reason[decision.reason] = by_reason.get(decision.reason, 0.0) + ms
             if decision.reason == "policy_drop" and decision.policy_rule_id:
+                rule_id = decision.policy_rule_id
+                if stats is self.lifetime:
+                    rule_id = _lifetime_rule_key(rule_id)
                 by_rule = stats.saved_airtime_by_rule
-                by_rule[decision.policy_rule_id] = by_rule.get(decision.policy_rule_id, 0.0) + ms
+                by_rule[rule_id] = by_rule.get(rule_id, 0.0) + ms
 
     def _track_echo(self, decision: Decision, env, arrival: float, latency_ms: float) -> None:
         """Measure the gap between our first reception and the first neighbour relay."""

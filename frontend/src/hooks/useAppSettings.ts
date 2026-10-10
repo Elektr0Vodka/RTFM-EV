@@ -74,6 +74,22 @@ export function useAppSettings() {
     }
   }, []);
 
+  // Chat "Hide spam" filter (Spam Guard's flag), same pattern.
+  const handleSetHideSpam = useCallback(async (hide: boolean) => {
+    setAppSettings((prev) => (prev ? { ...prev, hide_spam: hide } : prev));
+    try {
+      setAppSettings(await api.updateSettings({ hide_spam: hide }));
+      setHiddenHopWidthsVersion((v) => v + 1);
+    } catch (err) {
+      console.error('Failed to save spam filter:', err);
+      try {
+        setAppSettings(await api.getSettings());
+      } catch {
+        // If refetch also fails, leave optimistic state
+      }
+    }
+  }, []);
+
   const handleToggleBlockedKey = useCallback(async (key: string) => {
     const normalizedKey = key.toLowerCase();
     setAppSettings((prev) => {
@@ -282,6 +298,7 @@ export function useAppSettings() {
     handleSaveAppSettings,
     handleSetHiddenHopWidths,
     handleSetHideMalformed,
+    handleSetHideSpam,
     hiddenHopWidthsVersion,
     handleToggleBlockedKey,
     handleToggleBlockedName,

@@ -19,6 +19,13 @@ always gets the same verdict; ``throttle_seconds`` keeps one budget per rule
 (or per sender / channel / first hop with ``throttle_key``), lets one match per
 window slip past as a ``pass`` and decides the excess. Throttle state lives in a
 ``PolicyState`` the caller owns (RAM only, like the firmware).
+
+Managed layers (Spam Guard): ``evaluate_layers`` runs two extra rule lists
+around the user's rules, one before and one after. They are generated at
+runtime, never stored in the user's policy document, and are evaluated even
+when the user's policy engine is off. The first matching rule across all three
+lists decides, so the lists read as one OpenHop rule list
+``before + user + after``.
 """
 
 from __future__ import annotations
@@ -26,6 +33,7 @@ from __future__ import annotations
 import hashlib
 import re
 from collections import OrderedDict
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -87,27 +95,46 @@ def evaluate_policy(
     seconds) and ``state`` enable ``throttle_seconds``. Without them a throttled
     rule always decides.
     """
-    if not policy.enabled:
-        return PolicyDecision(action="allow", matched=False)
+    return evaluate_layers((), policy, (), fields, packet_hash=packet_hash, now=now, state=state)
+
+
+def evaluate_layers(
+    before: Sequence[PolicyRule],
+    policy: PolicyConfig,
+    after: Sequence[PolicyRule],
+    fields: dict[str, Any],
+    *,
+    packet_hash: str = "",
+    now: float | None = None,
+    state: PolicyState | None = None,
+) -> PolicyDecision:
+    """``evaluate_policy`` with managed rules placed around the user's rules.
+
+    ``before`` and ``after`` are always evaluated; the user's rules and their
+    ``default_action`` only count while ``policy.enabled``. The default applies
+    after every layer, as it would at the end of one combined rule list.
+    """
     passes: list[str] = []
-    for rule in policy.rules:
-        if not rule.enabled:
-            continue
-        if not _matches(rule.condition, fields, policy):
-            continue
-        if not _roll(rule, packet_hash):
-            continue
-        if _throttle_pass(rule, fields, now, state):
-            passes.append(rule.id)
-            continue
-        return PolicyDecision(
-            action=rule.then.action,
-            matched=True,
-            rule_id=rule.id,
-            rule_name=rule.name or None,
-            passes=tuple(passes),
-        )
-    return PolicyDecision(action=policy.default_action, matched=False, passes=tuple(passes))
+    for rules in (before, policy.rules if policy.enabled else (), after):
+        for rule in rules:
+            if not rule.enabled:
+                continue
+            if not _matches(rule.condition, fields, policy):
+                continue
+            if not _roll(rule, packet_hash):
+                continue
+            if _throttle_pass(rule, fields, now, state):
+                passes.append(rule.id)
+                continue
+            return PolicyDecision(
+                action=rule.then.action,
+                matched=True,
+                rule_id=rule.id,
+                rule_name=rule.name or None,
+                passes=tuple(passes),
+            )
+    default = policy.default_action if policy.enabled else "allow"
+    return PolicyDecision(action=default, matched=False, passes=tuple(passes))
 
 
 def _roll(rule: PolicyRule, packet_hash: str) -> bool:

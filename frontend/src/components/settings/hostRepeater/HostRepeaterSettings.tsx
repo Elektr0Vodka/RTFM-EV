@@ -1,3 +1,4 @@
+import { SpamGuardStatusLine } from '../../spamGuard/SpamGuardStatusLine';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from '../../ui/sonner';
 import { Button } from '../../ui/button';
@@ -286,6 +287,7 @@ export function HostRepeaterSettings({ health, floodScopeRegions, repeaters }: P
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">{t('settings_host_repeater_intro')}</p>
+      <SpamGuardStatusLine />
 
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="font-medium">{t('settings_host_repeater_state_label')}</span>

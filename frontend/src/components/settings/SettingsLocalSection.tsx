@@ -913,6 +913,41 @@ export function SettingsLocalSection({
             </div>
           </div>
 
+          <div className="space-y-3 rounded-md border border-border/60 p-3">
+            <div className="text-sm font-semibold">{t('settings_spam_guard_heading')}</div>
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id="spam-guard-enabled"
+                checked={appSettings?.spam_guard_enabled ?? false}
+                onCheckedChange={(checked) =>
+                  onSaveAppSettings?.({ spam_guard_enabled: checked === true })
+                }
+                className="mt-0.5"
+              />
+              <div className="space-y-1">
+                <Label htmlFor="spam-guard-enabled">{t('settings_spam_guard_enabled_label')}</Label>
+                <p className="text-[0.8125rem] text-muted-foreground">
+                  {t('settings_spam_guard_enabled_desc')}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id="spam-guard-hide"
+                checked={appSettings?.hide_spam ?? false}
+                disabled={!(appSettings?.spam_guard_enabled ?? false)}
+                onCheckedChange={(checked) => onSaveAppSettings?.({ hide_spam: checked === true })}
+                className="mt-0.5"
+              />
+              <div className="space-y-1">
+                <Label htmlFor="spam-guard-hide">{t('settings_spam_guard_hide_label')}</Label>
+                <p className="text-[0.8125rem] text-muted-foreground">
+                  {t('settings_spam_guard_hide_desc')}
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div className="flex items-start gap-3 rounded-md border border-border/60 p-3">
             <Checkbox
               id="chat-parse-pubkeys"

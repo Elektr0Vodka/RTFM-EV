@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -902,6 +902,119 @@ describe('MessageList hop-size filter', () => {
 
     await openFilterAndCheck(user, /hide malformed/i);
     expect(onChange).toHaveBeenCalledWith(false);
+  });
+
+  const spamIncoming = (id: number) =>
+    createMessage({
+      id,
+      sender_name: 'UD6DWREK',
+      text: `UD6DWREK: cheap radios ${id}`,
+      spam: true,
+      received_at: 1700000000 + id,
+    });
+  const spamOutgoing = (id: number) =>
+    createMessage({
+      id,
+      outgoing: true,
+      text: `mine ${id}`,
+      spam: true,
+      received_at: 1700000000 + id,
+    });
+
+  it('hides spam from the saved setting, keeps own messages, and reports toggles', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const { container } = render(
+      <MessageList
+        messages={[twoByte(20), spamIncoming(21), spamOutgoing(22)]}
+        contacts={[]}
+        loading={false}
+        spamGuardEnabled
+        hideSpam
+        onHideSpamChange={onChange}
+      />
+    );
+    expect(row(container, 20)).not.toBeNull();
+    expect(row(container, 21)).toBeNull();
+    expect(row(container, 22)).not.toBeNull(); // your own message always stays
+
+    await openFilterAndCheck(user, /hide spam/i);
+    expect(onChange).toHaveBeenCalledWith(false);
+  });
+
+  it('marks flagged messages while Spam Guard is on', () => {
+    const { container } = render(
+      <MessageList
+        messages={[twoByte(20), spamIncoming(21)]}
+        contacts={[]}
+        loading={false}
+        spamGuardEnabled
+      />
+    );
+    expect(within(row(container, 21) as HTMLElement).getByText('Spam')).toBeInTheDocument();
+    expect(within(row(container, 20) as HTMLElement).queryByText('Spam')).toBeNull();
+  });
+
+  it('neither hides nor marks anything while Spam Guard is off', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <MessageList
+        messages={[twoByte(20), spamIncoming(21)]}
+        contacts={[]}
+        loading={false}
+        hideSpam
+        onHideSpamChange={vi.fn()}
+      />
+    );
+    // With the feature off there is no way to see or undo a flag, so a
+    // leftover "Hide spam" setting must not keep messages out of view.
+    expect(row(container, 21)).not.toBeNull();
+    expect(within(row(container, 21) as HTMLElement).queryByText('Spam')).toBeNull();
+    await user.click(screen.getByRole('button', { name: /filter messages/i }));
+    expect(screen.queryByRole('checkbox', { name: /hide spam/i })).toBeNull();
+  });
+
+  it('offers "This is spam" on an unflagged message and "Not spam" on a flagged one', () => {
+    const onSpamFeedback = vi.fn();
+    const clean = twoByte(20);
+    const flagged = spamIncoming(21);
+    const { container } = render(
+      <MessageList
+        messages={[clean, flagged, spamOutgoing(22)]}
+        contacts={[]}
+        loading={false}
+        spamGuardEnabled
+        onSpamFeedback={onSpamFeedback}
+      />
+    );
+    const cleanRow = within(row(container, 20) as HTMLElement);
+    expect(cleanRow.queryByRole('button', { name: 'Not spam' })).toBeNull();
+    fireEvent.click(cleanRow.getByRole('button', { name: 'This is spam' }));
+    expect(onSpamFeedback).toHaveBeenCalledWith(clean, true);
+
+    const flaggedRow = within(row(container, 21) as HTMLElement);
+    expect(flaggedRow.queryByRole('button', { name: 'This is spam' })).toBeNull();
+    fireEvent.click(flaggedRow.getByRole('button', { name: 'Not spam' }));
+    expect(onSpamFeedback).toHaveBeenCalledWith(flagged, false);
+
+    // Your own messages are never the detector's business.
+    expect(
+      within(row(container, 22) as HTMLElement).queryByRole('button', { name: /spam/i })
+    ).toBeNull();
+  });
+
+  it('offers no spam feedback while Spam Guard is off', () => {
+    const { container } = render(
+      <MessageList
+        messages={[twoByte(20)]}
+        contacts={[]}
+        loading={false}
+        onSpamFeedback={vi.fn()}
+      />
+    );
+    expect(
+      within(row(container, 20) as HTMLElement).queryByRole('button', { name: /spam/i })
+    ).toBeNull();
   });
 
   const scoped = (id: number) =>

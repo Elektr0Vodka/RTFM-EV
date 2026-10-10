@@ -127,6 +127,12 @@ How it runs:
   next run.
 - After a run that deleted rows the server returns the freed space to the operating
   system (`PRAGMA incremental_vacuum`).
+- The Spam Guard evidence log is pruned in the same run, but its limit is not set
+  here: it is **Keep evidence for** on the Spam Guard page (Settings tab, 1 to 30
+  days, default 7). It has no row in the table, and **Keep everything (analyzer)**
+  and **Restore defaults** leave it alone. Switching the log off stops new records;
+  the ones already stored stay until they pass that age. `POST /api/retention/prune`
+  reports the deleted records as `spam_evidence`.
 
 The defaults match the behaviour before these settings existed, so upgrading does
 not delete anything that was kept before. The manual **Storage Cleanup** tools in

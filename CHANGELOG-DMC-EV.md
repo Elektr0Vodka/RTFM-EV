@@ -11,6 +11,144 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-09 (Spam Guard: channel spam protection, feat/spam-guard-completion)
+
+Migration `_137`. No new dependency. Off by default.
+
+Behaviour is modelled on [openhop-spamguard](https://github.com/flackrat/openhop-spamguard)
+v5.11.3 (features, default numbers and worked examples). The code is written
+from scratch for this codebase; no SpamGuard source is copied.
+
+### Spam Guard (new)
+- **Detects channel spam behaviour, never people or opinions:** the same or a
+  similar text under several made-up, disguised or brand-new names (also with
+  words added, look-alike letters, leetspeak or emoji tricks), floods of
+  copies, repeaters that spam enters the mesh through, and a spammer whose
+  repeater keeps changing its identity. Every automatic block expires.
+- **Monitor and Protect.** It starts in Monitor, where spam is detected and
+  shown but nothing is blocked. In Protect the host repeater does not forward
+  what a block catches. Three sensitivity presets (relaxed, balanced, strict)
+  plus every tunable with a note on its side effects. On an OpenHop radio
+  Protect writes the rules into the node's policy (see below).
+- **Known people.** Names seen sending genuine messages pass the blocks that
+  hold people (a spam repeater, links from unknown names, a lockdown).
+  **Lockdown** lets only known names through for 30 minutes to 2 hours.
+  Messages from normal-looking names that were held are listed under
+  "Possibly genuine, held" with **Let through**.
+- **No "block this sender by name".** A repeater is shared, such a block is
+  invisible downstream, and names can be copied.
+- **Chat:** flagged messages carry a Spam marker, earlier copies of a campaign
+  are flagged after the fact, and each incoming channel message has **This is
+  spam** / **Not spam**. The chat filter menu and Settings offer **Hide
+  spam**, which also keeps flagged messages out of unread counts, mentions,
+  Web Push and the Ollama unread summary (`messages.spam`,
+  `app_settings.hide_spam`).
+- **Spam Guard page** in the sidebar Tools, listed only while the feature is
+  on: Overview (mode, health, numbers and charts for 24 hours, 7 days and hour
+  of day), Protection (blocks, held messages, lockdown, block a repeater or a
+  text yourself), Messages (what it read and the signals it saw), Spam sources
+  (first-hop repeaters in a table and on the map, with every contact that fits
+  a short route code listed rather than guessed) and Settings (protected
+  channels, tunables, exceptions, the rendered forwarding rules).
+- **Settings > Local Configuration > Spam protection** has the master switch
+  (`app_settings.spam_guard_enabled`) and Hide spam. The host repeater and
+  OpenHop settings show a one line status.
+- **OpenHop radio:** an OpenHop node forwards on its own, so in Protect the
+  blocks are synced into its policy through its API
+  (`services/spam_backend_openhop.py`). RTFM-EV reads `/api/policy`, keeps
+  every rule that is not its own and writes its rules before and after them,
+  named `rtfm-spam:...` with integer ids, plus the known-people object
+  `@rtfmspam.known_senders`. Your rules, other objects, groups and
+  `default_action` are passed through as read.
+  - Written only on a change and at most every 2 seconds. The node is read
+    again every 60 seconds and rules that are missing or altered are put
+    back; Health counts those repairs and shows the sync state.
+  - Needs the API URL and token under OpenHop management. Switches the
+    node's policy engine on when there are rules to write, and never off.
+  - Monitor and Pause write no rules and remove the ones that are there.
+    Rules are also removed when Spam Guard is switched off, when another
+    radio connects and when RTFM-EV shuts down, because an OpenHop rule
+    does not expire by itself. A dropped link to the node does not remove
+    them; blocks that end in the meantime are still taken off the node.
+  - **Nothing is written to a node that has `spamguard:` rules** (a real
+    SpamGuard runs there); rules written earlier are taken out and Health
+    says why.
+  - **A private channel's key stays here until you agree.** OpenHop needs
+    the channel key inside a rule to read sender and text. For Public and
+    hashtag channels that key is public. For a private channel the Settings
+    tab asks, per channel, before the key is copied into the node's
+    `policy.yaml` (`share_key` in the settings); until then that channel
+    is left out of the rules and Health says so.
+  - `/api/policy_validate` is not used as a gate: read from the OpenHop
+    source, it only normalises the four top-level keys and cannot reject a
+    rule. Rule ids are untyped on the node; ours are integers.
+- **Host repeater:** blocks become managed policy rules evaluated around your
+  own rules (`evaluate_layers` in `host_repeater_policy.py`). They are held in
+  memory, never written into your stored policy, and are also evaluated while
+  your own policy engine is off. A repeater block can match on the first hop
+  ("starts at this repeater"), which OpenHop rules cannot express.
+- API: `GET /api/spam-guard`, `PUT /api/spam-guard/settings` (versioned, 409
+  when stale), `POST /api/spam-guard/action`, `GET /api/spam-guard/rules`,
+  `GET /api/spam-guard/health` (503 when something is wrong). WS events
+  `spam_guard` and `message_spam`. Health names what is wrong as codes only;
+  the error text, which can quote a stored value or a node URL, goes to the
+  server log.
+
+### Spam Guard: evidence log, export and replay
+- **Evidence log** (Settings tab, off by default): while it is on, every
+  message Spam Guard analyses is kept with what it made of it (route, name
+  signals, known or not, the block that caught it), and so is every This is
+  spam / Not spam answer. Kept for 1 to 30 days (`evidence_days`, default 7)
+  and deleted by the retention pruner. A record never holds a channel key,
+  only a short one-way id of it.
+- **Download** as JSON Lines: `GET /api/spam-guard/evidence?days=&scramble=`.
+  A scrambled download replaces every sender name and `@[name]` mention with
+  a code that is the same within that file and different in the next one,
+  and leaves out the channel names. A name typed into a message as plain
+  text cannot be recognised and stays.
+- **Replay** (`POST /api/spam-guard/replay`): runs the stored log, or an
+  uploaded evidence file, through a fresh detector with the settings in the
+  form (unsaved changes included) and shows what would have been stopped on
+  arrival next to what was stopped at the time, and for the messages you
+  labelled: caught, flagged afterwards, missed, let through, wrongly held.
+  Nothing is stored or changed. A replay starts cold, like a fresh install,
+  and leaves out blocks and exceptions made by hand. At most 20000 messages
+  per replay; measured cost is 6 to 8 ms per message on a busy synthetic
+  channel.
+- A scrambled file still replays properly: the look of each name (its score
+  and whether it was disguised) is recorded, and the replay uses that
+  instead of judging the codes. Trusted names do not apply to such a file.
+- Detector: the shared text of a running campaign is now worked out once
+  per set of copies instead of on every message.
+- Channel messages the radio hands over without their raw packet (the
+  `CHANNEL_MSG_RECV` fallback, for example messages it queued while RTFM-EV
+  was away) are now analysed too: they are flagged in chat, count towards
+  campaigns and known people, and go into the evidence log. They come
+  without hop hashes, so they count as heard directly and never lead to a
+  repeater block. They are timed at the moment they are pulled from the
+  radio, which can be later than when they were sent.
+
+### Differences from openhop-spamguard (deliberate)
+- **Monitor writes no rules.** SpamGuard writes `log_only` rules in Monitor
+  mode. Both OpenHop and the host engine stop at the first matching rule, so a
+  `log_only` rule ahead of your rules would let through a packet one of your
+  `drop` rules should stop.
+- **Rotation blocks let known people through and are evaluated last.** In
+  SpamGuard's order a rotation allow exception lets an unknown name past a
+  lockdown.
+- Sender history is pruned by last seen, not first seen, so a regular does not
+  count as brand new again every 24 hours.
+
+### Not in this change
+- If RTFM-EV stops without a clean shutdown, or cannot reach the node's API,
+  rules already on an OpenHop node stay there until it reaches the node
+  again. They can be removed by hand in the node's policy editor (names
+  starting with `rtfm-spam:`).
+- RTFM-EV's own OpenHop policy editor lists the `rtfm-spam:` rules next to
+  yours; a change made to them there is undone at the next check.
+- Not tested on live RF. The OpenHop sync is tested against a fake of the
+  node's policy API written from the OpenHop source, not against a real node.
+
 ## Update 2026-10-10 (community fork follow-ups, fix/community-fork-followups)
 
 Four follow-ups to the community fork work (#288, #289). No migration, no new

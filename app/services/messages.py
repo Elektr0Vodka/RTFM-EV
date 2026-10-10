@@ -78,6 +78,7 @@ def build_message_model(
     transport_code: int | None = None,
     region: str | None = None,
     malformed: bool = False,
+    spam: bool = False,
 ) -> Message:
     """Build a Message model with the canonical backend payload shape."""
     return Message(
@@ -100,6 +101,7 @@ def build_message_model(
         transport_code=transport_code,
         region=region,
         malformed=malformed,
+        spam=spam,
     )
 
 
@@ -293,9 +295,13 @@ async def create_message_from_decrypted(
     packet_hash: str | None = None,
     transport_code: int | None = None,
     region: str | None = None,
+    packet_len: int | None = None,
 ) -> int | None:
     """Store and broadcast a decrypted channel message."""
     received = received_at or int(time.time())
+    # Spam Guard reads the text as it was sent: that is what a forwarding
+    # rule on the host repeater or an OpenHop node matches on.
+    wire_text = message_text
     message_text = decode_message_text(message_text)
     text = f"{sender}: {message_text}" if sender else message_text
     channel_key_normalized = channel_key.upper()
@@ -350,6 +356,23 @@ async def create_message_from_decrypted(
     )
     await RawPacketRepository.mark_decrypted(packet_id, msg_id)
 
+    spam = False
+    if realtime:
+        # Before the broadcast, so a message caught by an existing block is
+        # already flagged when it reaches chat, unread counts and Web Push.
+        from app.services.spam_guard import spam_guard
+
+        spam = await spam_guard.on_channel_message(
+            message_id=msg_id,
+            channel_key=channel_key_normalized,
+            sender=sender,
+            text=wire_text,
+            path=path,
+            path_len=path_len,
+            received_at=received,
+            packet_len=packet_len,
+        )
+
     broadcast_message(
         message=build_message_model(
             message_id=msg_id,
@@ -366,6 +389,7 @@ async def create_message_from_decrypted(
             transport_code=transport_code,
             region=region,
             malformed=malformed,
+            spam=spam,
         ),
         broadcast_fn=broadcast_fn,
         realtime=realtime,
@@ -599,6 +623,7 @@ async def create_fallback_channel_message(
 ) -> Message | None:
     """Store and broadcast a CHANNEL_MSG_RECV fallback channel message."""
     conversation_key_normalized = conversation_key.upper()
+    wire_text = message_text  # what Spam Guard reads, as in create_message_from_decrypted
     message_text = decode_message_text(message_text)
     text = f"{sender_name}: {message_text}" if sender_name else message_text
     malformed = is_malformed_channel_message(message_text, sender_timestamp, received_at)
@@ -637,6 +662,21 @@ async def create_fallback_channel_message(
         )
         return None
 
+    # No raw packet came with this message, so the host repeater never judged
+    # (or forwarded) it: Spam Guard reads it for chat flagging and learning only.
+    from app.services.spam_guard import spam_guard
+
+    spam = await spam_guard.on_channel_message(
+        message_id=msg_id,
+        channel_key=conversation_key_normalized,
+        sender=sender_name,
+        text=wire_text,
+        path=path,
+        path_len=path_len,
+        received_at=received_at,
+        raw_frame=False,
+    )
+
     message = build_message_model(
         message_id=msg_id,
         msg_type="CHAN",
@@ -650,6 +690,7 @@ async def create_fallback_channel_message(
         sender_key=resolved_sender_key,
         channel_name=channel_name,
         malformed=malformed,
+        spam=spam,
     )
     broadcast_message(message=message, broadcast_fn=broadcast_fn)
     return message

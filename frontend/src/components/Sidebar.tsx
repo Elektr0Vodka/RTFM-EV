@@ -25,6 +25,7 @@ import {
   Plus,
   Radar,
   ScanSearch,
+  ShieldCheck,
   Search as SearchIcon,
   Settings2,
   SquarePen,
@@ -220,6 +221,8 @@ function loadCollapsedState(): CollapseState {
 }
 
 interface SidebarProps {
+  /** Spam Guard master switch: its tool row only exists while it is on. */
+  spamGuardEnabled?: boolean;
   contacts: Contact[];
   channels: Channel[];
   activeConversation: Conversation | null;
@@ -287,6 +290,7 @@ function loadInitialSectionSortOrders(): SidebarSectionSortOrders {
 }
 
 export function Sidebar({
+  spamGuardEnabled = false,
   contacts,
   channels,
   activeConversation,
@@ -558,6 +562,7 @@ export function Sidebar({
       | 'mesh-trends'
       | 'mesh-discovery'
       | 'snmp'
+      | 'spam-guard'
       | 'analyze'
       | 'packet-history'
       | 'manual'
@@ -1432,6 +1437,20 @@ export function Sidebar({
             handleSelectConversation({ type: 'snmp', id: 'snmp', name: t('nav_snmp') }),
           iconOnly,
         });
+      case 'spam-guard':
+        return renderSidebarActionRow({
+          key: 'tool-spam-guard',
+          active: isActive('spam-guard', 'spam-guard'),
+          icon: <ShieldCheck className="h-4 w-4" />,
+          label: t('nav_spam_guard'),
+          onClick: () =>
+            handleSelectConversation({
+              type: 'spam-guard',
+              id: 'spam-guard',
+              name: t('nav_spam_guard'),
+            }),
+          iconOnly,
+        });
       case 'raw':
         return renderSidebarActionRow({
           key: 'tool-raw',
@@ -1596,7 +1615,9 @@ export function Sidebar({
   const hiddenToolSet = new Set<string>(hidden.tools);
   const hiddenFavoriteSet = new Set<string>(hidden.favorites);
 
-  const visibleToolOrder = toolOrder.filter((k) => !hiddenToolSet.has(k));
+  // A tool that belongs to a switched-off feature is not offered at all.
+  const availableToolOrder = toolOrder.filter((k) => k !== 'spam-guard' || spamGuardEnabled);
+  const visibleToolOrder = availableToolOrder.filter((k) => !hiddenToolSet.has(k));
   const toolRows = !query ? visibleToolOrder.map((k) => buildToolRow(k, false)) : [];
   const toolIconRows = visibleToolOrder.map((k) => buildToolRow(k, true));
 
@@ -1973,6 +1994,7 @@ export function Sidebar({
     'mesh-trends': t('nav_mesh_trends'),
     'mesh-discovery': t('nav_mesh_discovery'),
     snmp: t('nav_snmp'),
+    'spam-guard': t('nav_spam_guard'),
     raw: t('nav_packet_feed'),
     'packet-history': t('nav_packet_history'),
     analyze: t('nav_analyze_packet'),
@@ -2095,7 +2117,7 @@ export function Sidebar({
                       {t('nav_tool_order')}
                     </div>
                     <DragList
-                      items={toolOrder}
+                      items={availableToolOrder}
                       labels={toolLabels}
                       onReorder={handleReorderTools}
                       moveUpLabel={t('nav_move_up')}

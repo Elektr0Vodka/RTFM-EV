@@ -8,6 +8,7 @@ RTFM-EV is a fork of [RemoteTerm for MeshCore](https://github.com/jkingsman/Remo
 - a MapLibre and deck.gl map with packet replay, link history and several overlays
 - analysis views: My Node, Mesh Health, Mesh Trends, Packet History, Mesh Discovery, SNMP
 - a host repeater that judges every received packet the way a repeater would (shadow mode, optional live forwarding)
+- Spam Guard: channel spam detection that flags spam in chat and keeps the host repeater from forwarding it
 - loadouts, a radio identity registry, database backup/restore and per-class data retention
 - an interface in English, Dutch and German, extra themes and an in-app User Guide
 
@@ -85,6 +86,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - Radio identity registry: history per radio, and a prompt when a different radio connects (new radio or replacement).
 - Loadouts: named sets of channels and contacts to load onto the radio, for example before disconnecting it.
 - [Host repeater](#host-repeater) in shadow mode, with optional live forwarding.
+- [Spam Guard](#spam-guard): channel spam detection with a Monitor and a Protect mode, off by default.
 
 ### Integrations and automation
 
@@ -330,6 +332,18 @@ RTFM-EV can judge every packet its radio receives the way a repeater would: Mesh
 - The DMC packet filter follows the `dmc-observer-dev` firmware: hop and rate limits (with soft cutoff), minimum path hash size, blocked channels, the malformed scan, a per-node advert window, blocked path prefixes, sender and text rules (block, throttle or a share of matches) on Public and watched `#` channels, a message age limit, and a dry-run mode that counts drops without dropping.
 - **Neighbour poll** (opt-in, transmits): every 12-336 hours it sends one zero-hop repeater discover and asks each neighbour for its flood regions, like a DMC observer repeater. The neighbours table also fills from zero-hop repeater adverts.
 - With the community MQTT integration, the host repeater can publish the DMC observer `filter` topic (filter counters and region gate state) and this node's own `neighbors` topic. Both are opt-in per integration and only publish while the host repeater is in shadow or armed mode; shadow counters are marked `dryrun`.
+
+### Spam Guard
+
+Spam Guard detects channel spam behaviour and, in Protect mode, keeps the host repeater or a connected OpenHop node from forwarding it. It is modelled on [openhop-spamguard](https://github.com/flackrat/openhop-spamguard) and written from scratch for RTFM-EV. Switch it on in Settings > Local Configuration > Spam protection; a **Spam Guard** page then appears in the sidebar.
+
+- **It judges behaviour, never people or opinions:** the same text under several made-up or brand-new names, floods of copies, repeaters that spam enters the mesh through, and a repeater that keeps changing its identity. There is no "block this sender" button, and every automatic block expires.
+- **Monitor** (the starting mode) detects and shows spam without blocking anything. **Protect** makes the host repeater drop what a block catches. That only has an effect on air while the [host repeater](#host-repeater) is armed; in shadow mode you see what would have been dropped.
+- **Known people** (names seen sending genuine messages) pass the blocks that hold people. **Lockdown** lets only known names through for a while during a heavy attack. Messages from normal-looking names that were held are listed with a **Let through** button.
+- **In chat**, flagged messages carry a Spam marker and each channel message has **This is spam** / **Not spam**. **Hide spam** hides flagged messages and keeps them out of unread counts, mentions, push notifications and the Ollama unread summary.
+- **Evidence log and replay** (off by default): keeps every analysed message and your This is spam / Not spam answers for 1 to 30 days. Download it as JSON Lines, optionally scrambled (sender names and @mentions replaced by codes, channel names left out), or replay it against other settings to see what they would have caught, missed or wrongly held. A replay changes nothing. The log never holds a channel key.
+- **A repeater is shared.** What your repeater does not forward disappears for everyone downstream, and they cannot see why. Run Monitor for a day before switching to Protect.
+- **On an OpenHop radio** the node forwards on its own, so Protect writes the blocks into the node's policy through its API, as rules named `rtfm-spam:...` placed before and after your own rules. Your own rules, objects and groups are passed through untouched. It needs the API URL and token under OpenHop management, switches the node's policy engine on, checks the node every minute and puts its rules back if they were changed there. The rules are removed when you switch to Monitor, pause, switch Spam Guard off, connect another radio or shut RTFM-EV down: an OpenHop rule does not expire by itself. A private channel is only enforced on the node after you agree, per channel, to its key being copied into the node's policy file. Nothing is written to a node that already has `spamguard:` rules. Not tested against a real OpenHop node yet.
 
 ## Documentation
 

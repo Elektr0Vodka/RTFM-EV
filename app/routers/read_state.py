@@ -40,6 +40,7 @@ async def get_unreads() -> UnreadCounts:
         blocked_names=blocked_names,
         hidden_hop_widths=settings.hidden_hop_widths or None,
         hide_malformed=settings.hide_malformed,
+        hide_spam=settings.hide_spam,
     )
     return UnreadCounts(**data)
 
