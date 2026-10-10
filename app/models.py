@@ -1510,7 +1510,12 @@ class PathDiscoveryResponse(BaseModel):
 class CommandRequest(BaseModel):
     """Request to send a CLI command to a repeater."""
 
-    command: str = Field(min_length=1, description="CLI command to send")
+    command: str = Field(
+        description=(
+            "CLI command to send, exactly as typed. An empty command is allowed: "
+            "a blank line ends an interactive `region load`."
+        )
+    )
 
 
 class CommandResponse(BaseModel):
@@ -2254,6 +2259,14 @@ class AppSettings(BaseModel):
         description=(
             "When enabled, tracked repeaters/contacts with a direct or routed (non-flood) "
             "path are polled every hour instead of on the normal scheduled interval."
+        ),
+    )
+    telemetry_schedule_minute: int = Field(
+        default=-1,
+        description=(
+            "Minute of the UTC hour at which scheduled telemetry collection runs. "
+            "-1 = automatic (derived from the connected radio's public key); 0-59 = "
+            "a fixed minute, so nodes near each other can be given different minutes."
         ),
     )
     auto_resend_channel: bool = Field(

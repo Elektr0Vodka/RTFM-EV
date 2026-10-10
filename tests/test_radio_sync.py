@@ -2844,6 +2844,157 @@ class TestTelemetryCollectSchedulerDecision:
         )
 
     @pytest.mark.asyncio
+    async def test_post_boot_check_waits_when_this_hours_run_is_still_ahead(self):
+        """The scheduled minute of a matching hour has not come yet when the
+        initial delay ends. The loop's first wake runs that cycle, so the
+        post-boot check must not run it a second time in the same hour.
+        """
+        from unittest.mock import AsyncMock, patch
+
+        from app import radio_sync
+        from app.models import AppSettings
+
+        settings = AppSettings(
+            tracked_telemetry_repeaters=["aa" * 32],
+            telemetry_interval_hours=8,
+        )
+        runs = 0
+
+        async def fake_cycle(**_kwargs):
+            nonlocal runs
+            runs += 1
+
+        class FakeDatetime:
+            @classmethod
+            def now(cls, tz=None):
+                import datetime as real_datetime
+
+                # 08:10 UTC in a matching hour; this radio's minute is 37.
+                return real_datetime.datetime(2026, 4, 16, 8, 10, 0, tzinfo=real_datetime.UTC)
+
+        sleeps: list[float] = []
+
+        async def fake_sleep(duration):
+            sleeps.append(duration)
+            if len(sleeps) >= 3:
+                raise asyncio.CancelledError()
+
+        with (
+            patch(
+                "app.radio_sync.AppSettingsRepository.get",
+                new_callable=AsyncMock,
+                return_value=settings,
+            ),
+            patch("app.radio_sync._run_telemetry_cycle", new=fake_cycle),
+            patch("app.radio_sync.asyncio.sleep", new=fake_sleep),
+            patch("app.radio_sync.datetime", new=FakeDatetime),
+            patch("app.radio_sync.current_telemetry_schedule_minute", return_value=37),
+        ):
+            try:
+                await radio_sync._telemetry_collect_loop()
+            except asyncio.CancelledError:
+                pass
+
+        # Sleeps: initial delay, then 27 minutes to 08:37, then the next wake.
+        assert sleeps[1] == 27 * 60
+        assert runs == 1, "one cycle at the 08:37 wake, none from the post-boot check"
+
+    @pytest.mark.asyncio
+    async def test_a_changed_minute_does_not_run_a_second_cycle_in_the_same_hour(self):
+        """The minute is moved from 10 to 50 after the 08:10 cycle ran. The
+        loop then wakes again at 08:50, in an hour it has already handled.
+        """
+        import datetime as real_datetime
+        from unittest.mock import AsyncMock, patch
+
+        from app import radio_sync
+        from app.models import AppSettings
+
+        settings = AppSettings(
+            tracked_telemetry_repeaters=["aa" * 32],
+            telemetry_interval_hours=8,
+            telemetry_schedule_minute=10,
+        )
+        runs = 0
+
+        async def fake_cycle(**_kwargs):
+            nonlocal runs
+            runs += 1
+            settings.telemetry_schedule_minute = 50
+
+        clock = [real_datetime.datetime(2026, 4, 16, 8, 5, 0, tzinfo=real_datetime.UTC)]
+
+        class FakeDatetime:
+            @classmethod
+            def now(cls, tz=None):
+                return clock[0]
+
+        sleeps: list[float] = []
+
+        async def fake_sleep(duration):
+            sleeps.append(duration)
+            if len(sleeps) == 1:
+                return  # the initial delay; the clock is already past it
+            if len(sleeps) >= 4:
+                raise asyncio.CancelledError()
+            clock[0] = clock[0] + real_datetime.timedelta(seconds=duration)
+
+        with (
+            patch(
+                "app.radio_sync.AppSettingsRepository.get",
+                new_callable=AsyncMock,
+                return_value=settings,
+            ),
+            patch("app.radio_sync._run_telemetry_cycle", new=fake_cycle),
+            patch("app.radio_sync.asyncio.sleep", new=fake_sleep),
+            patch("app.radio_sync.datetime", new=FakeDatetime),
+        ):
+            try:
+                await radio_sync._telemetry_collect_loop()
+            except asyncio.CancelledError:
+                pass
+
+        # 08:05 -> sleep 5 min to 08:10 (cycle), 40 min to 08:50 (same hour,
+        # no cycle), then an hour to 09:50.
+        assert sleeps[1:] == [5 * 60, 40 * 60, 3600]
+        assert runs == 1
+
+    def test_schedule_minute_prefers_the_setting(self):
+        from unittest.mock import MagicMock, patch
+
+        from app import radio_sync
+
+        mc = MagicMock()
+        mc.self_info = {"public_key": "0025" + "ab" * 30}
+        with patch("app.radio_sync.radio_manager", MagicMock(meshcore=mc)):
+            assert radio_sync.current_telemetry_schedule_minute(12) == 12
+            assert radio_sync.current_telemetry_schedule_minute(-1) == 37
+
+    def test_seconds_until_the_schedule_minute(self):
+        from datetime import UTC, datetime
+
+        from app import radio_sync
+
+        at = lambda h, m, s=0: datetime(2026, 4, 16, h, m, s, tzinfo=UTC)  # noqa: E731
+        assert radio_sync._seconds_until_schedule_minute(at(8, 10), 37) == 27 * 60
+        assert radio_sync._seconds_until_schedule_minute(at(8, 50), 37) == 47 * 60
+        # On the minute itself the next wake is a full hour away.
+        assert radio_sync._seconds_until_schedule_minute(at(8, 37), 37) == 3600
+        assert radio_sync._seconds_until_schedule_minute(at(8, 59, 30), 0) == 30
+
+    def test_schedule_minute_comes_from_the_connected_radio(self):
+        from unittest.mock import MagicMock, patch
+
+        from app import radio_sync
+
+        mc = MagicMock()
+        mc.self_info = {"public_key": "0025" + "ab" * 30}
+        with patch("app.radio_sync.radio_manager", MagicMock(meshcore=mc)):
+            assert radio_sync.current_telemetry_schedule_minute() == 37
+        with patch("app.radio_sync.radio_manager", MagicMock(meshcore=None)):
+            assert radio_sync.current_telemetry_schedule_minute() == 0
+
+    @pytest.mark.asyncio
     async def test_clamps_up_when_preferred_illegal_for_current_count(self):
         """5 tracked repeaters with saved pref 1h: scheduler should use 6h.
 

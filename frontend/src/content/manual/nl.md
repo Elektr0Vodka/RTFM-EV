@@ -187,7 +187,7 @@ Klik op een avatar of naam om de info van een contact te openen. Op een computer
 - **Telemetrie delen:** wat je radio deelt als dit contact om telemetrie vraagt.
 - **Contactlink:** een `meshcore://`-link tonen of kopiëren.
 - **Naam opzoeken via analyzer** voor contacten die alleen bij publieke sleutel bekend zijn. Alleen die sleutel wordt naar de site gestuurd.
-- Opzoeklinks voor ingestelde analyzers, **Trianguleren**, en het blokkeren van de sleutel of naam.
+- Opzoeklinks voor ingestelde analyzers, **Trianguleren**, en het blokkeren van de sleutel of naam. De chatkop van een contact heeft dezelfde opzoekactie als pictogram, en de pakketdetails hebben **Afzender opzoeken op** een site wanneer het pakket een volledige afzendersleutel opleverde.
 
 Favoriete contacten blijven op de radio geladen, zodat de radio hun directe berichten kan bevestigen.
 
@@ -197,7 +197,7 @@ Klik op het routelabel naast de naam van een contact (bijvoorbeeld het aantal ho
 
 ### Repeaters
 
-Als je een repeater opent, zie je een inlogformulier: log in met het wachtwoord of als gast. Het dashboard heeft daarna panelen voor Node-info, Telemetrie, Radio-instellingen (met advertintervallen), LPP-sensoren, Buren, ACL, Regio's en Eigenaarsinfo, plus Acties (Zero-hop-advertentie, Flood-advertentie, Klok synchroniseren, Herstarten), een Console met CLI-toegang, telemetriegeschiedenis en een paneel Geschiedenis dat laat zien wat er tussen opgeslagen momentopnamen veranderd is. **Alles laden** haalt alle panelen na elkaar op.
+Als je een repeater opent, zie je een inlogformulier: log in met het wachtwoord of als gast. Het dashboard heeft daarna panelen voor Node-info, Telemetrie, Radio-instellingen (met advertintervallen), LPP-sensoren, Buren, ACL, Regio's en Eigenaarsinfo, plus Acties (Zero-hop-advertentie, Flood-advertentie, Klok synchroniseren, Herstarten), een Console met CLI-toegang, telemetriegeschiedenis en een paneel Geschiedenis dat laat zien wat er tussen opgeslagen momentopnamen veranderd is. **Alles laden** haalt alle panelen na elkaar op. De Console verstuurt een regel precies zoals getypt, ook spaties vooraan en een lege regel; dat heeft `region load` van de firmware nodig.
 
 Met Instellingen bewerken wijzig je één repeaterinstelling tegelijk: je past aan, bevestigt het exacte CLI-commando, het wordt via RF verstuurd en de waarde wordt teruggelezen ter controle. Voor het wijzigen van frequentie, bandbreedte, spreading factor of coding rate moet je eerst de naam van de repeater typen, omdat een verkeerde waarde hem uit de lucht kan halen. De groep Observer-firmware (SNMP-agent aan/uit) werkt alleen op DMC observer- en agessaman observer-firmware: gebruik eerst de eigen knop Lezen en herstart de repeater na een wijziging.
 
@@ -374,7 +374,7 @@ RTFM-EV kan elk ontvangen pakket beoordelen zoals een repeater dat zou doen. **S
 
 ### Lokale configuratie
 
-Instellingen voor deze browser of dit apparaat: taal, kleurthema (inclusief vier CRT-fosforthema's) en CRT-schermeffecten, het **Bureaubladmaatje** (nadat je het thema Windows 95 hebt gebruikt), branding (appnaam en pictogram, gedeeld door alle apparaten), een lokaal label, **Afstandseenheden**, **Coördinaatformaat**, **Datum- en tijdnotatie**, relatieve lettergrootte, UI-aanpassingen (zoals laatste gesprek opnieuw openen, batterijweergave en **Vervangen tijdens het typen**), het geluid bij vermeldingen en DM's, meldingen voor nieuwe nodes, **Chatverwerking** en **Web Push-meldingen**.
+Instellingen voor deze browser of dit apparaat: taal, kleurthema (inclusief vier CRT-fosforthema's) en CRT-schermeffecten, het **Bureaubladmaatje** (nadat je het thema Windows 95 hebt gebruikt), branding (appnaam en pictogram, gedeeld door alle apparaten), een lokaal label, **Afstandseenheden**, **Coördinaatformaat**, **Datum- en tijdnotatie**, relatieve lettergrootte, UI-aanpassingen (zoals laatste gesprek opnieuw openen, batterijweergave en **Vervangen tijdens het typen**), het geluid bij vermeldingen en DM's, meldingen voor nieuwe nodes, **Chatverwerking** en **Web Push-meldingen**. **Doorsturen naar aanmelden** is voor een installatie achter een reverse proxy die het aanmelden regelt: als de sessie is verlopen gaat de app naar het adres dat je invult, of wordt de pagina opnieuw geladen als het veld leeg is.
 
 ### MQTT en automatisering
 
@@ -386,7 +386,7 @@ Alleen zichtbaar als de verbonden node een OpenHop-node is. Stel het adres en de
 
 ### Radio-app-beheer
 
-**Gevolgde Repeatertelemetrie** en **Gevolgde Contacttelemetrie**, namen opzoeken voor naamloze contacten, **Contactbeheer** (nieuwe nodetypen blokkeren, geblokkeerde sleutels en namen, verwijderen in bulk), **Loadouts**, en **Synchronisatie deels bekende nodes**, dat nodes die je alleen van een prefix kent vergelijkt met de nodelijst van de analyzer. Je beoordeelt elke match voordat hij als omkeerbare zachte koppeling wordt opgeslagen.
+**Gevolgde Repeatertelemetrie** en **Gevolgde Contacttelemetrie**, namen opzoeken voor naamloze contacten, **Contactbeheer** (nieuwe nodetypen blokkeren, geblokkeerde sleutels en namen, verwijderen in bulk), **Loadouts**, en **Synchronisatie deels bekende nodes**, dat nodes die je alleen van een prefix kent vergelijkt met de nodelijst van de analyzer. Je beoordeelt elke match voordat hij als omkeerbare zachte koppeling wordt opgeslagen. Telemetrie wordt één keer per uur verzameld, op de **Minuut van het uur** die je bij Gevolgde Repeatertelemetrie instelt. **Automatisch** leidt een minuut af van de sleutel van je radio; geef nodes die dicht bij elkaar staan verschillende minuten, zodat hun verzoeken niet tegelijk de lucht in gaan.
 
 **SNMP-agent** (standaard uit) laat een monitoringsysteem zoals LibreNMS of Zabbix deze node via SNMP uitlezen, met dezelfde waarden als de observer-firmware. Stel de UDP-poort en een eigen community in; publiceer in Docker ook de poort. De agent is alleen-lezen en gebruikt de radio nooit.
 

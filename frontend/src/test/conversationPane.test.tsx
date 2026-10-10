@@ -67,6 +67,9 @@ function setViewport(isMobile: boolean) {
   });
 }
 
+// Stands in for the real panel's per-room login cache, which outlives a remount.
+const authenticatedRooms = new Set<string>();
+
 vi.mock('../components/RoomServerPanel', () => ({
   RoomServerPanel: ({
     contact,
@@ -77,10 +80,24 @@ vi.mock('../components/RoomServerPanel', () => ({
   }) => {
     // Mirrors the real panel: login state is read once, when the component mounts.
     const [mountedFor] = React.useState(contact.public_key);
+    // Also like the real panel: the cached login is restored on mount and
+    // reported to the parent from an effect.
+    const [authenticated, setAuthenticated] = React.useState(() =>
+      authenticatedRooms.has(contact.public_key)
+    );
+    React.useEffect(() => {
+      onAuthenticatedChange?.(authenticated);
+    }, [authenticated, onAuthenticatedChange]);
     return (
       <div>
         <div data-testid="room-server-panel" data-mounted-for={mountedFor} />
-        <button type="button" onClick={() => onAuthenticatedChange?.(true)}>
+        <button
+          type="button"
+          onClick={() => {
+            authenticatedRooms.add(contact.public_key);
+            setAuthenticated(true);
+          }}
+        >
           Authenticate room
         </button>
       </div>
@@ -216,6 +233,7 @@ function createProps(overrides: Partial<React.ComponentProps<typeof Conversation
 describe('ConversationPane', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    authenticatedRooms.clear();
     mocks.messageList.mockImplementation(() => <div data-testid="message-list" />);
     // Standalone dashboards render on mobile; desktop convergence tests opt out.
     setViewport(true);
@@ -586,6 +604,58 @@ describe('ConversationPane', () => {
     await waitFor(() => {
       expect(screen.getByTestId('room-server-panel')).toHaveAttribute('data-mounted-for', roomB);
     });
+  });
+
+  it('shows the room chat again when returning to a room that is logged in', async () => {
+    // The parent reset its login gate from an effect keyed on the conversation.
+    // That effect runs after the remounted panel has reported its cached login,
+    // so the chat stayed hidden until a page reload.
+    const room = 'cc'.repeat(32);
+    const contacts: Contact[] = [
+      {
+        public_key: room,
+        name: 'Ops Board',
+        type: 3,
+        flags: 0,
+        direct_path: null,
+        direct_path_len: -1,
+        direct_path_hash_mode: -1,
+        last_advert: null,
+        lat: null,
+        lon: null,
+        last_seen: null,
+        on_radio: false,
+        favorite: false,
+        radio_policy: 'auto',
+        last_contacted: null,
+        last_read_at: null,
+        first_seen: null,
+      },
+    ];
+    const roomConversation = { type: 'contact', id: room, name: 'Ops Board' } as const;
+
+    const { rerender } = render(
+      <ConversationPane {...createProps({ activeConversation: roomConversation, contacts })} />
+    );
+    await waitFor(() => expect(screen.getByTestId('room-server-panel')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Authenticate room' }));
+    await waitFor(() => expect(screen.getByTestId('message-input')).toBeInTheDocument());
+
+    rerender(
+      <ConversationPane
+        {...createProps({
+          activeConversation: { type: 'channel', id: 'AA'.repeat(16), name: 'Public' },
+          contacts,
+        })}
+      />
+    );
+    await waitFor(() => expect(screen.queryByTestId('room-server-panel')).not.toBeInTheDocument());
+
+    rerender(
+      <ConversationPane {...createProps({ activeConversation: roomConversation, contacts })} />
+    );
+    await waitFor(() => expect(screen.getByTestId('room-server-panel')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('message-input')).toBeInTheDocument());
   });
 
   it('does not give the room panel and message list the same React key', async () => {

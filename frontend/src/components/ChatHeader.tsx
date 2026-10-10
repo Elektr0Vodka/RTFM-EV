@@ -3,6 +3,7 @@ import {
   Bell,
   BellOff,
   ChevronsLeftRight,
+  ExternalLink,
   Globe2,
   Info,
   Library,
@@ -21,13 +22,21 @@ import { useT } from '../i18n';
 import { isPublicChannelKey } from '../utils/publicChannel';
 import { stripRegionScopePrefix, floodScopeOverrideLabel } from '../utils/regionScope';
 import { isPrefixOnlyContact } from '../utils/pubkey';
+import { buildNodeLookupUrl } from '../utils/analyzerLink';
 import { isValidLocation } from '../utils/pathUtils';
 import type { TeamLocationFormat } from '../utils/teamPayloads';
 import { LocationPickerModal } from './LocationPickerModal';
 import { cn } from '../lib/utils';
 import { ContactAvatar } from './ContactAvatar';
 import { ContactStatusInfo } from './ContactStatusInfo';
-import type { Channel, Contact, Conversation, PathDiscoveryResponse, RadioConfig } from '../types';
+import type {
+  AnalyzerSite,
+  Channel,
+  Contact,
+  Conversation,
+  PathDiscoveryResponse,
+  RadioConfig,
+} from '../types';
 import { CONTACT_TYPE_ROOM } from '../types';
 
 interface ChatHeaderProps {
@@ -35,6 +44,8 @@ interface ChatHeaderProps {
   contacts: Contact[];
   channels: Channel[];
   config: RadioConfig | null;
+  /** External analyzers a contact can be looked up on (Settings > Handy Info). */
+  analyzerSites?: AnalyzerSite[];
   notificationsSupported: boolean;
   notificationsEnabled: boolean;
   notificationsPermission: NotificationPermission | 'unsupported';
@@ -76,6 +87,7 @@ export function ChatHeader({
   contacts,
   channels,
   config,
+  analyzerSites = [],
   notificationsSupported,
   notificationsEnabled,
   notificationsPermission,
@@ -448,6 +460,31 @@ export function ChatHeader({
             disabled={activeContactIsPrefixOnly}
           >
             <DirectTraceIcon className="h-4 w-4 text-muted-foreground" />
+          </button>
+        )}
+        {conversation.type === 'contact' && activeContact && analyzerSites.length > 0 && (
+          <button
+            className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={() => {
+              if (analyzerSites.length > 1) {
+                // Every site is listed in the contact info pane; choose there.
+                onOpenContactInfo?.(activeContact.public_key);
+                return;
+              }
+              const url = buildNodeLookupUrl(analyzerSites[0], activeContact.public_key);
+              if (url) window.open(url, '_blank', 'noopener,noreferrer');
+            }}
+            title={
+              activeContactIsPrefixOnly
+                ? t('a11y_analyzer_lookup_unavailable')
+                : analyzerSites.length === 1
+                  ? t('contact_analyzer_lookup_title', { name: analyzerSites[0].name })
+                  : t('chat_analyzer_lookup_choose_title')
+            }
+            aria-label={t('a11y_analyzer_lookup')}
+            disabled={activeContactIsPrefixOnly}
+          >
+            <ExternalLink className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           </button>
         )}
         {(notificationsSupported ||

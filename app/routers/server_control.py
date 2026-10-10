@@ -123,11 +123,25 @@ def _cli_echo_tag_for(command: str) -> str | None:
     """Tag to prepend to ``command``, or None when the firmware would not strip it.
 
     The firmware only treats ``command[2] == '|'`` as a tag when the tagged
-    command is longer than 4 characters.
+    command is longer than 4 characters. While a ``region load`` is running it
+    strips no tag at all and reads the leading spaces of each line as the
+    nesting depth (``MyMesh::handleCommand``), so a line that starts with a
+    space goes out untagged: an ordinary command never needs one.
     """
-    if len(command) < 2:
+    if len(command) < 2 or command[0] == " ":
         return None
     return _next_cli_echo_tag()
+
+
+def _cli_wire_text(command: str) -> str:
+    """The text put on air for ``command``.
+
+    The companion firmware refuses a text frame without a text byte
+    (``CMD_SEND_TXT_MSG`` needs ``len >= 14``), so an empty command goes out as
+    one space. The repeater counts a line of spaces as blank
+    (``StrHelper::isBlank``), which is what ends a ``region load``.
+    """
+    return command if command else " "
 
 
 def _reply_matches_tag(text: str, expected_tag: str | None) -> bool:
@@ -653,7 +667,7 @@ async def send_contact_cli_command(
         )
         tag = _cli_echo_tag_for(command)
         send_result = await mc.commands.send_cmd(
-            _cli_command_destination(contact), f"{tag or ''}{command}"
+            _cli_command_destination(contact), f"{tag or ''}{_cli_wire_text(command)}"
         )
 
         if send_result.type == EventType.ERROR:

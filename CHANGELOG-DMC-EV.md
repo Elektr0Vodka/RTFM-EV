@@ -11,6 +11,131 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-10 (community bug fixes and enhancements, fix/community-bugfixes-enhancements)
+
+Seven fixes found by reviewing the open upstream issues and the forks that are
+ahead of upstream (`tristandostaler`, `wchaney817`, `f3sty`), plus fork issue
+#263. Each is written for this tree with a test that failed first; no fork code
+is copied as is. Migration `_138`. No new dependency.
+
+### Rooms
+- **Room chat shows again when you come back to a logged-in room**
+  (tristandostaler `f52d4463`, upstream issue 301 item 4). The conversation
+  pane reset its login gate from an effect. That effect ran after the
+  remounted room panel had reported its cached login, so the chat and the
+  composer stayed hidden until a page reload. The gate is now reset during
+  render.
+- **A confirmed room login fetches the messages already waiting**
+  (tristandostaler `70d133dc`). The room server pushes the posts since the last
+  sync as soon as it accepts the login. Auto-fetch is stopped for the duration
+  of the login and `meshcore` does not look at the queue when it starts again,
+  so a post that arrived in that window stayed on the radio until the next
+  message or the hourly audit. `POST /api/contacts/{key}/room/login` now asks
+  the radio once after an authenticated login. This talks to the own radio
+  only, nothing more goes on air. Not done after a refused or unconfirmed
+  login.
+
+### Repeaters
+- **The "login not confirmed" warning goes away once the login has proved
+  itself** (wchaney817 `63cc1c5a`, upstream issue 326). A pane fetch or a
+  console command that the repeater answered marks the last login attempt as
+  confirmed and clears the error. A failed fetch leaves the warning in place.
+- **The console sends a line exactly as typed** (tristandostaler `ba60f996`,
+  `de03b643`). Leading spaces were trimmed and an empty line could not be
+  sent, so the firmware's interactive `region load` could not be used: it
+  reads the leading spaces as the nesting depth and a blank line as the end
+  (`MyMesh::handleCommand`, simple_repeater and simple_room_server). Now:
+  - the Send button is active on an empty input and the history shows
+    leading spaces; empty lines are left out of the arrow-up recall;
+  - the API accepts an empty command (`CommandRequest.command`);
+  - an empty command goes on air as one space, because the companion firmware
+    refuses a text frame without a text byte (`CMD_SEND_TXT_MSG` needs
+    `len >= 14`) and the repeater counts a line of spaces as blank
+    (`StrHelper::isBlank`). tristandostaler sends a NUL byte here; a space is
+    used because the blank check for it is in the firmware source;
+  - a line that starts with a space gets no `XX|` reply tag. The firmware
+    strips no tag while a load is running, so a tagged line would count as
+    depth 0 and be dropped.
+  - Not tried on a repeater. The firmware sends no reply to a load line, so
+    each one waits out the normal reply timeout before the next can be sent.
+
+### Telemetry
+- **Scheduled telemetry no longer runs at the top of the hour** (f3sty
+  `ccf98498`, extended). Every instance woke at minute 0 UTC, so all their
+  requests went on air at the same moment. The scheduler now wakes once per
+  hour at a minute of its own.
+- **That minute can be set**: Settings > Radio & App > Tracked Repeater
+  Telemetry > **Minute of the hour**. **Automatic** (the default) takes it
+  from the connected radio's public key (first two bytes modulo 60), so it is
+  the same after a restart and differs between radios; while no radio is
+  connected it is 0. Or pick `:00` to `:59`, so nodes near each other can be
+  given different minutes. `app_settings.telemetry_schedule_minute`
+  (migration `_138`, `-1` = automatic), `PATCH /api/settings`, and
+  `schedule_minute` / `schedule_minute_auto` on the telemetry schedule.
+- The hour gate is evaluated at most once per UTC hour, so moving the minute
+  later within an hour does not run a second cycle. A changed minute applies
+  from the next wake. The interval and the 24 checks per day ceiling are
+  unchanged; which hours run is still counted in UTC.
+- The "Next run at" line now shows that minute; its suffix reads "(hours
+  counted in UTC)" in place of "(UTC top of hour)".
+
+### Behind a reverse proxy
+- **A run-out sign-in session is noticed** (wchaney817 `d33c90ba`, upstream
+  issue 346). When a proxy in front of the app (Authelia, oauth2-proxy)
+  answers with `401`, or with a `403` that is not the backend's own, the app
+  goes to the address under Settings > Local Configuration > **Sign-in
+  Redirect**, or reloads the page when that is empty. Before, it kept showing
+  stale data while every request failed.
+  - The backend's own `403` (private key export while disabled) is a JSON
+    answer with `detail` and does not trigger it.
+  - The WebSocket hides the status of a refused handshake, so after three
+    failed connections in a row `/api/health` is asked over HTTP.
+  - At most one automatic redirect per minute (`sessionStorage`), so a reload
+    that does not bring the session back cannot loop.
+  - Only a path on the same site or an `http(s)` address is accepted.
+    `frontend/src/utils/authRedirect.ts`; the prefetch script in `index.html`
+    repeats the check for the first requests of a page load.
+  - The address is checked again at the moment it is used, not only when it
+    is saved, and the navigation target is rebuilt from the parsed parts
+    behind a literal `http://` or `https://`. A value put into browser storage
+    by other means (`javascript:`, `data:`, `//other-site`) leads to a plain
+    reload. Found by CodeQL (`js/xss-through-dom`) on the pull request: the
+    first version passed the stored value to the navigation as it was.
+  - The query and the fragment of the address are percent-encoded once more
+    before use (`encodeURI`, plus the single quote). Escapes that are already
+    there are kept, so `?rd=https%3A%2F%2Fapp%2F` stays as it is; square
+    brackets, quotes and angle brackets become `%5B`, `%27`, `%3C` and so on.
+    CodeQL kept flagging those two parts after the scheme was fixed. Behind a
+    fixed `http(s)` scheme they cannot run script, so this changes what the
+    scanner can prove more than what a browser would do.
+  - Not tried behind a real proxy: tests only.
+
+### Interface
+- **A dialog taller than the screen can be scrolled** (tristandostaler
+  `233c088b`). `DialogContent` is centred by a translate and had no height
+  cap, so a tall dialog ran off both edges and its close button out of reach.
+  It now caps at the viewport and scrolls. Dialogs that already cap
+  themselves and scroll an inner region keep their own classes.
+- **Analyzer look-up in two more places** (issue #263, plan 04 steps 3 and 4):
+  - Chat header of a contact: a look-up icon, shown when at least one
+    analyzer is configured. One site opens directly; with several it opens
+    the contact info pane, which lists them. Disabled for a contact known by
+    key prefix only.
+  - Packet detail: **Look up sender on** a site, one button per analyzer,
+    only when the packet resolved to a full sender key
+    (`decrypted_info.contact_key`). Wired for the live packet feed.
+  - Links open in a new tab with `noopener,noreferrer`. The public key is
+    sent to that external site, which the tooltip says.
+
+### Noticed, not changed
+- Any operation that suspends auto-fetch (repeater login, telemetry, CLI) has
+  the same gap as the room login had: `start_auto_message_fetching` only
+  subscribes, it does not check the queue. Only the room login is changed
+  here.
+- Some locale strings use `{{name}}` where the translator takes `{name}`
+  (`repeater_owner_info_conflict`, `openhop_config_mode_saved`), which leaves
+  a pair of braces around the value.
+
 ## Update 2026-10-09 (Spam Guard: channel spam protection, feat/spam-guard-completion)
 
 Migration `_137`. No new dependency. Off by default.

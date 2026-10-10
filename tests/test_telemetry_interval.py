@@ -16,7 +16,9 @@ from app.telemetry_interval import (
     clamp_telemetry_interval,
     legal_interval_options,
     next_run_timestamp_utc,
+    resolve_schedule_minute,
     shortest_legal_interval_hours,
+    telemetry_schedule_minute,
 )
 
 
@@ -114,3 +116,61 @@ def test_next_run_accepts_non_utc_input():
     result = next_run_timestamp_utc(8, now=now)
     expected = datetime(2026, 4, 17, 0, 0, 0, tzinfo=UTC)
     assert result == int(expected.timestamp())
+
+
+def test_schedule_minute_is_derived_from_the_radio_key():
+    # First two key bytes, modulo 60: 0x0025 = 37, 0xffff = 65535 -> 15.
+    assert telemetry_schedule_minute("0025" + "ab" * 30) == 37
+    assert telemetry_schedule_minute("ffff" + "00" * 30) == 15
+    assert telemetry_schedule_minute("FFFF" + "00" * 30) == 15
+
+
+def test_schedule_minute_is_the_same_on_every_call():
+    key = "c3a1" + "5e" * 30
+    assert telemetry_schedule_minute(key) == telemetry_schedule_minute(key)
+    assert 0 <= telemetry_schedule_minute(key) < 60
+
+
+@pytest.mark.parametrize("key", [None, "", "zz" * 32, "a"])
+def test_schedule_minute_without_a_usable_key_is_the_top_of_the_hour(key):
+    assert telemetry_schedule_minute(key) == 0
+
+
+def test_next_run_lands_on_the_schedule_minute():
+    # 14:50 UTC, interval 8, minute 37 -> 16:37.
+    now = datetime(2026, 4, 16, 14, 50, 0, tzinfo=UTC)
+    expected = datetime(2026, 4, 16, 16, 37, 0, tzinfo=UTC)
+    assert next_run_timestamp_utc(8, now=now, minute=37) == int(expected.timestamp())
+
+
+def test_next_run_can_still_be_in_the_current_hour():
+    # 08:10 UTC in a matching hour: the 08:37 run has not happened yet.
+    now = datetime(2026, 4, 16, 8, 10, 0, tzinfo=UTC)
+    expected = datetime(2026, 4, 16, 8, 37, 0, tzinfo=UTC)
+    assert next_run_timestamp_utc(8, now=now, minute=37) == int(expected.timestamp())
+
+
+def test_next_run_on_the_schedule_minute_itself_is_the_one_after():
+    now = datetime(2026, 4, 16, 8, 37, 0, tzinfo=UTC)
+    expected = datetime(2026, 4, 16, 16, 37, 0, tzinfo=UTC)
+    assert next_run_timestamp_utc(8, now=now, minute=37) == int(expected.timestamp())
+
+
+def test_next_run_after_the_schedule_minute_skips_to_the_next_matching_hour():
+    now = datetime(2026, 4, 16, 8, 40, 0, tzinfo=UTC)
+    expected = datetime(2026, 4, 16, 16, 37, 0, tzinfo=UTC)
+    assert next_run_timestamp_utc(8, now=now, minute=37) == int(expected.timestamp())
+
+
+def test_a_chosen_minute_wins_over_the_radio_key():
+    key = "0025" + "ab" * 30  # automatic minute 37
+    assert resolve_schedule_minute(12, key) == 12
+    assert resolve_schedule_minute(0, key) == 0
+    assert resolve_schedule_minute(59, key) == 59
+
+
+@pytest.mark.parametrize("setting", [-1, None, 60, 99, -5])
+def test_automatic_or_out_of_range_falls_back_to_the_radio_key(setting):
+    key = "0025" + "ab" * 30
+    assert resolve_schedule_minute(setting, key) == 37
+    assert resolve_schedule_minute(setting, None) == 0

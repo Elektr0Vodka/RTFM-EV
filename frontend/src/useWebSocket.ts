@@ -3,6 +3,12 @@ import type { Channel, HealthStatus, Contact, Message, MessagePath, RawPacket } 
 import { parseWsEvent, type NewNodePayload } from './wsEvents';
 import { emitHostRepeaterEvent } from './utils/hostRepeaterEvents';
 import { emitSpamGuardEvent } from './utils/spamGuardEvents';
+import { probeAuthSession } from './utils/authRedirect';
+
+// A browser hides the HTTP status of a refused WebSocket handshake: a lost
+// reverse-proxy session and a stopped server both end in a plain close. After
+// this many closes in a row, ask over HTTP, which does show the status.
+const AUTH_PROBE_AFTER_FAILURES = 3;
 
 interface ErrorEvent {
   message: string;
@@ -48,6 +54,7 @@ export function useWebSocket(options: UseWebSocketOptions, events?: 'chat') {
   const reconnectTimeoutRef = useRef<number | null>(null);
   const shouldReconnectRef = useRef(true);
   const hasConnectedRef = useRef(false);
+  const failedConnectionsRef = useRef(0);
 
   // Store options in ref to avoid stale closures in WebSocket handlers.
   // The onmessage callback captures this ref, and we keep the ref updated
@@ -81,6 +88,7 @@ export function useWebSocket(options: UseWebSocketOptions, events?: 'chat') {
         optionsRef.current.onReconnect?.();
       }
       hasConnectedRef.current = true;
+      failedConnectionsRef.current = 0;
     };
 
     ws.onclose = () => {
@@ -89,6 +97,11 @@ export function useWebSocket(options: UseWebSocketOptions, events?: 'chat') {
 
       if (!shouldReconnectRef.current) {
         return;
+      }
+
+      failedConnectionsRef.current += 1;
+      if (failedConnectionsRef.current === AUTH_PROBE_AFTER_FAILURES) {
+        void probeAuthSession();
       }
 
       // Reconnect after 3 seconds

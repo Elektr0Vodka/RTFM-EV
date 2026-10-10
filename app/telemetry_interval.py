@@ -62,11 +62,44 @@ def legal_interval_options(n_tracked: int) -> list[int]:
     return [h for h in TELEMETRY_INTERVAL_OPTIONS_HOURS if h >= shortest]
 
 
-def next_run_timestamp_utc(effective_hours: int, now: datetime | None = None) -> int:
-    """Return Unix timestamp for the next UTC top-of-hour where
+def telemetry_schedule_minute(public_key: str | None) -> int:
+    """Return the minute of the hour at which this radio collects telemetry.
+
+    Derived from the first two bytes of the radio's public key, so it is the
+    same after every restart and differs between radios. Every instance waking
+    at minute 0 puts all their telemetry requests on air at the same moment.
+    Without a usable key the answer is 0 (the top of the hour).
+    """
+    if not public_key:
+        return 0
+    try:
+        return int.from_bytes(bytes.fromhex(public_key[:4]), "big") % 60
+    except (TypeError, ValueError):
+        return 0
+
+
+TELEMETRY_SCHEDULE_MINUTE_AUTO = -1
+
+
+def resolve_schedule_minute(setting: int | None, public_key: str | None) -> int:
+    """Return the minute telemetry collection runs at.
+
+    A minute the operator chose (0-59) wins. ``TELEMETRY_SCHEDULE_MINUTE_AUTO``
+    or anything outside the hour means automatic: the minute derived from the
+    radio's key.
+    """
+    if setting is not None and 0 <= setting <= 59:
+        return setting
+    return telemetry_schedule_minute(public_key)
+
+
+def next_run_timestamp_utc(
+    effective_hours: int, now: datetime | None = None, minute: int = 0
+) -> int:
+    """Return Unix timestamp for the next UTC ``HH:minute`` where
     ``hour % effective_hours == 0``.
 
-    Returns the next matching hour strictly in the future (never ``now``
+    Returns the next matching time strictly in the future (never ``now``
     itself, even if ``now`` lies exactly on a matching boundary).
     """
     if effective_hours <= 0:
@@ -76,13 +109,13 @@ def next_run_timestamp_utc(effective_hours: int, now: datetime | None = None) ->
     else:
         now = now.astimezone(UTC)
 
-    # Round up to the next top-of-hour, then skip forward until the modulo matches.
-    candidate = now.replace(minute=0, second=0, microsecond=0)
-    # Always move at least one hour forward so "now" never matches.
-    candidate = candidate.replace(hour=candidate.hour)
     from datetime import timedelta
 
-    candidate = candidate + timedelta(hours=1)
+    # This hour's slot when it is still ahead, otherwise the next hour's, then
+    # skip forward until the modulo matches. "now" itself never matches.
+    candidate = now.replace(minute=minute % 60, second=0, microsecond=0)
+    if candidate <= now:
+        candidate = candidate + timedelta(hours=1)
     while candidate.hour % effective_hours != 0:
         candidate = candidate + timedelta(hours=1)
     return int(candidate.timestamp())

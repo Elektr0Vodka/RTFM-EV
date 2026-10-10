@@ -34,6 +34,7 @@ import { BuddySettings } from './BuddySettings';
 import { BrandingSettings } from './BrandingSettings';
 import { LanguageSelector } from './LanguageSelector';
 import { getLocalLabel, setLocalLabel, type LocalLabel } from '../../utils/localLabel';
+import { getAuthRedirectUrl, setAuthRedirectUrl } from '../../utils/authRedirect';
 import {
   DISTANCE_UNIT_LABELS,
   DISTANCE_UNITS,
@@ -293,6 +294,8 @@ export function SettingsLocalSection({
   );
   const [localLabelText, setLocalLabelText] = useState(() => getLocalLabel().text);
   const [localLabelColor, setLocalLabelColor] = useState(() => getLocalLabel().color);
+  const [authRedirectUrl, setAuthRedirectUrlText] = useState(getAuthRedirectUrl);
+  const [authRedirectInvalid, setAuthRedirectInvalid] = useState(false);
   const [autoFocusInput, setAutoFocusInput] = useState(getAutoFocusInputEnabled);
   const [batteryPercent, setBatteryPercent] = useState(getShowBatteryPercent);
   const [batteryVoltage, setBatteryVoltage] = useState(getShowBatteryVoltage);
@@ -444,6 +447,34 @@ export function SettingsLocalSection({
         </div>
         <p className="text-[0.8125rem] text-muted-foreground">
           {t('settings_local_label_description')}
+        </p>
+      </div>
+
+      <Separator />
+
+      <div className="space-y-3">
+        <h3 className="text-base font-semibold tracking-tight">
+          {t('settings_auth_redirect_heading')}
+        </h3>
+        <Input
+          value={authRedirectUrl}
+          onChange={(e) => {
+            const url = e.target.value;
+            setAuthRedirectUrlText(url);
+            setAuthRedirectInvalid(!setAuthRedirectUrl(url));
+          }}
+          placeholder={t('settings_auth_redirect_placeholder')}
+          aria-label={t('settings_auth_redirect_aria')}
+          aria-invalid={authRedirectInvalid}
+          className={authRedirectInvalid ? 'border-destructive' : undefined}
+        />
+        {authRedirectInvalid && (
+          <p role="alert" className="text-xs text-destructive">
+            {t('settings_auth_redirect_invalid')}
+          </p>
+        )}
+        <p className="text-[0.8125rem] text-muted-foreground">
+          {t('settings_auth_redirect_description')}
         </p>
       </div>
 

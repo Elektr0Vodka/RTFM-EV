@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { isAbortError, api } from '../api';
+import { authNavigation, resetAuthRedirectForTests } from '../utils/authRedirect';
 
 describe('isAbortError', () => {
   it('returns true for AbortError', () => {
@@ -187,6 +188,50 @@ describe('fetchJson (via api methods)', () => {
       await expect(api.toggleTrackedTelemetryContact('aa')).rejects.toThrow(
         'Limit of 8 tracked contacts reached'
       );
+    });
+  });
+
+  describe('a lost reverse-proxy session', () => {
+    function refuse(status: number, body: string) {
+      installMockFetch();
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status,
+        statusText: 'Refused',
+        text: () => Promise.resolve(body),
+      });
+    }
+
+    function spyOnNavigation() {
+      sessionStorage.clear();
+      localStorage.clear();
+      resetAuthRedirectForTests();
+      vi.spyOn(authNavigation, 'assign').mockImplementation(() => {});
+      return vi.spyOn(authNavigation, 'reload').mockImplementation(() => {});
+    }
+
+    it('reloads the page on a 401 and still rejects', async () => {
+      const reload = spyOnNavigation();
+      refuse(401, '<html>login</html>');
+
+      await expect(api.getHealth()).rejects.toMatchObject({ status: 401 });
+      expect(reload).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not reload on a 403 the backend sent itself', async () => {
+      const reload = spyOnNavigation();
+      refuse(403, '{"detail": "Private key export is disabled"}');
+
+      await expect(api.getHealth()).rejects.toThrow('Private key export is disabled');
+      expect(reload).not.toHaveBeenCalled();
+    });
+
+    it('does not reload on an ordinary error', async () => {
+      const reload = spyOnNavigation();
+      refuse(422, '{"detail": "No response"}');
+
+      await expect(api.getHealth()).rejects.toThrow('No response');
+      expect(reload).not.toHaveBeenCalled();
     });
   });
 

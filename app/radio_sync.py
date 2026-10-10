@@ -40,7 +40,11 @@ from app.services.contact_reconciliation import (
 from app.services.messages import create_fallback_channel_message
 from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.room_status import room_status_fields
-from app.telemetry_interval import clamp_telemetry_interval
+from app.telemetry_interval import (
+    TELEMETRY_SCHEDULE_MINUTE_AUTO,
+    clamp_telemetry_interval,
+    resolve_schedule_minute,
+)
 from app.websocket import broadcast_error, broadcast_event
 
 logger = logging.getLogger(__name__)
@@ -197,7 +201,8 @@ MIN_ADVERT_INTERVAL = 3600
 _telemetry_collect_task: asyncio.Task | None = None
 
 # Initial delay before the scheduler starts (let radio settle). After this,
-# the loop wakes at each UTC top-of-hour and decides whether to run a cycle
+# the loop wakes once per UTC hour, at this radio's own minute
+# (telemetry_schedule_minute), and decides whether to run a cycle
 # based on the user's telemetry_interval_hours preference, clamped up to
 # the shortest-legal interval for the current tracked-repeater count.
 TELEMETRY_COLLECT_INITIAL_DELAY = 60
@@ -2258,14 +2263,37 @@ async def _run_telemetry_cycle(
     )
 
 
-async def _sleep_until_next_utc_top_of_hour() -> None:
-    """Sleep until the next UTC top-of-hour (or a minimum of 1 second)."""
-    now = datetime.now(UTC)
-    next_top = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-    delay = (next_top - now).total_seconds()
-    if delay < 1:
-        delay = 1
-    await asyncio.sleep(delay)
+def current_telemetry_schedule_minute(setting: int = TELEMETRY_SCHEDULE_MINUTE_AUTO) -> int:
+    """Minute of the hour for telemetry collection.
+
+    ``setting`` is ``app_settings.telemetry_schedule_minute``: a minute the
+    operator chose, or automatic, which derives one from the connected radio's
+    public key (0 while no radio is connected).
+    """
+    mc = radio_manager.meshcore
+    self_info = getattr(mc, "self_info", None) if mc is not None else None
+    public_key = self_info.get("public_key") if isinstance(self_info, dict) else None
+    return resolve_schedule_minute(setting, public_key)
+
+
+async def _telemetry_schedule_minute_now() -> int:
+    """The schedule minute for the saved setting, read fresh on every use."""
+    app_settings = await AppSettingsRepository.get()
+    return current_telemetry_schedule_minute(app_settings.telemetry_schedule_minute)
+
+
+def _seconds_until_schedule_minute(now: datetime, minute: int) -> float:
+    """Seconds from ``now`` to the next ``HH:minute`` (at least 1)."""
+    target = now.replace(minute=minute % 60, second=0, microsecond=0)
+    if target <= now:
+        target += timedelta(hours=1)
+    return max((target - now).total_seconds(), 1)
+
+
+async def _sleep_until_next_schedule_minute() -> None:
+    """Sleep until the telemetry minute comes round again."""
+    minute = await _telemetry_schedule_minute_now()
+    await asyncio.sleep(_seconds_until_schedule_minute(datetime.now(UTC), minute))
 
 
 async def _maybe_run_scheduled_cycle(now: datetime) -> None:
@@ -2315,8 +2343,9 @@ async def _telemetry_collect_loop() -> None:
 
     After an initial post-boot delay we evaluate the modulo gate once
     (covers the edge case where the initial delay crossed a scheduled
-    boundary on restart). Then we wake at every UTC top-of-hour and
-    evaluate the gate again. A cycle runs only when
+    boundary on restart). Then we wake once per UTC hour, at this radio's
+    own minute (see ``telemetry_schedule_minute``), and evaluate the gate
+    again. A cycle runs only when
     ``current_utc_hour % effective_interval_hours == 0``, where the
     effective interval is the user preference clamped up to the shortest
     legal interval for the current tracked-repeater count. This keeps the
@@ -2336,11 +2365,19 @@ async def _telemetry_collect_loop() -> None:
         logger.info("Telemetry collect task cancelled before initial delay")
         return
 
-    # Post-boot boundary check: if the delay carried us into a matching hour
-    # (or we booted exactly at a matching hour), run now rather than waiting
-    # another full cycle.
+    # Post-boot boundary check: if the delay carried us past this hour's
+    # scheduled minute in a matching hour, run now rather than waiting another
+    # full cycle. When that minute is still ahead, the loop's first wake below
+    # falls in this same hour and runs it.
+    # The gate is per UTC hour, so it is evaluated at most once per hour. A
+    # minute moved later within the same hour would otherwise run a second
+    # cycle, and every cycle is airtime.
+    evaluated_hour: datetime | None = None
     try:
-        await _maybe_run_scheduled_cycle(datetime.now(UTC))
+        boot_now = datetime.now(UTC)
+        if boot_now.minute >= await _telemetry_schedule_minute_now():
+            evaluated_hour = boot_now.replace(minute=0, second=0, microsecond=0)
+            await _maybe_run_scheduled_cycle(boot_now)
     except asyncio.CancelledError:
         logger.info("Telemetry collect task cancelled after initial delay")
         return
@@ -2349,8 +2386,13 @@ async def _telemetry_collect_loop() -> None:
 
     while True:
         try:
-            await _sleep_until_next_utc_top_of_hour()
-            await _maybe_run_scheduled_cycle(datetime.now(UTC))
+            await _sleep_until_next_schedule_minute()
+            now = datetime.now(UTC)
+            this_hour = now.replace(minute=0, second=0, microsecond=0)
+            if this_hour == evaluated_hour:
+                continue
+            evaluated_hour = this_hour
+            await _maybe_run_scheduled_cycle(now)
 
         except asyncio.CancelledError:
             logger.info("Telemetry collect task cancelled")

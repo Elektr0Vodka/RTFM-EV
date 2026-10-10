@@ -470,6 +470,48 @@ class TestRepeaterCommandRoute:
         assert dst["type"] == 2
         assert dst["public_key"] == KEY_A
 
+    async def _sent_text(self, command: str) -> str:
+        mc = _mock_mc()
+        await _insert_contact(KEY_A, name="Repeater", contact_type=2)
+        mc.commands.send_cmd = AsyncMock(return_value=_radio_result(EventType.OK))
+        mc.commands.get_msg = AsyncMock(return_value=_radio_result(EventType.NO_MORE_MSGS))
+
+        with (
+            patch("app.routers.repeaters.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch(_MONOTONIC, side_effect=[0.0, 5.0, 25.0]),
+            patch("app.routers.server_control.asyncio.sleep", new_callable=AsyncMock),
+        ):
+            await send_repeater_command(KEY_A, CommandRequest(command=command))
+
+        return mc.commands.send_cmd.await_args.args[1]
+
+    @pytest.mark.asyncio
+    async def test_ordinary_command_carries_the_reply_tag(self, test_db):
+        sent = await self._sent_text("get radio")
+        assert sent[2] == "|"
+        assert sent[3:] == "get radio"
+
+    @pytest.mark.asyncio
+    async def test_indented_line_is_sent_as_typed_without_a_reply_tag(self, test_db):
+        """A `region load` line: the firmware reads the leading spaces as the
+        nesting depth and does not strip a reply tag while a load is running
+        (simple_repeater MyMesh::handleCommand), so a tag in front would make
+        every line depth 0, which the firmware drops."""
+        assert await self._sent_text("  nl-nh") == "  nl-nh"
+        assert await self._sent_text(" nl F") == " nl F"
+
+    @pytest.mark.asyncio
+    async def test_empty_command_goes_out_as_one_space(self, test_db):
+        """A blank line ends `region load`. The companion firmware refuses a
+        text frame without a text byte (CMD_SEND_TXT_MSG needs len >= 14), and
+        the repeater counts a line of spaces as blank (StrHelper::isBlank)."""
+        assert await self._sent_text("") == " "
+
+    @pytest.mark.asyncio
+    async def test_blank_line_of_spaces_is_sent_as_typed(self, test_db):
+        assert await self._sent_text("   ") == "   "
+
     @pytest.mark.asyncio
     async def test_success_returns_command_response_text_and_sender_timestamp(self, test_db):
         mc = _mock_mc()

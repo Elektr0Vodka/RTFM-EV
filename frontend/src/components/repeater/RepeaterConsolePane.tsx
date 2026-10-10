@@ -48,7 +48,9 @@ export function ConsolePane({
 
   // Most-recent-first list of sent commands, with consecutive repeats deduped
   const sentCommands = history.reduce<string[]>((acc, entry) => {
-    if (entry.outgoing && entry.command !== acc[0]) acc.unshift(entry.command);
+    if (entry.outgoing && entry.command !== '' && entry.command !== acc[0]) {
+      acc.unshift(entry.command);
+    }
     return acc;
   }, []);
 
@@ -68,11 +70,13 @@ export function ConsolePane({
   const handleSubmit = useCallback(
     async (e: FormEvent) => {
       e.preventDefault();
-      const trimmed = input.trimStart();
-      if (!trimmed || loading) return;
+      if (loading) return;
+      // Sent as typed. The firmware's `region load` reads leading spaces as
+      // the nesting depth of a line and an empty line as the end of the load.
+      const command = input;
       setInput('');
       setHistoryIndex(-1);
-      await onSend(trimmed);
+      await onSend(command);
     },
     [input, loading, onSend]
   );
@@ -99,7 +103,7 @@ export function ConsolePane({
         )}
         {history.map((entry, i) =>
           entry.outgoing ? (
-            <div key={i} className="text-console-command">
+            <div key={i} className="text-console-command whitespace-pre-wrap">
               &gt; {entry.command}
             </div>
           ) : (
@@ -125,7 +129,7 @@ export function ConsolePane({
           disabled={loading}
           className="flex-1 font-mono text-sm"
         />
-        <Button type="submit" size="sm" disabled={loading || !input.trimStart()}>
+        <Button type="submit" size="sm" disabled={loading}>
           {t('common_send')}
         </Button>
       </form>

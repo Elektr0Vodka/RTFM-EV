@@ -140,6 +140,74 @@ describe('useRepeaterDashboard', () => {
     });
   });
 
+  it('a successful pane fetch confirms a login that was not confirmed', async () => {
+    mockApi.repeaterLogin.mockResolvedValueOnce({
+      status: 'timeout',
+      authenticated: false,
+      message: 'No login confirmation was heard',
+    });
+    mockApi.repeaterAcl.mockResolvedValueOnce({ acl: [] });
+
+    const { result } = renderHook(() => useRepeaterDashboard(repeaterConversation));
+
+    await act(async () => {
+      await result.current.login('secret');
+    });
+    expect(result.current.lastLoginAttempt?.outcome).toBe('not_confirmed');
+
+    await act(async () => {
+      await result.current.refreshPane('acl');
+    });
+
+    expect(result.current.lastLoginAttempt?.outcome).toBe('confirmed');
+    expect(result.current.lastLoginAttempt?.method).toBe('password');
+    expect(result.current.loginError).toBeNull();
+  });
+
+  it('a successful console command confirms a login whose request failed', async () => {
+    mockApi.repeaterLogin.mockRejectedValueOnce(new Error('Network error'));
+    mockApi.sendRepeaterCommand.mockResolvedValueOnce({
+      command: 'ver',
+      response: 'v1.16.0',
+      sender_timestamp: 1700000000,
+    });
+
+    const { result } = renderHook(() => useRepeaterDashboard(repeaterConversation));
+
+    await act(async () => {
+      await result.current.login('secret');
+    });
+    expect(result.current.lastLoginAttempt?.outcome).toBe('request_failed');
+
+    await act(async () => {
+      await result.current.sendConsoleCommand('ver');
+    });
+
+    expect(result.current.lastLoginAttempt?.outcome).toBe('confirmed');
+    expect(result.current.loginError).toBeNull();
+  });
+
+  it('a failed pane fetch leaves the login warning in place', async () => {
+    mockApi.repeaterLogin.mockResolvedValueOnce({
+      status: 'timeout',
+      authenticated: false,
+      message: 'No login confirmation was heard',
+    });
+    mockApi.repeaterAcl.mockRejectedValueOnce(new ApiError('No response', 422));
+
+    const { result } = renderHook(() => useRepeaterDashboard(repeaterConversation));
+
+    await act(async () => {
+      await result.current.login('secret');
+    });
+    await act(async () => {
+      await result.current.refreshPane('acl');
+    });
+
+    expect(result.current.lastLoginAttempt?.outcome).toBe('not_confirmed');
+    expect(result.current.loginError).toBe('No login confirmation was heard');
+  });
+
   it('refreshPane stores data on success', async () => {
     const statusData = {
       battery_volts: 4.2,

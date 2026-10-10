@@ -1,7 +1,9 @@
 import { useMemo, useState, type ReactNode } from 'react';
+import { ExternalLink } from 'lucide-react';
 import { ChannelCrypto, PayloadType } from '@michaelhart/meshcore-decoder';
 
-import type { Channel, Contact, RawPacket } from '../types';
+import type { AnalyzerSite, Channel, Contact, RawPacket } from '../types';
+import { buildNodeLookupUrl } from '../utils/analyzerLink';
 import { resolvePathHopNames } from '../utils/pathHopNames';
 import { formatDateTime } from '../utils/dateTimeFormat';
 import { cn } from '@/lib/utils';
@@ -54,6 +56,8 @@ interface RawPacketInspectorDialogProps {
   signalOverride?: SignalOverride;
   /** Known contacts, used to resolve path-hop hex prefixes to names. */
   contacts?: Contact[];
+  /** External analyzers the packet's sender can be looked up on. */
+  analyzerSites?: AnalyzerSite[];
   /** Portal target; see `DialogContent`. Needed when a host pane uses `requestFullscreen()`. */
   container?: HTMLElement | null;
 }
@@ -63,6 +67,7 @@ interface RawPacketInspectionPanelProps {
   signalOverride?: SignalOverride;
   channels: Channel[];
   contacts?: Contact[];
+  analyzerSites?: AnalyzerSite[];
 }
 
 interface FieldPaletteEntry {
@@ -628,8 +633,17 @@ export function RawPacketInspectionPanel({
   channels,
   signalOverride,
   contacts,
+  analyzerSites = [],
 }: RawPacketInspectionPanelProps) {
   const t = useT();
+  // Only a packet that resolved to a full sender key can be looked up.
+  const senderKey = packet.decrypted_info?.contact_key ?? null;
+  const senderLookups = senderKey
+    ? analyzerSites.flatMap((site) => {
+        const url = buildNodeLookupUrl(site, senderKey);
+        return url ? [{ name: site.name, url }] : [];
+      })
+    : [];
   const decoderOptions = useMemo(() => createDecoderOptions(channels), [channels]);
   const groupTextCandidates = useMemo(
     () => buildGroupTextResolutionCandidates(channels),
@@ -686,6 +700,22 @@ export function RawPacketInspectionPanel({
                   {packetContext.secondary}
                 </div>
               ) : null}
+            </div>
+          ) : null}
+          {senderLookups.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {senderLookups.map((lookup) => (
+                <button
+                  key={lookup.name}
+                  type="button"
+                  className="inline-flex items-center gap-1 rounded border border-border/60 px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={() => window.open(lookup.url, '_blank', 'noopener,noreferrer')}
+                  title={t('packet_lookup_sender_title', { name: lookup.name })}
+                >
+                  <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                  {t('packet_lookup_sender_label', { name: lookup.name })}
+                </button>
+              ))}
             </div>
           ) : null}
         </section>
@@ -877,6 +907,7 @@ export function RawPacketInspectorDialog({
   notice,
   signalOverride,
   contacts,
+  analyzerSites,
   container,
 }: RawPacketInspectorDialogProps) {
   let body: ReactNode;
@@ -887,6 +918,7 @@ export function RawPacketInspectorDialog({
         channels={channels}
         signalOverride={signalOverride}
         contacts={contacts}
+        analyzerSites={analyzerSites}
       />
     );
   } else if (source.kind === 'paste') {

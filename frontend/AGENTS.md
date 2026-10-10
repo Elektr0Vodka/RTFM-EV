@@ -117,6 +117,7 @@ frontend/src/
 │   ├── lastViewedConversation.ts   # localStorage for last-viewed conversation
 │   ├── contactMerge.ts            # Merge WS contact updates into list
 │   ├── localLabel.ts              # Local label (text + color) in localStorage
+│   ├── authRedirect.ts            # Lost reverse-proxy session (401/403): go to the saved sign-in address or reload; index.html repeats it for the prefetch
 │   ├── sidebarLayout.ts           # Sidebar order reconcilers (section/tool/favorites-group orders + per-favorite-group sort orders + hidden-entry overlay persist server-side in app_settings, reversing migration _051; rail-collapse and per-group collapse stay localStorage) + one-time legacy-order migration helpers + contact-group pure helpers (create/rename/delete/toggle membership, `group:<id>` section keys)
 │   ├── radioPresets.ts            # LoRa radio preset configurations
 │   ├── publicChannel.ts           # Public-channel resolution helpers for routing/hash defaults
@@ -563,6 +564,7 @@ its `1m/5m/10m`/`session` windows stay in-memory (`isRawFeedLiveWindow`).
 - `tracked_telemetry_repeaters`, `tracked_telemetry_contacts`
 - `auto_resend_channel`
 - `telemetry_interval_hours`
+- `telemetry_schedule_minute` (`-1` automatic, `0`-`59` fixed; the effective minute is in `TelemetrySchedule.schedule_minute`)
 
 Note: MQTT, bot (since removed), and community MQTT settings were migrated to the `fanout_configs` table (managed via `/api/fanout`). They are no longer part of `AppSettings`.
 

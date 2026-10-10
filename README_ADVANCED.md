@@ -172,6 +172,15 @@ RemoteTerm works behind a reverse proxy that serves it under a sub-path (e.g. `/
 - The proxy must ensure the sub-path URL has a **trailing slash**. If a user visits `/meshcore` (no slash), relative paths break. Most proxies handle this automatically; for Nginx, a `location /meshcore/ { ... }` block (note the trailing slash) does the right thing.
 - For correct PWA install behavior, the proxy should forward `X-Forwarded-Prefix` (set to the sub-path, e.g. `/meshcore`) so the web manifest generates correct `start_url` and `scope` values. `X-Forwarded-Proto` and `X-Forwarded-Host` are also respected for origin resolution.
 
+## Sign-In Behind a Reverse Proxy
+
+RemoteTerm has no sign-in page of its own. When a reverse proxy in front of it handles sign-in (Authelia, oauth2-proxy and the like) and that session runs out, the proxy answers the app's requests with `401` or `403` instead of the backend. The app then goes to the address set under **Settings > Local Configuration > Sign-in Redirect**, or reloads the page when that field is empty, so the proxy can show its own sign-in page.
+
+- A `401` always counts. A `403` counts only when its body is not a backend answer (the backend's own refusals are JSON with a `detail` field and are left alone).
+- The WebSocket cannot show the status of a refused handshake, so after three failed connections in a row the app asks `/api/health` over HTTP and acts on that answer.
+- At most one automatic redirect or reload per minute, so a reload that does not bring the session back cannot loop.
+- The address is stored in the browser (`localStorage`), per device. Only a path on the same site or an `http(s)` address is accepted, and that is checked again each time the address is used; anything else in storage leads to a plain reload.
+
 ## HTTPS
 
 WebGPU channel-finding requires a secure context when you are not on `localhost`.

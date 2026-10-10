@@ -11,6 +11,7 @@ from app.models import (
     RepeaterLppTelemetryResponse,
     RepeaterStatusResponse,
 )
+from app.radio_sync import poll_for_messages
 from app.repository.device_config_history import DeviceConfigHistoryRepository, DeviceConfigKind
 from app.routers.contacts import (
     _ensure_on_radio,
@@ -45,12 +46,20 @@ async def room_login(public_key: str, request: RepeaterLoginRequest) -> Repeater
         pause_polling=True,
         suspend_auto_fetch=True,
     ) as mc:
-        return await prepare_authenticated_contact_connection(
+        login = await prepare_authenticated_contact_connection(
             mc,
             contact,
             request.password,
             label="room server",
         )
+        if login.authenticated:
+            # The room server pushes the posts since our last sync as soon as
+            # it accepts the login. Auto-fetch is stopped while this operation
+            # holds the radio and does not look at the queue when it starts
+            # again, so ask for what arrived in the meantime. This talks to
+            # our own radio only; nothing goes on air.
+            await poll_for_messages(mc)
+        return login
 
 
 @router.post("/{public_key}/room/status", response_model=RepeaterStatusResponse)

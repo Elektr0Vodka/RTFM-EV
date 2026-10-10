@@ -187,7 +187,7 @@ Klicke auf einen Avatar oder Namen, um die Info eines Kontakts zu öffnen. Am Co
 - **Telemetrie-Freigabe:** was dein Funkgerät teilt, wenn dieser Kontakt Telemetrie anfragt.
 - **Kontaktlink:** einen `meshcore://`-Link anzeigen oder kopieren.
 - **Name über Analyzer auflösen** für Kontakte, die nur über den öffentlichen Schlüssel bekannt sind. Nur dieser Schlüssel wird an die Seite gesendet.
-- Links zu eingerichteten Analyzern, **Triangulieren** und das Blockieren von Schlüssel oder Namen.
+- Links zu eingerichteten Analyzern, **Triangulieren** und das Blockieren von Schlüssel oder Namen. Die Chat-Kopfzeile eines Kontakts hat dieselbe Suche als Symbol, und die Paketdetails haben **Absender auf** einer Website **nachschlagen**, wenn das Paket einen vollständigen Absenderschlüssel ergab.
 
 Favorisierte Kontakte bleiben auf dem Funkgerät geladen, damit es ihre Direktnachrichten bestätigen kann.
 
@@ -197,7 +197,7 @@ Klicke auf die Routenangabe neben dem Namen eines Kontakts (zum Beispiel die Hop
 
 ### Repeater
 
-Beim Öffnen eines Repeaters erscheint ein Anmeldeformular: melde dich mit dem Passwort oder als Gast an. Das Dashboard hat dann Bereiche für Node-Info, Telemetrie, Radioeinstellungen (mit Advert-Intervallen), LPP-Sensoren, Nachbarn, ACL, Regionen und Besitzerinfo, dazu Aktionen (Zero-Hop-Advert, Flood-Advert, Uhr synchronisieren, Neustart), eine Konsole mit CLI-Zugang, den Telemetrieverlauf und einen Bereich Verlauf, der zeigt, was sich zwischen gespeicherten Momentaufnahmen geändert hat. **Alles laden** ruft alle Bereiche nacheinander ab.
+Beim Öffnen eines Repeaters erscheint ein Anmeldeformular: melde dich mit dem Passwort oder als Gast an. Das Dashboard hat dann Bereiche für Node-Info, Telemetrie, Radioeinstellungen (mit Advert-Intervallen), LPP-Sensoren, Nachbarn, ACL, Regionen und Besitzerinfo, dazu Aktionen (Zero-Hop-Advert, Flood-Advert, Uhr synchronisieren, Neustart), eine Konsole mit CLI-Zugang, den Telemetrieverlauf und einen Bereich Verlauf, der zeigt, was sich zwischen gespeicherten Momentaufnahmen geändert hat. **Alles laden** ruft alle Bereiche nacheinander ab. Die Konsole sendet eine Zeile genau wie getippt, auch führende Leerzeichen und eine leere Zeile; das braucht `region load` der Firmware.
 
 Mit Einstellungen bearbeiten änderst du jeweils eine Repeater-Einstellung: du bearbeitest, bestätigst den genauen CLI-Befehl, er wird über Funk gesendet, und der Wert wird zur Kontrolle zurückgelesen. Für Änderungen an Frequenz, Bandbreite, Spreading Factor oder Coding Rate musst du zuerst den Namen des Repeaters eintippen, weil ein falscher Wert ihn vom Netz nehmen kann. Die Gruppe Observer-Firmware (SNMP-Agent ein/aus) funktioniert nur auf DMC-Observer- und agessaman-Observer-Firmware: nutze zuerst die eigene Schaltfläche Lesen und starte den Repeater nach einer Änderung neu.
 
@@ -374,7 +374,7 @@ RTFM-EV kann jedes empfangene Paket so beurteilen, wie ein Repeater es tun würd
 
 ### Lokale Konfiguration
 
-Einstellungen für diesen Browser oder dieses Gerät: Sprache, Farbthema (einschließlich vier CRT-Phosphor-Themen) und CRT-Bildschirmeffekte, der **Desktop-Assistent** (nachdem du das Design Windows 95 benutzt hast), Branding (App-Name und Symbol, von allen Geräten geteilt), ein lokales Label, **Entfernungseinheiten**, **Koordinatenformat**, **Datums- und Zeitformat**, relative Schriftgröße, UI-Anpassungen (etwa letzte Unterhaltung erneut öffnen, Akkuanzeige und **Beim Tippen ersetzen**), der Ton bei Erwähnungen und DMs, Benachrichtigungen für neue Knoten, **Chat-Erkennung** und **Web-Push-Benachrichtigungen**.
+Einstellungen für diesen Browser oder dieses Gerät: Sprache, Farbthema (einschließlich vier CRT-Phosphor-Themen) und CRT-Bildschirmeffekte, der **Desktop-Assistent** (nachdem du das Design Windows 95 benutzt hast), Branding (App-Name und Symbol, von allen Geräten geteilt), ein lokales Label, **Entfernungseinheiten**, **Koordinatenformat**, **Datums- und Zeitformat**, relative Schriftgröße, UI-Anpassungen (etwa letzte Unterhaltung erneut öffnen, Akkuanzeige und **Beim Tippen ersetzen**), der Ton bei Erwähnungen und DMs, Benachrichtigungen für neue Knoten, **Chat-Erkennung** und **Web-Push-Benachrichtigungen**. **Weiterleitung zur Anmeldung** ist für eine Instanz hinter einem Reverse Proxy, der die Anmeldung übernimmt: Ist die Sitzung abgelaufen, wechselt die App zu der eingetragenen Adresse oder lädt die Seite neu, wenn das Feld leer ist.
 
 ### MQTT & Automatisierung
 
@@ -386,7 +386,7 @@ Nur sichtbar, wenn der verbundene Knoten ein OpenHop-Knoten ist. Lege Adresse un
 
 ### Radio-App-Verwaltung
 
-**Verfolgte Repeater-Telemetrie** und **Verfolgte Kontakt-Telemetrie**, Namensauflösung für unbenannte Kontakte, **Kontaktverwaltung** (neue Knotentypen blockieren, blockierte Schlüssel und Namen, Massenlöschen), **Loadouts** und **Teilbekannte Knoten synchronisieren**, das Knoten, die du nur über ein Präfix kennst, mit dem Knotenverzeichnis des Analyzers abgleicht. Du prüfst jeden Treffer, bevor er als umkehrbare weiche Verknüpfung gespeichert wird.
+**Verfolgte Repeater-Telemetrie** und **Verfolgte Kontakt-Telemetrie**, Namensauflösung für unbenannte Kontakte, **Kontaktverwaltung** (neue Knotentypen blockieren, blockierte Schlüssel und Namen, Massenlöschen), **Loadouts** und **Teilbekannte Knoten synchronisieren**, das Knoten, die du nur über ein Präfix kennst, mit dem Knotenverzeichnis des Analyzers abgleicht. Du prüfst jeden Treffer, bevor er als umkehrbare weiche Verknüpfung gespeichert wird. Telemetrie wird einmal pro Stunde erfasst, zur **Minute der Stunde**, die du unter Verfolgte Repeater-Telemetrie einstellst. **Automatisch** leitet eine Minute aus dem Schlüssel deines Funkgeräts ab; gib Knoten, die nah beieinander stehen, unterschiedliche Minuten, damit ihre Anfragen nicht gleichzeitig gesendet werden.
 
 **SNMP-Agent** (standardmäßig aus) lässt ein Monitoring-System wie LibreNMS oder Zabbix diesen Node per SNMP abfragen, mit denselben Werten wie die Observer-Firmware. Stelle den UDP-Port und eine eigene Community ein; veröffentliche in Docker auch den Port. Der Agent ist nur lesend und nutzt das Funkgerät nie.
 

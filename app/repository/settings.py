@@ -65,6 +65,7 @@ class AppSettingsRepository:
                    tracked_telemetry_repeaters, tracked_telemetry_contacts,
                    auto_resend_channel,
                    telemetry_interval_hours, telemetry_routed_hourly,
+                   telemetry_schedule_minute,
                    show_mention_ticker, auto_add_mentioned_channels,
                    chat_parse_pubkeys, chat_parse_coordinates,
                    chat_url_previews, chat_linkify_urls,
@@ -349,6 +350,12 @@ class AppSettingsRepository:
         except (KeyError, TypeError):
             telemetry_routed_hourly = False
 
+        # Parse telemetry_schedule_minute (-1 = automatic, 0-59 = fixed)
+        try:
+            telemetry_schedule_minute = int(row["telemetry_schedule_minute"])
+        except (KeyError, TypeError, ValueError):
+            telemetry_schedule_minute = -1
+
         # Parse show_mention_ticker boolean (migration adds it with default=1)
         try:
             show_mention_ticker = bool(row["show_mention_ticker"])
@@ -579,6 +586,7 @@ class AppSettingsRepository:
             auto_resend_channel=auto_resend_channel,
             telemetry_interval_hours=telemetry_interval_hours,
             telemetry_routed_hourly=telemetry_routed_hourly,
+            telemetry_schedule_minute=telemetry_schedule_minute,
             show_mention_ticker=show_mention_ticker,
             auto_add_mentioned_channels=auto_add_mentioned_channels,
             chat_parse_pubkeys=chat_parse_pubkeys,
@@ -667,6 +675,7 @@ class AppSettingsRepository:
         auto_resend_channel: bool | None = None,
         telemetry_interval_hours: int | None = None,
         telemetry_routed_hourly: bool | None = None,
+        telemetry_schedule_minute: int | None = None,
         show_mention_ticker: bool | None = None,
         auto_add_mentioned_channels: bool | None = None,
         chat_parse_pubkeys: bool | None = None,
@@ -895,6 +904,10 @@ class AppSettingsRepository:
             updates.append("telemetry_routed_hourly = ?")
             params.append(1 if telemetry_routed_hourly else 0)
 
+        if telemetry_schedule_minute is not None:
+            updates.append("telemetry_schedule_minute = ?")
+            params.append(telemetry_schedule_minute)
+
         if show_mention_ticker is not None:
             updates.append("show_mention_ticker = ?")
             params.append(1 if show_mention_ticker else 0)
@@ -1060,6 +1073,7 @@ class AppSettingsRepository:
         auto_resend_channel: bool | None = None,
         telemetry_interval_hours: int | None = None,
         telemetry_routed_hourly: bool | None = None,
+        telemetry_schedule_minute: int | None = None,
         show_mention_ticker: bool | None = None,
         auto_add_mentioned_channels: bool | None = None,
         chat_parse_pubkeys: bool | None = None,
@@ -1146,6 +1160,7 @@ class AppSettingsRepository:
                 auto_resend_channel=auto_resend_channel,
                 telemetry_interval_hours=telemetry_interval_hours,
                 telemetry_routed_hourly=telemetry_routed_hourly,
+                telemetry_schedule_minute=telemetry_schedule_minute,
                 show_mention_ticker=show_mention_ticker,
                 auto_add_mentioned_channels=auto_add_mentioned_channels,
                 chat_parse_pubkeys=chat_parse_pubkeys,

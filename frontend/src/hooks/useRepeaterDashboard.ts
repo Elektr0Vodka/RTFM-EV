@@ -19,6 +19,7 @@ import type {
   CommandResponse,
 } from '../types';
 import {
+  buildServerLoginAttemptFromAction,
   buildServerLoginAttemptFromError,
   buildServerLoginAttemptFromResponse,
   type ServerLoginAttemptState,
@@ -278,6 +279,10 @@ export function useRepeaterDashboard(
     cachedState?.lastLoginAttempt ?? null
   );
 
+  const lastLoginAttemptRef = useRef<ServerLoginAttemptState | null>(
+    cachedState?.lastLoginAttempt ?? null
+  );
+
   const [paneData, setPaneData] = useState<PaneData>(
     cachedState?.paneData ?? createInitialPaneData
   );
@@ -331,6 +336,19 @@ export function useRepeaterDashboard(
     paneData,
     paneStates,
   ]);
+
+  useEffect(() => {
+    lastLoginAttemptRef.current = lastLoginAttempt;
+  }, [lastLoginAttempt]);
+
+  // The repeater answered a request it only answers after a login, so the
+  // login held: drop a warning left by a confirmation that was never heard.
+  const markLoginConfirmedByAction = useCallback(() => {
+    const prior = lastLoginAttemptRef.current;
+    if (!prior || prior.outcome === 'confirmed') return;
+    setLastLoginAttempt(buildServerLoginAttemptFromAction(prior));
+    setLoginError(null);
+  }, []);
 
   useEffect(() => {
     paneDataRef.current = paneData;
@@ -447,6 +465,7 @@ export function useRepeaterDashboard(
             ...prev,
             [pane]: successState,
           }));
+          markLoginConfirmedByAction();
           return; // Success
         } catch (err) {
           if (!mountedRef.current || activeIdRef.current !== conversationId) return;
@@ -480,7 +499,7 @@ export function useRepeaterDashboard(
         }
       }
     },
-    [getPublicKey, options.hasAdvertLocation]
+    [getPublicKey, options.hasAdvertLocation, markLoginConfirmedByAction]
   );
 
   const loadAll = useCallback(async () => {
@@ -529,6 +548,7 @@ export function useRepeaterDashboard(
             outgoing: false,
           },
         ]);
+        markLoginConfirmedByAction();
       } catch (err) {
         if (activeIdRef.current !== conversationId) return;
         const msg = err instanceof Error ? err.message : 'Command failed';
@@ -542,7 +562,7 @@ export function useRepeaterDashboard(
         }
       }
     },
-    [getPublicKey]
+    [getPublicKey, markLoginConfirmedByAction]
   );
 
   const sendZeroHopAdvert = useCallback(async () => {

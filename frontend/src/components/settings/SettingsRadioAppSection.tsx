@@ -114,12 +114,16 @@ export function SettingsRadioAppSection({
 
   const [schedule, setSchedule] = useState<TelemetrySchedule | null>(null);
   const [intervalDraft, setIntervalDraft] = useState<number>(appSettings.telemetry_interval_hours);
+  const [minuteDraft, setMinuteDraft] = useState<number>(
+    appSettings.telemetry_schedule_minute ?? -1
+  );
 
   const saveChainRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     setDiscoveryBlockedTypes(appSettings.discovery_blocked_types ?? []);
     setIntervalDraft(appSettings.telemetry_interval_hours);
+    setMinuteDraft(appSettings.telemetry_schedule_minute ?? -1);
   }, [appSettings]);
 
   useEffect(() => {
@@ -138,6 +142,7 @@ export function SettingsRadioAppSection({
     trackedTelemetryContacts.length,
     appSettings.telemetry_interval_hours,
     appSettings.telemetry_routed_hourly,
+    appSettings.telemetry_schedule_minute,
   ]);
 
   useEffect(() => {
@@ -249,6 +254,44 @@ export function SettingsRadioAppSection({
           )}
         </div>
 
+        <div className="space-y-1.5">
+          <Label htmlFor="telemetry-minute" className="text-sm">
+            {t('settings_radioapp_schedule_minute_label')}
+          </Label>
+          <div className="flex items-center gap-2">
+            <select
+              id="telemetry-minute"
+              value={minuteDraft}
+              onChange={(e) => {
+                const nextValue = Number(e.target.value);
+                if (!Number.isFinite(nextValue) || nextValue === minuteDraft) return;
+                const prevValue = minuteDraft;
+                setMinuteDraft(nextValue);
+                void persistAppSettings({ telemetry_schedule_minute: nextValue }, () =>
+                  setMinuteDraft(prevValue)
+                );
+              }}
+              className="h-9 px-3 rounded-md border border-input bg-background text-sm ring-offset-background focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            >
+              <option value={-1}>
+                {schedule?.schedule_minute_auto
+                  ? t('settings_radioapp_schedule_minute_auto_at', {
+                      minute: String(schedule.schedule_minute).padStart(2, '0'),
+                    })
+                  : t('settings_radioapp_schedule_minute_auto')}
+              </option>
+              {Array.from({ length: 60 }, (_, minute) => (
+                <option key={minute} value={minute}>
+                  :{String(minute).padStart(2, '0')}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="text-[0.8125rem] text-muted-foreground">
+            {t('settings_radioapp_schedule_minute_desc')}
+          </p>
+        </div>
+
         <label className="flex items-start gap-2 cursor-pointer">
           <input
             type="checkbox"
@@ -272,13 +315,13 @@ export function SettingsRadioAppSection({
             {schedule.routed_hourly
               ? t('settings_radioapp_next_flood_run_at')
               : t('settings_radioapp_next_run_at')}{' '}
-            {formatTime(schedule.next_run_at)} {t('settings_radioapp_utc_top_of_hour_suffix')}
+            {formatTime(schedule.next_run_at)} {t('settings_radioapp_utc_hours_suffix')}
           </p>
         )}
         {schedule?.next_routed_run_at != null && (
           <p className="text-xs text-muted-foreground">
             {t('settings_radioapp_next_routed_run_at')} {formatTime(schedule.next_routed_run_at)}{' '}
-            {t('settings_radioapp_utc_top_of_hour_suffix')}
+            {t('settings_radioapp_utc_hours_suffix')}
           </p>
         )}
 
