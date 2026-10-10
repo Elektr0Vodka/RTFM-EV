@@ -2177,6 +2177,16 @@ export function MessageList({
             );
             const outgoingStatus = (
               <>
+                {msg.outgoing && msg.acked === 0 && msg.send_status === 'unknown' && (
+                  <span
+                    className="msg-send-unconfirmed text-warning"
+                    title={t('chat_send_unconfirmed_title')}
+                    aria-label={t('chat_send_unconfirmed_title')}
+                  >
+                    {' '}
+                    ⚠
+                  </span>
+                )}
                 {msg.outgoing &&
                   (msg.acked > 0 ? (
                     msg.paths && msg.paths.length > 0 ? (

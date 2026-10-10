@@ -12,6 +12,19 @@ import { takePrefetchOrFetch } from '../prefetch';
 
 type UnreadTrackedConversation = Conversation & { type: 'channel' | 'contact' };
 
+type PendingReadBoundary = {
+  type: 'channel' | 'contact';
+  id: string;
+  messageId: number;
+  receivedAt: number;
+};
+
+const ACTIVE_READ_DEBOUNCE_MS = 250;
+// A /unreads answer is a snapshot. When live state changed while it was in
+// flight it is fetched again, up to this many attempts in total; the last
+// answer is applied regardless so a busy mesh cannot keep the badges empty.
+const UNREAD_FETCH_MAX_ATTEMPTS = 3;
+
 function isUnreadTrackedConversation(
   conversation: Conversation | null
 ): conversation is UnreadTrackedConversation {
@@ -61,6 +74,59 @@ export function useUnreadCounts(
   const activeConvRef = useRef(activeConversation);
   activeConvRef.current = activeConversation;
 
+  // Newest message shown in the open conversation that the server has not yet
+  // been told about. Messages arriving in the conversation the user is looking
+  // at are read, but nothing persisted that until the next navigation or
+  // /unreads refresh, so another device (or a reload) showed them as unread.
+  const pendingReadBoundaryRef = useRef<PendingReadBoundary | null>(null);
+  const pendingReadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const persistReadBoundary = useCallback((boundary: PendingReadBoundary) => {
+    const request =
+      boundary.type === 'channel'
+        ? api.markChannelRead(boundary.id, boundary.messageId)
+        : api.markContactRead(boundary.id, boundary.messageId);
+    request.catch((err) => {
+      console.error(`Failed to mark active ${boundary.type} as read on server:`, err);
+    });
+  }, []);
+
+  const flushPendingRead = useCallback(() => {
+    if (pendingReadTimerRef.current !== null) {
+      clearTimeout(pendingReadTimerRef.current);
+      pendingReadTimerRef.current = null;
+    }
+    const boundary = pendingReadBoundaryRef.current;
+    pendingReadBoundaryRef.current = null;
+    if (boundary) {
+      persistReadBoundary(boundary);
+    }
+  }, [persistReadBoundary]);
+
+  const scheduleReadBoundary = useCallback(
+    (boundary: PendingReadBoundary) => {
+      const pending = pendingReadBoundaryRef.current;
+      if (pending && (pending.type !== boundary.type || pending.id !== boundary.id)) {
+        flushPendingRead();
+      }
+
+      const current = pendingReadBoundaryRef.current;
+      if (
+        !current ||
+        boundary.receivedAt > current.receivedAt ||
+        (boundary.receivedAt === current.receivedAt && boundary.messageId > current.messageId)
+      ) {
+        pendingReadBoundaryRef.current = boundary;
+      }
+
+      if (pendingReadTimerRef.current !== null) {
+        clearTimeout(pendingReadTimerRef.current);
+      }
+      pendingReadTimerRef.current = setTimeout(flushPendingRead, ACTIVE_READ_DEBOUNCE_MS);
+    },
+    [flushPendingRead]
+  );
+
   // stateKey of a conversation that was just "marked unread from here" while
   // it is still the open/active conversation. The app normally re-marks the
   // active conversation as read every time it re-fetches unreads (WS
@@ -105,6 +171,37 @@ export function useUnreadCounts(
     }
   }, []);
 
+  // Bumped by every local change to unread state (live message, navigation,
+  // mark read). loadUnreads compares it before and after a request to tell
+  // whether the snapshot it got back is already out of date.
+  const unreadMutationVersionRef = useRef(0);
+  // Only the newest loadUnreads call may apply its result.
+  const unreadRequestVersionRef = useRef(0);
+
+  const loadUnreads = useCallback(
+    async (first?: Promise<UnreadCounts>) => {
+      const requestVersion = ++unreadRequestVersionRef.current;
+      let pending = first ?? api.getUnreads();
+      for (let attempt = 1; ; attempt++) {
+        const mutationVersion = unreadMutationVersionRef.current;
+        const data = await pending;
+        // A newer call started meanwhile and owns the state now.
+        if (requestVersion !== unreadRequestVersionRef.current) return;
+        if (
+          mutationVersion === unreadMutationVersionRef.current ||
+          attempt >= UNREAD_FETCH_MAX_ATTEMPTS
+        ) {
+          applyUnreads(data);
+          return;
+        }
+        // Live state moved on during the request: applying this snapshot would
+        // undo it (for example drop the count of a message that just arrived).
+        pending = api.getUnreads();
+      }
+    },
+    [applyUnreads]
+  );
+
   // Fetch unreads from the server-side endpoint.
   // Also re-marks the active conversation as read so the server's last_read_at
   // stays current (otherwise subsequent fetches would re-report the same unreads).
@@ -112,7 +209,7 @@ export function useUnreadCounts(
   // otherwise this would immediately undo that manual mark.
   const fetchUnreads = useCallback(async () => {
     try {
-      applyUnreads(await api.getUnreads());
+      await loadUnreads();
     } catch (err) {
       console.error('Failed to fetch unreads:', err);
     }
@@ -125,7 +222,7 @@ export function useUnreadCounts(
     } else {
       api.markContactRead(ac.id).catch(() => {});
     }
-  }, [applyUnreads]);
+  }, [loadUnreads]);
 
   // On mount, consume the prefetched promise (started in index.html before
   // React loaded) or fall back to a fresh fetch.
@@ -137,12 +234,10 @@ export function useUnreadCounts(
   const contactsLen = contacts.length;
   const hasObservedCountsRef = useRef(false);
   useEffect(() => {
-    takePrefetchOrFetch('unreads', api.getUnreads)
-      .then(applyUnreads)
-      .catch((err) => {
-        console.error('Failed to fetch unreads:', err);
-      });
-  }, [applyUnreads]);
+    loadUnreads(takePrefetchOrFetch('unreads', api.getUnreads)).catch((err) => {
+      console.error('Failed to fetch unreads:', err);
+    });
+  }, [loadUnreads]);
   useEffect(() => {
     if (!hasObservedCountsRef.current) {
       hasObservedCountsRef.current = true;
@@ -168,6 +263,9 @@ export function useUnreadCounts(
       : null;
     const isNavigation = prevActiveKeyRef.current !== key;
     prevActiveKeyRef.current = key;
+    if (isNavigation) {
+      unreadMutationVersionRef.current += 1;
+    }
 
     if (isUnreadTrackedConversation(activeConversation) && key) {
       if (isNavigation && suppressAutoReadKeyRef.current === key) {
@@ -209,10 +307,16 @@ export function useUnreadCounts(
         });
       }
     }
-  }, [activeConversation]);
+
+    // Flush the latest exact message boundary before leaving. The backend
+    // advances monotonically through that message, so arrivals after the view
+    // changed cannot be consumed by a delayed request.
+    return flushPendingRead;
+  }, [activeConversation, flushPendingRead]);
 
   const incrementUnread = useCallback(
     (stateKey: string, messageId: number, hasMention?: boolean) => {
+      unreadMutationVersionRef.current += 1;
       setUnreadCounts((prev) => ({
         ...prev,
         [stateKey]: (prev[stateKey] || 0) + 1,
@@ -262,15 +366,27 @@ export function useUnreadCounts(
       const updated = setLastMessageTime(stateKey, timestamp);
       setLastMessageTimes(updated);
 
-      if (!isActiveConversation && !msg.outgoing && isNewMessage) {
+      if (isActiveConversation && !msg.outgoing && isNewMessage) {
+        // A conversation the user just "marked unread from here" stays unread
+        // while it is open; do not advance its read state behind their back.
+        if (suppressAutoReadKeyRef.current !== stateKey) {
+          scheduleReadBoundary({
+            type: msg.type === 'CHAN' ? 'channel' : 'contact',
+            id: msg.conversation_key,
+            messageId: msg.id,
+            receivedAt: timestamp,
+          });
+        }
+      } else if (!isActiveConversation && !msg.outgoing && isNewMessage) {
         incrementUnread(stateKey, msg.id, hasMention);
       }
     },
-    [incrementUnread]
+    [incrementUnread, scheduleReadBoundary]
   );
 
   const renameConversationState = useCallback((oldStateKey: string, newStateKey: string) => {
     if (oldStateKey === newStateKey) return;
+    unreadMutationVersionRef.current += 1;
 
     setUnreadCounts((prev) => {
       if (!(oldStateKey in prev)) return prev;
@@ -300,6 +416,7 @@ export function useUnreadCounts(
   }, []);
 
   const removeConversationState = useCallback((stateKey: string) => {
+    unreadMutationVersionRef.current += 1;
     setUnreadCounts((prev) => {
       if (!(stateKey in prev)) return prev;
       const next = { ...prev };
@@ -329,6 +446,7 @@ export function useUnreadCounts(
   // Mark all conversations as read
   // Calls single bulk API endpoint to persist read state
   const markAllRead = useCallback(() => {
+    unreadMutationVersionRef.current += 1;
     // Update local state immediately
     setUnreadCounts({});
     setMentions({});
@@ -345,6 +463,7 @@ export function useUnreadCounts(
   const markConversationsRead = useCallback(
     (items: { type: 'channel' | 'contact'; id: string }[]) => {
       if (items.length === 0) return;
+      unreadMutationVersionRef.current += 1;
       const keys = items.map((i) => getStateKey(i.type, i.id));
       const clear = <T>(prev: Record<string, T>): Record<string, T> => {
         let changed = false;

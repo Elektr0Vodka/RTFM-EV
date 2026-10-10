@@ -69,6 +69,31 @@ _outgoing_timestamp_reservations_lock = asyncio.Lock()
 DM_SEND_MAX_ATTEMPTS = 3
 DEFAULT_DM_ACK_TIMEOUT_MS = 10000
 DM_RETRY_WAIT_MARGIN = 1.2
+
+
+def _is_unknown_send_outcome(exc: HTTPException) -> bool:
+    """True when the radio never answered a send command.
+
+    The packet may or may not be on air, so the stored row must be kept (as
+    ``send_status='unknown'``) instead of deleted: deleting it loses the record
+    of a message other nodes may have received.
+    """
+    return exc.detail == NO_RADIO_RESPONSE_AFTER_SEND_DETAIL
+
+
+def _channel_message_body(*, text: str, sender_name: str | None, radio_name: str) -> str:
+    """Return the radio payload body from a stored, sender-prefixed channel message.
+
+    The stored text carries the name the radio had at send time. That name is
+    tried first, so a message sent before a rename does not put the old prefix
+    on air as body text.
+    """
+    for candidate in (sender_name, radio_name):
+        if candidate and text.startswith(f"{candidate}: "):
+            return text[len(f"{candidate}: ") :]
+    return text
+
+
 # How far back to look for a same-text DM to another contact when picking a
 # timestamp. Only DMs whose ACK can still arrive matter; retries finish well
 # inside this window.
@@ -736,6 +761,21 @@ async def send_direct_message_to_contact(
                 "No response from radio after direct send to %s; send outcome is unknown",
                 contact.public_key[:12],
             )
+            message = await create_outgoing_direct_message(
+                conversation_key=contact.public_key.lower(),
+                text=text,
+                sender_timestamp=sender_timestamp,
+                received_at=sent_at,
+                send_status="unknown",
+                broadcast_fn=broadcast_fn,
+                message_repository=message_repository,
+            )
+            if message is None:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Failed to store outgoing message - unexpected duplicate",
+                )
+            await contact_repository.update_last_contacted(contact.public_key.lower(), sent_at)
             raise HTTPException(status_code=422, detail=NO_RADIO_RESPONSE_AFTER_SEND_DETAIL)
 
         if result.type == EventType.ERROR:
@@ -912,12 +952,15 @@ async def _channel_echo_watchdog(
 
         timestamp_bytes = msg.sender_timestamp.to_bytes(4, "little")
 
-        # Strip sender name prefix to get the raw text for the radio
+        # Strip the historical sender prefix. The radio may have been renamed
+        # since the original send and adds its current name itself.
         async with radio_manager.radio_operation("echo_watchdog_resend", blocking=False) as mc:
             radio_name = mc.self_info.get("name", "") if mc.self_info else ""
-            text_to_send = msg.text
-            if radio_name and text_to_send.startswith(f"{radio_name}: "):
-                text_to_send = text_to_send[len(f"{radio_name}: ") :]
+            text_to_send = _channel_message_body(
+                text=msg.text,
+                sender_name=msg.sender_name,
+                radio_name=radio_name,
+            )
 
             result = await send_channel_message_with_effective_scope(
                 mc=mc,
@@ -995,6 +1038,7 @@ async def send_channel_message_to_channel(
                 channel_name=channel.name,
                 broadcast_fn=broadcast_fn,
                 broadcast=False,
+                send_status="pending",
                 message_repository=message_repository,
             )
             if outgoing_message is None:
@@ -1028,6 +1072,29 @@ async def send_channel_message_to_channel(
                 raise HTTPException(
                     status_code=422, detail=f"Failed to send message: {result.payload}"
                 )
+            await message_repository.update_send_status(outgoing_message.id, "confirmed")
+    except HTTPException as exc:
+        if outgoing_message is not None and _is_unknown_send_outcome(exc):
+            assert sender_timestamp is not None
+            assert sent_at is not None
+            await message_repository.update_send_status(outgoing_message.id, "unknown")
+            unknown_message = await build_stored_outgoing_channel_message(
+                message_id=outgoing_message.id,
+                conversation_key=channel_key_upper,
+                text=text_with_sender,
+                sender_timestamp=sender_timestamp,
+                received_at=sent_at,
+                sender_name=radio_name or None,
+                sender_key=our_public_key,
+                channel_name=channel.name,
+                send_status="unknown",
+                message_repository=message_repository,
+            )
+            broadcast_message(message=unknown_message, broadcast_fn=broadcast_fn)
+        elif outgoing_message is not None:
+            await message_repository.delete_by_id(outgoing_message.id)
+            outgoing_message = None
+        raise
     except Exception:
         if outgoing_message is not None:
             await message_repository.delete_by_id(outgoing_message.id)
@@ -1110,11 +1177,15 @@ async def resend_channel_message_record(
         async with radio_manager.radio_operation("resend_channel_message") as mc:
             radio_name = mc.self_info.get("name", "") if mc.self_info else ""
             resend_public_key = (mc.self_info.get("public_key") or None) if mc.self_info else None
-            text_to_send = message.text
-            if radio_name and text_to_send.startswith(f"{radio_name}: "):
-                text_to_send = text_to_send[len(f"{radio_name}: ") :]
+            text_to_send = _channel_message_body(
+                text=message.text,
+                sender_name=message.sender_name,
+                radio_name=radio_name,
+            )
             if new_timestamp:
                 sent_at = int(now_fn())
+                # The new row records what goes on air now: the current radio name.
+                stored_text = f"{radio_name}: {text_to_send}" if radio_name else text_to_send
                 sender_timestamp = await allocate_outgoing_sender_timestamp(
                     message_repository=message_repository,
                     msg_type="CHAN",
@@ -1125,7 +1196,7 @@ async def resend_channel_message_record(
                 timestamp_bytes = sender_timestamp.to_bytes(4, "little")
                 new_message = await create_outgoing_channel_message(
                     conversation_key=message.conversation_key,
-                    text=message.text,
+                    text=stored_text,
                     sender_timestamp=sender_timestamp,
                     received_at=sent_at,
                     sender_name=radio_name or None,
@@ -1133,6 +1204,7 @@ async def resend_channel_message_record(
                     channel_name=channel.name,
                     broadcast_fn=broadcast_fn,
                     broadcast=False,
+                    send_status="pending",
                     message_repository=message_repository,
                 )
                 if new_message is None:
@@ -1164,6 +1236,29 @@ async def resend_channel_message_record(
                     status_code=422,
                     detail=f"Failed to resend message: {result.payload}",
                 )
+            if new_message is not None:
+                await message_repository.update_send_status(new_message.id, "confirmed")
+    except HTTPException as exc:
+        if new_message is not None and _is_unknown_send_outcome(exc):
+            assert sent_at is not None
+            await message_repository.update_send_status(new_message.id, "unknown")
+            unknown_message = await build_stored_outgoing_channel_message(
+                message_id=new_message.id,
+                conversation_key=message.conversation_key,
+                text=stored_text,
+                sender_timestamp=sender_timestamp,
+                received_at=sent_at,
+                sender_name=radio_name or None,
+                sender_key=resend_public_key,
+                channel_name=channel.name,
+                send_status="unknown",
+                message_repository=message_repository,
+            )
+            broadcast_message(message=unknown_message, broadcast_fn=broadcast_fn)
+        elif new_message is not None:
+            await message_repository.delete_by_id(new_message.id)
+            new_message = None
+        raise
     except Exception:
         if new_message is not None:
             await message_repository.delete_by_id(new_message.id)
@@ -1185,7 +1280,7 @@ async def resend_channel_message_record(
         new_message = await build_stored_outgoing_channel_message(
             message_id=new_message.id,
             conversation_key=message.conversation_key,
-            text=message.text,
+            text=stored_text,
             sender_timestamp=sender_timestamp,
             received_at=sent_at,
             sender_name=radio_name or None,

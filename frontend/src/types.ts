@@ -717,6 +717,11 @@ export interface Message {
   outgoing: boolean;
   /** ACK count: 0 = not acked, 1+ = number of acks/flood echoes received */
   acked: number;
+  /**
+   * Radio command outcome for an outgoing message. 'unknown' = the radio never
+   * answered, so the message may or may not be on air. Absent means confirmed.
+   */
+  send_status?: 'pending' | 'confirmed' | 'unknown';
   sender_name: string | null;
   channel_name?: string | null;
   packet_id?: number | null;
@@ -732,6 +737,22 @@ export interface Message {
    * firmware default). Hidden by the chat "Hide malformed" filter.
    */
   malformed?: boolean;
+}
+
+/** DELETE /contacts/{key}: the row is always removed; the radio may refuse. */
+export interface ContactDeleteResult {
+  status: 'ok' | 'partial';
+  database_deleted: boolean;
+  /** null when the radio was not asked (disconnected, or the contact is not on it). */
+  radio_deleted: boolean | null;
+  radio_error: string | null;
+}
+
+export interface BulkDeleteContactsResult {
+  deleted: number;
+  radio_deleted: number;
+  radio_failed: number;
+  radio_failures: Array<{ public_key: string; error: string }>;
 }
 
 export interface MessagesAroundResponse {

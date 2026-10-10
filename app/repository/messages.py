@@ -63,6 +63,7 @@ class MessageRepository:
         txt_type: int = 0,
         signature: str | None = None,
         outgoing: bool = False,
+        send_status: str = "confirmed",
         sender_name: str | None = None,
         sender_key: str | None = None,
         transport_code: int | None = None,
@@ -98,9 +99,9 @@ class MessageRepository:
                 """
                 INSERT OR IGNORE INTO messages (type, conversation_key, text, sender_timestamp,
                                                 received_at, paths, txt_type, signature, outgoing,
-                                                sender_name, sender_key, transport_code, region,
-                                                malformed)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                                send_status, sender_name, sender_key,
+                                                transport_code, region, malformed)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     msg_type,
@@ -112,6 +113,7 @@ class MessageRepository:
                     txt_type,
                     signature,
                     outgoing,
+                    send_status,
                     sender_name,
                     normalized_sender_key,
                     transport_code,
@@ -407,6 +409,7 @@ class MessageRepository:
         region = None
         failed_at = None
         malformed = False
+        send_status = "confirmed"
         if hasattr(row, "keys"):
             row_keys = row.keys()
             if "packet_id" in row_keys:
@@ -419,6 +422,8 @@ class MessageRepository:
                 failed_at = row["failed_at"]
             if "malformed" in row_keys:
                 malformed = bool(row["malformed"])
+            if "send_status" in row_keys:
+                send_status = row["send_status"]
 
         return Message(
             id=row["id"],
@@ -433,6 +438,7 @@ class MessageRepository:
             sender_key=row["sender_key"],
             outgoing=bool(row["outgoing"]),
             acked=row["acked"],
+            send_status=send_status,
             sender_name=row["sender_name"],
             packet_id=packet_id,
             transport_code=transport_code,
@@ -641,12 +647,23 @@ class MessageRepository:
         """
         async with db.tx() as conn:
             async with conn.execute(
-                "UPDATE messages SET acked = acked + 1, failed_at = NULL WHERE id = ? "
-                "RETURNING acked",
+                "UPDATE messages SET acked = acked + 1, failed_at = NULL, "
+                "send_status = 'confirmed' WHERE id = ? RETURNING acked",
                 (message_id,),
             ) as cursor:
                 row = await cursor.fetchone()
         return row["acked"] if row else 1
+
+    @staticmethod
+    async def update_send_status(message_id: int, send_status: str) -> None:
+        """Update an outgoing message's persisted radio-send outcome."""
+        if send_status not in {"pending", "confirmed", "unknown"}:
+            raise ValueError(f"Invalid message send status: {send_status}")
+        async with db.tx() as conn:
+            await conn.execute(
+                "UPDATE messages SET send_status = ? WHERE id = ? AND outgoing = 1",
+                (send_status, message_id),
+            )
 
     @staticmethod
     async def mark_failed(message_id: int, failed_at: int) -> bool:
@@ -969,7 +986,13 @@ class MessageRepository:
                 FROM messages m
                 JOIN channels c ON m.conversation_key = c.key
                 WHERE m.type = 'CHAN' AND m.outgoing = 0
-                  AND m.received_at > COALESCE(c.last_read_at, 0)
+                  AND (
+                      m.received_at > COALESCE(c.last_read_at, 0)
+                      OR (
+                          m.received_at = COALESCE(c.last_read_at, 0)
+                          AND m.id > COALESCE(c.last_read_message_id, 0)
+                      )
+                  )
                   AND COALESCE(c.muted, 0) = 0
                   {blocked_sql}
                 GROUP BY m.conversation_key
@@ -996,7 +1019,13 @@ class MessageRepository:
                 FROM messages m
                 LEFT JOIN contacts ct ON m.conversation_key = ct.public_key
                 WHERE m.type = 'PRIV' AND m.outgoing = 0
-                  AND m.received_at > COALESCE(ct.last_read_at, 0)
+                  AND (
+                      m.received_at > COALESCE(ct.last_read_at, 0)
+                      OR (
+                          m.received_at = COALESCE(ct.last_read_at, 0)
+                          AND m.id > COALESCE(ct.last_read_message_id, 0)
+                      )
+                  )
                   {blocked_sql}
                 GROUP BY m.conversation_key
                 """,
@@ -1047,10 +1076,28 @@ class MessageRepository:
                     LEFT JOIN channels c ON m.type = 'CHAN' AND m.conversation_key = c.key
                     LEFT JOIN contacts ct ON m.type = 'PRIV' AND m.conversation_key = ct.public_key
                     WHERE m.outgoing = 0
-                      AND m.received_at > COALESCE(
+                      AND (
+                          m.received_at > COALESCE(
                               CASE WHEN m.type = 'CHAN' THEN c.last_read_at ELSE ct.last_read_at END,
                               0
                           )
+                          OR (
+                              m.received_at = COALESCE(
+                                  CASE
+                                      WHEN m.type = 'CHAN' THEN c.last_read_at
+                                      ELSE ct.last_read_at
+                                  END,
+                                  0
+                              )
+                              AND m.id > COALESCE(
+                                  CASE
+                                      WHEN m.type = 'CHAN' THEN c.last_read_message_id
+                                      ELSE ct.last_read_message_id
+                                  END,
+                                  0
+                              )
+                          )
+                      )
                       AND (m.type <> 'CHAN' OR COALESCE(c.muted, 0) = 0)
                       {blocked_sql}
                 )

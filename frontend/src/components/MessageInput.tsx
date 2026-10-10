@@ -167,8 +167,8 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   } => {
     if (!limits) return { limitState: 'normal', warningMessage: null };
 
-    if (textByteLen >= limits.hardLimit) {
-      return { limitState: 'error', warningMessage: t('chat_truncated_by_radio') };
+    if (textByteLen > limits.hardLimit) {
+      return { limitState: 'error', warningMessage: t('chat_too_long_to_send') };
     }
     if (textByteLen >= limits.dangerAt) {
       return { limitState: 'danger', warningMessage: t(limits.dangerMessageKey) };
@@ -180,6 +180,10 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   }, [textByteLen, limits, t]);
 
   const remaining = limits ? limits.hardLimit - textByteLen : 0;
+  // Over the limit the radio does not send the text as typed: it cuts a channel
+  // message short (the stored copy then no longer matches what went on air, so
+  // its echo is not recognised) and refuses a DM. Nothing is sent in that case.
+  const overHardLimit = limits !== null && textByteLen > limits.hardLimit;
 
   const handleSubmit = useCallback(
     async (e: FormEvent) => {
@@ -188,7 +192,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       // with no results, or while loading) triggers implicit form submission.
       if (pickerRef.current?.contains(document.activeElement)) return;
       const trimmed = text.trim();
-      if (!trimmed || sending || disabled) return;
+      if (!trimmed || sending || disabled || overHardLimit) return;
 
       setSending(true);
       try {
@@ -210,7 +214,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       // Refocus after React re-enables the textarea
       setTimeout(() => textareaRef.current?.focus(), 0);
     },
-    [text, sending, disabled, onSend, t]
+    [text, sending, disabled, overHardLimit, onSend, t]
   );
 
   const handleChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
@@ -240,6 +244,10 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
+      // Enter while an IME composition is open confirms the candidate; it must not send.
+      if (e.nativeEvent.isComposing) {
+        return;
+      }
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         handleSubmit(e as unknown as FormEvent);
@@ -249,7 +257,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     [handleSubmit]
   );
 
-  const canSubmit = text.trim().length > 0;
+  const canSubmit = text.trim().length > 0 && !overHardLimit;
 
   // Show counter for messages (not raw).
   // Desktop: always visible. Mobile: only show count after 100 characters.
@@ -268,6 +276,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             ref={textareaRef}
             name="chat-message-input"
             aria-label={placeholder || t('a11y_type_message')}
+            aria-invalid={overHardLimit}
             data-lpignore="true"
             data-1p-ignore="true"
             data-bwignore="true"

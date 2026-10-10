@@ -1432,6 +1432,157 @@ class TestReadStateEndpoints:
         assert result["counts"][f"channel-{chan_key}"] == 1
 
     @pytest.mark.asyncio
+    async def test_messages_arriving_after_read_in_same_second_remain_unread(self, test_db):
+        """The message ID cursor disambiguates arrivals in the read boundary second."""
+        chan_key = "5A3E5EC0DC8A22E15A3E5EC0DC8A22E1"
+        contact_key = "cd" * 32
+        await ChannelRepository.upsert(key=chan_key, name="Same second")
+        await _insert_contact(contact_key, "Alice")
+
+        await MessageRepository.create(
+            msg_type="CHAN",
+            text="before channel mark",
+            received_at=1000,
+            conversation_key=chan_key,
+            sender_timestamp=1000,
+        )
+        await MessageRepository.create(
+            msg_type="PRIV",
+            text="before contact mark",
+            received_at=1000,
+            conversation_key=contact_key,
+            sender_timestamp=1000,
+        )
+        await ChannelRepository.update_last_read_at(chan_key, 1000)
+        await ContactRepository.update_last_read_at(contact_key, 1000)
+
+        channel_after_id = await MessageRepository.create(
+            msg_type="CHAN",
+            text="after channel mark",
+            received_at=1000,
+            conversation_key=chan_key,
+            sender_timestamp=1001,
+        )
+        contact_after_id = await MessageRepository.create(
+            msg_type="PRIV",
+            text="after contact mark",
+            received_at=1000,
+            conversation_key=contact_key,
+            sender_timestamp=1001,
+        )
+
+        result = await MessageRepository.get_unread_counts(None)
+
+        assert result["counts"][f"channel-{chan_key}"] == 1
+        assert result["first_unread_ids"][f"channel-{chan_key}"] == channel_after_id
+        assert result["counts"][f"contact-{contact_key}"] == 1
+        assert result["first_unread_ids"][f"contact-{contact_key}"] == contact_after_id
+
+    @pytest.mark.asyncio
+    async def test_mark_all_read_keeps_later_same_second_arrivals_unread(self, test_db):
+        chan_key = "5A3E5EC0DC8A22E25A3E5EC0DC8A22E2"
+        contact_key = "ce" * 32
+        await ChannelRepository.upsert(key=chan_key, name="Same second all")
+        await _insert_contact(contact_key, "Bob")
+        for msg_type, key in (("CHAN", chan_key), ("PRIV", contact_key)):
+            await MessageRepository.create(
+                msg_type=msg_type,
+                text="before mark all",
+                received_at=2000,
+                conversation_key=key,
+                sender_timestamp=2000,
+            )
+
+        await ChannelRepository.mark_all_read(2000)
+        await ContactRepository.mark_all_read(2000)
+        assert (await MessageRepository.get_unread_counts(None))["counts"] == {}
+
+        for msg_type, key in (("CHAN", chan_key), ("PRIV", contact_key)):
+            await MessageRepository.create(
+                msg_type=msg_type,
+                text="after mark all",
+                received_at=2000,
+                conversation_key=key,
+                sender_timestamp=2001,
+            )
+
+        counts = (await MessageRepository.get_unread_counts(None))["counts"]
+        assert counts[f"channel-{chan_key}"] == 1
+        assert counts[f"contact-{contact_key}"] == 1
+
+    @pytest.mark.asyncio
+    async def test_mark_read_through_exact_message_boundary_is_monotonic(self, test_db, client):
+        """Delayed active-view updates must not consume newer or regress past newer messages."""
+        chan_key = "E8AC7B0DA2C4A1E1E8AC7B0DA2C4A1E1"
+        contact_key = "de" * 32
+        await ChannelRepository.upsert(key=chan_key, name="Exact boundary")
+        await _insert_contact(contact_key, "Alice")
+
+        async def create_pair(msg_type: str, conversation_key: str) -> tuple[int, int]:
+            first = await MessageRepository.create(
+                msg_type=msg_type,
+                text=f"{msg_type} first",
+                received_at=2000,
+                conversation_key=conversation_key,
+                sender_timestamp=2000,
+            )
+            second = await MessageRepository.create(
+                msg_type=msg_type,
+                text=f"{msg_type} second",
+                received_at=2000,
+                conversation_key=conversation_key,
+                sender_timestamp=2001,
+            )
+            assert first is not None
+            assert second is not None
+            return first, second
+
+        first_channel, second_channel = await create_pair("CHAN", chan_key)
+        first_contact, second_contact = await create_pair("PRIV", contact_key)
+
+        channel_response = await client.post(
+            f"/api/channels/{chan_key}/mark-read?message_id={first_channel}"
+        )
+        contact_response = await client.post(
+            f"/api/contacts/{contact_key}/mark-read?message_id={first_contact}"
+        )
+        assert channel_response.status_code == 200
+        assert contact_response.status_code == 200
+
+        result = await MessageRepository.get_unread_counts(None)
+        assert result["counts"][f"channel-{chan_key}"] == 1
+        assert result["counts"][f"contact-{contact_key}"] == 1
+
+        await client.post(f"/api/channels/{chan_key}/mark-read?message_id={second_channel}")
+        await client.post(f"/api/contacts/{contact_key}/mark-read?message_id={second_contact}")
+        # A delayed request for the older visible boundary must not move either
+        # cursor backwards and resurrect already-read messages.
+        await client.post(f"/api/channels/{chan_key}/mark-read?message_id={first_channel}")
+        await client.post(f"/api/contacts/{contact_key}/mark-read?message_id={first_contact}")
+
+        result = await MessageRepository.get_unread_counts(None)
+        assert result["counts"].get(f"channel-{chan_key}", 0) == 0
+        assert result["counts"].get(f"contact-{contact_key}", 0) == 0
+
+    @pytest.mark.asyncio
+    async def test_mark_read_rejects_a_message_from_another_conversation(self, test_db, client):
+        chan_key = "E8AC7B0DA2C4A1E2E8AC7B0DA2C4A1E2"
+        other_key = "E8AC7B0DA2C4A1E3E8AC7B0DA2C4A1E3"
+        await ChannelRepository.upsert(key=chan_key, name="Mine")
+        await ChannelRepository.upsert(key=other_key, name="Other")
+        foreign_id = await MessageRepository.create(
+            msg_type="CHAN",
+            text="elsewhere",
+            received_at=3000,
+            conversation_key=other_key,
+            sender_timestamp=3000,
+        )
+
+        response = await client.post(f"/api/channels/{chan_key}/mark-read?message_id={foreign_id}")
+
+        assert response.status_code == 400
+
+    @pytest.mark.asyncio
     async def test_unreads_exclude_outgoing_messages(self, test_db):
         """Outgoing messages should never count as unread."""
         contact_key = "abcd" * 16

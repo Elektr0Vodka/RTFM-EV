@@ -39,8 +39,10 @@ import type {
   Channel,
   ChannelDetail,
   CommandResponse,
+  BulkDeleteContactsResult,
   Contact,
   ContactAnalytics,
+  ContactDeleteResult,
   ContactAdvertPathSummary,
   LatestTelemetry,
   ContactRadioResidency,
@@ -431,11 +433,11 @@ export const api = {
     });
   },
   deleteContact: (publicKey: string) =>
-    fetchJson<{ status: string }>(`/contacts/${publicKey}`, {
+    fetchJson<ContactDeleteResult>(`/contacts/${publicKey}`, {
       method: 'DELETE',
     }),
   bulkDeleteContacts: (publicKeys: string[]) =>
-    fetchJson<{ deleted: number }>('/contacts/bulk-delete', {
+    fetchJson<BulkDeleteContactsResult>('/contacts/bulk-delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ public_keys: publicKeys }),
@@ -459,10 +461,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ uri }),
     }),
-  markContactRead: (publicKey: string) =>
-    fetchJson<{ status: string; public_key: string }>(`/contacts/${publicKey}/mark-read`, {
-      method: 'POST',
-    }),
+  markContactRead: (publicKey: string, messageId?: number) =>
+    fetchJson<{ status: string; public_key: string }>(
+      `/contacts/${publicKey}/mark-read${messageId === undefined ? '' : `?message_id=${messageId}`}`,
+      { method: 'POST' }
+    ),
   markContactUnread: (publicKey: string, messageId: number) =>
     fetchJson<{ status: string; public_key: string; message_id: number; last_read_at: number }>(
       `/contacts/${publicKey}/mark-unread`,
@@ -591,10 +594,11 @@ export const api = {
     fetchJson<CommunityExport>(`/communities/${communityId}/export`, { cache: 'no-store' }),
   deleteCommunity: (communityId: string) =>
     fetchJson<{ status: string }>(`/communities/${communityId}`, { method: 'DELETE' }),
-  markChannelRead: (key: string) =>
-    fetchJson<{ status: string; key: string }>(`/channels/${key}/mark-read`, {
-      method: 'POST',
-    }),
+  markChannelRead: (key: string, messageId?: number) =>
+    fetchJson<{ status: string; key: string }>(
+      `/channels/${key}/mark-read${messageId === undefined ? '' : `?message_id=${messageId}`}`,
+      { method: 'POST' }
+    ),
   markChannelUnread: (key: string, messageId: number) =>
     fetchJson<{ status: string; key: string; message_id: number; last_read_at: number }>(
       `/channels/${key}/mark-unread`,

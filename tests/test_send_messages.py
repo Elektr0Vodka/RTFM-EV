@@ -1102,8 +1102,8 @@ class TestResendChannelMessage:
         assert sent_timestamp == now + 1
 
     @pytest.mark.asyncio
-    async def test_resend_no_radio_response_returns_422_and_creates_no_new_row(self, test_db):
-        """When resend returns None, report unknown outcome and create no new message row."""
+    async def test_resend_no_radio_response_returns_422_and_preserves_unknown_row(self, test_db):
+        """When resend returns None, retain the new message with an unknown outcome."""
         mc = _make_mc(name="MyNode")
         chan_key = "c1" * 16
         await ChannelRepository.upsert(key=chan_key, name="#resend-none")
@@ -1134,7 +1134,11 @@ class TestResendChannelMessage:
         messages = await MessageRepository.get_all(
             msg_type="CHAN", conversation_key=chan_key.upper(), limit=10
         )
-        assert len(messages) == 1
+        assert len(messages) == 2
+        resent = next(message for message in messages if message.id != msg_id)
+        assert resent.text == "MyNode: hello"
+        assert resent.outgoing is True
+        assert resent.send_status == "unknown"
 
     @pytest.mark.asyncio
     async def test_resend_non_outgoing_returns_400(self, test_db):
@@ -1351,6 +1355,65 @@ class TestResendChannelMessage:
 
         assert exc_info.value.status_code == 400
         assert "expired" in exc_info.value.detail.lower()
+
+    @pytest.mark.asyncio
+    async def test_resend_strips_historical_sender_prefix_after_radio_rename(self, test_db):
+        """A message sent under the old radio name must not resend that name as body text."""
+        mc = _make_mc(name="NewName")
+        chan_key = "e7" * 16
+        await ChannelRepository.upsert(key=chan_key, name="#renamed")
+
+        now = int(time.time()) - 5
+        msg_id = await MessageRepository.create(
+            msg_type="CHAN",
+            text="OldName: hello world",
+            conversation_key=chan_key.upper(),
+            sender_timestamp=now,
+            received_at=now,
+            outgoing=True,
+            sender_name="OldName",
+        )
+        assert msg_id is not None
+
+        with (
+            patch("app.routers.messages.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+        ):
+            await resend_channel_message(msg_id, new_timestamp=False)
+
+        assert mc.commands.send_chan_msg.await_args.kwargs["msg"] == "hello world"
+
+    @pytest.mark.asyncio
+    async def test_new_timestamp_resend_stores_current_name_after_radio_rename(self, test_db):
+        """The new row carries the name the radio actually puts on air."""
+        mc = _make_mc(name="NewName")
+        chan_key = "e8" * 16
+        await ChannelRepository.upsert(key=chan_key, name="#renamed-new")
+
+        old_ts = int(time.time()) - 60
+        msg_id = await MessageRepository.create(
+            msg_type="CHAN",
+            text="OldName: hello world",
+            conversation_key=chan_key.upper(),
+            sender_timestamp=old_ts,
+            received_at=old_ts,
+            outgoing=True,
+            sender_name="OldName",
+        )
+        assert msg_id is not None
+
+        with (
+            patch("app.routers.messages.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch("app.routers.messages.broadcast_event"),
+        ):
+            result = await resend_channel_message(msg_id, new_timestamp=True)
+
+        resent = await MessageRepository.get_by_id(result.message_id)
+        assert resent is not None
+        assert resent.text == "NewName: hello world"
+        assert resent.sender_name == "NewName"
+        assert mc.commands.send_chan_msg.await_args.kwargs["msg"] == "hello world"
 
 
 class TestPathHashModeOverride:
@@ -1714,6 +1777,36 @@ class TestChannelEchoWatchdog:
 
         mc.commands.send_chan_msg.assert_not_called()
 
+    @pytest.mark.asyncio
+    async def test_watchdog_strips_historical_sender_prefix_after_radio_rename(self, test_db):
+        """The watchdog resend strips the name the message was sent under."""
+        chan_key = "e9" * 16
+        await ChannelRepository.upsert(key=chan_key, name="#renamed-watchdog")
+
+        now = int(time.time())
+        msg_id = await MessageRepository.create(
+            msg_type="CHAN",
+            text="OldName: payload",
+            conversation_key=chan_key.upper(),
+            sender_timestamp=now,
+            received_at=now,
+            outgoing=True,
+            sender_name="OldName",
+        )
+        assert msg_id is not None
+
+        mc = _make_mc(name="NewName")
+
+        with patch.object(radio_manager, "_meshcore", mc):
+            await message_send_service._channel_echo_watchdog(
+                message_id=msg_id,
+                radio_manager=radio_manager,
+                broadcast_fn=MagicMock(),
+                error_broadcast_fn=MagicMock(),
+            )
+
+        assert mc.commands.send_chan_msg.await_args.kwargs["msg"] == "payload"
+
 
 class TestRadioExceptionMidSend:
     """Test that radio exceptions during send don't leave orphaned DB state."""
@@ -1744,8 +1837,8 @@ class TestRadioExceptionMidSend:
         assert len(messages) == 0
 
     @pytest.mark.asyncio
-    async def test_dm_send_no_radio_response_returns_422_without_storing_message(self, test_db):
-        """When mc.commands.send_msg() returns None, report unknown outcome and store nothing."""
+    async def test_dm_send_no_radio_response_returns_422_and_preserves_message(self, test_db):
+        """When a DM gets no response, retain it with an unknown send outcome."""
         mc = _make_mc()
         pub_key = "ac" * 32
         await _insert_contact(pub_key, "Alice")
@@ -1767,13 +1860,14 @@ class TestRadioExceptionMidSend:
         messages = await MessageRepository.get_all(
             msg_type="PRIV", conversation_key=pub_key, limit=10
         )
-        assert len(messages) == 0
+        assert len(messages) == 1
+        assert messages[0].text == "Did this send?"
+        assert messages[0].outgoing is True
+        assert messages[0].send_status == "unknown"
 
     @pytest.mark.asyncio
-    async def test_channel_send_no_radio_response_returns_422_without_storing_message(
-        self, test_db
-    ):
-        """When mc.commands.send_chan_msg() returns None, report unknown outcome and store nothing."""
+    async def test_channel_send_no_radio_response_returns_422_and_preserves_message(self, test_db):
+        """When a channel send gets no response, retain it with an unknown outcome."""
         mc = _make_mc(name="TestNode")
         chan_key = "ad" * 16
         await ChannelRepository.upsert(key=chan_key, name="#unknown-outcome")
@@ -1795,7 +1889,51 @@ class TestRadioExceptionMidSend:
         messages = await MessageRepository.get_all(
             msg_type="CHAN", conversation_key=chan_key.upper(), limit=10
         )
-        assert len(messages) == 0
+        assert len(messages) == 1
+        assert messages[0].text == "TestNode: Did this send?"
+        assert messages[0].outgoing is True
+        assert messages[0].send_status == "unknown"
+
+    @pytest.mark.asyncio
+    async def test_echo_confirms_a_message_with_unknown_send_outcome(self, test_db):
+        """Hearing the message come back proves it went out."""
+        chan_key = "ae" * 16
+        await ChannelRepository.upsert(key=chan_key, name="#unknown-then-heard")
+        now = int(time.time())
+        msg_id = await MessageRepository.create(
+            msg_type="CHAN",
+            text="TestNode: heard after all",
+            conversation_key=chan_key.upper(),
+            sender_timestamp=now,
+            received_at=now,
+            outgoing=True,
+            send_status="unknown",
+        )
+        assert msg_id is not None
+
+        await MessageRepository.increment_ack_count(msg_id)
+
+        stored = await MessageRepository.get_by_id(msg_id)
+        assert stored is not None
+        assert stored.send_status == "confirmed"
+
+    @pytest.mark.asyncio
+    async def test_successful_channel_send_is_stored_as_confirmed(self, test_db):
+        mc = _make_mc(name="TestNode")
+        chan_key = "af" * 16
+        await ChannelRepository.upsert(key=chan_key, name="#confirmed")
+
+        with (
+            patch("app.routers.messages.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch("app.routers.messages.broadcast_event"),
+        ):
+            await send_channel_message(SendChannelMessageRequest(channel_key=chan_key, text="ok"))
+
+        messages = await MessageRepository.get_all(
+            msg_type="CHAN", conversation_key=chan_key.upper(), limit=10
+        )
+        assert [message.send_status for message in messages] == ["confirmed"]
 
     @pytest.mark.asyncio
     async def test_channel_send_radio_exception_no_orphan_message(self, test_db):

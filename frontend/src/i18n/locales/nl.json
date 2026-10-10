@@ -737,6 +737,7 @@
   "chat_retry_failed": "Opnieuw proberen mislukt",
   "chat_message_failed": "Mislukt",
   "chat_message_failed_title": "Niet afgeleverd: geen bevestiging na alle pogingen. Gebruik Opnieuw proberen om het nogmaals te versturen.",
+  "chat_send_unconfirmed_title": "De radio heeft deze verzending niet bevestigd. Het bericht is mogelijk wel of niet uitgezonden.",
   "chat_mark_unread_action": "Markeren als ongelezen vanaf hier",
   "chat_mark_unread_success": "Gemarkeerd als ongelezen",
   "chat_mark_unread_failed": "Markeren als ongelezen mislukt",
@@ -746,7 +747,7 @@
   "chat_scroll_down_newer": "Scroll omlaag voor nieuwere berichten",
   "chat_scroll_up_older": "Scroll omhoog voor oudere berichten",
   "chat_select_conversation": "Selecteer een gesprek of start een nieuw gesprek",
-  "chat_truncated_by_radio": "waarschijnlijk afgekapt door de radio",
+  "chat_too_long_to_send": "te lang om te verzenden, kort het in",
   "chat_try_decrypt": {
     "one": "Probeer {n} opgeslagen pakket te ontsleutelen",
     "other": "Probeer {n} opgeslagen pakketten te ontsleutelen"
@@ -3581,6 +3582,10 @@
   "bulkdelete_toast_deleted": {
     "one": "{count} contact verwijderd",
     "other": "{count} contacten verwijderd"
+  },
+  "bulkdelete_toast_radio_failed": {
+    "one": "{count} contact kon niet van de radio worden verwijderd en kan bij de volgende synchronisatie terugkomen.",
+    "other": "{count} contacten konden niet van de radio worden verwijderd en kunnen bij de volgende synchronisatie terugkomen."
   },
   "bulkdelete_toast_failed_title": "Bulkverwijdering mislukt",
   "bulkdelete_channels_select_description": "Selecteer kanalen om uit de app te verwijderen.",

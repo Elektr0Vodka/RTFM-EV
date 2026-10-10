@@ -33,7 +33,7 @@ vi.mock('../prefetch', () => ({
 
 // Mock sonner
 vi.mock('../components/ui/sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn() },
 }));
 
 function makeContact(suffix: string): Contact {
@@ -211,6 +211,31 @@ describe('useContactsAndChannels', () => {
       expect(api.getChannels).toHaveBeenCalled();
       expect(api.getUndecryptedPacketCount).toHaveBeenCalled();
       expect(response).toEqual(resultPayload);
+    });
+  });
+
+  describe('contact deletion', () => {
+    it('warns when the database delete succeeds but radio removal fails', async () => {
+      const { api } = await import('../api');
+      const { toast } = await import('../components/ui/sonner');
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      vi.mocked(api.deleteContact).mockResolvedValueOnce({
+        status: 'partial',
+        database_deleted: true,
+        radio_deleted: false,
+        radio_error: 'Radio rejected removal: contact locked',
+      });
+      vi.mocked(api.getChannels).mockResolvedValueOnce([]);
+
+      const { result } = renderUseContactsAndChannels();
+      await act(async () => {
+        await result.current.handleDeleteContact(makeContact('1').public_key);
+      });
+
+      expect(toast.warning).toHaveBeenCalledWith('Contact deleted, but the radio kept it', {
+        description: 'Radio rejected removal: contact locked',
+      });
+      expect(toast.success).not.toHaveBeenCalledWith('Contact deleted');
     });
   });
 });

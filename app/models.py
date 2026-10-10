@@ -677,6 +677,14 @@ class Message(BaseModel):
     sender_key: str | None = None
     outgoing: bool = False
     acked: int = 0
+    send_status: Literal["pending", "confirmed", "unknown"] = Field(
+        default="confirmed",
+        description=(
+            "Outcome of the radio send command for an outgoing message: 'pending' until "
+            "the radio answers, 'confirmed' once it accepted the command, 'unknown' when "
+            "it never answered (the message may or may not be on air)."
+        ),
+    )
     sender_name: str | None = None
     channel_name: str | None = None
     packet_id: int | None = Field(

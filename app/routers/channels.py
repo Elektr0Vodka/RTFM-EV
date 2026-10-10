@@ -353,14 +353,20 @@ async def bulk_create_hashtag_channels(
 
 
 @router.post("/{key}/mark-read")
-async def mark_channel_read(key: str) -> dict:
-    """Mark a channel as read (update last_read_at timestamp)."""
+async def mark_channel_read(key: str, message_id: int | None = None) -> dict:
+    """Mark a channel as read.
+
+    Without ``message_id`` everything received so far counts as read. With it,
+    the read state advances through that message only (never backwards).
+    """
     channel = await ChannelRepository.get_by_key(key)
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found")
 
-    updated = await ChannelRepository.update_last_read_at(key)
+    updated = await ChannelRepository.update_last_read_at(key, message_id=message_id)
     if not updated:
+        if message_id is not None:
+            raise HTTPException(status_code=400, detail="Invalid message read boundary")
         raise HTTPException(status_code=500, detail="Failed to update read state")
 
     return {"status": "ok", "key": channel.key}

@@ -737,6 +737,7 @@
   "chat_retry_failed": "Erneuter Versuch fehlgeschlagen",
   "chat_message_failed": "Fehlgeschlagen",
   "chat_message_failed_title": "Nicht zugestellt: keine Bestätigung nach allen Versuchen. Mit Erneut versuchen noch einmal senden.",
+  "chat_send_unconfirmed_title": "Das Funkgerät hat diesen Sendevorgang nicht bestätigt. Die Nachricht wurde möglicherweise gesendet oder auch nicht.",
   "chat_mark_unread_action": "Ab hier als ungelesen markieren",
   "chat_mark_unread_success": "Als ungelesen markiert",
   "chat_mark_unread_failed": "Als ungelesen markieren fehlgeschlagen",
@@ -746,7 +747,7 @@
   "chat_scroll_down_newer": "Nach unten scrollen für neuere Nachrichten",
   "chat_scroll_up_older": "Nach oben scrollen für ältere Nachrichten",
   "chat_select_conversation": "Wähle eine Unterhaltung oder starte eine neue",
-  "chat_truncated_by_radio": "wahrscheinlich vom Funkgerät abgeschnitten",
+  "chat_too_long_to_send": "zu lang zum Senden, bitte kürzen",
   "chat_try_decrypt": {
     "one": "{n} gespeichertes Paket entschlüsseln versuchen",
     "other": "{n} gespeicherte Pakete entschlüsseln versuchen"
@@ -3581,6 +3582,10 @@
   "bulkdelete_toast_deleted": {
     "one": "{count} Kontakt gelöscht",
     "other": "{count} Kontakte gelöscht"
+  },
+  "bulkdelete_toast_radio_failed": {
+    "one": "{count} Kontakt konnte nicht vom Funkgerät entfernt werden und kann bei der nächsten Synchronisierung zurückkommen.",
+    "other": "{count} Kontakte konnten nicht vom Funkgerät entfernt werden und können bei der nächsten Synchronisierung zurückkommen."
   },
   "bulkdelete_toast_failed_title": "Massenlöschung fehlgeschlagen",
   "bulkdelete_channels_select_description": "Wähle Kanäle aus, die aus der App entfernt werden sollen.",
