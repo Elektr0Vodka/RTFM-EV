@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     basic_auth_password: str = ""
     vapid_subject: str = "mailto:noreply@meshcore.local"
     update_check_enabled: bool = True
+    # Multi-radio mode (plan 30): app.asgi serves the gateway, which runs one
+    # worker process per radio. Off = this single-radio app, unchanged.
+    multi_radio: bool = False
+    # Set by the gateway on every worker it starts. Never set by hand.
+    worker_token: str = ""
     # Server switch (env half) for the host repeater: live forwarding (a later
     # phase) needs this AND the admin setting. Shadow mode does not need it.
     host_repeater_enabled: bool = False

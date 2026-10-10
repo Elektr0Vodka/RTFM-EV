@@ -10,6 +10,7 @@ These are intended for diagnosing or working around radios that behave oddly, or
 |----------|---------|-------------|
 | `MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK` | false | Run aggressive 10-second `get_msg()` fallback polling to check for messages ([docs](#message-poll-fallback)) |
 | `MESHCORE_FORCE_CHANNEL_SLOT_RECONFIGURE` | false | Disable channel-slot reuse and force `set_channel(...)` before every channel send ([docs](#force-channel-slot-reconfigure)) |
+| `MESHCORE_MULTI_RADIO` | false | Run one worker process per radio behind a gateway, one workspace per radio ([docs](#multiple-radios-experimental)) |
 | `MESHCORE_LOAD_WITH_AUTOEVICT` | false | Enable autoevict mode for contact loading ([docs](#autoevict-mode)) |
 | `__CLOWNTOWN_DO_CLOCK_WRAPAROUND` | false | Highly experimental: if the radio clock is ahead of system time, try forcing the clock to `0xFFFFFFFF`, wait for uint32 wraparound, and then retry normal time sync before falling back to reboot ([docs](#clock-wraparound)) |
 | `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT` | false | Enable `GET /api/radio/private-key` to return the in-memory private key as hex for backup or migration. Only enable on a trusted network. Import via `PUT /api/radio/private-key` is always available. ([docs](#private-key-export)) |
@@ -180,6 +181,26 @@ RemoteTerm has no sign-in page of its own. When a reverse proxy in front of it h
 - The WebSocket cannot show the status of a refused handshake, so after three failed connections in a row the app asks `/api/health` over HTTP and acts on that answer.
 - At most one automatic redirect or reload per minute, so a reload that does not bring the session back cannot loop.
 - The address is stored in the browser (`localStorage`), per device. Only a path on the same site or an `http(s)` address is accepted, and that is checked again each time the address is used; anything else in storage leads to a plain reload.
+
+## Multiple Radios (experimental)
+
+RTFM-EV can run several companion radios at once, for example one on 433 MHz and one on 868 MHz. Each radio gets its own workspace with its own contacts, messages, packets, settings and database. This is off by default.
+
+Set `MESHCORE_MULTI_RADIO=true`. In Docker nothing else changes. Outside Docker, start `app.asgi:app` instead of `app.main:app`:
+
+    MESHCORE_MULTI_RADIO=true uv run uvicorn app.asgi:app --host 0.0.0.0 --port 8000
+
+On the first start the radio you already have configured becomes radio 1 and keeps its existing database. The radio list is stored in `data/radios.json`. Each workspace is served at `/r/<first 12 characters of the radio's public key>/`, and `/` opens the last used one. A radio appears there after it has connected once.
+
+There is no management screen yet. Radios are added through the gateway API, for example:
+
+    curl -X POST http://localhost:8000/gateway/api/radios \
+      -H "Content-Type: application/json" \
+      -d '{"name": "433 MHz", "transport": {"type": "serial", "port": "/dev/ttyUSB1"}}'
+
+`transport` is `{"type": "serial", "port": ..., "baudrate": 115200}`, `{"type": "tcp", "host": ..., "port": 5000}` or `{"type": "ble", "address": ..., "pin": ...}`. With more than one radio every serial radio needs an explicit port. `GET /gateway/api/radios` lists the radios with their state and URL.
+
+Limits: one Python process per radio (about 145 MB each before any data), the SNMP agent can only run on one radio, and push notifications are enabled per radio.
 
 ## HTTPS
 

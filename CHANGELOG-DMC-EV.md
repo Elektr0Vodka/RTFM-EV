@@ -11,6 +11,17 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-11 (Multi-radio gateway backend, plan 30 part A)
+
+### Multi-radio mode (new, opt-in, experimental)
+
+- `MESHCORE_MULTI_RADIO=true` starts a gateway that runs the app once per radio and serves each radio under `/r/<key>/`, where `<key>` is the first 12 hex characters of the radio's public key. Each radio has its own database, settings and integrations. Off by default; with the switch off nothing changes.
+- New entry point `app.asgi:app` (the Docker image uses it). `app.main:app` still works for single-radio installs.
+- Radio list in `data/radios.json`, managed through `/gateway/api/radios` (add, edit, remove, start, stop, restart, log). No management screen yet.
+- The configured radio becomes radio 1 on the first start and keeps its database.
+- Workers only accept requests from the gateway (`MESHCORE_WORKER_TOKEN`, set automatically).
+- Not in this change: radio switcher and radios page, shared channels, unread counts across radios.
+
 ## Update 2026-10-11 (chat window: sort, fold and filter the lists, feat/popout-list-sort-filter)
 
 Frontend only. No migration, no new dependency, no backend change.

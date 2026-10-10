@@ -25,6 +25,8 @@ Keep it aligned with `app/` source files and router behavior.
 app/
 ├── main.py              # App startup/lifespan, router registration, static frontend mounting
 ├── api_docs.py          # OpenAPI description/tag metadata and docs route registration
+├── asgi.py              # Entry point: single-radio app, or the gateway when MESHCORE_MULTI_RADIO=true
+├── gateway/             # Multi-radio mode (plan 30): registry.py (radios.json), keys.py (URL keys), supervisor.py (one worker process per radio), proxy.py (HTTP + WS pass-through), app.py (/gateway/api, /r/<key>/)
 ├── config.py            # Env-driven runtime settings
 ├── channel_constants.py # Public/default channel constants shared across sync/send logic
 ├── database.py          # SQLite writer connection (tx(), locked) + reader pool (readonly(), WAL, query_only) + base schema + migration runner
@@ -343,6 +345,17 @@ Web Push is a standalone subsystem in `app/push/`, separate from the fanout modu
 - **Stale cleanup**: HTTP 404/410 from the push service triggers immediate subscription deletion.
 - **Subscriptions stored** in `push_subscriptions` table with `UNIQUE(endpoint)` for upsert semantics.
 - Requires HTTPS (self-signed OK) and outbound internet to reach browser push services.
+
+### Multi-radio gateway (`app/gateway/`, opt-in)
+
+With `MESHCORE_MULTI_RADIO=true`, `app.asgi:app` serves the gateway instead of the single-radio app. The gateway is the only listener on the public port. It keeps the radio list in `<data dir>/radios.json` and runs the unchanged single-radio app once per radio as a subprocess (`uvicorn app.main:app` on `127.0.0.1:<free port>`), each with its own `MESHCORE_DATABASE_PATH` and transport. Nothing in the core app knows about other radios: isolation is by process and database file.
+
+- **Identity.** Each radio has a numeric `id` (never reused) for storage and a URL key for its workspace: the first 12 hex characters of the public key the worker reports in `/api/health` (`radio_identity.public_key`). Two radios with the same key get `-2`, `-3` in id order. A radio that never connected has no key and no workspace URL. Old keys and longer forms redirect to the current key (`keys.resolve`).
+- **Routing.** `/r/<key>/<path>` is forwarded to that radio's worker with `X-Forwarded-Prefix: /r/<key>`, so the worker serves the SPA, manifest and service worker under that sub-path. An outer proxy's own `X-Forwarded-Prefix` is kept in front. Redirects are relative for the same reason.
+- **Worker token.** The gateway starts each worker with a random `MESHCORE_WORKER_TOKEN` and adds it to every forwarded request (`x-rtfm-worker-token`). `WorkerTokenMiddleware` in `app/security.py` rejects anything else with 403, so a local process cannot skip the gateway's Basic auth. Basic auth itself is enforced by the gateway only; the credentials are not passed to workers.
+- **Supervisor.** `WorkerSupervisor.tick()` runs every 2 s: a worker that exited is `crashed` and restarted after `min(60, 2^restarts)` seconds; a live worker is probed on `/api/health`, which sets `running` and feeds the public key to the registry. Worker output is echoed to the gateway's stdout with a `[radio <id>]` prefix and the last 500 lines are kept for `GET /gateway/api/radios/{id}/log`.
+- **Gateway API** (not under `/api`, which belongs to the workers): `GET/POST /gateway/api/radios`, `PATCH/DELETE /gateway/api/radios/{id}` (`delete_data=true` removes only `<data dir>/radios/<id>/`), `POST /gateway/api/radios/{id}/start|stop|restart`, `GET /gateway/api/radios/{id}/log`. The BLE PIN is never returned.
+- Do not import `app.main` or `app.database` from `app/gateway/`: the gateway must not open a radio or a database itself.
 
 ## API Surface (all under `/api`)
 
