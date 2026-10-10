@@ -566,6 +566,97 @@ class TestOutgoingDMBroadcast:
         ]
 
 
+class TestRadioTextLimit:
+    """Text the radio would refuse or cut short is rejected before anything is sent."""
+
+    @pytest.mark.asyncio
+    async def test_dm_at_the_limit_is_sent(self, test_db):
+        mc = _make_mc()
+        pub_key = "c1" * 32
+        await _insert_contact(pub_key, "Alice")
+        text = "x" * 160
+
+        with (
+            patch("app.routers.messages.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch("app.routers.messages.broadcast_event"),
+        ):
+            message = await send_direct_message(
+                SendDirectMessageRequest(destination=pub_key, text=text)
+            )
+
+        assert message.text == text
+        mc.commands.send_msg.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("text", ["x" * 161, "é" * 81])
+    async def test_dm_over_the_limit_is_refused_and_nothing_is_sent(self, test_db, text: str):
+        """The limit is 160 bytes, not characters: 81 two-byte letters are 162."""
+        mc = _make_mc()
+        pub_key = "c2" * 32
+        await _insert_contact(pub_key, "Alice")
+
+        with (
+            patch("app.routers.messages.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch("app.routers.messages.broadcast_event") as mock_broadcast,
+            pytest.raises(HTTPException) as excinfo,
+        ):
+            await send_direct_message(SendDirectMessageRequest(destination=pub_key, text=text))
+
+        assert excinfo.value.status_code == 422
+        assert "too long" in excinfo.value.detail
+        assert "160" in excinfo.value.detail
+        mc.commands.add_contact.assert_not_called()
+        mc.commands.send_msg.assert_not_called()
+        mock_broadcast.assert_not_called()
+        assert await MessageRepository.get_all(msg_type="PRIV", conversation_key=pub_key) == []
+
+    @pytest.mark.asyncio
+    async def test_channel_message_that_fits_with_the_sender_prefix_is_sent(self, test_db):
+        mc = _make_mc(name="MyNode")
+        chan_key = "c3" * 16
+        await ChannelRepository.upsert(key=chan_key, name="#general")
+        # "MyNode: " is 8 bytes, which leaves 152 for the text.
+        text = "x" * 152
+
+        with (
+            patch("app.routers.messages.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch("app.routers.messages.broadcast_event"),
+        ):
+            message = await send_channel_message(
+                SendChannelMessageRequest(channel_key=chan_key, text=text)
+            )
+
+        assert message.text == f"MyNode: {text}"
+
+    @pytest.mark.asyncio
+    async def test_channel_message_over_the_limit_is_refused_and_nothing_is_sent(self, test_db):
+        """The radio would cut the text short, so the stored copy would not match the air."""
+        mc = _make_mc(name="MyNode")
+        chan_key = "c4" * 16
+        await ChannelRepository.upsert(key=chan_key, name="#general")
+
+        with (
+            patch("app.routers.messages.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch("app.routers.messages.broadcast_event") as mock_broadcast,
+            pytest.raises(HTTPException) as excinfo,
+        ):
+            await send_channel_message(
+                SendChannelMessageRequest(channel_key=chan_key, text="x" * 153)
+            )
+
+        assert excinfo.value.status_code == 422
+        assert "too long" in excinfo.value.detail
+        mc.commands.set_channel.assert_not_called()
+        mc.commands.send_chan_msg.assert_not_called()
+        mc.commands.send.assert_not_called()
+        mock_broadcast.assert_not_called()
+        assert await MessageRepository.get_all(msg_type="CHAN", conversation_key=chan_key) == []
+
+
 class TestOutgoingChannelBroadcast:
     """Test that outgoing channel messages are broadcast via broadcast_event for fanout dispatch."""
 

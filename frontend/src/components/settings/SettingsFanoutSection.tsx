@@ -44,6 +44,7 @@ const DEFAULT_COMMUNITY_BROKER_HOST = 'mqtt-us-v1.letsmesh.net';
 const DEFAULT_COMMUNITY_BROKER_PORT = 443;
 const DEFAULT_COMMUNITY_TRANSPORT = 'websockets';
 const DEFAULT_COMMUNITY_AUTH_MODE = 'token';
+const EMPTY_TRACKED_KEYS: string[] = [];
 
 function createCommunityConfigDefaults(
   overrides: Partial<Record<string, unknown>> = {}
@@ -762,8 +763,8 @@ function MqttHaConfigEditor({
       .catch(console.error);
   }, []);
 
-  const selectedContacts = (config.tracked_contacts as string[]) || [];
-  const selectedRepeaters = (config.tracked_repeaters as string[]) || [];
+  const selectedContacts = (config.tracked_contacts as string[]) || EMPTY_TRACKED_KEYS;
+  const selectedRepeaters = (config.tracked_repeaters as string[]) || EMPTY_TRACKED_KEYS;
 
   const contactOptions = useMemo(
     () => contacts.filter((c) => c.type === 0 || c.type === 1 || c.type === 3),
@@ -792,11 +793,13 @@ function MqttHaConfigEditor({
     });
   }, [contactOptions, contactSearchLower, selectedContacts]);
 
-  const selectedContactDetails = contactOptions.filter((c) =>
-    selectedContacts.includes(c.public_key)
+  const selectedContactDetails = useMemo(
+    () => contactOptions.filter((c) => selectedContacts.includes(c.public_key)),
+    [contactOptions, selectedContacts]
   );
-  const selectedRepeaterDetails = repeaterOptions.filter((c) =>
-    selectedRepeaters.includes(c.public_key)
+  const selectedRepeaterDetails = useMemo(
+    () => repeaterOptions.filter((c) => selectedRepeaters.includes(c.public_key)),
+    [repeaterOptions, selectedRepeaters]
   );
   const prefix = ((config.topic_prefix as string) || 'meshcore').trim() || 'meshcore';
 

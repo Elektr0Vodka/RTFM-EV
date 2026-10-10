@@ -401,6 +401,7 @@ export function useRealtimeAppState({
       activeConversationRef,
       blockedKeysRef,
       blockedNamesRef,
+      channelsRef,
       hiddenHopWidthsRef,
       hideMalformedRef,
       checkMention,
