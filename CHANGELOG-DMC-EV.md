@@ -68,7 +68,10 @@ exactly as before; see "Tailwind 4" for how that was checked.
   - `space-x-*` / `space-y-*` keep their Tailwind 3 behaviour (margin on the
     start of each child but the first, at class specificity). Tailwind 4's
     end margin does nothing on an inline child, which removed the gap under
-    `<span>` and `<label>` headings.
+    `<span>` and `<label>` headings. The responsive `sm:space-x-*` classes on
+    the dialog and sheet footers have their own rule; without it the footer
+    buttons touched. `src/test/tailwindCompat.test.ts` fails when a `space-*`
+    class is used that has no rule.
   - `hover:` applies on `:hover` everywhere, not only on hover-capable
     pointers; buttons keep `cursor: pointer`; the text-size utilities keep
     absolute line-heights; the 36 default-palette shades the app uses keep
@@ -80,8 +83,32 @@ exactly as before; see "Tailwind 4" for how that was checked.
   Mesh Discovery, Message Search, Mesh Trends, Settings) and the channel chat
   in Light, CRT Green, MCEU Light, Windows 95 and DarkDutch: no style
   difference except `divide-y`, whose 1px line now belongs to the row above
-  instead of the row below (same pixels). Not covered: the map, the
-  visualizer, repeater dashboards (need a radio login) and dialogs.
+  instead of the row below (same pixels).
+- Second check, after the merge with main (MCEU layout), same method at
+  1440x900. Default theme and MCEU Dark: the map and its five panels, the
+  visualizer, channel chat, a DM, contact info, New Conversation, the theme
+  dialog, Customize sidebar, Channel Import / Export, the command palette,
+  Local and Database settings and Packet History. Light, Windows 95, CRT
+  Green and MCEU Light: eight of those. MCEU Light at phone width: six. The
+  generated class names of both builds were compared as well. Found and fixed:
+  - Dialog and sheet footer buttons lost their 8px gap (`sm:space-x-2`, see
+    above).
+  - `bg-black/10` on the corrupt-message avatar got no CSS: Tailwind 4 reads
+    class names as whole tokens and this one was written directly against a
+    `${` in a template string. `ContactAvatar` uses `cn()` now; the same test
+    file fails on a class glued to a placeholder.
+  - `h-4.5 w-4.5` on 22 icons in the contact and channel info panes is not a
+    Tailwind 3 class, so those icons had lucide's default 24px. Tailwind 4
+    accepts the class and would shrink them to 18px. They are `h-6 w-6` now,
+    the size they had.
+  With those fixed no element differs in position. Left over, all equivalent:
+  `translate` instead of a `transform` matrix, `outline-style: none` instead
+  of a transparent outline, ring shadows without the zero-width offset shadow,
+  and a transparent background on native range, checkbox and radio inputs
+  (Tailwind 3 left the browser's field colour, which Chrome does not paint
+  under a native control; not confirmed by pixels, the browser pane was
+  hidden). The map and visualizer canvases are WebGL and were not compared
+  pixel by pixel. Not covered: repeater dashboards (need a radio login).
 - Tailwind 4 needs Safari 16.4, Chrome 111 or Firefox 128 and newer.
 
 ### Build and CI
@@ -90,8 +117,18 @@ exactly as before; see "Tailwind 4" for how that was checked.
 - GitHub Actions: checkout v7, setup-node v7, setup-python v7, setup-uv
   v10.3.0 (no moving major tag exists after v7), codeql-action v4, docker
   build-push v7, metadata v6, login v4, setup-buildx v4, deploy-aur v4.2.0.
-  These only run on GitHub and have not run yet.
-- `tests/e2e`: Playwright 1.58 to 1.64 (lockfile only, suite not run).
+  The quality and CodeQL workflows passed on the pull request with the new
+  versions. The Docker ones first run on the push to `main` and the AUR one on
+  a release; the inputs the workflows pass were checked against each action's
+  `action.yml` at the new tag and all still exist.
+- `tests/e2e`: Playwright 1.58 to 1.64. Playwright 1.64 loads the config and
+  lists all 51 tests in 27 files. The suite was not run: its global setup
+  requires a connected radio and the specs transmit.
+- `LICENSES.md` regenerated with `scripts/build/collect_licenses.sh`. The
+  committed file was out of date and still listed removed packages (leaflet,
+  react-leaflet, CodeMirror). On Windows the script needs
+  `PYTHONUTF8=1`, otherwise the Python half is written in the console code
+  page and names with accents break.
 
 ## Update 2026-10-09 (MCEU themes: page heads and cards, feat/mceu-layout)
 

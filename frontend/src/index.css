@@ -574,6 +574,20 @@
     margin-right: 0;
     margin-left: 6rem;
   }
+  /* The responsive variants in use (dialog and sheet footers). The cancelling
+     rule above matches them too, so without these the footer buttons touch.
+     src/test/tailwindCompat.test.ts fails when a class is used that has
+     no rule here. */
+  @media (width >= 40rem) {
+    .sm\:space-x-0 > :not([hidden]) ~ :not([hidden]) {
+      margin-right: 0;
+      margin-left: 0;
+    }
+    .sm\:space-x-2 > :not([hidden]) ~ :not([hidden]) {
+      margin-right: 0;
+      margin-left: 0.5rem;
+    }
+  }
 }
 
 /*

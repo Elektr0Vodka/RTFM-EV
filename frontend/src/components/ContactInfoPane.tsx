@@ -120,12 +120,12 @@ export function ContactInfoPane({
                 >
                   {blockedNames.includes(nameOnlyValue) ? (
                     <>
-                      <Ban className="h-4.5 w-4.5 text-destructive" aria-hidden="true" />
+                      <Ban className="h-6 w-6 text-destructive" aria-hidden="true" />
                       <span>{t('contact_unblock_name')}</span>
                     </>
                   ) : (
                     <>
-                      <Ban className="h-4.5 w-4.5 text-muted-foreground" aria-hidden="true" />
+                      <Ban className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
                       <span>{t('contact_block_name')}</span>
                     </>
                   )}
@@ -140,7 +140,7 @@ export function ContactInfoPane({
                   className="text-sm flex items-center gap-2 hover:text-primary transition-colors"
                   onClick={() => onSearchMessagesByName(nameOnlyValue)}
                 >
-                  <Search className="h-4.5 w-4.5 text-muted-foreground" aria-hidden="true" />
+                  <Search className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
                   <span>{t('contact_search_messages_by_name')}</span>
                 </button>
               </div>

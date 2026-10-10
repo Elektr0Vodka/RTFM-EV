@@ -168,12 +168,12 @@ export function ChannelInfoPane({
               >
                 {channel.favorite ? (
                   <>
-                    <Star className="h-4.5 w-4.5 fill-current text-favorite" aria-hidden="true" />
+                    <Star className="h-6 w-6 fill-current text-favorite" aria-hidden="true" />
                     <span>{t('common_remove_from_favorites')}</span>
                   </>
                 ) : (
                   <>
-                    <Star className="h-4.5 w-4.5 text-muted-foreground" aria-hidden="true" />
+                    <Star className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
                     <span>{t('common_add_to_favorites')}</span>
                   </>
                 )}
@@ -197,7 +197,7 @@ export function ChannelInfoPane({
                   className="text-sm flex items-center gap-2 hover:text-primary transition-colors"
                   onClick={() => onEditInRegistry(channel.key)}
                 >
-                  <Library className="h-4.5 w-4.5 text-muted-foreground" aria-hidden="true" />
+                  <Library className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
                   <span>{t('channel_edit_in_registry')}</span>
                 </button>
               </div>
@@ -216,10 +216,7 @@ export function ChannelInfoPane({
                     onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
                     title={t('channel_analyzer_lookup_title', { name: site.name })}
                   >
-                    <ExternalLink
-                      className="h-4.5 w-4.5 text-muted-foreground"
-                      aria-hidden="true"
-                    />
+                    <ExternalLink className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
                     <span>{t('channel_analyzer_lookup_label', { name: site.name })}</span>
                   </button>
                 ))}
