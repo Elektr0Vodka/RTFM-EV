@@ -89,6 +89,23 @@ export function buildServerLoginAttemptFromResponse(
   };
 }
 
+/**
+ * A request that needs a login came back with an answer, so the login held even
+ * though its confirmation was never heard.
+ */
+export function buildServerLoginAttemptFromAction(
+  prior: ServerLoginAttemptState
+): ServerLoginAttemptState {
+  return {
+    method: prior.method,
+    outcome: 'confirmed',
+    summary: 'Login confirmed by a later request that was answered.',
+    details: null,
+    heardBack: true,
+    at: Date.now(),
+  };
+}
+
 export function buildServerLoginAttemptFromError(
   method: ServerLoginMethod,
   message: string,

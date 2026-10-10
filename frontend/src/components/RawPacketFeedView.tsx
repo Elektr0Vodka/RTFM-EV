@@ -9,7 +9,7 @@ import { usePacketFilters } from '../hooks/usePacketFilters';
 import { PacketFilterModal } from './PacketFilterModal';
 import { getRawPacketObservationKey } from '../utils/rawPacketIdentity';
 import { Button } from './ui/button';
-import type { AppSettingsUpdate, Channel, Contact, RawPacket } from '../types';
+import type { AnalyzerSite, AppSettingsUpdate, Channel, Contact, RawPacket } from '../types';
 import {
   KNOWN_PAYLOAD_TYPES,
   classifyDecodedHopByteWidth,
@@ -60,6 +60,8 @@ function summarizePacketForFeed(
 interface RawPacketFeedViewProps {
   channels: Channel[];
   contacts?: Contact[];
+  /** External analyzers a packet's sender can be looked up on. */
+  analyzerSites?: AnalyzerSite[];
   /** Persisted feed time-sort direction; defaults to oldest-first. */
   packetFeedSort?: 'oldest' | 'newest';
   /** Persisted 'Group repeats by content' toggle; defaults to off. */
@@ -71,6 +73,7 @@ interface RawPacketFeedViewProps {
 export function RawPacketFeedView({
   channels,
   contacts,
+  analyzerSites,
   packetFeedSort = 'oldest',
   packetGroupByContent = false,
   onSaveAppSettings,
@@ -351,6 +354,7 @@ export function RawPacketFeedView({
         onOpenChange={(isOpen) => !isOpen && setSelectedPacket(null)}
         channels={channels}
         contacts={contacts}
+        analyzerSites={analyzerSites}
         source={
           selectedPacket
             ? { kind: 'packet', packet: selectedPacket }

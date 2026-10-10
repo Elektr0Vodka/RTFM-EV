@@ -97,6 +97,67 @@ class TestRoomLogin:
         assert response.authenticated is True
 
     @pytest.mark.asyncio
+    async def test_room_login_fetches_waiting_messages_once_confirmed(self, test_db):
+        """The room server pushes the posts since the last sync as soon as it
+        accepts the login. Auto-fetch is stopped for the duration of the login
+        and does not look at the queue when it starts again, so a post that
+        arrived in that window stayed on the radio until the next message or
+        the hourly audit. A confirmed login now asks the radio itself."""
+        mc = _mock_mc()
+        await _insert_contact(ROOM_KEY, name="Room Server", contact_type=3)
+        subscriptions: dict[EventType, tuple[object, object]] = {}
+
+        def _subscribe(event_type, callback, attribute_filters=None):
+            subscriptions[event_type] = (callback, attribute_filters)
+            return MagicMock(unsubscribe=MagicMock())
+
+        async def _send_login(*args, **kwargs):
+            callback, _filters = subscriptions[EventType.LOGIN_SUCCESS]
+            callback(_radio_result(EventType.LOGIN_SUCCESS, {"pubkey_prefix": ROOM_KEY[:12]}))
+            return _radio_result(EventType.MSG_SENT)
+
+        mc.subscribe = MagicMock(side_effect=_subscribe)
+        mc.commands.send_login = AsyncMock(side_effect=_send_login)
+        mc.commands.get_msg = AsyncMock(return_value=_radio_result(EventType.NO_MORE_MSGS))
+
+        with (
+            patch("app.routers.rooms.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+        ):
+            response = await room_login(ROOM_KEY, RepeaterLoginRequest(password="hello"))
+
+        assert response.authenticated is True
+        mc.commands.get_msg.assert_awaited()
+
+    @pytest.mark.asyncio
+    async def test_room_login_leaves_the_queue_alone_when_refused(self, test_db):
+        mc = _mock_mc()
+        await _insert_contact(ROOM_KEY, name="Room Server", contact_type=3)
+        subscriptions: dict[EventType, tuple[object, object]] = {}
+
+        def _subscribe(event_type, callback, attribute_filters=None):
+            subscriptions[event_type] = (callback, attribute_filters)
+            return MagicMock(unsubscribe=MagicMock())
+
+        async def _send_login(*args, **kwargs):
+            callback, _filters = subscriptions[EventType.LOGIN_FAILED]
+            callback(_radio_result(EventType.LOGIN_FAILED, {"pubkey_prefix": ROOM_KEY[:12]}))
+            return _radio_result(EventType.MSG_SENT)
+
+        mc.subscribe = MagicMock(side_effect=_subscribe)
+        mc.commands.send_login = AsyncMock(side_effect=_send_login)
+        mc.commands.get_msg = AsyncMock(return_value=_radio_result(EventType.NO_MORE_MSGS))
+
+        with (
+            patch("app.routers.rooms.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+        ):
+            response = await room_login(ROOM_KEY, RepeaterLoginRequest(password="wrong"))
+
+        assert response.authenticated is False
+        mc.commands.get_msg.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_room_login_rejects_non_room(self, test_db):
         mc = _mock_mc()
         await _insert_contact(ROOM_KEY, name="Client", contact_type=1)

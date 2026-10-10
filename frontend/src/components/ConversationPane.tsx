@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState, type Ref } from 'react';
+import { lazy, Suspense, useMemo, useState, type Ref } from 'react';
 
 import { ChatHeader } from './ChatHeader';
 import { ChannelUnreadSummaryBanner } from './ChannelUnreadSummaryBanner';
@@ -359,9 +359,14 @@ export function ConversationPane({
     return contacts.find((candidate) => candidate.public_key === activeConversation.id) ?? null;
   }, [activeConversation, contacts]);
   const activeContactIsRoom = activeContact?.type === CONTACT_TYPE_ROOM;
-  useEffect(() => {
+  // Reset the room login gate when the conversation changes, during render and
+  // not from an effect: an effect here runs after the remounted RoomServerPanel
+  // has reported its cached login, and would hide the chat of a logged-in room.
+  const [roomGateConversationId, setRoomGateConversationId] = useState(activeConversation?.id);
+  if (roomGateConversationId !== activeConversation?.id) {
+    setRoomGateConversationId(activeConversation?.id);
     setRoomAuthenticated(false);
-  }, [activeConversation?.id]);
+  }
   const isPrefixOnlyActiveContact = activeContact
     ? isPrefixOnlyContact(activeContact.public_key)
     : false;
@@ -435,6 +440,7 @@ export function ConversationPane({
       <RawPacketFeedView
         channels={channels}
         contacts={contacts}
+        analyzerSites={analyzerSites}
         packetFeedSort={packetFeedSort}
         packetGroupByContent={packetGroupByContent}
         onSaveAppSettings={onSaveAppSettings}
@@ -705,6 +711,7 @@ export function ConversationPane({
         contacts={contacts}
         channels={channels}
         config={config}
+        analyzerSites={analyzerSites}
         notificationsSupported={notificationsSupported}
         notificationsEnabled={notificationsEnabled}
         notificationsPermission={notificationsPermission}

@@ -187,7 +187,7 @@ Click an avatar or name to open a contact's info. On desktop it is a full page i
 - **Telemetry sharing:** what your radio shares when this contact asks for telemetry.
 - **Contact link:** show or copy a `meshcore://` link.
 - **Resolve name from analyzer** for contacts known only by public key. Only that key is sent to the site.
-- Look-up links for configured analyzers, **Triangulate**, and blocking the key or name.
+- Look-up links for configured analyzers, **Triangulate**, and blocking the key or name. The chat header of a contact has the same look-up as an icon, and the packet detail view has **Look up sender on** a site when the packet resolved to a full sender key.
 
 Favorite contacts stay loaded on the radio so it can acknowledge their direct messages.
 
@@ -197,7 +197,7 @@ Click the route label next to a contact's name (for example the hop count or "fl
 
 ### Repeaters
 
-Opening a repeater shows a login form: log in with the password or as a guest. The dashboard then has panes for Node Info, Telemetry, Radio Settings (with advert intervals), LPP Sensors, Neighbors, ACL, Regions and Owner Info, plus Actions (Zero Hop Advert, Flood Advert, Sync Clock, Reboot), a Console with CLI access, telemetry history and a History pane that shows what changed between stored snapshots. **Load All** fetches every pane one after another.
+Opening a repeater shows a login form: log in with the password or as a guest. The dashboard then has panes for Node Info, Telemetry, Radio Settings (with advert intervals), LPP Sensors, Neighbors, ACL, Regions and Owner Info, plus Actions (Zero Hop Advert, Flood Advert, Sync Clock, Reboot), a Console with CLI access, telemetry history and a History pane that shows what changed between stored snapshots. **Load All** fetches every pane one after another. The Console sends a line exactly as typed, leading spaces and an empty line included, which the firmware's `region load` needs.
 
 The Settings Editor changes one repeater setting at a time: you edit, confirm the exact CLI command, it is sent over RF, and the value is read back to check it. Changing frequency, bandwidth, spreading factor or coding rate requires typing the repeater name first, because a wrong value can take it off the air. The Observer firmware group (SNMP agent on/off) only works on DMC observer and agessaman observer firmware: use its own Read button first, and reboot the repeater after a change.
 
@@ -374,7 +374,7 @@ RTFM-EV can judge every received packet the way a repeater would. **Shadow mode*
 
 ### Local Configuration
 
-Settings for this browser or device: language, color theme (including four CRT phosphor themes) and CRT screen effects, the **Desktop buddy** (after you have used the Windows 95 theme), branding (app name and icon, shared by all devices), a local label banner, **Distance Units**, **Coordinate format**, **Date & Time Format**, relative font size, UI tweaks (such as reopen last conversation, battery display and **Replace as you Type**), the mention and DM sound, new node notifications, **Chat parsing** and **Web Push Notifications**.
+Settings for this browser or device: language, color theme (including four CRT phosphor themes) and CRT screen effects, the **Desktop buddy** (after you have used the Windows 95 theme), branding (app name and icon, shared by all devices), a local label banner, **Distance Units**, **Coordinate format**, **Date & Time Format**, relative font size, UI tweaks (such as reopen last conversation, battery display and **Replace as you Type**), the mention and DM sound, new node notifications, **Chat parsing** and **Web Push Notifications**. **Sign-in Redirect** is for an instance behind a reverse proxy that handles sign-in: when the session has run out, the app goes to the address you enter, or reloads the page when the field is empty.
 
 ### MQTT & Automation
 
@@ -386,7 +386,7 @@ Only shown when the connected node is an OpenHop node. Set the OpenHop API addre
 
 ### Radio-App Management
 
-**Tracked Repeater Telemetry** and **Tracked Contact Telemetry**, name resolution for unnamed contacts, **Contact Management** (block new node types, blocked keys and names, bulk delete), **Loadouts**, and **Partial node sync**, which matches nodes you only know by prefix against the analyzer directory. You review each match before it is saved as a reversible soft link.
+**Tracked Repeater Telemetry** and **Tracked Contact Telemetry**, name resolution for unnamed contacts, **Contact Management** (block new node types, blocked keys and names, bulk delete), **Loadouts**, and **Partial node sync**, which matches nodes you only know by prefix against the analyzer directory. You review each match before it is saved as a reversible soft link. Telemetry is collected once per hour, at the **Minute of the hour** set under Tracked Repeater Telemetry. **Automatic** takes a minute from your radio's key; give nodes that are near each other different minutes so their requests are not on air at the same time.
 
 **SNMP agent** (off by default) lets a monitoring system such as LibreNMS or Zabbix poll this node over SNMP, with the same values as the observer firmware. Set the UDP port and your own community; in Docker, publish the port as well. It is read-only and never uses the radio.
 

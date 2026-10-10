@@ -22,6 +22,30 @@
       // Must be in <head> BEFORE the module script so the browser queues these
       // fetches before it discovers and starts downloading the JS bundle.
       // React hooks consume the promises via window.__prefetch.
+      // These are the first requests of a page load, so this is the earliest
+      // place a run-out reverse-proxy session shows (401, or a 403 that is not
+      // the backend's own). Repeats src/utils/authRedirect.ts, which does not
+      // exist yet at this point: same storage keys, same quiet period.
+      var redirectingForLostSession = false;
+      var redirectForLostSession = function() {
+        if (redirectingForLostSession) return;
+        var target = null;
+        try {
+          var last = Number(sessionStorage.getItem('remoteterm-auth-redirect-at'));
+          if (last > 0 && Date.now() - last < 60000) return;
+          sessionStorage.setItem('remoteterm-auth-redirect-at', String(Date.now()));
+          target = localStorage.getItem('remoteterm-auth-redirect-url');
+        } catch {
+          // Storage unavailable: fall through to a reload.
+        }
+        redirectingForLostSession = true;
+        if (target) {
+          window.location.assign(target);
+        } else {
+          window.location.reload();
+        }
+      };
+
       var fetchJsonOrThrow = function(url) {
         return fetch(url).then(function(response) {
           if (response.ok) {
@@ -29,13 +53,18 @@
           }
           return response.text().then(function(rawError) {
             var message = rawError || response.statusText || ('HTTP ' + response.status);
+            var ownAnswer = false;
             try {
               var parsed = JSON.parse(rawError);
+              ownAnswer = !!parsed && typeof parsed === 'object' && 'detail' in parsed;
               if (parsed && typeof parsed.detail === 'string' && parsed.detail.length > 0) {
                 message = parsed.detail;
               }
             } catch {
               // Keep raw text fallback when body is not JSON.
+            }
+            if (response.status === 401 || (response.status === 403 && !ownAnswer)) {
+              redirectForLostSession();
             }
             throw new Error('Prefetch failed for ' + url + ': ' + message);
           });

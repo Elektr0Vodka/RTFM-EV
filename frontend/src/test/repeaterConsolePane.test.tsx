@@ -72,3 +72,39 @@ describe('ConsolePane command history recall', () => {
     expect(link).toHaveAttribute('target', '_blank');
   });
 });
+
+describe('ConsolePane sends what was typed', () => {
+  it('keeps leading spaces, which set the nesting depth of a region load line', () => {
+    const { input, onSend } = renderPane();
+
+    fireEvent.change(input, { target: { value: '  nl-nh' } });
+    fireEvent.submit(input.closest('form')!);
+
+    expect(onSend).toHaveBeenCalledWith('  nl-nh');
+  });
+
+  it('sends an empty line, which ends a region load', () => {
+    const { input, onSend } = renderPane();
+
+    expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
+    fireEvent.submit(input.closest('form')!);
+
+    expect(onSend).toHaveBeenCalledWith('');
+  });
+
+  it('shows the leading spaces of a sent line', () => {
+    renderPane([outgoing('  nl-nh', 1)]);
+
+    const line = screen.getByText(
+      (_, node) => node?.textContent === '>   nl-nh' && node.children.length === 0
+    );
+    expect(line.className).toContain('whitespace-pre-wrap');
+  });
+
+  it('leaves empty lines out of the history recall', () => {
+    const { input } = renderPane([outgoing('region load', 1), outgoing('', 2)]);
+
+    fireEvent.keyDown(input, { key: 'ArrowUp' });
+    expect(input.value).toBe('region load');
+  });
+});

@@ -1070,6 +1070,100 @@ class TestTelemetryScheduleEndpoint:
         assert schedule.options == [6, 8, 12, 24]
         assert schedule.next_run_at is not None
 
+    @pytest.mark.asyncio
+    async def test_schedule_next_run_is_at_this_radios_minute(self, test_db):
+        """The scheduler wakes at a minute taken from the radio's key, not at
+        the top of the hour, and the schedule must show that same time."""
+        from datetime import UTC, datetime
+        from unittest.mock import patch
+
+        key = "aa" * 32
+        await ContactRepository.upsert(
+            ContactUpsert(public_key=key, name="R1", type=CONTACT_TYPE_REPEATER)
+        )
+        await AppSettingsRepository.update(tracked_telemetry_repeaters=[key])
+
+        from unittest.mock import MagicMock
+
+        mc = MagicMock()
+        mc.self_info = {"public_key": "0025" + "ab" * 30}
+        with patch("app.radio_sync.radio_manager", MagicMock(meshcore=mc)):
+            schedule = await get_telemetry_schedule()
+
+        assert schedule.next_run_at is not None
+        assert datetime.fromtimestamp(schedule.next_run_at, UTC).minute == 37
+
+
+class TestTelemetryScheduleMinuteSetting:
+    """The minute of the hour at which telemetry is collected."""
+
+    @pytest.mark.asyncio
+    async def test_defaults_to_automatic(self, test_db):
+        settings = await AppSettingsRepository.get()
+        assert settings.telemetry_schedule_minute == -1
+
+    @pytest.mark.asyncio
+    async def test_round_trip_via_patch(self, test_db):
+        result = await update_settings(AppSettingsUpdate(telemetry_schedule_minute=12))
+        assert result.telemetry_schedule_minute == 12
+
+        result = await update_settings(AppSettingsUpdate(telemetry_schedule_minute=0))
+        assert result.telemetry_schedule_minute == 0
+
+        result = await update_settings(AppSettingsUpdate(telemetry_schedule_minute=-1))
+        assert result.telemetry_schedule_minute == -1
+
+    @pytest.mark.parametrize("minute", [60, -2, 1440])
+    def test_rejects_a_minute_outside_the_hour(self, minute):
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            AppSettingsUpdate(telemetry_schedule_minute=minute)
+
+    @pytest.mark.asyncio
+    async def test_another_setting_leaves_the_minute_alone(self, test_db):
+        await update_settings(AppSettingsUpdate(telemetry_schedule_minute=12))
+        result = await update_settings(AppSettingsUpdate(telemetry_routed_hourly=True))
+        assert result.telemetry_schedule_minute == 12
+
+    @pytest.mark.asyncio
+    async def test_schedule_runs_at_the_chosen_minute(self, test_db):
+        from datetime import UTC, datetime
+        from unittest.mock import MagicMock, patch
+
+        key = "aa" * 32
+        await ContactRepository.upsert(
+            ContactUpsert(public_key=key, name="R1", type=CONTACT_TYPE_REPEATER)
+        )
+        await AppSettingsRepository.update(
+            tracked_telemetry_repeaters=[key],
+            telemetry_routed_hourly=True,
+            telemetry_schedule_minute=12,
+        )
+
+        # The connected radio's own minute would be 37.
+        mc = MagicMock()
+        mc.self_info = {"public_key": "0025" + "ab" * 30}
+        with patch("app.radio_sync.radio_manager", MagicMock(meshcore=mc)):
+            schedule = await get_telemetry_schedule()
+
+        assert schedule.schedule_minute == 12
+        assert schedule.schedule_minute_auto is False
+        assert datetime.fromtimestamp(schedule.next_run_at, UTC).minute == 12
+        assert datetime.fromtimestamp(schedule.next_routed_run_at, UTC).minute == 12
+
+    @pytest.mark.asyncio
+    async def test_schedule_reports_the_automatic_minute(self, test_db):
+        from unittest.mock import MagicMock, patch
+
+        mc = MagicMock()
+        mc.self_info = {"public_key": "0025" + "ab" * 30}
+        with patch("app.radio_sync.radio_manager", MagicMock(meshcore=mc)):
+            schedule = await get_telemetry_schedule()
+
+        assert schedule.schedule_minute == 37
+        assert schedule.schedule_minute_auto is True
+
 
 class TestRoutedHourlySetting:
     """Tests for the telemetry_routed_hourly setting."""

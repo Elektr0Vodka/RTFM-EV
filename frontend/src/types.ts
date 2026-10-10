@@ -1227,6 +1227,8 @@ export interface AppSettings {
   auto_resend_channel: boolean;
   telemetry_interval_hours: number;
   telemetry_routed_hourly: boolean;
+  /** -1 = automatic (from the radio's key), 0-59 = a chosen minute. */
+  telemetry_schedule_minute: number;
   show_mention_ticker: boolean;
   mention_sound_enabled: boolean;
   mention_sound_choice: string;
@@ -1581,6 +1583,7 @@ export interface AppSettingsUpdate {
   discovery_blocked_types?: number[];
   telemetry_interval_hours?: number;
   telemetry_routed_hourly?: boolean;
+  telemetry_schedule_minute?: number;
   show_mention_ticker?: boolean;
   mention_sound_enabled?: boolean;
   mention_sound_choice?: string;
@@ -1620,6 +1623,10 @@ export interface TelemetrySchedule {
   next_run_at: number | null;
   routed_hourly: boolean;
   next_routed_run_at: number | null;
+  /** Minute of the UTC hour the scheduler wakes at. */
+  schedule_minute: number;
+  /** True when that minute comes from the radio's key, false when it was chosen. */
+  schedule_minute_auto: boolean;
 }
 
 export interface TrackedTelemetryResponse {

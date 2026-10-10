@@ -32,6 +32,7 @@ from app.services.ollama_summary import OllamaConfigError, normalize_ollama_base
 from app.telemetry_interval import (
     DEFAULT_TELEMETRY_INTERVAL_HOURS,
     TELEMETRY_INTERVAL_OPTIONS_HOURS,
+    TELEMETRY_SCHEDULE_MINUTE_AUTO,
     clamp_telemetry_interval,
     legal_interval_options,
     next_run_timestamp_utc,
@@ -552,6 +553,15 @@ class AppSettingsUpdate(BaseModel):
             "path are polled every hour instead of on the normal scheduled interval."
         ),
     )
+    telemetry_schedule_minute: int | None = Field(
+        default=None,
+        ge=-1,
+        le=59,
+        description=(
+            "Minute of the UTC hour at which scheduled telemetry collection runs. "
+            "-1 = automatic (from the connected radio's public key), 0-59 = fixed."
+        ),
+    )
     auto_add_mentioned_channels: bool | None = Field(
         default=None,
         description="Auto-record #hashtag channels referenced in chat into the registry.",
@@ -745,6 +755,17 @@ class TelemetrySchedule(BaseModel):
             "or None when routed_hourly is off or no repeaters are tracked"
         ),
     )
+    schedule_minute: int = Field(
+        default=0,
+        description="Minute of the UTC hour the scheduler wakes at (0-59)",
+    )
+    schedule_minute_auto: bool = Field(
+        default=True,
+        description=(
+            "True when schedule_minute is derived from the connected radio's key, "
+            "False when the operator chose it"
+        ),
+    )
 
 
 class TrackedTelemetryResponse(BaseModel):
@@ -761,7 +782,11 @@ def _build_schedule(
     tracked_count: int,
     preferred_hours: int | None,
     routed_hourly: bool = False,
+    schedule_minute_setting: int = TELEMETRY_SCHEDULE_MINUTE_AUTO,
 ) -> TelemetrySchedule:
+    from app.radio_sync import current_telemetry_schedule_minute
+
+    schedule_minute = current_telemetry_schedule_minute(schedule_minute_setting)
     pref = (
         preferred_hours
         if preferred_hours in TELEMETRY_INTERVAL_OPTIONS_HOURS
@@ -775,9 +800,17 @@ def _build_schedule(
         options=legal_interval_options(tracked_count),
         tracked_count=tracked_count,
         max_tracked=MAX_TRACKED_TELEMETRY_REPEATERS,
-        next_run_at=next_run_timestamp_utc(effective) if has_tracked else None,
+        next_run_at=(
+            next_run_timestamp_utc(effective, minute=schedule_minute) if has_tracked else None
+        ),
         routed_hourly=routed_hourly,
-        next_routed_run_at=(next_run_timestamp_utc(1) if has_tracked and routed_hourly else None),
+        next_routed_run_at=(
+            next_run_timestamp_utc(1, minute=schedule_minute)
+            if has_tracked and routed_hourly
+            else None
+        ),
+        schedule_minute=schedule_minute,
+        schedule_minute_auto=not 0 <= schedule_minute_setting <= 59,
     )
 
 
@@ -900,6 +933,11 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
     if update.telemetry_routed_hourly is not None:
         logger.info("Updating telemetry_routed_hourly to %s", update.telemetry_routed_hourly)
         kwargs["telemetry_routed_hourly"] = update.telemetry_routed_hourly
+
+    # Telemetry schedule minute (-1 = automatic)
+    if update.telemetry_schedule_minute is not None:
+        logger.info("Updating telemetry_schedule_minute to %d", update.telemetry_schedule_minute)
+        kwargs["telemetry_schedule_minute"] = update.telemetry_schedule_minute
 
     # Mention ticker
     if update.show_mention_ticker is not None:
@@ -1245,6 +1283,7 @@ async def toggle_tracked_telemetry(request: TrackedTelemetryRequest) -> TrackedT
                 len(new_list),
                 settings.telemetry_interval_hours,
                 settings.telemetry_routed_hourly,
+                settings.telemetry_schedule_minute,
             ),
         )
 
@@ -1276,6 +1315,7 @@ async def toggle_tracked_telemetry(request: TrackedTelemetryRequest) -> TrackedT
             len(new_list),
             settings.telemetry_interval_hours,
             settings.telemetry_routed_hourly,
+            settings.telemetry_schedule_minute,
         ),
     )
 
@@ -1294,6 +1334,7 @@ async def get_telemetry_schedule() -> TelemetrySchedule:
         len(app_settings.tracked_telemetry_repeaters),
         app_settings.telemetry_interval_hours,
         app_settings.telemetry_routed_hourly,
+        app_settings.telemetry_schedule_minute,
     )
 
 
@@ -1344,6 +1385,7 @@ async def toggle_tracked_telemetry_contact(
                 len(new_list),
                 settings.telemetry_interval_hours,
                 settings.telemetry_routed_hourly,
+                settings.telemetry_schedule_minute,
             ),
         )
 
@@ -1374,6 +1416,7 @@ async def toggle_tracked_telemetry_contact(
             len(new_list),
             settings.telemetry_interval_hours,
             settings.telemetry_routed_hourly,
+            settings.telemetry_schedule_minute,
         ),
     )
 
@@ -1386,6 +1429,7 @@ async def get_contact_telemetry_schedule() -> TelemetrySchedule:
         len(app_settings.tracked_telemetry_contacts),
         app_settings.telemetry_interval_hours,
         app_settings.telemetry_routed_hourly,
+        app_settings.telemetry_schedule_minute,
     )
 
 

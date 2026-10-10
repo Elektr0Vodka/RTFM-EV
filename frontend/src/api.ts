@@ -159,6 +159,7 @@ import type {
   WordlistMeta,
   MentionSoundMeta,
 } from './types';
+import { reportHttpFailure } from './utils/authRedirect';
 
 const API_BASE = './api';
 
@@ -221,6 +222,8 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
     } catch {
       // Not JSON, use raw text
     }
+    // A reverse proxy whose session ran out answers instead of the backend.
+    reportHttpFailure(res.status, errorText);
     throw new ApiError(errorMessage, res.status, errorDetail);
   }
   return res.json();

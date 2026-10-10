@@ -114,6 +114,7 @@ const baseSettings: AppSettings = {
   auto_resend_channel: false,
   telemetry_interval_hours: 8,
   telemetry_routed_hourly: false,
+  telemetry_schedule_minute: -1,
   show_mention_ticker: true,
   mention_sound_enabled: false,
   mention_sound_choice: 'beep',
