@@ -265,7 +265,7 @@ async def test_health_states(runtime):
 async def test_routes_are_registered():
     from app.main import app
 
-    paths = {route.path for route in app.routes}
+    paths = set(app.openapi()["paths"])
     assert {
         "/api/spam-guard",
         "/api/spam-guard/settings",
@@ -383,5 +383,5 @@ async def test_replay_refuses_an_evidence_file_with_too_many_records(runtime, mo
 def test_evidence_routes_are_registered():
     from app.main import app
 
-    paths = {route.path for route in app.routes}
+    paths = set(app.openapi()["paths"])
     assert {"/api/spam-guard/evidence", "/api/spam-guard/replay"} <= paths

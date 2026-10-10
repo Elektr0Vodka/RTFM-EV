@@ -59,7 +59,7 @@ export function SpamGuardView({
             aria-selected={tab === name}
             onClick={() => setTab(name)}
             className={cn(
-              'rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
               tab === name
                 ? 'bg-accent text-foreground'
                 : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'

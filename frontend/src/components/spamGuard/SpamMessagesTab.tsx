@@ -55,7 +55,7 @@ function MessageRow({
           })}
         </span>
       </div>
-      <div className="break-words text-[0.8125rem] text-foreground">{message.text}</div>
+      <div className="wrap-break-word text-[0.8125rem] text-foreground">{message.text}</div>
       {message.matched && (
         <div className="text-[0.75rem] text-muted-foreground">
           {t('spam_message_caught', {
@@ -153,7 +153,7 @@ export function SpamMessagesTab({
                   )}
                   {campaign.strong && <Signal label={t('spam_campaign_strong')} tone="warn" />}
                 </div>
-                <div className="break-words text-[0.8125rem] text-muted-foreground">
+                <div className="wrap-break-word text-[0.8125rem] text-muted-foreground">
                   {campaign.sample}
                 </div>
               </li>

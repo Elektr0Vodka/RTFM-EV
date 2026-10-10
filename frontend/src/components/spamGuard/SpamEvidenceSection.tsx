@@ -25,7 +25,7 @@ function Samples({ title, samples }: { title: string; samples: SpamReplaySample[
       <h5 className="text-[0.8125rem] font-medium text-foreground">{title}</h5>
       <ul className="space-y-0.5 text-[0.8125rem] text-muted-foreground">
         {samples.map((sample, index) => (
-          <li key={`${sample.ts}-${index}`} className="break-words">
+          <li key={`${sample.ts}-${index}`} className="wrap-break-word">
             <span className="font-medium text-foreground">{sample.sender}</span>: {sample.text}
           </li>
         ))}

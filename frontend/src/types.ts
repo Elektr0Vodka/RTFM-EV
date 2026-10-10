@@ -2873,12 +2873,7 @@ export interface SpamGuardMetrics {
 }
 
 export type SpamGuardSyncState =
-  | 'idle'
-  | 'pending'
-  | 'synced'
-  | 'unconfigured'
-  | 'refused'
-  | 'failed';
+  'idle' | 'pending' | 'synced' | 'unconfigured' | 'refused' | 'failed';
 
 export interface SpamGuardHealth {
   state: 'off' | 'ok' | 'warn' | 'bad';

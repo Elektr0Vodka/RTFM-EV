@@ -34,7 +34,7 @@ function BlockRow({
     <li className="space-y-1.5 rounded-md border border-border/60 p-3" data-testid="spam-block">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="break-words text-sm font-medium text-foreground">
+          <div className="wrap-break-word text-sm font-medium text-foreground">
             {blockLabel(block, t)}
           </div>
           <div className="text-[0.8125rem] text-muted-foreground">
@@ -227,7 +227,7 @@ export function SpamProtectionTab({
               >
                 <div className="min-w-0">
                   <div className="text-sm font-medium text-foreground">{held.sender}</div>
-                  <div className="break-words text-[0.8125rem] text-muted-foreground">
+                  <div className="wrap-break-word text-[0.8125rem] text-muted-foreground">
                     {held.text}
                   </div>
                   <div className="text-[0.75rem] text-muted-foreground">

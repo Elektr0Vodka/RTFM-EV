@@ -81,7 +81,7 @@ class SpamGuardStateRepository:
 
 
 class SpamEvidenceRepository:
-    """The evidence log: one row per record (migration _133).
+    """The evidence log: one row per record (migration _137).
 
     Record shapes are in ``app/spam/evidence.py``. Rows are only written while
     the user has the evidence log switched on, and the retention pruner deletes
