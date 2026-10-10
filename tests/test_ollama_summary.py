@@ -220,6 +220,40 @@ async def test_summarize_skips_malformed_messages_when_they_are_hidden(test_db):
 
 
 @pytest.mark.asyncio
+async def test_summarize_skips_spam_flagged_messages_when_they_are_hidden(test_db):
+    key = "AC" * 16
+    await ChannelRepository.upsert(key=key, name="#flood")
+    await AppSettingsRepository.update(ollama_enabled=True, ollama_model="phi3:mini")
+    await MessageRepository.create(
+        msg_type="CHAN", conversation_key=key, text="real question", received_at=1000
+    )
+    advert = await MessageRepository.create(
+        msg_type="CHAN", conversation_key=key, text="cheap radios", received_at=1001
+    )
+    assert advert is not None
+    await MessageRepository.set_spam([advert])
+
+    with patch(
+        "app.routers.channels.summarize_channel_messages",
+        new_callable=AsyncMock,
+        return_value="A question and an advert.",
+    ) as mock_summarize:
+        shown = await summarize_channel_unread(key, after=0)
+    assert shown.message_count == 2
+
+    await AppSettingsRepository.update(hide_spam=True)
+    with patch(
+        "app.routers.channels.summarize_channel_messages",
+        new_callable=AsyncMock,
+        return_value="One question.",
+    ) as mock_summarize:
+        hidden = await summarize_channel_unread(key, after=0)
+
+    assert hidden.message_count == 1
+    assert [m.text for m in mock_summarize.await_args.kwargs["messages"]] == ["real question"]
+
+
+@pytest.mark.asyncio
 async def test_summarize_takes_the_newest_messages_when_more_are_unread_than_fit(test_db):
     key = "A1" * 16
     await ChannelRepository.upsert(key=key, name="#busy")

@@ -581,11 +581,12 @@ class MessageRepository:
         blocked_names: list[str] | None = None,
         hidden_hop_widths: list[int] | None = None,
         hide_malformed: bool = False,
+        hide_spam: bool = False,
     ) -> list[Message]:
         """Newest ``limit`` messages of a conversation received at or after ``since``.
 
         Returned oldest first. Blocked senders and incoming messages hidden by
-        the hop-size or malformed filters are left out before the limit applies,
+        the hop-size, malformed or spam filters are left out before the limit applies,
         so the result is what the chat shows.
         """
         clause, norm_key = MessageRepository._normalize_conversation_key(conversation_key)
@@ -606,6 +607,7 @@ class MessageRepository:
         for filter_clause in (
             MessageRepository._build_hidden_hop_width_clause("messages", hidden_hop_widths),
             MessageRepository._build_hidden_malformed_clause("messages", hide_malformed),
+            MessageRepository._build_hidden_spam_clause("messages", hide_spam),
         ):
             if filter_clause:
                 query += f" AND {filter_clause}"

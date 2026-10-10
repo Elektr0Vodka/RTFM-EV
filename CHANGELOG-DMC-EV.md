@@ -11,10 +11,9 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
-## Update 2026-10-09 (Spam Guard: channel spam protection, feat/spam-guard)
+## Update 2026-10-09 (Spam Guard: channel spam protection, feat/spam-guard-completion)
 
-Migration `_137`. No new dependency. Off by default. OpenHop rule sync added
-on `feat/spam-guard-openhop`.
+Migration `_137`. No new dependency. Off by default.
 
 Behaviour is modelled on [openhop-spamguard](https://github.com/flackrat/openhop-spamguard)
 v5.11.3 (features, default numbers and worked examples). The code is written
@@ -41,8 +40,9 @@ from scratch for this codebase; no SpamGuard source is copied.
 - **Chat:** flagged messages carry a Spam marker, earlier copies of a campaign
   are flagged after the fact, and each incoming channel message has **This is
   spam** / **Not spam**. The chat filter menu and Settings offer **Hide
-  spam**, which also keeps flagged messages out of unread counts, mentions and
-  Web Push (`messages.spam`, `app_settings.hide_spam`).
+  spam**, which also keeps flagged messages out of unread counts, mentions,
+  Web Push and the Ollama unread summary (`messages.spam`,
+  `app_settings.hide_spam`).
 - **Spam Guard page** in the sidebar Tools, listed only while the feature is
   on: Overview (mode, health, numbers and charts for 24 hours, 7 days and hour
   of day), Protection (blocks, held messages, lockdown, block a repeater or a
