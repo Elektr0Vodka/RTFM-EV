@@ -109,12 +109,18 @@ describe('authRedirect', () => {
       'https://auth.example.com/#/login?next=%2Fhome',
       'https://auth.example.com/p?discount=100%&ok=1',
       'https://auth.example.com/?p=%2525',
-      'https://auth.example.com:8443/a/b/?q=[1,2]',
-    ])('leaves %s as it is, apart from brackets', (address) => {
+    ])('leaves %s as it is', (address) => {
       setAuthRedirectUrl(address);
       triggerAuthRedirect();
-      const expected = address.replace('[', '%5B').replace(']', '%5D');
-      expect(assign).toHaveBeenCalledWith(expected);
+      expect(assign).toHaveBeenCalledWith(address);
+    });
+
+    it('encodes square brackets in the query', () => {
+      setAuthRedirectUrl('https://auth.example.com:8443/a/b/?q=[1,2]&r=[3]');
+      triggerAuthRedirect();
+      expect(assign).toHaveBeenCalledWith(
+        'https://auth.example.com:8443/a/b/?q=%5B1,2%5D&r=%5B3%5D'
+      );
     });
 
     it('encodes quotes and angle brackets in the query and the fragment', () => {
