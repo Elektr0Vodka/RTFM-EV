@@ -11,6 +11,42 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-10 (community fork follow-ups, fix/community-fork-followups)
+
+Four follow-ups to the community fork work (#288, #289). No migration, no new
+dependency.
+
+### Unread summaries (Ollama)
+- **The newest messages are summarized.** With more than 100 unread, the
+  oldest 100 after the read boundary were sent and the newest left out. Now the
+  newest 100 are sent, still in time order.
+- **The hop-size filter applies.** Messages hidden by "Hide by hop size" were
+  still summarized. The summary now covers what the chat shows: no blocked
+  senders, no hop-hidden messages, no malformed-flagged ones when that filter
+  is on. The malformed filter also moved into the query, so it no longer eats
+  into the 100.
+- **The same question is not asked twice.** A summary was requested on every
+  channel open. The last finished summary per channel is kept in memory and
+  returned while the server URL, model, channel name and messages are the same
+  (a second tab, a remount, "mark unread" and reopening). Two requests for one
+  channel at the same time share one call to the model. A failed attempt is not
+  kept. The cache is lost on restart.
+
+### Messaging
+- **Over-long text is refused by the server too.** The composer already blocked
+  it; an API client could still send it. `POST /api/messages/direct` and
+  `/channel` now answer 422 before anything reaches the radio when the text is
+  over the firmware's 160 bytes (`MAX_TEXT_LEN`), for a channel counted
+  together with the `"<radio name>: "` the radio puts in front. Over that
+  limit the radio refuses a DM and cuts a channel message short without saying
+  so. The composer's own limit (156) is unchanged and lower.
+
+### Frontend
+- **Two React hook dependency warnings fixed** (MESHRIK `5e1a0c89`): the Home
+  Assistant MQTT editor made a new empty array for its tracked contacts and
+  repeaters on every render, and the realtime handlers did not list
+  `channelsRef`. Lint is down from four warnings to two.
+
 ## Update 2026-10-09 (dependency updates, chore/dependency-updates)
 
 Every dependency in the repo moved to its newest release that the rest of the

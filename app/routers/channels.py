@@ -29,7 +29,11 @@ from app.repository import (
     MessageRepository,
     RawPacketRepository,
 )
-from app.services.ollama_summary import MAX_MESSAGES_FOR_SUMMARY, summarize_channel_messages
+from app.services.ollama_summary import (
+    MAX_MESSAGES_FOR_SUMMARY,
+    summarize_channel_messages,
+    summary_cache,
+)
 from app.websocket import broadcast_event, broadcast_success
 
 logger = logging.getLogger(__name__)
@@ -370,8 +374,11 @@ async def summarize_channel_unread(
     here would race with mark-read and summarize nothing.
 
     Nothing is sent anywhere unless the feature is enabled and a model is set.
-    Blocked senders are left out, and so are messages flagged as malformed when
-    the "Hide malformed messages" filter is on.
+    Only what the chat shows is summarized: blocked senders are left out, and so
+    are messages hidden by the hop-size filter or, when "Hide malformed
+    messages" is on, flagged as malformed. With more unread messages than fit,
+    the newest are taken. Asking again about the same messages returns the
+    earlier answer instead of asking the model again.
     """
     channel = await ChannelRepository.get_by_key(key)
     if not channel:
@@ -382,26 +389,30 @@ async def summarize_channel_unread(
     if not settings.ollama_enabled or not model:
         return ChannelUnreadSummaryResponse(reason="Unread summaries are not configured")
 
-    messages = await MessageRepository.get_all(
+    messages = await MessageRepository.get_latest_since(
         msg_type="CHAN",
         conversation_key=channel.key,
-        after=after if after is not None else (channel.last_read_at or 0),
-        after_id=0,
+        since=after if after is not None else (channel.last_read_at or 0),
         limit=MAX_MESSAGES_FOR_SUMMARY,
         blocked_keys=settings.blocked_keys or None,
         blocked_names=settings.blocked_names or None,
+        hidden_hop_widths=settings.hidden_hop_widths or None,
+        hide_malformed=settings.hide_malformed,
     )
-    if settings.hide_malformed:
-        messages = [m for m in messages if m.outgoing or not m.malformed]
     if not messages:
         return ChannelUnreadSummaryResponse(reason="No unread messages")
 
+    channel_name = channel.name or channel.key[:12]
     try:
-        summary = await summarize_channel_messages(
-            base_url=settings.ollama_base_url,
-            model=model,
-            channel_name=channel.name or channel.key[:12],
-            messages=messages,
+        summary = await summary_cache.get_or_create(
+            channel.key,
+            (settings.ollama_base_url, model, channel_name, tuple(m.id for m in messages)),
+            lambda: summarize_channel_messages(
+                base_url=settings.ollama_base_url,
+                model=model,
+                channel_name=channel_name,
+                messages=messages,
+            ),
         )
     except Exception as exc:
         # The detail can carry the configured URL and upstream error text, so it

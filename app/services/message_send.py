@@ -71,6 +71,30 @@ DEFAULT_DM_ACK_TIMEOUT_MS = 10000
 DM_RETRY_WAIT_MARGIN = 1.2
 
 
+# MAX_TEXT_LEN in the MeshCore firmware (BaseChatMesh.h, ten cipher blocks).
+# Over it the radio refuses a direct message, and cuts a channel message short
+# without saying so; the stored copy then no longer matches what went on air.
+# For a channel the "<name>: " the radio puts in front counts too.
+RADIO_MAX_TEXT_BYTES = 160
+
+
+def _require_text_fits_radio(text: str, *, channel_sender_name: str | None = None) -> None:
+    """Refuse text the radio would not put on air as given."""
+    size = len(text.encode("utf-8"))
+    with_name = ""
+    if channel_sender_name is not None:
+        size += len(f"{channel_sender_name}: ".encode())
+        with_name = " with the sender name"
+    if size > RADIO_MAX_TEXT_BYTES:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Message is too long: {size} bytes{with_name}, "
+                f"the radio sends at most {RADIO_MAX_TEXT_BYTES}."
+            ),
+        )
+
+
 def _is_unknown_send_outcome(exc: HTTPException) -> bool:
     """True when the radio never answered a send command.
 
@@ -726,6 +750,7 @@ async def send_direct_message_to_contact(
     contact_repository=ContactRepository,
 ) -> Any:
     """Send a direct message and persist/broadcast the outgoing row."""
+    _require_text_fits_radio(text)
     if retry_task_scheduler is None:
         retry_task_scheduler = asyncio.create_task
     if retry_sleep_fn is None:
@@ -1031,6 +1056,7 @@ async def send_channel_message_to_channel(
     try:
         async with radio_manager.radio_operation("send_channel_message") as mc:
             radio_name = mc.self_info.get("name", "") if mc.self_info else ""
+            _require_text_fits_radio(text, channel_sender_name=radio_name)
             our_public_key = (mc.self_info.get("public_key") or None) if mc.self_info else None
             text_with_sender = f"{radio_name}: {text}" if radio_name else text
             logger.info("Sending channel message to %s: %s", channel.name, text[:50])

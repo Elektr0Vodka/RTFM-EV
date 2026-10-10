@@ -1,5 +1,6 @@
 """Tests for Ollama unread channel summaries."""
 
+import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -10,10 +11,20 @@ from app.repository import AppSettingsRepository, ChannelRepository, MessageRepo
 from app.routers.channels import summarize_channel_unread
 from app.routers.settings import AppSettingsUpdate, update_settings
 from app.services.ollama_summary import (
+    MAX_MESSAGES_FOR_SUMMARY,
     OllamaConfigError,
     format_messages_for_prompt,
     normalize_ollama_base_url,
+    summary_cache,
 )
+
+
+@pytest.fixture(autouse=True)
+def _empty_summary_cache():
+    """The cache is process-wide and every test database starts its ids at 1."""
+    summary_cache.clear()
+    yield
+    summary_cache.clear()
 
 
 def _message(text: str, *, outgoing: bool = False, sender: str | None = None) -> Message:
@@ -206,6 +217,184 @@ async def test_summarize_skips_malformed_messages_when_they_are_hidden(test_db):
 
     assert result.message_count == 1
     assert [m.text for m in mock_summarize.await_args.kwargs["messages"]] == ["real question"]
+
+
+@pytest.mark.asyncio
+async def test_summarize_takes_the_newest_messages_when_more_are_unread_than_fit(test_db):
+    key = "A1" * 16
+    await ChannelRepository.upsert(key=key, name="#busy")
+    await AppSettingsRepository.update(ollama_enabled=True, ollama_model="phi3:mini")
+    total = MAX_MESSAGES_FOR_SUMMARY + 3
+    for i in range(total):
+        await MessageRepository.create(
+            msg_type="CHAN", conversation_key=key, text=f"msg {i}", received_at=1000 + i
+        )
+
+    with patch(
+        "app.routers.channels.summarize_channel_messages",
+        new_callable=AsyncMock,
+        return_value="Busy.",
+    ) as mock_summarize:
+        result = await summarize_channel_unread(key, after=0)
+
+    assert result.message_count == MAX_MESSAGES_FOR_SUMMARY
+    # The newest ones, still oldest first so the transcript reads in order.
+    assert [m.text for m in mock_summarize.await_args.kwargs["messages"]] == [
+        f"msg {i}" for i in range(3, total)
+    ]
+
+
+@pytest.mark.asyncio
+async def test_summarize_skips_messages_hidden_by_the_hop_size_filter(test_db):
+    key = "A2" * 16
+    await ChannelRepository.upsert(key=key, name="#hops")
+    await AppSettingsRepository.update(
+        ollama_enabled=True, ollama_model="phi3:mini", hidden_hop_widths=[1]
+    )
+    # Two hops of one byte each: hidden by the filter.
+    await MessageRepository.create(
+        msg_type="CHAN",
+        conversation_key=key,
+        text="one byte hops",
+        received_at=1000,
+        path="aabb",
+        path_len=2,
+    )
+    # Two hops of two bytes each: shown.
+    await MessageRepository.create(
+        msg_type="CHAN",
+        conversation_key=key,
+        text="two byte hops",
+        received_at=1001,
+        path="aabbccdd",
+        path_len=2,
+    )
+    # Our own message is never hidden, whatever its path.
+    await MessageRepository.create(
+        msg_type="CHAN",
+        conversation_key=key,
+        text="mine",
+        received_at=1002,
+        path="aabb",
+        path_len=2,
+        outgoing=True,
+    )
+
+    with patch(
+        "app.routers.channels.summarize_channel_messages",
+        new_callable=AsyncMock,
+        return_value="Hops.",
+    ) as mock_summarize:
+        result = await summarize_channel_unread(key, after=0)
+
+    assert result.message_count == 2
+    assert [m.text for m in mock_summarize.await_args.kwargs["messages"]] == [
+        "two byte hops",
+        "mine",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_summarize_does_not_ask_again_for_the_same_messages(test_db):
+    key = "A3" * 16
+    await ChannelRepository.upsert(key=key, name="#again")
+    await AppSettingsRepository.update(ollama_enabled=True, ollama_model="phi3:mini")
+    await MessageRepository.create(
+        msg_type="CHAN", conversation_key=key, text="first", received_at=1000
+    )
+
+    with patch(
+        "app.routers.channels.summarize_channel_messages",
+        new_callable=AsyncMock,
+        side_effect=["Summary one.", "Summary two."],
+    ) as mock_summarize:
+        first = await summarize_channel_unread(key, after=0)
+        again = await summarize_channel_unread(key, after=0)
+        assert mock_summarize.await_count == 1
+        assert first.summary == again.summary == "Summary one."
+        assert again.message_count == 1
+
+        # A new message changes what is asked, so the model is asked again.
+        await MessageRepository.create(
+            msg_type="CHAN", conversation_key=key, text="second", received_at=1001
+        )
+        newer = await summarize_channel_unread(key, after=0)
+
+    assert mock_summarize.await_count == 2
+    assert newer.summary == "Summary two."
+    assert newer.message_count == 2
+
+
+@pytest.mark.asyncio
+async def test_summarize_asks_again_when_the_model_changes(test_db):
+    key = "A4" * 16
+    await ChannelRepository.upsert(key=key, name="#model")
+    await AppSettingsRepository.update(ollama_enabled=True, ollama_model="phi3:mini")
+    await MessageRepository.create(
+        msg_type="CHAN", conversation_key=key, text="hello", received_at=1000
+    )
+
+    with patch(
+        "app.routers.channels.summarize_channel_messages",
+        new_callable=AsyncMock,
+        side_effect=["From phi.", "From llama."],
+    ) as mock_summarize:
+        await summarize_channel_unread(key, after=0)
+        await AppSettingsRepository.update(ollama_model="llama3.2")
+        result = await summarize_channel_unread(key, after=0)
+
+    assert mock_summarize.await_count == 2
+    assert result.summary == "From llama."
+
+
+@pytest.mark.asyncio
+async def test_summarize_does_not_keep_a_failed_attempt(test_db):
+    key = "A5" * 16
+    await ChannelRepository.upsert(key=key, name="#retry")
+    await AppSettingsRepository.update(ollama_enabled=True, ollama_model="phi3:mini")
+    await MessageRepository.create(
+        msg_type="CHAN", conversation_key=key, text="hello", received_at=1000
+    )
+
+    with patch(
+        "app.routers.channels.summarize_channel_messages",
+        new_callable=AsyncMock,
+        side_effect=[RuntimeError("down"), "Back up."],
+    ) as mock_summarize:
+        failed = await summarize_channel_unread(key, after=0)
+        retried = await summarize_channel_unread(key, after=0)
+
+    assert failed.summary is None
+    assert retried.summary == "Back up."
+    assert mock_summarize.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_summarize_shares_one_request_between_simultaneous_callers(test_db):
+    key = "A6" * 16
+    await ChannelRepository.upsert(key=key, name="#tabs")
+    await AppSettingsRepository.update(ollama_enabled=True, ollama_model="phi3:mini")
+    await MessageRepository.create(
+        msg_type="CHAN", conversation_key=key, text="hello", received_at=1000
+    )
+    release = asyncio.Event()
+    calls = 0
+
+    async def _slow_summary(**_kwargs):
+        nonlocal calls
+        calls += 1
+        await release.wait()
+        return "One answer."
+
+    with patch("app.routers.channels.summarize_channel_messages", _slow_summary):
+        first = asyncio.create_task(summarize_channel_unread(key, after=0))
+        second = asyncio.create_task(summarize_channel_unread(key, after=0))
+        await asyncio.sleep(0.05)
+        release.set()
+        results = await asyncio.gather(first, second)
+
+    assert calls == 1
+    assert [r.summary for r in results] == ["One answer.", "One answer."]
 
 
 @pytest.mark.asyncio

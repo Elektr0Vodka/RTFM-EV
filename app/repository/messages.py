@@ -543,6 +543,55 @@ class MessageRepository:
         return [MessageRepository._row_to_message(row) for row in rows]
 
     @staticmethod
+    async def get_latest_since(
+        msg_type: str,
+        conversation_key: str,
+        since: int,
+        limit: int,
+        blocked_keys: list[str] | None = None,
+        blocked_names: list[str] | None = None,
+        hidden_hop_widths: list[int] | None = None,
+        hide_malformed: bool = False,
+    ) -> list[Message]:
+        """Newest ``limit`` messages of a conversation received at or after ``since``.
+
+        Returned oldest first. Blocked senders and incoming messages hidden by
+        the hop-size or malformed filters are left out before the limit applies,
+        so the result is what the chat shows.
+        """
+        clause, norm_key = MessageRepository._normalize_conversation_key(conversation_key)
+        query = (
+            f"SELECT {MessageRepository._message_select('messages')} FROM messages "
+            "WHERE messages.type = ? "
+            f"{clause.replace('conversation_key', 'messages.conversation_key')} "
+            "AND messages.received_at >= ?"
+        )
+        params: list[Any] = [msg_type, norm_key, since]
+
+        blocked_clause, blocked_params = MessageRepository._build_blocked_incoming_clause(
+            "messages", blocked_keys, blocked_names
+        )
+        if blocked_clause:
+            query += f" AND {blocked_clause}"
+            params.extend(blocked_params)
+        for filter_clause in (
+            MessageRepository._build_hidden_hop_width_clause("messages", hidden_hop_widths),
+            MessageRepository._build_hidden_malformed_clause("messages", hide_malformed),
+        ):
+            if filter_clause:
+                query += f" AND {filter_clause}"
+
+        query += " ORDER BY messages.received_at DESC, messages.id DESC LIMIT ?"
+        params.append(limit)
+
+        async with db.readonly() as conn:
+            async with conn.execute(query, params) as cursor:
+                rows = await cursor.fetchall()
+        messages = [MessageRepository._row_to_message(row) for row in rows]
+        messages.reverse()
+        return messages
+
+    @staticmethod
     async def get_around(
         message_id: int,
         msg_type: str | None = None,

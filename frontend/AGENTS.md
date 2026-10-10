@@ -24,6 +24,7 @@ Keep it aligned with `frontend/src` source code.
 - Avoid dedicated files whose main job is pass-through, prop bundling, or renaming.
 - For this repo, "locally dense but semantically obvious" is better than indirection-heavy "clean architecture".
 - When refactoring, preserve behavior first and add tests around the seam being moved.
+- Values used as hook dependencies keep the same reference while unchanged: a module-level empty array instead of `|| []`, `useMemo` for derived lists, and refs read inside a memoized handler object listed in its dependencies.
 
 ## Frontend Map
 
