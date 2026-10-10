@@ -51,6 +51,7 @@ interface ChatHeaderProps {
   soundMuted?: boolean;
   onToggleSoundMute?: () => void;
   onSetChannelFloodScopeOverride?: (key: string, floodScopeOverride: string) => void;
+  onSetContactFloodScopeOverride?: (publicKey: string, floodScopeOverride: string) => void;
   onSetChannelPathHashModeOverride?: (key: string, pathHashModeOverride: number | null) => void;
   cadCapable?: boolean;
   cadSupported?: boolean;
@@ -91,6 +92,7 @@ export function ChatHeader({
   soundMuted,
   onToggleSoundMute,
   onSetChannelFloodScopeOverride,
+  onSetContactFloodScopeOverride,
   onSetChannelPathHashModeOverride,
   cadCapable,
   cadSupported,
@@ -153,8 +155,22 @@ export function ChatHeader({
     conversation.type === 'channel'
       ? channels.find((channel) => channel.key === conversation.id)
       : undefined;
+  const floodScopeContact =
+    conversation.type === 'contact'
+      ? contacts.find((contact) => contact.public_key === conversation.id)
+      : undefined;
   const activeFloodScopeOverride =
-    conversation.type === 'channel' ? (activeChannel?.flood_scope_override ?? null) : null;
+    conversation.type === 'channel'
+      ? (activeChannel?.flood_scope_override ?? null)
+      : (floodScopeContact?.flood_scope_override ?? null);
+  // One globe for both conversation types: a channel override scopes the whole
+  // channel, a contact override scopes flood-routed DMs to that contact.
+  const setFloodScopeOverride =
+    conversation.type === 'channel'
+      ? onSetChannelFloodScopeOverride
+      : conversation.type === 'contact'
+        ? onSetContactFloodScopeOverride
+        : undefined;
   const activeFloodScopeLabel = activeFloodScopeOverride
     ? stripRegionScopePrefix(activeFloodScopeOverride)
     : null;
@@ -196,7 +212,7 @@ export function ChatHeader({
         : t('common_add_to_favorites');
 
   const handleEditFloodScopeOverride = () => {
-    if (conversation.type !== 'channel' || !onSetChannelFloodScopeOverride) return;
+    if (!setFloodScopeOverride) return;
     setChannelOverrideOpen(true);
   };
 
@@ -338,7 +354,7 @@ export function ChatHeader({
                 )}
               </h2>
             </span>
-            {conversation.type === 'channel' && activeFloodScopeBadge && (
+            {setFloodScopeOverride && activeFloodScopeBadge && (
               <button
                 className="mt-0.5 flex basis-full items-center gap-1 text-left sm:hidden"
                 onClick={handleEditFloodScopeOverride}
@@ -570,7 +586,7 @@ export function ChatHeader({
               )}
             </div>
           )}
-        {conversation.type === 'channel' && onSetChannelFloodScopeOverride && (
+        {setFloodScopeOverride && (
           <button
             className="flex shrink-0 items-center gap-1 rounded px-1 py-1 text-lg leading-none transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onClick={handleEditFloodScopeOverride}
@@ -764,13 +780,14 @@ export function ChatHeader({
           onDiscover={onPathDiscovery}
         />
       )}
-      {conversation.type === 'channel' && onSetChannelFloodScopeOverride && (
+      {setFloodScopeOverride && (
         <ChannelFloodScopeOverrideModal
+          kind={conversation.type === 'channel' ? 'channel' : 'contact'}
           open={channelOverrideOpen}
           onClose={() => setChannelOverrideOpen(false)}
           roomName={conversation.name}
           currentOverride={activeFloodScopeOverride}
-          onSetOverride={(value) => onSetChannelFloodScopeOverride(conversation.id, value)}
+          onSetOverride={(value) => setFloodScopeOverride(conversation.id, value)}
         />
       )}
       {showPathHashModeOverride && (

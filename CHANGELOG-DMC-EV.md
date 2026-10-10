@@ -11,6 +11,71 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-10 (community fork features, feat/community-fork-features)
+
+Three features, stacked on the community fork fixes below. Two migrations
+(`_135`, `_136`), no new dependency.
+
+### Room servers: auto-login on open and Sync Now (issue #262)
+- Re-applies the fork's own earlier work (`f854c671`, never merged; the same
+  idea is in the `statico/remoteterm-meshcore` fork as `b027b731`).
+- **Sync Now** button next to Show Tools once logged in to a room. It sends the
+  room login again, which the firmware answers with recent messages. Disabled
+  while a login is running.
+- **Auto-login on open** in the room chat (the surface mobile uses): when a
+  password is remembered for that room, one login is sent on opening it. It
+  fires at most once per open and never retries after a failure, so a room
+  server that is down does not cause repeated logins.
+- A login is an RF transmission. The panel therefore only auto-logs in where it
+  is asked to (`autoLogin` prop, set by the room chat). The desktop full-page
+  contact view embeds the same panel and does not auto-login; Sync Now works
+  there after a manual login.
+- `useRememberedServerPassword` also returns `storedPassword` (the value read
+  from storage, unchanged while typing), which the one-shot auto-login keys on.
+
+### Per-contact region for direct messages (statico `88f05cf7`)
+- The globe in the chat header now also works in a contact conversation, with
+  the same three choices a channel has: scope direct messages to a region,
+  always send unscoped (ignore the global region), or use the global setting.
+- It only has an effect when the DM is flood-routed. A send over a known path
+  carries no region; the dialog says so.
+- The override is applied to the radio right before the send and the saved
+  global region is restored after it, also when the send fails, with three
+  restore attempts. The background DM retries use it too. As for channels in
+  this fork, an explicit override is always sent to the radio, also when it
+  equals the saved global region, because the radio's live scope cannot be
+  read back.
+- Backend: `contacts.flood_scope_override` (migration `_135`),
+  `POST /api/contacts/{public_key}/flood-scope-override`, shared
+  `parse_override_input` / `resolve_override_scope` in `app/region_scope.py`
+  and `temporary_flood_scope` in `app/services/flood_scope.py`. The channel
+  send path is unchanged.
+- Not tried on a radio: tests and a scratch backend only.
+
+### Unread channel summaries through Ollama (statico `cabff2e4`, `e8da9b43`)
+- Opening a channel that has unread messages can show a short summary above
+  the messages, written by a model on an Ollama server you run. It can be
+  dismissed. Off by default and inert until a model is named.
+- Settings > Radio & App > Unread Channel Summaries: a switch, the Ollama
+  server URL and the model name. The RTFM-EV server calls Ollama, so the URL
+  must be reachable from the server. **When it is on, the unread text of the
+  channel you open is sent to that server.** Nothing is sent otherwise.
+- Up to 100 messages from the read boundary on. Blocked senders are left out,
+  and so are messages flagged as malformed when "Hide malformed messages" is
+  on. The URL is validated on save (http or https with a host). A failure to
+  reach Ollama shows nothing in the UI and is logged without returning the URL
+  or the upstream error to the browser.
+- Backend: `app_settings.ollama_enabled`, `ollama_base_url`, `ollama_model`
+  (migration `_136`), `POST /api/channels/{key}/summarize-unread?after=`,
+  `app/services/ollama_summary.py`. No new dependency (uses `httpx`).
+- Two defects in the statico version were found by running it and are fixed
+  here: stored channel text already starts with `Sender: `, so the prompt said
+  every name twice; and the banner shared its React key with the message list,
+  which sent several summary requests per channel open and left a stale copy
+  on screen. One open now produces one request.
+- Checked against a stand-in Ollama server on a scratch backend, not against a
+  real model.
+
 ## Update 2026-10-09 (community fork fixes, fix/community-fork-fixes)
 
 Bug fixes taken from the `Bjorkan/MESHRIK` fork of upstream (22 commits ahead

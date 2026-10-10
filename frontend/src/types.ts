@@ -292,6 +292,11 @@ export interface Contact {
   last_contacted: number | null;
   last_read_at: number | null;
   first_seen: number | null;
+  /**
+   * Per-contact flood-scope override for direct messages: null/absent inherits
+   * the global region, '*' forces unscoped, a region name scopes flood-routed DMs.
+   */
+  flood_scope_override?: string | null;
   notes?: string | null;
   owner_info?: string | null;
   owner_key?: string | null;
@@ -755,6 +760,13 @@ export interface BulkDeleteContactsResult {
   radio_failures: Array<{ public_key: string; error: string }>;
 }
 
+/** POST /channels/{key}/summarize-unread */
+export interface ChannelUnreadSummary {
+  summary: string | null;
+  message_count: number;
+  reason: string | null;
+}
+
 export interface MessagesAroundResponse {
   messages: Message[];
   has_older: boolean;
@@ -1183,6 +1195,10 @@ export interface AppSettings {
    * Web Push.
    */
   hide_malformed: boolean;
+  /** Ollama unread summaries: off until enabled and a model is named. */
+  ollama_enabled: boolean;
+  ollama_base_url: string;
+  ollama_model: string;
   sidebar_section_order: string[];
   sidebar_tool_order: string[];
   sidebar_favorites_order: string[];
@@ -1543,6 +1559,9 @@ export interface AppSettingsUpdate {
   blocked_names?: string[];
   hidden_hop_widths?: number[];
   hide_malformed?: boolean;
+  ollama_enabled?: boolean;
+  ollama_base_url?: string;
+  ollama_model?: string;
   sidebar_section_order?: string[];
   sidebar_tool_order?: string[];
   sidebar_favorites_order?: string[];

@@ -19,7 +19,7 @@ from app.repository import (
     MessageRepository,
 )
 from app.services import dm_ack_tracker, dm_path_outcomes
-from app.services.flood_scope import set_radio_flood_scope
+from app.services.flood_scope import set_radio_flood_scope, temporary_flood_scope
 from app.services.messages import (
     BroadcastFn,
     broadcast_message,
@@ -593,13 +593,19 @@ async def _retry_direct_message_until_acked(
                     if refreshed_contact:
                         cached_contact = refreshed_contact
 
-                attempt_started = _time.monotonic()
-                result = await mc.commands.send_msg(
-                    dst=cached_contact,
-                    msg=text,
-                    timestamp=sender_timestamp,
-                    attempt=attempt,
-                )
+                async with temporary_flood_scope(
+                    mc=mc,
+                    override=contact.flood_scope_override,
+                    radio_manager=radio_manager,
+                    action_label=f"DM retry to {contact.public_key[:12]}",
+                ):
+                    attempt_started = _time.monotonic()
+                    result = await mc.commands.send_msg(
+                        dst=cached_contact,
+                        msg=text,
+                        timestamp=sender_timestamp,
+                        attempt=attempt,
+                    )
         except RadioOperationBusyError:
             logger.debug(
                 "Radio busy during DM retry attempt %d/%d for %s, will retry without consuming attempt",
@@ -713,6 +719,7 @@ async def send_direct_message_to_contact(
     broadcast_fn: BroadcastFn,
     track_pending_ack_fn: TrackAckFn,
     now_fn: NowFn,
+    error_broadcast_fn: BroadcastFn | None = None,
     retry_task_scheduler: RetryTaskScheduler | None = None,
     retry_sleep_fn=None,
     message_repository=MessageRepository,
@@ -749,12 +756,21 @@ async def send_direct_message_to_contact(
                 text=text,
                 requested_timestamp=sent_at,
             )
-            attempt_started = _time.monotonic()
-            result = await mc.commands.send_msg(
-                dst=cached_contact,
-                msg=text,
-                timestamp=sender_timestamp,
-            )
+            # The per-contact override only reaches the mesh when the DM is
+            # flood-routed; a direct send over a known path carries no transport code.
+            async with temporary_flood_scope(
+                mc=mc,
+                override=contact.flood_scope_override,
+                radio_manager=radio_manager,
+                action_label=f"sending message to {contact.public_key[:12]}",
+                error_broadcast_fn=error_broadcast_fn,
+            ):
+                attempt_started = _time.monotonic()
+                result = await mc.commands.send_msg(
+                    dst=cached_contact,
+                    msg=text,
+                    timestamp=sender_timestamp,
+                )
 
         if result is None:
             logger.warning(

@@ -14,6 +14,7 @@ from app.models import (
     SendDirectMessageRequest,
 )
 from app.radio import radio_manager
+from app.region_scope import UNSCOPED_OVERRIDE_MARKER
 from app.repository import (
     AppSettingsRepository,
     ChannelRepository,
@@ -462,6 +463,107 @@ class TestOutgoingDMBroadcast:
 
         ack_count, _ = await MessageRepository.get_ack_and_paths(message.id)
         assert ack_count == 1
+
+    @pytest.mark.asyncio
+    async def test_send_dm_uses_contact_flood_scope_override(self, test_db):
+        """A contact's persisted region is applied before the DM and restored after."""
+        mc = _make_mc()
+        pub_key = "a1" * 32
+        await _insert_contact(pub_key, "Alice")
+        await ContactRepository.update_flood_scope_override(pub_key, "#Esperance")
+        await AppSettingsRepository.update(flood_scope="Baseline")
+
+        with (
+            patch("app.routers.messages.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch("app.routers.messages.broadcast_event"),
+        ):
+            await send_direct_message(SendDirectMessageRequest(destination=pub_key, text="hi"))
+
+        assert mc.commands.set_flood_scope.await_args_list == [
+            call("#Esperance"),
+            call("#Baseline"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_send_dm_without_override_leaves_radio_scope_untouched(self, test_db):
+        """No per-contact override means the global scope stands; the radio is not touched."""
+        mc = _make_mc()
+        pub_key = "a2" * 32
+        await _insert_contact(pub_key, "Alice")
+        await AppSettingsRepository.update(flood_scope="Baseline")
+
+        with (
+            patch("app.routers.messages.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch("app.routers.messages.broadcast_event"),
+        ):
+            await send_direct_message(SendDirectMessageRequest(destination=pub_key, text="hi"))
+
+        mc.commands.set_flood_scope.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_send_dm_override_equal_to_global_is_still_sent_to_the_radio(self, test_db):
+        """The radio's live scope cannot be read back, so an explicit override is always applied."""
+        mc = _make_mc()
+        pub_key = "a5" * 32
+        await _insert_contact(pub_key, "Alice")
+        await ContactRepository.update_flood_scope_override(pub_key, "#Baseline")
+        await AppSettingsRepository.update(flood_scope="Baseline")
+
+        with (
+            patch("app.routers.messages.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch("app.routers.messages.broadcast_event"),
+        ):
+            await send_direct_message(SendDirectMessageRequest(destination=pub_key, text="hi"))
+
+        assert mc.commands.set_flood_scope.await_args_list == [
+            call("#Baseline"),
+            call("#Baseline"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_send_dm_unscoped_marker_restores_the_global_scope(self, test_db):
+        """The "*" marker forces unscoped flood; the global region is restored after."""
+        mc = _make_mc()
+        pub_key = "a3" * 32
+        await _insert_contact(pub_key, "Alice")
+        await ContactRepository.update_flood_scope_override(pub_key, UNSCOPED_OVERRIDE_MARKER)
+        await AppSettingsRepository.update(flood_scope="Baseline")
+
+        with (
+            patch("app.routers.messages.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch("app.routers.messages.broadcast_event"),
+        ):
+            await send_direct_message(SendDirectMessageRequest(destination=pub_key, text="hi"))
+
+        # Unscoped is requested first (firmware-version dependent frame), then baseline.
+        assert mc.commands.set_flood_scope.await_args_list[-1] == call("#Baseline")
+
+    @pytest.mark.asyncio
+    async def test_send_dm_restores_scope_when_send_fails(self, test_db):
+        """A failed send must still restore the radio's standing scope."""
+        mc = _make_mc()
+        pub_key = "a4" * 32
+        await _insert_contact(pub_key, "Alice")
+        await ContactRepository.update_flood_scope_override(pub_key, "#Esperance")
+        await AppSettingsRepository.update(flood_scope="Baseline")
+        mc.commands.send_msg = AsyncMock(side_effect=RuntimeError("radio exploded"))
+
+        with (
+            patch("app.routers.messages.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch("app.routers.messages.broadcast_event"),
+            pytest.raises(RuntimeError),
+        ):
+            await send_direct_message(SendDirectMessageRequest(destination=pub_key, text="hi"))
+
+        assert mc.commands.set_flood_scope.await_args_list == [
+            call("#Esperance"),
+            call("#Baseline"),
+        ]
 
 
 class TestOutgoingChannelBroadcast:

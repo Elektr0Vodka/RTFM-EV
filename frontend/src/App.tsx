@@ -67,6 +67,12 @@ interface ChannelUnreadMarker {
   channelId: string;
   /** Id of the oldest unread message, straight from the server. */
   messageId: number | null;
+  /**
+   * The channel's last_read_at as it stood when the channel was opened. Opening
+   * also marks the channel read, so this is captured with the marker; reading
+   * it later would race with mark-read and leave nothing to summarize.
+   */
+  summarizeAfter: number;
 }
 
 interface NewMessagePrefillRequest {
@@ -563,6 +569,7 @@ export function App() {
     const activeChannelUnreadCount = unreadCounts[getStateKey('channel', activeChannelId)] ?? 0;
 
     const boundaryId = firstUnreadIds[getStateKey('channel', activeChannelId)] ?? null;
+    const summarizeAfter = unreadLastReadAts[getStateKey('channel', activeChannelId)] ?? 0;
 
     setChannelUnreadMarker((prev) => {
       if (prev?.channelId === activeChannelId) {
@@ -571,16 +578,16 @@ export function App() {
         // created before /unreads resolved would otherwise stay blank for as long
         // as the user stays put.
         if (prev.messageId === null && boundaryId !== null) {
-          return { channelId: activeChannelId, messageId: boundaryId };
+          return { ...prev, messageId: boundaryId };
         }
         return prev;
       }
       if (activeChannelUnreadCount <= 0) {
         return null;
       }
-      return { channelId: activeChannelId, messageId: boundaryId };
+      return { channelId: activeChannelId, messageId: boundaryId, summarizeAfter };
     });
-  }, [activeConversation, unreadCounts, firstUnreadIds]);
+  }, [activeConversation, unreadCounts, firstUnreadIds, unreadLastReadAts]);
 
   const gatedNotifyIncomingMessage = useCallback(
     (...args: Parameters<typeof notifyIncomingMessage>) => {
@@ -664,6 +671,7 @@ export function App() {
     handleDeleteMessage,
     handleMarkUnreadFromMessage,
     handleSetChannelFloodScopeOverride,
+    handleSetContactFloodScopeOverride,
     handleSetChannelPathHashModeOverride,
     handleSenderClick,
     handleInsertLocation,
@@ -840,6 +848,12 @@ export function App() {
     messagesLoading,
     loadingOlder,
     hasOlderMessages,
+    unreadSummaryAfter:
+      activeConversation?.type === 'channel' &&
+      channelUnreadMarker?.channelId === activeConversation.id &&
+      appSettings?.ollama_enabled
+        ? channelUnreadMarker.summarizeAfter
+        : null,
     unreadMarkerMessageId:
       activeConversation?.type === 'channel' &&
       channelUnreadMarker?.channelId === activeConversation.id
@@ -869,6 +883,7 @@ export function App() {
     onDeleteChannel: handleDeleteChannel,
     onAddRegistryChannels: (channelNames: string[]) => handleBulkAddChannels(channelNames, false),
     onSetChannelFloodScopeOverride: handleSetChannelFloodScopeOverride,
+    onSetContactFloodScopeOverride: handleSetContactFloodScopeOverride,
     onSetChannelPathHashModeOverride: handleSetChannelPathHashModeOverride,
     onSelectConversation: handleSelectConversationWithTargetReset,
     onOpenContactInfo: handleOpenContactInfo,

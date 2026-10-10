@@ -756,6 +756,79 @@ class TestBulkDeleteContacts:
         mock_mc.commands.remove_contact.assert_awaited_once_with(mock_radio_contact)
 
 
+class TestContactFloodScopeOverride:
+    """Test POST /api/contacts/{public_key}/flood-scope-override."""
+
+    @pytest.mark.asyncio
+    async def test_sets_contact_flood_scope_override(self, test_db, client):
+        await _insert_contact(KEY_A)
+
+        with patch("app.websocket.broadcast_event") as mock_broadcast:
+            response = await client.post(
+                f"/api/contacts/{KEY_A}/flood-scope-override",
+                json={"flood_scope_override": "Esperance"},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["flood_scope_override"] == "#Esperance"
+
+        contact = await ContactRepository.get_by_key(KEY_A)
+        assert contact is not None
+        assert contact.flood_scope_override == "#Esperance"
+        mock_broadcast.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_unscoped_marker_forces_contact_unscoped(self, test_db, client):
+        """'*' persists as the canonical unscoped marker, distinct from blank."""
+        await _insert_contact(KEY_A)
+
+        with patch("app.websocket.broadcast_event"):
+            response = await client.post(
+                f"/api/contacts/{KEY_A}/flood-scope-override",
+                json={"flood_scope_override": "*"},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["flood_scope_override"] == "*"
+
+    @pytest.mark.asyncio
+    async def test_blank_clears_contact_flood_scope_override(self, test_db, client):
+        await _insert_contact(KEY_A)
+        await ContactRepository.update_flood_scope_override(KEY_A, "#Esperance")
+
+        with patch("app.websocket.broadcast_event"):
+            response = await client.post(
+                f"/api/contacts/{KEY_A}/flood-scope-override",
+                json={"flood_scope_override": ""},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["flood_scope_override"] is None
+
+        contact = await ContactRepository.get_by_key(KEY_A)
+        assert contact is not None
+        assert contact.flood_scope_override is None
+
+    @pytest.mark.asyncio
+    async def test_unknown_contact_returns_404(self, test_db, client):
+        response = await client.post(
+            f"/api/contacts/{KEY_C}/flood-scope-override",
+            json={"flood_scope_override": "Esperance"},
+        )
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_contact_list_carries_the_override(self, test_db, client):
+        await _insert_contact(KEY_A)
+        await ContactRepository.update_flood_scope_override(KEY_A, "#Esperance")
+
+        response = await client.get("/api/contacts")
+
+        assert response.status_code == 200
+        by_key = {c["public_key"]: c for c in response.json()}
+        assert by_key[KEY_A]["flood_scope_override"] == "#Esperance"
+
+
 class TestCreateContactWithHistorical:
     """Test POST /api/contacts with try_historical=true."""
 

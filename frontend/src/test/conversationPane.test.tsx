@@ -88,6 +88,12 @@ vi.mock('../components/RoomServerPanel', () => ({
   },
 }));
 
+vi.mock('../components/ChannelUnreadSummaryBanner', () => ({
+  ChannelUnreadSummaryBanner: ({ after }: { after: number }) => (
+    <div data-testid="unread-summary-banner" data-after={after} />
+  ),
+}));
+
 vi.mock('../components/MapView', () => ({
   MapView: () => <div data-testid="map-view" />,
 }));
@@ -186,6 +192,7 @@ function createProps(overrides: Partial<React.ComponentProps<typeof Conversation
     onDeleteContact: vi.fn(async () => {}),
     onDeleteChannel: vi.fn(async () => {}),
     onSetChannelFloodScopeOverride: vi.fn(async () => {}),
+    onSetContactFloodScopeOverride: vi.fn(async () => {}),
     onSelectConversation: vi.fn(),
     onOpenContactInfo: vi.fn(),
     onOpenChannelInfo: vi.fn(),
@@ -237,6 +244,46 @@ describe('ConversationPane', () => {
     rerender(<ConversationPane {...createProps({ activeConversation: secondConversation })} />);
 
     expect(screen.getByLabelText('Message draft')).toHaveValue('');
+  });
+
+  it('shows the unread summary banner for a channel without colliding keys', () => {
+    // The message list is keyed by the conversation id. A sibling with the same
+    // key breaks reconciliation: React mounts it again on every render (one
+    // summary request each time) and leaves a stale copy in the DOM.
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const conversation: Conversation = { type: 'channel', id: channel.key, name: channel.name };
+      const { rerender } = render(
+        <ConversationPane
+          {...createProps({ activeConversation: conversation, unreadSummaryAfter: 1700000000 })}
+        />
+      );
+      rerender(
+        <ConversationPane
+          {...createProps({ activeConversation: conversation, unreadSummaryAfter: 1700000000 })}
+        />
+      );
+
+      expect(screen.getAllByTestId('unread-summary-banner')).toHaveLength(1);
+      const sameKey = consoleError.mock.calls.filter((call) =>
+        String(call[0]).includes('two children with the same key')
+      );
+      expect(sameKey).toHaveLength(0);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it('shows no unread summary banner when no boundary is supplied', () => {
+    render(
+      <ConversationPane
+        {...createProps({
+          activeConversation: { type: 'channel', id: channel.key, name: channel.name },
+        })}
+      />
+    );
+
+    expect(screen.queryByTestId('unread-summary-banner')).toBeNull();
   });
 
   it('renders the empty state when no conversation is active', () => {

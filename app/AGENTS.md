@@ -401,6 +401,7 @@ RTFM-EV judges received frames as a repeater would; shadow mode never transmits,
 - `POST /contacts/{public_key}/command`
 - `POST /contacts/{public_key}/annotations` - set user annotations (`notes`, `owner_info`, `owner_key`, `manual_lat`, `manual_lon`, `battery_chemistry`, `power_source`); partial update, explicit `null` clears a field (for `battery_chemistry`, reverting to the global default), `owner_key` must reference an existing contact (422 otherwise), `battery_chemistry` must be one of `lipo`/`lifepo4`/`lipo_hv`/`nmc` (422 otherwise), `power_source` must be one of `mains`/`battery`/`solar`/`solar_battery`/`unknown` (422 otherwise; `null` reverts to auto-detection from the name); broadcasts `contact`
 - `POST /contacts/{public_key}/routing-override`
+- `POST /contacts/{public_key}/flood-scope-override` - per-contact region for direct messages, the same tri-state as channels (`contacts.flood_scope_override`, migration `_135`): blank clears it (inherit the global scope), `*` forces unscoped, a region name scopes. `send_direct_message_to_contact` and the background DM retry wrap `send_msg` in `services/flood_scope.temporary_flood_scope`, which applies an explicit override (always, the radio's live scope cannot be read back) and restores the saved global scope afterwards, also on failure, with three attempts. Only a flood-routed DM carries the region
 - `GET /contacts/{public_key}/contact-uri` - the contact's `meshcore://` link via `export_contact(key)`: the radio returns the last raw advert it stored for that contact (404 when it has none, 502 if it returns another node's or an invalid advert). Nothing transmitted
 - `POST /contacts/{public_key}/telemetry-permissions` - body `{base, location, environment}` (all required); stores `telemetry_perms`, pushes the flag bits to the radio when the contact is loaded there (never adds it just for this), returns `applied_to_radio`; broadcasts `contact`
 - `POST /contacts/{public_key}/trace`
@@ -461,6 +462,7 @@ The agent serves the firmware's OID table (`app/snmp/mib.py`) for this host: `ho
 - `POST /channels/bulk-hashtag`
 - `DELETE /channels/{key}`
 - `POST /channels/{key}/flood-scope-override`
+- `POST /channels/{key}/summarize-unread?after=<last_read_at>` - Ollama catch-up summary (`services/ollama_summary.py`). Returns `{summary, message_count, reason}`. Does nothing, and sends nothing anywhere, unless `app_settings.ollama_enabled` is set and `ollama_model` is non-empty (migration `_136`; `ollama_base_url` is validated on write in `routers/settings.py`). Sends up to 100 channel messages after `after` (the client passes the read boundary it captured before marking the channel read), without blocked senders and without malformed-flagged messages when `hide_malformed` is on. Stored channel text already starts with `Sender: `, so `format_messages_for_prompt` strips that prefix before attributing the line. Upstream errors are logged, never returned
 - `POST /channels/{key}/path-hash-mode-override`
 - `POST /channels/{key}/mark-read`
 - `POST /channels/{key}/mark-unread` - `{message_id}`, marks unread from that message onward
