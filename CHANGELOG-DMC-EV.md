@@ -109,6 +109,13 @@ exactly as before; see "Tailwind 4" for how that was checked.
   under a native control; not confirmed by pixels, the browser pane was
   hidden). The map and visualizer canvases are WebGL and were not compared
   pixel by pixel. Not covered: repeater dashboards (need a radio login).
+- Third check, after the merge with the community fixes and features (#288,
+  #289), in the default theme and MCEU Light, on a scratch backend with a
+  stand-in Ollama server: the unread summary banner, the unread-summary
+  settings block, the region dialog for a contact and for a channel, the last
+  chat rows with the unconfirmed-send mark, plus chat, DM, contact info, map,
+  New Conversation and Local settings again. No element differs in position
+  or style. The code those two pull requests added needed no class renames.
 - Tailwind 4 needs Safari 16.4, Chrome 111 or Firefox 128 and newer.
 
 ### Build and CI
@@ -129,6 +136,174 @@ exactly as before; see "Tailwind 4" for how that was checked.
   react-leaflet, CodeMirror). On Windows the script needs
   `PYTHONUTF8=1`, otherwise the Python half is written in the console code
   page and names with accents break.
+
+## Update 2026-10-10 (community fork features, feat/community-fork-features)
+
+Three features, stacked on the community fork fixes below. Two migrations
+(`_135`, `_136`), no new dependency.
+
+### Room servers: auto-login on open and Sync Now (issue #262)
+- Re-applies the fork's own earlier work (`f854c671`, never merged; the same
+  idea is in the `statico/remoteterm-meshcore` fork as `b027b731`).
+- **Sync Now** button next to Show Tools once logged in to a room. It sends the
+  room login again, which the firmware answers with recent messages. Disabled
+  while a login is running.
+- **Auto-login on open** in the room chat (the surface mobile uses): when a
+  password is remembered for that room, one login is sent on opening it. It
+  fires at most once per open and never retries after a failure, so a room
+  server that is down does not cause repeated logins.
+- A login is an RF transmission. The panel therefore only auto-logs in where it
+  is asked to (`autoLogin` prop, set by the room chat). The desktop full-page
+  contact view embeds the same panel and does not auto-login; Sync Now works
+  there after a manual login.
+- `useRememberedServerPassword` also returns `storedPassword` (the value read
+  from storage, unchanged while typing), which the one-shot auto-login keys on.
+
+### Per-contact region for direct messages (statico `88f05cf7`)
+- The globe in the chat header now also works in a contact conversation, with
+  the same three choices a channel has: scope direct messages to a region,
+  always send unscoped (ignore the global region), or use the global setting.
+- It only has an effect when the DM is flood-routed. A send over a known path
+  carries no region; the dialog says so.
+- The override is applied to the radio right before the send and the saved
+  global region is restored after it, also when the send fails, with three
+  restore attempts. The background DM retries use it too. As for channels in
+  this fork, an explicit override is always sent to the radio, also when it
+  equals the saved global region, because the radio's live scope cannot be
+  read back.
+- Backend: `contacts.flood_scope_override` (migration `_135`),
+  `POST /api/contacts/{public_key}/flood-scope-override`, shared
+  `parse_override_input` / `resolve_override_scope` in `app/region_scope.py`
+  and `temporary_flood_scope` in `app/services/flood_scope.py`. The channel
+  send path is unchanged.
+- Not tried on a radio: tests and a scratch backend only.
+
+### Unread channel summaries through Ollama (statico `cabff2e4`, `e8da9b43`)
+- Opening a channel that has unread messages can show a short summary above
+  the messages, written by a model on an Ollama server you run. It can be
+  dismissed. Off by default and inert until a model is named.
+- Settings > Radio & App > Unread Channel Summaries: a switch, the Ollama
+  server URL and the model name. The RTFM-EV server calls Ollama, so the URL
+  must be reachable from the server. **When it is on, the unread text of the
+  channel you open is sent to that server.** Nothing is sent otherwise.
+- Up to 100 messages from the read boundary on. Blocked senders are left out,
+  and so are messages flagged as malformed when "Hide malformed messages" is
+  on. The URL is validated on save (http or https with a host). A failure to
+  reach Ollama shows nothing in the UI and is logged without returning the URL
+  or the upstream error to the browser.
+- Backend: `app_settings.ollama_enabled`, `ollama_base_url`, `ollama_model`
+  (migration `_136`), `POST /api/channels/{key}/summarize-unread?after=`,
+  `app/services/ollama_summary.py`. No new dependency (uses `httpx`).
+- Two defects in the statico version were found by running it and are fixed
+  here: stored channel text already starts with `Sender: `, so the prompt said
+  every name twice; and the banner shared its React key with the message list,
+  which sent several summary requests per channel open and left a stale copy
+  on screen. One open now produces one request.
+- Checked against a stand-in Ollama server on a scratch backend, not against a
+  real model.
+
+## Update 2026-10-09 (community fork fixes, fix/community-fork-fixes)
+
+Bug fixes taken from the `Bjorkan/MESHRIK` fork of upstream (22 commits ahead
+of `33b3b8d`, reviewed at `5e1a0c89`), ported by hand onto this tree. Two
+migrations (`_133`, `_134`), no new dependency. The open upstream pull requests
+and issues were checked as well: the fixes they carry (companion repeat mode
+#362/#363, repeater CLI autocapitalise #349/#350, 422 for mesh timeouts #345)
+were already in this fork, so nothing from upstream needed porting.
+
+### Messaging
+- **Draft no longer follows you to another conversation** (MESHRIK `11e99e6a`).
+  Text typed but not sent stayed in the composer after switching conversation,
+  so it could be sent to the wrong channel or contact. The composer is now
+  recreated per conversation.
+- **Enter during IME composition no longer sends** (MESHRIK `8f173d15`).
+  Confirming a candidate with Enter (Japanese, Chinese, Korean input) sent the
+  half-composed message.
+- **Channel resend after a radio rename** (MESHRIK `f2037aa3`). A resend
+  stripped the sender prefix only when it matched the current radio name, so a
+  message sent under an earlier name went on air as `New: Old: text`. The
+  prefix is now taken from the stored `sender_name` first. A resend with a new
+  timestamp stores the row under the current name. Applies to the manual
+  resend and to the echo watchdog.
+- **A send the radio never answered is kept, not deleted** (MESHRIK
+  `85b71197`). When the radio gave no response to a send command the stored row
+  was removed, although the packet may have gone out. Such a message now stays
+  with `send_status = 'unknown'` and shows a warning mark; hearing it echoed
+  (or an ACK) turns it into a normal delivered message. The API still answers
+  422 with the same text, so the composer keeps the draft and the toast is
+  unchanged. Migration `_134` adds `messages.send_status`
+  (`pending`, `confirmed`, `unknown`; existing rows `confirmed`).
+- **Messages deleted on the server leave the open conversation** (MESHRIK
+  `ac58e0d9`). The background reconcile only added and updated, so a message
+  deleted elsewhere stayed on screen until a reload. Only messages inside the
+  fetched range are removed; older pages loaded by scrolling and messages that
+  arrived during the fetch stay.
+- **Reconcile compares every scalar field** (MESHRIK `257f3ed0`, in part). A
+  change to sender, region, transport code, signature, text type or channel
+  name was not picked up. Paths are still compared by count, not per path as
+  in MESHRIK: the server only ever appends to a message's path list
+  (`MessageRepository.add_path`, `json_insert(..., '$[#]', ...)`, the single
+  runtime writer), so for one message an equal count means equal content and
+  a per-path comparison can find nothing extra.
+- **A message over the byte limit is not sent** (MESHRIK `68734cc4`, with a
+  different threshold). The composer warned "likely truncated by radio" and
+  sent anyway. What the firmware does (`BaseChatMesh.cpp`, `MAX_TEXT_LEN` 160):
+  a channel message is cut to 160 bytes including the `Name: ` prefix and the
+  radio answers OK, so the stored text differs from what went on air, its echo
+  matches no stored row (echo matching is on exact text and timestamp) and
+  shows up as a second, incoming message while the original never gets an
+  echo count; a cut in the middle of a multi-byte character leaves invalid
+  UTF-8. A DM above 160 bytes is refused with `ERR_CODE_TABLE_FULL`. Send is
+  now disabled, and Enter does nothing, while the text is over the limit the
+  counter shows (156 bytes for a DM, 156 minus name and separator for a
+  channel); the hint reads "too long to send, shorten it". A message that
+  exactly fills the limit is still sent (MESHRIK blocks that one too). The
+  "likely truncated by radio" state is gone. Raw packets are not limited.
+
+### Read state
+- **Same-second arrivals stay unread** (MESHRIK `202e0f65`). `last_read_at`
+  has one-second resolution, so a message arriving in the second a conversation
+  was marked read never counted as unread. Migration `_133` adds
+  `last_read_message_id` to `contacts` and `channels`; a message is unread when
+  it is newer than `last_read_at`, or from that second with a higher id.
+  Existing rows are seeded so nothing old turns unread.
+- **A late unread answer no longer overwrites newer state** (MESHRIK
+  `3d6ec6f0`, reworked). `/api/read-state/unreads` is a snapshot, and it can
+  take seconds here (0.6 s to 16 s measured on the live instance). Two cases
+  were wrong: an older answer arriving after a newer one replaced it, and an
+  answer taken before a live message arrived dropped that message's count
+  again. Now only the newest request may apply its result, and when live
+  state changed during a request it is fetched again, at most three attempts,
+  the last of which is applied regardless. MESHRIK discards such a snapshot
+  without fetching again; with no retry a message arriving during the fetch
+  would leave every badge from that snapshot missing until the next refresh.
+- **Reads in the open conversation are saved** (MESHRIK `6f0b1d7b`). A message
+  arriving in the conversation on screen was shown as read but the server only
+  learned that at the next navigation or refresh, so another browser showed it
+  unread. The client now reports the newest message shown (250 ms debounce,
+  flushed on leaving) via `mark-read?message_id=`, which only moves forward.
+  Skipped while the conversation is held unread by "mark unread from here".
+
+### Contacts
+- **Radio refusing a contact removal is reported** (MESHRIK `5f29c84a`). Delete
+  and bulk delete ignored the radio's answer, so a contact the radio kept came
+  back at the next sync without explanation. Both endpoints now return what the
+  radio did and the UI shows a warning. One failing removal no longer skips the
+  rest of a bulk delete. When a removal raises, the bulk response says
+  `Radio removal failed` and the exception text goes to the log only (CodeQL
+  `py/stack-trace-exposure` on the pull request).
+- **Bulk delete with a key listed twice** counted and processed that contact
+  twice (MESHRIK `5f24e2dc`).
+
+### Interface
+- **Search "Searching..." indicator** disappeared when an older, aborted
+  request finished while a newer one was still running (MESHRIK `3f8bae66`).
+- **Notification click** now waits for the tab to be focused and navigated
+  before the service worker may be stopped (MESHRIK `2753d6fb`).
+
+### Not taken from MESHRIK
+- `5e1a0c89`, `1a7883da`, `f85304a3`, `50d20b94`, `44778327`: lint tidy-up,
+  lazy loading (already present), PWA manifest and rebranding.
 
 ## Update 2026-10-09 (MCEU themes: page heads and cards, feat/mceu-layout)
 

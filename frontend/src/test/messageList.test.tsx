@@ -137,6 +137,51 @@ describe('MessageList channel sender rendering', () => {
     expect(screen.queryByText('nl-gr')).not.toBeInTheDocument();
   });
 
+  it('warns on an outgoing message whose send the radio never confirmed', () => {
+    render(
+      <MessageList
+        messages={[
+          createMessage({
+            outgoing: true,
+            text: 'Did this send?',
+            send_status: 'unknown',
+          }),
+        ]}
+        contacts={[]}
+        loading={false}
+      />
+    );
+
+    expect(
+      screen.getByLabelText(
+        'The radio did not confirm this send. The message may or may not be on air.'
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('drops the unconfirmed-send warning once the message was heard back', () => {
+    render(
+      <MessageList
+        messages={[
+          createMessage({
+            outgoing: true,
+            text: 'Heard after all',
+            send_status: 'unknown',
+            acked: 1,
+          }),
+        ]}
+        contacts={[]}
+        loading={false}
+      />
+    );
+
+    expect(
+      screen.queryByLabelText(
+        'The radio did not confirm this send. The message may or may not be on air.'
+      )
+    ).not.toBeInTheDocument();
+  });
+
   it('shows per-hop byte width in the path badge when the toggle is on', () => {
     render(
       <PathHopWidthProvider showPathHopWidth setShowPathHopWidth={() => {}}>

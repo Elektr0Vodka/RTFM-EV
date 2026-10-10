@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS contacts (
     last_contacted INTEGER,
     first_seen INTEGER,
     last_read_at INTEGER,
+    last_read_message_id INTEGER,
+    flood_scope_override TEXT,
     favorite INTEGER DEFAULT 0,
     radio_policy TEXT NOT NULL DEFAULT 'auto',
     telemetry_perms INTEGER,
@@ -50,6 +52,7 @@ CREATE TABLE IF NOT EXISTS channels (
     flood_scope_override TEXT,
     path_hash_mode_override INTEGER,
     last_read_at INTEGER,
+    last_read_message_id INTEGER,
     favorite INTEGER DEFAULT 0,
     muted INTEGER DEFAULT 0
 );
@@ -66,6 +69,7 @@ CREATE TABLE IF NOT EXISTS messages (
     signature TEXT,
     outgoing INTEGER DEFAULT 0,
     acked INTEGER DEFAULT 0,
+    send_status TEXT NOT NULL DEFAULT 'confirmed',
     sender_name TEXT,
     sender_key TEXT
     -- Deduplication: channel echoes/repeats use a content/time unique index so

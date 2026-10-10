@@ -20,6 +20,7 @@ from app.models import (
     ContactAdvertPathSummary,
     ContactAnalytics,
     ContactAnnotationsUpdate,
+    ContactFloodScopeOverrideRequest,
     ContactLocationHistory,
     ContactRadioPolicyRequest,
     ContactRadioResidency,
@@ -45,6 +46,7 @@ from app.models import (
 )
 from app.packet_processor import start_historical_dm_decryption
 from app.path_utils import parse_explicit_hop_route
+from app.region_scope import parse_override_input
 from app.repository import (
     AdvertEventRepository,
     AmbiguousPublicKeyPrefixError,
@@ -571,12 +573,18 @@ async def get_contact_uri(public_key: str) -> ContactUriResponse:
 
 
 @router.post("/{public_key}/mark-read")
-async def mark_contact_read(public_key: str) -> dict:
-    """Mark a contact conversation as read (update last_read_at timestamp)."""
+async def mark_contact_read(public_key: str, message_id: int | None = None) -> dict:
+    """Mark a contact conversation as read.
+
+    Without ``message_id`` everything received so far counts as read. With it,
+    the read state advances through that message only (never backwards).
+    """
     contact = await _resolve_contact_or_404(public_key)
 
-    updated = await ContactRepository.update_last_read_at(contact.public_key)
+    updated = await ContactRepository.update_last_read_at(contact.public_key, message_id=message_id)
     if not updated:
+        if message_id is not None:
+            raise HTTPException(status_code=400, detail="Invalid message read boundary")
         raise HTTPException(status_code=500, detail="Failed to update read state")
 
     return {"status": "ok", "public_key": contact.public_key}
@@ -618,28 +626,73 @@ class BulkDeleteRequest(BaseModel):
     public_keys: list[str] = Field(description="Public keys to delete")
 
 
+def _radio_contact_removal_error(result) -> str | None:
+    """Return why the radio did not remove a contact, or None when it did."""
+    if result is None:
+        return "No response from radio"
+    if result.type == EventType.ERROR:
+        return f"Radio rejected removal: {result.payload}"
+    return None
+
+
+# Reported to the client when a removal raised. The exception text itself goes
+# to the log only: it can carry local details such as a device path.
+_RADIO_REMOVAL_FAILED = "Radio removal failed"
+
+
 @router.post("/bulk-delete")
 async def bulk_delete_contacts(request: BulkDeleteRequest) -> dict:
     """Delete multiple contacts from the database (and radio if present)."""
     from app.websocket import broadcast_event
 
+    normalized_keys = list(dict.fromkeys(key.lower() for key in request.public_keys))
+
     # Resolve all contacts first
     contacts_to_delete: list[Contact] = []
-    for key in request.public_keys:
-        contact = await ContactRepository.get_by_key(key.lower())
+    for key in normalized_keys:
+        contact = await ContactRepository.get_by_key(key)
         if contact:
             contacts_to_delete.append(contact)
+
+    radio_deleted = 0
+    radio_failures: list[dict[str, str]] = []
+    radio_processed: set[str] = set()
 
     # Remove from radio in a single locked operation (blocks until radio is free)
     if radio_manager.is_connected and contacts_to_delete:
         try:
             async with radio_manager.radio_operation("bulk_delete_contacts_from_radio") as mc:
                 for contact in contacts_to_delete:
-                    radio_contact = mc.get_contact_by_key_prefix(contact.public_key[:12])
-                    if radio_contact:
-                        await mc.commands.remove_contact(radio_contact)
+                    try:
+                        radio_contact = mc.get_contact_by_key_prefix(contact.public_key[:12])
+                        if not radio_contact:
+                            continue
+                        result = await mc.commands.remove_contact(radio_contact)
+                        error = _radio_contact_removal_error(result)
+                        if error:
+                            radio_failures.append(
+                                {"public_key": contact.public_key, "error": error}
+                            )
+                        else:
+                            radio_deleted += 1
+                    except Exception as exc:
+                        logger.warning(
+                            "Radio removal failed for contact %s: %s",
+                            contact.public_key[:12],
+                            exc,
+                        )
+                        radio_failures.append(
+                            {"public_key": contact.public_key, "error": _RADIO_REMOVAL_FAILED}
+                        )
+                    finally:
+                        radio_processed.add(contact.public_key)
         except Exception as e:
             logger.warning("Radio removal during bulk delete failed: %s", e)
+            for contact in contacts_to_delete:
+                if contact.public_key not in radio_processed:
+                    radio_failures.append(
+                        {"public_key": contact.public_key, "error": _RADIO_REMOVAL_FAILED}
+                    )
 
     # Delete from database and broadcast events
     deleted = 0
@@ -648,8 +701,13 @@ async def bulk_delete_contacts(request: BulkDeleteRequest) -> dict:
         broadcast_event("contact_deleted", {"public_key": contact.public_key})
         deleted += 1
 
-    logger.info("Bulk deleted %d/%d contacts", deleted, len(request.public_keys))
-    return {"deleted": deleted}
+    logger.info("Bulk deleted %d/%d unique contacts", deleted, len(normalized_keys))
+    return {
+        "deleted": deleted,
+        "radio_deleted": radio_deleted,
+        "radio_failed": len(radio_failures),
+        "radio_failures": radio_failures,
+    }
 
 
 @router.post("/bulk-contact-uris", response_model=ContactUriBatchResponse)
@@ -683,6 +741,10 @@ async def delete_contact(public_key: str) -> dict:
     """Delete a contact from the database (and radio if present)."""
     contact = await _resolve_contact_or_404(public_key)
 
+    # None = the radio was not asked (disconnected, or the contact is not on it).
+    radio_deleted: bool | None = None
+    radio_error: str | None = None
+
     # Remove from radio if connected and contact is on radio
     if radio_manager.is_connected:
         async with radio_manager.radio_operation("delete_contact_from_radio") as mc:
@@ -691,7 +753,15 @@ async def delete_contact(public_key: str) -> dict:
                 logger.info(
                     "Removing contact %s from radio before deletion", contact.public_key[:12]
                 )
-                await mc.commands.remove_contact(radio_contact)
+                result = await mc.commands.remove_contact(radio_contact)
+                radio_error = _radio_contact_removal_error(result)
+                radio_deleted = radio_error is None
+                if radio_error:
+                    logger.warning(
+                        "Radio did not remove contact %s: %s",
+                        contact.public_key[:12],
+                        radio_error,
+                    )
 
     # Delete from database
     await ContactRepository.delete(contact.public_key)
@@ -701,7 +771,12 @@ async def delete_contact(public_key: str) -> dict:
 
     broadcast_event("contact_deleted", {"public_key": contact.public_key})
 
-    return {"status": "ok"}
+    return {
+        "status": "partial" if radio_error else "ok",
+        "database_deleted": True,
+        "radio_deleted": radio_deleted,
+        "radio_error": radio_error,
+    }
 
 
 @router.post("/{public_key}/trace", response_model=TraceResponse)
@@ -850,6 +925,26 @@ async def request_path_discovery(public_key: str) -> PathDiscoveryResponse:
             path_hash_mode=return_mode,
         ),
     )
+
+
+@router.post("/{public_key}/flood-scope-override", response_model=Contact)
+async def set_contact_flood_scope_override(
+    public_key: str, request: ContactFloodScopeOverrideRequest
+) -> Contact:
+    """Set or clear a per-contact flood-scope override for direct messages."""
+    contact = await _resolve_contact_or_404(public_key)
+
+    override = parse_override_input(request.flood_scope_override)
+    updated = await ContactRepository.update_flood_scope_override(contact.public_key, override)
+    if not updated:
+        raise HTTPException(status_code=500, detail="Failed to update flood-scope override")
+
+    refreshed = await ContactRepository.get_by_key(contact.public_key)
+    if refreshed is None:
+        raise HTTPException(status_code=500, detail="Contact disappeared after update")
+
+    await _broadcast_contact_update(refreshed)
+    return refreshed
 
 
 @router.post("/{public_key}/routing-override")

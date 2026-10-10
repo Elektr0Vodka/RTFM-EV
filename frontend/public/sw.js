@@ -42,13 +42,13 @@ self.addEventListener("notificationclick", (event) => {
   event.waitUntil(
     clients
       .matchAll({ type: "window", includeUncontrolled: true })
-      .then((windowClients) => {
+      .then(async (windowClients) => {
         // Focus an existing tab if one is open
         for (const client of windowClients) {
           if (client.url.startsWith(base)) {
-            client.focus();
+            await client.focus();
             if (urlHash) {
-              client.navigate(base + urlHash);
+              await client.navigate(base + urlHash);
             }
             return;
           }

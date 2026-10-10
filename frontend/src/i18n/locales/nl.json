@@ -737,6 +737,7 @@
   "chat_retry_failed": "Opnieuw proberen mislukt",
   "chat_message_failed": "Mislukt",
   "chat_message_failed_title": "Niet afgeleverd: geen bevestiging na alle pogingen. Gebruik Opnieuw proberen om het nogmaals te versturen.",
+  "chat_send_unconfirmed_title": "De radio heeft deze verzending niet bevestigd. Het bericht is mogelijk wel of niet uitgezonden.",
   "chat_mark_unread_action": "Markeren als ongelezen vanaf hier",
   "chat_mark_unread_success": "Gemarkeerd als ongelezen",
   "chat_mark_unread_failed": "Markeren als ongelezen mislukt",
@@ -746,7 +747,7 @@
   "chat_scroll_down_newer": "Scroll omlaag voor nieuwere berichten",
   "chat_scroll_up_older": "Scroll omhoog voor oudere berichten",
   "chat_select_conversation": "Selecteer een gesprek of start een nieuw gesprek",
-  "chat_truncated_by_radio": "waarschijnlijk afgekapt door de radio",
+  "chat_too_long_to_send": "te lang om te verzenden, kort het in",
   "chat_try_decrypt": {
     "one": "Probeer {n} opgeslagen pakket te ontsleutelen",
     "other": "Probeer {n} opgeslagen pakketten te ontsleutelen"
@@ -2239,6 +2240,9 @@
   "room_post_pushes_label": "Berichten doorgestuurd",
   "room_posted_label": "Berichten geplaatst",
   "room_show_tools": "Tools tonen",
+  "room_sync_now": "Nu synchroniseren",
+  "room_syncing": "Synchroniseren...",
+  "room_sync_now_title": "Opnieuw inloggen om de roomserver recente berichten te laten hersturen",
   "room_tools_description": "Room-server telemetrie, ACL-tools, sensordata en CLI-console",
   "room_tools_title": "Room-server tools",
   "packet_filter_hex_placeholder": "Filteren op hex…",
@@ -3508,6 +3512,20 @@
   "region_override_inherit_label": "globale instelling overnemen",
   "region_override_title": "Regionale override",
   "region_override_description": "Kanaalspecifieke regionale routering wijzigt tijdelijk de flood-scope van de radio voor het verzenden en herstelt deze daarna. Dit kan het verzenden van kanaalberichten merkbaar vertragen. Kies een van de drie modi hieronder: scope naar een regio, forceer ongescopeerd (gewone flood, je globale regio negerend), of neem de globale instelling over.",
+  "region_override_contact_note": "Een direct bericht draagt alleen een regio als het via flood wordt verstuurd; verzendingen over een bekend pad negeren deze instelling.",
+  "unread_summary_title": "Samenvatting ongelezen",
+  "unread_summary_count": {
+    "one": "({count} bericht)",
+    "other": "({count} berichten)"
+  },
+  "unread_summary_dismiss_aria": "Samenvatting ongelezen sluiten",
+  "unread_summary_loading": "Ongelezen berichten samenvatten...",
+  "settings_ollama_heading": "Samenvattingen van ongelezen kanaalberichten",
+  "settings_ollama_description": "Bij het openen van een kanaal met ongelezen berichten kan een korte samenvatting worden getoond, geschreven door een model op een Ollama-server die je zelf draait. De RTFM-EV-server roept Ollama aan, dus het adres hieronder moet bereikbaar zijn vanaf de server, niet vanaf deze browser. Standaard uit; je kanaalberichten worden naar die server gestuurd als dit aan staat.",
+  "settings_ollama_enable_label": "Ongelezen berichten samenvatten bij het openen van een kanaal",
+  "settings_ollama_url_label": "URL van de Ollama-server",
+  "settings_ollama_model_label": "Ollama-model",
+  "settings_ollama_model_help": "Een model dat je al hebt opgehaald, met de naam zoals \"ollama list\" die toont. Een klein model zoals phi3:mini is genoeg voor een paar zinnen. Samenvattingen blijven uit tot dit is ingevuld.",
   "region_override_current_setting_label": "Huidige instelling:",
   "region_override_placeholder_example": "Esperance",
   "region_override_scope_to_region_button": "Scope {room} naar {region}",
@@ -3581,6 +3599,10 @@
   "bulkdelete_toast_deleted": {
     "one": "{count} contact verwijderd",
     "other": "{count} contacten verwijderd"
+  },
+  "bulkdelete_toast_radio_failed": {
+    "one": "{count} contact kon niet van de radio worden verwijderd en kan bij de volgende synchronisatie terugkomen.",
+    "other": "{count} contacten konden niet van de radio worden verwijderd en kunnen bij de volgende synchronisatie terugkomen."
   },
   "bulkdelete_toast_failed_title": "Bulkverwijdering mislukt",
   "bulkdelete_channels_select_description": "Selecteer kanalen om uit de app te verwijderen.",

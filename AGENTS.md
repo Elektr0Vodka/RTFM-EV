@@ -354,6 +354,7 @@ This table is a representative subset, not the full route list (for example the 
 | POST | `/api/contacts/{public_key}/mark-read` | Mark contact conversation as read |
 | POST | `/api/contacts/{public_key}/command` | Send CLI command to repeater |
 | POST | `/api/contacts/{public_key}/routing-override` | Set or clear a forced routing override |
+| POST | `/api/contacts/{public_key}/flood-scope-override` | Set or clear a per-contact regional flood-scope override for flood-routed DMs |
 | GET | `/api/contacts/{public_key}/route-suggestions` | Ranked DM route suggestions from paths the contact was heard on; `validate=true` also checks them against the analyzer (suggest only) |
 | POST | `/api/contacts/{public_key}/trace` | Trace route to contact |
 | POST | `/api/contacts/{public_key}/path-discovery` | Discover forward/return paths and persist the learned direct route |
@@ -391,6 +392,7 @@ This table is a representative subset, not the full route list (for example the 
 | POST | `/api/channels/bulk-hashtag` | Create multiple hashtag channels |
 | DELETE | `/api/channels/{key}` | Delete channel |
 | POST | `/api/channels/{key}/flood-scope-override` | Set or clear a per-channel regional flood-scope override |
+| POST | `/api/channels/{key}/summarize-unread` | Summarize a channel's unread messages through the configured Ollama server (off unless enabled) |
 | POST | `/api/channels/{key}/path-hash-mode-override` | Set or clear a per-channel path hash mode override |
 | POST | `/api/channels/{key}/mark-read` | Mark channel as read |
 | GET | `/api/messages` | List with filters (`q`, `after`/`after_id` for forward pagination) |
@@ -472,8 +474,8 @@ This table is a representative subset, not the full route list (for example the 
 ### Read State Tracking
 
 Read state (`last_read_at`) is tracked **server-side** for consistency across devices:
-- Stored as Unix timestamp in `contacts.last_read_at` and `channels.last_read_at`
-- Updated via `POST /api/contacts/{public_key}/mark-read` and `POST /api/channels/{key}/mark-read`
+- Stored as Unix timestamp in `contacts.last_read_at` and `channels.last_read_at`, with `last_read_message_id` (migration `_133`) as tie-breaker inside that second: a message is unread when it is newer than `last_read_at`, or from that same second with a higher id
+- Updated via `POST /api/contacts/{public_key}/mark-read` and `POST /api/channels/{key}/mark-read`; with `?message_id=` the read state advances through that message only and never backwards
 - Bulk update via `POST /api/read-state/mark-all-read`
 - Aggregated counts via `GET /api/read-state/unreads` (server-side computation of counts, mention flags, `last_message_times`, `last_read_ats`, and `first_unread_ids`)
 

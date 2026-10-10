@@ -292,6 +292,11 @@ export interface Contact {
   last_contacted: number | null;
   last_read_at: number | null;
   first_seen: number | null;
+  /**
+   * Per-contact flood-scope override for direct messages: null/absent inherits
+   * the global region, '*' forces unscoped, a region name scopes flood-routed DMs.
+   */
+  flood_scope_override?: string | null;
   notes?: string | null;
   owner_info?: string | null;
   owner_key?: string | null;
@@ -701,6 +706,11 @@ export interface Message {
   outgoing: boolean;
   /** ACK count: 0 = not acked, 1+ = number of acks/flood echoes received */
   acked: number;
+  /**
+   * Radio command outcome for an outgoing message. 'unknown' = the radio never
+   * answered, so the message may or may not be on air. Absent means confirmed.
+   */
+  send_status?: 'pending' | 'confirmed' | 'unknown';
   sender_name: string | null;
   channel_name?: string | null;
   packet_id?: number | null;
@@ -716,6 +726,29 @@ export interface Message {
    * firmware default). Hidden by the chat "Hide malformed" filter.
    */
   malformed?: boolean;
+}
+
+/** DELETE /contacts/{key}: the row is always removed; the radio may refuse. */
+export interface ContactDeleteResult {
+  status: 'ok' | 'partial';
+  database_deleted: boolean;
+  /** null when the radio was not asked (disconnected, or the contact is not on it). */
+  radio_deleted: boolean | null;
+  radio_error: string | null;
+}
+
+export interface BulkDeleteContactsResult {
+  deleted: number;
+  radio_deleted: number;
+  radio_failed: number;
+  radio_failures: Array<{ public_key: string; error: string }>;
+}
+
+/** POST /channels/{key}/summarize-unread */
+export interface ChannelUnreadSummary {
+  summary: string | null;
+  message_count: number;
+  reason: string | null;
 }
 
 export interface MessagesAroundResponse {
@@ -1146,6 +1179,10 @@ export interface AppSettings {
    * Web Push.
    */
   hide_malformed: boolean;
+  /** Ollama unread summaries: off until enabled and a model is named. */
+  ollama_enabled: boolean;
+  ollama_base_url: string;
+  ollama_model: string;
   sidebar_section_order: string[];
   sidebar_tool_order: string[];
   sidebar_favorites_order: string[];
@@ -1506,6 +1543,9 @@ export interface AppSettingsUpdate {
   blocked_names?: string[];
   hidden_hop_widths?: number[];
   hide_malformed?: boolean;
+  ollama_enabled?: boolean;
+  ollama_base_url?: string;
+  ollama_model?: string;
   sidebar_section_order?: string[];
   sidebar_tool_order?: string[];
   sidebar_favorites_order?: string[];

@@ -149,6 +149,15 @@ class Contact(BaseModel):
     last_contacted: int | None = None  # Last time we sent/received a message
     last_read_at: int | None = None  # Server-side read state tracking
     first_seen: int | None = None
+    flood_scope_override: str | None = Field(
+        default=None,
+        description=(
+            "Per-contact outbound flood scope override for direct messages, tri-state: "
+            "null = inherit the global app setting; '*' = force unscoped/plain flood even "
+            "over a scoped global; a region name (e.g. '#nl') = scope DMs to this contact. "
+            "Only affects flood-routed DMs."
+        ),
+    )
     notes: str | None = None
     owner_info: str | None = None
     owner_key: str | None = None
@@ -330,6 +339,16 @@ class ContactAnnotationsUpdate(BaseModel):
     vessel_type: VesselType | None = Field(
         default=None,
         description="Hand-set vessel type for the map's beacon icon; null clears it",
+    )
+
+
+class ContactFloodScopeOverrideRequest(BaseModel):
+    flood_scope_override: str = Field(
+        description=(
+            "Tri-state contact override. Blank clears the override (inherit the global "
+            "scope); '*' forces unscoped/plain flood even when a global region is set; "
+            "any other value scopes direct messages to that region."
+        )
     )
 
 
@@ -638,6 +657,16 @@ class PathHashWidthStats(BaseModel):
     triple_byte_pct: float = 0.0
 
 
+class ChannelUnreadSummaryResponse(BaseModel):
+    summary: str | None = Field(
+        default=None, description="The generated summary, or null when none was produced"
+    )
+    message_count: int = Field(default=0, description="Number of unread messages summarized")
+    reason: str | None = Field(
+        default=None, description="Why no summary was produced, when summary is null"
+    )
+
+
 class ChannelDetail(BaseModel):
     """Comprehensive channel profile data."""
 
@@ -677,6 +706,14 @@ class Message(BaseModel):
     sender_key: str | None = None
     outgoing: bool = False
     acked: int = 0
+    send_status: Literal["pending", "confirmed", "unknown"] = Field(
+        default="confirmed",
+        description=(
+            "Outcome of the radio send command for an outgoing message: 'pending' until "
+            "the radio answers, 'confirmed' once it accepted the command, 'unknown' when "
+            "it never answered (the message may or may not be on air)."
+        ),
+    )
     sender_name: str | None = None
     channel_name: str | None = None
     packet_id: int | None = Field(
@@ -2053,6 +2090,22 @@ class AppSettings(BaseModel):
             "Hide incoming channel messages flagged as malformed in chat and exclude them "
             "from unread counts, mentions and Web Push ('Hide malformed messages')."
         ),
+    )
+    ollama_enabled: bool = Field(
+        default=False,
+        description=(
+            "When enabled, opening a channel with unread messages shows a catch-up summary "
+            "written by the configured Ollama server. The unread channel text is sent to "
+            "that server."
+        ),
+    )
+    ollama_base_url: str = Field(
+        default="http://localhost:11434",
+        description="Base URL of the Ollama server, as reached from the RTFM-EV server",
+    )
+    ollama_model: str = Field(
+        default="",
+        description="Ollama model used for unread channel summaries (e.g. phi3:mini)",
     )
     sidebar_hidden: SidebarHidden = Field(
         default_factory=SidebarHidden,

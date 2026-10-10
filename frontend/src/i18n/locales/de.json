@@ -737,6 +737,7 @@
   "chat_retry_failed": "Erneuter Versuch fehlgeschlagen",
   "chat_message_failed": "Fehlgeschlagen",
   "chat_message_failed_title": "Nicht zugestellt: keine Bestätigung nach allen Versuchen. Mit Erneut versuchen noch einmal senden.",
+  "chat_send_unconfirmed_title": "Das Funkgerät hat diesen Sendevorgang nicht bestätigt. Die Nachricht wurde möglicherweise gesendet oder auch nicht.",
   "chat_mark_unread_action": "Ab hier als ungelesen markieren",
   "chat_mark_unread_success": "Als ungelesen markiert",
   "chat_mark_unread_failed": "Als ungelesen markieren fehlgeschlagen",
@@ -746,7 +747,7 @@
   "chat_scroll_down_newer": "Nach unten scrollen für neuere Nachrichten",
   "chat_scroll_up_older": "Nach oben scrollen für ältere Nachrichten",
   "chat_select_conversation": "Wähle eine Unterhaltung oder starte eine neue",
-  "chat_truncated_by_radio": "wahrscheinlich vom Funkgerät abgeschnitten",
+  "chat_too_long_to_send": "zu lang zum Senden, bitte kürzen",
   "chat_try_decrypt": {
     "one": "{n} gespeichertes Paket entschlüsseln versuchen",
     "other": "{n} gespeicherte Pakete entschlüsseln versuchen"
@@ -2239,6 +2240,9 @@
   "room_post_pushes_label": "Beitrags-Zustellungen",
   "room_posted_label": "Beiträge",
   "room_show_tools": "Tools anzeigen",
+  "room_sync_now": "Jetzt synchronisieren",
+  "room_syncing": "Synchronisiere...",
+  "room_sync_now_title": "Erneut anmelden, damit der Room-Server aktuelle Nachrichten erneut sendet",
   "room_tools_description": "Room-Server-Telemetrie, ACL-Tools, Sensordaten und CLI-Konsole",
   "room_tools_title": "Room-Server-Tools",
   "packet_filter_hex_placeholder": "Nach Hex filtern…",
@@ -3508,6 +3512,20 @@
   "region_override_inherit_label": "globale Einstellung übernehmen",
   "region_override_title": "Regionale Override",
   "region_override_description": "Kanalspezifisches regionales Routing ändert vorübergehend den Flood-Scope der Radio vor dem Senden und stellt ihn danach wieder her. Dies kann das Senden von Kanalnachrichten merklich verlangsamen. Wähle einen der drei Modi unten: auf eine Region beschränken, ohne Scope erzwingen (normale Flood, deine globale Region ignorierend), oder die globale Einstellung übernehmen.",
+  "region_override_contact_note": "Eine Direktnachricht trägt nur dann eine Region, wenn sie per Flood gesendet wird; Sendungen über einen bekannten Pfad ignorieren diese Einstellung.",
+  "unread_summary_title": "Zusammenfassung ungelesener Nachrichten",
+  "unread_summary_count": {
+    "one": "({count} Nachricht)",
+    "other": "({count} Nachrichten)"
+  },
+  "unread_summary_dismiss_aria": "Zusammenfassung schließen",
+  "unread_summary_loading": "Ungelesene Nachrichten werden zusammengefasst...",
+  "settings_ollama_heading": "Zusammenfassungen ungelesener Kanalnachrichten",
+  "settings_ollama_description": "Beim Öffnen eines Kanals mit ungelesenen Nachrichten kann eine kurze Zusammenfassung angezeigt werden, geschrieben von einem Modell auf einem Ollama-Server, den du selbst betreibst. Der RTFM-EV-Server ruft Ollama auf, daher muss die Adresse unten vom Server aus erreichbar sein, nicht von diesem Browser. Standardmäßig aus; deine Kanalnachrichten werden an diesen Server gesendet, wenn es eingeschaltet ist.",
+  "settings_ollama_enable_label": "Ungelesene Nachrichten beim Öffnen eines Kanals zusammenfassen",
+  "settings_ollama_url_label": "URL des Ollama-Servers",
+  "settings_ollama_model_label": "Ollama-Modell",
+  "settings_ollama_model_help": "Ein Modell, das du bereits geladen hast, benannt wie in \"ollama list\". Ein kleines Modell wie phi3:mini reicht für ein paar Sätze. Zusammenfassungen bleiben aus, bis dies gesetzt ist.",
   "region_override_current_setting_label": "Aktuelle Einstellung:",
   "region_override_placeholder_example": "Esperance",
   "region_override_scope_to_region_button": "{room} auf {region} beschränken",
@@ -3581,6 +3599,10 @@
   "bulkdelete_toast_deleted": {
     "one": "{count} Kontakt gelöscht",
     "other": "{count} Kontakte gelöscht"
+  },
+  "bulkdelete_toast_radio_failed": {
+    "one": "{count} Kontakt konnte nicht vom Funkgerät entfernt werden und kann bei der nächsten Synchronisierung zurückkommen.",
+    "other": "{count} Kontakte konnten nicht vom Funkgerät entfernt werden und können bei der nächsten Synchronisierung zurückkommen."
   },
   "bulkdelete_toast_failed_title": "Massenlöschung fehlgeschlagen",
   "bulkdelete_channels_select_description": "Wähle Kanäle aus, die aus der App entfernt werden sollen.",

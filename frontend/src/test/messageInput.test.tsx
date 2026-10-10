@@ -180,33 +180,77 @@ describe('MessageInput', () => {
       );
     });
 
-    it('shows truncation warning when exceeding DM hard limit', () => {
+    it('says the message is too long when exceeding the DM hard limit', () => {
       renderInput({ conversationType: 'contact' });
       // DM hard limit = 156 bytes
       const text = 'x'.repeat(157);
       fireEvent.change(getInput(), { target: { value: text } });
       // Rendered in both desktop and mobile variants
-      expect(screen.getAllByText(/likely truncated by radio/).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/too long to send/).length).toBeGreaterThan(0);
+    });
+
+    it('keeps the hop-delivery warning for a DM that exactly fills the limit', () => {
+      renderInput({ conversationType: 'contact' });
+      fireEvent.change(getInput(), { target: { value: 'x'.repeat(156) } });
+      expect(screen.getAllByText(/may impact multi-repeater hop delivery/).length).toBeGreaterThan(
+        0
+      );
+      expect(screen.queryByText(/too long to send/)).toBeNull();
     });
 
     it('shows no warning for short messages', () => {
       renderInput({ conversationType: 'contact' });
       fireEvent.change(getInput(), { target: { value: 'Hello' } });
-      expect(screen.queryByText(/truncated/)).toBeNull();
+      expect(screen.queryByText(/too long/)).toBeNull();
       expect(screen.queryByText(/may impact/)).toBeNull();
     });
   });
 
-  describe('send button remains enabled past hard limit (current behavior)', () => {
-    it('does not disable send button when over hard limit', () => {
-      // NOTE: This documents the current behavior where canSubmit only checks
-      // text.trim().length > 0, NOT the limit state. This is related to
-      // hitlist item 1.1 - the send button stays enabled even over the limit.
+  describe('hard limit enforcement', () => {
+    // The radio does not send an over-limit message as typed: it truncates a
+    // channel message (so the stored text no longer matches what went on air)
+    // and refuses a DM. Over the limit, nothing is sent.
+    it('disables sending when a DM is over the UTF-8 byte limit', () => {
       renderInput({ conversationType: 'contact' });
-      const text = 'x'.repeat(200); // Well over 156 byte limit
-      fireEvent.change(getInput(), { target: { value: text } });
+      fireEvent.change(getInput(), { target: { value: 'x'.repeat(157) } });
 
-      // Button is still enabled - canSubmit only checks non-empty text
+      expect(getSendButton()).toBeDisabled();
+      expect(getInput()).toHaveAttribute('aria-invalid', 'true');
+      expect(screen.getAllByText(/too long to send/).length).toBeGreaterThan(0);
+    });
+
+    it('counts bytes, not characters', () => {
+      renderInput({ conversationType: 'contact' });
+      // 40 x 4 bytes = 160 bytes in 40 characters.
+      fireEvent.change(getInput(), { target: { value: '\u{1F95D}'.repeat(40) } });
+
+      expect(getSendButton()).toBeDisabled();
+    });
+
+    it('still sends a message that exactly fills the limit', () => {
+      renderInput({ conversationType: 'contact' });
+      fireEvent.change(getInput(), { target: { value: 'x'.repeat(156) } });
+
+      expect(getSendButton()).toBeEnabled();
+      expect(getInput()).toHaveAttribute('aria-invalid', 'false');
+    });
+
+    it('guards both form submission and Enter when over the hard limit', () => {
+      const { container } = renderInput({ conversationType: 'channel', senderName: 'MyNode' });
+      // Channel limit = 156 - 6 ("MyNode") - 2 (": ") = 148 bytes.
+      fireEvent.change(getInput(), { target: { value: 'x'.repeat(149) } });
+
+      fireEvent.submit(container.querySelector('form')!);
+      fireEvent.keyDown(getInput(), { key: 'Enter', shiftKey: false });
+
+      expect(onSend).not.toHaveBeenCalled();
+      expect(getInput()).toHaveValue('x'.repeat(149));
+    });
+
+    it('does not limit the raw packet composer', () => {
+      renderInput({ conversationType: 'raw' });
+      fireEvent.change(getInput(), { target: { value: 'x'.repeat(400) } });
+
       expect(getSendButton()).toBeEnabled();
     });
   });
@@ -399,6 +443,22 @@ describe('MessageInput', () => {
         target: { value: 'dog' },
       });
       expect(screen.queryByText('Recent')).toBeNull();
+    });
+  });
+
+  describe('keyboard submission', () => {
+    it('does not send when Enter confirms an active IME composition', () => {
+      renderInput({ conversationType: 'contact' });
+      fireEvent.change(getInput(), { target: { value: 'こんにちは' } });
+
+      fireEvent.keyDown(getInput(), {
+        key: 'Enter',
+        shiftKey: false,
+        isComposing: true,
+      });
+
+      expect(onSend).not.toHaveBeenCalled();
+      expect(getInput()).toHaveValue('こんにちは');
     });
   });
 

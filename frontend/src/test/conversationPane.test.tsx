@@ -21,7 +21,15 @@ vi.mock('../components/MessageList', () => ({
 vi.mock('../components/MessageInput', () => ({
   MessageInput: React.forwardRef((_props, ref) => {
     React.useImperativeHandle(ref, () => ({ appendText: vi.fn() }));
-    return <div data-testid="message-input" />;
+    const [draft, setDraft] = React.useState('');
+    return (
+      <input
+        data-testid="message-input"
+        aria-label="Message draft"
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+      />
+    );
   }),
 }));
 
@@ -78,6 +86,12 @@ vi.mock('../components/RoomServerPanel', () => ({
       </div>
     );
   },
+}));
+
+vi.mock('../components/ChannelUnreadSummaryBanner', () => ({
+  ChannelUnreadSummaryBanner: ({ after }: { after: number }) => (
+    <div data-testid="unread-summary-banner" data-after={after} />
+  ),
 }));
 
 vi.mock('../components/MapView', () => ({
@@ -178,6 +192,7 @@ function createProps(overrides: Partial<React.ComponentProps<typeof Conversation
     onDeleteContact: vi.fn(async () => {}),
     onDeleteChannel: vi.fn(async () => {}),
     onSetChannelFloodScopeOverride: vi.fn(async () => {}),
+    onSetContactFloodScopeOverride: vi.fn(async () => {}),
     onSelectConversation: vi.fn(),
     onOpenContactInfo: vi.fn(),
     onOpenChannelInfo: vi.fn(),
@@ -204,6 +219,71 @@ describe('ConversationPane', () => {
     mocks.messageList.mockImplementation(() => <div data-testid="message-list" />);
     // Standalone dashboards render on mobile; desktop convergence tests opt out.
     setViewport(true);
+  });
+
+  it('clears the previous conversation draft when switching conversations', () => {
+    const firstConversation: Conversation = {
+      type: 'channel',
+      id: channel.key,
+      name: channel.name,
+    };
+    const secondConversation: Conversation = {
+      type: 'channel',
+      id: '11'.repeat(16),
+      name: 'Operations',
+    };
+    const { rerender } = render(
+      <ConversationPane {...createProps({ activeConversation: firstConversation })} />
+    );
+
+    fireEvent.change(screen.getByLabelText('Message draft'), {
+      target: { value: 'message intended for Public' },
+    });
+    expect(screen.getByLabelText('Message draft')).toHaveValue('message intended for Public');
+
+    rerender(<ConversationPane {...createProps({ activeConversation: secondConversation })} />);
+
+    expect(screen.getByLabelText('Message draft')).toHaveValue('');
+  });
+
+  it('shows the unread summary banner for a channel without colliding keys', () => {
+    // The message list is keyed by the conversation id. A sibling with the same
+    // key breaks reconciliation: React mounts it again on every render (one
+    // summary request each time) and leaves a stale copy in the DOM.
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const conversation: Conversation = { type: 'channel', id: channel.key, name: channel.name };
+      const { rerender } = render(
+        <ConversationPane
+          {...createProps({ activeConversation: conversation, unreadSummaryAfter: 1700000000 })}
+        />
+      );
+      rerender(
+        <ConversationPane
+          {...createProps({ activeConversation: conversation, unreadSummaryAfter: 1700000000 })}
+        />
+      );
+
+      expect(screen.getAllByTestId('unread-summary-banner')).toHaveLength(1);
+      const sameKey = consoleError.mock.calls.filter((call) =>
+        String(call[0]).includes('two children with the same key')
+      );
+      expect(sameKey).toHaveLength(0);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it('shows no unread summary banner when no boundary is supplied', () => {
+    render(
+      <ConversationPane
+        {...createProps({
+          activeConversation: { type: 'channel', id: channel.key, name: channel.name },
+        })}
+      />
+    );
+
+    expect(screen.queryByTestId('unread-summary-banner')).toBeNull();
   });
 
   it('renders the empty state when no conversation is active', () => {

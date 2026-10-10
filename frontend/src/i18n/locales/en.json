@@ -736,6 +736,7 @@
   "chat_retry_failed": "Retry failed",
   "chat_message_failed": "Failed",
   "chat_message_failed_title": "Not delivered: no acknowledgement after all retries. Use Retry to send it again.",
+  "chat_send_unconfirmed_title": "The radio did not confirm this send. The message may or may not be on air.",
   "chat_mark_unread_action": "Mark unread from here",
   "chat_mark_unread_success": "Marked unread",
   "chat_mark_unread_failed": "Failed to mark unread",
@@ -745,7 +746,7 @@
   "chat_scroll_down_newer": "Scroll down for newer messages",
   "chat_scroll_up_older": "Scroll up for older messages",
   "chat_select_conversation": "Select a conversation or start a new one",
-  "chat_truncated_by_radio": "likely truncated by radio",
+  "chat_too_long_to_send": "too long to send, shorten it",
   "chat_try_decrypt": {
     "one": "Try decrypting {n} stored packet",
     "other": "Try decrypting {n} stored packets"
@@ -2238,6 +2239,9 @@
   "room_post_pushes_label": "Post pushes",
   "room_posted_label": "Posts",
   "room_show_tools": "Show Tools",
+  "room_sync_now": "Sync Now",
+  "room_syncing": "Syncing...",
+  "room_sync_now_title": "Re-login to ask the room server to resend recent messages",
   "room_tools_description": "Room server telemetry, ACL tools, sensor data, and CLI console",
   "room_tools_title": "Room Server Tools",
   "packet_filter_hex_placeholder": "Filter by hex…",
@@ -3507,6 +3511,20 @@
   "region_override_inherit_label": "inherit global setting",
   "region_override_title": "Regional Override",
   "region_override_description": "Channel-level regional routing temporarily changes the radio flood scope before send and restores it after. This can noticeably slow channel sends. Choose one of three modes below: scope to a region, force unscoped (plain flood, ignoring your global region), or inherit the global setting.",
+  "region_override_contact_note": "A direct message only carries a region when it is flood-routed; sends over a known path ignore this setting.",
+  "unread_summary_title": "Unread summary",
+  "unread_summary_count": {
+    "one": "({count} message)",
+    "other": "({count} messages)"
+  },
+  "unread_summary_dismiss_aria": "Dismiss unread summary",
+  "unread_summary_loading": "Summarizing unread messages...",
+  "settings_ollama_heading": "Unread Channel Summaries",
+  "settings_ollama_description": "Opening a channel with unread messages can show a short catch-up summary, written by a model on an Ollama server you run. The RTFM-EV server calls Ollama, so the address below must be reachable from the server, not from this browser. Off by default; your channel messages are sent to that server when it is on.",
+  "settings_ollama_enable_label": "Summarize unread messages when opening a channel",
+  "settings_ollama_url_label": "Ollama server URL",
+  "settings_ollama_model_label": "Ollama model",
+  "settings_ollama_model_help": "A model you have already pulled, named as \"ollama list\" shows it. A small model such as phi3:mini is enough for a few sentences. Summaries stay off until this is set.",
   "region_override_current_setting_label": "Current setting:",
   "region_override_placeholder_example": "Esperance",
   "region_override_scope_to_region_button": "Scope {room} to {region}",
@@ -3580,6 +3598,10 @@
   "bulkdelete_toast_deleted": {
     "one": "Deleted {count} contact",
     "other": "Deleted {count} contacts"
+  },
+  "bulkdelete_toast_radio_failed": {
+    "one": "{count} contact could not be removed from the radio and may come back on the next sync.",
+    "other": "{count} contacts could not be removed from the radio and may come back on the next sync."
   },
   "bulkdelete_toast_failed_title": "Bulk delete failed",
   "bulkdelete_channels_select_description": "Select channels to remove from the app.",

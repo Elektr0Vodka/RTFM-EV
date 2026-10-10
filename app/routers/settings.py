@@ -28,6 +28,7 @@ from app.repository import (
     ContactRepository,
     MentionSoundRepository,
 )
+from app.services.ollama_summary import OllamaConfigError, normalize_ollama_base_url
 from app.telemetry_interval import (
     DEFAULT_TELEMETRY_INTERVAL_HOURS,
     TELEMETRY_INTERVAL_OPTIONS_HOURS,
@@ -504,6 +505,15 @@ class AppSettingsUpdate(BaseModel):
             "from unread counts, mentions and Web Push."
         ),
     )
+    ollama_enabled: bool | None = Field(
+        default=None, description="Enable Ollama unread-summary banners for channels"
+    )
+    ollama_base_url: str | None = Field(
+        default=None, description="Base URL of the Ollama server (e.g. http://localhost:11434)"
+    )
+    ollama_model: str | None = Field(
+        default=None, description="Ollama model for unread summaries (e.g. phi3:mini)"
+    )
     discovery_blocked_types: list[int] | None = Field(
         default=None,
         description=(
@@ -829,6 +839,22 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
 
     if update.hide_malformed is not None:
         kwargs["hide_malformed"] = update.hide_malformed
+
+    if update.ollama_enabled is not None:
+        logger.info("Updating ollama_enabled to %s", update.ollama_enabled)
+        kwargs["ollama_enabled"] = update.ollama_enabled
+
+    if update.ollama_base_url is not None:
+        # The server POSTs channel text to this URL, so it is validated on write.
+        try:
+            kwargs["ollama_base_url"] = normalize_ollama_base_url(update.ollama_base_url)
+        except OllamaConfigError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        logger.info("Updating ollama_base_url to %s", kwargs["ollama_base_url"])
+
+    if update.ollama_model is not None:
+        kwargs["ollama_model"] = update.ollama_model.strip()
+        logger.info("Updating ollama_model to %r", kwargs["ollama_model"])
 
     # Discovery blocked types
     if update.discovery_blocked_types is not None:

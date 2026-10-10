@@ -182,7 +182,7 @@ export function useContactsAndChannels({
       if (!confirm('Delete this contact? Message history will be preserved.')) return;
       try {
         pendingDeleteFallbackRef.current = true;
-        await api.deleteContact(publicKey);
+        const deleteResult = await api.deleteContact(publicKey);
         removeConversationMessages(publicKey);
         setContacts((prev) => prev.filter((c) => c.public_key !== publicKey));
         const refreshedChannels = await api.getChannels();
@@ -194,7 +194,13 @@ export function useContactsAndChannels({
           id: publicChannel?.key || PUBLIC_CHANNEL_KEY,
           name: publicChannel?.name || PUBLIC_CHANNEL_NAME,
         });
-        toast.success('Contact deleted');
+        if (deleteResult.status === 'partial') {
+          toast.warning('Contact deleted, but the radio kept it', {
+            description: deleteResult.radio_error ?? undefined,
+          });
+        } else {
+          toast.success('Contact deleted');
+        }
       } catch (err) {
         console.error('Failed to delete contact:', err);
         toast.error('Failed to delete contact', {

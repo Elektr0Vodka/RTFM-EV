@@ -108,16 +108,76 @@ class ChannelRepository:
                 pass
 
     @staticmethod
-    async def update_last_read_at(key: str, timestamp: int | None = None) -> bool:
-        """Update the last_read_at timestamp for a channel.
+    async def update_last_read_at(
+        key: str,
+        timestamp: int | None = None,
+        message_id: int | None = None,
+    ) -> bool:
+        """Update the timestamp and message-ID read cursor for a channel.
 
-        Returns True if a row was updated, False if channel not found.
+        The cursor is the newest message at or before the timestamp, so a
+        message arriving later in that same second still counts as unread.
+
+        When ``message_id`` is given, advance only through that exact message
+        and never backwards. A delayed client can then acknowledge what was
+        on screen without consuming newer arrivals.
+
+        Returns True if a row was updated, False if channel not found
+        (or the message is not part of this conversation).
         """
-        ts = timestamp if timestamp is not None else int(time.time())
         async with db.tx() as conn:
+            if message_id is not None:
+                async with conn.execute(
+                    "SELECT last_read_at, last_read_message_id FROM channels WHERE key = ?",
+                    (key.upper(),),
+                ) as cursor:
+                    current_row = await cursor.fetchone()
+                if current_row is None:
+                    return False
+
+                async with conn.execute(
+                    """
+                    SELECT received_at, id
+                    FROM messages
+                    WHERE id = ? AND type = 'CHAN' AND conversation_key = ?
+                    """,
+                    (message_id, key.upper()),
+                ) as cursor:
+                    boundary = await cursor.fetchone()
+                if boundary is None:
+                    return False
+
+                current = (
+                    current_row["last_read_at"] or 0,
+                    current_row["last_read_message_id"] or 0,
+                )
+                requested = (boundary["received_at"], boundary["id"])
+                if requested > current:
+                    await conn.execute(
+                        """
+                        UPDATE channels
+                        SET last_read_at = ?, last_read_message_id = ?
+                        WHERE key = ?
+                        """,
+                        (*requested, key.upper()),
+                    )
+                return True
+
+            ts = timestamp if timestamp is not None else int(time.time())
             async with conn.execute(
-                "UPDATE channels SET last_read_at = ? WHERE key = ?",
-                (ts, key.upper()),
+                """
+                UPDATE channels
+                SET last_read_at = ?,
+                    last_read_message_id = COALESCE((
+                        SELECT MAX(m.id)
+                        FROM messages m
+                        WHERE m.type = 'CHAN'
+                          AND m.conversation_key = channels.key
+                          AND m.received_at <= ?
+                    ), 0)
+                WHERE key = ?
+                """,
+                (ts, ts, key.upper()),
             ) as cursor:
                 rowcount = cursor.rowcount
         return rowcount > 0
@@ -148,5 +208,18 @@ class ChannelRepository:
     async def mark_all_read(timestamp: int) -> None:
         """Mark all channels as read at the given timestamp."""
         async with db.tx() as conn:
-            async with conn.execute("UPDATE channels SET last_read_at = ?", (timestamp,)):
+            async with conn.execute(
+                """
+                UPDATE channels
+                SET last_read_at = ?,
+                    last_read_message_id = COALESCE((
+                        SELECT MAX(m.id)
+                        FROM messages m
+                        WHERE m.type = 'CHAN'
+                          AND m.conversation_key = channels.key
+                          AND m.received_at <= ?
+                    ), 0)
+                """,
+                (timestamp, timestamp),
+            ):
                 pass

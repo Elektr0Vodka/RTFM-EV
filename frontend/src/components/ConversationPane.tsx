@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState, type Ref } from 'react';
 
 import { ChatHeader } from './ChatHeader';
+import { ChannelUnreadSummaryBanner } from './ChannelUnreadSummaryBanner';
 import { MessageInput, type MessageInputHandle } from './MessageInput';
 import { MessageList } from './MessageList';
 import { RawPacketFeedView } from './RawPacketFeedView';
@@ -86,6 +87,8 @@ interface ConversationPaneProps {
   loadingOlder: boolean;
   hasOlderMessages: boolean;
   unreadMarkerMessageId?: number | null;
+  /** Read boundary to summarize unreads from, or null when no summary applies. */
+  unreadSummaryAfter?: number | null;
   onNavigateToUnread?: (messageId: number) => void;
   onJumpToMessage?: (messageId: number) => void;
   onReactToMessage?: (messageId: number, emoji: string) => void;
@@ -110,6 +113,7 @@ interface ConversationPaneProps {
   onDeleteChannel: (key: string) => Promise<void>;
   onAddRegistryChannels?: (channelNames: string[]) => Promise<void>;
   onSetChannelFloodScopeOverride: (channelKey: string, floodScopeOverride: string) => Promise<void>;
+  onSetContactFloodScopeOverride: (publicKey: string, floodScopeOverride: string) => Promise<void>;
   onSetChannelPathHashModeOverride?: (
     channelKey: string,
     pathHashModeOverride: number | null
@@ -241,6 +245,7 @@ export function ConversationPane({
   loadingOlder,
   hasOlderMessages,
   unreadMarkerMessageId,
+  unreadSummaryAfter = null,
   onNavigateToUnread,
   onJumpToMessage,
   onReactToMessage,
@@ -261,6 +266,7 @@ export function ConversationPane({
   onDeleteChannel,
   onAddRegistryChannels,
   onSetChannelFloodScopeOverride,
+  onSetContactFloodScopeOverride,
   onSetChannelPathHashModeOverride,
   cadCapable,
   cadSupported,
@@ -695,6 +701,7 @@ export function ConversationPane({
         onToggleFavorite={onToggleFavorite}
         onToggleMute={onToggleMute}
         onSetChannelFloodScopeOverride={onSetChannelFloodScopeOverride}
+        onSetContactFloodScopeOverride={onSetContactFloodScopeOverride}
         onSetChannelPathHashModeOverride={onSetChannelPathHashModeOverride}
         cadCapable={cadCapable}
         cadSupported={cadSupported}
@@ -723,6 +730,17 @@ export function ConversationPane({
           key={`room-server-panel-${activeContact.public_key}`}
           contact={activeContact}
           onAuthenticatedChange={setRoomAuthenticated}
+          autoLogin
+        />
+      )}
+      {activeConversation.type === 'channel' && unreadSummaryAfter !== null && (
+        <ChannelUnreadSummaryBanner
+          // Must not collide with the MessageList sibling below, which is keyed by
+          // activeConversation.id: a shared key remounts the banner on every
+          // render (one summary request each time) and orphans a stale copy.
+          key={`unread-summary-${activeConversation.id}`}
+          channelKey={activeConversation.id}
+          after={unreadSummaryAfter}
         />
       )}
       {showRoomChat && <div data-toast-anchor="conversation" aria-hidden="true" />}
@@ -786,6 +804,7 @@ export function ConversationPane({
       )}
       {showRoomChat && !(activeConversation.type === 'contact' && isPrefixOnlyActiveContact) ? (
         <MessageInput
+          key={`${activeConversation.type}:${activeConversation.id}`}
           ref={messageInputRef}
           onSend={onSendMessage}
           disabled={!health?.radio_connected}

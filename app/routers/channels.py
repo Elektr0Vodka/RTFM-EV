@@ -18,11 +18,18 @@ from app.models import (
     ChannelDetail,
     ChannelMessageCounts,
     ChannelTopSender,
+    ChannelUnreadSummaryResponse,
     MarkUnreadRequest,
 )
 from app.packet_processor import create_message_from_decrypted
 from app.region_scope import UNSCOPED_OVERRIDE_MARKER, is_unscoped, normalize_region_scope
-from app.repository import ChannelRepository, MessageRepository, RawPacketRepository
+from app.repository import (
+    AppSettingsRepository,
+    ChannelRepository,
+    MessageRepository,
+    RawPacketRepository,
+)
+from app.services.ollama_summary import MAX_MESSAGES_FOR_SUMMARY, summarize_channel_messages
 from app.websocket import broadcast_event, broadcast_success
 
 logger = logging.getLogger(__name__)
@@ -352,15 +359,77 @@ async def bulk_create_hashtag_channels(
     )
 
 
-@router.post("/{key}/mark-read")
-async def mark_channel_read(key: str) -> dict:
-    """Mark a channel as read (update last_read_at timestamp)."""
+@router.post("/{key}/summarize-unread", response_model=ChannelUnreadSummaryResponse)
+async def summarize_channel_unread(
+    key: str, after: int | None = None
+) -> ChannelUnreadSummaryResponse:
+    """Summarize a channel's unread messages using the configured Ollama server.
+
+    ``after`` is the channel's ``last_read_at`` from before the client marked the
+    channel read; opening a channel does both, so relying on the stored value
+    here would race with mark-read and summarize nothing.
+
+    Nothing is sent anywhere unless the feature is enabled and a model is set.
+    Blocked senders are left out, and so are messages flagged as malformed when
+    the "Hide malformed messages" filter is on.
+    """
     channel = await ChannelRepository.get_by_key(key)
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found")
 
-    updated = await ChannelRepository.update_last_read_at(key)
+    settings = await AppSettingsRepository.get()
+    model = settings.ollama_model.strip()
+    if not settings.ollama_enabled or not model:
+        return ChannelUnreadSummaryResponse(reason="Unread summaries are not configured")
+
+    messages = await MessageRepository.get_all(
+        msg_type="CHAN",
+        conversation_key=channel.key,
+        after=after if after is not None else (channel.last_read_at or 0),
+        after_id=0,
+        limit=MAX_MESSAGES_FOR_SUMMARY,
+        blocked_keys=settings.blocked_keys or None,
+        blocked_names=settings.blocked_names or None,
+    )
+    if settings.hide_malformed:
+        messages = [m for m in messages if m.outgoing or not m.malformed]
+    if not messages:
+        return ChannelUnreadSummaryResponse(reason="No unread messages")
+
+    try:
+        summary = await summarize_channel_messages(
+            base_url=settings.ollama_base_url,
+            model=model,
+            channel_name=channel.name or channel.key[:12],
+            messages=messages,
+        )
+    except Exception as exc:
+        # The detail can carry the configured URL and upstream error text, so it
+        # is logged rather than returned.
+        logger.warning("Ollama unread summary failed for channel %s: %s", channel.key[:12], exc)
+        return ChannelUnreadSummaryResponse(
+            message_count=len(messages),
+            reason="Could not reach the Ollama server",
+        )
+
+    return ChannelUnreadSummaryResponse(summary=summary, message_count=len(messages))
+
+
+@router.post("/{key}/mark-read")
+async def mark_channel_read(key: str, message_id: int | None = None) -> dict:
+    """Mark a channel as read.
+
+    Without ``message_id`` everything received so far counts as read. With it,
+    the read state advances through that message only (never backwards).
+    """
+    channel = await ChannelRepository.get_by_key(key)
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+
+    updated = await ChannelRepository.update_last_read_at(key, message_id=message_id)
     if not updated:
+        if message_id is not None:
+            raise HTTPException(status_code=400, detail="Invalid message read boundary")
         raise HTTPException(status_code=500, detail="Failed to update read state")
 
     return {"status": "ok", "key": channel.key}
