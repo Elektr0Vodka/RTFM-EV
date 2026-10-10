@@ -95,6 +95,12 @@ is copied as is. Migration `_138`. No new dependency.
   - Only a path on the same site or an `http(s)` address is accepted.
     `frontend/src/utils/authRedirect.ts`; the prefetch script in `index.html`
     repeats the check for the first requests of a page load.
+  - The address is checked again at the moment it is used, not only when it
+    is saved, and the navigation target is rebuilt from the parsed parts
+    behind a literal `http://` or `https://`. A value put into browser storage
+    by other means (`javascript:`, `data:`, `//other-site`) leads to a plain
+    reload. Found by CodeQL (`js/xss-through-dom`) on the pull request: the
+    first version passed the stored value to the navigation as it was.
   - Not tried behind a real proxy: tests only.
 
 ### Interface

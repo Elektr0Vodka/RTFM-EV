@@ -86,11 +86,33 @@ describe('authRedirect', () => {
       expect(assign).not.toHaveBeenCalled();
     });
 
-    it('goes to the saved address', () => {
-      setAuthRedirectUrl('/login');
+    it('goes to the saved path on this site', () => {
+      setAuthRedirectUrl('/login?next=1#top');
       triggerAuthRedirect();
-      expect(assign).toHaveBeenCalledWith('/login');
+      expect(assign).toHaveBeenCalledWith(`${window.location.origin}/login?next=1#top`);
       expect(reload).not.toHaveBeenCalled();
+    });
+
+    it('goes to the saved http(s) address', () => {
+      setAuthRedirectUrl('https://auth.example.com/start?rd=app');
+      triggerAuthRedirect();
+      expect(assign).toHaveBeenCalledWith('https://auth.example.com/start?rd=app');
+    });
+
+    // The value is checked again at the moment it is used: what is in storage
+    // may not have come through the settings field.
+    it.each([
+      'javascript:alert(1)',
+      'JaVaScRiPt:alert(1)',
+      ' javascript:alert(1)',
+      'data:text/html,<script>alert(1)</script>',
+      '//evil.example.com/login',
+      'vbscript:msgbox(1)',
+    ])('reloads when storage holds %s', (stored) => {
+      localStorage.setItem('remoteterm-auth-redirect-url', stored);
+      triggerAuthRedirect();
+      expect(assign).not.toHaveBeenCalled();
+      expect(reload).toHaveBeenCalledTimes(1);
     });
 
     it('acts once for a burst of failures', () => {

@@ -99,12 +99,35 @@ export function triggerAuthRedirect(): void {
   } catch {
     // Without sessionStorage the in-memory flag still stops a burst.
   }
-  const url = getAuthRedirectUrl();
-  if (url) {
-    authNavigation.assign(url);
+  const target = safeRedirectTarget(getAuthRedirectUrl());
+  if (target) {
+    authNavigation.assign(target);
   } else {
     authNavigation.reload();
   }
+}
+
+/**
+ * The address to navigate to, or null when there is none or it is not usable.
+ *
+ * Checked at the moment of use, not only when it is saved: what is in storage
+ * may not have come through the settings field. The result is rebuilt from the
+ * parsed parts behind a literal `http://` or `https://`, so no other scheme
+ * (`javascript:`, `data:`) can reach the navigation whatever was stored.
+ */
+function safeRedirectTarget(stored: string): string | null {
+  const trimmed = stored.trim();
+  if (trimmed === '' || !isSafeRedirectUrl(trimmed)) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed, window.location.origin);
+  } catch {
+    return null;
+  }
+  const rest = parsed.host + parsed.pathname + parsed.search + parsed.hash;
+  if (parsed.protocol === 'https:') return 'https://' + rest;
+  if (parsed.protocol === 'http:') return 'http://' + rest;
+  return null;
 }
 
 /** Redirect when a failed response means the session is gone. */

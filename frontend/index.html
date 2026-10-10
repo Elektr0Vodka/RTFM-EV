@@ -34,7 +34,7 @@
           var last = Number(sessionStorage.getItem('remoteterm-auth-redirect-at'));
           if (last > 0 && Date.now() - last < 60000) return;
           sessionStorage.setItem('remoteterm-auth-redirect-at', String(Date.now()));
-          target = localStorage.getItem('remoteterm-auth-redirect-url');
+          target = safeRedirectTarget(localStorage.getItem('remoteterm-auth-redirect-url'));
         } catch {
           // Storage unavailable: fall through to a reload.
         }
@@ -44,6 +44,26 @@
         } else {
           window.location.reload();
         }
+      };
+
+      // Same rule as safeRedirectTarget in src/utils/authRedirect.ts: only a
+      // path on this site or an http(s) address, rebuilt behind a literal
+      // scheme so nothing else stored under the key can reach the navigation.
+      var safeRedirectTarget = function(stored) {
+        var trimmed = (stored || '').trim();
+        if (!trimmed) return null;
+        var isPath = trimmed.charAt(0) === '/' && trimmed.charAt(1) !== '/';
+        if (!isPath && !/^https?:\/\//i.test(trimmed)) return null;
+        var parsed;
+        try {
+          parsed = new URL(trimmed, window.location.origin);
+        } catch {
+          return null;
+        }
+        var rest = parsed.host + parsed.pathname + parsed.search + parsed.hash;
+        if (parsed.protocol === 'https:') return 'https://' + rest;
+        if (parsed.protocol === 'http:') return 'http://' + rest;
+        return null;
       };
 
       var fetchJsonOrThrow = function(url) {

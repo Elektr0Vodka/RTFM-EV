@@ -179,7 +179,7 @@ RemoteTerm has no sign-in page of its own. When a reverse proxy in front of it h
 - A `401` always counts. A `403` counts only when its body is not a backend answer (the backend's own refusals are JSON with a `detail` field and are left alone).
 - The WebSocket cannot show the status of a refused handshake, so after three failed connections in a row the app asks `/api/health` over HTTP and acts on that answer.
 - At most one automatic redirect or reload per minute, so a reload that does not bring the session back cannot loop.
-- The address is stored in the browser (`localStorage`), per device. Only a path on the same site or an `http(s)` address is accepted.
+- The address is stored in the browser (`localStorage`), per device. Only a path on the same site or an `http(s)` address is accepted, and that is checked again each time the address is used; anything else in storage leads to a plain reload.
 
 ## HTTPS
 
