@@ -251,7 +251,7 @@ export function SettingsBackupRestore({
               last.ok ? 'border-border bg-muted/40' : 'border-destructive/50 bg-destructive/10'
             }`}
           >
-            <p className="text-sm break-words">
+            <p className="text-sm wrap-break-word">
               {last.ok
                 ? last.pre_restore_snapshot
                   ? t('settings_db_restore_result_ok', {

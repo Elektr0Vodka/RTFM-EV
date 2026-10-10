@@ -141,13 +141,13 @@ export function ContactRouteSuggestionsSection({ publicKey }: { publicKey: strin
                 {s.path_len === 0 ? t('contact_direct_path') : s.route.split(',').join(' → ')}
               </span>
               {s.is_current ? (
-                <span className="text-xs text-primary flex-shrink-0">
+                <span className="text-xs text-primary shrink-0">
                   {t('contact_route_suggestion_in_use')}
                 </span>
               ) : (
                 <button
                   type="button"
-                  className="flex-shrink-0 rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                  className="shrink-0 rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
                   disabled={applying !== null}
                   onClick={() => void use(s)}
                   title={t('contact_route_suggestion_use_title')}

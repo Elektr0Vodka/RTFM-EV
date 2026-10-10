@@ -1048,7 +1048,7 @@ export function Sidebar({
         key={row.key}
         data-buddy-anchor={conversationAnchor(row.type, row.id)}
         className={cn(
-          'px-3 py-2 cursor-pointer flex items-center gap-2 border-l-2 border-transparent hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          'px-3 py-2 cursor-pointer flex items-center gap-2 border-l-2 border-transparent hover:bg-accent transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
           isActive(row.type, row.id) && 'bg-accent border-l-primary',
           row.unreadCount > 0 && '[&_.name]:font-semibold [&_.name]:text-foreground'
         )}
@@ -1143,7 +1143,7 @@ export function Sidebar({
           key={key}
           data-active={active ? 'true' : undefined}
           className={cn(
-            'w-full py-2 cursor-pointer flex items-center justify-center border-l-2 border-transparent hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'w-full py-2 cursor-pointer flex items-center justify-center border-l-2 border-transparent hover:bg-accent transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
             active && 'bg-accent border-l-primary'
           )}
           role="button"
@@ -1163,7 +1163,7 @@ export function Sidebar({
         key={key}
         data-active={active ? 'true' : undefined}
         className={cn(
-          'sidebar-action-row px-3 py-2 cursor-pointer flex items-center gap-2 border-l-2 border-transparent hover:bg-accent transition-colors text-[0.8125rem] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          'sidebar-action-row px-3 py-2 cursor-pointer flex items-center gap-2 border-l-2 border-transparent hover:bg-accent transition-colors text-[0.8125rem] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
           active && 'bg-accent border-l-primary'
         )}
         role="button"
@@ -1636,7 +1636,7 @@ export function Sidebar({
       <div className="flex justify-between items-center px-3 py-2 pt-3.5">
         <button
           className={cn(
-            'dd-section-label flex items-center gap-1.5 text-[0.625rem] uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded',
+            'dd-section-label flex items-center gap-1.5 text-[0.625rem] uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded',
             isSearching && 'cursor-default'
           )}
           aria-expanded={!effectiveCollapsed}
@@ -1667,7 +1667,7 @@ export function Sidebar({
             {action}
             {sortControl && (
               <button
-                className="bg-transparent text-muted-foreground/60 px-1 py-0.5 text-[0.625rem] rounded hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring whitespace-nowrap"
+                className="bg-transparent text-muted-foreground/60 px-1 py-0.5 text-[0.625rem] rounded hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring whitespace-nowrap"
                 onClick={sortControl.onToggle}
                 aria-label={t('chat_sort_aria', {
                   section: title,
@@ -1683,7 +1683,7 @@ export function Sidebar({
             )}
             {onClearSection && (
               <button
-                className="bg-transparent text-muted-foreground/60 p-0.5 rounded hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="bg-transparent text-muted-foreground/60 p-0.5 rounded hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={(e) => {
                   e.stopPropagation();
                   onClearSection();
@@ -1862,7 +1862,7 @@ export function Sidebar({
               channelsHasMention,
               onOpenChannelImportExport ? (
                 <button
-                  className="bg-transparent text-muted-foreground/60 p-0.5 rounded hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="bg-transparent text-muted-foreground/60 p-0.5 rounded hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                   onClick={(e) => {
                     e.stopPropagation();
                     onOpenChannelImportExport();
@@ -2023,7 +2023,7 @@ export function Sidebar({
             </Button>
             <button
               type="button"
-              className="h-8 w-8 flex items-center justify-center rounded border border-border text-muted-foreground hover:text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-8 w-8 flex items-center justify-center rounded border border-border text-muted-foreground hover:text-foreground hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => setShowSettings((p) => !p)}
               aria-label={t('nav_customize_sidebar')}
               aria-expanded={showSettings}
@@ -2039,7 +2039,7 @@ export function Sidebar({
               ref={listScrollRef}
               data-testid="sidebar-list"
               onScroll={handleListScroll}
-              className="h-full overflow-y-auto [contain:layout_paint]"
+              className="h-full overflow-y-auto contain-[layout_paint]"
             >
               <div className="px-3 py-2 border-b border-border/60">
                 <div className="relative min-w-0">
@@ -2056,7 +2056,7 @@ export function Sidebar({
                   />
                   {searchQuery && (
                     <button
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-lg leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-lg leading-none transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded"
                       onClick={() => setSearchQuery('')}
                       title={t('a11y_clear_search')}
                       aria-label={t('a11y_clear_search')}
@@ -2155,7 +2155,7 @@ export function Sidebar({
                           )}
                           <button
                             type="button"
-                            className="p-0.5 rounded text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            className="p-0.5 rounded text-muted-foreground hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                             onClick={() => {
                               setEditingGroupId(group.id);
                               setGroupNameDraft(group.name);
@@ -2167,7 +2167,7 @@ export function Sidebar({
                           </button>
                           <button
                             type="button"
-                            className="p-0.5 rounded text-muted-foreground hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            className="p-0.5 rounded text-muted-foreground hover:text-destructive focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                             onClick={() => handleDeleteGroup(group.id, group.name)}
                             aria-label={t('nav_group_delete_label', { name: group.name })}
                             title={t('nav_group_delete_label', { name: group.name })}
@@ -2218,7 +2218,7 @@ export function Sidebar({
                 !query &&
                 Object.values(unreadCounts).some((c) => c > 0) && (
                   <div
-                    className="px-3 py-2 cursor-pointer flex items-center gap-2 border-l-2 border-transparent hover:bg-accent transition-colors text-[0.8125rem] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="px-3 py-2 cursor-pointer flex items-center gap-2 border-l-2 border-transparent hover:bg-accent transition-colors text-[0.8125rem] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                     role="button"
                     tabIndex={0}
                     onKeyDown={handleKeyboardActivate}
@@ -2252,7 +2252,7 @@ export function Sidebar({
                 onClick={scrollListToTop}
                 aria-label={t('nav_back_to_top')}
                 title={t('nav_back_to_top')}
-                className="absolute bottom-4 right-4 h-8 w-8 flex items-center justify-center rounded-full border border-border bg-card/90 text-muted-foreground shadow-md backdrop-blur transition-colors hover:text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="absolute bottom-4 right-4 h-8 w-8 flex items-center justify-center rounded-full border border-border bg-card/90 text-muted-foreground shadow-md backdrop-blur-sm transition-colors hover:text-foreground hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <ArrowUp className="h-4 w-4" aria-hidden="true" />
               </button>
@@ -2266,7 +2266,7 @@ export function Sidebar({
         <div className="border-t border-border p-1 flex justify-center">
           <button
             type="button"
-            className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             onClick={toggleRail}
             aria-label={isRail ? t('nav_expand_sidebar') : t('nav_collapse_sidebar')}
             title={isRail ? t('nav_expand_sidebar') : t('nav_collapse_sidebar')}

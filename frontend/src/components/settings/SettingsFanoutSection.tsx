@@ -73,13 +73,7 @@ function createCommunityConfigDefaults(
 }
 
 type DraftType =
-  | 'mqtt_private'
-  | 'mqtt_ha'
-  | 'mqtt_community'
-  | 'webhook'
-  | 'apprise'
-  | 'sqs'
-  | 'map_upload';
+  'mqtt_private' | 'mqtt_ha' | 'mqtt_community' | 'webhook' | 'apprise' | 'sqs' | 'map_upload';
 
 type CreateIntegrationDefinition = {
   value: DraftType;
@@ -480,8 +474,8 @@ function CreateIntegrationDialog({
             </div>
 
             {showScrollHint && (
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center bg-gradient-to-t from-background via-background/85 to-transparent px-4 pb-2 pt-8">
-                <div className="rounded-full border border-border/80 bg-background/95 px-2 py-1 text-muted-foreground shadow-sm">
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center bg-linear-to-t from-background via-background/85 to-transparent px-4 pb-2 pt-8">
+                <div className="rounded-full border border-border/80 bg-background/95 px-2 py-1 text-muted-foreground shadow-xs">
                   <ChevronDown className="h-4 w-4" aria-hidden="true" />
                 </div>
               </div>
@@ -3362,7 +3356,7 @@ export function SettingsFanoutSection({
             <DialogDescription>{t('settings_fanout_error_dialog_desc')}</DialogDescription>
           </DialogHeader>
           <div className="px-5 py-4 text-sm text-muted-foreground">
-            <p className="whitespace-pre-wrap break-words font-mono text-foreground">
+            <p className="whitespace-pre-wrap wrap-break-word font-mono text-foreground">
               {errorDialogState?.error}
             </p>
           </div>

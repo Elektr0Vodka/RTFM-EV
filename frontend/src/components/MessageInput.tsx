@@ -289,7 +289,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             className={cn(
               'w-full resize-none overflow-y-auto',
               'rounded-md border border-input bg-background pl-3 pr-11 py-2 text-base ring-offset-background',
-              'placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              'placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
               'disabled:cursor-not-allowed disabled:opacity-50 md:text-sm'
             )}
             style={{ minHeight: '40px', maxHeight: '160px' }}
@@ -305,7 +305,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             className={cn(
               'absolute bottom-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-md',
               'text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
               'disabled:cursor-not-allowed disabled:opacity-50'
             )}
           >
@@ -323,11 +323,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             </div>
           )}
         </div>
-        <Button
-          type="submit"
-          disabled={disabled || sending || !canSubmit}
-          className="flex-shrink-0"
-        >
+        <Button type="submit" disabled={disabled || sending || !canSubmit} className="shrink-0">
           {sending ? t('common_sending') : t('common_send')}
         </Button>
       </div>

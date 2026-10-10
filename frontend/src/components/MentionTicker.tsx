@@ -50,9 +50,9 @@ export function MentionTicker({ enabled, mentions, onNavigateToMessage }: Props)
   if (!enabled || dismissed || mentions.length === 0) return null;
 
   return (
-    <div className="flex items-center border-b border-border bg-primary/5 px-2 text-xs h-6 flex-shrink-0">
+    <div className="flex items-center border-b border-border bg-primary/5 px-2 text-xs h-6 shrink-0">
       {/* Static label */}
-      <div className="flex items-center gap-1 flex-shrink-0 pr-2 border-r border-border mr-1 text-primary">
+      <div className="flex items-center gap-1 shrink-0 pr-2 border-r border-border mr-1 text-primary">
         <AtSign className="h-3 w-3" />
         <span className="font-semibold text-[10px] uppercase tracking-wide">
           {t('mention_label')}
@@ -63,7 +63,7 @@ export function MentionTicker({ enabled, mentions, onNavigateToMessage }: Props)
       {/* Scrolling area */}
       <div className="flex-1 overflow-hidden relative">
         <div
-          className="inline-flex whitespace-nowrap animate-ticker hover:[animation-play-state:paused]"
+          className="inline-flex whitespace-nowrap animate-ticker hover:paused"
           style={{ paddingLeft: '100%' }}
         >
           {mentions.map((m) => (
@@ -87,7 +87,7 @@ export function MentionTicker({ enabled, mentions, onNavigateToMessage }: Props)
       {/* Dismiss button */}
       <button
         onClick={() => setDismissed(true)}
-        className="flex-shrink-0 ml-1 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+        className="shrink-0 ml-1 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
         title={t('mention_dismiss_title')}
       >
         <X className="h-3 w-3" />

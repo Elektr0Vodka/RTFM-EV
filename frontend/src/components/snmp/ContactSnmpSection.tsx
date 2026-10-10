@@ -219,7 +219,7 @@ export function ContactSnmpSection({ contact }: { contact: Contact }) {
   return (
     <div className="px-5 py-3 border-b border-border space-y-2" data-testid="contact-snmp">
       <div className="flex items-center gap-2 text-sm">
-        <Network className="h-4.5 w-4.5 text-muted-foreground" aria-hidden="true" />
+        <Network className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
         <span className="font-medium">{t('snmp_title')}</span>
         {config && !editing && (
           <span className="ml-auto truncate font-mono text-xs text-muted-foreground">

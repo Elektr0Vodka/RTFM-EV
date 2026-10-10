@@ -1622,7 +1622,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 function KV({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
   return (
     <div className="flex items-start justify-between gap-4 border-b border-border py-1 last:border-0">
-      <span className="flex-shrink-0 text-xs text-muted-foreground">{label}</span>
+      <span className="shrink-0 text-xs text-muted-foreground">{label}</span>
       <span className={`break-all text-right text-xs text-foreground ${mono ? 'font-mono' : ''}`}>
         {value}
       </span>
@@ -1652,7 +1652,7 @@ function HBarSection({
           <div key={item.label}>
             <div className="mb-0.5 flex items-center justify-between gap-2 text-xs">
               <span className="truncate text-foreground">{item.label}</span>
-              <span className="flex-shrink-0 tabular-nums text-muted-foreground">
+              <span className="shrink-0 tabular-nums text-muted-foreground">
                 {item.count.toLocaleString()} · {fmtPct(item.share)}
               </span>
             </div>
@@ -2048,10 +2048,10 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-4 py-3">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-4 py-3">
         <div className="flex items-center gap-2">
           <svg
-            className="h-4 w-4 flex-shrink-0 text-muted-foreground"
+            className="h-4 w-4 shrink-0 text-muted-foreground"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -2097,7 +2097,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
         {loading && (
           <div className="flex flex-col gap-4">
             <div className="flex items-start gap-4">
-              <Skeleton className="h-14 w-14 flex-shrink-0 rounded-full" />
+              <Skeleton className="h-14 w-14 shrink-0 rounded-full" />
               <div className="flex flex-1 flex-col gap-2">
                 <Skeleton className="h-5 w-40" />
                 <Skeleton className="h-3 w-64" />
@@ -2117,7 +2117,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
             {/* ── Identity ── */}
             <div className="rounded-lg border border-border bg-card p-3">
               <div className="flex items-start gap-3">
-                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full border-2 border-primary bg-background">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-primary bg-background">
                   <svg
                     className="h-6 w-6 text-primary"
                     fill="none"
@@ -2313,7 +2313,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                           className="flex items-center gap-1 text-[9px] text-muted-foreground"
                         >
                           <span
-                            className="h-1.5 w-1.5 rounded-full flex-shrink-0"
+                            className="h-1.5 w-1.5 rounded-full shrink-0"
                             style={{ background: typeColor(pt) }}
                           />
                           {pt}
@@ -2669,7 +2669,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                               const pct = maxCount > 0 ? (ch.message_count / maxCount) * 100 : 0;
                               return (
                                 <div key={ch.channel_key} className="flex items-center gap-2">
-                                  <span className="w-28 flex-shrink-0 truncate text-xs text-foreground">
+                                  <span className="w-28 shrink-0 truncate text-xs text-foreground">
                                     {ch.channel_name ?? ch.channel_key.slice(0, 10)}
                                   </span>
                                   <div className="flex-1 overflow-hidden rounded-full bg-muted h-1.5">
@@ -2678,7 +2678,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                                       style={{ width: `${pct}%` }}
                                     />
                                   </div>
-                                  <span className="w-14 flex-shrink-0 text-right tabular-nums text-[10px] text-muted-foreground">
+                                  <span className="w-14 shrink-0 text-right tabular-nums text-[10px] text-muted-foreground">
                                     {t('common_msg_count', {
                                       count: ch.message_count,
                                       n: ch.message_count.toLocaleString(),
@@ -2825,7 +2825,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                                   })}
                                 </div>
                               </div>
-                              <span className="flex-shrink-0 text-xs text-muted-foreground">
+                              <span className="shrink-0 text-xs text-muted-foreground">
                                 {fmtRssi(n.bestRssi, t)}
                               </span>
                             </div>
@@ -2865,7 +2865,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                                     })}
                                   </div>
                                 </div>
-                                <span className="flex-shrink-0 text-xs text-muted-foreground">
+                                <span className="shrink-0 text-xs text-muted-foreground">
                                   {fmtRssi(n.best_rssi ?? null, t)}
                                 </span>
                               </div>
@@ -2916,7 +2916,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                                   })}
                                 </div>
                               </div>
-                              <span className="flex-shrink-0 text-xs font-medium text-foreground">
+                              <span className="shrink-0 text-xs font-medium text-foreground">
                                 {fmtRssi(n.bestRssi, t)}
                               </span>
                             </div>
@@ -2956,7 +2956,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                                     })}
                                   </div>
                                 </div>
-                                <span className="flex-shrink-0 text-xs font-medium text-foreground">
+                                <span className="shrink-0 text-xs font-medium text-foreground">
                                   {fmtRssi(n.best_rssi ?? null, t)}
                                 </span>
                               </div>
@@ -3148,7 +3148,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                         const pct = maxCount > 0 ? (ch.message_count / maxCount) * 100 : 0;
                         return (
                           <div key={ch.channel_key} className="flex items-center gap-2">
-                            <span className="w-28 flex-shrink-0 truncate text-xs text-foreground">
+                            <span className="w-28 shrink-0 truncate text-xs text-foreground">
                               {ch.channel_name}
                             </span>
                             <div className="flex-1 overflow-hidden rounded-full bg-muted h-1.5">
@@ -3157,7 +3157,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                                 style={{ width: `${pct}%` }}
                               />
                             </div>
-                            <span className="w-14 flex-shrink-0 text-right tabular-nums text-[10px] text-muted-foreground">
+                            <span className="w-14 shrink-0 text-right tabular-nums text-[10px] text-muted-foreground">
                               {t('common_msg_count', {
                                 count: ch.message_count,
                                 n: ch.message_count.toLocaleString(),

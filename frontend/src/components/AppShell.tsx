@@ -346,7 +346,7 @@ export function AppShell({
           <button
             type="button"
             onClick={onCloseSettingsView}
-            className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-status-connected/15 border border-status-connected/30 text-status-connected hover:bg-status-connected/25 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-status-connected/15 border border-status-connected/30 text-status-connected hover:bg-status-connected/25 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             title={t('a11y_back_to_conversations')}
             aria-label={t('a11y_back_to_conversations')}
           >
@@ -354,7 +354,7 @@ export function AppShell({
           </button>
         )}
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto py-1 [contain:layout_paint]">
+      <div className="flex-1 min-h-0 overflow-y-auto py-1 contain-[layout_paint]">
         {SETTINGS_SECTION_ORDER.filter(
           (section) =>
             section !== 'openhop' || statusProps.health?.radio_device_info?.is_openhop === true
@@ -367,7 +367,7 @@ export function AppShell({
               type="button"
               disabled={disabled}
               className={cn(
-                'w-full px-3 py-2 text-left text-[0.8125rem] border-l-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-50',
+                'w-full px-3 py-2 text-left text-[0.8125rem] border-l-2 border-transparent transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-50',
                 !disabled && 'hover:bg-accent',
                 settingsSection === section && !disabled && 'bg-accent border-l-primary'
               )}

@@ -290,7 +290,7 @@ export function PartialNodeSyncModal({ open, onClose }: PartialNodeSyncModalProp
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 flex-shrink-0"
+                      className="h-7 w-7 shrink-0"
                       onClick={() => handleRemoveApplied(r.prefix_hex)}
                       disabled={removing !== null}
                       aria-label={t('partial_sync_applied_remove', { prefix: r.prefix_hex })}

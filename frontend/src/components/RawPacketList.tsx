@@ -218,7 +218,7 @@ export function RawPacketList({
 
   if (packets.length === 0) {
     return (
-      <div className="h-full overflow-y-auto p-5 text-center text-muted-foreground [contain:layout_paint]">
+      <div className="h-full overflow-y-auto p-5 text-center text-muted-foreground contain-[layout_paint]">
         {t('packet_list_empty')}
       </div>
     );
@@ -226,7 +226,7 @@ export function RawPacketList({
 
   const listEl = (
     <div
-      className="h-full overflow-y-auto p-4 flex flex-col gap-2 [contain:layout_paint]"
+      className="h-full overflow-y-auto p-4 flex flex-col gap-2 contain-[layout_paint]"
       ref={listRef}
     >
       {sortedPackets.map(({ packet, decoded }) => {
@@ -304,7 +304,7 @@ export function RawPacketList({
                     key={`${hop.hex}-${i}`}
                     title={hop.resolved ? hop.hex : undefined}
                     className={cn(
-                      'max-w-[10rem] truncate rounded px-1 py-0.5 font-mono',
+                      'max-w-40 truncate rounded px-1 py-0.5 font-mono',
                       hop.resolved
                         ? 'bg-primary/15 text-primary'
                         : 'bg-background/60 text-muted-foreground'
@@ -328,7 +328,7 @@ export function RawPacketList({
           'rounded-md border border-border/50 bg-card px-3 py-2 text-left',
           selectable && 'min-w-0 flex-1',
           onPacketClick &&
-            'cursor-pointer transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+            'cursor-pointer transition-colors hover:bg-accent/40 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring'
         );
 
         const cardEl = onPacketClick ? (
@@ -371,7 +371,7 @@ export function RawPacketList({
   if (!showScrollToEnds) return listEl;
 
   const buttonClass =
-    'pointer-events-auto rounded-full border border-border bg-card/90 p-1.5 text-muted-foreground shadow-sm backdrop-blur transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+    'pointer-events-auto rounded-full border border-border bg-card/90 p-1.5 text-muted-foreground shadow-xs backdrop-blur-sm transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring';
 
   return (
     <div className="relative h-full min-h-0">

@@ -5,11 +5,11 @@ Keep it aligned with `frontend/src` source code.
 
 ## Stack
 
-- React 18 + TypeScript
+- React 19 + TypeScript 6
 - Vite
 - Vitest + Testing Library
 - shadcn/ui primitives
-- Tailwind utility classes + local CSS (`index.css`, `styles.css`)
+- Tailwind CSS 4 utility classes + local CSS (`index.css`, `styles.css`). There is no `tailwind.config.js`: the theme is the `@theme` block in `index.css`
 - Sonner (toasts)
 - Leaflet / react-leaflet (map)
 - `@michaelhart/meshcore-decoder` installed via npm alias to `meshcore-decoder-multibyte-patch`
@@ -727,6 +727,8 @@ batching/warm-up).
 ## Styling
 
 UI styling is mostly utility-class driven (Tailwind-style classes in JSX) plus shared globals in `index.css` and `styles.css`.
+
+**Tailwind 4 layout of the stylesheets.** `index.css` holds `@import 'tailwindcss'`, the `@theme` tokens and a set of rules that keep Tailwind 3 behaviour, each commented in place: the universal reset in `@layer base` (after the utilities it would cancel `space-*`, which has zero specificity in Tailwind 4), `space-x-*`/`space-y-*` restored to start-margin at class specificity, `hover:` on plain `:hover`, `cursor: pointer` on buttons, absolute line-heights for the text sizes, and Tailwind 3's sRGB values for the default-palette shades in use (add a shade to that list when a new one is used). `main.tsx` imports `index.css` and then `app-layers.css`, which pulls `themes.css`, `styles.css` and `popout/popout.css` into the `utilities` cascade layer; do not import those three directly, because unlayered CSS beats every Tailwind utility regardless of specificity. `tailwindcss-animate` is loaded with `@plugin`. When adding a string that looks like a utility name but is not a class (`'shadow'`, `'outline'`, `'blur'`, `'ring'`), remember that Tailwind's upgrade tooling rewrites such words.
 Do not rely on old class-only layout assumptions.
 
 ### Theme-driven layout (Atlas shell)

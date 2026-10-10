@@ -31,7 +31,7 @@ export interface UseChartZoomResult {
   isPanning: boolean;
   reset: () => void;
   containerProps: {
-    ref: React.RefObject<HTMLDivElement>;
+    ref: React.RefObject<HTMLDivElement | null>;
     onMouseDown: (e: React.MouseEvent) => void;
     onDoubleClick: () => void;
     style: React.CSSProperties;

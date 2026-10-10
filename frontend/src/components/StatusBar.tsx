@@ -324,7 +324,7 @@ export function StatusBar({
         <button
           onClick={handleReconnect}
           disabled={reconnecting}
-          className="px-3 py-1 bg-warning/10 border border-warning/20 text-warning rounded-md text-xs cursor-pointer hover:bg-warning/15 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="px-3 py-1 bg-warning/10 border border-warning/20 text-warning rounded-md text-xs cursor-pointer hover:bg-warning/15 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
         >
           {reconnecting
             ? t('status_reconnecting')
@@ -339,7 +339,7 @@ export function StatusBar({
             <button
               type="button"
               onClick={onOpenChatWindow}
-              className="p-0.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+              className="p-0.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
               title={t('popout_open_chat_window_title')}
               aria-label={t('popout_open_chat_window')}
             >
@@ -350,7 +350,7 @@ export function StatusBar({
             onClick={onSettingsClick}
             data-buddy-anchor={BUDDY_ANCHORS.update}
             className={cn(
-              'relative px-3 py-1.5 rounded-md text-xs cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'relative px-3 py-1.5 rounded-md text-xs cursor-pointer transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
               settingsMode
                 ? 'bg-status-connected/15 border border-status-connected/30 text-status-connected hover:bg-status-connected/25'
                 : 'bg-secondary border border-border text-muted-foreground hover:bg-accent hover:text-foreground'
@@ -367,7 +367,7 @@ export function StatusBar({
           <HeaderLanguageMenu />
           <button
             onClick={onOpenThemeSettings ?? (() => setThemeModalOpen(true))}
-            className="p-0.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+            className="p-0.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
             title={t('a11y_open_theme_settings')}
             aria-label={t('a11y_open_theme_settings')}
           >

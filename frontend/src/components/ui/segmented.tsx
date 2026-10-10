@@ -63,7 +63,7 @@ export function SegmentedPills({
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(opt.value)}
             className={cn(
-              'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.6875rem] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.6875rem] transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
               active
                 ? 'bg-primary/10 text-primary font-medium'
                 : 'bg-secondary text-muted-foreground hover:text-foreground'

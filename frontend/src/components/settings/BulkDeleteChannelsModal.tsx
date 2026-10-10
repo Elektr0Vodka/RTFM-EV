@@ -205,7 +205,7 @@ export function BulkDeleteChannelsModal({
                 </div>
               ) : (
                 <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-muted/90 backdrop-blur-sm">
+                  <thead className="sticky top-0 bg-muted/90 backdrop-blur-xs">
                     <tr className="text-left text-xs text-muted-foreground">
                       <th className="px-3 py-1.5 w-8" />
                       <th
@@ -248,11 +248,11 @@ export function BulkDeleteChannelsModal({
                             className="rounded border-input"
                           />
                         </td>
-                        <td className="px-3 py-1.5 truncate max-w-[12rem]">{c.name}</td>
+                        <td className="px-3 py-1.5 truncate max-w-48">{c.name}</td>
                         <td className="px-3 py-1.5 hidden sm:table-cell text-xs text-muted-foreground">
                           {typeLabel(c)}
                         </td>
-                        <td className="px-3 py-1.5 font-mono text-xs text-muted-foreground truncate max-w-[10rem]">
+                        <td className="px-3 py-1.5 font-mono text-xs text-muted-foreground truncate max-w-40">
                           {c.key.slice(0, 12)}
                         </td>
                       </tr>
@@ -282,7 +282,7 @@ export function BulkDeleteChannelsModal({
           <>
             <div className="flex-1 overflow-y-auto min-h-0 border border-border rounded-md">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-muted/90 backdrop-blur-sm">
+                <thead className="sticky top-0 bg-muted/90 backdrop-blur-xs">
                   <tr className="text-left text-xs text-muted-foreground">
                     <th className="px-3 py-1.5">{t('bulkdelete_col_channel')}</th>
                     <th className="px-3 py-1.5">{t('bulkdelete_col_type')}</th>
@@ -292,9 +292,9 @@ export function BulkDeleteChannelsModal({
                 <tbody>
                   {selectedChannels.map((c) => (
                     <tr key={c.key} className="border-t border-border">
-                      <td className="px-3 py-1.5 truncate max-w-[14rem]">{c.name}</td>
+                      <td className="px-3 py-1.5 truncate max-w-56">{c.name}</td>
                       <td className="px-3 py-1.5 text-xs text-muted-foreground">{typeLabel(c)}</td>
-                      <td className="px-3 py-1.5 font-mono text-xs text-muted-foreground truncate max-w-[10rem]">
+                      <td className="px-3 py-1.5 font-mono text-xs text-muted-foreground truncate max-w-40">
                         {c.key.slice(0, 12)}
                       </td>
                     </tr>

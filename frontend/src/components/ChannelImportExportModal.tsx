@@ -265,7 +265,7 @@ export function ChannelImportExportModal({
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={cn(
-                'px-4 py-2 text-sm font-medium capitalize border-b-2 transition-colors focus-visible:outline-none',
+                'px-4 py-2 text-sm font-medium capitalize border-b-2 transition-colors focus-visible:outline-hidden',
                 activeTab === tab
                   ? 'border-primary text-foreground'
                   : 'border-transparent text-muted-foreground hover:text-foreground'

@@ -27,7 +27,7 @@ const GAP_PX = 8;
 const MIN_ROOM_ABOVE_PX = 280;
 
 const ITEM_CLASS =
-  'w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+  'w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring';
 
 /** Above the buddy when there is room, else below it; right edges aligned. */
 function placeBy(anchor: HTMLElement): CSSProperties {
@@ -166,7 +166,7 @@ export function BuddyMenu({
           <div className="flex items-center gap-2 border-b border-border px-1 pb-1 mb-1">
             <button
               type="button"
-              className="rounded px-2 py-1 text-xs hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="rounded px-2 py-1 text-xs hover:bg-accent hover:text-accent-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => setView('menu')}
             >
               {t('common_back')}

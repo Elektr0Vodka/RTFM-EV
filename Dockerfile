@@ -22,7 +22,7 @@ WORKDIR /app
 ENV COMMIT_HASH=${COMMIT_HASH}
 
 # Install uv
-COPY --from=ghcr.io/astral-sh/uv:0.6 /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.13 /uv /usr/local/bin/uv
 
 # Copy dependency files first for layer caching
 COPY pyproject.toml uv.lock ./

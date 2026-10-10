@@ -38,7 +38,7 @@ export function AtlasTabBar({ active, onSelect }: AtlasTabBarProps) {
           onClick={() => onSelect(tab.id)}
           aria-current={active === tab.id ? 'page' : undefined}
           className={cn(
-            'flex h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-md text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&>svg]:h-[22px] [&>svg]:w-[22px]',
+            'flex h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-md text-xs font-semibold transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&>svg]:h-[22px] [&>svg]:w-[22px]',
             active === tab.id ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
           )}
         >

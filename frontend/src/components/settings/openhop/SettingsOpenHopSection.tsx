@@ -17,14 +17,7 @@ interface Props {
 }
 
 type OpenHopTab =
-  | 'policy'
-  | 'plugins'
-  | 'config'
-  | 'system'
-  | 'update'
-  | 'cad'
-  | 'transport'
-  | 'mqtt';
+  'policy' | 'plugins' | 'config' | 'system' | 'update' | 'cad' | 'transport' | 'mqtt';
 
 const NODE_TABS: OpenHopTab[] = ['config', 'system', 'update', 'cad'];
 const MESH_TABS: OpenHopTab[] = ['policy', 'plugins', 'transport', 'mqtt'];

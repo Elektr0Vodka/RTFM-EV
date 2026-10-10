@@ -22,7 +22,7 @@ import {
  */
 const BASE_FIELD_CLASS =
   'rounded-md border border-input bg-background text-foreground ' +
-  'placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 ' +
+  'placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 ' +
   'focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50';
 
 interface DateTimeFieldProps {
@@ -121,7 +121,7 @@ export function DateTimeField({
         disabled={disabled}
         aria-label={t('date_field_open_calendar')}
         title={t('date_field_open_calendar')}
-        className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+        className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
       >
         <Calendar className="h-4 w-4" aria-hidden="true" />
       </button>

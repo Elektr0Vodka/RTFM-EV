@@ -304,7 +304,7 @@ export function ChatHeader({
         {conversation.type === 'contact' && onOpenContactInfo && (
           <button
             type="button"
-            className="avatar-action-button flex-shrink-0 cursor-pointer rounded-full border-none bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="avatar-action-button shrink-0 cursor-pointer rounded-full border-none bg-transparent p-0 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => onOpenContactInfo(conversation.id)}
             title={t('a11y_view_contact_info_title')}
             aria-label={t('a11y_view_info_for', { name: conversation.name })}
@@ -321,11 +321,11 @@ export function ChatHeader({
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <span className="flex min-w-0 flex-1 items-baseline gap-2 whitespace-nowrap">
-              <h2 className="min-w-0 flex-shrink font-semibold text-base">
+              <h2 className="min-w-0 shrink font-semibold text-base">
                 {titleClickable ? (
                   <button
                     type="button"
-                    className="flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-sm text-left transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-sm text-left transition-colors hover:text-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                     aria-label={t('a11y_view_info_for', { name: conversation.name })}
                     onClick={handleOpenConversationInfo}
                   >
@@ -338,7 +338,7 @@ export function ChatHeader({
                       {conversation.name}
                     </span>
                     <Info
-                      className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/80"
+                      className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80"
                       aria-hidden="true"
                     />
                   </button>
@@ -362,7 +362,7 @@ export function ChatHeader({
                 aria-label={t('a11y_set_regional_override')}
               >
                 <Globe2
-                  className="h-3.5 w-3.5 flex-shrink-0 text-[hsl(var(--region-override))]"
+                  className="h-3.5 w-3.5 shrink-0 text-[hsl(var(--region-override))]"
                   aria-hidden="true"
                 />
                 <span className="min-w-0 truncate text-[0.6875rem] font-medium text-[hsl(var(--region-override))]">
@@ -422,7 +422,7 @@ export function ChatHeader({
       <div className="flex items-center justify-end gap-0.5">
         {conversation.type === 'contact' && !activeContactIsRoomServer && (
           <button
-            className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => setPathDiscoveryOpen(true)}
             title={
               activeContactIsPrefixOnly
@@ -437,7 +437,7 @@ export function ChatHeader({
         )}
         {conversation.type === 'contact' && !activeContactIsRoomServer && (
           <button
-            className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             onClick={onTrace}
             title={
               activeContactIsPrefixOnly
@@ -457,7 +457,7 @@ export function ChatHeader({
           !activeContactIsRoomServer && (
             <div className="sm:relative" ref={notifDropdownRef}>
               <button
-                className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => setNotifDropdownOpen((v) => !v)}
                 title={t('a11y_notification_settings')}
                 aria-label={t('a11y_notification_settings')}
@@ -552,7 +552,7 @@ export function ChatHeader({
                               setNotifDropdownOpen(false);
                               onOpenPushSettings();
                             }}
-                            className="text-primary hover:underline transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            className="text-primary hover:underline transition-colors focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
                           >
                             {t('nav_settings_local_link')}
                           </button>
@@ -588,7 +588,7 @@ export function ChatHeader({
           )}
         {setFloodScopeOverride && (
           <button
-            className="flex shrink-0 items-center gap-1 rounded px-1 py-1 text-lg leading-none transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex shrink-0 items-center gap-1 rounded px-1 py-1 text-lg leading-none transition-colors hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             onClick={handleEditFloodScopeOverride}
             title={t('a11y_set_regional_override')}
             aria-label={t('a11y_set_regional_override')}
@@ -606,7 +606,7 @@ export function ChatHeader({
         )}
         {showPathHashModeOverride && (
           <button
-            className="flex shrink-0 items-center gap-1 rounded px-1 py-1 text-lg leading-none transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex shrink-0 items-center gap-1 rounded px-1 py-1 text-lg leading-none transition-colors hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             onClick={handleEditPathHashModeOverride}
             title={t('a11y_set_path_hop_width_override')}
             aria-label={t('a11y_set_path_hop_width_override')}
@@ -636,7 +636,7 @@ export function ChatHeader({
                     : 'CAD off - click to enable channel activity detection'
               }
               className={cn(
-                'flex shrink-0 items-center rounded px-1.5 py-1 text-[0.6875rem] font-semibold tracking-wide transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                'flex shrink-0 items-center rounded px-1.5 py-1 text-[0.6875rem] font-semibold tracking-wide transition-colors hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
                 cadEnabled === true
                   ? 'text-status-connected'
                   : cadEnabled === false
@@ -651,7 +651,7 @@ export function ChatHeader({
           onInsertLocation && (
             <div className="sm:relative" ref={locationMenuRef}>
               <button
-                className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => setLocationMenuOpen((v) => !v)}
                 title="Share location"
                 aria-label="Share location"
@@ -664,7 +664,7 @@ export function ChatHeader({
                   {radioLocationAvailable && (
                     <button
                       type="button"
-                      className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                       onClick={() => insertRadioLocation()}
                     >
                       {t('chat_insert_my_radio_location')}
@@ -672,7 +672,7 @@ export function ChatHeader({
                   )}
                   <button
                     type="button"
-                    className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                    className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                     onClick={() => insertGpsLocation()}
                     disabled={gettingLocation}
                   >
@@ -681,7 +681,7 @@ export function ChatHeader({
                   {contactLocationAvailable && (
                     <button
                       type="button"
-                      className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                       onClick={insertContactLocation}
                     >
                       {t('chat_insert_this_nodes_location')}
@@ -689,7 +689,7 @@ export function ChatHeader({
                   )}
                   <button
                     type="button"
-                    className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                     onClick={() => {
                       setLocationMenuOpen(false);
                       setPickerOpen(true);
@@ -706,7 +706,7 @@ export function ChatHeader({
                       {radioLocationAvailable && (
                         <button
                           type="button"
-                          className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                           onClick={() => insertRadioLocation({ teamBeacon: true })}
                         >
                           {t('chat_team_beacon_radio')}
@@ -714,7 +714,7 @@ export function ChatHeader({
                       )}
                       <button
                         type="button"
-                        className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                        className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                         onClick={() => insertGpsLocation({ teamBeacon: true })}
                         disabled={gettingLocation}
                       >
@@ -729,7 +729,7 @@ export function ChatHeader({
         {conversation.type === 'channel' && onEditInRegistry && (
           <button
             type="button"
-            className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => onEditInRegistry(conversation.id)}
             title={t('channel_edit_in_registry')}
             aria-label={t('channel_edit_in_registry')}
@@ -739,7 +739,7 @@ export function ChatHeader({
         )}
         {(conversation.type === 'channel' || conversation.type === 'contact') && (
           <button
-            className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="p-1 rounded hover:bg-accent text-lg leading-none transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() =>
               onToggleFavorite(conversation.type as 'channel' | 'contact', conversation.id)
             }
@@ -755,7 +755,7 @@ export function ChatHeader({
         )}
         {!(conversation.type === 'channel' && isPublicChannelKey(conversation.id)) && (
           <button
-            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive text-lg leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive text-lg leading-none transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => {
               if (conversation.type === 'channel') {
                 onDeleteChannel(conversation.id);

@@ -80,7 +80,7 @@ export function ContactRadioResidencyControl({ contact }: { contact: Contact }) 
     <div className="px-5 py-3 border-b border-border space-y-2">
       <div className="flex items-center gap-2 text-sm">
         <Radio
-          className={`h-4.5 w-4.5 ${onRadio ? 'text-primary' : 'text-muted-foreground'}`}
+          className={`h-6 w-6 ${onRadio ? 'text-primary' : 'text-muted-foreground'}`}
           aria-hidden="true"
         />
         <span className="font-medium">{t('contact_radio_residency_label')}</span>

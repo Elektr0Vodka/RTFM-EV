@@ -26,11 +26,7 @@ import { MeshRelayReceptionPanel } from './MeshRelayReceptionPanel';
 import { MeshPowerOutagePanel } from './MeshPowerOutagePanel';
 
 type MeshHealthTab =
-  | 'adverts'
-  | 'requests'
-  | 'relay-reception'
-  | 'prefix-collisions'
-  | 'power-outage';
+  'adverts' | 'requests' | 'relay-reception' | 'prefix-collisions' | 'power-outage';
 
 // Mesh Health keeps 30m as a shorter extra and adopts the shared base set. The
 // panels fetch now-relative ranges from selectedWindow.hours, so a From/To
@@ -269,7 +265,7 @@ export function MeshHealthView({
             onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
             title={t('mesh_health_scroll_top')}
             aria-label={t('mesh_health_scroll_top')}
-            className="absolute bottom-4 right-4 rounded-full border border-border bg-card/90 p-2 text-muted-foreground shadow-sm backdrop-blur transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="absolute bottom-4 right-4 rounded-full border border-border bg-card/90 p-2 text-muted-foreground shadow-xs backdrop-blur-sm transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
           >
             <ChevronsUp className="h-4 w-4" />
           </button>

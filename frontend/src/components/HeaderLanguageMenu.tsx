@@ -61,7 +61,7 @@ export function HeaderLanguageMenu({ variant = 'header' }: { variant?: 'header' 
         aria-label={t('settings_language')}
         title={t('settings_language')}
         className={cn(
-          'flex items-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          'flex items-center transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
           row
             ? 'atlas-foot-row w-full gap-2 border-l-2 border-transparent px-3 py-2 text-left text-[0.8125rem] hover:bg-accent focus-visible:ring-inset'
             : 'gap-1 px-1.5 py-1 rounded-sm text-muted-foreground hover:text-foreground'
@@ -88,7 +88,7 @@ export function HeaderLanguageMenu({ variant = 'header' }: { variant?: 'header' 
         <div
           role="menu"
           className={cn(
-            'absolute min-w-[9rem] rounded-md border border-border bg-card p-1 shadow-lg z-50',
+            'absolute min-w-36 rounded-md border border-border bg-card p-1 shadow-lg z-50',
             row ? 'bottom-full left-2 mb-1' : 'right-0 mt-1'
           )}
         >
@@ -100,7 +100,7 @@ export function HeaderLanguageMenu({ variant = 'header' }: { variant?: 'header' 
               aria-checked={locale === l}
               onClick={() => handleSelect(l)}
               className={cn(
-                'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-left transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-left transition-colors hover:bg-accent/50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
                 locale === l ? 'text-foreground' : 'text-muted-foreground'
               )}
             >

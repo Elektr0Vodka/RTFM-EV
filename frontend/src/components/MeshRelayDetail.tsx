@@ -313,7 +313,7 @@ export function MeshRelayDetail({ startTs, endTs, relayHexes }: Props) {
                         </span>
                       )}
                       {r.preview && (
-                        <div className="text-muted-foreground break-words">{r.preview}</div>
+                        <div className="text-muted-foreground wrap-break-word">{r.preview}</div>
                       )}
                     </td>
                     <td className="py-1 px-2 text-right tabular-nums">{r.hop_count}</td>

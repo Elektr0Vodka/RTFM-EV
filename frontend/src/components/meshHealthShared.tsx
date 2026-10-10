@@ -70,14 +70,14 @@ export function DistBars({ items }: { items: { label: string; count: number; col
     <div className="space-y-1.5">
       {items.map((item) => (
         <div key={item.label} className="flex items-center gap-2">
-          <span className="w-14 flex-shrink-0 text-[10px] text-muted-foreground">{item.label}</span>
+          <span className="w-14 shrink-0 text-[10px] text-muted-foreground">{item.label}</span>
           <div className="flex-1 overflow-hidden rounded-full bg-muted h-1.5">
             <div
               className="h-full rounded-full transition-all"
               style={{ width: `${(item.count / max) * 100}%`, background: item.color }}
             />
           </div>
-          <span className="w-5 flex-shrink-0 text-right text-[10px] tabular-nums text-muted-foreground">
+          <span className="w-5 shrink-0 text-right text-[10px] tabular-nums text-muted-foreground">
             {item.count}
           </span>
         </div>

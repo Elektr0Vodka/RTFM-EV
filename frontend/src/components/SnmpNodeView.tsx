@@ -455,7 +455,7 @@ export function SnmpNodeView({
           </p>
         )}
         {node?.last_error && (
-          <p className="break-words text-xs text-destructive" data-testid="snmp-node-error">
+          <p className="wrap-break-word text-xs text-destructive" data-testid="snmp-node-error">
             {t('snmp_last_error', {
               time: node.last_error_at ? formatSnmpTime(node.last_error_at) : NO_VALUE,
               error: node.last_error,

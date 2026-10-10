@@ -28,7 +28,7 @@ export function MessageRowActions({
   if (!onReact && !onReply && !onRetry && !onMarkUnread && !onDelete) return null;
 
   const buttonClass =
-    'rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+    'rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring';
 
   return (
     <div className="relative flex items-center gap-0.5 self-center px-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">

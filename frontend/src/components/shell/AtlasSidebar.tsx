@@ -45,7 +45,7 @@ export function AtlasSidebarHead({ rail = false, ...brand }: AtlasSidebarHeadPro
         aria-label={t('nav_search_anything')}
         title={rail ? t('nav_search_anything') : undefined}
         className={cn(
-          'flex items-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          'flex items-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
           rail ? 'h-9 w-9 justify-center' : 'h-9 w-full gap-2 px-3 text-[0.8125rem]'
         )}
       >
@@ -82,7 +82,7 @@ function FootRow({ icon, label, title, rail, onClick, buddyAnchor, children }: F
       aria-label={rail ? label : undefined}
       data-buddy-anchor={buddyAnchor}
       className={cn(
-        'atlas-foot-row relative flex items-center border-l-2 border-transparent text-[0.8125rem] transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+        'atlas-foot-row relative flex items-center border-l-2 border-transparent text-[0.8125rem] transition-colors hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
         rail ? 'w-full justify-center py-2' : 'w-full gap-2 px-3 py-2 text-left'
       )}
     >

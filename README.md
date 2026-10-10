@@ -116,7 +116,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - **Source install:**
   - Python 3.11 or newer
   - [uv](https://astral.sh/uv): `curl -LsSf https://astral.sh/uv/install.sh | sh`
-  - Node.js 20.19+ or 22.12+ with npm, to build the frontend (CI and the Docker image use Node 24)
+  - Node.js 20.19+ or 22.12+ with npm, to build the frontend (CI and the Docker image use Node 24). Running the frontend tests needs Node 22.22.2+, 24.15+ or 26+
 
 <details>
 <summary>Finding your serial port</summary>

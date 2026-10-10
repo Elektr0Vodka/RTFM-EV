@@ -1168,7 +1168,7 @@ export function SettingsRadioSection({
           id="preset"
           value={currentPreset}
           onChange={(e) => handlePresetChange(e.target.value)}
-          className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+          className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm ring-offset-background focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2"
         >
           <option value="custom">{t('settings_radio_preset_custom')}</option>
           {presetList.map((preset) => (
@@ -1271,7 +1271,7 @@ export function SettingsRadioSection({
             id="path-hash-mode"
             value={pathHashMode}
             onChange={(e) => setPathHashMode(e.target.value)}
-            className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm ring-offset-background focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2"
           >
             <option value="0">{t('settings_radio_path_hash_1byte')}</option>
             <option value="1">{t('settings_radio_path_hash_2byte')}</option>
@@ -1343,7 +1343,7 @@ export function SettingsRadioSection({
             id="advert-location-source"
             value={advertLocationSource}
             onChange={(e) => setAdvertLocationSource(e.target.value as 'off' | 'current')}
-            className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm ring-offset-background focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2"
           >
             <option value="off">{t('settings_radio_location_off')}</option>
             <option value="current">{t('settings_radio_location_include')}</option>
@@ -1378,7 +1378,7 @@ export function SettingsRadioSection({
               id="telemetry-mode-base"
               value={telemetryModeBase}
               onChange={(e) => setTelemetryModeBase(Number(e.target.value))}
-              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm ring-offset-background focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2"
             >
               <option value={0}>{t('settings_radio_telemetry_deny')}</option>
               <option value={1}>{t('settings_radio_telemetry_per_contact')}</option>
@@ -1393,7 +1393,7 @@ export function SettingsRadioSection({
               id="telemetry-mode-loc"
               value={telemetryModeLoc}
               onChange={(e) => setTelemetryModeLoc(Number(e.target.value))}
-              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm ring-offset-background focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2"
             >
               <option value={0}>{t('settings_radio_telemetry_deny')}</option>
               <option value={1}>{t('settings_radio_telemetry_per_contact')}</option>
@@ -1408,7 +1408,7 @@ export function SettingsRadioSection({
               id="telemetry-mode-env"
               value={telemetryModeEnv}
               onChange={(e) => setTelemetryModeEnv(Number(e.target.value))}
-              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm ring-offset-background focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2"
             >
               <option value={0}>{t('settings_radio_telemetry_deny')}</option>
               <option value={1}>{t('settings_radio_telemetry_per_contact')}</option>
@@ -1578,7 +1578,7 @@ export function SettingsRadioSection({
           rows={4}
           placeholder={t('settings_radio_known_regions_placeholder')}
           spellCheck={false}
-          className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
         />
         <p className="text-[0.8125rem] text-muted-foreground">
           {t('settings_radio_known_regions_desc')}

@@ -60,7 +60,7 @@ export function ContactLinkShare({
   return (
     <div className={`space-y-2 ${className}`}>
       <div className="flex items-center gap-2 text-sm">
-        <Link2 className="h-4.5 w-4.5 text-muted-foreground" aria-hidden="true" />
+        <Link2 className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
         <span className="font-medium">{t('contact_link_label')}</span>
       </div>
       {uri ? (

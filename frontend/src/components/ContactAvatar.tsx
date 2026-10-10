@@ -1,4 +1,5 @@
 import { House, RadioTower } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { getContactAvatar } from '../utils/contactAvatar';
 
 interface ContactAvatarProps {
@@ -49,7 +50,10 @@ export function ContactAvatar({
   if (variant === 'corrupt') {
     return (
       <div
-        className={`flex items-center justify-center rounded-md flex-shrink-0 select-none bg-black/10${clickable ? ' cursor-pointer' : ''}`}
+        className={cn(
+          'flex items-center justify-center rounded-md shrink-0 select-none bg-black/10',
+          clickable && 'cursor-pointer'
+        )}
         style={{
           width: size,
           height: size,
@@ -65,7 +69,10 @@ export function ContactAvatar({
 
   return (
     <div
-      className={`flex items-center justify-center rounded-full font-semibold flex-shrink-0 select-none${clickable ? ' cursor-pointer' : ''}`}
+      className={cn(
+        'flex items-center justify-center rounded-full font-semibold shrink-0 select-none',
+        clickable && 'cursor-pointer'
+      )}
       style={{
         background: avatar.background,
         color: avatar.textColor,
