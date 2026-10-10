@@ -33,7 +33,7 @@ function usedSpaceClasses(): Map<string, string> {
 }
 
 function restoreSelector(className: string): string {
-  return `.${className.replace(/[:.[\]%]/g, '\\$&')} > :not([hidden]) ~ :not([hidden])`;
+  return `.${className.replace(/[\\:.[\]%]/g, '\\$&')} > :not([hidden]) ~ :not([hidden])`;
 }
 
 describe('Tailwind 3 space-* compatibility rules', () => {
