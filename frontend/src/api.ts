@@ -1444,10 +1444,12 @@ export const api = {
     }),
   contactTelemetryHistory: (publicKey: string) =>
     fetchJson<TelemetryHistoryEntry[]>(`/contacts/${publicKey}/telemetry-history`),
-  roomLogin: (publicKey: string, password: string) =>
+  // resyncHistory makes the room server send every post it still holds again
+  // (up to 32, over RF). Leave it off for a normal login.
+  roomLogin: (publicKey: string, password: string, resyncHistory = false) =>
     fetchJson<RepeaterLoginResponse>(`/contacts/${publicKey}/room/login`, {
       method: 'POST',
-      body: JSON.stringify({ password }),
+      body: JSON.stringify(resyncHistory ? { password, resync_history: true } : { password }),
     }),
   roomStatus: (publicKey: string) =>
     fetchJson<RepeaterStatusResponse>(`/contacts/${publicKey}/room/status`, {

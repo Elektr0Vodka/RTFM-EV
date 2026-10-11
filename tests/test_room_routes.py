@@ -6,7 +6,7 @@ import pytest
 from fastapi import HTTPException
 from meshcore import EventType
 
-from app.models import CommandRequest, RepeaterLoginRequest
+from app.models import CommandRequest, RoomLoginRequest
 from app.radio import radio_manager
 from app.repository import ContactRepository
 from app.routers.repeaters import send_repeater_command
@@ -91,7 +91,7 @@ class TestRoomLogin:
             patch("app.routers.rooms.radio_manager.require_connected", return_value=mc),
             patch.object(radio_manager, "_meshcore", mc),
         ):
-            response = await room_login(ROOM_KEY, RepeaterLoginRequest(password="hello"))
+            response = await room_login(ROOM_KEY, RoomLoginRequest(password="hello"))
 
         assert response.status == "ok"
         assert response.authenticated is True
@@ -124,7 +124,7 @@ class TestRoomLogin:
             patch("app.routers.rooms.radio_manager.require_connected", return_value=mc),
             patch.object(radio_manager, "_meshcore", mc),
         ):
-            response = await room_login(ROOM_KEY, RepeaterLoginRequest(password="hello"))
+            response = await room_login(ROOM_KEY, RoomLoginRequest(password="hello"))
 
         assert response.authenticated is True
         mc.commands.get_msg.assert_awaited()
@@ -152,7 +152,7 @@ class TestRoomLogin:
             patch("app.routers.rooms.radio_manager.require_connected", return_value=mc),
             patch.object(radio_manager, "_meshcore", mc),
         ):
-            response = await room_login(ROOM_KEY, RepeaterLoginRequest(password="wrong"))
+            response = await room_login(ROOM_KEY, RoomLoginRequest(password="wrong"))
 
         assert response.authenticated is False
         mc.commands.get_msg.assert_not_awaited()
@@ -167,9 +167,122 @@ class TestRoomLogin:
             patch.object(radio_manager, "_meshcore", mc),
         ):
             with pytest.raises(HTTPException) as exc:
-                await room_login(ROOM_KEY, RepeaterLoginRequest(password="hello"))
+                await room_login(ROOM_KEY, RoomLoginRequest(password="hello"))
 
         assert exc.value.status_code == 400
+
+
+class TestRoomHistoryResync:
+    """``resync_history``: remove the room from the radio so the login adds it fresh.
+
+    A fresh add zeroes the radio's per-room sync cursor, and the room server
+    then sends every post it still holds again. The radio is a mock here.
+    """
+
+    @staticmethod
+    def _accepting_mc():
+        mc = _mock_mc()
+        calls: list[str] = []
+        subscriptions: dict[EventType, tuple[object, object]] = {}
+
+        def _subscribe(event_type, callback, attribute_filters=None):
+            subscriptions[event_type] = (callback, attribute_filters)
+            return MagicMock(unsubscribe=MagicMock())
+
+        async def _send_login(*args, **kwargs):
+            calls.append("login")
+            callback, _filters = subscriptions[EventType.LOGIN_SUCCESS]
+            callback(_radio_result(EventType.LOGIN_SUCCESS, {"pubkey_prefix": ROOM_KEY[:12]}))
+            return _radio_result(EventType.MSG_SENT)
+
+        async def _add_contact(*args, **kwargs):
+            calls.append("add")
+            return _radio_result(EventType.OK)
+
+        async def _remove_contact(*args, **kwargs):
+            calls.append("remove")
+            return _radio_result(EventType.OK)
+
+        mc.subscribe = MagicMock(side_effect=_subscribe)
+        mc.commands.send_login = AsyncMock(side_effect=_send_login)
+        mc.commands.add_contact = AsyncMock(side_effect=_add_contact)
+        mc.commands.remove_contact = AsyncMock(side_effect=_remove_contact)
+        mc.commands.get_msg = AsyncMock(return_value=_radio_result(EventType.NO_MORE_MSGS))
+        mc._contacts = {ROOM_KEY: {"public_key": ROOM_KEY}, "ee" * 32: {"public_key": "ee" * 32}}
+        return mc, calls
+
+    @pytest.mark.asyncio
+    async def test_removes_the_room_before_the_login_adds_it_again(self, test_db):
+        mc, calls = self._accepting_mc()
+        await _insert_contact(ROOM_KEY, name="Room Server", contact_type=3)
+
+        with (
+            patch("app.routers.rooms.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+        ):
+            response = await room_login(
+                ROOM_KEY, RoomLoginRequest(password="hello", resync_history=True)
+            )
+
+        assert response.authenticated is True
+        assert calls == ["remove", "add", "login"]
+        mc.commands.remove_contact.assert_awaited_once_with(ROOM_KEY)
+        # The library keeps its own contact cache; only the room leaves it.
+        assert ROOM_KEY not in mc._contacts
+        assert "ee" * 32 in mc._contacts
+
+    @pytest.mark.asyncio
+    async def test_a_normal_login_never_removes_the_room(self, test_db):
+        mc, calls = self._accepting_mc()
+        await _insert_contact(ROOM_KEY, name="Room Server", contact_type=3)
+
+        with (
+            patch("app.routers.rooms.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+        ):
+            await room_login(ROOM_KEY, RoomLoginRequest(password="hello"))
+
+        assert calls == ["add", "login"]
+        mc.commands.remove_contact.assert_not_awaited()
+        assert ROOM_KEY in mc._contacts
+
+    @pytest.mark.asyncio
+    async def test_a_room_the_radio_does_not_have_is_still_logged_in_to(self, test_db):
+        mc, calls = self._accepting_mc()
+        mc.commands.remove_contact = AsyncMock(
+            return_value=_radio_result(EventType.ERROR, {"error_code": 2})
+        )
+        await _insert_contact(ROOM_KEY, name="Room Server", contact_type=3)
+
+        with (
+            patch("app.routers.rooms.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+        ):
+            response = await room_login(
+                ROOM_KEY, RoomLoginRequest(password="hello", resync_history=True)
+            )
+
+        assert response.authenticated is True
+        assert calls == ["add", "login"]
+
+    @pytest.mark.asyncio
+    async def test_is_refused_for_a_contact_that_is_not_a_room(self, test_db):
+        mc, _calls = self._accepting_mc()
+        await _insert_contact(ROOM_KEY, name="Client", contact_type=1)
+
+        with (
+            patch("app.routers.rooms.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+        ):
+            with pytest.raises(HTTPException):
+                await room_login(ROOM_KEY, RoomLoginRequest(password="x", resync_history=True))
+
+        mc.commands.remove_contact.assert_not_awaited()
+
+    def test_off_unless_asked_for(self):
+        # A client that sends only a password, as before, gets a plain login.
+        assert RoomLoginRequest.model_validate({"password": "hello"}).resync_history is False
+        assert RoomLoginRequest.model_validate({}).password == ""
 
 
 class TestRoomStatus:

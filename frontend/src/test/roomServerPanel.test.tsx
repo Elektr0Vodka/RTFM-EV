@@ -231,4 +231,58 @@ describe('RoomServerPanel', () => {
     expect(await screen.findByTestId('config-history-acl')).toBeInTheDocument();
     expect(mockApi.roomConfigHistory).toHaveBeenCalledWith(roomContact.public_key);
   });
+
+  async function openTools() {
+    mockApi.roomLogin.mockResolvedValue({ status: 'ok', authenticated: true, message: null });
+    mockApi.roomConfigHistory.mockResolvedValue([]);
+    render(<RoomServerPanel contact={roomContact} />);
+    fireEvent.click(screen.getByText('Login with Existing Access / Guest'));
+    fireEvent.click(await screen.findByText('Show Tools'));
+    return screen.findByRole('button', { name: 'Resync history' });
+  }
+
+  it('Resync history asks for a second click before it sends anything', async () => {
+    const button = await openTools();
+    const loginsBefore = mockApi.roomLogin.mock.calls.length;
+
+    fireEvent.click(button);
+
+    expect(screen.getByRole('button', { name: 'Click again to resync' })).toBeInTheDocument();
+    expect(mockApi.roomLogin.mock.calls.length).toBe(loginsBefore);
+  });
+
+  it('Resync history logs in with the resync flag on the second click', async () => {
+    const button = await openTools();
+
+    fireEvent.click(button);
+    fireEvent.click(screen.getByRole('button', { name: 'Click again to resync' }));
+
+    await waitFor(() => {
+      expect(mockApi.roomLogin).toHaveBeenLastCalledWith(roomContact.public_key, '', true);
+    });
+    await waitFor(() => {
+      expect(mockToast.success).toHaveBeenCalledWith(
+        'Asked the room for its stored posts. Missing ones arrive over the next minutes.'
+      );
+    });
+    // Back to the resting label, ready for another deliberate use.
+    expect(await screen.findByRole('button', { name: 'Resync history' })).toBeEnabled();
+  });
+
+  it('a normal login and Sync Now never send the resync flag', async () => {
+    await openTools();
+
+    fireEvent.click(screen.getByText('Sync Now'));
+
+    await waitFor(() => expect(mockApi.roomLogin.mock.calls.length).toBeGreaterThanOrEqual(2));
+    for (const call of mockApi.roomLogin.mock.calls) {
+      expect(call).toHaveLength(2);
+    }
+  });
+
+  it('explains what Resync history costs', async () => {
+    await openTools();
+
+    expect(screen.getByText(/uses the airtime of all those posts/)).toBeInTheDocument();
+  });
 });

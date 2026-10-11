@@ -1,4 +1,7 @@
+import logging
+
 from fastapi import APIRouter, HTTPException
+from meshcore import EventType
 
 from app.models import (
     CONTACT_TYPE_ROOM,
@@ -6,12 +9,12 @@ from app.models import (
     DeviceConfigHistoryEntry,
     LppSensor,
     RepeaterAclResponse,
-    RepeaterLoginRequest,
     RepeaterLoginResponse,
     RepeaterLppTelemetryResponse,
     RepeaterStatusResponse,
+    RoomLoginRequest,
 )
-from app.radio_sync import poll_for_messages
+from app.radio_sync import _evict_removed_contact_from_library_cache, poll_for_messages
 from app.repository.device_config_history import DeviceConfigHistoryRepository, DeviceConfigKind
 from app.routers.contacts import (
     _ensure_on_radio,
@@ -28,6 +31,8 @@ from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.room_status import room_status_fields
 from app.services.route_timeout import contact_timeout_seconds
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/contacts", tags=["rooms"])
 
 
@@ -35,9 +40,40 @@ def _require_room(contact) -> None:
     require_server_capable_contact(contact, allowed_types=(CONTACT_TYPE_ROOM,))
 
 
+async def _reset_room_sync_cursor(mc, contact) -> None:
+    """Make the next add of this room a fresh one, which zeroes its sync cursor.
+
+    The companion radio keeps a per-room ``sync_since`` and puts it in every
+    room login (``BaseChatMesh::sendLogin``); the room server then pushes only
+    posts newer than it. The radio advances that cursor when it receives a
+    post over RF, before this app has read it, so a post lost between radio
+    and app (a full offline queue, a radio restart) is never sent again by a
+    normal login. ``CMD_ADD_UPDATE_CONTACT`` leaves the cursor of a contact the
+    radio already has alone, and sets it to 0 for one it does not have. So:
+    remove the room here, and the login's own add starts from 0.
+
+    Best-effort. A radio that does not have the room refuses the removal, and
+    the add that follows is a fresh one anyway.
+    """
+    result = await mc.commands.remove_contact(contact.public_key)
+    if result is not None and result.type == EventType.ERROR:
+        logger.debug(
+            "Room resync: removing %s from the radio returned %s",
+            contact.public_key[:12],
+            result.payload,
+        )
+    # The library does not drop a removed contact from its own cache.
+    _evict_removed_contact_from_library_cache(mc, contact.public_key)
+
+
 @router.post("/{public_key}/room/login", response_model=RepeaterLoginResponse)
-async def room_login(public_key: str, request: RepeaterLoginRequest) -> RepeaterLoginResponse:
-    """Attempt room-server login and report whether auth was confirmed."""
+async def room_login(public_key: str, request: RoomLoginRequest) -> RepeaterLoginResponse:
+    """Attempt room-server login and report whether auth was confirmed.
+
+    With ``resync_history`` the room is first removed from the radio, so the
+    room server sends every post it still holds again (see
+    ``_reset_room_sync_cursor``).
+    """
     radio_manager.require_connected()
     contact = await _resolve_contact_or_404(public_key)
     _require_room(contact)
@@ -47,6 +83,9 @@ async def room_login(public_key: str, request: RepeaterLoginRequest) -> Repeater
         pause_polling=True,
         suspend_auto_fetch=True,
     ) as mc:
+        if request.resync_history:
+            logger.info("Room resync: resetting the sync cursor of %s", contact.public_key[:12])
+            await _reset_room_sync_cursor(mc, contact)
         login = await prepare_authenticated_contact_connection(
             mc,
             contact,

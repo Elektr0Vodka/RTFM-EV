@@ -211,6 +211,8 @@ Repeaters and room servers on observer firmware can also be read over your netwo
 
 Room servers also have a password or guest login, with telemetry, ACL, sensor data, a CLI console and a history of ACL changes.
 
+A room server sends you the posts that are newer than what your radio already received. **Sync Now** logs in again to ask for those. If posts are still missing (for example after the radio restarted, or after many messages arrived at once), open **Show Tools** and use **Resync history**. It makes the room server send every post it still holds again, up to 32. Posts you already have are not duplicated, and your own posts are not sent back. It takes a second click to confirm, because it uses the airtime of all those posts; the posts arrive over the next minutes.
+
 ### Telemetry
 
 - On a non-repeater contact, **Request** fetches its sensor readings on demand, with history charts.
