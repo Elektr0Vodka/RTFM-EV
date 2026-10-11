@@ -217,7 +217,7 @@ describe('SettingsHandyInfoSection', () => {
           {
             name: 'MC-Radar',
             node_url_template: 'https://mc-radar.woodwar.com/node/{pubkey}',
-            packet_url_template: null,
+            packet_url_template: 'https://mc-radar.woodwar.com/packet/{hash}',
             channel_url_template: 'https://mc-radar.woodwar.com/group-messages?channel={name}',
             node_api_url_template: null,
             resolution_enabled: false,

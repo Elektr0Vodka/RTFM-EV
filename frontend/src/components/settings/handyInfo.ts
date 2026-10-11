@@ -86,6 +86,7 @@ export const HANDY_BUILTINS: HandyBuiltin[] = [
     apply: {
       kind: 'analyzer',
       node_url_template: 'https://mc-radar.woodwar.com/node/{pubkey}',
+      packet_url_template: 'https://mc-radar.woodwar.com/packet/{hash}',
       channel_url_template: 'https://mc-radar.woodwar.com/group-messages?channel={name}',
     },
   },
