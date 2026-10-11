@@ -4903,5 +4903,13 @@
   "gateway_radio_added": "Radio toegevoegd",
   "gateway_radio_saved": "Radio opgeslagen",
   "gateway_radio_removed": "Radio verwijderd",
-  "gateway_action_failed": "Actie mislukt"
+  "gateway_action_failed": "Actie mislukt",
+  "gateway_unread_other_radios": {
+    "one": "{count} ongelezen bericht op andere radio's",
+    "other": "{count} ongelezen berichten op andere radio's"
+  },
+  "gateway_radio_unread": {
+    "one": "{count} ongelezen bericht",
+    "other": "{count} ongelezen berichten"
+  }
 }

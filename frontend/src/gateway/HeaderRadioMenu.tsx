@@ -6,8 +6,20 @@ import { cn } from '@/lib/utils';
 import { gatewayApi, radioHref, radiosPageHref, type GatewayRadioInfo } from './api';
 import { getGatewayContext } from './context';
 import { RADIO_STATE_DOT, RADIO_STATE_LABEL } from './radioState';
+import { useRadioUnreads } from './unreads';
 
 const REFRESH_MS = 5000;
+
+function badgeText(count: number): string {
+  return count > 99 ? '99+' : String(count);
+}
+
+function badgeClass(alerting: boolean): string {
+  return cn(
+    'rounded-full px-1.5 text-[0.625rem] font-semibold leading-4',
+    alerting ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+  );
+}
 
 /**
  * Radio switcher for the header, shown only in multi-radio mode. Each radio is
@@ -22,6 +34,7 @@ export function HeaderRadioMenu() {
   const [open, setOpen] = useState(false);
   const [radios, setRadios] = useState<GatewayRadioInfo[] | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const unreads = useRadioUnreads();
 
   useEffect(() => {
     if (!open || !active) return;
@@ -58,6 +71,11 @@ export function HeaderRadioMenu() {
 
   if (!current) return null;
 
+  // What waits on the other radios. This workspace shows its own unread itself.
+  const others = Object.entries(unreads).filter(([id]) => Number(id) !== current.id);
+  const otherUnread = others.reduce((sum, [, entry]) => sum + entry.unread, 0);
+  const otherAlerting = others.some(([, entry]) => entry.dms > 0 || entry.mentions > 0);
+
   return (
     <div ref={ref} className="relative">
       <button
@@ -71,6 +89,15 @@ export function HeaderRadioMenu() {
       >
         <RadioTower className="h-4 w-4" aria-hidden="true" />
         <span className="max-w-32 truncate text-[0.6875rem] font-medium">{current.name}</span>
+        {otherUnread > 0 && (
+          <span
+            data-testid="gateway-other-unread"
+            aria-label={t('gateway_unread_other_radios', { count: otherUnread })}
+            className={badgeClass(otherAlerting)}
+          >
+            {badgeText(otherUnread)}
+          </span>
+        )}
         <ChevronDown className="h-3 w-3" aria-hidden="true" />
       </button>
 
@@ -85,6 +112,7 @@ export function HeaderRadioMenu() {
           {radios?.map((radio) => {
             const isCurrent = radio.id === current.id;
             const href = radioHref(radio);
+            const waiting = isCurrent ? undefined : unreads[radio.id];
             const row = (
               <>
                 <span
@@ -93,6 +121,14 @@ export function HeaderRadioMenu() {
                   aria-hidden="true"
                 />
                 <span className="flex-1 truncate">{radio.name}</span>
+                {waiting && waiting.unread > 0 && (
+                  <span
+                    aria-label={t('gateway_radio_unread', { count: waiting.unread })}
+                    className={badgeClass(waiting.dms > 0 || waiting.mentions > 0)}
+                  >
+                    {badgeText(waiting.unread)}
+                  </span>
+                )}
                 {isCurrent && <Check className="h-3.5 w-3.5 text-primary" aria-hidden="true" />}
               </>
             );

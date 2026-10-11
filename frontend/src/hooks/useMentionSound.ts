@@ -78,5 +78,10 @@ export function useMentionSound({
     [enabled, player, isDocumentFocused]
   );
 
-  return { notifyMentionSound };
+  // Multi-radio mode: a new DM or mention on another radio. Whether it may
+  // sound is that radio's decision (see gateway/useOtherRadioAlerts), so this
+  // workspace's own `enabled` does not apply.
+  const playAlertSound = useCallback(() => player.play(), [player]);
+
+  return { notifyMentionSound, playAlertSound };
 }

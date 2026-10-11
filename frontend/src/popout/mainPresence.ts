@@ -10,6 +10,8 @@
  * tabs throttle them heavily, while message events are delivered promptly.
  */
 
+import { radioTag } from '../gateway/context';
+
 const CHANNEL_NAME = 'rtfm-ev-presence';
 
 /** A main tab that has not answered a probe for this long is considered gone. */
@@ -25,7 +27,8 @@ interface PresenceChannel {
 
 function openChannel(): PresenceChannel | null {
   if (typeof BroadcastChannel === 'undefined') return null;
-  return new BroadcastChannel(CHANNEL_NAME) as unknown as PresenceChannel;
+  // Per radio in multi-radio mode: a main tab of another radio is not this popup's main tab.
+  return new BroadcastChannel(radioTag(CHANNEL_NAME)) as unknown as PresenceChannel;
 }
 
 function messageType(data: unknown): PresenceMessage['t'] | null {

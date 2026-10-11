@@ -22,6 +22,7 @@ import {
   useMeshcomodConfig,
 } from './hooks';
 import { toast } from './components/ui/sonner';
+import { useOtherRadioAlerts } from './gateway/useOtherRadioAlerts';
 import { AppShell } from './components/AppShell';
 import { ChatPopoutShell } from './popout/ChatPopoutShell';
 import {
@@ -258,12 +259,15 @@ export function App() {
   setActiveBatteryChemistry(appSettings?.battery_chemistry ?? DEFAULT_BATTERY_CHEMISTRY);
 
   // Mention/DM notification sound. Plays via the websocket message path below.
-  const { notifyMentionSound } = useMentionSound({
+  const { notifyMentionSound, playAlertSound } = useMentionSound({
     enabled: appSettings?.mention_sound_enabled ?? false,
     choice: appSettings?.mention_sound_choice ?? 'beep',
     volume: appSettings?.mention_sound_volume ?? 80,
     customVersion: appSettings?.mention_sound_custom?.updated_at ?? null,
   });
+  // Multi-radio mode: unread badges and the sound for the other radios. The
+  // chat popup leaves it to the main tab.
+  useOtherRadioAlerts(playAlertSound, popoutMode === null);
 
   // Seed known_regions from a repeater's reported region codes. Merges into the
   // existing list (deduped, wildcard dropped) and persists so the region pill and

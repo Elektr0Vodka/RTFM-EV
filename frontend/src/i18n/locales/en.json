@@ -4902,5 +4902,13 @@
   "gateway_radio_added": "Radio added",
   "gateway_radio_saved": "Radio saved",
   "gateway_radio_removed": "Radio removed",
-  "gateway_action_failed": "Action failed"
+  "gateway_action_failed": "Action failed",
+  "gateway_unread_other_radios": {
+    "one": "{count} unread message on other radios",
+    "other": "{count} unread messages on other radios"
+  },
+  "gateway_radio_unread": {
+    "one": "{count} unread message",
+    "other": "{count} unread messages"
+  }
 }

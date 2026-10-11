@@ -350,6 +350,15 @@ def test_reading_channels_marks_nothing_as_deleted(gateway):
     assert registry.get(2).pending_channel_deletes == []
 
 
+def test_unread_totals_endpoint_and_socket(gateway):
+    client, _, _ = gateway
+    assert client.get("/gateway/api/unreads").json() == {"radios": {}}
+    with client.websocket_connect("/gateway/ws") as ws:
+        assert ws.receive_json() == {"type": "unreads", "radios": {}}
+        ws.send_text("ping")
+        assert ws.receive_json() == {"type": "pong"}
+
+
 def test_basic_auth_protects_gateway_and_workspaces(tmp_path, monkeypatch):
     monkeypatch.setenv("MESHCORE_WORKER_TOKEN", TOKEN)
     settings = Settings(

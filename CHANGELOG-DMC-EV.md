@@ -11,7 +11,7 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
-## Update 2026-10-11 (Multi-radio mode, plan 30 parts A, B and C)
+## Update 2026-10-11 (Multi-radio mode, plan 30 parts A to D)
 
 ### Multi-radio mode (new, opt-in, experimental)
 
@@ -25,7 +25,8 @@ the change. Upstream development is on hold; the fork is the active repository.
 - Notifications from two radios no longer replace each other: the tag carries the radio. With more than one radio a push notification shows the radio name in front of the title.
 - Fix: Mesh Health panels and the My Node charts called `/api/...` with an absolute path, which broke them behind a sub-path reverse proxy. They now use the relative path like the rest of the app.
 - Shared channel list: a channel (name and key) added in one workspace appears in all of them, including channels a radio picks up on its own. A delete is replayed to the other radios and remembered for a radio that is stopped, so it cannot bring the channel back. Messages, favourite, mute, read state and the per-channel overrides stay per radio.
-- Not in this change: unread counts across radios.
+- Unread across radios: the radio switcher shows a badge with what waits on the other radios, and each radio in its menu shows its own count. The mention/DM sound plays for a new direct message or a first mention on another radio, following that radio's sound setting and per-conversation sound mutes, and stays quiet when that radio has its own tab open.
+- The chat popup's window name and its "is a main tab open" check are now per radio, so a popup of one radio no longer reuses the window, or trusts the main tab, of another.
 
 ## Update 2026-10-11 (chat window: sort, fold and filter the lists, feat/popout-list-sort-filter)
 

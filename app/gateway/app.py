@@ -16,7 +16,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request, WebSocket
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 
@@ -26,6 +26,7 @@ from app.gateway.keys import assign_url_keys, resolve
 from app.gateway.proxy import WORKER_UNAVAILABLE, proxy_http, proxy_websocket
 from app.gateway.registry import RadioEntry, RadioRegistry, RegistryError, Transport
 from app.gateway.supervisor import PROJECT_ROOT, WorkerSupervisor
+from app.gateway.unreads import UnreadsHub, changes_unreads
 from app.security import add_optional_basic_auth_middleware
 
 LAST_RADIO_COOKIE = "rtfm_last_radio"
@@ -96,6 +97,7 @@ def create_gateway_app(
 
     supervisor = supervisor or WorkerSupervisor(registry, client=client, on_health=on_health)
     channel_sync = ChannelSync(registry, supervisor, client)
+    unreads = UnreadsHub(registry, supervisor, client)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -107,6 +109,7 @@ def create_gateway_app(
         background = [
             asyncio.create_task(supervisor.run()),
             asyncio.create_task(channel_sync.run()),
+            asyncio.create_task(unreads.run()),
         ]
         try:
             yield
@@ -230,6 +233,35 @@ def create_gateway_app(
         require_radio(radio_id)
         return {"lines": supervisor.log_lines(radio_id, limit)}
 
+    @app.get("/gateway/api/unreads")
+    async def unread_totals() -> dict:
+        return unreads.snapshot()
+
+    @app.websocket("/gateway/ws")
+    async def gateway_events(websocket: WebSocket):
+        """Unread totals per radio, pushed when they change, plus alerts for sounds."""
+        await websocket.accept()
+        queue = unreads.add_client()
+
+        async def pump() -> None:
+            while True:
+                await websocket.send_json(await queue.get())
+
+        sender: asyncio.Task | None = None
+        try:
+            await websocket.send_json({"type": "unreads", **unreads.snapshot()})
+            sender = asyncio.create_task(pump())
+            while True:
+                if await websocket.receive_text() == "ping":
+                    # Through the queue: only one task may send on the socket.
+                    queue.put_nowait({"type": "pong"})
+        except (WebSocketDisconnect, asyncio.QueueFull):
+            pass
+        finally:
+            if sender is not None:
+                sender.cancel()
+            unreads.remove_client(queue)
+
     @app.get("/gateway")
     async def radios_page_add_slash():
         return RedirectResponse("gateway/", status_code=307)
@@ -300,6 +332,9 @@ def create_gateway_app(
         )
         if watch_channels and response.status_code < 300:
             channel_sync.note_deleted(found.radio_id, deleted_keys(request.method, path, body))
+        if response.status_code < 300 and changes_unreads(request.method, path):
+            # Marking read raises no worker event: refresh this radio's totals now.
+            unreads.mark_dirty(found.radio_id)
         if path == "" and request.method == "GET" and response.status_code < 400:
             cookie = f"{LAST_RADIO_COOKIE}={found.radio_id}; Path=/; Max-Age=31536000; SameSite=Lax"
             response.raw_headers.append((b"set-cookie", cookie.encode("ascii")))

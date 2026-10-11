@@ -202,9 +202,11 @@ Radios are managed on the radios page at `/gateway/`: add, edit, remove, start, 
 
 The channel list is shared: a channel (name and key) added or removed in one workspace is added or removed in all of them, within a few seconds, and a radio that was stopped catches up when it starts. Messages, favourites, mute and read state of a channel stay per radio. Decrypting older packets for a new channel only runs in the workspace where you asked for it.
 
+The radio switcher shows how many unread messages wait on the other radios, highlighted when a direct message or a mention is among them. The mention/DM sound also plays for another radio when that radio has the sound switched on in its own settings, unless the conversation is sound-muted there or that radio has its own tab open (which then plays it). A second mention in a channel that already has an unread one does not sound again.
+
 Browser preferences such as theme, language and map look are shared by all radios. What belongs to one radio (last opened conversation, unread markers, local label, notification choices per conversation) is kept per radio.
 
-Limits: one Python process per radio (about 145 MB each before any data), the SNMP agent can only run on one radio, and push notifications are enabled per radio. Unread counts are not shared between radios yet.
+Limits: one Python process per radio (about 145 MB each before any data), the SNMP agent can only run on one radio, and push notifications are enabled per radio.
 
 ## HTTPS
 

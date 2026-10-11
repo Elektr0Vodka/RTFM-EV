@@ -80,6 +80,11 @@ export function radioKey(key: string): string {
   return id !== null && PER_RADIO_KEYS.has(key) ? `r${id}:${key}` : key;
 }
 
+/** The storage key another radio's workspace uses for a per-radio `key`. */
+export function radioKeyFor(radioId: number, key: string): string {
+  return `r${radioId}:${key}`;
+}
+
 /**
  * Notification tags are shared by every page of one origin, so two radios
  * would replace each other's notifications without a prefix.
