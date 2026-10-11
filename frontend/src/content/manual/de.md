@@ -59,7 +59,7 @@ Verlauf aus der Zeit vor der Funkgeräte-Erfassung wird automatisch dem verbunde
 
 ### Mehrere Funkgeräte gleichzeitig
 
-Läuft der Server im Multi-Radio-Modus, hat jedes Funkgerät einen eigenen Arbeitsbereich mit eigenen Kontakten, Kanälen, Nachrichten, Paketen und Einstellungen. Der Name des Funkgeräts in der oberen Leiste öffnet eine Liste der anderen Funkgeräte; wähle eines aus, um zu wechseln. **Funkgeräte verwalten** öffnet die Seite, auf der du Funkgeräte hinzufügst, bearbeitest, startest, stoppst und entfernst und ihr Protokoll liest. Ein Funkgerät bekommt seinen Arbeitsbereich, sobald es einmal verbunden war. Design, Sprache und Kartendarstellung gelten für alle Funkgeräte. Dieser Modus ist aus, solange der Betreiber des Servers ihn nicht einschaltet.
+Läuft der Server im Multi-Radio-Modus, hat jedes Funkgerät einen eigenen Arbeitsbereich mit eigenen Kontakten, Nachrichten, Paketen und Einstellungen. Die Kanalliste ist gemeinsam: Ein Kanal, den du in einem Arbeitsbereich hinzufügst oder entfernst, wird in allen hinzugefügt oder entfernt. Der Name des Funkgeräts in der oberen Leiste öffnet eine Liste der anderen Funkgeräte; wähle eines aus, um zu wechseln. **Funkgeräte verwalten** öffnet die Seite, auf der du Funkgeräte hinzufügst, bearbeitest, startest, stoppst und entfernst und ihr Protokoll liest. Ein Funkgerät bekommt seinen Arbeitsbereich, sobald es einmal verbunden war. Design, Sprache und Kartendarstellung gelten für alle Funkgeräte. Dieser Modus ist aus, solange der Betreiber des Servers ihn nicht einschaltet.
 
 ### Sprache und Design
 

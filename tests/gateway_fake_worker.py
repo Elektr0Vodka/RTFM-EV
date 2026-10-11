@@ -61,6 +61,17 @@ async def echo(request: Request):
     return response
 
 
+@app.delete("/api/channels/{key}")
+async def delete_channel(key: str):
+    return {"status": "ok"}
+
+
+@app.post("/api/channels/bulk-delete")
+async def bulk_delete_channels(request: Request):
+    body = await request.json()
+    return {"deleted": len(body["keys"]), "skipped": []}
+
+
 @app.websocket("/api/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
     if not _token_ok(websocket.headers):

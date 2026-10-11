@@ -11,7 +11,7 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
-## Update 2026-10-11 (Multi-radio mode, plan 30 parts A and B)
+## Update 2026-10-11 (Multi-radio mode, plan 30 parts A, B and C)
 
 ### Multi-radio mode (new, opt-in, experimental)
 
@@ -24,7 +24,8 @@ the change. Upstream development is on hold; the fork is the active repository.
 - Browser storage: values that belong to one radio (last opened conversation, sidebar new-item markers, recent traces, local label, per-conversation notification and sound choices) are kept per radio. Preferences such as theme, language and map look stay shared. Radio 1 keeps the values it had.
 - Notifications from two radios no longer replace each other: the tag carries the radio. With more than one radio a push notification shows the radio name in front of the title.
 - Fix: Mesh Health panels and the My Node charts called `/api/...` with an absolute path, which broke them behind a sub-path reverse proxy. They now use the relative path like the rest of the app.
-- Not in this change: shared channels and unread counts across radios.
+- Shared channel list: a channel (name and key) added in one workspace appears in all of them, including channels a radio picks up on its own. A delete is replayed to the other radios and remembered for a radio that is stopped, so it cannot bring the channel back. Messages, favourite, mute, read state and the per-channel overrides stay per radio.
+- Not in this change: unread counts across radios.
 
 ## Update 2026-10-11 (chat window: sort, fold and filter the lists, feat/popout-list-sort-filter)
 

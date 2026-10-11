@@ -200,9 +200,11 @@ Radios are managed on the radios page at `/gateway/`: add, edit, remove, start, 
 
 `transport` is `{"type": "serial", "port": ..., "baudrate": 115200}`, `{"type": "tcp", "host": ..., "port": 5000}` or `{"type": "ble", "address": ..., "pin": ...}`. With more than one radio every serial radio needs an explicit port. `GET /gateway/api/radios` lists the radios with their state and URL.
 
+The channel list is shared: a channel (name and key) added or removed in one workspace is added or removed in all of them, within a few seconds, and a radio that was stopped catches up when it starts. Messages, favourites, mute and read state of a channel stay per radio. Decrypting older packets for a new channel only runs in the workspace where you asked for it.
+
 Browser preferences such as theme, language and map look are shared by all radios. What belongs to one radio (last opened conversation, unread markers, local label, notification choices per conversation) is kept per radio.
 
-Limits: one Python process per radio (about 145 MB each before any data), the SNMP agent can only run on one radio, and push notifications are enabled per radio. Channels and unread counts are not shared between radios yet.
+Limits: one Python process per radio (about 145 MB each before any data), the SNMP agent can only run on one radio, and push notifications are enabled per radio. Unread counts are not shared between radios yet.
 
 ## HTTPS
 

@@ -316,6 +316,40 @@ def test_unknown_radio_is_404_and_stopped_worker_is_503(gateway):
     assert response.json() == {"detail": "Radio worker is not available"}
 
 
+def test_channel_deletes_are_remembered_for_the_other_radios(gateway):
+    client, registry, _ = gateway
+    registry.set_public_key(1, KEY_A)
+    # Not started: a running radio would get the delete replayed and cleared at once.
+    client.post(
+        "/gateway/api/radios",
+        json={
+            "name": "433",
+            "enabled": False,
+            "transport": {"type": "tcp", "host": "10.0.0.6"},
+        },
+    )
+    key_one, key_two, key_three = "AB" * 16, "CD" * 16, "EF" * 16
+
+    assert client.delete(f"/r/{URL_A}/api/channels/{key_one.lower()}").status_code == 200
+    bulk = client.post(f"/r/{URL_A}/api/channels/bulk-delete", json={"keys": [key_two, key_three]})
+    assert bulk.json() == {"deleted": 2, "skipped": []}
+
+    assert registry.get(2).pending_channel_deletes == [key_one, key_two, key_three]
+    assert registry.get(1).pending_channel_deletes == []
+
+
+def test_reading_channels_marks_nothing_as_deleted(gateway):
+    client, registry, _ = gateway
+    registry.set_public_key(1, KEY_A)
+    client.post(
+        "/gateway/api/radios",
+        json={"name": "433", "transport": {"type": "tcp", "host": "10.0.0.6"}},
+    )
+    client.get(f"/r/{URL_A}/api/echo")
+    client.post(f"/r/{URL_A}/api/echo", content=b"x")
+    assert registry.get(2).pending_channel_deletes == []
+
+
 def test_basic_auth_protects_gateway_and_workspaces(tmp_path, monkeypatch):
     monkeypatch.setenv("MESHCORE_WORKER_TOKEN", TOKEN)
     settings = Settings(

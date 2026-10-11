@@ -21,6 +21,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Resp
 from pydantic import BaseModel, Field
 
 from app.config import settings as default_settings
+from app.gateway.channel_sync import ChannelSync, changes_channels, deleted_keys
 from app.gateway.keys import assign_url_keys, resolve
 from app.gateway.proxy import WORKER_UNAVAILABLE, proxy_http, proxy_websocket
 from app.gateway.registry import RadioEntry, RadioRegistry, RegistryError, Transport
@@ -91,8 +92,10 @@ def create_gateway_app(
         public_key = identity.get("public_key")
         if public_key and registry.get(radio_id) is not None:
             registry.set_public_key(radio_id, public_key)
+        channel_sync.note_worker_alive(radio_id)
 
     supervisor = supervisor or WorkerSupervisor(registry, client=client, on_health=on_health)
+    channel_sync = ChannelSync(registry, supervisor, client)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -101,13 +104,18 @@ def create_gateway_app(
         for entry in registry.radios:
             if entry.enabled:
                 await supervisor.start(entry.id)
-        monitor = asyncio.create_task(supervisor.run())
+        background = [
+            asyncio.create_task(supervisor.run()),
+            asyncio.create_task(channel_sync.run()),
+        ]
         try:
             yield
         finally:
-            monitor.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await monitor
+            for task in background:
+                task.cancel()
+            for task in background:
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
             await supervisor.shutdown()
             if owns_client:
                 await client.aclose()
@@ -278,6 +286,10 @@ def create_gateway_app(
         worker = supervisor.worker(found.radio_id)
         if worker.state != "running":
             return JSONResponse(WORKER_UNAVAILABLE, status_code=503)
+        # Channels are shared by all radios: note what this request changes.
+        watch_channels = changes_channels(request.method, path)
+        # Reading the body here keeps it available to the proxy as well.
+        body = await request.body() if path == "api/channels/bulk-delete" else b""
         response = await proxy_http(
             request,
             client=client,
@@ -286,6 +298,8 @@ def create_gateway_app(
             prefix=f"/r/{segment}",
             path=path,
         )
+        if watch_channels and response.status_code < 300:
+            channel_sync.note_deleted(found.radio_id, deleted_keys(request.method, path, body))
         if path == "" and request.method == "GET" and response.status_code < 400:
             cookie = f"{LAST_RADIO_COOKIE}={found.radio_id}; Path=/; Max-Age=31536000; SameSite=Lax"
             response.raw_headers.append((b"set-cookie", cookie.encode("ascii")))

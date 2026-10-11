@@ -87,6 +87,9 @@ class RadioEntry(BaseModel):
     public_key: str | None = None
     key_history: list[str] = Field(default_factory=list)
     env: dict[str, str] = Field(default_factory=dict)
+    # Channel keys deleted on another radio that this radio still has to delete
+    # (it was stopped or the delete failed). See channel_sync.py.
+    pending_channel_deletes: list[str] = Field(default_factory=list)
 
 
 class RegistryFile(BaseModel):
@@ -213,6 +216,27 @@ class RadioRegistry:
         self._file.radios = [updated if r.id == radio_id else r for r in self._file.radios]
         self.save()
         return True
+
+    def add_pending_channel_deletes(self, radio_ids: list[int], keys: list[str]) -> None:
+        wanted = set(radio_ids)
+        radios = []
+        for radio in self._file.radios:
+            if radio.id in wanted:
+                pending = list(radio.pending_channel_deletes)
+                pending += [k.upper() for k in keys if k.upper() not in pending]
+                radio = radio.model_copy(update={"pending_channel_deletes": pending})
+            radios.append(radio)
+        self._file.radios = radios
+        self.save()
+
+    def clear_pending_channel_delete(self, radio_id: int, key: str) -> None:
+        current = self.get(radio_id)
+        if current is None or key.upper() not in current.pending_channel_deletes:
+            return
+        pending = [k for k in current.pending_channel_deletes if k != key.upper()]
+        updated = current.model_copy(update={"pending_channel_deletes": pending})
+        self._file.radios = [updated if r.id == radio_id else r for r in self._file.radios]
+        self.save()
 
     @staticmethod
     def _validate(radios: list[RadioEntry]) -> None:
