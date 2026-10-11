@@ -288,9 +288,18 @@ def create_gateway_app(
     def _query(request) -> str:
         return f"?{request.url.query}" if request.url.query else ""
 
+    # Redirect targets below are relative, start with a literal "./" or "../",
+    # and name a key taken from the radio list, never text from the request.
+    # Echoing the path segment back would be an open redirect: a browser reads
+    # "https:evil.example/" as another site when the gateway is on plain HTTP.
+
     @app.get("/r/{segment}")
     async def add_trailing_slash(segment: str, request: Request):
-        return RedirectResponse(f"{segment}/{_query(request)}", status_code=307)
+        found = resolve(segment, registry.radios)
+        if found is None:
+            raise HTTPException(status_code=404, detail="Unknown radio")
+        key = assign_url_keys(registry.radios)[found.radio_id]
+        return RedirectResponse("./" + key + "/" + _query(request), status_code=307)
 
     @app.api_route("/r/{segment}/{path:path}", methods=_HTTP_METHODS)
     async def workspace_http(segment: str, path: str, request: Request):
@@ -298,9 +307,10 @@ def create_gateway_app(
         if found is None:
             raise HTTPException(status_code=404, detail="Unknown radio")
         if found.redirect_key is not None:
-            up = "../" * (path.count("/") + 1)
+            # Up to /r/, then down into the radio's current key with the same path.
+            up = "../" + "../" * path.count("/")
             return RedirectResponse(
-                f"{up}{found.redirect_key}/{path}{_query(request)}", status_code=307
+                up + found.redirect_key + "/" + path + _query(request), status_code=307
             )
         if path == CONTEXT_SCRIPT and request.method == "GET":
             entry = registry.get(found.radio_id)

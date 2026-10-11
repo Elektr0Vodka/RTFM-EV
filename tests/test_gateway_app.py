@@ -297,13 +297,54 @@ def test_radios_page_without_a_frontend_build_is_503(tmp_path, monkeypatch):
 def test_missing_slash_long_form_and_old_key_redirect(gateway):
     client, registry, _ = gateway
     registry.set_public_key(1, KEY_A)
-    assert client.get(f"/r/{URL_A}?a=1").headers["location"] == f"{URL_A}/?a=1"
+    assert client.get(f"/r/{URL_A}?a=1").headers["location"] == f"./{URL_A}/?a=1"
+    # Without the slash, a long or upper-case form goes straight to the short key.
+    assert client.get(f"/r/{KEY_A}").headers["location"] == f"./{URL_A}/"
+    assert client.get(f"/r/{URL_A.upper()}").headers["location"] == f"./{URL_A}/"
     assert client.get(f"/r/{KEY_A}/").headers["location"] == f"../{URL_A}/"
     assert (
         client.get(f"/r/{KEY_A}/api/echo?x=1").headers["location"] == f"../../{URL_A}/api/echo?x=1"
     )
     registry.set_public_key(1, KEY_B)
     assert client.get(f"/r/{URL_A}/").headers["location"] == f"../{URL_B}/"
+
+
+@pytest.mark.parametrize(
+    "segment",
+    [
+        "https:evil.example",  # a browser on plain HTTP reads this as https://evil.example/
+        "%5C%5Cevil.example",  # backslashes, which browsers treat like slashes
+        "evil.example",
+        "ffffffffffff",  # looks like a key but is no radio
+    ],
+)
+def test_redirects_never_follow_text_from_the_request(gateway, segment):
+    client, registry, _ = gateway
+    registry.set_public_key(1, KEY_A)
+    response = client.get(f"/r/{segment}")
+    assert response.status_code == 404
+    assert "location" not in response.headers
+
+
+def test_every_workspace_redirect_stays_under_the_gateway(gateway):
+    client, registry, _ = gateway
+    registry.set_public_key(1, KEY_A)
+    registry.set_public_key(1, KEY_B)  # URL_A is now an old key
+    for url in (
+        f"/r/{URL_B}",
+        f"/r/{URL_A}",
+        f"/r/{URL_A}/",
+        f"/r/{URL_A}/https:/evil.example/x",
+        f"/r/{KEY_B}/a/b/c?next=https://evil.example",
+    ):
+        response = client.get(url)
+        assert response.status_code == 307, url
+        location = response.headers["location"]
+        assert location.startswith(("./", "../")), (url, location)
+        # Resolved against the request URL, the target is the current workspace.
+        assert str(httpx.URL(f"http://gw.test{url}").join(location)).startswith(
+            f"http://gw.test/r/{URL_B}/"
+        ), (url, location)
 
 
 def test_unknown_radio_is_404_and_stopped_worker_is_503(gateway):
