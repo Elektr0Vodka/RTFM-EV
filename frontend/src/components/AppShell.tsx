@@ -20,6 +20,7 @@ import { MentionTicker, type MentionEvent } from './MentionTicker';
 import { CommandPalette } from './CommandPalette';
 import { RadioIdentityPrompt } from './RadioIdentityPrompt';
 import { BuddyHost } from '../buddy/BuddyHost';
+import { BUDDY_ANCHORS } from '../buddy/buddyAnchors';
 import { Toaster } from './ui/sonner';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './ui/sheet';
 import {
@@ -335,6 +336,7 @@ export function AppShell({
     <nav
       className="sidebar w-60 h-full min-h-0 overflow-hidden bg-card border-r border-border flex flex-col"
       aria-label={t('a11y_settings_nav')}
+      data-buddy-anchor={BUDDY_ANCHORS.settingsNav}
     >
       {desktop && atlasShell && atlasHead(false)}
       <div className="flex justify-between items-center px-3 py-2.5 border-b border-border">

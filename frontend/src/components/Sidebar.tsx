@@ -63,7 +63,7 @@ import {
 import { isPublicChannelKey } from '../utils/publicChannel';
 import { getContactDisplayName } from '../utils/pubkey';
 import { handleKeyboardActivate } from '../utils/a11y';
-import { conversationAnchor } from '../buddy/buddyAnchors';
+import { BUDDY_ANCHORS, conversationAnchor, toolAnchor } from '../buddy/buddyAnchors';
 import {
   resolveSectionOrder,
   resolveToolOrder,
@@ -1155,6 +1155,7 @@ export function Sidebar({
           tabIndex={0}
           aria-current={active ? 'page' : undefined}
           aria-label={labelText}
+          data-buddy-anchor={toolAnchor(key)}
           title={labelText}
           onKeyDown={handleKeyboardActivate}
           onClick={onClick}
@@ -1174,6 +1175,7 @@ export function Sidebar({
         role="button"
         tabIndex={0}
         aria-current={active ? 'page' : undefined}
+        data-buddy-anchor={toolAnchor(key)}
         onKeyDown={handleKeyboardActivate}
         onClick={onClick}
       >
@@ -1813,7 +1815,7 @@ export function Sidebar({
     switch (key) {
       case 'tools':
         return toolRows.length > 0 ? (
-          <div key="sec-tools">
+          <div key="sec-tools" data-buddy-anchor={BUDDY_ANCHORS.sidebarTools}>
             {renderSectionHeader(t('nav_tools_heading'), toolsCollapsed, () =>
               setToolsCollapsed((prev) => !prev)
             )}
@@ -2025,13 +2027,19 @@ export function Sidebar({
     >
       {shellHead?.(isRail)}
       {isRail ? (
-        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col items-stretch py-2">
+        <div
+          className="flex-1 min-h-0 overflow-y-auto flex flex-col items-stretch py-2"
+          data-buddy-anchor={BUDDY_ANCHORS.sidebarTools}
+        >
           {toolIconRows}
         </div>
       ) : (
         <>
           {/* Header */}
-          <div className="px-3 py-2 border-b border-border flex items-center gap-2">
+          <div
+            className="px-3 py-2 border-b border-border flex items-center gap-2"
+            data-buddy-anchor={BUDDY_ANCHORS.sidebarHead}
+          >
             <Button
               variant="outline"
               size="sm"
@@ -2056,7 +2064,7 @@ export function Sidebar({
           </div>
 
           {/* List */}
-          <div className="relative flex-1 min-h-0">
+          <div className="relative flex-1 min-h-0" data-buddy-anchor={BUDDY_ANCHORS.sidebarList}>
             <div
               ref={listScrollRef}
               data-testid="sidebar-list"

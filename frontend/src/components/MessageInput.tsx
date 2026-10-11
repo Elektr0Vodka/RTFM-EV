@@ -21,6 +21,7 @@ import {
   applyTextReplacements,
 } from '../utils/textReplace';
 import { useT } from '../i18n';
+import { BUDDY_ANCHORS } from '../buddy/buddyAnchors';
 
 // MeshCore message size limits (empirically determined from LoRa packet constraints)
 // Direct delivery allows ~156 bytes; multi-hop requires buffer for path growth.
@@ -267,6 +268,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   return (
     <form
       className="message-input-shell px-4 py-2.5 border-t border-border flex flex-col gap-1"
+      data-buddy-anchor={BUDDY_ANCHORS.composer}
       onSubmit={handleSubmit}
       autoComplete="off"
     >

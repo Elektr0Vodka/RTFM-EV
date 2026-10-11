@@ -230,6 +230,7 @@ export function StatusBar({
           onClick={onMenuClick}
           className="md:hidden p-0.5 bg-transparent border-none text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
           aria-label={t('a11y_open_menu')}
+          data-buddy-anchor={BUDDY_ANCHORS.menu}
         >
           <Menu className="h-4 w-4" />
         </button>
@@ -373,6 +374,7 @@ export function StatusBar({
             className="p-0.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
             title={t('a11y_open_theme_settings')}
             aria-label={t('a11y_open_theme_settings')}
+            data-buddy-anchor={BUDDY_ANCHORS.theme}
           >
             {currentTheme === 'light' ? (
               <Moon className="h-4 w-4" aria-hidden="true" />
