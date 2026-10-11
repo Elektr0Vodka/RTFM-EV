@@ -53,7 +53,8 @@ frontend/src/
 ├── popout/                 # Chat-only popup window (`?popout=chat|single`), see "Chat popup"
 │   ├── popoutMode.ts       # Mode from the URL, popup/main URLs, window.open helpers, chat-vs-tool check
 │   ├── ChatPopoutShell.tsx # Popup shell: toolbar, conversation list, ConversationPane, recent senders
-│   ├── popoutLists.ts      # Pure: conversation list sections + recent senders
+│   ├── popoutLists.ts      # Pure: conversation list sections + recent senders (sorting, toggles, distance)
+│   ├── popoutListPrefs.ts  # Sort order per section, folded sections, list toggles, sender sort (localStorage)
 │   ├── popoutSkin.ts       # Skin (mirc / mirc-dark / theme) + layout persistence, applied without saving the theme
 │   ├── mainPresence.ts     # BroadcastChannel "is a main tab open?" (popup stays silent if so)
 │   └── popout.css          # mirc / mirc-dark tokens and bevels (imported in main.tsx)
@@ -329,6 +330,8 @@ The **Chat window** button in `StatusBar` opens the same SPA with `?popout=chat`
 - gates `notifyIncomingMessage`, `notifyNewNode` and `notifyMentionSound` on `mainPresenceRef`: silent while a main tab answers on the presence channel. The main tab announces itself from `main.tsx`.
 
 `MessageList` reads `useMessageLayout()`. Each row's content (body, badges, delivery status, URL preview, row actions) is built once as local pieces and placed by one of two wrappers; a change to a piece applies to both layouts. In `lines` the row actions float over the line end on hover (they would otherwise take ~100px from every line), and the virtualizer uses `ESTIMATED_LINE_HEIGHT` and calls `measure()` when the layout switches.
+
+Lists: `buildPopoutSections` and `recentSenders` (`popoutLists.ts`) take the sort order, the three toggles (favorites only, unread only, hide muted) and `origin`, the radio's own position, and stay pure; the shell only renders what they return. Each section has its own order (`POPOUT_SECTION_SORTS`; channels offer no distance orders). Public first and muted last hold in every channel order, and every order falls back to A-Z. Entries carry `distanceKm` (effective location via `getEffectiveLocation`, null when either end has no position), shown on the row while that list is sorted by distance. The open conversation is exempt from the toggles, not from the filter text. A filter query opens folded sections without changing the saved fold state. `popoutListPrefs.ts` stores all of it under `rtfm-popout-list-prefs`, validated per field on load, separate from the main sidebar's `remoteterm-sidebar-section-sort-orders`, and synced between popups through the `storage` event.
 
 Skins: `applyPopoutSkin` sets `data-theme` (`mirc`, `mirc-dark`, or the saved theme) without calling `applyTheme`, so the saved theme is never changed; `mirc*` are not in `THEMES`. It also sets `data-popout-tone` (`light`/`dark`), which `popout.css` uses for the nick lightness, and forces the CRT effect attributes off under the mIRC skins. Not observable in jsdom: the real window layout, fonts and `window.open` behaviour; check those in a browser.
 

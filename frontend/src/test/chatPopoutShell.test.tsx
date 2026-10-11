@@ -23,6 +23,7 @@ vi.mock('../components/ui/sonner', () => ({
 }));
 
 import { ChatPopoutShell } from '../popout/ChatPopoutShell';
+import { POPOUT_LIST_PREFS_KEY } from '../popout/popoutListPrefs';
 import { buildMainUrl, buildPopoutUrl, MAIN_WINDOW_NAME } from '../popout/popoutMode';
 import { POPOUT_LAYOUT_KEY, POPOUT_SKIN_KEY } from '../popout/popoutSkin';
 import { toast } from '../components/ui/sonner';
@@ -235,5 +236,149 @@ describe('ChatPopoutShell', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Search' }));
     expect(props.sidebarProps.onSelectConversation).toHaveBeenLastCalledWith(publicConversation);
+  });
+
+  describe('list controls', () => {
+    const rows = (section: string) =>
+      within(screen.getByRole('group', { name: section }))
+        .getAllByRole('button')
+        .map((row) => row.textContent);
+    const savedPrefs = () => JSON.parse(localStorage.getItem(POPOUT_LIST_PREFS_KEY) ?? '{}');
+    const moreChannels = [
+      ...channels,
+      { key: 'K3', name: '#fav', muted: false, favorite: true },
+      { key: 'K4', name: '#muted', muted: true, favorite: false },
+    ] as Channel[];
+    const withChannels = () =>
+      buildProps({ sidebarProps: { channels: moreChannels } as ShellProps['sidebarProps'] });
+
+    it('sorts a section by the chosen order and remembers it', async () => {
+      const user = userEvent.setup();
+      const { unmount } = render(<ChatPopoutShell {...withChannels()} />);
+      expect(rows('Channels')).toEqual(['Public', '#fav', '#nl(3)', '#muted']);
+
+      await user.selectOptions(screen.getByRole('combobox', { name: 'Sort Channels' }), 'unread');
+      expect(rows('Channels')).toEqual(['Public', '#nl(3)', '#fav', '#muted']);
+      expect(savedPrefs().sort.channels).toBe('unread');
+
+      unmount();
+      render(<ChatPopoutShell {...withChannels()} />);
+      expect(screen.getByRole('combobox', { name: 'Sort Channels' })).toHaveValue('unread');
+      expect(rows('Channels')).toEqual(['Public', '#nl(3)', '#fav', '#muted']);
+    });
+
+    it('folds a section, keeps its unread total in view and opens it while filtering', async () => {
+      const user = userEvent.setup();
+      render(<ChatPopoutShell {...withChannels()} />);
+
+      const header = screen.getByRole('button', { name: /^Channels/ });
+      expect(header).toHaveAttribute('aria-expanded', 'true');
+      await user.click(header);
+
+      expect(header).toHaveAttribute('aria-expanded', 'false');
+      expect(header).toHaveTextContent('(3)');
+      expect(screen.queryByRole('group', { name: 'Channels' })).toBeNull();
+      expect(screen.getByRole('button', { name: /Alice/ })).toBeInTheDocument();
+      expect(savedPrefs().collapsed.channels).toBe(true);
+
+      await user.type(screen.getByRole('searchbox'), 'nl');
+      expect(rows('Channels')).toEqual(['#nl(3)']);
+    });
+
+    it('filters the list to favorites, to unread chats and without muted channels', async () => {
+      const user = userEvent.setup();
+      render(<ChatPopoutShell {...withChannels()} />);
+
+      const favorites = screen.getByRole('button', { name: 'Favorites only' });
+      await user.click(favorites);
+      expect(favorites).toHaveAttribute('aria-pressed', 'true');
+      // Public is the open chat, so it stays listed.
+      expect(rows('Channels')).toEqual(['Public', '#fav']);
+      expect(screen.queryByRole('button', { name: /Alice/ })).toBeNull();
+      await user.click(favorites);
+
+      await user.click(screen.getByRole('button', { name: 'Unread only' }));
+      expect(rows('Channels')).toEqual(['Public', '#nl(3)']);
+      await user.click(screen.getByRole('button', { name: 'Unread only' }));
+
+      await user.click(screen.getByRole('button', { name: 'Hide muted channels' }));
+      expect(rows('Channels')).toEqual(['Public', '#fav', '#nl(3)']);
+      expect(savedPrefs()).toMatchObject({
+        favoritesOnly: false,
+        unreadOnly: false,
+        hideMuted: true,
+      });
+    });
+
+    it('sorts contacts by distance from the radio and shows the distance', async () => {
+      const user = userEvent.setup();
+      const near = { ...alice, name: 'Near', public_key: 'bb'.repeat(32), lat: 52.1, lon: 5 };
+      const far = { ...alice, name: 'Far', public_key: 'cc'.repeat(32), lat: 53, lon: 5 };
+      render(
+        <ChatPopoutShell
+          {...buildProps({
+            statusProps: {
+              health: null,
+              config: { name: 'Home', lat: 52, lon: 5 },
+            } as ShellProps['statusProps'],
+            sidebarProps: {
+              contacts: [far, near].map((contact) => ({ ...contact, favorite: true })),
+            } as ShellProps['sidebarProps'],
+          })}
+        />
+      );
+      expect(rows('Direct')).toEqual(['Far', 'Near']);
+
+      const sort = screen.getByRole('combobox', { name: 'Sort Direct' });
+      await user.selectOptions(sort, 'nearest');
+      expect(rows('Direct')).toEqual(['Near11.1km', 'Far111.2km']);
+
+      const channelSort = screen.getByRole('combobox', { name: 'Sort Channels' });
+      expect(within(channelSort).queryByRole('option', { name: 'Nearest' })).toBeNull();
+    });
+
+    it('does not offer distance orders while the radio has no location', () => {
+      render(<ChatPopoutShell {...buildProps()} />);
+
+      const sort = screen.getByRole('combobox', { name: 'Sort Direct' });
+      expect(within(sort).getByRole('option', { name: 'Nearest' })).toBeDisabled();
+      expect(within(sort).getByRole('option', { name: 'Farthest' })).toBeDisabled();
+      expect(within(sort).getByRole('option', { name: 'A-Z' })).toBeEnabled();
+    });
+
+    it('sorts the recent senders and folds them away', async () => {
+      const user = userEvent.setup();
+      const props = buildProps();
+      props.conversationPaneProps = {
+        ...props.conversationPaneProps,
+        messages: [
+          { type: 'CHAN', text: 'Zed: one', outgoing: false, sender_name: null },
+          { type: 'CHAN', text: 'Bob: two', outgoing: false, sender_name: null },
+          { type: 'CHAN', text: 'Zed: three', outgoing: false, sender_name: null },
+        ],
+      } as unknown as ShellProps['conversationPaneProps'];
+      render(<ChatPopoutShell {...props} />);
+
+      const senders = screen.getByRole('complementary', { name: 'Recent senders' });
+      const senderRows = () =>
+        within(senders)
+          .getAllByRole('button', { name: /^(Bob|Zed)/ })
+          .map((row) => row.textContent);
+      expect(senderRows()).toEqual(['Bob', 'Zed']);
+
+      await user.selectOptions(
+        within(senders).getByRole('combobox', { name: 'Sort recent senders' }),
+        'messages'
+      );
+      expect(senderRows()).toEqual(['Zed', 'Bob']);
+      expect(savedPrefs().senderSort).toBe('messages');
+
+      await user.click(within(senders).getByRole('button', { name: 'Hide recent senders' }));
+      expect(within(senders).queryByRole('button', { name: /^(Bob|Zed)/ })).toBeNull();
+      expect(savedPrefs().sendersCollapsed).toBe(true);
+
+      await user.click(within(senders).getByRole('button', { name: 'Show recent senders' }));
+      expect(senderRows()).toEqual(['Zed', 'Bob']);
+    });
   });
 });
