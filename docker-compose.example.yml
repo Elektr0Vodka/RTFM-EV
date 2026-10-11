@@ -22,6 +22,9 @@ services:
     #####################################################################
     devices:
       - /dev/serial/by-id/your-meshcore-radio:/dev/meshcore-radio
+      # Several radios at once (see MESHCORE_MULTI_RADIO below): map each one
+      # under its own name and add it on the radios page with that path.
+      # - /dev/serial/by-id/your-second-radio:/dev/meshcore-radio-2
 
     environment:
       MESHCORE_DATABASE_PATH: data/meshcore.db
@@ -61,7 +64,8 @@ services:
       # MESHCORE_UPDATE_CHECK_ENABLED: "false"
 
       # Several radios at once, one workspace per radio (experimental). Map
-      # every radio under `devices:` and add the extra ones through the
-      # gateway API. See README_ADVANCED.md, "Multiple Radios".
+      # every radio under `devices:`. The radio configured above becomes
+      # radio 1; add the others on the radios page at /gateway/. See
+      # README_ADVANCED.md, "Multiple Radios".
       # MESHCORE_MULTI_RADIO: "true"
     restart: unless-stopped

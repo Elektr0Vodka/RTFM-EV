@@ -67,6 +67,10 @@ Ancillary AGENTS.md files which should generally not be reviewed unless specific
                      └─────────────┘
 ```
 
+### Multi-radio mode (opt-in)
+
+With `MESHCORE_MULTI_RADIO=true`, `app.asgi:app` serves a gateway (`app/gateway/`) instead of the app. The gateway runs this same single-radio app once per radio as a subprocess, each with its own database and transport, and forwards `/r/<key>/...` to the right one. Nothing in the core app knows about other radios; everything that spans radios (radio list, shared channel list, unread totals) lives in the gateway, and the frontend side in `frontend/src/gateway/`. See the "Multi-radio gateway" section in `app/AGENTS.md` and "Multi-radio mode" in `frontend/AGENTS.md`.
+
 ## Feature Priority
 
 **Primary (must work correctly):**

@@ -86,6 +86,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - GPS toggle on any radio that reports it, including stock companion firmware.
 - [meshcomod (DMC-EV)](#meshcomod-dmc-ev-firmware) CAD and GPS controls, and [OpenHop](#openhop-nodes) management panes.
 - Radio identity registry: history per radio, and a prompt when a different radio connects (new radio or replacement).
+- [Several radios at once](README_ADVANCED.md#multiple-radios-experimental) (experimental, opt-in): one workspace per radio, for example 433 and 868 MHz side by side, with a shared channel list, a radio switcher and unread badges across radios.
 - Loadouts: named sets of channels and contacts to load onto the radio, for example before disconnecting it.
 - [Host repeater](#host-repeater) in shadow mode, with optional live forwarding.
 - [Spam Guard](#spam-guard): channel spam detection with a Monitor and a Protect mode, off by default.

@@ -39,6 +39,10 @@ You can also see the MQTT topic IDs in RemoteTerm's Home Assistant integration U
 - `What gets created in Home Assistant`
 - `Published topic summary`
 
+### With several radios
+
+In [multi-radio mode](README_ADVANCED.md#multiple-radios-experimental) every radio has its own workspace and its own Home Assistant integration: set it up under Settings > Integrations in each workspace you want in Home Assistant. Node IDs come from public keys, so two radios with different keys publish under different topics and device ids and can share one broker. Two radios that carry the same key would publish the same local radio device. Running two radios against one broker has not been tested yet.
+
 ## What Gets Created
 
 ### Local Radio Device
