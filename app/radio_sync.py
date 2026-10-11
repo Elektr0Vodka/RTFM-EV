@@ -25,6 +25,7 @@ from app.event_handlers import cleanup_expired_acks, on_contact_message
 from app.models import _VALID_CONTACT_TYPES, Contact, ContactUpsert, apply_telemetry_perms
 from app.radio import RadioOperationBusyError
 from app.repository import (
+    AdvertEventRepository,
     AmbiguousPublicKeyPrefixError,
     AppSettingsRepository,
     ChannelRepository,
@@ -33,6 +34,11 @@ from app.repository import (
 )
 from app.repository.contact_telemetry import ContactTelemetryRepository
 from app.repository.link_signal import LinkSignalRepository
+from app.services.clock_drift import (
+    CONSENSUS_WINDOW_SECONDS,
+    clock_set_confirmed,
+    plan_clock_sync,
+)
 from app.services.contact_reconciliation import (
     promote_prefix_contacts_for_contact,
     reconcile_contact_messages,
@@ -1965,6 +1971,76 @@ async def _collect_repeater_neighbor_signal(mc: MeshCore, contact: Contact) -> b
     return True
 
 
+# When this process last tried to set each repeater's clock (wall clock). An
+# advert heard before that still shows the old clock, so it is not acted on
+# again: at most one CLI send per new advert from that repeater. Lost on
+# restart, which costs one extra send at most.
+_clock_sync_attempted_at: dict[str, float] = {}
+
+
+async def _maybe_sync_repeater_clock(mc: MeshCore, contact: Contact) -> str:
+    """Set an opted-in repeater's clock when its adverts show it running behind.
+
+    Called inside the telemetry cycle's radio operation, after a status request
+    reached the repeater, so the contact is on the radio and in range. Sends at
+    most one CLI message (``time <now>``) and waits for the reply. Needs the
+    admin permission a past admin login left on the repeater; without it no
+    reply comes.
+
+    Returns the decision (see ``plan_clock_sync``) or the outcome of the send:
+    ``set``, ``refused`` or ``no_reply``. Never raises.
+    """
+    key = contact.public_key.lower()
+    label = contact.name or key[:12]
+    try:
+        now = int(time.time())
+        decision = plan_clock_sync(
+            reading=await AdvertEventRepository.latest_clock_reading(key),
+            last_sync_at=_clock_sync_attempted_at.get(key),
+            mesh_readings=await AdvertEventRepository.latest_clock_readings_since(
+                now - CONSENSUS_WINDOW_SECONDS
+            ),
+            public_key=key,
+        )
+        if decision != "sync":
+            if decision == "host_clock_disagrees":
+                logger.warning(
+                    "Clock sync: not setting %s. Most nodes heard in the last day "
+                    "disagree with this server's clock; check the server's time first.",
+                    label,
+                )
+            elif decision == "ahead":
+                logger.warning(
+                    "Clock sync: %s runs ahead of this server. The firmware only moves "
+                    "a clock forward, so it cannot be set back from here (clkreboot can).",
+                    label,
+                )
+            else:
+                logger.debug("Clock sync: nothing to do for %s (%s)", label, decision)
+            return decision
+
+        # Imported here: server_control imports this module at load time.
+        from app.routers.server_control import send_cli_on_held_radio
+
+        _clock_sync_attempted_at[key] = time.time()
+        reply = await send_cli_on_held_radio(mc, contact, f"time {int(time.time())}")
+        if clock_set_confirmed(reply):
+            logger.info("Clock sync: set the clock of %s (%s)", label, reply)
+            return "set"
+        if reply is None:
+            logger.warning(
+                "Clock sync: no reply from %s. It may be out of reach, or this radio "
+                "has no admin permission on it. Trying again after its next advert.",
+                label,
+            )
+            return "no_reply"
+        logger.warning("Clock sync: %s refused the time (%s)", label, reply)
+        return "refused"
+    except Exception as e:
+        logger.warning("Clock sync: failed for %s: %s", label, e)
+        return "error"
+
+
 async def _collect_repeater_telemetry(mc: MeshCore, contact: Contact) -> bool:
     """Fetch status telemetry from a single repeater and record it.
 
@@ -2219,6 +2295,7 @@ async def _run_telemetry_cycle(
     tracked_contacts = app_settings.tracked_telemetry_contacts if collect_contacts else []
     if not tracked_repeaters and not tracked_contacts:
         return
+    clock_sync_keys = {key.lower() for key in app_settings.clock_sync_repeaters}
 
     # Build repeater candidates
     candidates: list[tuple[str, Contact, bool]] = []  # (key, contact, is_repeater)
@@ -2270,6 +2347,9 @@ async def _run_telemetry_cycle(
                 if is_repeater:
                     success = await _collect_repeater_telemetry(mc, contact)
                     await _collect_repeater_neighbor_signal(mc, contact)
+                    # Only after the repeater answered: no CLI send into the void.
+                    if success and contact.public_key.lower() in clock_sync_keys:
+                        await _maybe_sync_repeater_clock(mc, contact)
                 else:
                     success = await _collect_contact_telemetry(mc, contact)
                 if success:

@@ -11,6 +11,83 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-11 (node clocks from adverts and repeater clock sync, feat/advert-clock-drift-sync)
+
+Two features found in a review of other forks of upstream (tristandostaler
+`0e9be199`, `e63abb8d`, `d929000e`; upstream issue 359). Written for this
+codebase, with a smaller scope and two extra safeguards. Migration `_139`. No
+new dependency. Clock sync is off until you opt a repeater in.
+
+### Node clocks, read from adverts
+- **Every advert carries the sender's own time.** It is part of the signed
+  advert, so it cannot be changed on the way. The app used to throw it away.
+  It is now stored next to the time the advert was heard
+  (`advert_events.sender_timestamp`).
+- **Contact info shows a Clock row:** "In sync" (within 2 minutes of this
+  server), or how far the node runs ahead or behind. A node whose clock was
+  never set reads years behind (the firmware starts at 15 May 2024).
+- **Nothing is sent to measure this.** The value is as old as the last advert
+  heard from the node. Adverts stored before this version have no sender time,
+  so the row appears after the next advert.
+- A relayed advert is a few seconds old when it arrives, so a correct clock
+  reads slightly behind. The 2 minute margin absorbs that.
+- Contact freshness (`last_seen`, `last_advert`) still uses this server's
+  receive time and is not affected by a node's wrong clock.
+
+### Repeater clock sync (opt-in)
+- **New checkbox for a tracked repeater**, in the telemetry history pane of
+  its dashboard: "Set this repeater's clock when it runs behind".
+- **When it sends:** during a telemetry collection, after the repeater
+  answered the status request, and only if its newest advert shows the clock
+  more than 2 minutes behind. Then one CLI command `time <now>` is sent and the
+  reply is read. This is the case from upstream issue 359: a repeater without
+  GPS that rebooted and lost its clock.
+- **At most one send per new advert.** An advert heard before the last attempt
+  still shows the old clock and is not acted on again, so a repeater that
+  never answers is not asked every cycle.
+- **The server clock is checked against the mesh first.** The firmware only
+  moves a clock forward, so a wrong server time pushed into a repeater cannot
+  be undone from here. Before sending, the median clock offset of the other
+  nodes heard in the last 24 hours is taken. At least 5 nodes are needed and
+  the median must be within 5 minutes. If most of the mesh disagrees with this
+  server, or too few nodes were heard, nothing is sent.
+- **A repeater that runs ahead is left alone** and noted in the server log.
+  `time` cannot set a clock back; only `clkreboot` can, and that is not sent
+  automatically.
+- **Needs admin permission on the repeater.** The firmware accepts CLI
+  commands only from a client it has stored as admin (it keeps that list
+  across reboots). Log in once with the admin password. Without it no reply
+  comes, which is logged.
+- **Each sync is an RF transmission** (one command, one reply).
+- Turning telemetry tracking off for a repeater turns its clock sync off too.
+- The outcome is in the server log only (set, refused, no reply, or why
+  nothing was sent). The Clock row in the contact info updates with the
+  repeater's next advert.
+- The manual **Sync Clock** button in the repeater dashboard is unchanged.
+
+### Not taken from tristandostaler
+- The clock history tables, the per-node statistics page and the drift
+  ranking.
+- The automatic `clkreboot` for a repeater that runs ahead (it reboots a
+  remote repeater on its own).
+- The NTP and HTTP check of the server clock. The mesh check above replaces
+  it and needs no outside server.
+- Sending `time` on every telemetry cycle whether or not it is needed.
+
+### Backend
+- Migration `_139`: `advert_events.sender_timestamp` (nullable) and
+  `app_settings.clock_sync_repeaters` (JSON list, default empty).
+- `POST /api/settings/clock-sync-repeaters/toggle` (400 for a repeater that is
+  not tracked). `GET /api/contacts/analytics` gains `clock`
+  (`offset_seconds`, `measured_at`, `state`). The tracked-telemetry toggle
+  response gains `clock_sync_repeaters`.
+- New: `app/services/clock_drift.py` (pure decision logic),
+  `send_cli_on_held_radio` in `app/routers/server_control.py`. It puts a
+  command on air by the same rules as the console (2026-10-10 entry below):
+  the `XX|` reply tag, and an empty command as one space. Tests:
+  `tests/test_clock_drift.py`, `tests/test_migrations/test_migration_139.py`,
+  `frontend/src/test/repeaterClockSyncToggle.test.tsx`.
+
 ## Update 2026-10-11 (tap tooltips and CLI command suggestions, feat/tap-tooltips-cli-autocomplete)
 
 Two interface features found in a review of other forks of upstream. Frontend

@@ -43,6 +43,7 @@ app/
 │   ├── route_suggestions.py     # DM route suggestions from heard paths, reversed + ranked (suggest only, pure)
 │   ├── analyzer_path_check.py   # On-request analyzer check of suggested routes (reach + paths/inspect)
 │   ├── analyzer_packet_lookup.py # On-request "who heard this": the analyzer's observers of one packet hash
+│   ├── clock_drift.py           # Node clocks from advert timestamps: offset reading, mesh check of the host clock, clock-sync decision (pure)
 │   ├── dm_ack_tracker.py        # Pending DM ACK state
 │   ├── contact_reconciliation.py # Prefix-claim, sender-key backfill, name-history wiring
 │   ├── flood_scope.py           # Firmware-version-aware flood-scope set/clear command seam
@@ -578,7 +579,8 @@ and the path modal (`hooks/useSoftResolutions.ts`).
 - `POST /settings/favorites/toggle`
 - `POST /settings/blocked-keys/toggle`
 - `POST /settings/blocked-names/toggle`
-- `POST /settings/tracked-telemetry/toggle`
+- `POST /settings/tracked-telemetry/toggle` - turning tracking off also drops the repeater from `clock_sync_repeaters`; the response carries that list
+- `POST /settings/clock-sync-repeaters/toggle` - opt a tracked repeater in or out of clock sync (`app_settings.clock_sync_repeaters`, migration `_139`; 400 for a repeater that is not tracked). Node clocks are read passively from adverts: `advert_events.sender_timestamp` (migration `_139`) next to `first_seen` gives `offset = sender_timestamp - first_seen`, shown as `clock` in `GET /contacts/analytics`. In a telemetry cycle, after the status request of an opted-in repeater succeeds, `radio_sync._maybe_sync_repeater_clock` asks `services/clock_drift.plan_clock_sync` and sends one CLI `time <now>` only when the repeater's newest advert reads more than 120 s behind, that advert is newer than the last attempt, and the median offset of at least 5 other nodes heard in the last 24 h is within 300 s (the host clock agrees with the mesh). The firmware never moves a clock back, so an "ahead" repeater is only logged
 - `GET /settings/tracked-telemetry/schedule` - current telemetry scheduling derivation, interval options, and next-run-at timestamp
 - `POST /settings/tracked-telemetry-contacts/toggle` - toggle tracked LPP telemetry for any contact, repeaters included (max 8)
 - `GET /settings/tracked-telemetry-contacts/schedule` - contact telemetry scheduling (shared ceiling with repeaters)

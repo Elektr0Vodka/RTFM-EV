@@ -507,6 +507,15 @@ export interface ContactAnalyticsWeeklyBucket {
   message_count: number;
 }
 
+/** A node's clock offset, read from the timestamp in its newest advert. */
+export interface ContactClockReading {
+  /** Advert timestamp minus our receive time; positive = the node runs ahead. */
+  offset_seconds: number;
+  /** When that advert was first heard (Unix seconds). */
+  measured_at: number;
+  state: 'in_sync' | 'ahead' | 'behind';
+}
+
 export interface ContactAnalytics {
   lookup_type: 'contact' | 'name';
   name: string;
@@ -519,6 +528,8 @@ export interface ContactAnalytics {
   most_active_rooms: ContactActiveRoom[];
   advert_paths: ContactAdvertPath[];
   advert_frequency: number | null;
+  /** Null until an advert from the node is heard on a build that keeps its timestamp. */
+  clock?: ContactClockReading | null;
   nearest_repeaters: NearestRepeater[];
   /** Routes our DMs used, ranked by score (display only; routing is unchanged). */
   path_scores: ContactPathScore[];
@@ -1252,6 +1263,8 @@ export interface AppSettings {
   map_home_zoom: number | null;
   discovery_blocked_types: number[];
   tracked_telemetry_repeaters: string[];
+  /** Tracked repeaters whose clock may be set during a telemetry cycle. */
+  clock_sync_repeaters?: string[];
   tracked_telemetry_contacts: string[];
   auto_resend_channel: boolean;
   telemetry_interval_hours: number;

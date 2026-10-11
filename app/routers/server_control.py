@@ -646,6 +646,38 @@ async def fetch_repeater_owner_info_binary(
     return _parse_owner_info_payload(response.payload.get("data", ""))
 
 
+async def send_cli_on_held_radio(
+    mc,
+    contact: Contact,
+    command: str,
+    *,
+    timeout: float = 10.0,
+) -> str | None:
+    """Send one CLI command inside a radio operation the caller already holds.
+
+    For background work (the telemetry collector) that has the contact on the
+    radio and the lock taken. Returns the reply text, or None when the send
+    failed or no reply came. Never raises for a missing reply.
+    """
+    await _flush_pending_messages(mc)
+    tag = _cli_echo_tag_for(command)
+    send_result = await mc.commands.send_cmd(
+        _cli_command_destination(contact), f"{tag or ''}{_cli_wire_text(command)}"
+    )
+    if send_result is None or send_result.type == EventType.ERROR:
+        logger.debug(
+            "Command '%s' to %s was not sent: %s",
+            redact_cli_command(command),
+            contact.public_key[:12],
+            getattr(send_result, "payload", None),
+        )
+        return None
+    response_event = await fetch_contact_cli_response(
+        mc, contact.public_key[:12], timeout=timeout, expected_tag=tag
+    )
+    return extract_response_text(response_event) if response_event is not None else None
+
+
 async def send_contact_cli_command(
     contact: Contact,
     command: str,

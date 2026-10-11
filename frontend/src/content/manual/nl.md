@@ -216,6 +216,12 @@ Ook roomservers hebben een login met wachtwoord of als gast, met telemetrie, ACL
 - Bij een contact dat geen repeater is, haalt **Aanvragen** op verzoek de sensorwaarden op, met grafieken van de geschiedenis.
 - Onder **Instellingen > Radio-app-beheer** kun je repeaters en maximaal 8 andere contacten volgen voor geplande verzameling. Om het meshverkeer te beperken, delen alle gevolgde nodes een maximum van 24 controles per dag. Meer gevolgde nodes betekent dus een langer interval.
 
+### Klokken van nodes
+
+Elk advert bevat de tijd van de node die het verstuurde. De contactinfo toont dat als **Klok**: **Loopt gelijk** (binnen 2 minuten van deze server), of hoeveel de node voor- of achterloopt. Een node waarvan de klok nooit is gezet, loopt jaren achter. Er wordt niets verstuurd om dit te meten; de waarde is zo oud als het laatst gehoorde advert, en alleen adverts die sinds de installatie van deze versie zijn gehoord tellen mee.
+
+Bij een gevolgde repeater staat in het paneel met de telemetriegeschiedenis **Zet de klok van deze repeater gelijk als die achterloopt**. Staat dat aan, dan controleert elke telemetrieronde die de repeater bereikt zijn nieuwste advert, en gaat er één tijdcommando over de radio als de klok meer dan 2 minuten achterloopt. Er gelden twee beveiligingen. Het commando gaat hooguit één keer per nieuw advert, en alleen als de meeste nodes die de afgelopen dag zijn gehoord (minstens 5) het eens zijn met de klok van deze server, zodat een verkeerde serverklok niet in repeaters terechtkomt. De repeaterfirmware zet een klok nooit terug: een repeater die voorloopt wordt met rust gelaten en alleen in het serverlog vermeld. Je radio heeft beheerrechten op de repeater nodig (log één keer in met het beheerwachtwoord).
+
 ### Paden
 
 - **Padontdekking** (chatkop) verstuurt een gerouteerde test, toont het heen- en terugpad en slaat de geleerde route op.

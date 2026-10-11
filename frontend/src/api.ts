@@ -1203,6 +1203,13 @@ export const api = {
 
   getTelemetrySchedule: () => fetchJson<TelemetrySchedule>('/settings/tracked-telemetry/schedule'),
 
+  // Clock sync for a tracked repeater (rides on the telemetry cycle)
+  toggleClockSyncRepeater: (publicKey: string) =>
+    fetchJson<{ clock_sync_repeaters: string[] }>('/settings/clock-sync-repeaters/toggle', {
+      method: 'POST',
+      body: JSON.stringify({ public_key: publicKey }),
+    }),
+
   // Tracked contact telemetry
   toggleTrackedTelemetryContact: (publicKey: string) =>
     fetchJson<TrackedTelemetryContactsResponse>('/settings/tracked-telemetry-contacts/toggle', {

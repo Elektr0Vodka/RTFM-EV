@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { Separator } from '../ui/separator';
 import { lppDisplayUnit } from './repeaterPaneShared';
+import { RepeaterClockSyncToggle } from './RepeaterClockSyncToggle';
 import { formatDateTime } from '../../utils/dateTimeFormat';
 import { useDistanceUnit } from '../../contexts/DistanceUnitContext';
 import { useT, type TFn } from '../../i18n';
@@ -720,6 +721,8 @@ export function TelemetryHistoryPane({
               {toggling ? t('repeater_updating') : t('repeater_opt_in_tracking_button')}
             </Button>
           )}
+
+          {isTracked && <RepeaterClockSyncToggle publicKey={publicKey} />}
         </div>
 
         <Separator className="mb-3" />
