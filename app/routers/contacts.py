@@ -72,6 +72,7 @@ from app.services.contact_reconciliation import (
 from app.services.path_scoring import score_paths
 from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.route_suggestions import HeardPath, suggest_routes
+from app.services.route_timeout import contact_timeout_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -858,7 +859,7 @@ async def request_path_discovery(public_key: str) -> PathDiscoveryResponse:
             mc.wait_for_event(
                 EventType.PATH_RESPONSE,
                 attribute_filters={"pubkey_pre": pubkey_prefix},
-                timeout=15,
+                timeout=contact_timeout_seconds(contact, flood_timeout=15.0),
             )
         )
         try:
@@ -1213,7 +1214,7 @@ async def set_contact_telemetry_permissions(
 
 @router.post("/{public_key}/telemetry", response_model=ContactTelemetryResponse)
 async def request_contact_telemetry(public_key: str) -> ContactTelemetryResponse:
-    """Fetch CayenneLPP telemetry from any contact (single attempt, 10s timeout).
+    """Fetch CayenneLPP telemetry from any contact (single attempt; 10 s plus 5 s per known hop).
 
     Persists the result in contact_telemetry_history and returns the latest
     sensor readings along with recent telemetry history.
@@ -1228,7 +1229,9 @@ async def request_contact_telemetry(public_key: str) -> ContactTelemetryResponse
     ) as mc:
         await _ensure_on_radio(mc, contact)
         telemetry = await mc.commands.req_telemetry_sync(
-            contact.public_key, timeout=10, min_timeout=5
+            contact.public_key,
+            timeout=contact_timeout_seconds(contact, flood_timeout=10.0),
+            min_timeout=5,
         )
 
     if telemetry is None:

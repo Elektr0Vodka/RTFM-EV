@@ -907,6 +907,12 @@ class TestRepeaterLoginFloodEscalation:
     its cue to relearn the return path.
     """
 
+    @pytest.fixture(autouse=True)
+    def _no_hop_wait(self):
+        """These tests wait out a real login timeout, so drop the per-hop share."""
+        with patch("app.services.route_timeout.ROUTE_TIMEOUT_HOP_SECONDS", 0):
+            yield
+
     @pytest.mark.asyncio
     async def test_timeout_on_direct_route_resets_path_and_retries_as_flood(self):
         mc = _mock_mc()
@@ -1039,6 +1045,105 @@ class TestRepeaterLoginFloodEscalation:
 
         assert response.status == "timeout"
         assert mc.commands.send_login.await_count == 1
+
+
+class TestRouteScaledTimeouts:
+    """A known route waits longer than a flood: 5 s more per radio hop."""
+
+    @pytest.mark.asyncio
+    async def test_login_waits_longer_on_the_route_than_on_the_flood_retry(self):
+        mc = _mock_mc()
+        contact = _make_routed_contact()  # two repeaters = three radio hops
+        mc.commands.reset_path = AsyncMock(return_value=_radio_result(EventType.OK))
+        timed_out = RepeaterLoginResponse(status="timeout", authenticated=False, message="x")
+
+        with patch(
+            "app.routers.server_control._attempt_server_login",
+            new=AsyncMock(return_value=timed_out),
+        ) as attempt:
+            await prepare_repeater_connection(mc, contact, "secret")
+
+        waits = [call.kwargs["response_timeout"] for call in attempt.await_args_list]
+        assert waits == [5.0 + 3 * 5.0, 5.0]
+
+    @pytest.mark.asyncio
+    async def test_login_to_a_flood_contact_keeps_the_baseline_wait(self):
+        mc = _mock_mc()
+        contact = _make_contact()
+        timed_out = RepeaterLoginResponse(status="timeout", authenticated=False, message="x")
+
+        with patch(
+            "app.routers.server_control._attempt_server_login",
+            new=AsyncMock(return_value=timed_out),
+        ) as attempt:
+            await prepare_repeater_connection(mc, contact, "secret")
+
+        waits = [call.kwargs["response_timeout"] for call in attempt.await_args_list]
+        assert waits == [5.0]
+
+    @pytest.mark.asyncio
+    async def test_status_request_scales_with_the_route(self, test_db):
+        mc = _mock_mc()
+        await _insert_contact(KEY_A, name="Repeater", contact_type=2)
+        await ContactRepository.update_direct_path(KEY_A, "aabb", 2, 0)
+        mc.commands.req_status_sync = AsyncMock(return_value=None)
+
+        with (
+            patch("app.routers.repeaters.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            pytest.raises(HTTPException),
+        ):
+            await repeater_status(KEY_A)
+
+        mc.commands.req_status_sync.assert_awaited_once_with(KEY_A, timeout=25.0, min_timeout=5)
+
+    @pytest.mark.asyncio
+    async def test_status_request_to_a_flood_contact_keeps_ten_seconds(self, test_db):
+        mc = _mock_mc()
+        await _insert_contact(KEY_A, name="Repeater", contact_type=2)
+        mc.commands.req_status_sync = AsyncMock(return_value=None)
+
+        with (
+            patch("app.routers.repeaters.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            pytest.raises(HTTPException),
+        ):
+            await repeater_status(KEY_A)
+
+        mc.commands.req_status_sync.assert_awaited_once_with(KEY_A, timeout=10.0, min_timeout=5)
+
+    async def _cli_reply_wait(self, command: str) -> float:
+        """The reply wait used for ``command`` sent to a repeater two repeaters away."""
+        mc = _mock_mc()
+        await _insert_contact(KEY_A, name="Repeater", contact_type=2)
+        await ContactRepository.update_direct_path(KEY_A, "aabb", 2, 0)
+        mc.commands.send_cmd = AsyncMock(return_value=_radio_result(EventType.OK))
+        mc.commands.get_msg = AsyncMock(return_value=_radio_result(EventType.NO_MORE_MSGS))
+
+        with (
+            patch("app.routers.repeaters.radio_manager.require_connected", return_value=mc),
+            patch.object(radio_manager, "_meshcore", mc),
+            patch("app.routers.server_control.asyncio.sleep", new_callable=AsyncMock),
+            patch(
+                "app.routers.server_control.fetch_contact_cli_response",
+                new=AsyncMock(return_value=None),
+            ) as fetch,
+        ):
+            await send_repeater_command(KEY_A, CommandRequest(command=command))
+
+        return fetch.await_args.kwargs["timeout"]
+
+    @pytest.mark.asyncio
+    async def test_cli_command_scales_with_the_route(self, test_db):
+        assert await self._cli_reply_wait("ver") == 30.0  # 20 + 3 hops x 5, capped at 30
+
+    @pytest.mark.asyncio
+    async def test_region_load_line_keeps_the_fixed_wait(self, test_db):
+        """The firmware answers no line of a `region load` (indented or blank),
+        so each one waits out the whole timeout. A longer wait on a known route
+        would only slow the load down."""
+        assert await self._cli_reply_wait("  nl-nh") == 20.0
+        assert await self._cli_reply_wait("") == 20.0
 
 
 class TestRepeaterStatus:

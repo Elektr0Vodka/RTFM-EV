@@ -337,7 +337,7 @@ Baue eine Schleife aus Repeatern und verfolge sie zurück zu deinem Funkgerät. 
 
 ### Nachrichtensuche
 
-Volltextsuche in Direkt- und Kanalnachrichten. Mit `user:` oder `channel:` grenzt du die Ergebnisse ein (Namen mit Leerzeichen in Anführungszeichen setzen). Klicke auf ein Ergebnis, um zu dieser Nachricht zu springen.
+Volltextsuche in Direkt- und Kanalnachrichten. Mit `user:` oder `channel:` grenzt du die Ergebnisse ein (Namen mit Leerzeichen in Anführungszeichen setzen). `region:` filtert nach der Region, mit der eine Nachricht gesendet wurde: ein Regionsname, `region:none` für Nachrichten ohne Region oder `region:unknown` für eine Region, die diese App nicht benennen kann. Klicke auf ein Ergebnis, um zu dieser Nachricht zu springen.
 
 ### Channel Registry (Kanalregister)
 
@@ -345,7 +345,7 @@ Ein lokaler Katalog bekannter Kanäle. Es ist eine Nachschlageliste, nicht die L
 
 ### Kanalfinder
 
-**Kanalfinder anzeigen** öffnet einen Bereich, der versucht, die Namen von Kanälen zu finden, für die du keinen Schlüssel hast, mit Wortlisten und Brute Force auf deiner GPU. Das braucht einen Browser mit WebGPU (zum Beispiel Chrome oder Edge ab Version 113) und HTTPS, wenn du nicht auf `localhost` arbeitest. Gefundene Kanäle können gespeicherte Pakete entschlüsseln.
+**Kanalfinder anzeigen** öffnet einen Bereich, der versucht, die Namen von Kanälen zu finden, für die du keinen Schlüssel hast, mit Wortlisten und Brute Force auf deiner GPU. Unter **Wortlisten** wählst du, welche Listen verwendet werden, in jeder Kombination: Englisch, Niederländisch, **Bekannte Kanäle (MCCL)** (eine kurze Liste mit Kanalnamen, die im Netz gesehen wurden, standardmäßig an) und selbst hochgeladene Listen. Das braucht einen Browser mit WebGPU (zum Beispiel Chrome oder Edge ab Version 113) und HTTPS, wenn du nicht auf `localhost` arbeitest. Gefundene Kanäle können gespeicherte Pakete entschlüsseln.
 
 ### Wissensdatenbank
 

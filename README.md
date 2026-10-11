@@ -38,7 +38,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - Join meshcore-open communities by code or QR code, and share them again as JSON or QR.
 - Mention ticker, a mention and DM sound, browser and Web Push notifications, and optional notifications for newly heard nodes.
 - Optional chat parsing: clickable links with previews, public key detection, and GPS or MGRS coordinates as map cards.
-- Full-text message search with `user:` and `channel:` filters.
+- Full-text message search with `user:`, `channel:` and `region:` filters.
 
 ### Contacts and nodes
 

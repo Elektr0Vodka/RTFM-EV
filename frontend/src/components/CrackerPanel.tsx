@@ -54,6 +54,15 @@ async function loadDutchWordlist(): Promise<string[]> {
   return text.split(/\r?\n/).filter((line) => line.length > 0);
 }
 
+async function loadKnownChannelsWordlist(): Promise<string[]> {
+  // Bundled static asset (frontend/public/wordlists/known-channels.txt), built
+  // from the MCCL channel list by scripts/build_mccl_wordlist.py.
+  const res = await fetch('wordlists/known-channels.txt');
+  if (!res.ok) throw new Error(`known-channels.txt HTTP ${res.status}`);
+  const text = await res.text();
+  return text.split(/\r?\n/).filter((line) => line.length > 0);
+}
+
 export function CrackerPanel({
   channels,
   onChannelCreate,
@@ -129,6 +138,7 @@ export function CrackerPanel({
     try {
       if (sel.english) bases.push(await loadEnglishWordlist());
       if (sel.dutch) bases.push(await loadDutchWordlist());
+      if (sel.knownChannels) bases.push(await loadKnownChannelsWordlist());
       for (const id of sel.customIds) {
         try {
           const { words } = await api.getWordlistWords(id);
@@ -693,6 +703,21 @@ export function CrackerPanel({
                 ({t('cracker_wordlist_dutch_note')})
               </span>
             )}
+          </label>
+
+          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+            <input
+              type="checkbox"
+              checked={selection.knownChannels}
+              onChange={(e) =>
+                setSelection((prev) => ({ ...prev, knownChannels: e.target.checked }))
+              }
+              className="rounded"
+            />
+            {t('cracker_wordlist_known_channels')}
+            <span className="text-xs text-muted-foreground">
+              ({t('cracker_wordlist_known_channels_note')})
+            </span>
           </label>
 
           {customLists.map((wl) => (

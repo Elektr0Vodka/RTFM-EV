@@ -11,6 +11,70 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-11 (known channels list, region search, route timeouts, feat/channel-list-region-search-timeouts)
+
+Three small features found in a review of other forks of upstream. No
+migration, no new dependency.
+
+### Channel finder: Known channels (MCCL) list
+- **A fourth list under Wordlists:** "Known channels (MCCL)", next to English,
+  Dutch and your uploads. It holds the 2560 hashtag channel names of the
+  [MCCL](https://github.com/Elektr0Vodka/MCCL) list
+  (`list_nl/channel-rainbow.json` at `eff8c3b8`, 2026-10-10). Of those names
+  1872 are not in the Dutch list and 1423 are in neither bundled list.
+- **Any combination can be on.** Each list has its own checkbox, as before.
+  With only the known channels on, a dictionary pass tries 2560 names
+  instead of several hundred thousand.
+- **On by default,** also for a browser that already saved a selection
+  without it. English stays on and Dutch stays off by default.
+- The file is `frontend/public/wordlists/known-channels.txt`, a snapshot. It
+  does not update itself; rebuild it with `scripts/build_mccl_wordlist.py`
+  (same normalizer as uploads). For a live list, the registry sync URL in
+  Settings > Database already reads the same MCCL file, and "Sync from
+  channels" adds those names to the finder.
+
+### Search: `region:` operator
+- `region:<name>` next to `user:` and `channel:`. The name is compared
+  without case and without a leading `#`, so `region:nl-gr` and
+  `region:#NL-GR` find the same messages.
+- `region:none` finds messages sent without a region (no transport code).
+  `region:unknown` finds messages with a region this app could not name (a
+  transport code that matched no entry in known regions). These are the same
+  three states the region badge under a message shows.
+- Several `region:` terms are combined with OR, and with the other operators
+  and free text with AND. A region literally named `none` or `unknown` cannot
+  be searched by name.
+- Limit: a message stored before region tagging existed has no transport code
+  and so counts as `none` until the region backfill has run.
+
+### Repeater, room and telemetry requests: waits scale with the route (f3sty `5267f857`, `891a452f`)
+- **A contact on a known route gets more time to answer:** the wait used so
+  far plus 5 seconds per radio hop, capped at 30 seconds. A route through two
+  repeaters is three hops, so a status request waits 25 seconds instead of 10.
+  A contact reached by flood keeps the old wait, because a flood has no known
+  hop count.
+- **Login floods less eagerly.** A login that gets no answer on its route
+  resets the path and repeats as a flood. The first attempt now waits 10 to 30
+  seconds depending on the route instead of 5, so a slow answer over several
+  hops no longer triggers the flood. The flood retry itself still waits 5
+  seconds.
+- Applies to: repeater and room login (first attempt), status, LPP telemetry,
+  neighbours, ACL, regions, owner info, CLI commands and the batched CLI
+  reads, path discovery, on-demand contact telemetry, and the scheduled
+  telemetry collector.
+- **Side effect:** an unreachable contact on a long route now holds the radio
+  for up to 30 seconds per request instead of 10, and the telemetry collector
+  takes longer per unreachable repeater.
+- **Not scaled:** a console line that is empty or starts with a space (a
+  `region load` line, 2026-10-10 entry below). The firmware answers none of
+  those, so each one waits out the whole timeout, and that stays 20 seconds.
+- Not taken from those two f3sty commits: the higher base login wait (5 to 10
+  seconds, also for the flood retry), and the trace timeout changes. f3sty's
+  telemetry minute (`ccf98498`) is a separate change, in the 2026-10-10 entry
+  below.
+- New: `app/services/route_timeout.py`. Tests: `tests/test_route_timeout.py`,
+  `tests/test_repeater_routes.py::TestRouteScaledTimeouts`.
+
 ## Update 2026-10-11 (packet inspector: who heard this, feat/packet-who-heard)
 
 One feature found in a review of other forks of upstream (wchaney817

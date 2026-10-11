@@ -20,9 +20,10 @@ class MessageRepository:
         free_text: str
         user_terms: list[str]
         channel_terms: list[str]
+        region_terms: list[str]
 
     _SEARCH_OPERATOR_RE = re.compile(
-        r'(?<!\S)(user|channel):(?:"((?:[^"\\]|\\.)*)"|(\S+))',
+        r'(?<!\S)(user|channel|region):(?:"((?:[^"\\]|\\.)*)"|(\S+))',
         re.IGNORECASE,
     )
 
@@ -268,6 +269,7 @@ class MessageRepository:
     def _parse_search_query(q: str) -> _SearchQuery:
         user_terms: list[str] = []
         channel_terms: list[str] = []
+        region_terms: list[str] = []
         fragments: list[str] = []
         last_end = 0
 
@@ -275,14 +277,19 @@ class MessageRepository:
             fragments.append(q[last_end : match.start()])
             raw_value = match.group(2) if match.group(2) is not None else match.group(3) or ""
             value = MessageRepository._unescape_search_quoted_value(raw_value)
-            if match.group(1).lower() == "user":
+            operator = match.group(1).lower()
+            if operator == "user":
                 user_terms.append(value)
+            elif operator == "region":
+                region_terms.append(value)
             else:
                 channel_terms.append(value)
             last_end = match.end()
 
-        if not user_terms and not channel_terms:
-            return MessageRepository._SearchQuery(free_text=q, user_terms=[], channel_terms=[])
+        if not user_terms and not channel_terms and not region_terms:
+            return MessageRepository._SearchQuery(
+                free_text=q, user_terms=[], channel_terms=[], region_terms=[]
+            )
 
         fragments.append(q[last_end:])
         free_text = " ".join(fragment.strip() for fragment in fragments if fragment.strip())
@@ -290,7 +297,24 @@ class MessageRepository:
             free_text=free_text,
             user_terms=user_terms,
             channel_terms=channel_terms,
+            region_terms=region_terms,
         )
+
+    @staticmethod
+    def _build_region_scope_clause(value: str) -> tuple[str, list[Any]]:
+        """SQL for one ``region:`` search term.
+
+        ``none`` and ``unknown`` are the two states without a region name (see
+        ``frontend/src/utils/messageScope.ts``): no transport code at all, and a
+        transport code that matched no entry in ``known_regions``. Anything else
+        is a region name, compared without case and without a leading ``#``.
+        """
+        term = value.strip().lstrip("#").lower()
+        if term == "none":
+            return "(messages.region IS NULL AND messages.transport_code IS NULL)", []
+        if term == "unknown":
+            return "(messages.region IS NULL AND messages.transport_code IS NOT NULL)", []
+        return "LTRIM(messages.region, '#') = ? COLLATE NOCASE", [term]
 
     @staticmethod
     def _escape_like(value: str) -> str:
@@ -535,6 +559,14 @@ class MessageRepository:
             scope_clauses = []
             for term in search_query.channel_terms:
                 clause, clause_params = MessageRepository._build_channel_scope_clause(term)
+                scope_clauses.append(clause)
+                params.extend(clause_params)
+            query += f" AND ({' OR '.join(scope_clauses)})"
+
+        if search_query and search_query.region_terms:
+            scope_clauses = []
+            for term in search_query.region_terms:
+                clause, clause_params = MessageRepository._build_region_scope_clause(term)
                 scope_clauses.append(clause)
                 params.extend(clause_params)
             query += f" AND ({' OR '.join(scope_clauses)})"

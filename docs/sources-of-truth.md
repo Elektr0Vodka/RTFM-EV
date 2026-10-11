@@ -108,7 +108,10 @@ machine this was authored on and may differ elsewhere.
   (repo https://github.com/Dutch-MeshCore/Dutch-Meshcore-Toolbox;
   local `G:\Github\repositories\Dutch-MeshCore\Dutch-Meshcore-Toolbox`).
 - MCCL (MeshCore channel lists / wordlist source): https://github.com/Elektr0Vodka/MCCL
-  (local `G:\Github\repositories\Elektr0Vodka\mccl`).
+  (local `G:\Github\repositories\Elektr0Vodka\mccl`). The channel finder's bundled
+  "Known channels (MCCL)" list, `frontend/public/wordlists/known-channels.txt`, is
+  a snapshot of `list_nl/channel-rainbow.json`. Rebuild it with
+  `python scripts/build_mccl_wordlist.py <channel-rainbow.json> frontend/public/wordlists/known-channels.txt`.
 - EU MeshCore Analyzer (map / mobile layout reference): https://github.com/EU-Meshcore-Analyzer/EU-Meshcore-Analyzer
   (local `G:\Github\repositories\Elektr0Vodka\EU-Meshcore-Analyzer`).
   Its public API is also a runtime data source: `https://meshcore-analyzer.eu/api/nodes`

@@ -311,6 +311,68 @@ class TestMessageSearch:
         )
         assert [message.text for message in results] == ["hello operator"]
 
+    @staticmethod
+    async def _seed_region_messages() -> None:
+        rows = [
+            ("hello groningen", "nl-gr", 0x1A2B),
+            ("hello hashtag", "#nl", 0x2B3C),
+            ("hello stranger", None, 0x3C4D),
+            ("hello everyone", None, None),
+        ]
+        for i, (text, region, transport_code) in enumerate(rows):
+            await MessageRepository.create(
+                msg_type="CHAN",
+                text=text,
+                conversation_key=CHAN_KEY,
+                sender_timestamp=100 + i,
+                received_at=100 + i,
+                region=region,
+                transport_code=transport_code,
+            )
+
+    @pytest.mark.asyncio
+    async def test_search_region_operator_matches_region_name(self, test_db):
+        await self._seed_region_messages()
+
+        results = await MessageRepository.get_all(q="region:NL-GR")
+        assert [message.text for message in results] == ["hello groningen"]
+
+    @pytest.mark.asyncio
+    async def test_search_region_operator_ignores_leading_hash(self, test_db):
+        await self._seed_region_messages()
+
+        # Stored with a leading "#", searched without it, and the other way round.
+        results = await MessageRepository.get_all(q="region:nl")
+        assert [message.text for message in results] == ["hello hashtag"]
+        results = await MessageRepository.get_all(q="region:#nl-gr")
+        assert [message.text for message in results] == ["hello groningen"]
+
+    @pytest.mark.asyncio
+    async def test_search_region_none_matches_unscoped_only(self, test_db):
+        await self._seed_region_messages()
+
+        results = await MessageRepository.get_all(q="region:none")
+        assert [message.text for message in results] == ["hello everyone"]
+
+    @pytest.mark.asyncio
+    async def test_search_region_unknown_matches_unresolved_scope(self, test_db):
+        await self._seed_region_messages()
+
+        results = await MessageRepository.get_all(q="region:unknown")
+        assert [message.text for message in results] == ["hello stranger"]
+
+    @pytest.mark.asyncio
+    async def test_search_region_terms_are_ored_and_combined_with_text(self, test_db):
+        await self._seed_region_messages()
+
+        results = await MessageRepository.get_all(q="region:nl-gr region:none hello")
+        assert sorted(message.text for message in results) == [
+            "hello everyone",
+            "hello groningen",
+        ]
+        results = await MessageRepository.get_all(q="region:nl-gr everyone")
+        assert results == []
+
 
 class TestMessagesAround:
     """Tests for get_around()."""
