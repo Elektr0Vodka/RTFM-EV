@@ -337,7 +337,7 @@ Bouw een lus van repeaters en trace die terug naar je radio. Zoek repeaters op n
 
 ### Berichten zoeken
 
-Zoeken in de volledige tekst van directe berichten en kanaalberichten. Gebruik `user:` of `channel:` om te verfijnen (zet namen met spaties tussen aanhalingstekens). Klik op een resultaat om naar dat bericht te springen.
+Zoeken in de volledige tekst van directe berichten en kanaalberichten. Gebruik `user:` of `channel:` om te verfijnen (zet namen met spaties tussen aanhalingstekens). `region:` filtert op de regio waarmee een bericht is verzonden: een regionaam, `region:none` voor berichten zonder regio, of `region:unknown` voor een regio die deze app niet kan benoemen. Klik op een resultaat om naar dat bericht te springen.
 
 ### Channel Registry (Kanaalregister)
 
@@ -345,7 +345,7 @@ Een lokale catalogus van bekende kanalen. Het is een naslaglijst, niet de lijst 
 
 ### Kanaalzoeker
 
-**Kanaalzoeker tonen** opent een paneel dat probeert de namen te vinden van kanalen waarvan je geen sleutel hebt, met woordenlijsten en brute force op je GPU. Dat vereist een browser met WebGPU (bijvoorbeeld Chrome of Edge 113 of nieuwer) en HTTPS wanneer je niet op `localhost` werkt. Gevonden kanalen kunnen opgeslagen pakketten ontsleutelen.
+**Kanaalzoeker tonen** opent een paneel dat probeert de namen te vinden van kanalen waarvan je geen sleutel hebt, met woordenlijsten en brute force op je GPU. Met **Woordenlijsten** kies je welke lijsten meedoen, in elke combinatie: Engels, Nederlands, **Bekende kanalen (MCCL)** (een korte lijst met kanaalnamen die op het netwerk zijn gezien, standaard aan) en lijsten die je zelf uploadt. Dat vereist een browser met WebGPU (bijvoorbeeld Chrome of Edge 113 of nieuwer) en HTTPS wanneer je niet op `localhost` werkt. Gevonden kanalen kunnen opgeslagen pakketten ontsleutelen.
 
 ### Kennisbank
 

@@ -287,6 +287,28 @@ describe('SearchView', () => {
     expect(screen.queryByText('user:Alice', { selector: 'mark' })).not.toBeInTheDocument();
   });
 
+  it('treats region: as an operator, not as text to highlight', async () => {
+    mockGetMessages.mockResolvedValue([createSearchResult({ text: 'hello nl-gr world' })]);
+
+    render(<SearchView {...defaultProps} />);
+
+    await typeAndWaitForResults('region:nl-gr hello');
+
+    expect(mockGetMessages).toHaveBeenCalledWith(
+      expect.objectContaining({ q: 'region:nl-gr hello' }),
+      expect.any(AbortSignal)
+    );
+    expect(screen.getByText('hello', { selector: 'mark' })).toBeInTheDocument();
+    // The region value is in the message text, but it is a filter, so no mark.
+    expect(screen.queryByText('nl-gr', { selector: 'mark' })).not.toBeInTheDocument();
+  });
+
+  it('explains the region: operator in the empty state', () => {
+    render(<SearchView {...defaultProps} />);
+
+    expect(screen.getByText('region:', { selector: 'code' })).toBeInTheDocument();
+  });
+
   it('runs a prefilled search immediately', async () => {
     mockGetMessages.mockResolvedValue([createSearchResult({ text: 'prefilled result' })]);
 

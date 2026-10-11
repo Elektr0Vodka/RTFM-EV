@@ -337,7 +337,7 @@ Build a loop of repeaters and trace it back to your radio. Search repeaters by n
 
 ### Message Search
 
-Full-text search across direct and channel messages. Use `user:` or `channel:` to narrow results (put names with spaces in quotes). Click a result to jump to that message.
+Full-text search across direct and channel messages. Use `user:` or `channel:` to narrow results (put names with spaces in quotes). `region:` filters by the region a message was sent with: a region name, `region:none` for messages sent without a region, or `region:unknown` for a region this app cannot name. Click a result to jump to that message.
 
 ### Channel Registry
 
@@ -345,7 +345,7 @@ A local catalog of known channels. It is a reference list, not the channels the 
 
 ### Channel Finder
 
-**Show Channel Finder** opens a panel that tries to find the names of channels you have no key for, using wordlists and brute force on your GPU. It needs a browser with WebGPU (for example Chrome or Edge 113 or newer) and HTTPS when you are not on `localhost`. Found channels can decrypt stored packets.
+**Show Channel Finder** opens a panel that tries to find the names of channels you have no key for, using wordlists and brute force on your GPU. **Wordlists** picks which lists are used, in any combination: English, Dutch, **Known channels (MCCL)** (a short list of channel names seen on the mesh, on by default) and lists you upload. It needs a browser with WebGPU (for example Chrome or Edge 113 or newer) and HTTPS when you are not on `localhost`. Found channels can decrypt stored packets.
 
 ### Knowledge base
 

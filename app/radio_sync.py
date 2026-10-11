@@ -40,6 +40,7 @@ from app.services.contact_reconciliation import (
 from app.services.messages import create_fallback_channel_message
 from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.room_status import room_status_fields
+from app.services.route_timeout import contact_timeout_seconds
 from app.telemetry_interval import (
     TELEMETRY_SCHEDULE_MINUTE_AUTO,
     clamp_telemetry_interval,
@@ -1924,6 +1925,14 @@ async def sync_recent_contacts_to_radio(force: bool = False, mc: MeshCore | None
 # ---------------------------------------------------------------------------
 
 
+def _request_timeout(contact: Contact) -> int:
+    """Response wait for one collector request: 10 s, more on a known route.
+
+    Whole seconds, because the meshcore library types this parameter as int.
+    """
+    return int(contact_timeout_seconds(contact, flood_timeout=10.0))
+
+
 async def _collect_repeater_neighbor_signal(mc: MeshCore, contact: Contact) -> bool:
     """Fetch a repeater's neighbours and persist a signal snapshot (X2b).
 
@@ -1932,7 +1941,11 @@ async def _collect_repeater_neighbor_signal(mc: MeshCore, contact: Contact) -> b
     caller's telemetry step.
     """
     try:
-        data = await mc.commands.fetch_all_neighbours(contact.public_key, timeout=10, min_timeout=5)
+        data = await mc.commands.fetch_all_neighbours(
+            contact.public_key,
+            timeout=_request_timeout(contact),
+            min_timeout=5,
+        )
     except Exception as e:
         logger.debug(
             "Neighbor signal collect: radio command failed for %s: %s",
@@ -1959,7 +1972,11 @@ async def _collect_repeater_telemetry(mc: MeshCore, contact: Contact) -> bool:
     """
     try:
         await mc.commands.add_contact(contact.to_radio_dict())
-        status = await mc.commands.req_status_sync(contact.public_key, timeout=10, min_timeout=5)
+        status = await mc.commands.req_status_sync(
+            contact.public_key,
+            timeout=_request_timeout(contact),
+            min_timeout=5,
+        )
     except Exception as e:
         logger.debug(
             "Telemetry collect: radio command failed for %s: %s",
@@ -1998,7 +2015,9 @@ async def _collect_repeater_telemetry(mc: MeshCore, contact: Contact) -> bool:
     # collection; status telemetry is still recorded without sensor data.
     try:
         lpp_raw = await mc.commands.req_telemetry_sync(
-            contact.public_key, timeout=10, min_timeout=5
+            contact.public_key,
+            timeout=_request_timeout(contact),
+            min_timeout=5,
         )
         if lpp_raw:
             lpp_sensors = []
@@ -2028,7 +2047,9 @@ async def _collect_repeater_telemetry(mc: MeshCore, contact: Contact) -> bool:
     # schedule; each is best-effort and simply omits its metric on failure.
     try:
         neighbours = await mc.commands.fetch_all_neighbours(
-            contact.public_key, timeout=10, min_timeout=5
+            contact.public_key,
+            timeout=_request_timeout(contact),
+            min_timeout=5,
         )
         if neighbours:
             count = neighbours.get("neighbours_count")
@@ -2044,7 +2065,9 @@ async def _collect_repeater_telemetry(mc: MeshCore, contact: Contact) -> bool:
 
     try:
         regions_raw = await mc.commands.req_regions_sync(
-            contact.public_key, timeout=10, min_timeout=5
+            contact.public_key,
+            timeout=_request_timeout(contact),
+            min_timeout=5,
         )
         if regions_raw:
             names = [n for n in str(regions_raw).split(",") if n.strip()]
@@ -2105,7 +2128,9 @@ async def _collect_contact_telemetry(mc: MeshCore, contact: Contact) -> bool:
     try:
         await mc.commands.add_contact(contact.to_radio_dict())
         lpp_raw = await mc.commands.req_telemetry_sync(
-            contact.public_key, timeout=10, min_timeout=5
+            contact.public_key,
+            timeout=_request_timeout(contact),
+            min_timeout=5,
         )
     except Exception as e:
         logger.debug(

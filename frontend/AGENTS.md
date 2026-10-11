@@ -163,7 +163,7 @@ frontend/src/
 │   ├── PathModal.tsx
 │   ├── PathRouteMap.tsx
 │   ├── TraceRouteMap.tsx        # Draws a TracePane result on a map (hops at known/manual locations, dashed gap over skipped hops, SNR tooltip); shares marker/colour helpers with PathRouteMap via map/routeMapVisuals.ts
-│   ├── CrackerPanel.tsx       # Browser channel finder; wordlist = bundled ENGLISH_WORDLIST + remote sync + registry names ("Sync from channels" button, meshcore-wordlist-registry-cache)
+│   ├── CrackerPanel.tsx       # Browser channel finder; wordlist = the selected lists (bundled ENGLISH_WORDLIST, `public/wordlists/nl.txt`, `public/wordlists/known-channels.txt` from MCCL, custom uploads; any combination, `lib/wordlistSelection.ts`) + remote sync + registry names ("Sync from channels" button, meshcore-wordlist-registry-cache)
 │   ├── ContactAvatar.tsx
 │   ├── ContactInfoPane.tsx     # Contact detail sheet (mobile; wraps ContactInfoBody)
 │   ├── ContactInfoBody.tsx     # Shared contact-info section stack (region-aware: Sheet + full page)

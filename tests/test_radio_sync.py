@@ -2061,6 +2061,30 @@ class TestCollectRepeaterTelemetryLpp:
     """Verify that _collect_repeater_telemetry fetches LPP sensors."""
 
     @pytest.mark.asyncio
+    async def test_requests_wait_longer_on_a_known_route(self):
+        from app.models import Contact
+        from app.radio_sync import _collect_repeater_telemetry
+
+        mc = MagicMock()
+        mc.commands.add_contact = AsyncMock()
+        mc.commands.req_status_sync = AsyncMock(return_value=None)
+        # Two repeaters on the path are three radio hops: 10 s + 3 * 5 s.
+        contact = Contact(
+            public_key="aa" * 32,
+            name="Far",
+            type=2,
+            direct_path="aabb",
+            direct_path_len=2,
+            direct_path_hash_mode=0,
+        )
+
+        assert await _collect_repeater_telemetry(mc, contact) is False
+
+        mc.commands.req_status_sync.assert_awaited_once_with(
+            contact.public_key, timeout=25, min_timeout=5
+        )
+
+    @pytest.mark.asyncio
     async def test_lpp_sensors_included_in_data(self):
         from app.radio_sync import _collect_repeater_telemetry
 
@@ -2080,6 +2104,7 @@ class TestCollectRepeaterTelemetryLpp:
         contact.public_key = "aabbccddeeff11223344"
         contact.name = "TestRepeater"
         contact.to_radio_dict.return_value = {}
+        contact.effective_route_source = "flood"
 
         recorded_data = {}
 
@@ -2123,6 +2148,7 @@ class TestCollectRepeaterTelemetryLpp:
         contact.name = "TestRoom"
         contact.type = 3
         contact.to_radio_dict.return_value = {}
+        contact.effective_route_source = "flood"
 
         recorded_data = {}
 
@@ -2159,6 +2185,7 @@ class TestCollectRepeaterTelemetryLpp:
         contact.public_key = "aabbccddeeff11223344"
         contact.name = "TestRepeater"
         contact.to_radio_dict.return_value = {}
+        contact.effective_route_source = "flood"
 
         recorded_data = {}
 
@@ -2208,6 +2235,7 @@ class TestCollectRepeaterTelemetryLpp:
         contact.public_key = "aabbccddeeff11223344"
         contact.name = "TestRepeater"
         contact.to_radio_dict.return_value = {}
+        contact.effective_route_source = "flood"
 
         recorded_data = {}
 
@@ -2247,6 +2275,7 @@ class TestCollectRepeaterTelemetryLpp:
         contact.public_key = "aabbccddeeff11223344"
         contact.name = "TestRepeater"
         contact.to_radio_dict.return_value = {}
+        contact.effective_route_source = "flood"
 
         recorded_data = {}
 
@@ -2289,6 +2318,7 @@ class TestCollectRepeaterTelemetryLpp:
         contact.public_key = "aabbccddeeff11223344"
         contact.name = "TestRepeater"
         contact.to_radio_dict.return_value = {}
+        contact.effective_route_source = "flood"
 
         recorded_data = {}
 
@@ -2325,6 +2355,7 @@ class TestCollectRepeaterTelemetryLpp:
         contact.public_key = "aabbccddeeff11223344"
         contact.name = "TestRepeater"
         contact.to_radio_dict.return_value = {}
+        contact.effective_route_source = "flood"
 
         recorded_data = {}
 

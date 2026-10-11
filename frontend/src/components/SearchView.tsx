@@ -20,7 +20,7 @@ interface SearchResult {
   sender_name: string | null;
 }
 
-const SEARCH_OPERATOR_RE = /(?<!\S)(user|channel):(?:"((?:[^"\\]|\\.)*)"|(\S+))/gi;
+const SEARCH_OPERATOR_RE = /(?<!\S)(user|channel|region):(?:"((?:[^"\\]|\\.)*)"|(\S+))/gi;
 
 export interface SearchNavigateTarget {
   id: number;
@@ -273,6 +273,11 @@ export function SearchView({
               <code>user:</code> {t('search_tip_or')}{' '}
               {/* eslint-disable-next-line i18next/no-literal-string */}
               <code>channel:</code> {t('search_tip_suffix')}
+            </p>
+            <p className="mt-2 text-xs">
+              {t('search_tip_region_prefix')}{' '}
+              {/* eslint-disable-next-line i18next/no-literal-string */}
+              <code>region:</code> {t('search_tip_region_suffix')}
             </p>
             <p className="mt-2 text-xs">{t('search_warning_user_key_linkage')}</p>
           </div>

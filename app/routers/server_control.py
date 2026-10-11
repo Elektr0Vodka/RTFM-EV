@@ -24,6 +24,7 @@ from app.radio_sync import (
 )
 from app.routers.contacts import _ensure_on_radio
 from app.services.radio_runtime import radio_runtime as radio_manager
+from app.services.route_timeout import contact_timeout_seconds
 
 if TYPE_CHECKING:
     from meshcore.events import Event
@@ -417,12 +418,14 @@ async def prepare_authenticated_contact_connection(
         logger.info("Adding %s %s to radio", contact_label, contact.public_key[:12])
         await _ensure_on_radio(mc, contact)
 
+        # A known route gets time for every hop before we give up on it: a
+        # timeout here resets the path and repeats the login as a flood.
         response = await _attempt_server_login(
             mc,
             contact,
             password,
             contact_label=contact_label,
-            response_timeout=response_timeout,
+            response_timeout=contact_timeout_seconds(contact, flood_timeout=response_timeout),
         )
         if response.status != "timeout":
             return response
@@ -528,7 +531,10 @@ async def batch_cli_fetch(
                 continue
 
             response_event = await fetch_contact_cli_response(
-                mc, contact.public_key[:12], timeout=10.0, expected_tag=tag
+                mc,
+                contact.public_key[:12],
+                timeout=contact_timeout_seconds(contact, flood_timeout=10.0),
+                expected_tag=tag,
             )
             if response_event is not None:
                 results[field] = extract_response_text(response_event)
@@ -600,6 +606,9 @@ async def fetch_repeater_owner_info_binary(
         await _ensure_on_radio(mc, contact)
         await asyncio.sleep(1.0)  # settle after add_contact
 
+        # 0 means "use the radio's own estimate" further down; only scale a fixed wait.
+        if timeout > 0:
+            timeout = contact_timeout_seconds(contact, flood_timeout=timeout)
         send_result = await mc.commands.send_binary_req(
             contact.public_key,
             _RepeaterBinaryReqType.OWNER_INFO,
@@ -675,8 +684,17 @@ async def send_contact_cli_command(
                 status_code=422, detail=f"Failed to send command: {send_result.payload}"
             )
 
+        # The firmware answers no line of a ``region load`` (blank, or starting
+        # with a space), so such a line always waits out the whole timeout.
+        # Scaling that wait with the route would only slow the load down.
+        reply_timeout = 20.0
+        if command and command[0] != " ":
+            reply_timeout = contact_timeout_seconds(contact, flood_timeout=reply_timeout)
         response_event = await fetch_contact_cli_response(
-            mc, contact.public_key[:12], expected_tag=tag
+            mc,
+            contact.public_key[:12],
+            timeout=reply_timeout,
+            expected_tag=tag,
         )
 
         if response_event is None:

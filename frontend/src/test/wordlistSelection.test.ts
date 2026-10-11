@@ -19,8 +19,29 @@ describe('wordlistSelection', () => {
   });
 
   it('round-trips a saved selection', () => {
-    saveSelection({ english: false, dutch: true, customIds: [1, 2] });
-    expect(loadSelection()).toEqual({ english: false, dutch: true, customIds: [1, 2] });
+    const saved = { english: false, dutch: true, knownChannels: false, customIds: [1, 2] };
+    saveSelection(saved);
+    expect(loadSelection()).toEqual(saved);
+  });
+
+  it('keeps any combination of lists switched on', () => {
+    const saved = { english: true, dutch: true, knownChannels: true, customIds: [7] };
+    saveSelection(saved);
+    expect(loadSelection()).toEqual(saved);
+  });
+
+  it('turns the known channels on for a selection saved before they existed', () => {
+    store['meshcore-wordlist-selection'] = JSON.stringify({
+      english: false,
+      dutch: true,
+      customIds: [4],
+    });
+    expect(loadSelection()).toEqual({
+      english: false,
+      dutch: true,
+      knownChannels: true,
+      customIds: [4],
+    });
   });
 
   it('falls back to default on malformed JSON', () => {
@@ -39,6 +60,11 @@ describe('wordlistSelection', () => {
 
   it('fills missing fields from the default', () => {
     store['meshcore-wordlist-selection'] = JSON.stringify({ dutch: true });
-    expect(loadSelection()).toEqual({ english: true, dutch: true, customIds: [] });
+    expect(loadSelection()).toEqual({
+      english: true,
+      dutch: true,
+      knownChannels: true,
+      customIds: [],
+    });
   });
 });
