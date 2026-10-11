@@ -11,6 +11,49 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-11 (packet inspector: who heard this, feat/packet-who-heard)
+
+One feature found in a review of other forks of upstream (wchaney817
+`37b82ce1`, which asks a CoreScope instance in North Texas). Rewritten for the
+EU analyzer this fork already uses. No migration, no new dependency.
+
+### Packet inspector: Who heard this
+- **New section in every packet breakdown** (Packet Feed, Packet History, the
+  packet behind a message, Analyze Packet). It shows the **packet hash**: the
+  firmware's own hash, which leaves the path out, so every relayed copy of one
+  packet has the same hash.
+- **Links to the packet's page** on each analyzer site that has a packet
+  address (Settings > Database). That setting existed, but no screen used it:
+  the **Look up sender on** buttons in the same breakdown (2026-10-10) open
+  the sender's node page, not the packet.
+- **The Ask button** (it names the host) asks the analyzer which of its observers received this
+  packet and lists them, oldest first: name, region, time (with the delay
+  after the first reception), RSSI and SNR, plus the number of receptions and
+  of distinct observers. Compare that with your own reception to see where a
+  packet did and did not arrive.
+- **The host** is that of the external map source (Settings > Database,
+  `external_map_sync_url`; `meshcore-analyzer.eu` by default), the same one
+  the route check for suggested DM routes uses.
+- **Privacy:** opening the inspector sends nothing outside your server. The
+  analyzer is asked only when you press the button, and it gets the packet
+  hash, not the packet. The section says so and names the host.
+- **Limits:** the analyzer only knows what its own MQTT observers heard, so
+  "has not seen this packet" does not mean nobody heard it. At most 500
+  receptions are listed (a note says when there are more). The hash is the
+  EU analyzer's too (checked on 200 live packets on 2026-10-10); another
+  analyzer site may use a different hash, in which case its link finds
+  nothing.
+
+### Backend
+- `POST /api/packets/who-heard` (`{data, lookup}`): takes raw hex so a pasted
+  packet works as well. `lookup` false only hashes and builds the links;
+  `lookup` true also calls `GET {host}/api/packets/{hash}`. 400 for data that
+  is not a packet, 502 when the analyzer cannot be reached or answers
+  unusably.
+- New: `app/services/analyzer_packet_lookup.py`. Tests:
+  `tests/test_packet_who_heard.py` (including our hash against a real
+  analyzer packet), `frontend/src/test/packetWhoHeard.test.tsx`.
+
 ## Update 2026-10-10 (community bug fixes and enhancements, fix/community-bugfixes-enhancements)
 
 Seven fixes found by reviewing the open upstream issues and the forks that are

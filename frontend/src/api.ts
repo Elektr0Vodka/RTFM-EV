@@ -16,6 +16,7 @@ import type {
   RestoreStatus,
   AppSettingsUpdate,
   PacketHistoryResponse,
+  PacketWhoHeard,
   UrlPreview,
   TileAreaEstimate,
   TileAreaRequest,
@@ -795,6 +796,13 @@ export const api = {
     fetchJson<PacketHistoryResponse>(`/packets/history?${params.toString()}`),
   getPacket: (packetId: number) => fetchJson<RawPacket>(`/packets/${packetId}`),
   getUndecryptedPacketCount: () => fetchJson<{ count: number }>('/packets/undecrypted/count'),
+  // lookup=false only hashes the packet locally; lookup=true also sends that
+  // hash to the external analyzer to ask which of its observers heard it.
+  packetWhoHeard: (data: string, lookup = false) =>
+    fetchJson<PacketWhoHeard>('/packets/who-heard', {
+      method: 'POST',
+      body: JSON.stringify({ data, lookup }),
+    }),
   decryptHistoricalPackets: (params: {
     key_type: 'channel' | 'contact';
     channel_key?: string;

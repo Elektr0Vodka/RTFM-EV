@@ -144,6 +144,7 @@ frontend/src/
 │   ├── RawPacketList.tsx
 │   ├── RawPacketFeedView.tsx   # Live raw packet feed (list + filters + inspector); stats moved to Mesh Trends
 │   ├── RawPacketDetailModal.tsx # On-demand packet inspector dialog + RawPacketPasteInspector (shared paste-hex body)
+│   ├── PacketWhoHeard.tsx       # Inspector section: packet hash + analyzer packet links (local), and the analyzer's observers of the packet on request (`POST /packets/who-heard`)
 │   ├── MeshTrendsView.tsx      # Tools view: Live / Historical tabs (consolidated stats)
 │   ├── KnowledgeBaseView.tsx   # Tools view "Knowledge base" (#knowledge-base): Handy Info links with `kb` set, grouped by category; add = flagged custom link, remove = unflag (handy_info overlay)
 │   ├── ManualView.tsx          # Tools view "User Guide" (#manual): renders content/manual/{en,nl,de}.md for the active locale (EN fallback) with a section TOC; TOC scrolls in-pane and never changes the hash

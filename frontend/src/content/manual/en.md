@@ -321,6 +321,12 @@ The same kind of list over everything stored in the database. Pick 1, 3, 6, 12 o
 
 Paste a raw packet as hex to see it decoded byte by byte.
 
+### Who heard this
+
+Every packet breakdown (from the Packet Feed, Packet History, a message or Analyze Packet) has a **Who heard this** section. It shows the packet hash, which is the same for every relayed copy of one packet, and a link to the packet's page on each analyzer site you configured with a packet address (Settings > Database).
+
+**Ask** sends that hash to the analyzer set as external map source (meshcore-analyzer.eu by default) and lists the observers there that received the packet, with region, time, RSSI and SNR. That lets you compare your own reception with the rest of the mesh. Nothing is sent until you press the button, and the analyzer gets the hash, not the packet. It only knows what its own observers heard, so an empty answer does not mean nobody heard the packet.
+
 ### Mesh Visualizer
 
 A 3D graph of the mesh built from live packets. Nodes are spheres and packets are animated arcs. Controls tune which nodes are shown and how the graph moves, and **Clear & Reset** starts over.

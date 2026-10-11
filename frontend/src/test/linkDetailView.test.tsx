@@ -7,6 +7,9 @@ const mocks = vi.hoisted(() => ({
     getLinkTimeseries: vi.fn(),
     getLinkPackets: vi.fn(),
     getPacket: vi.fn(),
+    // The packet modal's "Who heard this" section; not under test here, and a
+    // rejection keeps it hidden.
+    packetWhoHeard: vi.fn(() => Promise.reject(new Error('not under test'))),
   },
 }));
 

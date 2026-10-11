@@ -14,6 +14,7 @@ import {
 } from '../utils/rawPacketInspector';
 import { toast } from './ui/sonner';
 import { Button } from './ui/button';
+import { PacketWhoHeard } from './PacketWhoHeard';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { useT, type TFn } from '../i18n';
 
@@ -820,6 +821,8 @@ export function RawPacketInspectionPanel({
           />
         </div>
       </div>
+
+      <PacketWhoHeard packetHex={packet.data} />
 
       <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
         <FieldSection

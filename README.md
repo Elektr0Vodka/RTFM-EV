@@ -71,6 +71,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - **Mesh Health:** advert counts and alerts, request traffic, public key prefix collisions, relay reception, and a power outage view (which nodes stay online, from each node's power source).
 - **Mesh Trends:** stored network, message and packet breakdowns plus live session statistics.
 - **Packet Feed** (live) and **Packet History** (everything stored, with search and CSV export).
+- **Who heard this** in every packet breakdown: the packet hash, links to its page on your analyzer sites, and on request the analyzer's observers that received the same packet, with region, time, RSSI and SNR.
 - **Analyze Packet**, **Mesh Visualizer** (3D graph), **Trace** (with a hop map), **Mesh Discovery** (repeaters, sensors, regions, plus Direct (0 hop) and Flood advert buttons).
 - **SNMP:** every node with SNMP set up in one sortable table, with failing polls marked and Poll now / Poll all now over your LAN (no RF). Each node has its own page with all 22 values and graphs over a time range you choose (counters as rates or totals, reboots counted).
 - **Channel Registry** with remote sync (open a channel's entry in edit mode from its header or info panel), and **Channel Finder** (WebGPU channel name search).

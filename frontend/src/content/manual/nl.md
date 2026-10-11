@@ -321,6 +321,12 @@ Hetzelfde soort lijst over alles wat in de database is opgeslagen. Kies 1, 3, 6,
 
 Plak een ruw pakket als hex om het byte voor byte gedecodeerd te zien.
 
+### Wie hoorde dit
+
+Elke pakketuitsplitsing (vanuit de Pakketfeed, de Pakketgeschiedenis, een bericht of Pakket analyseren) heeft een onderdeel **Wie hoorde dit**. Het toont de pakkethash, die voor elke doorgestuurde kopie van één pakket gelijk is, en een link naar de pagina van het pakket op elke analyzersite die je met een pakketadres hebt ingesteld (Instellingen > Database).
+
+**Vraag** stuurt die hash naar de analyzer die als externe kaartbron is ingesteld (standaard meshcore-analyzer.eu) en toont de observers daar die het pakket ontvingen, met regio, tijd, RSSI en SNR. Zo vergelijk je je eigen ontvangst met de rest van het netwerk. Er wordt niets verstuurd tot je op de knop drukt, en de analyzer krijgt de hash, niet het pakket. De analyzer kent alleen wat zijn eigen observers hoorden; een leeg antwoord betekent dus niet dat niemand het pakket hoorde.
+
 ### Mesh-visualisatie
 
 Een 3D-grafiek van de mesh, opgebouwd uit live pakketten. Nodes zijn bollen en pakketten zijn geanimeerde bogen. Met de bediening stel je in welke nodes je ziet en hoe de grafiek beweegt, en **Wissen & resetten** begint opnieuw.

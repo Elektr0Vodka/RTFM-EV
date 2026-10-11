@@ -963,6 +963,35 @@ export interface RawPacket {
   last_hop_hex?: string | null;
 }
 
+/** One reception of a packet by an observer of the external analyzer. */
+export interface PacketObserver {
+  observer_id: string | null;
+  observer_name: string | null;
+  /** Observer region code (IATA), as the analyzer reports it. */
+  region: string | null;
+  /** Epoch seconds. */
+  heard_at: number | null;
+  rssi: number | null;
+  snr: number | null;
+}
+
+/** Response of POST /packets/who-heard. */
+export interface PacketWhoHeard {
+  /** Firmware packet hash, 16 hex characters. Computed locally. */
+  packet_hash: string;
+  /** scheme://host that is, or would be, asked. */
+  analyzer_url: string;
+  /** Packet pages on the configured analyzer sites that have a packet template. */
+  links: { name: string; url: string }[];
+  /** False when only the hash and links were computed and nothing was asked. */
+  looked_up: boolean;
+  found: boolean;
+  observation_count: number;
+  observer_count: number;
+  truncated: boolean;
+  observers: PacketObserver[];
+}
+
 /** Response of GET /packets/history: a newest-first page plus a backward cursor. */
 export interface PacketHistoryResponse {
   packets: RawPacket[];

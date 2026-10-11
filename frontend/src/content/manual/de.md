@@ -321,6 +321,12 @@ Dieselbe Art Liste über alles, was in der Datenbank gespeichert ist. Wähle 1, 
 
 Füge ein Rohpaket als Hex ein, um es Byte für Byte entschlüsselt zu sehen.
 
+### Wer hat das gehört
+
+Jede Paketaufschlüsselung (aus dem Paket-Feed, dem Paketverlauf, einer Nachricht oder Paket analysieren) hat einen Abschnitt **Wer hat das gehört**. Er zeigt den Paket-Hash, der für jede weitergeleitete Kopie eines Pakets gleich ist, und einen Link zur Seite des Pakets auf jeder Analyzer-Seite, die du mit einer Paketadresse eingerichtet hast (Einstellungen > Datenbank).
+
+**Fragen** sendet diesen Hash an den Analyzer, der als externe Kartenquelle eingestellt ist (standardmäßig meshcore-analyzer.eu), und listet die Observer dort auf, die das Paket empfangen haben, mit Region, Zeit, RSSI und SNR. So vergleichst du deinen eigenen Empfang mit dem Rest des Netzes. Es wird nichts gesendet, bis du die Schaltfläche drückst, und der Analyzer erhält den Hash, nicht das Paket. Er kennt nur, was seine eigenen Observer gehört haben; eine leere Antwort heißt also nicht, dass niemand das Paket gehört hat.
+
 ### Mesh-Visualisierung
 
 Ein 3D-Graph des Mesh, aufgebaut aus Live-Paketen. Knoten sind Kugeln, Pakete sind animierte Bögen. Mit den Bedienelementen legst du fest, welche Knoten angezeigt werden und wie sich der Graph bewegt, und **Löschen & zurücksetzen** beginnt von vorn.
