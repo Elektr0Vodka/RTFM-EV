@@ -10,24 +10,42 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import shutil
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request, WebSocket
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 
 from app.config import settings as default_settings
 from app.gateway.keys import assign_url_keys, resolve
 from app.gateway.proxy import WORKER_UNAVAILABLE, proxy_http, proxy_websocket
 from app.gateway.registry import RadioEntry, RadioRegistry, RegistryError, Transport
-from app.gateway.supervisor import WorkerSupervisor
+from app.gateway.supervisor import PROJECT_ROOT, WorkerSupervisor
 from app.security import add_optional_basic_auth_middleware
 
 LAST_RADIO_COOKIE = "rtfm_last_radio"
 _HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
+DEFAULT_FRONTEND_DIRS = [
+    PROJECT_ROOT / "frontend" / "dist",
+    PROJECT_ROOT / "frontend" / "prebuilt",
+]
+CONTEXT_SCRIPT = "radio-context.js"
+
+
+def _context_script(context: dict) -> Response:
+    """The page context as a classic script, so the frontend has it before its bundle runs.
+
+    index.html loads ./radio-context.js first. In single-radio mode that is a
+    static no-op file from the build; here the gateway answers it instead.
+    """
+    # "</" is escaped so the value stays harmless if it is ever inlined into HTML.
+    payload = json.dumps(context).replace("</", "<\\/")
+    body = f"window.__RTFM_GATEWAY__ = {payload};\n"
+    return Response(body, media_type="text/javascript", headers={"Cache-Control": "no-store"})
 
 
 class RadioCreate(BaseModel):
@@ -50,8 +68,17 @@ def create_gateway_app(
     registry: RadioRegistry | None = None,
     supervisor=None,
     client: httpx.AsyncClient | None = None,
+    frontend_dirs: list[Path] | None = None,
 ) -> FastAPI:
     settings = settings or default_settings
+    frontend_dir = next(
+        (
+            candidate.resolve()
+            for candidate in (frontend_dirs or DEFAULT_FRONTEND_DIRS)
+            if (candidate / "index.html").is_file()
+        ),
+        None,
+    )
     registry = registry or RadioRegistry(Path(settings.database_path).parent / "radios.json")
     owns_client = client is None
     # No read timeout: radio operations behind a worker can take minutes.
@@ -118,7 +145,8 @@ def create_gateway_app(
         target = keys.get(int(last)) if last.isdigit() else None
         if target is None and keys:
             target = keys[min(keys)]
-        return RedirectResponse(f"r/{target}/" if target else "gateway/api/radios", status_code=307)
+        # No workspace yet (no radio has connected): the radios page.
+        return RedirectResponse(f"r/{target}/" if target else "gateway/", status_code=307)
 
     @app.get("/gateway/api/radios")
     async def list_radios() -> list[dict]:
@@ -194,6 +222,29 @@ def create_gateway_app(
         require_radio(radio_id)
         return {"lines": supervisor.log_lines(radio_id, limit)}
 
+    @app.get("/gateway")
+    async def radios_page_add_slash():
+        return RedirectResponse("gateway/", status_code=307)
+
+    @app.get(f"/gateway/{CONTEXT_SCRIPT}")
+    async def radios_page_context():
+        return _context_script({"page": "radios", "base": "./", "radio": None})
+
+    @app.get("/gateway/{path:path}")
+    async def radios_page(path: str):
+        """The same frontend build as the workspaces; it renders the radios page here."""
+        if path == "api" or path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not found")
+        if frontend_dir is None:
+            return JSONResponse({"detail": "Frontend build not found"}, status_code=503)
+        index_file = frontend_dir / "index.html"
+        candidate = (frontend_dir / path).resolve()
+        if not candidate.is_relative_to(frontend_dir):
+            raise HTTPException(status_code=404, detail="Not found")
+        if path and candidate.is_file() and candidate != index_file:
+            return FileResponse(candidate)
+        return FileResponse(index_file, headers={"Cache-Control": "no-store"})
+
     def _query(request) -> str:
         return f"?{request.url.query}" if request.url.query else ""
 
@@ -210,6 +261,19 @@ def create_gateway_app(
             up = "../" * (path.count("/") + 1)
             return RedirectResponse(
                 f"{up}{found.redirect_key}/{path}{_query(request)}", status_code=307
+            )
+        if path == CONTEXT_SCRIPT and request.method == "GET":
+            entry = registry.get(found.radio_id)
+            return _context_script(
+                {
+                    "page": "workspace",
+                    "base": "../../gateway/",
+                    "radio": {
+                        "id": found.radio_id,
+                        "name": entry.name if entry else "",
+                        "urlKey": segment,
+                    },
+                }
             )
         worker = supervisor.worker(found.radio_id)
         if worker.state != "running":

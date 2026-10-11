@@ -1,3 +1,4 @@
+import { radioKey } from '../gateway/context';
 const LOCAL_LABEL_KEY = 'remoteterm-local-label';
 
 export interface LocalLabel {
@@ -9,7 +10,7 @@ const DEFAULT_LABEL: LocalLabel = { text: '', color: '#062d60' };
 
 export function getLocalLabel(): LocalLabel {
   try {
-    const raw = localStorage.getItem(LOCAL_LABEL_KEY);
+    const raw = localStorage.getItem(radioKey(LOCAL_LABEL_KEY));
     if (!raw) return DEFAULT_LABEL;
     const parsed = JSON.parse(raw) as Partial<LocalLabel>;
     return {
@@ -23,7 +24,7 @@ export function getLocalLabel(): LocalLabel {
 
 export function setLocalLabel(text: string, color: string): void {
   try {
-    localStorage.setItem(LOCAL_LABEL_KEY, JSON.stringify({ text, color }));
+    localStorage.setItem(radioKey(LOCAL_LABEL_KEY), JSON.stringify({ text, color }));
   } catch {
     // localStorage may be unavailable
   }

@@ -1,6 +1,7 @@
 // Per-conversation "mute the mention sound" flags, kept per-device in
 // localStorage - the override half of the global mention-sound setting.
 import { getStateKey } from '../utils/conversationState';
+import { radioKey } from '../gateway/context';
 
 const STORAGE_KEY = 'meshcore_mention_sound_muted_by_conversation';
 
@@ -9,7 +10,7 @@ type MutedMap = Record<string, true>;
 function read(): MutedMap {
   if (typeof window === 'undefined') return {};
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(radioKey(STORAGE_KEY));
     if (!raw) return {};
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== 'object') return {};
@@ -24,7 +25,7 @@ function read(): MutedMap {
 function write(map: MutedMap): void {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+    window.localStorage.setItem(radioKey(STORAGE_KEY), JSON.stringify(map));
   } catch {
     /* storage unavailable */
   }

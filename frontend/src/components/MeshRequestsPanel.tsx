@@ -266,7 +266,7 @@ export function MeshRequestsPanel({ selectedWindow, refreshKey, onLoadingChange 
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetch(`/api/packets/request-traffic?start_ts=${startTs}&end_ts=${endTs}`)
+    fetch(`./api/packets/request-traffic?start_ts=${startTs}&end_ts=${endTs}`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json() as Promise<RequestTrafficResponse>;
@@ -292,7 +292,7 @@ export function MeshRequestsPanel({ selectedWindow, refreshKey, onLoadingChange 
     const id = setInterval(() => {
       const endTs = Math.floor(Date.now() / 1000);
       const startTs = endTs - selectedWindow.hours * 3600;
-      fetch(`/api/packets/request-traffic?start_ts=${startTs}&end_ts=${endTs}`)
+      fetch(`./api/packets/request-traffic?start_ts=${startTs}&end_ts=${endTs}`)
         .then((r) => (r.ok ? (r.json() as Promise<RequestTrafficResponse>) : null))
         .then((d) => {
           if (d) setData(d);

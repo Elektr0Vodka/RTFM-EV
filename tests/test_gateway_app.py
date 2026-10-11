@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 
 import httpx
 import pytest
@@ -78,11 +79,17 @@ def gateway(tmp_path, monkeypatch):
     )
     registry = RadioRegistry(tmp_path / "radios.json")
     supervisor = StubSupervisor()
+    frontend = tmp_path / "frontend"
+    (frontend / "assets").mkdir(parents=True)
+    (frontend / "index.html").write_text("<html>built app</html>")
+    (frontend / "assets" / "app.js").write_text("console.log(1)")
+    (tmp_path / "secret.txt").write_text("outside the build")
     app = create_gateway_app(
         settings=settings,
         registry=registry,
         supervisor=supervisor,
         client=httpx.AsyncClient(transport=httpx.ASGITransport(app=fake_worker)),
+        frontend_dirs=[tmp_path / "missing", frontend],
     )
     with TestClient(app, follow_redirects=False) as client:
         yield client, registry, supervisor
@@ -220,7 +227,71 @@ def test_root_without_any_key_redirects_to_the_radio_list(gateway):
     client, _, _ = gateway
     response = client.get("/")
     assert response.status_code == 307
-    assert response.headers["location"] == "gateway/api/radios"
+    assert response.headers["location"] == "gateway/"
+
+
+def _context(response) -> dict:
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/javascript")
+    assert response.headers["cache-control"] == "no-store"
+    prefix = "window.__RTFM_GATEWAY__ = "
+    assert response.text.startswith(prefix)
+    return json.loads(response.text[len(prefix) :].rstrip().rstrip(";"))
+
+
+def test_workspace_context_script_names_the_radio(gateway):
+    client, registry, supervisor = gateway
+    registry.set_public_key(1, KEY_A)
+    registry.update(1, name='868 </script> "MHz"')
+    supervisor.worker(1).state = "starting"
+    response = client.get(f"/r/{URL_A}/radio-context.js")
+    assert "</script>" not in response.text
+    assert _context(response) == {
+        "page": "workspace",
+        "base": "../../gateway/",
+        "radio": {"id": 1, "name": '868 </script> "MHz"', "urlKey": URL_A},
+    }
+
+
+def test_radios_page_context_script(gateway):
+    client, _, _ = gateway
+    assert _context(client.get("/gateway/radio-context.js")) == {
+        "page": "radios",
+        "base": "./",
+        "radio": None,
+    }
+
+
+def test_radios_page_serves_the_frontend_build(gateway):
+    client, _, _ = gateway
+    assert client.get("/gateway").headers["location"] == "gateway/"
+    page = client.get("/gateway/")
+    assert page.text == "<html>built app</html>"
+    assert page.headers["cache-control"] == "no-store"
+    assert client.get("/gateway/assets/app.js").text == "console.log(1)"
+    assert client.get("/gateway/some/spa/route").text == "<html>built app</html>"
+    assert client.get("/gateway/api/nope").status_code == 404
+    assert client.get("/gateway/%2e%2e/secret.txt").status_code == 404
+
+
+def test_radios_page_without_a_frontend_build_is_503(tmp_path, monkeypatch):
+    monkeypatch.setenv("MESHCORE_WORKER_TOKEN", TOKEN)
+    settings = Settings(
+        serial_port="",
+        tcp_host="10.0.0.5",
+        ble_address="",
+        database_path=str(tmp_path / "meshcore.db"),
+    )
+    app = create_gateway_app(
+        settings=settings,
+        registry=RadioRegistry(tmp_path / "radios.json"),
+        supervisor=StubSupervisor(),
+        client=httpx.AsyncClient(transport=httpx.ASGITransport(app=fake_worker)),
+        frontend_dirs=[tmp_path / "missing"],
+    )
+    with TestClient(app, follow_redirects=False) as client:
+        assert client.get("/gateway/").status_code == 503
+        assert client.get("/gateway/radio-context.js").status_code == 200
 
 
 def test_missing_slash_long_form_and_old_key_redirect(gateway):

@@ -1,5 +1,6 @@
 import type { Conversation } from '../types';
 import { parseHashConversation } from './urlHash';
+import { radioKey } from '../gateway/context';
 
 export const REOPEN_LAST_CONVERSATION_KEY = 'remoteterm-reopen-last-conversation';
 export const LAST_VIEWED_CONVERSATION_KEY = 'remoteterm-last-viewed-conversation';
@@ -33,7 +34,7 @@ export function setReopenLastConversationEnabled(enabled: boolean): void {
     }
 
     localStorage.removeItem(REOPEN_LAST_CONVERSATION_KEY);
-    localStorage.removeItem(LAST_VIEWED_CONVERSATION_KEY);
+    localStorage.removeItem(radioKey(LAST_VIEWED_CONVERSATION_KEY));
   } catch {
     // localStorage may be unavailable
   }
@@ -41,7 +42,7 @@ export function setReopenLastConversationEnabled(enabled: boolean): void {
 
 export function saveLastViewedConversation(conversation: Conversation): void {
   try {
-    localStorage.setItem(LAST_VIEWED_CONVERSATION_KEY, JSON.stringify(conversation));
+    localStorage.setItem(radioKey(LAST_VIEWED_CONVERSATION_KEY), JSON.stringify(conversation));
   } catch {
     // localStorage may be unavailable
   }
@@ -49,7 +50,7 @@ export function saveLastViewedConversation(conversation: Conversation): void {
 
 export function getLastViewedConversation(): Conversation | null {
   try {
-    const raw = localStorage.getItem(LAST_VIEWED_CONVERSATION_KEY);
+    const raw = localStorage.getItem(radioKey(LAST_VIEWED_CONVERSATION_KEY));
     if (!raw) return null;
 
     const parsed = JSON.parse(raw) as Partial<Conversation>;

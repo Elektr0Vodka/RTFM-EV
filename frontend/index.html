@@ -14,6 +14,9 @@
     <link rel="shortcut icon" href="./favicon.ico" />
     <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
     <link rel="manifest" href="./site.webmanifest" crossorigin="use-credentials" />
+    <!-- Multi-radio page context. A no-op file in single-radio mode; the
+         multi-radio gateway serves its own version. Must run before the bundle. -->
+    <script src="./radio-context.js"></script>
     <script>
       // Service worker registration moved to main.tsx (requires isSecureContext
       // for Web Push). Do not duplicate here.
@@ -100,14 +103,18 @@
           throw err;
         });
       };
-      window.__prefetch = {
-        config: fetchJsonOrThrow('./api/radio/config'),
-        settings: fetchJsonOrThrow('./api/settings'),
-        channels: fetchJsonOrThrow('./api/channels'),
-        contacts: fetchJsonOrThrow('./api/contacts?limit=1000&offset=0'),
-        unreads: fetchJsonOrThrow('./api/read-state/unreads'),
-        undecryptedCount: fetchJsonOrThrow('./api/packets/undecrypted/count'),
-      };
+      // The multi-radio radios page (/gateway/) has no radio API behind it.
+      var onRadiosPage = window.__RTFM_GATEWAY__ && window.__RTFM_GATEWAY__.page === 'radios';
+      if (!onRadiosPage) {
+        window.__prefetch = {
+          config: fetchJsonOrThrow('./api/radio/config'),
+          settings: fetchJsonOrThrow('./api/settings'),
+          channels: fetchJsonOrThrow('./api/channels'),
+          contacts: fetchJsonOrThrow('./api/contacts?limit=1000&offset=0'),
+          unreads: fetchJsonOrThrow('./api/read-state/unreads'),
+          undecryptedCount: fetchJsonOrThrow('./api/packets/undecrypted/count'),
+        };
+      }
     </script>
   </head>
   <body>

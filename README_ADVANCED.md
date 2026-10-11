@@ -192,7 +192,7 @@ Set `MESHCORE_MULTI_RADIO=true`. In Docker nothing else changes. Outside Docker,
 
 On the first start the radio you already have configured becomes radio 1 and keeps its existing database. The radio list is stored in `data/radios.json`. Each workspace is served at `/r/<first 12 characters of the radio's public key>/`, and `/` opens the last used one. A radio appears there after it has connected once.
 
-There is no management screen yet. Radios are added through the gateway API, for example:
+Radios are managed on the radios page at `/gateway/`: add, edit, remove, start, stop, restart and read the log of each radio. Inside a workspace, the radio name in the top bar opens a switcher with the other radios and a link to that page. The same can be done through the gateway API, for example:
 
     curl -X POST http://localhost:8000/gateway/api/radios \
       -H "Content-Type: application/json" \
@@ -200,7 +200,9 @@ There is no management screen yet. Radios are added through the gateway API, for
 
 `transport` is `{"type": "serial", "port": ..., "baudrate": 115200}`, `{"type": "tcp", "host": ..., "port": 5000}` or `{"type": "ble", "address": ..., "pin": ...}`. With more than one radio every serial radio needs an explicit port. `GET /gateway/api/radios` lists the radios with their state and URL.
 
-Limits: one Python process per radio (about 145 MB each before any data), the SNMP agent can only run on one radio, and push notifications are enabled per radio.
+Browser preferences such as theme, language and map look are shared by all radios. What belongs to one radio (last opened conversation, unread markers, local label, notification choices per conversation) is kept per radio.
+
+Limits: one Python process per radio (about 145 MB each before any data), the SNMP agent can only run on one radio, and push notifications are enabled per radio. Channels and unread counts are not shared between radios yet.
 
 ## HTTPS
 

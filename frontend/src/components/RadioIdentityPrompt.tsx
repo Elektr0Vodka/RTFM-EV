@@ -9,13 +9,14 @@ import { Checkbox } from './ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Label } from './ui/label';
 import { toast } from './ui/sonner';
+import { radioKey } from '../gateway/context';
 
 /** sessionStorage key: ids of pending radios whose prompt this browser session dismissed. */
 const DISMISSED_KEY = 'meshcore_radio_identity_prompt_dismissed';
 
 function readDismissed(): number[] {
   try {
-    const raw = window.sessionStorage.getItem(DISMISSED_KEY);
+    const raw = window.sessionStorage.getItem(radioKey(DISMISSED_KEY));
     const parsed: unknown = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? parsed.filter((v): v is number => typeof v === 'number') : [];
   } catch {
@@ -25,7 +26,7 @@ function readDismissed(): number[] {
 
 function writeDismissed(ids: number[]): void {
   try {
-    window.sessionStorage.setItem(DISMISSED_KEY, JSON.stringify(ids));
+    window.sessionStorage.setItem(radioKey(DISMISSED_KEY), JSON.stringify(ids));
   } catch {
     // Best effort: without storage the prompt simply shows again after a reload.
   }

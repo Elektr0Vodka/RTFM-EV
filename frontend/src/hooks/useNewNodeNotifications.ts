@@ -9,6 +9,7 @@ import {
   CONTACT_TYPE_ROOM,
   CONTACT_TYPE_SENSOR,
 } from '../types';
+import { radioTag } from '../gateway/context';
 
 const STORAGE_KEY = 'meshcore_new_node_notifications_settings';
 const NOTIFICATION_ICON_PATH = './favicon-256x256.png';
@@ -166,7 +167,7 @@ export function useNewNodeNotifications() {
         const notification = new window.Notification(t('toast_new_node_title', { name: label }), {
           body: t('toast_new_node_body', { type: contactTypeLabel(payload.type, t) }),
           icon: NOTIFICATION_ICON_PATH,
-          tag: `meshcore-new-node-${payload.public_key ?? label}`,
+          tag: radioTag(`meshcore-new-node-${payload.public_key ?? label}`),
         });
         notification.onclick = () => {
           if (payload.public_key) {
@@ -193,7 +194,7 @@ export function useNewNodeNotifications() {
         {
           body: t('toast_new_node_batch_body'),
           icon: NOTIFICATION_ICON_PATH,
-          tag: 'meshcore-new-node-batch',
+          tag: radioTag('meshcore-new-node-batch'),
         }
       );
       notification.onclick = () => {
