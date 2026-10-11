@@ -26,6 +26,7 @@ import {
 import { Input } from './ui/input';
 import { cn } from '@/lib/utils';
 import { useT, type TFn } from '../i18n';
+import { radioKey } from '../gateway/context';
 
 const TraceRouteMap = lazy(() =>
   import('./TraceRouteMap').then((m) => ({ default: m.TraceRouteMap }))
@@ -55,7 +56,7 @@ interface SavedTrace {
 
 function loadRecentTraces(): SavedTrace[] {
   try {
-    const raw = localStorage.getItem(RECENT_TRACES_KEY);
+    const raw = localStorage.getItem(radioKey(RECENT_TRACES_KEY));
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed.slice(0, MAX_RECENT_TRACES) : [];
@@ -73,7 +74,7 @@ function saveRecentTrace(trace: SavedTrace): void {
       (t) => t.hops.map((h) => h.publicKey ?? h.hopHex ?? '').join(',') !== sig
     );
     const updated = [trace, ...deduped].slice(0, MAX_RECENT_TRACES);
-    localStorage.setItem(RECENT_TRACES_KEY, JSON.stringify(updated));
+    localStorage.setItem(radioKey(RECENT_TRACES_KEY), JSON.stringify(updated));
   } catch {
     // localStorage may be disabled
   }
@@ -91,7 +92,7 @@ function repeaterKeysFromHops(hops: SavedTraceHop[]): string[] {
 
 function loadRecentNodeKeys(): string[] {
   try {
-    const raw = localStorage.getItem(RECENT_NODES_KEY);
+    const raw = localStorage.getItem(radioKey(RECENT_NODES_KEY));
     if (raw) {
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) return [];
@@ -122,7 +123,7 @@ function saveRecentNodeKeys(hops: SavedTraceHop[]): void {
     const fresh = repeaterKeysFromHops(hops);
     const rest = loadRecentNodeKeys().filter((key) => !fresh.includes(key));
     localStorage.setItem(
-      RECENT_NODES_KEY,
+      radioKey(RECENT_NODES_KEY),
       JSON.stringify([...fresh, ...rest].slice(0, MAX_RECENT_NODES))
     );
   } catch {

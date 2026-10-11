@@ -57,6 +57,10 @@ When a radio connects that this install has not seen before, a prompt asks **A d
 
 History recorded before radios were tracked is assigned to the connected radio automatically when the app can tell it is that radio's. Otherwise it asks once, **Whose history is this?**: **Yes, it belongs to this radio**, or **No, keep it separate**. Separate history stays available on My Node as **Before radio tracking**.
 
+### Several radios at once
+
+When the server runs in multi-radio mode, every radio has its own workspace with its own contacts, messages, packets and settings. The channel list is shared: a channel you add or remove in one workspace is added or removed in all of them. The radio name in the top bar opens a list of the other radios; pick one to switch. **Manage radios** opens the radios page, where you add, edit, start, stop and remove radios and read their log. A radio gets its workspace after it has connected once. A number next to the radio name shows how many unread messages wait on the other radios; it is highlighted when a direct message or a mention is among them. The mention and DM sound also plays for another radio if the sound is switched on in that radio's settings. Theme, language and map look are shared by all radios. This mode is off unless the server operator turns it on.
+
 ### Language and theme
 
 The interface is available in English, Dutch and German. Switch language with the language menu in the top bar (flag and language code) or under **Settings > Local Configuration**. The choice is saved per browser. The sun or moon icon in the top bar opens the theme picker.

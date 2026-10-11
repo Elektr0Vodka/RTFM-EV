@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from '../components/ui/sonner';
 import type { Message } from '../types';
 import { getStateKey } from '../utils/conversationState';
+import { radioKey, radioTag } from '../gateway/context';
 
 const STORAGE_KEY = 'meshcore_browser_notifications_enabled_by_conversation';
 const NOTIFICATION_ICON_PATH = './favicon-256x256.png';
@@ -29,7 +30,7 @@ function readStoredEnabledMap(): ConversationNotificationMap {
     return {};
   }
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(radioKey(STORAGE_KEY));
     if (!raw) {
       return {};
     }
@@ -49,7 +50,7 @@ function writeStoredEnabledMap(enabledByConversation: ConversationNotificationMa
   if (typeof window === 'undefined') {
     return;
   }
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(enabledByConversation));
+  window.localStorage.setItem(radioKey(STORAGE_KEY), JSON.stringify(enabledByConversation));
 }
 
 function getInitialPermission(): NotificationPermissionState {
@@ -199,7 +200,7 @@ export function useBrowserNotifications() {
         new window.Notification(buildPreviewNotificationTitle(type, label), {
           body: 'Notifications will look like this. These require the tab to stay open, and will not be reliable on mobile.',
           icon: NOTIFICATION_ICON_PATH,
-          tag: `meshcore-notification-preview-${conversationKey}`,
+          tag: radioTag(`meshcore-notification-preview-${conversationKey}`),
         });
         const toastInfo = getNotificationEnableToastInfo();
         if (toastInfo.level === 'warning') {
@@ -239,7 +240,7 @@ export function useBrowserNotifications() {
       const notification = new window.Notification(buildNotificationTitle(message), {
         body: message.text,
         icon: NOTIFICATION_ICON_PATH,
-        tag: `meshcore-message-${message.id}`,
+        tag: radioTag(`meshcore-message-${message.id}`),
       });
 
       notification.onclick = () => {

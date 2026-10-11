@@ -57,6 +57,10 @@ Verbindet sich ein Funkgerät, das diese Installation noch nicht kennt, fragt ei
 
 Verlauf aus der Zeit vor der Funkgeräte-Erfassung wird automatisch dem verbundenen Funkgerät zugeordnet, wenn die App erkennt, dass er zu ihm gehört. Sonst fragt sie einmal, **Wem gehört dieser Verlauf?**: **Ja, er gehört zu diesem Funkgerät**, oder **Nein, getrennt halten**. Getrennter Verlauf bleibt auf Mein Knoten als **Vor der Funkgeräte-Erfassung** verfügbar.
 
+### Mehrere Funkgeräte gleichzeitig
+
+Läuft der Server im Multi-Radio-Modus, hat jedes Funkgerät einen eigenen Arbeitsbereich mit eigenen Kontakten, Nachrichten, Paketen und Einstellungen. Die Kanalliste ist gemeinsam: Ein Kanal, den du in einem Arbeitsbereich hinzufügst oder entfernst, wird in allen hinzugefügt oder entfernt. Der Name des Funkgeräts in der oberen Leiste öffnet eine Liste der anderen Funkgeräte; wähle eines aus, um zu wechseln. **Funkgeräte verwalten** öffnet die Seite, auf der du Funkgeräte hinzufügst, bearbeitest, startest, stoppst und entfernst und ihr Protokoll liest. Ein Funkgerät bekommt seinen Arbeitsbereich, sobald es einmal verbunden war. Eine Zahl neben dem Namen des Funkgeräts zeigt, wie viele ungelesene Nachrichten auf den anderen Funkgeräten warten; sie ist hervorgehoben, wenn eine Direktnachricht oder eine Erwähnung darunter ist. Der Ton für Erwähnungen und Direktnachrichten erklingt auch für ein anderes Funkgerät, wenn der Ton in dessen Einstellungen eingeschaltet ist. Design, Sprache und Kartendarstellung gelten für alle Funkgeräte. Dieser Modus ist aus, solange der Betreiber des Servers ihn nicht einschaltet.
+
 ### Sprache und Design
 
 Die Oberfläche gibt es auf Englisch, Niederländisch und Deutsch. Die Sprache wechselst du über das Sprachmenü in der oberen Leiste (Flagge und Sprachkürzel) oder unter **Einstellungen > Lokale Konfiguration**. Die Wahl wird pro Browser gespeichert. Das Sonnen- oder Mondsymbol in der oberen Leiste öffnet die Designauswahl.

@@ -119,3 +119,53 @@ def add_optional_basic_auth_middleware(app, settings) -> None:
         username=settings.basic_auth_username,
         password=settings.basic_auth_password,
     )
+
+
+WORKER_TOKEN_HEADER = "x-rtfm-worker-token"
+_FORBIDDEN_BODY = json.dumps({"detail": "Forbidden"}).encode("utf-8")
+
+
+class WorkerTokenMiddleware:
+    """Multi-radio mode: only serve requests that came through the gateway.
+
+    The gateway starts each worker with a random token and adds it to every
+    request it forwards. Without this, any local process could reach a worker
+    on its loopback port and skip the gateway's Basic auth.
+    """
+
+    def __init__(self, app, *, token: str) -> None:
+        self.app = app
+        self._token = token.encode("utf-8")
+
+    async def __call__(self, scope, receive, send) -> None:
+        scope_type = scope["type"]
+        if scope_type not in {"http", "websocket"}:
+            await self.app(scope, receive, send)
+            return
+
+        supplied = Headers(scope=scope).get(WORKER_TOKEN_HEADER, "")
+        if secrets.compare_digest(supplied.encode("utf-8"), self._token):
+            await self.app(scope, receive, send)
+            return
+
+        prefix = "websocket.http.response" if scope_type == "websocket" else "http.response"
+        await send(
+            {
+                "type": f"{prefix}.start",
+                "status": 403,
+                "headers": [
+                    (b"content-type", b"application/json"),
+                    (b"cache-control", b"no-store"),
+                    (b"content-length", str(len(_FORBIDDEN_BODY)).encode("ascii")),
+                ],
+            }
+        )
+        await send({"type": f"{prefix}.body", "body": _FORBIDDEN_BODY})
+
+
+def add_optional_worker_token_middleware(app, settings) -> None:
+    """Gate the app behind the gateway's token when one is configured."""
+    if not settings.worker_token:
+        return
+
+    app.add_middleware(WorkerTokenMiddleware, token=settings.worker_token)

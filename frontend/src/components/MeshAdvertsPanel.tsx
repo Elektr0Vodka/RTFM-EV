@@ -505,7 +505,7 @@ export function MeshAdvertsPanel({
       setLoading(true);
       setError(null);
       setNowSec(endTs);
-      fetch(`/api/packets/mesh-health?start_ts=${startTs}&end_ts=${endTs}`)
+      fetch(`./api/packets/mesh-health?start_ts=${startTs}&end_ts=${endTs}`)
         .then((r) => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
           return r.json() as Promise<MeshHealthResponse>;
@@ -533,22 +533,22 @@ export function MeshAdvertsPanel({
     const endTs = Math.floor(Date.now() / 1000);
     const startTs = endTs - selectedWindow.hours * 3600;
 
-    fetch(`/api/packets/snr-rssi-scatter?start_ts=${startTs}&end_ts=${endTs}&limit=1500`)
+    fetch(`./api/packets/snr-rssi-scatter?start_ts=${startTs}&end_ts=${endTs}&limit=1500`)
       .then((r) => r.json() as Promise<ScatterPoint[]>)
       .then(setScatter)
       .catch(() => {});
 
-    fetch(`/api/packets/hourly-heatmap?start_ts=${startTs}&end_ts=${endTs}`)
+    fetch(`./api/packets/hourly-heatmap?start_ts=${startTs}&end_ts=${endTs}`)
       .then((r) => r.json() as Promise<HeatmapData>)
       .then(setHeatmapData)
       .catch(() => {});
 
-    fetch('/api/packets/relay-pairs?limit=10')
+    fetch('./api/packets/relay-pairs?limit=10')
       .then((r) => r.json() as Promise<RelayPair[]>)
       .then(setRelayPairs)
       .catch(() => {});
 
-    fetch(`/api/packets/reachability-rings?start_ts=${startTs}&end_ts=${endTs}`)
+    fetch(`./api/packets/reachability-rings?start_ts=${startTs}&end_ts=${endTs}`)
       .then((r) => r.json() as Promise<ReachabilityRing[]>)
       .then(setReachability)
       .catch(() => {});

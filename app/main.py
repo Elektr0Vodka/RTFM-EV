@@ -96,7 +96,10 @@ from app.routers import (
     wordlists,
     ws,
 )
-from app.security import add_optional_basic_auth_middleware
+from app.security import (
+    add_optional_basic_auth_middleware,
+    add_optional_worker_token_middleware,
+)
 from app.services.backup_scheduler import start_backup_schedule, stop_backup_schedule
 from app.services.db_restore import apply_pending_restore
 from app.services.external_map import start_external_map_sync, stop_external_map_sync
@@ -263,6 +266,7 @@ app = FastAPI(
 
 register_api_docs_routes(app)
 add_optional_basic_auth_middleware(app, server_settings)
+add_optional_worker_token_middleware(app, server_settings)
 app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(
     CORSMiddleware,

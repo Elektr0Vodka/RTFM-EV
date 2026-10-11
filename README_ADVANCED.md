@@ -10,6 +10,7 @@ These are intended for diagnosing or working around radios that behave oddly, or
 |----------|---------|-------------|
 | `MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK` | false | Run aggressive 10-second `get_msg()` fallback polling to check for messages ([docs](#message-poll-fallback)) |
 | `MESHCORE_FORCE_CHANNEL_SLOT_RECONFIGURE` | false | Disable channel-slot reuse and force `set_channel(...)` before every channel send ([docs](#force-channel-slot-reconfigure)) |
+| `MESHCORE_MULTI_RADIO` | false | Run one worker process per radio behind a gateway, one workspace per radio ([docs](#multiple-radios-experimental)) |
 | `MESHCORE_LOAD_WITH_AUTOEVICT` | false | Enable autoevict mode for contact loading ([docs](#autoevict-mode)) |
 | `__CLOWNTOWN_DO_CLOCK_WRAPAROUND` | false | Highly experimental: if the radio clock is ahead of system time, try forcing the clock to `0xFFFFFFFF`, wait for uint32 wraparound, and then retry normal time sync before falling back to reboot ([docs](#clock-wraparound)) |
 | `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT` | false | Enable `GET /api/radio/private-key` to return the in-memory private key as hex for backup or migration. Only enable on a trusted network. Import via `PUT /api/radio/private-key` is always available. ([docs](#private-key-export)) |
@@ -180,6 +181,112 @@ RemoteTerm has no sign-in page of its own. When a reverse proxy in front of it h
 - The WebSocket cannot show the status of a refused handshake, so after three failed connections in a row the app asks `/api/health` over HTTP and acts on that answer.
 - At most one automatic redirect or reload per minute, so a reload that does not bring the session back cannot loop.
 - The address is stored in the browser (`localStorage`), per device. Only a path on the same site or an `http(s)` address is accepted, and that is checked again each time the address is used; anything else in storage leads to a plain reload.
+
+## Multiple Radios (experimental)
+
+RTFM-EV can run several companion radios at once, for example one on 433 MHz and one on 868 MHz, or one on SF7 and one on SF8. Radios on different frequencies or spreading factors cannot hear each other, so each one sees a different mesh. Each radio therefore gets its own **workspace**: its own contacts, messages, packets, map, Mesh Health, settings, integrations and database.
+
+This mode is off by default. With the switch off, the app starts exactly as before.
+
+### Turning it on
+
+Set `MESHCORE_MULTI_RADIO=true`.
+
+In Docker, map every radio into the container and set the switch:
+
+```yaml
+    devices:
+      - /dev/serial/by-id/your-868-radio:/dev/meshcore-radio
+      - /dev/serial/by-id/your-433-radio:/dev/meshcore-radio-2
+    environment:
+      MESHCORE_SERIAL_PORT: /dev/meshcore-radio
+      MESHCORE_MULTI_RADIO: "true"
+```
+
+Outside Docker, also start `app.asgi:app` instead of `app.main:app`:
+
+```bash
+MESHCORE_MULTI_RADIO=true uv run uvicorn app.asgi:app --host 0.0.0.0 --port 8000
+```
+
+On the first start the radio you already have configured becomes radio 1. It keeps its existing database, so nothing is lost and nothing has to be imported.
+
+### Adding and managing radios
+
+Open `/gateway/` (the app sends you there while no radio has connected yet). The radios page lists every radio with its state and lets you add, edit, start, stop, restart and remove radios and read each radio's log.
+
+A radio connects over serial, TCP or Bluetooth LE, like a single radio does. With more than one radio, every serial radio needs an explicit port: auto-detection only works with a single radio. Editing a Bluetooth radio asks for the PIN again.
+
+Inside a workspace, the radio name in the top bar opens the **radio switcher**: the other radios, how many unread messages wait on each, and a link back to the radios page.
+
+### Workspace addresses
+
+Each workspace lives at `/r/<key>/`, where `<key>` is the first 12 characters of the radio's public key, for example `/r/0d1d00147f96/`. `/` opens the workspace you used last.
+
+- A radio gets its address after it has connected once. Until then it is only on the radios page.
+- The full public key, an upper-case key, or a key the radio had before all redirect to the current address.
+- If you swap the radio or import another private key, the address changes with the key. Bookmarks keep working through the redirect, but push notifications must be switched on again for the new address, and an installed app (PWA) still points at the old one.
+- Two radios that carry the same key get `-2`, `-3` after the key, in the order they were added.
+
+### What is shared and what is per radio
+
+| Shared by all radios | Per radio |
+|---|---|
+| Channel list: name and key | Messages, also in shared channels |
+| Unread badges in the radio switcher | Contacts, packets, map, Mesh Health, My Node |
+| Mention/DM sound for another radio (see below) | App settings, integrations (MQTT, Home Assistant, webhooks, Apprise), Spam Guard |
+| Browser preferences: theme, language, map look, sidebar order | Favourite, mute and read state of a channel |
+| | Last opened conversation, local label, per-conversation notification and sound choices |
+| | Push notifications (switched on per radio), backups, database |
+
+**Channels.** A channel added or removed in one workspace is added or removed in all of them within a few seconds. A radio that was stopped at the time catches up when it starts. Decrypting older packets for a new channel only runs in the workspace where you ask for it.
+
+**Unread and sound.** The switcher badge counts unread messages on the other radios and is highlighted when a direct message or a mention is among them. The mention/DM sound also plays for another radio when the sound is switched on in that radio's own settings, the conversation is not sound-muted there, and that radio has no tab of its own open (that tab plays it instead). A channel sounds once, on its first unread mention.
+
+**Push notifications.** Each workspace has its own subscription, so a push from any radio arrives whichever radio is on screen. With more than one radio the notification title starts with the radio's name.
+
+### Things to set up per radio
+
+- **Backups.** Each radio has its own database and its own backup settings. Give every radio its own backup folder: automatic backups from two radios use the same file names, and each radio's rotation would delete the other's files in a shared folder. A restore is applied when that radio restarts; use **Restart** on the radios page.
+- **Integrations.** MQTT, Home Assistant, webhooks and Apprise are configured in each workspace. See `README_HA.md` for how Home Assistant ids are built.
+- **Basic auth** is set once (`MESHCORE_BASIC_AUTH_USERNAME` / `MESHCORE_BASIC_AUTH_PASSWORD`) and protects the radios page and every workspace.
+- **Other `MESHCORE_*` variables** apply to every radio. A radio can override one through `env` in `data/radios.json` (the transport, database path, Basic auth and the switch itself cannot be overridden there).
+
+### Where the data lives
+
+- `data/radios.json`: the radio list. It can hold a Bluetooth PIN.
+- `data/meshcore.db`: radio 1 (your existing database).
+- `data/radios/<id>/meshcore.db`: every other radio, by its number on the radios page.
+
+Removing a radio keeps its data unless you tick the box to delete its database.
+
+### Going back to one radio
+
+Set `MESHCORE_MULTI_RADIO=false` (or remove it). The app runs as a single radio again with the radio and database from your environment, which is radio 1. The other radios' data stays in `data/radios/` and is used again when you turn the mode back on.
+
+### Limits
+
+- One Python process per radio. About 145 MB each was measured with no radio connected and an empty database; expect more in use.
+- The SNMP agent binds one UDP port, so it can run on one radio only.
+- Map tiles are cached once per radio.
+- No combined view, no search across radios, and no bridging of messages between meshes.
+- A crashed radio process is restarted automatically; the others keep running.
+
+Not tested yet: a real radio behind the gateway (all checks so far ran without one), the gateway behind a sub-path reverse proxy, phones, and Home Assistant with two radios on one broker.
+
+### Gateway API
+
+Everything on the radios page is also available under `/gateway/api`:
+
+```bash
+curl http://localhost:8000/gateway/api/radios
+curl -X POST http://localhost:8000/gateway/api/radios \
+  -H "Content-Type: application/json" \
+  -d '{"name": "433 MHz", "transport": {"type": "serial", "port": "/dev/meshcore-radio-2"}}'
+curl -X POST http://localhost:8000/gateway/api/radios/2/restart
+```
+
+`transport` is `{"type": "serial", "port": ..., "baudrate": 115200}`, `{"type": "tcp", "host": ..., "port": 5000}` or `{"type": "ble", "address": ..., "pin": ...}`. Also: `PATCH` and `DELETE /gateway/api/radios/{id}` (`?delete_data=true` removes that radio's database folder), `POST .../start` and `.../stop`, `GET .../log`, and `GET /gateway/api/unreads`.
 
 ## HTTPS
 

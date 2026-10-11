@@ -150,7 +150,7 @@ export function MeshPrefixCollisionsPanel({ refreshKey, onLoadingChange, onOpenN
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetch('/api/packets/prefix-collisions')
+    fetch('./api/packets/prefix-collisions')
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json() as Promise<PrefixCollisionsResponse>;

@@ -1,6 +1,7 @@
 import type { Contact, Conversation } from '../types';
 import { CONTACT_TYPE_REPEATER } from '../types';
 import { getConversationHash } from '../utils/urlHash';
+import { radioTag } from '../gateway/context';
 
 /**
  * The chat popup is the same SPA opened with `?popout=`:
@@ -62,8 +63,11 @@ export function buildMainUrl(hash: string): string {
 }
 
 export function popoutWindowName(mode: PopoutMode, conv: Conversation | null): string {
-  if (mode === 'chat' || !conv) return MULTI_WINDOW_NAME;
-  return `${MULTI_WINDOW_NAME}-${conv.type}-${conv.id}`;
+  // Window names are shared by one origin: without the radio, the popup of one
+  // radio would reuse the window of another in multi-radio mode.
+  const base = radioTag(MULTI_WINDOW_NAME);
+  if (mode === 'chat' || !conv) return base;
+  return `${base}-${conv.type}-${conv.id}`;
 }
 
 /**
@@ -73,7 +77,7 @@ export function popoutWindowName(mode: PopoutMode, conv: Conversation | null): s
  */
 export function openChatPopout(mode: PopoutMode, conv: Conversation | null): boolean {
   if (getPopoutMode() === null && !window.name) {
-    window.name = MAIN_WINDOW_NAME;
+    window.name = radioTag(MAIN_WINDOW_NAME);
   }
   const opened = window.open(
     buildPopoutUrl(mode, conv),
@@ -89,7 +93,7 @@ export function openChatPopout(mode: PopoutMode, conv: Conversation | null): boo
 export function openMainAppAt(hash: string): void {
   // Same document, different hash: an already open main tab navigates in place
   // (no reload); otherwise this opens a new one under that name.
-  window.open(buildMainUrl(hash), MAIN_WINDOW_NAME)?.focus();
+  window.open(buildMainUrl(hash), radioTag(MAIN_WINDOW_NAME))?.focus();
 }
 
 export function openInMainApp(conv: Conversation | null): void {

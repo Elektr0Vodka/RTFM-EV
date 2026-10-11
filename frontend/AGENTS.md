@@ -697,6 +697,19 @@ The `SearchView` component (`components/SearchView.tsx`) provides full-text sear
 - **Bidirectional pagination**: After jumping mid-history, `hasNewerMessages` enables forward pagination via `fetchNewerMessages`. The scroll-to-bottom button calls `jumpToBottom` (re-fetches latest page) instead of just scrolling.
 - **WS message suppression**: When `hasNewerMessages` is true, incoming WS messages for the active conversation are not added to the message list (the user is viewing historical context, not the latest page).
 
+## Multi-radio mode (`src/gateway/`)
+
+Only active behind the multi-radio gateway (backend `app/gateway/`, `MESHCORE_MULTI_RADIO=true`). In single-radio mode every helper here is a no-op and nothing renders.
+
+- **Page context.** `index.html` loads `./radio-context.js` (classic script) before the bundle. `public/radio-context.js` is a comment only. The gateway serves its own version, which sets `window.__RTFM_GATEWAY__`. Read it only through `getGatewayContext()` in `gateway/context.ts`: `page` is `'workspace'` (one radio's app under `/r/<key>/`) or `'radios'` (the radios page at `/gateway/`), `base` is the relative URL of the gateway root, `radio` is `{id, name, urlKey}`.
+- **Radios page.** The gateway serves this same build at `/gateway/`. `main.tsx` renders `GatewayApp` there instead of `App`, and skips the service worker, the tile config fetch and the `__prefetch` calls, because no radio API exists behind that URL. `gateway/api.ts` is the client for `/gateway/api/radios`; it is separate from `api.ts` on purpose.
+- **Switcher.** `HeaderRadioMenu` in `StatusBar` (outside `showControls`, so the Atlas strip has it too). Switching is a plain link to `../<url_key>/`; a radio without a key yet is listed but not a link.
+- **Browser storage.** Shared by default. A key that holds one radio's data must go through `radioKey(KEY)` at every `getItem`/`setItem`/`removeItem`, and be listed in `PER_RADIO_LOCAL_KEYS` (or `PER_RADIO_SESSION_KEYS`) in `gateway/context.ts`; it is then stored as `r<id>:<key>`. Use the radio id, never the URL key: the key changes when the radio is swapped. `gateway/bootstrap.ts` (first import of `main.tsx`) copies radio 1's unprefixed values once.
+- **Notification tags.** Tags are shared by every page of one origin. Page notifications wrap their tag in `radioTag(...)`; `public/sw.js` prefixes push tags with its registration scope and, with more than one radio, puts the radio name in front of the title (asked from the gateway, 2 s limit, never blocks the notification).
+- **Unread across radios.** `gateway/unreads.ts` follows `/gateway/ws` (reconnecting) and holds the totals in a small store: `useRadioUnreads()` for the switcher badges, `getRadioUnreads()` outside React. `useOtherRadioAlerts(playAlertSound, enabled)` in `App` owns the connection (main window only, not the chat popup) and plays the mention/DM sound for another radio: only when that radio's own sound setting is on, not every alerted conversation is sound-muted there (`isStateKeySoundMutedOnRadio`, read from that radio's storage key), and no tab of that radio is open (`gateway/radioTabs.ts`, a BroadcastChannel shared by all radios). It uses this tab's sound choice and volume.
+- **Cross-tab names are per radio.** `BroadcastChannel` names and `window.open` targets are shared by one origin, so the chat popup's window names and `popout/mainPresence.ts` go through `radioTag(...)`. Do the same for any new one unless it is meant to span radios.
+- **API paths are relative.** `./api/...`, never `/api/...`: the app runs under `/r/<key>/` here and under any sub-path behind a reverse proxy. `src/test/noAbsoluteApiPaths.test.ts` fails on an absolute one.
+
 ## Web Push Notifications
 
 Web Push allows notifications even when the browser tab is closed. Requires HTTPS (self-signed OK).

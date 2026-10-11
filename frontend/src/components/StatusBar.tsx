@@ -16,6 +16,7 @@ import { handleKeyboardActivate } from '../utils/a11y';
 import { useT } from '../i18n';
 import { getEffectiveTheme, THEME_CHANGE_EVENT } from '../utils/theme';
 import { HeaderLanguageMenu } from './HeaderLanguageMenu';
+import { HeaderRadioMenu } from '../gateway/HeaderRadioMenu';
 import { LivePacketSparkline } from './LivePacketSparkline';
 import { useUpdateStatus } from '../hooks/useUpdateStatus';
 import { useHostRepeaterArmed } from '../hooks/useHostRepeaterArmed';
@@ -333,6 +334,8 @@ export function StatusBar({
               : t('common_reconnect')}
         </button>
       )}
+      {/* Multi-radio mode only; outside showControls so the Atlas strip has it too. */}
+      <HeaderRadioMenu />
       {showControls && (
         <>
           {onOpenChatWindow && (

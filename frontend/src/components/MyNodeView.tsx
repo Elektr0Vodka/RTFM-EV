@@ -1723,7 +1723,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const cfgRes = await fetch('/api/radio/config');
+      const cfgRes = await fetch('./api/radio/config');
       if (cfgRes.status === 503) {
         setError('radio-disconnected');
         return;
@@ -1731,8 +1731,8 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
       if (!cfgRes.ok) throw new Error('Could not load radio config');
       const [cfg, healthRes, statsRes] = await Promise.all([
         cfgRes.json() as Promise<RadioConfig>,
-        fetch('/api/health'),
-        fetch('/api/statistics'),
+        fetch('./api/health'),
+        fetch('./api/statistics'),
       ]);
       setConfig(cfg);
       if (healthRes.ok) setHealth(await healthRes.json());
@@ -1762,7 +1762,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
     setHistoricalError(null);
     try {
       const res = await fetch(
-        `/api/packets/timeseries?start_ts=${startTs}&end_ts=${endTs}&bin_count=${BIN_COUNT}`
+        `./api/packets/timeseries?start_ts=${startTs}&end_ts=${endTs}&bin_count=${BIN_COUNT}`
       );
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -1847,7 +1847,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
     setHistoricalStatsLoading(true);
     setHistoricalStatsError(null);
 
-    fetch(`/api/packets/historical-stats?start_ts=${startTs}&end_ts=${endTs}`)
+    fetch(`./api/packets/historical-stats?start_ts=${startTs}&end_ts=${endTs}`)
       .then((r) => r.json())
       .then((data: HistoricalStatsResponse) => {
         setHistoricalStats(data);

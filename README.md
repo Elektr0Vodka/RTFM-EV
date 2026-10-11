@@ -86,6 +86,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - GPS toggle on any radio that reports it, including stock companion firmware.
 - [meshcomod (DMC-EV)](#meshcomod-dmc-ev-firmware) CAD and GPS controls, and [OpenHop](#openhop-nodes) management panes.
 - Radio identity registry: history per radio, and a prompt when a different radio connects (new radio or replacement).
+- [Several radios at once](README_ADVANCED.md#multiple-radios-experimental) (experimental, opt-in): one workspace per radio, for example 433 and 868 MHz side by side, with a shared channel list, a radio switcher and unread badges across radios.
 - Loadouts: named sets of channels and contacts to load onto the radio, for example before disconnecting it.
 - [Host repeater](#host-repeater) in shadow mode, with optional live forwarding.
 - [Spam Guard](#spam-guard): channel spam detection with a Monitor and a Protect mode, off by default.
@@ -295,6 +296,7 @@ Settings are environment variables with the `MESHCORE_` prefix. Only one transpo
 | `MESHCORE_VAPID_SUBJECT`         | `mailto:noreply@meshcore.local` | Web Push VAPID `sub` claim (`mailto:` or `https:`). Apple rejects the default `.local` domain, so set a real address for iOS/Safari push |
 | `MESHCORE_HOST_REPEATER_ENABLED` | `false`                         | Server switch needed to arm the [host repeater](#host-repeater) for live forwarding. Shadow mode does not need it                        |
 | `MESHCORE_UPDATE_CHECK_ENABLED`  | `true`                          | Check GitHub for a newer fork build and show an in-app indicator; set `false` to disable the outbound request                            |
+| `MESHCORE_MULTI_RADIO`           | `false`                         | Run several radios at once, one workspace per radio (experimental). See [Multiple Radios](README_ADVANCED.md#multiple-radios-experimental) |
 
 Remediation and advanced variables (`MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK`, `MESHCORE_FORCE_CHANNEL_SLOT_RECONFIGURE`, `MESHCORE_LOAD_WITH_AUTOEVICT`, `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT` and others) are described in [README_ADVANCED.md](README_ADVANCED.md#remediation--advanced-environment-variables). Most other settings live in the app under **Settings**.
 

@@ -2,12 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { Conversation } from '../types';
 import { getStateKey } from '../utils/conversationState';
+import { radioKey } from '../gateway/context';
 
 export const SIDEBAR_SEEN_ITEMS_KEY = 'remoteterm-sidebar-seen-items';
 
 function loadSeen(): Set<string> | null {
   try {
-    const raw = localStorage.getItem(SIDEBAR_SEEN_ITEMS_KEY);
+    const raw = localStorage.getItem(radioKey(SIDEBAR_SEEN_ITEMS_KEY));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return null;
@@ -19,7 +20,7 @@ function loadSeen(): Set<string> | null {
 
 function persistSeen(seen: Set<string>): void {
   try {
-    localStorage.setItem(SIDEBAR_SEEN_ITEMS_KEY, JSON.stringify([...seen]));
+    localStorage.setItem(radioKey(SIDEBAR_SEEN_ITEMS_KEY), JSON.stringify([...seen]));
   } catch {
     // localStorage may be disabled; keep in-memory only.
   }

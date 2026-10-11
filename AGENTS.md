@@ -67,6 +67,10 @@ Ancillary AGENTS.md files which should generally not be reviewed unless specific
                      └─────────────┘
 ```
 
+### Multi-radio mode (opt-in)
+
+With `MESHCORE_MULTI_RADIO=true`, `app.asgi:app` serves a gateway (`app/gateway/`) instead of the app. The gateway runs this same single-radio app once per radio as a subprocess, each with its own database and transport, and forwards `/r/<key>/...` to the right one. Nothing in the core app knows about other radios; everything that spans radios (radio list, shared channel list, unread totals) lives in the gateway, and the frontend side in `frontend/src/gateway/`. See the "Multi-radio gateway" section in `app/AGENTS.md` and "Multi-radio mode" in `frontend/AGENTS.md`.
+
 ## Feature Priority
 
 **Primary (must work correctly):**
@@ -554,6 +558,7 @@ mc.subscribe(EventType.ACK, handler)
 | `MESHCORE_SKIP_POST_CONNECT_SYNC` | `false` | Debug/diagnostic escape hatch: skip the contact/channel sync-and-offload, startup advertisement, and pending-message drain during post-connect setup, and do not start the periodic sync/advert/message-poll/telemetry background loops. Handler registration, key export, time sync, flood-scope apply, and auto message fetching still run. Useful when the radio's contact/channel state must be left untouched; not for normal operation. |
 | `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT` | `false` | Enable `GET /api/radio/private-key` to return the in-memory private key as hex. Disabled by default; only enable on a trusted network where you need to retrieve the key (e.g. for backup or migration). |
 | `MESHCORE_UPDATE_CHECK_ENABLED` | `true` | Check GitHub for a newer fork build and show the in-app update indicator (Settings > About also has a manual re-check). Set `false` to disable the outbound request. |
+| `MESHCORE_MULTI_RADIO` | `false` | Run one worker process per radio behind a gateway (experimental); start `app.asgi:app`. See README_ADVANCED.md, Multiple Radios |
 | `MESHCORE_VAPID_SUBJECT` | `mailto:noreply@meshcore.local` | Subject (`sub`) claim for Web Push VAPID tokens; must be a `mailto:` or `https:` contact. Apple's push service (APNs) rejects the default `.local` domain with `403 BadJwtToken`, so iOS/Safari operators must set this to a real address. Google FCM (Chrome/Android) accepts the default. |
 
 **Note:** Runtime app settings are stored in the database (`app_settings` table), not environment variables. These include `max_radio_contacts`, `auto_decrypt_dm_on_advert`, `advert_interval`, `last_advert_time`, `last_message_times`, `flood_scope`, `known_regions`, `blocked_keys`, `blocked_names`, `discovery_blocked_types`, `tracked_telemetry_repeaters`, `tracked_telemetry_contacts`, `auto_resend_channel`, and `telemetry_interval_hours`, `telemetry_schedule_minute`, plus the retention, sidebar, packet-view, map-home, date/time-format, chat-parsing, branding, backup, and OpenHop settings (full list in `app/AGENTS.md`). `max_radio_contacts` is the configured radio contact capacity baseline used by background maintenance: favorites reload first, non-favorite fill targets about 80% of that value, and full offload/reload triggers around 95% occupancy. They are configured via `GET/PATCH /api/settings`. MQTT, webhook, Apprise, and SQS configs are stored in the `fanout_configs` table, managed via `/api/fanout`. If the radio's channel slots appear unstable or another client is mutating them underneath this app, operators can force the old always-reconfigure send path with `MESHCORE_FORCE_CHANNEL_SLOT_RECONFIGURE=true`.

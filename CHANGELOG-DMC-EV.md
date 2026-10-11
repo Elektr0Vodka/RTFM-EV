@@ -11,6 +11,23 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-11 (Multi-radio mode, plan 30 parts A to D)
+
+### Multi-radio mode (new, opt-in, experimental)
+
+- `MESHCORE_MULTI_RADIO=true` starts a gateway that runs the app once per radio and serves each radio under `/r/<key>/`, where `<key>` is the first 12 hex characters of the radio's public key. Each radio has its own database, settings and integrations. Off by default; with the switch off nothing changes.
+- New entry point `app.asgi:app` (the Docker image uses it). `app.main:app` still works for single-radio installs.
+- Radio list in `data/radios.json`, managed on the radios page at `/gateway/` or through `/gateway/api/radios` (add, edit, remove, start, stop, restart, log).
+- The configured radio becomes radio 1 on the first start and keeps its database.
+- Workers only accept requests from the gateway (`MESHCORE_WORKER_TOKEN`, set automatically).
+- Radio switcher in the top bar (multi-radio mode only): the other radios and a link to the radios page.
+- Browser storage: values that belong to one radio (last opened conversation, sidebar new-item markers, recent traces, local label, per-conversation notification and sound choices) are kept per radio. Preferences such as theme, language and map look stay shared. Radio 1 keeps the values it had.
+- Notifications from two radios no longer replace each other: the tag carries the radio. With more than one radio a push notification shows the radio name in front of the title.
+- Fix: Mesh Health panels and the My Node charts called `/api/...` with an absolute path, which broke them behind a sub-path reverse proxy. They now use the relative path like the rest of the app.
+- Shared channel list: a channel (name and key) added in one workspace appears in all of them, including channels a radio picks up on its own. A delete is replayed to the other radios and remembered for a radio that is stopped, so it cannot bring the channel back. Messages, favourite, mute, read state and the per-channel overrides stay per radio.
+- Unread across radios: the radio switcher shows a badge with what waits on the other radios, and each radio in its menu shows its own count. The mention/DM sound plays for a new direct message or a first mention on another radio, following that radio's sound setting and per-conversation sound mutes, and stays quiet when that radio has its own tab open.
+- The chat popup's window name and its "is a main tab open" check are now per radio, so a popup of one radio no longer reuses the window, or trusts the main tab, of another.
+
 ## Update 2026-10-11 (chat window: sort, fold and filter the lists, feat/popout-list-sort-filter)
 
 Frontend only. No migration, no new dependency, no backend change.

@@ -272,7 +272,7 @@ export function MeshRelayReceptionPanel({
     setLoading(true);
     setError(null);
     fetch(
-      `/api/packets/relay-reception?start_ts=${startTs}&end_ts=${endTs}` +
+      `./api/packets/relay-reception?start_ts=${startTs}&end_ts=${endTs}` +
         `&limit=${pageSize}&offset=${page * pageSize}`
     )
       .then((r) => {

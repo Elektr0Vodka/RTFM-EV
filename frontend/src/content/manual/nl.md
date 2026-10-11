@@ -57,6 +57,10 @@ Verbindt er een radio die deze installatie nog niet kent, dan vraagt een venster
 
 Geschiedenis van voordat radio's werden bijgehouden, wordt automatisch aan de verbonden radio toegewezen als de app kan zien dat die van deze radio is. Anders vraagt hij het één keer, **Van wie is deze geschiedenis?**: **Ja, die hoort bij deze radio**, of **Nee, apart houden**. Aparte geschiedenis blijft op Mijn node beschikbaar als **Voor radio-registratie**.
 
+### Meerdere radio's tegelijk
+
+Als de server in multi-radiomodus draait, heeft elke radio een eigen werkruimte met eigen contacten, berichten, pakketten en instellingen. De kanalenlijst is gedeeld: een kanaal dat je in de ene werkruimte toevoegt of verwijdert, wordt in alle werkruimtes toegevoegd of verwijderd. De radionaam in de bovenbalk opent een lijst met de andere radio's; kies er een om te wisselen. **Radio's beheren** opent de pagina waar je radio's toevoegt, bewerkt, start, stopt en verwijdert en hun log leest. Een radio krijgt een werkruimte nadat hij één keer verbonden is geweest. Een getal naast de radionaam laat zien hoeveel ongelezen berichten er op de andere radio's wachten; het is gemarkeerd als er een direct bericht of een vermelding bij zit. Het geluid voor vermeldingen en directe berichten klinkt ook voor een andere radio, als het geluid in de instellingen van die radio aan staat. Thema, taal en kaartweergave worden door alle radio's gedeeld. Deze modus staat uit, tenzij de beheerder van de server hem aanzet.
+
 ### Taal en thema
 
 De interface is beschikbaar in het Engels, Nederlands en Duits. Wissel van taal met het taalmenu in de bovenbalk (vlag en taalcode) of onder **Instellingen > Lokale configuratie**. De keuze wordt per browser bewaard. Het zon- of maanpictogram in de bovenbalk opent de themakiezer.
