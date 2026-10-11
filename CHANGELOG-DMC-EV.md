@@ -11,6 +11,40 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-11 (chat window: sort, fold and filter the lists, feat/popout-list-sort-filter)
+
+Frontend only. No migration, no new dependency, no backend change.
+
+### Interface: chat window lists
+- **Sort per section.** Channels, Direct and Rooms each have their own order
+  picker in the section header: Newest, Oldest, A-Z, Z-A, Most unread, and for
+  Direct and Rooms also Nearest and Farthest. The defaults are the orders the
+  list had before (Channels A-Z, Direct and Rooms Newest), so nothing moves
+  until an order is changed.
+  - Public stays the first channel and muted channels stay at the bottom in
+    every order.
+  - Newest keeps unread chats on top, as before. Oldest is plain time order.
+    Chats that never had a message go last in Oldest.
+  - Distance is measured from the radio's own position to the contact's
+    advertised position, or its manual one when it advertises none. Contacts
+    without a position go last, A-Z. While a section is sorted by distance its
+    rows show the distance in the chosen unit. Without a valid radio position
+    the two distance orders are greyed out; channels have no position and do
+    not offer them.
+- **Fold a section** by clicking its header. A folded header shows the unread
+  total of the rows it hides. Typing in the filter box opens every section for
+  as long as there is filter text.
+- **Three toggles** under the filter box: Favorites only, Unread only, Hide
+  muted channels. The open conversation stays listed whatever is switched on.
+  The toggles also apply to filter results.
+- **Recent senders** (right-hand list) has its own order (A-Z, Z-A, Last
+  spoke, Most messages, Nearest, Farthest) and a button that folds the list to
+  a thin strip. Distance works for senders that resolve to a contact with a
+  position.
+- All of this is saved per browser (`localStorage` key
+  `rtfm-popout-list-prefs`), apart from the main sidebar's sort settings, and
+  is picked up by other open chat windows. The detached single-chat window has
+  no lists and is unchanged.
 ## Update 2026-10-11 (room servers: resync history, feat/room-history-resync)
 
 One feature found in a review of other forks of upstream (tristandostaler
