@@ -578,6 +578,16 @@ class ContactAnalyticsWeeklyBucket(BaseModel):
     message_count: int = 0
 
 
+class ContactClockReading(BaseModel):
+    """A node's clock offset, read from the newest advert that kept its timestamp."""
+
+    offset_seconds: int = Field(
+        description="Advert timestamp minus our receive time; positive = the node runs ahead"
+    )
+    measured_at: int = Field(description="When that advert was first heard (Unix seconds)")
+    state: Literal["in_sync", "ahead", "behind"]
+
+
 class ContactAnalytics(BaseModel):
     """Unified contact analytics payload for keyed and name-only lookups."""
 
@@ -594,6 +604,13 @@ class ContactAnalytics(BaseModel):
     advert_frequency: float | None = Field(
         default=None,
         description="Advert observations per hour (includes multi-path arrivals of same advert)",
+    )
+    clock: ContactClockReading | None = Field(
+        default=None,
+        description=(
+            "The node's clock offset from its newest advert; None until an advert from "
+            "it is heard after migration 139"
+        ),
     )
     nearest_repeaters: list[NearestRepeater] = Field(default_factory=list)
     path_scores: list[ContactPathScore] = Field(
@@ -2241,6 +2258,14 @@ class AppSettings(BaseModel):
     tracked_telemetry_repeaters: list[str] = Field(
         default_factory=list,
         description="Public keys of repeaters opted into periodic telemetry collection (max 8)",
+    )
+    clock_sync_repeaters: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Public keys of tracked repeaters whose clock may be set during a telemetry "
+            "cycle, when their adverts show it running behind. Subset of "
+            "tracked_telemetry_repeaters; empty by default"
+        ),
     )
     tracked_telemetry_contacts: list[str] = Field(
         default_factory=list,

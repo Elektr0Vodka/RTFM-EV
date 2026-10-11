@@ -420,6 +420,7 @@ This table is a representative subset, not the full route list (for example the 
 | POST | `/api/settings/blocked-keys/toggle` | Toggle blocked key |
 | POST | `/api/settings/blocked-names/toggle` | Toggle blocked name |
 | POST | `/api/settings/tracked-telemetry/toggle` | Toggle tracked telemetry repeater |
+| POST | `/api/settings/clock-sync-repeaters/toggle` | Toggle clock sync for a tracked repeater (sets its clock in a telemetry cycle when its adverts show it running behind) |
 | GET | `/api/settings/tracked-telemetry/schedule` | Current telemetry scheduling derivation and next-run-at timestamp |
 | POST | `/api/settings/tracked-telemetry-contacts/toggle` | Toggle tracked LPP telemetry for any contact |
 | GET | `/api/settings/tracked-telemetry-contacts/schedule` | Contact telemetry scheduling derivation (shared ceiling with repeaters) |

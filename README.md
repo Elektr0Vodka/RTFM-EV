@@ -53,6 +53,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - SNMP polling of observer firmware nodes over your LAN (repeaters and room servers): set an address per contact and read radio, MQTT, memory and WiFi values without using RF.
 - Optional SNMP agent: let LibreNMS, Zabbix or another monitoring system poll this node with the same OIDs as the observer firmware (read-only, off by default).
 - Scheduled telemetry tracking for repeaters and up to 8 other contacts.
+- Node clocks: each contact shows how far its clock is off, read from the time in its adverts (nothing is sent). A tracked repeater can have its clock set automatically when it runs behind (opt-in, checked against the rest of the mesh first).
 - Routing override, Path Discovery and Direct Trace per contact.
 - Suggested DM routes for companions, built from the paths they were heard on, with an optional analyzer check. Suggest only: you pick one to set it as the routing override.
 - Name resolution for contacts known only by public key, from the synced analyzer map or opt-in analyzer lookups.

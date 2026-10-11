@@ -813,6 +813,9 @@ async def _process_advertisement(
             timestamp=timestamp,
             path_len=new_path_len,
             path_hex=new_path_hex,
+            # The sender's own clock, kept next to our receive time so its
+            # offset can be read later. It stays out of last_seen/last_advert.
+            sender_timestamp=advert.timestamp,
         )
     promoted_keys = await promote_prefix_contacts_for_contact(
         public_key=advert.public_key,

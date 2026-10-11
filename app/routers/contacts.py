@@ -20,6 +20,7 @@ from app.models import (
     ContactAdvertPathSummary,
     ContactAnalytics,
     ContactAnnotationsUpdate,
+    ContactClockReading,
     ContactFloodScopeOverrideRequest,
     ContactLocationHistory,
     ContactRadioPolicyRequest,
@@ -64,6 +65,7 @@ from app.services.analyzer_path_check import (
     validate_suggestions,
 )
 from app.services.analyzer_resolution import resolve_pubkey_name
+from app.services.clock_drift import clock_reading
 from app.services.contact_reconciliation import (
     promote_prefix_contacts_for_contact,
     record_contact_location,
@@ -221,6 +223,16 @@ async def _build_keyed_contact_analytics(contact: Contact) -> ContactAnalytics:
 
     nearest_repeaters.sort(key=lambda r: r.heard_count, reverse=True)
 
+    clock: ContactClockReading | None = None
+    latest_clock = await AdvertEventRepository.latest_clock_reading(contact.public_key)
+    if latest_clock is not None:
+        reading = clock_reading(*latest_clock)
+        clock = ContactClockReading(
+            offset_seconds=reading.offset_seconds,
+            measured_at=reading.measured_at,
+            state=reading.state,
+        )
+
     return ContactAnalytics(
         lookup_type="contact",
         name=contact.name or contact.public_key[:12],
@@ -232,6 +244,7 @@ async def _build_keyed_contact_analytics(contact: Contact) -> ContactAnalytics:
         most_active_rooms=most_active_rooms,
         advert_paths=advert_paths,
         advert_frequency=advert_frequency,
+        clock=clock,
         nearest_repeaters=nearest_repeaters,
         path_scores=path_scores,
         hourly_activity=hourly_activity,

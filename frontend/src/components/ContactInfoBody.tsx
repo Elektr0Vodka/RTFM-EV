@@ -48,7 +48,7 @@ import { ContactLinkShare } from './ContactLinkShare';
 import { ContactRouteSuggestionsSection } from './ContactRouteSuggestions';
 import { ContactSnmpSection } from './snmp/ContactSnmpSection';
 import { formatContactShare } from '../utils/chatEntities';
-import { LppSensorRow, formatLppLabel } from './repeater/repeaterPaneShared';
+import { LppSensorRow, formatDuration, formatLppLabel } from './repeater/repeaterPaneShared';
 import { toast } from './ui/sonner';
 import { useDistanceUnit } from '../contexts/DistanceUnitContext';
 import { formatCoordinates, useCoordinateFormat } from '../utils/coordinateFormat';
@@ -356,6 +356,28 @@ export function ContactInfoBody({
             )}
             {pathHashModeLabel && (
               <InfoItem label={t('contact_hop_width')} value={pathHashModeLabel} />
+            )}
+            {analytics?.clock && (
+              <InfoItem
+                label={t('contact_clock')}
+                value={
+                  <span
+                    className={analytics.clock.state === 'in_sync' ? undefined : 'text-warning'}
+                    title={t('contact_clock_title', {
+                      time: formatTime(analytics.clock.measured_at),
+                    })}
+                  >
+                    {analytics.clock.state === 'in_sync'
+                      ? t('contact_clock_in_sync')
+                      : t(
+                          analytics.clock.state === 'ahead'
+                            ? 'contact_clock_ahead'
+                            : 'contact_clock_behind',
+                          { duration: formatDuration(Math.abs(analytics.clock.offset_seconds)) }
+                        )}
+                  </span>
+                }
+              />
             )}
           </div>
         </div>

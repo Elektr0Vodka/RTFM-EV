@@ -216,6 +216,12 @@ Auch Room-Server haben eine Anmeldung mit Passwort oder als Gast, mit Telemetrie
 - Bei einem Kontakt, der kein Repeater ist, ruft **Anfordern** die Sensorwerte bei Bedarf ab, mit Verlaufsdiagrammen.
 - Unter **Einstellungen > Radio-App-Verwaltung** kannst du Repeater und bis zu 8 weitere Kontakte für die planmäßige Abfrage verfolgen. Um den Mesh-Verkehr zu begrenzen, teilen sich alle verfolgten Knoten eine Obergrenze von 24 Abfragen pro Tag. Mehr verfolgte Knoten bedeuten also ein längeres Intervall.
 
+### Uhren der Nodes
+
+Jedes Advert enthält die Zeit des Nodes, der es gesendet hat. Die Kontaktinfo zeigt das als **Uhr**: **Geht richtig** (innerhalb von 2 Minuten zu diesem Server) oder wie weit der Node vor- oder nachgeht. Ein Node, dessen Uhr nie gestellt wurde, geht Jahre nach. Zum Messen wird nichts gesendet; der Wert ist so alt wie das zuletzt gehörte Advert, und es zählen nur Adverts, die seit der Installation dieser Version gehört wurden.
+
+Bei einem verfolgten Repeater gibt es im Bereich Telemetrieverlauf **Uhr dieses Repeaters stellen, wenn sie nachgeht**. Ist das an, prüft jede Telemetrieabfrage, die den Repeater erreicht, sein neuestes Advert und sendet einen Zeitbefehl über Funk, wenn die Uhr mehr als 2 Minuten nachgeht. Zwei Sicherungen gelten. Der Befehl geht höchstens einmal pro neuem Advert raus, und nur, wenn die meisten am letzten Tag gehörten Nodes (mindestens 5) mit der Uhr dieses Servers übereinstimmen, damit eine falsche Serveruhr nicht in Repeater gelangt. Die Repeater-Firmware stellt eine Uhr nie zurück: Ein Repeater, der vorgeht, bleibt unangetastet und wird nur im Serverlog vermerkt. Dein Funkgerät braucht Admin-Rechte auf dem Repeater (einmal mit dem Admin-Passwort anmelden).
+
 ### Pfade
 
 - **Pfaderkennung** (Chat-Kopfzeile) sendet eine geroutete Probe, zeigt Hin- und Rückpfad und speichert die gelernte Route.

@@ -161,6 +161,52 @@ describe('ContactInfoPane', () => {
     );
   });
 
+  it('shows how far a node clock is off, from its adverts', async () => {
+    const contact = createContact();
+    getContactAnalytics.mockResolvedValue(
+      createAnalytics(contact, {
+        clock: { offset_seconds: -7500, measured_at: 1_700_000_000, state: 'behind' },
+      })
+    );
+
+    render(<ContactInfoPane {...baseProps} contactKey={contact.public_key} />);
+
+    const value = await screen.findByText('2h5m behind');
+    expect(value).toHaveClass('text-warning');
+    expect(value).toHaveAttribute('title', expect.stringContaining('advert heard'));
+    expect(screen.getByText('Clock')).toBeInTheDocument();
+  });
+
+  it('shows a clock that runs ahead, and one that is in sync without a warning', async () => {
+    const contact = createContact();
+    getContactAnalytics.mockResolvedValue(
+      createAnalytics(contact, {
+        clock: { offset_seconds: 90000, measured_at: 1_700_000_000, state: 'ahead' },
+      })
+    );
+    const { unmount } = render(<ContactInfoPane {...baseProps} contactKey={contact.public_key} />);
+    expect(await screen.findByText('1d1h ahead')).toHaveClass('text-warning');
+    unmount();
+
+    getContactAnalytics.mockResolvedValue(
+      createAnalytics(contact, {
+        clock: { offset_seconds: -4, measured_at: 1_700_000_000, state: 'in_sync' },
+      })
+    );
+    render(<ContactInfoPane {...baseProps} contactKey={contact.public_key} />);
+    expect(await screen.findByText('In sync')).not.toHaveClass('text-warning');
+  });
+
+  it('shows no clock row without a reading', async () => {
+    const contact = createContact();
+    getContactAnalytics.mockResolvedValue(createAnalytics(contact));
+
+    render(<ContactInfoPane {...baseProps} contactKey={contact.public_key} />);
+
+    await screen.findByLabelText('Notes');
+    expect(screen.queryByText('Clock')).not.toBeInTheDocument();
+  });
+
   it('shows the auto-detected power source and saves an override', async () => {
     const user = userEvent.setup();
     const contact = createContact({ name: 'DTIS | NL AMS | 1018WS' });

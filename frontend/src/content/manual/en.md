@@ -216,6 +216,12 @@ Room servers also have a password or guest login, with telemetry, ACL, sensor da
 - On a non-repeater contact, **Request** fetches its sensor readings on demand, with history charts.
 - **Settings > Radio-App Management** lets you track repeaters and up to 8 other contacts for scheduled collection. To limit mesh traffic, all tracking shares a cap of 24 checks per day, so more tracked nodes means a longer interval.
 
+### Node clocks
+
+Every advert carries the time of the node that sent it. The contact info shows it as **Clock**: **In sync** (within 2 minutes of this server), or how far the node runs ahead or behind. A node that never had its clock set reads years behind. Nothing is sent to measure this; the value is as old as the last advert heard, and only adverts heard since this version was installed count.
+
+For a tracked repeater, the telemetry history pane has **Set this repeater's clock when it runs behind**. With it on, each telemetry collection that reaches the repeater checks its newest advert, and sends one time command over the radio when the clock is more than 2 minutes behind. Two safeguards apply. The command is sent at most once per new advert, and only when most nodes heard in the last day (at least 5) agree with this server's clock, so a wrong server clock is not pushed into repeaters. The repeater firmware never sets a clock back: a repeater that runs ahead is left alone and only noted in the server log. Your radio needs admin permission on the repeater (log in once with the admin password).
+
 ### Paths
 
 - **Path Discovery** (chat header) sends a routed probe and shows the forward and return paths, and stores the learned route.

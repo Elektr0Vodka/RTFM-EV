@@ -25,7 +25,13 @@ class AdvertEventRepository:
         timestamp: int,
         path_len: int,
         path_hex: str,
+        sender_timestamp: int | None = None,
     ) -> None:
+        """``sender_timestamp`` is the advertising node's own clock, from the advert.
+
+        It is part of the signed payload, so every copy of one transmission
+        carries the same value; a later copy never changes it.
+        """
         normalized_key = public_key.lower()
         normalized_path = (path_hex or "").lower()
         hop_width = AdvertEventRepository._hop_width(path_len, normalized_path)
@@ -33,8 +39,9 @@ class AdvertEventRepository:
             await conn.execute(
                 """
                 INSERT INTO advert_events
-                    (transmission_id, public_key, first_seen, min_path_len, path_hex, hop_width)
-                VALUES (?, ?, ?, ?, ?, ?)
+                    (transmission_id, public_key, first_seen, min_path_len, path_hex, hop_width,
+                     sender_timestamp)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(transmission_id) DO UPDATE SET
                     path_hex = CASE
                         WHEN excluded.min_path_len < advert_events.min_path_len
@@ -45,8 +52,65 @@ class AdvertEventRepository:
                     min_path_len = MIN(advert_events.min_path_len, excluded.min_path_len),
                     first_seen = MIN(advert_events.first_seen, excluded.first_seen)
                 """,
-                (transmission_id, normalized_key, timestamp, path_len, normalized_path, hop_width),
+                (
+                    transmission_id,
+                    normalized_key,
+                    timestamp,
+                    path_len,
+                    normalized_path,
+                    hop_width,
+                    sender_timestamp,
+                ),
             )
+
+    @staticmethod
+    async def latest_clock_reading(public_key: str) -> tuple[int, int] | None:
+        """``(sender_timestamp, first_seen)`` of the newest advert that kept its clock.
+
+        None when no advert from this key was stored since the sender timestamp
+        is kept (migration 139), or all of them were pruned.
+        """
+        async with db.readonly() as conn:
+            async with conn.execute(
+                """
+                SELECT sender_timestamp, first_seen FROM advert_events
+                WHERE public_key = ? AND sender_timestamp IS NOT NULL
+                ORDER BY first_seen DESC LIMIT 1
+                """,
+                (public_key.lower(),),
+            ) as cur:
+                row = await cur.fetchone()
+        if row is None:
+            return None
+        return int(row["sender_timestamp"]), int(row["first_seen"])
+
+    @staticmethod
+    async def latest_clock_readings_since(since_ts: int) -> list[tuple[str, int, int]]:
+        """``(public_key, sender_timestamp, first_seen)``: each node's newest reading.
+
+        Only adverts first heard at or after ``since_ts`` count. One row per
+        node, so a node that advertises often does not outweigh the others.
+        """
+        async with db.readonly() as conn:
+            async with conn.execute(
+                """
+                SELECT public_key, sender_timestamp, first_seen FROM (
+                    SELECT public_key, sender_timestamp, first_seen,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY public_key ORDER BY first_seen DESC
+                           ) AS rn
+                    FROM advert_events
+                    WHERE first_seen >= ? AND sender_timestamp IS NOT NULL
+                )
+                WHERE rn = 1
+                """,
+                (since_ts,),
+            ) as cur:
+                rows = await cur.fetchall()
+        return [
+            (row["public_key"], int(row["sender_timestamp"]), int(row["first_seen"]))
+            for row in rows
+        ]
 
     @staticmethod
     async def mesh_health_rows(start_ts: int, end_ts: int) -> list[dict]:

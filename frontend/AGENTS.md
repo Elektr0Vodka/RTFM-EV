@@ -209,6 +209,7 @@ frontend/src/
 │   │   ├── RepeaterLppTelemetryPane.tsx # CayenneLPP sensor data
 │   │   ├── RepeaterOwnerInfoPane.tsx    # Owner info + guest password
 │   │   ├── RepeaterTelemetryHistoryPane.tsx # Historical telemetry chart/table
+│   │   ├── RepeaterClockSyncToggle.tsx  # Opt a tracked repeater into clock sync; reads/writes `clock_sync_repeaters` itself (shown in the telemetry history pane)
 │   │   ├── RepeaterConfigHistoryPane.tsx # Stored pane snapshots with per-change diffs (plan 14)
 │   │   ├── RepeaterActionsPane.tsx      # Send Advert, Sync Clock, Reboot
 │   │   └── RepeaterConsolePane.tsx      # CLI console with history and type-ahead (static table in utils/cliCommands.ts; a suggestion only fills the input, it never sends; none for a line that starts with a space, which is sent as typed for `region load`)
