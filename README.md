@@ -46,7 +46,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - Per-contact radio residency (Auto, Pin, App only), notes, owner, manual location, battery chemistry and telemetry sharing permissions.
 - Contact pages with position history, advert paths, previous names, nearest repeaters and scored message routes.
 - Sidebar with favorites split by node type, your own contact groups, and an **Owned** section for nodes your radio owns.
-- Repeater dashboard: login, status and settings panes, CLI console, telemetry history, config change history and a settings editor that confirms and reads back each change, including SNMP on/off on observer firmware.
+- Repeater dashboard: login, status and settings panes, CLI console with command suggestions, telemetry history, config change history and a settings editor that confirms and reads back each change, including SNMP on/off on observer firmware.
 - Room server dashboard with telemetry, ACL, sensor data, console and ACL change history, plus a Sync Now button that asks the room server for recent messages again.
 - Per-contact region for direct messages: scope flood-routed DMs to a region, force them unscoped, or follow the global setting.
 - Optional unread channel summaries written by a model on your own Ollama server. Off by default; when on, the unread text of the channel you open is sent to that server.
@@ -109,6 +109,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - English, Dutch and German; date/time format, distance units and coordinate format (decimal, DMS or MGRS) are configurable.
 - Installable as a PWA; app name and icon can be rebranded server-side.
 - Command palette (Ctrl+K / Cmd+K) and bookmarkable views.
+- Touch screens: tap a badge, icon or shortened value to read the explanation a mouse gets on hover.
 - Chat window: a separate, lighter window with only messaging, laid out like a classic IRC client (conversation list, chat, recent senders). Classic lines or the regular bubbles, a mIRC, dark mIRC or app-theme skin, and a detached window per conversation. It does not load the map or packet views and skips the raw packet stream.
 - In-app update indicator that checks GitHub for a newer fork build (can be disabled).
 

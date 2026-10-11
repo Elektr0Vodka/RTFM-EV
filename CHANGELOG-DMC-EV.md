@@ -11,6 +11,57 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-11 (tap tooltips and CLI command suggestions, feat/tap-tooltips-cli-autocomplete)
+
+Two interface features found in a review of other forks of upstream. Frontend
+only: no backend change, no migration, no new dependency.
+
+### Interface: explanations on touch screens (tristandostaler `8c57cb46`)
+- **Tap to read a tooltip.** Most explanations in the app are native `title`
+  tooltips, which a touch screen never shows. Tapping an element that has one
+  now shows the text in a small bubble above it (below when there is no room).
+- **Closes on:** a second tap on the same element, a tap anywhere else,
+  scrolling, resizing, Escape, or a change of view.
+- **Touch and pen only.** A mouse keeps the browser's own hover tooltip and
+  gets nothing extra.
+- **Buttons, links, inputs and other controls are left alone:** tapping those
+  does what they are for. A titled element that reacts to a click without
+  being marked as a control still does its own thing and shows the bubble too.
+- One listener on the document (`TapTooltipLayer`, mounted in `main.tsx`, so
+  the chat window has it as well). `data-no-tap-tooltip` on an element opts
+  its subtree out.
+- Not taken from the fork: the bubble on a mouse click and on a long press.
+  This app has no long-press menu for the bubble to compete with.
+
+### Repeater console: command suggestions (wchaney817 `3011b25f`, `08f4943c`)
+- **Type-ahead in the repeater and room console.** While you type, matching
+  commands are listed with their parameters and a one-line description. The
+  firmware has no `help` command.
+- **Keys:** Tab completes the first (or highlighted) suggestion, the arrow
+  keys move through the list, Enter fills in the highlighted one, Escape hides
+  the list until the text changes. A click fills one in as well.
+- **A suggestion only fills the input.** Nothing is sent until you press Send,
+  or Enter with nothing highlighted.
+- **A line that starts with a space gets no suggestions.** The console sends a
+  line as typed (2026-10-10 entry below) and the firmware's `region load`
+  reads the leading spaces as the nesting depth of a region name; a completion
+  would replace them. An empty line is still sent as before.
+- **History recall is unchanged:** with an empty input the arrow keys recall
+  sent commands, and the list stays hidden while you step through them.
+- **The table is the stock MeshCore CLI** (143 commands). Checked on
+  2026-10-10 against `meshcore-dev/MeshCore`: 140 are in
+  `docs/cli_commands.md`, the `io` GPIO commands are in the sensor example
+  source, and the "serial only" marks match the `sender_timestamp == 0` gates
+  in `CommonCLI.cpp`.
+- Two corrections to the fork's table: `region def` completed to
+  `region def ...]`, and the bare `region` dump was marked serial only, which
+  the docs limit to firmware before 1.12.0.
+- **Limits:** descriptions are English only. Commands that exist only in DMC
+  repeater, DMC MQTT or observer firmware are not in the table; the CLI docs
+  link in the console header covers those. Commands marked "serial only" are
+  listed for reference and do not work over RF.
+- Not taken from the fork: `README_CLI.md` (a 1270-line CLI reference).
+
 ## Update 2026-10-11 (known channels list, region search, route timeouts, feat/channel-list-region-search-timeouts)
 
 Three small features found in a review of other forks of upstream. No

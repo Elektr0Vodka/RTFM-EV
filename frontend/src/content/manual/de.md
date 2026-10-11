@@ -101,6 +101,10 @@ Mit der Schaltfläche **Seitenleiste anpassen** (neben Kanal/Kontakt hinzufügen
 
 Drücke Strg+K (Cmd+K unter macOS), um die Befehlspalette zu öffnen, und springe durch Tippen zu Unterhaltungen, Einstellungen und Werkzeugen.
 
+### Erklärungen auf Touchscreens
+
+Viele Badges, Symbole und gekürzte Werte haben eine Erklärung, die eine Maus beim Darüberfahren zeigt. Tippe auf einem Touchscreen auf ein solches Element, um die Erklärung in einer kleinen Sprechblase zu sehen. Tippe erneut darauf, tippe woandershin oder scrolle, um sie zu schließen. Schaltflächen und Links sind nicht betroffen: Ein Tippen darauf tut, wofür sie da sind.
+
 ### Unterhaltungsbereich
 
 Die große Fläche rechts zeigt, was du ausgewählt hast: einen Chat, eine Kontaktseite, ein Repeater-Dashboard oder ein Werkzeug. Die Adresse im Browser folgt der Ansicht (zum Beispiel `#map` oder `#settings/radio`), sodass du Ansichten als Lesezeichen speichern kannst. Mit **Letzte Unterhaltung erneut öffnen** (Einstellungen > Lokale Konfiguration) öffnet die reine Adresse deinen letzten Chat wieder.
@@ -197,7 +201,7 @@ Klicke auf die Routenangabe neben dem Namen eines Kontakts (zum Beispiel die Hop
 
 ### Repeater
 
-Beim Öffnen eines Repeaters erscheint ein Anmeldeformular: melde dich mit dem Passwort oder als Gast an. Das Dashboard hat dann Bereiche für Node-Info, Telemetrie, Radioeinstellungen (mit Advert-Intervallen), LPP-Sensoren, Nachbarn, ACL, Regionen und Besitzerinfo, dazu Aktionen (Zero-Hop-Advert, Flood-Advert, Uhr synchronisieren, Neustart), eine Konsole mit CLI-Zugang, den Telemetrieverlauf und einen Bereich Verlauf, der zeigt, was sich zwischen gespeicherten Momentaufnahmen geändert hat. **Alles laden** ruft alle Bereiche nacheinander ab. Die Konsole sendet eine Zeile genau wie getippt, auch führende Leerzeichen und eine leere Zeile; das braucht `region load` der Firmware.
+Beim Öffnen eines Repeaters erscheint ein Anmeldeformular: melde dich mit dem Passwort oder als Gast an. Das Dashboard hat dann Bereiche für Node-Info, Telemetrie, Radioeinstellungen (mit Advert-Intervallen), LPP-Sensoren, Nachbarn, ACL, Regionen und Besitzerinfo, dazu Aktionen (Zero-Hop-Advert, Flood-Advert, Uhr synchronisieren, Neustart), eine Konsole mit CLI-Zugang, den Telemetrieverlauf und einen Bereich Verlauf, der zeigt, was sich zwischen gespeicherten Momentaufnahmen geändert hat. Während du in der Konsole tippst, werden passende Standardbefehle von MeshCore mit ihren Parametern und einer kurzen Beschreibung (auf Englisch) aufgelistet: Tab ergänzt den ersten, mit den Pfeiltasten und Enter wählst du einen anderen, Escape blendet die Liste aus. Ein Vorschlag füllt nur das Eingabefeld; gesendet wird erst, wenn du auf Senden drückst. Befehle mit "serial only" funktionieren nicht über Funk. Die Konsole sendet eine Zeile genau wie getippt, auch führende Leerzeichen und eine leere Zeile; das braucht `region load` der Firmware. Für eine Zeile, die mit einem Leerzeichen beginnt, gibt es keine Vorschläge. **Alles laden** ruft alle Bereiche nacheinander ab.
 
 Mit Einstellungen bearbeiten änderst du jeweils eine Repeater-Einstellung: du bearbeitest, bestätigst den genauen CLI-Befehl, er wird über Funk gesendet, und der Wert wird zur Kontrolle zurückgelesen. Für Änderungen an Frequenz, Bandbreite, Spreading Factor oder Coding Rate musst du zuerst den Namen des Repeaters eintippen, weil ein falscher Wert ihn vom Netz nehmen kann. Die Gruppe Observer-Firmware (SNMP-Agent ein/aus) funktioniert nur auf DMC-Observer- und agessaman-Observer-Firmware: nutze zuerst die eigene Schaltfläche Lesen und starte den Repeater nach einer Änderung neu.
 

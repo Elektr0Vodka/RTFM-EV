@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { polyfillCountryFlagEmojis } from 'country-flag-emoji-polyfill';
 import { App } from './App';
+import { TapTooltipLayer } from './components/TapTooltipLayer';
 import './index.css';
 import './app-layers.css';
 import { getSavedTheme, applyTheme, initFollowOSListener } from './utils/theme';
@@ -45,6 +46,7 @@ createRoot(document.getElementById('root')!).render(
     <I18nProvider>
       <PushSubscriptionProvider>
         <App />
+        <TapTooltipLayer />
       </PushSubscriptionProvider>
     </I18nProvider>
   </StrictMode>
