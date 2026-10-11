@@ -112,7 +112,20 @@ export function SpamMessagesTab({
   return (
     <div className="space-y-5">
       <section className="space-y-2">
-        <h3 className="text-sm font-semibold text-foreground">{t('spam_messages_title')}</h3>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-foreground">{t('spam_messages_title')}</h3>
+          {state.messages.length > 0 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              title={t('spam_messages_clear_hint')}
+              disabled={guard.busy || !state.enabled}
+              onClick={() => void guard.action('clear_messages')}
+            >
+              {t('spam_list_clear')}
+            </Button>
+          )}
+        </div>
         <p className="text-[0.8125rem] text-muted-foreground">{t('spam_messages_desc')}</p>
         {state.messages.length === 0 ? (
           <p className="text-[0.8125rem] text-muted-foreground">{t('spam_messages_empty')}</p>

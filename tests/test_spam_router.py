@@ -153,6 +153,8 @@ async def test_action_returns_result_and_state(runtime):
         ("block_sender", {"sender": "Dave"}),  # deliberately not offered
         ("block_hop", {"hop": "2"}),
         ("block_hop", {}),
+        ("block_hop", {"hop": "27", "channel": "EE" * 16}),  # not a protected channel
+        ("reset_settings", {"mode": "protect"}),
         ("extend", {"key": "hop:99"}),
         ("lockdown", {"minutes": 99999}),
         ("_note", {"event": "x"}),
@@ -229,7 +231,7 @@ async def test_rules_follow_the_mode_unless_previewed(runtime):
     assert (await router_module.get_spam_guard_rules(preview=False))["before"] == []
     preview = await router_module.get_spam_guard_rules(preview=True)
     assert preview["backend"] == "host"
-    assert [rule["name"] for rule in preview["before"]] == ["spam:hop:27"]
+    assert [rule["name"] for rule in preview["before"]] == ["spam:hop:27 (yours)"]
     # A preview is for reading only: nothing reached the engine.
     assert runtime.host.status()["rules_present"] == 0
 

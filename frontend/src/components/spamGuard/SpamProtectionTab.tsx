@@ -148,6 +148,8 @@ export function SpamProtectionTab({
   const t = useT();
   const [minutes, setMinutes] = useState(60);
   const [hop, setHop] = useState('');
+  // Empty: the repeater is blocked on every protected channel.
+  const [hopChannel, setHopChannel] = useState('');
   const [text, setText] = useState('');
   const [textChannel, setTextChannel] = useState(state.settings.channels[0]?.key ?? '');
   const [shown, setShown] = useState(PAGE);
@@ -160,6 +162,8 @@ export function SpamProtectionTab({
   const lockdown = state.block_list.find((b) => b.kind === 'lockdown');
   const now = Date.now() / 1000;
   const disabled = guard.busy || !state.enabled;
+  // A channel that is no longer protected cannot scope a block.
+  const hopScope = state.settings.channels.some((c) => c.key === hopChannel) ? hopChannel : '';
 
   return (
     <div className="space-y-5">
@@ -217,7 +221,17 @@ export function SpamProtectionTab({
 
       {state.held.length > 0 && (
         <section className="space-y-2">
-          <h3 className="text-sm font-semibold text-foreground">{t('spam_held_title')}</h3>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-foreground">{t('spam_held_title')}</h3>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={disabled}
+              onClick={() => void guard.action('clear_held')}
+            >
+              {t('spam_list_clear')}
+            </Button>
+          </div>
           <p className="text-[0.8125rem] text-muted-foreground">{t('spam_held_desc')}</p>
           <ul className="space-y-2">
             {state.held.slice(0, heldShown).map((held) => (
@@ -312,7 +326,9 @@ export function SpamProtectionTab({
           className="flex flex-wrap items-end gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            void guard.action('block_hop', { hop }).then((ok) => ok && setHop(''));
+            void guard
+              .action('block_hop', hopScope ? { hop, channel: hopScope } : { hop })
+              .then((ok) => ok && setHop(''));
           }}
         >
           <div className="space-y-1">
@@ -328,6 +344,20 @@ export function SpamProtectionTab({
               onChange={(e) => setHop(e.target.value)}
             />
           </div>
+          <select
+            aria-label={t('spam_manual_hop_channel_label')}
+            title={t('spam_manual_hop_channel_hint')}
+            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+            value={hopScope}
+            onChange={(e) => setHopChannel(e.target.value)}
+          >
+            <option value="">{t('spam_manual_all_channels')}</option>
+            {state.settings.channels.map((channel) => (
+              <option key={channel.key} value={channel.key}>
+                {channel.name || channel.key.slice(0, 8)}
+              </option>
+            ))}
+          </select>
           <Button type="submit" size="sm" variant="outline" disabled={disabled || !hop.trim()}>
             {t('spam_manual_block_hop')}
           </Button>

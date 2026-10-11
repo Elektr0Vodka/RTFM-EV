@@ -98,6 +98,7 @@ const ACTIVITY_KEYS: Record<string, string> = {
   not_spam: 'spam_activity_not_spam',
   lockdown_ended: 'spam_activity_lockdown_ended',
   cleared_auto: 'spam_activity_cleared_auto',
+  reset_learned: 'spam_activity_reset_learned',
 };
 
 function str(value: unknown): string {

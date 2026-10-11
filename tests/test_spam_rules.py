@@ -110,7 +110,7 @@ class TestHostDocuments:
         assert rules.before == [
             {
                 "id": f"spam:{key}",
-                "name": f"spam:{key}",
+                "name": f"spam:{key} (yours)",
                 "enabled": True,
                 "if": {
                     "all": [
@@ -172,7 +172,7 @@ class TestHostDocuments:
             say(det, clock, name, text, path=("27", "B1"))
         det.decide()
         (rule,) = render(det, "host").before
-        assert rule["name"] == "spam:hop:27:27>B1"
+        assert rule["name"] == "spam:hop:27:27>B1 (auto)"
         assert rule["if"]["all"][1] == {
             "field": "path_hashes",
             "op": "equals",
@@ -184,7 +184,10 @@ class TestHostDocuments:
         det.action("block_hop", hop="27")
         rules = render(det, "host")
         assert rules.before == []
-        assert names(rules.after) == [f"spam:known-people:{PUBLIC}", f"spam:hop:27:{PUBLIC}"]
+        assert names(rules.after) == [
+            f"spam:known-people:{PUBLIC}",
+            f"spam:hop:27:{PUBLIC} (yours)",
+        ]
         known, block = rules.after
         assert known["then"] == {"action": "allow"}
         assert known["if"]["all"] == [
@@ -210,7 +213,7 @@ class TestHostDocuments:
         assert sum("known-people" in n for n in names(after)) == 2
         assert sum(":links:new:" in n for n in names(after)) == 4  # 2 markers x 2 channels
         assert sum(n.startswith("spam:lockdown:") for n in names(after)) == 2
-        lockdown = next(r for r in after if r["name"] == f"spam:lockdown:{PUBLIC}")
+        lockdown = next(r for r in after if r["name"] == f"spam:lockdown:{PUBLIC} (yours)")
         assert lockdown["if"]["all"] == [GRP, ON_PUBLIC]
 
     def test_rotation_block_with_allowed_origin_comes_last(self):
@@ -224,7 +227,10 @@ class TestHostDocuments:
         det.decide()
         det.action("lockdown", minutes=30)
         after = render(det, "host").after
-        assert names(after)[-2:] == ["spam:suffix:B1>7E:allow:C9", "spam:suffix:B1>7E"]
+        assert names(after)[-2:] == [
+            "spam:suffix:B1>7E:allow:C9 (auto)",
+            "spam:suffix:B1>7E (auto)",
+        ]
         allow, block = after[-2:]
         assert allow["then"] == {"action": "allow"}
         assert allow["if"]["all"][1] == {
@@ -375,6 +381,121 @@ class TestRulesAgreeWithTheDetector:
         assert host_verdict(det, event) == "allow"
 
 
+class TestOneChannelRepeaterBlock:
+    """A repeater block the user made for one channel only renders rules for that channel."""
+
+    ON_OTHER = {"field": "channel_hash", "op": "equals", "value": channel_hash_byte(OTHER)}
+
+    def make(self, **config):
+        return make(
+            channels=[{"key": PUBLIC, "name": "Public"}, {"key": OTHER, "name": "#o"}], **config
+        )
+
+    def test_block_that_lets_known_people_through(self):
+        det, _ = self.make(allow_senders=["Sue"])
+        det.action("block_hop", hop="27", channel=OTHER)
+        rules = render(det, "host")
+        assert rules.before == []
+        assert names(rules.after) == [
+            f"spam:known-people:{OTHER}",
+            f"spam:hop:27:{OTHER} (yours)",
+        ]
+
+    def test_block_on_every_channel_is_unchanged(self):
+        det, _ = self.make()
+        det.action("block_hop", hop="27")
+        assert names(render(det, "host").after) == [
+            f"spam:known-people:{PUBLIC}",
+            f"spam:known-people:{OTHER}",
+            f"spam:hop:27:{PUBLIC} (yours)",
+            f"spam:hop:27:{OTHER} (yours)",
+        ]
+
+    def test_known_people_rule_for_every_channel_once_one_block_needs_it(self):
+        det, _ = self.make()
+        det.action("block_hop", hop="27", channel=OTHER)
+        det.action("lockdown", minutes=30)
+        after = names(render(det, "host").after)
+        assert after[:2] == [f"spam:known-people:{PUBLIC}", f"spam:known-people:{OTHER}"]
+        assert f"spam:hop:27:{OTHER} (yours)" in after
+        assert f"spam:hop:27:{PUBLIC} (yours)" not in after
+
+    @pytest.mark.parametrize("match", ["contains", "starts_at"])
+    def test_plain_modes_carry_the_channel(self, match):
+        det, _ = self.make()
+        det.action("block_hop", hop="27", match=match, channel=OTHER)
+        (rule,) = render(det, "host").before
+        assert rule["if"]["all"][:2] == [GRP, self.ON_OTHER]
+        assert len(rule["if"]["all"]) == 3
+
+    def test_learnt_routes_carry_the_channel(self):
+        det, clock = self.make()
+        det.action("block_hop", hop="27", match="exact_paths", channel=OTHER)
+        say(det, clock, "Dave", "hello", path=("27", "C3"), channel=OTHER)
+        det.decide()
+        (rule,) = (r for r in render(det, "host").before if ":hop:" in r["name"])
+        assert rule["if"]["all"] == [
+            GRP,
+            self.ON_OTHER,
+            {"field": "path_hashes", "op": "equals", "value": ["27", "C3"]},
+        ]
+
+    @pytest.mark.parametrize("match", ["contains_known", "contains", "starts_at", "exact_paths"])
+    @pytest.mark.parametrize("channel", [PUBLIC, OTHER])
+    @pytest.mark.parametrize("sender", ["Sue", "Stranger"])
+    def test_rules_agree_with_the_detector(self, match, channel, sender):
+        det, clock = self.make(allow_senders=["Sue"], overrides={"dedupe_enabled": False})
+        det.action("block_hop", hop="27", match=match, channel=OTHER)
+        say(det, clock, "Other", "first of the route", path=("27", "B1"), channel=OTHER)
+        det.decide()
+        event = say(det, clock, sender, "hello there", path=("27", "B1"), channel=channel)
+        assert (host_verdict(det, event) == "drop") == (event.matched is not None)
+        if channel == PUBLIC:
+            assert event.matched is None
+
+    def test_left_out_when_its_channel_may_not_be_named(self):
+        det, _ = self.make()
+        det.action("block_hop", hop="27", match="contains", channel=OTHER)
+        assert render(det, "openhop", channels={PUBLIC}).rules == []
+        assert len(render(det, "openhop", channels={PUBLIC, OTHER}).rules) == 1
+
+
+class TestRuleNamesSayWhereABlockCameFrom:
+    """On a node the rule name is all there is to tell our rules apart."""
+
+    def test_yours_duplicate_and_automatic(self):
+        det, clock = make()
+        for name in GENERATED:
+            say(det, clock, name, SPAM)
+        det.decide()
+        manual = det.action("block_text", text="cheap radios today", channel=PUBLIC)["key"]
+        det.action("lockdown", minutes=30)
+        by_source = {b.source: b.key for b in det.blocks.values()}
+        rendered = names(render(det, "openhop").rules)
+        assert f"{OPENHOP_PREFIX}{manual} (yours)" in rendered
+        assert f"{OPENHOP_PREFIX}{by_source['dedupe']} (duplicate)" in rendered
+        assert f"{OPENHOP_PREFIX}{by_source['campaign']} (auto)" in rendered
+        assert f"{OPENHOP_PREFIX}hop:27:{PUBLIC} (auto)" in rendered
+        assert f"{OPENHOP_PREFIX}lockdown:{PUBLIC} (yours)" in rendered
+        # Our own helper rule is not a block.
+        assert f"{OPENHOP_PREFIX}known-people:{PUBLIC}" in rendered
+
+    def test_rule_id_does_not_follow_the_origin(self):
+        det, clock = make()
+        say(det, clock, "Dave", LONG)
+        det.decide()
+        (key,) = det.blocks
+        (host_before,) = render(det, "host").before
+        (node_before,) = render(det, "openhop").before
+        assert host_before["id"] == f"spam:{key}"
+        assert host_before["name"] == f"spam:{key} (duplicate)"
+        det.action("extend", key=key, permanent=True)  # the user keeps it: now theirs
+        (host_after,) = render(det, "host").before
+        (node_after,) = render(det, "openhop").before
+        assert host_after["name"] == f"spam:{key} (yours)"
+        assert (host_after["id"], node_after["id"]) == (host_before["id"], node_before["id"])
+
+
 class TestHostBackend:
     def test_apply_and_clear(self):
         runtime = HostRepeaterRuntime()
@@ -426,10 +547,10 @@ class TestChannelFilter:
         names = [r["name"] for r in rules.after]
         assert names == [
             f"{OPENHOP_PREFIX}known-people:{PUBLIC}",
-            f"{OPENHOP_PREFIX}lockdown:{PUBLIC}",
+            f"{OPENHOP_PREFIX}lockdown:{PUBLIC} (yours)",
         ]
 
     def test_no_channel_left_means_no_gated_rules(self):
         rules = render(self.blocked(), "openhop", channels=set())
         assert rules.after == []
-        assert [r["name"] for r in rules.before] == [f"{OPENHOP_PREFIX}hop:27"]
+        assert [r["name"] for r in rules.before] == [f"{OPENHOP_PREFIX}hop:27 (yours)"]

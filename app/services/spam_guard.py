@@ -351,6 +351,8 @@ class SpamGuardRuntime:
         """
         async with self._lock:
             await self.ensure_loaded()
+            if op == "reset_settings":
+                return await self._reset_settings(body)
             if op == "not_spam" and message_id is not None and not body.get("matched"):
                 body = {**body, "matched": self._block_behind(message_id)}
             outcome = self.detector.action(op, **body)
@@ -375,6 +377,30 @@ class SpamGuardRuntime:
             await self.flush(force=True)
         self.broadcast()
         return outcome
+
+    async def _reset_settings(self, body: dict[str, Any]) -> dict[str, Any]:
+        """Put the settings back to those of a fresh install. Caller holds the lock.
+
+        That is Monitor mode reading the Public channel, the Balanced preset
+        and empty exception lists. What the detector learnt stays, and so does
+        the master switch.
+        """
+        if body:
+            raise ValueError("Bad arguments for reset_settings")
+        config = default_config()
+        version = await SpamGuardConfigRepository.save(self.version, config.model_dump(mode="json"))
+        if version is None:
+            raise ValueError("Spam Guard settings were changed elsewhere; reload and try again")
+        self.version, self.config = version, config
+        self.detector.configure(config)
+        self._index_channels()
+        result = self.detector.decide()
+        await self._after_decide(result)
+        self.apply_rules()
+        self._dirty = True
+        await self.flush(force=True)
+        self.broadcast()
+        return {"version": version}
 
     def _block_behind(self, message_id: int) -> str | None:
         """The text block a 'Not spam' from chat should undo for this message.
@@ -538,7 +564,7 @@ class SpamGuardRuntime:
                 "spam": event.spam,
                 "campaign": event.campaign,
             }
-            for event in list(det.events)[-RECENT_MESSAGES:]
+            for event in det.visible_events()[-RECENT_MESSAGES:]
         ]
         messages.reverse()
         campaigns = [
