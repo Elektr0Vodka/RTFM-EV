@@ -132,7 +132,10 @@ machine this was authored on and may differ elsewhere.
   analyzer.meshcorenetz.de and analyzer.meshdresden.eu names the default Public
   channel `public` in `/api/channels`; channel links use that (PR #231), while
   on8ar's CoreScope keeps `Public`.
-- mc-radar analyzer: https://mc-radar.woodwar.com (node URL scheme `/node/<64-hex>`).
+- mc-radar analyzer: https://mc-radar.woodwar.com (node URL scheme `/node/<64-hex>`;
+  packet URL scheme `/packet/<16-hex>`, where the 16 hex are the firmware packet
+  hash in lower case, the same value `POST /api/packets/who-heard` returns as
+  `packet_hash`).
 - collector-wardrive (wardrive ingest reference): local
   `G:\Github\repositories\Dutch-MeshCore\collector-wardrive`.
 - MGRS conversion: the `mgrs` npm package (proj4js, MIT),

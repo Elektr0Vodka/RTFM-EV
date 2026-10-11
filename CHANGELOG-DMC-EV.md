@@ -11,6 +11,24 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-12 (MC-Radar preset: packet page link, feat/mc-radar-packet-link)
+
+Frontend only. No migration, no new dependency, no backend change.
+
+### Settings: Handy Info
+- **The MC-Radar analyzer preset has a packet template.**
+  `https://mc-radar.woodwar.com/packet/{hash}`
+  (`frontend/src/components/settings/handyInfo.ts`). With MC-Radar added as an
+  analyzer site, the "Who heard this" block of the packet inspector shows an
+  "Open in MC-Radar" link to that packet's page. MC Radar addresses a packet by
+  the firmware packet hash (16 hex, lower case), the value RTFM-EV already
+  fills in for `{hash}`: checked against
+  `https://mc-radar.woodwar.com/packet/2d5694a847b395fb`, whose id equals the
+  hash computed from the payload shown on that page.
+- Note: a site that was added from the preset before this change keeps its
+  empty packet template. Fill it in under Settings > Database > Analyzer sites,
+  or remove the site and add it again from Handy Info.
+
 ## Update 2026-10-11 (Spam Guard: feedback from the first test round, feat/spam-guard-feedback-1)
 
 No migration, no new dependency. Requested by Richard after testing Spam Guard on an OpenHop node.
