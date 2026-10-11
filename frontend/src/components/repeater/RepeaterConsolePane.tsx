@@ -1,6 +1,7 @@
 import {
   useState,
   useCallback,
+  useMemo,
   useRef,
   useEffect,
   type FormEvent,
@@ -9,10 +10,14 @@ import {
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { useT } from '../../i18n';
+import { cn } from '@/lib/utils';
+import { commandPrefix, matchCliCommands, type CliCommand } from '../../utils/cliCommands';
 
 // MeshCore / Dutch MeshCore CLI command reference. The DMC toolbox wiki covers
 // the meshcore, dmc-repeater and dmc-mqtt firmware variants this fork talks to.
 const CLI_DOCS_URL = 'https://toolbox.dutchmeshcore.nl/#/cli-wiki';
+
+const SUGGESTION_LIST_ID = 'repeater-console-suggestions';
 
 export function ConsolePane({
   history,
@@ -27,6 +32,9 @@ export function ConsolePane({
   const [input, setInput] = useState('');
   // -1 = editing the live input; 0+ = index into sentCommands (most recent first)
   const [historyIndex, setHistoryIndex] = useState(-1);
+  // null = nothing highlighted yet; Enter then sends what is typed.
+  const [suggestionIndex, setSuggestionIndex] = useState<number | null>(null);
+  const [suggestionsDismissed, setSuggestionsDismissed] = useState(false);
   const outputRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const prevLoadingRef = useRef(loading);
@@ -54,8 +62,56 @@ export function ConsolePane({
     return acc;
   }, []);
 
+  // Type-ahead over the static command table. It only ever fills the input:
+  // nothing is sent until the user presses Send or Enter on their own text.
+  // Hidden while stepping through history, so the arrows keep recalling.
+  const suggestions = useMemo(() => matchCliCommands(input), [input]);
+  const showSuggestions =
+    suggestions.length > 0 && !suggestionsDismissed && historyIndex === -1 && !loading;
+
+  const acceptSuggestion = useCallback((cmd: CliCommand) => {
+    const prefix = commandPrefix(cmd.syntax);
+    // A command with parameters gets a trailing space, ready for the first one.
+    setInput(prefix === cmd.syntax ? prefix : `${prefix} `);
+    setSuggestionIndex(null);
+    inputRef.current?.focus();
+  }, []);
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
+      if (showSuggestions) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setSuggestionIndex((prev) =>
+            prev === null ? 0 : Math.min(prev + 1, suggestions.length - 1)
+          );
+          return;
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setSuggestionIndex((prev) =>
+            prev === null ? suggestions.length - 1 : Math.max(prev - 1, 0)
+          );
+          return;
+        }
+        if (e.key === 'Tab' && !e.shiftKey) {
+          e.preventDefault();
+          acceptSuggestion(suggestions[suggestionIndex ?? 0]);
+          return;
+        }
+        if (e.key === 'Enter' && suggestionIndex !== null) {
+          e.preventDefault();
+          acceptSuggestion(suggestions[suggestionIndex]);
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setSuggestionsDismissed(true);
+          setSuggestionIndex(null);
+          return;
+        }
+      }
+
       if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
       if (sentCommands.length === 0) return;
       e.preventDefault();
@@ -64,7 +120,7 @@ export function ConsolePane({
       setHistoryIndex(next);
       setInput(next === -1 ? '' : sentCommands[next]);
     },
-    [historyIndex, sentCommands]
+    [acceptSuggestion, historyIndex, sentCommands, showSuggestions, suggestionIndex, suggestions]
   );
 
   const handleSubmit = useCallback(
@@ -76,6 +132,8 @@ export function ConsolePane({
       const command = input;
       setInput('');
       setHistoryIndex(-1);
+      setSuggestionIndex(null);
+      setSuggestionsDismissed(false);
       await onSend(command);
     },
     [input, loading, onSend]
@@ -114,6 +172,35 @@ export function ConsolePane({
         )}
         {loading && <div className="text-muted-foreground animate-pulse">...</div>}
       </div>
+      {showSuggestions && (
+        <ul
+          id={SUGGESTION_LIST_ID}
+          role="listbox"
+          aria-label={t('repeater_console_suggestions_aria')}
+          className="max-h-40 overflow-y-auto border-t border-border bg-popover text-popover-foreground"
+        >
+          {suggestions.map((cmd, i) => (
+            <li
+              key={cmd.syntax}
+              id={`${SUGGESTION_LIST_ID}-${i}`}
+              role="option"
+              aria-selected={i === suggestionIndex}
+              // mousedown, not click: the input must not lose focus first.
+              onMouseDown={(e) => {
+                e.preventDefault();
+                acceptSuggestion(cmd);
+              }}
+              className={cn(
+                'flex items-baseline gap-2 px-3 py-1 text-xs cursor-pointer hover:bg-accent/60',
+                i === suggestionIndex && 'bg-accent text-accent-foreground'
+              )}
+            >
+              <span className="font-mono shrink-0">{cmd.syntax}</span>
+              <span className="text-muted-foreground truncate">{cmd.description}</span>
+            </li>
+          ))}
+        </ul>
+      )}
       <form onSubmit={handleSubmit} className="flex gap-2 p-2 border-t border-border">
         <Input
           ref={inputRef}
@@ -122,10 +209,25 @@ export function ConsolePane({
           autoCapitalize="none"
           name="console-input"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => {
+            setInput(e.target.value);
+            setHistoryIndex(-1);
+            setSuggestionIndex(null);
+            setSuggestionsDismissed(false);
+          }}
           onKeyDown={handleKeyDown}
+          onBlur={() => setSuggestionsDismissed(true)}
           placeholder={t('repeater_console_input_placeholder')}
           aria-label={t('repeater_console_input_aria')}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={showSuggestions}
+          aria-controls={showSuggestions ? SUGGESTION_LIST_ID : undefined}
+          aria-activedescendant={
+            showSuggestions && suggestionIndex !== null
+              ? `${SUGGESTION_LIST_ID}-${suggestionIndex}`
+              : undefined
+          }
           disabled={loading}
           className="flex-1 font-mono text-sm"
         />

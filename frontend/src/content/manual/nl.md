@@ -101,6 +101,10 @@ Met de knop **Zijbalk aanpassen** (naast Kanaal/Contact toevoegen) kun je:
 
 Druk op Ctrl+K (Cmd+K op macOS) om het opdrachtenpalet te openen en typ om naar gesprekken, instellingen en hulpmiddelen te springen.
 
+### Uitleg op aanraakschermen
+
+Veel badges, pictogrammen en ingekorte waarden hebben een toelichting die een muis toont als je erboven zweeft. Tik op een aanraakscherm op zo'n onderdeel om de toelichting in een klein tekstballonnetje te zien. Tik er opnieuw op, tik ergens anders of scrol om het te sluiten. Knoppen en links veranderen niet: een tik daarop doet waar ze voor zijn.
+
 ### Gespreksvenster
 
 Het grote vlak rechts toont wat je gekozen hebt: een chat, een contactpagina, een repeaterdashboard of een hulpmiddel. Het adres in de browser volgt de weergave (bijvoorbeeld `#map` of `#settings/radio`), zodat je weergaven als bladwijzer kunt opslaan. Met **Laatste gesprek opnieuw openen** aan (Instellingen > Lokale configuratie) opent het kale adres je laatste chat weer.
@@ -197,7 +201,7 @@ Klik op het routelabel naast de naam van een contact (bijvoorbeeld het aantal ho
 
 ### Repeaters
 
-Als je een repeater opent, zie je een inlogformulier: log in met het wachtwoord of als gast. Het dashboard heeft daarna panelen voor Node-info, Telemetrie, Radio-instellingen (met advertintervallen), LPP-sensoren, Buren, ACL, Regio's en Eigenaarsinfo, plus Acties (Zero-hop-advertentie, Flood-advertentie, Klok synchroniseren, Herstarten), een Console met CLI-toegang, telemetriegeschiedenis en een paneel Geschiedenis dat laat zien wat er tussen opgeslagen momentopnamen veranderd is. **Alles laden** haalt alle panelen na elkaar op. De Console verstuurt een regel precies zoals getypt, ook spaties vooraan en een lege regel; dat heeft `region load` van de firmware nodig.
+Als je een repeater opent, zie je een inlogformulier: log in met het wachtwoord of als gast. Het dashboard heeft daarna panelen voor Node-info, Telemetrie, Radio-instellingen (met advertintervallen), LPP-sensoren, Buren, ACL, Regio's en Eigenaarsinfo, plus Acties (Zero-hop-advertentie, Flood-advertentie, Klok synchroniseren, Herstarten), een Console met CLI-toegang, telemetriegeschiedenis en een paneel Geschiedenis dat laat zien wat er tussen opgeslagen momentopnamen veranderd is. Terwijl je in de Console typt, verschijnen passende standaard MeshCore-commando's met hun parameters en een korte beschrijving (in het Engels): Tab vult het eerste in, met de pijltjestoetsen en Enter kies je een ander, Escape verbergt de lijst. Een suggestie vult alleen het invoerveld; er wordt niets verzonden tot je op Verzenden drukt. Commando's met "serial only" werken niet via de radio. De Console verstuurt een regel precies zoals getypt, ook spaties vooraan en een lege regel; dat heeft `region load` van de firmware nodig. Bij een regel die met een spatie begint, verschijnen geen suggesties. **Alles laden** haalt alle panelen na elkaar op.
 
 Met Instellingen bewerken wijzig je één repeaterinstelling tegelijk: je past aan, bevestigt het exacte CLI-commando, het wordt via RF verstuurd en de waarde wordt teruggelezen ter controle. Voor het wijzigen van frequentie, bandbreedte, spreading factor of coding rate moet je eerst de naam van de repeater typen, omdat een verkeerde waarde hem uit de lucht kan halen. De groep Observer-firmware (SNMP-agent aan/uit) werkt alleen op DMC observer- en agessaman observer-firmware: gebruik eerst de eigen knop Lezen en herstart de repeater na een wijziging.
 

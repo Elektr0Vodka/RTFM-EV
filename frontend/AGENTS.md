@@ -181,6 +181,7 @@ frontend/src/
 │   ├── ChannelPathHashModeOverrideModal.tsx # Per-channel path hash mode override editor
 │   ├── BulkAddChannelResultModal.tsx # Results dialog for bulk channel creation
 │   ├── CommandPalette.tsx      # Command palette overlay
+│   ├── TapTooltipLayer.tsx     # Shows a native `title` in a bubble on a touch/pen tap (one document listener, mounted in main.tsx); skips interactive elements; `data-no-tap-tooltip` opts a subtree out
 │   ├── shell/                  # Pieces of the app shell shared by the classic and the Atlas layout (AppBrand, ThemeSettingsDialog, AtlasSidebar head/foot)
 │   ├── DirectTraceIcon.tsx     # Shared direct-trace glyph used in header/dashboard
 │   ├── NeighborsMiniMap.tsx    # Leaflet mini-map for repeater neighbor locations
@@ -210,7 +211,7 @@ frontend/src/
 │   │   ├── RepeaterTelemetryHistoryPane.tsx # Historical telemetry chart/table
 │   │   ├── RepeaterConfigHistoryPane.tsx # Stored pane snapshots with per-change diffs (plan 14)
 │   │   ├── RepeaterActionsPane.tsx      # Send Advert, Sync Clock, Reboot
-│   │   └── RepeaterConsolePane.tsx      # CLI console with history
+│   │   └── RepeaterConsolePane.tsx      # CLI console with history and type-ahead (static table in utils/cliCommands.ts; a suggestion only fills the input, it never sends; none for a line that starts with a space, which is sent as typed for `region load`)
 │   └── ui/                     # shadcn/ui primitives
 ├── types/
 │   └── d3-force-3d.d.ts       # Type declarations for d3-force-3d

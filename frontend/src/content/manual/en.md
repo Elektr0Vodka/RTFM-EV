@@ -101,6 +101,10 @@ The **Customize sidebar** button (next to Add Channel/Contact) lets you:
 
 Press Ctrl+K (Cmd+K on macOS) to open the command palette and jump to conversations, settings and tools by typing.
 
+### Explanations on touch screens
+
+Many badges, icons and shortened values carry an explanation that a mouse shows on hover. On a touch screen, tap such an item to show the explanation in a small bubble. Tap it again, tap anywhere else or scroll to close it. Buttons and links are not affected: tapping them does what they are for.
+
 ### Conversation pane
 
 The large area on the right shows what you selected: a chat, a contact page, a repeater dashboard or a tool. The browser address follows the view (for example `#map` or `#settings/radio`), so you can bookmark views. With **Reopen Last Conversation** on (Settings > Local Configuration), loading the bare address reopens your last chat.
@@ -197,7 +201,7 @@ Click the route label next to a contact's name (for example the hop count or "fl
 
 ### Repeaters
 
-Opening a repeater shows a login form: log in with the password or as a guest. The dashboard then has panes for Node Info, Telemetry, Radio Settings (with advert intervals), LPP Sensors, Neighbors, ACL, Regions and Owner Info, plus Actions (Zero Hop Advert, Flood Advert, Sync Clock, Reboot), a Console with CLI access, telemetry history and a History pane that shows what changed between stored snapshots. **Load All** fetches every pane one after another. The Console sends a line exactly as typed, leading spaces and an empty line included, which the firmware's `region load` needs.
+Opening a repeater shows a login form: log in with the password or as a guest. The dashboard then has panes for Node Info, Telemetry, Radio Settings (with advert intervals), LPP Sensors, Neighbors, ACL, Regions and Owner Info, plus Actions (Zero Hop Advert, Flood Advert, Sync Clock, Reboot), a Console with CLI access, telemetry history and a History pane that shows what changed between stored snapshots. While you type in the Console, matching stock MeshCore commands are listed with their parameters and a one-line description (in English): Tab completes the first one, the arrow keys and Enter pick another, Escape hides the list. A suggestion only fills the input; nothing is sent until you press Send. Commands marked "serial only" do not work over the radio. The Console sends a line exactly as typed, leading spaces and an empty line included, which the firmware's `region load` needs; a line that starts with a space gets no suggestions. **Load All** fetches every pane one after another.
 
 The Settings Editor changes one repeater setting at a time: you edit, confirm the exact CLI command, it is sent over RF, and the value is read back to check it. Changing frequency, bandwidth, spreading factor or coding rate requires typing the repeater name first, because a wrong value can take it off the air. The Observer firmware group (SNMP agent on/off) only works on DMC observer and agessaman observer firmware: use its own Read button first, and reboot the repeater after a change.
 
