@@ -405,6 +405,7 @@ This table is a representative subset, not the full route list (for example the 
 | GET | `/api/packets/history` | Packet History browser: pages backward through persisted raw packets (`before_id` cursor, type/hop-width/hex/message-text filters); reach bounded by `raw_packet_retention_days` |
 | GET | `/api/packets/prefix-collisions` | Public-key prefix collisions among full-key contacts at 1/2/3-byte widths (Mesh Health "Prefix Collisions" tab) |
 | GET | `/api/packets/{packet_id}` | Fetch one stored raw packet by row ID for on-demand inspection |
+| POST | `/api/packets/who-heard` | Hash a raw packet (`{data, lookup}`); with `lookup` true also ask the external analyzer which observers heard it |
 | POST | `/api/packets/region-backfill` | Re-resolve region scope for stored channel messages with retained raw packets |
 | POST | `/api/packets/decrypt/historical` | Decrypt stored packets |
 | POST | `/api/packets/maintenance` | Delete old packets and vacuum |

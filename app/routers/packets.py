@@ -18,11 +18,13 @@ from app.decoder import (
 from app.models import (
     AdvertLinkEdge,
     AdvertLinkNode,
+    AnalyzerSite,
     RawPacketDecryptedInfo,
     RawPacketDetail,
     TrafficLinkEdge,
 )
 from app.packet_processor import create_message_from_decrypted, run_historical_dm_decryption
+from app.path_utils import calculate_packet_hash, parse_packet_envelope
 from app.region_resolver import resolve_region
 from app.repository import (
     AdvertEventRepository,
@@ -39,6 +41,8 @@ from app.repository.packet_receptions import PacketReceptionRepository
 from app.repository.partial_resolution import PartialResolutionRepository
 from app.repository.request_traffic import aggregate_request_traffic
 from app.services.advert_links import LocatedNode, haversine_km, resolve_advert_edges
+from app.services.analyzer_packet_lookup import fetch_packet_observations
+from app.services.analyzer_path_check import AnalyzerCheckError, analyzer_base_url
 from app.services.messages import backfill_message_regions, create_group_data_message
 from app.services.prefix_collisions import compute_prefix_collisions
 from app.services.radio_runtime import radio_runtime as radio_manager
@@ -1677,6 +1681,112 @@ async def get_request_traffic(
     packets = await RequestTrafficRepository.window_packets(start_ts, end_ts)
     agg = aggregate_request_traffic(packets, start_ts, end_ts, bucket_count, pair_cap)
     return RequestTrafficResponse(start_ts=start_ts, end_ts=end_ts, **agg)
+
+
+class PacketWhoHeardRequest(BaseModel):
+    data: str = Field(description="Raw packet as hex", max_length=1024)
+    lookup: bool = Field(
+        default=False,
+        description=(
+            "False: only compute the hash and the analyzer links (nothing leaves this "
+            "server). True: also ask the analyzer which observers heard the packet."
+        ),
+    )
+
+
+class PacketAnalyzerLink(BaseModel):
+    name: str = Field(description="Analyzer site name from the analyzer_sites setting")
+    url: str = Field(description="That site's packet page for this hash")
+
+
+class PacketObserverModel(BaseModel):
+    observer_id: str | None = Field(default=None, description="Observer public key")
+    observer_name: str | None = None
+    region: str | None = Field(default=None, description="Observer region code (IATA)")
+    heard_at: float | None = Field(default=None, description="Epoch seconds")
+    rssi: int | None = None
+    snr: float | None = None
+
+
+class PacketWhoHeardResponse(BaseModel):
+    packet_hash: str = Field(description="Firmware packet hash, 16 hex characters, lower case")
+    analyzer_url: str = Field(description="scheme://host that is, or would be, asked")
+    links: list[PacketAnalyzerLink] = Field(default_factory=list)
+    looked_up: bool = Field(default=False, description="Whether the analyzer was asked")
+    found: bool = Field(default=False, description="Whether the analyzer knows the packet")
+    observation_count: int = 0
+    observer_count: int = 0
+    truncated: bool = Field(default=False, description="More observations exist than returned")
+    observers: list[PacketObserverModel] = Field(default_factory=list)
+
+
+def _analyzer_packet_links(sites: list[AnalyzerSite], packet_hash: str) -> list[PacketAnalyzerLink]:
+    """Packet pages of the configured analyzer sites that have a packet template."""
+    links: list[PacketAnalyzerLink] = []
+    for site in sites:
+        template = (site.packet_url_template or "").strip()
+        if not re.match(r"https?://", template, re.IGNORECASE) or "{hash}" not in template:
+            continue
+        links.append(
+            PacketAnalyzerLink(name=site.name, url=template.replace("{hash}", packet_hash))
+        )
+    return links
+
+
+@router.post("/who-heard", response_model=PacketWhoHeardResponse)
+async def packet_who_heard(request: PacketWhoHeardRequest) -> PacketWhoHeardResponse:
+    """Hash a raw packet and, on request, ask the analyzer who else heard it.
+
+    Works on raw hex so a pasted packet can be checked too. With ``lookup``
+    false nothing leaves this server. With ``lookup`` true the packet hash (not
+    the packet) is sent to the host of the external map sync URL; an unreachable
+    or unusable analyzer is a 502.
+    """
+    try:
+        raw = bytes.fromhex(request.data.strip())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Packet data is not valid hex") from exc
+    if parse_packet_envelope(raw) is None:
+        raise HTTPException(status_code=400, detail="Not a MeshCore packet")
+    packet_hash = calculate_packet_hash(raw).lower()
+
+    settings = await AppSettingsRepository.get()
+    try:
+        base_url = analyzer_base_url(settings.external_map_sync_url)
+    except AnalyzerCheckError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    response = PacketWhoHeardResponse(
+        packet_hash=packet_hash,
+        analyzer_url=base_url,
+        links=_analyzer_packet_links(settings.analyzer_sites, packet_hash),
+    )
+    if not request.lookup:
+        return response
+
+    try:
+        result = await fetch_packet_observations(base_url, packet_hash)
+    except AnalyzerCheckError as exc:
+        logger.warning("Analyzer packet lookup failed for %s: %s", packet_hash, exc)
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    response.looked_up = True
+    response.found = result.found
+    response.observation_count = result.observation_count
+    response.observer_count = result.observer_count
+    response.truncated = result.truncated
+    response.observers = [
+        PacketObserverModel(
+            observer_id=o.observer_id,
+            observer_name=o.observer_name,
+            region=o.region,
+            heard_at=o.heard_at,
+            rssi=o.rssi,
+            snr=o.snr,
+        )
+        for o in result.observations
+    ]
+    return response
 
 
 @router.get("/{packet_id}", response_model=RawPacketDetail)
