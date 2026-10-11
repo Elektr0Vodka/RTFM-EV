@@ -9,6 +9,17 @@ export const BUDDY_ANCHORS = {
   radio: 'status-radio',
   battery: 'status-battery',
   update: 'status-update',
+  /** The phone menu button of the classic layout. */
+  menu: 'nav-menu',
+  theme: 'theme-button',
+  /** The row with "Add channel/contact" at the top of the sidebar. */
+  sidebarHead: 'sidebar-head',
+  sidebarList: 'sidebar-list',
+  sidebarTools: 'sidebar-tools',
+  settingsNav: 'settings-nav',
+  chatHeader: 'chat-header',
+  composer: 'chat-composer',
+  mapControls: 'map-controls',
 } as const;
 
 /** Anchor id of a sidebar conversation row. */
@@ -16,11 +27,26 @@ export function conversationAnchor(type: 'contact' | 'channel', id: string): str
   return `conversation:${type}:${id.toLowerCase()}`;
 }
 
+/** Anchor id of a sidebar Tools row; `key` is the row's React key ("tool-map"). */
+export function toolAnchor(key: string): string {
+  return key;
+}
+
+/** Anchor id of a tab in the Atlas phone tab bar. */
+export function tabAnchor(tab: string): string {
+  return `tab-${tab}`;
+}
+
 /**
- * Centre (viewport px) of the first tagged element that is on screen, or null:
- * not rendered, no size (hidden) or outside the viewport.
+ * The first tagged element that is on screen with its box (viewport px), or
+ * null: not rendered, no size (hidden) or its centre outside the viewport.
+ * With `scrolledAway` an element that is rendered but outside the viewport
+ * counts too (a row further down a scrolling list).
  */
-export function findAnchorPoint(anchor: string): { x: number; y: number } | null {
+export function findAnchorElement(
+  anchor: string,
+  scrolledAway = false
+): { el: Element; rect: DOMRect } | null {
   if (typeof document === 'undefined') return null;
   for (const el of document.querySelectorAll(`[${BUDDY_ANCHOR_ATTR}]`)) {
     if (el.getAttribute(BUDDY_ANCHOR_ATTR) !== anchor) continue;
@@ -28,8 +54,17 @@ export function findAnchorPoint(anchor: string): { x: number; y: number } | null
     if (rect.width <= 0 || rect.height <= 0) continue;
     const x = rect.left + rect.width / 2;
     const y = rect.top + rect.height / 2;
-    if (x < 0 || y < 0 || x > window.innerWidth || y > window.innerHeight) continue;
-    return { x, y };
+    const outside = x < 0 || y < 0 || x > window.innerWidth || y > window.innerHeight;
+    if (outside && !scrolledAway) continue;
+    return { el, rect };
   }
   return null;
+}
+
+/** Centre (viewport px) of the first tagged element that is on screen, or null. */
+export function findAnchorPoint(anchor: string): { x: number; y: number } | null {
+  const found = findAnchorElement(anchor);
+  if (!found) return null;
+  const { rect } = found;
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
 }

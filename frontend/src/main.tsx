@@ -1,3 +1,7 @@
+// Keep first, also before the gateway bootstrap below: it must look at
+// localStorage before any other module writes to it, and that bootstrap
+// writes a marker key on the first load in multi-radio mode.
+import './buddy/buddyTourBoot';
 import './gateway/bootstrap';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';

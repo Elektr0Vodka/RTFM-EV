@@ -20,6 +20,7 @@ import {
   X,
 } from 'lucide-react';
 import { useT } from '../../i18n';
+import { BUDDY_ANCHORS } from '../../buddy/buddyAnchors';
 import {
   Sheet,
   SheetContent,
@@ -787,7 +788,10 @@ export function MapControls(props: MapControlsProps) {
           (isMobile && sidebarOpen ? 'left-[288px]' : 'left-3')
         }
       >
-        <div className="pointer-events-auto flex flex-col gap-2.5">
+        <div
+          className="pointer-events-auto flex flex-col gap-2.5"
+          data-buddy-anchor={BUDDY_ANCHORS.mapControls}
+        >
           {panels.map((p) => (
             <button
               key={p.id}

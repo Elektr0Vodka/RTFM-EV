@@ -161,6 +161,7 @@ export function AtlasSidebarFoot({
         label={t('settings_color_scheme')}
         title={t('a11y_open_theme_settings')}
         onClick={onOpenThemeSettings}
+        buddyAnchor={BUDDY_ANCHORS.theme}
       />
     </div>
   );

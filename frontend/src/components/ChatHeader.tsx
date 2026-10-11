@@ -19,6 +19,7 @@ import { ChannelFloodScopeOverrideModal } from './ChannelFloodScopeOverrideModal
 import { ChannelPathHashModeOverrideModal } from './ChannelPathHashModeOverrideModal';
 import { handleKeyboardActivate } from '../utils/a11y';
 import { useT } from '../i18n';
+import { BUDDY_ANCHORS } from '../buddy/buddyAnchors';
 import { isPublicChannelKey } from '../utils/publicChannel';
 import { stripRegionScopePrefix, floodScopeOverrideLabel } from '../utils/regionScope';
 import { isPrefixOnlyContact } from '../utils/pubkey';
@@ -302,6 +303,7 @@ export function ChatHeader({
 
   return (
     <header
+      data-buddy-anchor={BUDDY_ANCHORS.chatHeader}
       className={cn(
         // `relative` makes the header the positioning context for the mobile
         // dropdowns below, so they span the viewport instead of overflowing off

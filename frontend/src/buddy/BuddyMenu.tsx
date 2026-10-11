@@ -4,6 +4,7 @@ import { formatDateTime } from '../utils/dateTimeFormat';
 import type { BuddyTarget } from './buddyCatalog';
 import { getBuddyHistory } from './buddyHistory';
 import { getBuddyMute, muteBuddyFor, muteBuddyUntilReload, unmuteBuddy } from './buddyPrefs';
+import { getBuddyTourState, resumeBuddyTour, startBuddyTour } from './buddyTour';
 
 export type BuddyMenuView = 'menu' | 'recap';
 
@@ -40,8 +41,8 @@ function placeBy(anchor: HTMLElement): CSSProperties {
 
 /**
  * What a single click on the desktop buddy opens: a recap of what it said or
- * kept back, help for the page on screen, the mute, and the way to another
- * buddy or to none. Nothing here sends anything; every item navigates or
+ * kept back, help for the page on screen, the guided walkthrough, the mute,
+ * and the way to another buddy or to none. Nothing here sends anything; every item navigates or
  * changes a browser-local setting.
  */
 export function BuddyMenu({
@@ -58,6 +59,7 @@ export function BuddyMenu({
   // Snapshots of the moment the menu opened: it closes as soon as the buddy speaks.
   const [entries] = useState(() => [...getBuddyHistory()].reverse());
   const [muted] = useState(() => getBuddyMute() !== null);
+  const [tourPaused] = useState(() => getBuddyTourState().phase === 'paused');
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -117,6 +119,14 @@ export function BuddyMenu({
               {t('buddy_menu_help')}
             </button>
           )}
+          <button
+            type="button"
+            role="menuitem"
+            className={ITEM_CLASS}
+            onClick={run(tourPaused ? resumeBuddyTour : startBuddyTour)}
+          >
+            {t(tourPaused ? 'buddy_menu_tour_resume' : 'buddy_menu_tour')}
+          </button>
           {muted ? (
             <button type="button" role="menuitem" className={ITEM_CLASS} onClick={run(unmuteBuddy)}>
               {t('buddy_menu_unmute')}
