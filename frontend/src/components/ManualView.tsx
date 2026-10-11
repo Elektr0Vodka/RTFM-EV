@@ -6,6 +6,8 @@ import nlManual from '../content/manual/nl.md?raw';
 import deManual from '../content/manual/de.md?raw';
 import { parseManual, type ManualBlock, type ManualInline } from '../utils/manualMarkdown';
 import { MANUAL_SECTION_EVENT, takeManualSection } from '../utils/manualNavigation';
+import { resumeBuddyTour, startBuddyTour, useBuddyTour } from '../buddy/buddyTour';
+import { Button } from './ui/button';
 
 const MANUAL_SOURCES: Record<Locale, string> = { en: enManual, nl: nlManual, de: deManual };
 
@@ -86,6 +88,7 @@ function renderBlock(block: ManualBlock, key: number): ReactNode {
 export function ManualView() {
   const t = useT();
   const { locale } = useLocale();
+  const tour = useBuddyTour();
   const sections = useMemo(
     () => parseManual(MANUAL_SOURCES[locale] ?? MANUAL_SOURCES.en),
     [locale]
@@ -133,8 +136,30 @@ export function ManualView() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="border-b border-border px-4 py-2.5">
-        <h2 className="font-semibold text-base text-foreground">{t('nav_user_guide')}</h2>
+      <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
+        <h2 className="mr-auto font-semibold text-base text-foreground">{t('nav_user_guide')}</h2>
+        {/* The guided walkthrough (buddy/buddyTour.ts): a buddy shows the app step by step. */}
+        {tour.phase === 'running' ? (
+          <span className="text-xs text-muted-foreground">{t('manual_tour_running')}</span>
+        ) : (
+          <>
+            {tour.phase === 'paused' && (
+              <Button type="button" size="sm" className="h-8" onClick={resumeBuddyTour}>
+                {t('manual_tour_resume')}
+              </Button>
+            )}
+            <Button
+              type="button"
+              size="sm"
+              variant={tour.phase === 'paused' ? 'outline' : 'default'}
+              className="h-8"
+              title={t('manual_tour_start_title')}
+              onClick={startBuddyTour}
+            >
+              {t(tour.phase === 'paused' ? 'manual_tour_restart' : 'manual_tour_start')}
+            </Button>
+          </>
+        )}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">

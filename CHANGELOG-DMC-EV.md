@@ -58,6 +58,61 @@ No migration, no new dependency. Requested by Richard after testing Spam Guard o
   changed settings, empty exception lists. Neither touches the spam marks
   already set on chat messages.
 
+## Update 2026-10-11 (desktop buddy: guided walkthrough, feat/buddy-guided-walkthrough)
+
+Frontend only. No migration, no new dependency, no backend change.
+
+### Interface: guided walkthrough
+- **A buddy shows the app step by step.** 12 stops: welcome, radio status, add
+  and search, the conversation list, a chat, the chat header, the map, Tools,
+  My Node, Settings, theme and language, the User Guide. At each stop the buddy
+  moves next to the part it is about and gestures at it, a frame marks the
+  part, and a panel beside the buddy has the text with Back and Next.
+  - Nothing is blocked: no backdrop, no focus trap, the frame takes no clicks.
+    The app stays usable and the buddy can be dragged aside.
+  - A stop opens its page (first channel, Map, My Node, Settings, User Guide).
+    It only navigates; it never types, opens a composer or sends.
+  - Without a channel the two chat stops are left out (10 stops).
+- **Start, pause, end.** Started from a button in the User Guide header, from
+  the buddy's click menu, or from a one-time card on a fresh install (Start
+  walkthrough / Not now / Don't ask again). Pause remembers the stop; Resume is
+  in the User Guide and the buddy menu. End stops it. Escape in the panel
+  pauses. A reload during a walkthrough comes back paused, not running.
+- **Fresh install** means this browser held no app data when the app first
+  loaded with this change. A browser that already had settings is marked as an
+  existing user and is never asked. A private window counts as fresh each time.
+- **Works without a buddy.** With no buddy switched on (every theme but
+  Windows 95 by default), Clippy is summoned for the walkthrough only: it says
+  and polls nothing else, and it is removed on pause or end. The buddy
+  preference and the "discovered" flag are not touched.
+- **With a buddy of your own** its lines are held back during the walkthrough
+  and summed up afterwards (the same path as mute), page tips are skipped, the
+  click menu stays closed, the buddy returns to where it stood, and the saved
+  buddy position is not overwritten.
+- **Layouts.** Every stop lists the elements it can point at in order of
+  preference and takes the first one on screen, so one table serves the classic
+  layout, the Atlas layout, the collapsed sidebar and both phone layouts. On a
+  phone the sidebar stops point at the menu button or at the Chats / More tab
+  instead of opening the drawer. With nothing to point at, the buddy stays
+  where it is and only the text shows.
+- **Themes.** The panel and the frame use the theme's own colours and sit at
+  the buddy's layer, so CRT scanlines cover them too. With "reduce motion" set
+  in the system, the buddy jumps instead of travelling and the frame does not
+  pulse.
+- English, Dutch and German.
+
+### Internals
+- `buddy/buddyMotion.ts`: `playBriefly` and the gesture lookup moved out of
+  `BuddyHost.tsx` unchanged in behaviour, plus `glideTo`.
+- New `data-buddy-anchor` ids on the sidebar head, list and Tools section, the
+  Tools rows, the settings navigation, the chat header, the composer, the map
+  buttons, the theme button, the phone menu button and the Atlas tabs. The
+  attribute has no effect outside the buddy.
+- `main.tsx` imports `buddy/buddyTourBoot` first, ahead of the multi-radio
+  `gateway/bootstrap`; it has to read localStorage before any other module
+  writes to it. The walkthrough state is one per browser, shared by all radios
+  in multi-radio mode.
+
 ## Update 2026-10-11 (Multi-radio mode, plan 30 parts A to D)
 
 ### Multi-radio mode (new, opt-in, experimental)

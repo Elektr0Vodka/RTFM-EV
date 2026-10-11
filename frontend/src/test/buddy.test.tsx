@@ -696,6 +696,7 @@ describe('BuddyHost', () => {
         .map((item) => item.textContent)
     ).toEqual([
       'What did I miss?',
+      'Guided walkthrough',
       'Mute for 15 minutes',
       'Mute for 1 hour',
       'Mute until reload',
