@@ -225,17 +225,21 @@ export function RoomServerPanel({
   );
 
   const performLogin = useCallback(
-    async (nextPassword: string, method: 'password' | 'blank') => {
+    async (nextPassword: string, method: 'password' | 'blank', resyncHistory = false) => {
       if (loginLoading) return;
 
       setLoginLoading(true);
       setLoginError(null);
       try {
-        const result = await api.roomLogin(contact.public_key, nextPassword);
+        const result = resyncHistory
+          ? await api.roomLogin(contact.public_key, nextPassword, true)
+          : await api.roomLogin(contact.public_key, nextPassword);
         setLastLoginAttempt(buildServerLoginAttemptFromResponse(method, result, 'room server'));
         setAuthenticated(true);
         if (result.authenticated) {
-          toast.success(t('room_login_confirmed_toast'));
+          toast.success(
+            resyncHistory ? t('room_resync_started_toast') : t('room_login_confirmed_toast')
+          );
         } else {
           toast.warning(t('room_login_unconfirmed_toast_title'), {
             description: result.message ?? t('room_login_unconfirmed_toast_default_desc'),
@@ -316,6 +320,23 @@ export function RoomServerPanel({
     },
     [contact.public_key, t]
   );
+
+  // Resync history replays up to 32 posts over RF, so it takes a second click.
+  const [confirmResync, setConfirmResync] = useState(false);
+  useEffect(() => {
+    if (!confirmResync) return;
+    const timer = setTimeout(() => setConfirmResync(false), 5000);
+    return () => clearTimeout(timer);
+  }, [confirmResync]);
+
+  const handleResyncHistory = useCallback(() => {
+    if (!confirmResync) {
+      setConfirmResync(true);
+      return;
+    }
+    setConfirmResync(false);
+    void performLogin(password, password.trim() ? 'password' : 'blank', true);
+  }, [confirmResync, password, performLogin]);
 
   const panelTitle = useMemo(() => contact.name || contact.public_key.slice(0, 12), [contact]);
   const showLoginFailureState =
@@ -417,7 +438,23 @@ export function RoomServerPanel({
                 <h2 className="truncate text-base font-semibold">{t('room_tools_title')}</h2>
                 <p className="text-sm text-muted-foreground">{panelTitle}</p>
               </div>
+              <Button
+                type="button"
+                variant={confirmResync ? 'destructive' : 'outline'}
+                size="sm"
+                className="shrink-0"
+                disabled={loginLoading}
+                title={t('room_resync_history_title')}
+                onClick={handleResyncHistory}
+              >
+                {loginLoading
+                  ? t('room_syncing')
+                  : confirmResync
+                    ? t('room_resync_history_confirm')
+                    : t('room_resync_history')}
+              </Button>
             </div>
+            <p className="mt-2 text-xs text-muted-foreground">{t('room_resync_history_hint')}</p>
           </div>
           <div className="flex-1 overflow-y-auto p-4">
             <div className="grid gap-3 xl:grid-cols-2">

@@ -11,6 +11,48 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-11 (room servers: resync history, feat/room-history-resync)
+
+One feature found in a review of other forks of upstream (tristandostaler
+`0fc7e137`). No migration, no new dependency.
+
+### Room servers: Resync history
+- **New button in Room Server Tools** (Show Tools, top right): "Resync
+  history". It makes the room server send every post it still holds again, up
+  to 32. Use it when posts are missing and Sync Now does not bring them back.
+- **Why posts can go missing for good.** A room server only sends posts newer
+  than a marker your radio keeps for that room. The radio moves that marker as
+  soon as a post arrives over the air, before this app has read it. A post
+  that is then lost between radio and app (the radio restarted, or its queue,
+  16 messages by default, was full) is never sent again by a normal login:
+  the room believes you have it.
+- **How the resync works.** The room is removed from the radio and added
+  again by the login that follows. The radio starts a newly added room with an
+  empty marker, so the room server sends everything it still has.
+- **Nothing is duplicated.** Posts already stored are recognized and skipped.
+  Your own posts are not sent back by the room server.
+- **It costs airtime:** every retained post is transmitted again, one at a
+  time. The button therefore needs a second click within 5 seconds, and a
+  line under it says what it costs. The posts arrive over the next minutes.
+- **Manual only.** Sync Now, the auto-login on opening a room and every other
+  login are unchanged and never do this.
+- Limit: a post that has already dropped out of the room server's 32 posts is
+  gone and cannot be recovered this way.
+
+### Backend
+- `POST /api/contacts/{public_key}/room/login` accepts `resync_history`
+  (default false; a request with only `password` behaves as before). New
+  model `RoomLoginRequest`.
+- The firmware behaviour this relies on was checked against
+  `meshcore-dev/MeshCore` (`BaseChatMesh.cpp`, the companion and room server
+  `MyMesh.cpp`); `app/AGENTS.md` records it.
+- Tests: `tests/test_room_routes.py::TestRoomHistoryResync`,
+  `frontend/src/test/roomServerPanel.test.tsx`.
+
+### Not taken from tristandostaler
+- The background room poller (logs in to rooms on a timer and keeps room
+  passwords on the server). Room sync stays manual, as decided earlier.
+
 ## Update 2026-10-11 (node clocks from adverts and repeater clock sync, feat/advert-clock-drift-sync)
 
 Two features found in a review of other forks of upstream (tristandostaler

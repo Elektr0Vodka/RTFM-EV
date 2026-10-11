@@ -211,6 +211,8 @@ Repeaters en roomservers met observer-firmware kun je ook via je netwerk uitleze
 
 Ook roomservers hebben een login met wachtwoord of als gast, met telemetrie, ACL, sensordata, een CLI-console en een geschiedenis van ACL-wijzigingen.
 
+Een roomserver stuurt je de berichten die nieuwer zijn dan wat je radio al heeft ontvangen. **Nu synchroniseren** logt opnieuw in om daarom te vragen. Ontbreken er daarna nog berichten (bijvoorbeeld na een herstart van de radio, of nadat er veel berichten tegelijk binnenkwamen), open dan **Tools tonen** en gebruik **Geschiedenis opnieuw ophalen**. Daarmee stuurt de roomserver elk bericht dat hij nog bewaart opnieuw, maximaal 32. Berichten die je al hebt komen niet dubbel, en je eigen berichten worden niet teruggestuurd. Je moet een tweede keer klikken om te bevestigen, omdat het de zendtijd van al die berichten kost; de berichten komen de komende minuten binnen.
+
 ### Telemetrie
 
 - Bij een contact dat geen repeater is, haalt **Aanvragen** op verzoek de sensorwaarden op, met grafieken van de geschiedenis.

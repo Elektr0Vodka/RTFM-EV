@@ -382,7 +382,7 @@ This table is a representative subset, not the full route list (for example the 
 | GET | `/api/contacts/{public_key}/repeater/telemetry-history` | Stored telemetry history for a repeater (read-only, no radio access) |
 | POST | `/api/contacts/{public_key}/telemetry` | Fetch CayenneLPP telemetry from any contact (single attempt, 10s timeout) |
 | GET | `/api/contacts/{public_key}/telemetry-history` | Stored LPP telemetry history for a contact (read-only, no radio access) |
-| POST | `/api/contacts/{public_key}/room/login` | Log in to a room server (escalates to one flood retry if the first attempt draws no reply) |
+| POST | `/api/contacts/{public_key}/room/login` | Log in to a room server (escalates to one flood retry if the first attempt draws no reply); `resync_history` makes the room send every post it still holds again |
 | POST | `/api/contacts/{public_key}/room/status` | Fetch room-server status telemetry |
 | POST | `/api/contacts/{public_key}/room/lpp-telemetry` | Fetch room-server CayenneLPP sensor data |
 | POST | `/api/contacts/{public_key}/room/acl` | Fetch room-server ACL entries |

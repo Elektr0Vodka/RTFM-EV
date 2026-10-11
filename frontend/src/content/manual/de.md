@@ -211,6 +211,8 @@ Repeater und Room-Server mit Observer-Firmware lassen sich auch über dein Netzw
 
 Auch Room-Server haben eine Anmeldung mit Passwort oder als Gast, mit Telemetrie, ACL, Sensordaten, einer CLI-Konsole und einem Verlauf der ACL-Änderungen.
 
+Ein Room-Server sendet dir die Beiträge, die neuer sind als das, was dein Funkgerät schon empfangen hat. **Jetzt synchronisieren** meldet sich erneut an, um danach zu fragen. Fehlen danach noch Beiträge (zum Beispiel nach einem Neustart des Funkgeräts oder nachdem viele Nachrichten auf einmal ankamen), öffne **Tools anzeigen** und nutze **Verlauf neu abrufen**. Damit sendet der Room-Server jeden Beitrag, den er noch gespeichert hat, erneut, bis zu 32. Beiträge, die du schon hast, werden nicht doppelt gespeichert, und deine eigenen Beiträge werden nicht zurückgesendet. Zur Bestätigung ist ein zweiter Klick nötig, weil es die Sendezeit all dieser Beiträge kostet; die Beiträge kommen in den nächsten Minuten an.
+
 ### Telemetrie
 
 - Bei einem Kontakt, der kein Repeater ist, ruft **Anfordern** die Sensorwerte bei Bedarf ab, mit Verlaufsdiagrammen.

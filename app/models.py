@@ -1031,6 +1031,21 @@ class RepeaterLoginRequest(BaseModel):
     )
 
 
+class RoomLoginRequest(RepeaterLoginRequest):
+    """Request to log in to a room server."""
+
+    resync_history: bool = Field(
+        default=False,
+        description=(
+            "Remove the room from the radio before logging in, so the login adds it "
+            "fresh. That zeroes the radio's per-room sync cursor, and the room server "
+            "sends every post it still holds (up to 32) again. Posts already stored "
+            "are not duplicated. Use it to recover posts the radio acknowledged but "
+            "the app never received."
+        ),
+    )
+
+
 class RepeaterLoginResponse(BaseModel):
     """Response from repeater login."""
 
