@@ -19,6 +19,12 @@ would let through a packet one of their ``drop`` rules should have stopped;
 Monitor must not change forwarding. A block set to observe only is left out for
 the same reason.
 
+A rule name ends in where its block came from: ``(yours)`` for a block the user
+made or kept, ``(duplicate)`` for routine duplicate suppression, ``(auto)`` for
+the rest. On an OpenHop node the name is all there is to tell them apart. The
+rule id is made from the name without that ending, so it does not change when
+a block changes hands.
+
 Two dialects:
 
 - ``host``: the host repeater engine. Channels are matched by their 1 byte
@@ -53,6 +59,8 @@ MAX_NAME = 128
 # rule name so an id is stable for as long as its block exists.
 OPENHOP_ID_BASE = 700_000_000
 OPENHOP_ID_SPAN = 100_000_000
+# Where a block came from, as the ending of its rule names.
+_ORIGINS = {"manual": "yours", "lockdown": "yours", "dedupe": "duplicate"}
 
 
 @dataclass
@@ -103,12 +111,19 @@ class _Renderer:
         return rule_id
 
     def rule(
-        self, key: str, conditions: list[dict[str, Any]], action: str = "drop"
+        self,
+        key: str,
+        conditions: list[dict[str, Any]],
+        action: str = "drop",
+        *,
+        block: Block | None = None,
     ) -> dict[str, Any]:
+        """One rule. ``block`` is the block it enforces; a helper rule has none."""
         name = f"{self.prefix}{key}"
+        origin = f" ({_ORIGINS.get(block.source, 'auto')})" if block is not None else ""
         return {
             "id": self._id(name),
-            "name": name[:MAX_NAME],
+            "name": f"{name[: MAX_NAME - len(origin)]}{origin}",
             "enabled": True,
             "if": {"all": conditions},
             "then": {"action": action},
@@ -137,15 +152,18 @@ class _Renderer:
         if block.sender:
             # Duplicate suppression: the original sender may re-send their own message.
             conditions.append(_cond("channel_sender", "not_equals", block.sender))
-        return [self.rule(block.key, conditions)]
+        return [self.rule(block.key, conditions, block=block)]
 
     def _hop(self, block: Block) -> list[dict[str, Any]]:
         mode = self.detector.hop_mode(block)
+        # A repeater block the user made for one channel only names that channel.
+        scope = [_IS_GROUP_TEXT, *([self.channel(block.channel)] if block.channel else [])]
         if mode == "exact_paths":
             return [
                 self.rule(
                     f"{block.key}:{path}",
-                    [_IS_GROUP_TEXT, _cond("path_hashes", "equals", path.split(">"))],
+                    [*scope, _cond("path_hashes", "equals", path.split(">"))],
+                    block=block,
                 )
                 for path in block.paths
             ]
@@ -155,11 +173,15 @@ class _Renderer:
             # ``path_first`` is compared as a plain string, and the engine's is lower case.
             return [
                 self.rule(
-                    block.key, [_IS_GROUP_TEXT, _cond("path_first", "equals", block.value.lower())]
+                    block.key,
+                    [*scope, _cond("path_first", "equals", block.value.lower())],
+                    block=block,
                 )
             ]
         return [
-            self.rule(block.key, [_IS_GROUP_TEXT, _cond("path_hashes", "contains", block.value)])
+            self.rule(
+                block.key, [*scope, _cond("path_hashes", "contains", block.value)], block=block
+            )
         ]
 
     # ── after the user's rules ───────────────────────────────────────────
@@ -173,6 +195,7 @@ class _Renderer:
                 f"{block.key}:allow:{origin}",
                 [_IS_GROUP_TEXT, _cond("path_hashes", "equals", [origin, *suffix])],
                 action="allow",
+                block=block,
             )
             for origin in sorted(self.detector.allowed_origins(block))[:limit]
         ]
@@ -186,20 +209,26 @@ class _Renderer:
                     _cond("hop_count", "equals", len(suffix) + 1),
                     *[_cond("path_hashes", "contains", hop) for hop in suffix],
                 ],
+                block=block,
             )
         )
         return rules
 
     def gated(
-        self, blocks: list[Block], channel_keys: list[str], names: list[str]
+        self,
+        blocks: list[Block],
+        channel_keys: list[str],
+        names: list[str],
+        known_channels: list[str],
     ) -> list[dict[str, Any]]:
+        """The known-people rule of each channel in ``known_channels``, then the blocks."""
         rules = [
             self.rule(
                 f"known-people:{key}",
                 [_IS_GROUP_TEXT, self.channel(key), self.known(names)],
                 action="allow",
             )
-            for key in channel_keys
+            for key in known_channels
         ]
         for block in blocks:
             if block.kind == "links":
@@ -212,11 +241,14 @@ class _Renderer:
             else:  # lockdown
                 variants = [("", [])]
             for key in channel_keys:
+                if block.channel is not None and block.channel != key:
+                    continue
                 for suffix, extra in variants:
                     rules.append(
                         self.rule(
                             f"{block.key}:{key}{suffix}",
                             [_IS_GROUP_TEXT, self.channel(key), *extra],
+                            block=block,
                         )
                     )
         return rules
@@ -264,10 +296,15 @@ def render(
     channel_keys = sorted(
         channel.key for channel in config.channels if channels is None or channel.key in channels
     )
-    if gated and channel_keys:
+    # A block for one channel needs the known-people rule of that channel only.
+    known_channels = [key for key in channel_keys if any(b.channel in (None, key) for b in gated)]
+    if known_channels:
         out.known_senders = detector.known_names()
         out.after += renderer.gated(
-            [b for b in gated if b.kind != "suffix"], channel_keys, out.known_senders
+            [b for b in gated if b.kind != "suffix"],
+            channel_keys,
+            out.known_senders,
+            known_channels,
         )
     for block in gated:
         if block.kind == "suffix":

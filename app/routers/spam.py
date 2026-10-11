@@ -42,7 +42,8 @@ class SpamGuardActionRequest(BaseModel):
             "unblock, lockdown, block_hop, block_text, mark_spam, not_spam, extend, "
             "block_action, hop_mode, forget_path, allow_origin, unallow_origin, allow_hop, "
             "unallow_hop, allow_sender, unallow_sender, allow_text, unallow_text, "
-            "clear_auto or clear_suppressed"
+            "clear_auto, clear_suppressed, clear_held, clear_messages, forget_source, "
+            "reset_learned or reset_settings"
         )
     )
     args: dict[str, Any] = Field(default_factory=dict, description="Arguments of the action")

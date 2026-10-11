@@ -120,9 +120,9 @@ export function SpamSourcesTab({
                   {formatDuration(now - source.last, t)}
                 </td>
                 <td className="px-2 py-1.5">
-                  {source.hop !== DIRECT && (
-                    <div className="flex flex-wrap gap-1">
-                      {source.blocked ? (
+                  <div className="flex flex-wrap gap-1">
+                    {source.hop !== DIRECT &&
+                      (source.blocked ? (
                         <Button
                           size="sm"
                           variant="outline"
@@ -140,8 +140,9 @@ export function SpamSourcesTab({
                         >
                           {t('spam_sources_block')}
                         </Button>
-                      )}
-                      {source.allowed ? (
+                      ))}
+                    {source.hop !== DIRECT &&
+                      (source.allowed ? (
                         <Button
                           size="sm"
                           variant="outline"
@@ -159,9 +160,17 @@ export function SpamSourcesTab({
                         >
                           {t('spam_sources_allow')}
                         </Button>
-                      )}
-                    </div>
-                  )}
+                      ))}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      title={t('spam_sources_remove_hint')}
+                      disabled={disabled}
+                      onClick={() => void guard.action('forget_source', { hop: source.hop })}
+                    >
+                      {t('spam_sources_remove')}
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}

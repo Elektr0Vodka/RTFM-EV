@@ -40,6 +40,7 @@ vi.mock('../components/spamGuard/SpamSourcesMap', () => ({
 
 const PUBLIC = '8B3387E9C5CDEA6AC9E5EDBAA115CD72';
 const OTHER = 'EE'.repeat(16);
+const CLUB = 'CC'.repeat(16);
 const NOW = Date.now() / 1000;
 
 const TUNABLES: SpamGuardTunables = {
@@ -293,6 +294,18 @@ function openTab(name: RegExp | string) {
   fireEvent.click(screen.getByRole('tab', { name }));
 }
 
+/** Settings tab: find a channel by name and add it to the protected ones. */
+function protectChannel(name: string) {
+  fireEvent.change(screen.getByLabelText('Search your channels to protect one'), {
+    target: { value: name },
+  });
+  fireEvent.click(screen.getByRole('button', { name: `Protect ${name}` }));
+}
+
+function protectedChannels() {
+  return within(screen.getByTestId('spam-protected-channels'));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.spamGuardAction.mockImplementation(async () => ({ result: {}, state: makeState() }));
@@ -519,6 +532,47 @@ describe('SpamGuardView protection', () => {
     );
   });
 
+  it('empties the held list', async () => {
+    await renderView();
+    openTab(/Protection/);
+    const section = screen.getByText('Possibly genuine, held').closest('section')!;
+    fireEvent.click(within(section).getByRole('button', { name: 'Clear list' }));
+    await waitFor(() =>
+      expect(mocks.spamGuardAction).toHaveBeenCalledWith('clear_held', {}, undefined)
+    );
+  });
+
+  it('blocks a repeater on one channel only', async () => {
+    const state = makeState();
+    await renderView({
+      ...state,
+      settings: {
+        ...state.settings,
+        channels: [
+          { key: PUBLIC, name: 'Public' },
+          { key: OTHER, name: '#other' },
+        ],
+      },
+    });
+    openTab(/Protection/);
+    const scope = screen.getByLabelText('Channel for the repeater block');
+    expect(
+      within(scope)
+        .getAllByRole('option')
+        .map((o) => o.textContent)
+    ).toEqual(['All protected channels', 'Public', '#other']);
+    fireEvent.change(scope, { target: { value: OTHER } });
+    fireEvent.change(screen.getByLabelText('Repeater hash'), { target: { value: '5C20' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Block repeater' }));
+    await waitFor(() =>
+      expect(mocks.spamGuardAction).toHaveBeenCalledWith(
+        'block_hop',
+        { hop: '5C20', channel: OTHER },
+        undefined
+      )
+    );
+  });
+
   it('blocks a repeater and a text by hand', async () => {
     await renderView();
     openTab(/Protection/);
@@ -579,6 +633,23 @@ describe('SpamGuardView messages', () => {
     );
   });
 
+  it('empties the recent messages list', async () => {
+    await renderView();
+    openTab('Messages');
+    const section = screen.getByText('Recent messages').closest('section')!;
+    fireEvent.click(within(section).getByRole('button', { name: 'Clear list' }));
+    await waitFor(() =>
+      expect(mocks.spamGuardAction).toHaveBeenCalledWith('clear_messages', {}, undefined)
+    );
+  });
+
+  it('offers no clear button for an empty list', async () => {
+    await renderView(makeState({ messages: [] }));
+    openTab('Messages');
+    expect(screen.getByText('No messages read yet.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear list' })).toBeNull();
+  });
+
   it('lists campaigns and activity in words', async () => {
     await renderView();
     openTab('Messages');
@@ -616,8 +687,22 @@ describe('SpamGuardView sources', () => {
     await waitFor(() =>
       expect(mocks.spamGuardAction).toHaveBeenCalledWith('allow_hop', { hop: 'A1' }, undefined)
     );
-    // Heard directly: there is no repeater to act on.
-    expect(within(rows[2]).queryByRole('button')).toBeNull();
+    // Heard directly: there is no repeater to block or exempt.
+    expect(
+      within(rows[2])
+        .getAllByRole('button')
+        .map((b) => b.textContent)
+    ).toEqual(['Remove']);
+  });
+
+  it('takes a source off the list', async () => {
+    await renderView();
+    openTab('Spam sources');
+    const rows = screen.getAllByTestId('spam-source');
+    fireEvent.click(within(rows[1]).getByRole('button', { name: 'Remove' }));
+    await waitFor(() =>
+      expect(mocks.spamGuardAction).toHaveBeenCalledWith('forget_source', { hop: 'A1' }, undefined)
+    );
   });
 });
 
@@ -658,17 +743,107 @@ describe('SpamGuardView settings', () => {
     expect(screen.getAllByText(/^Watch out: /).length).toBeGreaterThanOrEqual(30);
   });
 
-  it('protects another channel', async () => {
+  it('protects another channel found by searching', async () => {
     await renderView();
     openTab('Settings');
-    expect(screen.getByLabelText('Public')).toBeChecked();
-    fireEvent.click(screen.getByLabelText('#other'));
+    expect(protectedChannels().getByText('Public')).toBeInTheDocument();
+    // Channels are only offered once the user searches.
+    expect(screen.queryByRole('button', { name: 'Protect #other' })).toBeNull();
+    const search = screen.getByLabelText('Search your channels to protect one');
+    fireEvent.change(search, { target: { value: 'nothing like it' } });
+    expect(screen.getByText('No other channel of yours has that in its name.')).toBeInTheDocument();
+    // A protected channel is not offered again.
+    fireEvent.change(search, { target: { value: 'publ' } });
+    expect(screen.queryByRole('button', { name: 'Protect Public' })).toBeNull();
+    fireEvent.change(search, { target: { value: 'OTH' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Protect #other' }));
+    expect(protectedChannels().getByText('#other')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Protect #other' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
     await waitFor(() => expect(mocks.saveSpamGuardSettings).toHaveBeenCalledTimes(1));
     expect(mocks.saveSpamGuardSettings.mock.calls[0][1].channels).toEqual([
       { key: PUBLIC, name: 'Public' },
       { key: OTHER, name: '#other' },
     ]);
+  });
+
+  it('stops protecting a channel and says so when none is left', async () => {
+    await renderView();
+    openTab('Settings');
+    fireEvent.click(screen.getByRole('button', { name: 'Stop protecting Public' }));
+    expect(screen.queryByTestId('spam-protected-channels')).toBeNull();
+    expect(
+      screen.getByText('No channel is protected, so Spam Guard reads nothing.')
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    await waitFor(() => expect(mocks.saveSpamGuardSettings).toHaveBeenCalledTimes(1));
+    expect(mocks.saveSpamGuardSettings.mock.calls[0][1].channels).toEqual([]);
+  });
+
+  it('keeps a long search result short', async () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({
+      key: (i + 16).toString(16).toUpperCase().repeat(16),
+      name: `#club-${i}`,
+    })) as Channel[];
+    await renderView(makeState(), [...CHANNELS, ...many]);
+    openTab('Settings');
+    fireEvent.change(screen.getByLabelText('Search your channels to protect one'), {
+      target: { value: 'club' },
+    });
+    const matches = within(screen.getByTestId('spam-channel-matches'));
+    expect(matches.getAllByRole('button')).toHaveLength(8);
+    expect(matches.getByText('4 more match. Type more to narrow it down.')).toBeInTheDocument();
+  });
+
+  it('lists a protected channel that is no longer stored, so it can be removed', async () => {
+    const state = makeState();
+    await renderView({
+      ...state,
+      settings: {
+        ...state.settings,
+        channels: [
+          { key: PUBLIC, name: 'Public' },
+          { key: CLUB, name: 'Club' },
+        ],
+      },
+    });
+    openTab('Settings');
+    expect(protectedChannels().getByText('Club (no longer in your channels)')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Stop protecting Club' }));
+    expect(protectedChannels().queryByText(/Club/)).toBeNull();
+  });
+
+  it('forgets what was learnt only after a confirmation', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValue(true);
+    await renderView();
+    openTab('Settings');
+    const forget = screen.getByRole('button', { name: 'Forget what was learnt' });
+    fireEvent.click(forget);
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('also the ones you made'));
+    expect(mocks.spamGuardAction).not.toHaveBeenCalled();
+    fireEvent.click(forget);
+    await waitFor(() =>
+      expect(mocks.spamGuardAction).toHaveBeenCalledWith('reset_learned', {}, undefined)
+    );
+  });
+
+  it('puts the settings back to defaults and drops unsaved edits', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValue(true);
+    await renderView();
+    openTab('Settings');
+    protectChannel('#other');
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
+    const reset = screen.getByRole('button', { name: 'Settings back to defaults' });
+    fireEvent.click(reset);
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('back to their defaults'));
+    expect(mocks.spamGuardAction).not.toHaveBeenCalled();
+    fireEvent.click(reset);
+    await waitFor(() =>
+      expect(mocks.spamGuardAction).toHaveBeenCalledWith('reset_settings', {}, undefined)
+    );
+    // The form shows what the server answered, not the edit that was pending.
+    await waitFor(() => expect(screen.queryByText('Unsaved changes')).toBeNull());
+    expect(protectedChannels().queryByText('#other')).toBeNull();
   });
 
   it('adds and removes exceptions at once', async () => {
@@ -722,7 +897,6 @@ describe('SpamGuardView settings', () => {
   });
 });
 
-const CLUB = 'CC'.repeat(16);
 const WITH_CLUB = [...CHANNELS, { key: CLUB, name: 'Club' }] as Channel[];
 
 function openHopState(
@@ -847,11 +1021,11 @@ describe('SpamGuardView on an OpenHop radio', () => {
     await renderView(openHopState(), WITH_CLUB);
     openTab('Settings');
     expect(screen.queryByLabelText(/Also enforce on the OpenHop node/)).toBeNull();
-    fireEvent.click(screen.getByLabelText('Club'));
+    protectChannel('Club');
     expect(screen.getByLabelText(/Also enforce on the OpenHop node/)).not.toBeChecked();
     expect(confirm).not.toHaveBeenCalled();
     // Public and hashtag channels have no secret key: nothing to agree to.
-    fireEvent.click(screen.getByLabelText('#other'));
+    protectChannel('#other');
     expect(screen.getAllByLabelText(/Also enforce on the OpenHop node/)).toHaveLength(1);
   });
 
@@ -871,7 +1045,7 @@ describe('SpamGuardView on an OpenHop radio', () => {
       WITH_CLUB
     );
     openTab('Settings');
-    expect(screen.getByLabelText('Club')).toBeChecked();
+    expect(protectedChannels().getByText('Club')).toBeInTheDocument();
     expect(screen.queryByLabelText(/Also enforce on the OpenHop node/)).toBeNull();
   });
 });

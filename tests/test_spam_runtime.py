@@ -306,6 +306,60 @@ class TestSettingsAndActions:
             await feed.runtime.action("block_sender", {"sender": "Dave"})
 
     @pytest.mark.asyncio
+    async def test_reset_settings_goes_back_to_a_fresh_install(self, feed):
+        await protect(feed, dedupe_enabled=False)
+        await feed.runtime.action("allow_sender", {"sender": "Sue"})
+        await feed.runtime.action("block_hop", {"hop": "27", "match": "contains"})
+        assert feed.runtime.host.status()["rules_present"] == 1
+        version = feed.runtime.version
+        await feed.runtime.action("reset_settings", {})
+        assert feed.runtime.config == default_config()
+        assert feed.runtime.version == version + 1
+        stored = await SpamGuardConfigRepository.get()
+        assert stored is not None
+        assert (stored[1]["mode"], stored[1]["allow_senders"]) == ("monitor", [])
+        assert feed.runtime.detector.exceptions()["allow_senders"] == []
+        # What was learnt stays, but Monitor mode applies no rules.
+        assert "hop:27" in feed.runtime.detector.blocks
+        assert feed.runtime.host.status()["rules_present"] == 0
+        with pytest.raises(ValueError):
+            await feed.runtime.action("reset_settings", {"mode": "protect"})
+
+    @pytest.mark.asyncio
+    async def test_reset_learned_is_saved_and_takes_the_rules_away(self, feed):
+        await protect(feed)
+        await feed.runtime.action("block_hop", {"hop": "27", "match": "contains"})
+        await feed.runtime.action("reset_learned", {})
+        assert feed.runtime.host.status()["rules_present"] == 0
+        stored = await SpamGuardStateRepository.get()
+        assert stored is not None and stored["blocks"] == {}
+        # The settings are not learnt.
+        assert feed.runtime.config.mode == "protect"
+
+    @pytest.mark.asyncio
+    async def test_cleared_recent_messages_stay_off_the_page(self, feed):
+        await feed.say("Dave", "evening all")
+        assert len(feed.runtime.snapshot()["messages"]) == 1
+        await feed.runtime.action("clear_messages", {})
+        assert feed.runtime.snapshot()["messages"] == []
+        assert len(feed.runtime.detector.events) == 1
+        await feed.say("Dave", "still here")
+        assert [m["text"] for m in feed.runtime.snapshot()["messages"]] == ["still here"]
+
+    @pytest.mark.asyncio
+    async def test_repeater_block_on_one_channel_applies_rules_for_that_channel(self, feed):
+        config = SpamConfig(
+            mode="protect",
+            channels=[{"key": PUBLIC, "name": "Public"}, {"key": OTHER, "name": "#other"}],
+        )
+        assert await feed.runtime.save_config(feed.runtime.version, config) is not None
+        await feed.runtime.action("block_hop", {"hop": "27"})
+        assert feed.runtime.host.status()["rules_present"] == 4
+        await feed.runtime.action("block_hop", {"hop": "27", "channel": OTHER})
+        assert feed.runtime.host.status()["rules_present"] == 2
+        assert feed.runtime.snapshot()["block_list"][0]["channel"] == OTHER
+
+    @pytest.mark.asyncio
     async def test_set_message_spam_broadcasts_only_real_changes(self, feed):
         message_id = await feed.say("Dave", "evening all")
         await feed.runtime.set_message_spam(message_id, True)

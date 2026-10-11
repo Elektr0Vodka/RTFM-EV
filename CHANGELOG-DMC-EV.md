@@ -11,6 +11,53 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-11 (Spam Guard: feedback from the first test round, feat/spam-guard-feedback-1)
+
+No migration, no new dependency. Requested by Richard after testing Spam Guard on an OpenHop node.
+
+### Spam Guard: fewer rules
+- **Repeater block for one channel.** "Block something yourself" has a channel
+  choice for a repeater block, next to "All protected channels" (the default,
+  as before). A block for one channel only renders rules for that channel, and
+  the "known people" allow rule is only written for channels a block applies
+  to. With three protected channels a default repeater block was 6 rules; for
+  one channel it is 2. API: `block_hop` takes an optional `channel`; a channel
+  that is not protected is refused with a 400.
+- **Fix: no second rule for a text that is already blocked.** A message caught
+  by one of your own blocks, a campaign block or a repeater block also got a
+  routine duplicate-suppression block, which showed up as a second rule for
+  the matched text. A message that an enforced block already stopped no longer
+  gets one. A message matched by a block set to observe only still does,
+  because that block stops nothing.
+- **Rule names say where a block came from.** The name of a rule now ends in
+  `(yours)` (made or kept by you, including a lockdown), `(duplicate)` (routine
+  duplicate suppression) or `(auto)` (everything else Spam Guard decided). On
+  an OpenHop node the name was the only thing to go by, and all of them read
+  `rtfm-spam:text:<code>`. Rule ids are unchanged: they are made from the name
+  without that ending. Note: after an update the rules on a node are rewritten
+  once, because their names changed.
+
+### Spam Guard: clearing and resetting
+- **Fix: "Clear automatic blocks" did nothing lasting.** The blocks were
+  rebuilt from the same evidence within the same request. They are now held
+  off like a block removed by hand: 24 hours, or for a duplicate block as long
+  as it would have lasted. "Allow them again" under Settings lifts that.
+- **Clear list** on "Possibly genuine, held" and on "Recent messages". Clearing
+  the recent messages only empties the list on screen: the messages stay
+  evidence for campaigns and duplicates.
+- **Remove** on a spam source takes that repeater off the list. New spam
+  through it lists it again; the totals on the overview are not changed.
+- **Protected channels** is now a list of the protected channels with a remove
+  button, plus a search over your other channels to add one, instead of a
+  tick box for every channel.
+- **Start again** at the bottom of Settings has two separate resets, each
+  behind a confirmation. "Forget what was learnt" removes every block (also
+  your own), the removed blocks that are held off, the known names and routes,
+  the spam sources, the lists and the numbers. "Settings back to defaults"
+  goes back to a fresh install: Monitor, the Public channel, Balanced, no
+  changed settings, empty exception lists. Neither touches the spam marks
+  already set on chat messages.
+
 ## Update 2026-10-11 (desktop buddy: guided walkthrough, feat/buddy-guided-walkthrough)
 
 Frontend only. No migration, no new dependency, no backend change.

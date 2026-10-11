@@ -19,6 +19,9 @@ import { TUNABLE_GROUPS, UNIT_KEYS, type TunableKey, type TunableSpec } from './
 
 type TunableValue = SpamGuardTunables[TunableKey];
 
+/** Search results shown at once; the rest is a matter of typing more. */
+const MAX_CHANNEL_MATCHES = 8;
+
 function sameValue(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
@@ -110,6 +113,7 @@ export function SpamSettingsTab({
   const [draft, setDraft] = useState<SpamGuardSettings>(state.settings);
   const [dirty, setDirty] = useState(false);
   const [rules, setRules] = useState<SpamGuardRules | null>(null);
+  const [channelQuery, setChannelQuery] = useState('');
 
   // Follow the server while there are no local edits. With edits, keep them but
   // take over the exception lists: those are changed by actions, not this form.
@@ -144,14 +148,17 @@ export function SpamSettingsTab({
     });
   };
 
-  const toggleChannel = (channel: Channel, on: boolean) => {
+  const addChannel = (channel: Channel) => {
     setDirty(true);
     setDraft((prev) => ({
       ...prev,
-      channels: on
-        ? [...prev.channels, { key: channel.key.toUpperCase(), name: channel.name }]
-        : prev.channels.filter((c) => c.key !== channel.key.toUpperCase()),
+      channels: [...prev.channels, { key: channel.key.toUpperCase(), name: channel.name }],
     }));
+  };
+
+  const removeChannel = (key: string) => {
+    setDirty(true);
+    setDraft((prev) => ({ ...prev, channels: prev.channels.filter((c) => c.key !== key) }));
   };
 
   // An OpenHop rule has to carry the channel key. For a private channel that
@@ -180,6 +187,16 @@ export function SpamSettingsTab({
 
   const saveDraft = async () => {
     if (await guard.save(draft)) setDirty(false);
+  };
+
+  const resetLearned = () => {
+    if (window.confirm(t('spam_reset_learned_confirm'))) void guard.action('reset_learned');
+  };
+
+  const resetSettings = async () => {
+    if (!window.confirm(t('spam_reset_settings_confirm'))) return;
+    // The form follows the server again once there are no local edits.
+    if (await guard.action('reset_settings')) setDirty(false);
   };
 
   const showRules = async () => {
@@ -268,72 +285,98 @@ export function SpamSettingsTab({
   };
 
   const protectedKeys = new Set(draft.channels.map((c) => c.key));
-  const knownChannelKeys = new Set(channels.map((c) => c.key.toUpperCase()));
+  const channelByKey = new Map(channels.map((c) => [c.key.toUpperCase(), c]));
+  const query = channelQuery.trim().toLowerCase();
+  const matches = query
+    ? channels.filter(
+        (c) => !protectedKeys.has(c.key.toUpperCase()) && c.name.toLowerCase().includes(query)
+      )
+    : [];
 
   return (
     <div className="space-y-6">
       <section className="space-y-2 rounded-md border border-border/60 p-3">
         <h3 className="text-sm font-semibold text-foreground">{t('spam_channels_title')}</h3>
         <p className="text-[0.8125rem] text-muted-foreground">{t('spam_channels_desc')}</p>
-        <ul className="grid gap-1 md:grid-cols-2">
-          {channels.map((channel) => {
-            const id = `spam-channel-${channel.key}`;
-            const isProtected = protectedKeys.has(channel.key.toUpperCase());
-            const askForKey = state.backend === 'openhop' && isProtected && keyIsPrivate(channel);
-            return (
-              <li key={channel.key} className="text-sm">
-                <div className="flex items-center gap-2">
-                  <input
-                    id={id}
-                    type="checkbox"
-                    className="h-4 w-4 accent-current"
-                    checked={isProtected}
-                    disabled={disabled}
-                    onChange={(e) => toggleChannel(channel, e.target.checked)}
-                  />
-                  <label htmlFor={id}>{channel.name}</label>
-                </div>
-                {askForKey && (
-                  <div className="ml-6 mt-1 flex items-start gap-2 text-[0.8125rem] text-muted-foreground">
-                    <input
-                      id={`${id}-share-key`}
-                      type="checkbox"
-                      className="mt-0.5 h-4 w-4 accent-current"
-                      checked={
-                        draft.channels.find((c) => c.key === channel.key.toUpperCase())
-                          ?.share_key === true
-                      }
+        {draft.channels.length === 0 ? (
+          <p className="text-[0.8125rem] text-warning">{t('spam_channels_none')}</p>
+        ) : (
+          <ul className="space-y-1" data-testid="spam-protected-channels">
+            {draft.channels.map((selected) => {
+              const channel = channelByKey.get(selected.key);
+              const name = channel?.name ?? (selected.name || selected.key.slice(0, 8));
+              const id = `spam-channel-${selected.key}`;
+              const askForKey =
+                state.backend === 'openhop' && channel !== undefined && keyIsPrivate(channel);
+              return (
+                <li key={selected.key} className="rounded bg-muted px-2 py-1 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={channel ? 'text-foreground' : 'text-muted-foreground'}>
+                      {channel ? name : t('spam_channels_missing', { name })}
+                    </span>
+                    <button
+                      type="button"
+                      className="text-[0.8125rem] text-muted-foreground underline hover:text-destructive"
+                      aria-label={t('spam_channels_remove_label', { name })}
                       disabled={disabled}
-                      onChange={(e) => setShareKey(channel, e.target.checked)}
-                    />
-                    <label htmlFor={`${id}-share-key`}>{t('spam_channels_share_key')}</label>
+                      onClick={() => removeChannel(selected.key)}
+                    >
+                      {t('spam_channels_remove')}
+                    </button>
                   </div>
-                )}
-              </li>
-            );
-          })}
-          {draft.channels
-            .filter((c) => !knownChannelKeys.has(c.key))
-            .map((c) => (
-              <li key={c.key} className="flex items-center gap-2 text-sm text-muted-foreground">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 accent-current"
-                  checked
-                  aria-label={c.name || c.key.slice(0, 8)}
-                  disabled={disabled}
-                  onChange={() => {
-                    setDirty(true);
-                    setDraft((prev) => ({
-                      ...prev,
-                      channels: prev.channels.filter((x) => x.key !== c.key),
-                    }));
-                  }}
-                />
-                {t('spam_channels_missing', { name: c.name || c.key.slice(0, 8) })}
-              </li>
-            ))}
-        </ul>
+                  {askForKey && channel && (
+                    <div className="mt-1 flex items-start gap-2 text-[0.8125rem] text-muted-foreground">
+                      <input
+                        id={`${id}-share-key`}
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4 accent-current"
+                        checked={selected.share_key === true}
+                        disabled={disabled}
+                        onChange={(e) => setShareKey(channel, e.target.checked)}
+                      />
+                      <label htmlFor={`${id}-share-key`}>{t('spam_channels_share_key')}</label>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <Input
+          type="search"
+          className="h-9 max-w-sm"
+          aria-label={t('spam_channels_search_label')}
+          placeholder={t('spam_channels_search_label')}
+          value={channelQuery}
+          disabled={disabled}
+          onChange={(e) => setChannelQuery(e.target.value)}
+        />
+        {query !== '' &&
+          (matches.length === 0 ? (
+            <p className="text-[0.8125rem] text-muted-foreground">{t('spam_channels_no_match')}</p>
+          ) : (
+            <ul className="space-y-1" data-testid="spam-channel-matches">
+              {matches.slice(0, MAX_CHANNEL_MATCHES).map((channel) => (
+                <li key={channel.key} className="flex items-center justify-between gap-2 text-sm">
+                  <span>{channel.name}</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    aria-label={t('spam_channels_add_label', { name: channel.name })}
+                    disabled={disabled}
+                    onClick={() => addChannel(channel)}
+                  >
+                    {t('spam_channels_add')}
+                  </Button>
+                </li>
+              ))}
+              {matches.length > MAX_CHANNEL_MATCHES && (
+                <li className="text-[0.8125rem] text-muted-foreground">
+                  {t('spam_channels_more', { count: matches.length - MAX_CHANNEL_MATCHES })}
+                </li>
+              )}
+            </ul>
+          ))}
       </section>
 
       {TUNABLE_GROUPS.map((group) => (
@@ -468,6 +511,28 @@ export function SpamSettingsTab({
             </pre>
           </>
         )}
+      </section>
+
+      <section className="space-y-3 rounded-md border border-destructive/40 p-3">
+        <h3 className="text-sm font-semibold text-foreground">{t('spam_reset_title')}</h3>
+        <p className="text-[0.8125rem] text-muted-foreground">{t('spam_reset_desc')}</p>
+        <div className="space-y-1">
+          <Button size="sm" variant="destructive" disabled={disabled} onClick={resetLearned}>
+            {t('spam_reset_learned')}
+          </Button>
+          <p className="text-[0.8125rem] text-muted-foreground">{t('spam_reset_learned_help')}</p>
+        </div>
+        <div className="space-y-1">
+          <Button
+            size="sm"
+            variant="destructive"
+            disabled={disabled}
+            onClick={() => void resetSettings()}
+          >
+            {t('spam_reset_settings')}
+          </Button>
+          <p className="text-[0.8125rem] text-muted-foreground">{t('spam_reset_settings_help')}</p>
+        </div>
       </section>
     </div>
   );

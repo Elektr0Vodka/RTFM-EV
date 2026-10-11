@@ -232,6 +232,8 @@ class SpamDetector:
         self._flagged: OrderedDict[int, None] = OrderedDict()
         self._changed = False
         self._important = False
+        # The newest event when the user emptied the recent messages list.
+        self._hidden_through: Event | None = None
         # Similarity cache: each distinct text is compared with the others once.
         self._sim_threshold = 0.0
         self._sim_shingles: dict[str, frozenset[str]] = {}
@@ -381,6 +383,8 @@ class SpamDetector:
         return allowed
 
     def _block_matches(self, block: Block, event: Event) -> bool:
+        if block.channel is not None and block.channel != event.channel:
+            return False
         if self.gated(block) and self.is_known(event.sender):
             return False
         if block.kind == "lockdown":
@@ -401,8 +405,6 @@ class SpamDetector:
                 and all(hop in event.path for hop in suffix)
                 and event.first_hop not in self.allowed_origins(block)
             )
-        if block.channel is not None and block.channel != event.channel:
-            return False
         if block.sender and event.sender == block.sender:
             return False
         if block.kind == "words":
@@ -747,10 +749,23 @@ class SpamDetector:
                             from_ts=last,
                         )
 
+    def _stopped(self, event: Event) -> bool:
+        """Already held back by an enforced block that is not duplicate suppression.
+
+        Such a message needs no duplicate block of its own: its copies run into
+        the same block, and the extra block would only be one more rule.
+        """
+        block = self.blocks.get(event.matched) if event.matched else None
+        return block is not None and block.source != "dedupe" and not block.observe
+
     def _block_duplicates(self, recent: list[Event]) -> None:
         """The first copy of a message gets through; copies under other names do not."""
         tun = self.tunables
-        usable = [e for e in recent if not e.exempt and e.sender not in self.allow_senders]
+        usable = [
+            e
+            for e in recent
+            if not e.exempt and e.sender not in self.allow_senders and not self._stopped(e)
+        ]
 
         # One message re-sent with small changes (same normalised form).
         variants: dict[str, list[Event]] = {}
@@ -867,6 +882,8 @@ class SpamDetector:
                 continue
             block = self.blocks.get(f"hop:{event.first_hop}")
             if block is None or self.hop_mode(block) != "exact_paths":
+                continue
+            if block.channel is not None and block.channel != event.channel:
                 continue
             route = ">".join(event.path)
             if (
@@ -1066,6 +1083,23 @@ class SpamDetector:
             for stale in sorted(self.hours)[:-HISTORY_HOURS]:
                 del self.hours[stale]
 
+    def visible_events(self) -> list[Event]:
+        """The events for the recent messages list: those since the user last emptied it.
+
+        Emptying the list hides messages, it does not forget them: they stay
+        evidence for campaigns and duplicates.
+        """
+        events = list(self.events)
+        marker = self._hidden_through
+        if marker is None:
+            return events
+        for index, event in enumerate(events):
+            if event is marker:
+                return events[index + 1 :]
+        # The marker left the window, and everything older went with it.
+        self._hidden_through = None
+        return events
+
     def add_airtime(self, ts: float, airtime_ms: float) -> None:
         """Airtime not spent re-sending a stopped message (the caller knows the radio)."""
         hour = self.hours.setdefault(int(ts // 3600) * 3600, _empty_hour())
@@ -1263,11 +1297,19 @@ class SpamDetector:
         return {"active": True, "known": len(self.known_names())}
 
     def _do_block_hop(
-        self, hop: str, ttl_seconds: int | None = None, match: str | None = None
+        self,
+        hop: str,
+        ttl_seconds: int | None = None,
+        match: str | None = None,
+        channel: str | None = None,
     ) -> dict[str, Any]:
+        """Block a repeater: on one protected channel, or on all of them without ``channel``."""
         hop_hash = normalise_hop(hop)
         if match is not None and match not in _HOP_MODES:
             raise ValueError("Unknown matching mode")
+        scope = channel.strip().upper() if channel else None
+        if scope is not None and scope not in {c.key for c in self.config.channels}:
+            raise ValueError("That channel is not protected")
         key = f"hop:{hop_hash}"
         self.suppressed.pop(key, None)
         self.allow_hops = {a for a in self.allow_hops if not hops_related(a, hop_hash)}
@@ -1278,6 +1320,7 @@ class SpamDetector:
             hop_hash,
             "manual",
             "manual",
+            channel=scope,
             ttl=ttl_seconds,
             match=cast("HopMatch | None", match),
         )
@@ -1389,8 +1432,44 @@ class SpamDetector:
         self.allow_texts.discard(text.strip())
 
     def _do_clear_auto(self) -> None:
-        self.blocks = {k: b for k, b in self.blocks.items() if b.source == "manual"}
+        now = self._clock()
+        for key, block in list(self.blocks.items()):
+            if block.source == "manual":
+                continue
+            del self.blocks[key]
+            # Otherwise the same evidence would put it straight back. A duplicate
+            # block is held off for as long as it would have lasted.
+            hold = self.tunables.dedupe_seconds if block.source == "dedupe" else SUPPRESS_SECONDS
+            self.suppressed[key] = now + hold
         self._note("cleared_auto")
 
     def _do_clear_suppressed(self) -> None:
         self.suppressed.clear()
+
+    def _do_clear_held(self) -> None:
+        self.held.clear()
+
+    def _do_clear_messages(self) -> None:
+        self._hidden_through = self.events[-1] if self.events else None
+
+    def _do_forget_source(self, hop: str) -> None:
+        """Take a repeater off the spam sources list. New spam through it lists it again."""
+        code = hop.strip().upper()
+        for hour in self.hours.values():
+            hour["hops"].pop(code, None)
+            hour["last"].pop(code, None)
+
+    def _do_reset_learned(self) -> None:
+        """Forget everything learnt: blocks, known names, routes, history and lists.
+
+        The settings, with their exception lists, are not touched.
+        """
+        self.load({})
+        self.events.clear()
+        self.campaigns = {}
+        self._flagged.clear()
+        self._hidden_through = None
+        self._sim_shingles.clear()
+        self._sim_links.clear()
+        self._shared_cache.clear()
+        self._note("reset_learned")

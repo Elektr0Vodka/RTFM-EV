@@ -534,7 +534,7 @@ class TestRuntimeOnOpenHop:
         await guard.protect()
         await guard.block_repeater()
         await guard.written(1)
-        assert guard.node.names() == ["rtfm-spam:hop:27", USER_A["name"]]
+        assert guard.node.names() == ["rtfm-spam:hop:27 (yours)", USER_A["name"]]
         assert guard.runtime.host.status()["rules_present"] == 0
         health = guard.runtime.health()
         assert health["state"] == "ok"
@@ -594,7 +594,7 @@ class TestPrivateChannelKey:
         await guard.block_repeater()
         await guard.written(1)
         assert CLUB.lower() not in str(guard.node.engine).lower()
-        assert guard.node.names() == ["rtfm-spam:hop:27", USER_A["name"]]
+        assert guard.node.names() == ["rtfm-spam:hop:27 (yours)", USER_A["name"]]
         health = guard.runtime.health()
         assert health["warnings"] == ["openhop_key_not_shared"]
         assert health["state"] == "warn"

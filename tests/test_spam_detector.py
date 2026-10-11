@@ -10,6 +10,8 @@ from app.spam.detector import SpamDetector
 from app.spam.settings import SpamConfig
 
 PUBLIC = "8B3387E9C5CDEA6AC9E5EDBAA115CD72"
+OTHER = "AA" * 16
+TWO_CHANNELS = [{"key": PUBLIC, "name": "Public"}, {"key": OTHER, "name": "#other"}]
 LONG = "Selling brand new radios at half price visit the shop on the corner today"
 SPAM = "Amazing offer cheap radios available now at the usual place come quickly"
 GENERATED = ["UD6DWREK", "QK3ZP9XV", "ZX8CV2BN"]
@@ -142,6 +144,32 @@ class TestDuplicateSuppression:
         say(det, clock, "Dave", LONG)
         det.decide()
         assert not det.blocks
+
+    def test_a_message_another_block_stopped_gets_no_duplicate_block(self):
+        det, clock = make()
+        key = det.action("block_text", text="brand new radios", channel=PUBLIC)["key"]
+        assert say(det, clock, "Dave", LONG).matched == key
+        det.decide()
+        assert list(det.blocks) == [key]
+
+    def test_a_message_an_observing_block_matched_still_gets_one(self):
+        det, clock = make()
+        key = det.action("block_text", text="brand new radios", channel=PUBLIC)["key"]
+        det.action("block_action", key=key, observe=True)
+        say(det, clock, "Dave", LONG)
+        det.decide()
+        assert sorted(b.source for b in det.blocks.values()) == ["dedupe", "manual"]
+
+    def test_copies_keep_renewing_their_duplicate_block(self):
+        det, clock = make()
+        say(det, clock, "Dave", LONG)
+        det.decide()
+        (block,) = det.blocks.values()
+        first_expiry = block.expires
+        clock.tick(300)
+        assert say(det, clock, "Sarah", LONG).matched == block.key
+        det.decide()
+        assert block.expires > first_expiry
 
 
 class TestCampaigns:
@@ -554,6 +582,130 @@ class TestActions:
         det.decide()
         det.action("clear_auto")
         assert list(det.blocks) == ["hop:27"]
+
+    def test_cleared_automatic_blocks_do_not_come_straight_back(self):
+        det, clock = make()
+        for name in GENERATED:
+            say(det, clock, name, SPAM)
+        det.decide()
+        cleared = set(det.blocks)
+        assert {det.blocks[key].source for key in cleared} >= {"campaign", "hop", "dedupe"}
+        lasting = {key for key in cleared if det.blocks[key].source != "dedupe"}
+        det.action("clear_auto")
+        clock.tick(30)
+        det.decide()
+        assert not det.blocks
+        # A duplicate block is held off for as long as it would have lasted, the
+        # others for as long as a block removed by hand.
+        clock.tick(det.tunables.dedupe_seconds)
+        det.decide()
+        assert set(det.suppressed) == lasting
+        det.action("clear_suppressed")
+        for name in GENERATED:
+            say(det, clock, name, SPAM)
+        det.decide()
+        assert lasting <= set(det.blocks)
+
+    def test_block_hop_on_one_channel(self):
+        det, clock = make(channels=TWO_CHANNELS)
+        det.action("block_hop", hop="27", match="contains", channel=OTHER.lower())
+        assert det.blocks["hop:27"].channel == OTHER
+        assert say(det, clock, "Dave", "hello").matched is None
+        clock.tick(5)
+        there = det.ingest(ts=clock.now, path=("27",), sender="Dave", text="hello", channel=OTHER)
+        assert there.matched == "hop:27"
+        # Blocking it again without a channel widens it to every protected channel.
+        det.action("block_hop", hop="27", match="contains")
+        assert det.blocks["hop:27"].channel is None
+        assert say(det, clock, "Dave", "hello").matched == "hop:27"
+
+    def test_block_hop_refuses_a_channel_that_is_not_protected(self):
+        det, _ = make()
+        with pytest.raises(ValueError):
+            det.action("block_hop", hop="27", channel=OTHER)
+        with pytest.raises(ValueError):
+            det.action("block_hop", hop="27", channel="not a key")
+        assert not det.blocks
+
+    def test_exact_paths_of_a_one_channel_block_are_learnt_on_that_channel(self):
+        det, clock = make(channels=TWO_CHANNELS)
+        det.action("block_hop", hop="27", match="exact_paths", channel=OTHER)
+        say(det, clock, "Dave", "hello", path=("27", "B1"))
+        clock.tick(5)
+        det.ingest(ts=clock.now, path=("27", "C3"), sender="Dave", text="hello", channel=OTHER)
+        det.decide()
+        assert det.blocks["hop:27"].paths == ["27>C3"]
+
+    def test_clear_held(self):
+        det, clock = make()
+        det.action("lockdown", minutes=60)
+        say(det, clock, "Newcomer", "hello everyone")
+        assert len(det.held) == 1
+        det.action("clear_held")
+        assert not det.held
+        assert "lockdown" in det.blocks
+
+    def test_forget_source(self):
+        det, clock = make(overrides={"dedupe_enabled": False})
+        for name in GENERATED:
+            say(det, clock, name, SPAM)
+        for name in GENERATED:
+            say(det, clock, name, SPAM, path=("44",))
+        settle(det, clock)
+        assert {s["hop"] for s in det.metrics()["sources"]} == {"27", "44"}
+        det.action("forget_source", hop="27")
+        metrics = det.metrics()
+        assert [s["hop"] for s in metrics["sources"]] == ["44"]
+        # Only the row goes: the totals and the block stay.
+        assert metrics["d1"]["spam"] == 6
+        assert "hop:27" in det.blocks
+        # New spam through it puts it back on the list.
+        say(det, clock, "PL4MN8QR", SPAM)
+        settle(det, clock)
+        assert {s["hop"] for s in det.metrics()["sources"]} == {"27", "44"}
+
+    def test_clear_messages_hides_them_but_keeps_the_evidence(self):
+        det, clock = make(overrides={"dedupe_enabled": False, "enable_hop_rules": False})
+        for name in GENERATED[:2]:
+            say(det, clock, name, SPAM)
+        det.decide()
+        assert len(det.visible_events()) == 2
+        det.action("clear_messages")
+        assert det.visible_events() == []
+        assert len(det.events) == 2
+        # The hidden copies still count: the third name completes the campaign.
+        third = say(det, clock, GENERATED[2], SPAM)
+        det.decide()
+        assert det.visible_events() == [third]
+        assert "campaign" in {b.source for b in det.blocks.values()}
+
+    def test_clear_messages_with_nothing_read_yet(self):
+        det, clock = make()
+        det.action("clear_messages")
+        first = say(det, clock, "Dave", "hello")
+        assert det.visible_events() == [first]
+
+    def test_reset_learned(self):
+        det, clock = make(allow_senders=["Sue"])
+        for text in ("evening all", "anyone on tonight", "back in a bit"):
+            say(det, clock, "Dave", text, path=("44",))
+        for name in GENERATED:
+            say(det, clock, name, SPAM)
+        settle(det, clock)
+        det.action("block_hop", hop="55")
+        det.action("unblock", key="hop:55")
+        det.action("lockdown", minutes=30)
+        say(det, clock, "Newcomer", "hello everyone")
+        assert det.blocks and det.suppressed and det.held and det.events and det.hours
+        assert det.is_known("Dave")
+        det.action("reset_learned")
+        assert not (det.blocks or det.suppressed or det.held or det.events or det.hours)
+        assert not (det.known or det.routes or det.relays or det.senders or det.campaigns)
+        assert det.metrics()["sources"] == []
+        assert [a["event"] for a in det.activity] == ["reset_learned"]
+        # Settings are not learnt: the trusted name stays.
+        assert det.exceptions()["allow_senders"] == ["Sue"]
+        assert det.is_known("Sue") and not det.is_known("Dave")
 
 
 class TestMetricsAndState:
