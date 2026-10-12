@@ -89,3 +89,49 @@ describe('PacketHistoryView', () => {
     expect(onSaveAppSettings).toHaveBeenCalledWith({ packet_history_sort: 'newest' });
   });
 });
+
+describe('PacketHistoryView policy verdict', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetRawPacketStore();
+  });
+
+  it('shows the stored rule line on a packet', async () => {
+    getPacketHistory.mockResolvedValue({
+      packets: [
+        { ...row(2, 'cd'), policy: { action: 'drop', rule: 'rtfm-spam:text:7440749b06 (yours)' } },
+        { ...row(1, 'ab'), policy: null },
+      ],
+      next_cursor: null,
+    });
+    render(<PacketHistoryView contacts={[]} channels={[]} />);
+    const line = await screen.findByTestId('packet-policy');
+    expect(line).toHaveTextContent('Drop rule rtfm-spam:text:7440749b06 (yours)');
+    expect(line.className).toContain('text-destructive');
+    expect(screen.getAllByTestId('packet-policy')).toHaveLength(1);
+  });
+
+  it('asks the server for only the packets a rule decided', async () => {
+    getPacketHistory.mockResolvedValue({ packets: [row(1, 'ab')], next_cursor: null });
+    render(<PacketHistoryView contacts={[]} channels={[]} />);
+    await screen.findByText('AB');
+    const first = getPacketHistory.mock.calls[0][0] as URLSearchParams;
+    expect(first.get('policy_only')).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: /filters/i }));
+    await userEvent.click(screen.getByLabelText('Only packets a policy rule decided'));
+
+    await waitFor(() => expect(getPacketHistory).toHaveBeenCalledTimes(2));
+    const second = getPacketHistory.mock.calls[1][0] as URLSearchParams;
+    expect(second.get('policy_only')).toBe('true');
+  });
+
+  it('says the search also covers rule names', async () => {
+    getPacketHistory.mockResolvedValue({ packets: [row(1, 'ab')], next_cursor: null });
+    render(<PacketHistoryView contacts={[]} channels={[]} />);
+    await screen.findByText('AB');
+    expect(
+      screen.getByLabelText('Search decrypted message text, sender, channel and policy rule name')
+    ).toBeInTheDocument();
+  });
+});

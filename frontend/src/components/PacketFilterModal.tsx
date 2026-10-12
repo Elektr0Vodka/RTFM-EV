@@ -21,6 +21,9 @@ export interface PacketFilterModalProps {
   /** 'Hide malformed' toggle; left out where packets do not carry the flag. */
   hideMalformed?: boolean;
   onHideMalformedChange?: (value: boolean) => void;
+  /** 'Only packets a policy rule decided' toggle. */
+  policyOnly?: boolean;
+  onPolicyOnlyChange?: (value: boolean) => void;
   onReset: () => void;
   matchCount: number;
   totalCount: number;
@@ -43,6 +46,8 @@ export function PacketFilterModal({
   onGroupByHashChange,
   hideMalformed = false,
   onHideMalformedChange,
+  policyOnly = false,
+  onPolicyOnlyChange,
   onReset,
   matchCount,
   totalCount,
@@ -88,6 +93,24 @@ export function PacketFilterModal({
               <span className="text-foreground">{t('packet_hide_malformed_label')}</span>
               <span className="block text-xs text-muted-foreground">
                 {t('packet_hide_malformed_description')}
+              </span>
+            </span>
+          </label>
+        )}
+
+        {onPolicyOnlyChange && (
+          <label className="flex items-center gap-2 rounded-md border border-border/70 bg-card/60 px-3 py-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={policyOnly}
+              onChange={(e) => onPolicyOnlyChange(e.target.checked)}
+              className="rounded"
+              aria-label={t('packet_policy_only_label')}
+            />
+            <span>
+              <span className="text-foreground">{t('packet_policy_only_label')}</span>
+              <span className="block text-xs text-muted-foreground">
+                {t('packet_policy_only_description')}
               </span>
             </span>
           </label>

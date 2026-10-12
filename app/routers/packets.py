@@ -208,6 +208,13 @@ async def backfill_regions() -> dict:
 # or FastAPI matches them as a packet_id and returns 422.
 
 
+def _stored_policy(row) -> dict | None:
+    """The OpenHop policy verdict stored with a packet, in the broadcast shape."""
+    if row["policy_action"] is None:
+        return None
+    return {"action": row["policy_action"], "rule": row["policy_rule"]}
+
+
 @router.get("/recent")
 async def get_recent_packets(
     limit: int = 500,
@@ -238,6 +245,7 @@ async def get_recent_packets(
     # malformed" toggle also holds for packets seeded from here.
     query = f"""
         SELECT p.id, p.timestamp, p.data, p.message_id, p.rssi, p.snr, p.payload_type,
+               p.policy_action, p.policy_rule,
                COALESCE(m.malformed, 0) AS malformed
         FROM raw_packets p
         LEFT JOIN messages m ON m.id = p.message_id
@@ -266,6 +274,7 @@ async def get_recent_packets(
                 "decrypted": row["message_id"] is not None,
                 "decrypted_info": None,
                 "malformed": bool(row["malformed"]),
+                "policy": _stored_policy(row),
             }
         )
 
@@ -297,6 +306,7 @@ async def get_packet_history(
     hop_widths: Annotated[list[str] | None, Query()] = None,
     hex: str | None = None,
     search: str | None = None,
+    policy_only: bool = False,
 ) -> dict:
     """Page backward through persisted raw_packets for the history browser.
 
@@ -308,8 +318,11 @@ async def get_packet_history(
       hop_byte_width column predicates.
     - hex: lowercase hex substring match on the packet bytes (mirrors the feed).
     - search: case-insensitive substring over decrypted message content
-      (message text, sender name, channel name). Only packets linked to a
-      decrypted message can match; others are excluded while a term is active.
+      (message text, sender name, channel name) and the name of the stored
+      policy rule. A packet with neither a linked message nor a stored rule
+      cannot match and is excluded while a term is active.
+    - policy_only: only packets with a stored OpenHop policy verdict (a rule
+      decided them, or the default action dropped them).
 
     Returns ``{"packets": [...newest-first...], "next_cursor": <int|null>}``.
     ``next_cursor`` is the smallest id in the page, or null when the page was
@@ -378,11 +391,15 @@ async def get_packet_history(
         conditions.append("instr(lower(hex(rp.data)), ?) > 0")
         params.append(cleaned)
 
+    if policy_only:
+        conditions.append("rp.policy_action IS NOT NULL")
+
     # message-content search: case-insensitive substring over the linked
-    # message's text / sender name / channel name. Requires joining messages
-    # (1:1 via message_id) and channels (1:1 via conversation_key), so no row
-    # multiplication. Packets with no linked message never match (LEFT JOIN
-    # yields NULLs, and instr(NULL, ...) is NULL -> not > 0).
+    # message's text / sender name / channel name, and over the stored policy
+    # rule name. Requires joining messages (1:1 via message_id) and channels
+    # (1:1 via conversation_key), so no row multiplication. A packet with no
+    # linked message can only match on its rule name (LEFT JOIN yields NULLs,
+    # and instr(NULL, ...) is NULL -> not > 0).
     if search is not None and search.strip() != "":
         needle = search.strip().lower()
         joins = (
@@ -392,13 +409,15 @@ async def get_packet_history(
         conditions.append(
             "(instr(lower(m.text), ?) > 0"
             " OR instr(lower(m.sender_name), ?) > 0"
-            " OR instr(lower(ch.name), ?) > 0)"
+            " OR instr(lower(ch.name), ?) > 0"
+            " OR instr(lower(rp.policy_rule), ?) > 0)"
         )
-        params.extend([needle, needle, needle])
+        params.extend([needle, needle, needle, needle])
 
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     query = f"""
-        SELECT rp.id, rp.timestamp, rp.data, rp.message_id, rp.rssi, rp.snr, rp.payload_type
+        SELECT rp.id, rp.timestamp, rp.data, rp.message_id, rp.rssi, rp.snr, rp.payload_type,
+               rp.policy_action, rp.policy_rule
         FROM raw_packets rp{joins}
         {where}
         ORDER BY rp.id DESC
@@ -420,6 +439,7 @@ async def get_packet_history(
             "rssi": row["rssi"],
             "decrypted": row["message_id"] is not None,
             "decrypted_info": None,
+            "policy": _stored_policy(row),
         }
         for row in rows
     ]

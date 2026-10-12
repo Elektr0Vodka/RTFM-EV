@@ -73,3 +73,27 @@ describe('buildPacketCsv', () => {
     expect(name).toBe('packet-history_20260919_224005.csv');
   });
 });
+
+describe('buildPacketCsv policy verdict', () => {
+  const at = (csv: string, k: PacketCsvColumnKey) =>
+    csv.split('\r\n')[1].split(',')[PACKET_CSV_COLUMN_KEYS.indexOf(k)];
+
+  it('exports the stored rule and its action', () => {
+    const csv = buildPacketCsv(
+      [pkt({ policy: { action: 'drop', rule: '1- T-flood txt-msg 1byte spam' } })],
+      HEADERS
+    );
+    expect(at(csv, 'policy_action')).toBe('drop');
+    expect(at(csv, 'policy_rule')).toBe('1- T-flood txt-msg 1byte spam');
+  });
+
+  it('leaves the rule blank for the default action and both blank without a verdict', () => {
+    const byDefault = buildPacketCsv([pkt({ policy: { action: 'drop', rule: null } })], HEADERS);
+    expect(at(byDefault, 'policy_action')).toBe('drop');
+    expect(at(byDefault, 'policy_rule')).toBe('');
+
+    const none = buildPacketCsv([pkt()], HEADERS);
+    expect(at(none, 'policy_action')).toBe('');
+    expect(at(none, 'policy_rule')).toBe('');
+  });
+});

@@ -114,3 +114,16 @@ describe('usePacketFilters hide malformed', () => {
     localStorage.removeItem(KEY);
   });
 });
+
+describe('usePacketFilters policy only', () => {
+  it('is off at first, counts as a filter and is cleared by reset', () => {
+    const { result } = renderHook(() => usePacketFilters());
+    expect(result.current.policyOnly).toBe(false);
+    act(() => result.current.setPolicyOnly(true));
+    expect(result.current.policyOnly).toBe(true);
+    expect(result.current.activeFilterCount).toBe(1);
+    act(() => result.current.reset());
+    expect(result.current.policyOnly).toBe(false);
+    expect(result.current.activeFilterCount).toBe(0);
+  });
+});

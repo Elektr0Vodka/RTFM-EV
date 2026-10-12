@@ -371,3 +371,54 @@ class TestPacketFeedBroadcast:
         frame = group_text_frame("Dave", "привет שלום")
         event = await self.feed(monkeypatch, captured_broadcasts, frame, openhop=False)
         assert event["decrypted"] is True and event["malformed"] is True
+
+
+class TestStoredWithThePacket:
+    """The verdict of the first reception is kept on the raw packet row."""
+
+    @pytest.mark.asyncio
+    async def test_the_verdict_is_stored_and_a_later_copy_does_not_replace_it(
+        self, test_db, monkeypatch, captured_broadcasts
+    ):
+        import app.packet_processor as processor
+
+        service = PolicyVerdicts(is_openhop=lambda: True)
+        service.update(
+            {"enabled": True, "rules": [rule("via B1", cond("path_hashes", "contains", "B1"))]}
+        )
+        broadcasts, mock_broadcast = captured_broadcasts
+        monkeypatch.setattr(processor, "policy_verdicts", service)
+        monkeypatch.setattr(processor, "broadcast_event", mock_broadcast)
+        await ChannelRepository.upsert(key=PUBLIC.upper(), name="Public")
+
+        # The same message over two paths: one packet row, two receptions.
+        await processor.process_raw_packet(
+            group_text_frame("Dave", "hello there", path=("27", "b1")), timestamp=1_800_000_050
+        )
+        await processor.process_raw_packet(
+            group_text_frame("Dave", "hello there", path=("27", "c3")), timestamp=1_800_000_051
+        )
+
+        async with test_db.readonly() as conn:
+            async with conn.execute("SELECT policy_action, policy_rule FROM raw_packets") as cursor:
+                stored = [tuple(row) for row in await cursor.fetchall()]
+        assert stored == [("drop", "via B1")]
+        # Live, each reception still carries its own verdict.
+        live = [b["data"]["policy"] for b in broadcasts if b["type"] == "raw_packet"]
+        assert live == [{"action": "drop", "rule": "via B1"}, None]
+
+    @pytest.mark.asyncio
+    async def test_nothing_is_stored_on_another_radio(
+        self, test_db, monkeypatch, captured_broadcasts
+    ):
+        import app.packet_processor as processor
+
+        service = PolicyVerdicts(is_openhop=lambda: False)
+        service.update({"enabled": True, "rules": [rule("text", GRP)]})
+        monkeypatch.setattr(processor, "policy_verdicts", service)
+        monkeypatch.setattr(processor, "broadcast_event", captured_broadcasts[1])
+        await processor.process_raw_packet(group_text_frame("Dave", "hi"), timestamp=1_800_000_050)
+
+        async with test_db.readonly() as conn:
+            async with conn.execute("SELECT policy_action, policy_rule FROM raw_packets") as cursor:
+                assert [tuple(row) for row in await cursor.fetchall()] == [(None, None)]

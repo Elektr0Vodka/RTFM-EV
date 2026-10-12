@@ -156,7 +156,8 @@ export function RawPacketFeedView({
       filters.allTypesEnabled &&
       filters.allHopWidthsEnabled &&
       filters.hexQuery === '' &&
-      !filters.hideMalformed
+      !filters.hideMalformed &&
+      !filters.policyOnly
     ) {
       return packets;
     }
@@ -166,7 +167,8 @@ export function RawPacketFeedView({
           (filters.allTypesEnabled || filters.enabledTypes.has(payloadType)) &&
           (filters.allHopWidthsEnabled || filters.enabledHopWidths.has(hopWidth)) &&
           (filters.hexQuery === '' || packet.data.toLowerCase().includes(filters.hexQuery)) &&
-          !(filters.hideMalformed && packet.malformed)
+          !(filters.hideMalformed && packet.malformed) &&
+          !(filters.policyOnly && !packet.policy)
       )
       .map(({ packet }) => packet);
   }, [
@@ -179,6 +181,7 @@ export function RawPacketFeedView({
     filters.hexQuery,
     filters.hexInvalid,
     filters.hideMalformed,
+    filters.policyOnly,
   ]);
 
   const paused = pausedSnapshot !== null;
@@ -388,6 +391,8 @@ export function RawPacketFeedView({
         onGroupByHashChange={filters.setGroupByHash}
         hideMalformed={filters.hideMalformed}
         onHideMalformedChange={filters.setHideMalformed}
+        policyOnly={filters.policyOnly}
+        onPolicyOnlyChange={filters.setPolicyOnly}
         onReset={filters.reset}
         matchCount={filteredPackets.length}
         totalCount={packets.length}

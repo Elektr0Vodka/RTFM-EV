@@ -173,3 +173,74 @@ class TestHistorySearch:
         r = await client.get("/api/packets/history", params={"search": "findme", "hex": "abc"})
         ids = [p["id"] for p in r.json()["packets"]]
         assert ids == [hit]
+
+
+class TestHistoryPolicyVerdict:
+    """The OpenHop policy verdict stored with a packet (migration 141)."""
+
+    @pytest.mark.asyncio
+    async def test_returns_the_stored_verdict(self, test_db, client):
+        await RawPacketRepository.create(b"\x01", 100)
+        await RawPacketRepository.create(
+            b"\x02", 101, policy_action="drop", policy_rule="1- T-flood txt-msg 1byte spam"
+        )
+        await RawPacketRepository.create(b"\x03", 102, policy_action="drop")  # default action
+        await RawPacketRepository.create(
+            b"\x04", 103, policy_action="allow", policy_rule="let adverts through"
+        )
+
+        body = (await client.get("/api/packets/history")).json()
+        assert [p["policy"] for p in body["packets"]] == [
+            {"action": "allow", "rule": "let adverts through"},
+            {"action": "drop", "rule": None},
+            {"action": "drop", "rule": "1- T-flood txt-msg 1byte spam"},
+            None,
+        ]
+
+    @pytest.mark.asyncio
+    async def test_policy_only_leaves_out_packets_no_rule_decided(self, test_db, client):
+        await RawPacketRepository.create(b"\x01", 100)
+        ruled = (await RawPacketRepository.create(b"\x02", 101, policy_action="drop"))[0]
+        named = (
+            await RawPacketRepository.create(
+                b"\x03", 102, policy_action="log_only", policy_rule="watch traces"
+            )
+        )[0]
+
+        r = await client.get("/api/packets/history", params={"policy_only": "true"})
+        assert [p["id"] for p in r.json()["packets"]] == [named, ruled]
+
+    @pytest.mark.asyncio
+    async def test_search_finds_a_packet_by_its_rule_name(self, test_db, client):
+        # No linked message: the rule name alone has to be enough.
+        hit = (
+            await RawPacketRepository.create(
+                b"\x01", 100, policy_action="drop", policy_rule="rtfm-spam:text:7440749b06 (yours)"
+            )
+        )[0]
+        await RawPacketRepository.create(
+            b"\x02", 101, policy_action="drop", policy_rule="1- T-flood txt-msg 1byte spam"
+        )
+        by_text = await _seed_linked_message(
+            bytes.fromhex("aa03"), 102, text="about rtfm-spam rules", conversation_key="k1"
+        )
+
+        r = await client.get("/api/packets/history", params={"search": "RTFM-SPAM"})
+        assert [p["id"] for p in r.json()["packets"]] == [by_text, hit]
+
+        r = await client.get(
+            "/api/packets/history", params={"search": "rtfm-spam", "policy_only": "true"}
+        )
+        assert [p["id"] for p in r.json()["packets"]] == [hit]
+
+    @pytest.mark.asyncio
+    async def test_a_repeat_keeps_the_verdict_of_the_first_reception(self, test_db, client):
+        first, new = await RawPacketRepository.create(
+            b"\x01", 100, policy_action="drop", policy_rule="first"
+        )
+        again, new_again = await RawPacketRepository.create(
+            b"\x01", 105, policy_action="allow", policy_rule="second"
+        )
+        assert (new, new_again, again) == (True, False, first)
+        body = (await client.get("/api/packets/history")).json()
+        assert [p["policy"] for p in body["packets"]] == [{"action": "drop", "rule": "first"}]

@@ -18,6 +18,7 @@ describe('buildHistoryParams', () => {
     expect(p.getAll('hop_widths')).toEqual([]);
     expect(p.get('hex')).toBeNull();
     expect(p.get('search')).toBeNull();
+    expect(p.get('policy_only')).toBeNull();
     expect(p.get('after_ts')).toBe('100');
     expect(p.get('before_ts')).toBe('200');
     expect(p.get('limit')).toBe('500');
@@ -32,9 +33,11 @@ describe('buildHistoryParams', () => {
       enabledHopWidths: new Set(['No path']),
       hexQuery: 'abcd',
       searchTerm: 'alice',
+      policyOnly: true,
       limit: 500,
       beforeId: 42,
     });
+    expect(p.get('policy_only')).toBe('true');
     expect(p.getAll('payload_types')).toEqual(['Advert']);
     expect(p.getAll('hop_widths')).toEqual(['No path']);
     expect(p.get('hex')).toBe('abcd');

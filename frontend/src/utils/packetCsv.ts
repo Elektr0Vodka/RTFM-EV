@@ -13,6 +13,8 @@ export const PACKET_CSV_COLUMN_KEYS = [
   'decrypted',
   'summary',
   'path',
+  'policy_action',
+  'policy_rule',
   'data_hex',
 ] as const;
 
@@ -85,6 +87,9 @@ export function buildPacketCsv(
       decrypted: packet.decrypted ? 'yes' : 'no',
       summary: decoded.summary ?? '',
       path,
+      // The OpenHop policy verdict stored with the packet; blank when no rule decided it.
+      policy_action: packet.policy?.action ?? '',
+      policy_rule: packet.policy?.rule ?? '',
       data_hex: packet.data.toUpperCase(),
     };
     rows.push(PACKET_CSV_COLUMN_KEYS.map((k) => escapeCsvValue(record[k])).join(','));

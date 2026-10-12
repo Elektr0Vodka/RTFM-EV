@@ -70,3 +70,16 @@ describe('PacketFilterModal hide malformed', () => {
     expect(onHideMalformedChange).toHaveBeenCalledWith(true);
   });
 });
+
+describe('PacketFilterModal policy only', () => {
+  it('offers the toggle only where a handler is given', () => {
+    const { unmount } = render(<PacketFilterModal {...baseProps()} />);
+    expect(screen.queryByLabelText('Only packets a policy rule decided')).toBeNull();
+    unmount();
+
+    const onPolicyOnlyChange = vi.fn();
+    render(<PacketFilterModal {...baseProps()} onPolicyOnlyChange={onPolicyOnlyChange} />);
+    fireEvent.click(screen.getByLabelText('Only packets a policy rule decided'));
+    expect(onPolicyOnlyChange).toHaveBeenCalledWith(true);
+  });
+});
