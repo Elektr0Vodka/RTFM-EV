@@ -341,11 +341,13 @@ Pakketten, fouten, zendtijd en overgeslagen publicaties zijn tellers die alleen 
 
 Een live lijst van elk pakket dat de radio hoort. Met **Filters** (pakkettype en padbreedte), pauzeren en hervatten, automatisch scrollen, oudste of nieuwste eerst, **Herhalingen groeperen op inhoud**, een hexfilter, **Statistieken tonen**, en een optioneel geluid per pakket (Geiger, Sonar of Waterdruppel). Klik op een pakket voor een uitsplitsing per byte. Elk pakket toont datum en tijd. Onder **Filters** verbergt **Misvormde verbergen** kanaalberichten met willekeurige tekens of van een afzender met een nooit ingestelde klok; je keuze wordt in deze browser onthouden.
 
-Met een OpenHop-radio toont een pakket ook de beleidsregel die erover beslist, bijvoorbeeld **Drop-regel** gevolgd door de naam van de regel, in rood bij een drop. RTFM-EV bepaalt dat aan de hand van een kopie van het beleid van de node, dus het is een indicatie: de node zelf beslist, een op de node gewijzigde regel kan een minuut op zich laten wachten, en de regel is weg na opnieuw laden.
+Met een OpenHop-radio toont een pakket ook de beleidsregel die erover beslist, bijvoorbeeld **Drop-regel** gevolgd door de naam van de regel, in rood bij een drop. RTFM-EV bepaalt dat aan de hand van een kopie van het beleid van de node, dus het is een indicatie: de node zelf beslist, en een op de node gewijzigde regel kan een minuut op zich laten wachten. De regel wordt bij het pakket opgeslagen, dus de vermelding staat er ook nog na opnieuw laden en in de Pakketgeschiedenis. Onder **Filters** laat **Alleen pakketten waarover een beleidsregel besliste** al het andere weg.
 
 ### Pakketgeschiedenis
 
-Hetzelfde soort lijst over alles wat in de database is opgeslagen. Kies 1, 3, 6, 12 of 24 uur of een datumbereik, en blader terug met **Ouder laden**. Filter op payloadtype, hopbreedte of hex, en zoek op berichttekst, afzender of kanaal. Selecteer rijen en kies **CSV exporteren**. Hoe ver je terug kunt, hangt af van je instellingen voor databewaring.
+Hetzelfde soort lijst over alles wat in de database is opgeslagen. Kies 1, 3, 6, 12 of 24 uur of een datumbereik, en blader terug met **Ouder laden**. Filter op payloadtype, hopbreedte of hex, en zoek op berichttekst, afzender of kanaal. Selecteer rijen en kies **CSV exporteren**.
+
+Met een OpenHop-radio tonen pakketten die zijn ontvangen sinds de update waarmee dit kwam ook de beleidsregel die erover besliste, net als in de Pakketfeed. Zoeken vindt een pakket op de naam van die regel, onder **Filters** staat **Alleen pakketten waarover een beleidsregel besliste**, en de CSV heeft een kolom voor de actie en een voor de regel. Een pakket dat meerdere keren is gehoord wordt één keer opgeslagen, met de regel van de eerste ontvangst. Hoe ver je terug kunt, hangt af van je instellingen voor databewaring.
 
 ### Pakket analyseren
 

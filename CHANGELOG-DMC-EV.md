@@ -11,6 +11,37 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-12 (Packet History: the deciding policy rule, feat/packet-history-policy-rule)
+
+Migration `_141` (`raw_packets.policy_action`, `raw_packets.policy_rule`). No new dependency. Requested by Richard while testing #305: the rule line of the packet feed should also be there to look up afterwards.
+
+### Packet History
+- **The deciding policy rule is stored with the packet and shown in Packet
+  History** (OpenHop radio only), as in the packet feed: `Drop rule <name>`
+  under the date and time, in red for a drop. The verdict is worked out when
+  the packet arrives (`app/services/policy_verdict.py`, unchanged) and written
+  to the two new columns. `policy_action` is `allow` / `drop` / `log_only`;
+  `policy_rule` is the rule's name, empty for a drop by the default action.
+- **Search finds a packet by its rule name**, next to message text, sender and
+  channel. A packet without a decrypted message can now match on its rule.
+- **New filter "Only packets a policy rule decided"** in Filters, in Packet
+  History (asked of the server, `policy_only`) and in the packet feed.
+- **CSV export** has two more columns: Policy action and Policy rule.
+- What stays as it was: it is an indication, the node decides; nothing is
+  shown for a host repeater.
+- Limits:
+  - Only packets received after this update have a stored rule. Older packets
+    are not filled in, because the policy of that moment is not known.
+  - A packet heard several times over different paths is stored once. The
+    stored rule is that of the first reception. The live feed still shows the
+    verdict of each reception, so a later copy can read differently there
+    than in Packet History when a rule depends on the path or the signal.
+  - The stored rule goes when the packet goes (raw packet retention).
+
+### Packet feed
+- **The rule line is still there after a page reload.** The feed is seeded from
+  the stored packets (`GET /packets/recent`), which now carry the verdict.
+
 ## Update 2026-10-12 (Spam Guard: feedback from the second test round, feat/spam-guard-feedback-2)
 
 Migration `_140` (`messages.duplicate`). No new dependency. Requested by Richard after testing text blocks and duplicate suppression on an OpenHop node.

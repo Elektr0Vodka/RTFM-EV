@@ -161,3 +161,21 @@ class TestHistoricalStats:
             "/api/packets/historical-stats?start_ts=1700001000&end_ts=1700000000"
         )
         assert response.status_code == 400
+
+
+class TestRecentPolicyVerdict:
+    @pytest.mark.asyncio
+    async def test_seeds_the_feed_with_the_stored_verdict(self, test_db, client):
+        """So the packet feed's rule line is still there after a reload."""
+        await RawPacketRepository.create(b"\x01\x01", 1700000000)
+        await RawPacketRepository.create(
+            b"\x02\x02", 1700000001, policy_action="drop", policy_rule="flood text"
+        )
+        await RawPacketRepository.create(b"\x03\x03", 1700000002, policy_action="drop")
+
+        body = (await client.get("/api/packets/recent")).json()
+        assert [p["policy"] for p in body] == [
+            None,
+            {"action": "drop", "rule": "flood text"},
+            {"action": "drop", "rule": None},
+        ]

@@ -341,11 +341,13 @@ Pakete, Fehler, Sendezeit und übersprungene Publishes sind Zähler, die seit de
 
 Eine Live-Liste aller Pakete, die das Funkgerät empfängt. Mit **Filter** (Pakettyp und Pfadbreite), Pause und Fortsetzen, automatischem Scrollen, älteste oder neueste zuerst, **Wiederholungen nach Inhalt gruppieren**, einem Hex-Filter, **Statistiken anzeigen** und einem optionalen Ton pro Paket (Geiger, Sonar oder Wassertropfen). Klicke auf ein Paket für eine Aufschlüsselung Byte für Byte. Jedes Paket zeigt Datum und Uhrzeit. Unter **Filter** blendet **Fehlerhafte ausblenden** Kanalnachrichten aus zufälligen Zeichen oder von einem Absender mit nie gestellter Uhr aus; deine Wahl wird in diesem Browser gemerkt.
 
-Mit einem OpenHop-Funkgerät zeigt ein Paket auch die Richtlinienregel, die darüber entscheidet, zum Beispiel **Drop-Regel** gefolgt vom Namen der Regel, in Rot bei einem Drop. RTFM-EV ermittelt das anhand einer Kopie der Richtlinie des Knotens, es ist also ein Hinweis: Der Knoten selbst entscheidet, eine auf dem Knoten geänderte Regel kann eine Minute auf sich warten lassen, und die Zeile ist nach dem Neuladen weg.
+Mit einem OpenHop-Funkgerät zeigt ein Paket auch die Richtlinienregel, die darüber entscheidet, zum Beispiel **Drop-Regel** gefolgt vom Namen der Regel, in Rot bei einem Drop. RTFM-EV ermittelt das anhand einer Kopie der Richtlinie des Knotens, es ist also ein Hinweis: Der Knoten selbst entscheidet, und eine auf dem Knoten geänderte Regel kann eine Minute auf sich warten lassen. Die Regel wird mit dem Paket gespeichert, die Zeile ist also auch nach dem Neuladen und im Paketverlauf noch da. Unter **Filter** lässt **Nur Pakete, über die eine Richtlinienregel entschied** alles andere weg.
 
 ### Paketverlauf
 
-Dieselbe Art Liste über alles, was in der Datenbank gespeichert ist. Wähle 1, 3, 6, 12 oder 24 Stunden oder einen Datumsbereich und blättere mit **Ältere laden** zurück. Filtere nach Payload-Typ, Hop-Breite oder Hex und suche nach Nachrichtentext, Absender oder Kanal. Wähle Zeilen aus und nutze **CSV exportieren**. Wie weit der Verlauf zurückreicht, hängt von deinen Einstellungen zur Datenaufbewahrung ab.
+Dieselbe Art Liste über alles, was in der Datenbank gespeichert ist. Wähle 1, 3, 6, 12 oder 24 Stunden oder einen Datumsbereich und blättere mit **Ältere laden** zurück. Filtere nach Payload-Typ, Hop-Breite oder Hex und suche nach Nachrichtentext, Absender oder Kanal. Wähle Zeilen aus und nutze **CSV exportieren**.
+
+Mit einem OpenHop-Funkgerät zeigen Pakete, die seit dem Update empfangen wurden, mit dem dies kam, auch die Richtlinienregel, die darüber entschied, wie im Paket-Feed. Die Suche findet ein Paket über den Namen dieser Regel, unter **Filter** gibt es **Nur Pakete, über die eine Richtlinienregel entschied**, und die CSV hat eine Spalte für die Aktion und eine für die Regel. Ein mehrfach gehörtes Paket wird einmal gespeichert, mit der Regel des ersten Empfangs. Wie weit der Verlauf zurückreicht, hängt von deinen Einstellungen zur Datenaufbewahrung ab.
 
 ### Paket analysieren
 

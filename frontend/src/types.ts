@@ -984,8 +984,10 @@ export interface RawPacket {
   malformed?: boolean;
   /**
    * On an OpenHop node: the policy rule that decides this packet, worked out by
-   * the backend from a copy of the node's policy. An indication only. `rule` is
-   * null for a drop by the default action. Live feed only, never stored.
+   * the backend from a copy of the node's policy when the packet arrived. An
+   * indication only. `rule` is null for a drop by the default action. Stored
+   * with the packet (the verdict of its first reception), so Packet History
+   * and the seeded feed carry it too.
    */
   policy?: RawPacketPolicyVerdict | null;
 }

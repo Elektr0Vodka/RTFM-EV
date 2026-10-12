@@ -382,6 +382,8 @@ export function PacketHistoryView({
         onToggleHopWidth={filters.toggleHopWidth}
         onOnlyHopWidth={filters.onlyHopWidth}
         onGroupByHashChange={filters.setGroupByHash}
+        policyOnly={filters.policyOnly}
+        onPolicyOnlyChange={filters.setPolicyOnly}
         onReset={filters.reset}
         matchCount={rows.length}
         totalCount={rows.length}

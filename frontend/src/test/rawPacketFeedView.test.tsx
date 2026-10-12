@@ -377,3 +377,22 @@ describe('RawPacketFeedView hide malformed', () => {
     localStorage.removeItem('remoteterm-packet-feed-hide-malformed');
   });
 });
+
+describe('RawPacketFeedView policy only', () => {
+  it('keeps only packets a policy rule decided', () => {
+    renderView({
+      packets: [
+        { ...feedPacket(1, 'aa11bb22'), policy: { action: 'drop', rule: 'flood text' } },
+        feedPacket(2, 'cc33dd44'),
+        { ...feedPacket(3, 'ee55ff66'), policy: null },
+      ],
+    });
+    fireEvent.click(screen.getByRole('button', { name: /filters/i }));
+    fireEvent.click(screen.getByLabelText('Only packets a policy rule decided'));
+
+    expect(screen.getByText('AA11BB22')).toBeInTheDocument();
+    expect(screen.getByText('Drop rule flood text')).toBeInTheDocument();
+    expect(screen.queryByText('CC33DD44')).not.toBeInTheDocument();
+    expect(screen.queryByText('EE55FF66')).not.toBeInTheDocument();
+  });
+});

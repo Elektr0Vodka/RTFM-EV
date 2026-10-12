@@ -326,6 +326,9 @@ async def process_raw_packet(
     payload_type_name = payload_type.name if payload_type is not None else "Unknown"
 
     decoded_fields = decoded_stat_fields(packet_info)
+    # On an OpenHop node: the policy rule that decides this packet (an
+    # indication). Stored with the packet, so Packet History can show it.
+    verdict = policy_verdicts.verdict_for(packet_info, rssi=rssi, snr=snr)
     packet_id, is_new_packet = await RawPacketRepository.create(
         raw_bytes,
         ts,
@@ -336,6 +339,8 @@ async def process_raw_packet(
         hop_count=decoded_fields["hop_count"],
         hop_byte_width=decoded_fields["hop_byte_width"],
         path_signature=decoded_fields["path_signature"],
+        policy_action=verdict["action"] if verdict else None,
+        policy_rule=verdict["rule"] if verdict else None,
     )
     # Per-copy link edge log (map traffic links + link history). Never raises.
     await record_packet_edges(packet_id, ts, packet_info, snr, rssi)
@@ -488,9 +493,6 @@ async def process_raw_packet(
                 logger.info("Applied standalone ACK %s from raw packet", ack_code)
             else:
                 logger.debug("Buffered/ignored standalone ACK %s from raw packet", ack_code)
-
-    # On an OpenHop node: the policy rule that decides this packet (an indication).
-    verdict = policy_verdicts.verdict_for(packet_info, rssi=rssi, snr=snr)
 
     # Always broadcast raw packet for the packet feed UI (even duplicates)
     # This enables the frontend cracker to see all incoming packets in real-time

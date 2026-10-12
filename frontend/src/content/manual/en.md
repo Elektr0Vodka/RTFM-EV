@@ -341,11 +341,13 @@ Packets, errors, air time and skipped publishes are counters that only go up sin
 
 A live list of every packet the radio hears. It has **Filters** (packet type and path width), pause and resume, autoscroll, oldest or newest first, **Group repeats by content**, a hex filter, **Show Stats**, and an optional sound per packet (Geiger, Sonar or Water drip). Click a packet for its byte-by-byte breakdown. Each packet shows the date and time. Under **Filters**, **Hide malformed** hides channel messages of random characters or from a sender whose clock was never set; your choice is kept in this browser.
 
-With an OpenHop radio a packet also shows the policy rule that decides it, for example **Drop rule** followed by the rule's name, in red for a drop. RTFM-EV works that out from a copy of the node's policy, so it is an indication: the node itself decides, a rule changed on the node can take a minute to show, and the line is gone after a reload.
+With an OpenHop radio a packet also shows the policy rule that decides it, for example **Drop rule** followed by the rule's name, in red for a drop. RTFM-EV works that out from a copy of the node's policy, so it is an indication: the node itself decides, and a rule changed on the node can take a minute to show. The rule is stored with the packet, so the line is still there after a reload and in Packet History. Under **Filters**, **Only packets a policy rule decided** leaves out everything else.
 
 ### Packet History
 
-The same kind of list over everything stored in the database. Pick 1, 3, 6, 12 or 24 hours or a date range, then **Load older** to page back. Filter by payload type, hop width or hex, and search message text, sender or channel. Select rows and **Export CSV**. How far back it reaches depends on your data retention settings.
+The same kind of list over everything stored in the database. Pick 1, 3, 6, 12 or 24 hours or a date range, then **Load older** to page back. Filter by payload type, hop width or hex, and search message text, sender or channel. Select rows and **Export CSV**.
+
+With an OpenHop radio, packets received since the update that added this also show the policy rule that decided them, as in the Packet Feed. The search finds a packet by the name of that rule, **Filters** has **Only packets a policy rule decided**, and the CSV has a column for the action and one for the rule. A packet heard several times is stored once, with the rule of its first reception. How far back it reaches depends on your data retention settings.
 
 ### Analyze Packet
 

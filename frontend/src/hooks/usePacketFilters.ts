@@ -29,7 +29,12 @@ export interface PacketFilters {
    * rule). Remembered in this browser; only the live feed knows the flag.
    */
   hideMalformed: boolean;
-  /** Raw message-content search input (decoded text/sender/channel). */
+  /**
+   * Only packets with an OpenHop policy verdict (a rule, or the default action,
+   * decided them). Session-only. Packet History filters on the server.
+   */
+  policyOnly: boolean;
+  /** Raw search input (decoded text/sender/channel, and the policy rule name). */
   searchQuery: string;
 
   allTypesEnabled: boolean;
@@ -49,6 +54,7 @@ export interface PacketFilters {
   setHexFilter: (value: string) => void;
   setGroupByHash: (value: boolean) => void;
   setHideMalformed: (value: boolean) => void;
+  setPolicyOnly: (value: boolean) => void;
   setSearchQuery: (value: string) => void;
   reset: () => void;
 }
@@ -83,6 +89,7 @@ export function usePacketFilters(options: UsePacketFiltersOptions = {}): PacketF
   const [hexFilter, setHexFilter] = useState('');
   const [groupByHash, setGroupByHashState] = useState(initialGroupByHash);
   const [hideMalformed, setHideMalformedState] = useState(getSavedHideMalformed);
+  const [policyOnly, setPolicyOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Adopt the persisted value once app settings load (or change elsewhere).
@@ -124,7 +131,8 @@ export function usePacketFilters(options: UsePacketFiltersOptions = {}): PacketF
     (HOP_BYTE_WIDTH_BUCKETS.length - enabledHopWidths.size) +
     (hexFilter.trim() !== '' ? 1 : 0) +
     (groupByHash ? 1 : 0) +
-    (hideMalformed ? 1 : 0);
+    (hideMalformed ? 1 : 0) +
+    (policyOnly ? 1 : 0);
 
   const toggleAll = useCallback(() => {
     setEnabledTypes((prev) =>
@@ -166,6 +174,7 @@ export function usePacketFilters(options: UsePacketFiltersOptions = {}): PacketF
     setHexFilter('');
     setGroupByHash(false);
     setHideMalformed(false);
+    setPolicyOnly(false);
     setSearchQuery('');
   }, [setGroupByHash, setHideMalformed]);
 
@@ -175,6 +184,7 @@ export function usePacketFilters(options: UsePacketFiltersOptions = {}): PacketF
     hexFilter,
     groupByHash,
     hideMalformed,
+    policyOnly,
     searchQuery,
     allTypesEnabled,
     allHopWidthsEnabled,
@@ -191,6 +201,7 @@ export function usePacketFilters(options: UsePacketFiltersOptions = {}): PacketF
     setHexFilter,
     setGroupByHash,
     setHideMalformed,
+    setPolicyOnly,
     setSearchQuery,
     reset,
   };

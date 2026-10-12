@@ -6,8 +6,10 @@ export interface HistoryParamInput {
   enabledTypes: Set<string>;
   enabledHopWidths: Set<string>;
   hexQuery: string;
-  /** Trimmed message-content search term; empty string means "no search". */
+  /** Trimmed search term (message content or policy rule name); empty means "no search". */
   searchTerm: string;
+  /** Only packets with a stored OpenHop policy verdict. */
+  policyOnly?: boolean;
   limit: number;
   beforeId?: number | null;
 }
@@ -32,5 +34,6 @@ export function buildHistoryParams(input: HistoryParamInput): URLSearchParams {
   }
   if (input.hexQuery !== '') p.set('hex', input.hexQuery);
   if (input.searchTerm) p.set('search', input.searchTerm);
+  if (input.policyOnly) p.set('policy_only', 'true');
   return p;
 }

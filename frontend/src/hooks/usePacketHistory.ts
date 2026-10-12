@@ -47,6 +47,7 @@ export function usePacketHistory({
       enabledHopWidths: filters.enabledHopWidths,
       hexQuery: filters.hexQuery,
       searchTerm: filters.searchTerm,
+      policyOnly: filters.policyOnly,
       limit: PAGE_LIMIT,
     }),
     [
@@ -56,6 +57,7 @@ export function usePacketHistory({
       filters.enabledHopWidths,
       filters.hexQuery,
       filters.searchTerm,
+      filters.policyOnly,
     ]
   );
 
