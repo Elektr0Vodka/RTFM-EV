@@ -152,7 +152,12 @@ export function RawPacketFeedView({
     // A non-hex query matches nothing; the input surfaces a hint instead.
     if (filters.hexInvalid) return [];
     // Fast path: no filters active.
-    if (filters.allTypesEnabled && filters.allHopWidthsEnabled && filters.hexQuery === '') {
+    if (
+      filters.allTypesEnabled &&
+      filters.allHopWidthsEnabled &&
+      filters.hexQuery === '' &&
+      !filters.hideMalformed
+    ) {
       return packets;
     }
     return packetsWithTypes
@@ -160,7 +165,8 @@ export function RawPacketFeedView({
         ({ packet, payloadType, hopWidth }) =>
           (filters.allTypesEnabled || filters.enabledTypes.has(payloadType)) &&
           (filters.allHopWidthsEnabled || filters.enabledHopWidths.has(hopWidth)) &&
-          (filters.hexQuery === '' || packet.data.toLowerCase().includes(filters.hexQuery))
+          (filters.hexQuery === '' || packet.data.toLowerCase().includes(filters.hexQuery)) &&
+          !(filters.hideMalformed && packet.malformed)
       )
       .map(({ packet }) => packet);
   }, [
@@ -172,6 +178,7 @@ export function RawPacketFeedView({
     filters.enabledHopWidths,
     filters.hexQuery,
     filters.hexInvalid,
+    filters.hideMalformed,
   ]);
 
   const paused = pausedSnapshot !== null;
@@ -379,6 +386,8 @@ export function RawPacketFeedView({
         onToggleHopWidth={filters.toggleHopWidth}
         onOnlyHopWidth={filters.onlyHopWidth}
         onGroupByHashChange={filters.setGroupByHash}
+        hideMalformed={filters.hideMalformed}
+        onHideMalformedChange={filters.setHideMalformed}
         onReset={filters.reset}
         matchCount={filteredPackets.length}
         totalCount={packets.length}

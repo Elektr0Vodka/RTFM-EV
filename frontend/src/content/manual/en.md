@@ -317,13 +317,15 @@ An **OpenHop** radio forwards on its own, so there Protect writes the blocks int
 
 - **Overview** shows the mode, whether everything is working, and how much spam was stopped or let through.
 - **Protection** lists the active blocks, each with the reason and when it ends. Every automatic block ends by itself. **Lockdown** is for a heavy attack: for a while only names it already knows get through. Under **Possibly genuine, held** you find messages from normal-looking names that were held; **Let through** trusts that name. **Clear list** empties that list. With **Block something yourself** you add a block for a text or for a repeater; a repeater block can be limited to one channel, which makes fewer rules. **Clear automatic blocks** removes them and holds them off for up to 24 hours, like a block you remove yourself.
-- **Messages** shows what it read and why it did or did not act. Use **This is spam** and **Not spam** to correct it. The same two buttons are on every channel message in chat. **Clear list** only empties the list on screen: Spam Guard keeps using those messages as evidence.
+- **Messages** shows what it read and why it did or did not act. Use **This is spam** and **Not spam** to correct it. The same two buttons are on every channel message in chat. A caught message says by which block and in which channel. **Clear list** only empties the list on screen: Spam Guard keeps using those messages as evidence.
 - **Spam sources** shows which repeaters spam arrives through. **Remove** takes a repeater off the list until new spam arrives through it.
 - **Settings** has the channels it reads (search for a channel to add it), every setting with a note on its side effects, and the exceptions (trusted names, repeaters never to block, allowed texts). With **Keep an evidence log** on, it keeps what it read and your This is spam / Not spam answers for the number of days you set. You can download that log, also scrambled (names replaced by codes, for sharing), and **replay** it with the settings in the form to see what they would have stopped. A replay changes nothing. At the bottom, **Start again** has two separate resets: **Forget what was learnt** removes every block (also your own), the known names and routes, the spam sources, the lists and the numbers; **Settings back to defaults** puts the settings and exceptions back to those of a fresh install.
+- Two settings worth knowing. **Block repeats from** sets whose repeats duplicate suppression holds back: other names sending the same text (the first sender may send it again), the same name only, or everyone. **Treat malformed messages as spam** flags messages of random characters, or from a sender whose clock was never set, and counts them as a made-up name.
+- **Policy** is only there with an OpenHop radio. It is the node's own policy editor: the engine switch, the groups and the rules. The node does the filtering. While Spam Guard is switched on the editor is here and not under Settings > OpenHop; with Spam Guard off it is back there.
 
 A repeater is shared. What yours does not forward disappears for everyone behind it, and they cannot see why. There is on purpose no button to block a person by name.
 
-In chat, **Hide spam** in the filter menu hides flagged messages and keeps them out of unread counts and notifications.
+In chat, **Hide spam** in the filter menu hides flagged messages and keeps them out of unread counts and notifications. A message that duplicate suppression caught as a repeat carries a **Duplicate** marker. That is not a spam flag, so it is not hidden.
 
 ### SNMP
 
@@ -337,7 +339,9 @@ Packets, errors, air time and skipped publishes are counters that only go up sin
 
 ### Packet Feed
 
-A live list of every packet the radio hears. It has **Filters** (packet type and path width), pause and resume, autoscroll, oldest or newest first, **Group repeats by content**, a hex filter, **Show Stats**, and an optional sound per packet (Geiger, Sonar or Water drip). Click a packet for its byte-by-byte breakdown.
+A live list of every packet the radio hears. It has **Filters** (packet type and path width), pause and resume, autoscroll, oldest or newest first, **Group repeats by content**, a hex filter, **Show Stats**, and an optional sound per packet (Geiger, Sonar or Water drip). Click a packet for its byte-by-byte breakdown. Each packet shows the date and time. Under **Filters**, **Hide malformed** hides channel messages of random characters or from a sender whose clock was never set; your choice is kept in this browser.
+
+With an OpenHop radio a packet also shows the policy rule that decides it, for example **Drop rule** followed by the rule's name, in red for a drop. RTFM-EV works that out from a copy of the node's policy, so it is an indication: the node itself decides, a rule changed on the node can take a minute to show, and the line is gone after a reload.
 
 ### Packet History
 

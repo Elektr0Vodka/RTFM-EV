@@ -117,6 +117,8 @@ export function SpamSettingsTab({
 
   // Follow the server while there are no local edits. With edits, keep them but
   // take over the exception lists: those are changed by actions, not this form.
+  // `dirty` is a trigger too: a save or reset clears it after the server's
+  // answer may already have been rendered, and the form has to follow then.
   useEffect(() => {
     setDraft((prev) =>
       dirty
@@ -128,8 +130,7 @@ export function SpamSettingsTab({
           }
         : state.settings
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `dirty` is read, not a trigger
-  }, [state.settings]);
+  }, [state.settings, dirty]);
 
   const disabled = guard.busy || !state.enabled;
   const preset = state.presets[draft.sensitivity] ?? {};

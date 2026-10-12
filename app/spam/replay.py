@@ -104,6 +104,7 @@ def replay(
             channel=str(record.get("channel") or ""),
             length=int(record.get("length") or 0),
             message_id=index,
+            malformed=record.get("malformed") is True,
             **signals,
         )
         flagged |= detector.decide(rematch=event).flag

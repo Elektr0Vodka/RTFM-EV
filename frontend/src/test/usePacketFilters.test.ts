@@ -90,3 +90,27 @@ describe('usePacketFilters', () => {
     expect(result.current.searchTerm).toBe('');
   });
 });
+
+describe('usePacketFilters hide malformed', () => {
+  const KEY = 'remoteterm-packet-feed-hide-malformed';
+
+  it('is off at first, counts as a filter and is remembered in this browser', () => {
+    localStorage.removeItem(KEY);
+    const { result, unmount } = renderHook(() => usePacketFilters());
+    expect(result.current.hideMalformed).toBe(false);
+
+    act(() => result.current.setHideMalformed(true));
+    expect(result.current.hideMalformed).toBe(true);
+    expect(result.current.activeFilterCount).toBe(1);
+    expect(localStorage.getItem(KEY)).toBe('true');
+    unmount();
+
+    const again = renderHook(() => usePacketFilters());
+    expect(again.result.current.hideMalformed).toBe(true);
+
+    act(() => again.result.current.reset());
+    expect(again.result.current.hideMalformed).toBe(false);
+    expect(localStorage.getItem(KEY)).toBe('false');
+    localStorage.removeItem(KEY);
+  });
+});

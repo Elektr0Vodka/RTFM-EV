@@ -11,6 +11,95 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-12 (Spam Guard: feedback from the second test round, feat/spam-guard-feedback-2)
+
+Migration `_140` (`messages.duplicate`). No new dependency. Requested by Richard after testing text blocks and duplicate suppression on an OpenHop node.
+
+### Spam Guard: duplicate suppression
+- **New setting "Block repeats from".** Duplicate suppression held back the
+  same text under *other* names only, and let the first sender re-send. That is
+  still the default (`others`). Two more choices: **The same name only**
+  (`same`: one name repeating its own message is held back, other names are
+  not) and **Everyone** (`everyone`: the first copy passes, every later copy is
+  held back, whoever sends it). The rule on the repeater follows:
+  `channel_sender not_equals <name>`, `channel_sender equals <name>`, or no
+  sender condition. With `same` each name gets its own block. Tunable
+  `dedupe_scope` (`app/spam/settings.py`); changing it removes the duplicate
+  blocks made so far, because they hold back the wrong people.
+- On the host repeater a rule is judged against the very message that made it.
+  With `same` and `everyone` the block therefore starts at the first repeat
+  there, so the first copy is never stopped. On an OpenHop node the rule is
+  written after the first copy (the node has already forwarded it).
+- **A caught repeat is marked in the channel.** A message caught by duplicate
+  suppression gets a **Duplicate** marker in chat (`messages.duplicate`,
+  migration `_140`). It is not a spam flag: Hide spam, unread counts, mentions
+  and Web Push are unaffected. **Not spam** on such a message takes the marker
+  off again. The Messages tab shows the same marker.
+
+### Spam Guard: what was caught, and where
+- **"Caught by" names the channel**: `Caught by: Text "Copy," in channel #test`.
+  A channel without a stored name is shown by the first 8 characters of its key.
+- **New setting "Treat malformed messages as spam"** (off by default, tunable
+  `malformed_signal`). A message the chat filter calls malformed (random
+  characters, or a sender clock that was never set, `app/malformed.py`) is
+  flagged as spam and counts as a made-up name, which adds to the evidence
+  against the repeater it came through. A trusted name and an allowed text are
+  left alone. The Messages tab shows a **Malformed** signal whatever the
+  setting. The evidence log records it, so a replay follows.
+
+### Packet feed
+- **The deciding policy rule is shown on a packet** (OpenHop radio only). Under
+  the time a line such as `Drop rule 1- T-flood txt-msg 1byte spam` or
+  `Drop rule rtfm-spam:text:7440749b06 (yours)`, in red for a drop; an allow or
+  log only rule is shown in the muted colour, and a drop by the default action
+  says so. RTFM-EV works this out itself from a copy of the node's policy
+  (`app/services/policy_verdict.py`, a port of the evaluation in
+  openhop_repeater `repeater/policy_engine.py`); the WS `raw_packet` event
+  carries it as `policy: {action, rule}`. **It is an indication, the node
+  decides:**
+  - the copy is read when Spam Guard syncs its rules, when the policy is opened
+    or saved through RTFM-EV, and otherwise at most once a minute while packets
+    arrive, so a rule changed on the node itself shows up to a minute late;
+  - a rule made because of a packet is not shown on that same packet;
+  - a rule on `mode` or `rx_radio_id` cannot be judged from here: no line is
+    shown from such a rule on, unless another condition settles it;
+  - sender and text are only read for a channel whose secret the policy holds,
+    as on the node;
+  - it is not stored: no line after a reload or in Packet History;
+  - nothing is shown on a host repeater. Its decisions are not in the feed.
+- Side effect: with an OpenHop radio and the API configured, RTFM-EV now reads
+  `GET /api/policy` from the node about once a minute while packets arrive,
+  also when Spam Guard is off.
+- **The feed shows the date with the time** (day, month and year in figures, in
+  the app's date format).
+- **Hide malformed** in the feed's Filters hides packets whose channel message
+  is malformed, by the same rule as Hide malformed in chat. Display only. The
+  choice is kept in the browser. `GET /packets/recent` and the `raw_packet`
+  event carry `malformed`; Packet History has no such toggle.
+
+### Policy editor on the Spam Guard page
+- With an OpenHop radio the Spam Guard page has a **Policy** tab: the node's
+  policy editor (engine, groups, rules), unchanged. While Spam Guard is
+  switched on, Settings > OpenHop leaves its Policy pane out and says where it
+  went. With Spam Guard off the pane stays in Settings > OpenHop, so the policy
+  is always reachable.
+
+### Spam Guard: settings form
+- **Fix: the settings form could keep an edit after a save or "Settings back to
+  defaults".** The form only took over the server's answer when that answer
+  arrived after the edits were dropped; the other order left the old edit on
+  screen with "Unsaved changes" gone. It now follows the server in both orders
+  (`SpamSettingsTab`). Found through a test that failed under load.
+
+### Verification
+- Backend: detector, rule rendering, runtime, migration and
+  `tests/test_policy_verdict.py`. Frontend: Spam Guard page, packet list, feed
+  filters, message list, OpenHop settings.
+- Seen in a browser on a radio-less scratch backend with a stand-in for the
+  node's policy API: both kinds of rule line in the feed, the Duplicate marker
+  in chat, the new settings, the Policy tab, the pointer in Settings > OpenHop.
+- NOT verified: a real OpenHop node, live RF, the host repeater path on air.
+
 ## Update 2026-10-12 (MC-Radar preset: packet page link, feat/mc-radar-packet-link)
 
 Frontend only. No migration, no new dependency, no backend change.

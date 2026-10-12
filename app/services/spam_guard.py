@@ -24,7 +24,7 @@ import asyncio
 import logging
 import time
 from collections.abc import Callable
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from typing import Any
 
 from pydantic import ValidationError
@@ -39,6 +39,7 @@ from app.repository.spam import (
 from app.services.host_repeater import host_repeater
 from app.services.host_repeater_engine import lora_airtime_ms
 from app.services.host_repeater_link import radio_snapshot
+from app.services.policy_verdict import policy_verdicts
 from app.services.spam_backend_host import HostBackend
 from app.services.spam_backend_openhop import FAILURES_BAD, OpenHopBackend
 from app.spam.detector import DecideResult, Event, SpamDetector
@@ -52,8 +53,21 @@ logger = logging.getLogger(__name__)
 TICK_SECONDS = 30.0
 RECENT_MESSAGES = 100
 RECENT_ACTIVITY = 100
+# The host engine judges a frame shortly after its message was ingested. A
+# decide() that is not that message's own (tick, user action) treats a message
+# this young as not judged yet. Message times are whole seconds.
+FRESH_FRAME_SECONDS = 3.0
 # Unimportant changes (duplicate-suppression blocks, counters) wait this long.
 LAZY_FLUSH_SECONDS = 300.0
+
+
+@dataclass(frozen=True)
+class MessageVerdict:
+    """What Spam Guard made of one arriving channel message, for its chat row."""
+
+    spam: bool = False
+    # Caught by duplicate suppression: a repeat, shown with its own marker.
+    duplicate: bool = False
 
 
 def default_config() -> SpamConfig:
@@ -89,6 +103,8 @@ class SpamGuardRuntime:
         self.openhop = openhop or OpenHopBackend()
         # A sync finishes on its own time; the page follows it through the summary.
         self.openhop.on_change = self.broadcast
+        # The packet feed judges packets with the policy as the sync last saw it.
+        self.openhop.on_policy = policy_verdicts.update
         self._backend: str | None = None
         self.load_error: str | None = None
         self.last_message_at: float | None = None
@@ -183,7 +199,7 @@ class SpamGuardRuntime:
         if not self.enabled:
             return
         async with self._lock:
-            result = self.detector.decide()
+            result = self._decide()
             await self._after_decide(result)
             # Cheap, and it picks up a radio swapped for (or from) an OpenHop node.
             self.apply_rules()
@@ -209,6 +225,11 @@ class SpamGuardRuntime:
         return render(
             self.detector, "openhop", preview=preview, channels=self.config.shareable_channels()
         )
+
+    def _decide(self) -> DecideResult:
+        """A ``decide()`` that belongs to no arriving message (tick, user action)."""
+        on_host = self.backend_name() == "host"
+        return self.detector.decide(fresh_seconds=FRESH_FRAME_SECONDS if on_host else 0.0)
 
     def apply_rules(self) -> None:
         """Hand the current rule set to the active backend and clear the other one.
@@ -249,8 +270,9 @@ class SpamGuardRuntime:
         received_at: int,
         packet_len: int | None = None,
         raw_frame: bool = True,
-    ) -> bool:
-        """Feed one newly stored channel message. True when it is flagged as spam.
+        malformed: bool = False,
+    ) -> MessageVerdict:
+        """Feed one newly stored channel message; says how its chat row is marked.
 
         Called from message ingest before the message is broadcast. Never raises:
         a detector problem must not cost a message.
@@ -258,9 +280,10 @@ class SpamGuardRuntime:
         ``raw_frame`` is false for a message the radio handed over without its
         raw packet (CHANNEL_MSG_RECV). The host engine never judged such a
         message, so a block it confirms does not count it as caught.
+        ``malformed`` is the chat filter's verdict (``app/malformed.py``).
         """
         if not (self.enabled and self.loaded) or channel_key.upper() not in self._channel_keys:
-            return False
+            return MessageVerdict()
         try:
             async with self._lock:
                 event = self.detector.ingest(
@@ -271,6 +294,7 @@ class SpamGuardRuntime:
                     channel=channel_key,
                     length=packet_len or 0,
                     message_id=message_id,
+                    malformed=malformed,
                 )
                 self.last_message_at = self._clock()
                 # The host engine judges this frame after ingest, with the rules
@@ -288,10 +312,12 @@ class SpamGuardRuntime:
                         )
                     )
                 await self.flush()
-                return message_id in result.flag
+                return MessageVerdict(
+                    spam=message_id in result.flag, duplicate=message_id in result.duplicate
+                )
         except Exception:
             logger.exception("Spam Guard failed on message %s", message_id)
-            return False
+            return MessageVerdict()
 
     def _count_airtime(self, event: Event) -> None:
         """Airtime not spent re-sending a caught message, when we really withheld it."""
@@ -314,6 +340,10 @@ class SpamGuardRuntime:
             earlier = [message_id for message_id in changed if message_id != arriving]
             if earlier:
                 self._broadcast("message_spam", {"message_ids": earlier, "spam": True})
+        if result.duplicate:
+            # Only ever the arriving message, which carries the marker in its own
+            # broadcast: a copy is caught when it comes in, never afterwards.
+            await MessageRepository.set_duplicate(sorted(result.duplicate))
         if result.changed:
             self.apply_rules()
             self._dirty = True
@@ -335,7 +365,7 @@ class SpamGuardRuntime:
             self.version, self.config = version, config
             self.detector.configure(config)
             self._index_channels()
-            result = self.detector.decide()
+            result = self._decide()
             await self._after_decide(result)
             self.apply_rules()
         self.broadcast()
@@ -370,7 +400,7 @@ class SpamGuardRuntime:
                 if version is not None:
                     self.version, self.config = version, config
                     self.detector.configure(config)
-            result = self.detector.decide()
+            result = self._decide()
             await self._after_decide(result)
             self.apply_rules()
             self._dirty = True
@@ -394,7 +424,7 @@ class SpamGuardRuntime:
         self.version, self.config = version, config
         self.detector.configure(config)
         self._index_channels()
-        result = self.detector.decide()
+        result = self._decide()
         await self._after_decide(result)
         self.apply_rules()
         self._dirty = True
@@ -459,6 +489,11 @@ class SpamGuardRuntime:
         changed = await MessageRepository.set_spam([message_id], spam)
         if changed:
             self._broadcast("message_spam", {"message_ids": changed, "spam": spam})
+        if not spam and await MessageRepository.set_duplicate([message_id], False):
+            # 'Not spam' on a caught repeat: the duplicate marker goes too.
+            self._broadcast(
+                "message_spam", {"message_ids": [message_id], "spam": False, "duplicate": False}
+            )
 
     # ── persistence and broadcasts ───────────────────────────────────────
 
@@ -560,6 +595,8 @@ class SpamGuardRuntime:
                 "disguised": event.disguised,
                 "known": det.is_known(event.sender),
                 "exempt": event.exempt,
+                "malformed": event.malformed,
+                "duplicate": event.duplicate,
                 "matched": event.matched,
                 "spam": event.spam,
                 "campaign": event.campaign,

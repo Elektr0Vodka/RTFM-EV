@@ -18,6 +18,9 @@ export interface PacketFilterModalProps {
   onToggleHopWidth: (bucket: string) => void;
   onOnlyHopWidth: (bucket: string) => void;
   onGroupByHashChange: (value: boolean) => void;
+  /** 'Hide malformed' toggle; left out where packets do not carry the flag. */
+  hideMalformed?: boolean;
+  onHideMalformedChange?: (value: boolean) => void;
   onReset: () => void;
   matchCount: number;
   totalCount: number;
@@ -38,6 +41,8 @@ export function PacketFilterModal({
   onToggleHopWidth,
   onOnlyHopWidth,
   onGroupByHashChange,
+  hideMalformed = false,
+  onHideMalformedChange,
   onReset,
   matchCount,
   totalCount,
@@ -69,6 +74,24 @@ export function PacketFilterModal({
             </span>
           </span>
         </label>
+
+        {onHideMalformedChange && (
+          <label className="flex items-center gap-2 rounded-md border border-border/70 bg-card/60 px-3 py-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={hideMalformed}
+              onChange={(e) => onHideMalformedChange(e.target.checked)}
+              className="rounded"
+              aria-label={t('packet_hide_malformed_label')}
+            />
+            <span>
+              <span className="text-foreground">{t('packet_hide_malformed_label')}</span>
+              <span className="block text-xs text-muted-foreground">
+                {t('packet_hide_malformed_description')}
+              </span>
+            </span>
+          </label>
+        )}
 
         <section className="mt-2">
           <div className="flex items-center justify-between border-t border-border/60 pt-2">

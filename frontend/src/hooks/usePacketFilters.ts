@@ -24,6 +24,11 @@ export interface PacketFilters {
   enabledHopWidths: Set<string>;
   hexFilter: string;
   groupByHash: boolean;
+  /**
+   * Hide packets whose decoded channel message is malformed (the chat filter's
+   * rule). Remembered in this browser; only the live feed knows the flag.
+   */
+  hideMalformed: boolean;
   /** Raw message-content search input (decoded text/sender/channel). */
   searchQuery: string;
 
@@ -43,8 +48,19 @@ export interface PacketFilters {
   onlyHopWidth: (bucket: string) => void;
   setHexFilter: (value: string) => void;
   setGroupByHash: (value: boolean) => void;
+  setHideMalformed: (value: boolean) => void;
   setSearchQuery: (value: string) => void;
   reset: () => void;
+}
+
+const HIDE_MALFORMED_KEY = 'remoteterm-packet-feed-hide-malformed';
+
+function getSavedHideMalformed(): boolean {
+  try {
+    return localStorage.getItem(HIDE_MALFORMED_KEY) === 'true';
+  } catch {
+    return false;
+  }
 }
 
 export interface UsePacketFiltersOptions {
@@ -66,6 +82,7 @@ export function usePacketFilters(options: UsePacketFiltersOptions = {}): PacketF
   );
   const [hexFilter, setHexFilter] = useState('');
   const [groupByHash, setGroupByHashState] = useState(initialGroupByHash);
+  const [hideMalformed, setHideMalformedState] = useState(getSavedHideMalformed);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Adopt the persisted value once app settings load (or change elsewhere).
@@ -82,6 +99,15 @@ export function usePacketFilters(options: UsePacketFiltersOptions = {}): PacketF
     [onGroupByHashChange]
   );
 
+  const setHideMalformed = useCallback((value: boolean) => {
+    setHideMalformedState(value);
+    try {
+      localStorage.setItem(HIDE_MALFORMED_KEY, String(value));
+    } catch {
+      // Storage unavailable: the choice lasts for this page only.
+    }
+  }, []);
+
   const allTypesEnabled = enabledTypes.size === KNOWN_PAYLOAD_TYPES.length;
   const allHopWidthsEnabled = enabledHopWidths.size === HOP_BYTE_WIDTH_BUCKETS.length;
 
@@ -97,7 +123,8 @@ export function usePacketFilters(options: UsePacketFiltersOptions = {}): PacketF
     enabledTypes.size +
     (HOP_BYTE_WIDTH_BUCKETS.length - enabledHopWidths.size) +
     (hexFilter.trim() !== '' ? 1 : 0) +
-    (groupByHash ? 1 : 0);
+    (groupByHash ? 1 : 0) +
+    (hideMalformed ? 1 : 0);
 
   const toggleAll = useCallback(() => {
     setEnabledTypes((prev) =>
@@ -138,14 +165,16 @@ export function usePacketFilters(options: UsePacketFiltersOptions = {}): PacketF
     setEnabledHopWidths(new Set(HOP_BYTE_WIDTH_BUCKETS));
     setHexFilter('');
     setGroupByHash(false);
+    setHideMalformed(false);
     setSearchQuery('');
-  }, [setGroupByHash]);
+  }, [setGroupByHash, setHideMalformed]);
 
   return {
     enabledTypes,
     enabledHopWidths,
     hexFilter,
     groupByHash,
+    hideMalformed,
     searchQuery,
     allTypesEnabled,
     allHopWidthsEnabled,
@@ -161,6 +190,7 @@ export function usePacketFilters(options: UsePacketFiltersOptions = {}): PacketF
     onlyHopWidth,
     setHexFilter,
     setGroupByHash,
+    setHideMalformed,
     setSearchQuery,
     reset,
   };

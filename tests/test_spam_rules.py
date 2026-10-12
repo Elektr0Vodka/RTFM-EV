@@ -138,6 +138,37 @@ class TestHostDocuments:
             "value": "Dave",
         }
 
+    def test_duplicate_block_for_the_same_name_only(self):
+        det, clock = make(overrides={"dedupe_scope": "same"})
+        say(det, clock, "Dave", LONG)
+        det.decide()
+        (rule,) = render(det, "openhop").before
+        assert rule["if"]["all"][-1] == {
+            "field": "channel_sender",
+            "op": "equals",
+            "value": "Dave",
+        }
+
+    def test_duplicate_block_for_everyone_names_no_sender(self):
+        det, clock = make(overrides={"dedupe_scope": "everyone"})
+        say(det, clock, "Dave", LONG)
+        det.decide()
+        (rule,) = render(det, "host").before
+        assert [c["field"] for c in rule["if"]["all"]] == [
+            "payload_type",
+            "channel_hash",
+            "channel_message_body",
+        ]
+
+    @pytest.mark.parametrize("scope", ["others", "same", "everyone"])
+    @pytest.mark.parametrize("sender", ["Dave", "Sarah"])
+    def test_duplicate_rules_agree_with_the_detector(self, scope, sender):
+        det, clock = make(overrides={"dedupe_scope": scope})
+        say(det, clock, "Dave", LONG)
+        det.decide()
+        event = say(det, clock, sender, LONG)
+        assert (host_verdict(det, event) == "drop") == (event.matched is not None)
+
     def test_words_block_requires_every_word(self):
         det, clock = make(overrides={"dedupe_enabled": False, "enable_hop_rules": False})
         say(

@@ -26,6 +26,9 @@ Mode = Literal["monitor", "protect"]
 # repeater; OpenHop has no field for it.
 HopMatch = Literal["contains_known", "exact_paths", "contains", "starts_at"]
 HoldLinks = Literal["campaign", "always", "off"]
+# Whose repeats duplicate suppression holds back: copies under other names (the
+# first sender may re-send), the same name repeating itself, or everyone.
+DedupeScope = Literal["others", "same", "everyone"]
 
 # "Stays until removed".
 PERMANENT_SECONDS = 10 * 365 * 86400
@@ -110,6 +113,7 @@ class SpamTunables(BaseModel):
     min_rule_chars: int = Field(default=14, ge=8, le=80)
     # Duplicate suppression
     dedupe_enabled: bool = True
+    dedupe_scope: DedupeScope = "others"
     dedupe_seconds: int = Field(default=900, ge=30, le=86400)
     dedupe_min_chars: int = Field(default=30, ge=10, le=150)
     text_rule_chars: int = Field(default=40, ge=10, le=150)
@@ -123,6 +127,9 @@ class SpamTunables(BaseModel):
         default_factory=lambda: [r"(?=.*\d)(?=.*[a-z])[a-z0-9]{8}"],
         max_length=MAX_NAME_PATTERNS,
     )
+    # A malformed message (``app/malformed.py``: random characters, or a clock
+    # that was never set) counts as a made-up sender and is flagged as spam.
+    malformed_signal: bool = False
     # Timing
     window_seconds: int = Field(default=600, ge=60, le=86400)
     long_window_seconds: int = Field(default=7200, ge=600, le=86400)

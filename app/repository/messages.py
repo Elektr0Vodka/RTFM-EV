@@ -147,6 +147,23 @@ class MessageRepository:
         return changed
 
     @staticmethod
+    async def set_duplicate(message_ids: list[int], duplicate: bool = True) -> list[int]:
+        """Set or clear the duplicate marker; returns the ids whose marker actually changed."""
+        if not message_ids:
+            return []
+        value = 1 if duplicate else 0
+        changed: list[int] = []
+        async with db.tx() as conn:
+            for message_id in message_ids:
+                async with conn.execute(
+                    "UPDATE messages SET duplicate = ? WHERE id = ? AND duplicate != ?",
+                    (value, message_id, value),
+                ) as cursor:
+                    if cursor.rowcount:
+                        changed.append(message_id)
+        return changed
+
+    @staticmethod
     async def add_path(
         message_id: int,
         path: str,
@@ -460,6 +477,7 @@ class MessageRepository:
         malformed = False
         send_status = "confirmed"
         spam = False
+        duplicate = False
         if hasattr(row, "keys"):
             row_keys = row.keys()
             if "packet_id" in row_keys:
@@ -476,6 +494,8 @@ class MessageRepository:
                 send_status = row["send_status"]
             if "spam" in row_keys:
                 spam = bool(row["spam"])
+            if "duplicate" in row_keys:
+                duplicate = bool(row["duplicate"])
 
         return Message(
             id=row["id"],
@@ -498,6 +518,7 @@ class MessageRepository:
             failed_at=failed_at,
             malformed=malformed,
             spam=spam,
+            duplicate=duplicate,
         )
 
     @staticmethod

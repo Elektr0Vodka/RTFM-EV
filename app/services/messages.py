@@ -79,6 +79,7 @@ def build_message_model(
     region: str | None = None,
     malformed: bool = False,
     spam: bool = False,
+    duplicate: bool = False,
 ) -> Message:
     """Build a Message model with the canonical backend payload shape."""
     return Message(
@@ -102,6 +103,7 @@ def build_message_model(
         region=region,
         malformed=malformed,
         spam=spam,
+        duplicate=duplicate,
     )
 
 
@@ -356,13 +358,13 @@ async def create_message_from_decrypted(
     )
     await RawPacketRepository.mark_decrypted(packet_id, msg_id)
 
-    spam = False
+    verdict = None
     if realtime:
         # Before the broadcast, so a message caught by an existing block is
         # already flagged when it reaches chat, unread counts and Web Push.
         from app.services.spam_guard import spam_guard
 
-        spam = await spam_guard.on_channel_message(
+        verdict = await spam_guard.on_channel_message(
             message_id=msg_id,
             channel_key=channel_key_normalized,
             sender=sender,
@@ -371,6 +373,7 @@ async def create_message_from_decrypted(
             path_len=path_len,
             received_at=received,
             packet_len=packet_len,
+            malformed=malformed,
         )
 
     broadcast_message(
@@ -389,7 +392,8 @@ async def create_message_from_decrypted(
             transport_code=transport_code,
             region=region,
             malformed=malformed,
-            spam=spam,
+            spam=bool(verdict and verdict.spam),
+            duplicate=bool(verdict and verdict.duplicate),
         ),
         broadcast_fn=broadcast_fn,
         realtime=realtime,
@@ -666,7 +670,7 @@ async def create_fallback_channel_message(
     # (or forwarded) it: Spam Guard reads it for chat flagging and learning only.
     from app.services.spam_guard import spam_guard
 
-    spam = await spam_guard.on_channel_message(
+    verdict = await spam_guard.on_channel_message(
         message_id=msg_id,
         channel_key=conversation_key_normalized,
         sender=sender_name,
@@ -675,6 +679,7 @@ async def create_fallback_channel_message(
         path_len=path_len,
         received_at=received_at,
         raw_frame=False,
+        malformed=malformed,
     )
 
     message = build_message_model(
@@ -690,7 +695,8 @@ async def create_fallback_channel_message(
         sender_key=resolved_sender_key,
         channel_name=channel_name,
         malformed=malformed,
-        spam=spam,
+        spam=verdict.spam,
+        duplicate=verdict.duplicate,
     )
     broadcast_message(message=message, broadcast_fn=broadcast_fn)
     return message

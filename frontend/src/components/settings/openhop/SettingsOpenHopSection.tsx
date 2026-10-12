@@ -27,12 +27,18 @@ const MESH_TABS: OpenHopTab[] = ['policy', 'plugins', 'transport', 'mqtt'];
  * OpenHop management panes: a "Node" row (Config, System, Update, CAD) and a
  * "Mesh" row (Policy, Plugins, Transport, MQTT). Renders nothing for non-OpenHop
  * nodes.
+ *
+ * While Spam Guard is switched on the policy editor lives on its page (the
+ * Policy tab), so the Policy pane is left out here and a line says where it is.
  */
 export function SettingsOpenHopSection(props: Props) {
   const t = useT();
   const isOpenHop = props.health?.radio_device_info?.is_openhop ?? false;
-  const [tab, setTab] = useState<OpenHopTab>('policy');
+  const policyElsewhere = props.appSettings.spam_guard_enabled ?? false;
+  const [chosen, setTab] = useState<OpenHopTab>('policy');
   if (!isOpenHop) return null;
+  const meshTabs = MESH_TABS.filter((id) => id !== 'policy' || !policyElsewhere);
+  const tab = chosen === 'policy' && policyElsewhere ? meshTabs[0] : chosen;
 
   const labels: Record<OpenHopTab, string> = {
     policy: t('openhop_tab_policy'),
@@ -73,9 +79,12 @@ export function SettingsOpenHopSection(props: Props) {
     <div className="space-y-4">
       <div className="space-y-2">
         {row(t('openhop_group_node'), NODE_TABS)}
-        {row(t('openhop_group_mesh'), MESH_TABS)}
+        {row(t('openhop_group_mesh'), meshTabs)}
       </div>
-      {tab === 'policy' && <OpenHopPolicyPane {...props} />}
+      {policyElsewhere && (
+        <p className="text-xs text-muted-foreground">{t('openhop_policy_moved')}</p>
+      )}
+      {tab === 'policy' && <OpenHopPolicyPane health={props.health} />}
       {tab === 'plugins' && <OpenHopPluginsPane health={props.health} />}
       {tab === 'config' && <OpenHopConfigPane health={props.health} />}
       {tab === 'system' && <OpenHopSystemPane />}

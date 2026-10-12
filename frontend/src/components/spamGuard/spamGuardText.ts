@@ -77,7 +77,13 @@ function num(value: unknown): number {
 
 /** Why a block exists: the backend sends a code plus numbers, worded here. */
 export function reasonLabel(block: SpamBlock, t: TFn): string {
-  const key = REASON_KEYS[block.reason];
+  // A duplicate block says whose repeats it holds back (the "Block repeats from" setting).
+  const key =
+    block.reason === 'duplicate' && block.sender_only
+      ? 'spam_reason_duplicate_same'
+      : block.reason === 'duplicate' && !block.sender
+        ? 'spam_reason_duplicate_everyone'
+        : REASON_KEYS[block.reason];
   if (!key) return block.reason;
   const detail = block.detail ?? {};
   return t(key, {

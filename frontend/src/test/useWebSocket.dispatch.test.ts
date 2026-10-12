@@ -238,6 +238,18 @@ describe('useWebSocket dispatch', () => {
     expect(onMessageSpam).toHaveBeenCalledWith([4, 5], true);
   });
 
+  it('passes the duplicate marker along when message_spam carries it', () => {
+    const onMessageSpam = vi.fn();
+    renderHook(() => useWebSocket({ onMessageSpam }));
+
+    fireMessage({
+      type: 'message_spam',
+      data: { message_ids: [6], spam: false, duplicate: false },
+    });
+
+    expect(onMessageSpam).toHaveBeenCalledWith([6], false, false);
+  });
+
   it('routes error event to onError', () => {
     const onError = vi.fn();
     renderHook(() => useWebSocket({ onError }));

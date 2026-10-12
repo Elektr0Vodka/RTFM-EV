@@ -63,6 +63,18 @@ function formatDate(timestamp: number): string {
   return formatDateTime(date, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+/** Day, month and year in figures, for the live feed's date and time stamp. */
+function formatNumericDate(timestamp: number): string {
+  const date = new Date(timestamp * 1000);
+  return formatDateTime(date, { year: 'numeric', month: '2-digit', day: '2-digit' });
+}
+
+const POLICY_KEYS = {
+  drop: 'packet_policy_drop',
+  allow: 'packet_policy_allow',
+  log_only: 'packet_policy_log_only',
+} as const;
+
 function formatSignalInfo(packet: RawPacket): string {
   const parts: string[] = [];
   if (packet.snr !== null && packet.snr !== undefined) {
@@ -281,13 +293,31 @@ export function RawPacketList({
                 {decoded.summary}
               </span>
 
-              {/* Time (with date in the history view, which can span days) */}
+              {/* Date and time (the history view, which can span days, names the month) */}
               <span className="text-muted-foreground ml-auto text-xs tabular-nums">
                 {showDate
                   ? `${formatDate(packet.timestamp)} ${formatTime(packet.timestamp)}`
-                  : formatTime(packet.timestamp)}
+                  : `${formatNumericDate(packet.timestamp)} ${formatTime(packet.timestamp)}`}
               </span>
             </div>
+
+            {/* The OpenHop policy rule that decides this packet (an indication) */}
+            {packet.policy && (
+              <div
+                className={cn(
+                  'mt-0.5 text-right text-[0.6875rem] wrap-break-word',
+                  packet.policy.action === 'drop'
+                    ? 'font-medium text-destructive'
+                    : 'text-muted-foreground'
+                )}
+                title={t('packet_policy_title')}
+                data-testid="packet-policy"
+              >
+                {packet.policy.rule === null
+                  ? t('packet_policy_default_drop')
+                  : t(POLICY_KEYS[packet.policy.action], { rule: packet.policy.rule })}
+              </div>
+            )}
 
             {/* Signal info */}
             {(packet.snr !== null || packet.rssi !== null) && (

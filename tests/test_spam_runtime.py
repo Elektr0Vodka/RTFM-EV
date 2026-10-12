@@ -177,6 +177,56 @@ class TestIngest:
         assert message_id is not None
         assert feed.of("message")[-1]["spam"] is False
 
+    @pytest.mark.asyncio
+    async def test_a_caught_repeat_gets_the_duplicate_marker_not_the_spam_flag(self, feed):
+        first = await feed.say("Dave", LONG)
+        copy = await feed.say("Sarah", LONG)
+        marks = {
+            m.id: (m.spam, m.duplicate)
+            for m in await MessageRepository.get_all(conversation_key=PUBLIC)
+        }
+        assert marks == {first: (False, False), copy: (False, True)}
+        assert [(m["spam"], m["duplicate"]) for m in feed.of("message")] == [
+            (False, False),
+            (False, True),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_not_spam_takes_the_duplicate_marker_off(self, feed):
+        await feed.say("Dave", LONG)
+        copy = await feed.say("Sarah", LONG)
+        await feed.runtime.action("not_spam", {"sender": "Sarah"}, message_id=copy)
+        stored = await MessageRepository.get_by_id(copy)
+        assert stored is not None and stored.duplicate is False
+        assert feed.of("message_spam")[-1] == {
+            "message_ids": [copy],
+            "spam": False,
+            "duplicate": False,
+        }
+
+    @pytest.mark.asyncio
+    async def test_same_name_scope_on_the_host_lets_the_first_copy_through(self, feed):
+        await protect(feed, dedupe_scope="same", enable_hop_rules=False)
+        await feed.say("Dave", LONG)
+        assert feed.runtime.host.status()["rules_present"] == 0
+        await feed.say("Dave", LONG)
+        assert feed.of("message")[-1]["duplicate"] is True
+        assert feed.runtime.host.status()["rules_present"] == 1
+
+    @pytest.mark.asyncio
+    async def test_malformed_signal_flags_a_malformed_message(self, feed):
+        await protect(feed, malformed_signal=True, dedupe_enabled=False, enable_hop_rules=False)
+        # No ASCII letter or digit, two scripts mixed: the chat filter's gibberish rule.
+        await feed.say("Dave", "привет שלום")
+        assert feed.of("message")[-1]["malformed"] is True
+        assert feed.of("message")[-1]["spam"] is True
+
+    @pytest.mark.asyncio
+    async def test_malformed_is_only_a_chat_flag_while_the_signal_is_off(self, feed):
+        await feed.say("Dave", "привет שלום")
+        assert feed.of("message")[-1]["malformed"] is True
+        assert feed.of("message")[-1]["spam"] is False
+
 
 class TestRules:
     @pytest.mark.asyncio

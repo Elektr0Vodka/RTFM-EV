@@ -771,6 +771,14 @@ class Message(BaseModel):
             "filter."
         ),
     )
+    duplicate: bool = Field(
+        default=False,
+        description=(
+            "True when Spam Guard's duplicate suppression caught an incoming channel "
+            "message (a repeat of a message seen shortly before). A marker only: it "
+            "hides nothing."
+        ),
+    )
 
 
 class MessagesAroundResponse(BaseModel):
@@ -933,6 +941,15 @@ class RawPacketDecryptedInfo(BaseModel):
     message: str | None = None
 
 
+class RawPacketPolicyVerdict(BaseModel):
+    """The OpenHop policy rule that decides a packet, worked out here (indication)."""
+
+    action: Literal["allow", "drop", "log_only"]
+    rule: str | None = Field(
+        default=None, description="Name of the deciding rule; null for the default action"
+    )
+
+
 class RawPacketBroadcast(BaseModel):
     """Raw packet payload broadcast via WebSocket.
 
@@ -973,6 +990,20 @@ class RawPacketBroadcast(BaseModel):
         description=(
             "Relay that delivered this copy (last path hop) when relay_reception is true; "
             "None = heard straight from the origin, or not a recorded flood copy"
+        ),
+    )
+    malformed: bool = Field(
+        default=False,
+        description=(
+            "True when the decrypted channel message is malformed by the chat filter's rule "
+            "(random-character text, or a sender clock that was never set)"
+        ),
+    )
+    policy: RawPacketPolicyVerdict | None = Field(
+        default=None,
+        description=(
+            "On an OpenHop node: the policy rule that decides this packet, evaluated here "
+            "against a copy of the node's policy. An indication, not the node's own verdict"
         ),
     )
 

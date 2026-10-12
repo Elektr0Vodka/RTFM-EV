@@ -171,6 +171,136 @@ class TestDuplicateSuppression:
         det.decide()
         assert block.expires > first_expiry
 
+    def test_a_caught_copy_is_reported_as_a_duplicate_once(self):
+        det, clock = make()
+        say(det, clock, "Dave", LONG, message_id=1)
+        assert det.decide().duplicate == set()
+        say(det, clock, "Sarah", LONG, message_id=2)
+        assert det.decide().duplicate == {2}
+        assert det.decide().duplicate == set()
+
+
+class TestDuplicateScope:
+    def test_same_holds_back_the_same_name_only(self):
+        det, clock = make(overrides={"dedupe_scope": "same"})
+        say(det, clock, "Dave", LONG)
+        det.decide()
+        (block,) = det.blocks.values()
+        assert (block.sender, block.sender_only) == ("Dave", True)
+        assert say(det, clock, "Sarah", LONG).matched is None
+        assert say(det, clock, "Dave", LONG).matched == block.key
+
+    def test_same_keeps_one_block_per_name(self):
+        det, clock = make(overrides={"dedupe_scope": "same"})
+        say(det, clock, "Dave", LONG)
+        say(det, clock, "Sarah", LONG)
+        det.decide()
+        assert sorted(b.sender for b in det.blocks.values()) == ["Dave", "Sarah"]
+        assert len(det.blocks) == 2
+
+    def test_everyone_holds_back_the_first_sender_too(self):
+        det, clock = make(overrides={"dedupe_scope": "everyone"})
+        say(det, clock, "Dave", LONG)
+        det.decide()
+        (block,) = det.blocks.values()
+        assert block.sender is None
+        assert say(det, clock, "Sarah", LONG).matched == block.key
+        assert say(det, clock, "Dave", LONG).matched == block.key
+
+    @pytest.mark.parametrize("scope", ["same", "everyone"])
+    def test_the_message_being_judged_does_not_block_itself(self, scope):
+        """Host repeater: the rules made by this call judge this very message."""
+        det, clock = make(overrides={"dedupe_scope": scope})
+        first = say(det, clock, "Dave", LONG)
+        det.decide(rematch=first)
+        assert not det.blocks and first.matched is None
+        repeat = say(det, clock, "Dave", LONG)
+        det.decide(rematch=repeat)
+        assert repeat.matched is not None and repeat.duplicate
+        assert first.matched is None
+
+    @pytest.mark.parametrize("scope", ["same", "everyone"])
+    def test_a_message_too_young_to_have_been_judged_does_not_block_itself(self, scope):
+        """Host repeater: a tick right after ingest must not get ahead of the engine."""
+        det, clock = make(overrides={"dedupe_scope": scope})
+        say(det, clock, "Dave", LONG)
+        clock.tick(1)
+        det.decide(fresh_seconds=3.0)
+        assert not det.blocks
+        clock.tick(3)
+        det.decide(fresh_seconds=3.0)
+        assert len(det.blocks) == 1
+
+    def test_others_still_blocks_from_the_first_copy_on_the_host(self):
+        det, clock = make()
+        first = say(det, clock, "Dave", LONG)
+        det.decide(rematch=first)
+        assert len(det.blocks) == 1 and first.matched is None
+
+    def test_same_blocks_one_name_rewording_its_own_message(self):
+        det, clock = make(overrides={"dedupe_scope": "same"})
+        say(det, clock, "Dave", LONG + " 1")
+        say(det, clock, "Dave", LONG + " 2")
+        det.decide()
+        assert det.blocks
+        assert all(b.sender == "Dave" and b.sender_only for b in det.blocks.values())
+        assert say(det, clock, "Sarah", LONG + " 3").matched is None
+        assert say(det, clock, "Dave", LONG + " 3").matched is not None
+
+    def test_changing_the_scope_drops_the_old_duplicate_blocks(self):
+        det, clock = make()
+        say(det, clock, "Dave", LONG)
+        det.decide()
+        manual = det.action("block_text", text="something else entirely", channel=PUBLIC)["key"]
+        det.configure(
+            SpamConfig(
+                channels=[{"key": PUBLIC, "name": "Public"}], overrides={"dedupe_scope": "same"}
+            )
+        )
+        assert list(det.blocks) == [manual]
+        assert det.decide().changed
+
+
+class TestMalformedSignal:
+    def test_off_by_default(self):
+        det, clock = make()
+        clock.tick(5)
+        event = det.ingest(
+            ts=clock.now, path=("27",), sender="Dave", text="hello", channel=PUBLIC, malformed=True
+        )
+        assert event.malformed is True and event.random is False
+        assert det.decide().flag == set()
+
+    def test_on_counts_as_a_made_up_sender_and_is_flagged(self):
+        det, clock = make(overrides={"malformed_signal": True})
+        clock.tick(5)
+        event = det.ingest(
+            ts=clock.now,
+            path=("27",),
+            sender="Dave",
+            text="hello",
+            channel=PUBLIC,
+            message_id=7,
+            malformed=True,
+        )
+        assert event.random is True
+        assert det.decide().flag == {7}
+
+    def test_a_trusted_name_is_left_alone(self):
+        det, clock = make(overrides={"malformed_signal": True}, allow_senders=["Dave"])
+        clock.tick(5)
+        event = det.ingest(
+            ts=clock.now,
+            path=("27",),
+            sender="Dave",
+            text="hello",
+            channel=PUBLIC,
+            message_id=7,
+            malformed=True,
+        )
+        assert event.random is False
+        assert det.decide().flag == set()
+
 
 class TestCampaigns:
     def test_three_generated_names_same_text_blocks_it(self):

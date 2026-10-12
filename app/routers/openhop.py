@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from app.repository.settings import AppSettingsRepository
 from app.services.openhop import is_openhop
 from app.services.openhop_api import OpenHopClient
+from app.services.policy_verdict import policy_verdicts
 from app.services.radio_runtime import radio_runtime as radio_manager
 
 logger = logging.getLogger(__name__)
@@ -116,6 +117,15 @@ async def _relay_upstream(
         await client.aclose()
 
 
+async def _policy_change(action: Callable[[OpenHopClient], Awaitable[Any]]) -> Any:
+    """``_relay`` for a call that changes the node's policy or its objects."""
+    try:
+        return await _relay(action)
+    finally:
+        # The packet feed judges packets with a copy of the policy: read it again.
+        policy_verdicts.invalidate()
+
+
 @router.get("/status", response_model=OpenHopStatus)
 async def get_status() -> OpenHopStatus:
     """Report whether OpenHop management is available. Never returns the token."""
@@ -134,7 +144,11 @@ async def get_policy() -> dict[str, Any]:
     """Delegate to the OpenHop node's policy endpoint (read-only)."""
     client = await _require_client()
     try:
-        return await client.get_policy()
+        response = await client.get_policy()
+        data = response.get("data") if isinstance(response, dict) else None
+        if isinstance(data, dict) and response.get("success", False):
+            policy_verdicts.update(data.get("policy_engine"))
+        return response
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"OpenHop API error: {exc}") from exc
     finally:
@@ -156,7 +170,7 @@ async def run_cli(body: OpenHopCliRequest) -> dict[str, Any]:
 @router.post("/policy")
 async def update_policy(body: PolicyDoc) -> dict[str, Any]:
     """Replace the node's policy_engine config (gated)."""
-    return await _relay(lambda c: c.update_policy(body.policy))
+    return await _policy_change(lambda c: c.update_policy(body.policy))
 
 
 @router.post("/policy/validate")
@@ -172,7 +186,7 @@ async def list_policy_groups(kind: Kind | None = None) -> dict[str, Any]:
 
 @router.post("/policy/groups")
 async def create_policy_group(body: GroupCreate) -> dict[str, Any]:
-    return await _relay(
+    return await _policy_change(
         lambda c: c.create_policy_group(
             body.kind,
             body.group_id,
@@ -184,17 +198,17 @@ async def create_policy_group(body: GroupCreate) -> dict[str, Any]:
 
 @router.delete("/policy/groups")
 async def delete_policy_group(body: GroupDelete) -> dict[str, Any]:
-    return await _relay(lambda c: c.delete_policy_group(body.kind, body.group_id))
+    return await _policy_change(lambda c: c.delete_policy_group(body.kind, body.group_id))
 
 
 @router.post("/policy/groups/entries")
 async def add_group_entry(body: EntryCreate) -> dict[str, Any]:
-    return await _relay(lambda c: c.add_group_entry(body.kind, body.group_id, body.value))
+    return await _policy_change(lambda c: c.add_group_entry(body.kind, body.group_id, body.value))
 
 
 @router.delete("/policy/groups/entries")
 async def delete_group_entry(body: EntryDelete) -> dict[str, Any]:
-    return await _relay(
+    return await _policy_change(
         lambda c: c.delete_group_entry(
             body.kind, body.group_id, value=body.value, entry_id=body.entry_id
         )

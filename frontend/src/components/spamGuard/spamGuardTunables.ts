@@ -60,6 +60,7 @@ export const TUNABLE_GROUPS: TunableGroup[] = [
     titleKey: 'spam_group_duplicates',
     items: [
       { key: 'dedupe_enabled', type: 'bool' },
+      { key: 'dedupe_scope', type: 'choice', choices: ['others', 'same', 'everyone'] },
       { key: 'dedupe_seconds', type: 'int', min: 30, max: 86400, unit: 'seconds' },
       { key: 'dedupe_min_chars', type: 'int', min: 10, max: 150 },
       { key: 'text_rule_chars', type: 'int', min: 10, max: 150 },
@@ -78,6 +79,7 @@ export const TUNABLE_GROUPS: TunableGroup[] = [
     items: [
       { key: 'name_score_threshold', type: 'int', min: 1, max: 6 },
       { key: 'random_name_patterns', type: 'patterns' },
+      { key: 'malformed_signal', type: 'bool' },
     ],
   },
   {

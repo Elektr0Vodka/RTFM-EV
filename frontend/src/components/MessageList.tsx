@@ -2197,6 +2197,14 @@ export function MessageList({
                     {t('chat_spam_badge')}
                   </span>
                 )}
+                {spamGuardEnabled && !msg.outgoing && msg.duplicate && !msg.spam && (
+                  <span
+                    className="ml-1.5 align-middle text-[0.625rem] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground"
+                    title={t('chat_duplicate_badge_title')}
+                  >
+                    {t('chat_duplicate_badge')}
+                  </span>
+                )}
               </>
             );
             const renderSender = (label: string) =>

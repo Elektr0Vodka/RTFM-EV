@@ -955,6 +955,32 @@ describe('MessageList hop-size filter', () => {
     expect(within(row(container, 20) as HTMLElement).queryByText('Spam')).toBeNull();
   });
 
+  it('marks a caught repeat as a duplicate, not as spam', () => {
+    const repeat = { ...twoByte(23), duplicate: true };
+    const { container } = render(
+      <MessageList
+        messages={[twoByte(20), repeat, { ...spamIncoming(21), duplicate: true }]}
+        contacts={[]}
+        loading={false}
+        spamGuardEnabled
+        hideSpam
+      />
+    );
+    const marked = within(row(container, 23) as HTMLElement);
+    expect(marked.getByText('Duplicate')).toBeInTheDocument();
+    expect(marked.queryByText('Spam')).toBeNull();
+    expect(within(row(container, 20) as HTMLElement).queryByText('Duplicate')).toBeNull();
+    // Hide spam leaves a duplicate in view; only the spam one is gone.
+    expect(row(container, 21)).toBeNull();
+  });
+
+  it('shows no duplicate marker while Spam Guard is off', () => {
+    const { container } = render(
+      <MessageList messages={[{ ...twoByte(23), duplicate: true }]} contacts={[]} loading={false} />
+    );
+    expect(within(row(container, 23) as HTMLElement).queryByText('Duplicate')).toBeNull();
+  });
+
   it('neither hides nor marks anything while Spam Guard is off', async () => {
     const user = userEvent.setup();
     const { container } = render(

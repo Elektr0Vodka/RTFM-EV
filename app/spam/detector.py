@@ -111,9 +111,13 @@ class Event:
     disguised: bool
     random: bool = False
     exempt: bool = False
+    # Random characters or a clock that was never set (``app/malformed.py``).
+    malformed: bool = False
     matched: str | None = None
     # Caught in a way that marks the message itself as spam (see ``_match``).
     spam: bool = False
+    # Caught by duplicate suppression: a repeat, not spam by itself.
+    duplicate: bool = False
     campaign: int | None = None
     settled: bool = False
 
@@ -137,8 +141,10 @@ class Block:
     observe: bool = False
     # Hop blocks: how to match; None follows the ``hop_match_mode`` setting.
     match: HopMatch | None = None
-    # Text blocks from duplicate suppression: the original sender may re-send.
+    # Text blocks from duplicate suppression: whose message it was. That sender
+    # may re-send it, or with ``sender_only`` is the only one held back.
     sender: str | None = None
+    sender_only: bool = False
     # Hop blocks in ``exact_paths`` mode: learnt full routes, and routes the
     # user said not to block.
     paths: list[str] = field(default_factory=list)
@@ -156,6 +162,8 @@ class DecideResult:
     important: bool
     # Message ids to flag as spam in chat. Each id is reported once.
     flag: set[int]
+    # Message ids caught by duplicate suppression, for the chat marker.
+    duplicate: set[int] = field(default_factory=set)
 
 
 @dataclass
@@ -230,6 +238,7 @@ class SpamDetector:
         self.activity: deque[dict[str, Any]] = deque(maxlen=300)
         self.campaigns: dict[int, _Campaign] = {}
         self._flagged: OrderedDict[int, None] = OrderedDict()
+        self._duplicated: OrderedDict[int, None] = OrderedDict()
         self._changed = False
         self._important = False
         # The newest event when the user emptied the recent messages list.
@@ -248,8 +257,14 @@ class SpamDetector:
     # ── configuration ────────────────────────────────────────────────────
 
     def configure(self, config: SpamConfig) -> None:
+        previous: SpamTunables | None = getattr(self, "tunables", None)
         self.config = config
         self.tunables: SpamTunables = effective(config)
+        if previous is not None and previous.dedupe_scope != self.tunables.dedupe_scope:
+            # Duplicate blocks made for the other scope hold back the wrong people.
+            for key in [k for k, b in self.blocks.items() if b.source == "dedupe"]:
+                del self.blocks[key]
+                self._mark()
         self._patterns = [re.compile(p, re.IGNORECASE) for p in self.tunables.random_name_patterns]
         self.allow_hops: set[str] = set(config.allow_hops)
         self.allow_senders: set[str] = set(config.allow_senders)
@@ -405,7 +420,7 @@ class SpamDetector:
                 and all(hop in event.path for hop in suffix)
                 and event.first_hop not in self.allowed_origins(block)
             )
-        if block.sender and event.sender == block.sender:
+        if block.sender and (event.sender == block.sender) != block.sender_only:
             return False
         if block.kind == "words":
             return all(word in event.text for word in block.value)
@@ -428,6 +443,7 @@ class SpamDetector:
             event.matched = block.key
             block.hits += 1
             block.last_hit = event.ts
+            event.duplicate = block.source == "dedupe"
             if block.kind in ("text", "words"):
                 event.spam = block.source in ("campaign", "manual")
             elif block.kind in ("hop", "suffix"):
@@ -462,12 +478,14 @@ class SpamDetector:
         message_id: int | None = None,
         name_score: int | None = None,
         name_disguised: bool | None = None,
+        malformed: bool = False,
     ) -> Event:
         """Take in one channel message.
 
         ``name_score`` and ``name_disguised`` replace what the sender name looks
         like. They are for replaying a scrambled evidence export, where the name
-        is a code and only the recorded signals say what it was.
+        is a code and only the recorded signals say what it was. ``malformed``
+        is the chat filter's verdict on the message (``app/malformed.py``).
         """
         now = self._clock()
         sender = sender or "?"
@@ -491,8 +509,14 @@ class SpamDetector:
             shingles=shingles(norm),
             name_score=score,
             disguised=disguised,
-            random=not trusted and (score >= self.tunables.name_score_threshold or disguised),
+            random=not trusted
+            and (
+                score >= self.tunables.name_score_threshold
+                or disguised
+                or (malformed and self.tunables.malformed_signal)
+            ),
             exempt=self._text_allowed(text),
+            malformed=malformed,
         )
 
         history = self.senders.get(sender)
@@ -535,6 +559,7 @@ class SpamDetector:
         ttl: float | None = None,
         from_ts: float | None = None,
         sender: str | None = None,
+        sender_only: bool = False,
         match: HopMatch | None = None,
     ) -> bool:
         """Create the block, or renew it. True when it is new."""
@@ -557,6 +582,7 @@ class SpamDetector:
                 expires=expires,
                 detail=detail or {},
                 sender=sender,
+                sender_only=sender_only,
                 match=match,
             )
             if source != "dedupe":  # routine, and there are many of them
@@ -573,6 +599,7 @@ class SpamDetector:
                 # no "original sender" who may keep re-sending it.
                 block.source = "campaign"
                 block.sender = None
+                block.sender_only = False
                 self._mark()
         return False
 
@@ -758,58 +785,76 @@ class SpamDetector:
         block = self.blocks.get(event.matched) if event.matched else None
         return block is not None and block.source != "dedupe" and not block.observe
 
-    def _block_duplicates(self, recent: list[Event]) -> None:
-        """The first copy of a message gets through; copies under other names do not."""
+    def _block_duplicates(
+        self, recent: list[Event], judged: Event | None = None, fresh_seconds: float = 0.0
+    ) -> None:
+        """The first copy of a message gets through; its repeats do not.
+
+        Whose repeats is the ``dedupe_scope`` setting: copies under other names
+        (the first sender may re-send), the same name repeating itself, or
+        everyone. ``judged`` is the message a backend is about to judge with the
+        rules this call makes, and a copy younger than ``fresh_seconds`` may
+        still be waiting for that (see ``decide``): a block that holds back its
+        own sender must not start with such a message as its only copy, or the
+        first copy would be stopped too.
+        """
         tun = self.tunables
+        now = self._clock()
+        scope = tun.dedupe_scope
         usable = [
             e
             for e in recent
             if not e.exempt and e.sender not in self.allow_senders and not self._stopped(e)
         ]
 
+        def hold(kind: BlockKind, value: Any, reason: str, copies: list[Event]) -> None:
+            """Hold back repeats of ``copies`` (oldest first)."""
+            senders = {e.sender for e in copies}
+            # Whose message it is; nobody's when several people sent it.
+            sender = copies[0].sender if reason == "duplicate" or len(senders) == 1 else None
+            only = scope == "same"
+            if only and sender is None:
+                return
+            if scope == "everyone":
+                sender = None
+            if kind == "words":
+                key = words_key([sender, *value] if only and sender else value)
+            else:
+                key = text_key(f"{sender}|{value}" if only else value)
+            self._want(
+                key,
+                kind,
+                value,
+                reason,
+                "dedupe",
+                channel=copies[0].channel,
+                ttl=tun.dedupe_seconds,
+                from_ts=max(e.ts for e in copies),
+                sender=sender,
+                sender_only=only,
+            )
+
         # One message re-sent with small changes (same normalised form).
-        variants: dict[str, list[Event]] = {}
+        variants: dict[tuple[str, str | None], list[Event]] = {}
         for event in usable:
             if len(event.norm) >= tun.dedupe_min_chars * 0.6:
-                variants.setdefault(event.norm, []).append(event)
+                # ``same`` looks at each name on its own.
+                slot = (event.norm, event.sender if scope == "same" else None)
+                variants.setdefault(slot, []).append(event)
         for copies in variants.values():
             originals = sorted({e.text for e in copies})
             if len(originals) < 2:
                 continue
-            senders = {e.sender for e in copies}
-            # One person editing their own message may keep doing so.
-            only = next(iter(senders)) if len(senders) == 1 else None
-            last = max(e.ts for e in copies)
+            # ``others``: one person editing their own message may keep doing so.
             common, words = self._shared(originals)
             if common:
-                self._want(
-                    text_key(common),
-                    "text",
-                    common,
-                    "resent_changed",
-                    "dedupe",
-                    channel=copies[0].channel,
-                    ttl=tun.dedupe_seconds,
-                    from_ts=last,
-                    sender=only,
-                )
+                hold("text", common, "resent_changed", copies)
             if words:
-                self._want(
-                    words_key(words),
-                    "words",
-                    words,
-                    "resent_changed",
-                    "dedupe",
-                    channel=copies[0].channel,
-                    ttl=tun.dedupe_seconds,
-                    from_ts=last,
-                    sender=only,
-                )
+                hold("words", words, "resent_changed", copies)
 
-        # Exact copies: block a piece from the middle for everyone but the
-        # first sender. Oldest first, so the rule remembers who that was.
-        first: dict[str, Event] = {}
-        last_seen: dict[str, float] = {}
+        # Exact copies: block a piece from the middle. Oldest first, so the
+        # rule remembers who sent it first.
+        copies_of: dict[tuple[str, str | None], list[Event]] = {}
         for event in usable:
             content = longest_piece(strip_mentions(event.text))
             if len(content) < tun.dedupe_min_chars:
@@ -817,20 +862,13 @@ class SpamDetector:
             piece = middle_piece(content, tun.text_rule_chars)
             if len(piece) < tun.min_rule_chars:
                 continue
-            first.setdefault(piece, event)
-            last_seen[piece] = event.ts
-        for piece, event in first.items():
-            self._want(
-                text_key(piece),
-                "text",
-                piece,
-                "duplicate",
-                "dedupe",
-                channel=event.channel,
-                ttl=tun.dedupe_seconds,
-                from_ts=last_seen[piece],
-                sender=event.sender,
-            )
+            slot = (piece, event.sender if scope == "same" else None)
+            copies_of.setdefault(slot, []).append(event)
+        for (piece, _), copies in copies_of.items():
+            pending = copies[0] is judged or now - copies[0].ts < fresh_seconds
+            if scope != "others" and len(copies) == 1 and pending:
+                continue
+            hold("text", piece, "duplicate", copies)
 
     def _block_repeaters(self, window: list[Event], long_window: list[Event], now: float) -> None:
         tun = self.tunables
@@ -1008,19 +1046,41 @@ class SpamDetector:
             in_campaign = bool(
                 campaign and campaign.confirmed and event.sender not in self.allow_senders
             )
-            if event.spam or in_campaign:
+            malformed = (
+                event.malformed
+                and self.tunables.malformed_signal
+                and not event.exempt
+                and event.sender not in self.allow_senders
+            )
+            if event.spam or in_campaign or malformed:
                 flag.add(event.message_id)
                 self._flagged[event.message_id] = None
         while len(self._flagged) > MAX_FLAGGED:
             self._flagged.popitem(last=False)
         return flag
 
-    def decide(self, rematch: Event | None = None) -> DecideResult:
+    def _collect_duplicates(self, events: Iterable[Event]) -> set[int]:
+        """Messages caught by duplicate suppression, each reported once."""
+        found: set[int] = set()
+        for event in events:
+            if not event.duplicate or event.message_id is None:
+                continue
+            if event.message_id not in self._duplicated:
+                found.add(event.message_id)
+                self._duplicated[event.message_id] = None
+        while len(self._duplicated) > MAX_FLAGGED:
+            self._duplicated.popitem(last=False)
+        return found
+
+    def decide(self, rematch: Event | None = None, *, fresh_seconds: float = 0.0) -> DecideResult:
         """Turn what was seen into blocks.
 
         ``rematch`` is the message just ingested, for a backend that applies new
         rules before it judges that same message (the host repeater): if this
         call creates a block that catches it, it is counted as caught.
+        ``fresh_seconds`` is for a call on such a backend that has no message of
+        its own (the periodic tick, a user action): a message this young may not
+        have been judged yet.
         """
         now = self._clock()
         tun = self.tunables
@@ -1034,7 +1094,11 @@ class SpamDetector:
         if tun.enable_text_rules:
             self._block_campaigns()
         if tun.dedupe_enabled:
-            self._block_duplicates([e for e in long_window if e.ts >= now - tun.dedupe_seconds])
+            self._block_duplicates(
+                [e for e in long_window if e.ts >= now - tun.dedupe_seconds],
+                judged=rematch,
+                fresh_seconds=fresh_seconds,
+            )
         if tun.enable_hop_rules:
             self._block_repeaters(window, long_window, now)
         self._learn_paths(long_window)
@@ -1057,7 +1121,10 @@ class SpamDetector:
         changed, self._changed = self._changed, False
         important, self._important = self._important, False
         return DecideResult(
-            changed=changed, important=important, flag=self._collect_flags(long_window)
+            changed=changed,
+            important=important,
+            flag=self._collect_flags(long_window),
+            duplicate=self._collect_duplicates(long_window),
         )
 
     # ── history for the overview ─────────────────────────────────────────

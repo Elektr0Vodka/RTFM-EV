@@ -118,11 +118,12 @@ export class ConversationMessageCache {
   }
 
   /** Set or clear the Spam Guard flag on cached messages. */
-  updateSpam(messageIds: ReadonlySet<number>, spam: boolean): void {
+  updateSpam(messageIds: ReadonlySet<number>, spam: boolean, duplicate?: boolean): void {
+    const marks = duplicate === undefined ? { spam } : { spam, duplicate };
     for (const entry of this.cache.values()) {
       if (!entry.messages.some((message) => messageIds.has(message.id))) continue;
       entry.messages = entry.messages.map((message) =>
-        messageIds.has(message.id) ? { ...message, spam } : message
+        messageIds.has(message.id) ? { ...message, ...marks } : message
       );
     }
   }
@@ -365,7 +366,7 @@ interface UseConversationMessagesResult {
     packetId?: number | null
   ) => void;
   receiveMessageFailed: (messageId: number, failedAt: number) => void;
-  receiveMessageSpam: (messageIds: number[], spam: boolean) => void;
+  receiveMessageSpam: (messageIds: number[], spam: boolean, duplicate?: boolean) => void;
   removeMessage: (messageId: number) => void;
   reconcileOnReconnect: () => void;
   renameConversationMessages: (oldId: string, newId: string) => void;
@@ -1006,14 +1007,18 @@ export function useConversationMessages(
   );
 
   const receiveMessageSpam = useCallback(
-    (messageIds: number[], spam: boolean) => {
+    (messageIds: number[], spam: boolean, duplicate?: boolean) => {
       const ids = new Set(messageIds);
+      // `duplicate` comes along only when that marker changed as well.
+      const marks = duplicate === undefined ? { spam } : { spam, duplicate };
+      const differs = (m: Message) =>
+        !!m.spam !== spam || (duplicate !== undefined && !!m.duplicate !== duplicate);
       setMessages((prev) =>
-        prev.some((m) => ids.has(m.id) && !!m.spam !== spam)
-          ? prev.map((m) => (ids.has(m.id) ? { ...m, spam } : m))
+        prev.some((m) => ids.has(m.id) && differs(m))
+          ? prev.map((m) => (ids.has(m.id) ? { ...m, ...marks } : m))
           : prev
       );
-      conversationMessageCache.updateSpam(ids, spam);
+      conversationMessageCache.updateSpam(ids, spam, duplicate);
     },
     [setMessages]
   );
