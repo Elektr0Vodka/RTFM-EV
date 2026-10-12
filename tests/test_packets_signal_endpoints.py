@@ -49,6 +49,27 @@ class TestRecent:
         assert response.status_code == 200
         assert response.json() == []
 
+    @pytest.mark.asyncio
+    async def test_carries_the_malformed_flag_of_the_linked_message(self, test_db, client):
+        """The feed's 'Hide malformed' toggle has to hold for seeded packets too."""
+        plain = await _seed(1700000000, b"\x01\x01", payload_type="GROUP_TEXT")
+        flagged = await _seed(1700000001, b"\x02\x02", payload_type="GROUP_TEXT")
+        await _seed(1700000002, b"\x03\x03", payload_type="ADVERT")
+        for packet_id, text, malformed in ((plain, "A: hi", False), (flagged, "B: x", True)):
+            message_id = await MessageRepository.create(
+                msg_type="CHAN",
+                text=text,
+                conversation_key="AA" * 16,
+                sender_timestamp=1700000000 + packet_id,
+                received_at=1700000000 + packet_id,
+                malformed=malformed,
+            )
+            assert message_id is not None
+            await RawPacketRepository.mark_decrypted(packet_id, message_id)
+
+        body = (await client.get("/api/packets/recent")).json()
+        assert [p["malformed"] for p in body] == [False, True, False]
+
 
 class TestTimeseries:
     @pytest.mark.asyncio

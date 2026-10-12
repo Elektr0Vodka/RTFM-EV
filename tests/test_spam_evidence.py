@@ -58,6 +58,7 @@ class TestRecords:
             "random": True,
             "known": False,
             "exempt": False,
+            "malformed": False,
             "matched": None,
             "spam": False,
         }

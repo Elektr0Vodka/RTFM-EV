@@ -3,14 +3,15 @@ import { useState } from 'react';
 import { useSpamGuard } from '../hooks/useSpamGuard';
 import { useT } from '../i18n';
 import { cn } from '../lib/utils';
-import type { Channel, Contact } from '../types';
+import type { Channel, Contact, HealthStatus } from '../types';
+import { OpenHopPolicyPane } from './settings/openhop/OpenHopPolicyPane';
 import { SpamMessagesTab } from './spamGuard/SpamMessagesTab';
 import { SpamOverviewTab } from './spamGuard/SpamOverviewTab';
 import { SpamProtectionTab } from './spamGuard/SpamProtectionTab';
 import { SpamSettingsTab } from './spamGuard/SpamSettingsTab';
 import { SpamSourcesTab } from './spamGuard/SpamSourcesTab';
 
-const TABS = ['overview', 'protection', 'messages', 'sources', 'settings'] as const;
+const TABS = ['overview', 'protection', 'messages', 'sources', 'settings', 'policy'] as const;
 type SpamTab = (typeof TABS)[number];
 
 const TAB_KEYS: Record<SpamTab, string> = {
@@ -19,6 +20,7 @@ const TAB_KEYS: Record<SpamTab, string> = {
   messages: 'spam_tab_messages',
   sources: 'spam_tab_sources',
   settings: 'spam_tab_settings',
+  policy: 'spam_tab_policy',
 };
 
 /**
@@ -27,18 +29,27 @@ const TAB_KEYS: Record<SpamTab, string> = {
  * text under made-up names, floods of copies, repeaters that inject spam),
  * never a person; every automatic block expires. The page is only reachable
  * while the master switch in Settings is on.
+ *
+ * On an OpenHop node the page also holds the node's own policy editor (the
+ * Policy tab), which Settings > OpenHop then leaves out.
  */
 export function SpamGuardView({
   contacts,
   channels,
+  health = null,
 }: {
   contacts: Contact[];
   channels: Channel[];
+  health?: HealthStatus | null;
 }) {
   const t = useT();
   const guard = useSpamGuard();
   const [tab, setTab] = useState<SpamTab>('overview');
   const { state, loadError } = guard;
+  const isOpenHop = health?.radio_device_info?.is_openhop ?? false;
+  const tabs = TABS.filter((name) => name !== 'policy' || isOpenHop);
+  // The radio is no longer an OpenHop node: its tab is gone, fall back.
+  const shown: SpamTab = tab === 'policy' && !isOpenHop ? 'overview' : tab;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -51,16 +62,16 @@ export function SpamGuardView({
         aria-label={t('nav_spam_guard')}
         className="flex flex-wrap gap-1 border-b border-border px-3 py-1.5"
       >
-        {TABS.map((name) => (
+        {tabs.map((name) => (
           <button
             key={name}
             type="button"
             role="tab"
-            aria-selected={tab === name}
+            aria-selected={shown === name}
             onClick={() => setTab(name)}
             className={cn(
               'rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
-              tab === name
+              shown === name
                 ? 'bg-accent text-foreground'
                 : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
             )}
@@ -85,14 +96,20 @@ export function SpamGuardView({
               {t('spam_disabled_notice')}
             </p>
           )}
-          {state && tab === 'overview' && <SpamOverviewTab state={state} guard={guard} />}
-          {state && tab === 'protection' && <SpamProtectionTab state={state} guard={guard} />}
-          {state && tab === 'messages' && <SpamMessagesTab state={state} guard={guard} />}
-          {state && tab === 'sources' && (
+          {state && shown === 'overview' && <SpamOverviewTab state={state} guard={guard} />}
+          {state && shown === 'protection' && <SpamProtectionTab state={state} guard={guard} />}
+          {state && shown === 'messages' && <SpamMessagesTab state={state} guard={guard} />}
+          {state && shown === 'sources' && (
             <SpamSourcesTab state={state} guard={guard} contacts={contacts} />
           )}
-          {state && tab === 'settings' && (
+          {state && shown === 'settings' && (
             <SpamSettingsTab state={state} guard={guard} channels={channels} />
+          )}
+          {shown === 'policy' && (
+            <div className="space-y-4">
+              <p className="text-[0.8125rem] text-muted-foreground">{t('spam_policy_desc')}</p>
+              <OpenHopPolicyPane health={health} />
+            </div>
           )}
         </div>
       </div>

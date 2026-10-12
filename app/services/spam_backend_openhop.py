@@ -139,6 +139,8 @@ class OpenHopBackend:
         self.retry_interval = retry_interval
         # Called after a sync changed what ``status()`` reports.
         self.on_change: Callable[[], None] | None = None
+        # Called with the node's ``policy_engine`` document as each sync leaves it.
+        self.on_policy: Callable[[dict[str, Any]], None] | None = None
 
         self._desired = RuleSet()
         self._desired_fp = _fingerprint(self._desired)
@@ -312,20 +314,17 @@ class OpenHopBackend:
             self._state = settled
             if not refused:
                 self._written_fp = fingerprint
+            self._report_policy(engine)
             return "unchanged"
 
-        _data(
-            await client.update_policy(
-                {
-                    "policy_engine": {
-                        "enabled": target_enabled,
-                        "default_action": str(engine.get("default_action", "allow")),
-                        "rules": rules,
-                        "objects": target_objects,
-                    }
-                }
-            )
-        )
+        written = {
+            "enabled": target_enabled,
+            "default_action": str(engine.get("default_action", "allow")),
+            "rules": rules,
+            "objects": target_objects,
+        }
+        _data(await client.update_policy({"policy_engine": written}))
+        self._report_policy(written)
         if not refused and self._written_fp == fingerprint:
             # We wrote exactly this before and the node no longer had it.
             self._repairs += 1
@@ -335,6 +334,14 @@ class OpenHopBackend:
         self._maybe_present = self._present > 0
         self._state = settled
         return "written"
+
+    def _report_policy(self, engine: dict[str, Any]) -> None:
+        if self.on_policy is None:
+            return
+        try:
+            self.on_policy(engine)
+        except Exception:
+            logger.exception("Spam Guard OpenHop policy callback failed")
 
     # ── reporting ────────────────────────────────────────────────────────
 

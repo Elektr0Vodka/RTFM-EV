@@ -74,7 +74,7 @@ interface UseRealtimeAppStateArgs {
   /** An outgoing DM ran out of retries without an ACK. */
   receiveMessageFailed?: (messageId: number, failedAt: number) => void;
   /** Spam Guard set or cleared the spam flag on messages already in chat. */
-  receiveMessageSpam?: (messageIds: number[], spam: boolean) => void;
+  receiveMessageSpam?: (messageIds: number[], spam: boolean, duplicate?: boolean) => void;
   /** A message row was removed on the server (e.g. a failed DM replaced by a retry). */
   removeMessage?: (messageId: number) => void;
   notifyIncomingMessage?: (msg: Message) => void;
@@ -387,8 +387,8 @@ export function useRealtimeAppState({
           }
         }
       },
-      onMessageSpam: (messageIds: number[], spam: boolean) => {
-        receiveMessageSpam?.(messageIds, spam);
+      onMessageSpam: (messageIds: number[], spam: boolean, ...rest: [duplicate?: boolean]) => {
+        receiveMessageSpam?.(messageIds, spam, ...rest);
         // With "Hide spam" on, earlier copies that were counted as unread
         // just left (or rejoined) the count: take the server's totals.
         if (hideSpamRef?.current) void refreshUnreads();

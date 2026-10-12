@@ -317,13 +317,15 @@ Een **OpenHop**-radio stuurt zelf door. Daar schrijft Beschermen de blokkades in
 
 - **Overzicht** toont de modus, of alles werkt en hoeveel spam is gestopt of doorgelaten.
 - **Bescherming** toont de actieve blokkades, elk met de reden en wanneer ze eindigt. Elke automatische blokkade eindigt vanzelf. **Lockdown** is voor een zware aanval: een tijdlang komen alleen namen door die al bekend zijn. Onder **Mogelijk echt, tegengehouden** staan berichten van normaal ogende namen die zijn tegengehouden; **Doorlaten** vertrouwt die naam. **Lijst legen** maakt die lijst leeg. Met **Zelf iets blokkeren** voeg je een blokkade toe voor een tekst of een repeater; een repeaterblokkade kan voor één kanaal gelden, dat geeft minder regels. **Automatische blokkades wissen** verwijdert ze en houdt ze hooguit 24 uur tegen, net als een blokkade die je zelf verwijdert.
-- **Berichten** toont wat het heeft gelezen en waarom het wel of niet ingreep. Corrigeer het met **Dit is spam** en **Geen spam**. Dezelfde twee knoppen staan bij elk kanaalbericht in de chat. **Lijst legen** maakt alleen de lijst op het scherm leeg: Spam Guard blijft die berichten als bewijs gebruiken.
+- **Berichten** toont wat het heeft gelezen en waarom het wel of niet ingreep. Corrigeer het met **Dit is spam** en **Geen spam**. Dezelfde twee knoppen staan bij elk kanaalbericht in de chat. Bij een gevangen bericht staat door welke blokkade en in welk kanaal. **Lijst legen** maakt alleen de lijst op het scherm leeg: Spam Guard blijft die berichten als bewijs gebruiken.
 - **Spambronnen** toont via welke repeaters spam binnenkomt. **Verwijderen** haalt een repeater van de lijst tot er nieuwe spam langs komt.
 - **Instellingen** bevat de kanalen die het leest (zoek een kanaal om het toe te voegen), elke instelling met een opmerking over de bijwerkingen, en de uitzonderingen (vertrouwde namen, repeaters die nooit worden geblokkeerd, toegestane teksten). Met **Een bewijslog bijhouden** aan bewaart het wat het las en je antwoorden Dit is spam / Geen spam, zoveel dagen als je instelt. Je kunt dat log downloaden, ook geanonimiseerd (namen vervangen door codes, om te delen), en het **herhalen** met de instellingen in het formulier om te zien wat die hadden tegengehouden. Een herhaling verandert niets. Onderaan staan bij **Opnieuw beginnen** twee losse resets: **Vergeet wat geleerd is** verwijdert elke blokkade (ook die van jou), de bekende namen en routes, de spambronnen, de lijsten en de cijfers; **Instellingen terug naar standaard** zet de instellingen en uitzonderingen terug naar die van een nieuwe installatie.
+- Twee instellingen om te kennen. **Herhalingen blokkeren van** bepaalt wiens herhalingen de duplicaatonderdrukking tegenhoudt: andere namen die dezelfde tekst sturen (de eerste afzender mag het opnieuw sturen), alleen dezelfde naam, of iedereen. **Misvormde berichten als spam behandelen** markeert berichten met willekeurige tekens, of van een afzender met een nooit ingestelde klok, en telt ze als verzonnen naam.
+- **Beleid** is er alleen met een OpenHop-radio. Het is de beleidseditor van de node zelf: de schakelaar van de engine, de groepen en de regels. De node doet het filteren. Zolang Spam Guard is ingeschakeld staat de editor hier en niet onder Instellingen > OpenHop; met Spam Guard uit staat hij daar weer.
 
 Een repeater is gedeeld. Wat de jouwe niet doorstuurt verdwijnt voor iedereen erachter, en zij kunnen niet zien waarom. Er is bewust geen knop om iemand op naam te blokkeren.
 
-In de chat verbergt **Spam verbergen** in het filtermenu gemarkeerde berichten en houdt ze buiten ongelezen-tellers en meldingen.
+In de chat verbergt **Spam verbergen** in het filtermenu gemarkeerde berichten en houdt ze buiten ongelezen-tellers en meldingen. Een bericht dat de duplicaatonderdrukking als herhaling heeft gevangen krijgt de markering **Duplicaat**. Dat is geen spammarkering, dus het wordt niet verborgen.
 
 ### SNMP
 
@@ -337,7 +339,9 @@ Pakketten, fouten, zendtijd en overgeslagen publicaties zijn tellers die alleen 
 
 ### Pakketfeed
 
-Een live lijst van elk pakket dat de radio hoort. Met **Filters** (pakkettype en padbreedte), pauzeren en hervatten, automatisch scrollen, oudste of nieuwste eerst, **Herhalingen groeperen op inhoud**, een hexfilter, **Statistieken tonen**, en een optioneel geluid per pakket (Geiger, Sonar of Waterdruppel). Klik op een pakket voor een uitsplitsing per byte.
+Een live lijst van elk pakket dat de radio hoort. Met **Filters** (pakkettype en padbreedte), pauzeren en hervatten, automatisch scrollen, oudste of nieuwste eerst, **Herhalingen groeperen op inhoud**, een hexfilter, **Statistieken tonen**, en een optioneel geluid per pakket (Geiger, Sonar of Waterdruppel). Klik op een pakket voor een uitsplitsing per byte. Elk pakket toont datum en tijd. Onder **Filters** verbergt **Misvormde verbergen** kanaalberichten met willekeurige tekens of van een afzender met een nooit ingestelde klok; je keuze wordt in deze browser onthouden.
+
+Met een OpenHop-radio toont een pakket ook de beleidsregel die erover beslist, bijvoorbeeld **Drop-regel** gevolgd door de naam van de regel, in rood bij een drop. RTFM-EV bepaalt dat aan de hand van een kopie van het beleid van de node, dus het is een indicatie: de node zelf beslist, een op de node gewijzigde regel kan een minuut op zich laten wachten, en de regel is weg na opnieuw laden.
 
 ### Pakketgeschiedenis
 

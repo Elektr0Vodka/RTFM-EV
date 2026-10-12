@@ -38,7 +38,7 @@ export interface UseWebSocketOptions {
   onMessageFailed?: (messageId: number, failedAt: number) => void;
   onMessageDeleted?: (messageId: number) => void;
   /** Spam Guard set or cleared the spam flag on messages already in chat. */
-  onMessageSpam?: (messageIds: number[], spam: boolean) => void;
+  onMessageSpam?: (messageIds: number[], spam: boolean, duplicate?: boolean) => void;
   onNewNode?: (payload: NewNodePayload) => void;
   onError?: (error: ErrorEvent) => void;
   onSuccess?: (success: SuccessEvent) => void;
@@ -185,7 +185,12 @@ export function useWebSocket(options: UseWebSocketOptions, events?: 'chat') {
             emitSpamGuardEvent(msg.data);
             break;
           case 'message_spam':
-            handlers.onMessageSpam?.(msg.data.message_ids, msg.data.spam);
+            // The duplicate marker only travels along when it changed too.
+            if (msg.data.duplicate === undefined) {
+              handlers.onMessageSpam?.(msg.data.message_ids, msg.data.spam);
+            } else {
+              handlers.onMessageSpam?.(msg.data.message_ids, msg.data.spam, msg.data.duplicate);
+            }
             break;
           case 'error':
             handlers.onError?.(msg.data as ErrorEvent);

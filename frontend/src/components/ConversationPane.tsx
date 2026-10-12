@@ -459,7 +459,7 @@ export function ConversationPane({
   if (activeConversation.type === 'spam-guard') {
     return (
       <Suspense fallback={<LoadingPane label={t('common_loading_spam_guard')} />}>
-        <SpamGuardView contacts={contacts} channels={channels} />
+        <SpamGuardView contacts={contacts} channels={channels} health={health} />
       </Suspense>
     );
   }

@@ -37,6 +37,10 @@ function MessageRow({
     ? state.block_list.find((b) => b.key === message.matched)
     : undefined;
   const disabled = guard.busy || !state.enabled;
+  const caughtBy = block ? blockLabel(block, t) : (message.matched ?? '');
+  const channel = state.settings.channels.find((c) => c.key === message.channel);
+  // A channel without a stored name is shown by the start of its key.
+  const channelName = channel?.name || message.channel.slice(0, 8);
   return (
     <li className="space-y-1.5 rounded-md border border-border/60 p-3" data-testid="spam-message">
       <div className="flex flex-wrap items-center gap-1.5">
@@ -46,6 +50,8 @@ function MessageRow({
         {message.campaign !== null && <Signal label={t('spam_signal_campaign')} tone="warn" />}
         {message.known && <Signal label={t('spam_signal_known')} tone="ok" />}
         {message.exempt && <Signal label={t('spam_signal_exempt')} tone="ok" />}
+        {message.malformed && <Signal label={t('spam_signal_malformed')} tone="warn" />}
+        {message.duplicate && <Signal label={t('spam_signal_duplicate')} />}
         {message.spam && <Signal label={t('chat_spam_badge')} tone="warn" />}
         <span className="text-[0.75rem] text-muted-foreground">
           {t('spam_message_meta', {
@@ -58,9 +64,9 @@ function MessageRow({
       <div className="wrap-break-word text-[0.8125rem] text-foreground">{message.text}</div>
       {message.matched && (
         <div className="text-[0.75rem] text-muted-foreground">
-          {t('spam_message_caught', {
-            block: block ? blockLabel(block, t) : message.matched,
-          })}
+          {channelName
+            ? t('spam_message_caught_in', { block: caughtBy, channel: channelName })
+            : t('spam_message_caught', { block: caughtBy })}
         </div>
       )}
       <div className="flex flex-wrap gap-1">

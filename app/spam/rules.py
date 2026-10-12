@@ -150,8 +150,10 @@ class _Renderer:
         pieces = block.value if block.kind == "words" else [block.value]
         conditions += [_cond("channel_message_body", "contains", piece) for piece in pieces]
         if block.sender:
-            # Duplicate suppression: the original sender may re-send their own message.
-            conditions.append(_cond("channel_sender", "not_equals", block.sender))
+            # Duplicate suppression: the original sender may re-send their own
+            # message, or (``sender_only``) is the only one held back.
+            op = "equals" if block.sender_only else "not_equals"
+            conditions.append(_cond("channel_sender", op, block.sender))
         return [self.rule(block.key, conditions, block=block)]
 
     def _hop(self, block: Block) -> list[dict[str, Any]]:

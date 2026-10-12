@@ -1,12 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../../api';
-import type {
-  AppSettings,
-  AppSettingsUpdate,
-  HealthStatus,
-  OpenHopPolicyDoc,
-  OpenHopPolicyEngine,
-} from '../../../types';
+import type { HealthStatus, OpenHopPolicyDoc, OpenHopPolicyEngine } from '../../../types';
 import { useT } from '../../../i18n';
 import { Button } from '../../ui/button';
 import { OpenHopPolicyEngineCard } from './OpenHopPolicyEngineCard';
@@ -16,8 +10,6 @@ import { savePolicy } from './savePolicy';
 
 interface Props {
   health: HealthStatus | null;
-  appSettings: AppSettings;
-  onSaveAppSettings: (u: AppSettingsUpdate) => Promise<void>;
 }
 
 /**

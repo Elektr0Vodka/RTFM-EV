@@ -57,3 +57,16 @@ describe('PacketFilterModal', () => {
     expect(props.onReset).toHaveBeenCalled();
   });
 });
+
+describe('PacketFilterModal hide malformed', () => {
+  it('offers the toggle only where a handler is given', () => {
+    const { unmount } = render(<PacketFilterModal {...baseProps()} />);
+    expect(screen.queryByLabelText('Hide malformed')).toBeNull();
+    unmount();
+
+    const onHideMalformedChange = vi.fn();
+    render(<PacketFilterModal {...baseProps()} onHideMalformedChange={onHideMalformedChange} />);
+    fireEvent.click(screen.getByLabelText('Hide malformed'));
+    expect(onHideMalformedChange).toHaveBeenCalledWith(true);
+  });
+});

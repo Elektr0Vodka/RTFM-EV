@@ -8,6 +8,7 @@ import { CONTACT_TYPE_REPEATER } from '../types';
 import type {
   Channel,
   Contact,
+  HealthStatus,
   SpamBlock,
   SpamGuardReplayResult,
   SpamGuardState,
@@ -23,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   getSpamGuardRules: vi.fn(),
   spamGuardEvidenceUrl: vi.fn(),
   replaySpamGuard: vi.fn(),
+  getOpenHopPolicy: vi.fn(),
 }));
 
 vi.mock('../api', () => ({
@@ -60,6 +62,7 @@ const TUNABLES: SpamGuardTunables = {
   similarity: 65,
   min_rule_chars: 14,
   dedupe_enabled: true,
+  dedupe_scope: 'others',
   dedupe_seconds: 900,
   dedupe_min_chars: 30,
   text_rule_chars: 40,
@@ -68,6 +71,7 @@ const TUNABLES: SpamGuardTunables = {
   hold_links: 'campaign',
   name_score_threshold: 3,
   random_name_patterns: ['(?=.*\\d)(?=.*[a-z])[a-z0-9]{8}'],
+  malformed_signal: false,
   window_seconds: 600,
   long_window_seconds: 7200,
   block_ttl_seconds: 21600,
@@ -279,11 +283,15 @@ const CONTACTS = [
   { public_key: '27ef' + '00'.repeat(30), name: 'Not a repeater', type: 1 },
 ] as Contact[];
 
-async function renderView(state: SpamGuardState = makeState(), channels: Channel[] = CHANNELS) {
+async function renderView(
+  state: SpamGuardState = makeState(),
+  channels: Channel[] = CHANNELS,
+  health: HealthStatus | null = null
+) {
   mocks.getSpamGuard.mockResolvedValue(state);
   render(
     <I18nProvider>
-      <SpamGuardView contacts={CONTACTS} channels={channels} />
+      <SpamGuardView contacts={CONTACTS} channels={channels} health={health} />
     </I18nProvider>
   );
   await screen.findByRole('tab', { name: 'Overview' });
@@ -428,6 +436,7 @@ describe('SpamGuardView protection', () => {
           detail: {},
           gated: false,
           mode: null,
+          sender: 'Dave',
         }),
       ],
     });
@@ -437,6 +446,34 @@ describe('SpamGuardView protection', () => {
     fireEvent.click(screen.getByLabelText('Also show duplicate suppression (1)'));
     expect(screen.getAllByTestId('spam-block')).toHaveLength(3);
     expect(screen.getByText('Copies under other names are blocked | Public')).toBeInTheDocument();
+  });
+
+  it('says whose repeats a duplicate block holds back', async () => {
+    const state = makeState();
+    const duplicate = (key: string, extra: Partial<SpamBlock>) =>
+      block({
+        key,
+        kind: 'text',
+        value: `text of ${key}`,
+        channel: PUBLIC,
+        reason: 'duplicate',
+        source: 'dedupe',
+        detail: {},
+        gated: false,
+        mode: null,
+        ...extra,
+      });
+    await renderView({
+      ...state,
+      block_list: [
+        duplicate('text:same', { sender: 'Dave', sender_only: true }),
+        duplicate('text:all', { sender: null }),
+      ],
+    });
+    openTab(/Protection/);
+    fireEvent.click(screen.getByLabelText('Also show duplicate suppression (2)'));
+    expect(screen.getByText('Repeats by the same name are blocked | Public')).toBeInTheDocument();
+    expect(screen.getByText('Repeats by anyone are blocked | Public')).toBeInTheDocument();
   });
 
   it('removes, extends and observes a block', async () => {
@@ -612,7 +649,9 @@ describe('SpamGuardView messages', () => {
     expect(rows).toHaveLength(2);
     expect(within(rows[0]).getByText('Random name')).toBeInTheDocument();
     expect(within(rows[0]).getByText('Campaign')).toBeInTheDocument();
-    expect(within(rows[0]).getByText(/Caught by: Text "cheap radios today"/)).toBeInTheDocument();
+    expect(
+      within(rows[0]).getByText('Caught by: Text "cheap radios today" in channel Public')
+    ).toBeInTheDocument();
     expect(within(rows[1]).getByText('Known')).toBeInTheDocument();
 
     fireEvent.click(within(rows[1]).getByRole('button', { name: 'This is spam' }));
@@ -843,7 +882,8 @@ describe('SpamGuardView settings', () => {
     );
     // The form shows what the server answered, not the edit that was pending.
     await waitFor(() => expect(screen.queryByText('Unsaved changes')).toBeNull());
-    expect(protectedChannels().queryByText('#other')).toBeNull();
+    // The form follows the server in an effect, one render after the edits are dropped.
+    await waitFor(() => expect(protectedChannels().queryByText('#other')).toBeNull());
   });
 
   it('adds and removes exceptions at once', async () => {
@@ -1210,5 +1250,86 @@ describe('SpamGuardStatusLine', () => {
     );
     await waitFor(() => expect(mocks.getSpamGuard).toHaveBeenCalled());
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe('SpamGuardView round 2', () => {
+  const openHop = { radio_device_info: { is_openhop: true } } as HealthStatus;
+
+  it('marks a malformed message and a caught repeat on the Messages tab', async () => {
+    const state = makeState();
+    state.messages[1] = { ...state.messages[1], malformed: true, duplicate: true };
+    await renderView(state);
+    openTab('Messages');
+    const rows = screen.getAllByTestId('spam-message');
+    expect(within(rows[1]).getByText('Malformed')).toBeInTheDocument();
+    expect(within(rows[1]).getByText('Duplicate')).toBeInTheDocument();
+    expect(within(rows[0]).queryByText('Malformed')).toBeNull();
+  });
+
+  it('names a channel without a stored name by the start of its key', async () => {
+    const state = makeState();
+    state.messages[0] = { ...state.messages[0], channel: OTHER };
+    await renderView(state);
+    openTab('Messages');
+    expect(
+      within(screen.getAllByTestId('spam-message')[0]).getByText(/in channel EEEEEEEE$/)
+    ).toBeInTheDocument();
+  });
+
+  it('saves whose repeats duplicate suppression blocks', async () => {
+    await renderView();
+    openTab('Settings');
+    const scope = within(screen.getByTestId('spam-setting-dedupe_scope')).getByRole('combobox');
+    expect(scope).toHaveValue('others');
+    fireEvent.change(scope, { target: { value: 'same' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    await waitFor(() => expect(mocks.saveSpamGuardSettings).toHaveBeenCalled());
+    expect(mocks.saveSpamGuardSettings.mock.calls[0][1].overrides).toEqual({
+      dedupe_scope: 'same',
+    });
+  });
+
+  it('offers the malformed signal as a setting', async () => {
+    await renderView();
+    openTab('Settings');
+    const setting = screen.getByTestId('spam-setting-malformed_signal');
+    expect(within(setting).getByText('Treat malformed messages as spam')).toBeInTheDocument();
+    expect(within(setting).getByRole('checkbox')).not.toBeChecked();
+  });
+
+  it('has no Policy tab on a radio that is not an OpenHop node', async () => {
+    await renderView();
+    expect(screen.queryByRole('tab', { name: 'Policy' })).toBeNull();
+    expect(mocks.getOpenHopPolicy).not.toHaveBeenCalled();
+  });
+
+  it('holds the node policy editor on an OpenHop node', async () => {
+    mocks.getOpenHopPolicy.mockResolvedValue({
+      success: true,
+      data: {
+        policy_file: '/p',
+        exists: true,
+        policy_engine: {
+          enabled: true,
+          default_action: 'allow',
+          rules: [
+            {
+              id: 1,
+              name: 'T-flood txt-msg 1byte spam',
+              enabled: true,
+              if: { all: [{ field: 'payload_type', op: 'equals', value: 5 }] },
+              then: { action: 'drop' },
+            },
+          ],
+          objects: { channel_hash_groups: {}, pubkey_groups: {} },
+        },
+        groups: { channel_hashes: [], pubkeys: [] },
+      },
+    });
+    await renderView(makeState({ backend: 'openhop' }), CHANNELS, openHop);
+    openTab('Policy');
+    expect(await screen.findByText('T-flood txt-msg 1byte spam')).toBeInTheDocument();
+    expect(screen.getByText(/The node does the filtering/)).toBeInTheDocument();
   });
 });

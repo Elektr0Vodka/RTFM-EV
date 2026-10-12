@@ -110,3 +110,32 @@ describe('SettingsOpenHopSection sub-nav', () => {
     expect(screen.getByRole('tablist', { name: /mesh/i })).toBeInTheDocument();
   });
 });
+
+describe('SettingsOpenHopSection with Spam Guard on', () => {
+  it('leaves the Policy pane out and says where it went', async () => {
+    render(
+      <SettingsOpenHopSection
+        health={health(true)}
+        appSettings={{ ...settings, spam_guard_enabled: true }}
+        onSaveAppSettings={vi.fn()}
+      />
+    );
+    expect(screen.queryByRole('button', { name: 'Policy' })).toBeNull();
+    expect(screen.getByText(/on the Spam Guard page, under Policy/)).toBeInTheDocument();
+    // The first remaining Mesh pane is shown instead.
+    expect(screen.getByRole('button', { name: 'Plugins' })).toHaveAttribute('aria-pressed', 'true');
+    expect(api.getOpenHopPolicy).not.toHaveBeenCalled();
+  });
+
+  it('keeps the Policy pane while Spam Guard is off', () => {
+    render(
+      <SettingsOpenHopSection
+        health={health(true)}
+        appSettings={{ ...settings, spam_guard_enabled: false }}
+        onSaveAppSettings={vi.fn()}
+      />
+    );
+    expect(screen.getByRole('button', { name: 'Policy' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByText(/on the Spam Guard page/)).toBeNull();
+  });
+});

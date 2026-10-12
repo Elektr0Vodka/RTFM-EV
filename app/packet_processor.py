@@ -31,11 +31,13 @@ from app.decoder import (
     verify_advert_signature,
 )
 from app.keystore import get_private_key, get_public_key, has_private_key
+from app.malformed import is_malformed_channel_message
 from app.models import (
     Contact,
     ContactUpsert,
     RawPacketBroadcast,
     RawPacketDecryptedInfo,
+    RawPacketPolicyVerdict,
 )
 from app.path_utils import calculate_packet_hash
 from app.region_resolver import resolve_region
@@ -66,7 +68,9 @@ from app.services.messages import (
 )
 from app.services.new_node_notify import notify_new_node
 from app.services.packet_decoded_fields import decoded_stat_fields
+from app.services.policy_verdict import policy_verdicts
 from app.services.relay_reception import record_packet_reception
+from app.smaz import decode_message_text
 from app.websocket import broadcast_error, broadcast_event
 
 logger = logging.getLogger(__name__)
@@ -485,6 +489,9 @@ async def process_raw_packet(
             else:
                 logger.debug("Buffered/ignored standalone ACK %s from raw packet", ack_code)
 
+    # On an OpenHop node: the policy rule that decides this packet (an indication).
+    verdict = policy_verdicts.verdict_for(packet_info, rssi=rssi, snr=snr)
+
     # Always broadcast raw packet for the packet feed UI (even duplicates)
     # This enables the frontend cracker to see all incoming packets in real-time
     broadcast_payload = RawPacketBroadcast(
@@ -508,6 +515,8 @@ async def process_raw_packet(
         else None,
         transport_code=transport_code,
         region=region,
+        malformed=bool(result.get("malformed")),
+        policy=RawPacketPolicyVerdict(**verdict) if verdict else None,
         relay_reception=relay_capture is not None,
         last_hop_hex=relay_capture.last_hop_hex if relay_capture else None,
     )
@@ -578,6 +587,10 @@ async def _process_group_text(
             "channel_key": channel.key,
             "sender_timestamp": decrypted.timestamp,
             "message": decrypted.message,
+            # Same rule and same decoded text as the chat flag (services/messages.py).
+            "malformed": is_malformed_channel_message(
+                decode_message_text(decrypted.message), decrypted.timestamp, timestamp
+            ),
         }
 
     # Couldn't decrypt with any known key

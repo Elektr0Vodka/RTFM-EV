@@ -357,3 +357,23 @@ describe('RawPacketFeedView', () => {
     expect(screen.queryByText('#collision')).not.toBeInTheDocument();
   });
 });
+
+describe('RawPacketFeedView hide malformed', () => {
+  beforeEach(() => {
+    localStorage.removeItem('remoteterm-packet-feed-hide-malformed');
+  });
+
+  it('hides packets flagged as malformed once the toggle is on', () => {
+    renderView({
+      packets: [{ ...feedPacket(1, 'aa11bb22'), malformed: true }, feedPacket(2, 'cc33dd44')],
+    });
+    expect(screen.getByText('AA11BB22')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /filters/i }));
+    fireEvent.click(screen.getByLabelText('Hide malformed'));
+
+    expect(screen.queryByText('AA11BB22')).not.toBeInTheDocument();
+    expect(screen.getByText('CC33DD44')).toBeInTheDocument();
+    localStorage.removeItem('remoteterm-packet-feed-hide-malformed');
+  });
+});

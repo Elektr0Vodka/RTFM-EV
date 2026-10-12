@@ -390,6 +390,7 @@ class TestContactMessageCLIFiltering:
             "failed_at",
             "malformed",
             "spam",
+            "duplicate",
         }
 
         with patch("app.event_handlers.broadcast_event") as mock_broadcast:

@@ -242,3 +242,43 @@ describe('RawPacketList', () => {
     }
   });
 });
+
+describe('RawPacketList policy verdict', () => {
+  it('shows the deciding drop rule in red under the date and time', () => {
+    const rule = 'rtfm-spam:text:7440749b06 (yours)';
+    render(<RawPacketList packets={[createPacket({ policy: { action: 'drop', rule } })]} />);
+
+    const line = screen.getByTestId('packet-policy');
+    expect(line).toHaveTextContent(`Drop rule ${rule}`);
+    expect(line.className).toContain('text-destructive');
+    // The live feed stamps each packet with date and time (14 Nov 2023 UTC).
+    expect(screen.getByText(/2023.*\d{2}:\d{2}:\d{2}/)).toBeInTheDocument();
+  });
+
+  it('shows an allow or log only rule without the red', () => {
+    render(
+      <RawPacketList
+        packets={[
+          createPacket({ id: 1, policy: { action: 'allow', rule: 'let adverts through' } }),
+          createPacket({ id: 2, policy: { action: 'log_only', rule: 'watch traces' } }),
+        ]}
+      />
+    );
+    const lines = screen.getAllByTestId('packet-policy');
+    expect(lines.map((line) => line.textContent)).toEqual([
+      'Allow rule let adverts through',
+      'Log only rule watch traces',
+    ]);
+    expect(lines.every((line) => !line.className.includes('text-destructive'))).toBe(true);
+  });
+
+  it('names the default action when no rule did the dropping', () => {
+    render(<RawPacketList packets={[createPacket({ policy: { action: 'drop', rule: null } })]} />);
+    expect(screen.getByTestId('packet-policy')).toHaveTextContent('Dropped by the default action');
+  });
+
+  it('adds no line to a packet without a verdict', () => {
+    render(<RawPacketList packets={[createPacket(), createPacket({ id: 2, policy: null })]} />);
+    expect(screen.queryByTestId('packet-policy')).toBeNull();
+  });
+});

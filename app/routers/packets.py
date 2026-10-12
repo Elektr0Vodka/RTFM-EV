@@ -227,18 +227,22 @@ async def get_recent_packets(
     conditions: list[str] = []
     params: list[int] = []
     if after_ts is not None:
-        conditions.append("timestamp >= ?")
+        conditions.append("p.timestamp >= ?")
         params.append(after_ts)
     if before_ts is not None:
-        conditions.append("timestamp <= ?")
+        conditions.append("p.timestamp <= ?")
         params.append(before_ts)
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
+    # The linked message carries the malformed flag, so the feed's "Hide
+    # malformed" toggle also holds for packets seeded from here.
     query = f"""
-        SELECT id, timestamp, data, message_id, rssi, snr, payload_type
-        FROM raw_packets
+        SELECT p.id, p.timestamp, p.data, p.message_id, p.rssi, p.snr, p.payload_type,
+               COALESCE(m.malformed, 0) AS malformed
+        FROM raw_packets p
+        LEFT JOIN messages m ON m.id = p.message_id
         {where}
-        ORDER BY id DESC
+        ORDER BY p.id DESC
         LIMIT ?
     """
 
@@ -261,6 +265,7 @@ async def get_recent_packets(
                 "rssi": row["rssi"],
                 "decrypted": row["message_id"] is not None,
                 "decrypted_info": None,
+                "malformed": bool(row["malformed"]),
             }
         )
 

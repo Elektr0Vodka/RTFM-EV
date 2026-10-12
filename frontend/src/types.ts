@@ -743,6 +743,11 @@ export interface Message {
    * `message_spam` event). Hidden by the chat "Hide spam" filter.
    */
   spam?: boolean;
+  /**
+   * True when Spam Guard's duplicate suppression caught this incoming channel
+   * message: a repeat of a message seen shortly before. A marker only.
+   */
+  duplicate?: boolean;
 }
 
 /** DELETE /contacts/{key}: the row is always removed; the radio may refuse. */
@@ -972,6 +977,22 @@ export interface RawPacket {
   relay_reception?: boolean;
   /** Relay that delivered this copy (last path hop); null = heard from the origin. */
   last_hop_hex?: string | null;
+  /**
+   * The decoded channel message is malformed by the chat filter's rule (random
+   * characters, or a sender clock that was never set). Live feed only.
+   */
+  malformed?: boolean;
+  /**
+   * On an OpenHop node: the policy rule that decides this packet, worked out by
+   * the backend from a copy of the node's policy. An indication only. `rule` is
+   * null for a drop by the default action. Live feed only, never stored.
+   */
+  policy?: RawPacketPolicyVerdict | null;
+}
+
+export interface RawPacketPolicyVerdict {
+  action: 'allow' | 'drop' | 'log_only';
+  rule: string | null;
 }
 
 /** One reception of a packet by an observer of the external analyzer. */
@@ -2749,6 +2770,8 @@ export type SpamGuardSensitivity = 'relaxed' | 'balanced' | 'strict';
 /** `starts_at` (first hop equals the repeater) only exists on the host repeater. */
 export type SpamGuardHopMatch = 'contains_known' | 'exact_paths' | 'contains' | 'starts_at';
 export type SpamGuardHoldLinks = 'campaign' | 'always' | 'off';
+/** Whose repeats duplicate suppression holds back. */
+export type SpamGuardDedupeScope = 'others' | 'same' | 'everyone';
 
 export interface SpamGuardChannel {
   key: string;
@@ -2778,6 +2801,7 @@ export interface SpamGuardTunables {
   similarity: number;
   min_rule_chars: number;
   dedupe_enabled: boolean;
+  dedupe_scope: SpamGuardDedupeScope;
   dedupe_seconds: number;
   dedupe_min_chars: number;
   text_rule_chars: number;
@@ -2786,6 +2810,7 @@ export interface SpamGuardTunables {
   hold_links: SpamGuardHoldLinks;
   name_score_threshold: number;
   random_name_patterns: string[];
+  malformed_signal: boolean;
   window_seconds: number;
   long_window_seconds: number;
   block_ttl_seconds: number;
@@ -2827,7 +2852,10 @@ export interface SpamBlock {
   /** Counted but left out of the forwarding rules. */
   observe: boolean;
   match: SpamGuardHopMatch | null;
+  /** Duplicate blocks: whose message it was (may re-send it, or is the only one held back). */
   sender: string | null;
+  /** True: only `sender` is held back. False: everyone but `sender`. */
+  sender_only?: boolean;
   paths: string[];
   ignored_paths: string[];
   user_allowed: string[];
@@ -2862,6 +2890,10 @@ export interface SpamGuardMessage {
   disguised: boolean;
   known: boolean;
   exempt: boolean;
+  /** Malformed by the chat filter's rule (random characters, or a clock never set). */
+  malformed?: boolean;
+  /** Caught by duplicate suppression. */
+  duplicate?: boolean;
   matched: string | null;
   spam: boolean;
   campaign: number | null;
@@ -3039,4 +3071,6 @@ export interface SpamGuardRule {
 export interface MessageSpamPayload {
   message_ids: number[];
   spam: boolean;
+  /** Present when the duplicate marker changed too ('Not spam' on a caught repeat). */
+  duplicate?: boolean;
 }

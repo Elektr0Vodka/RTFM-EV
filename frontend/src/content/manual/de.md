@@ -317,13 +317,15 @@ Ein **OpenHop**-Funkgerät leitet selbst weiter. Dort schreibt Schützen die Spe
 
 - **Übersicht** zeigt den Modus, ob alles läuft und wie viel Spam gestoppt oder durchgelassen wurde.
 - **Schutz** listet die aktiven Sperren, jeweils mit Grund und Ende. Jede automatische Sperre endet von selbst. **Lockdown** ist für einen starken Angriff: Eine Zeit lang kommen nur bereits bekannte Namen durch. Unter **Möglicherweise echt, zurückgehalten** stehen Nachrichten von normal aussehenden Namen, die zurückgehalten wurden; **Durchlassen** vertraut diesem Namen. **Liste leeren** macht diese Liste leer. Mit **Selbst etwas sperren** fügst du eine Sperre für einen Text oder einen Repeater hinzu; eine Repeater-Sperre kann für einen einzelnen Kanal gelten, das ergibt weniger Regeln. **Automatische Sperren löschen** entfernt sie und hält sie höchstens 24 Stunden zurück, wie eine Sperre, die du selbst entfernst.
-- **Nachrichten** zeigt, was es gelesen hat und warum es eingegriffen hat oder nicht. Korrigiere es mit **Das ist Spam** und **Kein Spam**. Dieselben zwei Schaltflächen stehen an jeder Kanalnachricht im Chat. **Liste leeren** macht nur die Liste auf dem Bildschirm leer: Spam Guard nutzt diese Nachrichten weiter als Beleg.
+- **Nachrichten** zeigt, was es gelesen hat und warum es eingegriffen hat oder nicht. Korrigiere es mit **Das ist Spam** und **Kein Spam**. Dieselben zwei Schaltflächen stehen an jeder Kanalnachricht im Chat. Bei einer erfassten Nachricht steht, von welcher Sperre und in welchem Kanal. **Liste leeren** macht nur die Liste auf dem Bildschirm leer: Spam Guard nutzt diese Nachrichten weiter als Beleg.
 - **Spamquellen** zeigt, über welche Repeater Spam hereinkommt. **Entfernen** nimmt einen Repeater aus der Liste, bis neuer Spam über ihn hereinkommt.
 - **Einstellungen** enthält die Kanäle, die es liest (suche einen Kanal, um ihn hinzuzufügen), jede Einstellung mit einem Hinweis auf ihre Nebenwirkungen und die Ausnahmen (vertrauenswürdige Namen, Repeater, die nie gesperrt werden, erlaubte Texte). Ist **Ein Beweisprotokoll führen** an, speichert es, was es gelesen hat, und deine Antworten Das ist Spam / Kein Spam, so viele Tage wie eingestellt. Du kannst das Protokoll herunterladen, auch anonymisiert (Namen durch Codes ersetzt, zum Teilen), und es mit den Einstellungen im Formular **wiederholen**, um zu sehen, was sie gestoppt hätten. Eine Wiederholung ändert nichts. Ganz unten gibt es unter **Neu anfangen** zwei getrennte Resets: **Gelerntes vergessen** entfernt jede Sperre (auch deine eigenen), die bekannten Namen und Routen, die Spamquellen, die Listen und die Zahlen; **Einstellungen auf Standard zurück** setzt Einstellungen und Ausnahmen auf die einer neuen Installation zurück.
+- Zwei Einstellungen, die man kennen sollte. **Wiederholungen sperren von** legt fest, wessen Wiederholungen die Duplikatunterdrückung zurückhält: andere Namen mit demselben Text (der erste Absender darf erneut senden), nur derselbe Name oder alle. **Fehlerhafte Nachrichten als Spam behandeln** markiert Nachrichten aus zufälligen Zeichen oder von einem Absender mit nie gestellter Uhr und zählt sie als erfundenen Namen.
+- **Richtlinie** gibt es nur mit einem OpenHop-Funkgerät. Es ist der Richtlinien-Editor des Knotens selbst: der Schalter der Engine, die Gruppen und die Regeln. Der Knoten filtert. Solange Spam Guard eingeschaltet ist, steht der Editor hier und nicht unter Einstellungen > OpenHop; ist Spam Guard aus, steht er wieder dort.
 
 Ein Repeater wird geteilt. Was deiner nicht weiterleitet, verschwindet für alle dahinter, und sie können nicht sehen, warum. Es gibt bewusst keine Schaltfläche, um eine Person nach Namen zu sperren.
 
-Im Chat blendet **Spam ausblenden** im Filtermenü markierte Nachrichten aus und hält sie aus Ungelesen-Zählern und Benachrichtigungen heraus.
+Im Chat blendet **Spam ausblenden** im Filtermenü markierte Nachrichten aus und hält sie aus Ungelesen-Zählern und Benachrichtigungen heraus. Eine Nachricht, die die Duplikatunterdrückung als Wiederholung erfasst hat, trägt die Markierung **Duplikat**. Das ist keine Spam-Markierung, sie wird also nicht ausgeblendet.
 
 ### SNMP
 
@@ -337,7 +339,9 @@ Pakete, Fehler, Sendezeit und übersprungene Publishes sind Zähler, die seit de
 
 ### Paket-Feed
 
-Eine Live-Liste aller Pakete, die das Funkgerät empfängt. Mit **Filter** (Pakettyp und Pfadbreite), Pause und Fortsetzen, automatischem Scrollen, älteste oder neueste zuerst, **Wiederholungen nach Inhalt gruppieren**, einem Hex-Filter, **Statistiken anzeigen** und einem optionalen Ton pro Paket (Geiger, Sonar oder Wassertropfen). Klicke auf ein Paket für eine Aufschlüsselung Byte für Byte.
+Eine Live-Liste aller Pakete, die das Funkgerät empfängt. Mit **Filter** (Pakettyp und Pfadbreite), Pause und Fortsetzen, automatischem Scrollen, älteste oder neueste zuerst, **Wiederholungen nach Inhalt gruppieren**, einem Hex-Filter, **Statistiken anzeigen** und einem optionalen Ton pro Paket (Geiger, Sonar oder Wassertropfen). Klicke auf ein Paket für eine Aufschlüsselung Byte für Byte. Jedes Paket zeigt Datum und Uhrzeit. Unter **Filter** blendet **Fehlerhafte ausblenden** Kanalnachrichten aus zufälligen Zeichen oder von einem Absender mit nie gestellter Uhr aus; deine Wahl wird in diesem Browser gemerkt.
+
+Mit einem OpenHop-Funkgerät zeigt ein Paket auch die Richtlinienregel, die darüber entscheidet, zum Beispiel **Drop-Regel** gefolgt vom Namen der Regel, in Rot bei einem Drop. RTFM-EV ermittelt das anhand einer Kopie der Richtlinie des Knotens, es ist also ein Hinweis: Der Knoten selbst entscheidet, eine auf dem Knoten geänderte Regel kann eine Minute auf sich warten lassen, und die Zeile ist nach dem Neuladen weg.
 
 ### Paketverlauf
 
