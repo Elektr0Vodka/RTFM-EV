@@ -17,6 +17,10 @@ export function botForwardStatusText(t: TFn, forward: BotForwardStatus): string 
       return t('bot_forward_paused');
     case 'no_names':
       return t('bot_forward_no_names');
+    case 'rules_failed':
+      return t('bot_forward_rules_failed');
+    case 'key_not_shared':
+      return t('bot_forward_key_not_shared');
     case 'no_channels':
       return t('bot_forward_no_channels');
     case 'not_armed':

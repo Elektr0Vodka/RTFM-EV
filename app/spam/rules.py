@@ -60,6 +60,8 @@ OPENHOP_OBJECT_GROUP = "rtfmspam"
 OPENHOP_KNOWN_SENDERS = "known_senders"
 # Second object in the same group: names a bot list asked to keep off the air.
 OPENHOP_BOT_SENDERS = "bot_senders"
+# What an OpenHop node calls the sender of channel text without a "Name: " prefix.
+OPENHOP_NO_SENDER = "Unknown"
 # Ending of the rule names made for a bot list (not a detector block).
 BOT_LIST_ORIGIN = "bot list"
 # Host rule ids and names are capped by the host policy model.
@@ -102,6 +104,19 @@ def _cond(name: str, op: str, value: Any) -> dict[str, Any]:
 
 
 _IS_GROUP_TEXT = _cond("payload_type", "equals", PAYLOAD_TYPE_GRP_TXT)
+
+
+def _same_sender_on_openhop(name: str) -> bool:
+    """Whether an OpenHop node reads this name as a sender where chat does.
+
+    Read from openhop_repeater (``policy_engine._extract_sender_from_message``),
+    not observed on a node: it takes whatever stands before the first ``": "``
+    as the sender, colons and length regardless, and says ``Unknown`` for text
+    without one. Chat shows a sender of up to 49 characters without a colon. A
+    listed ``Unknown`` would therefore drop every text that has no sender, and
+    a name chat can never show would be dropped on the node only.
+    """
+    return name != OPENHOP_NO_SENDER and ":" not in name and len(name) < 50
 
 
 class _Renderer:
@@ -322,6 +337,8 @@ def render(
         channel.key for channel in config.channels if channels is None or channel.key in channels
     )
     names = sorted({name for name in bot_senders if name})
+    if dialect == "openhop":
+        names = [name for name in names if _same_sender_on_openhop(name)]
     if names:
         for key in channel_keys:
             if len(out.before) >= limit:

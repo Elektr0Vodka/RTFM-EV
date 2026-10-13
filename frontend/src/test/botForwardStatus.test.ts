@@ -30,6 +30,8 @@ describe('botForwardStatusText', () => {
       ['monitor', 'Waiting: Spam Guard is in Monitor'],
       ['paused', 'Waiting: Spam Guard is paused'],
       ['no_names', 'Waiting: no confirmed names to block'],
+      ['rules_failed', 'Waiting: the rules could not be applied'],
+      ['key_not_shared', 'Waiting: the channel key is not shared with the OpenHop node'],
       ['no_channels', 'Waiting: Spam Guard has no protected channels'],
       ['not_armed', 'Waiting: the host repeater is not armed'],
       ['not_synced', 'Waiting: the rules are not on the OpenHop node yet'],

@@ -202,6 +202,10 @@ export function SettingsBotListsSection({
                   <button
                     type="button"
                     className="text-xs text-primary underline underline-offset-2"
+                    aria-label={t('settings_bot_lists_review_aria', {
+                      count: list.review_count,
+                      name: list.name,
+                    })}
                     onClick={() => setReview({ list, mode: 'review' })}
                   >
                     {t('settings_bot_lists_review_count', { count: list.review_count })}
@@ -336,6 +340,8 @@ export function SettingsBotListsSection({
       <BotListDialog list={openList} onClose={() => setOpenList(null)} />
       <SubscribeBotListDialog open={subscribeOpen} onClose={() => setSubscribeOpen(false)} />
       <BotListReviewDialog
+        // A dialog of its own per list and purpose: nothing of the one before is shown.
+        key={review ? `${review.list.id}:${review.mode}` : 'closed'}
         list={review?.list ?? null}
         mode={review?.mode ?? 'review'}
         onClose={() => setReview(null)}

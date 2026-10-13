@@ -92,3 +92,21 @@ async def test_the_host_engine_drops_a_bracketed_bot(test_db):
 async def test_the_host_engine_lets_another_bracketed_name_through(test_db):
     decision = await judge("[PA3XYZ]", "goedemorgen")
     assert decision is not None and decision.reason != "policy_drop"
+
+
+@pytest.mark.asyncio
+async def test_a_radio_with_a_bracketed_name_knows_its_own_message(test_db):
+    rt = HostRepeaterRuntime()
+    rt.settings = HostRepeaterSettings(shadow_enabled=True)
+    rt.engine.configure(settings=rt.settings)
+    decision = await rt.observe(
+        group_text_frame("[ME]", "my own words"),
+        snr=5.0,
+        rssi=-80,
+        arrival=time.monotonic(),
+        result=decoded("[ME]", "my own words"),
+        pre=PreFacts(),
+        radio=snapshot(bytes([0xAB]) + bytes(31), name="[ME]"),
+    )
+    assert decision is not None
+    assert (decision.forward, decision.reason) == (False, "own_origin")

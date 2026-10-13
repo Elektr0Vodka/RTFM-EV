@@ -711,3 +711,21 @@ class TestBotForward:
         assert feed.runtime.bot_forward() == {"state": "no_names", "channels": 0, "names": 0}
         feed.runtime.set_bot_senders(["[NU]"])
         assert feed.runtime.bot_forward()["state"] == "active"
+
+    async def test_failed_rules_are_not_reported_as_active(self, feed, monkeypatch):
+        await protect(feed)
+        monkeypatch.setattr(type(spam_guard_module.host_repeater), "state", "armed")
+        feed.runtime.set_bot_senders(["[NU]"])
+        assert feed.runtime.bot_forward()["state"] == "active"
+        feed.runtime.last_error = "the engine refused the rules"
+        assert feed.runtime.bot_forward() == {"state": "rules_failed", "channels": 0, "names": 1}
+
+    async def test_openhop_says_when_the_channel_key_is_not_shared(self, feed, monkeypatch):
+        runtime = feed.runtime
+        private = SpamConfig(mode="protect", channels=[{"key": OTHER, "name": "Club"}])
+        assert await runtime.save_config(runtime.version, private) is not None
+        runtime.set_bot_senders(["[NU]"])
+        monkeypatch.setattr(runtime, "backend_name", lambda: "openhop")
+        sync = dict(runtime.openhop.status())
+        monkeypatch.setattr(runtime.openhop, "status", lambda: {**sync, "state": "synced"})
+        assert runtime.bot_forward() == {"state": "key_not_shared", "channels": 0, "names": 1}

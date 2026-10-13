@@ -37,6 +37,9 @@ export function BotListReviewDialog({
   const exceptions = useBotLists()?.exceptions ?? [];
   const [entries, setEntries] = useState<BotListEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
+  // Why the names are not there. Shown in the dialog: a toast alone would
+  // leave it empty, with nothing to say whether it is still loading.
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const listId = list?.id ?? null;
 
@@ -44,6 +47,7 @@ export function BotListReviewDialog({
     if (listId === null) return;
     let cancelled = false;
     setLoaded(false);
+    setLoadError(null);
     setEntries([]);
     api
       .getBotListEntries(listId)
@@ -52,7 +56,10 @@ export function BotListReviewDialog({
         setEntries(stored);
         setLoaded(true);
       })
-      .catch((err) => toast.error(err instanceof Error ? err.message : String(err)));
+      .catch((err) => {
+        if (cancelled) return;
+        setLoadError(err instanceof Error ? err.message : String(err));
+      });
     return () => {
       cancelled = true;
     };
@@ -118,6 +125,11 @@ export function BotListReviewDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="max-h-[50vh] space-y-1 overflow-y-auto">
+          {loadError !== null && (
+            <p className="text-sm text-destructive" role="alert">
+              {t('bot_review_load_failed', { error: botListErrorText(t, loadError) })}
+            </p>
+          )}
           {loaded && shown.length === 0 && (
             <p className="text-sm italic text-muted-foreground">{t('bot_review_none')}</p>
           )}
