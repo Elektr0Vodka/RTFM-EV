@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({ getBotLists: vi.fn() }));
 vi.mock('../api', () => ({ api: mocks }));
 
 import {
+  botSenderName,
   getBotListsState,
   isBotMessage,
   isBotName,
@@ -75,6 +76,25 @@ describe('bot list store', () => {
     ).toBe(true);
     expect(isBotMessage(message({ sender_name: 'Renamed', sender_key: KEY }))).toBe(true);
     expect(isBotMessage(message({ sender_name: 'Renamed' }))).toBe(false);
+  });
+
+  it('marks a channel row stored without a sender by the name its text shows', () => {
+    setBotListsState(state(['[NU]']));
+    const row = { sender_name: null, text: '[NU]: Headline from the feed' };
+    expect(isBotMessage(message(row))).toBe(true);
+    expect(botSenderName(message(row))).toBe('[NU]');
+    expect(isBotMessage(message({ sender_name: null, text: '[NU] says: hello' }))).toBe(false);
+    expect(isBotMessage(message({ sender_name: null, text: 'no sender [NU]' }))).toBe(false);
+    // A DM text is not "Sender: body"; only a channel row shows a sender that way.
+    expect(isBotMessage(message({ ...row, type: 'PRIV', conversation_key: KEY }))).toBe(false);
+  });
+
+  it('marks a room post by its author key, not only by the room', () => {
+    const AUTHOR = 'cd'.repeat(32);
+    setBotListsState(state([], [AUTHOR]));
+    const post = { type: 'PRIV' as const, conversation_key: KEY, sender_name: 'WeatherBot' };
+    expect(isBotMessage(message({ ...post, sender_key: AUTHOR }))).toBe(true);
+    expect(isBotMessage(message({ ...post, sender_key: 'ef'.repeat(32) }))).toBe(false);
   });
 
   it('never marks an outgoing message', () => {

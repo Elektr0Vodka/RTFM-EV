@@ -25,7 +25,13 @@ Migration `_142`. No new dependency. Nothing changes until a list is enabled.
 - **Hide bots** (chat filter menu and Settings, `app_settings.hide_bots`, off
   by default) hides them in chat and keeps them out of unread counts,
   mentions, Web Push, shared locations, team beacons and the Ollama unread
-  summary. Search still shows them, with the marker.
+  summary. Search still shows them (the search view has no marker).
+- **A name is matched as chat shows it.** The decoder stores a channel
+  message without a sender when the name has brackets (`[NU]`), while chat
+  still shows the `Sender: ` prefix of its text. Bot lists match that shown
+  name, in the browser and in the server-side filter. The same filter serves
+  Blocked contacts, so a blocked name with brackets now also stays out of
+  unread counts and Web Push; the chat view for Blocked contacts is unchanged.
 - **Sharing by file.** Export writes a list as a JSON file
   (`rtfm-ev-bot-list`, version 1); Import file stores such a file as a new
   list of your own, switched off. A file that fails a check is refused whole.
@@ -37,6 +43,8 @@ Migration `_142`. No new dependency. Nothing changes until a list is enabled.
   messages listed on meshcore-analyzer.eu on 2026-10-13.
 - **From chat:** a message's actions offer "Add to bot list" and, for a listed
   name, "Not a bot". A list made from that dialog is switched on at once.
+  The entry gets the sender's own public key when it is known; in a room that
+  is the author, never the room.
 - Limits: 256 KiB per file, 1000 names per list, 5000 names over all enabled
   lists.
 - API: `GET/POST /api/bot-lists`, `PATCH/DELETE /api/bot-lists/{id}`,

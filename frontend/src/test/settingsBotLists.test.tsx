@@ -138,6 +138,19 @@ describe('SettingsBotListsSection', () => {
     await waitFor(() => expect(mocks.setBotListExceptions).toHaveBeenCalledWith(['Alice', 'Bob']));
   });
 
+  it('cannot save a list whose names did not load', async () => {
+    mocks.getBotListEntries.mockRejectedValue(new Error('offline'));
+    render(<SettingsBotListsSection appSettings={null} />);
+    const row = (await screen.findByText('Mine')).closest('[data-testid="bot-list-row"]');
+    fireEvent.click(within(row as HTMLElement).getByRole('button', { name: 'Names' }));
+    const dialog = await screen.findByRole('dialog');
+    await waitFor(() => expect(mocks.getBotListEntries).toHaveBeenCalledWith(1));
+    expect(within(dialog).queryByText('No names on this list.')).toBeNull();
+    expect(document.getElementById('bot-entry-name')).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: 'Save' })).toBeNull();
+    expect(mocks.setBotListEntries).not.toHaveBeenCalled();
+  });
+
   it('edits the names of a local list', async () => {
     mocks.getBotListEntries.mockResolvedValue([{ name: 'PingBot', public_key: null, note: null }]);
     mocks.setBotListEntries.mockResolvedValue(START);

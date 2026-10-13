@@ -226,4 +226,6 @@ async def test_a_change_is_broadcast(test_db, monkeypatch, captured_broadcasts):
     broadcasts, mock_broadcast = captured_broadcasts
     monkeypatch.setattr(service_module, "broadcast_event", mock_broadcast)
     state = await bot_lists.create_local("Mine")
+    created_id = state.pop("created_id")
+    assert created_id == state["lists"][0]["id"]
     assert broadcasts == [{"type": "bot_lists", "data": state}]

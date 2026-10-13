@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { useT } from '../i18n';
 import type { Message } from '../types';
-import { setBotListsState, useBotLists } from '../utils/botLists';
+import { botSenderName, setBotListsState, useBotLists } from '../utils/botLists';
 import { Button } from './ui/button';
 import {
   Dialog,
@@ -45,7 +45,7 @@ export function AddToBotListDialog({
     setNewName('');
   }, [messageId, firstListId]);
 
-  const name = message?.sender_name ?? '';
+  const name = (message && botSenderName(message)) ?? '';
   const canSave = !!name && !busy && (target !== NEW_LIST || newName.trim().length > 0);
 
   const save = async () => {
@@ -54,18 +54,21 @@ export function AddToBotListDialog({
     try {
       let listId: number;
       if (target === NEW_LIST) {
-        const known = new Set((state?.lists ?? []).map((list) => list.id));
-        const created = await api.createBotList(newName.trim());
-        const made = created.lists.find((list) => !known.has(list.id));
-        if (!made) throw new Error('The new list was not created');
-        await api.updateBotList(made.id, { enabled: true });
-        listId = made.id;
+        // The server names the list it made: lists are sorted by name, and
+        // this browser's copy can be behind.
+        listId = (await api.createBotList(newName.trim())).created_id;
+        await api.updateBotList(listId, { enabled: true });
       } else {
         listId = Number(target);
       }
-      const key = message.type === 'PRIV' ? message.conversation_key : message.sender_key;
+      // The sender's own key. In a room every post has the room as its
+      // conversation, so that key would mark the whole room.
       setBotListsState(
-        await api.addBotListEntry(listId, { name, public_key: key ?? null, note: null })
+        await api.addBotListEntry(listId, {
+          name,
+          public_key: message.sender_key ?? null,
+          note: null,
+        })
       );
       toast.success(t('bot_lists_added_toast', { name }));
       onClose();

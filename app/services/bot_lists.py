@@ -134,8 +134,11 @@ class BotListService:
             raise BotListLimit(f"Enabled bot lists can hold {MAX_EFFECTIVE} names in total")
 
     async def create_local(self, name: str, description: str = "") -> dict[str, Any]:
-        await BotListRepository.create(name, description, "local")
-        return await self._changed()
+        """Make a local list. The answer also names it (``created_id``): lists
+        are sorted by name, so the caller cannot tell which one is new."""
+        list_id = await BotListRepository.create(name, description, "local")
+        state = await self._changed()
+        return {**state, "created_id": list_id}
 
     async def update(
         self,

@@ -4,11 +4,12 @@ import time
 
 import pytest
 
-from app.bot_lists.format import BotEntry
+from app.bot_lists.format import BotEntry, parse_bot_list
 from app.push.manager import _is_blocked
+from app.radio_sync import _split_channel_sender_and_text
 from app.repository import AppSettingsRepository, ChannelRepository, MessageRepository
 from app.routers.read_state import get_unreads
-from app.services.bot_lists import bot_lists
+from app.services.bot_lists import SHIPPED_PATH, bot_lists
 
 CHAN = "DD" * 16
 
@@ -99,3 +100,71 @@ async def test_push_skips_a_listed_bot_by_name_and_by_key(test_db):
     assert _is_blocked({"type": "CHAN", "sender_name": "PingBot"}, keys or [], names or [])
     assert _is_blocked({"type": "PRIV", "conversation_key": "AB" * 32}, keys or [], names or [])
     assert not _is_blocked({"type": "CHAN", "sender_name": "Friend"}, keys or [], names or [])
+
+
+SHIPPED_NAMES = [entry.name for entry in parse_bot_list(SHIPPED_PATH.read_bytes()).entries]
+
+
+@pytest.mark.parametrize("name", SHIPPED_NAMES)
+@pytest.mark.asyncio
+async def test_every_shipped_name_is_hidden_the_way_the_app_stores_its_messages(test_db, name):
+    """A name with brackets is stored without a sender; the row still shows one."""
+    now = int(time.time())
+    await ChannelRepository.upsert(key=CHAN, name="#test")
+    await ChannelRepository.update_last_read_at(CHAN, 0)
+    text = f"{name}: headline"
+    stored_sender, _body = _split_channel_sender_and_text(text)
+    await MessageRepository.create(
+        msg_type="CHAN",
+        text=text,
+        received_at=now,
+        conversation_key=CHAN,
+        sender_timestamp=now,
+        sender_name=stored_sender,
+    )
+    await _channel_message("Friend", now + 1)
+
+    await bot_lists.load_shipped()
+    shipped = next(
+        lst for lst in (await bot_lists.snapshot())["lists"] if lst["source"] == "shipped"
+    )
+    await bot_lists.update(shipped["id"], enabled=True)
+    settings = await AppSettingsRepository.update(hide_bots=True)
+
+    assert (await get_unreads()).counts[f"channel-{CHAN}"] == 1
+    keys, names = await bot_lists.hidden_senders(settings)
+    row = {"type": "CHAN", "sender_name": stored_sender, "text": text}
+    assert _is_blocked(row, keys or [], names or [])
+
+
+@pytest.mark.asyncio
+async def test_a_listed_name_inside_the_text_is_not_a_sender(test_db):
+    now = int(time.time())
+    await ChannelRepository.upsert(key=CHAN, name="#test")
+    await ChannelRepository.update_last_read_at(CHAN, 0)
+    for offset, (sender, text) in enumerate(
+        [
+            ("Friend", "Friend: I read [NU]: today"),
+            (None, "[NU] says: hello"),
+            (None, "no sender at all [NU]"),
+        ]
+    ):
+        await MessageRepository.create(
+            msg_type="CHAN",
+            text=text,
+            received_at=now + offset,
+            conversation_key=CHAN,
+            sender_timestamp=now + offset,
+            sender_name=sender,
+        )
+    await _enabled_list(BotEntry(name="[NU]"))
+    settings = await AppSettingsRepository.update(hide_bots=True)
+
+    assert (await get_unreads()).counts[f"channel-{CHAN}"] == 3
+    keys, names = await bot_lists.hidden_senders(settings)
+    assert not _is_blocked(
+        {"type": "CHAN", "sender_name": None, "text": "[NU] says: hello"}, keys or [], names or []
+    )
+    assert not _is_blocked(
+        {"type": "PRIV", "sender_name": None, "text": "[NU]: a DM text"}, keys or [], names or []
+    )

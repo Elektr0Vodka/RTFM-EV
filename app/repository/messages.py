@@ -415,6 +415,17 @@ class MessageRepository:
                 f"({prefix}sender_name IS NOT NULL AND {prefix}sender_name IN ({placeholders}))"
             )
             params.extend(blocked_names)
+            # A channel row can be stored without a sender (the decoder rejects a
+            # name with brackets) while chat still shows one: the "Sender: " prefix
+            # of its text, by the rule of ``reaction_payloads.channel_sender``.
+            shown_sender = f"substr({prefix}text, 1, instr({prefix}text, ': ') - 1)"
+            blocked_matchers.append(
+                f"({prefix}type = 'CHAN' AND {prefix}sender_name IS NULL"
+                f" AND instr({prefix}text, ': ') BETWEEN 2 AND 50"
+                f" AND instr({shown_sender}, ':') = 0"
+                f" AND {shown_sender} IN ({placeholders}))"
+            )
+            params.extend(blocked_names)
 
         if not blocked_matchers:
             return "", []

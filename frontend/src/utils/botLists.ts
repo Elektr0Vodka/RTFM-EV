@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 
 import { api } from '../api';
 import type { BotListsState, Message } from '../types';
+import { parseSenderFromText } from './messageParser';
 
 /**
  * Browser copy of the bot list state. The chat marks and filters messages
@@ -36,17 +37,30 @@ export function isBotName(name: string | null | undefined): boolean {
   return !!name && names.has(name);
 }
 
+type SenderFields = Pick<
+  Message,
+  'outgoing' | 'type' | 'conversation_key' | 'sender_name' | 'sender_key' | 'text'
+>;
+
 /**
- * True for an incoming message from a listed sender: by exact name, or by
- * public key (the contact of a DM, the resolved sender of a channel message).
+ * The sender name a chat row shows. The backend stores a channel row without
+ * a sender when the name has brackets (`[NU]`), while chat still shows the
+ * "Sender: " prefix of its text; bot lists match that shown name.
  */
-export function isBotMessage(
-  msg: Pick<Message, 'outgoing' | 'type' | 'conversation_key' | 'sender_name' | 'sender_key'>
-): boolean {
+export function botSenderName(msg: Pick<Message, 'type' | 'sender_name' | 'text'>): string | null {
+  if (msg.sender_name) return msg.sender_name;
+  return msg.type === 'CHAN' ? parseSenderFromText(msg.text).sender : null;
+}
+
+/**
+ * True for an incoming message from a listed sender: by the exact name chat
+ * shows, or by public key (the resolved sender, or the contact of a DM).
+ */
+export function isBotMessage(msg: SenderFields): boolean {
   if (msg.outgoing) return false;
-  if (isBotName(msg.sender_name)) return true;
-  const key = msg.type === 'PRIV' ? msg.conversation_key : msg.sender_key;
-  return !!key && keys.has(key.toLowerCase());
+  if (isBotName(botSenderName(msg))) return true;
+  if (msg.sender_key && keys.has(msg.sender_key.toLowerCase())) return true;
+  return msg.type === 'PRIV' && keys.has(msg.conversation_key.toLowerCase());
 }
 
 export async function loadBotLists(): Promise<void> {

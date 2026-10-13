@@ -21,7 +21,7 @@ import { emitStatusDotPulse } from '../utils/statusDotPulse';
 import { emitBuddyEvent } from '../buddy/buddyEvents';
 import { conversationMessageCache } from './useConversationMessages';
 import { isMessageHiddenByHopWidth } from '../utils/pathUtils';
-import { isBotMessage } from '../utils/botLists';
+import { isBotMessage, loadBotLists } from '../utils/botLists';
 import type {
   Channel,
   Contact,
@@ -242,6 +242,8 @@ export function useRealtimeAppState({
         fetchAllContacts()
           .then((data) => setContacts(data))
           .catch(console.error);
+        // `bot_lists` events sent while the socket was down are gone.
+        void loadBotLists().catch(console.error);
       },
       onMessage: (msg: Message) => {
         if (isMessageBlocked(msg, blockedKeysRef.current, blockedNamesRef.current)) {

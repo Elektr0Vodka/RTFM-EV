@@ -79,6 +79,7 @@ import { ReactionTargetLink, type ReactionAnalyzerLookup } from './ReactionTarge
 import { toast } from './ui/sonner';
 import { AddToBotListDialog } from './AddToBotListDialog';
 import {
+  botSenderName,
   getBotListsState,
   isBotMessage,
   isBotName,
@@ -1174,7 +1175,7 @@ export function MessageList({
   const [botDialogFor, setBotDialogFor] = useState<Message | null>(null);
   const markNotABot = useCallback(
     async (msg: Message) => {
-      const name = msg.sender_name;
+      const name = botSenderName(msg);
       if (!name) return;
       try {
         const exceptions = getBotListsState()?.exceptions ?? [];
@@ -2416,12 +2417,12 @@ export function MessageList({
                   spamFeedbackFor(msg) && msg.spam ? () => onSpamFeedback?.(msg, false) : undefined
                 }
                 onAddToBotList={
-                  !msg.outgoing && !!msg.sender_name && !isBotMessage(msg)
+                  !msg.outgoing && !!botSenderName(msg) && !isBotMessage(msg)
                     ? () => setBotDialogFor(msg)
                     : undefined
                 }
                 onNotABot={
-                  !msg.outgoing && isBotName(msg.sender_name)
+                  !msg.outgoing && isBotName(botSenderName(msg))
                     ? () => void markNotABot(msg)
                     : undefined
                 }

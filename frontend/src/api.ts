@@ -348,7 +348,7 @@ export const api = {
   // Bot lists: every change answers with the new state.
   getBotLists: () => fetchJson<BotListsState>('/bot-lists'),
   createBotList: (name: string, description = '') =>
-    fetchJson<BotListsState>('/bot-lists', {
+    fetchJson<BotListsState & { created_id: number }>('/bot-lists', {
       method: 'POST',
       body: JSON.stringify({ name, description }),
     }),

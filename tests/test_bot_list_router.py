@@ -107,3 +107,16 @@ async def test_error_codes(test_db, client):
             )
         ).status_code == 422
         assert (await client.delete(f"/api/bot-lists/{list_id}")).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_create_names_the_new_list_even_when_it_does_not_sort_first(test_db, client):
+    shipped = await BotListRepository.create("Aaa shipped", "", "shipped")
+    await BotListRepository.create("Aaa other", "", "local")
+    await bot_lists.refresh()
+    async with client:
+        created = (await client.post("/api/bot-lists", json={"name": "Zzz mine"})).json()
+    made = next(lst for lst in created["lists"] if lst["id"] == created["created_id"])
+    assert made["name"] == "Zzz mine"
+    assert created["created_id"] != shipped
+    assert created["lists"][0]["id"] == shipped

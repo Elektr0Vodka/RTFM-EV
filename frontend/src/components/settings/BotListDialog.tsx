@@ -24,20 +24,26 @@ export function BotListDialog({ list, onClose }: { list: BotList | null; onClose
   const [publicKey, setPublicKey] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  // Saving replaces the whole list, so nothing may be saved (or shown as
+  // "empty") until the stored names have actually arrived.
+  const [loaded, setLoaded] = useState(false);
   const listId = list?.id ?? null;
-  const editable = list?.source === 'local';
+  const editable = list?.source === 'local' && loaded;
 
   useEffect(() => {
     if (listId === null) return;
     let cancelled = false;
+    setLoaded(false);
     setEntries([]);
     setName('');
     setPublicKey('');
     setNote('');
     api
       .getBotListEntries(listId)
-      .then((loaded) => {
-        if (!cancelled) setEntries(loaded);
+      .then((stored) => {
+        if (cancelled) return;
+        setEntries(stored);
+        setLoaded(true);
       })
       .catch((err) => toast.error(err instanceof Error ? err.message : String(err)));
     return () => {
@@ -78,11 +84,13 @@ export function BotListDialog({ list, onClose }: { list: BotList | null; onClose
         <DialogHeader>
           <DialogTitle>{t('bot_list_dialog_title', { name: list?.name ?? '' })}</DialogTitle>
           <DialogDescription>
-            {editable ? t('settings_bot_lists_desc') : t('bot_list_dialog_read_only')}
+            {list?.source === 'local'
+              ? t('settings_bot_lists_desc')
+              : t('bot_list_dialog_read_only')}
           </DialogDescription>
         </DialogHeader>
         <div className="max-h-[50vh] space-y-1 overflow-y-auto">
-          {entries.length === 0 && (
+          {loaded && entries.length === 0 && (
             <p className="text-sm italic text-muted-foreground">{t('bot_list_dialog_empty')}</p>
           )}
           {entries.map((entry) => (
