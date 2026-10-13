@@ -10,6 +10,7 @@ import {
   BookOpen,
   BookMarked,
   CheckCheck,
+  ClipboardList,
   ChevronDown,
   ChevronRight,
   Gauge,
@@ -562,6 +563,7 @@ export function Sidebar({
       | 'mesh-trends'
       | 'mesh-discovery'
       | 'snmp'
+      | 'fleet'
       | 'spam-guard'
       | 'analyze'
       | 'packet-history'
@@ -1439,6 +1441,17 @@ export function Sidebar({
             handleSelectConversation({ type: 'snmp', id: 'snmp', name: t('nav_snmp') }),
           iconOnly,
         });
+      case 'fleet':
+        return renderSidebarActionRow({
+          key: 'tool-fleet',
+          // Also current on the page of one asset (#fleet/<id>).
+          active: activeConversation?.type === 'fleet',
+          icon: <ClipboardList className="h-4 w-4" />,
+          label: t('nav_fleet'),
+          onClick: () =>
+            handleSelectConversation({ type: 'fleet', id: 'fleet', name: t('nav_fleet') }),
+          iconOnly,
+        });
       case 'spam-guard':
         return renderSidebarActionRow({
           key: 'tool-spam-guard',
@@ -1996,6 +2009,7 @@ export function Sidebar({
     'mesh-trends': t('nav_mesh_trends'),
     'mesh-discovery': t('nav_mesh_discovery'),
     snmp: t('nav_snmp'),
+    fleet: t('nav_fleet'),
     'spam-guard': t('nav_spam_guard'),
     raw: t('nav_packet_feed'),
     'packet-history': t('nav_packet_history'),

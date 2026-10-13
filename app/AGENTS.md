@@ -524,6 +524,68 @@ Router `routers/snmp_agent.py`, service `services/snmp_agent.py`, repository `re
 
 The agent serves the firmware's OID table (`app/snmp/mib.py`) for this host: `host_values()` reads the latest radio stats sample, the radio name and firmware version, the count of connected MQTT fanout modules and `/proc/meminfo`; `build_table()` turns that into INTEGER / OCTET STRING varbinds sorted by OID (unknown numbers 0, unknown names empty, values clamped to int32, `last_snr` back to dB x 4). `_safe_table()` serves zeros when a source fails, so a request is never dropped for that. `apply_snmp_agent_settings()` closes the old listener and yields to the loop before binding again, with one retry on `EADDRINUSE`, because `transport.close()` only schedules the close. Wrong community, SNMPv1/v3 and malformed datagrams get no reply; SET gets `notWritable`. Lifespan: `start_snmp_agent()` / `stop_snmp_agent()`. It never uses the radio.
 
+### Fleet asset register (plan 31, Phases 1 to 3a)
+
+Router `routers/fleet.py`, repository `repository/fleet.py`, table `fleet_assets` (migration `_143`). No service, no background task, no WebSocket event, no radio access. Secrets live in the separate vault below, never in these tables or responses.
+
+- `GET /fleet/assets` - every asset; `?public_key=` narrows to the asset of one node (64 hex, any case)
+- `POST /fleet/assets` - `{public_key?, label?, org_serial?, hw_serial?, model?, role?, wifi_mac?, ble_mac?, assigned_to?, site_name?, status?, notes?}`; 201 with the asset. 422 when none of `public_key`, `label`, `org_serial` is set; 409 when another asset has the public key
+- `POST /fleet/assets/from-contacts` - `{public_keys}`; one `deployed` asset per key that is a known contact and has no asset yet. Answers `{created, skipped}`; a malformed key is 422 and creates nothing
+- `GET /fleet/assets/{id}`, `PATCH /fleet/assets/{id}` (only fields present in the body change, null clears; `status` cannot be null), `DELETE /fleet/assets/{id}` (`{status: "ok"}`)
+
+An asset holds what only the operator knows. Its `contact` (`{name, type, last_seen, lat, lon}`, position manual-first) is a LEFT JOIN on `contacts.public_key` at request time and is never stored, so it is null for an asset without a key and for a key that was never heard. `fleet_assets.public_key` is unique when set and has NO foreign key on purpose: an asset may exist before its node is heard and it outlives a deleted contact. `status` is `in_stock` (default), `deployed`, `maintenance`, `lost`, `stolen` or `retired`. Text is trimmed and blank becomes NULL; a MAC is accepted with `:`, `-`, `.` or no separator and stored as `AA:BB:CC:DD:EE:FF`. Text fields are capped at 200 characters, notes at 4000. With multi-radio on, the table lives in each radio's own database like `contacts`.
+
+#### Log (Phase 2)
+
+Table `fleet_asset_events` (migration `_144`, rows go with their asset), `FleetEventRepository`.
+
+- `GET /fleet/assets/{id}/events` - newest first
+- `POST /fleet/assets/{id}/events` - `{kind, occurred_at?, summary, detail?, actor?}`; `kind` is `placement`, `maintenance`, `failure`, `custody`, `firmware` or `note`; `occurred_at` defaults to now; 201
+- `DELETE /fleet/assets/{id}/events/{event_id}` - 404 unless the entry belongs to that asset
+
+`status` rows cannot be posted: `update_asset` writes one when the status changes and a `custody` row when `assigned_to` changes (`_change_events`), with the old and new value in `from_value` / `to_value` and no summary, in the SAME transaction as the change (`FleetAssetRepository.update(..., events)`). `create_asset` writes a first `custody` row when a holder is given. Every asset response carries `last_maintenance` and `last_failure` (newest entry of that kind, subqueries in `_SELECT`). `actor` is free text because the app has no user accounts.
+
+#### Health and attention settings (Phase 3a)
+
+Migration `_145`: `fleet_assets.target_firmware` and the one-row table `fleet_settings` (`silent_hours` 48, `low_battery_volts` 3.5).
+
+- `GET /fleet/settings`, `PUT /fleet/settings` - `{silent_hours (1-8760), low_battery_volts (0-100)}`
+
+Every asset with a public key carries `health` (`_with_health`): `battery_volts`, `temperature`, `telemetry_at` from the same merged latest-telemetry read as `GET /contacts/telemetry/latest`, and `firmware_version`, `firmware_at`, `firmware_source`. Firmware is the newer of the newest `owner_info` snapshot in `device_config_history` and the newest SNMP poll (`FleetAssetRepository.reported_firmware`); for the connected radio's own key it is `radio_manager.firmware_version` with source `radio`. All of it is stored data: no node is polled and nothing transmits. The "needs attention" rules themselves live in the frontend (`fleetAttention`); the server only stores the two thresholds.
+
+### Fleet key vault (plan 31, Phases 4 and 5)
+
+Router `routers/fleet_vault.py` (under `/fleet`), crypto and sessions `services/fleet_vault.py`, repository `repository/fleet_vault.py`, tables `fleet_vault`, `fleet_secrets`, `fleet_audit` (migration `_146`). OFF unless `MESHCORE_FLEET_VAULT_ENABLED=true` (`settings.fleet_vault_enabled`): every route but the status one answers 403. The tables exist on every install.
+
+- `GET /fleet/vault` - `{enabled, initialised, unlocked, idle_seconds}`; works when switched off
+- `POST /fleet/vault/init` - `{passphrase}` (12+ characters), first use only (409 afterwards); answers `{token, idle_seconds}`
+- `POST /fleet/vault/unlock` - `{passphrase}`; 401 and an `unlock_failed` audit row on a wrong one
+- `POST /fleet/vault/lock`, `POST /fleet/vault/passphrase` (`{current, new}`; re-wraps the data key, ends every session)
+- `GET /fleet/vault/audit?limit=` - newest first
+- `GET /fleet/assets/{id}/secrets` - kind, label, dates. Never a value
+- `POST /fleet/assets/{id}/secrets` - `{kind, label?, value}`; `kind` is `private_key`, `admin_password`, `guest_password`, `wifi` or `other`. A `private_key` must be 128 hex and, when the asset has a public key, derive to it (`decoder.derive_public_key`)
+- `POST /fleet/secrets/{id}/reveal` - the one route that returns a value (`Cache-Control: no-store`); always audited
+- `DELETE /fleet/secrets/{id}`
+- `POST /fleet/vault/export` - `{passphrase}`: every secret re-encrypted under that passphrase, with the asset's public key, organisation serial and label to match on
+- `POST /fleet/vault/import` - `{passphrase, document}`: an entry goes to the asset with its public key, else to the single asset with its organisation serial; unmatched and already-stored entries are skipped; a wrong passphrase stores nothing (422)
+- `POST /fleet/assets/{id}/generate-key` - `{prefix (0-4 hex), free_bytes (0, 1 or 2)}`; 409 when the asset already has a public key or a known node uses the wanted prefix
+
+Session routes take the token in `X-Fleet-Vault-Token`; without a live session they answer 401.
+
+Crypto (all PyNaCl, no new dependency): a random 32-byte data key encrypts each secret with XChaCha20-Poly1305 (`nacl.secret.Aead`), with `asset id | kind` as associated data, so a ciphertext moved to another row does not open (409 on reveal). The data key is stored wrapped under an Argon2id key from the passphrase (`KDF_OPSLIMIT` / `KDF_MEMLIMIT` = libsodium "moderate", 3 passes over 256 MiB; the parameters are stored per vault and per export file). The passphrase and the derived key are never stored; a forgotten passphrase cannot be recovered. `derive_key_async` runs the derivation in a thread, one at a time (`kdf_lock`), because each run takes that much memory. An import file names its own cost, capped at 1 GiB and 10 passes.
+
+Sessions (`VaultSessions`): unlocked data keys by random token, in this process's memory only, dropped after `IDLE_SECONDS` (900) without use and on restart, at most `MAX_SESSIONS` (16). The token is the only credential on these routes, since the app has no user accounts: anyone holding it can read secrets until it expires.
+
+Rules that must hold:
+
+- A value, a passphrase or a token never goes into a log line, an audit row, a WebSocket event or an asset response. `fleet_audit.detail` holds kind and label only.
+- `fleet_secrets.asset_id` has NO cascade and `delete_asset` answers 409 while an asset has secrets, so a private key is never lost by deleting an asset.
+- Nothing in the vault talks to the radio. `generate-key` stores the private key in the vault, sets the asset's public key and returns the asset only; putting the key on a device is done by hand (reveal it, then the existing `PUT /radio/private-key` or the device's own console).
+
+Key generation (`generate_keypair`, run with `asyncio.to_thread`): SHA-512 of a random seed, clamped, is the MeshCore private key (scalar + signing prefix, the format `derive_public_key` expects); a candidate is kept when its public key starts with the prefix, its first `free_bytes` bytes are used by no contact and no fleet asset (`known_key_prefixes`), and its first byte is not 00 or FF (taken over from the old fork's generator, not checked against firmware). It gives up after 3,000,000 attempts.
+
+Tests: `tests/test_fleet_vault.py` patches `settings.fleet_vault_enabled` on and the Argon2 cost down to the minimum; a test that touches the vault needs both.
+
 ### Channels
 - `GET /channels`
 - `GET /channels/{key}/detail`

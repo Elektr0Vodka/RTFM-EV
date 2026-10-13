@@ -14,6 +14,7 @@ These are intended for diagnosing or working around radios that behave oddly, or
 | `MESHCORE_LOAD_WITH_AUTOEVICT` | false | Enable autoevict mode for contact loading ([docs](#autoevict-mode)) |
 | `__CLOWNTOWN_DO_CLOCK_WRAPAROUND` | false | Highly experimental: if the radio clock is ahead of system time, try forcing the clock to `0xFFFFFFFF`, wait for uint32 wraparound, and then retry normal time sync before falling back to reboot ([docs](#clock-wraparound)) |
 | `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT` | false | Enable `GET /api/radio/private-key` to return the in-memory private key as hex for backup or migration. Only enable on a trusted network. Import via `PUT /api/radio/private-key` is always available. ([docs](#private-key-export)) |
+| `MESHCORE_FLEET_VAULT_ENABLED` | false | Switch on the fleet key vault: private keys and passwords of fleet assets, stored encrypted under a passphrase you set. See "Fleet key vault" below before you enable it. |
 
 By default the app relies on radio events plus MeshCore auto-fetch for incoming messages, and also runs a low-frequency hourly audit poll. That audit checks both:
 
@@ -39,6 +40,27 @@ If room sends appear to be using the wrong channel slot or another client is cha
 `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT=true` enables `GET /api/radio/private-key`, which returns the in-memory private key as hex for backup or migration. The key is held in memory only (exported from the radio on connect) and is never persisted to disk. Only enable this on a trusted network when you need to retrieve the key.
 
 Import via `PUT /api/radio/private-key` is always available regardless of this setting - it is write-only and does not expose key material.
+
+### Fleet key vault
+
+`MESHCORE_FLEET_VAULT_ENABLED=true` switches on the key vault of the fleet register (Tools > Fleet). Without it the vault does not exist in the app: its section is hidden and its API answers 403.
+
+What it does: it stores private keys and passwords of your fleet assets in the database, encrypted. The first time you open it you set a passphrase. Unlocking gives the browser tab a session that ends after 15 minutes without use, when you lock it, and when the server restarts. A value is only sent to the browser when you press **Reveal**, and every reveal, failed unlock, export and key generation is written to the vault's audit log with the address it came from.
+
+Read this before you switch it on:
+
+- **A forgotten passphrase cannot be recovered.** Without it the stored secrets are lost. Keep an export file (below) or the passphrase somewhere safe.
+- **Use HTTPS.** Over plain HTTP the passphrase and every revealed secret cross your network unencrypted. The app shows a warning when the page is not served securely; it does not refuse.
+- **There are no user accounts.** Anyone who can reach the app and knows the passphrase can open the vault, and the audit log records an address, not a person. With Basic auth on, it also records that user name.
+- **While unlocked, the key is in the server's memory.** Someone with access to the host can read it.
+- **The database and its backups now hold encrypted private keys.** They are only as safe as the passphrase. Unlocking is made slow and memory-hungry on purpose (256 MiB, about a second on a desktop PC, longer on a small board), which slows down guessing.
+- **Without the vault, the radio's own private key is never written to disk.** A key you store in the vault is.
+
+**Export and import.** Under Tools > Fleet > Key vault, **Export** writes a file with every secret, encrypted under a passphrase you choose for that file. **Import** stores those secrets with the assets that have the same public key or organisation serial; entries without such an asset are skipped. An ordinary database backup also carries the vault and opens with the vault's own passphrase.
+
+**Key generation.** For an asset without a public key, the vault can make a new keypair. You can give the first hex characters you want and ask that the first one or two bytes are not used by any node you know, which avoids path-hash collisions. The private key goes into the vault and the public key onto the asset. Nothing is sent to a radio: to put the key on a device, reveal it and enter it on the device (for the connected radio, Settings > Radio).
+
+With more than one radio, each radio has its own database and so its own vault and passphrase. NOTE: this follows from the storage layout and was not tested with multi-radio switched on.
 
 The Radio Settings config export/import feature uses these endpoints. When export is disabled, config exports will omit the private key and show a notice.
 

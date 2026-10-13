@@ -166,6 +166,7 @@ const PAGE_HELP_SECTIONS: Partial<Record<PageType, string>> = {
   'mesh-trends': 'tools',
   'mesh-discovery': 'tools',
   snmp: 'tools',
+  fleet: 'tools',
   analyze: 'tools',
   'packet-history': 'tools',
   'knowledge-base': 'tools',

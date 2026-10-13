@@ -7,6 +7,7 @@ RTFM-EV is a fork of [RemoteTerm for MeshCore](https://github.com/jkingsman/Remo
 - support for the [meshcomod (DMC / DMC-EV)](https://github.com/Elektr0Vodka/meshcomod) companion firmware and management of [OpenHop](https://github.com/openhop-dev/openhop_repeater) nodes
 - a MapLibre and deck.gl map with packet replay, link history and several overlays
 - analysis views: My Node, Mesh Health, Mesh Trends, Packet History, Mesh Discovery, SNMP
+- a fleet asset register for the devices you look after
 - a host repeater that judges every received packet the way a repeater would (shadow mode, optional live forwarding)
 - Spam Guard: channel spam detection that flags spam in chat and keeps the host repeater from forwarding it
 - Bot lists: keep and share lists of known bots, mark them in chat, hide them and stop relaying them
@@ -76,6 +77,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - **Who heard this** in every packet breakdown: the packet hash, links to its page on your analyzer sites, and on request the analyzer's observers that received the same packet, with region, time, RSSI and SNR.
 - **Analyze Packet**, **Mesh Visualizer** (3D graph), **Trace** (with a hop map), **Mesh Discovery** (repeaters, sensors, regions, plus Direct (0 hop) and Flood advert buttons).
 - **SNMP:** every node with SNMP set up in one sortable table, with failing polls marked and Poll now / Poll all now over your LAN (no RF). Each node has its own page with all 22 values and graphs over a time range you choose (counters as rates or totals, reboots counted).
+- **Fleet:** an asset register with one row per device you keep track of: your own label, organisation and hardware serial, model, role, Wi-Fi and Bluetooth MAC, who has it, the site, a status (in stock, deployed, maintenance, lost, stolen, retired) and notes. An asset can carry a node's public key and then shows that node's name, type, last seen time and position from the contact. Add nodes from their contact page or all nodes you own in one go, search, filter, sort, and export as CSV or JSON. Each asset has a log (maintenance, failures, placement, notes; status and holder changes are logged for you) and shows what the node last reported: battery, temperature and firmware. A "needs attention" filter marks lost and stolen devices and deployed nodes that went silent, run low on battery or report a firmware other than their target. All of that comes from data already stored: the page never asks a node anything and never uses the radio. An optional **key vault** (off by default, see [README_ADVANCED.md](README_ADVANCED.md#fleet-key-vault)) stores private keys and passwords encrypted, with an audit log, an encrypted export and key generation that avoids the prefixes of nodes you know.
 - **Channel Registry** with remote sync (open a channel's entry in edit mode from its header or info panel), and **Channel Finder** (WebGPU channel name search).
 - **Knowledge base**: your own handy links, picked from Settings > Handy Info > Links or added directly.
 - One time-range selector across the analysis views; charts zoom and pan.
@@ -301,13 +303,14 @@ Settings are environment variables with the `MESHCORE_` prefix. Only one transpo
 | `MESHCORE_UPDATE_CHECK_ENABLED`  | `true`                          | Check GitHub for a newer fork build and show an in-app indicator; set `false` to disable the outbound request                            |
 | `MESHCORE_MULTI_RADIO`           | `false`                         | Run several radios at once, one workspace per radio (experimental). See [Multiple Radios](README_ADVANCED.md#multiple-radios-experimental) |
 
-Remediation and advanced variables (`MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK`, `MESHCORE_FORCE_CHANNEL_SLOT_RECONFIGURE`, `MESHCORE_LOAD_WITH_AUTOEVICT`, `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT` and others) are described in [README_ADVANCED.md](README_ADVANCED.md#remediation--advanced-environment-variables). Most other settings live in the app under **Settings**.
+Remediation and advanced variables (`MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK`, `MESHCORE_FORCE_CHANNEL_SLOT_RECONFIGURE`, `MESHCORE_LOAD_WITH_AUTOEVICT`, `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT`, `MESHCORE_FLEET_VAULT_ENABLED` and others) are described in [README_ADVANCED.md](README_ADVANCED.md#remediation--advanced-environment-variables). Most other settings live in the app under **Settings**.
 
 ## Security
 
 - **Trusted networks only.** The app has no user accounts, sessions or per-feature permissions. Do not put it on an untrusted network or open it to the public.
 - **Basic auth is a coarse gate.** `MESHCORE_BASIC_AUTH_USERNAME` and `MESHCORE_BASIC_AUTH_PASSWORD` enable app-wide HTTP Basic auth. Pair it with HTTPS, since Basic credentials are not safe over plain HTTP ([HTTPS setup](README_ADVANCED.md#https)).
 - **Permissive CORS by design.** The backend allows all origins so any device on your network can reach it. Cross-origin browser JavaScript is therefore not a reliable way to use the Basic auth gate.
+- **The fleet key vault is off by default.** With `MESHCORE_FLEET_VAULT_ENABLED=true` the app stores private keys and passwords encrypted under a passphrase. It has no user accounts behind it, a forgotten passphrase cannot be recovered, and it needs HTTPS. Read [the notes](README_ADVANCED.md#fleet-key-vault) first.
 - **No Python bots.** This fork removed the upstream bot system, so the app has no feature that runs user-supplied code on the server.
 - For stronger access control, put the app behind a reverse proxy such as Nginx. Full access control and user management are outside the scope of this app.
 

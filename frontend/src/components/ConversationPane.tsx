@@ -57,6 +57,10 @@ const SnmpView = lazy(() => import('./SnmpView').then((m) => ({ default: m.SnmpV
 const SnmpNodeView = lazy(() =>
   import('./SnmpNodeView').then((m) => ({ default: m.SnmpNodeView }))
 );
+const FleetView = lazy(() => import('./FleetView').then((m) => ({ default: m.FleetView })));
+const FleetAssetView = lazy(() =>
+  import('./FleetAssetView').then((m) => ({ default: m.FleetAssetView }))
+);
 const AnalyzePacketView = lazy(() =>
   import('./AnalyzePacketView').then((m) => ({ default: m.AnalyzePacketView }))
 );
@@ -213,6 +217,7 @@ interface ConversationPaneProps {
     contactGroups?: import('../types').ContactGroup[];
     onUpdateContactGroups?: (next: import('../types').ContactGroup[]) => void | Promise<void>;
     onOpenConversation?: (publicKey: string) => void;
+    onOpenFleetAsset?: (assetId: number) => void;
   };
 }
 
@@ -503,6 +508,34 @@ export function ConversationPane({
             key={activeConversation.id}
             publicKey={activeConversation.id}
             onBack={() => onSelectConversation({ type: 'snmp', id: 'snmp', name: t('nav_snmp') })}
+            onOpenContactInfo={(publicKey) => onOpenContactInfo(publicKey)}
+          />
+        )}
+      </Suspense>
+    );
+  }
+
+  if (activeConversation.type === 'fleet') {
+    const openFleetAsset = (assetId: number | 'new') =>
+      onSelectConversation({ type: 'fleet', id: String(assetId), name: t('nav_fleet') });
+    return (
+      <Suspense fallback={<LoadingPane label={t('common_loading_fleet')} />}>
+        {activeConversation.id === 'fleet' ? (
+          <FleetView
+            contacts={contacts}
+            ownerKeys={[config?.public_key ?? '', ...(health?.radio_identity?.owned_keys ?? [])]}
+            onOpenAsset={openFleetAsset}
+            onOpenContactInfo={(publicKey) => onOpenContactInfo(publicKey)}
+          />
+        ) : (
+          <FleetAssetView
+            // A fresh page per asset: no state of the previous one lingers.
+            key={activeConversation.id}
+            assetId={activeConversation.id === 'new' ? 'new' : Number(activeConversation.id)}
+            onBack={() =>
+              onSelectConversation({ type: 'fleet', id: 'fleet', name: t('nav_fleet') })
+            }
+            onOpenAsset={openFleetAsset}
             onOpenContactInfo={(publicKey) => onOpenContactInfo(publicKey)}
           />
         )}
