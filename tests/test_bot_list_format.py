@@ -108,3 +108,8 @@ def test_refuses_too_many_entries():
 def test_refuses_a_file_that_is_too_large():
     with pytest.raises(BotListFormatError, match="larger than 256 KiB"):
         parse_bot_list(b" " * (MAX_FILE_BYTES + 1))
+
+
+def test_deeply_nested_json_is_refused_as_invalid():
+    with pytest.raises(BotListFormatError, match="not valid JSON"):
+        parse_bot_list("[" * 100_000)

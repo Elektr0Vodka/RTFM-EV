@@ -248,6 +248,12 @@ class BotListService:
         except BotListLimit:
             await BotListRepository.update(row["id"], {"last_error": "over_limit"})
             return
+        except Exception:
+            # The other end controls the input. Whatever it provokes must not
+            # stop the pass: the lists after this one still get their refresh.
+            logger.exception("Bot list %s refresh failed unexpectedly", row["id"])
+            await BotListRepository.update(row["id"], {"last_error": "fetch_failed"})
+            return
         await BotListRepository.apply_refresh(row["id"], [e.model_dump() for e in parsed.entries])
         await BotListRepository.update(
             row["id"],

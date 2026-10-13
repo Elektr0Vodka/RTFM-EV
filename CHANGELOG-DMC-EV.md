@@ -24,16 +24,26 @@ No migration. No new dependency. Nothing is fetched until you subscribe.
   names that stay are kept, new names are added. A refresh that fails keeps
   the names you have and shows why on the list; it is tried again at the next
   hourly check.
-- **What a subscription sends:** one request per day to the host you chose,
-  which sees your internet address. Nothing about your radio or your messages
-  is sent.
+- **What a subscription sends:** a fetch per day to the host you chose (and
+  to any host it redirects to), which sees your internet address. A
+  subscription that fails is tried again every hour. Nothing about your radio
+  or your messages is sent.
 - **Guarded fetch:** `https` only, also after a redirect; at most 3 redirects;
   every hop must resolve to a public address and is contacted at exactly that
-  address; reading stops at 256 KiB; 10 second timeout; no credentials in the
-  address. At most 20 subscriptions.
+  address; no credentials in the address. At most 20 subscriptions.
+- **The other end is not trusted:** the file is asked for and read
+  uncompressed (a compressed answer is refused, since it could expand far past
+  the limit), reading stops at 256 KiB, and a whole fetch, name lookup and
+  redirects included, gets 20 seconds. An answer nobody planned for (deeply
+  nested JSON, a host name the resolver rejects) becomes an error on that one
+  list and does not hold up the others.
 - A fetch problem is shown as a short reason. Resolved addresses and error
-  text go to the server log only. The Settings row shows the host, not the
-  full address.
+  text are written to the server log (which the debug snapshot includes) and
+  nowhere else. The request line with the full address is not logged at all,
+  because an address can carry a token; the Settings row shows only the host.
+- The list that is stored is fetched again at the moment you subscribe, so it
+  can differ from the one just shown if the host changes it in between. It is
+  stored switched off either way.
 - API: `POST /api/bot-lists/preview-url`, `POST /api/bot-lists/subscribe`,
   `POST /api/bot-lists/{id}/refresh`.
 

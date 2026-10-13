@@ -181,3 +181,93 @@ async def test_an_invalid_file_says_why(resolved):
         await fetch_bot_list("https://example.org/b.json", transport=_transport(handler))
     assert caught.value.code == "invalid_file"
     assert caught.value.public_text() == "invalid_file: unsupported bot list version 2"
+
+
+@pytest.mark.asyncio
+async def test_asks_for_an_uncompressed_body_and_refuses_a_compressed_one(resolved):
+    import gzip
+
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["accept_encoding"] = request.headers.get("accept-encoding")
+        return httpx.Response(
+            200,
+            headers={"content-encoding": "gzip"},
+            content=gzip.compress(b" " * (MAX_FILE_BYTES * 40)),
+        )
+
+    with pytest.raises(BotListFetchError) as caught:
+        await fetch_bot_list("https://example.org/b.json", transport=_transport(handler))
+    assert seen["accept_encoding"] == "identity"
+    assert caught.value.code == "fetch_failed"
+    assert "content-encoding" in caught.value.detail
+
+
+@pytest.mark.asyncio
+async def test_a_slow_server_hits_the_deadline_for_the_whole_fetch(resolved, monkeypatch):
+    import asyncio
+    import time
+
+    monkeypatch.setattr(bot_list_fetch, "FETCH_DEADLINE", 0.2)
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(30)
+        return httpx.Response(200, content=json.dumps(FILE))
+
+    started = time.monotonic()
+    with pytest.raises(BotListFetchError) as caught:
+        await fetch_bot_list("https://example.org/b.json", transport=_transport(handler))
+    assert caught.value.code == "fetch_failed"
+    assert time.monotonic() - started < 5
+
+
+@pytest.mark.asyncio
+async def test_deeply_nested_json_is_an_invalid_file_not_a_crash(resolved):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"[" * 100_000)
+
+    with pytest.raises(BotListFetchError) as caught:
+        await fetch_bot_list("https://example.org/b.json", transport=_transport(handler))
+    assert caught.value.public_text() == "invalid_file: the file is not valid JSON"
+
+
+@pytest.mark.asyncio
+async def test_a_host_name_the_resolver_chokes_on_is_a_bad_url(monkeypatch):
+    def choke(url: str) -> str:
+        raise UnicodeError("label empty or too long")
+
+    monkeypatch.setattr(bot_list_fetch, "resolve_public_ip", choke)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("no request may be sent")
+
+    with pytest.raises(BotListFetchError) as caught:
+        await fetch_bot_list("https://a..b/x.json", transport=_transport(handler))
+    assert caught.value.code == "bad_url"
+
+
+def test_the_public_text_of_an_invalid_file_is_kept_short():
+    error = BotListFetchError("invalid_file", "x" * 5000)
+    assert len(error.public_text()) <= 220
+    assert error.public_text().startswith("invalid_file: xxx")
+
+
+@pytest.mark.asyncio
+async def test_the_request_line_with_address_and_query_is_not_logged(resolved, caplog):
+    import logging
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=json.dumps(FILE))
+
+    with caplog.at_level(logging.INFO, logger="httpx"):
+        await fetch_bot_list(
+            "https://example.org/b.json?token=secret", transport=_transport(handler)
+        )
+        during = [r.getMessage() for r in caplog.records if r.name == "httpx"]
+        async with httpx.AsyncClient(transport=_transport(handler)) as other:
+            await other.get("https://example.org/other")
+        after = [r.getMessage() for r in caplog.records if r.name == "httpx"]
+
+    assert during == []
+    assert len(after) == 1 and "example.org/other" in after[0]
