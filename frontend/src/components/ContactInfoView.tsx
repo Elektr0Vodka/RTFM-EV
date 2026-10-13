@@ -44,6 +44,7 @@ export interface ContactInfoViewProps {
   onUpdateContactGroups?: (next: ContactGroup[]) => void | Promise<void>;
   onOpenContactInfo?: (publicKey: string) => void;
   onOpenConversation?: (publicKey: string) => void;
+  onOpenFleetAsset?: (assetId: number) => void;
 
   // Repeater/room embedded login+dashboard region (optional).
   radioLat?: number | null;
@@ -90,6 +91,7 @@ export function ContactInfoView({
   onUpdateContactGroups,
   onOpenContactInfo,
   onOpenConversation,
+  onOpenFleetAsset,
   radioLat = null,
   radioLon = null,
   radioName = null,
@@ -165,6 +167,7 @@ export function ContactInfoView({
     onUpdateContactGroups,
     onOpenContactInfo,
     onOpenConversation,
+    onOpenFleetAsset,
     showHeader: false,
   };
 

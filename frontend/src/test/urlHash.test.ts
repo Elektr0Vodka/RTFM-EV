@@ -463,3 +463,40 @@ describe('snmp (Tools > SNMP) route', () => {
     expect(getConversationHash({ type: 'snmp', id: key, name: 'SNMP' })).toBe(`#snmp/${key}`);
   });
 });
+
+describe('fleet (Tools > Fleet) route', () => {
+  let originalHash: string;
+
+  beforeEach(() => {
+    originalHash = window.location.hash;
+  });
+
+  afterEach(() => {
+    window.location.hash = originalHash;
+  });
+
+  it('parses #fleet as the list', () => {
+    window.location.hash = '#fleet';
+    expect(parseHashConversation()).toEqual({ type: 'fleet', name: 'fleet' });
+  });
+
+  it('parses #fleet/<id> and #fleet/new as the page of one asset', () => {
+    window.location.hash = '#fleet/42';
+    expect(parseHashConversation()).toEqual({ type: 'fleet', name: '42' });
+    window.location.hash = '#fleet/new';
+    expect(parseHashConversation()).toEqual({ type: 'fleet', name: 'new' });
+  });
+
+  it('falls back to the list for anything that is not an asset id', () => {
+    for (const hash of ['#fleet/', '#fleet/abc', '#fleet/0', '#fleet/1x']) {
+      window.location.hash = hash;
+      expect(parseHashConversation()).toEqual({ type: 'fleet', name: 'fleet' });
+    }
+  });
+
+  it('builds the hash of the list and of one asset', () => {
+    expect(getConversationHash({ type: 'fleet', id: 'fleet', name: 'Fleet' })).toBe('#fleet');
+    expect(getConversationHash({ type: 'fleet', id: '42', name: 'Fleet' })).toBe('#fleet/42');
+    expect(getConversationHash({ type: 'fleet', id: 'new', name: 'Fleet' })).toBe('#fleet/new');
+  });
+});

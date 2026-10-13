@@ -70,6 +70,8 @@ from app.routers import (
     debug,
     external_map,
     fanout,
+    fleet,
+    fleet_vault,
     health,
     host_repeater,
     links,
@@ -330,6 +332,8 @@ app.include_router(rooms.router, prefix="/api")
 app.include_router(snmp.router, prefix="/api")
 app.include_router(snmp.nodes_router, prefix="/api")
 app.include_router(snmp_agent.router, prefix="/api")
+app.include_router(fleet.router, prefix="/api")
+app.include_router(fleet_vault.router, prefix="/api")
 app.include_router(channels.router, prefix="/api")
 app.include_router(channel_sets.router, prefix="/api")
 app.include_router(communities.router, prefix="/api")

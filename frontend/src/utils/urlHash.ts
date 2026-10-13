@@ -19,6 +19,7 @@ interface ParsedHashConversation {
     | 'mesh-trends'
     | 'mesh-discovery'
     | 'snmp'
+    | 'fleet'
     | 'spam-guard'
     | 'analyze'
     | 'packet-history'
@@ -105,6 +106,16 @@ export function parseHashConversation(): ParsedHashConversation | null {
   if (hash.startsWith('snmp/')) {
     const key = decodeURIComponent(hash.slice('snmp/'.length));
     return { type: 'snmp', name: key || 'snmp' };
+  }
+
+  if (hash === 'fleet') {
+    return { type: 'fleet', name: 'fleet' };
+  }
+
+  // One fleet asset: #fleet/<asset id>, or #fleet/new for the empty form.
+  if (hash.startsWith('fleet/')) {
+    const id = hash.slice('fleet/'.length);
+    return { type: 'fleet', name: id === 'new' || /^[1-9]\d*$/.test(id) ? id : 'fleet' };
   }
 
   if (hash === 'analyze') {
@@ -265,6 +276,10 @@ export function getConversationHash(conv: Conversation | null): string {
   if (conv.type === 'snmp') {
     // id 'snmp' is the overview; any other id is the public key of one node.
     return conv.id === 'snmp' ? '#snmp' : `#snmp/${encodeURIComponent(conv.id)}`;
+  }
+  if (conv.type === 'fleet') {
+    // id 'fleet' is the list; 'new' or an asset id is the page of one asset.
+    return conv.id === 'fleet' ? '#fleet' : `#fleet/${encodeURIComponent(conv.id)}`;
   }
   if (conv.type === 'analyze') return '#analyze';
   if (conv.type === 'packet-history') return '#packet-history';

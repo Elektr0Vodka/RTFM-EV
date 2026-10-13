@@ -47,6 +47,7 @@ import { ContactTelemetryPermissionsControl } from './ContactTelemetryPermission
 import { ContactLinkShare } from './ContactLinkShare';
 import { ContactRouteSuggestionsSection } from './ContactRouteSuggestions';
 import { ContactSnmpSection } from './snmp/ContactSnmpSection';
+import { ContactFleetSection } from './fleet/ContactFleetSection';
 import { formatContactShare } from '../utils/chatEntities';
 import { LppSensorRow, formatDuration, formatLppLabel } from './repeater/repeaterPaneShared';
 import { toast } from './ui/sonner';
@@ -150,6 +151,8 @@ export interface ContactInfoBodyProps {
   analyzerSites?: AnalyzerSite[];
   onOpenContactInfo?: (publicKey: string) => void;
   onOpenConversation?: (publicKey: string) => void;
+  /** Opens a fleet asset's page (Tools > Fleet). */
+  onOpenFleetAsset?: (assetId: number) => void;
   /** User-defined contact/channel groups (server-persisted); omit to hide the
    *  Groups section entirely (e.g. when the caller has no settings loaded). */
   contactGroups?: ContactGroup[];
@@ -192,6 +195,7 @@ export function ContactInfoBody({
   analyzerSites = [],
   onOpenContactInfo,
   onOpenConversation,
+  onOpenFleetAsset,
   contactGroups,
   onUpdateContactGroups,
   region = 'all',
@@ -465,6 +469,10 @@ export function ContactInfoBody({
           onOpenContact={onOpenContactInfo}
           onOpenConversation={onOpenConversation}
         />
+      )}
+
+      {show('identity') && !isPrefixOnlyResolvedContact && (
+        <ContactFleetSection publicKey={contact.public_key} onOpenFleetAsset={onOpenFleetAsset} />
       )}
 
       {show('identity') && !isPrefixOnlyResolvedContact && (

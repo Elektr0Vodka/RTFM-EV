@@ -38,6 +38,7 @@ interface ContactInfoPaneProps {
   onUpdateContactGroups?: (next: ContactGroup[]) => void | Promise<void>;
   onOpenContactInfo?: (publicKey: string) => void;
   onOpenConversation?: (publicKey: string) => void;
+  onOpenFleetAsset?: (assetId: number) => void;
 }
 
 export function ContactInfoPane({
@@ -62,6 +63,7 @@ export function ContactInfoPane({
   onUpdateContactGroups,
   onOpenContactInfo,
   onOpenConversation,
+  onOpenFleetAsset,
 }: ContactInfoPaneProps) {
   const t = useT();
   const isNameOnly = contactKey?.startsWith('name:') ?? false;
@@ -212,6 +214,7 @@ export function ContactInfoPane({
               onUpdateContactGroups={onUpdateContactGroups}
               onOpenContactInfo={onOpenContactInfo}
               onOpenConversation={onOpenConversation}
+              onOpenFleetAsset={onOpenFleetAsset}
               region="all"
             />
           </div>
