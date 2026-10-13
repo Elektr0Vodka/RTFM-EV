@@ -20,6 +20,9 @@ import { toast } from './ui/sonner';
 
 const NEW_LIST = 'new';
 
+/** What the dialog needs of a message; the statistics tab builds one from a sender row. */
+export type BotListTarget = Pick<Message, 'id' | 'type' | 'sender_name' | 'text' | 'sender_key'>;
+
 /**
  * Put the sender of a chat message on one of the user's own bot lists. A list
  * made here is switched on at once, so the marker shows straight away.
@@ -28,7 +31,7 @@ export function AddToBotListDialog({
   message,
   onClose,
 }: {
-  message: Message | null;
+  message: BotListTarget | null;
   onClose: () => void;
 }) {
   const t = useT();

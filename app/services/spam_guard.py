@@ -351,6 +351,7 @@ class SpamGuardRuntime:
                 # this call is about to apply; an OpenHop node already forwarded it.
                 on_host = raw_frame and self.backend_name() == "host"
                 result = self.detector.decide(rematch=event if on_host else None)
+                event.enforced = self._enforcing(event)
                 self._count_airtime(event)
                 await self._after_decide(result, arriving=message_id)
                 if self.detector.tunables.evidence_log:
@@ -369,21 +370,35 @@ class SpamGuardRuntime:
             logger.exception("Spam Guard failed on message %s", message_id)
             return MessageVerdict()
 
+    def _enforcing(self, event: Event) -> bool:
+        """Whether the block that caught ``event`` is really withholding forwards now."""
+        if event.matched is None or self.config.mode != "protect" or self.config.paused:
+            return False
+        if self.backend_name() == "host" and not host_repeater.armed:
+            return False
+        if self.backend_name() == "openhop" and self.openhop.status()["state"] != "synced":
+            return False
+        block = self.detector.blocks.get(event.matched)
+        return block is not None and not block.observe
+
     def _count_airtime(self, event: Event) -> None:
         """Airtime not spent re-sending a caught message, when we really withheld it."""
-        if event.matched is None or self.config.mode != "protect" or self.config.paused:
+        if not event.enforced:
             return
-        if self.backend_name() == "host" and not host_repeater.armed:
-            return
-        if self.backend_name() == "openhop" and self.openhop.status()["state"] != "synced":
-            return
-        block = self.detector.blocks.get(event.matched)
         radio = radio_snapshot().radio
-        if block is None or block.observe or radio is None or event.length <= 0:
+        if radio is None or event.length <= 0:
             return
         self.detector.add_airtime(event.ts, lora_airtime_ms(event.length, radio))
 
     async def _after_decide(self, result: DecideResult, arriving: int | None = None) -> None:
+        if result.settled:
+            try:
+                await MessageRepository.set_spam_outcomes(
+                    [(s.message_id, s.outcome, s.block, s.enforced) for s in result.settled]
+                )
+            except Exception:
+                # A statistic, nothing more: the decision and the chat flags stand.
+                logger.warning("Could not store Spam Guard outcomes", exc_info=True)
         if result.flag:
             changed = await MessageRepository.set_spam(sorted(result.flag))
             # The arriving message carries its flag in its own broadcast.
@@ -536,6 +551,13 @@ class SpamGuardRuntime:
 
     async def set_message_spam(self, message_id: int, spam: bool) -> None:
         """A user's 'This is spam' / 'Not spam' on one stored message."""
+        try:
+            await MessageRepository.set_spam_label(message_id, "spam" if spam else "genuine")
+        except Exception:
+            # A statistic, nothing more: the chat flag and the block still follow the answer.
+            logger.warning(
+                "Could not store the spam label of message %s", message_id, exc_info=True
+            )
         changed = await MessageRepository.set_spam([message_id], spam)
         if changed:
             self._broadcast("message_spam", {"message_ids": changed, "spam": spam})

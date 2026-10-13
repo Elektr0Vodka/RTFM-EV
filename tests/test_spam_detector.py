@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from app.spam.detector import SpamDetector
+from app.spam.detector import SettledOutcome, SpamDetector
 from app.spam.settings import SpamConfig
 
 PUBLIC = "8B3387E9C5CDEA6AC9E5EDBAA115CD72"
@@ -1022,3 +1022,60 @@ def test_spam_package_does_not_import_the_radio():
         source = path.read_text(encoding="utf-8")
         for name in banned:
             assert f"import {name}" not in source and f"from {name}" not in source, (path, name)
+
+
+class TestSettledOutcomes:
+    def campaign(self):
+        det, clock = make()
+        for index, name in enumerate(GENERATED, start=1):
+            say(det, clock, name, SPAM, message_id=index)
+            det.decide()
+        fourth = say(det, clock, "QQ7XK2MV", SPAM, message_id=4)
+        det.decide()
+        return det, clock, fourth
+
+    def test_ordinary_message_settles_clean_and_is_reported_once(self):
+        det, clock = make()
+        say(det, clock, "Dave", "evening all", message_id=1)
+        assert det.decide().settled == []  # younger than the settling delay
+        assert settle(det, clock).settled == [SettledOutcome(1, "clean", None, False)]
+        assert settle(det, clock).settled == []
+
+    def test_campaign_copies_carry_their_outcome_and_block_source(self):
+        det, clock, _ = self.campaign()
+        result = settle(det, clock)
+        assert {s.message_id: (s.outcome, s.block) for s in result.settled} == {
+            1: ("let_through", None),
+            2: ("stopped", "dedupe"),
+            3: ("stopped", "dedupe"),
+            4: ("stopped", "campaign"),
+        }
+
+    def test_outcomes_agree_with_the_hourly_counters(self):
+        det, clock, _ = self.campaign()
+        outcomes = [s.outcome for s in settle(det, clock).settled]
+        day = det.metrics()["d1"]
+        assert day["messages"] == len(outcomes) == 4
+        assert day["stopped"] == outcomes.count("stopped") == 3
+        assert day["let_through"] == outcomes.count("let_through") == 1
+        assert day["held_genuine"] == outcomes.count("held") == 0
+
+    def test_a_block_that_is_gone_leaves_no_source(self):
+        # Deleting a campaign block does not work as a setup: the next decide()
+        # makes it again. A key that names no block is what an ended block
+        # looks like to _settle.
+        det, clock = make()
+        event = say(det, clock, "Dave", "evening all", message_id=1)
+        event.matched = "text:gone"
+        assert settle(det, clock).settled == [SettledOutcome(1, "stopped", None, False)]
+
+    def test_enforced_is_carried_from_the_event(self):
+        det, clock = make()
+        event = say(det, clock, "Dave", "evening all", message_id=1)
+        event.enforced = True
+        assert settle(det, clock).settled == [SettledOutcome(1, "clean", None, True)]
+
+    def test_a_message_without_an_id_is_not_reported(self):
+        det, clock = make()
+        say(det, clock, "Dave", "evening all")
+        assert settle(det, clock).settled == []

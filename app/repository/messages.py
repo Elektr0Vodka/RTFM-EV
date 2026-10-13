@@ -70,6 +70,8 @@ class MessageRepository:
         transport_code: int | None = None,
         region: str | None = None,
         malformed: bool = False,
+        malformed_reason: str | None = None,
+        bot: bool = False,
     ) -> int | None:
         """Create a message, returning the ID or None if duplicate.
 
@@ -101,8 +103,9 @@ class MessageRepository:
                 INSERT OR IGNORE INTO messages (type, conversation_key, text, sender_timestamp,
                                                 received_at, paths, txt_type, signature, outgoing,
                                                 send_status, sender_name, sender_key,
-                                                transport_code, region, malformed)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                                transport_code, region, malformed,
+                                                malformed_reason, bot)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     msg_type,
@@ -120,6 +123,8 @@ class MessageRepository:
                     transport_code,
                     region,
                     1 if malformed else 0,
+                    malformed_reason,
+                    1 if bot else 0,
                 ),
             ) as cursor:
                 rowcount = cursor.rowcount
@@ -162,6 +167,34 @@ class MessageRepository:
                     if cursor.rowcount:
                         changed.append(message_id)
         return changed
+
+    @staticmethod
+    async def set_spam_outcomes(outcomes: list[tuple[int, str, str | None, bool]]) -> None:
+        """Store what Spam Guard made of settled messages (migration _143).
+
+        Each entry is ``(message_id, outcome, block_source, enforced)``. An id
+        that no longer exists is skipped.
+        """
+        if not outcomes:
+            return
+        async with db.tx() as conn:
+            await conn.executemany(
+                "UPDATE messages SET spam_outcome = ?, spam_block = ?, spam_enforced = ? "
+                "WHERE id = ?",
+                [
+                    (outcome, block, 1 if enforced else 0, message_id)
+                    for message_id, outcome, block, enforced in outcomes
+                ],
+            )
+
+    @staticmethod
+    async def set_spam_label(message_id: int, label: str) -> None:
+        """Store the user's own answer on a message: ``spam`` or ``genuine``."""
+        async with db.tx() as conn:
+            async with conn.execute(
+                "UPDATE messages SET spam_label = ? WHERE id = ?", (label, message_id)
+            ):
+                pass
 
     @staticmethod
     async def add_path(

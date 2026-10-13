@@ -5,7 +5,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal
 
 from app.decoder import TXT_TYPE_GROUP_DATA
-from app.malformed import is_malformed_channel_message
+from app.malformed import is_malformed_channel_message, malformed_reason
 from app.models import Message, MessagePath
 from app.repository import ContactRepository, MessageRepository, RawPacketRepository
 from app.smaz import decode_message_text
@@ -279,6 +279,23 @@ async def handle_duplicate_message(
     )
 
 
+async def _is_listed_bot(sender: str | None, sender_key: str | None) -> bool:
+    """Whether the sender is on an enabled bot list right now.
+
+    For ``messages.bot`` (statistics). A lookup problem never costs a message.
+    """
+    # Imported here: the bot list service hands names to Spam Guard, which
+    # imports this module's callers.
+    from app.services.bot_lists import bot_lists
+
+    try:
+        await bot_lists.ensure_loaded()
+        return bot_lists.is_bot(sender, sender_key)
+    except Exception:
+        logger.warning("Bot list lookup failed for an incoming message", exc_info=True)
+        return False
+
+
 async def create_message_from_decrypted(
     *,
     packet_id: int,
@@ -308,6 +325,7 @@ async def create_message_from_decrypted(
     text = f"{sender}: {message_text}" if sender else message_text
     channel_key_normalized = channel_key.upper()
     malformed = is_malformed_channel_message(message_text, timestamp, received)
+    reason = malformed_reason(message_text, timestamp, received) if malformed else None
 
     resolved_sender_key: str | None = None
     if sender:
@@ -330,6 +348,8 @@ async def create_message_from_decrypted(
         transport_code=transport_code,
         region=region,
         malformed=malformed,
+        malformed_reason=reason,
+        bot=await _is_listed_bot(sender, resolved_sender_key),
     )
 
     if msg_id is None:
@@ -631,6 +651,7 @@ async def create_fallback_channel_message(
     message_text = decode_message_text(message_text)
     text = f"{sender_name}: {message_text}" if sender_name else message_text
     malformed = is_malformed_channel_message(message_text, sender_timestamp, received_at)
+    reason = malformed_reason(message_text, sender_timestamp, received_at) if malformed else None
 
     resolved_sender_key: str | None = None
     if sender_name:
@@ -650,6 +671,8 @@ async def create_fallback_channel_message(
         sender_name=sender_name,
         sender_key=resolved_sender_key,
         malformed=malformed,
+        malformed_reason=reason,
+        bot=await _is_listed_bot(sender_name, resolved_sender_key),
     )
     if msg_id is None:
         await handle_duplicate_message(

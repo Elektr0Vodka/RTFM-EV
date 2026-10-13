@@ -11,6 +11,51 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-14 (Mesh Health "Spam & bots" statistics)
+
+Migration `_143`. No new dependency. Nothing in this change transmits, and no
+detection or forwarding rule changes.
+
+### Mesh Health
+- **New tab: Spam & bots.** Statistics about channel messages flagged as spam,
+  malformed or duplicate, and messages from senders on a bot list, for the
+  window chosen in the shared time selector and optionally for one channel.
+  It shows totals with their share of channel traffic, a trend chart (counts
+  or share), three offender tables (senders, channels, source repeaters) that
+  sort, page and export to CSV, and a Filters section: the Spam Guard outcome
+  (stopped, would have stopped while nothing was being withheld, as in
+  Monitor, let through, held, clean) with a catch rate, which kind of block
+  caught a message, your own "This is spam" / "Not spam" answers as
+  confirmed, missed and false positives, the cause of malformed messages,
+  and packets per OpenHop rule (allow, drop and log only).
+- **Two bot numbers.** "Bots" counts the messages in the window whose sender
+  is on an enabled bot list today, also messages stored before that sender
+  was listed. Next to it is the number flagged when the message arrived,
+  which does not move when the lists change.
+- **Sharing.** Copy a short text summary, download the whole report as JSON,
+  or download a table as CSV. Scramble names replaces sender names, private
+  channel names and the names of OpenHop rules you wrote yourself with codes
+  in the tab and in every export; public and #name channels keep their name.
+  A channel key is never part of an export, and never part of a rule name
+  either: Spam Guard names its OpenHop rules after the channel key, so the
+  server replaces a key in a rule name with the channel name (public
+  channel) or a short one-way id (any other). The summary says "stopped"
+  only for messages that were really withheld. A CSV cell that a
+  spreadsheet would run as a formula gets a leading quote.
+
+### Stored per message (migration `_143`)
+- `messages.bot`, `malformed_reason`, `spam_outcome`, `spam_block`,
+  `spam_enforced` and `spam_label`. The malformed cause is filled in for
+  messages already flagged. The others start with this version: older
+  messages show as "no recorded outcome".
+- Spam Guard writes the outcome when a message settles (two minutes after it
+  arrived), with the same rule as its own hourly counters, so the tab and the
+  Spam Guard page agree. A restart inside those two minutes leaves that
+  message without an outcome.
+
+### API
+- `GET /api/filter-stats?start_ts&end_ts&channel&buckets&limit`.
+
 ## Update 2026-10-13 (Open items from the bot list reviews, fix/bot-list-open-items)
 
 No migration. No new dependency.

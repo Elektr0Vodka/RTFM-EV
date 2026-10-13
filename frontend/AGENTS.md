@@ -155,6 +155,8 @@ frontend/src/
 │   ├── PacketFeedStatsPanel.tsx # Live tab: session packet-stat breakdowns (reads rawPacketStore)
 │   ├── MeshTrendsHistoricalPanel.tsx # Historical tab: server-backed stats (GET /api/statistics)
 │   ├── MeshRelayReceptionPanel.tsx # Mesh Health "Relay reception" tab: paged packets x relays pivot (rows per page in localStorage) + uncapped relay summary with expandable rows, live refresh (plan 21 S1)
+│   ├── MeshFilterStatsPanel.tsx # Mesh Health "Spam & bots" tab: one report from GET /filter-stats feeds tiles, trend chart, filters section and exports; Scramble rewrites the report once before render
+│   ├── MeshFilterStatsTables.tsx # Offender tables of that tab (senders, channels, source repeaters): sort, paging with the shared Mesh Health page size, CSV
 │   ├── MeshRelayDetail.tsx     # Expanded relay row: totals, activity + signal charts, packet types, hop counts, recent copies
 │   ├── AnalyzePacketView.tsx   # Tools view: standalone paste-a-hex packet inspector
 │   ├── MeshDiscoveryView.tsx   # Tools view: mesh discovery sweep (repeaters/sensors) + last-sweep results + repeater region discovery
@@ -935,6 +937,13 @@ The Filters modal's **"Group repeats by content"** toggle drives `RawPacketList`
 ### RawPacketFeed sort order
 
 `RawPacketFeedView` has a "Sort order" `<select>` (Oldest first / Newest first) next to the Filters button. It drives `RawPacketList`'s `newestFirst` prop, which flips the timestamp sort. Autoscroll sticks to the newest packet's edge in either direction (bottom for oldest-first, top for newest-first). Unlike autoscroll, the choice is persisted server-side in `app_settings.packet_feed_sort` (`'oldest' | 'newest'`, default `'oldest'`) and threaded down from `App.tsx` via `conversationPaneProps` (`packetFeedSort` + `onSaveAppSettings`).
+
+### Mesh Health "Spam & bots" tab
+
+- Tab key `spam-bots` in `MeshHealthView` (stored with the other tabs in `rtfm-meshhealth-tab`). It uses the shared time selector and auto-refreshes on the 30m and 1h ranges.
+- `utils/filterStatsReport.ts` holds the report types and every derived form: `scrambleReport` (sender names to `user-xxxxxxxx`, keys removed, non-public channels to `channel-xxxxxxxx`, OpenHop rule names that do not start with `rtfm-spam:` to `rule-xxxxxxxx`), `buildSummaryText`, `sendersCsv` / `channelsCsv` / `sourcesCsv`, `buildJsonReport`. All are pure and built from the loaded report. Codes come from `getSessionScrambler()`, a random table kept for the page load (`crypto.getRandomValues`; `crypto.subtle` is not available on a plain http LAN address).
+- A channel key is in the report for the channel filter only; `buildJsonReport` and the CSV files leave it out. `buildCsv` puts a leading quote on a text cell that starts with `=`, `+`, `-` or `@`.
+- `AddToBotListDialog` takes a `BotListTarget` (a subset of `Message`), so the senders table can open it for a sender row.
 
 ### Mesh Health contacts-table page size
 

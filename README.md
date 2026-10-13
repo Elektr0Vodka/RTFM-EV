@@ -70,7 +70,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 ### Tools and diagnostics
 
 - **My Node:** radio charts including airtime utilization, receive errors, RSSI/SNR with noise floor and a directly heard radar.
-- **Mesh Health:** advert counts and alerts, request traffic, public key prefix collisions, relay reception, and a power outage view (which nodes stay online, from each node's power source).
+- **Mesh Health:** advert counts and alerts, request traffic, public key prefix collisions, relay reception, a power outage view (which nodes stay online, from each node's power source), and spam and bot statistics (spam, malformed and duplicate channel messages, listed bots, how Spam Guard handled them, with CSV, JSON and text export).
 - **Mesh Trends:** stored network, message and packet breakdowns plus live session statistics.
 - **Packet Feed** (live) and **Packet History** (everything stored, with search and CSV export).
 - **Who heard this** in every packet breakdown: the packet hash, links to its page on your analyzer sites, and on request the analyzer's observers that received the same packet, with region, time, RSSI and SNR.

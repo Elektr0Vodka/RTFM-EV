@@ -8,6 +8,7 @@
  *  - MeshRequestsPanel: single-node REQUEST/RESPONSE traffic view.
  *  - MeshPowerOutagePanel: which nodes stay online in a power outage. Also gets
  *    a floating go-to-top button over the scroll area, since its table is long.
+ *  - MeshFilterStatsPanel: spam, malformed, duplicate and bot statistics.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -24,9 +25,10 @@ import { MeshRequestsPanel } from './MeshRequestsPanel';
 import { MeshPrefixCollisionsPanel } from './MeshPrefixCollisionsPanel';
 import { MeshRelayReceptionPanel } from './MeshRelayReceptionPanel';
 import { MeshPowerOutagePanel } from './MeshPowerOutagePanel';
+import { MeshFilterStatsPanel } from './MeshFilterStatsPanel';
 
 type MeshHealthTab =
-  'adverts' | 'requests' | 'relay-reception' | 'prefix-collisions' | 'power-outage';
+  'adverts' | 'requests' | 'relay-reception' | 'prefix-collisions' | 'power-outage' | 'spam-bots';
 
 // Mesh Health keeps 30m as a shorter extra and adopts the shared base set. The
 // panels fetch now-relative ranges from selectedWindow.hours, so a From/To
@@ -51,7 +53,8 @@ function loadStoredTab(): MeshHealthTab {
       v === 'requests' ||
       v === 'relay-reception' ||
       v === 'prefix-collisions' ||
-      v === 'power-outage'
+      v === 'power-outage' ||
+      v === 'spam-bots'
     )
       return v;
     return 'adverts';
@@ -142,6 +145,7 @@ export function MeshHealthView({
     { key: 'relay-reception', label: t('mesh_health_tab_relay_reception') },
     { key: 'prefix-collisions', label: t('mesh_health_tab_prefix_collisions') },
     { key: 'power-outage', label: t('mesh_health_tab_power_outage') },
+    { key: 'spam-bots', label: t('mesh_health_tab_spam_bots') },
   ];
 
   return (
@@ -154,7 +158,7 @@ export function MeshHealthView({
             <h2 className="font-semibold text-base">{t('mesh_health_page_title')}</h2>
           </div>
           {/* Adverts / Requests pill */}
-          <div className="flex gap-1 rounded-md bg-muted p-0.5">
+          <div className="flex flex-wrap gap-1 rounded-md bg-muted p-0.5">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
@@ -255,6 +259,17 @@ export function MeshHealthView({
                 onNavigateToMap={onNavigateToMap}
                 pageSize={pageSize}
                 onSaveAppSettings={onSaveAppSettings}
+              />
+            )}
+            {activeTab === 'spam-bots' && (
+              <MeshFilterStatsPanel
+                selectedWindow={selectedWindow}
+                refreshKey={refreshKey}
+                onLoadingChange={handleLoadingChange}
+                contacts={contacts}
+                onOpenNode={onOpenNode}
+                onNavigateToMap={onNavigateToMap}
+                pageSize={pageSize}
               />
             )}
           </div>

@@ -99,3 +99,18 @@ def is_malformed_channel_message(body: str, sender_timestamp: int | None, receiv
     *body* is the message text without the ``sender: `` prefix.
     """
     return is_gibberish_text(body) or has_default_clock(sender_timestamp, received_at)
+
+
+def malformed_reason(body: str, sender_timestamp: int | None, received_at: int) -> str | None:
+    """Why a channel message is malformed: ``text``, ``clock``, ``both`` or None.
+
+    Not None exactly when ``is_malformed_channel_message`` is true. Stored on
+    the message (``messages.malformed_reason``, migration _143) for statistics.
+    """
+    text = is_gibberish_text(body)
+    clock = has_default_clock(sender_timestamp, received_at)
+    if text and clock:
+        return "both"
+    if text:
+        return "text"
+    return "clock" if clock else None
