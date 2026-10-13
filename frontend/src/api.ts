@@ -56,6 +56,18 @@ import type {
   RadioContactOccupancy,
   RadioPolicy,
   FanoutConfig,
+  FleetAsset,
+  FleetAssetEvent,
+  FleetAssetEventInput,
+  FleetAssetFields,
+  FleetAssetsFromContactsResponse,
+  FleetAuditEntry,
+  FleetGenerateKeyResult,
+  FleetSecret,
+  FleetSecretKind,
+  FleetSettings,
+  FleetVaultSession,
+  FleetVaultStatus,
   HealthStatus,
   MaintenanceResult,
   RetentionPruneResult,
@@ -164,6 +176,7 @@ import type {
   MentionSoundMeta,
 } from './types';
 import { reportHttpFailure } from './utils/authRedirect';
+import { fleetVaultHeaders } from './utils/fleetVault';
 
 const API_BASE = './api';
 
@@ -1472,6 +1485,105 @@ export const api = {
     ),
   // Every contact with SNMP set up, with its newest stored poll (read-only).
   snmpNodes: (signal?: AbortSignal) => fetchJson<SnmpNodeOverview[]>('/snmp/nodes', { signal }),
+  // Fleet asset register (Tools > Fleet). Stored data only: nothing here uses the radio.
+  fleetAssets: (signal?: AbortSignal) => fetchJson<FleetAsset[]>('/fleet/assets', { signal }),
+  fleetAssetForKey: (publicKey: string, signal?: AbortSignal) =>
+    fetchJson<FleetAsset[]>(`/fleet/assets?public_key=${encodeURIComponent(publicKey)}`, {
+      signal,
+    }).then((assets) => assets[0] ?? null),
+  fleetAsset: (id: number, signal?: AbortSignal) =>
+    fetchJson<FleetAsset>(`/fleet/assets/${id}`, { signal }),
+  createFleetAsset: (fields: Partial<FleetAssetFields>) =>
+    fetchJson<FleetAsset>('/fleet/assets', { method: 'POST', body: JSON.stringify(fields) }),
+  updateFleetAsset: (id: number, changes: Partial<FleetAssetFields>) =>
+    fetchJson<FleetAsset>(`/fleet/assets/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(changes),
+    }),
+  deleteFleetAsset: (id: number) =>
+    fetchJson<{ status: string }>(`/fleet/assets/${id}`, { method: 'DELETE' }),
+  addFleetAssetsFromContacts: (publicKeys: string[]) =>
+    fetchJson<FleetAssetsFromContactsResponse>('/fleet/assets/from-contacts', {
+      method: 'POST',
+      body: JSON.stringify({ public_keys: publicKeys }),
+    }),
+  fleetAssetEvents: (id: number, signal?: AbortSignal) =>
+    fetchJson<FleetAssetEvent[]>(`/fleet/assets/${id}/events`, { signal }),
+  addFleetAssetEvent: (id: number, event: FleetAssetEventInput) =>
+    fetchJson<FleetAssetEvent>(`/fleet/assets/${id}/events`, {
+      method: 'POST',
+      body: JSON.stringify(event),
+    }),
+  deleteFleetAssetEvent: (id: number, eventId: number) =>
+    fetchJson<{ status: string }>(`/fleet/assets/${id}/events/${eventId}`, { method: 'DELETE' }),
+  fleetSettings: (signal?: AbortSignal) => fetchJson<FleetSettings>('/fleet/settings', { signal }),
+  saveFleetSettings: (settings: FleetSettings) =>
+    fetchJson<FleetSettings>('/fleet/settings', { method: 'PUT', body: JSON.stringify(settings) }),
+  // Fleet key vault. The session token travels in a header and is never stored.
+  fleetVaultStatus: (signal?: AbortSignal) =>
+    fetchJson<FleetVaultStatus>('/fleet/vault', { signal, headers: fleetVaultHeaders() }),
+  initFleetVault: (passphrase: string) =>
+    fetchJson<FleetVaultSession>('/fleet/vault/init', {
+      method: 'POST',
+      body: JSON.stringify({ passphrase }),
+    }),
+  unlockFleetVault: (passphrase: string) =>
+    fetchJson<FleetVaultSession>('/fleet/vault/unlock', {
+      method: 'POST',
+      body: JSON.stringify({ passphrase }),
+    }),
+  lockFleetVault: () =>
+    fetchJson<{ status: string }>('/fleet/vault/lock', {
+      method: 'POST',
+      headers: fleetVaultHeaders(),
+    }),
+  changeFleetVaultPassphrase: (current: string, next: string) =>
+    fetchJson<FleetVaultSession>('/fleet/vault/passphrase', {
+      method: 'POST',
+      body: JSON.stringify({ current, new: next }),
+      headers: fleetVaultHeaders(),
+    }),
+  fleetVaultAudit: (signal?: AbortSignal) =>
+    fetchJson<FleetAuditEntry[]>('/fleet/vault/audit', { signal, headers: fleetVaultHeaders() }),
+  exportFleetVault: (passphrase: string) =>
+    fetchJson<Record<string, unknown>>('/fleet/vault/export', {
+      method: 'POST',
+      body: JSON.stringify({ passphrase }),
+      headers: fleetVaultHeaders(),
+    }),
+  importFleetVault: (passphrase: string, document: unknown) =>
+    fetchJson<{ imported: number; skipped: number }>('/fleet/vault/import', {
+      method: 'POST',
+      body: JSON.stringify({ passphrase, document }),
+      headers: fleetVaultHeaders(),
+    }),
+  fleetSecrets: (assetId: number, signal?: AbortSignal) =>
+    fetchJson<FleetSecret[]>(`/fleet/assets/${assetId}/secrets`, {
+      signal,
+      headers: fleetVaultHeaders(),
+    }),
+  addFleetSecret: (assetId: number, kind: FleetSecretKind, label: string | null, value: string) =>
+    fetchJson<FleetSecret>(`/fleet/assets/${assetId}/secrets`, {
+      method: 'POST',
+      body: JSON.stringify({ kind, label, value }),
+      headers: fleetVaultHeaders(),
+    }),
+  revealFleetSecret: (secretId: number) =>
+    fetchJson<{ value: string }>(`/fleet/secrets/${secretId}/reveal`, {
+      method: 'POST',
+      headers: fleetVaultHeaders(),
+    }),
+  deleteFleetSecret: (secretId: number) =>
+    fetchJson<{ status: string }>(`/fleet/secrets/${secretId}`, {
+      method: 'DELETE',
+      headers: fleetVaultHeaders(),
+    }),
+  generateFleetKey: (assetId: number, prefix: string, freeBytes: 0 | 1 | 2) =>
+    fetchJson<FleetGenerateKeyResult>(`/fleet/assets/${assetId}/generate-key`, {
+      method: 'POST',
+      body: JSON.stringify({ prefix, free_bytes: freeBytes }),
+      headers: fleetVaultHeaders(),
+    }),
   getSnmpAgent: (signal?: AbortSignal) => fetchJson<SnmpAgentState>('/snmp-agent', { signal }),
   saveSnmpAgent: (settings: SnmpAgentSettings) =>
     fetchJson<SnmpAgentState>('/snmp-agent', { method: 'PUT', body: JSON.stringify(settings) }),

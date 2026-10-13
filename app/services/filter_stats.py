@@ -6,7 +6,7 @@ rows and ``app/routers/filter_stats.py`` serves the report.
 Four categories are counted per message: spam (``messages.spam``), malformed
 (``messages.malformed``), duplicate (``messages.duplicate``) and bot. A bot is
 counted two ways: listed now (the sender is on an enabled bot list today) and
-flagged on arrival (``messages.bot``, migration _143). "Flagged" means at least
+flagged on arrival (``messages.bot``, migration _148). "Flagged" means at least
 one of spam, malformed, duplicate or listed-now bot.
 """
 

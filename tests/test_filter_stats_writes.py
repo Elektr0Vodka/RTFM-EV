@@ -1,4 +1,4 @@
-"""Writes to the per-message statistics columns (migration _143)."""
+"""Writes to the per-message statistics columns (migration _148)."""
 
 import pytest
 

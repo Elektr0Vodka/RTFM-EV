@@ -170,7 +170,7 @@ class MessageRepository:
 
     @staticmethod
     async def set_spam_outcomes(outcomes: list[tuple[int, str, str | None, bool]]) -> None:
-        """Store what Spam Guard made of settled messages (migration _143).
+        """Store what Spam Guard made of settled messages (migration _148).
 
         Each entry is ``(message_id, outcome, block_source, enforced)``. An id
         that no longer exists is skipped.

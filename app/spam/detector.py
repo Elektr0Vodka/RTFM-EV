@@ -187,7 +187,7 @@ class DecideResult:
     # Message ids caught by duplicate suppression, for the chat marker.
     duplicate: set[int] = field(default_factory=set)
     # Messages that settled in this call, each reported once, for the
-    # statistics columns on the message (migration _143).
+    # statistics columns on the message (migration _148).
     settled: list[SettledOutcome] = field(default_factory=list)
 
 

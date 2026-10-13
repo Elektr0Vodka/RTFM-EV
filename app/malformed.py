@@ -105,7 +105,7 @@ def malformed_reason(body: str, sender_timestamp: int | None, received_at: int) 
     """Why a channel message is malformed: ``text``, ``clock``, ``both`` or None.
 
     Not None exactly when ``is_malformed_channel_message`` is true. Stored on
-    the message (``messages.malformed_reason``, migration _143) for statistics.
+    the message (``messages.malformed_reason``, migration _148) for statistics.
     """
     text = is_gibberish_text(body)
     clock = has_default_clock(sender_timestamp, received_at)
