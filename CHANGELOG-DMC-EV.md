@@ -39,6 +39,24 @@ No migration. No new dependency. Requested by Richard after testing duplicate su
 - An expired duplicate block starting again with the next message was already
   the case; it now has a test for each of the three "Block repeats from"
   choices.
+## Update 2026-10-13 (Frontend build: two Vite notices, fix/vite-build-notices)
+
+Frontend build only. No migration, no new dependency, no change to the app.
+
+### Build
+- **`__dirname` in the Vite and Vitest config.** Vite 8 warns on every build and
+  test run that `__dirname` is not available to the config loader that becomes
+  the default in a later major version. `frontend/vite.config.ts` and
+  `frontend/vitest.config.ts` use `import.meta.dirname` instead (Node 20.11 or
+  newer; the Dockerfile and CI use Node 24).
+- **`<script src="./radio-context.js">` "can't be bundled".** The tag in
+  `frontend/index.html` is a classic script on purpose: it has to run before
+  the app, and the multi-radio gateway serves its own version. It now carries
+  `vite-ignore`, which tells Vite to leave it alone without a notice. Vite
+  removes the attribute again, so the built page is the same apart from one
+  extra space in that tag. Do not give it `type="module"`: a module script is
+  deferred and would run after the inline script that follows it.
+- The "Some chunks are larger than 500 kB" notice is unrelated and still there.
 
 ## Update 2026-10-12 (Packet History: the deciding policy rule, feat/packet-history-policy-rule)
 

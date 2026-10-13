@@ -12,7 +12,7 @@ const EMOJIBASE_FILES = ['en', 'nl', 'de'].flatMap((locale) =>
 )
 
 function emojibaseData(): Plugin {
-  const dataDir = path.resolve(__dirname, 'node_modules/emojibase-data')
+  const dataDir = path.resolve(import.meta.dirname, 'node_modules/emojibase-data')
   return {
     name: 'emojibase-data',
     configureServer(server) {
@@ -39,8 +39,8 @@ function emojibaseData(): Plugin {
 // resolves the link to its real path, which then sits outside this project and
 // is denied for `?worker&url` imports (maplibre worker) unless allowed here.
 const FS_ALLOW = [
-  searchForWorkspaceRoot(__dirname),
-  fs.realpathSync(path.resolve(__dirname, 'node_modules')),
+  searchForWorkspaceRoot(import.meta.dirname),
+  fs.realpathSync(path.resolve(import.meta.dirname, 'node_modules')),
 ]
 
 export default defineConfig({
@@ -48,7 +48,7 @@ export default defineConfig({
   plugins: [react(), emojibaseData()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(import.meta.dirname, "./src"),
     },
   },
   build: {
