@@ -323,7 +323,7 @@ Een **OpenHop**-radio stuurt zelf door. Daar schrijft Beschermen de blokkades in
 - Twee instellingen om te kennen. **Herhalingen blokkeren van** bepaalt wiens herhalingen de duplicaatonderdrukking tegenhoudt: andere namen die dezelfde tekst sturen (de eerste afzender mag het opnieuw sturen), alleen dezelfde naam, of iedereen. **Misvormde berichten als spam behandelen** markeert berichten met willekeurige tekens, of van een afzender met een nooit ingestelde klok, en telt ze als verzonnen naam.
 - **Beleid** is er alleen met een OpenHop-radio. Het is de beleidseditor van de node zelf: de schakelaar van de engine, de groepen en de regels. De node doet het filteren. Zolang Spam Guard is ingeschakeld staat de editor hier en niet onder Instellingen > OpenHop; met Spam Guard uit staat hij daar weer.
 
-Een repeater is gedeeld. Wat de jouwe niet doorstuurt verdwijnt voor iedereen erachter, en zij kunnen niet zien waarom. Er is bewust geen knop om iemand op naam te blokkeren.
+Een repeater is gedeeld. Wat de jouwe niet doorstuurt verdwijnt voor iedereen erachter, en zij kunnen niet zien waarom. Er is bewust geen knop om iemand op naam te blokkeren. Een botlijst met **Doorsturen blokkeren** aan is de enige uitzondering: die houdt de namen tegen die je erop zet, zie **Botlijsten** onder Instellingen.
 
 In de chat verbergt **Spam verbergen** in het filtermenu gemarkeerde berichten en houdt ze buiten ongelezen-tellers en meldingen. Een bericht dat de duplicaatonderdrukking als herhaling heeft gevangen krijgt de markering **Duplicaat**. Dat is geen spammarkering, dus het wordt niet verborgen.
 
@@ -413,6 +413,21 @@ RTFM-EV kan elk ontvangen pakket beoordelen zoals een repeater dat zou doen. **S
 ### Lokale configuratie
 
 Instellingen voor deze browser of dit apparaat: taal, kleurthema (inclusief vier CRT-fosforthema's) en CRT-schermeffecten, het **Bureaubladmaatje** (nadat je het thema Windows 95 hebt gebruikt), branding (appnaam en pictogram, gedeeld door alle apparaten), een lokaal label, **Afstandseenheden**, **Coördinaatformaat**, **Datum- en tijdnotatie**, relatieve lettergrootte, UI-aanpassingen (zoals laatste gesprek opnieuw openen, batterijweergave en **Vervangen tijdens het typen**), het geluid bij vermeldingen en DM's, meldingen voor nieuwe nodes, **Chatverwerking** en **Web Push-meldingen**. **Doorsturen naar aanmelden** is voor een installatie achter een reverse proxy die het aanmelden regelt: als de sessie is verlopen gaat de app naar het adres dat je invult, of wordt de pagina opnieuw geladen als het veld leeg is.
+
+### Botlijsten
+
+Een botlijst noemt bekende bots: een exacte afzendernaam, met optioneel een publieke sleutel en een notitie. De lijsten staan onder **Instellingen > Lokale configuratie > Botlijsten**.
+
+- **Schakel** een lijst **in** en de afzenders erop krijgen in de chat een **Bot**-markering. Een naam moet exact overeenkomen, hoofdletters inbegrepen, dus iemand die dezelfde naam gebruikt wordt ook gemarkeerd. **Nooit een bot** haalt een naam eruit, op welke lijst hij ook staat.
+- **Bots verbergen** (daar, of in het filtermenu van de chat) verbergt afzenders van de lijsten in de chat en houdt ze buiten ongelezen-tellers, vermeldingen en meldingen. Zoeken toont ze nog wel.
+- **Nieuwe lijst** maakt een eigen lijst en **Namen** opent hem om te bewerken. In de chat bieden de acties van een bericht **Toevoegen aan botlijst** en, voor een naam die op een lijst staat, **Geen bot**.
+- **Exporteren** schrijft een lijst naar een bestand. **Bestand importeren** bewaart zo'n bestand als een nieuwe eigen lijst, uitgeschakeld, zodat je hem kunt lezen voordat je hem inschakelt.
+- **Abonneren op URL** vraagt het `https`-adres van een lijstbestand. De lijst wordt eerst getoond, daarna alleen-lezen en uitgeschakeld bewaard, en één keer per dag ververst; **Nu verversen** doet dat meteen. De host van de lijst ziet bij elke verversing je internetadres. Een verversing die mislukt laat de namen staan die je had en toont waarom.
+- Eén lijst wordt met RTFM-EV meegeleverd. Die is alleen-lezen en staat uit tot je hem inschakelt.
+- **Doorsturen blokkeren** (per lijst, standaard uit) zorgt dat je repeater kanaalberichten van de namen op die lijst niet meer doorstuurt. Het werkt via Spam Guard: alleen in **Beschermen**, op de beschermde kanalen, en in de ether alleen zolang de host-repeater gewapend is of de regels op de OpenHop-node staan. De regel onder de schakelaar zegt **Actief op N kanalen**, of waarop gewacht wordt.
+- Namen die een verversing aan een abonnement toevoegt worden meteen gemarkeerd in de chat, maar je repeater stopt pas met doorsturen nadat je ze hebt bevestigd. De lijst toont dan **N nieuwe namen om te beoordelen**, met **Bevestigen**, **Alles bevestigen** en **Geen bot**. Wie Doorsturen blokkeren inschakelt voor een abonnement krijgt eerst de namen te zien.
+
+Doorsturen blokkeren houdt alleen je eigen repeater tegen: andere repeaters sturen het bericht nog door, en het komt nog steeds bij jouw node aan. Het geldt alleen voor kanaalberichten, want een repeater kan niet zien wie een direct bericht stuurde. Wie onder een naam van de lijst schrijft, wordt ook tegengehouden.
 
 ### MQTT en automatisering
 

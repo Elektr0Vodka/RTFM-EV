@@ -46,7 +46,15 @@ _SHIPPED_FALLBACK_NAME = "RTFM-EV bot list"
 
 
 class BotListError(Exception):
-    """A change the service refuses. The message is shown to the user."""
+    """A change the service refuses. The message is shown to the user.
+
+    ``code`` is set for a refusal the UI words itself, in the user's language
+    (the API then answers the code); the message stays for logs and API users.
+    """
+
+    def __init__(self, message: str, *, code: str | None = None) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 class BotListNotFound(BotListError):
@@ -68,6 +76,7 @@ class BotListService:
         self._forward: tuple[str, ...] = ()
         self._loaded = False
         self._refresh_lock = asyncio.Lock()
+        self._subscribe_lock = asyncio.Lock()
 
     def reset(self) -> None:
         """Forget the cached effective set (tests, or a replaced database)."""
@@ -76,6 +85,7 @@ class BotListService:
         self._forward = ()
         self._loaded = False
         self._refresh_lock = asyncio.Lock()
+        self._subscribe_lock = asyncio.Lock()
 
     async def refresh(self) -> None:
         """Recompute the effective set: enabled lists minus the exceptions.
@@ -169,7 +179,23 @@ class BotListService:
     async def _check_cap(self, adding: Iterable[str]) -> None:
         await self.ensure_loaded()
         if len(self._names | set(adding)) > MAX_EFFECTIVE:
-            raise BotListLimit(f"Enabled bot lists can hold {MAX_EFFECTIVE} names in total")
+            raise BotListLimit(
+                f"Enabled bot lists can hold {MAX_EFFECTIVE} names in total", code="over_limit"
+            )
+
+    async def _check_replacement(self, list_id: int, names: Iterable[str]) -> None:
+        """The cap for an enabled list whose names are replaced.
+
+        Counts what the set would be afterwards: the other enabled lists plus
+        the new names, minus the exceptions. The names the list held before
+        are not counted, or a file that swaps names would be refused.
+        """
+        exceptions = set(await BotListRepository.exceptions())
+        others = {name for name, _key in await BotListRepository.enabled_entries(without=list_id)}
+        if len((others | set(names)) - exceptions) > MAX_EFFECTIVE:
+            raise BotListLimit(
+                f"Enabled bot lists can hold {MAX_EFFECTIVE} names in total", code="over_limit"
+            )
 
     async def create_local(self, name: str, description: str = "") -> dict[str, Any]:
         """Make a local list. The answer also names it (``created_id``): lists
@@ -219,19 +245,23 @@ class BotListService:
     async def replace_entries(self, list_id: int, entries: list[BotEntry]) -> dict[str, Any]:
         row = await self._require_local(list_id)
         if len(entries) > MAX_ENTRIES:
-            raise BotListLimit(f"A bot list holds at most {MAX_ENTRIES} entries")
+            raise BotListLimit(
+                f"A bot list holds at most {MAX_ENTRIES} entries", code="too_many_entries"
+            )
         names = [entry.name for entry in entries]
         if len(set(names)) != len(names):
             raise BotListError("A name may appear once in a list")
         if row["enabled"]:
-            await self._check_cap(names)
+            await self._check_replacement(list_id, names)
         await BotListRepository.replace_entries(list_id, [e.model_dump() for e in entries])
         return await self._changed()
 
     async def add_entry(self, list_id: int, entry: BotEntry) -> dict[str, Any]:
         row = await self._require_local(list_id)
         if row["entry_count"] >= MAX_ENTRIES:
-            raise BotListLimit(f"A bot list holds at most {MAX_ENTRIES} entries")
+            raise BotListLimit(
+                f"A bot list holds at most {MAX_ENTRIES} entries", code="too_many_entries"
+            )
         if row["enabled"]:
             await self._check_cap([entry.name])
         await BotListRepository.add_entry(list_id, entry.name, entry.public_key, entry.note)
@@ -265,25 +295,40 @@ class BotListService:
     async def subscribe(self, url: str) -> dict[str, Any]:
         """Store the list at ``url`` as a read-only subscription, switched off."""
         cleaned = check_subscription_url(url)
-        if await BotListRepository.find_by_url(cleaned) is not None:
-            raise BotListError("That URL is already subscribed")
-        if await BotListRepository.count_by_source("url") >= MAX_SUBSCRIPTIONS:
-            raise BotListLimit(f"At most {MAX_SUBSCRIPTIONS} subscriptions")
+        # Refuse what can be refused before fetching anything.
+        await self._refuse_subscription(cleaned)
         parsed = await fetch_bot_list(cleaned)
-        list_id = await BotListRepository.create(parsed.name, parsed.description, "url", cleaned)
-        await BotListRepository.replace_entries(list_id, [e.model_dump() for e in parsed.entries])
-        await BotListRepository.update(
-            list_id, {"file_updated": parsed.updated, "fetched_at": int(time.time())}
-        )
+        # The check again and the store, one request at a time: two requests for
+        # one address were both past the first check while they fetched. The
+        # fetch itself stays outside, so one slow host does not hold up others.
+        async with self._subscribe_lock:
+            await self._refuse_subscription(cleaned)
+            list_id = await BotListRepository.create(
+                parsed.name, parsed.description, "url", cleaned
+            )
+            await BotListRepository.replace_entries(
+                list_id, [e.model_dump() for e in parsed.entries]
+            )
+            await BotListRepository.update(
+                list_id, {"file_updated": parsed.updated, "fetched_at": int(time.time())}
+            )
         state = await self._changed()
         return {**state, "created_id": list_id}
+
+    async def _refuse_subscription(self, cleaned: str) -> None:
+        if await BotListRepository.find_by_url(cleaned) is not None:
+            raise BotListError("That URL is already subscribed", code="already_subscribed")
+        if await BotListRepository.count_by_source("url") >= MAX_SUBSCRIPTIONS:
+            raise BotListLimit(
+                f"At most {MAX_SUBSCRIPTIONS} subscriptions", code="too_many_subscriptions"
+            )
 
     async def _refresh_row(self, row: dict[str, Any]) -> None:
         """Fetch one subscription and apply it; a failure only sets ``last_error``."""
         try:
             parsed = await fetch_bot_list(row["url"])
             if row["enabled"]:
-                await self._check_cap(entry.name for entry in parsed.entries)
+                await self._check_replacement(row["id"], (e.name for e in parsed.entries))
         except BotListFetchError as exc:
             logger.warning("Bot list %s refresh failed (%s): %s", row["id"], exc.code, exc.detail)
             await BotListRepository.update(row["id"], {"last_error": exc.public_text()})
@@ -343,7 +388,23 @@ class BotListService:
         }
 
     async def set_exceptions(self, names: list[str]) -> dict[str, Any]:
-        await BotListRepository.set_exceptions(sorted({n for n in names if n.strip()}))
+        """Replace the names that are never a bot.
+
+        Taking an exception away puts its name back in the effective set, so
+        that is held to the same cap as enabling a list. A change that does not
+        make the set larger is always let through.
+        """
+        cleaned = sorted({n for n in names if n.strip()})
+        await self.ensure_loaded()
+        kept = set(cleaned)
+        would = {
+            name for name, _key in await BotListRepository.enabled_entries() if name not in kept
+        }
+        if len(would) > max(MAX_EFFECTIVE, len(self._names)):
+            raise BotListLimit(
+                f"Enabled bot lists can hold {MAX_EFFECTIVE} names in total", code="over_limit"
+            )
+        await BotListRepository.set_exceptions(cleaned)
         return await self._changed()
 
     async def load_shipped(self, path: Path = SHIPPED_PATH) -> None:
@@ -370,6 +431,18 @@ class BotListService:
                 )
             else:
                 list_id = row["id"]
+
+            if parsed is not None and row is not None and row["enabled"]:
+                try:
+                    await self._check_replacement(list_id, (e.name for e in parsed.entries))
+                except BotListLimit:
+                    # Like a subscription that outgrew the cap: what is stored stays.
+                    logger.warning(
+                        "Shipped bot list not updated: it would take the enabled lists past %d names",
+                        MAX_EFFECTIVE,
+                    )
+                    await BotListRepository.update(list_id, {"last_error": "over_limit"})
+                    return
 
             if parsed is None:
                 await BotListRepository.update(list_id, {"last_error": error})

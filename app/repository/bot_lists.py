@@ -174,8 +174,14 @@ class BotListRepository:
         A name already stored keeps its ``forward_reviewed`` and takes key and
         note from the file. A name that is new gets ``forward_reviewed = 0``. A
         name no longer in the file is removed. Returns ``(added, removed)``.
+
+        A list that was deleted while its file was being fetched gets nothing:
+        its rows would belong to no list.
         """
         async with db.tx() as conn:
+            async with conn.execute("SELECT 1 FROM bot_lists WHERE id = ?", (list_id,)) as cursor:
+                if await cursor.fetchone() is None:
+                    return 0, 0
             async with conn.execute(
                 "SELECT name FROM bot_list_entries WHERE list_id = ?", (list_id,)
             ) as cursor:
@@ -221,13 +227,18 @@ class BotListRepository:
                 pass
 
     @staticmethod
-    async def enabled_entries() -> list[tuple[str, str | None]]:
-        """(name, public key) of every entry in an enabled list."""
+    async def enabled_entries(*, without: int | None = None) -> list[tuple[str, str | None]]:
+        """(name, public key) of every entry in an enabled list.
+
+        ``without`` leaves one list out: what the others hold, for judging a
+        change that replaces that list's names.
+        """
         async with db.readonly() as conn:
             async with conn.execute(
                 "SELECT e.name, e.public_key FROM bot_list_entries e "
                 "JOIN bot_lists l ON l.id = e.list_id WHERE l.enabled = 1 "
-                "ORDER BY e.name, l.id"
+                "AND (? IS NULL OR l.id != ?) ORDER BY e.name, l.id",
+                (without, without),
             ) as cursor:
                 rows = await cursor.fetchall()
         return [(row["name"], row["public_key"]) for row in rows]

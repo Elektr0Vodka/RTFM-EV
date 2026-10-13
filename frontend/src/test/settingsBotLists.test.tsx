@@ -279,6 +279,31 @@ describe('SettingsBotListsSection', () => {
     await waitFor(() => expect(mocks.refreshBotList).toHaveBeenCalledWith(4));
   });
 
+  it('shows a refresh that is under way and does not start a second one', async () => {
+    const sub = list({
+      id: 4,
+      name: 'Shared',
+      source: 'url',
+      url: 'https://lists.example.org/b.json',
+      fetched_at: 1,
+    });
+    mocks.getBotLists.mockResolvedValue(state([sub]));
+    let finish: (value: BotListsState) => void = () => {};
+    mocks.refreshBotList.mockReturnValue(
+      new Promise<BotListsState>((resolve) => {
+        finish = resolve;
+      })
+    );
+    render(<SettingsBotListsSection appSettings={null} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Refresh now' }));
+    const busy = await screen.findByRole('button', { name: 'Refreshing...' });
+    expect(busy).toBeDisabled();
+    fireEvent.click(busy);
+    expect(mocks.refreshBotList).toHaveBeenCalledTimes(1);
+    finish(state([sub]));
+    expect(await screen.findByRole('button', { name: 'Refresh now' })).not.toBeDisabled();
+  });
+
   it('offers Refresh now only on a subscription', async () => {
     render(<SettingsBotListsSection appSettings={null} />);
     await screen.findByText('Mine');

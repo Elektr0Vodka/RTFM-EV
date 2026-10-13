@@ -323,7 +323,7 @@ Ein **OpenHop**-Funkgerät leitet selbst weiter. Dort schreibt Schützen die Spe
 - Zwei Einstellungen, die man kennen sollte. **Wiederholungen sperren von** legt fest, wessen Wiederholungen die Duplikatunterdrückung zurückhält: andere Namen mit demselben Text (der erste Absender darf erneut senden), nur derselbe Name oder alle. **Fehlerhafte Nachrichten als Spam behandeln** markiert Nachrichten aus zufälligen Zeichen oder von einem Absender mit nie gestellter Uhr und zählt sie als erfundenen Namen.
 - **Richtlinie** gibt es nur mit einem OpenHop-Funkgerät. Es ist der Richtlinien-Editor des Knotens selbst: der Schalter der Engine, die Gruppen und die Regeln. Der Knoten filtert. Solange Spam Guard eingeschaltet ist, steht der Editor hier und nicht unter Einstellungen > OpenHop; ist Spam Guard aus, steht er wieder dort.
 
-Ein Repeater wird geteilt. Was deiner nicht weiterleitet, verschwindet für alle dahinter, und sie können nicht sehen, warum. Es gibt bewusst keine Schaltfläche, um eine Person nach Namen zu sperren.
+Ein Repeater wird geteilt. Was deiner nicht weiterleitet, verschwindet für alle dahinter, und sie können nicht sehen, warum. Es gibt bewusst keine Schaltfläche, um eine Person nach Namen zu sperren. Eine Botliste mit eingeschaltetem **Weiterleitung blockieren** ist die einzige Ausnahme: Sie hält die Namen auf, die du darauf setzt, siehe **Botlisten** unter Einstellungen.
 
 Im Chat blendet **Spam ausblenden** im Filtermenü markierte Nachrichten aus und hält sie aus Ungelesen-Zählern und Benachrichtigungen heraus. Eine Nachricht, die die Duplikatunterdrückung als Wiederholung erfasst hat, trägt die Markierung **Duplikat**. Das ist keine Spam-Markierung, sie wird also nicht ausgeblendet.
 
@@ -413,6 +413,21 @@ RTFM-EV kann jedes empfangene Paket so beurteilen, wie ein Repeater es tun würd
 ### Lokale Konfiguration
 
 Einstellungen für diesen Browser oder dieses Gerät: Sprache, Farbthema (einschließlich vier CRT-Phosphor-Themen) und CRT-Bildschirmeffekte, der **Desktop-Assistent** (nachdem du das Design Windows 95 benutzt hast), Branding (App-Name und Symbol, von allen Geräten geteilt), ein lokales Label, **Entfernungseinheiten**, **Koordinatenformat**, **Datums- und Zeitformat**, relative Schriftgröße, UI-Anpassungen (etwa letzte Unterhaltung erneut öffnen, Akkuanzeige und **Beim Tippen ersetzen**), der Ton bei Erwähnungen und DMs, Benachrichtigungen für neue Knoten, **Chat-Erkennung** und **Web-Push-Benachrichtigungen**. **Weiterleitung zur Anmeldung** ist für eine Instanz hinter einem Reverse Proxy, der die Anmeldung übernimmt: Ist die Sitzung abgelaufen, wechselt die App zu der eingetragenen Adresse oder lädt die Seite neu, wenn das Feld leer ist.
+
+### Botlisten
+
+Eine Botliste nennt bekannte Bots: einen exakten Absendernamen, dazu optional einen öffentlichen Schlüssel und eine Notiz. Die Listen stehen unter **Einstellungen > Lokale Konfiguration > Botlisten**.
+
+- **Aktiviere** eine Liste, und ihre Absender bekommen im Chat eine **Bot**-Markierung. Ein Name muss exakt stimmen, Großschreibung eingeschlossen; wer denselben Namen benutzt, wird also ebenfalls markiert. **Nie ein Bot** nimmt einen Namen aus, egal auf welcher Liste er steht.
+- **Bots ausblenden** (dort oder im Filtermenü des Chats) blendet gelistete Absender im Chat aus und hält sie aus Ungelesen-Zählern, Erwähnungen und Benachrichtigungen heraus. Die Suche zeigt sie weiterhin.
+- **Neue Liste** legt eine eigene Liste an, und **Namen** öffnet sie zum Bearbeiten. Im Chat bieten die Aktionen einer Nachricht **Zur Botliste hinzufügen** und, für einen gelisteten Namen, **Kein Bot**.
+- **Exportieren** schreibt eine Liste in eine Datei. **Datei importieren** speichert eine solche Datei als neue eigene Liste, deaktiviert, damit du sie lesen kannst, bevor du sie aktivierst.
+- **URL abonnieren** nimmt die `https`-Adresse einer Listendatei. Die Liste wird erst angezeigt, dann schreibgeschützt und deaktiviert gespeichert und einmal am Tag aktualisiert; **Jetzt aktualisieren** macht das sofort. Der Host der Liste sieht bei jeder Aktualisierung deine Internetadresse. Schlägt eine Aktualisierung fehl, bleiben die vorhandenen Namen erhalten, und der Grund wird angezeigt.
+- Eine Liste wird mit RTFM-EV ausgeliefert. Sie ist schreibgeschützt und aus, bis du sie aktivierst.
+- **Weiterleitung blockieren** (pro Liste, standardmäßig aus) sorgt dafür, dass dein Repeater Kanalnachrichten der Namen dieser Liste nicht mehr weiterleitet. Es läuft über Spam Guard: nur im Modus **Schützen**, auf den geschützten Kanälen, und auf Sendung nur, solange der Host-Repeater scharf ist oder die Regeln auf dem OpenHop-Node liegen. Die Zeile unter dem Schalter sagt **Aktiv auf N Kanälen** oder worauf gewartet wird.
+- Namen, die eine Aktualisierung zu einem Abonnement hinzufügt, werden im Chat sofort markiert, aber dein Repeater leitet sie erst dann nicht mehr weiter, wenn du sie bestätigt hast. Die Liste zeigt dann **N neue Namen zu prüfen**, mit **Bestätigen**, **Alle bestätigen** und **Kein Bot**. Wer Weiterleitung blockieren für ein Abonnement einschaltet, sieht zuerst dessen Namen.
+
+Weiterleitung blockieren hält nur deinen eigenen Repeater auf: Andere Repeater leiten die Nachricht weiterhin weiter, und sie kommt weiterhin bei deinem Node an. Es gilt nur für Kanalnachrichten, denn ein Repeater kann nicht sehen, wer eine Direktnachricht geschickt hat. Wer unter einem gelisteten Namen schreibt, wird ebenfalls aufgehalten.
 
 ### MQTT & Automatisierung
 

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { useT } from '../i18n';
 import type { Message } from '../types';
+import { botListErrorText } from '../utils/botListErrors';
 import { botSenderName, setBotListsState, useBotLists } from '../utils/botLists';
 import { Button } from './ui/button';
 import {
@@ -73,7 +74,7 @@ export function AddToBotListDialog({
       toast.success(t('bot_lists_added_toast', { name }));
       onClose();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toast.error(botListErrorText(t, err instanceof Error ? err.message : String(err)));
     } finally {
       setBusy(false);
     }

@@ -323,7 +323,7 @@ An **OpenHop** radio forwards on its own, so there Protect writes the blocks int
 - Two settings worth knowing. **Block repeats from** sets whose repeats duplicate suppression holds back: other names sending the same text (the first sender may send it again), the same name only, or everyone. **Treat malformed messages as spam** flags messages of random characters, or from a sender whose clock was never set, and counts them as a made-up name.
 - **Policy** is only there with an OpenHop radio. It is the node's own policy editor: the engine switch, the groups and the rules. The node does the filtering. While Spam Guard is switched on the editor is here and not under Settings > OpenHop; with Spam Guard off it is back there.
 
-A repeater is shared. What yours does not forward disappears for everyone behind it, and they cannot see why. There is on purpose no button to block a person by name.
+A repeater is shared. What yours does not forward disappears for everyone behind it, and they cannot see why. There is on purpose no button to block a person by name. A bot list with **Block forwards** on is the one exception: it stops the names you put on it, see **Bot lists** under Settings.
 
 In chat, **Hide spam** in the filter menu hides flagged messages and keeps them out of unread counts and notifications. A message that duplicate suppression caught as a repeat carries a **Duplicate** marker. That is not a spam flag, so it is not hidden.
 
@@ -413,6 +413,21 @@ RTFM-EV can judge every received packet the way a repeater would. **Shadow mode*
 ### Local Configuration
 
 Settings for this browser or device: language, color theme (including four CRT phosphor themes) and CRT screen effects, the **Desktop buddy** (after you have used the Windows 95 theme), branding (app name and icon, shared by all devices), a local label banner, **Distance Units**, **Coordinate format**, **Date & Time Format**, relative font size, UI tweaks (such as reopen last conversation, battery display and **Replace as you Type**), the mention and DM sound, new node notifications, **Chat parsing** and **Web Push Notifications**. **Sign-in Redirect** is for an instance behind a reverse proxy that handles sign-in: when the session has run out, the app goes to the address you enter, or reloads the page when the field is empty.
+
+### Bot lists
+
+A bot list names known bots: an exact sender name, with an optional public key and note. The lists are under **Settings > Local Configuration > Bot lists**.
+
+- **Enable** a list and its senders get a **Bot** marker in chat. A name is matched exactly, capitals included, so a person who uses the same name is marked too. **Never a bot** takes a name out, whichever list names it.
+- **Hide bots** (there, or in the chat filter menu) hides listed senders in chat and keeps them out of unread counts, mentions and notifications. Search still shows them.
+- **New list** makes a list of your own and **Names** opens it for editing. In chat, the actions of a message offer **Add to bot list** and, for a listed name, **Not a bot**.
+- **Export** writes a list to a file. **Import file** stores such a file as a new list of your own, switched off, so you can read it before you enable it.
+- **Subscribe to URL** takes the `https` address of a list file. It shows the list before storing it, keeps it read-only and switched off, and refreshes it once a day; **Refresh now** does that at once. The host of the list sees your internet address on each refresh. A refresh that fails keeps the names you have and shows why.
+- One list ships with RTFM-EV. It is read-only and off until you enable it.
+- **Block forwards** (per list, off by default) stops your repeater relaying channel messages from the names on that list. It works through Spam Guard: only in **Protect**, on its protected channels, and on air only while the host repeater is armed or the rules are on the OpenHop node. The line under the switch says **Active on N channels**, or what it is waiting for.
+- Names that a refresh adds to a subscription are marked in chat at once, but your repeater only stops relaying them after you confirm them. The list then shows **N new names to review**, with **Confirm**, **Confirm all** and **Not a bot**. Switching Block forwards on for a subscription first shows its names.
+
+Block forwards only stops your own repeater: other repeaters still relay the message, and it still arrives at your node. It covers channel messages only, because a repeater cannot see who sent a direct message. Anyone who posts under a listed name is stopped too.
 
 ### MQTT & Automation
 

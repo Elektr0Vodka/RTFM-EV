@@ -1,5 +1,7 @@
 """Tests for URL subscriptions in the bot list service."""
 
+import asyncio
+
 import pytest
 
 from app.bot_lists.format import validate_bot_list
@@ -212,3 +214,65 @@ async def test_an_unexpected_error_in_one_list_does_not_stop_the_others(test_db,
 
     state = await bot_lists.refresh_list(first)
     assert next(lst for lst in state["lists"] if lst["id"] == first)["last_error"] == "fetch_failed"
+
+
+@pytest.mark.asyncio
+async def test_two_subscribes_of_one_address_at_once_make_one_list(test_db, monkeypatch):
+    async def slow_fetch(url, **_kwargs):
+        await asyncio.sleep(0.02)
+        return _file("PingBot")
+
+    monkeypatch.setattr(service_module, "fetch_bot_list", slow_fetch)
+    results = await asyncio.gather(
+        bot_lists.subscribe(URL),
+        bot_lists.subscribe(URL.replace("example.org", "example.org:443")),
+        return_exceptions=True,
+    )
+    refused = [r for r in results if isinstance(r, BotListError)]
+    assert len(refused) == 1 and refused[0].code == "already_subscribed"
+    assert await BotListRepository.count_by_source("url") == 1
+
+
+@pytest.mark.asyncio
+async def test_the_refusals_carry_a_code(test_db, remote, monkeypatch):
+    await bot_lists.subscribe(URL)
+    with pytest.raises(BotListError) as caught:
+        await bot_lists.subscribe(URL)
+    assert caught.value.code == "already_subscribed"
+
+    monkeypatch.setattr(service_module, "MAX_SUBSCRIPTIONS", 1)
+    with pytest.raises(BotListLimit) as caught:
+        await bot_lists.subscribe("https://example.org/other.json")
+    assert caught.value.code == "too_many_subscriptions"
+
+
+@pytest.mark.asyncio
+async def test_a_list_deleted_while_it_is_fetched_leaves_nothing_behind(
+    test_db, remote, monkeypatch
+):
+    list_id = (await bot_lists.subscribe(URL))["created_id"]
+
+    async def fetch_while_the_list_goes(url, **_kwargs):
+        await BotListRepository.delete(list_id)
+        return _file("PingBot", "NewBot")
+
+    monkeypatch.setattr(service_module, "fetch_bot_list", fetch_while_the_list_goes)
+    row = {"id": list_id, "url": URL, "enabled": False}
+    await bot_lists._refresh_row(row)
+
+    assert await BotListRepository.get(list_id) is None
+    assert await BotListRepository.entries(list_id) == []
+
+
+@pytest.mark.asyncio
+async def test_a_refresh_that_swaps_names_is_not_counted_twice(test_db, remote, monkeypatch):
+    remote["result"] = _file("A", "B")
+    list_id = (await bot_lists.subscribe(URL))["created_id"]
+    await bot_lists.update(list_id, enabled=True)
+    monkeypatch.setattr(service_module, "MAX_EFFECTIVE", 2)
+
+    remote["result"] = _file("C", "D")
+    state = await bot_lists.refresh_list(list_id)
+    row = next(r for r in state["lists"] if r["id"] == list_id)
+    assert row["last_error"] is None
+    assert state["effective"]["names"] == ["C", "D"]

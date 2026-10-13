@@ -161,7 +161,7 @@ async def test_preview_subscribe_and_refresh(test_db, client, remote):
 
         again = await client.post("/api/bot-lists/subscribe", json={"url": SUB_URL})
         assert again.status_code == 400
-        assert "already subscribed" in again.json()["detail"]
+        assert again.json()["detail"] == "already_subscribed"
 
         remote["result"] = BotListFetchError("fetch_failed", "ConnectError: 93.184.216.34")
         refreshed = await client.post(f"/api/bot-lists/{list_id}/refresh")
@@ -240,3 +240,41 @@ async def test_review_confirms_names(test_db, client, monkeypatch):
         missing = await client.post("/api/bot-lists/999/review", json={"names": ["A"]})
         assert missing.status_code == 404
         assert (await client.post(f"/api/bot-lists/{list_id}/review", json={})).status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_refusals_the_ui_words_itself_are_answered_as_codes(test_db, client, monkeypatch):
+    async with client:
+        created = (await client.post("/api/bot-lists", json={"name": "Mine"})).json()
+        list_id = created["created_id"]
+        await client.post(f"/api/bot-lists/{list_id}/entries", json={"name": "A"})
+
+        monkeypatch.setattr(service_module, "MAX_ENTRIES", 1)
+        full = await client.post(f"/api/bot-lists/{list_id}/entries", json={"name": "B"})
+        assert (full.status_code, full.json()["detail"]) == (400, "too_many_entries")
+
+        monkeypatch.setattr(service_module, "MAX_EFFECTIVE", 0)
+        over = await client.patch(f"/api/bot-lists/{list_id}", json={"enabled": True})
+        assert (over.status_code, over.json()["detail"]) == (400, "over_limit")
+
+        # A refusal without a code keeps its sentence.
+        gone = await client.patch("/api/bot-lists/999", json={"enabled": True})
+        assert (gone.status_code, gone.json()["detail"]) == (404, "That bot list does not exist")
+
+
+@pytest.mark.asyncio
+async def test_taking_an_exception_away_past_the_cap_is_a_refusal_not_a_crash(
+    test_db, client, monkeypatch
+):
+    async with client:
+        created = (await client.post("/api/bot-lists", json={"name": "Mine"})).json()
+        list_id = created["created_id"]
+        for name in ("A", "B", "C"):
+            await client.post(f"/api/bot-lists/{list_id}/entries", json={"name": name})
+        await client.patch(f"/api/bot-lists/{list_id}", json={"enabled": True})
+        await client.put("/api/bot-lists/exceptions", json={"names": ["C"]})
+
+        monkeypatch.setattr(service_module, "MAX_EFFECTIVE", 2)
+        refused = await client.put("/api/bot-lists/exceptions", json={"names": []})
+        assert (refused.status_code, refused.json()["detail"]) == (400, "over_limit")
+        assert (await client.get("/api/bot-lists")).json()["exceptions"] == ["C"]
