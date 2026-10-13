@@ -56,6 +56,42 @@ detection or forwarding rule changes.
 ### API
 - `GET /api/filter-stats?start_ts&end_ts&channel&buckets&limit`.
 
+## Update 2026-10-14 (Filter library: Spam Guard profiles, feat/filter-profiles)
+
+Migration `_147` (`filter_profiles`, `filter_profile_in_use`). No new dependency.
+
+### Spam Guard
+- **Profiles.** The Settings tab of the Spam Guard page has a Profiles card.
+  A profile is a saved set of detection settings (sensitivity and every
+  changed setting) plus the mode. "Save current as profile" stores what is in
+  force now; Apply puts a profile's values in place by hand. Nothing switches
+  on its own.
+- **What a profile never holds:** the protected channels and their keys, the
+  three exception lists, the pause, and the evidence log settings. Applying a
+  profile leaves all of those as they are.
+- **You see what changes first.** Apply opens a list of every value that will
+  change, old and new. A profile that switches Monitor to Protect says so, and
+  the server refuses that switch without the confirmation.
+- **In use and modified.** The card shows which profile was applied last. When
+  the live settings differ from it (also after "Reset settings"), it says
+  "modified" and offers Save to profile and Revert.
+- **Share as a file.** Export downloads a profile as JSON
+  (`rtfm-ev-filter-profile` version 1, at most 256 KiB); Import file stores one
+  as an own copy and never applies it. A file with unknown fields, with
+  channels or keys, or with the evidence log settings is refused.
+- **Limits:** a name of at most 64 characters, 100 profiles.
+- This is the first part of the filter library. Forwarding rule sets, view
+  profiles, URL subscriptions and a catalogue are planned and not in this
+  change.
+
+### Internals
+- The check that refuses first-hop matching on an OpenHop node moved from the
+  settings route into `SpamGuardRuntime.refusal`, so the settings form and a
+  profile go through the same check.
+
+Not tested on air: the effect of a profile that switches to Protect on an
+armed host repeater or on an OpenHop node.
+
 ## Update 2026-10-14 (Fleet management, plan 31 Phases 1 to 5, feat/fleet-asset-register)
 
 Migrations `_143` to `_146`. No new dependency. Nothing here uses the radio. New environment variable `MESHCORE_FLEET_VAULT_ENABLED` (default off).

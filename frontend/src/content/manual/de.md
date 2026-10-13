@@ -328,6 +328,15 @@ Ein Repeater wird geteilt. Was deiner nicht weiterleitet, verschwindet für alle
 
 Im Chat blendet **Spam ausblenden** im Filtermenü markierte Nachrichten aus und hält sie aus Ungelesen-Zählern und Benachrichtigungen heraus. Eine Nachricht, die die Duplikatunterdrückung als Wiederholung erfasst hat, trägt die Markierung **Duplikat**. Das ist keine Spam-Markierung, sie wird also nicht ausgeblendet.
 
+**Profile.** Auf dem Reiter **Einstellungen** bewahrt **Profile** Sätze von Erkennungseinstellungen unter einem Namen auf, zusammen mit dem Modus. Nutze sie, wenn sich die Lage ändert: eines für eine Spamwelle, eines für eine Veranstaltung, eines für normale Tage.
+
+- **Aktuelle als Profil speichern** legt die Einstellungen ab, die jetzt gelten.
+- **Anwenden** zeigt zuerst jede Einstellung, die sich ändert, mit altem und neuem Wert. Ein Profil, das auf **Schützen** schaltet, sagt das und bittet um deine Bestätigung, denn ab dann leitet dein Repeater nicht mehr weiter, was Spam Guard blockiert.
+- **In Verwendung** nennt das Profil, das du zuletzt angewendet hast. Änderst du danach eine Einstellung, steht dort **geändert**, und du kannst **Im Profil speichern** oder **Zurücksetzen** wählen.
+- **Exportieren** lädt ein Profil als Datei herunter, die du weitergeben kannst. **Datei importieren** fügt ein Profil aus einer solchen Datei hinzu. Importieren wendet es nie an: Sieh dir zuerst an, was es ändert.
+
+Ein Profil enthält nie deine geschützten Kanäle, Kanalschlüssel, Ausnahmen, die Pause oder die Einstellungen des Beweisprotokolls, und Anwenden lässt sie unberührt. Nichts schaltet von selbst. Hat das Formular darunter ungespeicherte Änderungen, speichere oder verwirf sie zuerst.
+
 ### SNMP
 
 Alle Nodes, für die auf der Kontaktseite SNMP eingerichtet ist, in einer Tabelle. Jede Zeile zeigt Status, Name, Adresse, Zeitplan, die letzte erfolgreiche Abfrage und den letzten Fehler, dazu die wichtigsten Werte nebeneinander: Firmware-Version, Laufzeit, freier Heap, größter freier Block, verbundene MQTT-Slots, Tiefe der Paketwarteschlange, WLAN-RSSI, Grundrauschen, Empfangsfehler, letzter RSSI und letzter SNR. Ein Node, dessen letzte Abfrage fehlgeschlagen ist, ist rot mit **Fehlgeschlagen** markiert und steht oben; seine Werte sind dann die der letzten erfolgreichen Abfrage. Klicke auf eine Spaltenüberschrift, um zu sortieren.

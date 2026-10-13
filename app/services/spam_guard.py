@@ -45,7 +45,7 @@ from app.services.spam_backend_openhop import FAILURES_BAD, OpenHopBackend
 from app.spam.detector import DecideResult, Event, SpamDetector
 from app.spam.evidence import label_record, message_record
 from app.spam.rules import RuleSet, render
-from app.spam.settings import PRESETS, ProtectedChannel, SpamConfig, SpamTunables
+from app.spam.settings import PRESETS, ProtectedChannel, SpamConfig, SpamTunables, effective
 from app.websocket import broadcast_event
 
 logger = logging.getLogger(__name__)
@@ -59,6 +59,11 @@ RECENT_ACTIVITY = 100
 FRESH_FRAME_SECONDS = 3.0
 # Unimportant changes (duplicate-suppression blocks, counters) wait this long.
 LAZY_FLUSH_SECONDS = 300.0
+# Why a settings document cannot be saved for the connected radio: code and
+# sentence. The settings route answers the sentence, the filter library the code.
+REFUSALS = {
+    "openhop_starts_at": "OpenHop cannot match on the first hop; pick another repeater match mode",
+}
 
 
 @dataclass(frozen=True)
@@ -221,6 +226,12 @@ class SpamGuardRuntime:
         if self._backend is None or (snapshot.connected and snapshot.device_model):
             self._backend = "openhop" if snapshot.is_openhop else "host"
         return self._backend
+
+    def refusal(self, config: SpamConfig) -> str | None:
+        """The ``REFUSALS`` code when the connected radio cannot run these settings."""
+        if self.backend_name() == "openhop" and effective(config).hop_match_mode == "starts_at":
+            return "openhop_starts_at"
+        return None
 
     def openhop_rules(self, *, preview: bool = False) -> RuleSet:
         """The rule set for an OpenHop node, without private channels not agreed to."""

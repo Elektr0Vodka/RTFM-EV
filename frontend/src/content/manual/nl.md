@@ -328,6 +328,15 @@ Een repeater is gedeeld. Wat de jouwe niet doorstuurt verdwijnt voor iedereen er
 
 In de chat verbergt **Spam verbergen** in het filtermenu gemarkeerde berichten en houdt ze buiten ongelezen-tellers en meldingen. Een bericht dat de duplicaatonderdrukking als herhaling heeft gevangen krijgt de markering **Duplicaat**. Dat is geen spammarkering, dus het wordt niet verborgen.
 
+**Profielen.** Op het tabblad **Instellingen** bewaart **Profielen** sets detectie-instellingen onder een naam, samen met de modus. Gebruik ze als de situatie verandert: een voor een spamgolf, een voor een evenement, een voor gewone dagen.
+
+- **Huidige opslaan als profiel** bewaart de instellingen die nu gelden.
+- **Toepassen** laat eerst elke instelling zien die verandert, met de oude en de nieuwe waarde. Een profiel dat naar **Beschermen** schakelt zegt dat en vraagt om je bevestiging, want vanaf dan stuurt je repeater niet meer door wat Spam Guard blokkeert.
+- **In gebruik** noemt het profiel dat je het laatst hebt toegepast. Verander je daarna een instelling, dan staat er **gewijzigd** en kun je **Opslaan in profiel** of **Terugzetten** kiezen.
+- **Exporteren** downloadt een profiel als bestand dat je aan iemand anders kunt geven. **Bestand importeren** voegt een profiel uit zo'n bestand toe. Importeren past het nooit toe: bekijk eerst wat het verandert.
+
+Een profiel bevat nooit je beschermde kanalen, kanaalsleutels, uitzonderingen, de pauze of de instellingen van het bewijslog, en toepassen laat die ongemoeid. Niets schakelt vanzelf. Heeft het formulier eronder niet-opgeslagen wijzigingen, sla die dan eerst op of verwerp ze.
+
 ### SNMP
 
 Alle nodes waarvoor op de contactpagina SNMP is ingesteld, in één tabel. Elke rij toont de status, de naam, het adres, het schema, de laatste geslaagde uitlezing en de laatste fout, met de belangrijkste waarden naast elkaar: firmwareversie, uptime, vrije heap, grootste vrije blok, verbonden MQTT-slots, diepte van de pakketwachtrij, wifi-RSSI, ruisvloer, ontvangstfouten, laatste RSSI en laatste SNR. Een node waarvan de laatste uitlezing mislukte, is rood gemarkeerd met **Mislukt** en staat bovenaan; de waarden zijn dan die van de laatste geslaagde uitlezing. Klik op een kolomkop om te sorteren.

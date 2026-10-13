@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   spamGuardEvidenceUrl: vi.fn(),
   replaySpamGuard: vi.fn(),
   getOpenHopPolicy: vi.fn(),
+  getFilterProfiles: vi.fn(),
 }));
 
 vi.mock('../api', () => ({
@@ -319,6 +320,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.spamGuardAction.mockImplementation(async () => ({ result: {}, state: makeState() }));
   mocks.saveSpamGuardSettings.mockImplementation(async () => makeState({ version: 5 }));
+  mocks.getFilterProfiles.mockResolvedValue({
+    kind: 'spam_guard',
+    profiles: [],
+    in_use: null,
+    limits: { per_kind: 100 },
+  });
 });
 
 describe('SpamGuardView overview', () => {
