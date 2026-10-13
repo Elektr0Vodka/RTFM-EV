@@ -900,6 +900,13 @@ export function App() {
   const bulkAddChannelResultModalProps = {
     result: bulkAddResult,
   };
+  const handleOpenFleetAsset = (assetId: number) => {
+    handleSelectConversationWithTargetReset({
+      type: 'fleet',
+      id: String(assetId),
+      name: t('nav_fleet'),
+    });
+  };
   const conversationPaneProps = {
     activeConversation,
     onNavigateToMessage: handleNavigateToMessage,
@@ -1093,6 +1100,7 @@ export function App() {
           name: getContactDisplayName(target?.name ?? null, publicKey, target?.last_advert ?? null),
         });
       },
+      onOpenFleetAsset: handleOpenFleetAsset,
     },
   };
   const searchProps = {
@@ -1191,6 +1199,10 @@ export function App() {
       });
       handleCloseContactInfo();
     },
+    onOpenFleetAsset: (assetId: number) => {
+      handleOpenFleetAsset(assetId);
+      handleCloseContactInfo();
+    },
   };
   const channelInfoPaneProps = {
     channelKey: infoPaneChannelKey,
@@ -1286,7 +1298,8 @@ export function App() {
                 searchProps={searchProps}
                 newMessageModalProps={newMessageModalProps}
                 bulkAddChannelResultModalProps={bulkAddChannelResultModalProps}
-                contactInfoPaneProps={contactInfoPaneProps}
+                // The chat window has no Fleet page to open.
+                contactInfoPaneProps={{ ...contactInfoPaneProps, onOpenFleetAsset: undefined }}
                 channelInfoPaneProps={channelInfoPaneProps}
               />
             ) : (

@@ -383,6 +383,30 @@ This table is a representative subset, not the full route list (for example the 
 | GET | `/api/contacts/{public_key}/snmp/history` | Stored SNMP polls of the last `hours` (default 24), or from `start` to `end` (Unix seconds, `end` defaults to now), oldest first, thinned to 1500 rows |
 | POST | `/api/contacts/{public_key}/snmp/discover-address` | Ask the node for its WiFi IP with one CLI `get wifi.status` over RF; saves nothing |
 | GET | `/api/snmp/nodes` | Every contact with SNMP set up: name, type, address, schedule, last poll outcome and the newest stored poll (database only, no poll, no radio access; the community is never returned) |
+| GET | `/api/fleet/assets` | Fleet asset register: every asset with the contact of the same public key (name, type, last seen, position), or only the asset of `?public_key=` (database only, no radio access) |
+| POST | `/api/fleet/assets` | Add an asset; needs a public key, a label or an organisation serial; 409 when another asset has the public key |
+| POST | `/api/fleet/assets/from-contacts` | Add one `deployed` asset per given contact key that has none yet; changes no contact |
+| GET | `/api/fleet/assets/{id}` | One asset |
+| PATCH | `/api/fleet/assets/{id}` | Change the fields present in the body; null clears a field |
+| DELETE | `/api/fleet/assets/{id}` | Remove the asset and its log; the contact is not touched; 409 while the asset has secrets in the vault |
+| GET | `/api/fleet/assets/{id}/events` | The asset's log, newest first |
+| POST | `/api/fleet/assets/{id}/events` | Add a log entry (`placement`, `maintenance`, `failure`, `custody`, `firmware`, `note`); status and holder changes are logged by the server |
+| DELETE | `/api/fleet/assets/{id}/events/{event_id}` | Remove one log entry |
+| GET | `/api/fleet/settings` | Thresholds of the "needs attention" filter (`silent_hours`, `low_battery_volts`) |
+| PUT | `/api/fleet/settings` | Save the thresholds |
+| GET | `/api/fleet/vault` | Key vault state: `enabled` (needs `MESHCORE_FLEET_VAULT_ENABLED=true`), `initialised`, `unlocked` |
+| POST | `/api/fleet/vault/init` | Set the vault passphrase for the first time; answers a session token |
+| POST | `/api/fleet/vault/unlock` | Unlock with the passphrase; the token goes in `X-Fleet-Vault-Token` on every vault call |
+| POST | `/api/fleet/vault/lock` | End this session |
+| POST | `/api/fleet/vault/passphrase` | Change the passphrase; ends every session |
+| GET | `/api/fleet/vault/audit` | Vault audit log, newest first (never holds a value) |
+| POST | `/api/fleet/vault/export` | Every secret, encrypted under a passphrase given for this export |
+| POST | `/api/fleet/vault/import` | Store the secrets of an export file with the assets of the same public key or organisation serial |
+| GET | `/api/fleet/assets/{id}/secrets` | Kind, label and dates of an asset's secrets, never a value |
+| POST | `/api/fleet/assets/{id}/secrets` | Store an encrypted secret (private key, password, Wi-Fi, other) |
+| POST | `/api/fleet/secrets/{id}/reveal` | Return one secret's value; every call is audited |
+| DELETE | `/api/fleet/secrets/{id}` | Delete one secret |
+| POST | `/api/fleet/assets/{id}/generate-key` | New keypair for an asset without a public key: private key into the vault, public key onto the asset; nothing is sent to a radio |
 | GET | `/api/contacts/{public_key}/repeater/telemetry-history` | Stored telemetry history for a repeater (read-only, no radio access) |
 | POST | `/api/contacts/{public_key}/telemetry` | Fetch CayenneLPP telemetry from any contact (single attempt, 10s timeout) |
 | GET | `/api/contacts/{public_key}/telemetry-history` | Stored LPP telemetry history for a contact (read-only, no radio access) |
@@ -557,6 +581,7 @@ mc.subscribe(EventType.ACK, handler)
 | `MESHCORE_LOAD_WITH_AUTOEVICT` | `false` | Enable autoevict contact loading: sets `AUTO_ADD_OVERWRITE_OLDEST` on the radio so adds never fail with TABLE_FULL, skips the removal phase during reconcile, and allows blind loading when `get_contacts` fails. Loaded contacts are not radio-favorited and may be evicted by new adverts when the table is full. |
 | `MESHCORE_SKIP_POST_CONNECT_SYNC` | `false` | Debug/diagnostic escape hatch: skip the contact/channel sync-and-offload, startup advertisement, and pending-message drain during post-connect setup, and do not start the periodic sync/advert/message-poll/telemetry background loops. Handler registration, key export, time sync, flood-scope apply, and auto message fetching still run. Useful when the radio's contact/channel state must be left untouched; not for normal operation. |
 | `MESHCORE_ENABLE_LOCAL_PRIVATE_KEY_EXPORT` | `false` | Enable `GET /api/radio/private-key` to return the in-memory private key as hex. Disabled by default; only enable on a trusted network where you need to retrieve the key (e.g. for backup or migration). |
+| `MESHCORE_FLEET_VAULT_ENABLED` | `false` | Switch on the fleet key vault (Tools > Fleet): private keys and passwords of fleet assets, stored encrypted under a passphrase. Off by default; use it only over HTTPS on a trusted network. A forgotten passphrase cannot be recovered |
 | `MESHCORE_UPDATE_CHECK_ENABLED` | `true` | Check GitHub for a newer fork build and show the in-app update indicator (Settings > About also has a manual re-check). Set `false` to disable the outbound request. |
 | `MESHCORE_MULTI_RADIO` | `false` | Run one worker process per radio behind a gateway (experimental); start `app.asgi:app`. See README_ADVANCED.md, Multiple Radios |
 | `MESHCORE_VAPID_SUBJECT` | `mailto:noreply@meshcore.local` | Subject (`sub`) claim for Web Push VAPID tokens; must be a `mailto:` or `https:` contact. Apple's push service (APNs) rejects the default `.local` domain with `403 BadJwtToken`, so iOS/Safari operators must set this to a real address. Google FCM (Chrome/Android) accepts the default. |

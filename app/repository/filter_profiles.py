@@ -1,4 +1,4 @@
-"""Storage for filter profiles and the profile in use per kind (migration _143)."""
+"""Storage for filter profiles and the profile in use per kind (migration _147)."""
 
 import json
 import time

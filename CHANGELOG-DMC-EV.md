@@ -13,7 +13,7 @@ the change. Upstream development is on hold; the fork is the active repository.
 
 ## Update 2026-10-14 (Filter library: Spam Guard profiles, feat/filter-profiles)
 
-Migration `_143` (`filter_profiles`, `filter_profile_in_use`). No new dependency.
+Migration `_147` (`filter_profiles`, `filter_profile_in_use`). No new dependency.
 
 ### Spam Guard
 - **Profiles.** The Settings tab of the Spam Guard page has a Profiles card.
@@ -46,6 +46,109 @@ Migration `_143` (`filter_profiles`, `filter_profile_in_use`). No new dependency
 
 Not tested on air: the effect of a profile that switches to Protect on an
 armed host repeater or on an OpenHop node.
+
+## Update 2026-10-14 (Fleet management, plan 31 Phases 1 to 5, feat/fleet-asset-register)
+
+Migrations `_143` to `_146`. No new dependency. Nothing here uses the radio. New environment variable `MESHCORE_FLEET_VAULT_ENABLED` (default off).
+
+### Fleet (new Tools page)
+- **An asset register.** Tools > Fleet lists the devices you keep track of,
+  one row each, with what only you know about a device: your own label, the
+  organisation serial, the hardware serial, model, role, Wi-Fi and Bluetooth
+  MAC address, who it is assigned to, the site, a status and notes. The status
+  is in stock, deployed, maintenance, lost, stolen or retired.
+- **Linked to the node by its public key.** An asset can carry a node's public
+  key. When a contact has that key, the list shows the node's name and last
+  seen time, and the asset's page shows its type and position. These come from
+  the contact at the moment you look and are not copied into the asset. The
+  key is optional, so a device that is still in a box can be registered, and
+  the key of a node that was never heard is accepted.
+- **Adding.** "Add asset" opens an empty form. "Add my owned nodes" adds every
+  node whose owner is this radio and that is not registered yet, as deployed.
+  A contact page has a Fleet section with "Add to fleet" and "Open fleet
+  record".
+- **Finding and exporting.** Search looks through every field, a status list
+  narrows the table and the column headings sort it. Export CSV and Export
+  JSON save the rows that are shown. A CSV cell that starts like a formula
+  gets a leading apostrophe so a spreadsheet does not run it.
+- **An asset and its contact are separate records.** Deleting an asset leaves
+  the contact alone, and deleting a contact leaves the asset. With more than
+  one radio, each radio has its own register, like its contacts.
+- **No secrets in the register.** The register itself stores no private key
+  and no password. Those go into the key vault below, which is off by default.
+
+### Fleet log (plan 31 Phase 2, migration `_144`)
+- **A log per asset.** Add entries for maintenance, failures, placement, a
+  change of holder, firmware and notes, each with a time, what happened and
+  optionally who did it and details. The list shows the date of the last
+  maintenance.
+- **Status and holder changes log themselves.** Saving a new status or a new
+  "Assigned to" writes a log entry with the old and the new value, together
+  with the change.
+
+### Fleet health and "needs attention" (plan 31 Phase 3a, migration `_145`)
+- **What the node last reported.** An asset with a public key shows the
+  battery voltage and temperature of the newest stored telemetry and the
+  firmware version the node last reported (from the repeater's owner pane, an
+  SNMP poll, or the connected radio for itself). This is stored data only:
+  the page never asks a node anything and adds no RF traffic.
+- **Target firmware.** A new field per asset; the list marks a node that
+  reports something else.
+- **Needs attention.** A warning sign marks lost and stolen assets, and
+  deployed ones that were not seen for longer than a limit, have a battery
+  reading under a limit, or report a firmware other than the target. One tick
+  shows only those. The limits (48 hours and 3.5 volts to start with) are set
+  on the Fleet page.
+- **Lost or stolen.** The asset page lists the last known positions of the
+  node.
+- Alerts through integrations (plan 31 Phase 3b) are not part of this change.
+
+### Fleet key vault (plan 31 Phase 4, migration `_146`)
+- **Off by default.** Only exists when the server runs with
+  `MESHCORE_FLEET_VAULT_ENABLED=true`. Without it the section is hidden and
+  the API answers 403.
+- **Encrypted secrets per asset.** Private keys, admin and guest passwords,
+  Wi-Fi credentials and other secrets, encrypted with a key that is itself
+  wrapped under a passphrase you set (XChaCha20-Poly1305 and Argon2id, both
+  from PyNaCl, which was already a dependency). The passphrase is never
+  stored and cannot be recovered.
+- **Unlock sessions.** Unlocking gives the browser tab a session kept in
+  memory only. It ends after 15 minutes without use, on Lock, and when the
+  server restarts.
+- **Values only on request.** Lists show kind, label and date. Reveal returns
+  one value and is written to the audit log, as are failed unlocks, exports,
+  imports and key generation, each with the address it came from.
+- **Safeguards.** A private key must fit the public key of its asset. An
+  asset that still has secrets cannot be deleted. A ciphertext copied to
+  another asset does not open.
+- **Export and import.** An export file holds every secret, encrypted under a
+  passphrase chosen for that file. Import stores them with the assets of the
+  same public key or organisation serial.
+- **Limits you should know.** There are no user accounts behind the vault, it
+  needs HTTPS (the page warns, it does not refuse), and while unlocked the key
+  is in the server's memory. See README_ADVANCED.md, "Fleet key vault".
+
+### Key generation (plan 31 Phase 5)
+- **A new keypair for an asset without a public key.** You can give up to
+  four hex characters the public key must start with, and ask that its first
+  one or two bytes are not used by any contact or asset, which avoids
+  path-hash collisions. The private key goes into the vault, the public key
+  onto the asset.
+- **Nothing is sent to a radio.** Putting the key on a device is done by hand.
+  A "write to the connected radio" button from the plan was left out on
+  purpose.
+
+### API
+- `GET/POST /api/fleet/assets`, `GET/PATCH/DELETE /api/fleet/assets/{id}`,
+  `POST /api/fleet/assets/from-contacts`.
+- `GET/POST /api/fleet/assets/{id}/events`,
+  `DELETE /api/fleet/assets/{id}/events/{event_id}`,
+  `GET/PUT /api/fleet/settings`.
+- `GET /api/fleet/vault`, `POST /api/fleet/vault/init|unlock|lock|passphrase`,
+  `GET /api/fleet/vault/audit`, `POST /api/fleet/vault/export|import`,
+  `GET/POST /api/fleet/assets/{id}/secrets`,
+  `POST /api/fleet/secrets/{id}/reveal`, `DELETE /api/fleet/secrets/{id}`,
+  `POST /api/fleet/assets/{id}/generate-key`.
 
 ## Update 2026-10-13 (Open items from the bot list reviews, fix/bot-list-open-items)
 

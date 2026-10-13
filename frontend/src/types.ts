@@ -929,6 +929,7 @@ type ConversationType =
   | 'mesh-trends'
   | 'mesh-discovery'
   | 'snmp'
+  | 'fleet'
   | 'spam-guard'
   | 'analyze'
   | 'packet-history'
@@ -1902,6 +1903,144 @@ export interface SnmpDiscoverAddressResponse {
   status: 'ok' | 'no_address' | 'unsupported' | 'no_reply';
   ip: string | null;
   reply: string | null;
+}
+
+export type FleetAssetStatus =
+  'in_stock' | 'deployed' | 'maintenance' | 'lost' | 'stolen' | 'retired';
+
+/** What the operator fills in for a fleet asset (Tools > Fleet). */
+export interface FleetAssetFields {
+  /** 64 hex of the node, when it has one yet. */
+  public_key: string | null;
+  label: string | null;
+  /** The organisation's own serial. */
+  org_serial: string | null;
+  /** The manufacturer's serial. */
+  hw_serial: string | null;
+  model: string | null;
+  role: string | null;
+  wifi_mac: string | null;
+  ble_mac: string | null;
+  assigned_to: string | null;
+  site_name: string | null;
+  status: FleetAssetStatus;
+  /** The firmware version this device is meant to run. */
+  target_firmware: string | null;
+  notes: string | null;
+}
+
+/** What the node last reported, from stored data only. */
+export interface FleetAssetHealth {
+  battery_volts: number | null;
+  temperature: number | null;
+  telemetry_at: number | null;
+  firmware_version: string | null;
+  firmware_at: number | null;
+  firmware_source: 'radio' | 'owner_info' | 'snmp' | null;
+}
+
+export type FleetEventManualKind =
+  'placement' | 'maintenance' | 'failure' | 'custody' | 'firmware' | 'note';
+export type FleetEventKind = FleetEventManualKind | 'status';
+
+/** One row of an asset's log. `status` rows are written by the app. */
+export interface FleetAssetEvent {
+  id: number;
+  asset_id: number;
+  kind: FleetEventKind;
+  occurred_at: number;
+  summary: string | null;
+  detail: string | null;
+  /** Free text: who did it. */
+  actor: string | null;
+  /** Old and new value of a change the app logged (status, holder). */
+  from_value: string | null;
+  to_value: string | null;
+  created_at: number;
+}
+
+export interface FleetAssetEventInput {
+  kind: FleetEventManualKind;
+  occurred_at?: number;
+  summary: string;
+  detail?: string | null;
+  actor?: string | null;
+}
+
+/** Thresholds of the "needs attention" filter. */
+export interface FleetSettings {
+  silent_hours: number;
+  low_battery_volts: number;
+}
+
+export interface FleetVaultStatus {
+  /** The server runs with MESHCORE_FLEET_VAULT_ENABLED. */
+  enabled: boolean;
+  initialised: boolean;
+  unlocked: boolean;
+  idle_seconds: number;
+}
+
+export interface FleetVaultSession {
+  token: string;
+  idle_seconds: number;
+}
+
+export type FleetSecretKind =
+  'private_key' | 'admin_password' | 'guest_password' | 'wifi' | 'other';
+
+/** A stored secret without its value. */
+export interface FleetSecret {
+  id: number;
+  asset_id: number;
+  kind: FleetSecretKind;
+  label: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface FleetAuditEntry {
+  id: number;
+  ts: number;
+  action: string;
+  asset_id: number | null;
+  secret_id: number | null;
+  detail: string | null;
+  remote_addr: string | null;
+  auth_user: string | null;
+}
+
+export interface FleetGenerateKeyResult {
+  asset: FleetAsset;
+  attempts: number;
+}
+
+/** The contact with the asset's public key, as stored right now. */
+export interface FleetAssetContact {
+  name: string | null;
+  type: number | null;
+  last_seen: number | null;
+  /** Manual position when set, else the advertised one. */
+  lat: number | null;
+  lon: number | null;
+}
+
+export interface FleetAsset extends FleetAssetFields {
+  id: number;
+  created_at: number;
+  updated_at: number;
+  /** Newest maintenance and failure entry of the asset's log. */
+  last_maintenance: number | null;
+  last_failure: number | null;
+  contact: FleetAssetContact | null;
+  /** Null for an asset without a public key. */
+  health: FleetAssetHealth | null;
+}
+
+export interface FleetAssetsFromContactsResponse {
+  created: FleetAsset[];
+  /** Keys that already had an asset, are no contact, or repeat. */
+  skipped: number;
 }
 
 export interface RepeaterAdvertIntervalsResponse {
