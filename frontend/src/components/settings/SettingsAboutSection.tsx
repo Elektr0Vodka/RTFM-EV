@@ -6,6 +6,7 @@ import { Separator } from '../ui/separator';
 import { toast } from '../ui/sonner';
 import { useT } from '../../i18n';
 import { useUpdateStatus } from '../../hooks/useUpdateStatus';
+import { appReload } from '../../utils/appReload';
 
 const GITHUB_URL = 'https://github.com/Elektr0Vodka/RTFM-EV';
 
@@ -69,6 +70,16 @@ export function SettingsAboutSection({
               <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
             </Button>
           </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={() => appReload.now()}
+            title={t('settings_about_reload_app_hint')}
+          >
+            {t('settings_about_reload_app')}
+          </Button>
         </div>
 
         {showUpdate ? (

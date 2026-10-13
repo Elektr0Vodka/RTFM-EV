@@ -274,6 +274,36 @@ def test_radios_page_serves_the_frontend_build(gateway):
     assert client.get("/gateway/%2e%2e/secret.txt").status_code == 404
 
 
+def test_radios_page_has_a_manifest_that_covers_every_radio(gateway):
+    client, _, _ = gateway
+    response = client.get("/gateway/site.webmanifest")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/manifest+json")
+    assert response.headers["cache-control"] == "no-store"
+    manifest = response.json()
+    # Opens on the radios page; the scope is the gateway root, so going to a
+    # radio under /r/<key>/ stays inside the installed app.
+    assert manifest["start_url"] == "http://testserver/gateway/"
+    assert manifest["id"] == "http://testserver/gateway/"
+    assert manifest["scope"] == "http://testserver/"
+    # The radios page serves the build's files under /gateway/.
+    assert all(icon["src"].startswith("http://testserver/gateway/") for icon in manifest["icons"])
+
+
+def test_radios_page_manifest_follows_an_outer_proxy(gateway):
+    client, _, _ = gateway
+    manifest = client.get(
+        "/gateway/site.webmanifest",
+        headers={
+            "X-Forwarded-Proto": "https",
+            "X-Forwarded-Host": "mesh.example",
+            "X-Forwarded-Prefix": "/radio",
+        },
+    ).json()
+    assert manifest["start_url"] == "https://mesh.example/radio/gateway/"
+    assert manifest["scope"] == "https://mesh.example/radio/"
+
+
 def test_radios_page_without_a_frontend_build_is_503(tmp_path, monkeypatch):
     monkeypatch.setenv("MESHCORE_WORKER_TOKEN", TOKEN)
     settings = Settings(

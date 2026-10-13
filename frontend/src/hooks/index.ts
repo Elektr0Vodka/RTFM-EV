@@ -12,6 +12,7 @@ export { useConversationNavigation } from './useConversationNavigation';
 export { useBrowserNotifications } from './useBrowserNotifications';
 export { useNewNodeNotifications } from './useNewNodeNotifications';
 export { useMentionSound } from './useMentionSound';
-export { useFaviconBadge, useUnreadTitle } from './useFaviconBadge';
+export { useAppBadge, useFaviconBadge, useUnreadTitle } from './useFaviconBadge';
+export { useReloadAfterUpdate } from './useReloadAfterUpdate';
 export { useMeshcomodConfig, MESHCOMOD_CONFIG_CHANGE_EVENT } from './useMeshcomodConfig';
 export { useIsDarkTheme } from './useIsDarkTheme';
