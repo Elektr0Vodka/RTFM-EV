@@ -65,6 +65,36 @@ class BotListRepository:
         return None if row is None else _list_row(row)
 
     @staticmethod
+    async def find_by_url(url: str) -> dict[str, Any] | None:
+        async with db.readonly() as conn:
+            async with conn.execute(
+                _SELECT_LISTS + " WHERE source = 'url' AND url = ? ORDER BY id LIMIT 1", (url,)
+            ) as cursor:
+                row = await cursor.fetchone()
+        return None if row is None else _list_row(row)
+
+    @staticmethod
+    async def count_by_source(source: str) -> int:
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT COUNT(*) AS n FROM bot_lists WHERE source = ?", (source,)
+            ) as cursor:
+                row = await cursor.fetchone()
+        return int(row["n"]) if row is not None else 0
+
+    @staticmethod
+    async def due_url_lists(fetched_before: int) -> list[dict[str, Any]]:
+        """Subscriptions never fetched, or last fetched at or before ``fetched_before``."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                _SELECT_LISTS + " WHERE source = 'url' AND (fetched_at IS NULL OR fetched_at <= ?)"
+                " ORDER BY fetched_at IS NOT NULL, fetched_at, id",
+                (fetched_before,),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [_list_row(row) for row in rows]
+
+    @staticmethod
     async def create(name: str, description: str, source: str, url: str | None = None) -> int:
         async with db.tx() as conn:
             async with conn.execute(
@@ -125,6 +155,45 @@ class BotListRepository:
                 "VALUES (?, ?, ?, ?)",
                 [(list_id, e["name"], e.get("public_key"), e.get("note")) for e in entries],
             )
+
+    @staticmethod
+    async def apply_refresh(list_id: int, entries: list[dict[str, Any]]) -> tuple[int, int]:
+        """Make the stored entries those of a fetched file, by name.
+
+        A name already stored keeps its ``forward_reviewed`` and takes key and
+        note from the file. A name that is new gets ``forward_reviewed = 0``. A
+        name no longer in the file is removed. Returns ``(added, removed)``.
+        """
+        async with db.tx() as conn:
+            async with conn.execute(
+                "SELECT name FROM bot_list_entries WHERE list_id = ?", (list_id,)
+            ) as cursor:
+                stored = {row["name"] for row in await cursor.fetchall()}
+            wanted = {entry["name"] for entry in entries}
+            gone = stored - wanted
+            await conn.executemany(
+                "DELETE FROM bot_list_entries WHERE list_id = ? AND name = ?",
+                [(list_id, name) for name in gone],
+            )
+            await conn.executemany(
+                "UPDATE bot_list_entries SET public_key = ?, note = ? "
+                "WHERE list_id = ? AND name = ?",
+                [
+                    (e.get("public_key"), e.get("note"), list_id, e["name"])
+                    for e in entries
+                    if e["name"] in stored
+                ],
+            )
+            await conn.executemany(
+                "INSERT INTO bot_list_entries (list_id, name, public_key, note, forward_reviewed) "
+                "VALUES (?, ?, ?, ?, 0)",
+                [
+                    (list_id, e["name"], e.get("public_key"), e.get("note"))
+                    for e in entries
+                    if e["name"] not in stored
+                ],
+            )
+        return len(wanted - stored), len(gone)
 
     @staticmethod
     async def add_entry(list_id: int, name: str, public_key: str | None, note: str | None) -> None:

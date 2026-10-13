@@ -3115,3 +3115,13 @@ export interface BotListsState {
   effective: { names: string[]; keys: string[] };
   limits: { entries_per_list: number; effective: number };
 }
+
+/** `POST /api/bot-lists/preview-url`: a fetched list, not stored yet. */
+export interface BotListPreview {
+  /** The address as it will be stored (no fragment). */
+  url: string;
+  name: string;
+  description: string;
+  updated: string | null;
+  entries: BotListEntry[];
+}

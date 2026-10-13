@@ -363,6 +363,7 @@ A bot list names known bots: an exact sender name, with an optional public key a
 - **Enable a list** and its senders get a Bot marker in chat. Names are matched exactly and case-sensitively, so a person who uses the same name is marked too. "Never a bot" excepts a name on every list.
 - **Hide bots** (chat filter menu or Settings) hides listed senders in chat and keeps them out of unread counts, mentions and notifications. Search still shows them.
 - **Share a list** with Export, which writes a JSON file. Import file stores such a file as a new list of your own, switched off, so you can read it before you enable it.
+- **Subscribe to a list** by its https address. RTFM-EV shows the list before storing it, keeps it read-only and switched off until you enable it, and refreshes it once a day. The host of the list sees your internet address on each refresh.
 - **One list ships with RTFM-EV.** It is read-only and off until you enable it.
 - **From chat**, a message's actions offer "Add to bot list" and, for a listed name, "Not a bot".
 

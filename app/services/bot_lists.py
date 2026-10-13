@@ -25,6 +25,7 @@ from app.bot_lists.format import (
 )
 from app.models import AppSettings
 from app.repository.bot_lists import BotListRepository
+from app.services.bot_list_fetch import BotListFetchError, check_subscription_url, fetch_bot_list
 from app.websocket import broadcast_event
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,9 @@ logger = logging.getLogger(__name__)
 # Names in all enabled lists together. Keeps the SQL filters that receive the
 # set well under SQLite's variable limit.
 MAX_EFFECTIVE = 5000
+# Subscriptions: each one is an outbound request per day to a host the user chose.
+MAX_SUBSCRIPTIONS = 20
+REFRESH_SECONDS = 24 * 3600
 SHIPPED_PATH = Path(__file__).resolve().parent.parent / "data" / "bot_list.json"
 _SHIPPED_FALLBACK_NAME = "RTFM-EV bot list"
 
@@ -202,6 +206,77 @@ class BotListService:
         await BotListRepository.replace_entries(list_id, [e.model_dump() for e in parsed.entries])
         await BotListRepository.update(list_id, {"file_updated": parsed.updated})
         return await self._changed()
+
+    async def preview_url(self, url: str) -> dict[str, Any]:
+        """Fetch and validate a list without storing it, for the subscribe dialog."""
+        cleaned = check_subscription_url(url)
+        parsed = await fetch_bot_list(cleaned)
+        return {
+            "url": cleaned,
+            "name": parsed.name,
+            "description": parsed.description,
+            "updated": parsed.updated,
+            "entries": [entry.model_dump() for entry in parsed.entries],
+        }
+
+    async def subscribe(self, url: str) -> dict[str, Any]:
+        """Store the list at ``url`` as a read-only subscription, switched off."""
+        cleaned = check_subscription_url(url)
+        if await BotListRepository.find_by_url(cleaned) is not None:
+            raise BotListError("That URL is already subscribed")
+        if await BotListRepository.count_by_source("url") >= MAX_SUBSCRIPTIONS:
+            raise BotListLimit(f"At most {MAX_SUBSCRIPTIONS} subscriptions")
+        parsed = await fetch_bot_list(cleaned)
+        list_id = await BotListRepository.create(parsed.name, parsed.description, "url", cleaned)
+        await BotListRepository.replace_entries(list_id, [e.model_dump() for e in parsed.entries])
+        await BotListRepository.update(
+            list_id, {"file_updated": parsed.updated, "fetched_at": int(time.time())}
+        )
+        state = await self._changed()
+        return {**state, "created_id": list_id}
+
+    async def _refresh_row(self, row: dict[str, Any]) -> None:
+        """Fetch one subscription and apply it; a failure only sets ``last_error``."""
+        try:
+            parsed = await fetch_bot_list(row["url"])
+            if row["enabled"]:
+                await self._check_cap(entry.name for entry in parsed.entries)
+        except BotListFetchError as exc:
+            logger.warning("Bot list %s refresh failed (%s): %s", row["id"], exc.code, exc.detail)
+            await BotListRepository.update(row["id"], {"last_error": exc.public_text()})
+            return
+        except BotListLimit:
+            await BotListRepository.update(row["id"], {"last_error": "over_limit"})
+            return
+        await BotListRepository.apply_refresh(row["id"], [e.model_dump() for e in parsed.entries])
+        await BotListRepository.update(
+            row["id"],
+            {
+                "name": parsed.name,
+                "description": parsed.description,
+                "file_updated": parsed.updated,
+                "fetched_at": int(time.time()),
+                "last_error": None,
+            },
+        )
+
+    async def refresh_list(self, list_id: int) -> dict[str, Any]:
+        """Refresh one subscription now. The outcome shows on the list itself."""
+        row = await self._require(list_id)
+        if row["source"] != "url":
+            raise BotListReadOnly("Only a subscribed list can be refreshed")
+        await self._refresh_row(row)
+        return await self._changed()
+
+    async def refresh_due(self, now: int | None = None) -> int:
+        """Refresh every subscription whose last good fetch is a day old or older."""
+        moment = int(time.time()) if now is None else now
+        due = await BotListRepository.due_url_lists(moment - REFRESH_SECONDS)
+        for row in due:
+            await self._refresh_row(row)
+        if due:
+            await self._changed()
+        return len(due)
 
     async def export(self, list_id: int) -> dict[str, Any]:
         row = await self._require(list_id)

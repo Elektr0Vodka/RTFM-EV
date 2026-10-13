@@ -102,6 +102,7 @@ from app.security import (
     add_optional_worker_token_middleware,
 )
 from app.services.backup_scheduler import start_backup_schedule, stop_backup_schedule
+from app.services.bot_list_refresh import start_bot_list_refresh, stop_bot_list_refresh
 from app.services.db_restore import apply_pending_restore
 from app.services.external_map import start_external_map_sync, stop_external_map_sync
 from app.services.link_edge_backfill import start_link_edge_backfill, stop_link_edge_backfill
@@ -207,6 +208,7 @@ async def lifespan(app: FastAPI):
 
     # Scheduled snapshots into the server-side backup directory (off by default).
     start_backup_schedule()
+    start_bot_list_refresh()
 
     # Scheduled SNMP polls of contacts that have it turned on (LAN only, no radio).
     start_snmp_poll_schedule()
@@ -244,6 +246,7 @@ async def lifespan(app: FastAPI):
     await stop_radio_stats_sampling()
     await stop_external_map_sync()
     await stop_backup_schedule()
+    await stop_bot_list_refresh()
     await stop_snmp_poll_schedule()
     await stop_snmp_agent()
     await stop_retention_prune()

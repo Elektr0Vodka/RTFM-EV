@@ -3,13 +3,24 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../../api';
 import { useT } from '../../i18n';
 import type { AppSettings, AppSettingsUpdate, BotList, BotListsState } from '../../types';
+import { botListErrorText } from '../../utils/botListErrors';
 import { loadBotLists, setBotListsState, useBotLists } from '../../utils/botLists';
+import { formatDateTime } from '../../utils/dateTimeFormat';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { toast } from '../ui/sonner';
 import { BotListDialog } from './BotListDialog';
+import { SubscribeBotListDialog } from './SubscribeBotListDialog';
+
+function hostOf(url: string | null): string {
+  try {
+    return new URL(url ?? '').host;
+  } catch {
+    return '';
+  }
+}
 
 function readText(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -37,6 +48,7 @@ export function SettingsBotListsSection({
   const [newName, setNewName] = useState('');
   const [newException, setNewException] = useState('');
   const [openList, setOpenList] = useState<BotList | null>(null);
+  const [subscribeOpen, setSubscribeOpen] = useState(false);
 
   useEffect(() => {
     void loadBotLists().catch((err) =>
@@ -49,7 +61,7 @@ export function SettingsBotListsSection({
       setBotListsState(await call());
       return true;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toast.error(botListErrorText(t, err instanceof Error ? err.message : String(err)));
       return false;
     }
   };
@@ -62,6 +74,23 @@ export function SettingsBotListsSection({
       : list.source === 'url'
         ? t('settings_bot_lists_source_url')
         : t('settings_bot_lists_source_local');
+
+  // Host only: the full address can carry a token in its query.
+  const subscriptionLine = (list: BotList) => {
+    const host = hostOf(list.url);
+    return list.fetched_at
+      ? t('settings_bot_lists_last_refresh', {
+          host,
+          date: formatDateTime(new Date(list.fetched_at * 1000), {
+            year: 'numeric',
+            month: 'numeric',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: 'numeric',
+          }),
+        })
+      : t('settings_bot_lists_never_refreshed', { host });
+  };
 
   const createList = async () => {
     const name = newName.trim();
@@ -125,9 +154,16 @@ export function SettingsBotListsSection({
                   {' · '}
                   <span>{t('settings_bot_lists_entry_count', { count: list.entry_count })}</span>
                 </div>
+                {list.source === 'url' && (
+                  <div className="truncate text-xs text-muted-foreground">
+                    {subscriptionLine(list)}
+                  </div>
+                )}
                 {list.last_error && (
                   <div className="text-xs text-destructive">
-                    {t('settings_bot_lists_error', { error: list.last_error })}
+                    {t('settings_bot_lists_error', {
+                      error: botListErrorText(t, list.last_error),
+                    })}
                   </div>
                 )}
               </div>
@@ -140,6 +176,17 @@ export function SettingsBotListsSection({
               >
                 {t('settings_bot_lists_entries_button')}
               </Button>
+              {list.source === 'url' && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => void run(() => api.refreshBotList(list.id))}
+                >
+                  {t('settings_bot_lists_refresh_button')}
+                </Button>
+              )}
               <Button asChild variant="ghost" size="sm" className="h-7 text-xs">
                 <a href={api.botListExportUrl(list.id)} download>
                   {t('settings_bot_lists_export_button')}
@@ -177,6 +224,9 @@ export function SettingsBotListsSection({
         </Button>
         <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
           {t('settings_bot_lists_import_button')}
+        </Button>
+        <Button type="button" variant="outline" size="sm" onClick={() => setSubscribeOpen(true)}>
+          {t('settings_bot_lists_subscribe_button')}
         </Button>
         <input
           ref={fileRef}
@@ -226,6 +276,7 @@ export function SettingsBotListsSection({
       </div>
 
       <BotListDialog list={openList} onClose={() => setOpenList(null)} />
+      <SubscribeBotListDialog open={subscribeOpen} onClose={() => setSubscribeOpen(false)} />
     </div>
   );
 }
