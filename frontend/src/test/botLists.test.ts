@@ -23,6 +23,7 @@ function state(names: string[], keys: string[] = []): BotListsState {
     exceptions: [],
     effective: { names, keys },
     limits: { entries_per_list: 1000, effective: 5000 },
+    forward: { state: 'off', channels: 0, names: 0 },
   };
 }
 

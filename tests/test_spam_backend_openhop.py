@@ -687,3 +687,60 @@ class TestWhichBackend:
         await guard.written(2)
         assert guard.node.engine["rules"] == [USER_A]
         assert guard.runtime.host.status()["rules_present"] == 1
+
+
+BOT_REF = "@rtfmspam.bot_senders"
+BOT_RULE = {
+    "id": 700000010,
+    "name": f"rtfm-spam:bots:{PUBLIC} (bot list)",
+    "enabled": True,
+    "if": {"all": [{"field": "channel_sender", "op": "in", "value": BOT_REF}]},
+    "then": {"action": "drop"},
+}
+
+
+class TestBotSenders:
+    async def test_bot_names_are_written_next_to_the_known_names(self):
+        node = FakeNode([USER_A])
+        rules = RuleSet(
+            before=[BOT_RULE, *BEFORE],
+            after=list(AFTER),
+            known_senders=["Dave"],
+            bot_senders=["[NU]", "PingBot"],
+        )
+        await synced(node, rules)
+        assert node.engine["rules"] == [BOT_RULE, *BEFORE, USER_A, *AFTER]
+        assert node.engine["objects"]["rtfmspam"] == {
+            "known_senders": ["Dave"],
+            "bot_senders": ["[NU]", "PingBot"],
+        }
+
+    async def test_only_the_object_a_rule_refers_to_is_written(self):
+        node = FakeNode([USER_A])
+        await synced(node, RuleSet(before=[BOT_RULE], bot_senders=["[NU]"]))
+        assert node.engine["objects"]["rtfmspam"] == {"bot_senders": ["[NU]"]}
+
+    async def test_a_changed_name_list_is_a_new_write(self):
+        node = FakeNode([USER_A])
+        backend = await synced(node, RuleSet(before=[BOT_RULE], bot_senders=["[NU]"]))
+        backend.want(RuleSet(before=[BOT_RULE], bot_senders=["[NU]", "[NOS]"]))
+        assert backend.status()["state"] == "pending"
+        assert await backend.sync_once() == "written"
+        assert node.engine["objects"]["rtfmspam"] == {"bot_senders": ["[NU]", "[NOS]"]}
+        assert backend.status()["repairs"] == 0
+
+    async def test_a_removed_object_is_put_back(self):
+        node = FakeNode([USER_A])
+        backend = await synced(node, RuleSet(before=[BOT_RULE], bot_senders=["[NU]"]))
+        del node.engine["objects"]["rtfmspam"]
+        assert await backend.sync_once() == "written"
+        assert node.engine["objects"]["rtfmspam"] == {"bot_senders": ["[NU]"]}
+        assert backend.status()["repairs"] == 1
+
+    async def test_the_object_goes_with_the_last_bot_rule(self):
+        node = FakeNode([USER_A])
+        backend = await synced(node, RuleSet(before=[BOT_RULE], bot_senders=["[NU]"]))
+        backend.want(RuleSet())
+        assert await backend.sync_once() == "written"
+        assert "rtfmspam" not in node.engine["objects"]
+        assert node.names() == [USER_A["name"]]

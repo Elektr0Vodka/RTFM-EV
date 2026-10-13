@@ -1,7 +1,8 @@
 """Bot lists: lists of known bots that users keep, share as files and enable.
 
 An enabled list marks its senders in chat; Hide bots (an app setting) hides
-them. Nothing here transmits.
+them; Block forwards asks Spam Guard to keep them off the air. Nothing here
+transmits.
 """
 
 import logging
@@ -42,6 +43,16 @@ class BotListUpdateRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=MAX_NAME_LENGTH)
     description: str | None = Field(default=None, max_length=MAX_DESCRIPTION_LENGTH)
     enabled: bool | None = Field(default=None, description="Mark this list's senders in chat")
+    block_forward: bool | None = Field(
+        default=None,
+        description="Stop this repeater relaying channel text from the list's names",
+    )
+
+
+class BotListReviewRequest(BaseModel):
+    names: list[str] = Field(
+        max_length=MAX_ENTRIES, description="Names a refresh added that the user confirms"
+    )
 
 
 class BotListEntriesRequest(BaseModel):
@@ -116,7 +127,11 @@ async def subscribe_bot_list(body: BotListUrlRequest) -> dict[str, Any]:
 async def update_bot_list(list_id: int, body: BotListUpdateRequest) -> dict[str, Any]:
     try:
         return await bot_lists.update(
-            list_id, name=body.name, description=body.description, enabled=body.enabled
+            list_id,
+            name=body.name,
+            description=body.description,
+            enabled=body.enabled,
+            block_forward=body.block_forward,
         )
     except BotListError as exc:
         raise _refusal(exc) from exc
@@ -172,5 +187,14 @@ async def refresh_bot_list(list_id: int) -> dict[str, Any]:
     """Refresh a subscription now. A failed fetch shows as the list's ``last_error``."""
     try:
         return await bot_lists.refresh_list(list_id)
+    except BotListError as exc:
+        raise _refusal(exc) from exc
+
+
+@router.post("/{list_id}/review")
+async def review_bot_list(list_id: int, body: BotListReviewRequest) -> dict[str, Any]:
+    """Confirm names a refresh added. Until then Block forwards leaves them out."""
+    try:
+        return await bot_lists.review(list_id, body.names)
     except BotListError as exc:
         raise _refusal(exc) from exc

@@ -4,10 +4,15 @@ A bot list names known bots (exact sender name, optional public key). Lists
 that are enabled mark their senders in chat. With ``app_settings.hide_bots`` on
 those senders are also left out of unread counts, mentions, Web Push and the
 other places that skip blocked contacts. Nothing here transmits.
+
+A list with Block forwards on also hands its reviewed names to Spam Guard
+(``SpamGuardRuntime.set_bot_senders``), which renders them as drop rules for
+the forwarding backend. A name a refresh added waits for the user's review.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from collections.abc import Iterable
@@ -60,32 +65,57 @@ class BotListService:
     def __init__(self) -> None:
         self._names: frozenset[str] = frozenset()
         self._keys: frozenset[str] = frozenset()
+        self._forward: tuple[str, ...] = ()
         self._loaded = False
+        self._refresh_lock = asyncio.Lock()
 
     def reset(self) -> None:
         """Forget the cached effective set (tests, or a replaced database)."""
         self._names = frozenset()
         self._keys = frozenset()
+        self._forward = ()
         self._loaded = False
+        self._refresh_lock = asyncio.Lock()
 
     async def refresh(self) -> None:
-        """Recompute the effective set: enabled lists minus the exceptions."""
-        exceptions = set(await BotListRepository.exceptions())
-        names: set[str] = set()
-        keys: set[str] = set()
-        for name, key in await BotListRepository.enabled_entries():
-            if name in exceptions:
-                continue
-            names.add(name)
-            if key:
-                keys.add(key)
-        self._names = frozenset(names)
-        self._keys = frozenset(keys)
-        self._loaded = True
+        """Recompute the effective set: enabled lists minus the exceptions.
+
+        One at a time. Two refreshes that overlap could otherwise finish in the
+        wrong order, and the one that read older rows would decide what chat
+        marks and what Spam Guard keeps off the air.
+        """
+        async with self._refresh_lock:
+            exceptions = set(await BotListRepository.exceptions())
+            names: set[str] = set()
+            keys: set[str] = set()
+            for name, key in await BotListRepository.enabled_entries():
+                if name in exceptions:
+                    continue
+                names.add(name)
+                if key:
+                    keys.add(key)
+            self._names = frozenset(names)
+            self._keys = frozenset(keys)
+            self._forward = tuple(
+                name for name in await BotListRepository.forward_names() if name not in exceptions
+            )
+            self._loaded = True
+            self._hand_over()
 
     async def ensure_loaded(self) -> None:
         if not self._loaded:
             await self.refresh()
+
+    def _hand_over(self) -> None:
+        """Give Spam Guard the names to keep off the air (it renders the rules)."""
+        # Imported here: Spam Guard pulls in the host repeater and its backends.
+        from app.services.spam_guard import spam_guard
+
+        spam_guard.set_bot_senders(self._forward)
+
+    def forward_names(self) -> list[str]:
+        """Names this repeater is asked not to relay, as of the last refresh."""
+        return list(self._forward)
 
     async def hidden_senders(
         self, settings: AppSettings
@@ -106,12 +136,16 @@ class BotListService:
 
     async def snapshot(self) -> dict[str, Any]:
         """Everything the UI shows; also the body of the ``bot_lists`` WS event."""
+        from app.services.spam_guard import spam_guard
+
         await self.ensure_loaded()
         return {
             "lists": await BotListRepository.list_all(),
             "exceptions": await BotListRepository.exceptions(),
             "effective": {"names": sorted(self._names), "keys": sorted(self._keys)},
             "limits": {"entries_per_list": MAX_ENTRIES, "effective": MAX_EFFECTIVE},
+            # What Block forwards is doing right now (Spam Guard decides).
+            "forward": spam_guard.bot_forward(),
         }
 
     async def _changed(self) -> dict[str, Any]:
@@ -151,6 +185,7 @@ class BotListService:
         name: str | None = None,
         description: str | None = None,
         enabled: bool | None = None,
+        block_forward: bool | None = None,
     ) -> dict[str, Any]:
         row = await self._require(list_id)
         fields: dict[str, Any] = {}
@@ -165,6 +200,8 @@ class BotListService:
             if enabled:
                 await self._check_cap(e["name"] for e in await BotListRepository.entries(list_id))
             fields["enabled"] = 1 if enabled else 0
+        if block_forward is not None and block_forward != row["block_forward"]:
+            fields["block_forward"] = 1 if block_forward else 0
         await BotListRepository.update(list_id, fields)
         return await self._changed()
 
@@ -198,6 +235,12 @@ class BotListService:
         if row["enabled"]:
             await self._check_cap([entry.name])
         await BotListRepository.add_entry(list_id, entry.name, entry.public_key, entry.note)
+        return await self._changed()
+
+    async def review(self, list_id: int, names: list[str]) -> dict[str, Any]:
+        """Confirm names a refresh added, so Block forwards covers them too."""
+        await self._require(list_id)
+        await BotListRepository.set_reviewed(list_id, names)
         return await self._changed()
 
     async def import_file(self, parsed: BotListFile) -> dict[str, Any]:
@@ -293,7 +336,10 @@ class BotListService:
             "name": row["name"],
             "description": row["description"],
             "updated": time.strftime("%Y-%m-%d", time.gmtime()),
-            "entries": [{k: v for k, v in entry.items() if v is not None} for entry in entries],
+            "entries": [
+                {k: entry[k] for k in ("name", "public_key", "note") if entry[k] is not None}
+                for entry in entries
+            ],
         }
 
     async def set_exceptions(self, names: list[str]) -> dict[str, Any]:

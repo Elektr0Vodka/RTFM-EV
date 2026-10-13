@@ -23,7 +23,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -109,6 +109,8 @@ class SpamGuardRuntime:
         self.load_error: str | None = None
         self.last_message_at: float | None = None
         self.last_error: str | None = None
+        # Names the bot lists want kept off the air (``BotListService`` hands them over).
+        self.bot_senders: tuple[str, ...] = ()
         self._channel_keys: frozenset[str] = frozenset()
         self._channel_names: dict[str, str] = {}
         self._lock = asyncio.Lock()
@@ -223,8 +225,52 @@ class SpamGuardRuntime:
     def openhop_rules(self, *, preview: bool = False) -> RuleSet:
         """The rule set for an OpenHop node, without private channels not agreed to."""
         return render(
-            self.detector, "openhop", preview=preview, channels=self.config.shareable_channels()
+            self.detector,
+            "openhop",
+            preview=preview,
+            channels=self.config.shareable_channels(),
+            bot_senders=self.bot_senders,
         )
+
+    def set_bot_senders(self, names: Iterable[str]) -> None:
+        """Take the names the bot lists want forward-blocked; re-render on a change."""
+        wanted = tuple(sorted({name for name in names if name}))
+        if wanted == self.bot_senders:
+            return
+        self.bot_senders = wanted
+        if self.loaded:
+            self.apply_rules()
+            self.broadcast()
+
+    def bot_forward(self) -> dict[str, Any]:
+        """What Block forwards on the bot lists is doing, and on how many channels.
+
+        ``active`` only when a rule of ours can really keep a packet off the
+        air: the host repeater armed, or the rules synced to the OpenHop node.
+        """
+        channels = 0
+        if not self.enabled:
+            state = "off"
+        elif self.config.mode != "protect":
+            state = "monitor"
+        elif self.config.paused:
+            state = "paused"
+        elif not self.bot_senders:
+            # A list blocks forwards, but none of its names is confirmed (or left).
+            state = "no_names"
+        else:
+            on_openhop = self.backend_name() == "openhop"
+            keys = self.config.shareable_channels() if on_openhop else self._channel_keys
+            reach = min(len(keys), self.detector.tunables.max_total_rules)
+            if not reach:
+                state = "no_channels"
+            elif on_openhop and self.openhop.status()["state"] != "synced":
+                state = "not_synced"
+            elif not on_openhop and host_repeater.state != "armed":
+                state = "not_armed"
+            else:
+                state, channels = "active", reach
+        return {"state": state, "channels": channels, "names": len(self.bot_senders)}
 
     def _decide(self) -> DecideResult:
         """A ``decide()`` that belongs to no arriving message (tick, user action)."""
@@ -240,7 +286,7 @@ class SpamGuardRuntime:
         try:
             backend = self.backend_name() if self.enabled else None
             if backend == "host":
-                self.host.apply(render(self.detector, "host"))
+                self.host.apply(render(self.detector, "host", bot_senders=self.bot_senders))
             else:
                 self.host.clear()
             if backend == "openhop":
@@ -635,6 +681,8 @@ class SpamGuardRuntime:
             # Protected channels whose key is a secret: on OpenHop each needs the
             # user's agreement (``share_key``) before a rule may carry it.
             "private_channels": [c.key for c in self.config.channels if not c.key_is_public],
+            # What Block forwards on the bot lists is doing (see ``bot_forward``).
+            "bot_forward": self.bot_forward(),
         }
 
     def public_state(self) -> dict[str, Any]:

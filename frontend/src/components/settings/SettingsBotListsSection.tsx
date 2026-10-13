@@ -3,16 +3,23 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../../api';
 import { useT } from '../../i18n';
 import type { AppSettings, AppSettingsUpdate, BotList, BotListsState } from '../../types';
+import { botForwardStatusText } from '../../utils/botForwardStatus';
 import { botListErrorText } from '../../utils/botListErrors';
 import { loadBotLists, setBotListsState, useBotLists } from '../../utils/botLists';
 import { formatDateTime } from '../../utils/dateTimeFormat';
+import { subscribeHostRepeaterEvents } from '../../utils/hostRepeaterEvents';
+import { subscribeSpamGuardEvents } from '../../utils/spamGuardEvents';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { toast } from '../ui/sonner';
 import { BotListDialog } from './BotListDialog';
+import { BotListReviewDialog } from './BotListReviewDialog';
 import { SubscribeBotListDialog } from './SubscribeBotListDialog';
+
+/** Several Spam Guard or host repeater events in a burst become one reload. */
+const STATUS_RELOAD_MS = 400;
 
 function hostOf(url: string | null): string {
   try {
@@ -33,7 +40,8 @@ function readText(file: File): Promise<string> {
 
 /**
  * Bot lists in Settings: the Hide bots switch, the lists with their Enabled
- * switch, file import and export, and the names that are never a bot.
+ * and Block forwards switches, file import and export, and the names that
+ * are never a bot.
  */
 export function SettingsBotListsSection({
   appSettings,
@@ -49,11 +57,29 @@ export function SettingsBotListsSection({
   const [newException, setNewException] = useState('');
   const [openList, setOpenList] = useState<BotList | null>(null);
   const [subscribeOpen, setSubscribeOpen] = useState(false);
+  const [review, setReview] = useState<{ list: BotList; mode: 'review' | 'enable' } | null>(null);
 
   useEffect(() => {
     void loadBotLists().catch((err) =>
       toast.error(err instanceof Error ? err.message : String(err))
     );
+  }, []);
+
+  // The status of Block forwards depends on Spam Guard and on the host repeater
+  // being armed; follow both. A burst of events becomes one reload.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const reload = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => void loadBotLists().catch(() => undefined), STATUS_RELOAD_MS);
+    };
+    const offSpamGuard = subscribeSpamGuardEvents(reload);
+    const offHostRepeater = subscribeHostRepeaterEvents(reload);
+    return () => {
+      offSpamGuard();
+      offHostRepeater();
+      if (timer) clearTimeout(timer);
+    };
   }, []);
 
   const run = async (call: () => Promise<BotListsState>) => {
@@ -114,6 +140,7 @@ export function SettingsBotListsSection({
     <div className="space-y-3 rounded-md border border-border/60 p-3">
       <div className="text-sm font-semibold">{t('settings_bot_lists_heading')}</div>
       <p className="text-[0.8125rem] text-muted-foreground">{t('settings_bot_lists_desc')}</p>
+      <p className="text-[0.8125rem] text-muted-foreground">{t('settings_bot_lists_block_help')}</p>
 
       <div className="flex items-start gap-3">
         <Checkbox
@@ -166,7 +193,38 @@ export function SettingsBotListsSection({
                     })}
                   </div>
                 )}
+                {list.enabled && list.block_forward && state && (
+                  <div className="text-xs text-muted-foreground" data-testid="bot-forward-status">
+                    {botForwardStatusText(t, state.forward)}
+                  </div>
+                )}
+                {list.review_count > 0 && (
+                  <button
+                    type="button"
+                    className="text-xs text-primary underline underline-offset-2"
+                    onClick={() => setReview({ list, mode: 'review' })}
+                  >
+                    {t('settings_bot_lists_review_count', { count: list.review_count })}
+                  </button>
+                )}
               </div>
+              <label className="flex items-center gap-1.5 text-xs">
+                <Checkbox
+                  checked={list.block_forward}
+                  // Offered on an enabled list; one that is on can always be switched off.
+                  disabled={!list.enabled && !list.block_forward}
+                  aria-label={t('settings_bot_lists_block_aria', { name: list.name })}
+                  onCheckedChange={(checked) => {
+                    // A subscription's names come from someone else: show them first.
+                    if (checked === true && list.source === 'url') {
+                      setReview({ list, mode: 'enable' });
+                      return;
+                    }
+                    void run(() => api.updateBotList(list.id, { block_forward: checked === true }));
+                  }}
+                />
+                {t('settings_bot_lists_block_label')}
+              </label>
               <Button
                 type="button"
                 variant="ghost"
@@ -277,6 +335,11 @@ export function SettingsBotListsSection({
 
       <BotListDialog list={openList} onClose={() => setOpenList(null)} />
       <SubscribeBotListDialog open={subscribeOpen} onClose={() => setSubscribeOpen(false)} />
+      <BotListReviewDialog
+        list={review?.list ?? null}
+        mode={review?.mode ?? 'review'}
+        onClose={() => setReview(null)}
+      />
     </div>
   );
 }

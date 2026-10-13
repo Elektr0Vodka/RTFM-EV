@@ -23,11 +23,11 @@ RELEASE_BUILD_INFO_FILENAME = "build_info.json"
 PROJECT_NAME = "remoteterm-meshcore"
 
 # Fork build identity appended to the resolved upstream version for display,
-# e.g. "3.17.1" -> "3.17.1-EV.0.1". This is intentionally not a PEP 440 version,
+# e.g. "3.18.0" -> "3.18.0-EV.0.2". This is intentionally not a PEP 440 version,
 # so it cannot live in pyproject.toml's [project].version (uv must parse that,
 # and this project is a virtual/non-package uv project pinned in uv.lock). Bump
 # this string when cutting a new fork build.
-FORK_VERSION_SUFFIX = "-EV.0.1"
+FORK_VERSION_SUFFIX = "-EV.0.2"
 
 
 def _apply_fork_suffix(version: str) -> str:

@@ -12,7 +12,11 @@ _SELECT_LISTS = """
     SELECT id, name, description, source, url, enabled, block_forward,
            file_updated, fetched_at, last_error, created_at,
            (SELECT COUNT(*) FROM bot_list_entries e WHERE e.list_id = bot_lists.id)
-               AS entry_count
+               AS entry_count,
+           (SELECT COUNT(*) FROM bot_list_entries e
+             WHERE e.list_id = bot_lists.id AND e.forward_reviewed = 0
+               AND e.name NOT IN (SELECT name FROM bot_exceptions))
+               AS review_count
     FROM bot_lists
 """
 
@@ -31,6 +35,8 @@ def _list_row(row: Any) -> dict[str, Any]:
         "last_error": row["last_error"],
         "created_at": int(row["created_at"]),
         "entry_count": int(row["entry_count"]),
+        # Names a refresh added that the user has not confirmed yet.
+        "review_count": int(row["review_count"]),
     }
 
 
@@ -135,13 +141,18 @@ class BotListRepository:
     async def entries(list_id: int) -> list[dict[str, Any]]:
         async with db.readonly() as conn:
             async with conn.execute(
-                "SELECT name, public_key, note FROM bot_list_entries "
+                "SELECT name, public_key, note, forward_reviewed FROM bot_list_entries "
                 "WHERE list_id = ? ORDER BY name COLLATE NOCASE, name",
                 (list_id,),
             ) as cursor:
                 rows = await cursor.fetchall()
         return [
-            {"name": row["name"], "public_key": row["public_key"], "note": row["note"]}
+            {
+                "name": row["name"],
+                "public_key": row["public_key"],
+                "note": row["note"],
+                "forward_reviewed": bool(row["forward_reviewed"]),
+            }
             for row in rows
         ]
 
@@ -220,6 +231,33 @@ class BotListRepository:
             ) as cursor:
                 rows = await cursor.fetchall()
         return [(row["name"], row["public_key"]) for row in rows]
+
+    @staticmethod
+    async def forward_names() -> list[str]:
+        """Reviewed names of every list that is enabled and blocks forwards."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT DISTINCT e.name FROM bot_list_entries e "
+                "JOIN bot_lists l ON l.id = e.list_id "
+                "WHERE l.enabled = 1 AND l.block_forward = 1 AND e.forward_reviewed = 1 "
+                "ORDER BY e.name"
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [row["name"] for row in rows]
+
+    @staticmethod
+    async def set_reviewed(list_id: int, names: list[str]) -> int:
+        """Mark these names of one list as reviewed. Returns how many changed."""
+        changed = 0
+        async with db.tx() as conn:
+            for name in names:
+                async with conn.execute(
+                    "UPDATE bot_list_entries SET forward_reviewed = 1 "
+                    "WHERE list_id = ? AND name = ? AND forward_reviewed = 0",
+                    (list_id, name),
+                ) as cursor:
+                    changed += cursor.rowcount
+        return changed
 
     @staticmethod
     async def exceptions() -> list[str]:

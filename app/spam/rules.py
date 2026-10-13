@@ -25,6 +25,12 @@ the rest. On an OpenHop node the name is all there is to tell them apart. The
 rule id is made from the name without that ending, so it does not change when
 a block changes hands.
 
+A bot list (``app/services/bot_lists.py``) can ask for its names to be kept off
+the air: ``render(bot_senders=...)`` then puts one drop rule per protected
+channel first in ``before``, named ``bots:<channel key> (bot list)``. It is not
+a detector block, and it sits ahead of the user's rules and the known-people
+allow rules, so a listed bot is dropped even when Spam Guard knows its name.
+
 Two dialects:
 
 - ``host``: the host repeater engine. Channels are matched by their 1 byte
@@ -52,6 +58,10 @@ OPENHOP_PREFIX = "rtfm-spam:"
 # OpenHop policy object holding the known names: ``@rtfmspam.known_senders``.
 OPENHOP_OBJECT_GROUP = "rtfmspam"
 OPENHOP_KNOWN_SENDERS = "known_senders"
+# Second object in the same group: names a bot list asked to keep off the air.
+OPENHOP_BOT_SENDERS = "bot_senders"
+# Ending of the rule names made for a bot list (not a detector block).
+BOT_LIST_ORIGIN = "bot list"
 # Host rule ids and names are capped by the host policy model.
 MAX_HOST_ID = 64
 MAX_NAME = 128
@@ -69,6 +79,8 @@ class RuleSet:
     after: list[dict[str, Any]] = field(default_factory=list)
     # Names the known-people rules let through (referenced as an object on OpenHop).
     known_senders: list[str] = field(default_factory=list)
+    # Names the bot list rules drop (referenced as an object on OpenHop).
+    bot_senders: list[str] = field(default_factory=list)
     # ``max_total_rules`` was reached and the lowest priority rules were left out.
     truncated: bool = False
 
@@ -117,13 +129,19 @@ class _Renderer:
         action: str = "drop",
         *,
         block: Block | None = None,
+        origin: str | None = None,
     ) -> dict[str, Any]:
-        """One rule. ``block`` is the block it enforces; a helper rule has none."""
+        """One rule. ``block`` is the block it enforces; a helper rule has none.
+
+        ``origin`` names where a rule without a block came from.
+        """
         name = f"{self.prefix}{key}"
-        origin = f" ({_ORIGINS.get(block.source, 'auto')})" if block is not None else ""
+        if origin is None and block is not None:
+            origin = _ORIGINS.get(block.source, "auto")
+        ending = f" ({origin})" if origin else ""
         return {
             "id": self._id(name),
-            "name": f"{name[: MAX_NAME - len(origin)]}{origin}",
+            "name": f"{name[: MAX_NAME - len(ending)]}{ending}",
             "enabled": True,
             "if": {"all": conditions},
             "then": {"action": action},
@@ -138,6 +156,17 @@ class _Renderer:
             names if self.dialect == "host" else f"@{OPENHOP_OBJECT_GROUP}.{OPENHOP_KNOWN_SENDERS}"
         )
         return _cond("channel_sender", "in", value)
+
+    def bots(self, key_hex: str, names: list[str]) -> dict[str, Any]:
+        """Drop channel text from a listed bot on one protected channel."""
+        value: Any = (
+            names if self.dialect == "host" else f"@{OPENHOP_OBJECT_GROUP}.{OPENHOP_BOT_SENDERS}"
+        )
+        return self.rule(
+            f"bots:{key_hex}",
+            [_IS_GROUP_TEXT, self.channel(key_hex), _cond("channel_sender", "in", value)],
+            origin=BOT_LIST_ORIGIN,
+        )
 
     # ── before the user's rules ──────────────────────────────────────────
 
@@ -262,6 +291,7 @@ def render(
     *,
     preview: bool = False,
     channels: Collection[str] | None = None,
+    bot_senders: Collection[str] = (),
 ) -> RuleSet:
     """The rule set that enforces the detector's current blocks on one backend.
 
@@ -272,6 +302,9 @@ def render(
     rule: a block on any other channel is left out. An OpenHop rule carries the
     channel key itself, so a private channel is only rendered for OpenHop once
     the user agreed to that.
+
+    ``bot_senders`` are the names a bot list wants kept off the air: one drop
+    rule per channel that may appear, ahead of everything else.
     """
     out = RuleSet()
     config = detector.config
@@ -285,6 +318,18 @@ def render(
         if not b.observe and (channels is None or b.channel is None or b.channel in channels)
     ]
     limit = detector.tunables.max_total_rules
+    channel_keys = sorted(
+        channel.key for channel in config.channels if channels is None or channel.key in channels
+    )
+    names = sorted({name for name in bot_senders if name})
+    if names:
+        for key in channel_keys:
+            if len(out.before) >= limit:
+                out.truncated = True
+                break
+            out.before.append(renderer.bots(key, names))
+        if out.before:
+            out.bot_senders = names
     for block in active:
         if detector.gated(block):
             continue
@@ -295,9 +340,6 @@ def render(
         out.before += rules
 
     gated = sorted((b for b in active if detector.gated(b)), key=lambda b: b.created)
-    channel_keys = sorted(
-        channel.key for channel in config.channels if channels is None or channel.key in channels
-    )
     # A block for one channel needs the known-people rule of that channel only.
     known_channels = [key for key in channel_keys if any(b.channel in (None, key) for b in gated)]
     if known_channels:

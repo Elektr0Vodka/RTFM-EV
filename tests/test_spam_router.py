@@ -390,3 +390,14 @@ def test_evidence_routes_are_registered():
 
     paths = set(app.openapi()["paths"])
     assert {"/api/spam-guard/evidence", "/api/spam-guard/replay"} <= paths
+
+
+@pytest.mark.asyncio
+async def test_rules_show_the_bot_names(runtime):
+    runtime.set_bot_senders(["[NU]"])
+    body = await router_module.get_spam_guard_rules(preview=True)
+    assert body["bot_senders"] == ["[NU]"]
+    assert [rule["name"] for rule in body["before"]] == [f"spam:bots:{PUBLIC} (bot list)"]
+    # Monitor mode: nothing of it is applied.
+    assert (await router_module.get_spam_guard_rules(preview=False))["bot_senders"] == []
+    assert runtime.host.status()["rules_present"] == 0
