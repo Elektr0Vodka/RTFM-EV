@@ -71,6 +71,9 @@ def test_valid_dist_serves_static_and_spa_fallback(tmp_path):
         assert manifest["scope"] == "http://testserver/"
         assert manifest["id"] == "http://testserver/"
         assert manifest["display"] == "standalone"
+        # The frontend has no drag region and does not keep clear of the window
+        # buttons, so the overlay must not be offered.
+        assert "window-controls-overlay" not in manifest.get("display_override", [])
         # No database in this test, so the brand lookup falls back to the default.
         assert manifest["name"] == DEFAULT_APP_NAME
         assert manifest["short_name"] == DEFAULT_APP_NAME

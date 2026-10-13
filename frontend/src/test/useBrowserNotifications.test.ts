@@ -161,6 +161,38 @@ describe('useBrowserNotifications', () => {
     expect(notificationInstance.close).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps working where the page may not construct a notification', async () => {
+    // Nearly all mobile browsers: only a service worker may show one.
+    const NotificationMock = vi.fn().mockImplementation(function () {
+      throw new TypeError('Illegal constructor');
+    });
+    Object.assign(NotificationMock, {
+      permission: 'granted',
+      requestPermission: vi.fn(async () => 'granted'),
+    });
+    Object.defineProperty(window, 'Notification', { configurable: true, value: NotificationMock });
+
+    const { result } = renderHook(() => useBrowserNotifications());
+
+    await act(async () => {
+      await result.current.toggleConversationNotifications(
+        'channel',
+        incomingChannelMessage.conversation_key,
+        '#flightless'
+      );
+    });
+
+    expect(mocks.toast.warning).toHaveBeenCalledWith(
+      'Notifications enabled with warning',
+      expect.anything()
+    );
+    expect(() =>
+      act(() => {
+        result.current.notifyIncomingMessage(incomingChannelMessage);
+      })
+    ).not.toThrow();
+  });
+
   it('shows the browser guidance toast when notifications are blocked', async () => {
     Object.assign(window.Notification, {
       permission: 'denied',

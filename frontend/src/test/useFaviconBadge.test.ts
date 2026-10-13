@@ -8,6 +8,7 @@ import {
   getFavoriteUnreadCount,
   getUnreadTitle,
   getTotalUnreadCount,
+  useAppBadge,
   useFaviconBadge,
   useUnreadTitle,
 } from '../hooks/useFaviconBadge';
@@ -349,5 +350,92 @@ describe('useFaviconBadge', () => {
     });
     expect(text).toContain(`href="${brandIcon}"`);
     expect(text).toContain('fill="#16a34a"');
+  });
+});
+
+describe('useAppBadge', () => {
+  const setAppBadge = vi.fn(async () => {});
+  const clearAppBadge = vi.fn(async () => {});
+
+  function stubBadgeApi(present: boolean) {
+    Object.defineProperty(navigator, 'setAppBadge', {
+      configurable: true,
+      value: present ? setAppBadge : undefined,
+    });
+    Object.defineProperty(navigator, 'clearAppBadge', {
+      configurable: true,
+      value: present ? clearAppBadge : undefined,
+    });
+  }
+
+  beforeEach(() => {
+    setAppBadge.mockClear();
+    clearAppBadge.mockClear();
+    stubBadgeApi(true);
+  });
+
+  afterEach(() => {
+    stubBadgeApi(false);
+  });
+
+  it('shows the same count as the tab title', () => {
+    const channels = [makeChannel('fav', true), makeChannel('other')];
+    renderHook(() =>
+      useAppBadge(
+        { [getStateKey('channel', 'fav')]: 3, [getStateKey('channel', 'other')]: 9 },
+        {},
+        [],
+        channels
+      )
+    );
+
+    expect(setAppBadge).toHaveBeenLastCalledWith(3);
+    expect(getUnreadTitle({ [getStateKey('channel', 'fav')]: 3 }, [], channels)).toBe(
+      '(3) RTFM-EV'
+    );
+  });
+
+  it('shows a dot when only the favicon would be badged', () => {
+    // A direct message from a contact that is not a favourite: red dot, no count.
+    renderHook(() =>
+      useAppBadge({ [getStateKey('contact', 'aa')]: 2 }, {}, [makeContact('aa')], [])
+    );
+
+    expect(setAppBadge).toHaveBeenLastCalledWith();
+  });
+
+  it('clears the badge when nothing is unread, and when the app goes away', () => {
+    const { rerender, unmount } = renderHook(
+      ({ counts }: { counts: Record<string, number> }) =>
+        useAppBadge(counts, {}, [], [makeChannel('fav', true)]),
+      { initialProps: { counts: { [getStateKey('channel', 'fav')]: 1 } } }
+    );
+    expect(setAppBadge).toHaveBeenLastCalledWith(1);
+
+    rerender({ counts: {} });
+    expect(clearAppBadge).toHaveBeenCalledTimes(1);
+
+    unmount();
+    expect(clearAppBadge).toHaveBeenCalledTimes(2);
+  });
+
+  it('does nothing in a browser without the Badging API', () => {
+    stubBadgeApi(false);
+
+    expect(() =>
+      renderHook(() =>
+        useAppBadge({ [getStateKey('channel', 'fav')]: 1 }, {}, [], [makeChannel('fav', true)])
+      ).unmount()
+    ).not.toThrow();
+  });
+
+  it('survives a refusal, as from a page that is not installed', async () => {
+    setAppBadge.mockRejectedValueOnce(new DOMException('not allowed', 'NotAllowedError'));
+
+    renderHook(() =>
+      useAppBadge({ [getStateKey('channel', 'fav')]: 1 }, {}, [], [makeChannel('fav', true)])
+    );
+
+    await waitFor(() => expect(setAppBadge).toHaveBeenCalledTimes(1));
   });
 });

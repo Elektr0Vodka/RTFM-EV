@@ -11,6 +11,60 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-13 (Installed app: fixes and additions after a PWA check, fix/pwa-installed-app)
+
+No migration. No new dependency.
+
+### Installed app (PWA)
+- **The service worker no longer registers an empty `fetch` handler**
+  (`frontend/public/sw.js`). It was there because Chrome once needed one
+  before it offered to install the app. Chrome dropped that rule (108 on
+  mobile, 112 on desktop) and now logs a warning for an empty handler, as it
+  can slow navigation down. Checked in Chrome 155: no installability errors
+  and `beforeinstallprompt` still fires, and the warning is gone. The worker
+  stays, it carries Web Push. Not checked in other browsers.
+- **Fix: "Hide title bar" is no longer offered in the installed desktop app.**
+  The manifest listed `window-controls-overlay` first in `display_override`
+  (`app/frontend_static.py`), but the frontend has no drag region and does not
+  keep clear of the window buttons. With the title bar hidden, Settings,
+  Language and the theme button sat under minimise/maximise/close. Seen in an
+  installed Chrome 155 window. An existing install drops the overlay by itself
+  on the second start after the update.
+- **Unread count on the icon of the installed app** (`useAppBadge` in
+  `frontend/src/hooks/useFaviconBadge.ts`, Badging API). An installed app has
+  no tab, so the count in the tab title and the dot on the favicon were not
+  visible there. The icon shows the same count as the tab title, or a dot
+  without a figure for a mention or a direct message from a contact that is
+  not a favourite. Works on Windows, macOS and iOS; Android has no badge API.
+- **Reload app button under Settings > About** (`utils/appReload.ts`). An
+  installed app has no reload button, and on a phone pull-to-refresh is off.
+- **"The server was updated" prompt** (`useReloadAfterUpdate`). When the
+  server reports another version or commit than the page was loaded from, one
+  toast with a Reload button appears and stays until answered. Before, an
+  installed app that stayed open kept running the old frontend against the new
+  backend.
+- **Multi-radio: the radios page can be installed, as one app for all radios.**
+  `/gateway/site.webmanifest` fell through to `index.html`, so Chrome found no
+  manifest there. The gateway now serves one: it opens on the radios page and
+  its scope is the gateway root, so going to a radio stays inside the app.
+  Installing from inside a workspace still gives an app for that radio only.
+  The manifest code moved to `app/web_manifest.py`, which has no database
+  imports, so the gateway can use it.
+- Checked, no change needed: a sign-in redirect to another address (reverse
+  proxy session ran out) stays in the installed app's window in Chrome. Chrome
+  shows its own bar with the other site's address, and it goes away when the
+  sign-in page sends the browser back.
+
+### Notifications
+- **Fix: per-conversation and new-node notifications on phones.** Both called
+  `new Notification()`, which throws a TypeError in nearly all mobile
+  browsers. The per-conversation switch was saved before the error, so every
+  later message for that conversation hit the same error. They now go through
+  `showPageNotification` (`frontend/src/utils/pageNotification.ts`): where the
+  page may not show a notification, the service worker shows it and opens the
+  conversation or contact on click. On desktop nothing changes. Covered by
+  tests with a constructor that refuses; not tried on a real phone.
+
 ## Update 2026-10-13 (Bot lists: mark and hide known bots, feat/bot-lists)
 
 Migration `_142`. No new dependency. Nothing changes until a list is enabled.

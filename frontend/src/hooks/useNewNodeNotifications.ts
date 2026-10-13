@@ -10,6 +10,7 @@ import {
   CONTACT_TYPE_SENSOR,
 } from '../types';
 import { radioTag } from '../gateway/context';
+import { showPageNotification } from '../utils/pageNotification';
 
 const STORAGE_KEY = 'meshcore_new_node_notifications_settings';
 const NOTIFICATION_ICON_PATH = './favicon-256x256.png';
@@ -164,21 +165,15 @@ export function useNewNodeNotifications() {
           return;
         }
         const label = payload.name || payload.public_key?.slice(0, 12) || '';
-        const notification = new window.Notification(t('toast_new_node_title', { name: label }), {
-          body: t('toast_new_node_body', { type: contactTypeLabel(payload.type, t) }),
-          icon: NOTIFICATION_ICON_PATH,
-          tag: radioTag(`meshcore-new-node-${payload.public_key ?? label}`),
-        });
-        notification.onclick = () => {
-          if (payload.public_key) {
-            window.open(
-              `${window.location.origin}${window.location.pathname}${buildContactHash(payload.public_key, label)}`,
-              '_self'
-            );
-          }
-          window.focus();
-          notification.close();
-        };
+        showPageNotification(
+          t('toast_new_node_title', { name: label }),
+          {
+            body: t('toast_new_node_body', { type: contactTypeLabel(payload.type, t) }),
+            icon: NOTIFICATION_ICON_PATH,
+            tag: radioTag(`meshcore-new-node-${payload.public_key ?? label}`),
+          },
+          payload.public_key ? buildContactHash(payload.public_key, label) : null
+        );
         return;
       }
 
@@ -189,19 +184,15 @@ export function useNewNodeNotifications() {
         return;
       }
 
-      const notification = new window.Notification(
+      showPageNotification(
         t('toast_new_node_batch_title', { count: matchedCount }),
         {
           body: t('toast_new_node_batch_body'),
           icon: NOTIFICATION_ICON_PATH,
           tag: radioTag('meshcore-new-node-batch'),
-        }
+        },
+        ''
       );
-      notification.onclick = () => {
-        window.open(`${window.location.origin}${window.location.pathname}`, '_self');
-        window.focus();
-        notification.close();
-      };
     },
     [newNodeNotificationsEnabled, settings.types, t]
   );

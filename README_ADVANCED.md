@@ -227,6 +227,7 @@ Each workspace lives at `/r/<key>/`, where `<key>` is the first 12 characters of
 - The full public key, an upper-case key, or a key the radio had before all redirect to the current address.
 - If you swap the radio or import another private key, the address changes with the key. Bookmarks keep working through the redirect, but push notifications must be switched on again for the new address, and an installed app (PWA) still points at the old one.
 - Two radios that carry the same key get `-2`, `-3` after the key, in the order they were added.
+- Installing the app (PWA): install it from the radios page (`/gateway/`) to get one app for all radios. It opens on the radios page, and going to a radio stays inside the app. Installing from inside a workspace gives an app for that one radio only, at that radio's address.
 
 ### What is shared and what is per radio
 

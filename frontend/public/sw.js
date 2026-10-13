@@ -1,4 +1,4 @@
-/* Service worker for PWA installability and Web Push notifications. */
+/* Service worker for Web Push notifications. */
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -8,9 +8,9 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-// No-op fetch handler - required for PWA installability criteria.
-// We don't cache anything; the app always fetches from the network.
-self.addEventListener("fetch", () => {});
+// No fetch handler on purpose: nothing is cached, the app always fetches from
+// the network. Chrome no longer needs one to install the app (108 on mobile,
+// 112 on desktop) and warns that an empty one slows navigation down.
 
 // Multi-radio mode: every radio is its own workspace under /r/<key>/ with its
 // own service worker, and the gateway that lists the radios sits two levels up.

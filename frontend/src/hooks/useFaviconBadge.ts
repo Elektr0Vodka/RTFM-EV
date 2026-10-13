@@ -4,7 +4,7 @@ import type { Channel, Contact } from '../types';
 import { getStateKey } from '../utils/conversationState';
 
 // Tab title when no custom brand name is set. Keep in sync with <title> in
-// index.html and DEFAULT_APP_NAME in app/frontend_static.py.
+// index.html and DEFAULT_APP_NAME in app/web_manifest.py.
 const APP_TITLE = 'RTFM-EV';
 const BASE_FAVICON_PATH = './favicon.svg';
 const GREEN_BADGE_FILL = '#16a34a';
@@ -186,6 +186,49 @@ export function useUnreadTitle(
       document.title = APP_TITLE;
     };
   }, [title]);
+}
+
+/**
+ * The unread badge on the icon of the installed app (Badging API), which has
+ * no tab to show a title or favicon in. Same figure as the tab title; a dot
+ * without a figure when only the favicon would be badged (a mention, or a
+ * direct message from a contact that is not a favourite).
+ */
+export function useAppBadge(
+  unreadCounts: Record<string, number>,
+  mentions: Record<string, boolean>,
+  contacts: Contact[],
+  channels: Channel[]
+): void {
+  const count = useMemo(
+    () => getFavoriteUnreadCount(unreadCounts, contacts, channels),
+    [channels, contacts, unreadCounts]
+  );
+  const badgeState = useMemo(
+    () => deriveFaviconBadgeState(unreadCounts, mentions, channels),
+    [channels, mentions, unreadCounts]
+  );
+
+  useEffect(() => {
+    if (!navigator.setAppBadge || !navigator.clearAppBadge) return;
+    let shown: Promise<void>;
+    if (count > 0) {
+      shown = navigator.setAppBadge(count);
+    } else if (badgeState !== 'none') {
+      shown = navigator.setAppBadge();
+    } else {
+      shown = navigator.clearAppBadge();
+    }
+    // Refused where the page is not an installed app: nothing to badge then.
+    shown.catch(() => {});
+  }, [badgeState, count]);
+
+  useEffect(
+    () => () => {
+      navigator.clearAppBadge?.().catch(() => {});
+    },
+    []
+  );
 }
 
 export function useFaviconBadge(

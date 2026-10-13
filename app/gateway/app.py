@@ -28,6 +28,7 @@ from app.gateway.registry import RadioEntry, RadioRegistry, RegistryError, Trans
 from app.gateway.supervisor import PROJECT_ROOT, WorkerSupervisor
 from app.gateway.unreads import UnreadsHub, changes_unreads
 from app.security import add_optional_basic_auth_middleware
+from app.web_manifest import DEFAULT_APP_NAME, web_manifest_response
 
 LAST_RADIO_COOKIE = "rtfm_last_radio"
 _HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
@@ -269,6 +270,16 @@ def create_gateway_app(
     @app.get(f"/gateway/{CONTEXT_SCRIPT}")
     async def radios_page_context():
         return _context_script({"page": "radios", "base": "./", "radio": None})
+
+    @app.get("/gateway/site.webmanifest")
+    async def radios_page_manifest(request: Request):
+        """Installed from the radios page, the app covers every radio.
+
+        Its scope is the gateway root, so going to a radio under ``/r/<key>/``
+        stays inside the installed app. A radio's own page has the manifest of
+        its worker, with that radio as scope.
+        """
+        return web_manifest_response(request, app_name=DEFAULT_APP_NAME, start_path="gateway/")
 
     @app.get("/gateway/{path:path}")
     async def radios_page(path: str):
