@@ -119,6 +119,16 @@ describe('BotListReviewDialog', () => {
     expect(mocks.updateBotList).not.toHaveBeenCalled();
   });
 
+  it('says so when the names could not be loaded, and confirms nothing', async () => {
+    mocks.getBotListEntries.mockRejectedValue(new Error('That bot list does not exist'));
+    render(<BotListReviewDialog list={OFF} mode="enable" onClose={() => {}} />);
+    expect(
+      await screen.findByText('The names could not be loaded: That bot list does not exist')
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Block forwards' })).toBeDisabled();
+    expect(screen.queryByText('No names to review.')).not.toBeInTheDocument();
+  });
+
   it('cannot confirm before the names have arrived', () => {
     mocks.getBotListEntries.mockReturnValue(new Promise(() => {}));
     render(<BotListReviewDialog list={OFF} mode="enable" onClose={() => {}} />);

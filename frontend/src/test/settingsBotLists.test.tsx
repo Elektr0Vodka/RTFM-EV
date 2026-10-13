@@ -358,8 +358,29 @@ describe('SettingsBotListsSection', () => {
       { name: 'NewA', public_key: null, note: null, forward_reviewed: false },
     ]);
     render(<SettingsBotListsSection appSettings={null} />);
-    fireEvent.click(await screen.findByRole('button', { name: '2 new names to review' }));
+    fireEvent.click(await screen.findByRole('button', { name: '2 new names to review on Shared' }));
     expect(await screen.findByText('New names on Shared')).toBeInTheDocument();
+  });
+
+  it('starts the review of another list with nothing of the first', async () => {
+    const first = list({ id: 4, name: 'First', source: 'url', enabled: true, review_count: 1 });
+    const second = list({ id: 5, name: 'Second', source: 'url', enabled: true, review_count: 1 });
+    mocks.getBotLists.mockResolvedValue(state([first, second]));
+    mocks.getBotListEntries.mockImplementation((id: number) =>
+      id === 4
+        ? Promise.resolve([
+            { name: 'OnFirst', public_key: null, note: null, forward_reviewed: false },
+          ])
+        : new Promise(() => {})
+    );
+    render(<SettingsBotListsSection appSettings={null} />);
+    fireEvent.click(await screen.findByRole('button', { name: '1 new name to review on First' }));
+    expect(await screen.findByText('OnFirst')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(screen.getByRole('button', { name: '1 new name to review on Second' }));
+    expect(await screen.findByText('New names on Second')).toBeInTheDocument();
+    expect(screen.queryByText('OnFirst')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirm all' })).toBeDisabled();
   });
 
   it('shows the names before a subscription blocks forwards', async () => {

@@ -3089,7 +3089,16 @@ export type BotListSource = 'local' | 'url' | 'shipped';
 
 /** What Block forwards is doing; anything but `active` is a reason it waits. */
 export type BotForwardState =
-  'active' | 'off' | 'monitor' | 'paused' | 'no_names' | 'no_channels' | 'not_armed' | 'not_synced';
+  | 'active'
+  | 'off'
+  | 'monitor'
+  | 'paused'
+  | 'no_names'
+  | 'rules_failed'
+  | 'key_not_shared'
+  | 'no_channels'
+  | 'not_armed'
+  | 'not_synced';
 
 export interface BotForwardStatus {
   state: BotForwardState;

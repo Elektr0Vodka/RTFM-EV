@@ -715,3 +715,18 @@ class TestBotLists:
         rules = render(det, "host", bot_senders=BOTS)
         assert len(rules.before) == 20 and rules.truncated is True
         assert all(name.endswith("(bot list)") for name in names(rules.before))
+
+    def test_openhop_leaves_out_names_the_node_would_match_differently(self):
+        """The node reads "Unknown" for text without a sender, and takes any
+        text before the first ": " as the name, colons and length regardless."""
+        det, _ = make()
+        listed = ["Unknown", "a:b", "x" * 50, "[NU]"]
+        node = render(det, "openhop", bot_senders=listed)
+        assert node.bot_senders == ["[NU]"]
+        host = render(det, "host", bot_senders=listed)
+        assert host.bot_senders == sorted(listed)
+
+    def test_openhop_renders_no_rule_when_no_name_is_left(self):
+        det, _ = make()
+        rules = render(det, "openhop", bot_senders=["Unknown"])
+        assert rules.rules == [] and rules.bot_senders == []

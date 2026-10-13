@@ -289,3 +289,20 @@ async def test_review_confirms_a_name_on_that_list_only(guard, monkeypatch):
     state = await bot_lists.review(first, ["NewBot"])
     assert _row(state, first)["review_count"] == 0
     assert _row(state, second)["review_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_a_failed_shipped_load_still_hands_over_the_names(guard, monkeypatch):
+    list_id = await BotListRepository.create("Mine", "", "local")
+    await BotListRepository.replace_entries(
+        list_id, [{"name": "[NU]", "public_key": None, "note": None}]
+    )
+    await BotListRepository.update(list_id, {"enabled": 1, "block_forward": 1})
+
+    async def broken():
+        raise RuntimeError("the shipped row could not be read")
+
+    monkeypatch.setattr(BotListRepository, "get_shipped", staticmethod(broken))
+    with pytest.raises(RuntimeError):
+        await bot_lists.load_shipped()
+    assert guard.bot_senders == ("[NU]",)

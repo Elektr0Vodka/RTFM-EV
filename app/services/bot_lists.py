@@ -360,32 +360,36 @@ class BotListService:
             error = str(exc) or type(exc).__name__
             logger.warning("Shipped bot list could not be loaded: %s", error)
 
-        row = await BotListRepository.get_shipped()
-        if row is None:
-            list_id = await BotListRepository.create(
-                parsed.name if parsed else _SHIPPED_FALLBACK_NAME,
-                parsed.description if parsed else "",
-                "shipped",
-            )
-        else:
-            list_id = row["id"]
+        try:
+            row = await BotListRepository.get_shipped()
+            if row is None:
+                list_id = await BotListRepository.create(
+                    parsed.name if parsed else _SHIPPED_FALLBACK_NAME,
+                    parsed.description if parsed else "",
+                    "shipped",
+                )
+            else:
+                list_id = row["id"]
 
-        if parsed is None:
-            await BotListRepository.update(list_id, {"last_error": error})
-        else:
-            await BotListRepository.update(
-                list_id,
-                {
-                    "name": parsed.name,
-                    "description": parsed.description,
-                    "file_updated": parsed.updated,
-                    "last_error": None,
-                },
-            )
-            await BotListRepository.replace_entries(
-                list_id, [e.model_dump() for e in parsed.entries]
-            )
-        await self.refresh()
+            if parsed is None:
+                await BotListRepository.update(list_id, {"last_error": error})
+            else:
+                await BotListRepository.update(
+                    list_id,
+                    {
+                        "name": parsed.name,
+                        "description": parsed.description,
+                        "file_updated": parsed.updated,
+                        "last_error": None,
+                    },
+                )
+                await BotListRepository.replace_entries(
+                    list_id, [e.model_dump() for e in parsed.entries]
+                )
+        finally:
+            # Whatever went wrong with the shipped row, the other lists still count:
+            # chat marking and forward blocking must not wait for the next request.
+            await self.refresh()
 
 
 bot_lists = BotListService()

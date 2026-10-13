@@ -11,6 +11,7 @@ import type {
   SpamGuardTunables,
 } from '../../types';
 import { isPublicChannelKey } from '../../utils/publicChannel';
+import { rulesForDisplay } from '../../utils/spamRulesDisplay';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { toast } from '../ui/sonner';
@@ -510,7 +511,13 @@ export function SpamSettingsTab({
               {rules.truncated ? ` ${t('spam_rules_truncated')}` : ''}
             </p>
             <pre className="max-h-80 overflow-auto rounded bg-muted p-2 text-[0.6875rem]">
-              {JSON.stringify([...rules.before, ...rules.after], null, 2)}
+              {JSON.stringify(
+                rulesForDisplay([...rules.before, ...rules.after], (count) =>
+                  t('spam_rules_same_names', { count })
+                ),
+                null,
+                2
+              )}
             </pre>
           </>
         )}

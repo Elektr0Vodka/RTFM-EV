@@ -258,12 +258,16 @@ class SpamGuardRuntime:
         elif not self.bot_senders:
             # A list blocks forwards, but none of its names is confirmed (or left).
             state = "no_names"
+        elif self.last_error:
+            # ``apply_rules`` failed and cleared every managed rule.
+            state = "rules_failed"
         else:
             on_openhop = self.backend_name() == "openhop"
             keys = self.config.shareable_channels() if on_openhop else self._channel_keys
             reach = min(len(keys), self.detector.tunables.max_total_rules)
             if not reach:
-                state = "no_channels"
+                # On OpenHop a private channel only counts once its key may be copied there.
+                state = "key_not_shared" if on_openhop and self._channel_keys else "no_channels"
             elif on_openhop and self.openhop.status()["state"] != "synced":
                 state = "not_synced"
             elif not on_openhop and host_repeater.state != "armed":

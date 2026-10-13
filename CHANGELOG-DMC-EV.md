@@ -52,7 +52,26 @@ version is now `3.18.0-EV.0.2`.
   `bot_forward` in the Spam Guard state and `bot_senders` in
   `GET /api/spam-guard/rules`.
 
+### Bot lists: block forwards, follow-ups from the review
+- **Two more reasons on the status line:** "the rules could not be applied",
+  and on OpenHop "the channel key is not shared with the OpenHop node" where
+  it used to say there were no protected channels.
+- **OpenHop leaves out names the node would read differently than chat.** The
+  node calls the sender of text without a `Name: ` prefix `Unknown`, so a
+  listed `Unknown` would have dropped every such text; it is not sent to the
+  node. The same goes for a name with a colon or of 50 characters or more,
+  which chat never shows as a sender. On the host repeater nothing changes.
+- **The review dialog says why** when its names cannot be loaded, instead of
+  staying empty, and starts clean for every list.
+- **"Show rules"** prints a bot list's names once and refers to them in the
+  rules for the other channels.
+- **A failed load of the shipped list at startup** no longer holds back the
+  other lists: their names are marked and handed to Spam Guard regardless.
+- The "N new names to review" button names its list for screen readers.
+
 ### Host repeater
+- **A radio whose own name has brackets** now recognises its own channel
+  messages, so it does not relay them (`own_origin`).
 - **`channel_sender` now holds a name with brackets.** A sender such as `[NU]`
   was empty for policy rules, because the channel decoder does not accept `[`
   or `]` in a name. A rule on `channel_sender` (yours, or the bot list rule)

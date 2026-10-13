@@ -717,7 +717,7 @@ class HostRepeaterRuntime:
             ptype == PT_GRP_TXT
             and result.get("decrypted")
             and radio.name
-            and result.get("sender") == radio.name
+            and policy_channel_sender(result) == radio.name
         ):
             return False, True
         return False, False
