@@ -17,11 +17,11 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.repository.spam import SpamEvidenceRepository
-from app.services.spam_guard import spam_guard
+from app.services.spam_guard import REFUSALS, spam_guard
 from app.spam.evidence import Scrambler, export_line, meta_record, parse_lines
 from app.spam.replay import replay
 from app.spam.rules import render
-from app.spam.settings import SpamConfig, effective
+from app.spam.settings import SpamConfig
 
 router = APIRouter(prefix="/spam-guard", tags=["spam-guard"])
 
@@ -91,14 +91,9 @@ async def get_spam_guard() -> dict[str, Any]:
 async def save_spam_guard_settings(request: SpamGuardSaveRequest) -> dict[str, Any]:
     """Save the whole settings document. 409 when ``version`` is stale."""
     await spam_guard.ensure_loaded()
-    if (
-        spam_guard.backend_name() == "openhop"
-        and effective(request.settings).hop_match_mode == "starts_at"
-    ):
-        raise HTTPException(
-            status_code=409,
-            detail="OpenHop cannot match on the first hop; pick another repeater match mode",
-        )
+    refusal = spam_guard.refusal(request.settings)
+    if refusal is not None:
+        raise HTTPException(status_code=409, detail=REFUSALS[refusal])
     version = await spam_guard.save_config(request.version, request.settings)
     if version is None:
         raise HTTPException(

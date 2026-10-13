@@ -70,6 +70,7 @@ from app.routers import (
     debug,
     external_map,
     fanout,
+    filter_profiles,
     fleet,
     fleet_vault,
     health,
@@ -350,6 +351,7 @@ app.include_router(partial_resolution.router, prefix="/api")
 app.include_router(openhop.router, prefix="/api")
 app.include_router(spam.router, prefix="/api")
 app.include_router(bot_lists.router, prefix="/api")
+app.include_router(filter_profiles.router, prefix="/api")
 app.include_router(statistics.router, prefix="/api")
 app.include_router(unfurl.router, prefix="/api")
 app.include_router(tiles.router, prefix="/api")

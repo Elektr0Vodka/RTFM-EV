@@ -327,6 +327,15 @@ A repeater is shared. What yours does not forward disappears for everyone behind
 
 In chat, **Hide spam** in the filter menu hides flagged messages and keeps them out of unread counts and notifications. A message that duplicate suppression caught as a repeat carries a **Duplicate** marker. That is not a spam flag, so it is not hidden.
 
+**Profiles.** On the **Settings** tab, **Profiles** keeps sets of detection settings under a name, together with the mode. Use them when the situation changes: one for a spam wave, one for an event, one for normal days.
+
+- **Save current as profile** stores the settings that are in force now.
+- **Apply** first shows every setting that will change, with the old and the new value. A profile that switches to **Protect** says so and asks for your confirmation, because from then on your repeater does not forward what Spam Guard blocks.
+- **In use** names the profile you applied last. If you change a setting afterwards it says **modified**, and you can **Save to profile** or **Revert**.
+- **Export** downloads a profile as a file you can give to someone else. **Import file** adds a profile from such a file. Importing never applies it: look at what it changes first.
+
+A profile never contains your protected channels, channel keys, exceptions, the pause or the evidence log settings, and applying one does not touch them. Nothing switches on its own. While the form below has unsaved changes, save or discard them first.
+
 ### SNMP
 
 Every node that has SNMP set up on its contact page, in one table. Each row shows the status, name, address, schedule, last good poll and last error, with the main values side by side: firmware version, uptime, free heap, largest free block, connected MQTT slots, packet queue depth, WiFi RSSI, noise floor, receive errors, last RSSI and last SNR. A node whose last poll failed is marked **Failing** in red and listed first; its values are then those of the last good poll. Click a column header to sort.

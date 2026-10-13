@@ -17,6 +17,7 @@ import { Input } from '../ui/input';
 import { toast } from '../ui/sonner';
 import { BotForwardStatusLine } from './BotForwardStatusLine';
 import { SpamEvidenceSection } from './SpamEvidenceSection';
+import { SpamProfilesCard } from './SpamProfilesCard';
 import { TUNABLE_GROUPS, UNIT_KEYS, type TunableKey, type TunableSpec } from './spamGuardTunables';
 
 type TunableValue = SpamGuardTunables[TunableKey];
@@ -299,6 +300,13 @@ export function SpamSettingsTab({
   return (
     <div className="space-y-6">
       <BotForwardStatusLine forward={state.bot_forward} />
+      <SpamProfilesCard
+        version={state.version}
+        enabled={state.enabled}
+        busy={guard.busy}
+        formDirty={dirty}
+        onApplied={() => void guard.reload()}
+      />
       <section className="space-y-2 rounded-md border border-border/60 p-3">
         <h3 className="text-sm font-semibold text-foreground">{t('spam_channels_title')}</h3>
         <p className="text-[0.8125rem] text-muted-foreground">{t('spam_channels_desc')}</p>
