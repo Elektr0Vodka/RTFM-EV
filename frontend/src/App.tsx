@@ -17,8 +17,10 @@ import {
   useBrowserNotifications,
   useNewNodeNotifications,
   useMentionSound,
+  useAppBadge,
   useFaviconBadge,
   useUnreadTitle,
+  useReloadAfterUpdate,
   useMeshcomodConfig,
 } from './hooks';
 import { toast } from './components/ui/sonner';
@@ -574,6 +576,8 @@ export function App() {
   } = useUnreadCounts(channels, contacts, activeConversation);
   useFaviconBadge(unreadCounts, mentions, channels, appSettings?.brand_icon || undefined);
   useUnreadTitle(unreadCounts, contacts, channels, appSettings?.brand_name || undefined);
+  useAppBadge(unreadCounts, mentions, contacts, channels);
+  useReloadAfterUpdate(health?.app_info);
 
   // The server excludes hop-hidden and malformed-hidden messages from unread
   // counts, so re-fetch them once it has stored a new filter selection.

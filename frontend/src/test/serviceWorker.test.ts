@@ -8,6 +8,21 @@ type ServiceWorkerHandler = (event: {
   waitUntil: (promise: Promise<unknown>) => void;
 }) => void;
 
+describe('service worker fetch handling', () => {
+  it('registers no fetch handler', () => {
+    // An empty one is not needed for installing the app, and Chrome warns
+    // that it slows navigation down.
+    const addEventListener = vi.fn();
+    const worker = { registration: { scope: 'https://example.test/' }, addEventListener };
+    const source = readFileSync(resolve(process.cwd(), 'public/sw.js'), 'utf8');
+    new Function('self', 'clients', source)(worker, {});
+
+    const types = addEventListener.mock.calls.map(([type]) => type);
+    expect(types).toContain('push');
+    expect(types).not.toContain('fetch');
+  });
+});
+
 describe('service worker notification clicks', () => {
   it('keeps the worker alive through focus and navigation', async () => {
     const handlers = new Map<string, ServiceWorkerHandler>();

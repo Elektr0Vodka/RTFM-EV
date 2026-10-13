@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SettingsAboutSection } from '../components/settings/SettingsAboutSection';
 import type { UpdateStatus } from '../types';
+import { appReload } from '../utils/appReload';
 
 const useUpdateStatusMock = vi.fn();
 vi.mock('../hooks/useUpdateStatus', () => ({
@@ -32,6 +33,17 @@ describe('SettingsAboutSection', () => {
     useUpdateStatusMock.mockReset();
     refreshMock.mockReset();
     refreshMock.mockResolvedValue(null);
+  });
+
+  it('reloads the app from its own button, for an installed app without one', () => {
+    mockStatus(null);
+    const reload = vi.spyOn(appReload, 'now').mockImplementation(() => {});
+    render(<SettingsAboutSection health={health} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reload app' }));
+
+    expect(reload).toHaveBeenCalledTimes(1);
+    reload.mockRestore();
   });
 
   it('renders the debug support snapshot link', () => {

@@ -77,7 +77,8 @@ frontend/src/
 │   ├── useBrowserNotifications.ts  # Per-conversation browser notification preferences + dispatch
 │   ├── useNewNodeNotifications.ts  # New-node browser notification preference (master + per-type) + WS event dispatch
 │   ├── usePushSubscription.ts      # Web Push subscription lifecycle, per-conversation filters
-│   ├── useFaviconBadge.ts          # Browser tab title + favicon (unread badge, brand name/icon)
+│   ├── useFaviconBadge.ts          # Browser tab title + favicon (unread badge, brand name/icon); useAppBadge: the same count on the installed app's icon (Badging API)
+│   ├── useReloadAfterUpdate.ts     # Toast with a Reload action when the server reports another build than the page was loaded from
 │   ├── useEntranceSettled.ts       # Defers entrance animation work until layout settles
 │   └── useRememberedServerPassword.ts # Browser-local repeater/room password persistence
 ├── components/
@@ -119,6 +120,8 @@ frontend/src/
 │   ├── contactMerge.ts            # Merge WS contact updates into list
 │   ├── localLabel.ts              # Local label (text + color) in localStorage
 │   ├── authRedirect.ts            # Lost reverse-proxy session (401/403): go to the saved sign-in address or reload; index.html repeats it for the prefetch
+│   ├── pageNotification.ts        # Show a page notification; through the service worker where the page may not (mobile)
+│   ├── appReload.ts               # window.location.reload behind an object (Settings > About button, update toast); an installed app has no reload button
 │   ├── sidebarLayout.ts           # Sidebar order reconcilers (section/tool/favorites-group orders + per-favorite-group sort orders + hidden-entry overlay persist server-side in app_settings, reversing migration _051; rail-collapse and per-group collapse stay localStorage) + one-time legacy-order migration helpers + contact-group pure helpers (create/rename/delete/toggle membership, `group:<id>` section keys)
 │   ├── radioPresets.ts            # LoRa radio preset configurations
 │   ├── publicChannel.ts           # Public-channel resolution helpers for routing/hash defaults
@@ -262,7 +265,9 @@ frontend/src/
     ├── useConversationNavigation.test.ts
     ├── useAppShell.test.ts
     ├── useBrowserNotifications.test.ts
+    ├── pageNotification.test.ts
     ├── useFaviconBadge.test.ts
+    ├── useReloadAfterUpdate.test.ts
     ├── useRepeaterDashboard.test.ts
     ├── useRememberedServerPassword.test.ts
     ├── useContactsAndChannels.test.ts
@@ -725,6 +730,25 @@ Only active behind the multi-radio gateway (backend `app/gateway/`, `MESHCORE_MU
 - **Cross-tab names are per radio.** `BroadcastChannel` names and `window.open` targets are shared by one origin, so the chat popup's window names and `popout/mainPresence.ts` go through `radioTag(...)`. Do the same for any new one unless it is meant to span radios.
 - **API paths are relative.** `./api/...`, never `/api/...`: the app runs under `/r/<key>/` here and under any sub-path behind a reverse proxy. `src/test/noAbsoluteApiPaths.test.ts` fails on an absolute one.
 
+## Installed app (PWA)
+
+An installed app has no tab, no address bar and, on a phone, no reload control
+(`overscroll-behavior: none` in `styles.css` switches pull-to-refresh off).
+What the browser chrome would do is done in the app:
+
+- **Unread badge**: `useAppBadge` (`hooks/useFaviconBadge.ts`) sets the Badging
+  API badge to the figure of the tab title (`getFavoriteUnreadCount`), a dot
+  without a figure when only the favicon would be badged, and clears it at
+  zero and on unmount. A no-op where the API is missing; a refusal is ignored.
+- **Reload**: Settings > About has a Reload app button (`utils/appReload.ts`).
+- **Update prompt**: `useReloadAfterUpdate` remembers the first
+  `health.app_info` (version + commit) and, when a later one differs, shows one
+  toast that stays until answered, with a Reload action.
+- **Manifest**: served by the backend (`app/web_manifest.py`), not a file in
+  `public/`. It offers `standalone` and `fullscreen` only: the frontend has no
+  drag region for the window controls overlay. `public/sw.js` has no `fetch`
+  handler on purpose.
+
 ## Web Push Notifications
 
 Web Push allows notifications even when the browser tab is closed. Requires HTTPS (self-signed OK).
@@ -764,6 +788,13 @@ batching/warm-up).
   suppressed entirely; otherwise it shows a plural "N new nodes" summary and
   clicking clears the hash (opens the default view with the sidebar/contacts
   visible) rather than deep-linking to one contact.
+- **Showing it**: this hook and `useBrowserNotifications` both call
+  `showPageNotification` (`utils/pageNotification.ts`). `new Notification()`
+  throws a TypeError in nearly all mobile browsers, so when it does the
+  notification is shown through the registered service worker instead, and its
+  click is handled by `notificationclick` in `public/sw.js` (`data.url_hash`).
+  There a batch click only brings the app forward. Without a service worker
+  (plain HTTP) nothing is shown and nothing is thrown.
 - **Settings > Local**: a "New node notifications" group (`SettingsLocalSection.tsx`,
   reusing `contactTypeLabel` from `ContactInfoBody.tsx` for the four type
   checkboxes) sits next to the mention-sound group. Enabling requests the

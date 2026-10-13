@@ -3,6 +3,7 @@ import { toast } from '../components/ui/sonner';
 import type { Message } from '../types';
 import { getStateKey } from '../utils/conversationState';
 import { radioKey, radioTag } from '../gateway/context';
+import { showPageNotification } from '../utils/pageNotification';
 
 const STORAGE_KEY = 'meshcore_browser_notifications_enabled_by_conversation';
 const NOTIFICATION_ICON_PATH = './favicon-256x256.png';
@@ -197,7 +198,7 @@ export function useBrowserNotifications() {
           writeStoredEnabledMap(next);
           return next;
         });
-        new window.Notification(buildPreviewNotificationTitle(type, label), {
+        showPageNotification(buildPreviewNotificationTitle(type, label), {
           body: 'Notifications will look like this. These require the tab to stay open, and will not be reliable on mobile.',
           icon: NOTIFICATION_ICON_PATH,
           tag: radioTag(`meshcore-notification-preview-${conversationKey}`),
@@ -237,20 +238,15 @@ export function useBrowserNotifications() {
         return;
       }
 
-      const notification = new window.Notification(buildNotificationTitle(message), {
-        body: message.text,
-        icon: NOTIFICATION_ICON_PATH,
-        tag: radioTag(`meshcore-message-${message.id}`),
-      });
-
-      notification.onclick = () => {
-        const hash = buildMessageNotificationHash(message);
-        if (hash) {
-          window.open(`${window.location.origin}${window.location.pathname}${hash}`, '_self');
-        }
-        window.focus();
-        notification.close();
-      };
+      showPageNotification(
+        buildNotificationTitle(message),
+        {
+          body: message.text,
+          icon: NOTIFICATION_ICON_PATH,
+          tag: radioTag(`meshcore-message-${message.id}`),
+        },
+        buildMessageNotificationHash(message)
+      );
     },
     [enabledByConversation, permission]
   );
