@@ -39,6 +39,7 @@ No migration. No new dependency. Requested by Richard after testing duplicate su
 - An expired duplicate block starting again with the next message was already
   the case; it now has a test for each of the three "Block repeats from"
   choices.
+
 ## Update 2026-10-13 (Frontend build: two Vite notices, fix/vite-build-notices)
 
 Frontend build only. No migration, no new dependency, no change to the app.
