@@ -180,6 +180,120 @@ class TestDuplicateSuppression:
         assert det.decide().duplicate == set()
 
 
+class TestDuplicateRestart:
+    """A duplicate block that is gone starts again with the next message."""
+
+    @pytest.mark.parametrize("scope", ["others", "same", "everyone"])
+    def test_a_block_removed_by_hand_is_made_again_by_the_next_message(self, scope):
+        det, clock = make(overrides={"dedupe_scope": scope})
+        say(det, clock, "Dave", LONG)
+        det.decide()
+        (key,) = det.blocks
+        det.action("unblock", key=key)
+        det.decide()
+        assert not det.blocks and not det.suppressed
+        # The copies seen so far are forgiven: the next one counts as a first copy.
+        again = say(det, clock, "Dave", LONG)
+        det.decide()
+        assert again.matched is None
+        assert len(det.blocks) == 1
+        repeat = say(det, clock, "Sarah" if scope == "others" else "Dave", LONG)
+        assert repeat.duplicate
+
+    @pytest.mark.parametrize("scope", ["others", "same", "everyone"])
+    def test_a_block_removed_by_hand_does_not_come_straight_back(self, scope):
+        det, clock = make(overrides={"dedupe_scope": scope})
+        say(det, clock, "Dave", LONG)
+        say(det, clock, "Dave", LONG)
+        det.decide()
+        (key,) = det.blocks
+        det.action("unblock", key=key)
+        clock.tick(30)
+        det.decide()
+        assert not det.blocks
+
+    def test_removing_the_block_of_one_name_leaves_the_other_name_alone(self):
+        det, clock = make(overrides={"dedupe_scope": "same"})
+        say(det, clock, "Dave", LONG)
+        say(det, clock, "Sarah", LONG)
+        det.decide()
+        dave = next(key for key, b in det.blocks.items() if b.sender == "Dave")
+        det.action("unblock", key=dave)
+        clock.tick(400)
+        assert say(det, clock, "Sarah", LONG).duplicate
+        det.decide()
+        (block,) = det.blocks.values()
+        # Her own copies still renew her block.
+        assert block.sender == "Sarah" and block.expires == clock.now + 900
+
+    def test_clearing_the_automatic_blocks_lets_duplicates_start_again(self):
+        det, clock = make(overrides={"dedupe_scope": "same"})
+        say(det, clock, "Dave", LONG)
+        det.decide()
+        det.action("clear_auto")
+        det.decide()
+        assert not det.blocks and not det.suppressed
+        say(det, clock, "Dave", LONG)
+        det.decide()
+        assert say(det, clock, "Dave", LONG).duplicate
+
+    @pytest.mark.parametrize("scope", ["others", "same", "everyone"])
+    def test_an_expired_block_is_made_again_by_the_next_message(self, scope):
+        det, clock = make(overrides={"dedupe_scope": scope})
+        say(det, clock, "Dave", LONG)
+        det.decide()
+        clock.tick(901)
+        det.decide()
+        assert not det.blocks
+        say(det, clock, "Dave", LONG)
+        det.decide()
+        assert len(det.blocks) == 1
+        assert say(det, clock, "Sarah" if scope == "others" else "Dave", LONG).duplicate
+
+
+class TestShortDuplicates:
+    def test_a_five_character_message_can_be_deduplicated(self):
+        det, clock = make(overrides={"dedupe_scope": "same", "dedupe_min_chars": 5})
+        say(det, clock, "Dave", "test1")
+        det.decide()
+        (block,) = det.blocks.values()
+        assert block.value == "test1"
+        assert say(det, clock, "Dave", "test1").duplicate
+
+    def test_the_text_rule_length_does_not_hold_back_a_duplicate_rule(self):
+        """``min_rule_chars`` is for campaign text rules; duplicates have their own lengths."""
+        det, clock = make(overrides={"dedupe_min_chars": 10, "min_rule_chars": 30})
+        say(det, clock, "Dave", "Morgghu meshworld")
+        det.decide()
+        assert [b.value for b in det.blocks.values()] == ["Morgghu meshworld"]
+
+    @pytest.mark.parametrize("chars", [5, 6, 8, 10, 12])
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Is dat weer nieuw een bot die alle berichten herhaalt.",
+            "Dit is een test voor mij 1",
+            "Morgghu meshworld",
+        ],
+    )
+    def test_a_short_piece_still_gives_a_rule(self, chars, text):
+        det, clock = make(
+            overrides={"dedupe_scope": "same", "dedupe_min_chars": 5, "text_rule_chars": chars}
+        )
+        say(det, clock, "Dave", text)
+        det.decide()
+        (block,) = det.blocks.values()
+        assert block.value in text
+        assert len(block.value) >= 5
+        assert block.value == block.value.strip()
+        assert say(det, clock, "Dave", text).duplicate
+
+    def test_marking_a_message_as_spam_works_with_a_short_piece(self):
+        det, _ = make(overrides={"text_rule_chars": 5})
+        text = det.action("mark_spam", text="Dit is een test voor mij 1", channel=PUBLIC)["text"]
+        assert len(text) >= 5
+
+
 class TestDuplicateScope:
     def test_same_holds_back_the_same_name_only(self):
         det, clock = make(overrides={"dedupe_scope": "same"})
@@ -610,17 +724,19 @@ class TestRotation:
 
 class TestActions:
     def test_unblock_suppresses_recreation(self):
-        det, clock = make()
-        say(det, clock, "Dave", LONG)
+        det, clock = make(overrides={"dedupe_enabled": False, "enable_hop_rules": False})
+        for name in GENERATED:
+            say(det, clock, name, SPAM)
         det.decide()
-        key = next(iter(det.blocks))
+        key = next(key for key, block in det.blocks.items() if block.source == "campaign")
         det.action("unblock", key=key)
         assert key not in det.blocks
-        say(det, clock, "Dave", LONG)
+        say(det, clock, "PL7MNB4C", SPAM)
         det.decide()
         assert key not in det.blocks
         clock.tick(86401)
-        say(det, clock, "Dave", LONG)
+        for name in GENERATED:
+            say(det, clock, name, SPAM)
         det.decide()
         assert key in det.blocks
 

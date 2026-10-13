@@ -4871,7 +4871,7 @@
   "spam_set_similarity_help": "So ähnliche Nachrichten werden gruppiert, damit ein zusätzliches Wort, andere Großschreibung oder ähnlich aussehende Buchstaben den Filter nicht umgehen. 100 bedeutet nur identisch.",
   "spam_set_similarity_risk": "Niedriger kann unabhängige Nachrichten mit gemeinsamem Wortlaut gruppieren, etwa feste Bot-Antworten. Höher ist leichter zu umgehen.",
   "spam_set_min_rule_chars_label": "Kürzester Text, auf den eine Regel passen darf",
-  "spam_set_min_rule_chars_help": "Eine Textregel muss auf mindestens so viele Zeichen passen, damit sie nie etwas Kurzes und Alltägliches sperrt.",
+  "spam_set_min_rule_chars_help": "Eine Textregel muss auf mindestens so viele Zeichen passen, damit sie nie etwas Kurzes und Alltägliches sperrt. Das Entdoppeln richtet sich nach seinen eigenen zwei Längen.",
   "spam_set_min_rule_chars_risk": "Niedriger lässt eine kurze Regel wie 'das Treffen' echte Nachrichten sperren. Höher ergibt bei stark variiertem Spam möglicherweise keine Regel.",
   "spam_set_dedupe_enabled_label": "Nur die erste Kopie einer Nachricht durchlassen",
   "spam_set_dedupe_enabled_help": "Nachdem eine Kanalnachricht gesehen wurde, werden Wiederholungen desselben Textes eine Zeit lang gesperrt. Wessen Wiederholungen wird darunter eingestellt. Kurze Nachrichten bleiben immer unberührt.",

@@ -156,6 +156,14 @@ class TestRuleText:
         assert not piece.startswith(" ") and not piece.endswith(" ")
         assert all(word in text.split() for word in piece.split())
 
+    def test_middle_piece_without_whole_words_keeps_its_length(self):
+        text = "Dit is een test voor mij 1"
+        assert t.middle_piece(text, 5) == "test"
+        piece = t.middle_piece(text, 5, whole_words=False)
+        assert piece in text
+        assert len(piece) >= 5
+        assert piece == piece.strip()
+
     def test_rule_length_counts_emoji_as_three(self):
         assert t.rule_length("abc") == 3
         assert t.rule_length("\U0001f525\U0001f525") == 6

@@ -35,6 +35,9 @@ PERMANENT_SECONDS = 10 * 365 * 86400
 MAX_NAME_PATTERNS = 16
 MAX_NAME_PATTERN_LENGTH = 128
 MAX_EXCEPTIONS = 500
+# Duplicate suppression: the shortest message it looks at, and the shortest
+# piece of a message one of its rules matches.
+MIN_DUPLICATE_CHARS = 5
 
 PRESETS: dict[str, dict[str, int]] = {
     "relaxed": {
@@ -115,8 +118,8 @@ class SpamTunables(BaseModel):
     dedupe_enabled: bool = True
     dedupe_scope: DedupeScope = "others"
     dedupe_seconds: int = Field(default=900, ge=30, le=86400)
-    dedupe_min_chars: int = Field(default=30, ge=10, le=150)
-    text_rule_chars: int = Field(default=40, ge=10, le=150)
+    dedupe_min_chars: int = Field(default=30, ge=MIN_DUPLICATE_CHARS, le=150)
+    text_rule_chars: int = Field(default=40, ge=MIN_DUPLICATE_CHARS, le=150)
     # Known people
     known_min_msgs: int = Field(default=1, ge=1, le=20)
     known_days: int = Field(default=30, ge=1, le=365)

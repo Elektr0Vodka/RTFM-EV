@@ -4870,7 +4870,7 @@
   "spam_set_similarity_help": "Messages this similar are grouped, so adding a word, changing case or swapping look-alike letters does not dodge the filter. 100 means identical only.",
   "spam_set_similarity_risk": "Lower may group unrelated messages that share wording, such as templated bot replies. Higher is easier to dodge.",
   "spam_set_min_rule_chars_label": "Shortest text a rule may match",
-  "spam_set_min_rule_chars_help": "A text rule must match at least this many characters, so it never blocks something short and common.",
+  "spam_set_min_rule_chars_help": "A text rule must match at least this many characters, so it never blocks something short and common. Duplicate suppression goes by its own two lengths.",
   "spam_set_min_rule_chars_risk": "Lower lets a short rule such as 'the meeting' block genuine messages. Higher may give no rule for heavily varied spam.",
   "spam_set_dedupe_enabled_label": "Only let the first copy of a message through",
   "spam_set_dedupe_enabled_help": "After a channel message is seen, repeats of the same text are blocked for a while. Whose repeats is set below. Short messages are never affected.",

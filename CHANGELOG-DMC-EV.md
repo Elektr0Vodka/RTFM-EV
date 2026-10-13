@@ -11,6 +11,35 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-13 (Spam Guard: feedback from the third test round, feat/spam-guard-feedback-3)
+
+No migration. No new dependency. Requested by Richard after testing duplicate suppression with short messages.
+
+### Spam Guard: duplicate suppression
+- **Fix: after a duplicate block was removed by hand, later repeats of that
+  text were no longer caught.** Removing a block holds its key off for 24
+  hours, so the same evidence does not put it straight back. For a duplicate
+  block that also let every later repeat through. Now the copies seen so far
+  are forgiven instead (`Event.released`, `SpamDetector._release`): the next
+  message with that text counts as a first copy again, and its repeats are
+  held back as usual. The same goes for **Remove all automatic blocks**, which
+  held a duplicate block off for as long as it would have lasted. Other blocks
+  (campaign, repeater) are still held off for 24 hours.
+- **The two lengths go down to 5** (was 10): "Only for messages at least this
+  long" (`dedupe_min_chars`) and "Characters matched by a duplicate rule"
+  (`text_rule_chars`). The defaults are unchanged (30 and 40 on Balanced).
+- **Fix: a low length gave no duplicate rule at all.** A duplicate rule also
+  had to pass "Shortest text a rule may match" (`min_rule_chars`, 14 by
+  default), a setting of the text rules. A message of 10 to 13 characters
+  therefore never got a rule, and with "Characters matched" below 14 hardly
+  any message did. A duplicate rule now only goes by its own two lengths.
+  When whole words from the middle of the message leave fewer than 5
+  characters, the rule takes the characters as they come, so a low setting
+  still gives a rule of that length.
+- An expired duplicate block starting again with the next message was already
+  the case; it now has a test for each of the three "Block repeats from"
+  choices.
+
 ## Update 2026-10-13 (Frontend build: two Vite notices, fix/vite-build-notices)
 
 Frontend build only. No migration, no new dependency, no change to the app.
