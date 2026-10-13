@@ -63,6 +63,7 @@ import { useLocale, useT } from './i18n';
 import { getSettingsHash } from './utils/urlHash';
 import { resolveDateTimeFormat, setActiveDateTimeFormat } from './utils/dateTimeFormat';
 import { DEFAULT_BATTERY_CHEMISTRY, setActiveBatteryChemistry } from './utils/batteryDisplay';
+import { loadBotLists, subscribeBotLists } from './utils/botLists';
 
 interface ChannelUnreadMarker {
   channelId: string;
@@ -240,6 +241,7 @@ export function App() {
     handleSetHiddenHopWidths,
     handleSetHideMalformed,
     handleSetHideSpam,
+    handleSetHideBots,
     hiddenHopWidthsVersion,
     handleToggleBlockedKey,
     handleToggleBlockedName,
@@ -289,6 +291,12 @@ export function App() {
     myNameRef.current = config?.name ?? null;
   }, [config?.name]);
 
+  // Bot lists: the chat marks and filters from this copy; later changes
+  // arrive as `bot_lists` WebSocket events.
+  useEffect(() => {
+    void loadBotLists().catch((err) => console.error('Failed to load bot lists:', err));
+  }, []);
+
   // Keep block lists in refs for WS callback filtering
   const blockedKeysRef = useRef<string[]>([]);
   const blockedNamesRef = useRef<string[]>([]);
@@ -324,6 +332,13 @@ export function App() {
   useEffect(() => {
     hideSpamRef.current = hideSpam;
   }, [hideSpam]);
+  // Chat "Hide bots" filter (server setting): listed senders raise no unread
+  // count, sound or mention while it is on.
+  const hideBots = appSettings?.hide_bots ?? false;
+  const hideBotsRef = useRef(false);
+  useEffect(() => {
+    hideBotsRef.current = hideBots;
+  }, [hideBots]);
   // "This is spam" / "Not spam" on a chat message. The answer feeds the
   // detector (a text block, or a trusted name) and sets the message's flag,
   // which comes back to every browser as a `message_spam` event.
@@ -581,6 +596,15 @@ export function App() {
     if (hiddenHopWidthsVersion > 0) void refreshUnreads();
   }, [hiddenHopWidthsVersion, refreshUnreads]);
 
+  // A bot list changed: with "Hide bots" on, the server's unread totals moved.
+  useEffect(
+    () =>
+      subscribeBotLists(() => {
+        if (hideBotsRef.current) void refreshUnreads();
+      }),
+    [refreshUnreads]
+  );
+
   const handleToggleMute = useCallback(
     async (key: string) => {
       setChannels((prev) => prev.map((c) => (c.key === key ? { ...c, muted: !c.muted } : c)));
@@ -658,6 +682,7 @@ export function App() {
     hiddenHopWidthsRef,
     hideMalformedRef,
     hideSpamRef,
+    hideBotsRef,
     channelsRef,
     activeConversationRef,
     observeMessage,
@@ -963,6 +988,8 @@ export function App() {
     spamGuardEnabled,
     hideSpam,
     onHideSpamChange: handleSetHideSpam,
+    hideBots,
+    onHideBotsChange: handleSetHideBots,
     onSpamFeedback: handleSpamFeedback,
     analyzerSites: appSettings?.analyzer_sites ?? [],
     onHashtagAdded: handleHashtagAdded,

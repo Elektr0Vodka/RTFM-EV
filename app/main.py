@@ -62,6 +62,7 @@ from app.radio_sync import (
 )
 from app.routers import (
     backup,
+    bot_lists,
     channel_sets,
     channels,
     communities,
@@ -180,6 +181,14 @@ async def lifespan(app: FastAPI):
         await spam_guard.load()
     except Exception:
         logger.warning("Could not load Spam Guard at startup", exc_info=True)
+
+    # Bot lists: load the list shipped in the repo into its read-only row.
+    from app.services.bot_lists import bot_lists as bot_list_service
+
+    try:
+        await bot_list_service.load_shipped()
+    except Exception:
+        logger.warning("Could not load the shipped bot list at startup", exc_info=True)
 
     # Host repeater neighbour poll (opt-in, transmits; idle unless enabled and active).
     from app.services.host_repeater_neighbor_poll import neighbor_poller
@@ -332,6 +341,7 @@ app.include_router(external_map.router, prefix="/api")
 app.include_router(partial_resolution.router, prefix="/api")
 app.include_router(openhop.router, prefix="/api")
 app.include_router(spam.router, prefix="/api")
+app.include_router(bot_lists.router, prefix="/api")
 app.include_router(statistics.router, prefix="/api")
 app.include_router(unfurl.router, prefix="/api")
 app.include_router(tiles.router, prefix="/api")

@@ -18,6 +18,7 @@ from app.push.vapid import get_vapid_claims, get_vapid_private_key
 from app.repository.channels import ChannelRepository
 from app.repository.push_subscriptions import PushSubscriptionRepository
 from app.repository.settings import AppSettingsRepository
+from app.services.bot_lists import bot_lists
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +122,8 @@ class PushManager:
         # filters hide.
         try:
             settings = await AppSettingsRepository.get()
-            if _is_blocked(data, settings.blocked_keys, settings.blocked_names):
+            hidden_keys, hidden_names = await bot_lists.hidden_senders(settings)
+            if _is_blocked(data, hidden_keys or [], hidden_names or []):
                 return
             if message_hidden_by_hop_width(data.get("paths"), settings.hidden_hop_widths):
                 return

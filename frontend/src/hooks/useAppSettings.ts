@@ -90,6 +90,22 @@ export function useAppSettings() {
     }
   }, []);
 
+  // Chat "Hide bots" filter (senders on enabled bot lists), same pattern.
+  const handleSetHideBots = useCallback(async (hide: boolean) => {
+    setAppSettings((prev) => (prev ? { ...prev, hide_bots: hide } : prev));
+    try {
+      setAppSettings(await api.updateSettings({ hide_bots: hide }));
+      setHiddenHopWidthsVersion((v) => v + 1);
+    } catch (err) {
+      console.error('Failed to save bot filter:', err);
+      try {
+        setAppSettings(await api.getSettings());
+      } catch {
+        // If refetch also fails, leave optimistic state
+      }
+    }
+  }, []);
+
   const handleToggleBlockedKey = useCallback(async (key: string) => {
     const normalizedKey = key.toLowerCase();
     setAppSettings((prev) => {
@@ -299,6 +315,7 @@ export function useAppSettings() {
     handleSetHiddenHopWidths,
     handleSetHideMalformed,
     handleSetHideSpam,
+    handleSetHideBots,
     hiddenHopWidthsVersion,
     handleToggleBlockedKey,
     handleToggleBlockedName,

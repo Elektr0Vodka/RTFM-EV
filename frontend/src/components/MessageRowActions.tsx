@@ -1,5 +1,15 @@
 import { useState } from 'react';
-import { Mail, Reply, RotateCcw, ShieldAlert, ShieldCheck, SmilePlus, Trash2 } from 'lucide-react';
+import {
+  Bot,
+  Mail,
+  Reply,
+  RotateCcw,
+  ShieldAlert,
+  ShieldCheck,
+  SmilePlus,
+  Trash2,
+  UserCheck,
+} from 'lucide-react';
 
 import { useT } from '../i18n';
 
@@ -17,6 +27,8 @@ export function MessageRowActions({
   onMarkUnread,
   onMarkSpam,
   onNotSpam,
+  onAddToBotList,
+  onNotABot,
   onDelete,
 }: {
   onReact?: (emoji: string) => void;
@@ -28,13 +40,27 @@ export function MessageRowActions({
   onMarkSpam?: () => void;
   /** Spam Guard feedback: trusts the sender and clears the flag. */
   onNotSpam?: () => void;
+  /** Bot lists: put this sender on one of the user's own lists. */
+  onAddToBotList?: () => void;
+  /** Bot lists: never treat this sender name as a bot. */
+  onNotABot?: () => void;
   onDelete?: () => void;
 }) {
   const t = useT();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [retrying, setRetrying] = useState(false);
 
-  if (!onReact && !onReply && !onRetry && !onMarkUnread && !onMarkSpam && !onNotSpam && !onDelete)
+  if (
+    !onReact &&
+    !onReply &&
+    !onRetry &&
+    !onMarkUnread &&
+    !onMarkSpam &&
+    !onNotSpam &&
+    !onAddToBotList &&
+    !onNotABot &&
+    !onDelete
+  )
     return null;
 
   const buttonClass =
@@ -115,6 +141,28 @@ export function MessageRowActions({
           onClick={onNotSpam}
         >
           <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      )}
+      {onAddToBotList && (
+        <button
+          type="button"
+          className={buttonClass}
+          aria-label={t('chat_add_to_bot_list_action')}
+          title={t('chat_add_to_bot_list_action')}
+          onClick={onAddToBotList}
+        >
+          <Bot className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      )}
+      {onNotABot && (
+        <button
+          type="button"
+          className={buttonClass}
+          aria-label={t('chat_not_a_bot_action')}
+          title={t('chat_not_a_bot_action')}
+          onClick={onNotABot}
+        >
+          <UserCheck className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
       )}
       {onDelete && (

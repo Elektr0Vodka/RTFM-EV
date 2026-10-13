@@ -77,6 +77,14 @@ import { RawPacketInspectorDialog } from './RawPacketDetailModal';
 import { MessageRowActions } from './MessageRowActions';
 import { ReactionTargetLink, type ReactionAnalyzerLookup } from './ReactionTargetLink';
 import { toast } from './ui/sonner';
+import { AddToBotListDialog } from './AddToBotListDialog';
+import {
+  getBotListsState,
+  isBotMessage,
+  isBotName,
+  setBotListsState,
+  useBotLists,
+} from '../utils/botLists';
 import { handleKeyboardActivate } from '../utils/a11y';
 import { classifyHashtag, buildNameSet, type HashtagState } from '../lib/hashtagChannelState';
 import { tokenizeMessageText, type ChatToken, type TokenizeOptions } from '../utils/chatEntities';
@@ -121,6 +129,9 @@ interface MessageListProps {
   onHideSpamChange?: (hide: boolean) => void;
   /** The user's answer on one message: true = this is spam, false = not spam. */
   onSpamFeedback?: (message: Message, spam: boolean) => void;
+  /** Whether "Hide bots" hides senders on enabled bot lists (app setting `hide_bots`). */
+  hideBots?: boolean;
+  onHideBotsChange?: (hide: boolean) => void;
   onDismissUnreadMarker?: () => void;
   /** Called when the unread boundary is not in loaded history and must be jumped to. */
   onNavigateToUnread?: (messageId: number) => void;
@@ -1018,6 +1029,8 @@ export function MessageList({
   hideSpam: hideSpamProp,
   onHideSpamChange,
   onSpamFeedback,
+  hideBots = false,
+  onHideBotsChange,
   onDismissUnreadMarker,
   onNavigateToUnread,
   onJumpToMessage,
@@ -1156,6 +1169,23 @@ export function MessageList({
   // detector reads.
   const spamFeedbackFor = (msg: Message) =>
     spamGuardEnabled && !!onSpamFeedback && msg.type === 'CHAN' && !msg.outgoing;
+  // Re-render when a bot list changes; `isBotMessage` reads the same store.
+  const botLists = useBotLists();
+  const [botDialogFor, setBotDialogFor] = useState<Message | null>(null);
+  const markNotABot = useCallback(
+    async (msg: Message) => {
+      const name = msg.sender_name;
+      if (!name) return;
+      try {
+        const exceptions = getBotListsState()?.exceptions ?? [];
+        setBotListsState(await api.setBotListExceptions([...exceptions, name]));
+        toast.success(t('bot_lists_not_a_bot_toast', { name }));
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [t]
+  );
   const toggleHideMalformed = useCallback(() => {
     if (onHideMalformedChange) {
       onHideMalformedChange(!hideMalformed);
@@ -1245,7 +1275,7 @@ export function MessageList({
     [messages, preSorted]
   );
   const sortedMessages = useMemo(() => {
-    if (hiddenHopWidths.size === 0 && !hideUnscoped && !hideMalformed && !hideSpam) {
+    if (hiddenHopWidths.size === 0 && !hideUnscoped && !hideMalformed && !hideSpam && !hideBots) {
       return allSortedMessages;
     }
     // Apply the view-only message filters. Two kinds of message are always
@@ -1269,9 +1299,23 @@ export function MessageList({
       if (hideSpam && m.spam) {
         return false;
       }
+      // `botLists` is the store snapshot `isBotMessage` reads (null until
+      // loaded), so a list change re-filters.
+      if (hideBots && botLists !== null && isBotMessage(m)) {
+        return false;
+      }
       return true;
     });
-  }, [allSortedMessages, hiddenHopWidths, hideUnscoped, hideMalformed, hideSpam, targetMessageId]);
+  }, [
+    allSortedMessages,
+    hiddenHopWidths,
+    hideUnscoped,
+    hideMalformed,
+    hideSpam,
+    hideBots,
+    botLists,
+    targetMessageId,
+  ]);
 
   // The unread divider sits on the first *visible* unread message. When the
   // server's boundary is a message the filters hide, move it forward to the
@@ -1943,7 +1987,7 @@ export function MessageList({
           title={t('chat_hop_filter_button')}
           className={cn(
             'flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card/90 shadow-xs backdrop-blur-sm transition-colors hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
-            hiddenHopWidths.size > 0 || hideUnscoped || hideMalformed || hideSpam
+            hiddenHopWidths.size > 0 || hideUnscoped || hideMalformed || hideSpam || hideBots
               ? 'text-status-connected'
               : 'text-muted-foreground'
           )}
@@ -2018,6 +2062,23 @@ export function MessageList({
                 </label>
                 <div className="mt-1 px-1 text-[0.6875rem] text-muted-foreground">
                   {t('chat_filter_spam_hint')}
+                </div>
+              </>
+            )}
+            {onHideBotsChange && (
+              <>
+                <div className="my-1.5 h-px bg-border" />
+                <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-[0.8125rem] hover:bg-accent">
+                  <input
+                    type="checkbox"
+                    className="accent-current"
+                    checked={hideBots}
+                    onChange={() => onHideBotsChange(!hideBots)}
+                  />
+                  {t('chat_filter_hide_bots')}
+                </label>
+                <div className="mt-1 px-1 text-[0.6875rem] text-muted-foreground">
+                  {t('chat_filter_bots_hint')}
                 </div>
               </>
             )}
@@ -2205,6 +2266,14 @@ export function MessageList({
                     {t('chat_duplicate_badge')}
                   </span>
                 )}
+                {isBotMessage(msg) && (
+                  <span
+                    className="ml-1.5 align-middle text-[0.625rem] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground"
+                    title={t('chat_bot_badge_title')}
+                  >
+                    {t('chat_bot_badge')}
+                  </span>
+                )}
               </>
             );
             const renderSender = (label: string) =>
@@ -2345,6 +2414,16 @@ export function MessageList({
                 }
                 onNotSpam={
                   spamFeedbackFor(msg) && msg.spam ? () => onSpamFeedback?.(msg, false) : undefined
+                }
+                onAddToBotList={
+                  !msg.outgoing && !!msg.sender_name && !isBotMessage(msg)
+                    ? () => setBotDialogFor(msg)
+                    : undefined
+                }
+                onNotABot={
+                  !msg.outgoing && isBotName(msg.sender_name)
+                    ? () => void markNotABot(msg)
+                    : undefined
                 }
                 onDelete={onDeleteMessage ? () => onDeleteMessage(msg) : undefined}
               />
@@ -2708,6 +2787,7 @@ export function MessageList({
           signalOverride={packetSignalOverrideRef.current}
         />
       )}
+      <AddToBotListDialog message={botDialogFor} onClose={() => setBotDialogFor(null)} />
     </div>
   );
 }

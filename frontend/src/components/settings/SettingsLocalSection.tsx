@@ -33,6 +33,7 @@ import { CrtEffects } from './CrtEffects';
 import { BuddySettings } from './BuddySettings';
 import { BrandingSettings } from './BrandingSettings';
 import { LanguageSelector } from './LanguageSelector';
+import { SettingsBotListsSection } from './SettingsBotListsSection';
 import { getLocalLabel, setLocalLabel, type LocalLabel } from '../../utils/localLabel';
 import { getAuthRedirectUrl, setAuthRedirectUrl } from '../../utils/authRedirect';
 import {
@@ -978,6 +979,11 @@ export function SettingsLocalSection({
               </div>
             </div>
           </div>
+
+          <SettingsBotListsSection
+            appSettings={appSettings}
+            onSaveAppSettings={onSaveAppSettings}
+          />
 
           <div className="flex items-start gap-3 rounded-md border border-border/60 p-3">
             <Checkbox

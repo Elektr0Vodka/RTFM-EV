@@ -1,0 +1,162 @@
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type { BotList, BotListsState } from '../types';
+
+const mocks = vi.hoisted(() => ({
+  getBotLists: vi.fn(),
+  createBotList: vi.fn(),
+  updateBotList: vi.fn(),
+  deleteBotList: vi.fn(),
+  getBotListEntries: vi.fn(),
+  setBotListEntries: vi.fn(),
+  importBotList: vi.fn(),
+  botListExportUrl: vi.fn((id: number) => `./api/bot-lists/${id}/export`),
+  setBotListExceptions: vi.fn(),
+}));
+vi.mock('../api', () => ({ api: mocks }));
+
+import { SettingsBotListsSection } from '../components/settings/SettingsBotListsSection';
+import { setBotListsState } from '../utils/botLists';
+
+function list(over: Partial<BotList>): BotList {
+  return {
+    id: 1,
+    name: 'Mine',
+    description: '',
+    source: 'local',
+    url: null,
+    enabled: false,
+    block_forward: false,
+    file_updated: null,
+    fetched_at: null,
+    last_error: null,
+    created_at: 1,
+    entry_count: 2,
+    ...over,
+  };
+}
+
+function state(lists: BotList[], exceptions: string[] = []): BotListsState {
+  return {
+    lists,
+    exceptions,
+    effective: { names: [], keys: [] },
+    limits: { entries_per_list: 1000, effective: 5000 },
+  };
+}
+
+const SHIPPED = list({ id: 9, name: 'RTFM-EV bot list', source: 'shipped', entry_count: 0 });
+const START = state([SHIPPED, list({})], ['Alice']);
+
+describe('SettingsBotListsSection', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setBotListsState(null);
+    mocks.getBotLists.mockResolvedValue(START);
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('lists the lists with where they come from', async () => {
+    render(<SettingsBotListsSection appSettings={null} />);
+    expect(await screen.findByText('Mine')).toBeInTheDocument();
+    expect(screen.getByText('RTFM-EV bot list')).toBeInTheDocument();
+    expect(screen.getByText('Shipped with RTFM-EV')).toBeInTheDocument();
+    expect(screen.getByText('2 names')).toBeInTheDocument();
+  });
+
+  it('counts one name in the singular', async () => {
+    mocks.getBotLists.mockResolvedValue(state([list({ entry_count: 1 })]));
+    render(<SettingsBotListsSection appSettings={null} />);
+    expect(await screen.findByText('1 name')).toBeInTheDocument();
+  });
+
+  it('switches a list on', async () => {
+    mocks.updateBotList.mockResolvedValue(state([SHIPPED, list({ enabled: true })]));
+    render(<SettingsBotListsSection appSettings={null} />);
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Enable Mine' }));
+    await waitFor(() => expect(mocks.updateBotList).toHaveBeenCalledWith(1, { enabled: true }));
+  });
+
+  it('saves Hide bots through the app settings', async () => {
+    const onSave = vi.fn();
+    render(<SettingsBotListsSection appSettings={null} onSaveAppSettings={onSave} />);
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Hide bots in chat' }));
+    expect(onSave).toHaveBeenCalledWith({ hide_bots: true });
+  });
+
+  it('creates a list', async () => {
+    mocks.createBotList.mockResolvedValue(START);
+    render(<SettingsBotListsSection appSettings={null} />);
+    fireEvent.change(await screen.findByPlaceholderText('Name of a new list'), {
+      target: { value: 'Weather bots' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'New list' }));
+    await waitFor(() => expect(mocks.createBotList).toHaveBeenCalledWith('Weather bots'));
+  });
+
+  it('imports a file as it is', async () => {
+    mocks.importBotList.mockResolvedValue(START);
+    const { container } = render(<SettingsBotListsSection appSettings={null} />);
+    await screen.findByText('Mine');
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const text = '{"format":"rtfm-ev-bot-list","version":1,"name":"Shared","entries":[]}';
+    fireEvent.change(input, { target: { files: [new File([text], 'shared.json')] } });
+    await waitFor(() => expect(mocks.importBotList).toHaveBeenCalledWith(text));
+  });
+
+  it('cannot delete the shipped list and asks before deleting another', async () => {
+    mocks.deleteBotList.mockResolvedValue(state([SHIPPED]));
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<SettingsBotListsSection appSettings={null} />);
+    await screen.findByText('Mine');
+    expect(screen.getAllByRole('button', { name: 'Delete' })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(confirm).toHaveBeenCalled();
+    await waitFor(() => expect(mocks.deleteBotList).toHaveBeenCalledWith(1));
+  });
+
+  it('shows why a list could not be loaded', async () => {
+    mocks.getBotLists.mockResolvedValue(
+      state([list({ id: 9, source: 'shipped', last_error: 'the file is not valid JSON' })])
+    );
+    render(<SettingsBotListsSection appSettings={null} />);
+    expect(
+      await screen.findByText('Could not be loaded: the file is not valid JSON')
+    ).toBeInTheDocument();
+  });
+
+  it('adds and removes an exception', async () => {
+    mocks.setBotListExceptions.mockResolvedValue(START);
+    render(<SettingsBotListsSection appSettings={null} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove Alice' }));
+    await waitFor(() => expect(mocks.setBotListExceptions).toHaveBeenCalledWith([]));
+
+    fireEvent.change(screen.getByPlaceholderText('Sender name'), { target: { value: 'Bob' } });
+    const exceptions = screen.getByTestId('bot-exceptions');
+    fireEvent.click(within(exceptions).getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(mocks.setBotListExceptions).toHaveBeenCalledWith(['Alice', 'Bob']));
+  });
+
+  it('edits the names of a local list', async () => {
+    mocks.getBotListEntries.mockResolvedValue([{ name: 'PingBot', public_key: null, note: null }]);
+    mocks.setBotListEntries.mockResolvedValue(START);
+    render(<SettingsBotListsSection appSettings={null} />);
+    const row = (await screen.findByText('Mine')).closest('[data-testid="bot-list-row"]');
+    fireEvent.click(within(row as HTMLElement).getByRole('button', { name: 'Names' }));
+    expect(await screen.findByText('PingBot')).toBeInTheDocument();
+
+    const dialog = screen.getByRole('dialog');
+    fireEvent.change(document.getElementById('bot-entry-name') as HTMLInputElement, {
+      target: { value: 'NewsBot' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() =>
+      expect(mocks.setBotListEntries).toHaveBeenCalledWith(1, [
+        { name: 'PingBot', public_key: null, note: null },
+        { name: 'NewsBot', public_key: null, note: null },
+      ])
+    );
+  });
+});

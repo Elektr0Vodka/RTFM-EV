@@ -21,6 +21,7 @@ def _settings(
         hidden_hop_widths=list(hidden_hop_widths),
         hide_malformed=hide_malformed,
         hide_spam=hide_spam,
+        hide_bots=False,
     )
 
 
