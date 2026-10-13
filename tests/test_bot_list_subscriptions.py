@@ -193,3 +193,22 @@ async def test_one_failing_list_does_not_stop_the_others(test_db, monkeypatch):
     assert await bot_lists.refresh_due(now=2_000_000_000) == 2
     assert (await BotListRepository.get(first))["last_error"] == "http_error"
     assert (await BotListRepository.get(second))["entry_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_an_unexpected_error_in_one_list_does_not_stop_the_others(test_db, monkeypatch):
+    first = await BotListRepository.create("First", "", "url", "https://example.org/first.json")
+    second = await BotListRepository.create("Second", "", "url", "https://example.org/second.json")
+
+    async def fake_fetch(url, **_kwargs):
+        if url.endswith("first.json"):
+            raise RuntimeError("something nobody planned for")
+        return _file("PingBot")
+
+    monkeypatch.setattr(service_module, "fetch_bot_list", fake_fetch)
+    assert await bot_lists.refresh_due(now=2_000_000_000) == 2
+    assert (await BotListRepository.get(first))["last_error"] == "fetch_failed"
+    assert (await BotListRepository.get(second))["entry_count"] == 1
+
+    state = await bot_lists.refresh_list(first)
+    assert next(lst for lst in state["lists"] if lst["id"] == first)["last_error"] == "fetch_failed"

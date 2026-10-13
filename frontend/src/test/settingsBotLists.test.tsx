@@ -226,6 +226,29 @@ describe('SettingsBotListsSection', () => {
     expect(within(dialog).queryByRole('button', { name: 'Subscribe' })).toBeNull();
   });
 
+  it('locks the address while a list is being fetched', async () => {
+    let finish: (value: unknown) => void = () => {};
+    mocks.previewBotListUrl.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    render(<SettingsBotListsSection appSettings={null} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Subscribe to URL' }));
+    const dialog = await screen.findByRole('dialog');
+    const input = within(dialog).getByLabelText('Address of the list');
+    fireEvent.change(input, { target: { value: 'https://example.org/a.json' } });
+    expect(input).not.toBeDisabled();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Show the list' }));
+    await waitFor(() => expect(input).toBeDisabled());
+
+    finish({
+      url: 'https://example.org/a.json',
+      name: 'A',
+      description: '',
+      updated: null,
+      entries: [],
+    });
+    await waitFor(() => expect(input).not.toBeDisabled());
+    expect(within(dialog).getByText('A: 0 names')).toBeInTheDocument();
+  });
+
   it('shows a subscription with its host, refresh time and error, and refreshes it', async () => {
     const sub = list({
       id: 4,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { api } from '../../api';
 import { useT } from '../../i18n';
@@ -27,25 +27,34 @@ export function SubscribeBotListDialog({ open, onClose }: { open: boolean; onClo
   const [url, setUrl] = useState('');
   const [preview, setPreview] = useState<BotListPreview | null>(null);
   const [busy, setBusy] = useState(false);
+  // An answer only counts for the request that is current: the dialog may have
+  // been closed and opened again while a slow address was still being fetched.
+  const requestRef = useRef(0);
 
   useEffect(() => {
     if (!open) return;
+    requestRef.current += 1;
     setUrl('');
     setPreview(null);
+    setBusy(false);
   }, [open]);
 
   const fail = (err: unknown) =>
     toast.error(botListErrorText(t, err instanceof Error ? err.message : String(err)));
 
   const show = async () => {
+    const mine = ++requestRef.current;
     setBusy(true);
     try {
-      setPreview(await api.previewBotListUrl(url.trim()));
+      const shown = await api.previewBotListUrl(url.trim());
+      if (mine === requestRef.current) setPreview(shown);
     } catch (err) {
-      setPreview(null);
-      fail(err);
+      if (mine === requestRef.current) {
+        setPreview(null);
+        fail(err);
+      }
     } finally {
-      setBusy(false);
+      if (mine === requestRef.current) setBusy(false);
     }
   };
 
@@ -78,6 +87,9 @@ export function SubscribeBotListDialog({ open, onClose }: { open: boolean; onClo
               placeholder="https://"
               value={url}
               maxLength={2048}
+              // Locked while fetching, so the list shown is always the one for
+              // the address in this field.
+              disabled={busy}
               onChange={(event) => {
                 setUrl(event.target.value);
                 setPreview(null);

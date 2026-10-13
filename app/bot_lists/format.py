@@ -97,6 +97,7 @@ def parse_bot_list(raw: bytes | str) -> BotListFile:
         raise BotListFormatError(f"the file is larger than {MAX_FILE_BYTES // 1024} KiB")
     try:
         data = json.loads(raw)
-    except (ValueError, UnicodeDecodeError) as exc:
+    except (ValueError, UnicodeDecodeError, RecursionError) as exc:
+        # RecursionError: brackets nested thousands deep, from a file someone else wrote.
         raise BotListFormatError("the file is not valid JSON") from exc
     return validate_bot_list(data)
