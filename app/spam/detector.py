@@ -34,6 +34,7 @@ from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Literal, cast, get_args
 
 from app.spam.settings import (
+    MIN_DUPLICATE_CHARS,
     PERMANENT_SECONDS,
     HopMatch,
     SpamConfig,
@@ -118,6 +119,9 @@ class Event:
     spam: bool = False
     # Caught by duplicate suppression: a repeat, not spam by itself.
     duplicate: bool = False
+    # The user removed the duplicate block made from this message: it starts
+    # no new one. The next copy counts as a first copy again.
+    released: bool = False
     campaign: int | None = None
     settled: bool = False
 
@@ -609,6 +613,30 @@ class SpamDetector:
             return
         self._add_block(key, *args, **kwargs)
 
+    def _release(self, block: Block) -> None:
+        """Forgive the copies a removed duplicate block was made from.
+
+        Holding the block's key off, as for other blocks, would also let every
+        later repeat through. Without either, the same copies would put the
+        block straight back.
+        """
+        pieces = block.value if block.kind == "words" else [block.value]
+        for event in self.events:
+            if event.channel != block.channel:
+                continue
+            if block.sender_only and event.sender != block.sender:
+                continue
+            if all(piece in event.text for piece in pieces):
+                event.released = True
+
+    def _rule_piece(self, text: str) -> str:
+        """The part of a message a duplicate rule matches."""
+        length = self.tunables.text_rule_chars
+        piece = middle_piece(text, length)
+        if len(piece) < MIN_DUPLICATE_CHARS:
+            piece = middle_piece(text, length, whole_words=False)
+        return piece
+
     def _drop_block(self, key: str) -> Block | None:
         block = self.blocks.pop(key, None)
         if block is not None:
@@ -804,7 +832,10 @@ class SpamDetector:
         usable = [
             e
             for e in recent
-            if not e.exempt and e.sender not in self.allow_senders and not self._stopped(e)
+            if not e.exempt
+            and not e.released
+            and e.sender not in self.allow_senders
+            and not self._stopped(e)
         ]
 
         def hold(kind: BlockKind, value: Any, reason: str, copies: list[Event]) -> None:
@@ -859,8 +890,10 @@ class SpamDetector:
             content = longest_piece(strip_mentions(event.text))
             if len(content) < tun.dedupe_min_chars:
                 continue
-            piece = middle_piece(content, tun.text_rule_chars)
-            if len(piece) < tun.min_rule_chars:
+            # ``min_rule_chars`` is not asked of this piece: it guards the text
+            # rules, and the two lengths above are the ones set for duplicates.
+            piece = self._rule_piece(content)
+            if len(piece) < MIN_DUPLICATE_CHARS:
                 continue
             slot = (piece, event.sender if scope == "same" else None)
             copies_of.setdefault(slot, []).append(event)
@@ -1339,6 +1372,9 @@ class SpamDetector:
         block = self.blocks.pop(key, None)
         if block is not None:
             self._note("block_removed", key=key, kind=block.kind)
+            if block.source == "dedupe":
+                self._release(block)
+                return {"key": key}
         # Otherwise the same evidence would put it straight back.
         self.suppressed[key] = self._clock() + suppress_seconds
         return {"key": key}
@@ -1411,8 +1447,7 @@ class SpamDetector:
     def _do_mark_spam(
         self, text: str, channel: str, ttl_seconds: int | None = None
     ) -> dict[str, Any]:
-        piece = middle_piece(text.strip(), self.tunables.text_rule_chars)
-        return self._manual_text(piece, channel, "marked_spam", ttl_seconds)
+        return self._manual_text(self._rule_piece(text), channel, "marked_spam", ttl_seconds)
 
     def _do_not_spam(self, sender: str = "", matched: str | None = None) -> dict[str, Any]:
         if sender:
@@ -1504,10 +1539,11 @@ class SpamDetector:
             if block.source == "manual":
                 continue
             del self.blocks[key]
-            # Otherwise the same evidence would put it straight back. A duplicate
-            # block is held off for as long as it would have lasted.
-            hold = self.tunables.dedupe_seconds if block.source == "dedupe" else SUPPRESS_SECONDS
-            self.suppressed[key] = now + hold
+            # Otherwise the same evidence would put it straight back.
+            if block.source == "dedupe":
+                self._release(block)
+            else:
+                self.suppressed[key] = now + SUPPRESS_SECONDS
         self._note("cleared_auto")
 
     def _do_clear_suppressed(self) -> None:

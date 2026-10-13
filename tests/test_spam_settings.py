@@ -53,6 +53,13 @@ def test_override_beats_preset():
     assert tun.text_distinct_senders == PRESETS["strict"]["text_distinct_senders"]
 
 
+@pytest.mark.parametrize("key", ["dedupe_min_chars", "text_rule_chars"])
+def test_duplicate_lengths_go_down_to_five(key):
+    assert getattr(effective(SpamConfig(overrides={key: 5})), key) == 5
+    with pytest.raises(ValidationError):
+        SpamConfig(overrides={key: 4})
+
+
 def test_unknown_override_rejected():
     with pytest.raises(ValidationError):
         SpamConfig(overrides={"no_such_setting": 1})

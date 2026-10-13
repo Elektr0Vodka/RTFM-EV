@@ -249,15 +249,24 @@ def name_score(name: str, patterns: Sequence[re.Pattern[str]] = ()) -> int:
     return min(score, 6)
 
 
-def middle_piece(text: str, length: int) -> str:
+def middle_piece(text: str, length: int, *, whole_words: bool = True) -> str:
     """Whole words from the middle of a text, at most ``length`` characters.
 
     The middle is what survives when a spammer adds words at either end.
+    Without ``whole_words`` it is ``length`` characters as they come, for a
+    ``length`` so small that whole words leave next to nothing.
     """
     stripped = text.strip()
     if len(stripped) <= length:
         return stripped
     start = (len(stripped) - length) // 2
+    if not whole_words:
+        while stripped[start].isspace():
+            start += 1
+        end = min(len(stripped), start + length)
+        while stripped[end - 1].isspace():
+            end += 1
+        return stripped[start:end]
     if start > 0 and not stripped[start - 1].isspace():
         space = stripped.find(" ", start, start + 12)
         if space != -1:

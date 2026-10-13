@@ -4871,7 +4871,7 @@
   "spam_set_similarity_help": "Berichten die zo vergelijkbaar zijn worden gegroepeerd, zodat een woord toevoegen, hoofdletters wijzigen of lijkende letters wisselen het filter niet omzeilt. 100 betekent alleen identiek.",
   "spam_set_similarity_risk": "Lager kan losstaande berichten met gedeelde bewoording groeperen, zoals vaste botantwoorden. Hoger is makkelijker te omzeilen.",
   "spam_set_min_rule_chars_label": "Kortste tekst waarop een regel mag matchen",
-  "spam_set_min_rule_chars_help": "Een tekstregel moet op minstens zoveel tekens matchen, zodat hij nooit iets korts en gewoons blokkeert.",
+  "spam_set_min_rule_chars_help": "Een tekstregel moet op minstens zoveel tekens matchen, zodat hij nooit iets korts en gewoons blokkeert. Het onderdrukken van duplicaten gaat uit van zijn eigen twee lengtes.",
   "spam_set_min_rule_chars_risk": "Lager laat een korte regel zoals 'de vergadering' echte berichten blokkeren. Hoger geeft bij sterk gevarieerde spam mogelijk geen regel.",
   "spam_set_dedupe_enabled_label": "Alleen de eerste kopie van een bericht doorlaten",
   "spam_set_dedupe_enabled_help": "Nadat een kanaalbericht is gezien, worden herhalingen van dezelfde tekst een tijd geblokkeerd. Wiens herhalingen stel je hieronder in. Korte berichten blijven altijd ongemoeid.",
