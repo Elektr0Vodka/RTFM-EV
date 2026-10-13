@@ -200,6 +200,25 @@ function radioStatQuery(filter?: RadioStatFilter): string {
   return `&radio_id=${filter.radioId}`;
 }
 
+/**
+ * A FastAPI validation error as one line: each problem as "field: message".
+ * The field is the last name in `loc`; "body" and list indexes say little.
+ */
+function validationText(detail: unknown[]): string {
+  return detail
+    .map((item) => {
+      if (typeof item === 'string') return item;
+      const { loc, msg } = (item ?? {}) as { loc?: unknown; msg?: unknown };
+      if (typeof msg !== 'string') return JSON.stringify(item);
+      const text = msg.replace(/^Value error, /, '');
+      const field = Array.isArray(loc)
+        ? [...loc].reverse().find((part) => typeof part === 'string' && part !== 'body')
+        : undefined;
+      return typeof field === 'string' ? `${field}: ${text}` : text;
+    })
+    .join('; ');
+}
+
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const hasBody = options?.body !== undefined;
   const res = await fetch(`${API_BASE}${url}`, {
@@ -220,8 +239,14 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
         // Structured detail, e.g. {"detail": {"message": "...", ...}}
         errorMessage = errorJson.detail.message;
         errorDetail = errorJson.detail;
+      } else if (Array.isArray(errorJson.detail)) {
+        // A validation error (422) is a list of {loc, msg}.
+        errorMessage = validationText(errorJson.detail) || errorMessage;
+      } else if (typeof errorJson.detail === 'string') {
+        if (errorJson.detail) errorMessage = errorJson.detail;
       } else if (errorJson.detail) {
-        errorMessage = errorJson.detail;
+        // Never let an object reach a toast as "[object Object]".
+        errorMessage = JSON.stringify(errorJson.detail);
       }
     } catch {
       // Not JSON, use raw text

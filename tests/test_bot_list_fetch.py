@@ -8,7 +8,7 @@ import pytest
 from app.bot_lists.format import MAX_FILE_BYTES
 from app.services import bot_list_fetch
 from app.services.bot_list_fetch import BotListFetchError, check_subscription_url, fetch_bot_list
-from app.services.url_safety import UnsafeUrlError
+from app.services.url_safety import UnresolvedHostError, UnsafeUrlError
 
 PUBLIC_IP = "93.184.216.34"
 FILE = {
@@ -271,3 +271,28 @@ async def test_the_request_line_with_address_and_query_is_not_logged(resolved, c
 
     assert during == []
     assert len(after) == 1 and "example.org/other" in after[0]
+
+
+@pytest.mark.asyncio
+async def test_a_host_that_does_not_exist_is_not_called_unsafe(monkeypatch):
+    def no_such_host(url: str) -> str:
+        raise UnresolvedHostError("host does not resolve: no-such-host.example")
+
+    monkeypatch.setattr(bot_list_fetch, "resolve_public_ip", no_such_host)
+    with pytest.raises(BotListFetchError) as caught:
+        await fetch_bot_list("https://no-such-host.example/b.json")
+    assert caught.value.code == "host_not_found"
+    assert caught.value.public_text() == "host_not_found"
+
+
+@pytest.mark.parametrize(
+    ("url", "stored"),
+    [
+        ("https://example.org:443/b.json", "https://example.org/b.json"),
+        ("https://EXAMPLE.org/b.json", "https://example.org/b.json"),
+        ("https://example.org:8443/b.json", "https://example.org:8443/b.json"),
+        ("https://[2001:db8::1]:443/b.json", "https://[2001:db8::1]/b.json"),
+    ],
+)
+def test_check_writes_one_address_one_way(url, stored):
+    assert check_subscription_url(url) == stored

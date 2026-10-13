@@ -58,6 +58,8 @@ export function SettingsBotListsSection({
   const [openList, setOpenList] = useState<BotList | null>(null);
   const [subscribeOpen, setSubscribeOpen] = useState(false);
   const [review, setReview] = useState<{ list: BotList; mode: 'review' | 'enable' } | null>(null);
+  // Subscriptions whose refresh is under way: a fetch can take up to 20 seconds.
+  const [refreshing, setRefreshing] = useState<number[]>([]);
 
   useEffect(() => {
     void loadBotLists().catch((err) =>
@@ -116,6 +118,16 @@ export function SettingsBotListsSection({
           }),
         })
       : t('settings_bot_lists_never_refreshed', { host });
+  };
+
+  const refresh = async (id: number) => {
+    if (refreshing.includes(id)) return;
+    setRefreshing((ids) => [...ids, id]);
+    try {
+      await run(() => api.refreshBotList(id));
+    } finally {
+      setRefreshing((ids) => ids.filter((other) => other !== id));
+    }
   };
 
   const createList = async () => {
@@ -244,9 +256,12 @@ export function SettingsBotListsSection({
                   variant="ghost"
                   size="sm"
                   className="h-7 text-xs"
-                  onClick={() => void run(() => api.refreshBotList(list.id))}
+                  disabled={refreshing.includes(list.id)}
+                  onClick={() => void refresh(list.id)}
                 >
-                  {t('settings_bot_lists_refresh_button')}
+                  {refreshing.includes(list.id)
+                    ? t('settings_bot_lists_refreshing')
+                    : t('settings_bot_lists_refresh_button')}
                 </Button>
               )}
               <Button asChild variant="ghost" size="sm" className="h-7 text-xs">

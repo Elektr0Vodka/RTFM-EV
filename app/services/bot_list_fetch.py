@@ -21,7 +21,7 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 import httpx
 
 from app.bot_lists.format import MAX_FILE_BYTES, BotListFile, BotListFormatError, parse_bot_list
-from app.services.url_safety import UnsafeUrlError, resolve_public_ip
+from app.services.url_safety import UnresolvedHostError, UnsafeUrlError, resolve_public_ip
 
 # Per network operation (connect, one read). A server that drips bytes stays
 # under it, so FETCH_DEADLINE bounds the fetch as a whole.
@@ -87,7 +87,8 @@ def check_subscription_url(url: str) -> str:
         raise BotListFetchError("bad_url", "no host, or credentials in the URL")
     if ":" in host:  # IPv6 literal
         host = f"[{host}]"
-    netloc = host if port is None else f"{host}:{port}"
+    # 443 is what https means: written or not, it is the same address.
+    netloc = host if port in (None, 443) else f"{host}:{port}"
     return urlunsplit(("https", netloc, parts.path or "/", parts.query, ""))
 
 
@@ -156,6 +157,9 @@ async def fetch_bot_list(
             body = await _fetch_body(start, transport)
     except TimeoutError as exc:
         raise BotListFetchError("fetch_failed", f"no answer within {FETCH_DEADLINE} s") from exc
+    except UnresolvedHostError as exc:
+        # A mistyped or vanished host name: nothing unsafe about it.
+        raise BotListFetchError("host_not_found", str(exc)) from exc
     except UnsafeUrlError as exc:
         raise BotListFetchError("unsafe_url", str(exc)) from exc
     except httpx.HTTPError as exc:

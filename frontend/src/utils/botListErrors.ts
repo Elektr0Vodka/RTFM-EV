@@ -1,7 +1,8 @@
 import type { TFn } from '../i18n';
 
 /**
- * The codes `app/services/bot_list_fetch.py` and the refresh can answer with.
+ * The codes `app/services/bot_list_fetch.py`, the refresh and the refusals of
+ * `app/services/bot_lists.py` can answer with.
  * A Map, so an error text that happens to be an Object property name
  * ("constructor") is not taken for a code.
  */
@@ -14,6 +15,10 @@ const TEXT = new Map<string, (t: TFn) => string>([
   ['too_large', (t) => t('bot_list_error_too_large')],
   ['too_many_redirects', (t) => t('bot_list_error_too_many_redirects')],
   ['over_limit', (t) => t('bot_list_error_over_limit')],
+  ['host_not_found', (t) => t('bot_list_error_host_not_found')],
+  ['already_subscribed', (t) => t('bot_list_error_already_subscribed')],
+  ['too_many_subscriptions', (t) => t('bot_list_error_too_many_subscriptions')],
+  ['too_many_entries', (t) => t('bot_list_error_too_many_entries')],
 ]);
 
 /**

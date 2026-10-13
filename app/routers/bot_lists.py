@@ -68,11 +68,13 @@ class BotListUrlRequest(BaseModel):
 
 
 def _refusal(exc: BotListError) -> HTTPException:
+    # A code the UI words in the user's language, or else the sentence as it is.
+    detail = exc.code or str(exc)
     if isinstance(exc, BotListNotFound):
-        return HTTPException(status_code=404, detail=str(exc))
+        return HTTPException(status_code=404, detail=detail)
     if isinstance(exc, BotListReadOnly):
-        return HTTPException(status_code=409, detail=str(exc))
-    return HTTPException(status_code=400, detail=str(exc))
+        return HTTPException(status_code=409, detail=detail)
+    return HTTPException(status_code=400, detail=detail)
 
 
 @router.get("")
@@ -88,7 +90,10 @@ async def create_bot_list(body: BotListCreateRequest) -> dict[str, Any]:
 
 @router.put("/exceptions")
 async def set_bot_exceptions(body: BotExceptionsRequest) -> dict[str, Any]:
-    return await bot_lists.set_exceptions(body.names)
+    try:
+        return await bot_lists.set_exceptions(body.names)
+    except BotListError as exc:
+        raise _refusal(exc) from exc
 
 
 @router.post("/import")

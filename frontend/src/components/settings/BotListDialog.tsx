@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../../api';
 import { useT } from '../../i18n';
 import type { BotList, BotListEntry } from '../../types';
+import { botListErrorText } from '../../utils/botListErrors';
 import { setBotListsState } from '../../utils/botLists';
 import { Button } from '../ui/button';
 import {
@@ -72,7 +73,7 @@ export function BotListDialog({ list, onClose }: { list: BotList | null; onClose
       setBotListsState(await api.setBotListEntries(listId, entries));
       onClose();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toast.error(botListErrorText(t, err instanceof Error ? err.message : String(err)));
     } finally {
       setBusy(false);
     }

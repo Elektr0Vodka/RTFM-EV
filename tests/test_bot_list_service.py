@@ -229,3 +229,124 @@ async def test_a_change_is_broadcast(test_db, monkeypatch, captured_broadcasts):
     created_id = state.pop("created_id")
     assert created_id == state["lists"][0]["id"]
     assert broadcasts == [{"type": "bot_lists", "data": state}]
+
+
+@pytest.mark.asyncio
+async def test_removing_an_exception_cannot_take_the_set_past_its_cap(test_db, monkeypatch):
+    await _list_with(["A", "B", "C"])
+    await bot_lists.set_exceptions(["C"])
+    monkeypatch.setattr(service_module, "MAX_EFFECTIVE", 2)
+
+    with pytest.raises(BotListLimit) as caught:
+        await bot_lists.set_exceptions([])
+    assert caught.value.code == "over_limit"
+    assert await BotListRepository.exceptions() == ["C"]
+
+    # Another exception makes the set smaller: always allowed.
+    state = await bot_lists.set_exceptions(["B", "C"])
+    assert state["effective"]["names"] == ["A"]
+
+
+@pytest.mark.asyncio
+async def test_exceptions_can_still_be_changed_when_the_set_is_already_too_large(
+    test_db, monkeypatch
+):
+    await _list_with(["A", "B", "C"])
+    await bot_lists.set_exceptions(["C"])
+    monkeypatch.setattr(service_module, "MAX_EFFECTIVE", 1)
+    # Two names are in force, over a cap of one. Swapping one exception for
+    # another keeps it at two, so it is not made worse and is let through.
+    state = await bot_lists.set_exceptions(["B"])
+    assert state["effective"]["names"] == ["A", "C"]
+
+
+def _shipped_file(tmp_path, *names):
+    path = tmp_path / "bot_list.json"
+    path.write_text(
+        json.dumps(
+            {
+                "format": "rtfm-ev-bot-list",
+                "version": 1,
+                "name": "Shipped",
+                "entries": [{"name": n} for n in names],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+@pytest.mark.asyncio
+async def test_a_shipped_list_that_grew_past_the_cap_keeps_its_old_names(
+    test_db, tmp_path, monkeypatch
+):
+    await bot_lists.load_shipped(_shipped_file(tmp_path, "A"))
+    shipped = await BotListRepository.get_shipped()
+    assert shipped is not None
+    await bot_lists.update(shipped["id"], enabled=True)
+    monkeypatch.setattr(service_module, "MAX_EFFECTIVE", 2)
+
+    await bot_lists.load_shipped(_shipped_file(tmp_path, "A", "B", "C"))
+
+    row = await BotListRepository.get_shipped()
+    assert row is not None
+    assert (row["entry_count"], row["last_error"]) == (1, "over_limit")
+    assert (await bot_lists.snapshot())["effective"]["names"] == ["A"]
+
+    # A file that fits again is taken, and the error goes.
+    await bot_lists.load_shipped(_shipped_file(tmp_path, "A", "B"))
+    row = await BotListRepository.get_shipped()
+    assert row is not None
+    assert (row["entry_count"], row["last_error"]) == (2, None)
+
+
+@pytest.mark.asyncio
+async def test_a_shipped_list_that_is_off_takes_any_file(test_db, tmp_path, monkeypatch):
+    await bot_lists.load_shipped(_shipped_file(tmp_path, "A"))
+    monkeypatch.setattr(service_module, "MAX_EFFECTIVE", 2)
+    await bot_lists.load_shipped(_shipped_file(tmp_path, "A", "B", "C"))
+    row = await BotListRepository.get_shipped()
+    assert row is not None
+    assert (row["entry_count"], row["last_error"]) == (3, None)
+
+
+@pytest.mark.asyncio
+async def test_a_full_list_refuses_with_a_code(test_db, monkeypatch):
+    state = await bot_lists.create_local("Mine")
+    list_id = state["created_id"]
+    await bot_lists.add_entry(list_id, _entry("A"))
+    monkeypatch.setattr(service_module, "MAX_ENTRIES", 1)
+    with pytest.raises(BotListLimit) as caught:
+        await bot_lists.add_entry(list_id, _entry("B"))
+    assert caught.value.code == "too_many_entries"
+
+
+@pytest.mark.asyncio
+async def test_a_shipped_file_that_swaps_names_is_not_counted_twice(test_db, tmp_path, monkeypatch):
+    await bot_lists.load_shipped(_shipped_file(tmp_path, "A", "B"))
+    shipped = await BotListRepository.get_shipped()
+    assert shipped is not None
+    await bot_lists.update(shipped["id"], enabled=True)
+    monkeypatch.setattr(service_module, "MAX_EFFECTIVE", 2)
+
+    # Two other names in place of the two it had: still two.
+    await bot_lists.load_shipped(_shipped_file(tmp_path, "C", "D"))
+    row = await BotListRepository.get_shipped()
+    assert row is not None and row["last_error"] is None
+    assert (await bot_lists.snapshot())["effective"]["names"] == ["C", "D"]
+
+    # A name that is "Never a bot" does not count either.
+    await bot_lists.set_exceptions(["E"])
+    await bot_lists.load_shipped(_shipped_file(tmp_path, "C", "D", "E"))
+    row = await BotListRepository.get_shipped()
+    assert row is not None and (row["entry_count"], row["last_error"]) == (3, None)
+
+
+@pytest.mark.asyncio
+async def test_replacing_the_names_of_an_enabled_list_counts_the_result(test_db, monkeypatch):
+    list_id = await _list_with(["A", "B"])
+    monkeypatch.setattr(service_module, "MAX_EFFECTIVE", 2)
+    state = await bot_lists.replace_entries(list_id, [_entry("C"), _entry("D")])
+    assert state["effective"]["names"] == ["C", "D"]
+    with pytest.raises(BotListLimit):
+        await bot_lists.replace_entries(list_id, [_entry("C"), _entry("D"), _entry("E")])

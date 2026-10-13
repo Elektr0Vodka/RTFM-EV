@@ -11,6 +11,54 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-13 (Open items from the bot list reviews, fix/bot-list-open-items)
+
+No migration. No new dependency.
+
+### Outbound fetches (bot lists, link previews, map tile cache)
+- **Two more address ranges count as not public.** The guard used by the bot
+  list fetch, link previews and the map tile cache now also refuses shared
+  address space (`100.64.0.0/10`, used by carrier NAT and by overlay networks
+  such as Tailscale) and site-local IPv6 (`fec0::/10`). A bot list or a
+  linked page on such an address is no longer fetched. The tile cache only
+  fetches from its fixed public tile hosts, so nothing changes there in
+  practice.
+- **A host name that does not exist is no longer called unsafe.** A bot list
+  subscription now says "That host name does not exist" for it.
+- **Link previews do not trust the other end either.** The page is asked for
+  and read uncompressed (a compressed answer gives no preview, since unpacking
+  it first could expand a small answer far past the limit), reading stops at
+  256 KiB instead of taking the whole body into memory, the whole fetch has a
+  12 second deadline (the 6 second timeout is per network operation), and the
+  name lookup no longer blocks the server while it waits. A page can only
+  name a plain character set for itself (UTF-8, Latin and Windows code pages);
+  anything else is read as UTF-8, because some codecs take seconds on a page
+  built for them and would hold up the whole server.
+
+### Bot lists
+- **A refused entry says why.** A validation error from the server (for
+  example a public key that is not 64 hex characters) was shown as
+  "[object Object]"; it is now worded as "field: message". This is in the
+  shared API error handling, so it holds for every form in the app.
+- **Refusals in your language.** "Already subscribed", "20 subscriptions is
+  the most", "a list holds at most 1000 names" and the 5000 name limit are
+  answered as codes and worded by the UI in English, Dutch and German.
+- **One address, one subscription.** Two subscribe requests for the same
+  address at the same moment made two lists; the second is now refused. An
+  address written with `:443` is the same address as without it (a
+  subscription stored with `:443` before this change is not rewritten).
+- **A list deleted while it is being refreshed** no longer leaves its names
+  behind without a list.
+- **Refresh now** shows that it is busy and cannot be started twice.
+- **The 5000 name limit also holds** when a "Never a bot" name is taken away
+  again (which puts the name back) and when the shipped list grows with an
+  update. A shipped list that would pass the limit keeps its previous names
+  and shows why, the way a subscription does; it is tried again at the next
+  start. Where a list's names are replaced (a refresh, the shipped file,
+  saving your own list) the limit now counts the result, so a file that swaps
+  names for others is no longer refused at the limit.
+- **User Guide:** a Bot lists section, in English, Dutch and German.
+
 ## Update 2026-10-13 (Bot lists: block forwards, feat/bot-lists-forward-blocking)
 
 No migration. No new dependency. Off until you switch it on, per list. The

@@ -11,6 +11,12 @@ describe('botListErrorText', () => {
     expect(botListErrorText(t, 'not_https')).toBe('bot_list_error_not_https');
     expect(botListErrorText(t, 'unsafe_url')).toBe('bot_list_error_unsafe_url');
     expect(botListErrorText(t, 'over_limit')).toBe('bot_list_error_over_limit');
+    expect(botListErrorText(t, 'host_not_found')).toBe('bot_list_error_host_not_found');
+    expect(botListErrorText(t, 'already_subscribed')).toBe('bot_list_error_already_subscribed');
+    expect(botListErrorText(t, 'too_many_subscriptions')).toBe(
+      'bot_list_error_too_many_subscriptions'
+    );
+    expect(botListErrorText(t, 'too_many_entries')).toBe('bot_list_error_too_many_entries');
   });
 
   it('passes the format message of an invalid file on', () => {

@@ -173,6 +173,65 @@ describe('fetchJson (via api methods)', () => {
       await expect(api.getHealth()).rejects.toThrow('{"error": "validation failed"}');
     });
 
+    it('words a validation error (detail is a list) as readable text', async () => {
+      installMockFetch();
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 422,
+        statusText: 'Unprocessable Entity',
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              detail: [
+                {
+                  type: 'value_error',
+                  loc: ['body', 'entries', 0, 'public_key'],
+                  msg: 'Value error, a public key is 64 hex characters',
+                  input: 'abc',
+                },
+                {
+                  type: 'string_too_short',
+                  loc: ['body', 'entries', 1, 'name'],
+                  msg: 'String should have at least 1 character',
+                  input: '',
+                },
+              ],
+            })
+          ),
+      });
+
+      const failure = await api.getHealth().catch((err: unknown) => err);
+      expect(failure).toBeInstanceOf(Error);
+      expect((failure as Error).message).toBe(
+        'public_key: a public key is 64 hex characters; name: String should have at least 1 character'
+      );
+      expect((failure as Error).message).not.toContain('[object Object]');
+    });
+
+    it('falls back to the raw answer for a validation error with nothing in it', async () => {
+      installMockFetch();
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 422,
+        statusText: 'Unprocessable Entity',
+        text: () => Promise.resolve('{"detail": []}'),
+      });
+
+      await expect(api.getHealth()).rejects.toThrow('{"detail": []}');
+    });
+
+    it('never shows a detail it cannot word as [object Object]', async () => {
+      installMockFetch();
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        statusText: 'Bad Request',
+        text: () => Promise.resolve('{"detail": {"code": 7}}'),
+      });
+
+      await expect(api.getHealth()).rejects.toThrow('{"code":7}');
+    });
+
     it('uses detail.message when detail is a structured object', async () => {
       installMockFetch();
       mockFetch.mockResolvedValueOnce({
