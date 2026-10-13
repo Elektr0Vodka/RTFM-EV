@@ -21,6 +21,7 @@ import { emitStatusDotPulse } from '../utils/statusDotPulse';
 import { emitBuddyEvent } from '../buddy/buddyEvents';
 import { conversationMessageCache } from './useConversationMessages';
 import { isMessageHiddenByHopWidth } from '../utils/pathUtils';
+import { isBotMessage, loadBotLists } from '../utils/botLists';
 import type {
   Channel,
   Contact,
@@ -49,6 +50,8 @@ interface UseRealtimeAppStateArgs {
   hideMalformedRef?: MutableRefObject<boolean>;
   /** Whether the chat "Hide spam" filter is on. */
   hideSpamRef?: MutableRefObject<boolean>;
+  /** Whether the chat "Hide bots" filter is on. */
+  hideBotsRef?: MutableRefObject<boolean>;
   channelsRef: MutableRefObject<Channel[]>;
   activeConversationRef: MutableRefObject<Conversation | null>;
   observeMessage: (msg: Message) => { added: boolean; activeConversation: boolean };
@@ -131,6 +134,7 @@ export function useRealtimeAppState({
   hiddenHopWidthsRef,
   hideMalformedRef,
   hideSpamRef,
+  hideBotsRef,
   channelsRef,
   activeConversationRef,
   observeMessage,
@@ -238,6 +242,8 @@ export function useRealtimeAppState({
         fetchAllContacts()
           .then((data) => setContacts(data))
           .catch(console.error);
+        // `bot_lists` events sent while the socket was down are gone.
+        void loadBotLists().catch(console.error);
       },
       onMessage: (msg: Message) => {
         if (isMessageBlocked(msg, blockedKeysRef.current, blockedNamesRef.current)) {
@@ -258,7 +264,9 @@ export function useRealtimeAppState({
           isMessageHiddenByHopWidth(msg.paths, hiddenHopWidthsRef.current);
         const isMalformedHidden = !msg.outgoing && !!msg.malformed && !!hideMalformedRef?.current;
         const isSpamHidden = !msg.outgoing && !!msg.spam && !!hideSpamRef?.current;
-        const isSilenced = isMutedChannel || isHopHidden || isMalformedHidden || isSpamHidden;
+        const isBotHidden = !!hideBotsRef?.current && isBotMessage(msg);
+        const isSilenced =
+          isMutedChannel || isHopHidden || isMalformedHidden || isSpamHidden || isBotHidden;
 
         const { added: isNewMessage, activeConversation: isForActiveConversation } =
           observeMessage(msg);
@@ -418,6 +426,7 @@ export function useRealtimeAppState({
       hiddenHopWidthsRef,
       hideMalformedRef,
       hideSpamRef,
+      hideBotsRef,
       checkMention,
       fetchAllContacts,
       fetchConfig,

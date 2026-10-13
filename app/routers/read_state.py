@@ -12,6 +12,7 @@ from app.repository import (
     ContactRepository,
     MessageRepository,
 )
+from app.services.bot_lists import bot_lists
 from app.services.radio_runtime import radio_runtime as radio_manager
 
 logger = logging.getLogger(__name__)
@@ -32,8 +33,7 @@ async def get_unreads() -> UnreadCounts:
     if mc and mc.self_info:
         name = mc.self_info.get("name") or None
     settings = await AppSettingsRepository.get()
-    blocked_keys = settings.blocked_keys or None
-    blocked_names = settings.blocked_names or None
+    blocked_keys, blocked_names = await bot_lists.hidden_senders(settings)
     data = await MessageRepository.get_unread_counts(
         name,
         blocked_keys=blocked_keys,

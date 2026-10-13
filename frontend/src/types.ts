@@ -1260,6 +1260,8 @@ export interface AppSettings {
    * as spam, and keep them out of unread counts, mentions and Web Push.
    */
   hide_spam?: boolean;
+  /** Hide senders on an enabled bot list in chat, unread counts, mentions and Web Push. */
+  hide_bots?: boolean;
   sidebar_section_order: string[];
   sidebar_tool_order: string[];
   sidebar_favorites_order: string[];
@@ -1629,6 +1631,7 @@ export interface AppSettingsUpdate {
   ollama_model?: string;
   spam_guard_enabled?: boolean;
   hide_spam?: boolean;
+  hide_bots?: boolean;
   sidebar_section_order?: string[];
   sidebar_tool_order?: string[];
   sidebar_favorites_order?: string[];
@@ -3075,4 +3078,40 @@ export interface MessageSpamPayload {
   spam: boolean;
   /** Present when the duplicate marker changed too ('Not spam' on a caught repeat). */
   duplicate?: boolean;
+}
+
+/** Where a bot list comes from: made or imported here, a URL subscription, or shipped with the app. */
+export type BotListSource = 'local' | 'url' | 'shipped';
+
+export interface BotList {
+  id: number;
+  name: string;
+  description: string;
+  source: BotListSource;
+  url: string | null;
+  /** While on, the list's senders carry the Bot marker in chat. */
+  enabled: boolean;
+  block_forward: boolean;
+  file_updated: string | null;
+  fetched_at: number | null;
+  last_error: string | null;
+  created_at: number;
+  entry_count: number;
+}
+
+export interface BotListEntry {
+  /** Sender name, matched exactly and case-sensitively. */
+  name: string;
+  public_key: string | null;
+  note: string | null;
+}
+
+/** `GET /api/bot-lists` and the `bot_lists` WebSocket event. */
+export interface BotListsState {
+  lists: BotList[];
+  /** Names never treated as a bot, whichever list names them. */
+  exceptions: string[];
+  /** Entries of all enabled lists minus the exceptions. */
+  effective: { names: string[]; keys: string[] };
+  limits: { entries_per_list: number; effective: number };
 }

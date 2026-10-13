@@ -59,4 +59,17 @@ describe('MessageRowActions', () => {
     render(<MessageRowActions onReply={vi.fn()} />);
     expect(screen.queryByRole('button', { name: 'Mark unread from here' })).toBeNull();
   });
+
+  it('offers the bot list actions it has handlers for', () => {
+    const onAddToBotList = vi.fn();
+    const onNotABot = vi.fn();
+    const { rerender } = render(<MessageRowActions onAddToBotList={onAddToBotList} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Add to bot list' }));
+    expect(onAddToBotList).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'Not a bot' })).toBeNull();
+
+    rerender(<MessageRowActions onNotABot={onNotABot} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Not a bot' }));
+    expect(onNotABot).toHaveBeenCalledTimes(1);
+  });
 });

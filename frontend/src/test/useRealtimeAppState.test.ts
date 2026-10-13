@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   api: {
     getChannels: vi.fn(),
     getRecentPackets: vi.fn(),
+    getBotLists: vi.fn(),
   },
   toast: {
     success: vi.fn(),
@@ -161,6 +162,8 @@ describe('useRealtimeAppState', () => {
       expect(mocks.api.getChannels).toHaveBeenCalledTimes(1);
       expect(args.fetchAllContacts).toHaveBeenCalledTimes(1);
       expect(mocks.api.getRecentPackets).toHaveBeenCalledTimes(1);
+      // Bot list events missed while offline: the browser copy is read again.
+      expect(mocks.api.getBotLists).toHaveBeenCalledTimes(1);
       // Feed re-seeded from the DB result, not left as the stale live packet.
       expect(getRawPackets()).toEqual([rawPacketFixture]);
       expect(fns.setChannels).toHaveBeenCalledWith([publicChannel]);

@@ -60,7 +60,7 @@ class AppSettingsRepository:
                    advert_interval, last_advert_time, flood_scope, known_regions,
                    blocked_keys, blocked_names, hidden_hop_widths, hide_malformed,
                    ollama_enabled, ollama_base_url, ollama_model,
-                   spam_guard_enabled, hide_spam,
+                   spam_guard_enabled, hide_spam, hide_bots,
                    discovery_blocked_types,
                    tracked_telemetry_repeaters, tracked_telemetry_contacts,
                    clock_sync_repeaters,
@@ -302,6 +302,11 @@ class AppSettingsRepository:
         except (KeyError, TypeError, IndexError):
             spam_guard_enabled = False
             hide_spam = False
+        # Parse the Hide bots switch (migration _142)
+        try:
+            hide_bots = bool(row["hide_bots"])
+        except (KeyError, TypeError, IndexError):
+            hide_bots = False
 
         # Parse discovery_blocked_types JSON
         discovery_blocked_types: list[int] = []
@@ -590,6 +595,7 @@ class AppSettingsRepository:
             ollama_model=ollama_model,
             spam_guard_enabled=spam_guard_enabled,
             hide_spam=hide_spam,
+            hide_bots=hide_bots,
             discovery_blocked_types=discovery_blocked_types,
             tracked_telemetry_repeaters=tracked_telemetry_repeaters,
             tracked_telemetry_contacts=tracked_telemetry_contacts,
@@ -680,6 +686,7 @@ class AppSettingsRepository:
         ollama_model: str | None = None,
         spam_guard_enabled: bool | None = None,
         hide_spam: bool | None = None,
+        hide_bots: bool | None = None,
         discovery_blocked_types: list[int] | None = None,
         tracked_telemetry_repeaters: list[str] | None = None,
         tracked_telemetry_contacts: list[str] | None = None,
@@ -892,6 +899,10 @@ class AppSettingsRepository:
             updates.append("hide_spam = ?")
             params.append(1 if hide_spam else 0)
 
+        if hide_bots is not None:
+            updates.append("hide_bots = ?")
+            params.append(1 if hide_bots else 0)
+
         if discovery_blocked_types is not None:
             updates.append("discovery_blocked_types = ?")
             params.append(json.dumps(discovery_blocked_types))
@@ -1083,6 +1094,7 @@ class AppSettingsRepository:
         ollama_model: str | None = None,
         spam_guard_enabled: bool | None = None,
         hide_spam: bool | None = None,
+        hide_bots: bool | None = None,
         discovery_blocked_types: list[int] | None = None,
         tracked_telemetry_repeaters: list[str] | None = None,
         tracked_telemetry_contacts: list[str] | None = None,
@@ -1171,6 +1183,7 @@ class AppSettingsRepository:
                 ollama_model=ollama_model,
                 spam_guard_enabled=spam_guard_enabled,
                 hide_spam=hide_spam,
+                hide_bots=hide_bots,
                 discovery_blocked_types=discovery_blocked_types,
                 tracked_telemetry_repeaters=tracked_telemetry_repeaters,
                 tracked_telemetry_contacts=tracked_telemetry_contacts,

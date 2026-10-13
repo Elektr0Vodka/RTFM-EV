@@ -1,0 +1,170 @@
+"""Storage for bot lists, their entries and the exceptions (migration _142)."""
+
+import time
+from typing import Any
+
+from app.database import db
+
+_UPDATABLE = frozenset(
+    {"name", "description", "enabled", "block_forward", "file_updated", "fetched_at", "last_error"}
+)
+_SELECT_LISTS = """
+    SELECT id, name, description, source, url, enabled, block_forward,
+           file_updated, fetched_at, last_error, created_at,
+           (SELECT COUNT(*) FROM bot_list_entries e WHERE e.list_id = bot_lists.id)
+               AS entry_count
+    FROM bot_lists
+"""
+
+
+def _list_row(row: Any) -> dict[str, Any]:
+    return {
+        "id": int(row["id"]),
+        "name": row["name"],
+        "description": row["description"],
+        "source": row["source"],
+        "url": row["url"],
+        "enabled": bool(row["enabled"]),
+        "block_forward": bool(row["block_forward"]),
+        "file_updated": row["file_updated"],
+        "fetched_at": row["fetched_at"],
+        "last_error": row["last_error"],
+        "created_at": int(row["created_at"]),
+        "entry_count": int(row["entry_count"]),
+    }
+
+
+class BotListRepository:
+    """Bot lists, their entries and the names that are never a bot."""
+
+    @staticmethod
+    async def list_all() -> list[dict[str, Any]]:
+        """Every list with its entry count; the shipped list first, then by name."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                _SELECT_LISTS + " ORDER BY CASE source WHEN 'shipped' THEN 0 ELSE 1 END,"
+                " name COLLATE NOCASE, id"
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [_list_row(row) for row in rows]
+
+    @staticmethod
+    async def get(list_id: int) -> dict[str, Any] | None:
+        async with db.readonly() as conn:
+            async with conn.execute(_SELECT_LISTS + " WHERE id = ?", (list_id,)) as cursor:
+                row = await cursor.fetchone()
+        return None if row is None else _list_row(row)
+
+    @staticmethod
+    async def get_shipped() -> dict[str, Any] | None:
+        async with db.readonly() as conn:
+            async with conn.execute(
+                _SELECT_LISTS + " WHERE source = 'shipped' ORDER BY id LIMIT 1"
+            ) as cursor:
+                row = await cursor.fetchone()
+        return None if row is None else _list_row(row)
+
+    @staticmethod
+    async def create(name: str, description: str, source: str, url: str | None = None) -> int:
+        async with db.tx() as conn:
+            async with conn.execute(
+                "INSERT INTO bot_lists (name, description, source, url, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (name, description, source, url, int(time.time())),
+            ) as cursor:
+                new_id = cursor.lastrowid
+        if new_id is None:
+            raise RuntimeError("bot list insert returned no id")
+        return int(new_id)
+
+    @staticmethod
+    async def update(list_id: int, fields: dict[str, Any]) -> None:
+        """Set the given columns. A value of None clears the column."""
+        unknown = set(fields) - _UPDATABLE
+        if unknown:
+            raise ValueError(f"not an updatable bot list field: {sorted(unknown)}")
+        if not fields:
+            return
+        assignments = ", ".join(f"{column} = ?" for column in fields)
+        async with db.tx() as conn:
+            async with conn.execute(
+                f"UPDATE bot_lists SET {assignments} WHERE id = ?",
+                (*fields.values(), list_id),
+            ):
+                pass
+
+    @staticmethod
+    async def delete(list_id: int) -> None:
+        async with db.tx() as conn:
+            async with conn.execute("DELETE FROM bot_list_entries WHERE list_id = ?", (list_id,)):
+                pass
+            async with conn.execute("DELETE FROM bot_lists WHERE id = ?", (list_id,)):
+                pass
+
+    @staticmethod
+    async def entries(list_id: int) -> list[dict[str, Any]]:
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT name, public_key, note FROM bot_list_entries "
+                "WHERE list_id = ? ORDER BY name COLLATE NOCASE, name",
+                (list_id,),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [
+            {"name": row["name"], "public_key": row["public_key"], "note": row["note"]}
+            for row in rows
+        ]
+
+    @staticmethod
+    async def replace_entries(list_id: int, entries: list[dict[str, Any]]) -> None:
+        async with db.tx() as conn:
+            async with conn.execute("DELETE FROM bot_list_entries WHERE list_id = ?", (list_id,)):
+                pass
+            await conn.executemany(
+                "INSERT INTO bot_list_entries (list_id, name, public_key, note) "
+                "VALUES (?, ?, ?, ?)",
+                [(list_id, e["name"], e.get("public_key"), e.get("note")) for e in entries],
+            )
+
+    @staticmethod
+    async def add_entry(list_id: int, name: str, public_key: str | None, note: str | None) -> None:
+        """Add one entry. For a name already there, only missing details are filled in."""
+        async with db.tx() as conn:
+            async with conn.execute(
+                "INSERT INTO bot_list_entries (list_id, name, public_key, note) "
+                "VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(list_id, name) DO UPDATE SET "
+                "public_key = COALESCE(bot_list_entries.public_key, excluded.public_key), "
+                "note = COALESCE(bot_list_entries.note, excluded.note)",
+                (list_id, name, public_key, note),
+            ):
+                pass
+
+    @staticmethod
+    async def enabled_entries() -> list[tuple[str, str | None]]:
+        """(name, public key) of every entry in an enabled list."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT e.name, e.public_key FROM bot_list_entries e "
+                "JOIN bot_lists l ON l.id = e.list_id WHERE l.enabled = 1 "
+                "ORDER BY e.name, l.id"
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [(row["name"], row["public_key"]) for row in rows]
+
+    @staticmethod
+    async def exceptions() -> list[str]:
+        async with db.readonly() as conn:
+            async with conn.execute("SELECT name FROM bot_exceptions ORDER BY name") as cursor:
+                rows = await cursor.fetchall()
+        return [row["name"] for row in rows]
+
+    @staticmethod
+    async def set_exceptions(names: list[str]) -> None:
+        async with db.tx() as conn:
+            async with conn.execute("DELETE FROM bot_exceptions"):
+                pass
+            await conn.executemany(
+                "INSERT OR IGNORE INTO bot_exceptions (name) VALUES (?)",
+                [(name,) for name in names],
+            )

@@ -2197,6 +2197,13 @@ class AppSettings(BaseModel):
             "them from unread counts, mentions and Web Push ('Hide spam')."
         ),
     )
+    hide_bots: bool = Field(
+        default=False,
+        description=(
+            "Hide incoming messages from senders on an enabled bot list in chat and "
+            "exclude them from unread counts, mentions and Web Push ('Hide bots')."
+        ),
+    )
     sidebar_hidden: SidebarHidden = Field(
         default_factory=SidebarHidden,
         description="Customize-sidebar entries hidden from the sidebar (sections/tools/favorites).",

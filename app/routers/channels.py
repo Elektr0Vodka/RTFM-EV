@@ -29,6 +29,7 @@ from app.repository import (
     MessageRepository,
     RawPacketRepository,
 )
+from app.services.bot_lists import bot_lists
 from app.services.ollama_summary import (
     MAX_MESSAGES_FOR_SUMMARY,
     summarize_channel_messages,
@@ -389,13 +390,14 @@ async def summarize_channel_unread(
     if not settings.ollama_enabled or not model:
         return ChannelUnreadSummaryResponse(reason="Unread summaries are not configured")
 
+    hidden_keys, hidden_names = await bot_lists.hidden_senders(settings)
     messages = await MessageRepository.get_latest_since(
         msg_type="CHAN",
         conversation_key=channel.key,
         since=after if after is not None else (channel.last_read_at or 0),
         limit=MAX_MESSAGES_FOR_SUMMARY,
-        blocked_keys=settings.blocked_keys or None,
-        blocked_names=settings.blocked_names or None,
+        blocked_keys=hidden_keys,
+        blocked_names=hidden_names,
         hidden_hop_widths=settings.hidden_hop_widths or None,
         hide_malformed=settings.hide_malformed,
         hide_spam=settings.hide_spam,

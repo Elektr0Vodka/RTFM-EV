@@ -8,6 +8,7 @@ from app.location_payloads import parse_location_share
 from app.models import Message, SharedLocation, SharedLocationsResponse
 from app.reaction_payloads import channel_sender, message_body
 from app.repository import AppSettingsRepository, MessageRepository
+from app.services.bot_lists import bot_lists
 
 # Newest messages examined per request. Parsing is a few regexes per row, so
 # this bounds the cost of an "All time" window on a large database.
@@ -66,12 +67,13 @@ async def collect_shared_locations(
     Messages from blocked keys/names are skipped, as in the chat views.
     """
     settings = await AppSettingsRepository.get()
+    hidden_keys, hidden_names = await bot_lists.hidden_senders(settings)
     rows = await MessageRepository.get_received_window(
         since=since,
         until=until,
         limit=scan_limit + 1,
-        blocked_keys=settings.blocked_keys or None,
-        blocked_names=settings.blocked_names or None,
+        blocked_keys=hidden_keys,
+        blocked_names=hidden_names,
     )
     truncated = len(rows) > scan_limit
     rows = rows[:scan_limit]

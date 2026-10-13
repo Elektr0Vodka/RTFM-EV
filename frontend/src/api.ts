@@ -13,6 +13,8 @@ import type {
   TrafficLinkEdge,
   AppSettings,
   BackupFilesResponse,
+  BotListEntry,
+  BotListsState,
   RestoreStatus,
   AppSettingsUpdate,
   PacketHistoryResponse,
@@ -342,6 +344,40 @@ export const api = {
     fetchJson<SpamGuardReplayResult>('/spam-guard/replay', {
       method: 'POST',
       body: JSON.stringify(body),
+    }),
+  // Bot lists: every change answers with the new state.
+  getBotLists: () => fetchJson<BotListsState>('/bot-lists'),
+  createBotList: (name: string, description = '') =>
+    fetchJson<BotListsState & { created_id: number }>('/bot-lists', {
+      method: 'POST',
+      body: JSON.stringify({ name, description }),
+    }),
+  updateBotList: (id: number, patch: { name?: string; description?: string; enabled?: boolean }) =>
+    fetchJson<BotListsState>(`/bot-lists/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }),
+  deleteBotList: (id: number) => fetchJson<BotListsState>(`/bot-lists/${id}`, { method: 'DELETE' }),
+  getBotListEntries: (id: number) => fetchJson<BotListEntry[]>(`/bot-lists/${id}/entries`),
+  setBotListEntries: (id: number, entries: BotListEntry[]) =>
+    fetchJson<BotListsState>(`/bot-lists/${id}/entries`, {
+      method: 'PUT',
+      body: JSON.stringify({ entries }),
+    }),
+  addBotListEntry: (id: number, entry: BotListEntry) =>
+    fetchJson<BotListsState>(`/bot-lists/${id}/entries`, {
+      method: 'POST',
+      body: JSON.stringify(entry),
+    }),
+  /** `text` is the content of a bot list file, sent as it is. */
+  importBotList: (text: string) =>
+    fetchJson<BotListsState>('/bot-lists/import', { method: 'POST', body: text }),
+  /** Where the browser downloads a list from, in the bot list file format. */
+  botListExportUrl: (id: number) => `${API_BASE}/bot-lists/${id}/export`,
+  setBotListExceptions: (names: string[]) =>
+    fetchJson<BotListsState>('/bot-lists/exceptions', {
+      method: 'PUT',
+      body: JSON.stringify({ names }),
     }),
   getGpsConfig: () => fetchJson<GpsConfig>('/radio/gps'),
   getRadioDefaultFloodScope: (signal?: AbortSignal) =>

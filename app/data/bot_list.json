@@ -1,0 +1,15 @@
+{
+  "format": "rtfm-ev-bot-list",
+  "version": 1,
+  "name": "RTFM-EV bot list",
+  "description": "Known bots on the Dutch MeshCore network, maintained in the RTFM-EV repository.",
+  "updated": "2026-10-13",
+  "entries": [
+    { "name": "[AT5]", "note": "News headlines in #nieuws" },
+    { "name": "[NH]", "note": "News headlines in #nieuws" },
+    { "name": "[NOS]", "note": "News headlines in #nieuws" },
+    { "name": "[NU]", "note": "News headlines in #nieuws" },
+    { "name": "NL-EIN-PA3JH-HA", "note": "Weather and radiation readings in #eindhoven" },
+    { "name": "NL-OV-ENS-NL1CTM-BOT", "note": "Replies to tests with hops and SNR" }
+  ]
+}
