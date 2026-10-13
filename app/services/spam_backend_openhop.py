@@ -4,8 +4,9 @@ An OpenHop node forwards on its own, so our rules have to live in its policy
 file. This module keeps them there through the node's REST API:
 
 - read ``/api/policy``, keep every rule that is not ours, and write
-  ``ours-before + theirs + ours-after`` plus the known-people object
-  (``@rtfmspam.known_senders``) when that differs from what the node has;
+  ``ours-before + theirs + ours-after`` plus our objects
+  (``@rtfmspam.known_senders`` and ``@rtfmspam.bot_senders``, each only while
+  a rule refers to it) when that differs from what the node has;
 - write at most once per ``write_interval`` and only on a change;
 - read again every ``verify_interval`` and put our rules back when they are
   missing or altered, counting each repair.
@@ -45,7 +46,13 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
-from app.spam.rules import OPENHOP_KNOWN_SENDERS, OPENHOP_OBJECT_GROUP, OPENHOP_PREFIX, RuleSet
+from app.spam.rules import (
+    OPENHOP_BOT_SENDERS,
+    OPENHOP_KNOWN_SENDERS,
+    OPENHOP_OBJECT_GROUP,
+    OPENHOP_PREFIX,
+    RuleSet,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +66,7 @@ FAILURES_BAD = 3
 # How long shutdown waits for our rules to be taken off the node.
 STOP_TIMEOUT_SECONDS = 5.0
 _KNOWN_REF = f"@{OPENHOP_OBJECT_GROUP}.{OPENHOP_KNOWN_SENDERS}"
+_BOTS_REF = f"@{OPENHOP_OBJECT_GROUP}.{OPENHOP_BOT_SENDERS}"
 
 
 class PolicyClient(Protocol):
@@ -97,9 +105,9 @@ def _named(rule: Any, prefix: str) -> bool:
     return isinstance(rule, dict) and str(rule.get("name") or "").startswith(prefix)
 
 
-def _refers_to_known(rules: list[dict[str, Any]]) -> bool:
+def _refers_to(rules: list[dict[str, Any]], ref: str) -> bool:
     return any(
-        condition.get("value") == _KNOWN_REF
+        condition.get("value") == ref
         for rule in rules
         for condition in rule.get("if", {}).get("all", [])
     )
@@ -107,7 +115,9 @@ def _refers_to_known(rules: list[dict[str, Any]]) -> bool:
 
 def _fingerprint(rules: RuleSet) -> str:
     return json.dumps(
-        [rules.before, rules.after, rules.known_senders], sort_keys=True, ensure_ascii=False
+        [rules.before, rules.after, rules.known_senders, rules.bot_senders],
+        sort_keys=True,
+        ensure_ascii=False,
     )
 
 
@@ -303,8 +313,13 @@ class OpenHopBackend:
 
         rules = [*want.before, *theirs, *want.after]
         target_objects = {k: v for k, v in objects.items() if k != OPENHOP_OBJECT_GROUP}
-        if _refers_to_known(want.rules):
-            target_objects[OPENHOP_OBJECT_GROUP] = {OPENHOP_KNOWN_SENDERS: want.known_senders}
+        ours: dict[str, Any] = {}
+        if _refers_to(want.rules, _KNOWN_REF):
+            ours[OPENHOP_KNOWN_SENDERS] = want.known_senders
+        if _refers_to(want.rules, _BOTS_REF):
+            ours[OPENHOP_BOT_SENDERS] = want.bot_senders
+        if ours:
+            target_objects[OPENHOP_OBJECT_GROUP] = ours
         target_enabled = enabled or bool(want.rules)
 
         settled = "refused" if refused else "synced" if self._active else "idle"

@@ -9,7 +9,7 @@ RTFM-EV is a fork of [RemoteTerm for MeshCore](https://github.com/jkingsman/Remo
 - analysis views: My Node, Mesh Health, Mesh Trends, Packet History, Mesh Discovery, SNMP
 - a host repeater that judges every received packet the way a repeater would (shadow mode, optional live forwarding)
 - Spam Guard: channel spam detection that flags spam in chat and keeps the host repeater from forwarding it
-- Bot lists: keep and share lists of known bots, mark them in chat and hide them
+- Bot lists: keep and share lists of known bots, mark them in chat, hide them and stop relaying them
 - loadouts, a radio identity registry, database backup/restore and per-class data retention
 - an interface in English, Dutch and German, extra themes and an in-app User Guide
 
@@ -91,7 +91,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - Loadouts: named sets of channels and contacts to load onto the radio, for example before disconnecting it.
 - [Host repeater](#host-repeater) in shadow mode, with optional live forwarding.
 - [Spam Guard](#spam-guard): channel spam detection with a Monitor and a Protect mode, off by default.
-- [Bot lists](#bot-lists): lists of known bots that mark and hide their messages, off until you enable one.
+- [Bot lists](#bot-lists): lists of known bots that mark and hide their messages and can keep this repeater from relaying them, off until you enable one.
 
 ### Integrations and automation
 
@@ -362,12 +362,13 @@ A bot list names known bots: an exact sender name, with an optional public key a
 
 - **Enable a list** and its senders get a Bot marker in chat. Names are matched exactly and case-sensitively, so a person who uses the same name is marked too. "Never a bot" excepts a name on every list.
 - **Hide bots** (chat filter menu or Settings) hides listed senders in chat and keeps them out of unread counts, mentions and notifications. Search still shows them.
+- **Block forwards** (per list, off by default) stops this repeater relaying channel messages from the list's names. It works through Spam Guard in Protect mode, on its protected channels; the line under the switch says whether it is active or what it is waiting for. Names a subscription's refresh adds are held for your review first. Other repeaters still relay those messages, and they still arrive here.
 - **Share a list** with Export, which writes a JSON file. Import file stores such a file as a new list of your own, switched off, so you can read it before you enable it.
 - **Subscribe to a list** by its https address. RTFM-EV shows the list before storing it, keeps it read-only and switched off until you enable it, and refreshes it once a day. The host of the list sees your internet address on each refresh.
 - **One list ships with RTFM-EV.** It is read-only and off until you enable it.
 - **From chat**, a message's actions offer "Add to bot list" and, for a listed name, "Not a bot".
 
-Bot lists do not change what a repeater forwards.
+A bot list does not change what this repeater forwards unless its Block forwards switch is on. That part is tested against the host repeater's engine and a stand-in for the OpenHop policy API, not on air.
 
 ## Documentation
 

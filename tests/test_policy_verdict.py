@@ -422,3 +422,28 @@ class TestStoredWithThePacket:
         async with test_db.readonly() as conn:
             async with conn.execute("SELECT policy_action, policy_rule FROM raw_packets") as cursor:
                 assert [tuple(row) for row in await cursor.fetchall()] == [(None, None)]
+
+
+class TestBotListRule:
+    """The rule a bot list asks for, judged the way the node judges it."""
+
+    def policy(self, bots):
+        det, _ = make()
+        rules = render(det, "openhop", bot_senders=bots)
+        return rules.rules, {"rtfmspam": {"bot_senders": rules.bot_senders}}
+
+    def test_a_listed_bot_is_dropped_brackets_included(self):
+        rules, objects = self.policy(["[NU]", "PingBot"])
+        for sender in ("[NU]", "PingBot"):
+            out = verdict(rules, group_text(sender, "nieuws"), objects=objects)
+            assert out is not None and out["action"] == "drop"
+            assert out["rule"] == f"rtfm-spam:bots:{PUBLIC.upper()} (bot list)"
+
+    def test_anyone_else_passes(self):
+        rules, objects = self.policy(["[NU]"])
+        assert verdict(rules, group_text("Dave", "hi"), objects=objects) is None
+        assert verdict(rules, group_text("[nu]", "hi"), objects=objects) is None
+
+    def test_a_missing_object_matches_nothing(self):
+        rules, _ = self.policy(["[NU]"])
+        assert verdict(rules, group_text("[NU]", "nieuws")) is None

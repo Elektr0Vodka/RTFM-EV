@@ -353,7 +353,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ name, description }),
     }),
-  updateBotList: (id: number, patch: { name?: string; description?: string; enabled?: boolean }) =>
+  updateBotList: (
+    id: number,
+    patch: { name?: string; description?: string; enabled?: boolean; block_forward?: boolean }
+  ) =>
     fetchJson<BotListsState>(`/bot-lists/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
@@ -392,6 +395,12 @@ export const api = {
     }),
   refreshBotList: (id: number) =>
     fetchJson<BotListsState>(`/bot-lists/${id}/refresh`, { method: 'POST' }),
+  /** Confirm names a refresh added, so Block forwards covers them too. */
+  reviewBotList: (id: number, names: string[]) =>
+    fetchJson<BotListsState>(`/bot-lists/${id}/review`, {
+      method: 'POST',
+      body: JSON.stringify({ names }),
+    }),
   getGpsConfig: () => fetchJson<GpsConfig>('/radio/gps'),
   getRadioDefaultFloodScope: (signal?: AbortSignal) =>
     fetchJson<RadioDefaultFloodScope>('/radio/default-flood-scope', { signal }),

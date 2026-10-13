@@ -168,6 +168,10 @@ async def test_db():
     from app.services.bot_lists import bot_lists as bot_list_service
 
     bot_list_service.reset()
+    # ... and it hands names to Spam Guard, whose runtime outlives a test.
+    from app.services.spam_guard import spam_guard as spam_guard_runtime
+
+    spam_guard_runtime.bot_senders = ()
 
     # Also patch the db reference used by the packets router for VACUUM
     import app.routers.packets as packets_module

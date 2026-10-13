@@ -628,3 +628,86 @@ class TestFallbackMessages:
         await feed.runtime.set_enabled(False)
         await self.pulled(feed, "UD6DWREK", SPAM)
         assert not feed.runtime.detector.events
+
+
+class TestBotForward:
+    """Names the bot lists hand over: rules on the backend, and the status shown."""
+
+    def managed(self, feed: Feed) -> list[str]:
+        engine = feed.runtime.host._runtime.engine
+        return [rule.name for rule in (*engine._managed_before, *engine._managed_after)]
+
+    async def test_names_become_a_rule_in_protect(self, feed):
+        await protect(feed)
+        feed.runtime.set_bot_senders(["[NU]", "PingBot"])
+        assert self.managed(feed) == [f"spam:bots:{PUBLIC} (bot list)"]
+        feed.runtime.set_bot_senders([])
+        assert self.managed(feed) == []
+
+    async def test_names_set_in_monitor_wait_for_protect(self, feed):
+        feed.runtime.set_bot_senders(["[NU]"])
+        assert self.managed(feed) == []
+        await protect(feed)
+        assert self.managed(feed) == [f"spam:bots:{PUBLIC} (bot list)"]
+
+    async def test_the_same_names_again_change_nothing(self, feed):
+        await protect(feed)
+        feed.runtime.set_bot_senders(["[NU]"])
+        before = len(feed.of("spam_guard"))
+        feed.runtime.set_bot_senders(["[NU]"])
+        assert len(feed.of("spam_guard")) == before
+
+    async def test_status_names_the_reason_it_is_waiting(self, feed, monkeypatch):
+        runtime = feed.runtime
+        runtime.set_bot_senders(["[NU]", "PingBot"])
+        assert runtime.bot_forward() == {"state": "monitor", "channels": 0, "names": 2}
+
+        await protect(feed)
+        # The host repeater of a test is never armed.
+        assert runtime.bot_forward() == {"state": "not_armed", "channels": 0, "names": 2}
+
+        monkeypatch.setattr(type(spam_guard_module.host_repeater), "state", "armed")
+        assert runtime.bot_forward() == {"state": "active", "channels": 1, "names": 2}
+
+        paused = SpamConfig(mode="protect", paused=True, channels=[{"key": PUBLIC, "name": "P"}])
+        assert await runtime.save_config(runtime.version, paused) is not None
+        assert runtime.bot_forward()["state"] == "paused"
+
+        empty = SpamConfig(mode="protect", channels=[])
+        assert await runtime.save_config(runtime.version, empty) is not None
+        assert runtime.bot_forward() == {"state": "no_channels", "channels": 0, "names": 2}
+
+        await runtime.set_enabled(False)
+        assert runtime.bot_forward()["state"] == "off"
+
+    async def test_status_is_in_the_snapshot(self, feed):
+        assert feed.runtime.snapshot()["bot_forward"] == {
+            "state": "monitor",
+            "channels": 0,
+            "names": 0,
+        }
+
+    async def test_openhop_waits_for_the_sync(self, feed, monkeypatch):
+        runtime = feed.runtime
+        await protect(feed)
+        runtime.set_bot_senders(["[NU]"])
+        monkeypatch.setattr(runtime, "backend_name", lambda: "openhop")
+        sync = dict(runtime.openhop.status())
+        monkeypatch.setattr(runtime.openhop, "status", lambda: {**sync, "state": "pending"})
+        assert runtime.bot_forward()["state"] == "not_synced"
+        monkeypatch.setattr(runtime.openhop, "status", lambda: {**sync, "state": "synced"})
+        assert runtime.bot_forward() == {"state": "active", "channels": 1, "names": 1}
+
+    async def test_names_reach_the_openhop_rule_set(self, feed):
+        await protect(feed)
+        feed.runtime.set_bot_senders(["[NU]"])
+        rules = feed.runtime.openhop_rules()
+        assert rules.bot_senders == ["[NU]"]
+        assert [r["name"] for r in rules.before] == [f"rtfm-spam:bots:{PUBLIC} (bot list)"]
+
+    async def test_without_names_it_is_not_active(self, feed, monkeypatch):
+        await protect(feed)
+        monkeypatch.setattr(type(spam_guard_module.host_repeater), "state", "armed")
+        assert feed.runtime.bot_forward() == {"state": "no_names", "channels": 0, "names": 0}
+        feed.runtime.set_bot_senders(["[NU]"])
+        assert feed.runtime.bot_forward()["state"] == "active"

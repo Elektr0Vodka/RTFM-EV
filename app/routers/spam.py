@@ -137,12 +137,15 @@ async def get_spam_guard_rules(
         # user has not agreed to copy there is left out.
         rules = spam_guard.openhop_rules(preview=preview)
     else:
-        rules = render(spam_guard.detector, "host", preview=preview)
+        rules = render(
+            spam_guard.detector, "host", preview=preview, bot_senders=spam_guard.bot_senders
+        )
     return {
         "backend": backend,
         "before": rules.before,
         "after": rules.after,
         "known_senders": rules.known_senders,
+        "bot_senders": rules.bot_senders,
         "truncated": rules.truncated,
     }
 

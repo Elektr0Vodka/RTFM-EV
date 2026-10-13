@@ -585,3 +585,133 @@ class TestChannelFilter:
         rules = render(self.blocked(), "openhop", channels=set())
         assert rules.after == []
         assert [r["name"] for r in rules.before] == [f"{OPENHOP_PREFIX}hop:27 (yours)"]
+
+
+BOTS = ["NL-EIN-PA3JH-HA", "[NU]"]  # sorted, as the renderer hands them on
+BOT_REF = "@rtfmspam.bot_senders"
+
+
+class TestBotLists:
+    """Forward blocking of listed bots: one drop rule per protected channel."""
+
+    def two_channels(self, **config):
+        return make(
+            channels=[{"key": PUBLIC, "name": "Public"}, {"key": OTHER, "name": "#o"}], **config
+        )
+
+    def test_no_names_no_rule(self):
+        det, _ = make()
+        assert render(det, "host").rules == []
+        assert render(det, "host", bot_senders=[]).bot_senders == []
+
+    def test_host_rule_names_the_bots_inline(self):
+        det, _ = make()
+        rules = render(det, "host", bot_senders=["NL-EIN-PA3JH-HA", "[NU]", "[NU]", ""])
+        assert rules.bot_senders == BOTS
+        assert rules.before == [
+            {
+                "id": f"spam:bots:{PUBLIC}",
+                "name": f"spam:bots:{PUBLIC} (bot list)",
+                "enabled": True,
+                "if": {
+                    "all": [
+                        GRP,
+                        ON_PUBLIC,
+                        {"field": "channel_sender", "op": "in", "value": BOTS},
+                    ]
+                },
+                "then": {"action": "drop"},
+            }
+        ]
+        assert [PolicyRule.model_validate(r).id for r in rules.before] == [f"spam:bots:{PUBLIC}"]
+
+    def test_openhop_rule_refers_to_the_object(self):
+        det, _ = make()
+        rules = render(det, "openhop", bot_senders=BOTS)
+        (rule,) = rules.before
+        assert rule["name"] == f"{OPENHOP_PREFIX}bots:{PUBLIC} (bot list)"
+        assert isinstance(rule["id"], int) and rule["id"] >= OPENHOP_ID_BASE
+        assert rule["if"]["all"] == [
+            GRP,
+            {"field": "channel_hash", "op": "equals", "value": PUBLIC.lower()},
+            {"field": "channel_sender", "op": "in", "value": BOT_REF},
+        ]
+        assert rules.bot_senders == BOTS
+
+    def test_one_rule_per_protected_channel_ahead_of_the_blocks(self):
+        det, _ = self.two_channels()
+        det.action("block_text", text="cheap radios today", channel=PUBLIC)
+        before = names(render(det, "host", bot_senders=BOTS).before)
+        assert before[:2] == [f"spam:bots:{PUBLIC} (bot list)", f"spam:bots:{OTHER} (bot list)"]
+        assert len(before) == 3 and before[2].endswith("(yours)")
+
+    def test_nothing_in_monitor_or_while_paused(self):
+        for config in ({"mode": "monitor"}, {"paused": True}):
+            det, _ = make(**config)
+            for dialect in ("host", "openhop"):
+                rules = render(det, dialect, bot_senders=BOTS)
+                assert rules.rules == [] and rules.bot_senders == []
+
+    def test_no_protected_channel_no_rule(self):
+        det, _ = make(channels=[])
+        rules = render(det, "host", bot_senders=BOTS)
+        assert rules.rules == [] and rules.bot_senders == []
+
+    def test_openhop_leaves_out_a_channel_that_may_not_be_named(self):
+        det, _ = self.two_channels()
+        rules = render(det, "openhop", bot_senders=BOTS, channels={PUBLIC})
+        assert names(rules.before) == [f"{OPENHOP_PREFIX}bots:{PUBLIC} (bot list)"]
+        assert OTHER.lower() not in str(rules.rules)
+
+    def test_the_host_rule_drops_a_bracketed_bot_only(self):
+        det, _ = make()
+        rules = render(det, "host", bot_senders=BOTS)
+        before = [PolicyRule.model_validate(r) for r in rules.before]
+
+        def verdict(sender):
+            fields = {"payload_type": 5, "channel_hash": PUBLIC_HASH, "channel_sender": sender}
+            return evaluate_layers(before, PolicyConfig(), [], fields).action
+
+        assert verdict("[NU]") == "drop"
+        assert verdict("NL-EIN-PA3JH-HA") == "drop"
+        assert verdict("[nu]") == "allow"  # exact and case-sensitive
+        assert verdict("Dave") == "allow"
+        assert verdict(None) == "allow"
+
+    def test_a_bot_that_spam_guard_knows_is_still_dropped(self):
+        det, _ = make(allow_senders=["[NU]"])
+        det.action("block_hop", hop="27")  # brings the known-people allow rule
+        rules = render(det, "host", bot_senders=BOTS)
+        assert f"spam:known-people:{PUBLIC}" in names(rules.after)
+        before = [PolicyRule.model_validate(r) for r in rules.before]
+        after = [PolicyRule.model_validate(r) for r in rules.after]
+        fields = {
+            "payload_type": 5,
+            "channel_hash": PUBLIC_HASH,
+            "channel_sender": "[NU]",
+            "path_hashes": ["27"],
+        }
+        decision = evaluate_layers(before, PolicyConfig(), after, fields)
+        assert (decision.action, decision.rule_id) == ("drop", f"spam:bots:{PUBLIC}")
+
+    def test_the_rule_cap_cuts_blocks_before_a_bot_rule(self):
+        det, _ = make(overrides={"max_total_rules": 20})
+        for n in range(20):
+            det.action("block_text", text=f"cheap radios today number {n:02d}", channel=PUBLIC)
+        rules = render(det, "host", bot_senders=BOTS)
+        assert len(rules.before) == 20
+        assert names(rules.before)[0] == f"spam:bots:{PUBLIC} (bot list)"
+        assert rules.truncated is True
+
+    def test_ids_do_not_change_with_the_names(self):
+        det, _ = make()
+        first = render(det, "openhop", bot_senders=BOTS).before[0]["id"]
+        second = render(det, "openhop", bot_senders=["Other"]).before[0]["id"]
+        assert first == second
+
+    def test_the_rule_cap_also_holds_for_the_bot_rules(self):
+        channels = [{"key": f"{n:02X}" * 16, "name": f"#c{n}"} for n in range(1, 22)]
+        det, _ = make(channels=channels, overrides={"max_total_rules": 20})
+        rules = render(det, "host", bot_senders=BOTS)
+        assert len(rules.before) == 20 and rules.truncated is True
+        assert all(name.endswith("(bot list)") for name in names(rules.before))

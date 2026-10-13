@@ -38,8 +38,13 @@ async def test_create_edit_enable_and_read_back(test_db, client):
 
         entries = (await client.get(f"/api/bot-lists/{list_id}/entries")).json()
         assert entries == [
-            {"name": "NewsBot", "public_key": None, "note": None},
-            {"name": "PingBot", "public_key": "ab" * 32, "note": "pong"},
+            {"name": "NewsBot", "public_key": None, "note": None, "forward_reviewed": True},
+            {
+                "name": "PingBot",
+                "public_key": "ab" * 32,
+                "note": "pong",
+                "forward_reviewed": True,
+            },
         ]
         assert (await client.get("/api/bot-lists")).json() == state
 
@@ -184,3 +189,54 @@ async def test_fetch_errors_answer_with_a_code_and_no_detail(test_db, client, re
         local = (await client.post("/api/bot-lists", json={"name": "Mine"})).json()["created_id"]
         assert (await client.post(f"/api/bot-lists/{local}/refresh")).status_code == 409
         assert (await client.post("/api/bot-lists/999/refresh")).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_block_forward_is_switched_through_patch(test_db, client):
+    async with client:
+        created = (await client.post("/api/bot-lists", json={"name": "Mine"})).json()
+        list_id = created["created_id"]
+        assert created["forward"] == {"state": "off", "channels": 0, "names": 0}
+        await client.post(f"/api/bot-lists/{list_id}/entries", json={"name": "[NU]"})
+
+        state = (
+            await client.patch(
+                f"/api/bot-lists/{list_id}", json={"enabled": True, "block_forward": True}
+            )
+        ).json()
+        row = next(r for r in state["lists"] if r["id"] == list_id)
+        assert (row["block_forward"], row["review_count"]) == (True, 0)
+        assert state["forward"]["names"] == 1
+
+        state = (
+            await client.patch(f"/api/bot-lists/{list_id}", json={"block_forward": False})
+        ).json()
+        assert state["forward"]["names"] == 0
+
+
+@pytest.mark.asyncio
+async def test_review_confirms_names(test_db, client, monkeypatch):
+    box = {"file": {**FILE, "entries": [{"name": "PingBot"}]}}
+
+    async def fake_fetch(url, **_kwargs):
+        return validate_bot_list(box["file"])
+
+    monkeypatch.setattr(service_module, "fetch_bot_list", fake_fetch)
+    async with client:
+        sub = (
+            await client.post(
+                "/api/bot-lists/subscribe", json={"url": "https://example.org/b.json"}
+            )
+        ).json()
+        list_id = sub["created_id"]
+        box["file"] = {**FILE, "entries": [{"name": "PingBot"}, {"name": "NewBot"}]}
+        state = (await client.post(f"/api/bot-lists/{list_id}/refresh")).json()
+        assert next(r for r in state["lists"] if r["id"] == list_id)["review_count"] == 1
+
+        done = await client.post(f"/api/bot-lists/{list_id}/review", json={"names": ["NewBot"]})
+        assert done.status_code == 200
+        assert next(r for r in done.json()["lists"] if r["id"] == list_id)["review_count"] == 0
+
+        missing = await client.post("/api/bot-lists/999/review", json={"names": ["A"]})
+        assert missing.status_code == 404
+        assert (await client.post(f"/api/bot-lists/{list_id}/review", json={})).status_code == 422

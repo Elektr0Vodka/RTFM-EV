@@ -37,6 +37,7 @@ from app.config import settings as server_config
 from app.decoder import derive_shared_secret
 from app.keystore import get_private_key
 from app.path_utils import parse_packet_envelope
+from app.reaction_payloads import channel_sender as shown_channel_sender
 from app.repository.host_repeater import (
     HostRepeaterConfigRepository,
     HostRepeaterContactsRepository,
@@ -253,6 +254,22 @@ class LifetimeStats:
             "saved_airtime_by_rule": _round_map(self.saved_airtime_by_rule),
             "saved_airtime_by_reason": _round_map(self.saved_airtime_by_reason),
         }
+
+
+def policy_channel_sender(result: dict) -> str | None:
+    """The ``channel_sender`` policy field of a decrypted channel message.
+
+    The decoder leaves the sender out when the name has ``[`` or ``]``, while
+    chat, the bot lists and an OpenHop node all read it from the ``Sender: ``
+    prefix. A rule has to see the name people see, so that prefix is the
+    fallback. ``channel_message_body`` stays as decoded: Spam Guard builds its
+    text and duplicate rules from that same text.
+    """
+    sender = result.get("sender")
+    if sender:
+        return sender
+    message = result.get("message")
+    return shown_channel_sender(message) if isinstance(message, str) else None
 
 
 def _lifetime_rule_key(rule_id: str) -> str:
@@ -564,7 +581,7 @@ class HostRepeaterRuntime:
                 region=result.get("region"),
                 acl_hashes=facts.acl_hashes,
                 channel_decryptable=decrypted,
-                channel_sender=result.get("sender") if decrypted else None,
+                channel_sender=policy_channel_sender(result) if decrypted else None,
                 channel_message_body=result.get("message") if decrypted else None,
             )
 

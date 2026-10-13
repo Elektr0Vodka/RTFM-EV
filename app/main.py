@@ -175,6 +175,15 @@ async def lifespan(app: FastAPI):
         # Defaults (everything off) stay active; the API retries the load on first use.
         logger.warning("Could not load host repeater settings at startup", exc_info=True)
 
+    # Bot lists: load the list shipped in the repo into its read-only row. Before
+    # Spam Guard, which renders the names a list wants kept off the air.
+    from app.services.bot_lists import bot_lists as bot_list_service
+
+    try:
+        await bot_list_service.load_shipped()
+    except Exception:
+        logger.warning("Could not load the shipped bot list at startup", exc_info=True)
+
     # Spam Guard (channel spam detection; off unless enabled in Settings).
     from app.services.spam_guard import spam_guard
 
@@ -182,14 +191,6 @@ async def lifespan(app: FastAPI):
         await spam_guard.load()
     except Exception:
         logger.warning("Could not load Spam Guard at startup", exc_info=True)
-
-    # Bot lists: load the list shipped in the repo into its read-only row.
-    from app.services.bot_lists import bot_lists as bot_list_service
-
-    try:
-        await bot_list_service.load_shipped()
-    except Exception:
-        logger.warning("Could not load the shipped bot list at startup", exc_info=True)
 
     # Host repeater neighbour poll (opt-in, transmits; idle unless enabled and active).
     from app.services.host_repeater_neighbor_poll import neighbor_poller

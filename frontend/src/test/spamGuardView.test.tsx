@@ -262,6 +262,7 @@ function makeState(overrides: Partial<SpamGuardState> = {}): SpamGuardState {
     known_names: ['Dave'],
     suppressed: {},
     private_channels: [],
+    bot_forward: { state: 'off', channels: 0, names: 0 },
     ...overrides,
   };
 }

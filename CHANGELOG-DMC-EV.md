@@ -11,6 +11,58 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-13 (Bot lists: block forwards, feat/bot-lists-forward-blocking)
+
+No migration. No new dependency. Off until you switch it on, per list. The
+version is now `3.18.0-EV.0.2`.
+
+### Bot lists: block forwards
+- **Block forwards** is a switch on every enabled bot list (Settings > Local
+  Configuration > Bot lists), off by default. While it is on, this repeater
+  does not relay channel messages from the list's names.
+- **It works through Spam Guard:** one drop rule per protected channel, ahead
+  of your own rules, named `spam:bots:<channel key> (bot list)` on the host
+  repeater and `rtfm-spam:bots:<channel key> (bot list)` on an OpenHop node.
+  Only while Spam Guard
+  is on, in Protect and not paused. On an OpenHop node the names are kept in
+  the policy object `@rtfmspam.bot_senders`, and a private channel is only
+  included after you agreed to share its key.
+- **A status line under the switch** says "Active on N channels", or why it is
+  waiting: Spam Guard is off, in Monitor, paused or has no protected channels,
+  no name is confirmed yet, the host repeater is not armed, or the rules are
+  not on the OpenHop node yet. It follows Spam Guard and the host repeater
+  without a reload. The Spam Guard Settings tab has one line with that status
+  and the number of names.
+- **Block forwards is offered on an enabled list.** A list that is switched
+  off blocks nothing; its Block forwards switch can still be switched off.
+- **Names a refresh adds wait for you.** A subscription's new names are marked
+  in chat at once, but are only forward-blocked after you confirm them: the
+  list shows "N new names to review", with Confirm, Confirm all and Not a bot.
+  Switching Block forwards on for a subscription first shows its names.
+- **Limits:** only this repeater stops relaying; other repeaters still relay
+  the message and it still arrives here. Channel text only: a repeater cannot
+  read who sent a DM. A bot that changes its name gets past until the list is
+  updated, and anyone posting under a listed name is dropped too. "Never a
+  bot" takes a name out.
+- **Not verified on air:** tested against the host repeater's engine and a
+  stand-in for the OpenHop policy API, not on a real node.
+- API: `block_forward` on `PATCH /api/bot-lists/{id}`,
+  `POST /api/bot-lists/{id}/review` (`{names}`), `forward` in the bot list
+  state, `review_count` on a list, `forward_reviewed` on an entry;
+  `bot_forward` in the Spam Guard state and `bot_senders` in
+  `GET /api/spam-guard/rules`.
+
+### Host repeater
+- **`channel_sender` now holds a name with brackets.** A sender such as `[NU]`
+  was empty for policy rules, because the channel decoder does not accept `[`
+  or `]` in a name. A rule on `channel_sender` (yours, or the bot list rule)
+  now sees the name chat shows. `channel_message_body` is unchanged.
+- **What else that changes for a bracketed name:** a rule of yours with
+  `throttle_key: sender` now keeps one budget per such name (before, they all
+  shared one), so it can let more of them through than it did. A bracketed
+  name you put in Spam Guard's trusted names is now let through by the
+  known-people rule on the host repeater.
+
 ## Update 2026-10-13 (Bot lists: subscribe by URL, feat/bot-lists-url)
 
 No migration. No new dependency. Nothing is fetched until you subscribe.

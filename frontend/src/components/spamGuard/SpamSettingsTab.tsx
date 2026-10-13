@@ -14,6 +14,7 @@ import { isPublicChannelKey } from '../../utils/publicChannel';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { toast } from '../ui/sonner';
+import { BotForwardStatusLine } from './BotForwardStatusLine';
 import { SpamEvidenceSection } from './SpamEvidenceSection';
 import { TUNABLE_GROUPS, UNIT_KEYS, type TunableKey, type TunableSpec } from './spamGuardTunables';
 
@@ -296,6 +297,7 @@ export function SpamSettingsTab({
 
   return (
     <div className="space-y-6">
+      <BotForwardStatusLine forward={state.bot_forward} />
       <section className="space-y-2 rounded-md border border-border/60 p-3">
         <h3 className="text-sm font-semibold text-foreground">{t('spam_channels_title')}</h3>
         <p className="text-[0.8125rem] text-muted-foreground">{t('spam_channels_desc')}</p>

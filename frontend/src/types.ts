@@ -3008,6 +3008,8 @@ export interface SpamGuardState extends SpamGuardSummary {
   suppressed: Record<string, number>;
   /** Keys of the protected channels whose key is not public knowledge. */
   private_channels: string[];
+  /** What Block forwards on the bot lists is doing. */
+  bot_forward: BotForwardStatus;
 }
 
 export interface SpamGuardActionResult {
@@ -3061,6 +3063,8 @@ export interface SpamGuardRules {
   before: SpamGuardRule[];
   after: SpamGuardRule[];
   known_senders: string[];
+  /** Names the bot list rules drop. */
+  bot_senders: string[];
   truncated: boolean;
 }
 
@@ -3083,6 +3087,18 @@ export interface MessageSpamPayload {
 /** Where a bot list comes from: made or imported here, a URL subscription, or shipped with the app. */
 export type BotListSource = 'local' | 'url' | 'shipped';
 
+/** What Block forwards is doing; anything but `active` is a reason it waits. */
+export type BotForwardState =
+  'active' | 'off' | 'monitor' | 'paused' | 'no_names' | 'no_channels' | 'not_armed' | 'not_synced';
+
+export interface BotForwardStatus {
+  state: BotForwardState;
+  /** Protected channels a rule covers; 0 unless `active`. */
+  channels: number;
+  /** Names being kept off the air. */
+  names: number;
+}
+
 export interface BotList {
   id: number;
   name: string;
@@ -3091,12 +3107,15 @@ export interface BotList {
   url: string | null;
   /** While on, the list's senders carry the Bot marker in chat. */
   enabled: boolean;
+  /** While on (and the list is enabled), this repeater does not relay its names. */
   block_forward: boolean;
   file_updated: string | null;
   fetched_at: number | null;
   last_error: string | null;
   created_at: number;
   entry_count: number;
+  /** Names a refresh added that wait for the user before they are forward-blocked. */
+  review_count: number;
 }
 
 export interface BotListEntry {
@@ -3104,6 +3123,8 @@ export interface BotListEntry {
   name: string;
   public_key: string | null;
   note: string | null;
+  /** False for a name a refresh added and nobody confirmed yet. Read-only. */
+  forward_reviewed?: boolean;
 }
 
 /** `GET /api/bot-lists` and the `bot_lists` WebSocket event. */
@@ -3114,6 +3135,8 @@ export interface BotListsState {
   /** Entries of all enabled lists minus the exceptions. */
   effective: { names: string[]; keys: string[] };
   limits: { entries_per_list: number; effective: number };
+  /** What Block forwards is doing right now (Spam Guard decides). */
+  forward: BotForwardStatus;
 }
 
 /** `POST /api/bot-lists/preview-url`: a fetched list, not stored yet. */

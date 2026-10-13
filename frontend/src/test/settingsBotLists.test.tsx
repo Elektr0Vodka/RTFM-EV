@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   previewBotListUrl: vi.fn(),
   subscribeBotList: vi.fn(),
   refreshBotList: vi.fn(),
+  reviewBotList: vi.fn(),
 }));
 vi.mock('../api', () => ({ api: mocks }));
 
@@ -36,16 +37,22 @@ function list(over: Partial<BotList>): BotList {
     last_error: null,
     created_at: 1,
     entry_count: 2,
+    review_count: 0,
     ...over,
   };
 }
 
-function state(lists: BotList[], exceptions: string[] = []): BotListsState {
+function state(
+  lists: BotList[],
+  exceptions: string[] = [],
+  forward: BotListsState['forward'] = { state: 'off', channels: 0, names: 0 }
+): BotListsState {
   return {
     lists,
     exceptions,
     effective: { names: [], keys: [] },
     limits: { entries_per_list: 1000, effective: 5000 },
+    forward,
   };
 }
 
@@ -276,5 +283,105 @@ describe('SettingsBotListsSection', () => {
     render(<SettingsBotListsSection appSettings={null} />);
     await screen.findByText('Mine');
     expect(screen.queryByRole('button', { name: 'Refresh now' })).toBeNull();
+  });
+
+  it('offers Block forwards only on an enabled list', async () => {
+    mocks.getBotLists.mockResolvedValue(state([list({ id: 1, enabled: false })]));
+    render(<SettingsBotListsSection appSettings={null} />);
+    expect(
+      await screen.findByRole('checkbox', { name: 'Block forwards from Mine' })
+    ).toBeDisabled();
+  });
+
+  it('switches Block forwards on for a list of the user', async () => {
+    mocks.getBotLists.mockResolvedValue(state([list({ enabled: true })]));
+    mocks.updateBotList.mockResolvedValue(state([list({ enabled: true, block_forward: true })]));
+    render(<SettingsBotListsSection appSettings={null} />);
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Block forwards from Mine' }));
+    await waitFor(() =>
+      expect(mocks.updateBotList).toHaveBeenCalledWith(1, { block_forward: true })
+    );
+  });
+
+  it('says what Block forwards is doing', async () => {
+    mocks.getBotLists.mockResolvedValue(
+      state([list({ enabled: true, block_forward: true })], [], {
+        state: 'monitor',
+        channels: 0,
+        names: 2,
+      })
+    );
+    render(<SettingsBotListsSection appSettings={null} />);
+    expect(await screen.findByText('Waiting: Spam Guard is in Monitor')).toBeInTheDocument();
+  });
+
+  it('shows no status for a list that does not block forwards', async () => {
+    mocks.getBotLists.mockResolvedValue(state([list({ enabled: true })]));
+    render(<SettingsBotListsSection appSettings={null} />);
+    await screen.findByText('Mine');
+    expect(screen.queryByText(/^Waiting:/)).not.toBeInTheDocument();
+  });
+
+  it('follows Spam Guard: a change there reloads the status', async () => {
+    render(<SettingsBotListsSection appSettings={null} />);
+    await screen.findByText('Mine');
+    expect(mocks.getBotLists).toHaveBeenCalledTimes(1);
+    window.dispatchEvent(new CustomEvent('rtfm:spam-guard', { detail: {} }));
+    await waitFor(() => expect(mocks.getBotLists).toHaveBeenCalledTimes(2));
+  });
+
+  it('follows the host repeater too: arming or disarming reloads the status', async () => {
+    render(<SettingsBotListsSection appSettings={null} />);
+    await screen.findByText('Mine');
+    expect(mocks.getBotLists).toHaveBeenCalledTimes(1);
+    window.dispatchEvent(new CustomEvent('rtfm:host-repeater', { detail: {} }));
+    await waitFor(() => expect(mocks.getBotLists).toHaveBeenCalledTimes(2));
+  });
+
+  it('lets Block forwards be switched off on a list that is switched off', async () => {
+    const off = list({ enabled: false, block_forward: true });
+    mocks.getBotLists.mockResolvedValue(state([off]));
+    mocks.updateBotList.mockResolvedValue(state([{ ...off, block_forward: false }]));
+    render(<SettingsBotListsSection appSettings={null} />);
+    const box = await screen.findByRole('checkbox', { name: 'Block forwards from Mine' });
+    expect(box).not.toBeDisabled();
+    fireEvent.click(box);
+    await waitFor(() =>
+      expect(mocks.updateBotList).toHaveBeenCalledWith(1, { block_forward: false })
+    );
+  });
+
+  it('offers the review of names a refresh added', async () => {
+    const sub = list({ id: 4, name: 'Shared', source: 'url', enabled: true, review_count: 2 });
+    mocks.getBotLists.mockResolvedValue(state([sub]));
+    mocks.getBotListEntries.mockResolvedValue([
+      { name: 'NewA', public_key: null, note: null, forward_reviewed: false },
+    ]);
+    render(<SettingsBotListsSection appSettings={null} />);
+    fireEvent.click(await screen.findByRole('button', { name: '2 new names to review' }));
+    expect(await screen.findByText('New names on Shared')).toBeInTheDocument();
+  });
+
+  it('shows the names before a subscription blocks forwards', async () => {
+    const sub = list({ id: 4, name: 'Shared', source: 'url', enabled: true });
+    mocks.getBotLists.mockResolvedValue(state([sub]));
+    mocks.getBotListEntries.mockResolvedValue([
+      { name: 'PingBot', public_key: null, note: null, forward_reviewed: true },
+    ]);
+    render(<SettingsBotListsSection appSettings={null} />);
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Block forwards from Shared' }));
+    expect(await screen.findByText('Block forwards from Shared?')).toBeInTheDocument();
+    expect(mocks.updateBotList).not.toHaveBeenCalled();
+  });
+
+  it('switches a subscription off without asking', async () => {
+    const sub = list({ id: 4, name: 'Shared', source: 'url', enabled: true, block_forward: true });
+    mocks.getBotLists.mockResolvedValue(state([sub]));
+    mocks.updateBotList.mockResolvedValue(state([{ ...sub, block_forward: false }]));
+    render(<SettingsBotListsSection appSettings={null} />);
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Block forwards from Shared' }));
+    await waitFor(() =>
+      expect(mocks.updateBotList).toHaveBeenCalledWith(4, { block_forward: false })
+    );
   });
 });

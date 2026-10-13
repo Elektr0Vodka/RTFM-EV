@@ -57,14 +57,24 @@ async def test_entries_replace_add_and_count(test_db):
         ],
     )
     assert await BotListRepository.entries(list_id) == [
-        {"name": "Bot 🤖", "public_key": None, "note": None},
-        {"name": "PingBot", "public_key": "ab" * 32, "note": "pong"},
+        {"name": "Bot 🤖", "public_key": None, "note": None, "forward_reviewed": True},
+        {
+            "name": "PingBot",
+            "public_key": "ab" * 32,
+            "note": "pong",
+            "forward_reviewed": True,
+        },
     ]
     await BotListRepository.add_entry(list_id, "NewsBot", None, "news")
     await BotListRepository.add_entry(list_id, "PingBot", None, None)
     entries = {e["name"]: e for e in await BotListRepository.entries(list_id)}
     assert set(entries) == {"Bot 🤖", "PingBot", "NewsBot"}
-    assert entries["PingBot"] == {"name": "PingBot", "public_key": "ab" * 32, "note": "pong"}
+    assert entries["PingBot"] == {
+        "name": "PingBot",
+        "public_key": "ab" * 32,
+        "note": "pong",
+        "forward_reviewed": True,
+    }
     assert (await BotListRepository.get(list_id))["entry_count"] == 3
 
     await BotListRepository.replace_entries(
