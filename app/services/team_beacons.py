@@ -7,6 +7,7 @@ contact history only. Nothing here is sent to fanout, MQTT or exports.
 from app.models import Message, TeamBeaconPoint, TeamBeaconsResponse, TeamWaypointPin
 from app.reaction_payloads import channel_sender, message_body
 from app.repository import AppSettingsRepository, ContactRepository, MessageRepository
+from app.services.bot_lists import bot_lists
 from app.services.shared_locations import sender_identity
 from app.team_payloads import (
     MAP_PREFIXES,
@@ -65,12 +66,13 @@ async def collect_team_beacons(
     name for messages stored without a key. Blocked senders are skipped.
     """
     settings = await AppSettingsRepository.get()
+    hidden_keys, hidden_names = await bot_lists.hidden_senders(settings)
     rows = await MessageRepository.get_received_window(
         since=since,
         until=until,
         limit=scan_limit + 1,
-        blocked_keys=settings.blocked_keys or None,
-        blocked_names=settings.blocked_names or None,
+        blocked_keys=hidden_keys,
+        blocked_names=hidden_names,
         msg_type="CHAN",
         text_contains_any=MAP_PREFIXES,
     )

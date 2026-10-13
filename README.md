@@ -9,6 +9,7 @@ RTFM-EV is a fork of [RemoteTerm for MeshCore](https://github.com/jkingsman/Remo
 - analysis views: My Node, Mesh Health, Mesh Trends, Packet History, Mesh Discovery, SNMP
 - a host repeater that judges every received packet the way a repeater would (shadow mode, optional live forwarding)
 - Spam Guard: channel spam detection that flags spam in chat and keeps the host repeater from forwarding it
+- Bot lists: keep and share lists of known bots, mark them in chat and hide them
 - loadouts, a radio identity registry, database backup/restore and per-class data retention
 - an interface in English, Dutch and German, extra themes and an in-app User Guide
 
@@ -90,6 +91,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - Loadouts: named sets of channels and contacts to load onto the radio, for example before disconnecting it.
 - [Host repeater](#host-repeater) in shadow mode, with optional live forwarding.
 - [Spam Guard](#spam-guard): channel spam detection with a Monitor and a Protect mode, off by default.
+- [Bot lists](#bot-lists): lists of known bots that mark and hide their messages, off until you enable one.
 
 ### Integrations and automation
 
@@ -353,6 +355,18 @@ Spam Guard detects channel spam behaviour and, in Protect mode, keeps the host r
 - **In the packet feed** (OpenHop radio) each packet shows the policy rule that decides it, for example `Drop rule rtfm-spam:text:7440749b06 (yours)` or one of your own rules, in red for a drop. RTFM-EV works it out from a copy of the node's policy: an indication, the node itself decides. The rule is stored with the packet, so Packet History shows it too, finds a packet by its rule name, can list only the packets a rule decided, and exports it to CSV. The feed's Filters also have **Hide malformed**.
 - **A repeater is shared.** What your repeater does not forward disappears for everyone downstream, and they cannot see why. Run Monitor for a day before switching to Protect.
 - **On an OpenHop radio** the node forwards on its own, so Protect writes the blocks into the node's policy through its API, as rules named `rtfm-spam:...` placed before and after your own rules. The end of a rule name says where its block came from: `(yours)` for one you made or kept, `(duplicate)` for routine duplicate suppression, `(auto)` for the rest. Your own rules, objects and groups are passed through untouched. It needs the API URL and token under OpenHop management, switches the node's policy engine on, checks the node every minute and puts its rules back if they were changed there. The rules are removed when you switch to Monitor, pause, switch Spam Guard off, connect another radio or shut RTFM-EV down: an OpenHop rule does not expire by itself. A private channel is only enforced on the node after you agree, per channel, to its key being copied into the node's policy file. Nothing is written to a node that already has `spamguard:` rules. With an OpenHop radio the Spam Guard page also holds the node's policy editor (the **Policy** tab); Settings > OpenHop shows it only while Spam Guard is off. Not tested against a real OpenHop node yet.
+
+### Bot lists
+
+A bot list names known bots: an exact sender name, with an optional public key and note. Lists live under Settings > Local Configuration > Bot lists.
+
+- **Enable a list** and its senders get a Bot marker in chat. Names are matched exactly and case-sensitively, so a person who uses the same name is marked too. "Never a bot" excepts a name on every list.
+- **Hide bots** (chat filter menu or Settings) hides listed senders in chat and keeps them out of unread counts, mentions and notifications. Search still shows them.
+- **Share a list** with Export, which writes a JSON file. Import file stores such a file as a new list of your own, switched off, so you can read it before you enable it.
+- **One list ships with RTFM-EV.** It is read-only and off until you enable it.
+- **From chat**, a message's actions offer "Add to bot list" and, for a listed name, "Not a bot".
+
+Bot lists do not change what a repeater forwards.
 
 ## Documentation
 

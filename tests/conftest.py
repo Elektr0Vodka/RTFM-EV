@@ -91,6 +91,7 @@ async def test_db():
         airtime_history,
         analyzer_names,
         battery_history,
+        bot_lists,
         channels,
         communities,
         contact_snmp,
@@ -140,6 +141,7 @@ async def test_db():
         contact_snmp,
         snmp_agent,
         spam,
+        bot_lists,
         contact_telemetry,
         noise_floor,
         battery_history,
@@ -161,6 +163,11 @@ async def test_db():
 
     for mod in submodules:
         mod.db = db
+
+    # The bot list service caches the effective set; start every test empty.
+    from app.services.bot_lists import bot_lists as bot_list_service
+
+    bot_list_service.reset()
 
     # Also patch the db reference used by the packets router for VACUUM
     import app.routers.packets as packets_module

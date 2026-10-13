@@ -65,6 +65,53 @@ No migration. No new dependency.
   conversation or contact on click. On desktop nothing changes. Covered by
   tests with a constructor that refuses; not tried on a real phone.
 
+## Update 2026-10-13 (Bot lists: mark and hide known bots, feat/bot-lists)
+
+Migration `_142`. No new dependency. Nothing changes until a list is enabled.
+
+### Bot lists (new)
+- **Lists of known bots** under Settings > Local Configuration > Bot lists. An
+  entry is an exact sender name, with an optional public key and note. Names
+  are matched exactly and case-sensitively, so a person using the same name is
+  marked too; "Never a bot" excepts a name on every list.
+- **Bot marker.** While a list is enabled, its senders carry a Bot marker in
+  chat: by name in channels, by name or public key in DMs.
+- **Hide bots** (chat filter menu and Settings, `app_settings.hide_bots`, off
+  by default) hides them in chat and keeps them out of unread counts,
+  mentions, Web Push, shared locations, team beacons and the Ollama unread
+  summary. Search still shows them (the search view has no marker).
+- **A name is matched as chat shows it.** The decoder stores a channel
+  message without a sender when the name has brackets (`[NU]`), while chat
+  still shows the `Sender: ` prefix of its text. Bot lists match that shown
+  name, in the browser and in the server-side filter. The same filter serves
+  Blocked contacts, so a blocked name with brackets now also stays out of
+  unread counts and Web Push; the chat view for Blocked contacts is unchanged.
+- **Sharing by file.** Export writes a list as a JSON file
+  (`rtfm-ev-bot-list`, version 1); Import file stores such a file as a new
+  list of your own, switched off. A file that fails a check is refused whole.
+- **One list ships with RTFM-EV** (`app/data/bot_list.json`). It is read-only
+  and off until you enable it; your switch survives upgrades. It starts with
+  six names heard on the Dutch network: the news feeds `[NU]`, `[NH]`, `[NOS]`
+  and `[AT5]` in `#nieuws`, and the automatic responders
+  `NL-EIN-PA3JH-HA` and `NL-OV-ENS-NL1CTM-BOT`. The names were taken from
+  messages listed on meshcore-analyzer.eu on 2026-10-13.
+- **From chat:** a message's actions offer "Add to bot list" and, for a listed
+  name, "Not a bot". A list made from that dialog is switched on at once.
+  The entry gets the sender's own public key when it is known; in a room that
+  is the author, never the room.
+- Limits: 256 KiB per file, 1000 names per list, 5000 names over all enabled
+  lists.
+- API: `GET/POST /api/bot-lists`, `PATCH/DELETE /api/bot-lists/{id}`,
+  `GET/PUT/POST /api/bot-lists/{id}/entries`, `POST /api/bot-lists/import`,
+  `GET /api/bot-lists/{id}/export`, `PUT /api/bot-lists/exceptions`. WS event
+  `bot_lists`.
+
+### Not in this change
+- Subscribing to a list by URL, and blocking listed bots on the forwarding
+  side. The tables already hold the columns for both.
+- A sender matched only by public key, under another name than the list has,
+  cannot be excepted from chat; add the listed name under "Never a bot".
+
 ## Update 2026-10-13 (Spam Guard: feedback from the third test round, feat/spam-guard-feedback-3)
 
 No migration. No new dependency. Requested by Richard after testing duplicate suppression with short messages.

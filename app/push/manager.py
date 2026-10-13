@@ -15,9 +15,11 @@ from pywebpush import WebPushException
 from app.path_utils import message_hidden_by_hop_width
 from app.push.send import send_push
 from app.push.vapid import get_vapid_claims, get_vapid_private_key
+from app.reaction_payloads import channel_sender
 from app.repository.channels import ChannelRepository
 from app.repository.push_subscriptions import PushSubscriptionRepository
 from app.repository.settings import AppSettingsRepository
+from app.services.bot_lists import bot_lists
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +79,9 @@ def _is_blocked(data: dict, blocked_keys: list[str], blocked_names: list[str]) -
         if data.get("type") == "CHAN" and sender_key and str(sender_key).lower() in keys:
             return True
     sender_name = data.get("sender_name")
+    if not sender_name and data.get("type") == "CHAN":
+        # Stored without a sender (a name with brackets); chat shows the text's prefix.
+        sender_name = channel_sender(str(data.get("text") or ""))
     return bool(blocked_names and sender_name and sender_name in blocked_names)
 
 
@@ -121,7 +126,8 @@ class PushManager:
         # filters hide.
         try:
             settings = await AppSettingsRepository.get()
-            if _is_blocked(data, settings.blocked_keys, settings.blocked_names):
+            hidden_keys, hidden_names = await bot_lists.hidden_senders(settings)
+            if _is_blocked(data, hidden_keys or [], hidden_names or []):
                 return
             if message_hidden_by_hop_width(data.get("paths"), settings.hidden_hop_widths):
                 return

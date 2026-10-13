@@ -526,6 +526,13 @@ class AppSettingsUpdate(BaseModel):
             "from unread counts, mentions and Web Push."
         ),
     )
+    hide_bots: bool | None = Field(
+        default=None,
+        description=(
+            "Hide incoming messages from senders on an enabled bot list in chat and "
+            "exclude them from unread counts, mentions and Web Push."
+        ),
+    )
     discovery_blocked_types: list[int] | None = Field(
         default=None,
         description=(
@@ -914,6 +921,9 @@ async def update_settings(update: AppSettingsUpdate) -> AppSettings:
 
     if update.hide_spam is not None:
         kwargs["hide_spam"] = update.hide_spam
+
+    if update.hide_bots is not None:
+        kwargs["hide_bots"] = update.hide_bots
 
     # Discovery blocked types
     if update.discovery_blocked_types is not None:

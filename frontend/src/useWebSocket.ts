@@ -3,6 +3,7 @@ import type { Channel, HealthStatus, Contact, Message, MessagePath, RawPacket } 
 import { parseWsEvent, type NewNodePayload } from './wsEvents';
 import { emitHostRepeaterEvent } from './utils/hostRepeaterEvents';
 import { emitSpamGuardEvent } from './utils/spamGuardEvents';
+import { setBotListsState } from './utils/botLists';
 import { probeAuthSession } from './utils/authRedirect';
 
 // A browser hides the HTTP status of a refused WebSocket handshake: a lost
@@ -191,6 +192,9 @@ export function useWebSocket(options: UseWebSocketOptions, events?: 'chat') {
             } else {
               handlers.onMessageSpam?.(msg.data.message_ids, msg.data.spam, msg.data.duplicate);
             }
+            break;
+          case 'bot_lists':
+            setBotListsState(msg.data);
             break;
           case 'error':
             handlers.onError?.(msg.data as ErrorEvent);

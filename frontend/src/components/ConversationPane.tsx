@@ -146,6 +146,8 @@ interface ConversationPaneProps {
   spamGuardEnabled?: boolean;
   hideSpam?: boolean;
   onHideSpamChange?: (hide: boolean) => void;
+  hideBots?: boolean;
+  onHideBotsChange?: (hide: boolean) => void;
   onSpamFeedback?: (message: Message, spam: boolean) => void;
   analyzerSites?: import('../types').AnalyzerSite[];
   onHashtagAdded?: (channelName: string) => void;
@@ -299,6 +301,8 @@ export function ConversationPane({
   spamGuardEnabled,
   hideSpam,
   onHideSpamChange,
+  hideBots,
+  onHideBotsChange,
   onSpamFeedback,
   analyzerSites,
   onHashtagAdded,
@@ -813,6 +817,8 @@ export function ConversationPane({
           spamGuardEnabled={spamGuardEnabled}
           hideSpam={hideSpam}
           onHideSpamChange={onHideSpamChange}
+          hideBots={hideBots}
+          onHideBotsChange={onHideBotsChange}
           onSpamFeedback={onSpamFeedback}
           analyzerSites={analyzerSites}
           onHashtagAdded={onHashtagAdded}

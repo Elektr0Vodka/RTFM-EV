@@ -196,6 +196,7 @@ for a source whose terms forbid bulk downloading.
 - Unread counts, mention flags, `first_unread_ids` and `last_message_times` exclude incoming messages from blocked keys/names and messages hidden by the chat "Hide by hop size" filter (`app_settings.hidden_hop_widths`, migration `_121`; `MessageRepository._build_hidden_hop_width_clause`). A message is hop-hidden when ANY stored path has a per-hop byte width in the list (width derivable only when `path_len` > 0 and the hex is exactly `path_len` hops of 2/4/6 chars, `path_utils.stored_path_hop_width`), the same rule as the frontend's `isMessageHiddenByHopWidth`.
 - The same four exclude incoming messages flagged as malformed when the chat "Hide malformed" filter is on (`app_settings.hide_malformed`, `messages.malformed`, migration `_129`; `MessageRepository._build_hidden_malformed_clause`). The flag is set once at ingest by `app/malformed.py` (`is_malformed_channel_message`) in `create_message_from_decrypted` and `create_fallback_channel_message`, on the body after `Sender: ` and after SMAZ decode: no ASCII letter or digit plus an invalid code point, letters from two or more script families, or letters next to box-drawing characters; or a sender timestamp within 30 days of the MeshCore default RTC epoch (1715770351) on a message received more than a week later. Migration `_129` backfills existing incoming channel text. Flagged messages are stored, broadcast and returned by the message APIs with `malformed: true`; nothing is dropped. GRP_DATA placeholders, DMs and outgoing messages are never flagged. A GroupText whose plaintext is not valid UTF-8 is still dropped by `decrypt_group_text` before this point and never becomes a message.
 - The same four exclude incoming messages Spam Guard flagged when the chat "Hide spam" filter is on (`app_settings.hide_spam`, `messages.spam`, migration `_137`; `MessageRepository._build_hidden_spam_clause`). Web Push skips them too (`app/push/manager.py`), and so does the Ollama unread summary (`MessageRepository.get_latest_since(hide_spam=...)`). The flag can change after ingest (`MessageRepository.set_spam`, WS `message_spam`).
+- Senders on an enabled bot list are hidden the same way while "Hide bots" is on (`app_settings.hide_bots`, migration `_142`). `bot_lists.hidden_senders(settings)` (`services/bot_lists.py`) is the one place that decides it: it returns the user's blocked keys and names plus, with `hide_bots` on, the effective set of the enabled lists. Unread counts (`routers/read_state.py`), Web Push (`push/manager.py`), the Ollama unread summary (`routers/channels.py`), shared locations and team beacons take their `blocked_keys` / `blocked_names` from it. The message list, jump-to-message and search (`routers/messages.py`) still take the user's own block lists only: the chat view filters listed senders in the browser. A hidden name is matched as chat shows it: `MessageRepository._build_blocked_incoming_clause` also matches a channel row stored with `sender_name` NULL (the decoder rejects a name with `[` or `]`) by the `Sender: ` prefix of its text, the rule of `reaction_payloads.channel_sender`, and `push/manager.py` `_is_blocked` does the same. That builder is shared with Blocked contacts.
 - `first_unread_ids` maps stateKey -> id of the oldest unread message, so the client can anchor the unread divider (and jump to it) without paging back through history. It is computed with `ROW_NUMBER() OVER (PARTITION BY type, conversation_key ORDER BY received_at, id)` - deliberately not `MIN(received_at)` with a bare id, because sender timestamps are whole seconds and same-second ties are routine, and not `MIN(id)`, because historical decryption inserts old messages with new ids.
 - `POST /contacts/{public_key}/mark-unread` and `POST /channels/{key}/mark-unread` (`{message_id}`) mark a conversation unread from a given message onward, by setting `last_read_at = message.received_at - 1`. The message must be an incoming (`outgoing = 0`) message belonging to that conversation (404/400 otherwise). Same server-side, shared-across-browsers model as mark-read.
 
@@ -431,6 +432,20 @@ Behaviour modelled on flackrat/openhop-spamguard v5.11.3, code written from scra
 - `POST /spam-guard/replay` - `{days | evidence, settings}`; runs in a thread, stores nothing; 400 past `MAX_REPLAY_MESSAGES` (20000) records
 - `GET /spam-guard/health` - `state` `off` / `ok` / `warn` / `bad` with `problems` (`not_running`, `rules_failed`, `rules_missing`, `openhop_sync_failed`) and `warnings` (`settings_invalid`, `host_not_armed`, `openhop_spamguard_present`, `openhop_not_configured`, `openhop_key_not_shared`, `no_channels`); on OpenHop also `sync_state` (`idle` / `pending` / `synced` / `unconfigured` / `refused` / `failed`), `repairs` and `last_sync_at`; 503 when `bad`. It carries codes only: exception text (which can quote stored values or the node URL) is logged, never returned
 
+### Bot lists
+- Lists of known bots (exact sender name, optional public key and note). An enabled list marks its senders in chat; `app_settings.hide_bots` hides them. Nothing here transmits and nothing here touches forwarding.
+- Storage (migration `_142`, `repository/bot_lists.py`): `bot_lists` (`source` is `local`, `url` or `shipped`; `enabled`; `block_forward` and `bot_list_entries.forward_reviewed` are there for later work and unused), `bot_list_entries` (one name per list), `bot_exceptions` (names never treated as a bot), `app_settings.hide_bots`.
+- File format (`app/bot_lists/format.py`, pure): `rtfm-ev-bot-list` version 1, at most 256 KiB and 1000 entries; a document that fails any check is refused whole (`BotListFormatError`). A name must not be blank or padded; matching is exact and case-sensitive.
+- `services/bot_lists.py` (`bot_lists`): caches the effective set (entries of enabled lists minus exceptions, at most 5000 names), broadcasts WS `bot_lists` after every change, and loads `app/data/bot_list.json` into the one read-only `shipped` list at startup (entries replaced, the user's switch kept; a missing or invalid file keeps the stored entries and sets `last_error`).
+- `GET /bot-lists` - lists with entry counts, `exceptions`, `effective` (`names`, `keys`) and `limits`. Every changing route below answers with the same body
+- `POST /bot-lists` - `{name, description}`; a new local list, switched off. The answer also carries `created_id` (lists are sorted by name, so the new one is not otherwise identifiable); the WS event does not
+- `PATCH /bot-lists/{id}` - `{name, description, enabled}`; name and description only for a local list (409 otherwise); 400 when enabling would pass the effective cap
+- `DELETE /bot-lists/{id}` - 409 for the shipped list
+- `GET /bot-lists/{id}/entries`, `PUT /bot-lists/{id}/entries` (`{entries}`), `POST /bot-lists/{id}/entries` (one entry) - writes only on a local list (409 otherwise)
+- `POST /bot-lists/import` - the body is the file itself; stored as a new local list, switched off; 400 with the format message
+- `GET /bot-lists/{id}/export` - the list in the file format, as a download
+- `PUT /bot-lists/exceptions` - `{names}`
+
 ### Contacts
 - `GET /contacts`
 - `GET /contacts/analytics` - unified keyed-or-name analytics payload (keyed lookups include `path_scores`, the scored DM route history)
@@ -664,6 +679,7 @@ and the path modal (`hooks/useSoftResolutions.ts`).
 - `host_repeater` - host repeater settings saved (payload: `{ version, settings, state, env_enabled }`)
 - `spam_guard` - Spam Guard changed (payload: the small summary from `SpamGuardRuntime.public_state()`; clients refetch `GET /spam-guard`)
 - `message_spam` - the spam flag changed on messages already in chat (payload: `{ message_ids, spam }`); the arriving message carries `spam` in its own `message` event
+- `bot_lists` - a bot list, an entry or an exception changed (payload: the full `GET /bot-lists` body, which clients keep as their copy)
 - `new_node` - a public key never stored before (first advert ever, or the radio's own NEW_CONTACT auto-add); batched into a summary on a busy mesh. See "New-node notifications" below
 - `error` - toast notification (reconnect failure, missing private key, stuck radio startup, etc.)
 - `success` - toast notification (historical decrypt complete, etc.)
@@ -715,6 +731,7 @@ Repository writes should prefer typed models such as `ContactUpsert` over ad hoc
 - `region_sync_url` (URL of an analyzer regions endpoint whose `{code, name}` array `GET /regions/sync` normalises into region names for merging into `known_regions`)
 - `wordlist_sync_url` (URL of a JSON string-array of candidate channel names that `GET /registry/wordlist-sync` proxies for the browser channel finder's wordlist)
 - `blocked_keys`, `blocked_names`, `discovery_blocked_types`
+- `hide_bots` (hide senders on an enabled bot list; see "Bot lists")
 - `tracked_telemetry_repeaters`, `tracked_telemetry_contacts`
 - `auto_resend_channel`
 - `auto_add_mentioned_channels` (when enabled, #hashtag channels referenced in chat are auto-recorded in the browser Channel Registry; registry-only, no followed channel is created)
@@ -767,6 +784,11 @@ tests/
 ├── test_analyzer_path_check.py # Analyzer route check: verdict mapping, reach/inspect calls, failures
 ├── test_packet_who_heard.py    # Who heard this: hash vs a real analyzer packet, answer parsing, HTTP failures, endpoint
 ├── test_block_lists.py         # Blocked keys/names filtering across list/search surfaces
+├── test_bot_list_format.py     # Bot list file format: validation and each refusal
+├── test_bot_list_repository.py # Bot list storage
+├── test_bot_list_service.py    # Effective set, exceptions, caps, shipped list, import/export
+├── test_bot_list_hiding.py     # hide_bots setting and hidden_senders (unread counts, push)
+├── test_bot_list_router.py     # Bot list API and its error codes
 ├── test_channel_sender_backfill.py # Sender-key backfill uniqueness rules for channel messages
 ├── test_channels_router.py     # Channels router endpoints
 ├── test_community_mqtt.py      # Community MQTT publisher (JWT, packet format, hash, broadcast)

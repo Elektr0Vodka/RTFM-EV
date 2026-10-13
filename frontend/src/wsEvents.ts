@@ -1,4 +1,5 @@
 import type {
+  BotListsState,
   Channel,
   Contact,
   HealthStatus,
@@ -79,6 +80,7 @@ export type KnownWsEvent =
   | { type: 'host_repeater'; data: HostRepeaterEventPayload }
   | { type: 'spam_guard'; data: SpamGuardSummary }
   | { type: 'message_spam'; data: MessageSpamPayload }
+  | { type: 'bot_lists'; data: BotListsState }
   | { type: 'error'; data: ToastPayload }
   | { type: 'success'; data: ToastPayload }
   | { type: 'pong'; data?: null };
@@ -118,6 +120,7 @@ export function parseWsEvent(raw: string): ParsedWsEvent {
     case 'host_repeater':
     case 'spam_guard':
     case 'message_spam':
+    case 'bot_lists':
     case 'error':
     case 'success':
       return {
