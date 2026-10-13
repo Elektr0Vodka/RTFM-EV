@@ -444,6 +444,12 @@ Behaviour modelled on flackrat/openhop-spamguard v5.11.3, code written from scra
 - `POST /bot-lists/import` - the body is the file itself; stored as a new local list, switched off; 400 with the format message
 - `GET /bot-lists/{id}/export` - the list in the file format, as a download
 - `PUT /bot-lists/exceptions` - `{names}`
+- Subscriptions (`source` `url`): `services/bot_list_fetch.py` does the fetch. `check_subscription_url` accepts `https` only, no user name or password, at most 2048 characters, and drops the fragment. `fetch_bot_list` sends each request to the address `url_safety.resolve_public_ip` validated (original host as `Host` header and SNI, like `services/unfurl.py`), follows at most 3 redirects by hand with the same checks per hop, stops reading at `MAX_FILE_BYTES`, times out after 10 s, and returns a validated `BotListFile`. It raises `BotListFetchError` with a `code` (`not_https`, `bad_url`, `unsafe_url`, `fetch_failed`, `http_error`, `too_large`, `too_many_redirects`, `invalid_file`); `public_text()` is the code, or `invalid_file: <format message>`. `detail` (resolved addresses, exception text) is logged, never returned or stored.
+- `POST /bot-lists/preview-url` - `{url}`; fetches and validates, stores nothing; answers `{url, name, description, updated, entries}`; 400 with `detail` = `public_text()`
+- `POST /bot-lists/subscribe` - `{url}`; stores a read-only list, switched off, with `created_id`; 400 for a fetch error, an address already subscribed, or more than `MAX_SUBSCRIPTIONS` (20)
+- `POST /bot-lists/{id}/refresh` - refresh now; always the state when the list is a subscription (a failed fetch shows as that list's `last_error`, which holds a code, `invalid_file: <message>` or `over_limit`); 409 for another kind of list
+- A refresh is `BotListRepository.apply_refresh`, a diff by name: names gone from the file are deleted, names that stay keep `forward_reviewed` and take key and note from the file, new names get `forward_reviewed = 0` (nothing reads the flag yet). Name, description and `file_updated` follow the file.
+- `services/bot_list_refresh.py`: a loop started and stopped in `main.py` next to the backup schedule. First check 120 s after start, then hourly; `bot_lists.refresh_due()` refreshes every subscription whose last good fetch (`fetched_at`) is 24 hours old or older, so a failing one is tried again each hour. With no subscription nothing is contacted.
 
 ### Contacts
 - `GET /contacts`
@@ -788,6 +794,9 @@ tests/
 ├── test_bot_list_service.py    # Effective set, exceptions, caps, shipped list, import/export
 ├── test_bot_list_hiding.py     # hide_bots setting and hidden_senders (unread counts, push)
 ├── test_bot_list_router.py     # Bot list API and its error codes
+├── test_bot_list_fetch.py      # Guarded fetch: https only, pinned address, redirect hops, size cap, error codes
+├── test_bot_list_subscriptions.py # Preview, subscribe, refresh, the 24 hour rule, failures keep entries
+├── test_bot_list_refresh.py    # The hourly refresh loop
 ├── test_channel_sender_backfill.py # Sender-key backfill uniqueness rules for channel messages
 ├── test_channels_router.py     # Channels router endpoints
 ├── test_community_mqtt.py      # Community MQTT publisher (JWT, packet format, hash, broadcast)

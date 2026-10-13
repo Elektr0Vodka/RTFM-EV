@@ -4,6 +4,7 @@ An enabled list marks its senders in chat; Hide bots (an app setting) hides
 them. Nothing here transmits.
 """
 
+import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
@@ -18,6 +19,7 @@ from app.bot_lists.format import (
     BotListFormatError,
     parse_bot_list,
 )
+from app.services.bot_list_fetch import MAX_URL_LENGTH, BotListFetchError
 from app.services.bot_lists import (
     MAX_EFFECTIVE,
     BotListError,
@@ -25,6 +27,8 @@ from app.services.bot_lists import (
     BotListReadOnly,
     bot_lists,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/bot-lists", tags=["bot-lists"])
 
@@ -46,6 +50,10 @@ class BotListEntriesRequest(BaseModel):
 
 class BotExceptionsRequest(BaseModel):
     names: list[str] = Field(max_length=MAX_EFFECTIVE, description="Names never treated as a bot")
+
+
+class BotListUrlRequest(BaseModel):
+    url: str = Field(min_length=1, max_length=MAX_URL_LENGTH, description="https URL of a list")
 
 
 def _refusal(exc: BotListError) -> HTTPException:
@@ -80,6 +88,28 @@ async def import_bot_list(request: Request) -> dict[str, Any]:
     except BotListFormatError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return await bot_lists.import_file(parsed)
+
+
+@router.post("/preview-url")
+async def preview_bot_list_url(body: BotListUrlRequest) -> dict[str, Any]:
+    """Fetch and validate a list by URL without storing it."""
+    try:
+        return await bot_lists.preview_url(body.url)
+    except BotListFetchError as exc:
+        logger.warning("Bot list URL refused (%s): %s", exc.code, exc.detail)
+        raise HTTPException(status_code=400, detail=exc.public_text()) from exc
+
+
+@router.post("/subscribe")
+async def subscribe_bot_list(body: BotListUrlRequest) -> dict[str, Any]:
+    """Subscribe to a list by URL. It is stored read-only and switched off."""
+    try:
+        return await bot_lists.subscribe(body.url)
+    except BotListFetchError as exc:
+        logger.warning("Bot list URL refused (%s): %s", exc.code, exc.detail)
+        raise HTTPException(status_code=400, detail=exc.public_text()) from exc
+    except BotListError as exc:
+        raise _refusal(exc) from exc
 
 
 @router.patch("/{list_id}")
@@ -135,3 +165,12 @@ async def export_bot_list(list_id: int) -> JSONResponse:
         content=document,
         headers={"Content-Disposition": f'attachment; filename="bot-list-{list_id}.json"'},
     )
+
+
+@router.post("/{list_id}/refresh")
+async def refresh_bot_list(list_id: int) -> dict[str, Any]:
+    """Refresh a subscription now. A failed fetch shows as the list's ``last_error``."""
+    try:
+        return await bot_lists.refresh_list(list_id)
+    except BotListError as exc:
+        raise _refusal(exc) from exc

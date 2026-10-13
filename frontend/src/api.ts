@@ -14,6 +14,7 @@ import type {
   AppSettings,
   BackupFilesResponse,
   BotListEntry,
+  BotListPreview,
   BotListsState,
   RestoreStatus,
   AppSettingsUpdate,
@@ -379,6 +380,18 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ names }),
     }),
+  previewBotListUrl: (url: string) =>
+    fetchJson<BotListPreview>('/bot-lists/preview-url', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    }),
+  subscribeBotList: (url: string) =>
+    fetchJson<BotListsState & { created_id: number }>('/bot-lists/subscribe', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    }),
+  refreshBotList: (id: number) =>
+    fetchJson<BotListsState>(`/bot-lists/${id}/refresh`, { method: 'POST' }),
   getGpsConfig: () => fetchJson<GpsConfig>('/radio/gps'),
   getRadioDefaultFloodScope: (signal?: AbortSignal) =>
     fetchJson<RadioDefaultFloodScope>('/radio/default-flood-scope', { signal }),

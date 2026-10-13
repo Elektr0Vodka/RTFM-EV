@@ -11,6 +11,38 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-13 (Bot lists: subscribe by URL, feat/bot-lists-url)
+
+No migration. No new dependency. Nothing is fetched until you subscribe.
+
+### Bot lists: subscriptions
+- **Subscribe to URL** (Settings > Local Configuration > Bot lists) takes the
+  `https` address of a bot list file. The dialog first shows what the address
+  serves; Subscribe stores it as a read-only list, switched off.
+- **Refreshed once a day** (checked every hour) and by **Refresh now**. A
+  refresh follows the file by name: names that left the file are removed,
+  names that stay are kept, new names are added. A refresh that fails keeps
+  the names you have and shows why on the list; it is tried again at the next
+  hourly check.
+- **What a subscription sends:** one request per day to the host you chose,
+  which sees your internet address. Nothing about your radio or your messages
+  is sent.
+- **Guarded fetch:** `https` only, also after a redirect; at most 3 redirects;
+  every hop must resolve to a public address and is contacted at exactly that
+  address; reading stops at 256 KiB; 10 second timeout; no credentials in the
+  address. At most 20 subscriptions.
+- A fetch problem is shown as a short reason. Resolved addresses and error
+  text go to the server log only. The Settings row shows the host, not the
+  full address.
+- API: `POST /api/bot-lists/preview-url`, `POST /api/bot-lists/subscribe`,
+  `POST /api/bot-lists/{id}/refresh`.
+
+### Not in this change
+- Blocking listed bots on the forwarding side. Names a refresh adds are
+  already stored as "not yet reviewed" for that later step.
+- A subscription cannot be renamed and its address cannot be edited; delete
+  it and subscribe again.
+
 ## Update 2026-10-13 (Bot lists: mark and hide known bots, feat/bot-lists)
 
 Migration `_142`. No new dependency. Nothing changes until a list is enabled.

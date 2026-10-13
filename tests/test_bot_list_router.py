@@ -4,7 +4,10 @@ import json
 
 import pytest
 
+from app.bot_lists.format import validate_bot_list
 from app.repository.bot_lists import BotListRepository
+from app.services import bot_lists as service_module
+from app.services.bot_list_fetch import BotListFetchError
 from app.services.bot_lists import bot_lists
 
 FILE = {
@@ -120,3 +123,64 @@ async def test_create_names_the_new_list_even_when_it_does_not_sort_first(test_d
     assert made["name"] == "Zzz mine"
     assert created["created_id"] != shipped
     assert created["lists"][0]["id"] == shipped
+
+
+SUB_URL = "https://example.org/lists/bots.json"
+
+
+@pytest.fixture
+def remote(monkeypatch):
+    box = {"result": validate_bot_list(FILE)}
+
+    async def fake_fetch(url, **_kwargs):
+        if isinstance(box["result"], Exception):
+            raise box["result"]
+        return box["result"]
+
+    monkeypatch.setattr(service_module, "fetch_bot_list", fake_fetch)
+    return box
+
+
+@pytest.mark.asyncio
+async def test_preview_subscribe_and_refresh(test_db, client, remote):
+    async with client:
+        preview = await client.post("/api/bot-lists/preview-url", json={"url": SUB_URL})
+        assert preview.status_code == 200
+        assert preview.json()["name"] == "Shared"
+        assert [e["name"] for e in preview.json()["entries"]] == ["PingBot", "NewsBot"]
+        assert (await client.get("/api/bot-lists")).json()["lists"] == []
+
+        subscribed = (await client.post("/api/bot-lists/subscribe", json={"url": SUB_URL})).json()
+        list_id = subscribed["created_id"]
+        assert subscribed["lists"][0]["source"] == "url"
+
+        again = await client.post("/api/bot-lists/subscribe", json={"url": SUB_URL})
+        assert again.status_code == 400
+        assert "already subscribed" in again.json()["detail"]
+
+        remote["result"] = BotListFetchError("fetch_failed", "ConnectError: 93.184.216.34")
+        refreshed = await client.post(f"/api/bot-lists/{list_id}/refresh")
+        assert refreshed.status_code == 200
+        assert refreshed.json()["lists"][0]["last_error"] == "fetch_failed"
+        assert refreshed.json()["lists"][0]["entry_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_fetch_errors_answer_with_a_code_and_no_detail(test_db, client, remote):
+    async with client:
+        not_https = await client.post(
+            "/api/bot-lists/preview-url", json={"url": "http://example.org/b.json"}
+        )
+        assert (not_https.status_code, not_https.json()["detail"]) == (400, "not_https")
+
+        remote["result"] = BotListFetchError("unsafe_url", "resolves to 10.0.0.5")
+        unsafe = await client.post("/api/bot-lists/subscribe", json={"url": SUB_URL})
+        assert (unsafe.status_code, unsafe.json()["detail"]) == (400, "unsafe_url")
+
+        remote["result"] = BotListFetchError("invalid_file", "unsupported bot list version 2")
+        invalid = await client.post("/api/bot-lists/preview-url", json={"url": SUB_URL})
+        assert invalid.json()["detail"] == "invalid_file: unsupported bot list version 2"
+
+        local = (await client.post("/api/bot-lists", json={"name": "Mine"})).json()["created_id"]
+        assert (await client.post(f"/api/bot-lists/{local}/refresh")).status_code == 409
+        assert (await client.post("/api/bot-lists/999/refresh")).status_code == 404

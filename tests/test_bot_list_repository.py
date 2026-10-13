@@ -103,3 +103,72 @@ async def test_exceptions_round_trip(test_db):
     assert sorted(await BotListRepository.exceptions()) == ["Alice", "Bob"]
     await BotListRepository.set_exceptions(["Bob"])
     assert await BotListRepository.exceptions() == ["Bob"]
+
+
+async def _reviewed(test_db, list_id):
+    async with test_db.readonly() as conn:
+        async with conn.execute(
+            "SELECT name, public_key, note, forward_reviewed FROM bot_list_entries "
+            "WHERE list_id = ? ORDER BY name",
+            (list_id,),
+        ) as cursor:
+            return [tuple(row) for row in await cursor.fetchall()]
+
+
+@pytest.mark.asyncio
+async def test_apply_refresh_is_a_diff_by_name(test_db):
+    list_id = await BotListRepository.create("Feed", "", "url", "https://example.org/b.json")
+    await BotListRepository.replace_entries(
+        list_id,
+        [
+            {"name": "Stays", "public_key": None, "note": "old note"},
+            {"name": "Goes", "public_key": None, "note": None},
+        ],
+    )
+    assert await _reviewed(test_db, list_id) == [
+        ("Goes", None, None, 1),
+        ("Stays", None, "old note", 1),
+    ]
+
+    added, removed = await BotListRepository.apply_refresh(
+        list_id,
+        [
+            {"name": "Stays", "public_key": "ab" * 32, "note": "new note"},
+            {"name": "New", "public_key": None, "note": None},
+        ],
+    )
+    assert (added, removed) == (1, 1)
+    assert await _reviewed(test_db, list_id) == [
+        ("New", None, None, 0),
+        ("Stays", "ab" * 32, "new note", 1),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_a_name_that_leaves_and_returns_is_new_again(test_db):
+    list_id = await BotListRepository.create("Feed", "", "url", "https://example.org/b.json")
+    await BotListRepository.replace_entries(
+        list_id, [{"name": "Bot", "public_key": None, "note": None}]
+    )
+    await BotListRepository.apply_refresh(list_id, [])
+    await BotListRepository.apply_refresh(
+        list_id, [{"name": "Bot", "public_key": None, "note": None}]
+    )
+    assert await _reviewed(test_db, list_id) == [("Bot", None, None, 0)]
+
+
+@pytest.mark.asyncio
+async def test_find_count_and_due(test_db):
+    local = await BotListRepository.create("Mine", "", "local")
+    fresh = await BotListRepository.create("Fresh", "", "url", "https://example.org/fresh.json")
+    stale = await BotListRepository.create("Stale", "", "url", "https://example.org/stale.json")
+    never = await BotListRepository.create("Never", "", "url", "https://example.org/never.json")
+    await BotListRepository.update(fresh, {"fetched_at": 2000})
+    await BotListRepository.update(stale, {"fetched_at": 500})
+
+    assert (await BotListRepository.find_by_url("https://example.org/stale.json"))["id"] == stale
+    assert await BotListRepository.find_by_url("https://example.org/other.json") is None
+    assert await BotListRepository.count_by_source("url") == 3
+    assert await BotListRepository.count_by_source("local") == 1
+    assert [row["id"] for row in await BotListRepository.due_url_lists(1000)] == [never, stale]
+    assert local not in [row["id"] for row in await BotListRepository.due_url_lists(10**10)]

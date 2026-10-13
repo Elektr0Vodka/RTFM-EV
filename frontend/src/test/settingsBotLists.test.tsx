@@ -13,6 +13,9 @@ const mocks = vi.hoisted(() => ({
   importBotList: vi.fn(),
   botListExportUrl: vi.fn((id: number) => `./api/bot-lists/${id}/export`),
   setBotListExceptions: vi.fn(),
+  previewBotListUrl: vi.fn(),
+  subscribeBotList: vi.fn(),
+  refreshBotList: vi.fn(),
 }));
 vi.mock('../api', () => ({ api: mocks }));
 
@@ -171,5 +174,84 @@ describe('SettingsBotListsSection', () => {
         { name: 'NewsBot', public_key: null, note: null },
       ])
     );
+  });
+
+  it('subscribes only after the list was shown', async () => {
+    mocks.previewBotListUrl.mockResolvedValue({
+      url: 'https://example.org/bots.json',
+      name: 'Shared',
+      description: '',
+      updated: null,
+      entries: [
+        { name: 'PingBot', public_key: null, note: 'pong' },
+        { name: 'NewsBot', public_key: null, note: null },
+      ],
+    });
+    mocks.subscribeBotList.mockResolvedValue({ ...START, created_id: 5 });
+    render(<SettingsBotListsSection appSettings={null} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Subscribe to URL' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).queryByRole('button', { name: 'Subscribe' })).toBeNull();
+
+    fireEvent.change(within(dialog).getByLabelText('Address of the list'), {
+      target: { value: ' https://example.org/bots.json#x ' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Show the list' }));
+    expect(await within(dialog).findByText('Shared: 2 names')).toBeInTheDocument();
+    expect(within(dialog).getByText('PingBot')).toBeInTheDocument();
+    expect(mocks.previewBotListUrl).toHaveBeenCalledWith('https://example.org/bots.json#x');
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Subscribe' }));
+    await waitFor(() =>
+      expect(mocks.subscribeBotList).toHaveBeenCalledWith('https://example.org/bots.json')
+    );
+  });
+
+  it('hides Subscribe again when the address is changed after the preview', async () => {
+    mocks.previewBotListUrl.mockResolvedValue({
+      url: 'https://example.org/bots.json',
+      name: 'Shared',
+      description: '',
+      updated: null,
+      entries: [],
+    });
+    render(<SettingsBotListsSection appSettings={null} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Subscribe to URL' }));
+    const dialog = await screen.findByRole('dialog');
+    const input = within(dialog).getByLabelText('Address of the list');
+    fireEvent.change(input, { target: { value: 'https://example.org/bots.json' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Show the list' }));
+    await within(dialog).findByRole('button', { name: 'Subscribe' });
+    fireEvent.change(input, { target: { value: 'https://example.org/other.json' } });
+    expect(within(dialog).queryByRole('button', { name: 'Subscribe' })).toBeNull();
+  });
+
+  it('shows a subscription with its host, refresh time and error, and refreshes it', async () => {
+    const sub = list({
+      id: 4,
+      name: 'Shared',
+      source: 'url',
+      url: 'https://lists.example.org/bots.json?token=abc',
+      fetched_at: 1791900000,
+      last_error: 'fetch_failed',
+    });
+    mocks.getBotLists.mockResolvedValue(state([sub]));
+    mocks.refreshBotList.mockResolvedValue(state([{ ...sub, last_error: null }]));
+    render(<SettingsBotListsSection appSettings={null} />);
+    expect(await screen.findByText('Subscription')).toBeInTheDocument();
+    expect(screen.getByText(/^lists\.example\.org, refreshed /)).toBeInTheDocument();
+    expect(screen.queryByText(/token=abc/)).toBeNull();
+    expect(
+      screen.getByText('Could not be loaded: The list could not be fetched.')
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh now' }));
+    await waitFor(() => expect(mocks.refreshBotList).toHaveBeenCalledWith(4));
+  });
+
+  it('offers Refresh now only on a subscription', async () => {
+    render(<SettingsBotListsSection appSettings={null} />);
+    await screen.findByText('Mine');
+    expect(screen.queryByRole('button', { name: 'Refresh now' })).toBeNull();
   });
 });
