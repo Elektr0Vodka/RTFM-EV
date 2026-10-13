@@ -16,6 +16,9 @@ import type {
   BotListEntry,
   BotListPreview,
   BotListsState,
+  FilterProfileChanges,
+  FilterProfileKind,
+  FilterProfilesState,
   RestoreStatus,
   AppSettingsUpdate,
   PacketHistoryResponse,
@@ -425,6 +428,34 @@ export const api = {
     fetchJson<BotListsState>(`/bot-lists/${id}/review`, {
       method: 'POST',
       body: JSON.stringify({ names }),
+    }),
+  getFilterProfiles: (kind: FilterProfileKind) =>
+    fetchJson<FilterProfilesState>(`/filter-profiles?kind=${kind}`),
+  createFilterProfile: (kind: FilterProfileKind, name: string, description = '') =>
+    fetchJson<FilterProfilesState>('/filter-profiles', {
+      method: 'POST',
+      body: JSON.stringify({ kind, name, description }),
+    }),
+  updateFilterProfile: (
+    id: number,
+    patch: { name?: string; description?: string; capture?: boolean }
+  ) =>
+    fetchJson<FilterProfilesState>(`/filter-profiles/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }),
+  deleteFilterProfile: (id: number) =>
+    fetchJson<FilterProfilesState>(`/filter-profiles/${id}`, { method: 'DELETE' }),
+  /** The body is the file's text as it is; the server parses and validates it. */
+  importFilterProfile: (text: string) =>
+    fetchJson<FilterProfilesState>('/filter-profiles/import', { method: 'POST', body: text }),
+  filterProfileExportUrl: (id: number) => `${API_BASE}/filter-profiles/${id}/export`,
+  getFilterProfileChanges: (id: number) =>
+    fetchJson<FilterProfileChanges>(`/filter-profiles/${id}/changes`),
+  applyFilterProfile: (id: number, confirmProtect: boolean) =>
+    fetchJson<FilterProfilesState>(`/filter-profiles/${id}/apply`, {
+      method: 'POST',
+      body: JSON.stringify({ confirm_protect: confirmProtect }),
     }),
   getGpsConfig: () => fetchJson<GpsConfig>('/radio/gps'),
   getRadioDefaultFloodScope: (signal?: AbortSignal) =>

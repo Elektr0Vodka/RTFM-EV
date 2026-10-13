@@ -10,6 +10,7 @@ RTFM-EV is a fork of [RemoteTerm for MeshCore](https://github.com/jkingsman/Remo
 - a host repeater that judges every received packet the way a repeater would (shadow mode, optional live forwarding)
 - Spam Guard: channel spam detection that flags spam in chat and keeps the host repeater from forwarding it
 - Bot lists: keep and share lists of known bots, mark them in chat, hide them and stop relaying them
+- Spam Guard profiles: save the detection settings and mode under a name, switch by hand when the situation changes, share them as files
 - loadouts, a radio identity registry, database backup/restore and per-class data retention
 - an interface in English, Dutch and German, extra themes and an in-app User Guide
 
@@ -92,6 +93,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - [Host repeater](#host-repeater) in shadow mode, with optional live forwarding.
 - [Spam Guard](#spam-guard): channel spam detection with a Monitor and a Protect mode, off by default.
 - [Bot lists](#bot-lists): lists of known bots that mark and hide their messages and can keep this repeater from relaying them, off until you enable one.
+- [Spam Guard profiles](#spam-guard-profiles): saved sets of Spam Guard settings that you apply by hand and can share as files.
 
 ### Integrations and automation
 
@@ -369,6 +371,19 @@ A bot list names known bots: an exact sender name, with an optional public key a
 - **From chat**, a message's actions offer "Add to bot list" and, for a listed name, "Not a bot".
 
 A bot list does not change what this repeater forwards unless its Block forwards switch is on. That part is tested against the host repeater's engine and a stand-in for the OpenHop policy API, not on air.
+
+### Spam Guard profiles
+
+A profile is a saved set of Spam Guard detection settings plus the mode (Monitor or Protect). Profiles live on the Spam Guard page, Settings tab.
+
+- **Save current as profile** stores what is in force now under a name.
+- **Apply** shows every value that will change, old and new, and then puts the profile's values in place. A profile that switches to Protect asks for a confirmation, because Protect makes this repeater stop forwarding what Spam Guard blocks.
+- The card shows the profile **in use**. When the settings have been changed since, it says "modified" and offers **Save to profile** and **Revert**.
+- **Export** downloads a profile as a JSON file; **Import file** stores one from a file. An imported profile is never applied by importing it.
+
+A profile never holds the protected channels, channel keys, the exception lists, the pause or the evidence log settings, and applying one leaves those as they are. Nothing switches on its own.
+
+What a profile that switches to Protect does on air was not tested on a real repeater.
 
 ## Documentation
 

@@ -456,6 +456,24 @@ Behaviour modelled on flackrat/openhop-spamguard v5.11.3, code written from scra
 - A refresh is `BotListRepository.apply_refresh`, a diff by name: names gone from the file are deleted, names that stay keep `forward_reviewed` and take key and note from the file, new names get `forward_reviewed = 0` (left out of forward blocking until reviewed, see above). Name, description and `file_updated` follow the file.
 - `services/bot_list_refresh.py`: a loop started and stopped in `main.py` next to the backup schedule. First check 120 s after start, then hourly; `bot_lists.refresh_due()` refreshes every subscription whose last good fetch (`fetched_at`) is 24 hours old or older, so a failing one is tried again each hour. With no subscription nothing is contacted.
 
+**Filter library (profiles).** Named sets of filter settings that the user applies by hand and shares as files. One mechanism for every kind; Spam Guard (`spam_guard`) is the only kind so far.
+
+- Storage (migration `_143`, `repository/filter_profiles.py`): `filter_profiles` (`kind`, `name`, `description`, `source` = `local`, `payload` JSON, `created_at`, `updated_at`) and `filter_profile_in_use` (one row per kind). `in_use()` only answers a profile that still exists and is of that kind; `delete()` removes the in-use row with the profile.
+- `app/filter_profiles/kinds.py` (pure): `ProfileError(code, message, status)`, whose `detail` (`code` or `code: message`) is what the API answers, and the `ProfileKind` interface every kind implements: `validate(payload)` (raises `ValueError`), `capture()`, `apply(payload, confirmed=)`, `matches(payload)`, `changes(payload)`. A new kind is one class registered in `services/filter_profiles.py`; the service knows nothing about the feature, the kind knows nothing about storage or files.
+- `app/filter_profiles/format.py` (pure): the file is `rtfm-ev-filter-profile` version 1, one profile per file, at most 256 KiB, unknown keys refused. `parse_profile` raises `ProfileError` `too_large`, `not_json`, `not_a_profile`, `unsupported_version` or `invalid_file: <field>: <message>`. `version: true` is refused (`type() is int`). `export_filename` is plain ASCII because it travels in a header.
+- `services/filter_profiles.py` (`filter_profiles`): `snapshot(kind)` answers `{kind, profiles, in_use: {profile_id, modified} | null, limits}`. `modified` is computed on read (`not kind.matches(payload)`, and true when the stored payload no longer validates). At most 100 profiles per kind (`too_many_profiles`). `create` captures the live values and marks the profile in use; `import_file` stores and never applies; `update(capture=True)` is "Save to profile". A `ValueError` from the kind becomes `invalid_file` (400) on import and `invalid_profile` (422) on apply and changes; a `ProfileError` from the kind passes through.
+- `services/filter_profile_spam.py` (`SpamGuardProfiles`): the payload is `{mode, sensitivity, overrides}`. Never in it: `paused`, `channels`, the three allow lists, and the tunables in `LOCAL_KEYS` (`evidence_log`, `evidence_days`); a payload carrying any of them is refused. Validation builds `SpamTunables` and a `SpamConfig`, so the bounds in `app/spam/settings.py` apply unchanged, and the override values are stored as those models read them (a hand-edited `1` for a switch is stored as `true`). `apply` keeps the live `LOCAL_KEYS` overrides and everything else of the live document, and saves through `SpamGuardRuntime.save_config`. It raises `needs_confirm` (409) for Monitor to Protect without `confirmed`, the code from `SpamGuardRuntime.refusal` (`openhop_starts_at`, 409) and `conflict` (409) when the save lost the version race. `matches` compares the mode and the tunables in force (`effective()`), so an override equal to its preset value is no change.
+- `SpamGuardRuntime.refusal(config)` (`services/spam_guard.py`) answers a key of `REFUSALS` when the connected radio cannot run the settings. `PUT /spam-guard/settings` answers the sentence, the filter library the code.
+- `GET /filter-profiles?kind=` - the snapshot; 400 `unknown_kind`
+- `POST /filter-profiles` - `{kind, name, description}`; saves the live values, answers the snapshot with `created_id`
+- `POST /filter-profiles/import` - the body is the file itself; stored as an own copy, not applied; 400 with the format code
+- `PATCH /filter-profiles/{id}` - `{name, description, capture}`
+- `DELETE /filter-profiles/{id}`
+- `GET /filter-profiles/{id}/export` - the file, as a download
+- `GET /filter-profiles/{id}/changes` - `{profile_id, changes: [{key, from, to}]}`: what applying would change
+- `POST /filter-profiles/{id}/apply` - `{confirm_protect}`; 409 `needs_confirm`, `conflict` or `openhop_starts_at`, 422 `invalid_profile: ...`
+- No WebSocket event of its own: applying a profile saves Spam Guard settings, which broadcasts `spam_guard` with the new `version`.
+
 ### Contacts
 - `GET /contacts`
 - `GET /contacts/analytics` - unified keyed-or-name analytics payload (keyed lookups include `path_scores`, the scored DM route history)
@@ -802,6 +820,11 @@ tests/
 ├── test_bot_list_fetch.py      # Guarded fetch: https only, pinned address, redirect hops, size cap, error codes
 ├── test_bot_list_subscriptions.py # Preview, subscribe, refresh, the 24 hour rule, failures keep entries
 ├── test_bot_list_refresh.py    # The hourly refresh loop
+├── test_filter_profile_format.py     # Filter profile file format: each refusal, BOM, download name
+├── test_filter_profile_repository.py # Filter profile storage and the profile in use
+├── test_filter_profile_spam.py       # Spam Guard as a profile kind: capture, apply, Protect gate, matches
+├── test_filter_profile_service.py    # Filter library service with a kind made for the test
+├── test_filter_profile_router.py     # Filter library API end to end with Spam Guard
 ├── test_channel_sender_backfill.py # Sender-key backfill uniqueness rules for channel messages
 ├── test_channels_router.py     # Channels router endpoints
 ├── test_community_mqtt.py      # Community MQTT publisher (JWT, packet format, hash, broadcast)

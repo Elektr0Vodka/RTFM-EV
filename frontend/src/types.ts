@@ -3026,6 +3026,51 @@ export interface SpamGuardReplayRequest {
   settings?: SpamGuardSettings;
 }
 
+/** Which library of the filter library a profile belongs to. */
+export type FilterProfileKind = 'spam_guard';
+
+/** What a Spam Guard profile holds. Channels, keys and exceptions are never part of it. */
+export interface SpamGuardProfilePayload {
+  mode: SpamGuardMode;
+  sensitivity: SpamGuardSensitivity;
+  overrides: Partial<SpamGuardTunables>;
+}
+
+/** A saved profile. `payload` has the shape of its kind. */
+export interface FilterProfile {
+  id: number;
+  kind: FilterProfileKind;
+  name: string;
+  description: string;
+  source: 'local';
+  payload: SpamGuardProfilePayload;
+  created_at: number;
+  updated_at: number;
+}
+
+/** The body of `GET /filter-profiles?kind=` and of every change to a profile. */
+export interface FilterProfilesState {
+  kind: FilterProfileKind;
+  profiles: FilterProfile[];
+  /** The profile last applied, and whether the live values have moved away from it. */
+  in_use: { profile_id: number; modified: boolean } | null;
+  limits: { per_kind: number };
+  /** Set by create and import: the id of the new profile. */
+  created_id?: number;
+}
+
+/** One value that applying a profile would change. `key` is `mode`, `sensitivity` or a tunable. */
+export interface FilterProfileChange {
+  key: string;
+  from: unknown;
+  to: unknown;
+}
+
+export interface FilterProfileChanges {
+  profile_id: number;
+  changes: FilterProfileChange[];
+}
+
 export interface SpamReplaySample {
   ts: number;
   sender: string;
