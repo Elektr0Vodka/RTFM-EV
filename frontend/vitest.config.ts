@@ -7,15 +7,15 @@ import path from 'path';
 // Same as vite.config.ts: allow a linked (shared) node_modules, whose real path
 // lies outside this project, so `?worker&url` imports are not denied.
 const FS_ALLOW = [
-  searchForWorkspaceRoot(__dirname),
-  fs.realpathSync(path.resolve(__dirname, 'node_modules')),
+  searchForWorkspaceRoot(import.meta.dirname),
+  fs.realpathSync(path.resolve(import.meta.dirname, 'node_modules')),
 ];
 
 export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(import.meta.dirname, './src'),
     },
   },
   server: {
