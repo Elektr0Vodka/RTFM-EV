@@ -21,15 +21,11 @@ import type {
   FleetDeviceReplies,
 } from '../../types';
 import { formatDateTime } from '../../utils/dateTimeFormat';
-import {
-  readDevice,
-  runApply,
-  type ApplyOutcome,
-  type ApplyStepResult,
-} from '../../utils/fleetUsb';
+import { readDevice } from '../../utils/fleetUsb';
 import { SerialCli, webSerial, webSerialStatus } from '../../utils/serialCli';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { FleetApplyPlanView } from './FleetApplyPlanView';
 
 type VaultState = 'off' | 'locked' | 'open';
 type Busy = 'connect' | 'read' | 'store' | 'plan' | 'apply' | null;
@@ -44,10 +40,6 @@ function errorMessage(err: unknown): string {
 
 function shortKey(key: string | null): string {
   return key ? `${key.slice(0, 12)}…` : '';
-}
-
-function pathText(path: (string | number)[]): string {
-  return path.join('/');
 }
 
 export function FleetUsbDevice({
@@ -92,9 +84,8 @@ export function FleetUsbDevice({
   const [allowKey, setAllowKey] = useState(false);
   const [allowRadio, setAllowRadio] = useState(false);
   const [plan, setPlan] = useState<FleetApplyPlan | null>(null);
-  const [confirmed, setConfirmed] = useState(false);
-  const [results, setResults] = useState<ApplyStepResult[]>([]);
-  const [outcome, setOutcome] = useState<ApplyOutcome | null>(null);
+  // A new plan gets a new FleetApplyPlanView, so no tick or result carries over.
+  const [planVersion, setPlanVersion] = useState(0);
 
   const chosen = configId ?? applicable[0]?.id ?? null;
 
@@ -109,9 +100,6 @@ export function FleetUsbDevice({
 
   const forgetPlan = useCallback(() => {
     setPlan(null);
-    setConfirmed(false);
-    setResults([]);
-    setOutcome(null);
   }, []);
 
   const run = async (kind: Busy, action: () => Promise<void>) => {
@@ -207,17 +195,7 @@ export function FleetUsbDevice({
       // Always against a fresh read: the device may have changed since.
       const current = await freshRead();
       setPlan(await api.fleetConfigApplyPlan(chosen, current.replies, allowKey, allowRadio));
-    });
-
-  const send = () =>
-    run('apply', async () => {
-      if (!plan || !cli.current || chosen === null || !confirmed) return;
-      setResults([]);
-      const done = await runApply(cli.current, chosen, plan, (result) =>
-        setResults((current) => [...current, result])
-      );
-      setOutcome(done);
-      if (done.logged) onLogChanged();
+      setPlanVersion((version) => version + 1);
     });
 
   if (support !== 'ok') {
@@ -230,10 +208,6 @@ export function FleetUsbDevice({
       </div>
     );
   }
-
-  const changes = plan?.rows.filter((row) => row.status === 'change') ?? [];
-  const skips = plan?.rows.filter((row) => row.status === 'skip') ?? [];
-  const same = plan ? plan.rows.length - changes.length - skips.length : 0;
 
   return (
     <div className="space-y-3 border-t border-border pt-3" data-testid="fleet-usb">
@@ -426,127 +400,19 @@ export function FleetUsbDevice({
             </>
           )}
 
-          {plan && (
-            <div className="space-y-2" data-testid="fleet-usb-plan">
-              {plan.rekey && <p className="font-medium text-warning">{t('fleet_usb_rekey')}</p>}
-              {plan.steps.length === 0 ? (
-                <p className="text-muted-foreground" data-testid="fleet-usb-nothing">
-                  {t('fleet_usb_nothing')}
-                </p>
-              ) : (
-                <>
-                  <div className="overflow-x-auto rounded border border-border">
-                    <table className="w-full text-[11px]">
-                      <thead>
-                        <tr className="border-b border-border text-left text-muted-foreground">
-                          <th className="px-2 py-1 font-medium">{t('fleet_config_diff_key')}</th>
-                          <th className="px-2 py-1 font-medium">{t('fleet_usb_configured')}</th>
-                          <th className="px-2 py-1 font-medium">{t('fleet_usb_on_device')}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {changes.map((row) => (
-                          <tr
-                            key={pathText(row.path)}
-                            className="border-b border-border last:border-0"
-                          >
-                            <td className="break-all px-2 py-1 font-mono text-muted-foreground">
-                              {pathText(row.path)}
-                            </td>
-                            <td className="whitespace-pre-wrap break-all px-2 py-1 font-mono">
-                              {row.configured}
-                            </td>
-                            <td className="whitespace-pre-wrap break-all px-2 py-1 font-mono">
-                              {row.device}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <p className="font-medium text-foreground">
-                    {t('fleet_usb_commands', { count: plan.steps.length })}
-                  </p>
-                  <ol className="list-decimal space-y-0.5 pl-6" data-testid="fleet-usb-commands">
-                    {plan.steps.map((step) => {
-                      const result = results.find((item) => item.step.index === step.index);
-                      return (
-                        <li key={step.index} data-testid={`fleet-usb-step-${step.index}`}>
-                          <span className="font-mono">{step.display}</span>
-                          {step.reboot && (
-                            <span className="ml-2 text-warning">
-                              {t('fleet_usb_needs_restart')}
-                            </span>
-                          )}
-                          {result && (
-                            <span
-                              className={result.ok ? 'ml-2 text-success' : 'ml-2 text-destructive'}
-                            >
-                              {result.ok
-                                ? t('fleet_usb_step_ok')
-                                : t(`fleet_usb_check_${result.reason ?? 'unexpected_reply'}`)}
-                              {result.reply && ` (${result.reply})`}
-                            </span>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ol>
-                </>
-              )}
-              {skips.length > 0 && (
-                <ul className="list-disc pl-4 text-muted-foreground" data-testid="fleet-usb-skips">
-                  {skips.map((row) => (
-                    <li key={pathText(row.path)}>
-                      <span className="font-mono">{pathText(row.path)}</span>:{' '}
-                      {t(`fleet_usb_skip_${row.reason ?? 'bad_value'}`)}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <p className="text-muted-foreground">{t('fleet_usb_same', { count: same })}</p>
-              {plan.reboot && <p className="text-warning">{t('fleet_usb_restart_hint')}</p>}
-              {plan.steps.length > 0 && !outcome && (
-                <div className="flex flex-wrap items-center gap-3">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      data-testid="fleet-usb-confirm"
-                      checked={confirmed}
-                      onChange={(e) => setConfirmed(e.target.checked)}
-                    />
-                    {t('fleet_usb_confirm', { count: plan.steps.length })}
-                  </label>
-                  <Button
-                    size="sm"
-                    data-testid="fleet-usb-send"
-                    disabled={!confirmed || busy !== null}
-                    onClick={() => void send()}
-                  >
-                    {t('fleet_usb_send', { count: plan.steps.length })}
-                  </Button>
-                </div>
-              )}
-              {outcome && (
-                <p
-                  data-testid="fleet-usb-outcome"
-                  className={outcome.completed ? 'text-success' : 'font-medium text-destructive'}
-                >
-                  {outcome.completed
-                    ? t('fleet_usb_done', {
-                        sent: outcome.results.length,
-                        total: plan.steps.length,
-                      })
-                    : t('fleet_usb_stopped', {
-                        number: (outcome.stopped?.index ?? 0) + 1,
-                        reason: t(
-                          `fleet_usb_check_${outcome.stopped?.reason ?? 'unexpected_reply'}`
-                        ),
-                      })}{' '}
-                  {outcome.logged ? t('fleet_usb_logged') : t('fleet_usb_not_logged')}
-                </p>
-              )}
-            </div>
+          {plan && chosen !== null && (
+            <FleetApplyPlanView
+              key={planVersion}
+              plan={plan}
+              configId={chosen}
+              cli={cli.current}
+              disabled={busy !== null}
+              onRunning={(running) => setBusy(running ? 'apply' : null)}
+              onFinished={(done) => {
+                if (done.logged) onLogChanged();
+              }}
+              onError={setError}
+            />
           )}
         </div>
       )}

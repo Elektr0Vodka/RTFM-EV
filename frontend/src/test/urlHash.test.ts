@@ -495,6 +495,14 @@ describe('fleet (Tools > Fleet) route', () => {
     );
   });
 
+  it('parses #fleet/onboard as the onboarding wizard', () => {
+    window.location.hash = '#fleet/onboard';
+    expect(parseHashConversation()).toEqual({ type: 'fleet', name: 'onboard' });
+    expect(getConversationHash({ type: 'fleet', id: 'onboard', name: 'Fleet' })).toBe(
+      '#fleet/onboard'
+    );
+  });
+
   it('falls back to the list for anything that is not an asset id', () => {
     for (const hash of ['#fleet/', '#fleet/abc', '#fleet/0', '#fleet/1x']) {
       window.location.hash = hash;

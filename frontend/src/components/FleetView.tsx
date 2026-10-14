@@ -104,6 +104,7 @@ export function FleetView({
   ownerKeys,
   onOpenAsset,
   onOpenTemplates,
+  onOpenOnboard,
   onOpenContactInfo,
 }: {
   contacts: Contact[];
@@ -113,6 +114,8 @@ export function FleetView({
   onOpenAsset: (assetId: number | 'new') => void;
   /** Opens the config templates page. */
   onOpenTemplates: () => void;
+  /** Opens Tools > Fleet > Onboard a device (#fleet/onboard). */
+  onOpenOnboard?: () => void;
   onOpenContactInfo: (publicKey: string) => void;
 }) {
   const t = useT();
@@ -296,6 +299,17 @@ export function FleetView({
         >
           {t('fleet_templates_title')}
         </Button>
+        {onOpenOnboard && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            data-testid="fleet-open-onboard"
+            onClick={onOpenOnboard}
+          >
+            {t('fleet_onboard_open')}
+          </Button>
+        )}
         <Button type="button" size="sm" data-testid="fleet-add" onClick={() => onOpenAsset('new')}>
           <Plus className="mr-1.5 h-3.5 w-3.5" aria-hidden />
           {t('fleet_add')}

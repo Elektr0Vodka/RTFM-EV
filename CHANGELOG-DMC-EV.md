@@ -11,6 +11,33 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-14 (Onboarding wizard, plan 32 Phase 6, feat/device-onboarding-wizard)
+
+No migration, no new dependency, no new environment variable. Builds on Phase 3 (USB cable in the browser) and only strings its steps together; nothing new is sent to a device and nothing goes over the radio of this app. Not yet tried on a real device.
+
+### Fleet
+- **Onboard a device.** New page Tools > Fleet > Onboard a device
+  (`#fleet/onboard`). For a repeater or room server on a USB cable it goes
+  through: connect and read; find the asset with the device's public key, or
+  create one (label, role and board filled in from the device), keeping the
+  device's own key or giving it a new key made in the key vault; store the
+  current settings as a "before" snapshot; make the wanted config from a
+  template with its variables; preview and apply it exactly as on the asset
+  page (every command shown, a confirm, one command at a time with a
+  read-back, the private key and radio ticks off every time); read the device
+  again and compare; store the result as an "after" snapshot; set the status
+  (deployed or in stock) and write an onboarding entry in the asset's log.
+  Every step can still be done by hand on the asset's page.
+- **A new key.** With a new key the wanted config also holds the asset's own
+  private key from the vault (as its vault id, never the value). Applying it
+  needs the private key tick; the device takes the new identity after you
+  restart it, and the compare step says so. The device's settings from before
+  are not stored then, because they belong to its old key.
+- **Wanted config with the asset's key.** "Create from a template" can now
+  also put the asset's own private key from the vault into the config, or
+  make a config that holds only that key. It needs the vault unlocked and a
+  private key in it that belongs to the asset's public key.
+
 ## Update 2026-10-14 (Device config over a USB cable in the browser, plan 32 Phase 3, feat/device-config-usb-browser)
 
 No migration, no new dependency, no new environment variable. The browser talks to a repeater or room server on a USB cable (Web Serial); the server never opens a port and nothing goes over the radio of this app. Built and tested against recorded replies only: not yet tried on a real device.

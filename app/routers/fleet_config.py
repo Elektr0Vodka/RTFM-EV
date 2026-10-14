@@ -181,9 +181,15 @@ class FleetConfigTemplateFromConfig(BaseModel):
 
 
 class FleetConfigFromTemplate(BaseModel):
-    template_id: int
+    template_id: int | None = Field(
+        default=None, description="Absent: a config with only the asset's private key"
+    )
     values: dict[str, str | int | float | bool] = Field(default_factory=dict)
     label: str | None = Field(default=None, max_length=_TEXT_MAX)
+    include_private_key: bool = Field(
+        default=False,
+        description="Put the asset's own private key from the vault in it (vault id only)",
+    )
 
 
 def _unprocessable(detail: str) -> HTTPException:
@@ -384,32 +390,82 @@ async def store_config(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_config_from_template(
-    asset_id: int, body: FleetConfigFromTemplate
+    asset_id: int,
+    body: FleetConfigFromTemplate,
+    x_fleet_vault_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    """Fill a template's variables for this asset and store the result as ``desired``."""
+    """Fill a template's variables for this asset and store the result as ``desired``.
+
+    With ``include_private_key`` the config also holds the asset's own private
+    key, as its vault id: applying it gives a device the asset's identity
+    (onboarding with a key made in the vault). That needs the vault unlocked
+    and a private key in it that belongs to the asset's public key. Without a
+    template the config holds that key only.
+    """
     asset = await _asset_or_404(asset_id, health=False)
-    template = await _template_or_404(body.template_id)
+    if body.template_id is None and not body.include_private_key:
+        raise _unprocessable("Choose a template, the asset's private key, or both")
+    template = await _template_or_404(body.template_id) if body.template_id is not None else None
+    if template is not None and body.include_private_key and template["profile"] == "companion_v1":
+        raise _unprocessable("A companion's file does not take a private key from here")
     try:
-        rendered = fleet_config.render_template(
-            template["document"], template["variables"], body.values, asset
-        )
+        if template is not None:
+            rendered = fleet_config.render_template(
+                template["document"], template["variables"], body.values, asset
+            )
+        else:
+            rendered = {"vars": {}}
         fleet_config.check_size(rendered)
         # A template holds no secret; this keeps that true for what is stored.
         document, _found = fleet_config.split_secrets(rendered, allow_placeholders=True)
     except fleet_config.ConfigError as exc:
         raise _unprocessable(str(exc)) from None
+    if body.include_private_key:
+        secret_id = await _asset_private_key_id(asset, x_fleet_vault_token)
+        document.setdefault("vars", {})["prv.key"] = {fleet_config.SECRET: secret_id}
     config_id = await FleetConfigRepository.create(
         asset_id,
         {
             "kind": "desired",
-            "source": "template",
-            "profile": template["profile"],
-            "role": template["role"],
-            "label": _clean_text(body.label) or template["name"],
+            "source": "template" if template is not None else "manual",
+            "profile": template["profile"] if template is not None else "stock",
+            "role": template["role"] if template is not None else _clean_text(asset["role"]),
+            "label": _clean_text(body.label)
+            or (template["name"] if template is not None else "Asset key"),
         },
         document,
     )
     return _summary(await _config_or_404(config_id))
+
+
+async def _asset_private_key_id(asset: dict[str, Any], vault_token: str | None) -> int:
+    """The vault id of the asset's private key that belongs to its public key.
+
+    The newest such key wins. The value is opened only to check whose key it
+    is; it does not leave this function.
+    """
+    data_key = _require_key(vault_token)
+    if not asset["public_key"]:
+        raise HTTPException(status_code=409, detail="This asset has no public key")
+    for row in reversed(await FleetVaultRepository.all_sealed(int(asset["id"]))):
+        if row["kind"] != "private_key":
+            continue
+        try:
+            value = fleet_vault.open_sealed(
+                data_key,
+                row["nonce"],
+                row["ciphertext"],
+                fleet_vault.secret_aad(row["asset_id"], row["kind"]),
+            )
+            key = bytes.fromhex(value.decode("ascii").strip())
+        except (fleet_vault.VaultError, ValueError, UnicodeDecodeError):
+            continue
+        if len(key) == 64 and derive_public_key(key).hex() == asset["public_key"]:
+            return int(row["id"])
+    raise HTTPException(
+        status_code=409,
+        detail="The vault holds no private key of this asset's public key",
+    )
 
 
 @router.get("/configs/{config_id}", response_model=FleetConfig)
