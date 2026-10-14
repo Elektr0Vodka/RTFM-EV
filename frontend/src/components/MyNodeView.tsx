@@ -1739,10 +1739,12 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
       if (statsRes.ok) {
         const statsData: StatisticsResponse = await statsRes.json();
         setStats(statsData);
-        setNoiseFloorSamples(statsData.noise_floor_24h.samples);
+        if (seedFromLoadRef.current) setNoiseFloorSamples(statsData.noise_floor_24h.samples);
       }
       api.getBatteryHistory().then(
-        (data) => setBatterySamples(data.samples),
+        (data) => {
+          if (seedFromLoadRef.current) setBatterySamples(data.samples);
+        },
         () => {}
       );
       loadedAt.current = Date.now();
@@ -1837,6 +1839,43 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
   const [radioList, setRadioList] = useState<RadioIdentityList | null>(null);
   useEffect(() => {
     api.getRadioIdentities().then(setRadioList, () => {});
+  }, []);
+
+  // load() seeds the noise-floor and battery charts with the last 24h. Only the
+  // live window without a radio filter reads that seed (it trims it); every other
+  // window fetches its own range, which a late load() must not overwrite.
+  const seedFromLoadRef = useRef(selectedWindow.useLive && radioFilter === null);
+  useEffect(() => {
+    seedFromLoadRef.current = selectedWindow.useLive && radioFilter === null;
+  }, [selectedWindow.useLive, radioFilter]);
+
+  const applyCustomRange = (startTs: number, endTs: number) => {
+    void fetchHistorical(startTs, endTs);
+    api.getAirtimeRange(startTs, endTs, BIN_COUNT, radioFilter).then(
+      (samples) => setAirtimeSamples(samples),
+      () => {}
+    );
+    if (noiseFloorSupported !== false) {
+      api.getNoiseFloorHistory(startTs, endTs, radioFilter).then(
+        (samples) => setNoiseFloorSamples(samples),
+        () => {}
+      );
+    }
+    api.getBatteryRange(startTs, endTs, radioFilter).then(
+      (samples) => setBatterySamples(samples),
+      () => {}
+    );
+  };
+
+  // A custom range restored from storage has no Apply click behind it, so apply
+  // it once on mount; otherwise the charts show live data under the custom label.
+  useEffect(() => {
+    if (selectedWindowId !== CUSTOM_RANGE_ID || !customStart || !customEnd) return;
+    const startTs = Math.floor(new Date(customStart).getTime() / 1000);
+    const endTs = Math.floor(new Date(customEnd).getTime() / 1000);
+    if (endTs > startTs) applyCustomRange(startTs, endTs);
+    // Mount only: later custom ranges are applied by the Apply button.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Fetch DB historical stats whenever the time window changes (uses nowSec which ticks every 30s)
@@ -2230,13 +2269,7 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                   customEnd={customEnd}
                   onCustomStartChange={setCustomStart}
                   onCustomEndChange={setCustomEnd}
-                  onApplyCustom={(s, e) => {
-                    void fetchHistorical(s, e);
-                    api.getAirtimeRange(s, e, BIN_COUNT, radioFilter).then(
-                      (samples) => setAirtimeSamples(samples),
-                      () => {}
-                    );
-                  }}
+                  onApplyCustom={applyCustomRange}
                 />
                 {radioList && (radioList.radios.length > 1 || radioList.has_unassigned_history) && (
                   <RadioStatPicker
