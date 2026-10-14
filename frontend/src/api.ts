@@ -1666,15 +1666,24 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ name, description }),
     }),
+  // templateId null with includePrivateKey: a config holding only the asset's
+  // own private key (as its vault id), for onboarding with a new key.
   createFleetConfigFromTemplate: (
     assetId: number,
-    templateId: number,
+    templateId: number | null,
     values: Record<string, string>,
-    label: string | null
+    label: string | null,
+    includePrivateKey = false
   ) =>
     fetchJson<FleetConfig>(`/fleet/assets/${assetId}/configs/from-template`, {
       method: 'POST',
-      body: JSON.stringify({ template_id: templateId, values, label }),
+      body: JSON.stringify({
+        template_id: templateId,
+        values,
+        label,
+        include_private_key: includePrivateKey,
+      }),
+      headers: includePrivateKey ? fleetVaultHeaders() : {},
     }),
   fleetConfigTemplates: (signal?: AbortSignal) =>
     fetchJson<FleetConfigTemplate[]>('/fleet/config-templates', { signal }),

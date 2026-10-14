@@ -409,7 +409,7 @@ This table is a representative subset, not the full route list (for example the 
 | POST | `/api/fleet/assets/{id}/generate-key` | New keypair for an asset without a public key: private key into the vault, public key onto the asset; nothing is sent to a radio |
 | GET | `/api/fleet/assets/{id}/configs` | Stored config files of an asset, newest first, without the documents |
 | POST | `/api/fleet/assets/{id}/configs/import` | Store a toolbox config file or a companion version 1 file; its secrets go to the vault when unlocked, else they are left out and counted |
-| POST | `/api/fleet/assets/{id}/configs/from-template` | Fill a template's variables for this asset and store the result as a `desired` config |
+| POST | `/api/fleet/assets/{id}/configs/from-template` | Fill a template's variables for this asset and store the result as a `desired` config; `include_private_key` adds the asset's own vault private key (vault id only), and without `template_id` the config holds only that key |
 | GET | `/api/fleet/configs/{id}` | One stored config with its document; each secret is `{"$secret": vault id or null}`, never a value |
 | PATCH | `/api/fleet/configs/{id}` | Correct profile, role, firmware version or label; the document cannot be changed |
 | DELETE | `/api/fleet/configs/{id}` | Remove one stored config; its secrets stay in the vault |

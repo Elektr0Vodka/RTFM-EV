@@ -61,6 +61,9 @@ const FleetView = lazy(() => import('./FleetView').then((m) => ({ default: m.Fle
 const FleetAssetView = lazy(() =>
   import('./FleetAssetView').then((m) => ({ default: m.FleetAssetView }))
 );
+const FleetOnboardView = lazy(() =>
+  import('./FleetOnboardView').then((m) => ({ default: m.FleetOnboardView }))
+);
 const FleetTemplatesView = lazy(() =>
   import('./FleetTemplatesView').then((m) => ({ default: m.FleetTemplatesView }))
 );
@@ -523,6 +526,7 @@ export function ConversationPane({
       onSelectConversation({ type: 'fleet', id, name: t('nav_fleet') });
     const openFleetAsset = (assetId: number | 'new') => openFleetPage(String(assetId));
     const openFleetTemplates = () => openFleetPage('templates');
+    const openFleetOnboard = () => openFleetPage('onboard');
     return (
       <Suspense fallback={<LoadingPane label={t('common_loading_fleet')} />}>
         {activeConversation.id === 'fleet' ? (
@@ -531,10 +535,13 @@ export function ConversationPane({
             ownerKeys={[config?.public_key ?? '', ...(health?.radio_identity?.owned_keys ?? [])]}
             onOpenAsset={openFleetAsset}
             onOpenTemplates={openFleetTemplates}
+            onOpenOnboard={openFleetOnboard}
             onOpenContactInfo={(publicKey) => onOpenContactInfo(publicKey)}
           />
         ) : activeConversation.id === 'templates' ? (
           <FleetTemplatesView onBack={() => openFleetPage('fleet')} />
+        ) : activeConversation.id === 'onboard' ? (
+          <FleetOnboardView onBack={() => openFleetPage('fleet')} onOpenAsset={openFleetAsset} />
         ) : (
           <FleetAssetView
             // A fresh page per asset: no state of the previous one lingers.

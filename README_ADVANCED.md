@@ -89,6 +89,8 @@ Rules that always hold:
 - The region tree is not changed (the command line can only do that by removing every region first): use the Regions pane or the toolbox. The home and default region are set when that region is already in the device's tree.
 - Some settings (radio, private key, Wi-Fi, SNMP) take effect after a restart. The app does not restart the device, because a node that starts sends an advert; restart it yourself.
 
+**Onboarding.** Tools > Fleet > **Onboard a device** goes through the same steps in one flow: read the device, find its asset by public key or create one, store a "before" snapshot, make a wanted config from a template, apply it, read back and compare, then set the status and log it. A new device can keep its own key or get a new one made in the key vault (vault unlocked). With a new key the wanted config holds the asset's private key as a vault id; the apply needs the private key tick, and the device only takes the new identity after you restart it. Its old settings are not stored on the asset then, because they belong to the old key.
+
 This was built and tested against recorded device answers, not on a real device yet. Try it on a spare device first, never on the radio this app runs on.
 
 ## Database Backup And Restore
