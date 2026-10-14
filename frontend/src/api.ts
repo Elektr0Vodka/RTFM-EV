@@ -69,6 +69,7 @@ import type {
   FleetConfigExport,
   FleetConfigImportInput,
   FleetConfigImportResult,
+  FleetConfigReported,
   FleetConfigSummary,
   FleetConfigTemplate,
   FleetConfigTemplateFields,
@@ -1650,6 +1651,9 @@ export const api = {
       body: JSON.stringify({ include_secrets: includeSecrets }),
       headers: includeSecrets ? fleetVaultHeaders() : {},
     }),
+  // Stored pane snapshots and SNMP polls only: this never asks the node.
+  fleetConfigReported: (configId: number, signal?: AbortSignal) =>
+    fetchJson<FleetConfigReported>(`/fleet/configs/${configId}/reported`, { signal }),
   saveFleetConfigAsTemplate: (configId: number, name: string, description: string | null) =>
     fetchJson<FleetConfigTemplate>(`/fleet/configs/${configId}/template`, {
       method: 'POST',

@@ -81,6 +81,26 @@ class DeviceConfigHistoryRepository:
         return True
 
     @staticmethod
+    async def get_latest_by_kind(public_key: str) -> dict[str, dict]:
+        """The newest snapshot of every kind a contact has: ``{kind: {timestamp, data}}``."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                """
+                SELECT h.kind, h.timestamp, h.data FROM device_config_history h
+                 WHERE h.public_key = ?
+                   AND h.id = (SELECT n.id FROM device_config_history n
+                                WHERE n.public_key = h.public_key AND n.kind = h.kind
+                                ORDER BY n.timestamp DESC, n.id DESC LIMIT 1)
+                """,
+                (public_key.lower(),),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return {
+            row["kind"]: {"timestamp": row["timestamp"], "data": json.loads(row["data"])}
+            for row in rows
+        }
+
+    @staticmethod
     async def get_history(
         public_key: str, kind: str | None = None, *, limit: int = DEFAULT_MAX_ROWS
     ) -> list[dict]:

@@ -637,6 +637,14 @@ Rules that must hold:
 
 Tests: `tests/test_fleet_config_service.py` (rules, no database), `tests/test_fleet_config_router.py`, `tests/fleet_config_samples.py` (a hand-built toolbox file and companion file; no value comes from a real device).
 
+#### Compare with what the node reported (plan 32, Phase 2)
+
+- `GET /fleet/configs/{id}/reported` - `{status, rows, not_reported}`. `status` is `ok`, `nothing_stored` (the node has no stored value for any compared key), `no_public_key` (the asset cannot be matched to a node) or `not_a_device_file` (a companion file: a companion has no panes). A row is `{path, configured, reported, reported_at, source, same}`; `source` is a `device_config_history` kind or `snmp`.
+
+Read-only, and it must stay that way: the route reads `DeviceConfigHistoryRepository.get_latest_by_kind` (newest snapshot per pane kind) and `SnmpHistoryRepository.get_latest` for the asset's public key and hands them to `services/fleet_config_reported.py` (`compare`, pure). It never calls the radio and never fetches a pane; `tests/test_fleet_config_reported.py::test_it_only_reads` fails if the route touches the radio runtime. `reported_at` is when the snapshot was stored: `device_config_history` is append-on-change, so a pane read again with the same values keeps the older time.
+
+The compared keys and their rules are the `_RULES` table: `vars/name` (newest of `node_info.name`, `owner_info.name`, SNMP `node_name`), `vars/lat`, `vars/lon`, the four parts of `vars/radio` (from the one `radio_settings.radio` reply), `vars/tx`, `vars/af`, `vars/repeat`, `vars/flood.max`, both advert intervals, `vars/owner.info`, `region/home`. Three sides write one setting three ways, which is what a rule handles: the panes store the CLI reply as text, the toolbox file holds parsed values (numbers, booleans, the radio as an object) and rounds the position to 5 decimals and the frequency to 3. Position and frequency are therefore the same within half of that step. Where `repeater_settings` already has a read-back rule that also fits the file's value (`tx`, `repeat`, `flood.max`, the advert intervals) that rule is reused through `get_spec(...).matches`; it does not fit `lat`/`lon` (the editor expects 6 decimals). A stored `None` or an error reply (`??: ...`) is "not reported", not a difference. The home region is read only from a `cli` dump, and from a truncated one only when it shows a home mark. `guest.password` is never compared: the owner-info snapshot does not store it.
+
 ### Channels
 - `GET /channels`
 - `GET /channels/{key}/detail`
