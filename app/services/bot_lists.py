@@ -127,6 +127,15 @@ class BotListService:
         """Names this repeater is asked not to relay, as of the last refresh."""
         return list(self._forward)
 
+    def is_bot(self, name: str | None, key: str | None) -> bool:
+        """Whether this sender is in the effective set, as of the last refresh.
+
+        Exact name, or public key. Call ``ensure_loaded`` first.
+        """
+        if name and name in self._names:
+            return True
+        return bool(key) and key.lower() in self._keys
+
     async def hidden_senders(
         self, settings: AppSettings
     ) -> tuple[list[str] | None, list[str] | None]:

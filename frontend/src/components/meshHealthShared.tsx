@@ -7,6 +7,7 @@
  */
 
 import type { TFn } from '../i18n';
+import { formatDateTime } from '../utils/dateTimeFormat';
 
 // ─── Time windows ───────────────────────────────────────────────────────────
 
@@ -42,6 +43,18 @@ export function relTime(unixSec: number | null | undefined, t: TFn): string {
   const h = Math.floor(m / 60);
   if (h < 24) return t('channel_registry_hours_ago', { count: h });
   return t('channel_registry_days_ago', { count: Math.floor(h / 24) });
+}
+
+/**
+ * Label for a chart bucket: time only, weekday and time, or date, depending on
+ * the visible span, so a zoomed-in window shows finer labels.
+ */
+export function fmtBucketTime(ms: number, spanSeconds: number): string {
+  const d = new Date(ms);
+  if (spanSeconds <= 3600) return formatDateTime(d, { hour: '2-digit', minute: '2-digit' });
+  if (spanSeconds <= 7 * 24 * 3600)
+    return formatDateTime(d, { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+  return formatDateTime(d, { month: 'short', day: 'numeric' });
 }
 
 export function StatTile({

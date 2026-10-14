@@ -124,6 +124,9 @@ class Event:
     released: bool = False
     campaign: int | None = None
     settled: bool = False
+    # Protect was really withholding forwards when this message arrived. The
+    # runtime sets it; the detector only carries it to ``SettledOutcome``.
+    enforced: bool = False
 
 
 @dataclass
@@ -157,6 +160,21 @@ class Block:
     user_allowed: list[str] = field(default_factory=list)
 
 
+Outcome = Literal["clean", "stopped", "let_through", "held"]
+
+
+@dataclass(frozen=True)
+class SettledOutcome:
+    """How one stored message was counted when it settled (see ``_outcome``)."""
+
+    message_id: int
+    outcome: Outcome
+    # Source of the block that caught it. None when nothing caught it, or when
+    # the block had ended by the time the message settled.
+    block: BlockSource | None
+    enforced: bool
+
+
 @dataclass
 class DecideResult:
     # The block set or the known-names list changed: rules must be re-rendered.
@@ -168,6 +186,9 @@ class DecideResult:
     flag: set[int]
     # Message ids caught by duplicate suppression, for the chat marker.
     duplicate: set[int] = field(default_factory=set)
+    # Messages that settled in this call, each reported once, for the
+    # statistics columns on the message (migration _148).
+    settled: list[SettledOutcome] = field(default_factory=list)
 
 
 @dataclass
@@ -243,6 +264,7 @@ class SpamDetector:
         self.campaigns: dict[int, _Campaign] = {}
         self._flagged: OrderedDict[int, None] = OrderedDict()
         self._duplicated: OrderedDict[int, None] = OrderedDict()
+        self._settled: list[SettledOutcome] = []
         self._changed = False
         self._important = False
         # The newest event when the user emptied the recent messages list.
@@ -973,7 +995,16 @@ class SpamDetector:
             if event.settled or now - event.ts < SETTLE_SECONDS:
                 continue
             event.settled = True
-            self._count(event)
+            outcome, block = self._count(event)
+            if event.message_id is not None:
+                self._settled.append(
+                    SettledOutcome(
+                        event.message_id,
+                        outcome,
+                        block.source if block is not None else None,
+                        event.enforced,
+                    )
+                )
             self._learn_sender(event)
             if not event.path:
                 continue
@@ -1153,35 +1184,46 @@ class SpamDetector:
 
         changed, self._changed = self._changed, False
         important, self._important = self._important, False
+        settled, self._settled = self._settled, []
         return DecideResult(
             changed=changed,
             important=important,
             flag=self._collect_flags(long_window),
             duplicate=self._collect_duplicates(long_window),
+            settled=settled,
         )
 
     # ── history for the overview ─────────────────────────────────────────
 
-    def _count(self, event: Event) -> None:
-        hour = self.hours.setdefault(int(event.ts // 3600) * 3600, _empty_hour())
-        hour["messages"] += 1
+    def _outcome(self, event: Event) -> tuple[Outcome, Block | None]:
+        """How a settled message counts, and the block that caught it.
+
+        The hourly numbers and the outcome stored on the message both come from
+        here, so the overview and the statistics cannot disagree.
+        """
         block = self.blocks.get(event.matched) if event.matched else None
         campaign = self.campaigns.get(event.campaign) if event.campaign is not None else None
         spammy = event.random or bool(campaign and campaign.strong)
         if event.matched:
             if block is not None and block.kind in _PEOPLE_KINDS and not spammy:
-                hour["held_genuine"] += 1
-                return
-            hour["stopped"] += 1
-        elif spammy:
-            hour["let_through"] += 1
-        else:
-            return
-        hour["hops"][event.first_hop] = hour["hops"].get(event.first_hop, 0) + 1
-        hour["last"][event.first_hop] = max(hour["last"].get(event.first_hop, 0.0), event.ts)
-        if len(self.hours) > HISTORY_HOURS + 8:
-            for stale in sorted(self.hours)[:-HISTORY_HOURS]:
-                del self.hours[stale]
+                return "held", block
+            return "stopped", block
+        return ("let_through" if spammy else "clean"), None
+
+    def _count(self, event: Event) -> tuple[Outcome, Block | None]:
+        hour = self.hours.setdefault(int(event.ts // 3600) * 3600, _empty_hour())
+        hour["messages"] += 1
+        outcome, block = self._outcome(event)
+        if outcome == "held":
+            hour["held_genuine"] += 1
+        elif outcome != "clean":
+            hour["stopped" if outcome == "stopped" else "let_through"] += 1
+            hour["hops"][event.first_hop] = hour["hops"].get(event.first_hop, 0) + 1
+            hour["last"][event.first_hop] = max(hour["last"].get(event.first_hop, 0.0), event.ts)
+            if len(self.hours) > HISTORY_HOURS + 8:
+                for stale in sorted(self.hours)[:-HISTORY_HOURS]:
+                    del self.hours[stale]
+        return outcome, block
 
     def visible_events(self) -> list[Event]:
         """The events for the recent messages list: those since the user last emptied it.

@@ -27,7 +27,7 @@ function csvNumber(value: number): string {
   return `${Number(value.toPrecision(12))}`;
 }
 
-function escapeCsvValue(value: string): string {
+export function escapeCsvValue(value: string): string {
   return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 

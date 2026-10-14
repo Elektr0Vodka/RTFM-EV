@@ -17,9 +17,8 @@
 
 import { useEffect, useState } from 'react';
 import { useT } from '../i18n';
-import { formatDateTime } from '../utils/dateTimeFormat';
 import { ZoomableBinChart } from './charts/ZoomableBinChart';
-import { type TimeWindow, relTime, StatTile, DistBars } from './meshHealthShared';
+import { type TimeWindow, relTime, StatTile, DistBars, fmtBucketTime } from './meshHealthShared';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -65,16 +64,6 @@ const DIRECT_COLOR = 'hsl(var(--success))';
 const RESPONSE_COLOR = 'hsl(var(--info))';
 
 // ─── Volume over time (stacked flood/direct bars + responses line) ─────────────
-
-// fmtBucketTime picks time-only vs date+time formatting from the visible span, so
-// a zoomed-in window shows finer labels. Mirrors MyNodeView's fmtTime tiers.
-function fmtBucketTime(ms: number, spanSeconds: number): string {
-  const d = new Date(ms);
-  if (spanSeconds <= 3600) return formatDateTime(d, { hour: '2-digit', minute: '2-digit' });
-  if (spanSeconds <= 7 * 24 * 3600)
-    return formatDateTime(d, { weekday: 'short', hour: '2-digit', minute: '2-digit' });
-  return formatDateTime(d, { month: 'short', day: 'numeric' });
-}
 
 function VolumeChart({ series }: { series: RequestTrafficBucket[] }) {
   const t = useT();

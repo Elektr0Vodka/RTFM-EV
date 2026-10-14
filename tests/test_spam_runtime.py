@@ -2,6 +2,7 @@
 
 import json
 import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -729,3 +730,98 @@ class TestBotForward:
         sync = dict(runtime.openhop.status())
         monkeypatch.setattr(runtime.openhop, "status", lambda: {**sync, "state": "synced"})
         assert runtime.bot_forward() == {"state": "key_not_shared", "channels": 0, "names": 1}
+
+
+async def stored_outcome(test_db, message_id: int) -> tuple:
+    cursor = await test_db.conn.execute(
+        "SELECT spam_outcome, spam_block, spam_enforced, spam_label FROM messages WHERE id = ?",
+        (message_id,),
+    )
+    return tuple(await cursor.fetchone())
+
+
+async def campaign(feed: Feed) -> list[int]:
+    ids = [await feed.say(name, SPAM) for name in GENERATED]
+    ids.append(await feed.say("Dave", SPAM + " again"))
+    return ids
+
+
+async def let_settle(feed: Feed) -> None:
+    feed.clock.now += 130
+    await feed.runtime.tick()
+
+
+class TestStoredOutcomes:
+    @pytest.mark.asyncio
+    async def test_outcome_is_written_when_a_message_settles(self, feed, test_db):
+        message_id = await feed.say("Dave", "evening all")
+        assert await stored_outcome(test_db, message_id) == (None, None, None, None)
+        await let_settle(feed)
+        assert await stored_outcome(test_db, message_id) == ("clean", None, 0, None)
+
+    @pytest.mark.asyncio
+    async def test_outcomes_match_the_overview_numbers(self, feed, test_db):
+        ids = await campaign(feed)
+        await let_settle(feed)
+        rows = [await stored_outcome(test_db, message_id) for message_id in ids]
+        outcomes = [row[0] for row in rows]
+        day = feed.runtime.detector.metrics()["d1"]
+        assert None not in outcomes
+        assert outcomes.count("stopped") == day["stopped"]
+        assert outcomes.count("let_through") == day["let_through"]
+        # The last one arrived flagged, caught by a block that still exists.
+        assert rows[-1][0] == "stopped" and rows[-1][1] is not None
+        # Monitor mode: nothing was really withheld.
+        assert {row[2] for row in rows} == {0}
+
+    @pytest.mark.asyncio
+    async def test_enforced_only_while_protect_really_withholds(self, feed, test_db, monkeypatch):
+        await protect(feed)
+        assert feed.runtime.backend_name() == "host"
+        monkeypatch.setattr(
+            spam_guard_module, "host_repeater", SimpleNamespace(armed=True, state="armed")
+        )
+        ids = await campaign(feed)
+        await let_settle(feed)
+        assert (await stored_outcome(test_db, ids[-1]))[2] == 1
+
+    @pytest.mark.asyncio
+    async def test_protect_without_an_armed_host_is_not_enforced(self, feed, test_db):
+        await protect(feed)
+        ids = await campaign(feed)
+        await let_settle(feed)
+        assert (await stored_outcome(test_db, ids[-1]))[2] == 0
+
+    @pytest.mark.asyncio
+    async def test_a_failing_outcome_write_costs_nothing_else(self, feed, test_db, monkeypatch):
+        async def broken(_outcomes) -> None:
+            raise RuntimeError("database is locked")
+
+        monkeypatch.setattr(MessageRepository, "set_spam_outcomes", broken)
+        ids = await campaign(feed)
+        await let_settle(feed)
+        # The chat flags were still written, and the next message is still judged.
+        assert (await feed.spam_flags())[ids[-1]] is True
+        later = await feed.say("Erin", SPAM + " once more")
+        assert (await feed.spam_flags())[later] is True
+
+    @pytest.mark.asyncio
+    async def test_the_users_answer_is_stored_as_a_label(self, feed, test_db):
+        message_id = await feed.say("Dave", "evening all")
+        await feed.runtime.set_message_spam(message_id, True)
+        assert (await stored_outcome(test_db, message_id))[3] == "spam"
+        await feed.runtime.set_message_spam(message_id, False)
+        assert (await stored_outcome(test_db, message_id))[3] == "genuine"
+
+    @pytest.mark.asyncio
+    async def test_a_failing_label_write_does_not_cost_the_chat_flag(
+        self, feed, test_db, monkeypatch
+    ):
+        async def broken(_message_id, _label) -> None:
+            raise RuntimeError("database is locked")
+
+        monkeypatch.setattr(MessageRepository, "set_spam_label", broken)
+        message_id = await feed.say("Dave", "evening all")
+        await feed.runtime.set_message_spam(message_id, True)
+        assert (await feed.spam_flags())[message_id] is True
+        assert feed.of("message_spam")[-1] == {"message_ids": [message_id], "spam": True}
