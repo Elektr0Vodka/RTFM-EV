@@ -11,6 +11,17 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-14 (Mesh Trends keeps a restored custom range, fix/packet-stats-custom-restore)
+
+No migration, no new dependency, no new environment variable.
+
+### Mesh Trends
+- **Custom range after a refresh.** On the Live tab, a custom range restored
+  after a page refresh (or after switching back from the Historical tab) is
+  loaded again, instead of showing an empty window until Apply was pressed.
+  Mesh Health, Packet History and the SNMP node page were checked and already
+  load their restored range.
+
 ## Update 2026-10-14 (My Node keeps the restored time window's data, fix/mynode-window-restore)
 
 No migration, no new dependency, no new environment variable.
