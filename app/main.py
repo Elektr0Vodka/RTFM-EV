@@ -73,6 +73,7 @@ from app.routers import (
     filter_profiles,
     filter_stats,
     fleet,
+    fleet_config,
     fleet_vault,
     health,
     host_repeater,
@@ -336,6 +337,7 @@ app.include_router(snmp.nodes_router, prefix="/api")
 app.include_router(snmp_agent.router, prefix="/api")
 app.include_router(fleet.router, prefix="/api")
 app.include_router(fleet_vault.router, prefix="/api")
+app.include_router(fleet_config.router, prefix="/api")
 app.include_router(channels.router, prefix="/api")
 app.include_router(channel_sets.router, prefix="/api")
 app.include_router(communities.router, prefix="/api")

@@ -11,6 +11,59 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-14 (Device config library, plan 32 Phase 1, feat/device-config-library)
+
+Migration `_149`. No new dependency and no new environment variable. Nothing here reaches a device: no serial port, no LAN call, no radio. Reading a config from a device and applying one to it are later phases and are not in this change.
+
+### Fleet
+- **Config files per asset.** An asset's page has a Configs block. Import
+  stores the config file of a device with that asset: the file the Dutch
+  MeshCore toolbox's USB config page saves for a repeater or room server, or
+  the version 1 file of Settings > Radio for a companion. Each import is a new
+  entry, so the block is also the history. You say whether a file is what the
+  device had ("read from the device") or what it should have ("wanted"), and
+  can note the role, the firmware version and a label. Those sit beside the
+  file, not in it, because the file formats have no place for them.
+- **Profiles.** The app picks a profile from the sections a file has: stock
+  firmware (`vars` only, with or without a region section), DMC repeater (a
+  packet filter section), DMC observer (an MQTT section) or companion. You can
+  correct it at import and afterwards. A key the app does not know is kept
+  where it is and written back unchanged.
+- **A stored config never holds a secret.** The private key, the guest
+  password, the Wi-Fi password, the alert key, the SNMP community, the broker
+  passwords and tokens and the bridge secret are taken out on import. With the
+  key vault unlocked they are stored there, encrypted, and the config keeps a
+  reference. With the vault off or locked they are not kept at all, and the
+  page says how many were left out and what to do to keep them. Which keys
+  are secrets depends on the file, not on the profile, so a wrong profile
+  cannot leak one. A text value under an unknown key whose name looks like a
+  secret (password, token, psk and the like) is treated as one too.
+- **A file of another device is refused.** When the asset has a public key
+  and the file's private key belongs to a different one, the import stops and
+  stores nothing.
+- **View and compare.** "View" shows a config by section. A secret shows as
+  "Secret, in the vault" or "Secret, not stored", never as a value. "Compare"
+  lists what differs from another config of the same asset. Secrets are
+  compared by their vault entry only, and one without a stored value is listed
+  as not comparable.
+- **Export.** "Export" saves the file again, named the way the toolbox names
+  its own export, with nothing of this app in it and the secret keys left out.
+  "Export with secrets" appears while the vault is unlocked, asks for a second
+  click, puts the stored secrets back and is written to the vault's audit log.
+  A file exported with all its secrets is the file that was imported.
+- **Templates.** "Save as template" turns a stored config into a template:
+  the name, the position and every secret are left out. Tools > Fleet > Config
+  templates lists the templates and edits them: the document as JSON, and its
+  variables (a name, text, number or yes/no, a default, a description). Write
+  `{{name}}` in the document where a variable goes; `{{asset.label}}`,
+  `{{asset.org_serial}}` and `{{asset.site_name}}` are always there. "Create
+  from a template" on an asset's page fills the variables and stores the
+  result as a wanted config. A template never holds a secret value: the server
+  refuses one, also as a variable.
+- **Deleting.** Deleting a config leaves its secrets in the vault. Deleting an
+  asset removes its configs with it (an asset that still has secrets cannot be
+  deleted, as before).
+
 ## Update 2026-10-14 (Mesh Health "Spam & bots" statistics)
 
 Migration `_148`. No new dependency. Nothing in this change transmits, and no

@@ -22,6 +22,7 @@ import { contactTypeLabel } from './ContactInfoBody';
 import { relTime } from './meshHealthShared';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { FleetAssetConfigs } from './fleet/FleetAssetConfigs';
 import { FleetAssetSecrets } from './fleet/FleetAssetSecrets';
 import { FleetAssetTimeline } from './fleet/FleetAssetTimeline';
 import {
@@ -160,6 +161,7 @@ export function FleetAssetView({
   assetId,
   onBack,
   onOpenAsset,
+  onOpenTemplates,
   onOpenContactInfo,
 }: {
   assetId: number | 'new';
@@ -167,6 +169,8 @@ export function FleetAssetView({
   onBack: () => void;
   /** Opens the page of an asset; used after a new one was created. */
   onOpenAsset: (assetId: number) => void;
+  /** Opens the config templates page. */
+  onOpenTemplates: () => void;
   onOpenContactInfo: (publicKey: string) => void;
 }) {
   const t = useT();
@@ -515,6 +519,7 @@ export function FleetAssetView({
                 onChanged={() => setLogVersion((version) => version + 1)}
               />
             )}
+            {asset && <FleetAssetConfigs assetId={asset.id} onOpenTemplates={onOpenTemplates} />}
             {asset && (
               <FleetAssetSecrets
                 asset={asset}

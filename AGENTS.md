@@ -388,7 +388,7 @@ This table is a representative subset, not the full route list (for example the 
 | POST | `/api/fleet/assets/from-contacts` | Add one `deployed` asset per given contact key that has none yet; changes no contact |
 | GET | `/api/fleet/assets/{id}` | One asset |
 | PATCH | `/api/fleet/assets/{id}` | Change the fields present in the body; null clears a field |
-| DELETE | `/api/fleet/assets/{id}` | Remove the asset and its log; the contact is not touched; 409 while the asset has secrets in the vault |
+| DELETE | `/api/fleet/assets/{id}` | Remove the asset, its log and its stored configs; the contact is not touched; 409 while the asset has secrets in the vault |
 | GET | `/api/fleet/assets/{id}/events` | The asset's log, newest first |
 | POST | `/api/fleet/assets/{id}/events` | Add a log entry (`placement`, `maintenance`, `failure`, `custody`, `firmware`, `note`); status and holder changes are logged by the server |
 | DELETE | `/api/fleet/assets/{id}/events/{event_id}` | Remove one log entry |
@@ -407,6 +407,19 @@ This table is a representative subset, not the full route list (for example the 
 | POST | `/api/fleet/secrets/{id}/reveal` | Return one secret's value; every call is audited |
 | DELETE | `/api/fleet/secrets/{id}` | Delete one secret |
 | POST | `/api/fleet/assets/{id}/generate-key` | New keypair for an asset without a public key: private key into the vault, public key onto the asset; nothing is sent to a radio |
+| GET | `/api/fleet/assets/{id}/configs` | Stored config files of an asset, newest first, without the documents |
+| POST | `/api/fleet/assets/{id}/configs/import` | Store a toolbox config file or a companion version 1 file; its secrets go to the vault when unlocked, else they are left out and counted |
+| POST | `/api/fleet/assets/{id}/configs/from-template` | Fill a template's variables for this asset and store the result as a `desired` config |
+| GET | `/api/fleet/configs/{id}` | One stored config with its document; each secret is `{"$secret": vault id or null}`, never a value |
+| PATCH | `/api/fleet/configs/{id}` | Correct profile, role, firmware version or label; the document cannot be changed |
+| DELETE | `/api/fleet/configs/{id}` | Remove one stored config; its secrets stay in the vault |
+| POST | `/api/fleet/configs/{id}/export` | The config as a file again; `include_secrets` needs the vault unlocked and is audited, otherwise the secret keys are left out |
+| POST | `/api/fleet/configs/{id}/template` | Save a stored config as a template (identity and secrets left out) |
+| GET | `/api/fleet/config-templates` | Config templates |
+| POST | `/api/fleet/config-templates` | Add a template (a document with `{{name}}` variables and no secret value) |
+| GET | `/api/fleet/config-templates/{id}` | One template |
+| PATCH | `/api/fleet/config-templates/{id}` | Change a template; the result is checked as a whole |
+| DELETE | `/api/fleet/config-templates/{id}` | Remove a template; configs made from it stay |
 | GET | `/api/contacts/{public_key}/repeater/telemetry-history` | Stored telemetry history for a repeater (read-only, no radio access) |
 | POST | `/api/contacts/{public_key}/telemetry` | Fetch CayenneLPP telemetry from any contact (single attempt, 10s timeout) |
 | GET | `/api/contacts/{public_key}/telemetry-history` | Stored LPP telemetry history for a contact (read-only, no radio access) |

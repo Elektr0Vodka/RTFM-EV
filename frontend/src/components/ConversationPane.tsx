@@ -61,6 +61,9 @@ const FleetView = lazy(() => import('./FleetView').then((m) => ({ default: m.Fle
 const FleetAssetView = lazy(() =>
   import('./FleetAssetView').then((m) => ({ default: m.FleetAssetView }))
 );
+const FleetTemplatesView = lazy(() =>
+  import('./FleetTemplatesView').then((m) => ({ default: m.FleetTemplatesView }))
+);
 const AnalyzePacketView = lazy(() =>
   import('./AnalyzePacketView').then((m) => ({ default: m.AnalyzePacketView }))
 );
@@ -516,8 +519,10 @@ export function ConversationPane({
   }
 
   if (activeConversation.type === 'fleet') {
-    const openFleetAsset = (assetId: number | 'new') =>
-      onSelectConversation({ type: 'fleet', id: String(assetId), name: t('nav_fleet') });
+    const openFleetPage = (id: string) =>
+      onSelectConversation({ type: 'fleet', id, name: t('nav_fleet') });
+    const openFleetAsset = (assetId: number | 'new') => openFleetPage(String(assetId));
+    const openFleetTemplates = () => openFleetPage('templates');
     return (
       <Suspense fallback={<LoadingPane label={t('common_loading_fleet')} />}>
         {activeConversation.id === 'fleet' ? (
@@ -525,17 +530,19 @@ export function ConversationPane({
             contacts={contacts}
             ownerKeys={[config?.public_key ?? '', ...(health?.radio_identity?.owned_keys ?? [])]}
             onOpenAsset={openFleetAsset}
+            onOpenTemplates={openFleetTemplates}
             onOpenContactInfo={(publicKey) => onOpenContactInfo(publicKey)}
           />
+        ) : activeConversation.id === 'templates' ? (
+          <FleetTemplatesView onBack={() => openFleetPage('fleet')} />
         ) : (
           <FleetAssetView
             // A fresh page per asset: no state of the previous one lingers.
             key={activeConversation.id}
             assetId={activeConversation.id === 'new' ? 'new' : Number(activeConversation.id)}
-            onBack={() =>
-              onSelectConversation({ type: 'fleet', id: 'fleet', name: t('nav_fleet') })
-            }
+            onBack={() => openFleetPage('fleet')}
             onOpenAsset={openFleetAsset}
+            onOpenTemplates={openFleetTemplates}
             onOpenContactInfo={(publicKey) => onOpenContactInfo(publicKey)}
           />
         )}

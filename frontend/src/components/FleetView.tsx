@@ -103,6 +103,7 @@ export function FleetView({
   contacts,
   ownerKeys,
   onOpenAsset,
+  onOpenTemplates,
   onOpenContactInfo,
 }: {
   contacts: Contact[];
@@ -110,6 +111,8 @@ export function FleetView({
   ownerKeys: string[];
   /** Opens the page of one asset, or the empty form with `'new'`. */
   onOpenAsset: (assetId: number | 'new') => void;
+  /** Opens the config templates page. */
+  onOpenTemplates: () => void;
   onOpenContactInfo: (publicKey: string) => void;
 }) {
   const t = useT();
@@ -284,6 +287,15 @@ export function FleetView({
             {t('fleet_add_owned', { count: ownedToAdd.length })}
           </Button>
         )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          data-testid="fleet-open-templates"
+          onClick={onOpenTemplates}
+        >
+          {t('fleet_templates_title')}
+        </Button>
         <Button type="button" size="sm" data-testid="fleet-add" onClick={() => onOpenAsset('new')}>
           <Plus className="mr-1.5 h-3.5 w-3.5" aria-hidden />
           {t('fleet_add')}

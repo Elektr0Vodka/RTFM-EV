@@ -113,9 +113,11 @@ export function parseHashConversation(): ParsedHashConversation | null {
   }
 
   // One fleet asset: #fleet/<asset id>, or #fleet/new for the empty form.
+  // #fleet/templates is the config templates page.
   if (hash.startsWith('fleet/')) {
     const id = hash.slice('fleet/'.length);
-    return { type: 'fleet', name: id === 'new' || /^[1-9]\d*$/.test(id) ? id : 'fleet' };
+    const known = id === 'new' || id === 'templates' || /^[1-9]\d*$/.test(id);
+    return { type: 'fleet', name: known ? id : 'fleet' };
   }
 
   if (hash === 'analyze') {
@@ -278,7 +280,8 @@ export function getConversationHash(conv: Conversation | null): string {
     return conv.id === 'snmp' ? '#snmp' : `#snmp/${encodeURIComponent(conv.id)}`;
   }
   if (conv.type === 'fleet') {
-    // id 'fleet' is the list; 'new' or an asset id is the page of one asset.
+    // id 'fleet' is the list; 'templates' the config templates; 'new' or an
+    // asset id is the page of one asset.
     return conv.id === 'fleet' ? '#fleet' : `#fleet/${encodeURIComponent(conv.id)}`;
   }
   if (conv.type === 'analyze') return '#analyze';

@@ -65,6 +65,13 @@ import type {
   FleetAssetFields,
   FleetAssetsFromContactsResponse,
   FleetAuditEntry,
+  FleetConfig,
+  FleetConfigExport,
+  FleetConfigImportInput,
+  FleetConfigImportResult,
+  FleetConfigSummary,
+  FleetConfigTemplate,
+  FleetConfigTemplateFields,
   FleetGenerateKeyResult,
   FleetSecret,
   FleetSecretKind,
@@ -1615,6 +1622,63 @@ export const api = {
       body: JSON.stringify({ prefix, free_bytes: freeBytes }),
       headers: fleetVaultHeaders(),
     }),
+  // Fleet config library. Stored files only: nothing here reaches a device.
+  fleetConfigs: (assetId: number, signal?: AbortSignal) =>
+    fetchJson<FleetConfigSummary[]>(`/fleet/assets/${assetId}/configs`, { signal }),
+  // The vault token goes along: with the vault unlocked the file's secrets are kept.
+  importFleetConfig: (assetId: number, input: FleetConfigImportInput) =>
+    fetchJson<FleetConfigImportResult>(`/fleet/assets/${assetId}/configs/import`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+      headers: fleetVaultHeaders(),
+    }),
+  fleetConfig: (configId: number, signal?: AbortSignal) =>
+    fetchJson<FleetConfig>(`/fleet/configs/${configId}`, { signal }),
+  updateFleetConfig: (
+    configId: number,
+    changes: Partial<Pick<FleetConfig, 'profile' | 'role' | 'firmware_version' | 'label'>>
+  ) =>
+    fetchJson<FleetConfig>(`/fleet/configs/${configId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(changes),
+    }),
+  deleteFleetConfig: (configId: number) =>
+    fetchJson<{ status: string }>(`/fleet/configs/${configId}`, { method: 'DELETE' }),
+  exportFleetConfig: (configId: number, includeSecrets: boolean) =>
+    fetchJson<FleetConfigExport>(`/fleet/configs/${configId}/export`, {
+      method: 'POST',
+      body: JSON.stringify({ include_secrets: includeSecrets }),
+      headers: includeSecrets ? fleetVaultHeaders() : {},
+    }),
+  saveFleetConfigAsTemplate: (configId: number, name: string, description: string | null) =>
+    fetchJson<FleetConfigTemplate>(`/fleet/configs/${configId}/template`, {
+      method: 'POST',
+      body: JSON.stringify({ name, description }),
+    }),
+  createFleetConfigFromTemplate: (
+    assetId: number,
+    templateId: number,
+    values: Record<string, string>,
+    label: string | null
+  ) =>
+    fetchJson<FleetConfig>(`/fleet/assets/${assetId}/configs/from-template`, {
+      method: 'POST',
+      body: JSON.stringify({ template_id: templateId, values, label }),
+    }),
+  fleetConfigTemplates: (signal?: AbortSignal) =>
+    fetchJson<FleetConfigTemplate[]>('/fleet/config-templates', { signal }),
+  createFleetConfigTemplate: (template: FleetConfigTemplateFields) =>
+    fetchJson<FleetConfigTemplate>('/fleet/config-templates', {
+      method: 'POST',
+      body: JSON.stringify(template),
+    }),
+  updateFleetConfigTemplate: (templateId: number, template: FleetConfigTemplateFields) =>
+    fetchJson<FleetConfigTemplate>(`/fleet/config-templates/${templateId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(template),
+    }),
+  deleteFleetConfigTemplate: (templateId: number) =>
+    fetchJson<{ status: string }>(`/fleet/config-templates/${templateId}`, { method: 'DELETE' }),
   getSnmpAgent: (signal?: AbortSignal) => fetchJson<SnmpAgentState>('/snmp-agent', { signal }),
   saveSnmpAgent: (settings: SnmpAgentSettings) =>
     fetchJson<SnmpAgentState>('/snmp-agent', { method: 'PUT', body: JSON.stringify(settings) }),

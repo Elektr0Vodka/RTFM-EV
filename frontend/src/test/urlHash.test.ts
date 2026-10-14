@@ -487,6 +487,14 @@ describe('fleet (Tools > Fleet) route', () => {
     expect(parseHashConversation()).toEqual({ type: 'fleet', name: 'new' });
   });
 
+  it('parses #fleet/templates as the config templates page', () => {
+    window.location.hash = '#fleet/templates';
+    expect(parseHashConversation()).toEqual({ type: 'fleet', name: 'templates' });
+    expect(getConversationHash({ type: 'fleet', id: 'templates', name: 'Fleet' })).toBe(
+      '#fleet/templates'
+    );
+  });
+
   it('falls back to the list for anything that is not an asset id', () => {
     for (const hash of ['#fleet/', '#fleet/abc', '#fleet/0', '#fleet/1x']) {
       window.location.hash = hash;

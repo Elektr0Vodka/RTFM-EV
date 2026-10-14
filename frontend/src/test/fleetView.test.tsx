@@ -32,6 +32,8 @@ const mocks = vi.hoisted(() => ({
   revealFleetSecret: vi.fn(),
   deleteFleetSecret: vi.fn(),
   generateFleetKey: vi.fn(),
+  fleetConfigs: vi.fn(),
+  fleetConfigTemplates: vi.fn(),
 }));
 
 vi.mock('../api', () => ({ api: mocks, isAbortError: () => false }));
@@ -87,6 +89,7 @@ function ownedContact(publicKey: string): Contact {
 
 function renderList(props: Partial<Parameters<typeof FleetView>[0]> = {}) {
   const onOpenAsset = vi.fn();
+  const onOpenTemplates = vi.fn();
   const onOpenContactInfo = vi.fn();
   render(
     <I18nProvider>
@@ -94,17 +97,19 @@ function renderList(props: Partial<Parameters<typeof FleetView>[0]> = {}) {
         contacts={[]}
         ownerKeys={[]}
         onOpenAsset={onOpenAsset}
+        onOpenTemplates={onOpenTemplates}
         onOpenContactInfo={onOpenContactInfo}
         {...props}
       />
     </I18nProvider>
   );
-  return { onOpenAsset, onOpenContactInfo };
+  return { onOpenAsset, onOpenTemplates, onOpenContactInfo };
 }
 
 function renderAsset(assetId: number | 'new') {
   const onBack = vi.fn();
   const onOpenAsset = vi.fn();
+  const onOpenTemplates = vi.fn();
   const onOpenContactInfo = vi.fn();
   render(
     <I18nProvider>
@@ -112,11 +117,12 @@ function renderAsset(assetId: number | 'new') {
         assetId={assetId}
         onBack={onBack}
         onOpenAsset={onOpenAsset}
+        onOpenTemplates={onOpenTemplates}
         onOpenContactInfo={onOpenContactInfo}
       />
     </I18nProvider>
   );
-  return { onBack, onOpenAsset, onOpenContactInfo };
+  return { onBack, onOpenAsset, onOpenTemplates, onOpenContactInfo };
 }
 
 beforeEach(() => {
@@ -127,10 +133,21 @@ beforeEach(() => {
   mocks.fleetVaultStatus.mockResolvedValue(VAULT_OFF);
   mocks.fleetVaultAudit.mockResolvedValue([]);
   mocks.fleetSecrets.mockResolvedValue([]);
+  mocks.fleetConfigs.mockResolvedValue([]);
+  mocks.fleetConfigTemplates.mockResolvedValue([]);
   setFleetVaultToken(null);
 });
 
 describe('FleetView', () => {
+  it('opens the config templates page', async () => {
+    mocks.fleetAssets.mockResolvedValue([]);
+    const { onOpenTemplates } = renderList();
+
+    fireEvent.click(await screen.findByTestId('fleet-open-templates'));
+
+    expect(onOpenTemplates).toHaveBeenCalledTimes(1);
+  });
+
   it('explains how to start when the register is empty', async () => {
     mocks.fleetAssets.mockResolvedValue([]);
     const { onOpenAsset } = renderList();
@@ -216,6 +233,23 @@ describe('FleetView', () => {
 });
 
 describe('FleetAssetView', () => {
+  it('shows the stored configs of an existing asset, not of a new one', async () => {
+    mocks.fleetAsset.mockResolvedValue(asset({ id: 4, label: 'Mast' }));
+    const { onOpenTemplates } = renderAsset(4);
+
+    expect(await screen.findByTestId('fleet-configs')).toBeInTheDocument();
+    await waitFor(() => expect(mocks.fleetConfigs).toHaveBeenCalledWith(4, expect.anything()));
+    fireEvent.click(screen.getByTestId('fleet-config-open-templates'));
+    expect(onOpenTemplates).toHaveBeenCalledTimes(1);
+  });
+
+  it('has no configs block on the empty form', () => {
+    renderAsset('new');
+
+    expect(screen.queryByTestId('fleet-configs')).not.toBeInTheDocument();
+    expect(mocks.fleetConfigs).not.toHaveBeenCalled();
+  });
+
   it('creates an asset from the empty form and opens it', async () => {
     mocks.createFleetAsset.mockResolvedValue(asset({ id: 9, label: 'Spare' }));
     const { onOpenAsset } = renderAsset('new');

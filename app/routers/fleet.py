@@ -383,7 +383,7 @@ async def update_asset(asset_id: int, body: FleetAssetUpdate) -> dict[str, Any]:
 
 @router.delete("/assets/{asset_id}")
 async def delete_asset(asset_id: int) -> dict[str, str]:
-    """Remove the asset and its log. The contact with the same public key is not touched.
+    """Remove the asset, its log and its stored configs. The contact is not touched.
 
     Refused while the asset has secrets in the vault: deleting a private key is
     a step of its own.

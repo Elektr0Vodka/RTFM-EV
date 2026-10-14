@@ -2037,6 +2037,81 @@ export interface FleetAsset extends FleetAssetFields {
   health: FleetAssetHealth | null;
 }
 
+export type FleetConfigKind = 'snapshot' | 'desired';
+export type FleetConfigProfile = 'stock' | 'dmc_repeater' | 'dmc_observer' | 'companion_v1';
+
+/** A stored config of a fleet asset, without its document. */
+export interface FleetConfigSummary {
+  id: number;
+  asset_id: number;
+  kind: FleetConfigKind;
+  source: 'file' | 'template' | 'usb_browser' | 'usb_server' | 'webconfig' | 'manual';
+  profile: FleetConfigProfile;
+  role: string | null;
+  firmware_version: string | null;
+  label: string | null;
+  created_at: number;
+  /** Secrets of the document that are in the vault. */
+  secrets_stored: number;
+  /** Secrets of the document with no stored value. */
+  secrets_missing: number;
+}
+
+export interface FleetConfig extends FleetConfigSummary {
+  /** The device's own file; each secret is `{"$secret": vault id or null}`. */
+  document: Record<string, unknown>;
+}
+
+export interface FleetConfigImportInput {
+  document: unknown;
+  kind: FleetConfigKind;
+  /** Absent: taken from the sections the file has. */
+  profile?: FleetConfigProfile;
+  role?: string | null;
+  firmware_version?: string | null;
+  label?: string | null;
+}
+
+export interface FleetConfigImportResult {
+  config: FleetConfig;
+  secrets_stored: number;
+  /** Not kept: the vault is off or locked. */
+  secrets_left_out: number;
+}
+
+export interface FleetConfigExport {
+  document: Record<string, unknown>;
+  secrets_included: number;
+  /** Their keys are not in the document. */
+  secrets_left_out: number;
+}
+
+export type FleetConfigVariableType = 'text' | 'number' | 'boolean';
+
+export interface FleetConfigVariable {
+  name: string;
+  description: string;
+  default: string;
+  type: FleetConfigVariableType;
+}
+
+/** What is edited of a config template. */
+export interface FleetConfigTemplateFields {
+  name: string;
+  description: string | null;
+  profile: FleetConfigProfile;
+  role: string | null;
+  /** A config document with `{{name}}` variables and no secret value. */
+  document: Record<string, unknown>;
+  variables: FleetConfigVariable[];
+}
+
+export interface FleetConfigTemplate extends FleetConfigTemplateFields {
+  id: number;
+  created_at: number;
+  updated_at: number;
+}
+
 export interface FleetAssetsFromContactsResponse {
   created: FleetAsset[];
   /** Keys that already had an asset, are no contact, or repeat. */
