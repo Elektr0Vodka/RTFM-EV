@@ -11,6 +11,20 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-14 (My Node keeps the restored time window's data, fix/mynode-window-restore)
+
+No migration, no new dependency, no new environment variable.
+
+### My Node
+- **Noise floor and battery after a refresh.** With a historical window
+  (1h to 1y) selected, a page refresh or the refresh button could replace
+  the Noise Floor and Battery charts with the last 24 hours, while the window
+  still read 7d or 1y. The page load now only fills those two charts in the
+  live 20m window.
+- **Custom range after a refresh.** A restored custom range is applied again
+  on load, so the charts show that range instead of live data. Apply on a
+  custom range now also loads the Noise Floor and Battery charts for it.
+
 ## Update 2026-10-14 (Onboarding wizard, plan 32 Phase 6, feat/device-onboarding-wizard)
 
 No migration, no new dependency, no new environment variable. Builds on Phase 3 (USB cable in the browser) and only strings its steps together; nothing new is sent to a device and nothing goes over the radio of this app. Not yet tried on a real device.
