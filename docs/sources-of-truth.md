@@ -107,6 +107,13 @@ machine this was authored on and may differ elsewhere.
 - DMC Toolbox (channel browser, region/scope data): https://toolbox.dutchmeshcore.nl
   (repo https://github.com/Dutch-MeshCore/Dutch-Meshcore-Toolbox;
   local `G:\Github\repositories\Dutch-MeshCore\Dutch-Meshcore-Toolbox`).
+  Its USB config page is also the source of truth for the **device config file
+  format** that the fleet config library stores and exports
+  (`src/hooks/useSerialDevice.ts` `exportConfig` / `importFromJson`, section
+  shapes in `src/lib/config/*.ts`; read at commit `b36c356`). The repo has no
+  licence file: match the file format, take no code from it. When the toolbox
+  adds a key that holds a secret, add it to `_SECRET_PATHS` in
+  `app/services/fleet_config.py`.
 - MCCL (MeshCore channel lists / wordlist source): https://github.com/Elektr0Vodka/MCCL
   (local `G:\Github\repositories\Elektr0Vodka\mccl`). The channel finder's bundled
   "Known channels (MCCL)" list, `frontend/public/wordlists/known-channels.txt`, is

@@ -604,6 +604,39 @@ Key generation (`generate_keypair`, run with `asyncio.to_thread`): SHA-512 of a 
 
 Tests: `tests/test_fleet_vault.py` patches `settings.fleet_vault_enabled` on and the Argon2 cost down to the minimum; a test that touches the vault needs both.
 
+### Fleet config library (plan 32, Phase 1)
+
+Router `routers/fleet_config.py` (under `/fleet`), document rules `services/fleet_config.py` (pure functions: no database, no vault, no device), repository `repository/fleet_config.py`, tables `fleet_configs` and `fleet_config_templates` (migration `_149`). No background task, no WebSocket event. Nothing here opens a serial port, calls a device on the LAN or uses the radio; reading from and applying to a device are later phases of plan 32.
+
+- `GET /fleet/assets/{id}/configs` - newest first, without the documents; each row has `secrets_stored` and `secrets_missing`
+- `POST /fleet/assets/{id}/configs/import` - `{document, kind? (snapshot|desired), profile?, role?, firmware_version?, label?}`; 201 with `{config, secrets_stored, secrets_left_out}`. Takes the vault token in `X-Fleet-Vault-Token` but does not need it
+- `POST /fleet/assets/{id}/configs/from-template` - `{template_id, values, label?}`; stores a `desired` config with source `template`. 422 names a variable without a value
+- `GET /fleet/configs/{id}`, `PATCH /fleet/configs/{id}` (`profile`, `role`, `firmware_version`, `label` only; the document cannot be changed), `DELETE /fleet/configs/{id}`
+- `POST /fleet/configs/{id}/export` - `{include_secrets}`; answers `{document, secrets_included, secrets_left_out}`. With `include_secrets` it needs a vault session (403 switched off, 401 locked), is `Cache-Control: no-store` and writes a `config_exported` audit row
+- `POST /fleet/configs/{id}/template` - `{name, description?}`; a template from a stored config
+- `GET/POST /fleet/config-templates`, `GET/PATCH/DELETE /fleet/config-templates/{id}`
+
+The formats. A stored document is the device's own file with nothing added, so an export is again a file the other tool reads:
+
+- **Toolbox file** (repeater, room server): what the Dutch MeshCore toolbox's USB config page writes, `{vars, filter?, region?, hardware?, mqtt?}`. `vars` holds the CLI variables by their CLI names (`guest.password`, `prv.key`, `radio` as `{freq, bw, sf, cr}`). The other sections exist only on firmware that has them and use the toolbox's own field names, not CLI names (`mqtt.wifiPassword`, not `wifi.pwd`; `mqtt.slots[n].token`). The format was read from the toolbox source (`src/hooks/useSerialDevice.ts` `exportConfig`, `src/lib/config/*.ts`) at commit `b36c356`; that repo has no licence file, so no code is taken from it.
+- **Companion file**: the version 1 object Settings > Radio exports (`frontend/src/components/settings/SettingsRadioSection.tsx`, `buildConfigProfile`).
+
+Profiles (`stock`, `dmc_repeater`, `dmc_observer`, `companion_v1`) are a label picked by `detect_profile` from the sections present (`mqtt` = observer, `filter` = DMC repeater, else stock; a `region` section alone is stock, the region tree is in stock firmware). They are built in and not editable. A file in neither format is refused; there is no "opaque" profile, because nothing could say where its secrets are.
+
+Rules that must hold:
+
+- **A stored document never holds a secret value.** Every write path goes through `split_secrets`, which replaces each secret with `{"$secret": null}`. The router then stores the value in the vault (`fleet_secrets`, label `config <path>`, e.g. `config vars/prv.key`) and writes the id into the placeholder, or leaves it null when the vault is off or locked and reports the count. A value that was not text gets `"$json": true` on its placeholder and is stored as JSON, so a numeric password comes back as a number.
+- **Secrets are found by the file, not by the profile** (`_SECRET_PATHS`: `vars/prv.key`, `vars/guest.password`, `mqtt/wifiPassword`, `mqtt/alertPsk`, `mqtt/snmpCommunity`, `mqtt/slots/*/password`, `mqtt/slots/*/token`, `hardware/bridgeSecret`, companion `private_key`). On top of that a text value under an unknown key whose name matches `_SECRET_NAME` (password, token, psk, secret, ...) is treated as one. `mqtt.owner` is NOT a secret: the firmware stores it as `mqtt_owner_public_key`. An empty value is left as it is.
+- **Unknown keys are kept** where they are, in the order they came in, and written back unchanged. Nothing validates the values of a document.
+- **An import must not carry `$secret`** (422), and an export only opens secrets whose `asset_id` is the config's asset: an id in a document is not a permission.
+- **A private key that belongs to another public key than the asset's is refused** (422, nothing stored). One that is not 128 hex is kept as kind `other`.
+- **The same secret is stored once**: same asset, kind, label and value reuses the row. Deleting a config never deletes a secret. `fleet_configs` rows go with their asset (ON DELETE CASCADE); they hold no secret.
+- **Export without secrets leaves those keys out** of the file (a placeholder never leaves the app).
+- **A template holds no secret at all**: `validate_template` refuses a value or a `{{variable}}` at a secret key and any placeholder other than `{"$secret": null}`. Every `{{name}}` in the document must be a declared variable or one of `asset.label`, `asset.org_serial`, `asset.site_name`. `render_template` gives a text value that is one variable and nothing else the variable's type (`"{{power}}"` becomes the number 20).
+- No secret value, and no document, goes into a log line or an audit row.
+
+Tests: `tests/test_fleet_config_service.py` (rules, no database), `tests/test_fleet_config_router.py`, `tests/fleet_config_samples.py` (a hand-built toolbox file and companion file; no value comes from a real device).
+
 ### Channels
 - `GET /channels`
 - `GET /channels/{key}/detail`
