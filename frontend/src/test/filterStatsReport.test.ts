@@ -166,6 +166,12 @@ describe('scrambleReport', () => {
 });
 
 describe('wording', () => {
+  it('names Scramble the way the Spam Guard evidence export does', () => {
+    // There it is "Geanonimiseerd" (nl) and "Anonymisiert" (de).
+    expect((nl as unknown as Record<string, string>).mesh_filter_scramble).toMatch(/anonimis/i);
+    expect((de as unknown as Record<string, string>).mesh_filter_scramble).toMatch(/anonymis/i);
+  });
+
   // The Spam Guard page already has a word for "stopped" and one for "held".
   // This tab counts the same things and must not swap them.
   it.each([

@@ -23,6 +23,9 @@ router = APIRouter(prefix="/filter-stats", tags=["filter-stats"])
 
 MAX_BUCKETS = 200
 MAX_ROWS = 500
+# The tab asks for 30 days at most. Every row of the window is read into
+# memory, so a request for "everything" is refused instead of served.
+MAX_WINDOW_DAYS = 92
 
 
 class FilterCounts(BaseModel):
@@ -132,6 +135,10 @@ async def get_filter_stats(
     """Spam, malformed, duplicate and bot statistics for ``[start_ts, end_ts)``."""
     if end_ts <= start_ts:
         raise HTTPException(status_code=400, detail="end_ts must be greater than start_ts")
+    if end_ts - start_ts > MAX_WINDOW_DAYS * 86400:
+        raise HTTPException(
+            status_code=400, detail=f"The window can be {MAX_WINDOW_DAYS} days at most"
+        )
     bucket_count = max(1, min(buckets, MAX_BUCKETS))
     row_limit = max(1, min(limit, MAX_ROWS))
     channel_key = channel.upper() if channel else None

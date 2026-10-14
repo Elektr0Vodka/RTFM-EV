@@ -4410,8 +4410,8 @@
   "mesh_filter_channel_label": "Kanal",
   "mesh_filter_channel_all": "Alle Kanäle",
   "mesh_filter_channel_unknown": "Unbekannter Kanal",
-  "mesh_filter_scramble": "Namen ersetzen",
-  "mesh_filter_scramble_hint": "Ersetzt Absendernamen und Namen privater Kanäle durch Codes, hier und in jedem Export.",
+  "mesh_filter_scramble": "Namen anonymisieren",
+  "mesh_filter_scramble_hint": "Ersetzt Absendernamen, Namen privater Kanäle und selbst geschriebene OpenHop-Regelnamen durch Codes, hier und in jedem Export.",
   "mesh_filter_copy_summary": "Zusammenfassung kopieren",
   "mesh_filter_summary_copied": "Zusammenfassung kopiert",
   "mesh_filter_copy_failed": "Zusammenfassung konnte nicht kopiert werden",
@@ -4472,8 +4472,14 @@
   "mesh_filter_outcome_held": "Zurückgehalten",
   "mesh_filter_outcome_clean": "Sauber",
   "mesh_filter_stop_rate": "Erfasst {percent}%",
-  "mesh_filter_flagged_later": "{count} markiert, nachdem sie durchgelassen wurden.",
-  "mesh_filter_not_recorded": "{count} Nachrichten haben kein festgehaltenes Ergebnis.",
+  "mesh_filter_flagged_later": {
+    "one": "{count} markiert, nachdem sie durchgelassen wurde.",
+    "other": "{count} markiert, nachdem sie durchgelassen wurden."
+  },
+  "mesh_filter_not_recorded": {
+    "one": "{count} Nachricht hat kein festgehaltenes Ergebnis.",
+    "other": "{count} Nachrichten haben kein festgehaltenes Ergebnis."
+  },
   "mesh_filter_caught_by_heading": "Erfasst durch",
   "mesh_filter_block_manual": "Manuelle Sperre",
   "mesh_filter_block_hop": "Repeater-Sperre",
@@ -4494,6 +4500,10 @@
   "mesh_filter_cause_unknown": "Nicht festgehalten",
   "mesh_filter_policy_heading": "OpenHop-Regeln",
   "mesh_filter_policy_default": "Standardaktion",
+  "mesh_filter_action_allow": "Allow",
+  "mesh_filter_action_drop": "Drop",
+  "mesh_filter_action_log_only": "Log only",
+  "mesh_filter_policy_all_channels": "Über alle Kanäle gezählt, unabhängig vom Kanalfilter: eine Regel gehört hier nicht zu einem Kanal.",
   "mesh_filter_summary_title": "RTFM-EV Spam und Bots, letzte {window}, {channel}",
   "mesh_filter_summary_line_total": "Kanalnachrichten: {count}",
   "mesh_filter_summary_line_cat": "{label}: {count} ({percent}%)",

@@ -1,6 +1,28 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MeshHealthView } from '../components/MeshHealthView';
+import type { Contact } from '../types';
+
+// The Add to bot list dialog saves through the API client; the panel itself uses fetch.
+vi.mock('../api', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../api')>();
+  const state = {
+    lists: [],
+    exceptions: [],
+    effective: { names: [], keys: [] },
+    limits: { entries_per_list: 2000, effective: 5000 },
+    forward: {},
+  };
+  return {
+    ...original,
+    api: {
+      ...original.api,
+      createBotList: vi.fn(async () => ({ ...state, created_id: 7 })),
+      updateBotList: vi.fn(async () => state),
+      addBotListEntry: vi.fn(async () => state),
+    },
+  };
+});
 
 const PUBLIC = '8B3387E9C5CDEA6AC9E5EDBAA115CD72';
 const FAMILY = 'EE'.repeat(16);
@@ -236,5 +258,158 @@ describe('Mesh Health Spam & bots tab', () => {
   it('keeps the time range selector on this tab', async () => {
     await openTab();
     expect(screen.getByRole('button', { name: '7d' })).toBeInTheDocument();
+  });
+});
+
+describe('Mesh Health Spam & bots tab, details', () => {
+  const REPEATER = { public_key: '27' + 'a'.repeat(62), name: 'Relay27', type: 2 };
+  // Same first byte, but a companion: it is not a repeater and cannot be the first hop.
+  const COMPANION = { public_key: '27' + 'b'.repeat(62), name: 'Chatty', type: 1 };
+  const contacts = [REPEATER, COMPANION] as unknown as Contact[];
+
+  beforeEach(() => {
+    localStorage.clear();
+    mockFetch(REPORT);
+  });
+
+  async function openSources(props: Partial<Parameters<typeof MeshHealthView>[0]> = {}) {
+    await openTab({ contacts, ...props });
+    fireEvent.click(screen.getByRole('button', { name: 'Source repeaters' }));
+  }
+
+  it('names a source repeater from repeater contacts only', async () => {
+    await openSources();
+    // Plain text here: no onOpenNode was given, so the name is not a button.
+    const table = screen.getByTestId('filter-stats-table');
+    expect(within(table).getByText('Relay27')).toBeInTheDocument();
+    expect(within(table).queryByText('Chatty')).not.toBeInTheDocument();
+  });
+
+  it('still opens a source repeater while names are scrambled', async () => {
+    const onOpenNode = vi.fn();
+    await openSources({ onOpenNode });
+    fireEvent.click(screen.getByLabelText('Scramble names'));
+    fireEvent.click(screen.getByRole('button', { name: 'Relay27' }));
+    expect(onOpenNode).toHaveBeenCalledWith(REPEATER.public_key, 'Relay27');
+  });
+
+  it('marks the chosen table and the chosen trend mode for a screen reader', async () => {
+    await openTab();
+    expect(screen.getByRole('button', { name: 'Senders', pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Channels', pressed: false })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Counts', pressed: true })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Share' }));
+    expect(screen.getByRole('button', { name: 'Share', pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Counts', pressed: false })).toBeInTheDocument();
+  });
+
+  it('explains Scramble names to a screen reader, not only in a tooltip', async () => {
+    await openTab();
+    expect(screen.getByLabelText('Scramble names')).toHaveAccessibleDescription(
+      /Replaces sender names/
+    );
+  });
+
+  it('words the OpenHop action and says the rules are not filtered by channel', async () => {
+    mockFetch({
+      ...REPORT,
+      policy_rules: [
+        { action: 'drop', rule: 'rtfm-spam:bots:Public (bot list)', packets: 3 },
+        { action: 'log_only', rule: 'watch', packets: 2 },
+        { action: 'allow', rule: null, packets: 1 },
+        { action: 'quarantine', rule: 'later', packets: 1 },
+      ],
+    });
+    await openTab();
+    const filters = screen.getByTestId('filter-stats-filters');
+    expect(within(filters).getByText('Drop')).toBeInTheDocument();
+    expect(within(filters).getByText('Log only')).toBeInTheDocument();
+    expect(within(filters).getByText('Allow')).toBeInTheDocument();
+    // An action this version does not know is shown as the node names it.
+    expect(within(filters).getByText('quarantine')).toBeInTheDocument();
+    expect(within(filters).queryByText(/all channels, whatever the channel/i)).toBeNull();
+    fireEvent.change(screen.getByLabelText('Channel'), { target: { value: FAMILY } });
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId('filter-stats-filters')).getByText(
+          /all channels, whatever the channel/i
+        )
+      ).toBeInTheDocument()
+    );
+  });
+
+  it('shows a block source it does not know by its own name', async () => {
+    mockFetch({
+      ...REPORT,
+      filters: { ...REPORT.filters, blocks: [{ source: 'future_kind', count: 2 }] },
+    });
+    await openTab();
+    const filters = screen.getByTestId('filter-stats-filters');
+    expect(within(filters).getByText('future_kind')).toBeInTheDocument();
+    expect(within(filters).queryByText('Block has ended')).not.toBeInTheDocument();
+  });
+
+  it('uses the singular for one message', async () => {
+    mockFetch({ ...REPORT, filters: { ...REPORT.filters, not_recorded: 1, flagged_later: 1 } });
+    await openTab();
+    const filters = screen.getByTestId('filter-stats-filters');
+    expect(within(filters).getByText('1 message has no recorded outcome.')).toBeInTheDocument();
+    expect(within(filters).getByText('1 flagged after it was let through.')).toBeInTheDocument();
+  });
+
+  it('loads the report again after a sender was added to a bot list', async () => {
+    await openTab();
+    const before = requested.filter((url) => url.includes('filter-stats')).length;
+    fireEvent.click(screen.getByRole('button', { name: 'Add to bot list' }));
+    fireEvent.change(await screen.findByLabelText('Name of the new list'), {
+      target: { value: 'Mine' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    await waitFor(() =>
+      expect(requested.filter((url) => url.includes('filter-stats')).length).toBe(before + 1)
+    );
+  });
+
+  it('ignores an auto-refresh answer for a channel that is no longer selected', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let answerLate: (() => void) | null = null;
+      let calls = 0;
+      const respond = (body: unknown) =>
+        ({ ok: true, json: () => Promise.resolve(body) }) as Response;
+      global.fetch = vi.fn((url: string) => {
+        const text = String(url);
+        if (!text.includes('filter-stats')) {
+          return Promise.resolve(respond(text.includes('mesh-health') ? ADVERTS : []));
+        }
+        calls += 1;
+        if (calls === 2) {
+          // The 30 second refresh: answered only after the channel changed.
+          return new Promise<Response>((resolve) => {
+            answerLate = () =>
+              resolve(respond({ ...REPORT, totals: { ...REPORT.totals, messages: 999 } }));
+          });
+        }
+        return Promise.resolve(respond(REPORT));
+      }) as unknown as typeof fetch;
+
+      await openTab();
+      await act(async () => {
+        vi.advanceTimersByTime(30_000);
+      });
+      expect(calls).toBe(2);
+      fireEvent.change(screen.getByLabelText('Channel'), { target: { value: FAMILY } });
+      await waitFor(() => expect(calls).toBe(3));
+      await act(async () => {
+        answerLate?.();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      const tiles = screen.getByTestId('filter-stats-tiles');
+      expect(within(tiles).queryByText('999')).not.toBeInTheDocument();
+      expect(within(tiles).getByText('40')).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

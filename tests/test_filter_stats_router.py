@@ -199,6 +199,25 @@ class TestEndpoint:
         assert response.status_code == 400
 
     @pytest.mark.asyncio
+    async def test_a_window_longer_than_the_limit_is_refused(self, test_db, client):
+        # start_ts=0 would read every stored channel message into memory.
+        day = 86400
+        async with client:
+            ok = await client.get(
+                "/api/filter-stats", params={"start_ts": NOW - 92 * day, "end_ts": NOW}
+            )
+            too_long = await client.get(
+                "/api/filter-stats", params={"start_ts": NOW - 92 * day - 1, "end_ts": NOW}
+            )
+            everything = await client.get(
+                "/api/filter-stats", params={"start_ts": 0, "end_ts": NOW}
+            )
+        assert ok.status_code == 200
+        assert too_long.status_code == 400
+        assert everything.status_code == 400
+        assert "92 days" in too_long.json()["detail"]
+
+    @pytest.mark.asyncio
     async def test_a_rule_name_does_not_carry_a_channel_key(self, test_db, client):
         # Spam Guard names its OpenHop rules after the channel key; for a
         # private channel that key is the secret.

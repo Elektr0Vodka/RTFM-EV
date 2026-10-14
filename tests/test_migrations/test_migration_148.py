@@ -89,7 +89,10 @@ class TestMigration148:
             await conn.close()
 
     @pytest.mark.asyncio
-    async def test_does_not_backfill_again_when_the_column_exists(self):
+    async def test_a_later_run_fills_in_what_an_interrupted_run_left_out(self):
+        # The columns are added before the backfill is committed. A stop in
+        # between leaves flagged rows without a cause, and the version is not
+        # raised, so the migration runs again: that run has to finish the job.
         from app.migrations._148_add_message_filter_stats import migrate
 
         conn = await aiosqlite.connect(":memory:")
@@ -97,13 +100,22 @@ class TestMigration148:
         try:
             await conn.execute(MESSAGES_147)
             await migrate(conn)
-            await conn.execute(
+            await conn.executemany(
                 "INSERT INTO messages (id, type, text, sender_name, sender_timestamp, "
-                "received_at, malformed) VALUES (1, 'CHAN', ?, 'Bob', ?, ?, 1)",
-                (f"Bob: {GIBBERISH}", NOW, NOW),
+                "received_at, malformed, malformed_reason) VALUES (?, 'CHAN', ?, 'Bob', ?, ?, 1, ?)",
+                [
+                    (1, f"Bob: {GIBBERISH}", NOW, NOW, None),
+                    # A cause that is already recorded is not judged again.
+                    (2, f"Bob: {GIBBERISH}", NOW, NOW, "clock"),
+                ],
             )
             await migrate(conn)
-            row = await (await conn.execute("SELECT malformed_reason FROM messages")).fetchone()
-            assert row["malformed_reason"] is None
+            rows = await (
+                await conn.execute("SELECT id, malformed_reason FROM messages ORDER BY id")
+            ).fetchall()
+            assert [(row["id"], row["malformed_reason"]) for row in rows] == [
+                (1, "text"),
+                (2, "clock"),
+            ]
         finally:
             await conn.close()

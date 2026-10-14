@@ -42,19 +42,29 @@ detection or forwarding rule changes.
   channel) or a short one-way id (any other). The summary says "stopped"
   only for messages that were really withheld. A CSV cell that a
   spreadsheet would run as a formula gets a leading quote.
+- **Details.** A source repeater is named only from repeater contacts. The
+  report loads again after a sender was added to a bot list, and an answer
+  for a window or channel that is no longer chosen is dropped. The OpenHop
+  rules card says when it is not narrowed by the channel filter. The table
+  and trend switches and the Scramble explanation are announced to a screen
+  reader.
 
 ### Stored per message (migration `_148`)
 - `messages.bot`, `malformed_reason`, `spam_outcome`, `spam_block`,
   `spam_enforced` and `spam_label`. The malformed cause is filled in for
   messages already flagged. The others start with this version: older
-  messages show as "no recorded outcome".
+  messages show as "no recorded outcome". The backfill of the cause runs on
+  every start of the migration, so one that was interrupted is finished by
+  the next.
 - Spam Guard writes the outcome when a message settles (two minutes after it
   arrived), with the same rule as its own hourly counters, so the tab and the
   Spam Guard page agree. A restart inside those two minutes leaves that
   message without an outcome.
 
 ### API
-- `GET /api/filter-stats?start_ts&end_ts&channel&buckets&limit`.
+- `GET /api/filter-stats?start_ts&end_ts&channel&buckets&limit`. A window
+  longer than 92 days is refused (400): every message of the window is read
+  into memory, and the tab asks for 30 days at most.
 
 ## Update 2026-10-14 (Filter library: Spam Guard profiles, feat/filter-profiles)
 

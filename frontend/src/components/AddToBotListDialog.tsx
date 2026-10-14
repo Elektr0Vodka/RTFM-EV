@@ -30,9 +30,12 @@ export type BotListTarget = Pick<Message, 'id' | 'type' | 'sender_name' | 'text'
 export function AddToBotListDialog({
   message,
   onClose,
+  onAdded,
 }: {
   message: BotListTarget | null;
   onClose: () => void;
+  /** Called once the sender is on a list, before the dialog closes. */
+  onAdded?: () => void;
 }) {
   const t = useT();
   const state = useBotLists();
@@ -75,6 +78,7 @@ export function AddToBotListDialog({
         })
       );
       toast.success(t('bot_lists_added_toast', { name }));
+      onAdded?.();
       onClose();
     } catch (err) {
       toast.error(botListErrorText(t, err instanceof Error ? err.message : String(err)));

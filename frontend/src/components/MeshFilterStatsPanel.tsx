@@ -14,7 +14,7 @@
  * pill, the shared time-window selector and refresh.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { Contact } from '../types';
 import { useT } from '../i18n';
 import { AddToBotListDialog, type BotListTarget } from './AddToBotListDialog';
@@ -65,6 +65,13 @@ const BLOCK_LABEL_KEYS: Record<string, string> = {
   links: 'mesh_filter_block_links',
   lockdown: 'mesh_filter_block_lockdown',
   expired: 'mesh_filter_block_expired',
+};
+
+/** The actions an OpenHop policy rule can have, as `raw_packets.policy_action` stores them. */
+const ACTION_LABEL_KEYS: Record<string, string> = {
+  allow: 'mesh_filter_action_allow',
+  drop: 'mesh_filter_action_drop',
+  log_only: 'mesh_filter_action_log_only',
 };
 
 type TrendMode = 'count' | 'share';
@@ -221,6 +228,8 @@ export function MeshFilterStatsPanel({
   const [scramble, setScramble] = useState(false);
   const [trendMode, setTrendMode] = useState<TrendMode>('count');
   const [botTarget, setBotTarget] = useState<BotListTarget | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const scrambleHintId = useId();
 
   useEffect(() => {
     onLoadingChange?.(loading);
@@ -231,43 +240,55 @@ export function MeshFilterStatsPanel({
     if (report.window.channel === null) setKnownChannels(report.channels);
   }, []);
 
+  // Every request gets a number and only the newest may show its answer. An
+  // answer for a window or channel that is no longer chosen (a slow refresh
+  // that lands after a switch) is dropped.
+  const latestRequest = useRef(0);
+
+  const load = useCallback(
+    (visible: boolean) => {
+      const request = ++latestRequest.current;
+      if (visible) {
+        setLoading(true);
+        setError(null);
+      }
+      fetch(statsUrl(selectedWindow, channel))
+        .then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json() as Promise<FilterStatsReport>;
+        })
+        .then((report) => {
+          if (request !== latestRequest.current) return;
+          accept(report);
+          setLoading(false);
+        })
+        .catch((err: unknown) => {
+          if (request !== latestRequest.current) return;
+          // A failed background refresh keeps what is on the page.
+          if (visible) {
+            setError(err instanceof Error ? err.message : t('mesh_health_error_failed_to_load'));
+          }
+          setLoading(false);
+        });
+    },
+    [selectedWindow, channel, accept, t]
+  );
+
+  // refreshKey: the shell's Refresh button. reloadKey: a sender was added to a bot list.
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    fetch(statsUrl(selectedWindow, channel))
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<FilterStatsReport>;
-      })
-      .then((report) => {
-        if (cancelled) return;
-        accept(report);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : t('mesh_health_error_failed_to_load'));
-        setLoading(false);
-      });
+    load(true);
+    const requests = latestRequest;
     return () => {
-      cancelled = true;
+      requests.current += 1;
     };
-  }, [selectedWindow, refreshKey, channel, accept, t]);
+  }, [load, refreshKey, reloadKey]);
 
   // Auto-refresh: only for short windows, minimum 30s cadence.
   useEffect(() => {
     if (!selectedWindow.autoRefresh) return;
-    const id = setInterval(() => {
-      fetch(statsUrl(selectedWindow, channel))
-        .then((r) => (r.ok ? (r.json() as Promise<FilterStatsReport>) : null))
-        .then((report) => {
-          if (report) accept(report);
-        })
-        .catch(() => {});
-    }, 30_000);
+    const id = setInterval(() => load(false), 30_000);
     return () => clearInterval(id);
-  }, [selectedWindow, channel, accept]);
+  }, [selectedWindow, load]);
 
   const report = useMemo(
     () => (raw && scramble ? scrambleReport(raw, getSessionScrambler()) : raw),
@@ -348,10 +369,15 @@ export function MeshFilterStatsPanel({
           <input
             type="checkbox"
             aria-label={t('mesh_filter_scramble')}
+            aria-describedby={scrambleHintId}
             checked={scramble}
             onChange={(event) => setScramble(event.target.checked)}
           />
           {t('mesh_filter_scramble')}
+          {/* The tooltip above is for a mouse; this is the same text for a screen reader. */}
+          <span id={scrambleHintId} className="sr-only">
+            {t('mesh_filter_scramble_hint')}
+          </span>
         </label>
         <div className="ml-auto flex items-center gap-2">
           <button
@@ -451,6 +477,7 @@ export function MeshFilterStatsPanel({
                   <button
                     key={mode}
                     type="button"
+                    aria-pressed={trendMode === mode}
                     onClick={() => setTrendMode(mode)}
                     className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
                       trendMode === mode
@@ -482,7 +509,7 @@ export function MeshFilterStatsPanel({
           contacts={contacts}
           pageSize={pageSize}
           scrambled={scramble}
-          onOpenNode={scramble ? undefined : onOpenNode}
+          onOpenNode={onOpenNode}
           onNavigateToMap={onNavigateToMap}
           onAddToBotList={(sender) =>
             setBotTarget({
@@ -557,7 +584,10 @@ export function MeshFilterStatsPanel({
               <Card heading={t('mesh_filter_caught_by_heading')}>
                 <BarList
                   items={filters.blocks.map((block) => ({
-                    label: t(BLOCK_LABEL_KEYS[block.source] ?? 'mesh_filter_block_expired'),
+                    // A source this version does not know keeps its own name.
+                    label: BLOCK_LABEL_KEYS[block.source]
+                      ? t(BLOCK_LABEL_KEYS[block.source])
+                      : block.source,
                     count: block.count,
                     color: 'hsl(var(--primary))',
                   }))}
@@ -620,7 +650,11 @@ export function MeshFilterStatsPanel({
                       <td className="py-0.5 font-mono text-[11px] text-foreground">
                         {rule.rule ?? t('mesh_filter_policy_default')}
                       </td>
-                      <td className="py-0.5 text-muted-foreground">{rule.action}</td>
+                      <td className="py-0.5 text-muted-foreground">
+                        {ACTION_LABEL_KEYS[rule.action]
+                          ? t(ACTION_LABEL_KEYS[rule.action])
+                          : rule.action}
+                      </td>
                       <td className="py-0.5 text-right tabular-nums text-muted-foreground">
                         {rule.packets}
                       </td>
@@ -628,6 +662,11 @@ export function MeshFilterStatsPanel({
                   ))}
                 </tbody>
               </table>
+              {channel !== '' && (
+                <p className="mt-2 text-[10px] text-muted-foreground">
+                  {t('mesh_filter_policy_all_channels')}
+                </p>
+              )}
             </Card>
           )}
           {filters.not_recorded > 0 && (
@@ -644,7 +683,12 @@ export function MeshFilterStatsPanel({
         </div>
       )}
 
-      <AddToBotListDialog message={botTarget} onClose={() => setBotTarget(null)} />
+      <AddToBotListDialog
+        message={botTarget}
+        onClose={() => setBotTarget(null)}
+        // The sender is a listed bot now: the badge and the bot numbers have to follow.
+        onAdded={() => setReloadKey((key) => key + 1)}
+      />
     </>
   );
 }

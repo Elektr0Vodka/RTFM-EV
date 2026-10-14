@@ -953,7 +953,7 @@ The Filters modal's **"Group repeats by content"** toggle drives `RawPacketList`
 
 ### Mesh Health "Spam & bots" tab
 
-- Tab key `spam-bots` in `MeshHealthView` (stored with the other tabs in `rtfm-meshhealth-tab`). It uses the shared time selector and auto-refreshes on the 30m and 1h ranges.
+- Tab key `spam-bots` in `MeshHealthView` (stored with the other tabs in `rtfm-meshhealth-tab`). It uses the shared time selector and auto-refreshes on the 30m and 1h ranges. Every request gets a number (`latestRequest`) and only the newest may show its answer, so a slow refresh that lands after a window or channel switch is dropped. `AddToBotListDialog` calls `onAdded` on success, which loads the report again.
 - `utils/filterStatsReport.ts` holds the report types and every derived form: `scrambleReport` (sender names to `user-xxxxxxxx`, keys removed, non-public channels to `channel-xxxxxxxx`, OpenHop rule names that do not start with `rtfm-spam:` to `rule-xxxxxxxx`), `buildSummaryText`, `sendersCsv` / `channelsCsv` / `sourcesCsv`, `buildJsonReport`. All are pure and built from the loaded report. Codes come from `getSessionScrambler()`, a random table kept for the page load (`crypto.getRandomValues`; `crypto.subtle` is not available on a plain http LAN address).
 - A channel key is in the report for the channel filter only; `buildJsonReport` and the CSV files leave it out. `buildCsv` puts a leading quote on a text cell that starts with `=`, `+`, `-` or `@`.
 - `AddToBotListDialog` takes a `BotListTarget` (a subset of `Message`), so the senders table can open it for a sender row.

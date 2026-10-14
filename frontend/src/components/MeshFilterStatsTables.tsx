@@ -12,6 +12,7 @@ import { MapPin } from 'lucide-react';
 import type { Contact } from '../types';
 import { useT } from '../i18n';
 import { relTime } from './meshHealthShared';
+import { findContactsByPrefix } from '../utils/pathUtils';
 import {
   channelsCsv,
   DIRECT_HOP,
@@ -199,8 +200,8 @@ export function MeshFilterStatsTables({
   /** The one contact whose key starts with this hop, if there is exactly one. */
   const contactForHop = (hop: string): Contact | null => {
     if (hop === DIRECT_HOP) return null;
-    const needle = hop.toLowerCase();
-    const matches = contacts.filter((c) => (c.public_key ?? '').toLowerCase().startsWith(needle));
+    // Repeaters only: a companion that shares the prefix cannot be the first hop.
+    const matches = findContactsByPrefix(hop, contacts);
     return matches.length === 1 ? matches[0] : null;
   };
 
@@ -213,7 +214,7 @@ export function MeshFilterStatsTables({
         const label = s.name || t('mesh_filter_sender_unknown');
         return (
           <span className="flex flex-wrap items-center gap-1.5">
-            {s.public_key && onOpenNode ? (
+            {s.public_key && onOpenNode && !scrambled ? (
               <button
                 type="button"
                 className="text-left hover:underline"
@@ -350,6 +351,7 @@ export function MeshFilterStatsTables({
               <button
                 key={entry.key}
                 type="button"
+                aria-pressed={table === entry.key}
                 onClick={() => setTable(entry.key)}
                 className={`rounded px-2 py-0.5 text-[11px] font-medium transition-colors ${
                   table === entry.key

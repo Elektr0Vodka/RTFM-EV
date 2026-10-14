@@ -42,10 +42,11 @@ async def migrate(conn: aiosqlite.Connection) -> None:
     ``spam_label`` (TEXT, NULL): the user's own answer on the message,
     ``spam`` or ``genuine``.
 
-    Backfill: ``malformed_reason`` for rows already flagged, in the run that
-    adds the column. A row whose flag today's tests no longer explain keeps
-    NULL. Nothing else is backfilled: the lists, the blocks and the mode of
-    that moment are not known.
+    Backfill: ``malformed_reason`` for rows already flagged that have none
+    yet, on every run, so a run interrupted after the columns were added is
+    finished by the next one. A row whose flag today's tests no longer explain
+    keeps NULL. Nothing else is backfilled: the lists, the blocks and the mode
+    of that moment are not known.
 
     Idempotent: skips an absent table and columns that already exist.
     """
@@ -55,14 +56,16 @@ async def migrate(conn: aiosqlite.Connection) -> None:
     if "messages" in {row[0] for row in await tables_cursor.fetchall()}:
         col_cursor = await conn.execute("PRAGMA table_info(messages)")
         columns = {row[1] for row in await col_cursor.fetchall()}
-        backfill = "malformed_reason" not in columns and columns >= _BACKFILL_COLUMNS
         for name, declaration in _COLUMNS:
             if name not in columns:
                 await conn.execute(f"ALTER TABLE messages ADD COLUMN {name} {declaration}")
-        if backfill:
+        # Every run, not only the one that adds the column: the columns are
+        # there before the backfill is committed, so a run that stopped in
+        # between is finished by the next one.
+        if columns >= _BACKFILL_COLUMNS:
             cursor = await conn.execute(
                 "SELECT id, text, sender_name, sender_timestamp, received_at "
-                "FROM messages WHERE malformed = 1"
+                "FROM messages WHERE malformed = 1 AND malformed_reason IS NULL"
             )
             reasons: list[tuple[str, int]] = []
             for msg_id, text, sender_name, sender_timestamp, received_at in await cursor.fetchall():

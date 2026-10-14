@@ -4410,7 +4410,7 @@
   "mesh_filter_channel_all": "All channels",
   "mesh_filter_channel_unknown": "Unknown channel",
   "mesh_filter_scramble": "Scramble names",
-  "mesh_filter_scramble_hint": "Replaces sender names and private channel names with codes, here and in every export.",
+  "mesh_filter_scramble_hint": "Replaces sender names, private channel names and OpenHop rule names you wrote with codes, here and in every export.",
   "mesh_filter_copy_summary": "Copy summary",
   "mesh_filter_summary_copied": "Summary copied",
   "mesh_filter_copy_failed": "Could not copy the summary",
@@ -4471,8 +4471,14 @@
   "mesh_filter_outcome_held": "Held",
   "mesh_filter_outcome_clean": "Clean",
   "mesh_filter_stop_rate": "Catch rate {percent}%",
-  "mesh_filter_flagged_later": "{count} flagged after they were let through.",
-  "mesh_filter_not_recorded": "{count} messages have no recorded outcome.",
+  "mesh_filter_flagged_later": {
+    "one": "{count} flagged after it was let through.",
+    "other": "{count} flagged after they were let through."
+  },
+  "mesh_filter_not_recorded": {
+    "one": "{count} message has no recorded outcome.",
+    "other": "{count} messages have no recorded outcome."
+  },
   "mesh_filter_caught_by_heading": "Caught by",
   "mesh_filter_block_manual": "Manual block",
   "mesh_filter_block_hop": "Repeater block",
@@ -4493,6 +4499,10 @@
   "mesh_filter_cause_unknown": "Not recorded",
   "mesh_filter_policy_heading": "OpenHop rules",
   "mesh_filter_policy_default": "Default action",
+  "mesh_filter_action_allow": "Allow",
+  "mesh_filter_action_drop": "Drop",
+  "mesh_filter_action_log_only": "Log only",
+  "mesh_filter_policy_all_channels": "Counted over all channels, whatever the channel filter says: a rule is not tied to one channel here.",
   "mesh_filter_summary_title": "RTFM-EV spam and bots, last {window}, {channel}",
   "mesh_filter_summary_line_total": "Channel messages: {count}",
   "mesh_filter_summary_line_cat": "{label}: {count} ({percent}%)",
