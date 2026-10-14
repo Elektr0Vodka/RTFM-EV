@@ -66,6 +66,31 @@ With more than one radio, each radio has its own database and so its own vault a
 
 The Radio Settings config export/import feature uses these endpoints. When export is disabled, config exports will omit the private key and show a notice.
 
+### Fleet configs over a USB cable
+
+An asset's Configs block (Tools > Fleet) can read a repeater or room server that is plugged into the PC you are using, and apply a stored config to it. The browser opens the USB port (Web Serial) and talks to the device's text command line; the server only turns the device's answers into a config file and a stored config into commands. It never opens a port itself, and nothing goes over the radio of this app. Companions are not read or written this way: they do not have that command line.
+
+What it needs:
+
+- **Chrome or Edge** on a desktop. Firefox and Safari have no Web Serial.
+- **A secure page.** Open the app as `http://localhost:8000` on the PC the device is plugged into. From another PC the browser only allows it over HTTPS (see [HTTPS](#https)); that way was not tried.
+- **A free port.** Close the toolbox, a serial monitor or anything else that has the port open.
+
+**Read** asks the device who it is (`ver`, `board`, role, public key), then every CLI variable its firmware version has, then the packet filter, region, hardware and observer (MQTT) settings where the device answers to them. The result is a file in the toolbox's format. **Store as a snapshot** keeps it with the asset, with the same rules for secrets as an imported file (key vault unlocked: kept there; otherwise left out and counted). It is only stored on the asset whose public key the device has; an asset without a public key can take the device's when you tick that.
+
+**Apply** reads the device again, then shows every setting that differs, the commands in the order they go, and the settings it leaves out with the reason. Nothing is sent until you tick that you checked the commands. It sends one command, reads that setting back, checks both, and goes on to the next; at the first answer that is not as expected it stops and sends nothing more. The outcome is written to the asset's log as "Config applied", with the commands as shown on screen.
+
+Rules that always hold:
+
+- The private key and the radio settings (frequency, bandwidth, SF, CR, one `set radio` command) are only written with their own tick, off every time.
+- A device with another public key than the asset's is refused, unless the config holds this asset's own private key and the private key tick is on: then the device takes the asset's identity after its next restart.
+- A secret is only written while the key vault is unlocked. On screen and in the log it is `********`. Using vault secrets for an apply is in the audit log as `config_apply_planned`.
+- Only `ver`, `board`, `get`, `set` (not `set freq`), `filter` and `region` (`home`, `default`, `save`) are ever sent. Never `erase`, `reboot` or an advert.
+- The region tree is not changed (the command line can only do that by removing every region first): use the Regions pane or the toolbox. The home and default region are set when that region is already in the device's tree.
+- Some settings (radio, private key, Wi-Fi, SNMP) take effect after a restart. The app does not restart the device, because a node that starts sends an advert; restart it yourself.
+
+This was built and tested against recorded device answers, not on a real device yet. Try it on a spare device first, never on the radio this app runs on.
+
 ## Database Backup And Restore
 
 All persisted state (contacts, channels, telemetry, raw packet history, settings)

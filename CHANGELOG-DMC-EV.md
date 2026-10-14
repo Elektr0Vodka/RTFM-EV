@@ -11,6 +11,46 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-14 (Device config over a USB cable in the browser, plan 32 Phase 3, feat/device-config-usb-browser)
+
+No migration, no new dependency, no new environment variable. The browser talks to a repeater or room server on a USB cable (Web Serial); the server never opens a port and nothing goes over the radio of this app. Built and tested against recorded replies only: not yet tried on a real device.
+
+### Fleet
+- **Read a device on a USB cable.** The Configs block of an asset has a
+  "USB cable (this browser)" part. Connect a repeater or room server that is
+  plugged into this PC, and Read reads its settings the way the Dutch MeshCore
+  toolbox's USB config page does: name, role, firmware, board and public key,
+  every CLI variable its firmware has, and the packet filter, region,
+  hardware and observer (MQTT) sections where the firmware has them. It
+  shows who the device is and whether it is this asset (same public key).
+  Store as a snapshot keeps it as a config of the asset, in the toolbox's
+  file format; its secrets go to the key vault as with an imported file. An
+  asset without a public key can take the device's when you tick it.
+- **Apply a stored config.** Pick a config of the asset. The app reads the
+  device again and shows every setting that differs, every command it would
+  send in order, and what it leaves out and why. Nothing is sent before you
+  tick that you checked the commands. Then it sends one command at a time,
+  reads the setting back, and stops at the first answer that is not as
+  expected. The outcome, with the commands as shown, is written to the
+  asset's log (new log kind "Config applied").
+- **Separate ticks.** Writing the private key and changing the radio
+  (frequency, bandwidth, SF, CR) are left out unless their own tick is on;
+  both are off every time. A device with another public key is only applied
+  to when the config holds this asset's own private key and that tick is on.
+- **Never sent:** `erase`, `reboot`, adverts, anything else outside `ver`,
+  `board`, `get`, `set`, `filter` and `region` (and their read and set
+  forms). The region tree is not rewritten (that would remove every region
+  first); home and default region are. A restart that some settings need is
+  left to you, because a node that starts sends an advert.
+- **Secrets.** A secret is only written when the key vault is unlocked; it
+  is shown as `********` in the commands and never logged. Using vault
+  secrets for an apply is in the audit log as `config_apply_planned`.
+- **Needs** Chrome or Edge on a desktop, and the app opened as
+  `http://localhost:8000` on the PC with the cable (or over HTTPS). The page
+  says so otherwise.
+- The packet filter's soft rate limit, which the toolbox file does not hold,
+  is read from the device and kept when a rate is changed.
+
 ## Update 2026-10-14 (Device config: compare with what the node reported, plan 32 Phase 2, feat/device-config-compare-reported)
 
 No migration, no new dependency, no new environment variable. Read-only: this compares with data the app already stored. No node is asked anything and nothing is sent.

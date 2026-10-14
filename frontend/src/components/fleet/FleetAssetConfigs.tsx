@@ -7,7 +7,8 @@
  * out otherwise. This block never shows a secret value; it shows that there is
  * one and whether the vault has it.
  *
- * Nothing here reaches a device: it only reads and writes stored files.
+ * The stored files are read and written here. Reading a device and applying a
+ * config to it over a USB cable is FleetUsbDevice, at the end of this block.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, isAbortError } from '../../api';
@@ -36,6 +37,7 @@ import {
   type ConfigLeaf,
 } from './fleetConfigShared';
 import { downloadFleetFile } from './fleetShared';
+import { FleetUsbDevice } from './FleetUsbDevice';
 
 type VaultState = 'off' | 'locked' | 'open';
 
@@ -746,11 +748,20 @@ function ConfigFromTemplateForm({
 
 export function FleetAssetConfigs({
   assetId,
+  assetPublicKey = null,
   onOpenTemplates,
+  onAssetChanged,
+  onLogChanged,
 }: {
   assetId: number;
+  /** The asset's public key: a device on the USB cable is matched by it. */
+  assetPublicKey?: string | null;
   /** Opens Tools > Fleet > Config templates. */
   onOpenTemplates: () => void;
+  /** The asset itself changed (it took a device's public key). */
+  onAssetChanged?: () => void;
+  /** An apply wrote to the asset's log. */
+  onLogChanged?: () => void;
 }) {
   const t = useT();
   const { status } = useFleetVaultStatus();
@@ -1003,6 +1014,15 @@ export function FleetAssetConfigs({
         }}
         onOpenTemplates={onOpenTemplates}
         onError={fail}
+      />
+      <FleetUsbDevice
+        assetId={assetId}
+        assetPublicKey={assetPublicKey}
+        configs={configs ?? []}
+        vault={vault}
+        onStored={() => void load()}
+        onAssetChanged={() => onAssetChanged?.()}
+        onLogChanged={() => onLogChanged?.()}
       />
     </div>
   );

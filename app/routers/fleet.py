@@ -29,10 +29,17 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/fleet", tags=["fleet"])
 
 FleetAssetStatus = Literal["in_stock", "deployed", "maintenance", "lost", "stolen", "retired"]
-# What a person can log. ``status`` rows are written by the app only.
+# What a person can log. ``status`` and ``config_applied`` rows are written by the app only.
 FleetEventManualKind = Literal["placement", "maintenance", "failure", "custody", "firmware", "note"]
 FleetEventKind = Literal[
-    "placement", "maintenance", "failure", "custody", "firmware", "note", "status"
+    "placement",
+    "maintenance",
+    "failure",
+    "custody",
+    "firmware",
+    "note",
+    "status",
+    "config_applied",
 ]
 
 _TEXT_MAX = 200

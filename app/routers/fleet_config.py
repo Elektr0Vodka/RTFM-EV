@@ -294,28 +294,57 @@ async def import_config(
     Otherwise they are not kept at all and ``secrets_left_out`` says how many.
     """
     asset = await _asset_or_404(asset_id, health=False)
+    return await store_config(
+        asset,
+        body.document,
+        {
+            "kind": body.kind,
+            "source": "file",
+            "profile": body.profile,
+            "role": body.role,
+            "firmware_version": body.firmware_version,
+            "label": body.label,
+        },
+        request,
+        x_fleet_vault_token,
+    )
+
+
+async def store_config(
+    asset: dict[str, Any],
+    file: dict[str, Any],
+    details: dict[str, Any],
+    request: Request,
+    vault_token: str | None,
+) -> dict[str, Any]:
+    """Store a device's file with an asset by the library's rules; the import answer.
+
+    ``details`` holds ``kind``, ``source``, ``profile`` (None: taken from the
+    file), ``role``, ``firmware_version`` and ``label``. A file read from a
+    device over a cable is stored through here too, so it follows the same
+    rules for secrets as an imported file.
+    """
+    asset_id = int(asset["id"])
     try:
-        fleet_config.check_size(body.document)
-        detected = fleet_config.detect_profile(body.document)
-        document, found = fleet_config.split_secrets(body.document)
+        fleet_config.check_size(file)
+        detected = fleet_config.detect_profile(file)
+        document, found = fleet_config.split_secrets(file)
     except fleet_config.ConfigError as exc:
         raise _unprocessable(str(exc)) from None
-    profile = body.profile or detected
-    if not fleet_config.profile_fits(profile, body.document):
+    profile = details.get("profile") or detected
+    if not fleet_config.profile_fits(profile, file):
         raise _unprocessable("This profile is for the other file format")
     secrets = [(secret, _vault_kind(secret, asset["public_key"])) for secret in found]
 
     fields = {
-        "kind": body.kind,
-        "source": "file",
+        "kind": details["kind"],
+        "source": details["source"],
         "profile": profile,
-        "role": _clean_text(body.role),
-        "firmware_version": _clean_text(body.firmware_version),
-        "label": _clean_text(body.label),
+        "role": _clean_text(details.get("role")),
+        "firmware_version": _clean_text(details.get("firmware_version")),
+        "label": _clean_text(details.get("label")),
     }
-    data_key = (
-        fleet_vault.sessions.key_for(x_fleet_vault_token) if settings.fleet_vault_enabled else None
-    )
+    data_key = fleet_vault.sessions.key_for(vault_token) if settings.fleet_vault_enabled else None
     added: list[dict[str, Any]] = []
     try:
         if data_key is not None:
