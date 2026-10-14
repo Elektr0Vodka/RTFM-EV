@@ -566,6 +566,24 @@ export function PacketFeedStatsPanel({ contacts }: { contacts: Contact[] }) {
     };
   }, [isLiveWindow, selectedWindow, nowSec]);
 
+  const applyCustomRange = (startTs: number, endTs: number) => {
+    api.getRawFeedStats(startTs, endTs).then(
+      (d) => setDbStats(d),
+      () => {}
+    );
+  };
+
+  // A custom range restored from storage has no Apply click behind it, so apply
+  // it once on mount; otherwise the panel shows an empty custom window.
+  useEffect(() => {
+    if (selectedWindow !== CUSTOM_RANGE_ID || !customStart || !customEnd) return;
+    const startTs = Math.floor(new Date(customStart).getTime() / 1000);
+    const endTs = Math.floor(new Date(customEnd).getTime() / 1000);
+    if (endTs > startTs) applyCustomRange(startTs, endTs);
+    // Mount only: later custom ranges are applied by the Apply button.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const stats = useMemo(() => {
     if (isLiveWindow) {
       return buildRawPacketStatsSnapshot(
@@ -651,12 +669,7 @@ export function PacketFeedStatsPanel({ contacts }: { contacts: Contact[] }) {
             customEnd={customEnd}
             onCustomStartChange={setCustomStart}
             onCustomEndChange={setCustomEnd}
-            onApplyCustom={(s, e) => {
-              api.getRawFeedStats(s, e).then(
-                (d) => setDbStats(d),
-                () => {}
-              );
-            }}
+            onApplyCustom={applyCustomRange}
           />
         </div>
         <div className="mt-2 text-xs text-muted-foreground">

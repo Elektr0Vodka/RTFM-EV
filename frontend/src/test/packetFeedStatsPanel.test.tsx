@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { api } from '../api';
 import { PacketFeedStatsPanel } from '../components/PacketFeedStatsPanel';
 import { resetRawPacketStore, seedRawPacketStore } from '../stores/rawPacketStore';
 import type { RawPacketStatsSessionState } from '../utils/rawPacketStats';
@@ -256,5 +257,38 @@ describe('PacketFeedStatsPanel', () => {
 
     expect(screen.getAllByText('Alpha').length).toBeGreaterThan(0);
     expect(screen.queryByText('Identity not resolvable')).not.toBeInTheDocument();
+  });
+
+  it('loads a custom range restored from storage without pressing Apply', async () => {
+    const customStart = '2026-10-01T00:00';
+    const customEnd = '2026-10-08T00:00';
+    const s = Math.floor(new Date(customStart).getTime() / 1000);
+    const e = Math.floor(new Date(customEnd).getTime() / 1000);
+    localStorage.setItem(
+      'rtfm-rawfeed-window',
+      JSON.stringify({ id: 'custom', customStart, customEnd })
+    );
+    const getRawFeedStats = vi.spyOn(api, 'getRawFeedStats').mockResolvedValue({
+      packet_count: 4321,
+      decrypted_count: 0,
+      undecrypted_count: 4321,
+      decrypt_rate: 0,
+      path_bearing_count: 0,
+      path_bearing_rate: 0,
+      distinct_paths: 0,
+      average_rssi: null,
+      best_rssi: null,
+      payload_breakdown: [],
+      route_breakdown: [],
+      hop_profile: [],
+      hop_byte_width_profile: [],
+      rssi_buckets: [],
+    });
+
+    renderPanel();
+
+    expect(getRawFeedStats).toHaveBeenCalledWith(s, e);
+    expect(await screen.findByText(/4,321 packets in custom window/)).toBeInTheDocument();
+    getRawFeedStats.mockRestore();
   });
 });
