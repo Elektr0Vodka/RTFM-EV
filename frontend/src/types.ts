@@ -1941,7 +1941,7 @@ export interface FleetAssetHealth {
 
 export type FleetEventManualKind =
   'placement' | 'maintenance' | 'failure' | 'custody' | 'firmware' | 'note';
-export type FleetEventKind = FleetEventManualKind | 'status';
+export type FleetEventKind = FleetEventManualKind | 'status' | 'config_applied';
 
 /** One row of an asset's log. `status` rows are written by the app. */
 export interface FleetAssetEvent {
@@ -2098,6 +2098,99 @@ export interface FleetConfigReported {
   rows: FleetConfigReportedRow[];
   /** Settings of the config that could be compared but have no stored report. */
   not_reported: string[];
+}
+
+// Plan 32 Phase 3: reading and applying a config over a USB cable in the browser.
+// The server plans; the browser only sends the commands (utils/serialCli.ts).
+
+/** Command sent -> the device's reply; null when it did not answer. */
+export type FleetDeviceReplies = Record<string, string | null>;
+
+export interface FleetDeviceIdentity {
+  public_key: string | null;
+  role: string | null;
+  firmware_version: string | null;
+  board: string | null;
+  name: string | null;
+}
+
+export interface FleetDeviceReadPreview {
+  identity: FleetDeviceIdentity;
+  profile: FleetConfigProfile;
+  /** Each secret is {"$secret": null}: a preview holds no secret value. */
+  document: Record<string, unknown>;
+  secrets: number;
+  /** `region_cut_off`, `hidden:<key>`. */
+  warnings: string[];
+}
+
+export interface FleetDeviceReadStep {
+  done: boolean;
+  commands: string[];
+  read: FleetDeviceReadPreview | null;
+}
+
+export interface FleetDeviceReadStoreResult extends FleetConfigImportResult {
+  identity: FleetDeviceIdentity;
+  public_key_set: boolean;
+  warnings: string[];
+}
+
+export type FleetApplyStepCheck = 'value' | 'reply' | 'public_key';
+
+export interface FleetApplyStep {
+  index: number;
+  section: 'vars' | 'filter' | 'region' | 'hardware' | 'mqtt';
+  path: (string | number)[];
+  /** What is sent. For a secret setting this holds the secret value. */
+  command: string;
+  /** What is shown and logged: a secret value is replaced. */
+  display: string;
+  secret: boolean;
+  reboot: boolean;
+  readback: string[];
+  expect: unknown;
+  check: FleetApplyStepCheck;
+}
+
+export interface FleetApplyRow {
+  path: (string | number)[];
+  status: 'change' | 'same' | 'skip';
+  configured: string;
+  device: string;
+  reason: string | null;
+}
+
+export interface FleetApplyPlan {
+  identity: FleetDeviceIdentity;
+  steps: FleetApplyStep[];
+  rows: FleetApplyRow[];
+  /** A setting only takes effect after a restart of the device. */
+  reboot: boolean;
+  /** The device takes the asset's identity (prv.key). */
+  rekey: boolean;
+  vault: 'off' | 'locked' | 'open';
+}
+
+export interface FleetApplyCheck {
+  ok: boolean;
+  reason: string | null;
+  /** The reply as it may be shown; empty for a secret. */
+  reply: string;
+}
+
+export interface FleetApplyLogResult {
+  display: string;
+  ok: boolean;
+  reply: string;
+}
+
+export interface FleetApplyLogInput {
+  transport: 'usb_browser';
+  total: number;
+  results: FleetApplyLogResult[];
+  stopped_reason: string | null;
+  reboot_needed: boolean;
 }
 
 export interface FleetConfigExport {

@@ -519,7 +519,24 @@ export function FleetAssetView({
                 onChanged={() => setLogVersion((version) => version + 1)}
               />
             )}
-            {asset && <FleetAssetConfigs assetId={asset.id} onOpenTemplates={onOpenTemplates} />}
+            {asset && (
+              <FleetAssetConfigs
+                assetId={asset.id}
+                assetPublicKey={asset.public_key}
+                onOpenTemplates={onOpenTemplates}
+                onAssetChanged={() => {
+                  void api
+                    .fleetAsset(asset.id)
+                    .then((next) => {
+                      setAsset(next);
+                      setForm(formOf(next));
+                    })
+                    .catch(() => undefined);
+                  setLogVersion((version) => version + 1);
+                }}
+                onLogChanged={() => setLogVersion((version) => version + 1)}
+              />
+            )}
             {asset && (
               <FleetAssetSecrets
                 asset={asset}

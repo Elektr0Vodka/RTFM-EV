@@ -70,6 +70,13 @@ import type {
   FleetConfigImportInput,
   FleetConfigImportResult,
   FleetConfigReported,
+  FleetDeviceReadStep,
+  FleetDeviceReadStoreResult,
+  FleetDeviceReplies,
+  FleetApplyCheck,
+  FleetApplyLogInput,
+  FleetApplyPlan,
+  FleetApplyStep,
   FleetConfigSummary,
   FleetConfigTemplate,
   FleetConfigTemplateFields,
@@ -1683,6 +1690,49 @@ export const api = {
     }),
   deleteFleetConfigTemplate: (templateId: number) =>
     fetchJson<{ status: string }>(`/fleet/config-templates/${templateId}`, { method: 'DELETE' }),
+  // Plan 32 Phase 3: a device on a USB cable in this browser. The server never
+  // opens a port: it gets the replies and answers with commands or a file.
+  fleetDeviceReadStep: (replies: FleetDeviceReplies) =>
+    fetchJson<FleetDeviceReadStep>('/fleet/device/read-step', {
+      method: 'POST',
+      body: JSON.stringify({ replies }),
+    }),
+  storeFleetDeviceRead: (
+    assetId: number,
+    replies: FleetDeviceReplies,
+    label: string | null,
+    setPublicKey: boolean
+  ) =>
+    fetchJson<FleetDeviceReadStoreResult>(`/fleet/assets/${assetId}/configs/read`, {
+      method: 'POST',
+      body: JSON.stringify({ replies, label, set_public_key: setPublicKey }),
+      headers: fleetVaultHeaders(),
+    }),
+  fleetConfigApplyPlan: (
+    configId: number,
+    replies: FleetDeviceReplies,
+    allowPrivateKey: boolean,
+    allowRadio: boolean
+  ) =>
+    fetchJson<FleetApplyPlan>(`/fleet/configs/${configId}/apply-plan`, {
+      method: 'POST',
+      body: JSON.stringify({
+        replies,
+        allow_private_key: allowPrivateKey,
+        allow_radio: allowRadio,
+      }),
+      headers: fleetVaultHeaders(),
+    }),
+  checkFleetApplyStep: (step: FleetApplyStep, reply: string | null, readback: FleetDeviceReplies) =>
+    fetchJson<FleetApplyCheck>('/fleet/device/check', {
+      method: 'POST',
+      body: JSON.stringify({ step, reply, readback }),
+    }),
+  logFleetConfigApply: (configId: number, input: FleetApplyLogInput) =>
+    fetchJson<FleetAssetEvent>(`/fleet/configs/${configId}/apply-log`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
   getSnmpAgent: (signal?: AbortSignal) => fetchJson<SnmpAgentState>('/snmp-agent', { signal }),
   saveSnmpAgent: (settings: SnmpAgentSettings) =>
     fetchJson<SnmpAgentState>('/snmp-agent', { method: 'PUT', body: JSON.stringify(settings) }),

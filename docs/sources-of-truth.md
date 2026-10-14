@@ -114,6 +114,17 @@ machine this was authored on and may differ elsewhere.
   licence file: match the file format, take no code from it. When the toolbox
   adds a key that holds a secret, add it to `_SECRET_PATHS` in
   `app/services/fleet_config.py`.
+  Reading a device over a USB cable (plan 32 Phase 3,
+  `app/services/fleet_device_cli.py`) writes that same file, so the toolbox's
+  list of variables (`DeviceVars`, `VAR_MIN_VERSION` in `src/types.ts`) and
+  section shapes are the source for `VAR_KEYS` and the section readers there.
+  The **commands and reply formats** of the text command line are taken from
+  the firmware source, not from the toolbox: stock
+  `src/helpers/CommonCLI.cpp` and `examples/simple_repeater/main.cpp`
+  (meshcore-dev), DMC `examples/simple_repeater/Filter.cpp` and
+  `src/helpers/CommonCLI_Observer.cpp` (branch `dmc-observer-dev`, read at
+  `923fc428`). When the firmware changes a reply, the parser or a read-back
+  check there changes with it.
 - MCCL (MeshCore channel lists / wordlist source): https://github.com/Elektr0Vodka/MCCL
   (local `G:\Github\repositories\Elektr0Vodka\mccl`). The channel finder's bundled
   "Known channels (MCCL)" list, `frontend/public/wordlists/known-channels.txt`, is
