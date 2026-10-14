@@ -2079,6 +2079,27 @@ export interface FleetConfigImportResult {
   secrets_left_out: number;
 }
 
+/** One setting a stored config holds and its node reported. */
+export interface FleetConfigReportedRow {
+  /** Where it sits in the config, e.g. `vars/tx`. */
+  path: string;
+  configured: string;
+  /** The stored reply, as text. */
+  reported: string;
+  /** When that report was stored; a pane read again with the same values keeps it. */
+  reported_at: number;
+  source: 'node_info' | 'radio_settings' | 'advert_intervals' | 'owner_info' | 'regions' | 'snmp';
+  same: boolean;
+}
+
+/** A stored config against the newest stored reports of its node. Stored data only. */
+export interface FleetConfigReported {
+  status: 'ok' | 'no_public_key' | 'not_a_device_file' | 'nothing_stored';
+  rows: FleetConfigReportedRow[];
+  /** Settings of the config that could be compared but have no stored report. */
+  not_reported: string[];
+}
+
 export interface FleetConfigExport {
   document: Record<string, unknown>;
   secrets_included: number;

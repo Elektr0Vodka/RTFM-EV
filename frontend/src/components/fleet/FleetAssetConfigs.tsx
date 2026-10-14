@@ -17,6 +17,7 @@ import type {
   FleetConfigImportInput,
   FleetConfigKind,
   FleetConfigProfile,
+  FleetConfigReported,
   FleetConfigSummary,
   FleetConfigTemplate,
 } from '../../types';
@@ -137,6 +138,107 @@ function ConfigDiffView({ left, right }: { left: ConfigDocument; right: ConfigDo
           {t('fleet_config_uncompared', { paths: diff.uncompared.join(', ') })}
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * A config against what its node last reported. The server compares with
+ * stored pane snapshots and SNMP polls only; no node is asked anything here.
+ */
+function ConfigReportedView({
+  configId,
+  onError,
+}: {
+  configId: number;
+  onError: (error: string) => void;
+}) {
+  const t = useT();
+  const [reported, setReported] = useState<FleetConfigReported | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    api
+      .fleetConfigReported(configId, controller.signal)
+      .then(setReported)
+      .catch((err) => {
+        if (!isAbortError(err)) onError(errorMessage(err));
+      });
+    return () => controller.abort();
+  }, [configId, onError]);
+
+  if (reported === null) return null;
+  const different = reported.rows.filter((row) => !row.same);
+  const same = reported.rows.length - different.length;
+
+  return (
+    <div className="space-y-2" data-testid="fleet-config-reported">
+      <p className="font-medium text-foreground">{t('fleet_config_reported_title')}</p>
+      {reported.status !== 'ok' ? (
+        <p className="text-muted-foreground" data-testid="fleet-config-reported-status">
+          {t(`fleet_config_reported_${reported.status}`)}
+        </p>
+      ) : (
+        <>
+          {different.length === 0 ? (
+            <p className="text-success" data-testid="fleet-config-reported-none">
+              {t('fleet_config_reported_none')}
+            </p>
+          ) : (
+            <div className="overflow-x-auto rounded border border-border">
+              <table className="w-full text-[11px]" data-testid="fleet-config-reported-diff">
+                <thead>
+                  <tr className="border-b border-border text-left text-muted-foreground">
+                    <th className="px-2 py-1 font-medium">{t('fleet_config_diff_key')}</th>
+                    <th className="px-2 py-1 font-medium">{t('fleet_config_diff_this')}</th>
+                    <th className="px-2 py-1 font-medium">{t('fleet_config_reported_value')}</th>
+                    <th className="px-2 py-1 font-medium">{t('fleet_config_reported_from')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {different.map((row) => (
+                    <tr key={row.path} className="border-b border-border last:border-0">
+                      <td className="break-all px-2 py-1 font-mono text-muted-foreground">
+                        {row.path}
+                      </td>
+                      <td className="px-2 py-1">
+                        <LeafText leaf={{ secret: false, text: row.configured }} />
+                      </td>
+                      <td className="px-2 py-1">
+                        <LeafText leaf={{ secret: false, text: row.reported }} />
+                      </td>
+                      <td className="px-2 py-1 text-muted-foreground">
+                        {t('fleet_config_reported_stored', {
+                          // A pane is named the way the repeater page names it.
+                          source:
+                            row.source === 'snmp'
+                              ? t('fleet_config_reported_source_snmp')
+                              : t(`repeater_${row.source}_title`),
+                          when: formatDateTime(row.reported_at * 1000, {
+                            dateStyle: 'medium',
+                            timeStyle: 'short',
+                          }),
+                        })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {same > 0 && (
+            <p className="text-muted-foreground" data-testid="fleet-config-reported-same">
+              {t('fleet_config_reported_same', { count: same })}
+            </p>
+          )}
+          {reported.not_reported.length > 0 && (
+            <p className="text-muted-foreground" data-testid="fleet-config-reported-missing">
+              {t('fleet_config_reported_missing', { paths: reported.not_reported.join(', ') })}
+            </p>
+          )}
+        </>
+      )}
+      <p className="text-muted-foreground">{t('fleet_config_reported_hint')}</p>
     </div>
   );
 }
@@ -330,6 +432,7 @@ function ConfigDetail({
       </div>
 
       {compareWith && <ConfigDiffView left={config.document} right={compareWith.document} />}
+      <ConfigReportedView configId={summary.id} onError={onError} />
       <ConfigDocumentView document={config.document} />
     </div>
   );

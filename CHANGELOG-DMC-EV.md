@@ -11,6 +11,34 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-14 (Device config: compare with what the node reported, plan 32 Phase 2, feat/device-config-compare-reported)
+
+No migration, no new dependency, no new environment variable. Read-only: this compares with data the app already stored. No node is asked anything and nothing is sent.
+
+### Fleet
+- **A config against what its node reported.** An opened config now has a
+  "What the node reported" part. It lists the settings where the config
+  differs from the newest values the app has stored for the node with the
+  asset's public key: the repeater or room panes you opened for it (Node Info,
+  Radio Settings, Advert Intervals, Owner Info, Regions) and its SNMP polls.
+  Each line shows the value in the config, the reported value, and which pane
+  or poll it came from and when that was stored.
+- **Which settings.** Name, latitude, longitude, the four radio values
+  (frequency, bandwidth, spreading factor, coding rate), TX power, airtime
+  factor, repeat, flood max, both advert intervals, owner info and the home
+  region. Only settings both sides have are compared. A setting of the config
+  that has no stored report is listed as such, so you can see which pane was
+  never opened.
+- **Same means same on the device.** The toolbox file holds the position with
+  5 decimals and the frequency with 3, and the node answers with more, so
+  those count as the same within half of that last digit. A line break in the
+  owner info is the same as the `|` the CLI shows. The home region is only
+  compared with a complete admin dump of the region tree.
+- **What it is not.** It does not read the node, so a stored value can be
+  older than the node's current setting. A pane read again with unchanged
+  values keeps its first date. A companion's file has nothing to compare with,
+  and an asset without a public key cannot be matched to a node.
+
 ## Update 2026-10-14 (Device config library, plan 32 Phase 1, feat/device-config-library)
 
 Migration `_149`. No new dependency and no new environment variable. Nothing here reaches a device: no serial port, no LAN call, no radio. Reading a config from a device and applying one to it are later phases and are not in this change.

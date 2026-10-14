@@ -414,6 +414,7 @@ This table is a representative subset, not the full route list (for example the 
 | PATCH | `/api/fleet/configs/{id}` | Correct profile, role, firmware version or label; the document cannot be changed |
 | DELETE | `/api/fleet/configs/{id}` | Remove one stored config; its secrets stay in the vault |
 | POST | `/api/fleet/configs/{id}/export` | The config as a file again; `include_secrets` needs the vault unlocked and is audited, otherwise the secret keys are left out |
+| GET | `/api/fleet/configs/{id}/reported` | Where a stored config differs from the newest stored pane snapshots and SNMP poll of its node (read-only, no radio access) |
 | POST | `/api/fleet/configs/{id}/template` | Save a stored config as a template (identity and secrets left out) |
 | GET | `/api/fleet/config-templates` | Config templates |
 | POST | `/api/fleet/config-templates` | Add a template (a document with `{{name}}` variables and no secret value) |

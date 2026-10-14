@@ -25,6 +25,9 @@ from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.decoder import derive_public_key
+from app.repository.contact_snmp import SnmpHistoryRepository
+from app.repository.device_config_history import DeviceConfigHistoryRepository
+from app.repository.fleet import FleetAssetRepository
 from app.repository.fleet_config import (
     CONFIG_EDITABLE,
     TEMPLATE_FIELDS,
@@ -34,7 +37,7 @@ from app.repository.fleet_config import (
 from app.repository.fleet_vault import FleetVaultRepository
 from app.routers.fleet import _asset_or_404, _clean_text
 from app.routers.fleet_vault import _NO_STORE, _audit, _require_key, _secret_detail
-from app.services import fleet_config, fleet_vault
+from app.services import fleet_config, fleet_config_reported, fleet_vault
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/fleet", tags=["fleet configs"])
@@ -106,6 +109,31 @@ class FleetConfigExport(BaseModel):
     document: dict[str, Any]
     secrets_included: int
     secrets_left_out: int = Field(description="Their keys are not in the document")
+
+
+class FleetConfigReportedRow(BaseModel):
+    """One setting the config holds and the node reported."""
+
+    path: str = Field(description="Where it sits in the config, e.g. vars/tx")
+    configured: str
+    reported: str = Field(description="The stored reply, as text")
+    reported_at: int = Field(
+        description="When that report was stored; a pane read again with the same values keeps it"
+    )
+    source: Literal[
+        "node_info", "radio_settings", "advert_intervals", "owner_info", "regions", "snmp"
+    ]
+    same: bool
+
+
+class FleetConfigReported(BaseModel):
+    """A stored config against the newest stored reports of its node."""
+
+    status: Literal["ok", "no_public_key", "not_a_device_file", "nothing_stored"]
+    rows: list[FleetConfigReportedRow]
+    not_reported: list[str] = Field(
+        description="Settings of the config that could be compared but have no stored report"
+    )
 
 
 class FleetConfigVariable(BaseModel):
@@ -432,6 +460,35 @@ async def export_config(
         {"document": document, "secrets_included": included, "secrets_left_out": left_out},
         headers=_NO_STORE,
     )
+
+
+@router.get("/configs/{config_id}/reported", response_model=FleetConfigReported)
+async def config_reported(config_id: int) -> dict[str, Any]:
+    """Where a stored config differs from what its node last reported.
+
+    Stored data only: the newest snapshot of each repeater or room pane and the
+    newest SNMP poll of the asset's public key. No node is asked anything, so
+    a setting whose pane was never opened is listed under ``not_reported``.
+    """
+    config = await _config_or_404(config_id)
+    nothing: dict[str, Any] = {"rows": [], "not_reported": []}
+    if not isinstance(config["document"].get("vars"), dict):
+        # A companion has no panes: there is nothing its file can be held against.
+        return {"status": "not_a_device_file", **nothing}
+    asset = await FleetAssetRepository.get(config["asset_id"])
+    public_key = asset["public_key"] if asset else None
+    if not public_key:
+        return {"status": "no_public_key", **nothing}
+    snapshots = await DeviceConfigHistoryRepository.get_latest_by_kind(public_key)
+    poll = await SnmpHistoryRepository.get_latest(public_key)
+    if poll is not None:
+        snapshots["snmp"] = {"timestamp": poll["timestamp"], "data": poll["values"]}
+    rows, not_reported = fleet_config_reported.compare(config["document"], snapshots)
+    return {
+        "status": "ok" if rows else "nothing_stored",
+        "rows": rows,
+        "not_reported": not_reported,
+    }
 
 
 def _checked_template(template: dict[str, Any]) -> dict[str, Any]:

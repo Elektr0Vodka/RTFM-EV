@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   fleetConfigs: vi.fn(),
   importFleetConfig: vi.fn(),
   fleetConfig: vi.fn(),
+  fleetConfigReported: vi.fn(),
   updateFleetConfig: vi.fn(),
   deleteFleetConfig: vi.fn(),
   exportFleetConfig: vi.fn(),
@@ -75,6 +76,8 @@ function template(overrides: Partial<FleetConfigTemplate> = {}): FleetConfigTemp
   };
 }
 
+const NOTHING_REPORTED = { status: 'nothing_stored', rows: [], not_reported: [] };
+
 const ASSET = { id: 5 };
 
 function renderConfigs(onOpenTemplates = vi.fn()) {
@@ -99,6 +102,7 @@ beforeEach(() => {
   mocks.fleetVaultStatus.mockResolvedValue(VAULT_OFF);
   mocks.fleetConfigs.mockResolvedValue([]);
   mocks.fleetConfigTemplates.mockResolvedValue([]);
+  mocks.fleetConfigReported.mockResolvedValue(NOTHING_REPORTED);
   URL.createObjectURL = createObjectURL;
   URL.revokeObjectURL = vi.fn();
   vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
@@ -218,6 +222,107 @@ describe('FleetAssetConfigs: history', () => {
     fireEvent.click(button);
 
     await waitFor(() => expect(mocks.deleteFleetConfig).toHaveBeenCalledWith(1));
+  });
+});
+
+describe('FleetAssetConfigs: what the node reported', () => {
+  async function openConfig() {
+    mocks.fleetConfigs.mockResolvedValue([summary()]);
+    mocks.fleetConfig.mockResolvedValue(config());
+    renderConfigs();
+    fireEvent.click(await screen.findByTestId('fleet-config-open-1'));
+    return screen.findByTestId('fleet-config-reported');
+  }
+
+  it('lists the settings the node reported differently, with where that came from', async () => {
+    mocks.fleetConfigReported.mockResolvedValue({
+      status: 'ok',
+      rows: [
+        {
+          path: 'vars/tx',
+          configured: '22',
+          reported: '20',
+          reported_at: 1700000000,
+          source: 'radio_settings',
+          same: false,
+        },
+        {
+          path: 'vars/name',
+          configured: 'NL-TST-RPT',
+          reported: 'NL-TST-RPT',
+          reported_at: 1700000100,
+          source: 'snmp',
+          same: true,
+        },
+        {
+          path: 'vars/repeat',
+          configured: 'true',
+          reported: 'on',
+          reported_at: 1700000000,
+          source: 'radio_settings',
+          same: true,
+        },
+      ],
+      not_reported: ['vars/lat', 'vars/lon'],
+    });
+
+    const block = await openConfig();
+
+    expect(mocks.fleetConfigReported).toHaveBeenCalledWith(1, expect.anything());
+    const rows = within(await within(block).findByTestId('fleet-config-reported-diff'))
+      .getAllByRole('row')
+      .slice(1);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent('vars/tx');
+    expect(rows[0]).toHaveTextContent('22');
+    expect(rows[0]).toHaveTextContent('20');
+    expect(rows[0]).toHaveTextContent('Radio Settings, stored');
+    expect(within(block).getByTestId('fleet-config-reported-same')).toHaveTextContent(
+      '2 settings are as the node reported them'
+    );
+    expect(within(block).getByTestId('fleet-config-reported-missing')).toHaveTextContent(
+      'vars/lat, vars/lon'
+    );
+  });
+
+  it('says so when the node reported everything as configured', async () => {
+    mocks.fleetConfigReported.mockResolvedValue({
+      status: 'ok',
+      rows: [
+        {
+          path: 'vars/tx',
+          configured: '22',
+          reported: '22',
+          reported_at: 1700000000,
+          source: 'radio_settings',
+          same: true,
+        },
+      ],
+      not_reported: [],
+    });
+
+    const block = await openConfig();
+
+    expect(await within(block).findByTestId('fleet-config-reported-none')).toHaveTextContent(
+      'No differences'
+    );
+    expect(within(block).queryByTestId('fleet-config-reported-diff')).not.toBeInTheDocument();
+    expect(within(block).queryByTestId('fleet-config-reported-missing')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['nothing_stored', 'Nothing is stored'],
+    ['no_public_key', 'no public key'],
+    ['not_a_device_file', 'companion'],
+  ])('explains the status %s instead of showing a table', async (status, text) => {
+    mocks.fleetConfigReported.mockResolvedValue({ status, rows: [], not_reported: [] });
+
+    const block = await openConfig();
+
+    expect(await within(block).findByTestId('fleet-config-reported-status')).toHaveTextContent(
+      text
+    );
+    expect(within(block).queryByTestId('fleet-config-reported-diff')).not.toBeInTheDocument();
   });
 });
 
