@@ -569,3 +569,40 @@ def test_an_observer_read_applied_to_itself_lists_nothing_to_skip() -> None:
 
     assert plan.steps == []
     assert _skips(plan) == {}
+
+
+def test_long_hostile_replies_are_parsed_quickly() -> None:
+    """Replies come from a device: a long one must not make a parser backtrack for long."""
+    import time
+
+    hostile = {
+        "region": "* F\n nl" + " " * 4000 + "x\n",
+        "region home": "home is " + " " * 4000 + "a",
+        "region default": "default scope is " + "  " * 2000 + "a",
+        "filter channel list": "#a" + " " * 4000 + "x",
+    }
+    tree_with_marks = "* F\n nl" + "^" * 4000 + "x\n"
+    start = time.perf_counter()
+    fleet_device_cli.read_region(hostile)
+    fleet_device_cli.parse_region_tree(tree_with_marks)
+    fleet_device_cli.read_filter({"filter channel list": hostile["filter channel list"]})
+    fleet_device_cli.parse_version("1" * 4000 + "x")
+    assert time.perf_counter() - start < 0.5
+    assert fleet_device_cli.parse_version("v1.14.1-dmc (Build: 1-Jan)") == (1, 14, 1)
+
+
+def test_region_home_and_default_replies() -> None:
+    region = fleet_device_cli.read_region(
+        {
+            "region": "* F\n nl F\n",
+            "region home": " home is now #nl",
+            "region default": " default scope is <null>",
+        }
+    )
+    assert region["home"] == "nl" and region["default"] == ""
+    assert (
+        fleet_device_cli.read_region(
+            {"region": "*", "region home": " home is *", "region default": " default scope is be"}
+        )["default"]
+        == "be"
+    )

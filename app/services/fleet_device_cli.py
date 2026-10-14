@@ -93,7 +93,9 @@ def command_allowed(command: str) -> bool:
 # --- reply helpers ------------------------------------------------------------
 
 _NUMBER = re.compile(r"-?\d+(\.\d+)?")
-_VERSION = re.compile(r"v?(\d+)\.(\d+)\.(\d+)")
+# Bounded digit runs: searching a long run of digits stays linear (CodeQL
+# polynomial-redos); a version part never has more than a few digits.
+_VERSION = re.compile(r"v?(\d{1,6})\.(\d{1,6})\.(\d{1,6})")
 _HEX_KEY = re.compile(r"[0-9a-f]{64}")
 _PRIVATE_KEY = re.compile(r"[0-9a-fA-F]{128}")
 # A value that is not there: no stored secret, or a read-back that shows nothing.
@@ -362,7 +364,9 @@ _FILTER_HOPS = re.compile(r"^\s*(\d{1,2})\s*:\s*(\d+)\s*$")
 _FILTER_RATE = re.compile(r"^\s*(\d{1,2})\s*:\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*(\d+))?\s*$")
 _FILTER_HASH = re.compile(r"minimal\s+(\d+)\s+bytes", re.IGNORECASE)
 _FILTER_MALFORMED = re.compile(r"scan\s+(on|off)\b", re.IGNORECASE)
-_FILTER_CHANNEL_HASH = re.compile(r"\s*\([0-9a-fA-F]{1,2}\)\s*$")
+# Anchored at the end of a stripped part, with no leading \s*: a long run of
+# spaces in a reply must not make the search backtrack (CodeQL polynomial-redos).
+_FILTER_CHANNEL_HASH = re.compile(r"\([0-9a-fA-F]{1,2}\)$")
 _FILTER_OK = re.compile(
     r"^>?\s*Filter:\s*(OK|on|off|channel \S+ (added|removed)|malformed scan (on|off))\s*$",
     re.IGNORECASE,
@@ -410,8 +414,15 @@ def _filter_channels(reply: str | None) -> list[str]:
     body = re.sub(r"^>\s*", "", _stripped(reply)).strip()
     if not body or body.lower() == "none":
         return []
-    names = (_FILTER_CHANNEL_HASH.sub("", part.strip()).strip() for part in body.split(","))
+    names = (_without_channel_hash(part) for part in body.split(","))
     return [name for name in names if name]
+
+
+def _without_channel_hash(part: str) -> str:
+    """``#test (a1)`` -> ``#test``: the channel hash the firmware adds is dropped."""
+    text = part.strip()
+    match = _FILTER_CHANNEL_HASH.search(text)
+    return text[: match.start()].rstrip() if match else text
 
 
 def read_filter(replies: dict[str, str | None]) -> dict[str, Any]:
@@ -439,8 +450,10 @@ def read_filter(replies: dict[str, str | None]) -> dict[str, Any]:
 # --- region ---------------------------------------------------------------------
 
 _REGION_SKIP = re.compile(r"unknown command|error|-none-", re.IGNORECASE)
-_REGION_HOME = re.compile(r"home is(?:\s+now)?\s+(.+?)\s*$", re.IGNORECASE)
-_REGION_DEFAULT = re.compile(r"default scope is(?:\s+now)?\s+(.+?)\s*$", re.IGNORECASE)
+# Replies " home is [now] <name>" and " default scope is [now] <name>",
+# read with plain string handling (no backtracking on a long reply).
+_REGION_HOME = "home is"
+_REGION_DEFAULT = "default scope is"
 # The firmware writes the region dump into a 160-byte reply and stops there.
 _REGION_DUMP_FULL = 150
 
@@ -460,9 +473,10 @@ def parse_region_tree(reply: str | None) -> dict[str, Any]:
             continue
         depth = len(line) - len(line.lstrip())
         body = line.strip()
-        flood = bool(re.search(r"\sF$", body))
-        body = re.sub(r"\s+F$", "", body)
-        name = re.sub(r"^#", "", re.sub(r"\^+$", "", body)).strip()
+        flood = len(body) > 1 and body.endswith("F") and body[-2].isspace()
+        if flood:
+            body = body[:-1].rstrip()
+        name = body.rstrip("^").removeprefix("#").strip()
         if not name:
             continue
         if name == "*":
@@ -507,12 +521,20 @@ def tree_to_def(root: dict[str, Any]) -> str:
     return " ".join(tokens)
 
 
-def _region_value(reply: str | None, pattern: re.Pattern[str], unset: str) -> str | None:
-    match = pattern.search(reply or "")
-    value = match.group(1).strip() if match else ""
+def _region_value(reply: str | None, marker: str, unset: str) -> str | None:
+    """The name after ``marker`` (an optional ``now`` skipped), or None when unset."""
+    text = reply or ""
+    at = text.lower().find(marker)
+    rest = text[at + len(marker) :] if at >= 0 else ""
+    if not rest[:1].isspace():
+        return None
+    words = rest.split()
+    if len(words) > 1 and words[0].lower() == "now":
+        words = words[1:]
+    value = " ".join(words)
     if not value or value == unset:
         return None
-    return re.sub(r"^#", "", value)
+    return value.removeprefix("#")
 
 
 def read_region(replies: dict[str, str | None]) -> dict[str, Any]:
