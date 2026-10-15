@@ -22,7 +22,14 @@ import type {
   RadioTraceHopRequest,
   RadioTraceResponse,
 } from '../types';
-import { CONTACT_TYPE_REPEATER, CONTACT_TYPE_ROOM } from '../types';
+import {
+  CONTACT_TYPE_CLIENT,
+  CONTACT_TYPE_REPEATER,
+  CONTACT_TYPE_ROOM,
+  CONTACT_TYPE_SENSOR,
+} from '../types';
+import { CompanionCliConsole } from './CompanionCliConsole';
+import { SensorDashboardPanel } from './repeater/SensorDashboardPanel';
 import {
   getContactDisplayName,
   isPrefixOnlyContact,
@@ -364,6 +371,9 @@ export function ConversationPane({
   const t = useT();
   const isMobile = useIsMobile();
   const [roomAuthenticated, setRoomAuthenticated] = useState(false);
+  // Chat contact whose DM shows the companion command line instead of the
+  // message list; switching conversation closes it.
+  const [cliConsoleOpenFor, setCliConsoleOpenFor] = useState<string | null>(null);
   const activeContactIsRepeater = useMemo(() => {
     if (!activeConversation || activeConversation.type !== 'contact') return false;
     const contact = contacts.find((candidate) => candidate.public_key === activeConversation.id);
@@ -374,6 +384,9 @@ export function ConversationPane({
     return contacts.find((candidate) => candidate.public_key === activeConversation.id) ?? null;
   }, [activeConversation, contacts]);
   const activeContactIsRoom = activeContact?.type === CONTACT_TYPE_ROOM;
+  // Sensors keep their chat (alerts arrive as plain DMs) with the sensor
+  // dashboard as a collapsible panel above it.
+  const activeContactIsSensor = activeContact?.type === CONTACT_TYPE_SENSOR;
   // Reset the room login gate when the conversation changes, during render and
   // not from an effect: an effect here runs after the remounted RoomServerPanel
   // has reported its cached login, and would hide the chat of a logged-in room.
@@ -699,6 +712,7 @@ export function ConversationPane({
           onTrace={onTrace}
           onPathDiscovery={onPathDiscovery}
           onDeleteContact={onDeleteContact}
+          cliSupported={!!health?.radio_device_info?.cli_supported}
           trackedTelemetryRepeaters={trackedTelemetryRepeaters}
           onToggleTrackedTelemetry={onToggleTrackedTelemetry}
           onSeedKnownRegions={onSeedKnownRegions}
@@ -745,7 +759,12 @@ export function ConversationPane({
     );
   }
 
-  const showRoomChat = !activeContactIsRoom || roomAuthenticated;
+  const cliConsoleAvailable = activeContact?.type === CONTACT_TYPE_CLIENT;
+  const cliConsoleOpen =
+    cliConsoleAvailable &&
+    activeConversation.type === 'contact' &&
+    cliConsoleOpenFor === activeConversation.id;
+  const showRoomChat = (!activeContactIsRoom || roomAuthenticated) && !cliConsoleOpen;
 
   const openChannelInRegistry = (channelKey: string) =>
     onSelectConversation({
@@ -791,6 +810,13 @@ export function ConversationPane({
         onOpenChannelInfo={onOpenChannelInfo}
         onInsertLocation={onInsertLocation}
         onEditInRegistry={openChannelInRegistry}
+        cliConsoleAvailable={cliConsoleAvailable}
+        cliConsoleOpen={cliConsoleOpen}
+        onToggleCliConsole={() =>
+          setCliConsoleOpenFor((current) =>
+            current === activeConversation.id ? null : activeConversation.id
+          )
+        }
       />
       {activeConversation.type === 'contact' && isPrefixOnlyActiveContact && (
         <ContactResolutionBanner variant="prefix-only" />
@@ -811,6 +837,13 @@ export function ConversationPane({
           autoLogin
         />
       )}
+      {activeContactIsSensor && activeContact && (
+        <SensorDashboardPanel
+          key={`sensor-panel-${activeContact.public_key}`}
+          conversation={activeConversation}
+          contacts={contacts}
+        />
+      )}
       {activeConversation.type === 'channel' && unreadSummaryAfter !== null && (
         <ChannelUnreadSummaryBanner
           // Must not collide with the MessageList sibling below, which is keyed by
@@ -820,6 +853,15 @@ export function ConversationPane({
           channelKey={activeConversation.id}
           after={unreadSummaryAfter}
         />
+      )}
+      {cliConsoleOpen && activeContact && (
+        <div className="flex-1 overflow-y-auto p-4">
+          <CompanionCliConsole
+            key={`cli-${activeContact.public_key}`}
+            target={{ kind: 'contact', publicKey: activeContact.public_key }}
+            cliSupported={!!health?.radio_device_info?.cli_supported}
+          />
+        </div>
       )}
       {showRoomChat && <div data-toast-anchor="conversation" aria-hidden="true" />}
       {showRoomChat && (

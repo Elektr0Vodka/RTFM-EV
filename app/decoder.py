@@ -59,6 +59,12 @@ GROUP_DATA_TYPE_AEIC_IMAGE = 0xAE1C
 # text types occupy 0..3 (two bits), so this value can never collide.
 TXT_TYPE_GROUP_DATA = 0x40
 
+# Companion firmware 1.18 txt_type for an explicit CLI command sent to a
+# companion (TxtDataHelpers.h TXT_TYPE_CLI_COMMAND). Our radio runs it only
+# when the sender has Remote CLI permission (contact flags 0x10); either way
+# it is not chat.
+TXT_TYPE_CLI_COMMAND = 3
+
 
 @dataclass
 class GroupDataImageChunk:

@@ -4,7 +4,16 @@ import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from app.models import CONTACT_TYPE_REPEATER, CONTACT_TYPE_ROOM, Contact, ContactUpsert, Message
+from app.decoder import TXT_TYPE_CLI_COMMAND
+from app.log_redaction import redact_cli_command
+from app.models import (
+    CONTACT_TYPE_REPEATER,
+    CONTACT_TYPE_ROOM,
+    REMOTE_CLI_FLAG,
+    Contact,
+    ContactUpsert,
+    Message,
+)
 from app.repository import (
     AmbiguousPublicKeyPrefixError,
     ContactRepository,
@@ -29,6 +38,17 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 _decrypted_dm_store_lock = asyncio.Lock()
+
+
+def cli_permitted_for(contact, txt_type: int) -> bool | None:
+    """Whether our radio ran an incoming CLI command (None for other text types).
+
+    Companion firmware 1.18 runs a txt_type 3 command only for a contact with
+    Remote CLI permission (flags bit 0x10) and queues it to us otherwise.
+    """
+    if txt_type != TXT_TYPE_CLI_COMMAND:
+        return None
+    return bool(contact is not None and (contact.flags or 0) & REMOTE_CLI_FLAG)
 
 
 @dataclass(frozen=True)
@@ -158,11 +178,16 @@ async def _store_direct_message(
     packet_hash: str | None = None,
     transport_code: int | None = None,
     region: str | None = None,
+    cli_permitted: bool | None = None,
     message_repository=MessageRepository,
     contact_repository=ContactRepository,
     raw_packet_repository=RawPacketRepository,
 ) -> Message | None:
-    if not outgoing and txt_type != 1:
+    if not outgoing and txt_type == TXT_TYPE_CLI_COMMAND:
+        # A command another companion sent to our radio can carry a secret
+        # (`set wifi.pwd`, `set pin`): store and log it masked, never in clear.
+        text = redact_cli_command(text)
+    elif not outgoing and txt_type != 1:
         # Incoming SMAZ bodies ("s:<base64>") are stored decoded. Our own sends
         # are never SMAZ, so outgoing echoes keep matching the stored row.
         text = decode_message_text(text)
@@ -223,6 +248,7 @@ async def _store_direct_message(
             sender_name=sender_name,
             transport_code=transport_code,
             region=region,
+            cli_permitted=cli_permitted,
         )
         if msg_id is None:
             await handle_duplicate_message(
@@ -260,6 +286,7 @@ async def _store_direct_message(
             packet_id=packet_id,
             transport_code=transport_code,
             region=region,
+            cli_permitted=cli_permitted,
         )
         broadcast_message(
             message=message, broadcast_fn=broadcast_fn, realtime=realtime, packet_hash=packet_hash
@@ -307,6 +334,10 @@ async def ingest_decrypted_direct_message(
             conversation_key[:12],
             (decrypted.message or "")[:50],
         )
+        return None
+
+    if outgoing and decrypted.txt_type in (1, TXT_TYPE_CLI_COMMAND):
+        # Our own console command heard back from a repeater: not chat.
         return None
 
     contact = await contact_repository.get_by_key(conversation_key)
@@ -359,13 +390,14 @@ async def ingest_decrypted_direct_message(
         packet_hash=packet_hash,
         transport_code=transport_code,
         region=region,
+        cli_permitted=cli_permitted_for(contact, decrypted.txt_type),
     )
     if message is None:
         return None
 
     logger.info(
         'Stored direct message "%s" for %r (msg ID %d in contact ID %s, outgoing=%s)',
-        truncate_for_log(decrypted.message),
+        truncate_for_log(message.text),
         format_contact_log_target(contact.name if contact else None, conversation_key),
         message.id,
         conversation_key,
@@ -388,6 +420,7 @@ async def ingest_fallback_direct_message(
     sender_key: str | None,
     broadcast_fn: BroadcastFn,
     update_last_contacted_key: str | None = None,
+    cli_permitted: bool | None = None,
 ) -> Message | None:
     return await _store_direct_message(
         packet_id=None,
@@ -407,4 +440,5 @@ async def ingest_fallback_direct_message(
         update_last_contacted_key=update_last_contacted_key,
         best_effort_content_dedup=True,
         linked_packet_dedup=False,
+        cli_permitted=cli_permitted,
     )

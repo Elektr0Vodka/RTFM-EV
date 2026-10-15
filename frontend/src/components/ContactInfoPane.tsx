@@ -39,6 +39,8 @@ interface ContactInfoPaneProps {
   onOpenContactInfo?: (publicKey: string) => void;
   onOpenConversation?: (publicKey: string) => void;
   onOpenFleetAsset?: (assetId: number) => void;
+  /** The connected radio has the MeshCore 1.18 companion command line. */
+  cliSupported?: boolean;
 }
 
 export function ContactInfoPane({
@@ -61,6 +63,7 @@ export function ContactInfoPane({
   analyzerSites = [],
   contactGroups,
   onUpdateContactGroups,
+  cliSupported = false,
   onOpenContactInfo,
   onOpenConversation,
   onOpenFleetAsset,
@@ -212,6 +215,7 @@ export function ContactInfoPane({
               analyzerSites={analyzerSites}
               contactGroups={contactGroups}
               onUpdateContactGroups={onUpdateContactGroups}
+              cliSupported={cliSupported}
               onOpenContactInfo={onOpenContactInfo}
               onOpenConversation={onOpenConversation}
               onOpenFleetAsset={onOpenFleetAsset}

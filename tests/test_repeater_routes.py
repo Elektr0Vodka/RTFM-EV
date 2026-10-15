@@ -1655,8 +1655,9 @@ class TestRepeaterNodeInfo:
         no_msgs = _radio_result(EventType.NO_MORE_MSGS)
         mc.commands.get_msg = AsyncMock(side_effect=[first_response] + [no_msgs] * 50)
 
+        # One answered command, then four that time out (lat, lon, clock, power).
         clock_ticks = [0.0, 0.1]
-        for i in range(3):
+        for i in range(4):
             base = 100.0 * (i + 1)
             clock_ticks.extend([base, base + 5.0, base + 11.0])
 
@@ -1672,6 +1673,8 @@ class TestRepeaterNodeInfo:
         assert response.lat is None
         assert response.lon is None
         assert response.clock_utc is None
+        assert response.power is None
+        assert response.power_info is None
 
 
 class TestRepeaterAdvertIntervals:

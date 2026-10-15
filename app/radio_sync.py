@@ -22,7 +22,13 @@ from meshcore import EventType, MeshCore
 from app.channel_constants import PUBLIC_CHANNEL_KEY, PUBLIC_CHANNEL_NAME
 from app.config import settings
 from app.event_handlers import cleanup_expired_acks, on_contact_message
-from app.models import _VALID_CONTACT_TYPES, Contact, ContactUpsert, apply_telemetry_perms
+from app.models import (
+    _VALID_CONTACT_TYPES,
+    Contact,
+    ContactUpsert,
+    apply_remote_cli,
+    apply_telemetry_perms,
+)
 from app.radio import RadioOperationBusyError
 from app.repository import (
     AdvertEventRepository,
@@ -1113,44 +1119,49 @@ def _normalize_radio_contacts_payload(contacts: dict | None) -> dict[str, dict]:
     return normalized
 
 
-async def _reapply_app_telemetry_perms(mc: MeshCore, radio_contacts: dict[str, dict]) -> None:
-    """Push app-set telemetry permissions to radio contacts whose bits differ.
+async def _reapply_app_contact_permissions(mc: MeshCore, radio_contacts: dict[str, dict]) -> None:
+    """Push app-set telemetry and Remote CLI permissions to radio contacts whose bits differ.
 
     The app value wins: the radio may have auto-added the contact with default
     flags, or another client may have changed them while we were disconnected.
+    A permission never set in the app (None) leaves the radio's bit alone.
     """
     try:
-        app_contacts = await ContactRepository.get_with_telemetry_perms()
+        app_contacts = await ContactRepository.get_with_app_permissions()
     except Exception as e:
-        logger.warning("Could not load app telemetry permissions: %s", e)
+        logger.warning("Could not load app contact permissions: %s", e)
         return
 
     for contact in app_contacts:
         radio_contact = radio_contacts.get(contact.public_key.lower())
-        if radio_contact is None or contact.telemetry_perms is None:
+        if radio_contact is None:
             continue
         radio_flags = int(radio_contact.get("flags") or 0)
-        wanted = apply_telemetry_perms(radio_flags, contact.telemetry_perms)
+        wanted = radio_flags
+        if contact.telemetry_perms is not None:
+            wanted = apply_telemetry_perms(wanted, contact.telemetry_perms)
+        if contact.remote_cli is not None:
+            wanted = apply_remote_cli(wanted, contact.remote_cli)
         if wanted == radio_flags:
             continue
         try:
             result = await mc.commands.change_contact_flags(radio_contact, wanted)
         except Exception as e:
             logger.warning(
-                "Error re-applying telemetry permissions to %s: %s", contact.public_key[:12], e
+                "Error re-applying contact permissions to %s: %s", contact.public_key[:12], e
             )
             continue
         if result is not None and result.type != EventType.ERROR:
             await ContactRepository.set_flags(contact.public_key, wanted)
             logger.info(
-                "Re-applied telemetry permissions to %s (flags 0x%02x -> 0x%02x)",
+                "Re-applied contact permissions to %s (flags 0x%02x -> 0x%02x)",
                 contact.public_key[:12],
                 radio_flags,
                 wanted,
             )
         else:
             logger.warning(
-                "Radio rejected telemetry permissions for %s: %s",
+                "Radio rejected contact permissions for %s: %s",
                 contact.public_key[:12],
                 result.payload if result is not None else None,
             )
@@ -1193,7 +1204,7 @@ async def sync_contacts_from_radio(mc: MeshCore) -> dict:
 
         logger.debug("Synced %d contacts from radio snapshot", synced)
 
-        await _reapply_app_telemetry_perms(mc, contacts)
+        await _reapply_app_contact_permissions(mc, contacts)
 
         # Import radio-favorited contacts into app favorites.
         # Only trust the favorite bit on contacts with a valid type (0-4);

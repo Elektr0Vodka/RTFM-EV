@@ -118,6 +118,7 @@ async def test_db():
         repeater_telemetry,
         request_traffic,
         retention,
+        sensor_push,
         settings,
         snmp_agent,
         spam,
@@ -168,6 +169,7 @@ async def test_db():
         radio_identities,
         relay_history,
         raw_feed_stats,
+        sensor_push,
     ]
     originals = [(mod, mod.db) for mod in submodules]
 

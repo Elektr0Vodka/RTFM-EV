@@ -14,7 +14,8 @@ import { DirectTraceIcon } from './DirectTraceIcon';
 import { ContactPathDiscoveryModal } from './ContactPathDiscoveryModal';
 import { RepeaterDashboardBody } from './repeater/RepeaterDashboardBody';
 import { RoomServerPanel } from './RoomServerPanel';
-import { CONTACT_TYPE_REPEATER, CONTACT_TYPE_ROOM } from '../types';
+import { CONTACT_TYPE_REPEATER, CONTACT_TYPE_ROOM, CONTACT_TYPE_SENSOR } from '../types';
+import { SensorDashboardBody } from './repeater/SensorDashboardBody';
 import type {
   AnalyzerSite,
   Contact,
@@ -62,6 +63,8 @@ export interface ContactInfoViewProps {
   onSeedKnownRegions?: (codes: string[]) => Promise<number>;
   repeaterAutoLoginKey?: string | null;
   onClearRepeaterAutoLogin?: () => void;
+  /** The connected radio has the MeshCore 1.18 companion command line. */
+  cliSupported?: boolean;
 }
 
 /**
@@ -107,6 +110,7 @@ export function ContactInfoView({
   onSeedKnownRegions,
   repeaterAutoLoginKey = null,
   onClearRepeaterAutoLogin,
+  cliSupported = false,
 }: ContactInfoViewProps) {
   const t = useT();
   const { analytics, loading, telemetryLoading, telemetryHistory, fetchTelemetry } =
@@ -141,9 +145,11 @@ export function ContactInfoView({
   const displayName = getContactDisplayName(contact.name, contact.public_key, contact.last_advert);
   const isRepeater = contact.type === CONTACT_TYPE_REPEATER;
   const isRoom = contact.type === CONTACT_TYPE_ROOM;
+  const isSensor = contact.type === CONTACT_TYPE_SENSOR;
   const conversation: Conversation = { type: 'contact', id: contact.public_key, name: displayName };
 
   const bodyProps = {
+    cliSupported,
     contact,
     contacts,
     analytics,
@@ -278,13 +284,14 @@ export function ContactInfoView({
       </header>
 
       <div className="flex-1 overflow-y-auto">
-        {(isRepeater || isRoom) && (
+        {(isRepeater || isRoom || isSensor) && (
           <LoginRegion
             t={t}
             contact={contact}
             conversation={conversation}
             contacts={contacts}
             isRepeater={isRepeater}
+            isSensor={isSensor}
             trackedTelemetryRepeaters={trackedTelemetryRepeaters}
             onToggleTrackedTelemetry={onToggleTrackedTelemetry}
             onSeedKnownRegions={onSeedKnownRegions}
@@ -338,6 +345,7 @@ function LoginRegion({
   conversation,
   contacts,
   isRepeater,
+  isSensor,
   trackedTelemetryRepeaters,
   onToggleTrackedTelemetry,
   onSeedKnownRegions,
@@ -349,6 +357,7 @@ function LoginRegion({
   conversation: Conversation;
   contacts: Contact[];
   isRepeater: boolean;
+  isSensor: boolean;
   trackedTelemetryRepeaters: string[];
   onToggleTrackedTelemetry?: (publicKey: string) => Promise<void>;
   onSeedKnownRegions?: (codes: string[]) => Promise<number>;
@@ -359,7 +368,9 @@ function LoginRegion({
   const [open, setOpen] = useState(true);
   const label = isRepeater
     ? t('contact_repeater_login_dashboard')
-    : t('contact_room_login_dashboard');
+    : isSensor
+      ? t('sensor_dashboard_login')
+      : t('contact_room_login_dashboard');
 
   return (
     <div className="border-b border-border">
@@ -392,6 +403,8 @@ function LoginRegion({
               autoLoginAndLoadAll={autoLoginAndLoadAll}
               onAutoLoginConsumed={onAutoLoginConsumed}
             />
+          ) : isSensor ? (
+            <SensorDashboardBody conversation={conversation} contacts={contacts} />
           ) : (
             <RoomServerPanel contact={contact} />
           )}

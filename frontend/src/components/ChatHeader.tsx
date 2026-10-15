@@ -10,6 +10,7 @@ import {
   MapPin,
   Route,
   Star,
+  TerminalSquare,
   Trash2,
 } from 'lucide-react';
 import { toast } from './ui/sonner';
@@ -38,7 +39,7 @@ import type {
   PathDiscoveryResponse,
   RadioConfig,
 } from '../types';
-import { CONTACT_TYPE_ROOM } from '../types';
+import { CONTACT_TYPE_CLIENT, CONTACT_TYPE_ROOM } from '../types';
 
 interface ChatHeaderProps {
   conversation: Conversation;
@@ -81,6 +82,10 @@ interface ChatHeaderProps {
   ) => void;
   /** Open this channel's Channel Registry entry in edit mode. */
   onEditInRegistry?: (channelKey: string) => void;
+  /** Show the companion command line toggle (chat contacts only). */
+  cliConsoleAvailable?: boolean;
+  cliConsoleOpen?: boolean;
+  onToggleCliConsole?: () => void;
 }
 
 export function ChatHeader({
@@ -117,6 +122,9 @@ export function ChatHeader({
   onOpenChannelInfo,
   onInsertLocation,
   onEditInRegistry,
+  cliConsoleAvailable,
+  cliConsoleOpen,
+  onToggleCliConsole,
 }: ChatHeaderProps) {
   const t = useT();
   const [showKey, setShowKey] = useState(false);
@@ -202,6 +210,8 @@ export function ChatHeader({
       ? contacts.find((contact) => contact.public_key === conversation.id)
       : null;
   const activeContactIsRoomServer = activeContact?.type === CONTACT_TYPE_ROOM;
+  const showCliToggle =
+    !!cliConsoleAvailable && !!onToggleCliConsole && activeContact?.type === CONTACT_TYPE_CLIENT;
   const activeContactIsPrefixOnly = activeContact
     ? isPrefixOnlyContact(activeContact.public_key)
     : false;
@@ -686,6 +696,28 @@ export function ChatHeader({
               CAD
             </button>
           )}
+        {showCliToggle && (
+          <button
+            type="button"
+            onClick={() => onToggleCliConsole?.()}
+            aria-pressed={!!cliConsoleOpen}
+            aria-label={
+              cliConsoleOpen ? t('companion_cli_toggle_close') : t('companion_cli_toggle_open')
+            }
+            title={
+              cliConsoleOpen ? t('companion_cli_toggle_close') : t('companion_cli_toggle_open')
+            }
+            className="p-1 rounded hover:bg-accent transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <TerminalSquare
+              className={cn(
+                'h-4 w-4',
+                cliConsoleOpen ? 'text-status-connected' : 'text-muted-foreground'
+              )}
+              aria-hidden="true"
+            />
+          </button>
+        )}
         {(conversation.type === 'channel' || conversation.type === 'contact') &&
           onInsertLocation && (
             <div className="sm:relative" ref={locationMenuRef}>

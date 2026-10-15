@@ -180,6 +180,8 @@ export interface HealthStatus {
     max_channels: number | null;
     is_meshcomod: boolean;
     is_openhop: boolean;
+    /** Companion firmware 1.18+ command line (CMD_RUN_CLI_COMMAND); false on meshcomod/OpenHop. */
+    cli_supported?: boolean;
   } | null;
   radio_stats?: RadioStatsSnapshot | null;
   database_size_mb: number;
@@ -289,6 +291,8 @@ export interface Contact {
   radio_policy: RadioPolicy;
   /** App-set telemetry sharing bits (1 base, 2 location, 4 environment); null = never set in the app. */
   telemetry_perms?: number | null;
+  /** App-set Remote CLI permission (flags bit 0x10, firmware 1.18); null = never set in the app. */
+  remote_cli?: boolean | null;
   last_contacted: number | null;
   last_read_at: number | null;
   first_seen: number | null;
@@ -748,6 +752,12 @@ export interface Message {
    * message: a repeat of a message seen shortly before. A marker only.
    */
   duplicate?: boolean;
+  /**
+   * Incoming remote CLI command (txt_type 3) only: true when our radio had
+   * given the sender Remote CLI permission (so it ran the command), false when
+   * it ignored it. Null/absent for every other message.
+   */
+  cli_permitted?: boolean | null;
 }
 
 /** DELETE /contacts/{key}: the row is always removed; the radio may refuse. */
@@ -1717,6 +1727,12 @@ export const CONTACT_TYPE_SENSOR = 4;
  */
 export const TXT_TYPE_GROUP_DATA = 0x40;
 
+/**
+ * `txt_type` of a command another companion sent to our radio (MeshCore 1.18
+ * TXT_TYPE_CLI_COMMAND). Not chat: shown as a compact line, never notified.
+ */
+export const TXT_TYPE_CLI_COMMAND = 3;
+
 export interface NeighborInfo {
   pubkey_prefix: string;
   name: string | null;
@@ -1810,6 +1826,10 @@ export interface RepeaterNodeInfoResponse {
   lat: string | null;
   lon: string | null;
   clock_utc: string | null;
+  /** Raw reply to `power` (repeater firmware 1.18+). */
+  power?: string | null;
+  /** Parsed `power` reply: batt_mv, usb, solar_chg, ext, charger; null on older firmware. */
+  power_info?: Record<string, string> | null;
 }
 
 export interface RepeaterRadioSettingsResponse {
@@ -2300,7 +2320,8 @@ export type PaneName =
   | 'advertIntervals'
   | 'ownerInfo'
   | 'lppTelemetry'
-  | 'regions';
+  | 'regions'
+  | 'mma';
 
 export interface PaneState {
   loading: boolean;
@@ -3550,4 +3571,45 @@ export interface BotListPreview {
   description: string;
   updated: string | null;
   entries: BotListEntry[];
+}
+
+/** Reply of the radio's own command line (companion firmware 1.18+). */
+export interface RadioCliResponse {
+  command: string;
+  reply: string;
+}
+
+/** Min/max/average of one sensor channel (SensorMesh REQ_TYPE_GET_AVG_MIN_MAX). */
+export interface SensorMmaEntry {
+  channel: number;
+  type_name: string;
+  min: number | number[];
+  max: number | number[];
+  avg: number | number[];
+}
+
+export interface SensorMmaResponse {
+  hours: number;
+  entries: SensorMmaEntry[];
+}
+
+/** One watched channel for MeshCore 1.18 sensor telemetry push. */
+export interface SensorPushThreshold {
+  channel: number;
+  type_name: string;
+  min_delta: number;
+}
+
+export interface SensorPushState {
+  public_key: string;
+  enabled: boolean;
+  thresholds: SensorPushThreshold[];
+  threshold_bytes: number;
+  max_threshold_bytes: number;
+  /** Type name to bytes one threshold of that type takes on the sensor. */
+  supported_types: Record<string, number>;
+  granted_until: number | null;
+  scope_name: string | null;
+  last_push_at: number | null;
+  last_error: string | null;
 }

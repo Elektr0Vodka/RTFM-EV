@@ -56,7 +56,11 @@ import type {
   ContactRadioResidency,
   ContactTelemetryPermissions,
   ContactTelemetryResponse,
+  RadioCliResponse,
   RadioContactOccupancy,
+  SensorMmaResponse,
+  SensorPushState,
+  SensorPushThreshold,
   RadioPolicy,
   FanoutConfig,
   FleetAsset,
@@ -684,6 +688,43 @@ export const api = {
     }>(`/contacts/${publicKey}/telemetry-permissions`, {
       method: 'POST',
       body: JSON.stringify(perms),
+    }),
+  // Companion firmware 1.18+: the radio's own command line (never transmits).
+  runRadioCli: (command: string) =>
+    fetchJson<RadioCliResponse>('/radio/cli', {
+      method: 'POST',
+      body: JSON.stringify({ command }),
+    }),
+  // Companion firmware 1.18+: let a contact run commands on our radio (flags bit 0x10).
+  setContactRemoteCli: (publicKey: string, enabled: boolean) =>
+    fetchJson<{
+      status: string;
+      public_key: string;
+      remote_cli: boolean;
+      applied_to_radio: boolean;
+    }>(`/contacts/${publicKey}/remote-cli`, {
+      method: 'POST',
+      body: JSON.stringify({ enabled }),
+    }),
+  // Sensor nodes: min/max/average, and MeshCore 1.18 telemetry push.
+  sensorMma: (publicKey: string, hours = 24) =>
+    fetchJson<SensorMmaResponse>(`/contacts/${publicKey}/sensor/mma?hours=${hours}`, {
+      method: 'POST',
+    }),
+  getSensorPush: (publicKey: string) =>
+    fetchJson<SensorPushState>(`/contacts/${publicKey}/sensor-push`),
+  saveSensorPush: (publicKey: string, thresholds: SensorPushThreshold[]) =>
+    fetchJson<SensorPushState>(`/contacts/${publicKey}/sensor-push`, {
+      method: 'PUT',
+      body: JSON.stringify({ thresholds }),
+    }),
+  subscribeSensorPush: (publicKey: string) =>
+    fetchJson<SensorPushState>(`/contacts/${publicKey}/sensor-push/subscribe`, {
+      method: 'POST',
+    }),
+  unsubscribeSensorPush: (publicKey: string) =>
+    fetchJson<SensorPushState>(`/contacts/${publicKey}/sensor-push/unsubscribe`, {
+      method: 'POST',
     }),
 
   // Channels

@@ -11,8 +11,10 @@ from meshcore import EventType
 
 from app.log_redaction import redact_cli_command, redact_cli_reply
 from app.models import (
+    CONTACT_TYPE_CLIENT,
     CONTACT_TYPE_REPEATER,
     CONTACT_TYPE_ROOM,
+    CONTACT_TYPE_SENSOR,
     CommandResponse,
     Contact,
     RepeaterLoginResponse,
@@ -39,26 +41,52 @@ def _monotonic() -> float:
     return time.monotonic()
 
 
+CLI_CAPABLE_CONTACT_TYPES = (
+    CONTACT_TYPE_CLIENT,
+    CONTACT_TYPE_REPEATER,
+    CONTACT_TYPE_ROOM,
+    CONTACT_TYPE_SENSOR,
+)
+NO_REPLY_TEXT = "(no response - command may have been processed)"
+NO_REPLY_REMOTE_CLI = "(no response - the contact may not have given you Remote CLI permission)"
+
+
 def get_server_contact_label(contact: Contact) -> str:
-    """Return a user-facing label for server-capable contacts."""
+    """Return a user-facing label for CLI-capable contacts."""
     if contact.type == CONTACT_TYPE_REPEATER:
         return "repeater"
     if contact.type == CONTACT_TYPE_ROOM:
         return "room server"
+    if contact.type == CONTACT_TYPE_CLIENT:
+        return "companion"
+    if contact.type == CONTACT_TYPE_SENSOR:
+        return "sensor"
     return "server"
+
+
+def no_reply_text(contact: Contact) -> str:
+    """What the console shows when no reply came back in time.
+
+    A companion (firmware 1.18+) only answers a command from a contact it has
+    given Remote CLI permission (contact flags bit 0x10); otherwise it stays
+    silent, so say that rather than "may have been processed".
+    """
+    return NO_REPLY_REMOTE_CLI if contact.type == CONTACT_TYPE_CLIENT else NO_REPLY_TEXT
 
 
 def _cli_command_destination(contact: Contact) -> dict[str, object]:
     """Destination payload for meshcore ``send_cmd``.
 
     meshcore's ``send_cmd`` picks the CLI text subtype from the destination's
-    adv type (``dst["type"]`` when ``dst_type`` is not passed): CLI_CMD for chat
-    contacts, CLI_DATA for everything else. Up to 2.3.13 a bare pubkey string
+    adv type (``dst["type"]`` when ``dst_type`` is not passed): CLI_CMD
+    (txt_type 3, companion firmware 1.18+) for chat contacts, CLI_DATA for
+    repeaters, rooms and sensors. Up to 2.3.13 a bare pubkey string
     raised ``TypeError: string indices must be integers``; 2.3.14 instead logs a
     warning and assumes a repeater. Passing a ``{public_key, type}`` dict gives
-    it both the address and the type, so it takes the CLI_DATA branch (correct
-    for repeaters and rooms) without warning.
-    RTFM's ``Contact.type`` matches the meshcore AdvType (repeater=2, room=3).
+    it both the address and the type, so it picks the right branch without
+    warning.
+    RTFM's ``Contact.type`` matches the meshcore AdvType (chat=1, repeater=2,
+    room=3, sensor=4).
     """
     return {"public_key": contact.public_key, "type": contact.type}
 
@@ -738,7 +766,7 @@ async def send_contact_cli_command(
             )
             return CommandResponse(
                 command=command,
-                response="(no response - command may have been processed)",
+                response=no_reply_text(contact),
             )
 
         response_text = extract_response_text(response_event)

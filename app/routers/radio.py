@@ -11,6 +11,7 @@ from meshcore import EventType
 from pydantic import BaseModel, Field
 
 from app.contact_uri import ContactUriError, card_from_export_result, format_contact_uri
+from app.log_redaction import redact_cli_command, redact_cli_reply
 from app.models import (
     CONTACT_TYPE_REPEATER,
     Contact,
@@ -34,6 +35,7 @@ from app.radio_sync import sync_radio_time
 from app.repository import AppSettingsRepository, ContactRepository
 from app.routers.repeaters import request_anon_region_names
 from app.routers.server_control import _monotonic
+from app.services.companion_cli import CompanionCliError, radio_cli_supported, run_local_cli
 from app.services.contact_reconciliation import (
     promote_prefix_contacts_for_contact,
     reconcile_contact_messages,
@@ -222,6 +224,24 @@ class GpsConfigUpdate(BaseModel):
 
 class PrivateKeyUpdate(BaseModel):
     private_key: str = Field(description="Private key as hex string")
+
+
+class RadioCliRequest(BaseModel):
+    """A command for the radio's own command line (companion firmware 1.18+)."""
+
+    command: str = Field(
+        min_length=2,
+        max_length=160,
+        description=(
+            "Command exactly as typed, e.g. 'get tz.offset'. "
+            "The firmware needs at least 2 characters."
+        ),
+    )
+
+
+class RadioCliResponse(BaseModel):
+    command: str
+    reply: str
 
 
 class RadioAdvertiseRequest(BaseModel):
@@ -647,6 +667,30 @@ async def update_meshcomod_config(update: MeshcomodConfigUpdate) -> MeshcomodCon
         except RadioCommandRejectedError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
     return await get_meshcomod_config()
+
+
+@router.post("/cli", response_model=RadioCliResponse)
+async def run_radio_cli(request: RadioCliRequest) -> RadioCliResponse:
+    """Run a command on the connected radio's own command line. Never transmits."""
+    radio_manager.require_connected()
+    if not radio_cli_supported():
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "The radio's firmware has no command line (needs MeshCore companion 1.18 or newer)"
+            ),
+        )
+    async with radio_manager.radio_operation("radio_cli") as mc:
+        try:
+            reply = await run_local_cli(mc, request.command)
+        except CompanionCliError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+    logger.info(
+        "Radio CLI %s -> %s",
+        redact_cli_command(request.command),
+        redact_cli_reply(request.command, reply),
+    )
+    return RadioCliResponse(command=request.command, reply=reply)
 
 
 @router.get("/private-key")

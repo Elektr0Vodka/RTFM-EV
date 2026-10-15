@@ -14,8 +14,14 @@
 // "(serial only)" marks a command this console cannot run: it talks to the node
 // over RF. Those stay in the list so a suggestion says why nothing comes back.
 //
+// - src/helpers/CommonCLI.cpp at repeater-v1.18.0: `power` and `gps diag` are new.
+//
 // Not covered: commands that only exist in other firmware builds (DMC repeater,
 // DMC MQTT, observer). See the CLI docs link in the console header for those.
+//
+// COMPANION_CLI_COMMANDS below is the companion radio's own command line
+// (firmware 1.18+), from companion-v1.18.0 examples/companion_radio/MyMesh.cpp
+// (handleCommand) and src/helpers/CommonRadioPrefs.cpp.
 //
 // Descriptions are English only, like the firmware's own replies.
 export interface CliCommand {
@@ -101,6 +107,11 @@ export const CLI_COMMANDS: CliCommand[] = [
 
   { category: 'Info', syntax: 'ver', description: 'Show firmware version' },
   { category: 'Info', syntax: 'board', description: 'Display hardware name' },
+  {
+    category: 'Info',
+    syntax: 'power',
+    description: 'Battery mV and USB, solar, external power and charger state (1.18+)',
+  },
 
   { category: 'Radio', syntax: 'get radio', description: 'View radio parameters' },
   {
@@ -348,6 +359,7 @@ export const CLI_COMMANDS: CliCommand[] = [
   { category: 'GPS', syntax: 'gps', description: 'View GPS state' },
   { category: 'GPS', syntax: 'gps <state>', description: 'Enable or disable GPS' },
   { category: 'GPS', syntax: 'gps sync', description: 'Synchronize clock using GPS time' },
+  { category: 'GPS', syntax: 'gps diag', description: 'GPS diagnostics (1.18+)' },
   { category: 'GPS', syntax: 'gps setloc', description: 'Set location from GPS coordinates' },
   { category: 'GPS', syntax: 'gps advert', description: 'View GPS advert policy' },
   { category: 'GPS', syntax: 'gps advert <policy>', description: 'Set GPS advert policy' },
@@ -420,6 +432,113 @@ export const CLI_COMMANDS: CliCommand[] = [
   { category: 'Ethernet', syntax: 'eth.status', description: 'View Ethernet connection status' },
 ];
 
+// The companion radio's own command line (firmware 1.18+, CMD_RUN_CLI_COMMAND),
+// also reachable from another companion that has Remote CLI permission.
+// wifi.* only exist on WiFi-capable builds; boards may add their own commands
+// (MainBoard::handleCommand), such as radio.fem.rxgain.
+export const COMPANION_CLI_COMMANDS: CliCommand[] = [
+  { category: 'Operational', syntax: 'reboot', description: 'Restart the radio' },
+  { category: 'Operational', syntax: 'poweroff', description: 'Turn off the radio' },
+  { category: 'Operational', syntax: 'shutdown', description: 'Turn off the radio' },
+  { category: 'Info', syntax: 'ver', description: 'Firmware version and build date' },
+  { category: 'Info', syntax: 'board', description: 'Board manufacturer name' },
+  { category: 'Identity', syntax: 'get name', description: 'Node name' },
+  { category: 'Identity', syntax: 'set name <name>', description: 'Set the node name' },
+  { category: 'Identity', syntax: 'set pin <pin>', description: 'Set the BLE pairing PIN' },
+  { category: 'Time', syntax: 'get tz.offset', description: 'Time zone offset in hours' },
+  {
+    category: 'Time',
+    syntax: 'set tz.offset <hours>',
+    description: 'Set the time zone offset (-12 to +14)',
+  },
+  { category: 'Radio', syntax: 'get radio', description: 'freq,bw,sf,cr' },
+  {
+    category: 'Radio',
+    syntax: 'set radio <freq>,<bw>,<sf>,<cr>',
+    description: 'Set radio parameters (reboot to apply)',
+  },
+  { category: 'Radio', syntax: 'get freq', description: 'Frequency in MHz' },
+  { category: 'Radio', syntax: 'get tx', description: 'TX power in dBm' },
+  { category: 'Radio', syntax: 'set tx <dbm>', description: 'Set TX power' },
+  { category: 'Radio', syntax: 'get af', description: 'Airtime factor' },
+  { category: 'Radio', syntax: 'set af <0-9>', description: 'Set airtime factor' },
+  { category: 'Radio', syntax: 'get dutycycle', description: 'Duty cycle limit in %' },
+  { category: 'Radio', syntax: 'set dutycycle <1-100>', description: 'Set duty cycle limit' },
+  { category: 'Radio', syntax: 'get int.thresh', description: 'Interference threshold' },
+  {
+    category: 'Radio',
+    syntax: 'set int.thresh <value>',
+    description: 'Set interference threshold',
+  },
+  { category: 'Radio', syntax: 'get cad', description: 'Channel activity detection before TX' },
+  { category: 'Radio', syntax: 'set cad <on|off>', description: 'Turn CAD on or off' },
+  { category: 'Radio', syntax: 'get radio.rxgain', description: 'RX boosted gain' },
+  {
+    category: 'Radio',
+    syntax: 'set radio.rxgain <on|off>',
+    description: 'Turn RX boosted gain on or off',
+  },
+  { category: 'Radio', syntax: 'get rxdelay', description: 'RX delay base' },
+  { category: 'Radio', syntax: 'set rxdelay <0-20>', description: 'Set RX delay base' },
+  { category: 'Radio', syntax: 'get txdelay', description: 'Flood TX delay factor' },
+  { category: 'Radio', syntax: 'set txdelay <0-2>', description: 'Set flood TX delay factor' },
+  { category: 'Radio', syntax: 'get direct.txdelay', description: 'Direct TX delay factor' },
+  {
+    category: 'Radio',
+    syntax: 'set direct.txdelay <0-2>',
+    description: 'Set direct TX delay factor',
+  },
+  {
+    category: 'Radio',
+    syntax: 'get agc.reset.interval',
+    description: 'AGC reset interval in seconds',
+  },
+  {
+    category: 'Radio',
+    syntax: 'set agc.reset.interval <0-1020>',
+    description: 'Set AGC reset interval (multiple of 4)',
+  },
+  {
+    category: 'Radio',
+    syntax: 'get path.hash.mode',
+    description: 'Path hash size mode (0, 1 or 2)',
+  },
+  { category: 'Radio', syntax: 'set path.hash.mode <0-2>', description: 'Set path hash size mode' },
+  { category: 'Radio', syntax: 'get multi.acks', description: 'Extra ACK transmissions' },
+  { category: 'Radio', syntax: 'set multi.acks <n>', description: 'Set extra ACK transmissions' },
+  { category: 'WiFi', syntax: 'get wifi.ssid', description: 'WiFi network name' },
+  {
+    category: 'WiFi',
+    syntax: 'set wifi.ssid <ssid>',
+    description: 'Set WiFi network (reboot to apply)',
+  },
+  {
+    category: 'WiFi',
+    syntax: 'set wifi.pwd <password>',
+    description: 'Set WiFi password (reboot to apply)',
+  },
+  { category: 'WiFi', syntax: 'get wifi.pwd', description: 'Show the WiFi password' },
+  { category: 'WiFi', syntax: 'set wifi.clear', description: 'Forget the WiFi settings' },
+  { category: 'WiFi', syntax: 'get wifi.enabled', description: 'WiFi on or off' },
+  {
+    category: 'WiFi',
+    syntax: 'set wifi.enabled <0|1>',
+    description: 'Turn WiFi on or off (reboot to apply)',
+  },
+  { category: 'WiFi', syntax: 'get wifi.status', description: 'WiFi connected or not' },
+  { category: 'WiFi', syntax: 'get wifi.ip', description: 'WiFi IP address' },
+];
+
+// `set\s+radio\s` (radio followed by a space) so the harmless `set radio.rxgain`
+// does not match.
+const RISKY_COMPANION_RE =
+  /^\s*(?:[0-9A-Fa-f]{2}\|)?\s*(?:reboot\b|poweroff\b|shutdown\b|set\s+radio\s|set\s+pin\b|set\s+wifi\.)/i;
+
+/** Commands that cut the connection, change RF or change access: ask first. */
+export function isRiskyCompanionCommand(command: string): boolean {
+  return RISKY_COMPANION_RE.test(command);
+}
+
 /** The literal part of a syntax: every word before its first parameter. */
 export function commandPrefix(syntax: string): string {
   const words: string[] = [];
@@ -441,14 +560,18 @@ export function commandPrefix(syntax: string): string {
  * typed, and the firmware's `region load` reads the leading spaces as the
  * nesting depth of a region name; a completion would replace them.
  */
-export function matchCliCommands(input: string, limit = 8): CliCommand[] {
+export function matchCliCommands(
+  input: string,
+  limit = 8,
+  commands: CliCommand[] = CLI_COMMANDS
+): CliCommand[] {
   if (/^\s/.test(input)) return [];
   const q = input.toLowerCase().replace(/\s+/g, ' ');
   if (!q.trim()) return [];
   const typed = q.trimEnd();
 
   const scored: Array<{ cmd: CliCommand; rank: number; length: number }> = [];
-  for (const cmd of CLI_COMMANDS) {
+  for (const cmd of commands) {
     const prefix = commandPrefix(cmd.syntax).toLowerCase();
     if (!prefix) continue;
     if (prefix === typed) scored.push({ cmd, rank: 0, length: prefix.length });

@@ -11,6 +11,63 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-15 (MeshCore 1.18 parity, feat/meshcore-1-18-parity)
+
+Migrations `_150` (contacts.remote_cli, messages.cli_permitted) and `_151`
+(sensor_push_subscriptions). meshcore_py 2.3.15 to 2.3.16. No new environment
+variable. Covers MeshCore firmware v1.18.0 (released 2026-10-15). Not tested
+against a real 1.18 radio or sensor yet: everything that transmits (remote
+commands, sensor subscribe and renew) is verified with tests only.
+
+### Companion command line (firmware 1.18+)
+- **Your own radio.** A command line card in Settings > Radio and on My Node
+  runs commands on the connected radio (`CMD_RUN_CLI_COMMAND`): radio
+  settings such as `cad`, `int.thresh`, `txdelay`, `direct.txdelay`,
+  `agc.reset.interval`, plus `tz.offset`, `name`, `pin`, WiFi settings on
+  WiFi builds, `reboot` and `poweroff`. It runs on the radio itself and never
+  transmits. On older firmware, meshcomod and OpenHop the card says it needs
+  1.18.
+- **Other companions.** The same console in a chat contact's info and as a
+  toggle in the DM header sends the command over the mesh. The other side only
+  answers if it gave you Remote CLI permission; without a reply the console
+  says so.
+- **Confirm first.** `reboot`, `poweroff`, `shutdown`, `set radio`, `set pin`
+  and `set wifi.*` ask for confirmation. The WiFi password and PIN are masked
+  in the server log.
+
+### Remote CLI permission
+- **Per contact.** A "Remote CLI" switch in a chat contact's info lets that
+  contact run commands on your radio (contact flags bit 0x10). Turning it on
+  asks first, since the contact can then reboot the radio, change its radio
+  settings and read its WiFi password. Kept and re-applied like the telemetry
+  permissions.
+
+### Incoming commands
+- **Shown, not chat.** A command another companion sends to your radio shows
+  in that DM as a dashed line with the command and whether your radio
+  answered or ignored it. It raises no unread count, notification, sound or
+  Web Push and is never sent to MQTT or other fanout.
+
+### Sensors
+- **Sensor dashboard.** A sensor's chat keeps its messages (sensors send
+  their alerts as DMs) and gets a collapsible "Sensor login & dashboard"
+  panel above it: login, LPP telemetry, min/max/average over 24 hours, access
+  list and console. On desktop the sensor's contact info has the same
+  dashboard.
+- **Live telemetry push.** Pick up to 14 bytes of watched channels with a
+  minimum change each and switch push on: the sensor then sends new readings
+  by itself, which land in the contact's telemetry history and fanout.
+  RTFM-EV renews the subscription before it runs out (the firmware grants
+  at most about 18 hours) and retries every 15 minutes after a failure. The
+  sensor needs a scope region to push.
+
+### Fixes
+- **Transport code 0 is unscoped.** Packets with a first transport code of 0
+  no longer count as region-scoped, matching firmware 1.18.
+- **Repeater power.** The repeater Node Info pane shows the 1.18 `power`
+  reply (battery, USB, solar, external power, charger). The console also
+  suggests `power` and `gps diag`.
+
 ## Update 2026-10-15 (Spam Guard rule cap, Mesh Trends stored windows, OpenHop rule list, fix/openhop-rule-cap-mesh-trends)
 
 No migration, no new dependency, no new environment variable.

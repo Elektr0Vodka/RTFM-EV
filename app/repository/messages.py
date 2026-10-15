@@ -72,6 +72,7 @@ class MessageRepository:
         malformed: bool = False,
         malformed_reason: str | None = None,
         bot: bool = False,
+        cli_permitted: bool | None = None,
     ) -> int | None:
         """Create a message, returning the ID or None if duplicate.
 
@@ -104,8 +105,8 @@ class MessageRepository:
                                                 received_at, paths, txt_type, signature, outgoing,
                                                 send_status, sender_name, sender_key,
                                                 transport_code, region, malformed,
-                                                malformed_reason, bot)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                                malformed_reason, bot, cli_permitted)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     msg_type,
@@ -125,6 +126,7 @@ class MessageRepository:
                     1 if malformed else 0,
                     malformed_reason,
                     1 if bot else 0,
+                    None if cli_permitted is None else (1 if cli_permitted else 0),
                 ),
             ) as cursor:
                 rowcount = cursor.rowcount
@@ -504,6 +506,12 @@ class MessageRepository:
         return f"NOT ({prefix}outgoing = 0 AND {prefix}malformed = 1)"
 
     @staticmethod
+    def _build_cli_command_clause(message_alias: str = "") -> str:
+        """Exclude incoming txt_type 3 rows (remote CLI commands are not chat)."""
+        prefix = f"{message_alias}." if message_alias else ""
+        return f"NOT ({prefix}outgoing = 0 AND COALESCE({prefix}txt_type, 0) = 3)"
+
+    @staticmethod
     def _build_hidden_spam_clause(message_alias: str = "", hide_spam: bool = False) -> str:
         """Exclude incoming messages hidden by the chat 'Hide spam' filter."""
         if not hide_spam:
@@ -522,6 +530,7 @@ class MessageRepository:
         send_status = "confirmed"
         spam = False
         duplicate = False
+        cli_permitted = None
         if hasattr(row, "keys"):
             row_keys = row.keys()
             if "packet_id" in row_keys:
@@ -540,6 +549,8 @@ class MessageRepository:
                 spam = bool(row["spam"])
             if "duplicate" in row_keys:
                 duplicate = bool(row["duplicate"])
+            if "cli_permitted" in row_keys and row["cli_permitted"] is not None:
+                cli_permitted = bool(row["cli_permitted"])
 
         return Message(
             id=row["id"],
@@ -563,6 +574,7 @@ class MessageRepository:
             malformed=malformed,
             spam=spam,
             duplicate=duplicate,
+            cli_permitted=cli_permitted,
         )
 
     @staticmethod
@@ -1132,6 +1144,7 @@ class MessageRepository:
         spam_clause = MessageRepository._build_hidden_spam_clause("m", hide_spam)
         if spam_clause:
             blocked_sql += f" AND {spam_clause}"
+        blocked_sql += f" AND {MessageRepository._build_cli_command_clause('m')}"
 
         # Last message times for all conversations (including read ones),
         # excluding blocked, hop-hidden and malformed-hidden incoming traffic so
@@ -1146,6 +1159,7 @@ class MessageRepository:
                 MessageRepository._build_hidden_hop_width_clause("", hidden_hop_widths),
                 MessageRepository._build_hidden_malformed_clause("", hide_malformed),
                 MessageRepository._build_hidden_spam_clause("", hide_spam),
+                MessageRepository._build_cli_command_clause(""),
             )
             if c
         ]

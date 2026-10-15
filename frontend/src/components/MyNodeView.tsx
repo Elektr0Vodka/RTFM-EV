@@ -40,6 +40,7 @@ import {
 import { loadStoredTimeRange, saveStoredTimeRange } from '../utils/timeRangePreference';
 import { ZoomableBinChart } from './charts/ZoomableBinChart';
 import { DirectRadar } from './mynode/radar/DirectRadar';
+import { CompanionCliConsole } from './CompanionCliConsole';
 import { toRadarData } from './mynode/radar/radarData';
 
 // MeshCore node types (contact.type): translation key per mesh vocabulary label.
@@ -3073,6 +3074,13 @@ export default function MyNodeView({ contacts, onCoordinateClick }: Props) {
                 )}
               </div>
             </div>
+
+            {health?.radio_connected && (
+              <CompanionCliConsole
+                target={{ kind: 'radio' }}
+                cliSupported={!!health.radio_device_info?.cli_supported}
+              />
+            )}
 
             {stats && (
               <>

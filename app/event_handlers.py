@@ -16,6 +16,7 @@ from app.services.contact_reconciliation import (
 )
 from app.services.dm_ack_apply import apply_dm_ack_code
 from app.services.dm_ingest import (
+    cli_permitted_for,
     ingest_fallback_direct_message,
     resolve_direct_message_sender_metadata,
     resolve_fallback_direct_message_context,
@@ -119,6 +120,7 @@ async def on_contact_message(event: "Event") -> None:
         sender_key=sender_key,
         broadcast_fn=broadcast_event,
         update_last_contacted_key=context.contact.public_key.lower() if context.contact else None,
+        cli_permitted=cli_permitted_for(context.contact, txt_type),
     )
 
     if message is None:
@@ -366,6 +368,16 @@ def _make_contact_deleted_handler(meshcore):
     return on_contact_deleted
 
 
+async def on_binary_response(event: "Event") -> None:
+    """MeshCore 1.18 sensor telemetry pushes arrive as unsolicited binary responses."""
+    from app.services import sensor_push
+
+    try:
+        await sensor_push.handle_binary_response(event)
+    except Exception:
+        logger.debug("Sensor push handling failed", exc_info=True)
+
+
 def register_event_handlers(meshcore) -> None:
     """Register event handlers with the MeshCore instance.
 
@@ -394,6 +406,7 @@ def register_event_handlers(meshcore) -> None:
     _active_subscriptions.append(meshcore.subscribe(EventType.PATH_UPDATE, on_path_update))
     _active_subscriptions.append(meshcore.subscribe(EventType.NEW_CONTACT, on_new_contact))
     _active_subscriptions.append(meshcore.subscribe(EventType.ACK, on_ack))
+    _active_subscriptions.append(meshcore.subscribe(EventType.BINARY_RESPONSE, on_binary_response))
     _active_subscriptions.append(
         meshcore.subscribe(EventType.CONTACT_DELETED, _make_contact_deleted_handler(meshcore))
     )

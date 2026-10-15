@@ -20,7 +20,8 @@ import type {
   VesselType,
 } from '../types';
 import { buildChannelLookupUrl, buildNodeLookupUrl } from '../utils/analyzerLink';
-import { CONTACT_TYPE_ROOM, TXT_TYPE_GROUP_DATA } from '../types';
+import { CONTACT_TYPE_ROOM, TXT_TYPE_CLI_COMMAND, TXT_TYPE_GROUP_DATA } from '../types';
+import { RemoteCliCommandRow } from './RemoteCliCommandRow';
 import { api } from '../api';
 import {
   findLinkedChannelReferences,
@@ -2116,6 +2117,23 @@ export function MessageList({
             // (conversation switch, blocked-sender refilter). Rendering ahead of
             // that would dereference undefined and blank the whole chat pane.
             if (!msg) return null;
+            // A command another companion sent to our radio: a compact line, not a bubble.
+            if (msg.txt_type === TXT_TYPE_CLI_COMMAND && !msg.outgoing) {
+              return (
+                <div
+                  key={msg.id}
+                  data-index={index}
+                  ref={virtualizer.measureElement}
+                  className="absolute left-0 top-0 flex w-full flex-col pb-0.5"
+                  style={{ transform: `translateY(${virtualRow.start - scrollMargin}px)` }}
+                >
+                  <RemoteCliCommandRow
+                    message={msg}
+                    senderName={getContact(msg.conversation_key)?.name ?? null}
+                  />
+                </div>
+              );
+            }
             // For DMs, look up contact; for channel messages, use parsed sender
             const contact = msg.type === 'PRIV' ? getContact(msg.conversation_key) : null;
             const isRoomServer = contact?.type === CONTACT_TYPE_ROOM;

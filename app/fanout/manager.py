@@ -6,7 +6,7 @@ import asyncio
 import logging
 from typing import Any
 
-from app.decoder import TXT_TYPE_GROUP_DATA
+from app.decoder import TXT_TYPE_CLI_COMMAND, TXT_TYPE_GROUP_DATA
 from app.fanout.base import FanoutModule
 
 logger = logging.getLogger(__name__)
@@ -71,7 +71,11 @@ def _scope_matches_message(scope: dict, data: dict) -> bool:
     GRP_DATA placeholder rows (``txt_type`` 0x40: chunk metadata stored for a
     channel datagram, not a message anyone typed) are dropped unless the scope
     opts in with ``"data_placeholders": "all"``; the message filter still applies.
+    Incoming remote CLI commands (``txt_type`` 3, companion firmware 1.18) are
+    never fanned out: they are commands to our radio, not chat.
     """
+    if data.get("txt_type") == TXT_TYPE_CLI_COMMAND:
+        return False
     if (
         data.get("txt_type") == TXT_TYPE_GROUP_DATA
         and scope.get("data_placeholders", "none") != "all"

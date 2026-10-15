@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useEffect,
+  useId,
   type FormEvent,
   type KeyboardEvent,
 } from 'react';
@@ -11,24 +12,38 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { useT } from '../../i18n';
 import { cn } from '@/lib/utils';
-import { commandPrefix, matchCliCommands, type CliCommand } from '../../utils/cliCommands';
+import {
+  CLI_COMMANDS,
+  commandPrefix,
+  matchCliCommands,
+  type CliCommand,
+} from '../../utils/cliCommands';
 
 // MeshCore / Dutch MeshCore CLI command reference. The DMC toolbox wiki covers
 // the meshcore, dmc-repeater and dmc-mqtt firmware variants this fork talks to.
 const CLI_DOCS_URL = 'https://toolbox.dutchmeshcore.nl/#/cli-wiki';
 
-const SUGGESTION_LIST_ID = 'repeater-console-suggestions';
-
 export function ConsolePane({
   history,
   loading,
   onSend,
+  commands = CLI_COMMANDS,
+  title,
+  confirmCommand,
 }: {
   history: Array<{ command: string; response: string; timestamp: number; outgoing: boolean }>;
   loading: boolean;
   onSend: (command: string) => Promise<void>;
+  /** Type-ahead list; the repeater/room/sensor CLI by default. */
+  commands?: CliCommand[];
+  /** Header text; the repeater console title by default. */
+  title?: string;
+  /** Return false to keep a command from being sent (the input keeps it). */
+  confirmCommand?: (command: string) => boolean;
 }) {
   const t = useT();
+  // Unique per console: several consoles can be on screen at once.
+  const SUGGESTION_LIST_ID = `console-suggestions-${useId().replace(/:/g, '')}`;
   const [input, setInput] = useState('');
   // -1 = editing the live input; 0+ = index into sentCommands (most recent first)
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -65,7 +80,7 @@ export function ConsolePane({
   // Type-ahead over the static command table. It only ever fills the input:
   // nothing is sent until the user presses Send or Enter on their own text.
   // Hidden while stepping through history, so the arrows keep recalling.
-  const suggestions = useMemo(() => matchCliCommands(input), [input]);
+  const suggestions = useMemo(() => matchCliCommands(input, 8, commands), [input, commands]);
   const showSuggestions =
     suggestions.length > 0 && !suggestionsDismissed && historyIndex === -1 && !loading;
 
@@ -130,19 +145,20 @@ export function ConsolePane({
       // Sent as typed. The firmware's `region load` reads leading spaces as
       // the nesting depth of a line and an empty line as the end of the load.
       const command = input;
+      if (confirmCommand && !confirmCommand(command)) return;
       setInput('');
       setHistoryIndex(-1);
       setSuggestionIndex(null);
       setSuggestionsDismissed(false);
       await onSend(command);
     },
-    [input, loading, onSend]
+    [confirmCommand, input, loading, onSend]
   );
 
   return (
     <div className="border border-border rounded-lg overflow-hidden col-span-full">
       <div className="px-3 py-2 bg-muted/50 border-b border-border flex items-center justify-between gap-2">
-        <h3 className="text-sm font-medium">{t('repeater_console_title')}</h3>
+        <h3 className="text-sm font-medium">{title ?? t('repeater_console_title')}</h3>
         <a
           href={CLI_DOCS_URL}
           target="_blank"

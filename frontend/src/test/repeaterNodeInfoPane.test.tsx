@@ -38,3 +38,30 @@ describe('NodeInfoPane lat/lon', () => {
     expect(screen.getByText('51.8120, -')).toBeInTheDocument();
   });
 });
+
+describe('NodeInfoPane power row (firmware 1.18)', () => {
+  it('shows the parsed power reply', () => {
+    renderPane({
+      name: 'Rep',
+      lat: null,
+      lon: null,
+      clock_utc: null,
+      power: 'batt:4012 mV usb:no solar_chg:yes ext:no charger:yes',
+      power_info: { batt_mv: '4012', usb: 'no', solar_chg: 'yes', ext: 'no', charger: 'yes' },
+    });
+    expect(screen.getByText('Power')).toBeInTheDocument();
+    expect(screen.getByText(/4012 mV/)).toBeInTheDocument();
+  });
+
+  it('hides the row on older firmware', () => {
+    renderPane({
+      name: 'Rep',
+      lat: null,
+      lon: null,
+      clock_utc: null,
+      power: 'Unknown command',
+      power_info: null,
+    });
+    expect(screen.queryByText('Power')).toBeNull();
+  });
+});

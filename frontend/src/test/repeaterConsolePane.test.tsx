@@ -240,3 +240,51 @@ describe('ConsolePane command suggestions', () => {
     expect(onSend).toHaveBeenCalledWith('');
   });
 });
+
+describe('ConsolePane options', () => {
+  it('does not send when confirmCommand returns false', async () => {
+    const onSend = vi.fn(async () => {});
+    render(
+      <ConsolePane history={[]} loading={false} onSend={onSend} confirmCommand={() => false} />
+    );
+    const input = screen.getByLabelText('Console command') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: 'reboot' } });
+    fireEvent.submit(input.closest('form')!);
+    expect(onSend).not.toHaveBeenCalled();
+    expect(input.value).toBe('reboot');
+  });
+
+  it('shows a custom title', () => {
+    render(<ConsolePane history={[]} loading={false} onSend={vi.fn()} title="My radio" />);
+    expect(screen.getByText('My radio')).toBeInTheDocument();
+  });
+
+  it('suggests from the given command list', () => {
+    render(
+      <ConsolePane
+        history={[]}
+        loading={false}
+        onSend={vi.fn()}
+        commands={[{ category: 'X', syntax: 'zzcustom', description: 'custom one' }]}
+      />
+    );
+    const input = screen.getByLabelText('Console command');
+    fireEvent.change(input, { target: { value: 'zzc' } });
+    expect(screen.getByText('custom one')).toBeInTheDocument();
+  });
+
+  it('two consoles get distinct suggestion list ids', () => {
+    render(
+      <>
+        <ConsolePane history={[]} loading={false} onSend={vi.fn()} />
+        <ConsolePane history={[]} loading={false} onSend={vi.fn()} />
+      </>
+    );
+    const inputs = screen.getAllByLabelText('Console command');
+    fireEvent.change(inputs[0], { target: { value: 'get' } });
+    fireEvent.change(inputs[1], { target: { value: 'get' } });
+    const ids = inputs.map((i) => i.getAttribute('aria-controls'));
+    expect(ids[0]).toBeTruthy();
+    expect(ids[0]).not.toBe(ids[1]);
+  });
+});

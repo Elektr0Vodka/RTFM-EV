@@ -1,6 +1,6 @@
 # Sources of Truth
 
-Date: 2026-09-10 (updated 2026-09-22: OpenHop, EU analyzer API endpoints; 2026-09-25: analyzer name resolution, channel naming)
+Date: 2026-09-10 (updated 2026-09-22: OpenHop, EU analyzer API endpoints; 2026-09-25: analyzer name resolution, channel naming; 2026-10-15: MeshCore 1.18)
 
 Canonical upstreams for the firmware and tooling RTFM-EV interoperates with. When
 a plan or feature depends on a wire format, CLI verb, MQTT payload shape, or URL
@@ -18,6 +18,16 @@ machine this was authored on and may differ elsewhere.
 - Role: canonical firmware, protocol, and companion `CMD_*` API. Upstream of both
   DMC and meshcomod below.
 - Local: `G:\Github\repositories\Meshcore` (no git remote configured locally).
+- 1.18 (2026-10-15, release notes https://blog.meshcore.io/2026/10/15/release-1-18-0):
+  companion `FIRMWARE_VER_CODE` 14; `CMD_RUN_CLI_COMMAND` 66 answered by
+  `RESP_CODE_CLI_REPLY` 29 (`examples/companion_radio/MyMesh.cpp` `handleCommand`,
+  `src/helpers/CommonRadioPrefs.cpp`); `TXT_TYPE_CLI_COMMAND` 3 for commands to another
+  companion, run only for a contact with flags bit 0x10 (`ContactInfo::isRemoteCLIAllowed`);
+  sensor `REQ_TYPE_SUBSCRIBE` 0x08 / `REQ_TYPE_UNSUBSCRIBE` 0x09 with pushes as
+  `PUSH_CODE_BINARY_RESPONSE` (`examples/simple_sensor/SensorMesh.cpp`; thresholds use
+  `LPPData::getDataSize`/`getMultiplier` in `src/helpers/sensors/LPPDataHelpers.h`);
+  transport code 0 is the wildcard region (`RegionMap::findMatch`). meshcore_py 2.3.16 has
+  `run_cli_command` but its `BinaryReqType` stops at 0x06.
 
 ### DMC-MeshCore (two flavours - this distinction matters for the Repeater Manager)
 - Repo: https://github.com/Dutch-MeshCore/MeshCore (upstream: `meshcore-dev/MeshCore`).

@@ -24,7 +24,7 @@ from app.models import (
     TrafficLinkEdge,
 )
 from app.packet_processor import create_message_from_decrypted, run_historical_dm_decryption
-from app.path_utils import calculate_packet_hash, parse_packet_envelope
+from app.path_utils import calculate_packet_hash, is_scoped, parse_packet_envelope
 from app.region_resolver import resolve_region
 from app.repository import (
     AdvertEventRepository,
@@ -124,7 +124,7 @@ async def _run_historical_channel_decryption(
         # Resolve regional flood-scope if this is a transport-routed packet.
         transport_code: int | None = None
         region: str | None = None
-        if packet_info is not None and packet_info.transport_codes is not None:
+        if packet_info is not None and is_scoped(packet_info.transport_codes):
             transport_code = packet_info.transport_codes[0]
             region = resolve_region(
                 int(packet_info.payload_type),
@@ -1830,7 +1830,7 @@ async def get_raw_packet(packet_id: int) -> RawPacketDetail:
     # accurate even if the stored message predates a region-list change).
     transport_code: int | None = None
     region: str | None = None
-    if packet_info is not None and packet_info.transport_codes is not None:
+    if packet_info is not None and is_scoped(packet_info.transport_codes):
         transport_code = packet_info.transport_codes[0]
         settings = await AppSettingsRepository.get()
         region = resolve_region(

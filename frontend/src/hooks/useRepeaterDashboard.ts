@@ -17,6 +17,7 @@ import type {
   RepeaterSettingSetResponse,
   RepeaterSettingsReadResponse,
   CommandResponse,
+  SensorMmaResponse,
 } from '../types';
 import {
   buildServerLoginAttemptFromAction,
@@ -46,6 +47,7 @@ export interface PaneData {
   ownerInfo: RepeaterOwnerInfoResponse | null;
   lppTelemetry: RepeaterLppTelemetryResponse | null;
   regions: RepeaterRegionsResponse | null;
+  mma: SensorMmaResponse | null;
 }
 
 interface RepeaterDashboardCacheEntry {
@@ -70,6 +72,7 @@ function createInitialPaneStates(): Record<PaneName, PaneState> {
     ownerInfo: { ...INITIAL_PANE_STATE },
     lppTelemetry: { ...INITIAL_PANE_STATE },
     regions: { ...INITIAL_PANE_STATE },
+    mma: { ...INITIAL_PANE_STATE },
   };
 }
 
@@ -84,6 +87,7 @@ function createInitialPaneData(): PaneData {
     ownerInfo: null,
     lppTelemetry: null,
     regions: null,
+    mma: null,
   };
 }
 
@@ -115,6 +119,8 @@ function normalizePaneStates(paneStates: Record<PaneName, PaneState>): Record<Pa
     ownerInfo: { ...paneStates.ownerInfo, loading: false },
     lppTelemetry: { ...paneStates.lppTelemetry, loading: false },
     regions: { ...paneStates.regions, loading: false },
+    // Older cache entries predate the sensor min/max/avg pane.
+    mma: { ...(paneStates.mma ?? INITIAL_PANE_STATE), loading: false },
   };
 }
 
@@ -184,6 +190,8 @@ function fetchPaneData(publicKey: string, pane: PaneName) {
       return api.repeaterLppTelemetry(publicKey);
     case 'regions':
       return api.repeaterRegions(publicKey);
+    case 'mma':
+      return api.sensorMma(publicKey);
   }
 }
 
@@ -262,6 +270,8 @@ export function applyReadbackToPaneData(
 
 interface UseRepeaterDashboardOptions {
   hasAdvertLocation?: boolean;
+  /** 'sensor' loads only the panes a sensor node answers (telemetry, min/max/avg, ACL). */
+  role?: 'repeater' | 'sensor';
 }
 
 export function useRepeaterDashboard(
@@ -502,23 +512,27 @@ export function useRepeaterDashboard(
     [getPublicKey, options.hasAdvertLocation, markLoginConfirmedByAction]
   );
 
+  const role = options.role ?? 'repeater';
   const loadAll = useCallback(async () => {
-    const panes: PaneName[] = [
-      'status',
-      'nodeInfo',
-      'neighbors',
-      'radioSettings',
-      'acl',
-      'advertIntervals',
-      'ownerInfo',
-      'lppTelemetry',
-      'regions',
-    ];
+    const panes: PaneName[] =
+      role === 'sensor'
+        ? ['lppTelemetry', 'mma', 'acl']
+        : [
+            'status',
+            'nodeInfo',
+            'neighbors',
+            'radioSettings',
+            'acl',
+            'advertIntervals',
+            'ownerInfo',
+            'lppTelemetry',
+            'regions',
+          ];
     // Serial execution - parallel calls just queue behind the radio lock anyway
     for (const pane of panes) {
       await refreshPane(pane);
     }
-  }, [refreshPane]);
+  }, [refreshPane, role]);
 
   const sendConsoleCommand = useCallback(
     async (command: string) => {

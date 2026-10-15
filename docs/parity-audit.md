@@ -1,7 +1,7 @@
 # RTFM-EV Parity & Gap Audit
 
 Date: 2026-09-10
-Status: §7 backlog shipped; the last open item, the L4 auto contact-discovery confirmation, was closed 2026-09-25 by inspection (RTFM-EV behavior documented in §5, no code change). Reconciled 2026-09-26 against `main` at `c0985781` (PR #242). No §7 item changed after PR #220: the later merges are plan work outside this audit's reference sets, namely the My Node noise-floor overlay (PR #221, plan [21] S4), GRP_DATA placeholder rows kept out of fanout unless opted in (PR #224, plan [28] 1.17 follow-up), the "Owned" sidebar section (PR #225, plan [17] Phase 3), analyzer name resolution for unnamed full-key contacts (PR #226, plan [16] case (a), migration `_117`), per-relay reception comparison in Mesh Health (PR #227, plan [21] S1, migration `_118`) with live refresh (PR #233), contact location and repeater config history (PR #228, plan [14], migration `_119`) with a read-only History / Positions view (PR #234), fixes from the live check of those (PR #230), lowercase `public` channel links for meshcore-analyzer.eu sites (PR #231) host repeater filter rules (PR #232, plan [29]), room ACL history and a device history age limit (PR #238, plan [14], migration `_120`), soft links in the packet visualizer and path modal (PR #240, plan [16]), relay signal rings on the map (PR #241, plan [21] S2) and tester fixes including a server-side chat hop-size filter (PR #239, migration `_121`); PRs #222, #223, #236, #237 and #242 were docs and fixes. The overnight run of 2026-09-25 closed the §7 "Later" items: L1 default flood scope read-out (PR #217), L2 receive-error graph (PR #215, migration `_116`), L3 MQTT `config`-topic publish (PR #216, opt-in `publish_config`), L4 inline contact sharing (PR #218); the same run shipped GRP_DATA placeholder rows (PR #214, plan [28] 1.17) and the triangulation link-out (PR #219, plan [13]), bundled through PR #220. Before that: PR #210 (host repeater armed mode, plan [29] Phase 3) and PR #212 (Phase 4) merged; the meshcore-open parity work in plan [28] (PRs #178, #182, #184, #185, #189-#204) covers ground outside this audit's official-app + DMC reference sets. SHIPPED: N1 (PR #12), N2 (PR #24), X1 (PR #41; later folded into community MQTT topic toggles, PR #60), X2 core, X2b per-link signal history (PR #47). L1 DONE for the companion-reachable part (region pills + sync PR #94, radio default scope PR #217; the live `region_gate{}` state of *other* repeaters stays out of scope, §7). L2 DONE (noise-floor viewer + Direct/Flood advert metrics PR #94, rx-error graph PR #215). L3 DONE (neighbor/region publish PR #90, config-topic publish PR #216). L4 DONE (channel mute, inline contact sharing PR #218, auto contact discovery confirmed present). See §7 for per-item status.
+Status: MeshCore firmware 1.18 parity added 2026-10-15 (branch `feat/meshcore-1-18-parity`, see §11). §7 backlog shipped; the last open item, the L4 auto contact-discovery confirmation, was closed 2026-09-25 by inspection (RTFM-EV behavior documented in §5, no code change). Reconciled 2026-09-26 against `main` at `c0985781` (PR #242). No §7 item changed after PR #220: the later merges are plan work outside this audit's reference sets, namely the My Node noise-floor overlay (PR #221, plan [21] S4), GRP_DATA placeholder rows kept out of fanout unless opted in (PR #224, plan [28] 1.17 follow-up), the "Owned" sidebar section (PR #225, plan [17] Phase 3), analyzer name resolution for unnamed full-key contacts (PR #226, plan [16] case (a), migration `_117`), per-relay reception comparison in Mesh Health (PR #227, plan [21] S1, migration `_118`) with live refresh (PR #233), contact location and repeater config history (PR #228, plan [14], migration `_119`) with a read-only History / Positions view (PR #234), fixes from the live check of those (PR #230), lowercase `public` channel links for meshcore-analyzer.eu sites (PR #231) host repeater filter rules (PR #232, plan [29]), room ACL history and a device history age limit (PR #238, plan [14], migration `_120`), soft links in the packet visualizer and path modal (PR #240, plan [16]), relay signal rings on the map (PR #241, plan [21] S2) and tester fixes including a server-side chat hop-size filter (PR #239, migration `_121`); PRs #222, #223, #236, #237 and #242 were docs and fixes. The overnight run of 2026-09-25 closed the §7 "Later" items: L1 default flood scope read-out (PR #217), L2 receive-error graph (PR #215, migration `_116`), L3 MQTT `config`-topic publish (PR #216, opt-in `publish_config`), L4 inline contact sharing (PR #218); the same run shipped GRP_DATA placeholder rows (PR #214, plan [28] 1.17) and the triangulation link-out (PR #219, plan [13]), bundled through PR #220. Before that: PR #210 (host repeater armed mode, plan [29] Phase 3) and PR #212 (Phase 4) merged; the meshcore-open parity work in plan [28] (PRs #178, #182, #184, #185, #189-#204) covers ground outside this audit's official-app + DMC reference sets. SHIPPED: N1 (PR #12), N2 (PR #24), X1 (PR #41; later folded into community MQTT topic toggles, PR #60), X2 core, X2b per-link signal history (PR #47). L1 DONE for the companion-reachable part (region pills + sync PR #94, radio default scope PR #217; the live `region_gate{}` state of *other* repeaters stays out of scope, §7). L2 DONE (noise-floor viewer + Direct/Flood advert metrics PR #94, rx-error graph PR #215). L3 DONE (neighbor/region publish PR #90, config-topic publish PR #216). L4 DONE (channel mute, inline contact sharing PR #218, auto contact discovery confirmed present). See §7 for per-item status.
 Author: Elektr0Vodka (with agent research)
 
 This is a living document. It compares the current RTFM-EV against two reference
@@ -315,3 +315,30 @@ matches. This is detailed in the i18n sub-project spec, not here.
 3. Brainstorm the first "Now" item into its own spec (recommend **N2 i18n**, since
    you named it first and it has the least protocol risk; **N1** if you prefer to
    unblock telemetry/neighbor parity first).
+
+## 11. MeshCore firmware 1.18 (2026-10-15)
+
+Source: release notes https://blog.meshcore.io/2026/10/15/release-1-18-0 and the
+`companion-v1.17.1...companion-v1.18.0` / `repeater-v1.17.1...repeater-v1.18.0` diffs in
+`meshcore-dev/MeshCore`, plus meshcore_py 2.3.16. Built on branch
+`feat/meshcore-1-18-parity` (migrations `_150`, `_151`).
+
+| 1.18 change | RTFM-EV |
+|---|---|
+| Companion CLI, `CMD_RUN_CLI_COMMAND` 66 / `RESP_CODE_CLI_REPLY` 29 (#3298, #3329, #3357, #3442, #3458) | Present: `POST /api/radio/cli`, console in Settings > Radio and My Node |
+| Remote CLI to companions, txt_type 3 | Present: contact console and DM header toggle via `POST /contacts/{key}/command` |
+| Remote CLI permission, contact flags 0x10 | Present: per-contact switch, re-applied on sync |
+| Incoming txt_type 3 queued to the app | Present: stored as a marked DM line, silenced |
+| Sensor telemetry push, REQ 0x08 / 0x09 (#3402, #3497) | Present: sensor dashboard and live push with renewal |
+| Transport code 0 un-scoped (#3568) | Present: `path_utils.is_scoped` |
+| Repeater `power`, `gps diag` (#3200, #3202) | Present: node-info power row, console suggestions |
+| Repeater `radio.fem.*` moved to board level | Present: unsupported reply already read as unsupported |
+| Configurable companion CAD, int.thresh, tx delays, agc (now prefs) | Present through the companion command line |
+| On-device Node Discover screen (#3279) | N/A: device UI |
+| BLE+WiFi multi-interface builds | N/A: transport; a WiFi companion is a TCP radio |
+| `CMD_SEND_CHANNEL_DATA` 165-byte limit, `CMD_SEND_RAW_DATA` path fix (#3235) | N/A: RTFM-EV sends neither |
+| Hidden repeater not discoverable with adverts off (#3538) | Note: Mesh Discovery will not list such repeaters |
+
+Open: none of this was tried on a real 1.18 companion or sensor yet. Everything that
+transmits (remote commands, sensor subscribe and renew) is covered by tests only.
+

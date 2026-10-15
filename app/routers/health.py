@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from app.config import settings
 from app.models import RadioIdentityPendingReason, RadioIdentityStatus
 from app.repository import RawPacketRepository
+from app.services.companion_cli import firmware_supports_cli
 from app.services.meshcomod import is_meshcomod
 from app.services.openhop import is_openhop
 from app.services.radio_identity import health_view as radio_identity_health_view
@@ -25,6 +26,7 @@ class RadioDeviceInfoResponse(BaseModel):
     max_channels: int | None = None
     is_meshcomod: bool = False
     is_openhop: bool = False
+    cli_supported: bool = False
 
 
 class AppInfoResponse(BaseModel):
@@ -170,6 +172,11 @@ async def build_health_data(radio_connected: bool, connection_info: str | None) 
                 getattr(radio_manager, "firmware_version", None),
             ),
             "is_openhop": is_openhop(getattr(radio_manager, "device_model", None)),
+            "cli_supported": firmware_supports_cli(
+                getattr(radio_manager, "firmware_ver_code", None),
+                getattr(radio_manager, "firmware_version", None),
+                getattr(radio_manager, "device_model", None),
+            ),
         }
 
     # Local radio stats from the 60s background sampler
