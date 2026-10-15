@@ -338,6 +338,37 @@ describe('Mesh Health Spam & bots tab, details', () => {
     );
   });
 
+  it('lists the own OpenHop rules in number order and copies the list', async () => {
+    mockFetch({
+      ...REPORT,
+      policy_rules: [
+        { action: 'drop', rule: '11 - unscoped', packets: 439 },
+        { action: 'drop', rule: 'rtfm-spam:bots:#nieuws (bot list)', packets: 48 },
+        { action: 'allow', rule: '9 - Responce 1byte', packets: 40 },
+        { action: 'drop', rule: '1- T-flood txt-msg 1byte spam', packets: 3 },
+      ],
+    });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    await openTab();
+    const filters = screen.getByTestId('filter-stats-filters');
+    const ruleCells = within(filters)
+      .getAllByRole('row')
+      .slice(1)
+      .map((row) => row.querySelector('td')?.textContent);
+    expect(ruleCells).toEqual([
+      '1- T-flood txt-msg 1byte spam',
+      '9 - Responce 1byte',
+      '11 - unscoped',
+      'rtfm-spam:bots:#nieuws (bot list)',
+    ]);
+    fireEvent.click(within(filters).getByRole('button', { name: 'Copy list' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    const lines = String(writeText.mock.calls[0][0]).split('\n');
+    expect(lines[1]).toBe('- 1- T-flood txt-msg 1byte spam: Drop, 3');
+    expect(lines[4]).toBe('- rtfm-spam:bots:#nieuws (bot list): Drop, 48');
+  });
+
   it('shows a block source it does not know by its own name', async () => {
     mockFetch({
       ...REPORT,

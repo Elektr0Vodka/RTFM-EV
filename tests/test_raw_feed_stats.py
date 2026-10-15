@@ -2,6 +2,8 @@
 
 import pytest
 
+from app.decoder import parse_packet
+from app.services.packet_decoded_fields import decoded_stat_fields
 from app.services.raw_feed_stats import (
     hop_byte_width_label,
     hop_profile_bucket,
@@ -149,3 +151,115 @@ class TestRawFeedStatsEndpoint:
     async def test_bad_range(self, test_db, client):
         resp = await client.get("/api/packets/raw-feed-stats?start_ts=100&end_ts=100")
         assert resp.status_code == 400
+
+
+ADVERT_KEY = bytes(range(32))
+FAR_KEY = bytes(range(50, 82))
+ANON_KEY = bytes(range(100, 132))
+
+
+def _packet(payload_type: int, payload: bytes) -> bytes:
+    """A flood packet without a path: header, path byte 0, payload."""
+    return bytes([0x01 | (payload_type << 2), 0x00]) + payload
+
+
+async def _insert_parsed(conn, **kw):
+    """Insert with the route and path columns ingest stores for these bytes."""
+    fields = decoded_stat_fields(parse_packet(kw["data"]))
+    await _insert(conn, **kw, **fields)
+
+
+async def _message(conn, kind: str, conversation_key: str, *, sender_key=None, sender_name=None):
+    cursor = await conn.execute(
+        "INSERT INTO messages (type, conversation_key, text, received_at, sender_key, sender_name) "
+        "VALUES (?, ?, ?, 1000, ?, ?)",
+        (kind, conversation_key, f"hi from {sender_name}", sender_key, sender_name),
+    )
+    return cursor.lastrowid
+
+
+class TestRawFeedStatsSourcesAndTimeline:
+    """The cards the live windows build from decoded packets, now from the database."""
+
+    @pytest.mark.asyncio
+    async def test_sources_neighbors_median_and_timeline(self, test_db, client):
+        conn = test_db.conn
+        chan_id = await _message(conn, "CHAN", "CD" * 16, sender_key="ab" * 32, sender_name="Sue")
+        named_id = await _message(conn, "CHAN", "CD" * 16, sender_name="Bob")
+        advert = _packet(0x04, ADVERT_KEY + bytes(69))
+        # Transport flood: four transport code bytes, then two hops of two bytes.
+        path_byte = (1 << 6) | 2  # two byte hashes, two hops
+        far_advert = bytes([0x04 << 2]) + bytes(4) + bytes([path_byte]) + bytes(4) + FAR_KEY
+        far_advert += bytes(69)
+        rows = [
+            # Two adverts from one node: one source, best RSSI -55.
+            {"ts": 1000, "data": advert, "payload_type": "ADVERT", "rssi": -70},
+            {"ts": 1100, "data": advert + b"\x01", "payload_type": "ADVERT", "rssi": -55},
+            # A channel message with a sender key, and one with only a name.
+            {
+                "ts": 1200,
+                "data": b"\x10",
+                "payload_type": "GROUP_TEXT",
+                "rssi": -90,
+                "message_id": chan_id,
+            },
+            {"ts": 1300, "data": b"\x11", "payload_type": "GROUP_TEXT", "message_id": named_id},
+            # A direct message nobody decrypted: its source hash byte.
+            {
+                "ts": 1400,
+                "data": _packet(0x02, b"\x12\x9a" + bytes(4)),
+                "payload_type": "TEXT_MESSAGE",
+            },
+            {"ts": 1500, "data": _packet(0x07, b"\x12" + ANON_KEY), "payload_type": "ANON_REQUEST"},
+            # The payload of a transport route with a path starts further on.
+            {"ts": 1600, "data": far_advert, "payload_type": "ADVERT"},
+            # No source at all.
+            {"ts": 1900, "data": _packet(0x03, bytes(4)), "payload_type": "ACK", "rssi": -80},
+        ]
+        for row in rows:
+            await _insert_parsed(conn, **row)
+        await conn.commit()
+
+        resp = await client.get("/api/packets/raw-feed-stats?start_ts=1000&end_ts=2000")
+        body = resp.json()
+
+        assert body["median_rssi"] == -75
+        assert body["unique_sources"] == 6
+
+        most = body["most_active_neighbors"]
+        assert most[0] == {
+            "key": ADVERT_KEY.hex().upper(),
+            "label": ADVERT_KEY.hex().upper()[:12],
+            "count": 2,
+            "best_rssi": -55,
+            "last_seen": 1100,
+        }
+        listed = most + body["strongest_neighbors"] + body["newest_neighbors"]
+        labels = {item["key"]: item["label"] for item in listed}
+        assert labels[("ab" * 32).upper()] == "Sue"
+        assert labels["name:bob"] == "Bob"
+        assert labels["hash1:9A"] == "9A"
+        assert len(most) == 5
+
+        strongest = body["strongest_neighbors"]
+        assert [item["best_rssi"] for item in strongest] == [-55, -90]
+        newest = body["newest_neighbors"]
+        assert [item["key"] for item in newest[:2]] == [
+            FAR_KEY.hex().upper(),
+            ANON_KEY.hex().upper(),
+        ]
+
+        timeline = body["timeline"]
+        assert len(timeline) == 10
+        assert [b["start_ts"] for b in timeline[:2]] == [1000, 1100]
+        assert timeline[0]["counts_by_type"] == {"Advert": 1}
+        assert timeline[9]["counts_by_type"] == {"Ack": 1}
+        assert sum(b["total"] for b in timeline) == 8
+
+    @pytest.mark.asyncio
+    async def test_empty_range_has_ten_empty_bins(self, test_db, client):
+        body = (await client.get("/api/packets/raw-feed-stats?start_ts=0&end_ts=100")).json()
+        assert body["median_rssi"] is None
+        assert body["unique_sources"] == 0
+        assert body["most_active_neighbors"] == []
+        assert [b["total"] for b in body["timeline"]] == [0] * 10

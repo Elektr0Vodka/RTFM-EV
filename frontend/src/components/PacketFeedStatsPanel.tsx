@@ -119,6 +119,12 @@ const EMPTY_HISTORICAL: RawFeedHistoricalStats = {
   hop_profile: [],
   hop_byte_width_profile: [],
   rssi_buckets: [],
+  median_rssi: null,
+  timeline: [],
+  unique_sources: 0,
+  strongest_neighbors: [],
+  most_active_neighbors: [],
+  newest_neighbors: [],
 };
 
 function formatTimestamp(timestampMs: number): string {
@@ -696,7 +702,7 @@ export function PacketFeedStatsPanel({ contacts }: { contacts: Contact[] }) {
         />
         <StatTile
           label={t('packet_stat_unique_sources')}
-          value={isLiveWindow ? stats.uniqueSources.toLocaleString() : '-'}
+          value={stats.uniqueSources.toLocaleString()}
           detail={t('packet_stat_distinct_senders')}
         />
         <StatTile

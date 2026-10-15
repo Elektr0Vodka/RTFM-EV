@@ -11,6 +11,37 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-15 (Spam Guard rule cap, Mesh Trends stored windows, OpenHop rule list, fix/openhop-rule-cap-mesh-trends)
+
+No migration, no new dependency, no new environment variable.
+
+### Spam Guard
+- **"Most rules at once" now holds for every rule.** Blocks that let known
+  people through (repeater blocks in the recommended "anything passing
+  through, except people it knows" mode, link blocks, lockdown, rotation
+  blocks) make one rule per protected channel, and those rules were never
+  counted against the limit. During an attack on five channels this put 740
+  rules on an OpenHop node with the limit at 170, and the node's database
+  locked up. These rules now count too: the newest blocks are kept, a block
+  that does not fit is left out whole, and the page shows that the limit was
+  reached.
+
+### Mesh Trends
+- **Live tab, windows from 20m up and custom ranges.** The traffic timeline,
+  Unique Sources, Strongest Neighbor, Median RSSI and the three neighbor lists
+  now fill in from stored packets, where they stayed empty after 10m. The
+  timeline labels show the date once a range is longer than a day. Stored
+  windows count each packet once; the live and session windows count every
+  time a packet is heard (the note under the window selector says so).
+
+### Mesh Health (Spam & bots)
+- **OpenHop rules in order.** The node owner's own rules are listed first in
+  name order with numbers counted (1, 2 ... 10, 11), then Spam Guard's rules
+  by packets, then the default action. Scramble keeps that order.
+- **Copy list.** A button on the OpenHop rules card copies the list as text
+  (rule, action, packets, and the number of messages without a recorded
+  outcome).
+
 ## Update 2026-10-14 (Mesh Trends keeps a restored custom range, fix/packet-stats-custom-restore)
 
 No migration, no new dependency, no new environment variable.

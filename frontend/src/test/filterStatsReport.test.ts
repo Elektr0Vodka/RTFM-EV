@@ -6,6 +6,7 @@ import nl from '../i18n/locales/nl.json';
 import {
   buildCsv,
   buildJsonReport,
+  buildPolicyRulesText,
   buildSummaryText,
   channelsCsv,
   createScrambler,
@@ -13,6 +14,7 @@ import {
   percent,
   scrambleReport,
   sendersCsv,
+  sortPolicyRules,
   sourcesCsv,
   type FilterStatsReport,
 } from '../utils/filterStatsReport';
@@ -288,5 +290,56 @@ describe('filterStatsFilename', () => {
   it('names the file after its content and the local time', () => {
     const at = new Date(2026, 9, 14, 9, 5, 7);
     expect(filterStatsFilename('senders', 'csv', at)).toBe('spam-bots-senders_20261014_090507.csv');
+  });
+});
+
+const RULES = [
+  { action: 'drop', rule: '11 - unscoped', packets: 439 },
+  { action: 'drop', rule: '10 - flood_transport 1byte', packets: 208 },
+  { action: 'allow', rule: '4 - Advert 1byte', packets: 58 },
+  { action: 'drop', rule: 'rtfm-spam:bots:#nieuws (bot list)', packets: 48 },
+  { action: 'allow', rule: null, packets: 20 },
+  { action: 'drop', rule: 'rtfm-spam:bots:#hoorn (bot list)', packets: 13 },
+  { action: 'drop', rule: '1- T-flood txt-msg 1byte spam', packets: 3 },
+  { action: 'drop', rule: '2 - T-flood request 1byte spam', packets: 3 },
+];
+
+describe('sortPolicyRules', () => {
+  it('puts the own rules in number order, then Spam Guard by packets, then the default', () => {
+    expect(sortPolicyRules(RULES).map((rule) => rule.rule)).toEqual([
+      '1- T-flood txt-msg 1byte spam',
+      '2 - T-flood request 1byte spam',
+      '4 - Advert 1byte',
+      '10 - flood_transport 1byte',
+      '11 - unscoped',
+      'rtfm-spam:bots:#nieuws (bot list)',
+      'rtfm-spam:bots:#hoorn (bot list)',
+      null,
+    ]);
+  });
+
+  it('does not change the list it is given', () => {
+    const copy = [...RULES];
+    sortPolicyRules(RULES);
+    expect(RULES).toEqual(copy);
+  });
+});
+
+describe('buildPolicyRulesText', () => {
+  it('lists every rule with its action and packets, and the unrecorded messages', () => {
+    const text = buildPolicyRulesText({ ...REPORT, policy_rules: sortPolicyRules(RULES) }, t, {
+      windowLabel: '24h',
+      actionLabel: (action) => action.toUpperCase(),
+    });
+    const lines = text.split('\n');
+    expect(lines[0]).toBe('mesh_filter_policy_summary_title {"window":"24h"}');
+    expect(lines[1]).toBe(
+      'mesh_filter_policy_summary_item {"rule":"1- T-flood txt-msg 1byte spam","action":"DROP","count":3}'
+    );
+    expect(lines[8]).toBe(
+      'mesh_filter_policy_summary_item {"rule":"mesh_filter_policy_default","action":"ALLOW","count":20}'
+    );
+    expect(lines[9]).toBe('mesh_filter_not_recorded {"count":10}');
+    expect(lines).toHaveLength(10);
   });
 });

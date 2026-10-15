@@ -1,6 +1,6 @@
 import { MeshCoreDecoder, PayloadType, Utils } from '@michaelhart/meshcore-decoder';
 
-import type { RawFeedHistoricalStats, RawPacket } from '../types';
+import type { RawFeedHistoricalStats, RawFeedNeighbor, RawPacket } from '../types';
 import { getRawPacketObservationKey } from './rawPacketIdentity';
 import { formatDateTime } from './dateTimeFormat';
 
@@ -370,11 +370,30 @@ export function isRawFeedLiveWindow(id: string): boolean {
   return RAW_FEED_LIVE_IDS.has(id);
 }
 
+function neighborFromHistorical(item: RawFeedNeighbor): NeighborStat {
+  return {
+    key: item.key,
+    label: item.label,
+    count: item.count,
+    bestRssi: item.best_rssi,
+    lastSeen: item.last_seen,
+  };
+}
+
+/** A bin start: the time of day, with the date once the range spans more than a day. */
+function formatHistoricalBinLabel(timestamp: number, spanSeconds: number): string {
+  if (spanSeconds <= 24 * 3600) return formatTimelineLabel(timestamp);
+  return formatDateTime(new Date(timestamp * 1000), {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 /**
  * Adapt a DB-computed historical breakdown into a RawPacketStatsSnapshot so the
- * existing cards render unchanged. Neighbor/timeline/per-packet data cannot be
- * derived historically (needs decryption), so those are left empty and the view
- * gates them as live-only.
+ * existing cards render unchanged. Only the per-packet list stays empty.
  */
 export function buildSnapshotFromHistorical(
   db: RawFeedHistoricalStats,
@@ -390,7 +409,7 @@ export function buildSnapshotFromHistorical(
     packets: [],
     packetCount: db.packet_count,
     packetsPerMinute: db.packet_count / Math.max(coverageSeconds / 60, 1 / 60),
-    uniqueSources: 0,
+    uniqueSources: db.unique_sources,
     decryptedCount: db.decrypted_count,
     undecryptedCount: db.undecrypted_count,
     decryptRate: db.decrypt_rate,
@@ -402,17 +421,21 @@ export function buildSnapshotFromHistorical(
     topPacketTypes: db.payload_breakdown.slice(0, 5),
     hopProfile: db.hop_profile,
     hopByteWidthProfile: db.hop_byte_width_profile,
-    strongestNeighbors: [],
-    mostActiveNeighbors: [],
-    newestNeighbors: [],
+    strongestNeighbors: db.strongest_neighbors.map(neighborFromHistorical),
+    mostActiveNeighbors: db.most_active_neighbors.map(neighborFromHistorical),
+    newestNeighbors: db.newest_neighbors.map(neighborFromHistorical),
     averageRssi: db.average_rssi,
-    medianRssi: null,
+    medianRssi: db.median_rssi,
     bestRssi: db.best_rssi,
     rssiBuckets: db.rssi_buckets,
     coverageSeconds,
     windowFullyCovered: true,
     oldestStoredTimestamp: startSec,
-    timeline: [],
+    timeline: db.timeline.map((bin) => ({
+      label: formatHistoricalBinLabel(bin.start_ts, coverageSeconds),
+      total: bin.total,
+      countsByType: bin.counts_by_type,
+    })),
   };
 }
 
