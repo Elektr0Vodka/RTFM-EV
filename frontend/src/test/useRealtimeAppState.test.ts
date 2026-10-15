@@ -658,6 +658,29 @@ describe('useRealtimeAppState', () => {
     expect(getRawPackets()).toEqual([packet]);
     expect(getRawPacketStatsSession().totalObservedPackets).toBe(1);
   });
+
+  describe('remote CLI commands (txt_type 3)', () => {
+    it('stores but never counts or notifies a command another companion sent us', () => {
+      const cliCommand: Message = { ...incomingDm, id: 99, text: 'get name', txt_type: 3 };
+      const fns = {
+        recordMessageEvent: vi.fn(),
+        notifyIncomingMessage: vi.fn(),
+        notifyMentionSound: vi.fn(),
+      };
+      const { args } = createRealtimeArgs({
+        ...fns,
+        observeMessage: vi.fn(() => ({ added: true, activeConversation: false })),
+      });
+      const { result } = renderHook(() => useRealtimeAppState(args));
+      act(() => {
+        result.current.onMessage?.(cliCommand);
+      });
+      expect(args.observeMessage).toHaveBeenCalledWith(cliCommand);
+      expect(fns.recordMessageEvent).not.toHaveBeenCalled();
+      expect(fns.notifyIncomingMessage).not.toHaveBeenCalled();
+      expect(fns.notifyMentionSound).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe('useRealtimeAppState: failed sends for the desktop buddy', () => {

@@ -1163,6 +1163,7 @@ export function App() {
     onImportContactUri: handleImportContactUri,
   };
   const contactInfoPaneProps = {
+    cliSupported: !!health?.radio_device_info?.cli_supported,
     contactKey: infoPaneContactKey,
     fromChannel: infoPaneFromChannel,
     onClose: handleCloseContactInfo,

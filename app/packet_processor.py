@@ -39,7 +39,7 @@ from app.models import (
     RawPacketDecryptedInfo,
     RawPacketPolicyVerdict,
 )
-from app.path_utils import calculate_packet_hash
+from app.path_utils import calculate_packet_hash, is_scoped
 from app.region_resolver import resolve_region
 from app.repository import (
     AdvertEventRepository,
@@ -395,7 +395,7 @@ async def process_raw_packet(
     # skipped for the common (unscoped) flood/direct case.
     transport_code: int | None = None
     region: str | None = None
-    if packet_info is not None and packet_info.transport_codes is not None:
+    if packet_info is not None and is_scoped(packet_info.transport_codes):
         transport_code = packet_info.transport_codes[0]
         try:
             settings = await AppSettingsRepository.get()

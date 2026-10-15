@@ -44,6 +44,8 @@ import type { ChartWindow } from '../lib/chartZoom';
 import { ContactAvatar } from './ContactAvatar';
 import { ContactRadioResidencyControl } from './ContactRadioResidencyControl';
 import { ContactTelemetryPermissionsControl } from './ContactTelemetryPermissionsControl';
+import { CompanionCliConsole } from './CompanionCliConsole';
+import { ContactRemoteCliControl } from './ContactRemoteCliControl';
 import { ContactLinkShare } from './ContactLinkShare';
 import { ContactRouteSuggestionsSection } from './ContactRouteSuggestions';
 import { ContactSnmpSection } from './snmp/ContactSnmpSection';
@@ -163,6 +165,8 @@ export interface ContactInfoBodyProps {
   /** When true, render the contact header (avatar/name/key/type). The desktop
    *  full-page view supplies its own top bar and sets this false. */
   showHeader?: boolean;
+  /** The connected radio has the MeshCore 1.18 companion command line. */
+  cliSupported?: boolean;
 }
 
 /**
@@ -200,6 +204,7 @@ export function ContactInfoBody({
   onUpdateContactGroups,
   region = 'all',
   showHeader = true,
+  cliSupported = false,
 }: ContactInfoBodyProps) {
   const t = useT();
   const { distanceUnit } = useDistanceUnit();
@@ -483,6 +488,10 @@ export function ContactInfoBody({
         <ContactTelemetryPermissionsControl contact={contact} />
       )}
 
+      {show('identity') && !isPrefixOnlyResolvedContact && contact.type === CONTACT_TYPE_CLIENT && (
+        <ContactRemoteCliControl contact={contact} />
+      )}
+
       {show('identity') && !isPrefixOnlyResolvedContact && (
         <ContactLinkShare
           key={contact.public_key}
@@ -624,6 +633,15 @@ export function ContactInfoBody({
         !isPrefixOnlyResolvedContact &&
         contact.public_key.length === 64 &&
         !contact.name && <ResolveNameButton publicKey={contact.public_key} t={t} />}
+
+      {show('network') && contact.type === CONTACT_TYPE_CLIENT && !isPrefixOnlyResolvedContact && (
+        <div className="px-5 py-3 border-b border-border">
+          <CompanionCliConsole
+            target={{ kind: 'contact', publicKey: contact.public_key }}
+            cliSupported={cliSupported}
+          />
+        </div>
+      )}
 
       {show('network') &&
         analytics &&

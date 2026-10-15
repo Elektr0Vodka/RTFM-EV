@@ -7,6 +7,7 @@ import { Separator } from '../ui/separator';
 import { toast } from '../ui/sonner';
 import { Checkbox } from '../ui/checkbox';
 import { MeshcomodSettings } from './MeshcomodSettings';
+import { CompanionCliConsole } from '../CompanionCliConsole';
 import { GpsSettings } from './GpsSettings';
 import { OpenHopSettings } from './OpenHopSettings';
 import { LoadoutDisconnectDialog } from './LoadoutDisconnectDialog';
@@ -1836,6 +1837,16 @@ export function SettingsRadioSection({
         </div>
 
         <MeshcomodSettings health={health} />
+        {health?.radio_connected && (
+          <div className="space-y-2">
+            <Separator />
+            <h3 className="text-sm font-medium">{t('settings_radio_cli_heading')}</h3>
+            <CompanionCliConsole
+              target={{ kind: 'radio' }}
+              cliSupported={!!health.radio_device_info?.cli_supported}
+            />
+          </div>
+        )}
         <GpsSettings health={health} />
 
         <OpenHopSettings

@@ -92,6 +92,7 @@ from app.routers import (
     repeaters,
     retention,
     rooms,
+    sensor_push,
     settings,
     snmp,
     snmp_agent,
@@ -115,6 +116,7 @@ from app.services.link_edge_backfill import start_link_edge_backfill, stop_link_
 from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.radio_stats import start_radio_stats_sampling, stop_radio_stats_sampling
 from app.services.retention_pruner import start_retention_prune, stop_retention_prune
+from app.services.sensor_push import start_sensor_push_loop, stop_sensor_push_loop
 from app.services.snmp_agent import start_snmp_agent, stop_snmp_agent
 from app.services.snmp_poll import start_snmp_poll_schedule, stop_snmp_poll_schedule
 from app.services.team_beacon_sender import stop_team_beacon
@@ -219,6 +221,7 @@ async def lifespan(app: FastAPI):
 
     # Scheduled SNMP polls of contacts that have it turned on (LAN only, no radio).
     start_snmp_poll_schedule()
+    start_sensor_push_loop()
 
     # RTFM-EV's own SNMP agent (off unless enabled in its settings).
     await start_snmp_agent()
@@ -255,6 +258,7 @@ async def lifespan(app: FastAPI):
     await stop_backup_schedule()
     await stop_bot_list_refresh()
     await stop_snmp_poll_schedule()
+    await stop_sensor_push_loop()
     await stop_snmp_agent()
     await stop_retention_prune()
     from app.services.host_repeater_tx import host_repeater_tx
@@ -332,6 +336,7 @@ app.include_router(radio_identities.router, prefix="/api")
 app.include_router(host_repeater.router, prefix="/api")
 app.include_router(contacts.router, prefix="/api")
 app.include_router(repeaters.router, prefix="/api")
+app.include_router(sensor_push.router, prefix="/api")
 app.include_router(rooms.router, prefix="/api")
 app.include_router(snmp.router, prefix="/api")
 app.include_router(snmp.nodes_router, prefix="/api")

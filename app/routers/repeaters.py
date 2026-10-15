@@ -1,12 +1,15 @@
 import asyncio
 import logging
+import re
 import time
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.models import (
+    CONTACT_TYPE_CLIENT,
     CONTACT_TYPE_REPEATER,
+    CONTACT_TYPE_SENSOR,
     AclEntry,
     CommandRequest,
     CommandResponse,
@@ -49,6 +52,7 @@ from app.routers.contacts import (
     _resolve_contact_or_404,
 )
 from app.routers.server_control import (
+    CLI_CAPABLE_CONTACT_TYPES,
     batch_cli_fetch,
     fetch_repeater_owner_info_binary,
     prepare_authenticated_contact_connection,
@@ -56,6 +60,7 @@ from app.routers.server_control import (
     send_contact_cli_command,
 )
 from app.services import repeater_settings
+from app.services.companion_cli import radio_cli_supported
 from app.services.radio_runtime import radio_runtime as radio_manager
 from app.services.route_timeout import contact_timeout_seconds
 
@@ -82,6 +87,33 @@ async def prepare_repeater_connection(mc, contact: Contact, password: str) -> Re
     )
 
 
+_POWER_RE = re.compile(
+    r"batt:(?P<batt_mv>\d+)\s*mV\s+usb:(?P<usb>\S+)\s+solar_chg:(?P<solar_chg>\S+)"
+    r"\s+ext:(?P<ext>\S+)\s+charger:(?P<charger>\S+)"
+)
+
+
+def parse_power_reply(reply: str | None) -> dict[str, str] | None:
+    """Parse the firmware 1.18 `power` reply (CommonCLI.cpp); None on older firmware."""
+    if not reply:
+        return None
+    match = _POWER_RE.search(reply)
+    return match.groupdict() if match else None
+
+
+def _require_repeater_or_sensor(contact: Contact) -> None:
+    """Raise 400 unless the contact is a repeater or a sensor node.
+
+    Sensors (``simple_sensor``) answer login, telemetry and ACL requests, but
+    not status, neighbours, regions or the repeater config batches.
+    """
+    if contact.type not in (CONTACT_TYPE_REPEATER, CONTACT_TYPE_SENSOR):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Contact is not a repeater or sensor (type={contact.type})",
+        )
+
+
 def _require_repeater(contact: Contact) -> None:
     """Raise 400 if contact is not a repeater."""
     if contact.type != CONTACT_TYPE_REPEATER:
@@ -102,7 +134,7 @@ async def repeater_login(public_key: str, request: RepeaterLoginRequest) -> Repe
     """Attempt repeater login and report whether auth was confirmed."""
     radio_manager.require_connected()
     contact = await _resolve_contact_or_404(public_key)
-    _require_repeater(contact)
+    _require_repeater_or_sensor(contact)
 
     async with radio_manager.radio_operation(
         "repeater_login",
@@ -255,7 +287,7 @@ async def repeater_lpp_telemetry(public_key: str) -> RepeaterLppTelemetryRespons
     """Fetch CayenneLPP sensor telemetry from a repeater (single attempt; 10 s plus 5 s per known hop)."""
     radio_manager.require_connected()
     contact = await _resolve_contact_or_404(public_key)
-    _require_repeater(contact)
+    _require_repeater_or_sensor(contact)
 
     async with radio_manager.radio_operation(
         "repeater_lpp_telemetry", pause_polling=True, suspend_auto_fetch=True
@@ -399,7 +431,7 @@ async def repeater_acl(public_key: str) -> RepeaterAclResponse:
     """Fetch ACL from a repeater (single attempt; 10 s plus 5 s per known hop)."""
     radio_manager.require_connected()
     contact = await _resolve_contact_or_404(public_key)
-    _require_repeater(contact)
+    _require_repeater_or_sensor(contact)
 
     async with radio_manager.radio_operation(
         "repeater_acl", pause_polling=True, suspend_auto_fetch=True
@@ -489,10 +521,16 @@ async def repeater_node_info(public_key: str) -> RepeaterNodeInfoResponse:
             ("get lat", "lat"),
             ("get lon", "lon"),
             ("clock", "clock_utc"),
+            ("power", "power"),
         ],
     )
-    response = RepeaterNodeInfoResponse(**results)
-    await _record_config_snapshot(contact, "node_info", response, exclude={"clock_utc"})
+    response = RepeaterNodeInfoResponse(
+        **results, power_info=parse_power_reply(results.get("power"))
+    )
+    # Clock and power are live state, not configuration.
+    await _record_config_snapshot(
+        contact, "node_info", response, exclude={"clock_utc", "power", "power_info"}
+    )
     return response
 
 
@@ -867,11 +905,19 @@ async def repeater_regions(public_key: str) -> RepeaterRegionsResponse:
 
 @router.post("/{public_key}/command", response_model=CommandResponse)
 async def send_repeater_command(public_key: str, request: CommandRequest) -> CommandResponse:
-    """Send a CLI command to a repeater or room server."""
+    """Send a CLI command to a repeater, room server, sensor or (1.18+) companion."""
     radio_manager.require_connected()
 
     contact = await _resolve_contact_or_404(public_key)
-    require_server_capable_contact(contact)
+    require_server_capable_contact(contact, allowed_types=CLI_CAPABLE_CONTACT_TYPES)
+    if contact.type == CONTACT_TYPE_CLIENT and not radio_cli_supported():
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Sending commands to a companion needs MeshCore companion "
+                "firmware 1.18 or newer on your radio"
+            ),
+        )
     return await send_contact_cli_command(
         contact,
         request.command,

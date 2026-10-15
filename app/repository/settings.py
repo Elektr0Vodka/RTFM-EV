@@ -19,7 +19,12 @@ from app.models import (
     SidebarHidden,
     TeamBeaconSettings,
 )
-from app.path_utils import bucket_path_hash_widths, bucket_region_scope, parse_packet_envelope
+from app.path_utils import (
+    bucket_path_hash_widths,
+    bucket_region_scope,
+    is_scoped,
+    parse_packet_envelope,
+)
 from app.telemetry_interval import DEFAULT_TELEMETRY_INTERVAL_HOURS
 
 if TYPE_CHECKING:
@@ -1579,7 +1584,7 @@ class StatisticsRepository:
             if raw is None:
                 continue
             envelope = parse_packet_envelope(bytes(raw))
-            if envelope is not None and envelope.transport_codes is not None:
+            if envelope is not None and is_scoped(envelope.transport_codes):
                 scoped_senders.add(identity)
 
         total = len(senders)

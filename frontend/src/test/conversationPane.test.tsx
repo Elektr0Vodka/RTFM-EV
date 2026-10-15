@@ -70,6 +70,10 @@ function setViewport(isMobile: boolean) {
 // Stands in for the real panel's per-room login cache, which outlives a remount.
 const authenticatedRooms = new Set<string>();
 
+vi.mock('../components/repeater/SensorDashboardBody', () => ({
+  SensorDashboardBody: () => <div data-testid="sensor-dashboard-body" />,
+}));
+
 vi.mock('../components/RoomServerPanel', () => ({
   RoomServerPanel: ({
     contact,
@@ -309,6 +313,46 @@ describe('ConversationPane', () => {
 
     expect(screen.getByText('Select a conversation or start a new one')).toBeInTheDocument();
   });
+
+  it.each([true, false])(
+    'keeps the chat for sensor contacts and adds the sensor dashboard panel (mobile=%s)',
+    async (mobile) => {
+      setViewport(mobile);
+      render(
+        <ConversationPane
+          {...createProps({
+            activeConversation: { type: 'contact', id: '5e'.repeat(32), name: 'Garden sensor' },
+            contacts: [
+              {
+                public_key: '5e'.repeat(32),
+                name: 'Garden sensor',
+                type: 4,
+                flags: 0,
+                direct_path: null,
+                direct_path_len: 0,
+                direct_path_hash_mode: 0,
+                last_advert: null,
+                lat: null,
+                lon: null,
+                last_seen: null,
+                on_radio: false,
+                favorite: false,
+                radio_policy: 'auto',
+                last_contacted: null,
+                last_read_at: null,
+                first_seen: null,
+              },
+            ],
+          })}
+        />
+      );
+
+      // Sensor alerts arrive as plain DMs: the message list must stay.
+      expect(await screen.findByTestId('message-list')).toBeInTheDocument();
+      expect(screen.queryByTestId('repeater-dashboard')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Sensor login & dashboard/ })).toBeInTheDocument();
+    }
+  );
 
   it('renders repeater dashboard instead of chat chrome for repeater contacts', async () => {
     render(

@@ -25,6 +25,7 @@ from app.models import (
     ContactLocationHistory,
     ContactRadioPolicyRequest,
     ContactRadioResidency,
+    ContactRemoteCliRequest,
     ContactRouteSuggestions,
     ContactRoutingOverrideRequest,
     ContactTelemetryPermissionsRequest,
@@ -43,6 +44,7 @@ from app.models import (
     PathDiscoveryRoute,
     TelemetryHistoryEntry,
     TraceResponse,
+    apply_remote_cli,
     apply_telemetry_perms,
 )
 from app.packet_processor import start_historical_dm_decryption
@@ -1216,6 +1218,51 @@ async def set_contact_telemetry_permissions(
         "status": "ok",
         "public_key": contact.public_key,
         "telemetry_perms": perms,
+        "applied_to_radio": applied_to_radio,
+    }
+
+
+@router.post("/{public_key}/remote-cli")
+async def set_contact_remote_cli(public_key: str, request: ContactRemoteCliRequest) -> dict:
+    """Allow or forbid a contact to run commands on our radio (firmware 1.18+).
+
+    Stored and pushed like the telemetry permissions: applied now when the
+    contact is on the radio, and re-applied whenever a radio snapshot differs.
+    """
+    contact = await _resolve_contact_or_404(public_key)
+    await ContactRepository.set_remote_cli(contact.public_key, request.enabled)
+
+    applied_to_radio = False
+    if radio_manager.is_connected:
+        try:
+            async with radio_manager.radio_operation("set_contact_remote_cli") as mc:
+                radio_contact = mc.get_contact_by_key_prefix(contact.public_key[:12])
+                if radio_contact:
+                    flags = apply_remote_cli(int(radio_contact.get("flags") or 0), request.enabled)
+                    result = await mc.commands.change_contact_flags(radio_contact, flags)
+                    applied_to_radio = result is not None and result.type != EventType.ERROR
+                    if applied_to_radio:
+                        await ContactRepository.set_flags(contact.public_key, flags)
+        except Exception:
+            logger.warning(
+                "Failed to push Remote CLI permission to radio for %s",
+                contact.public_key[:12],
+                exc_info=True,
+            )
+
+    logger.info(
+        "Set Remote CLI permission for %s: %s (on radio now: %s)",
+        contact.public_key[:12],
+        request.enabled,
+        applied_to_radio,
+    )
+    updated = await ContactRepository.get_by_key(contact.public_key)
+    if updated:
+        await _broadcast_contact_update(updated)
+    return {
+        "status": "ok",
+        "public_key": contact.public_key,
+        "remote_cli": request.enabled,
         "applied_to_radio": applied_to_radio,
     }
 

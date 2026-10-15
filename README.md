@@ -47,9 +47,11 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 
 - Monitor more contacts and channels than the radio can hold: packets are stored and decrypted on the server, including older packets once you add a key.
 - Per-contact radio residency (Auto, Pin, App only), notes, owner, manual location, battery chemistry and telemetry sharing permissions.
+- [Companion command line](#meshcore-118-companion-command-line) (firmware 1.18+): commands for another companion from its contact info or the DM header, and a per-contact Remote CLI permission that lets a contact run commands on your radio. Commands other companions send to your radio show in the DM as a marked line, never as chat.
 - Contact pages with position history, advert paths, previous names, nearest repeaters and scored message routes.
 - Sidebar with favorites split by node type, your own contact groups, and an **Owned** section for nodes your radio owns.
 - Repeater dashboard: login, status and settings panes, CLI console with command suggestions, telemetry history, config change history and a settings editor that confirms and reads back each change, including SNMP on/off on observer firmware.
+- Sensor dashboard above the sensor's chat (alerts stay readable): login, LPP telemetry, min/max/average, access list, console and live telemetry push (firmware 1.18+: the sensor sends new readings by itself when a watched value changes).
 - Room server dashboard with telemetry, ACL, sensor data, console and ACL change history, plus a Sync Now button that asks the room server for recent messages again, and Resync history to fetch every post the room still holds when some are missing.
 - Per-contact region for direct messages: scope flood-routed DMs to a region, force them unscoped, or follow the global setting.
 - Optional unread channel summaries written by a model on your own Ollama server. Off by default; when on, the unread text of the channel you open is sent to that server.
@@ -88,6 +90,7 @@ Per-screen detail is in the in-app **User Guide** (sidebar **Tools > User Guide*
 - Serial, TCP or BLE, with serial auto-detection when no transport is set.
 - Radio parameters, path hash mode (1, 2 or 3 bytes per hop when the firmware supports it), location, adverts, default flood scope and known regions.
 - GPS toggle on any radio that reports it, including stock companion firmware.
+- [Command line for your own radio](#meshcore-118-companion-command-line) in Settings > Radio and on My Node (companion firmware 1.18+): CAD, interference threshold, TX delays, time zone offset, WiFi and more.
 - [meshcomod (DMC-EV)](#meshcomod-dmc-ev-firmware) CAD and GPS controls, and [OpenHop](#openhop-nodes) management panes.
 - Radio identity registry: history per radio, and a prompt when a different radio connects (new radio or replacement).
 - [Several radios at once](README_ADVANCED.md#multiple-radios-experimental) (experimental, opt-in): one workspace per radio, for example 433 and 868 MHz side by side, with a shared channel list, a radio switcher and unread badges across radios.
@@ -326,6 +329,17 @@ Remediation and advanced variables (`MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK`, `ME
 - **GPS:** enable the on-board GPS receiver and set its reporting interval (0 to 86400 seconds).
 
 Detection is automatic from the radio's device info; each control disables itself when the firmware build does not report support, and the panel is hidden on other firmware. Stock companion firmware that reports the `gps` custom var gets a standalone GPS toggle instead.
+
+### MeshCore 1.18 companion command line
+
+MeshCore companion firmware 1.18 added a command line to the companion radio itself. With a 1.18 or newer radio connected:
+
+- **Your radio:** a **Command line** card in **Settings > Radio** and on **My Node** runs commands on the connected radio (for example `get radio`, `set cad on`, `set tz.offset 2`, `set wifi.ssid`). It runs on the radio and never transmits.
+- **Another companion:** the same console in a chat contact's info, or the command line toggle in the DM header, sends the command over the mesh. That companion only answers when it has given you **Remote CLI** permission.
+- **Remote CLI permission:** the **Remote CLI** switch in a chat contact's info lets that contact run commands on your radio. Only turn it on for contacts you trust: they can reboot the radio, change its radio settings and read its WiFi password.
+- `reboot`, `poweroff`, `shutdown`, `set radio`, `set pin` and `set wifi.*` ask for confirmation first.
+
+Older companion firmware, meshcomod and OpenHop do not have this command line; the cards say so.
 
 ### OpenHop nodes
 

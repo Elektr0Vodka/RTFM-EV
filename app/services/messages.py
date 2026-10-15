@@ -80,6 +80,7 @@ def build_message_model(
     malformed: bool = False,
     spam: bool = False,
     duplicate: bool = False,
+    cli_permitted: bool | None = None,
 ) -> Message:
     """Build a Message model with the canonical backend payload shape."""
     return Message(
@@ -104,6 +105,7 @@ def build_message_model(
         malformed=malformed,
         spam=spam,
         duplicate=duplicate,
+        cli_permitted=cli_permitted,
     )
 
 

@@ -25,6 +25,16 @@ def apply_telemetry_perms(flags: int, perms: int) -> int:
     return (flags & ~(TELEMETRY_PERM_MASK << 1)) | ((perms & TELEMETRY_PERM_MASK) << 1)
 
 
+# Companion firmware 1.18 ContactInfo::isRemoteCLIAllowed(): this contact may
+# run commands on our radio over the mesh (reboot, radio settings, WiFi password).
+REMOTE_CLI_FLAG = 0x10
+
+
+def apply_remote_cli(flags: int, enabled: bool) -> int:
+    """Return radio contact flags with the Remote CLI bit set or cleared."""
+    return (flags | REMOTE_CLI_FLAG) if enabled else (flags & ~REMOTE_CLI_FLAG)
+
+
 class ContactRoute(BaseModel):
     """A normalized contact route."""
 
@@ -140,6 +150,8 @@ class Contact(BaseModel):
     radio_policy: Literal["auto", "pinned", "excluded"] = "auto"
     # App-set TELEM_PERM_* bits; None = never set in the app (radio flags rule)
     telemetry_perms: int | None = None
+    # App-set Remote CLI permission (flags bit 0x10); None = never set in the app.
+    remote_cli: bool | None = None
     # Per-node battery chemistry override; None = use the global app_settings default.
     battery_chemistry: Literal["lipo", "lifepo4", "lipo_hv", "nmc"] | None = None
     # Per-node power source override; None = auto (frontend detects it from the name).
@@ -251,6 +263,8 @@ class Contact(BaseModel):
         flags = self.flags
         if self.telemetry_perms is not None:
             flags = apply_telemetry_perms(flags, self.telemetry_perms)
+        if self.remote_cli is not None:
+            flags = apply_remote_cli(flags, self.remote_cli)
         return {
             "public_key": self.public_key,
             "adv_name": self.name or "",
@@ -383,6 +397,12 @@ class ContactTelemetryPermissionsRequest(BaseModel):
         )
 
 
+class ContactRemoteCliRequest(BaseModel):
+    """Let this contact run commands on our radio (companion firmware 1.18+)."""
+
+    enabled: bool = Field(description="Allow the contact to send Remote CLI commands")
+
+
 class ContactRadioPolicyRequest(BaseModel):
     """Request to set a contact's radio residency policy.
 
@@ -419,8 +439,10 @@ class RadioContactOccupancy(BaseModel):
 
 
 # Contact type constants
+CONTACT_TYPE_CLIENT = 1
 CONTACT_TYPE_REPEATER = 2
 CONTACT_TYPE_ROOM = 3
+CONTACT_TYPE_SENSOR = 4
 
 
 class ContactAdvertPath(BaseModel):
@@ -769,6 +791,14 @@ class Message(BaseModel):
             "True when Spam Guard flagged an incoming channel message as spam, at ingest "
             "or afterwards (earlier copies of a campaign). Hidden by the chat 'Hide spam' "
             "filter."
+        ),
+    )
+    cli_permitted: bool | None = Field(
+        default=None,
+        description=(
+            "For an incoming CLI command (txt_type 3): True when our radio had given the "
+            "sender Remote CLI permission, so it ran the command and replied; False when it "
+            "ignored it. None for every other message."
         ),
     )
     duplicate: bool = Field(
@@ -1129,6 +1159,53 @@ class RepeaterNodeInfoResponse(BaseModel):
     lat: str | None = Field(default=None, description="Latitude")
     lon: str | None = Field(default=None, description="Longitude")
     clock_utc: str | None = Field(default=None, description="Repeater clock in UTC")
+    power: str | None = Field(default=None, description="Raw reply to `power` (firmware 1.18+)")
+    power_info: dict[str, str] | None = Field(
+        default=None,
+        description="Parsed `power` reply: batt_mv, usb, solar_chg, ext, charger (yes/no/n/a)",
+    )
+
+
+class SensorMmaEntry(BaseModel):
+    """Min/max/average of one sensor channel over the requested window."""
+
+    channel: int
+    type_name: str
+    min: float | list[float]
+    max: float | list[float]
+    avg: float | list[float]
+
+
+class SensorMmaResponse(BaseModel):
+    hours: int
+    entries: list[SensorMmaEntry]
+
+
+class SensorPushThreshold(BaseModel):
+    """One watched sensor channel for MeshCore 1.18 telemetry push."""
+
+    channel: int = Field(ge=0, le=255)
+    type_name: str = Field(description="meshcore LPP type name, e.g. 'temperature'")
+    min_delta: float = Field(gt=0, description="Push when the value moves more than this")
+
+
+class SensorPushConfigRequest(BaseModel):
+    thresholds: list[SensorPushThreshold]
+
+
+class SensorPushStateResponse(BaseModel):
+    public_key: str
+    enabled: bool = False
+    thresholds: list[SensorPushThreshold] = Field(default_factory=list)
+    threshold_bytes: int = 0
+    max_threshold_bytes: int = 14
+    supported_types: dict[str, int] = Field(
+        default_factory=dict, description="Type name to bytes one threshold of that type takes"
+    )
+    granted_until: int | None = None
+    scope_name: str | None = None
+    last_push_at: int | None = None
+    last_error: str | None = None
 
 
 class RepeaterRadioSettingsResponse(BaseModel):

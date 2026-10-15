@@ -5,6 +5,7 @@ from typing import Any
 
 from app.database import db
 from app.models import (
+    REMOTE_CLI_FLAG,
     TELEMETRY_PERM_MASK,
     Contact,
     ContactAdvertPath,
@@ -201,6 +202,11 @@ class ContactRepository:
             ),
             telemetry_perms=(
                 row["telemetry_perms"] if "telemetry_perms" in available_columns else None
+            ),
+            remote_cli=(
+                bool(row["remote_cli"])
+                if "remote_cli" in available_columns and row["remote_cli"] is not None
+                else None
             ),
             last_contacted=row["last_contacted"],
             last_read_at=row["last_read_at"],
@@ -675,6 +681,38 @@ class ContactRepository:
                 (flags, public_key.lower()),
             ):
                 pass
+
+    @staticmethod
+    async def set_remote_cli(public_key: str, enabled: bool) -> None:
+        """Store the app-set Remote CLI permission and mirror it into flags bit 0x10."""
+        async with db.tx() as conn:
+            async with conn.execute(
+                """
+                UPDATE contacts
+                SET remote_cli = ?,
+                    flags = CASE WHEN ? THEN COALESCE(flags, 0) | ?
+                                 ELSE COALESCE(flags, 0) & ? END
+                WHERE public_key = ?
+                """,
+                (
+                    1 if enabled else 0,
+                    1 if enabled else 0,
+                    REMOTE_CLI_FLAG,
+                    ~REMOTE_CLI_FLAG,
+                    public_key.lower(),
+                ),
+            ):
+                pass
+
+    @staticmethod
+    async def get_with_app_permissions() -> list[Contact]:
+        """Contacts with an app-set telemetry or Remote CLI permission."""
+        async with db.readonly() as conn:
+            async with conn.execute(
+                "SELECT * FROM contacts WHERE telemetry_perms IS NOT NULL OR remote_cli IS NOT NULL"
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [ContactRepository._row_to_contact(row) for row in rows]
 
     @staticmethod
     async def get_with_telemetry_perms() -> list[Contact]:

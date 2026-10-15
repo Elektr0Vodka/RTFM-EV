@@ -109,6 +109,7 @@ class TestHealthFanoutStatus:
             "max_channels": 64,
             "is_meshcomod": False,
             "is_openhop": False,
+            "cli_supported": False,
         }
 
     @pytest.mark.asyncio
@@ -205,3 +206,16 @@ async def test_health_reports_is_openhop_false_for_other_models(monkeypatch):
     data = await health_module.build_health_data(radio_connected=True, connection_info="TCP: x")
 
     assert data["radio_device_info"]["is_openhop"] is False
+
+
+@pytest.mark.asyncio
+async def test_health_reports_cli_supported_for_1_18(monkeypatch):
+    rm = health_module.radio_manager
+    monkeypatch.setattr(rm, "device_info_loaded", True, raising=False)
+    monkeypatch.setattr(rm, "device_model", "Heltec V3", raising=False)
+    monkeypatch.setattr(rm, "firmware_version", "v1.18.0", raising=False)
+    monkeypatch.setattr(rm, "firmware_ver_code", 14, raising=False)
+
+    data = await health_module.build_health_data(radio_connected=True, connection_info="TCP: x")
+
+    assert data["radio_device_info"]["cli_supported"] is True

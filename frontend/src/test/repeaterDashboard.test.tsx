@@ -22,6 +22,7 @@ const mockHook: {
     ownerInfo: null,
     lppTelemetry: null,
     regions: null,
+    mma: null,
   },
   paneStates: {
     status: { loading: false, attempt: 0, error: null },
@@ -33,6 +34,7 @@ const mockHook: {
     ownerInfo: { loading: false, attempt: 0, error: null },
     lppTelemetry: { loading: false, attempt: 0, error: null },
     regions: { loading: false, attempt: 0, error: null },
+    mma: { loading: false, attempt: 0, error: null },
   },
   consoleHistory: [],
   consoleLoading: false,
@@ -149,6 +151,7 @@ describe('RepeaterDashboard', () => {
       ownerInfo: null,
       lppTelemetry: null,
       regions: null,
+      mma: null,
     };
     mockHook.paneStates = {
       status: { loading: false, attempt: 0, error: null },
@@ -160,6 +163,7 @@ describe('RepeaterDashboard', () => {
       ownerInfo: { loading: false, attempt: 0, error: null },
       lppTelemetry: { loading: false, attempt: 0, error: null },
       regions: { loading: false, attempt: 0, error: null },
+      mma: { loading: false, attempt: 0, error: null },
     };
     mockHook.consoleHistory = [];
     mockHook.consoleLoading = false;

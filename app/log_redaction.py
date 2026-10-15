@@ -10,6 +10,8 @@ Secret-bearing commands, per the repeater/room ``CommonCLI`` and OpenHop:
   (``password now: <pw>``).
 - ``set guest.password <pw>`` / ``get guest.password``.
 - ``set prv.key <hex>`` / ``get prv.key``.
+- Companion firmware 1.18+: ``set pin <n>`` (the reply echoes the PIN),
+  ``set wifi.pwd <pw>`` and ``get wifi.pwd`` (the reply is the password).
 """
 
 import logging
@@ -21,15 +23,20 @@ _REDACTED = "***"
 # skips them), then the secret-bearing keyword. Group 1 keeps everything up to
 # and including the separator before the secret value.
 _SECRET_ARG_RE = re.compile(
-    r"^((?:[0-9A-Fa-f]{2}\|)?\s*(?:password|set\s+guest\.password|set\s+prv\.key)\s+)\S.*$",
+    r"^((?:[0-9A-Fa-f]{2}\|)?\s*"
+    r"(?:password|set\s+guest\.password|set\s+prv\.key|set\s+wifi\.pwd|set\s+pin)\s+)\S.*$",
     re.DOTALL,
 )
 _SECRET_COMMAND_RE = re.compile(
-    r"^(?:[0-9A-Fa-f]{2}\|)?\s*(?:password\s|(?:get|set)\s+(?:guest\.password|prv\.key)\b)"
+    r"^(?:[0-9A-Fa-f]{2}\|)?\s*"
+    r"(?:password\s|(?:get|set)\s+(?:guest\.password|prv\.key|wifi\.pwd)\b|set\s+pin\b)"
 )
 
-# meshcore's send_cmd logs ``Sending command to <hex>: <cmd>`` at DEBUG.
-_LIBRARY_SEND_CMD_RE = re.compile(r"^(Sending command to [0-9a-fA-F]*: )(.*)$", re.DOTALL)
+# meshcore logs ``Sending command to <hex>: <cmd>`` (send_cmd) and
+# ``Sending cli command: <cmd>`` (run_cli_command) at DEBUG.
+_LIBRARY_SEND_CMD_RE = re.compile(
+    r"^(Sending command to [0-9a-fA-F]*: |Sending cli command: )(.*)$", re.DOTALL
+)
 
 
 def redact_cli_command(command: str) -> str:

@@ -31,6 +31,7 @@ import type {
   MessagePath,
   RawPacket,
 } from '../types';
+import { TXT_TYPE_CLI_COMMAND } from '../types';
 import type { NewNodePayload } from '../wsEvents';
 
 interface UseRealtimeAppStateArgs {
@@ -265,8 +266,16 @@ export function useRealtimeAppState({
         const isMalformedHidden = !msg.outgoing && !!msg.malformed && !!hideMalformedRef?.current;
         const isSpamHidden = !msg.outgoing && !!msg.spam && !!hideSpamRef?.current;
         const isBotHidden = !!hideBotsRef?.current && isBotMessage(msg);
+        // A command another companion sent to our radio (MeshCore 1.18 txt_type 3)
+        // is not chat: stored and shown as a line, but never counted or notified.
+        const isRemoteCliCommand = msg.txt_type === TXT_TYPE_CLI_COMMAND;
         const isSilenced =
-          isMutedChannel || isHopHidden || isMalformedHidden || isSpamHidden || isBotHidden;
+          isMutedChannel ||
+          isHopHidden ||
+          isMalformedHidden ||
+          isSpamHidden ||
+          isBotHidden ||
+          isRemoteCliCommand;
 
         const { added: isNewMessage, activeConversation: isForActiveConversation } =
           observeMessage(msg);

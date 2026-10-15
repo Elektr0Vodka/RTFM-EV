@@ -75,6 +75,18 @@ export function NodeInfoPane({
               )}
             </span>
           </div>
+          {data.power_info && (
+            <KvRow
+              label={t('repeater_power_label')}
+              value={t('repeater_power_value', {
+                mv: data.power_info.batt_mv ?? '-',
+                usb: data.power_info.usb ?? '-',
+                solar: data.power_info.solar_chg ?? '-',
+                ext: data.power_info.ext ?? '-',
+                charger: data.power_info.charger ?? '-',
+              })}
+            />
+          )}
         </div>
       )}
     </RepeaterPane>

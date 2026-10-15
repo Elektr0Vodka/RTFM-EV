@@ -12,6 +12,7 @@ Mode 3 (hash_size=4) is reserved and rejected.
 import hashlib
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import TypeGuard
 
 MAX_PATH_SIZE = 64
 
@@ -37,6 +38,15 @@ class ParsedPacketEnvelope:
     Each is a little-endian uint16 read from the 4-byte transport-code block.
     ``code_1`` is the region-scope code; ``code_2`` is currently reserved (0).
     """
+
+
+def is_scoped(transport_codes: tuple[int, int] | None) -> TypeGuard[tuple[int, int]]:
+    """True when a packet carries a real region scope.
+
+    Firmware 1.18 treats a first transport code of 0 as the wildcard region
+    (``RegionMap::findMatch``, #3568), so such a packet counts as un-scoped.
+    """
+    return transport_codes is not None and transport_codes[0] != 0
 
 
 def decode_path_byte(path_byte: int) -> tuple[int, int]:
@@ -395,7 +405,7 @@ def bucket_region_scope(rows: Iterable) -> dict[str, int | float]:
         if (
             envelope.route_type == 0x00
             and envelope.payload_type in UNDEFINED_PAYLOAD_TYPES
-            and envelope.transport_codes is not None
+            and is_scoped(envelope.transport_codes)
         ):
             undefined_scoped += 1
             continue
@@ -406,7 +416,7 @@ def bucket_region_scope(rows: Iterable) -> dict[str, int | float]:
             continue
 
         total += 1
-        if envelope.transport_codes is not None:
+        if is_scoped(envelope.transport_codes):
             scoped += 1
 
     noise_floor = undefined_scoped / len(UNDEFINED_PAYLOAD_TYPES)

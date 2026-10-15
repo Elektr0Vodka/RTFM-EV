@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-type ServerLoginKind = 'repeater' | 'room';
+type ServerLoginKind = 'repeater' | 'room' | 'sensor';
 
 type StoredPassword = {
   password: string;
