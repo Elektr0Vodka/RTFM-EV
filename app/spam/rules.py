@@ -300,6 +300,38 @@ class _Renderer:
         return rules
 
 
+def _fit_gated(
+    detector: SpamDetector,
+    dialect: Dialect,
+    blocks: list[Block],
+    channel_keys: list[str],
+    budget: int,
+) -> list[Block]:
+    """The gated blocks whose rules fit in ``budget``, oldest first.
+
+    A gated block makes a rule per channel (and per marker), plus the
+    known-people rule of each channel it is the first to need, so these count
+    against ``max_total_rules`` like the rules before the user's. Newest blocks
+    go first, the order the detector checks them in; a block that does not fit
+    is left out whole.
+    """
+    counter = _Renderer(detector, dialect)  # its own ids: the real ones stay stable
+    kept: list[Block] = []
+    known: set[str] = set()
+    for block in sorted(blocks, key=lambda b: -b.created):
+        if block.kind == "suffix":
+            cost = len(counter.suffix(block))
+        else:
+            cost = len(counter.gated([block], channel_keys, [], []))
+        needs = {key for key in channel_keys if block.channel in (None, key)} - known
+        if cost + len(needs) > budget:
+            break
+        budget -= cost + len(needs)
+        known |= needs
+        kept.append(block)
+    return sorted(kept, key=lambda b: b.created)
+
+
 def render(
     detector: SpamDetector,
     dialect: Dialect,
@@ -356,7 +388,10 @@ def render(
             break
         out.before += rules
 
-    gated = sorted((b for b in active if detector.gated(b)), key=lambda b: b.created)
+    wanted = [b for b in active if detector.gated(b)]
+    gated = _fit_gated(detector, dialect, wanted, channel_keys, limit - len(out.before))
+    if len(gated) < len(wanted):
+        out.truncated = True
     # A block for one channel needs the known-people rule of that channel only.
     known_channels = [key for key in channel_keys if any(b.channel in (None, key) for b in gated)]
     if known_channels:

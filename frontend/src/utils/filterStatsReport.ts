@@ -238,6 +238,57 @@ export function buildSummaryText(
   return lines.join('\n');
 }
 
+// ─── OpenHop rules ──────────────────────────────────────────────────────────
+
+/** 0: the node owner's own rules, 1: rules Spam Guard put there, 2: the default action. */
+function policyRuleGroup(rule: FilterStatsPolicyRule): number {
+  if (rule.rule === null) return 2;
+  return rule.rule.startsWith(SPAM_GUARD_RULE_PREFIX) ? 1 : 0;
+}
+
+/**
+ * The node owner's own rules first, in name order with numbers counted ("2"
+ * before "10"), as they usually number them. Then Spam Guard's rules by
+ * packets, then the default action.
+ */
+export function sortPolicyRules(rules: FilterStatsPolicyRule[]): FilterStatsPolicyRule[] {
+  return [...rules].sort((a, b) => {
+    const group = policyRuleGroup(a) - policyRuleGroup(b);
+    if (group !== 0) return group;
+    if (policyRuleGroup(a) === 0) {
+      return (
+        (a.rule ?? '').localeCompare(b.rule ?? '', undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        }) || a.action.localeCompare(b.action)
+      );
+    }
+    return b.packets - a.packets || (a.rule ?? '').localeCompare(b.rule ?? '');
+  });
+}
+
+/** The OpenHop rule list as plain text, in the order the page shows it. */
+export function buildPolicyRulesText(
+  report: FilterStatsReport,
+  t: TFn,
+  opts: { windowLabel: string; actionLabel: (action: string) => string }
+): string {
+  const lines = [t('mesh_filter_policy_summary_title', { window: opts.windowLabel })];
+  for (const rule of report.policy_rules) {
+    lines.push(
+      t('mesh_filter_policy_summary_item', {
+        rule: rule.rule ?? t('mesh_filter_policy_default'),
+        action: opts.actionLabel(rule.action),
+        count: rule.packets,
+      })
+    );
+  }
+  if (report.filters.not_recorded > 0) {
+    lines.push(t('mesh_filter_not_recorded', { count: report.filters.not_recorded }));
+  }
+  return lines.join('\n');
+}
+
 // ─── CSV ────────────────────────────────────────────────────────────────────
 
 /**

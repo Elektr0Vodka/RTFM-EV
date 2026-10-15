@@ -2436,6 +2436,27 @@ export interface RawFeedHistoricalStats {
   hop_profile: RawFeedStatItem[];
   hop_byte_width_profile: RawFeedStatItem[];
   rssi_buckets: RawFeedStatItem[];
+  median_rssi: number | null;
+  /** Ten equal bins over the range, like the live chart. */
+  timeline: RawFeedTimelineBin[];
+  unique_sources: number;
+  strongest_neighbors: RawFeedNeighbor[];
+  most_active_neighbors: RawFeedNeighbor[];
+  newest_neighbors: RawFeedNeighbor[];
+}
+
+export interface RawFeedTimelineBin {
+  start_ts: number;
+  total: number;
+  counts_by_type: Record<string, number>;
+}
+
+export interface RawFeedNeighbor {
+  key: string;
+  label: string;
+  count: number;
+  best_rssi: number | null;
+  last_seen: number;
 }
 
 export interface BatteryHistoryStats {

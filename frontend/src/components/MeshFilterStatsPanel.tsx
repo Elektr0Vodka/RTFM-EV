@@ -24,12 +24,14 @@ import { type TimeWindow, StatTile, fmtBucketTime } from './meshHealthShared';
 import { toast } from './ui/sonner';
 import {
   buildJsonReport,
+  buildPolicyRulesText,
   buildSummaryText,
   downloadText,
   filterStatsFilename,
   getSessionScrambler,
   percent,
   scrambleReport,
+  sortPolicyRules,
   type FilterStatsBucket,
   type FilterStatsChannel,
   type FilterStatsReport,
@@ -196,11 +198,23 @@ function BarList({ items }: { items: { label: string; count: number; color: stri
   );
 }
 
-function Card({ heading, children }: { heading: string; children: React.ReactNode }) {
+function Card({
+  heading,
+  action,
+  children,
+}: {
+  heading: string;
+  /** A control on the heading line, such as a copy button. */
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div className="rounded border border-border bg-background p-2.5">
-      <div className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-        {heading}
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          {heading}
+        </div>
+        {action}
       </div>
       {children}
     </div>
@@ -290,10 +304,12 @@ export function MeshFilterStatsPanel({
     return () => clearInterval(id);
   }, [selectedWindow, load]);
 
-  const report = useMemo(
-    () => (raw && scramble ? scrambleReport(raw, getSessionScrambler()) : raw),
-    [raw, scramble]
-  );
+  // Rules are put in order before scrambling, so the codes keep the order of the names.
+  const report = useMemo(() => {
+    if (!raw) return raw;
+    const sorted = { ...raw, policy_rules: sortPolicyRules(raw.policy_rules) };
+    return scramble ? scrambleReport(sorted, getSessionScrambler()) : sorted;
+  }, [raw, scramble]);
 
   // Same codes as scrambleReport gives: both ask the session table by channel key.
   const channelOptions = useMemo(
@@ -317,6 +333,23 @@ export function MeshFilterStatsPanel({
     try {
       await navigator.clipboard.writeText(text);
       toast.success(t('mesh_filter_summary_copied'));
+    } catch {
+      toast.error(t('mesh_filter_copy_failed'));
+    }
+  };
+
+  const actionLabel = (action: string) =>
+    ACTION_LABEL_KEYS[action] ? t(ACTION_LABEL_KEYS[action]) : action;
+
+  const copyPolicyRules = async () => {
+    if (!report) return;
+    const text = buildPolicyRulesText(report, t, {
+      windowLabel: selectedWindow.label,
+      actionLabel,
+    });
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(t('mesh_filter_policy_copied'));
     } catch {
       toast.error(t('mesh_filter_copy_failed'));
     }
@@ -633,7 +666,18 @@ export function MeshFilterStatsPanel({
             )}
           </div>
           {report.policy_rules.length > 0 && (
-            <Card heading={t('mesh_filter_policy_heading')}>
+            <Card
+              heading={t('mesh_filter_policy_heading')}
+              action={
+                <button
+                  type="button"
+                  onClick={() => void copyPolicyRules()}
+                  className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                >
+                  {t('mesh_filter_policy_copy')}
+                </button>
+              }
+            >
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-left text-muted-foreground">
@@ -650,11 +694,7 @@ export function MeshFilterStatsPanel({
                       <td className="py-0.5 font-mono text-[11px] text-foreground">
                         {rule.rule ?? t('mesh_filter_policy_default')}
                       </td>
-                      <td className="py-0.5 text-muted-foreground">
-                        {ACTION_LABEL_KEYS[rule.action]
-                          ? t(ACTION_LABEL_KEYS[rule.action])
-                          : rule.action}
-                      </td>
+                      <td className="py-0.5 text-muted-foreground">{actionLabel(rule.action)}</td>
                       <td className="py-0.5 text-right tabular-nums text-muted-foreground">
                         {rule.packets}
                       </td>

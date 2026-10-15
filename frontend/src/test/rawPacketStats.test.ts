@@ -23,7 +23,7 @@ describe('raw feed source selection + historical snapshot', () => {
     }
   });
 
-  it('maps a historical DB response into a snapshot with empty neighbor/timeline data', () => {
+  it('maps a historical DB response into a snapshot, neighbors and timeline included', () => {
     const db: RawFeedHistoricalStats = {
       packet_count: 120,
       decrypted_count: 30,
@@ -39,6 +39,14 @@ describe('raw feed source selection + historical snapshot', () => {
       hop_profile: [{ label: '0', count: 80, share: 80 / 120 }],
       hop_byte_width_profile: [{ label: 'No path', count: 80, share: 80 / 120 }],
       rssi_buckets: [{ label: 'Weak (<-85 dBm)', count: 10, share: 10 / 120 }],
+      median_rssi: -80,
+      timeline: [{ start_ts: 1000, total: 7, counts_by_type: { Advert: 7 } }],
+      unique_sources: 4,
+      strongest_neighbors: [{ key: 'AB', label: 'Sue', count: 3, best_rssi: -55, last_seen: 2000 }],
+      most_active_neighbors: [
+        { key: 'CD', label: 'Bob', count: 9, best_rssi: null, last_seen: 1500 },
+      ],
+      newest_neighbors: [],
     };
     const snap = buildSnapshotFromHistorical(db, '7d', 1000, 1000 + 7 * 86400, 1000 + 7 * 86400);
     expect(snap.packetCount).toBe(120);
@@ -47,10 +55,18 @@ describe('raw feed source selection + historical snapshot', () => {
     expect(snap.bestRssi).toBe(-55);
     expect(snap.payloadBreakdown).toEqual(db.payload_breakdown);
     expect(snap.routeBreakdown).toEqual(db.route_breakdown);
-    expect(snap.strongestNeighbors).toEqual([]);
-    expect(snap.mostActiveNeighbors).toEqual([]);
-    expect(snap.timeline).toEqual([]);
-    expect(snap.medianRssi).toBeNull();
+    expect(snap.uniqueSources).toBe(4);
+    expect(snap.strongestNeighbors).toEqual([
+      { key: 'AB', label: 'Sue', count: 3, bestRssi: -55, lastSeen: 2000 },
+    ]);
+    expect(snap.mostActiveNeighbors[0].bestRssi).toBeNull();
+    expect(snap.newestNeighbors).toEqual([]);
+    expect(snap.timeline).toHaveLength(1);
+    expect(snap.timeline[0].total).toBe(7);
+    expect(snap.timeline[0].countsByType).toEqual({ Advert: 7 });
+    // A seven day range shows the date with the time.
+    expect(snap.timeline[0].label).toMatch(/Jan/);
+    expect(snap.medianRssi).toBe(-80);
     expect(snap.window).toBe('7d');
   });
 });

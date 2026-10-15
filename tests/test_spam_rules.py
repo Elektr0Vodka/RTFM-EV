@@ -294,6 +294,53 @@ class TestHostDocuments:
         assert len(capped.before) == 20
         assert capped.truncated is True
 
+    @pytest.mark.parametrize("dialect", ["host", "openhop"])
+    def test_the_rule_cap_holds_for_blocks_that_let_known_people_through(self, dialect):
+        """Repeater blocks that let known people through make one rule per channel.
+
+        Reported from an attack: with five channels the node got 740 rules while
+        the cap was 170, because these rules were never counted.
+        """
+        channels = [{"key": f"{n:02X}" * 16, "name": f"#c{n}"} for n in range(1, 6)]
+        det, clock = make(channels=channels, overrides={"max_total_rules": 20})
+        for n in range(40):
+            clock.tick(1)
+            det.action("block_hop", hop=f"{n + 16:02X}")
+        rules = render(det, dialect)
+        assert len(rules.rules) <= 20
+        assert rules.truncated is True
+        # Five known-people rules, then whole blocks of five: three fit.
+        hop_names = [name for name in names(rules.after) if ":hop:" in name]
+        assert len(hop_names) == 15
+        # The newest blocks are kept, as the detector checks them first.
+        assert {name.split(":")[2] for name in hop_names} == {"35", "36", "37"}
+
+    def test_the_rule_cap_counts_the_rules_before_the_gated_ones(self):
+        det, clock = make(overrides={"max_total_rules": 20})
+        for n in range(18):
+            det.action("block_text", text=f"manual text number {n:02d}", channel=PUBLIC)
+        clock.tick(1)
+        det.action("block_hop", hop="27")
+        clock.tick(1)
+        det.action("block_hop", hop="28")
+        rules = render(det, "host")
+        assert len(rules.before) == 18
+        # The known-people rule and one block fill the last two places.
+        assert names(rules.after) == [
+            f"spam:known-people:{PUBLIC}",
+            f"spam:hop:28:{PUBLIC} (yours)",
+        ]
+        assert rules.truncated is True
+
+    def test_gated_rules_under_the_cap_are_all_rendered(self):
+        det, clock = make(overrides={"max_total_rules": 20})
+        det.action("block_hop", hop="27")
+        clock.tick(1)
+        det.action("block_hop", hop="28")
+        rules = render(det, "host")
+        assert len(rules.after) == 3
+        assert rules.truncated is False
+
     def test_rules_fit_the_host_policy_model(self):
         long_key = "CD" * 32
         det, _ = make(channels=[{"key": long_key, "name": "big"}])

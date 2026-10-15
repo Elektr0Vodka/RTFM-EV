@@ -283,12 +283,57 @@ describe('PacketFeedStatsPanel', () => {
       hop_profile: [],
       hop_byte_width_profile: [],
       rssi_buckets: [],
+      median_rssi: null,
+      timeline: [],
+      unique_sources: 0,
+      strongest_neighbors: [],
+      most_active_neighbors: [],
+      newest_neighbors: [],
     });
 
     renderPanel();
 
     expect(getRawFeedStats).toHaveBeenCalledWith(s, e);
     expect(await screen.findByText(/4,321 packets in custom window/)).toBeInTheDocument();
+    getRawFeedStats.mockRestore();
+  });
+  it('shows sources, neighbors, median RSSI and the timeline for a stored window', async () => {
+    localStorage.setItem('rtfm-rawfeed-window', JSON.stringify({ id: '24h' }));
+    const getRawFeedStats = vi.spyOn(api, 'getRawFeedStats').mockResolvedValue({
+      packet_count: 50,
+      decrypted_count: 10,
+      undecrypted_count: 40,
+      decrypt_rate: 0.2,
+      path_bearing_count: 0,
+      path_bearing_rate: 0,
+      distinct_paths: 0,
+      average_rssi: -84,
+      best_rssi: -60,
+      payload_breakdown: [],
+      route_breakdown: [],
+      hop_profile: [],
+      hop_byte_width_profile: [],
+      rssi_buckets: [],
+      median_rssi: -81,
+      timeline: Array.from({ length: 10 }, (_, i) => ({
+        start_ts: 1_000 + i * 8640,
+        total: 5,
+        counts_by_type: { Advert: 5 },
+      })),
+      unique_sources: 37,
+      strongest_neighbors: [
+        { key: 'name:farnode', label: 'FarNode', count: 4, best_rssi: -60, last_seen: 2000 },
+      ],
+      most_active_neighbors: [],
+      newest_neighbors: [],
+    });
+
+    renderPanel();
+
+    expect(await screen.findByText('37')).toBeInTheDocument();
+    expect(screen.getByText('-81 dBm')).toBeInTheDocument();
+    expect(screen.getAllByText('FarNode').length).toBeGreaterThan(0);
+    expect(screen.getByText('Traffic Timeline')).toBeInTheDocument();
     getRawFeedStats.mockRestore();
   });
 });
