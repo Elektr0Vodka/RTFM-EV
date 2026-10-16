@@ -42,3 +42,11 @@ def test_empty_when_no_metadata():
     preview = parse_link_preview("<html><body>nothing</body></html>", "https://example.com/p")
     assert preview.title is None
     assert preview.is_empty()
+
+
+def test_only_a_web_image_address_is_kept():
+    for bad in ("javascript:alert(1)", "data:image/svg+xml,<svg/>", "/relative.png", "//cdn/x.png"):
+        html = f'<html><head><meta property="og:image" content="{bad}"></head></html>'
+        assert parse_link_preview(html, "https://example.com/p").image is None, bad
+    html = '<html><head><meta property="og:image" content="HTTP://cdn.example.com/i.png"></head></html>'
+    assert parse_link_preview(html, "https://example.com/p").image == "HTTP://cdn.example.com/i.png"

@@ -499,6 +499,8 @@ actions:
         {{ (trigger.to_state.attributes.text or '')[:180] }}
 ```
 
+> **Mesh text is untrusted.** `sender_name`, `text` and contact names reach Home Assistant exactly as they were received over the air, and any node in range can pick its own name and message. The Markdown card above renders them as markdown, so a message can add its own formatting, links or images to the feed. Never show these values in a custom card or panel that builds HTML from them without escaping: that is how the [MeshCore XSS in Home Assistant](https://mxsasha.eu/posts/meshcore-xss-home-assistant/) worked.
+
 ## Troubleshooting
 
 ### Devices don't appear in HA
