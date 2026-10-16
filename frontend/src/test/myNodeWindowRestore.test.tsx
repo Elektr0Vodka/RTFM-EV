@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { BatterySample, NoiseFloorSample, StatisticsResponse } from '../types';
@@ -106,6 +106,10 @@ const timeseriesBins = Array.from({ length: 40 }, (_, i) => ({
   byte_count: 0,
 }));
 
+// The live signal card reads the same noise floor mock and shows -111 dBm too
+// once its own request lands, so read the value from the window's chart only.
+const noiseFloorChart = () => within(screen.getByText('Noise Floor').parentElement!);
+
 const json = (body: unknown, ok = true) =>
   Promise.resolve({ ok, status: ok ? 200 : 500, json: () => Promise.resolve(body) } as Response);
 
@@ -151,7 +155,7 @@ describe('My Node restored time window', () => {
     releaseConfig();
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('./api/statistics'));
-    await waitFor(() => expect(screen.getByText(/-111 dBm/)).toBeInTheDocument());
+    await waitFor(() => expect(noiseFloorChart().getByText(/-111 dBm/)).toBeInTheDocument());
     expect(screen.queryByText(/-77 dBm/)).not.toBeInTheDocument();
     expect(screen.getByText(/4\.10V/)).toBeInTheDocument();
     expect(screen.queryByText(/3\.00V/)).not.toBeInTheDocument();
@@ -184,7 +188,7 @@ describe('My Node restored time window', () => {
     expect(mocks.api.getNoiseFloorHistory).toHaveBeenCalledWith(s, e, null);
     expect(mocks.api.getBatteryRange).toHaveBeenCalledWith(s, e, null);
 
-    await waitFor(() => expect(screen.getByText(/-111 dBm/)).toBeInTheDocument());
+    await waitFor(() => expect(noiseFloorChart().getByText(/-111 dBm/)).toBeInTheDocument());
     expect(screen.getByText(/4\.10V/)).toBeInTheDocument();
   });
 });
