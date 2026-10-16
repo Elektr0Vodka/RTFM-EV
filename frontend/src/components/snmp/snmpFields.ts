@@ -4,9 +4,10 @@
 // SNMPAgent.cpp. The server already turns last_snr from dB x 4 into dB.
 //
 // The fields marked `optional` came with a later firmware (Dutch-MeshCore
-// MeshCore PR #16). A node without them (older firmware, a room server without
-// the duty gate and filter groups) serves no value: the field is then hidden,
-// not shown as 0.
+// MeshCore PR #16; the companion and companion_filter groups from meshcomod's
+// companion agent). A node without them (older firmware, a room server without
+// the duty gate and filter groups, a companion without .3.1-.3.3 or .6-.8)
+// serves no value: the field is then hidden, not shown as 0.
 
 import { formatDuration } from '../repeater/repeaterPaneShared';
 import { formatDateTime } from '../../utils/dateTimeFormat';
@@ -14,7 +15,16 @@ import type { TFn } from '../../i18n';
 import type { SnmpValues } from '../../types';
 
 export type SnmpGroup =
-  'system' | 'radio' | 'mqtt' | 'memory' | 'network' | 'duty_gate' | 'filter' | 'neighbours';
+  | 'system'
+  | 'radio'
+  | 'mqtt'
+  | 'memory'
+  | 'network'
+  | 'duty_gate'
+  | 'filter'
+  | 'neighbours'
+  | 'companion'
+  | 'companion_filter';
 export type SnmpUnit =
   'seconds' | 'milliseconds' | 'dbm' | 'db' | 'bytes' | 'millivolts' | 'celsius' | 'percent';
 /** How a value reads when it is not a plain number with its unit. */
@@ -43,6 +53,8 @@ export const SNMP_GROUPS: { group: SnmpGroup; labelKey: string }[] = [
   { group: 'duty_gate', labelKey: 'snmp_group_duty_gate' },
   { group: 'filter', labelKey: 'snmp_group_filter' },
   { group: 'neighbours', labelKey: 'snmp_group_neighbours' },
+  { group: 'companion', labelKey: 'snmp_group_companion' },
+  { group: 'companion_filter', labelKey: 'snmp_group_companion_filter' },
 ];
 
 function added(key: string, group: SnmpGroup, extra: Partial<SnmpField> = {}): SnmpField {
@@ -60,6 +72,15 @@ export const FILTER_DROP_KEYS = [
   'filter_sender_drops',
   'filter_text_drops',
   'filter_age_drops',
+];
+
+/** meshcomod receive filter totals (.10.2-.10.6): messages kept from the user. */
+export const COMPANION_FILTER_KEYS = [
+  'cfilter_malformed_drops',
+  'cfilter_age_drops',
+  'cfilter_path_drops',
+  'cfilter_sender_hidden',
+  'cfilter_text_hidden',
 ];
 
 export const SNMP_FIELDS: SnmpField[] = [
@@ -117,6 +138,12 @@ export const SNMP_FIELDS: SnmpField[] = [
   ...FILTER_DROP_KEYS.map((key) => added(key, 'filter', { counter: true })),
   added('filter_air_saved_ms', 'filter', { unit: 'milliseconds', counter: true }),
   added('neighbour_count', 'neighbours'),
+  added('companion_tcp_clients', 'companion'),
+  added('companion_ws_clients', 'companion'),
+  added('companion_contacts', 'companion'),
+  added('companion_channels', 'companion'),
+  added('cfilter_enabled', 'companion_filter', { format: 'yes_no' }),
+  ...COMPANION_FILTER_KEYS.map((key) => added(key, 'companion_filter', { counter: true })),
 ];
 
 /** ESP-IDF `esp_reset_reason_t` codes the firmware reports in .1.6.0. */

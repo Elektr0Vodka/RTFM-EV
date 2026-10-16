@@ -221,6 +221,8 @@ Mit Einstellungen bearbeiten änderst du jeweils eine Repeater-Einstellung: du b
 
 Repeater und Room-Server mit Observer-Firmware lassen sich auch über dein Netzwerk abfragen. Auf der Kontaktseite nimmt die Karte **SNMP (LAN)** IP-Adresse, Port und Community des Nodes entgegen; **Jetzt abfragen** zeigt dann Funk-, MQTT-, Speicher- und WLAN-Werte, ohne Funk zu nutzen. SNMP muss auf dem Node eingeschaltet sein (Gruppe Observer-Firmware in Einstellungen bearbeiten, danach neu starten) und der Server muss den Node per UDP erreichen können. Schalte **Nach Zeitplan abfragen** ein, damit der Server den Node alle paar Minuten abfragt und die Ergebnisse speichert; die Karte zeigt dann ein Verlaufsdiagramm für den gewählten Wert und Zeitraum. Wenn die Home-Assistant-Integration den Repeater verfolgt, erscheinen die Werte dort auch als SNMP-Sensoren. **Node nach seiner Adresse fragen** sendet einen Befehl über Funk, um die IP abzufragen, und braucht eine Admin-Anmeldung. Die Seite **SNMP** unter Werkzeuge zeigt alle Nodes mit SNMP nebeneinander.
 
+Companions mit meshcomod-Firmware haben dieselbe Karte. Schalte den Agent mit `set snmp on` in der Kommandozeile des Companions ein, sieh die Adresse mit `get wifi.ip` nach und trage diese IP-Adresse oder diesen Hostnamen in die Karte ein: ein Companion kann nicht per Funk danach gefragt werden. Seine Seite zeigt auch die verbundenen Clients, Kontakte und Kanäle und was sein Empfangsfilter dir vorenthalten hat. Dein eigenes verbundenes Funkgerät ist ebenfalls ein Companion-Kontakt und lässt sich genauso hinzufügen.
+
 ### Room-Server
 
 Auch Room-Server haben eine Anmeldung mit Passwort oder als Gast, mit Telemetrie, ACL, Sensordaten, einer CLI-Konsole und einem Verlauf der ACL-Änderungen.

@@ -342,7 +342,7 @@ class TestLifecycle:
 
         # The added OIDs answer noSuchObject, which the client reads as "not supported".
         assert values == {**SAMPLE, **{entry.key: None for entry in mib.ADDED_ENTRIES}}
-        # The client reads the table in three GETs (22, 22 and 9 OIDs).
+        # The client reads the table in three GETs (22, 22 and 19 OIDs).
         assert agent_service.get_snmp_agent_state(settings).requests == 3
 
     @pytest.mark.asyncio

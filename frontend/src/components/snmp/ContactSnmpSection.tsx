@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Network } from 'lucide-react';
 import { ApiError, api, isAbortError } from '../../api';
 import { useT } from '../../i18n';
+import { CONTACT_TYPE_CLIENT } from '../../types';
 import type { Contact, ContactSnmpConfig, SnmpPollResponse } from '../../types';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -47,6 +48,9 @@ function errorMessage(err: unknown): string {
 export function ContactSnmpSection({ contact }: { contact: Contact }) {
   const t = useT();
   const publicKey = contact.public_key;
+  // A companion (meshcomod) has no remote admin login, so its address cannot be
+  // asked for over RF: it is typed in. Its own console shows it with `get wifi.ip`.
+  const isCompanion = contact.type === CONTACT_TYPE_CLIENT;
 
   const [config, setConfig] = useState<ContactSnmpConfig | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -236,7 +240,9 @@ export function ContactSnmpSection({ contact }: { contact: Contact }) {
 
       {loaded && !config && !editing && (
         <>
-          <p className="text-xs text-muted-foreground">{t('snmp_intro')}</p>
+          <p className="text-xs text-muted-foreground">
+            {t(isCompanion ? 'snmp_intro_companion' : 'snmp_intro')}
+          </p>
           <Button type="button" variant="outline" size="sm" onClick={openForm}>
             {t('snmp_setup')}
           </Button>
@@ -287,23 +293,32 @@ export function ContactSnmpSection({ contact }: { contact: Contact }) {
             />
             <p className="text-[0.6875rem] text-muted-foreground">{t('snmp_community_note')}</p>
           </div>
-          <div className="space-y-1">
-            <Button
-              type="button"
-              variant={askArmed ? 'destructive' : 'outline'}
-              size="sm"
-              onClick={() => void askNode()}
-              disabled={asking || saving}
+          {isCompanion ? (
+            <p
+              className="text-[0.6875rem] text-muted-foreground"
+              data-testid="snmp-companion-host-note"
             >
-              {asking ? t('snmp_asking') : askArmed ? t('snmp_ask_confirm') : t('snmp_ask')}
-            </Button>
-            <p className="text-[0.6875rem] text-muted-foreground">{t('snmp_ask_note')}</p>
-            {askNote && (
-              <p className="text-xs" data-testid="snmp-ask-note">
-                {askNote}
-              </p>
-            )}
-          </div>
+              {t('snmp_companion_host_note')}
+            </p>
+          ) : (
+            <div className="space-y-1">
+              <Button
+                type="button"
+                variant={askArmed ? 'destructive' : 'outline'}
+                size="sm"
+                onClick={() => void askNode()}
+                disabled={asking || saving}
+              >
+                {asking ? t('snmp_asking') : askArmed ? t('snmp_ask_confirm') : t('snmp_ask')}
+              </Button>
+              <p className="text-[0.6875rem] text-muted-foreground">{t('snmp_ask_note')}</p>
+              {askNote && (
+                <p className="text-xs" data-testid="snmp-ask-note">
+                  {askNote}
+                </p>
+              )}
+            </div>
+          )}
           <div className="space-y-1">
             <label className="flex items-center gap-2 text-sm" htmlFor="snmp-poll-enabled">
               <input

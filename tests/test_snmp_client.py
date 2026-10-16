@@ -209,8 +209,8 @@ class TestMeshcoreTable:
 
     def test_added_oids_match_the_firmware_pr(self):
         # Dutch-MeshCore/MeshCore PR #16, MQTT_SNMP.md.
-        assert len(mib.ENTRIES) == 53
-        assert len(mib.BY_OID) == 53
+        assert len(mib.ENTRIES) == 63
+        assert len(mib.BY_OID) == 63
         sub_ids = {e.key: e.sub_id for e in mib.ADDED_ENTRIES}
         assert sub_ids["battery_mv"] == (1, 4)
         assert sub_ids["reset_reason"] == (1, 7)
@@ -231,10 +231,20 @@ class TestMeshcoreTable:
             "duty_gate": 5,
             "filter": 13,
             "neighbours": 1,
+            "companion": 4,
+            "companion_filter": 6,
         }
         assert [e.key for e in mib.ADDED_ENTRIES if e.kind == "str"] == ["reset_reason"]
         counters = {e.sub_id for e in mib.ADDED_ENTRIES if e.kind == "counter"}
-        assert counters == {(2, 13), (2, 14), (2, 15), *((7, n) for n in range(3, 14))}
+        assert counters == {
+            (2, 13),
+            (2, 14),
+            (2, 15),
+            *((7, n) for n in range(3, 14)),
+            *((10, n) for n in range(2, 7)),
+        }
+        assert sub_ids["companion_tcp_clients"] == (9, 1)
+        assert sub_ids["cfilter_text_hidden"] == (10, 6)
         assert mib.BY_KEY["battery_mv"].sentinel == 0
         assert mib.BY_KEY["mcu_temp_c"].sentinel == -127
 
@@ -315,7 +325,7 @@ class TestMeshcoreTable:
             transport.close()
 
         # The first GET is exactly the first-release table, as before.
-        assert [len(req.varbinds) for req in agent.requests] == [22, 22, 9]
+        assert [len(req.varbinds) for req in agent.requests] == [22, 22, 19]
         assert [oid for oid, _ in agent.requests[0].varbinds] == [
             e.oid for e in mib.FIRST_RELEASE_ENTRIES
         ]
@@ -346,6 +356,33 @@ class TestMeshcoreTable:
         assert len(agent.requests) == 3
         assert result["packets_recv"] == 5
         assert all(result[entry.key] is None for entry in mib.ADDED_ENTRIES)
+
+    @pytest.mark.asyncio
+    async def test_meshcomod_companion(self):
+        # docs/companion_snmp.md: no MQTT bridge (.3.1-.3.3), no duty cycle
+        # (.2.16), no .6/.7/.8; adds .9 (companion) and .10 (receive filter).
+        missing = {(3, 1), (3, 2), (3, 3), (2, 16)}
+        values = {
+            entry.oid: SnmpValue(
+                ber.TAG_COUNTER32 if entry.kind == "counter" else ber.TAG_INTEGER, 2
+            )
+            for entry in mib.ENTRIES
+            if entry.kind != "str"
+            and entry.sub_id not in missing
+            and entry.group not in ("duty_gate", "filter", "neighbours")
+        }
+        transport, _agent, port = await _start_agent(lambda req: [_response(req, values)])
+        try:
+            result = await poll_meshcore("127.0.0.1", port, "public", timeout=1)
+        finally:
+            transport.close()
+
+        assert result["companion_tcp_clients"] == 2
+        assert result["cfilter_sender_hidden"] == 2
+        assert result["ntp_synced"] == 2
+        assert result["mqtt_connected_slots"] is None
+        assert result["tx_duty_percent"] is None
+        assert result["neighbour_count"] is None
 
     @pytest.mark.asyncio
     async def test_room_server_without_duty_gate_and_filter(self):

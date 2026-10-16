@@ -11,6 +11,25 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-16 (SNMP for companions, feat/companion-snmp)
+
+No migration. Builds on feat/snmp-added-oids. Companion side: meshcomod's
+SNMP agent (Elektr0Vodka/meshcomod main 938352fa, `docs/companion_snmp.md`).
+Checked against a real meshcomod companion (v1.18.0.1-pre2, Heltec V4).
+
+### SNMP polling
+- **Companions.** The **SNMP (LAN)** card is now on companion contacts too,
+  so a meshcomod companion (including your own connected radio, which is a
+  companion contact) can be added to the Tools > SNMP list. Its IP address
+  or hostname is typed in; **Ask node for its address** stays on repeaters
+  and room servers, since it needs a remote admin login.
+- **Companion OIDs.** meshcomod's `.9` group (TCP and WebSocket clients,
+  contacts, channels) and `.10` group (receive filter on/off and its totals
+  per reason, Counter32) are read, shown and charted. What a companion does
+  not serve (MQTT bridge, duty cycle, duty gate, repeater filter,
+  neighbours) answers noSuchObject and is hidden, except the three original
+  MQTT values, which keep showing `-` as before.
+
 ## Update 2026-10-16 (SNMP: added observer OIDs, console commands, feat/snmp-added-oids)
 
 No migration (SNMP polls are stored as JSON, new keys just appear). No new

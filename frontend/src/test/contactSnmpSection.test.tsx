@@ -87,10 +87,10 @@ function pollOk(): SnmpPollResponse {
   };
 }
 
-async function renderSection() {
+async function renderSection(shown: Contact = contact) {
   render(
     <I18nProvider>
-      <ContactSnmpSection contact={contact} />
+      <ContactSnmpSection contact={shown} />
     </I18nProvider>
   );
   await waitFor(() => expect(mocks.getSnmpConfig).toHaveBeenCalled());
@@ -102,9 +102,9 @@ beforeEach(() => {
 });
 
 describe('snmpFields', () => {
-  it('lists the 53 firmware values once each, the later 31 as optional', () => {
-    expect(SNMP_FIELDS).toHaveLength(53);
-    expect(new Set(SNMP_FIELDS.map((f) => f.key)).size).toBe(53);
+  it('lists the 63 values once each, the 41 added after the first release as optional', () => {
+    expect(SNMP_FIELDS).toHaveLength(63);
+    expect(new Set(SNMP_FIELDS.map((f) => f.key)).size).toBe(63);
     expect(SNMP_FIELDS.filter((f) => !f.optional)).toHaveLength(22);
     // Only the battery and the MCU temperature have a "cannot measure" value.
     expect(
@@ -161,6 +161,34 @@ describe('ContactSnmpSection', () => {
     await renderSection();
     expect(await screen.findByRole('button', { name: 'Set up SNMP' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Poll now' })).toBeNull();
+  });
+
+  it('sets up a companion with a typed hostname and no RF address request', async () => {
+    const companion = { ...contact, type: 1, name: 'ElektroVodka' } as Contact;
+    mocks.getSnmpConfig.mockResolvedValue(null);
+    mocks.saveSnmpConfig.mockResolvedValue(config({ host: 'companion.lan' }));
+    await renderSection(companion);
+
+    expect(await screen.findByText(/set snmp on \(meshcomod firmware\)/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Set up SNMP' }));
+    expect(screen.queryByRole('button', { name: 'Ask node for its address' })).toBeNull();
+    expect(screen.getByTestId('snmp-companion-host-note')).toHaveTextContent('get wifi.ip');
+
+    fireEvent.change(screen.getByLabelText('Host or IP address'), {
+      target: { value: 'companion.lan' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mocks.saveSnmpConfig).toHaveBeenCalledTimes(1));
+    expect(mocks.saveSnmpConfig.mock.calls[0][1]).toMatchObject({ host: 'companion.lan' });
+    expect(mocks.discoverSnmpAddress).not.toHaveBeenCalled();
+  });
+
+  it('keeps the RF address request for a repeater', async () => {
+    mocks.getSnmpConfig.mockResolvedValue(null);
+    await renderSection();
+    fireEvent.click(await screen.findByRole('button', { name: 'Set up SNMP' }));
+    expect(screen.getByRole('button', { name: 'Ask node for its address' })).toBeInTheDocument();
+    expect(screen.queryByTestId('snmp-companion-host-note')).toBeNull();
   });
 
   it('saves host, port and community; the community is not shown afterwards', async () => {

@@ -1,8 +1,10 @@
-"""SNMP polling of observer firmware nodes (LAN), per contact.
+"""SNMP polling of observer firmware nodes and companions (LAN), per contact.
 
-Config and polling use UDP to the node's WiFi address and never touch the
-radio. The one exception is ``discover-address``, which sends a single CLI
-command over RF to ask the node for that address.
+Repeaters and room servers run the observer firmware's agent; companions run
+meshcomod's (same OID tree). Config and polling use UDP to the address typed
+in and never touch the radio. The one exception is ``discover-address``, which
+sends a single CLI command over RF to ask a repeater or room server for that
+address; a companion has no remote admin login, so it has no such shortcut.
 
 ``nodes_router`` serves the overview of every contact with SNMP set up
 (database only, no polling and no radio).
@@ -15,6 +17,9 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query
 
 from app.models import (
+    CONTACT_TYPE_CLIENT,
+    CONTACT_TYPE_REPEATER,
+    CONTACT_TYPE_ROOM,
     ContactSnmpConfig,
     ContactSnmpConfigUpdate,
     SnmpDiscoverAddressResponse,
@@ -36,6 +41,9 @@ router = APIRouter(prefix="/contacts", tags=["snmp"])
 nodes_router = APIRouter(prefix="/snmp", tags=["snmp"])
 
 DEFAULT_COMMUNITY = "public"
+# Contact types that can carry SNMP settings: companions (meshcomod) and the
+# observer firmware's repeaters and room servers.
+SNMP_CONTACT_TYPES = (CONTACT_TYPE_CLIENT, CONTACT_TYPE_REPEATER, CONTACT_TYPE_ROOM)
 # Largest history payload: longer ranges are thinned to this many rows.
 HISTORY_MAX_POINTS = 1500
 
@@ -76,9 +84,10 @@ async def get_snmp_config(public_key: str) -> ContactSnmpConfig | None:
 
 @router.put("/{public_key}/snmp/config", response_model=ContactSnmpConfig)
 async def put_snmp_config(public_key: str, request: ContactSnmpConfigUpdate) -> ContactSnmpConfig:
-    """Save SNMP settings. A null community keeps the stored one."""
+    """Save SNMP settings (repeater, room server or companion). A null
+    community keeps the stored one."""
     contact = await _resolve_contact_or_404(public_key)
-    require_server_capable_contact(contact)
+    require_server_capable_contact(contact, allowed_types=SNMP_CONTACT_TYPES)
     existing = await ContactSnmpRepository.get(contact.public_key)
     community = request.community or (existing["community"] if existing else DEFAULT_COMMUNITY)
     await ContactSnmpRepository.upsert(
