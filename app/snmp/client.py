@@ -28,6 +28,11 @@ from app.snmp.mib import ENTRIES, MibValue, decode_varbinds
 DEFAULT_PORT = 161
 DEFAULT_TIMEOUT_SECONDS = 2.0
 DEFAULT_RETRIES = 1
+# OIDs per GET in ``poll_meshcore``. The firmware's agent (0neblock/SNMP_Agent)
+# builds a reply in a 1400-byte buffer and sends nothing at all, not tooBig,
+# when it does not fit; the whole table in one GET comes close to that. 22 is
+# the size of the first-release table, which real nodes answer in one GET.
+MAX_OIDS_PER_GET = 22
 
 _ERROR_NAMES = {
     1: "tooBig",
@@ -160,8 +165,21 @@ async def poll_meshcore(
     timeout: float = DEFAULT_TIMEOUT_SECONDS,
     retries: int = DEFAULT_RETRIES,
 ) -> dict[str, MibValue]:
-    """Read the whole MeshCore OID table from one node."""
-    varbinds = await snmp_get_all(
-        host, port, community, [entry.oid for entry in ENTRIES], timeout=timeout, retries=retries
-    )
+    """Read the whole MeshCore OID table from one node, ``MAX_OIDS_PER_GET``
+    OIDs per request, the first-release table first.
+
+    An OID the node does not have comes back as noSuchObject and decodes to
+    None; only a request that fails as a whole fails the poll.
+    """
+    oids = [entry.oid for entry in ENTRIES]
+    varbinds: list[VarBind] = []
+    for start in range(0, len(oids), MAX_OIDS_PER_GET):
+        varbinds += await snmp_get_all(
+            host,
+            port,
+            community,
+            oids[start : start + MAX_OIDS_PER_GET],
+            timeout=timeout,
+            retries=retries,
+        )
     return decode_varbinds(varbinds)

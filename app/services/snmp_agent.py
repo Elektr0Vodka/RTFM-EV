@@ -1,9 +1,10 @@
 """RTFM-EV's own SNMP agent: serves this host node with the firmware's OID layout.
 
 Off by default. When enabled it listens on UDP and answers SNMPv2c GET,
-GETNEXT and GETBULK with the same 22 OIDs as the observer firmware
-(``app/snmp/mib.py``), so one monitoring template fits a firmware node and
-this host. It never touches the radio: every value comes from state the app
+GETNEXT and GETBULK with the 22 OIDs of the first observer firmware release
+(``mib.FIRST_RELEASE_ENTRIES``), so one monitoring template fits a firmware
+node and this host. The OIDs added later (battery, filter, duty gate, ...) are
+not served: they answer noSuchObject, which pollers treat as "not supported". It never touches the radio: every value comes from state the app
 already holds.
 
 Where the host values come from, per group:
@@ -131,7 +132,9 @@ def _to_snmp(entry: mib.MibEntry, value: Any) -> SnmpValue:
 def build_table(values: dict[str, Any] | None = None) -> list[VarBind]:
     """The served OID table, sorted by OID, from ``values`` (default: this host)."""
     values = host_values() if values is None else values
-    table = [(entry.oid, _to_snmp(entry, values.get(entry.key))) for entry in mib.ENTRIES]
+    table = [
+        (entry.oid, _to_snmp(entry, values.get(entry.key))) for entry in mib.FIRST_RELEASE_ENTRIES
+    ]
     return sorted(table, key=lambda item: item[0])
 
 

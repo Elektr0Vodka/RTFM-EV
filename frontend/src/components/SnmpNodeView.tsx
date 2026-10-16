@@ -23,27 +23,41 @@ import { SnmpRefreshSelect, useSnmpRefreshSeconds } from './snmp/SnmpRefreshSele
 import { SnmpSeriesChart, type SnmpChartSeries } from './snmp/SnmpSeriesChart';
 import { SnmpValueGroups } from './snmp/SnmpValueGroups';
 import {
+  FILTER_DROP_KEYS,
   SNMP_FIELDS,
   SNMP_GROUPS,
+  formatResetReasonCode,
   formatSnmpTime,
   formatSnmpValue,
   type SnmpField,
   type SnmpGroup,
 } from './snmp/snmpFields';
 import { SnmpStatusBadge, applySnmpPoll, snmpNodeName, snmpNodeStatus } from './snmp/snmpNode';
-import { countReboots, ratePoints, toChartPoints } from './snmp/snmpSeries';
+import { listReboots, ratePoints, toChartPoints, type SnmpReboot } from './snmp/snmpSeries';
 
 const WINDOW_STORAGE_KEY = 'rtfm-snmp-node-window';
 const DEFAULT_WINDOW_ID = '24h';
 const COUNTER_MODE_STORAGE_KEY = 'rtfm-snmp-node-counters';
-const SERIES_COLORS = ['#0ea5e9', '#f59e0b', '#10b981', '#8b5cf6'];
+const SERIES_COLORS = [
+  '#0ea5e9',
+  '#f59e0b',
+  '#10b981',
+  '#8b5cf6',
+  '#ef4444',
+  '#ec4899',
+  '#14b8a6',
+  '#84cc16',
+  '#6366f1',
+  '#a16207',
+];
 const NO_VALUE = '-';
 
 type CounterMode = 'rates' | 'totals';
 
 /**
  * gauge: plotted as stored. counter: only goes up since boot, shown per minute
- * in rates mode. airtime: a seconds counter, shown as a share of the time.
+ * in rates mode. airtime: a seconds (or milliseconds) counter, shown as a
+ * share of the time.
  */
 type ChartKind = 'gauge' | 'counter' | 'airtime';
 
@@ -56,10 +70,19 @@ interface ChartDef {
   titleKey?: string;
   /** Left out when the node never reported more than zero (no PSRAM fitted). */
   hideWhenZero?: boolean;
+  /**
+   * Left out when no stored poll has a value for it: an OID added after the
+   * first firmware release that this node does not serve.
+   */
+  optional?: boolean;
+  /** Series that never went above zero are left out (filter rules that dropped nothing). */
+  hideZeroSeries?: boolean;
 }
 
 const CHARTS: ChartDef[] = [
   { id: 'uptime', group: 'system', kind: 'gauge', keys: ['uptime_secs'] },
+  { id: 'battery', group: 'system', kind: 'gauge', keys: ['battery_mv'], optional: true },
+  { id: 'mcu_temp', group: 'system', kind: 'gauge', keys: ['mcu_temp_c'], optional: true },
   {
     id: 'packets',
     group: 'radio',
@@ -83,6 +106,23 @@ const CHARTS: ChartDef[] = [
   },
   { id: 'recv_errors', group: 'radio', kind: 'counter', keys: ['recv_errors'] },
   { id: 'air_time', group: 'radio', kind: 'airtime', keys: ['total_air_time_secs'] },
+  {
+    id: 'rx_air_time',
+    group: 'radio',
+    kind: 'airtime',
+    keys: ['rx_air_time_secs'],
+    optional: true,
+  },
+  { id: 'tx_duty', group: 'radio', kind: 'gauge', keys: ['tx_duty_percent'], optional: true },
+  { id: 'tx_queue', group: 'radio', kind: 'gauge', keys: ['tx_queue_len'], optional: true },
+  {
+    id: 'dups',
+    group: 'radio',
+    kind: 'counter',
+    keys: ['flood_dups', 'direct_dups'],
+    titleKey: 'snmp_node_chart_dups',
+    optional: true,
+  },
   { id: 'noise_floor', group: 'radio', kind: 'gauge', keys: ['noise_floor'] },
   { id: 'last_rssi', group: 'radio', kind: 'gauge', keys: ['last_rssi'] },
   { id: 'last_snr', group: 'radio', kind: 'gauge', keys: ['last_snr'] },
@@ -96,8 +136,39 @@ const CHARTS: ChartDef[] = [
     keys: ['free_heap', 'max_alloc', 'internal_free'],
     titleKey: 'snmp_node_chart_memory',
   },
+  { id: 'min_free_heap', group: 'memory', kind: 'gauge', keys: ['min_free_heap'], optional: true },
   { id: 'psram', group: 'memory', kind: 'gauge', keys: ['psram_free'], hideWhenZero: true },
   { id: 'wifi_rssi', group: 'network', kind: 'gauge', keys: ['wifi_rssi'] },
+  {
+    id: 'dc_gate_level',
+    group: 'duty_gate',
+    kind: 'gauge',
+    keys: ['dc_gate_level'],
+    optional: true,
+  },
+  {
+    id: 'filter_drops',
+    group: 'filter',
+    kind: 'counter',
+    keys: FILTER_DROP_KEYS,
+    titleKey: 'snmp_node_chart_filter_drops',
+    optional: true,
+    hideZeroSeries: true,
+  },
+  {
+    id: 'filter_air_saved',
+    group: 'filter',
+    kind: 'airtime',
+    keys: ['filter_air_saved_ms'],
+    optional: true,
+  },
+  {
+    id: 'neighbours',
+    group: 'neighbours',
+    kind: 'gauge',
+    keys: ['neighbour_count'],
+    optional: true,
+  },
 ];
 
 const TILE_KEYS = [
@@ -154,8 +225,20 @@ interface BuiltChart {
 
 function axisTickFormat(field: SnmpField): ((value: number) => string) | undefined {
   if (field.unit === 'seconds') return (value) => formatDuration(Math.max(0, Math.round(value)));
+  if (field.unit === 'milliseconds') {
+    return (value) => formatDuration(Math.max(0, Math.round(value / 1000)));
+  }
   if (field.unit === 'bytes') return (value) => `${Math.round(value / 1024)}K`;
+  if (field.unit === 'millivolts') return (value) => `${(value / 1000).toFixed(2)}V`;
   return undefined;
+}
+
+/** True when some poll has a real number for the field (not missing, not its sentinel). */
+function hasData(history: SnmpHistoryEntry[], field: SnmpField): boolean {
+  return history.some((entry) => {
+    const value = entry.values[field.key];
+    return typeof value === 'number' && value !== field.sentinel;
+  });
 }
 
 function buildChart(
@@ -164,7 +247,13 @@ function buildChart(
   mode: CounterMode,
   t: TFn
 ): BuiltChart | null {
-  const fields = def.keys.flatMap((key) => FIELD_BY_KEY.get(key) ?? []);
+  let fields = def.keys.flatMap((key) => FIELD_BY_KEY.get(key) ?? []);
+  if (def.optional) fields = fields.filter((field) => hasData(history, field));
+  if (def.hideZeroSeries) {
+    fields = fields.filter((field) =>
+      history.some((entry) => Number(entry.values[field.key] ?? 0) > 0)
+    );
+  }
   if (fields.length === 0) return null;
   if (
     def.hideWhenZero &&
@@ -173,16 +262,21 @@ function buildChart(
     return null;
   }
   const asRate = mode === 'rates' && def.kind !== 'gauge';
-  const scale = def.kind === 'airtime' ? 100 : 60;
+  // Seconds on air per 100 seconds is a percentage; for milliseconds that is
+  // per 100 000 ms, so a tenth of the per-second rate.
+  const airScale = fields[0].unit === 'milliseconds' ? 0.1 : 100;
+  const scale = def.kind === 'airtime' ? airScale : 60;
   const series = fields.map((field, index) => ({
     key: field.key,
     label: t(field.labelKey),
     color: SERIES_COLORS[index % SERIES_COLORS.length],
-    points: asRate ? ratePoints(history, field.key, scale) : toChartPoints(history, field.key),
+    points: asRate
+      ? ratePoints(history, field.key, scale)
+      : toChartPoints(history, field.key, field.sentinel),
   }));
   const baseTitle = def.titleKey ? t(def.titleKey) : t(fields[0].labelKey);
   let title = baseTitle;
-  let format = (value: number) => formatSnmpValue(fields[0], { [fields[0].key]: value });
+  let format = (value: number) => formatSnmpValue(fields[0], { [fields[0].key]: value }, t);
   if (asRate && def.kind === 'airtime') {
     title = t('snmp_node_title_percent', { title: baseTitle });
     format = (value) => t('snmp_node_value_percent', { value: value.toFixed(2) });
@@ -245,6 +339,33 @@ function ChartCard({ chart, full }: { chart: BuiltChart; full: ChartWindow }) {
         )}
       </div>
     </div>
+  );
+}
+
+/** The reset reason of a reboot: the node's text, else its decoded code. */
+function rebootReason(reboot: SnmpReboot, t: TFn): string {
+  if (reboot.reason) return reboot.reason;
+  if (reboot.code !== null) return formatResetReasonCode(reboot.code, t);
+  return t('snmp_node_reboot_reason_unknown');
+}
+
+/** Each reboot in the period (uptime went down), newest first, with its reset reason. */
+function RebootList({ reboots }: { reboots: SnmpReboot[] }) {
+  const t = useT();
+  return (
+    <section data-testid="snmp-node-reboots">
+      <h3 className="mb-1 text-xs font-semibold text-foreground">{t('snmp_node_reboots')}</h3>
+      <ul className="space-y-0.5 rounded-lg border border-border bg-card px-3 py-2 text-xs">
+        {[...reboots].reverse().map((reboot) => (
+          <li key={reboot.time} className="flex flex-wrap gap-x-3">
+            <span className="tabular-nums text-muted-foreground">
+              {formatSnmpTime(reboot.time)}
+            </span>
+            <span>{rebootReason(reboot, t)}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -392,7 +513,7 @@ export function SnmpNodeView({
   // One time extent for every chart, so they line up under each other.
   const full: ChartWindow =
     rows.length > 0 ? [rows[0].timestamp, rows[rows.length - 1].timestamp] : [0, 0];
-  const reboots = useMemo(() => countReboots(rows), [rows]);
+  const reboots = useMemo(() => listReboots(rows), [rows]);
 
   const awaitingCustom = isCustom && appliedCustom === null;
   const status = node ? snmpNodeStatus(node) : null;
@@ -542,17 +663,19 @@ export function SnmpNodeView({
                 <StatTile
                   key={field.key}
                   label={t(field.labelKey)}
-                  value={formatSnmpValue(field, latestValues)}
+                  value={formatSnmpValue(field, latestValues, t)}
                 />
               ))}
               <div data-testid="snmp-tile-reboots">
                 <StatTile
                   label={t('snmp_node_tile_reboots')}
-                  value={history === null ? NO_VALUE : reboots}
+                  value={history === null ? NO_VALUE : reboots.length}
                   sub={t('snmp_node_tile_reboots_sub')}
                 />
               </div>
             </div>
+
+            {history !== null && reboots.length > 0 && <RebootList reboots={reboots} />}
 
             {historyError && (
               <p className="text-sm text-destructive" role="alert">

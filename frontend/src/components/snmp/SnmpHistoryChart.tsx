@@ -3,7 +3,7 @@ import { api, isAbortError } from '../../api';
 import { useT } from '../../i18n';
 import type { SnmpHistoryEntry } from '../../types';
 import { SnmpSeriesChart } from './SnmpSeriesChart';
-import { SNMP_FIELDS, formatSnmpValue, type SnmpField } from './snmpFields';
+import { SNMP_FIELDS, formatSnmpValue, snmpValueServed, type SnmpField } from './snmpFields';
 import { toChartPoints } from './snmpSeries';
 
 export { toChartPoints, type SnmpChartPoint } from './snmpSeries';
@@ -16,10 +16,16 @@ const RANGES: { hours: number; labelKey: string }[] = [
   { hours: 24 * 30, labelKey: 'snmp_range_30d' },
 ];
 
-// The two names are text; everything else can be charted.
+// Text, reset reason codes and error-flag bitmasks are not charted.
 const CHART_FIELDS: SnmpField[] = SNMP_FIELDS.filter(
-  (field) => field.key !== 'node_name' && field.key !== 'firmware_version'
+  (field) =>
+    field.format !== 'text' && field.format !== 'reset_reason' && field.format !== 'error_flags'
 );
+
+/** A field added after the first release is offered once the history has it. */
+function inHistory(field: SnmpField, history: SnmpHistoryEntry[] | null): boolean {
+  return !field.optional || (history ?? []).some((entry) => snmpValueServed(field, entry.values));
+}
 const DEFAULT_METRIC = 'free_heap';
 
 /**
@@ -48,7 +54,11 @@ export function SnmpHistoryChart({ publicKey, version }: { publicKey: string; ve
     return () => controller.abort();
   }, [publicKey, hours, version]);
 
-  const field = CHART_FIELDS.find((f) => f.key === metric) ?? CHART_FIELDS[0];
+  const options = useMemo(
+    () => CHART_FIELDS.filter((f) => f.key === metric || inHistory(f, history)),
+    [history, metric]
+  );
+  const field = options.find((f) => f.key === metric) ?? CHART_FIELDS[0];
   const label = t(field.labelKey);
   const series = useMemo(
     () => [
@@ -56,10 +66,10 @@ export function SnmpHistoryChart({ publicKey, version }: { publicKey: string; ve
         key: field.key,
         label,
         color: CHART_COLOR,
-        points: toChartPoints(history ?? [], field.key),
+        points: toChartPoints(history ?? [], field.key, field.sentinel),
       },
     ],
-    [history, field.key, label]
+    [history, field.key, field.sentinel, label]
   );
   const pointCount = series[0].points.length;
 
@@ -75,7 +85,7 @@ export function SnmpHistoryChart({ publicKey, version }: { publicKey: string; ve
           onChange={(e) => setMetric(e.target.value)}
           className="h-7 rounded-md border border-input bg-background px-2 text-xs"
         >
-          {CHART_FIELDS.map((f) => (
+          {options.map((f) => (
             <option key={f.key} value={f.key}>
               {t(f.labelKey)}
             </option>
@@ -108,7 +118,7 @@ export function SnmpHistoryChart({ publicKey, version }: { publicKey: string; ve
       {pointCount >= 2 && (
         <SnmpSeriesChart
           series={series}
-          format={(value) => formatSnmpValue(field, { [field.key]: value })}
+          format={(value) => formatSnmpValue(field, { [field.key]: value }, t)}
           ariaLabel={t('snmp_history_chart_label', { value: label })}
         />
       )}

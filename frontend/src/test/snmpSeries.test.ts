@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { countReboots, ratePoints, toChartPoints } from '../components/snmp/snmpSeries';
+import {
+  countReboots,
+  listReboots,
+  ratePoints,
+  toChartPoints,
+} from '../components/snmp/snmpSeries';
 import type { SnmpHistoryEntry, SnmpValues } from '../types';
 
 function entry(timestamp: number, values: SnmpValues): SnmpHistoryEntry {
@@ -92,5 +97,66 @@ describe('countReboots', () => {
   it('is zero without a drop', () => {
     expect(countReboots([])).toBe(0);
     expect(countReboots([entry(1, { uptime_secs: 5 }), entry(2, { uptime_secs: 6 })])).toBe(0);
+  });
+});
+
+describe('added OIDs', () => {
+  it('leaves a sentinel out of the chart (0 mV: the board cannot measure it)', () => {
+    const history = [
+      entry(100, { battery_mv: 4105 }),
+      entry(160, { battery_mv: 0 }),
+      entry(220, { battery_mv: 4090 }),
+    ];
+    expect(toChartPoints(history, 'battery_mv', 0)).toEqual([
+      { time: 100, value: 4105 },
+      { time: 220, value: 4090 },
+    ]);
+    // Without a sentinel a 0 is a value.
+    expect(toChartPoints(history, 'battery_mv')).toHaveLength(3);
+  });
+
+  it('starts a Counter32 over after `clear stats` without a reboot, never negative', () => {
+    // Uptime keeps going up: the drop from 500 to 20 is `clear stats`.
+    const history = [
+      entry(1000, { filter_rate_limit_drops: 440, uptime_secs: 100 }),
+      entry(1060, { filter_rate_limit_drops: 500, uptime_secs: 160 }),
+      entry(1120, { filter_rate_limit_drops: 20, uptime_secs: 220 }),
+      entry(1180, { filter_rate_limit_drops: 50, uptime_secs: 280 }),
+    ];
+    expect(ratePoints(history, 'filter_rate_limit_drops', 1)).toEqual([
+      { time: 1060, value: 1 },
+      { time: 1180, value: 0.5 },
+    ]);
+  });
+
+  it('skips polls of a node that does not serve the counter', () => {
+    const history = [entry(1000, { flood_dups: null }), entry(1060, { flood_dups: null })];
+    expect(ratePoints(history, 'flood_dups', 60)).toEqual([]);
+    expect(toChartPoints(history, 'flood_dups')).toEqual([]);
+  });
+});
+
+describe('listReboots', () => {
+  it('records the reset reason of the boot after each drop in uptime', () => {
+    const history = [
+      entry(1000, { uptime_secs: 500, reset_reason: 'Power-on reset', reset_reason_code: 1 }),
+      entry(1060, {
+        uptime_secs: 20,
+        reset_reason: 'Brownout (low voltage)',
+        reset_reason_code: 9,
+      }),
+      entry(1120, {
+        uptime_secs: 80,
+        reset_reason: 'Brownout (low voltage)',
+        reset_reason_code: 9,
+      }),
+      entry(1180, { uptime_secs: 10, reset_reason_code: 4 }),
+      entry(1240, { uptime_secs: 3 }),
+    ];
+    expect(listReboots(history)).toEqual([
+      { time: 1060, reason: 'Brownout (low voltage)', code: 9 },
+      { time: 1180, reason: null, code: 4 },
+      { time: 1240, reason: null, code: null },
+    ]);
   });
 });

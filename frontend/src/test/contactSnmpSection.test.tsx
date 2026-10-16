@@ -1,7 +1,9 @@
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-import { I18nProvider } from '../i18n/I18nProvider';
+import { I18nProvider, type TFn } from '../i18n/I18nProvider';
+import { translate, type Catalog } from '../i18n/i18n';
+import en from '../i18n/locales/en.json';
 import { ContactSnmpSection } from '../components/snmp/ContactSnmpSection';
 import { toChartPoints } from '../components/snmp/SnmpHistoryChart';
 import { SNMP_FIELDS, formatBytes, formatSnmpValue } from '../components/snmp/snmpFields';
@@ -100,9 +102,42 @@ beforeEach(() => {
 });
 
 describe('snmpFields', () => {
-  it('lists the 22 firmware values once each', () => {
-    expect(SNMP_FIELDS).toHaveLength(22);
-    expect(new Set(SNMP_FIELDS.map((f) => f.key)).size).toBe(22);
+  it('lists the 53 firmware values once each, the later 31 as optional', () => {
+    expect(SNMP_FIELDS).toHaveLength(53);
+    expect(new Set(SNMP_FIELDS.map((f) => f.key)).size).toBe(53);
+    expect(SNMP_FIELDS.filter((f) => !f.optional)).toHaveLength(22);
+    // Only the battery and the MCU temperature have a "cannot measure" value.
+    expect(
+      SNMP_FIELDS.filter((f) => f.sentinel !== undefined).map((f) => [f.key, f.sentinel])
+    ).toEqual([
+      ['battery_mv', 0],
+      ['mcu_temp_c', -127],
+    ]);
+  });
+
+  it('formats the added values: sentinels, flags, reset reasons, switches', () => {
+    const field = (key: string) => SNMP_FIELDS.find((f) => f.key === key)!;
+    const t: TFn = (key, params) =>
+      translate({ en: en as unknown as Catalog, nl: {}, de: {} }, 'en', key, params);
+    const show = (key: string, value: number) => formatSnmpValue(field(key), { [key]: value }, t);
+    expect(show('battery_mv', 4105)).toBe('4.105 V');
+    expect(show('battery_mv', 0)).toBe('n/a');
+    expect(show('mcu_temp_c', 41)).toBe('41 °C');
+    expect(show('mcu_temp_c', -127)).toBe('n/a');
+    expect(show('mcu_temp_c', 0)).toBe('0 °C');
+    expect(show('error_flags', 0)).toBe('None');
+    expect(show('error_flags', 5)).toBe('Packet pool full, Start-RX timeout');
+    expect(show('error_flags', 8 | 16)).toBe('Radio watchdog fired, Bit 16');
+    expect(show('reset_reason_code', 9)).toBe('Brownout (9)');
+    expect(show('reset_reason_code', 6)).toBe('Task watchdog (6)');
+    expect(show('reset_reason_code', 42)).toBe('Code 42');
+    expect(show('ntp_synced', 1)).toBe('Yes');
+    expect(show('ntp_synced', 0)).toBe('No');
+    expect(show('tx_duty_percent', 12)).toBe('12 %');
+    expect(show('filter_air_saved_ms', 250)).toBe('250 ms');
+    expect(show('filter_air_saved_ms', 90_000)).toBe('1m');
+    expect(show('flood_dups', 4_294_967_295)).toBe('4294967295');
+    expect(formatSnmpValue(field('battery_mv'), {}, t)).toBe('-');
   });
 
   it('formats by unit and shows a dash for a missing value', () => {

@@ -11,6 +11,51 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-16 (SNMP: added observer OIDs, feat/snmp-added-oids)
+
+No migration (SNMP polls are stored as JSON, new keys just appear). No new
+environment variable. Firmware side: Dutch-MeshCore/MeshCore PR #16
+(`feature/dmc-observer-dev-snmp-battery`, `MQTT_SNMP.md`). Not tested against
+a node running that firmware yet: verified with tests against a scripted SNMP
+agent only.
+
+### SNMP polling
+- **31 more OIDs.** Battery (mV), MCU temperature, reset reason (code and
+  text), TX queue, duplicate flood/direct packets, RX air time, TX duty cycle,
+  error flags, NTP clock state, lowest free heap, the duty gate group (`.6`),
+  the packet filter group (`.7`: on/dry run, drops per rule, air time saved)
+  and the neighbour count (`.8`). The existing 22 OIDs keep their number,
+  type and handling.
+- **Missing is normal.** Older firmware, room servers (no `.6` / `.7`) and
+  other builds answer noSuchObject for what they do not have. That value is
+  "not supported": the field and its chart are hidden, nothing is logged and
+  the poll still counts as good.
+- **Smaller requests.** The table is read in GETs of at most 22 OIDs, the
+  original table first. The firmware's SNMP library sends no reply at all
+  when a reply does not fit its 1400-byte buffer, so one GET for all 53 OIDs
+  would risk a timeout.
+- **Host agent unchanged.** RTFM-EV's own SNMP agent still serves only the
+  original 22 OIDs; the added ones answer noSuchObject.
+
+### SNMP pages
+- **Values.** Battery shows volts, temperature in °C; 0 mV and -127 °C show
+  n/a and are never charted. Error flags are decoded into names, reset reason
+  codes into ESP-IDF reason names, on/off values into Yes/No.
+- **Graphs.** Node page charts for battery, MCU temperature, RX air time,
+  duty cycle, TX queue, duplicates, lowest free heap, duty gate layers, filter
+  drops per rule (rules that never dropped are left out), filter air time
+  saved and neighbours. Counter32 totals are shown as a rate; a value lower
+  than the poll before (reboot or `clear stats`) starts over instead of
+  drawing a negative rate. There is no 2^32 wrap handling (none existed).
+- **Reboots.** Each reboot in the period (uptime went down) is listed with the
+  reset reason of the new boot, or "Reason not reported" on older firmware.
+
+### Home Assistant
+- **Sensors only when served.** The added SNMP sensors are created once the
+  node's newest stored poll served them, so older firmware and room servers
+  get no empty sensors. Battery is a voltage sensor, MCU temperature a
+  temperature sensor; their "cannot measure" values are not published.
+
 ## Update 2026-10-16 (meshcomod companion receive filter, feat/meshcomod-companion-filter)
 
 Migration `_152` (companion_filter_history, companion_filter_backups). No new

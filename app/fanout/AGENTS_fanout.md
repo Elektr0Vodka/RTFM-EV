@@ -102,7 +102,9 @@ stored (scheduled polls and "Poll now"). A failed poll is not broadcast.
 - `values`: the MeshCore OID table by key (`app/snmp/mib.py`), a value is `None` when the node did not serve it
 
 The event never carries the node's address or SNMP community. The HA MQTT module publishes it for
-tracked repeaters on `<prefix>/<node_id>/snmp` (see `_SNMP_SENSORS` in `mqtt_ha.py`): discovery
+tracked repeaters on `<prefix>/<node_id>/snmp` (see `_SNMP_SENSORS` in `mqtt_ha.py`; an OID added
+after the first firmware release only gets a sensor once the newest stored poll served it, and the
+battery / MCU temperature sentinels are left out of the state): discovery
 configs are added in `_publish_discovery` for tracked repeaters that have a `contact_snmp` row, with
 `expire_after` only when scheduled polling is on.
 

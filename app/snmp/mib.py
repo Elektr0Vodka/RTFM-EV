@@ -2,14 +2,24 @@
 
 Source: ``src/helpers/SNMPAgent.cpp`` and ``MQTT_SNMP.md`` in the observer
 firmware (Dutch-MeshCore/MeshCore ``dmc-observer-dev`` at 923fc428, identical
-in agessaman/MeshCore ``observer-firmware``). Every entry is a scalar under
-the temporary, unregistered enterprise number 99999:
+in agessaman/MeshCore ``observer-firmware``). The entries after the first 22
+come from Dutch-MeshCore/MeshCore PR #16 (``feature/dmc-observer-dev-snmp-battery``
+at 0a96eae3). Every entry is a scalar under the temporary, unregistered
+enterprise number 99999:
 
-    .1.x.0 system, .2.x.0 radio, .3.x.0 mqtt, .4.x.0 memory, .5.x.0 network
+    .1.x.0 system, .2.x.0 radio, .3.x.0 mqtt, .4.x.0 memory, .5.x.0 network,
+    .6.x.0 duty gate, .7.x.0 packet filter, .8.x.0 neighbours
 
-The firmware serves all numbers as INTEGER and the two names as OCTET STRING.
-Its counters are uint32 cast to a signed int, so a counter past 2^31 reads
+The first 22 numbers are INTEGER and the two names OCTET STRING. Those
+counters are uint32 cast to a signed int, so a counter past 2^31 reads
 negative. ``last_snr`` is sent as dB x 4; ``scale`` turns it back into dB.
+
+The newer totals are Counter32 (``kind="counter"``): they start again from 0
+after a reboot or ``clear stats``. Every newer OID may be missing: older
+firmware has none of them, room servers have no .6 or .7, and other builds
+may leave out more. A missing OID decodes to None, which means "not
+supported", not 0. ``sentinel`` is the value a node sends when it has the OID
+but cannot measure it (battery 0 mV, MCU temperature -127 C).
 """
 
 from __future__ import annotations
@@ -22,8 +32,10 @@ from app.snmp.ber import Oid, SnmpValue
 
 ENTERPRISE_BASE: Oid = (1, 3, 6, 1, 4, 1, 99999)
 
-MibGroup = Literal["system", "radio", "mqtt", "memory", "network"]
-MibKind = Literal["int", "str"]
+MibGroup = Literal[
+    "system", "radio", "mqtt", "memory", "network", "duty_gate", "filter", "neighbours"
+]
+MibKind = Literal["int", "counter", "str"]
 MibValue = int | float | str | None
 
 
@@ -35,13 +47,16 @@ class MibEntry:
     kind: MibKind = "int"
     unit: str | None = None
     scale: float = 1.0
+    sentinel: int | None = None
 
     @property
     def oid(self) -> Oid:
         return (*ENTERPRISE_BASE, *self.sub_id, 0)
 
 
-ENTRIES: tuple[MibEntry, ...] = (
+# The table of the first firmware release, all served by every firmware node.
+# RTFM-EV's own agent serves only these (``app/services/snmp_agent.py``).
+FIRST_RELEASE_ENTRIES: tuple[MibEntry, ...] = (
     MibEntry("uptime_secs", "system", (1, 1), unit="s"),
     MibEntry("firmware_version", "system", (1, 2), kind="str"),
     MibEntry("node_name", "system", (1, 3), kind="str"),
@@ -65,6 +80,46 @@ ENTRIES: tuple[MibEntry, ...] = (
     MibEntry("psram_free", "memory", (4, 4), unit="B"),
     MibEntry("wifi_rssi", "network", (5, 1), unit="dBm"),
 )
+
+# Added by Dutch-MeshCore/MeshCore PR #16. Any of these can be missing.
+ADDED_ENTRIES: tuple[MibEntry, ...] = (
+    MibEntry("battery_mv", "system", (1, 4), unit="mV", sentinel=0),
+    MibEntry("mcu_temp_c", "system", (1, 5), unit="°C", sentinel=-127),
+    # ESP-IDF esp_reset_reason_t of the current boot, and the same as text.
+    MibEntry("reset_reason_code", "system", (1, 6)),
+    MibEntry("reset_reason", "system", (1, 7), kind="str"),
+    MibEntry("tx_queue_len", "radio", (2, 12)),
+    MibEntry("flood_dups", "radio", (2, 13), kind="counter"),
+    MibEntry("direct_dups", "radio", (2, 14), kind="counter"),
+    MibEntry("rx_air_time_secs", "radio", (2, 15), kind="counter", unit="s"),
+    MibEntry("tx_duty_percent", "radio", (2, 16), unit="%"),
+    # Bitmask since boot: 1 packet pool full, 2 CAD timeout, 4 start-RX
+    # timeout, 8 radio watchdog fired.
+    MibEntry("error_flags", "radio", (2, 17)),
+    MibEntry("ntp_synced", "mqtt", (3, 4)),
+    MibEntry("min_free_heap", "memory", (4, 5), unit="B"),
+    MibEntry("dc_gate_enabled", "duty_gate", (6, 1)),
+    MibEntry("dc_gate_level", "duty_gate", (6, 2)),
+    MibEntry("dc_gate_max_level", "duty_gate", (6, 3)),
+    MibEntry("dc_gate_threshold", "duty_gate", (6, 4), unit="%"),
+    MibEntry("dc_gate_hysteresis", "duty_gate", (6, 5), unit="%"),
+    MibEntry("filter_enabled", "filter", (7, 1)),
+    MibEntry("filter_dry_run", "filter", (7, 2)),
+    MibEntry("filter_hop_limit_drops", "filter", (7, 3), kind="counter"),
+    MibEntry("filter_rate_limit_drops", "filter", (7, 4), kind="counter"),
+    MibEntry("filter_channel_drops", "filter", (7, 5), kind="counter"),
+    MibEntry("filter_path_hash_drops", "filter", (7, 6), kind="counter"),
+    MibEntry("filter_malformed_drops", "filter", (7, 7), kind="counter"),
+    MibEntry("filter_advert_drops", "filter", (7, 8), kind="counter"),
+    MibEntry("filter_path_prefix_drops", "filter", (7, 9), kind="counter"),
+    MibEntry("filter_sender_drops", "filter", (7, 10), kind="counter"),
+    MibEntry("filter_text_drops", "filter", (7, 11), kind="counter"),
+    MibEntry("filter_age_drops", "filter", (7, 12), kind="counter"),
+    MibEntry("filter_air_saved_ms", "filter", (7, 13), kind="counter", unit="ms"),
+    MibEntry("neighbour_count", "neighbours", (8, 1)),
+)
+
+ENTRIES: tuple[MibEntry, ...] = FIRST_RELEASE_ENTRIES + ADDED_ENTRIES
 
 BY_OID: dict[Oid, MibEntry] = {entry.oid: entry for entry in ENTRIES}
 BY_KEY: dict[str, MibEntry] = {entry.key: entry for entry in ENTRIES}

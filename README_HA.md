@@ -87,7 +87,7 @@ If RemoteTerm already has a cached telemetry snapshot for that repeater, it repu
 
 #### SNMP sensors (observer firmware)
 
-A tracked repeater that also has **SNMP (LAN)** set up on its contact page gets 22 more sensors on the same device. They come from the SNMP agent of the DMC observer and agessaman observer firmware, polled over your network, and update on every good poll (scheduled or **Poll now**).
+A tracked repeater that also has **SNMP (LAN)** set up on its contact page gets 22 more sensors on the same device, plus one for each value that newer DMC observer firmware adds and the node serves (see the second table). They come from the SNMP agent of the DMC observer and agessaman observer firmware, polled over your network, and update on every good poll (scheduled or **Poll now**).
 
 | Entity | Type | Unit | Description |
 |--------|------|------|-------------|
@@ -102,7 +102,25 @@ A tracked repeater that also has **SNMP (LAN)** set up on its contact page gets 
 | `sensor.<repeater_name>_snmp_free_heap`, `_snmp_largest_free_block`, `_snmp_free_internal_ram`, `_snmp_free_psram` | Data size | B | Memory |
 | `sensor.<repeater_name>_snmp_wifi_rssi` | Signal strength | dBm | WiFi signal of the node |
 
-With **Poll on a schedule** on, these sensors go unavailable after three missed polls (at least 10 minutes). A node you only poll by hand keeps its last values. The counters reset when the node reboots. The node's address and SNMP community are never published.
+Newer DMC observer firmware serves more values. A sensor is only created once the node has served its value; room servers have no duty gate or filter sensors.
+
+| Entity | Type | Unit | Description |
+|--------|------|------|-------------|
+| `sensor.<repeater_name>_snmp_battery` | Voltage | mV | Battery; left empty when the board cannot measure it (0 mV) |
+| `sensor.<repeater_name>_snmp_mcu_temperature` | Temperature | °C | MCU die temperature; left empty without a sensor (-127) |
+| `sensor.<repeater_name>_snmp_reset_reason`, `_snmp_reset_reason_code` | -- | -- | Why the node last restarted (ESP-IDF reset reason) |
+| `sensor.<repeater_name>_snmp_tx_queue`, `_snmp_tx_duty_cycle` | -- | count, % | Transmit queue and duty cycle over about 60 s |
+| `sensor.<repeater_name>_snmp_duplicate_flood_packets`, `_snmp_duplicate_direct_packets` | -- | count | Duplicate packets received |
+| `sensor.<repeater_name>_snmp_rx_air_time` | Duration | s | Total receive time |
+| `sensor.<repeater_name>_snmp_error_flags` | -- | -- | Bitmask since boot: 1 packet pool full, 2 CAD timeout, 4 start-RX timeout, 8 radio watchdog |
+| `sensor.<repeater_name>_snmp_ntp_synced` | -- | -- | 1 when the clock was set by NTP |
+| `sensor.<repeater_name>_snmp_lowest_free_heap` | Data size | B | Lowest free heap since boot |
+| `sensor.<repeater_name>_snmp_duty_gate_*` | -- | -- / % | Duty gate state (repeaters only) |
+| `sensor.<repeater_name>_snmp_filter_*` | -- | count | Packet filter state and drops per rule (repeaters only) |
+| `sensor.<repeater_name>_snmp_filter_air_time_saved` | Duration | ms | Estimated transmit time the drops saved |
+| `sensor.<repeater_name>_snmp_neighbours` | -- | count | Neighbours in the neighbour table |
+
+With **Poll on a schedule** on, these sensors go unavailable after three missed polls (at least 10 minutes). A node you only poll by hand keeps its last values. The counters reset when the node reboots (the newer filter and duplicate counters also on `clear stats`). The node's address and SNMP community are never published.
 
 ### Contact Devices
 

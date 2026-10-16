@@ -243,6 +243,124 @@ describe('SnmpNodeView', () => {
     expect(await screen.findByTestId('snmp-chart-psram')).toBeInTheDocument();
   });
 
+  it('leaves out every added chart and group for a node on older firmware', async () => {
+    await renderNode();
+    await screen.findByTestId('snmp-chart-packets');
+
+    for (const id of ['battery', 'mcu_temp', 'dups', 'filter_drops', 'neighbours', 'tx_duty']) {
+      expect(screen.queryByTestId(`snmp-chart-${id}`)).toBeNull();
+    }
+    for (const group of ['duty_gate', 'filter', 'neighbours']) {
+      expect(screen.queryByTestId(`snmp-group-${group}`)).toBeNull();
+    }
+    expect(screen.queryByTestId('snmp-row-battery_mv')).toBeNull();
+  });
+
+  it('charts the added OIDs a room server serves, without sentinels', async () => {
+    // A room server: no duty gate or filter OIDs. The battery reads 0 mV
+    // (cannot measure) in one poll; the MCU has no temperature sensor.
+    const added = [
+      { battery_mv: 4105, flood_dups: 10, neighbour_count: 5 },
+      { battery_mv: 0, flood_dups: 40, neighbour_count: 6 },
+      { battery_mv: 4090, flood_dups: 70, neighbour_count: 6 },
+      { battery_mv: 4080, flood_dups: 2, neighbour_count: 4 },
+      { battery_mv: 4070, flood_dups: 14, neighbour_count: 4 },
+    ];
+    const history = HISTORY.map((row, i) => ({
+      ...row,
+      values: { ...row.values, ...added[i], mcu_temp_c: -127, ntp_synced: 1, error_flags: 5 },
+    }));
+    await renderNode([node({ latest: history[history.length - 1] })], history);
+    await screen.findByTestId('snmp-chart-battery');
+
+    expect(seriesPoints('battery', 'battery_mv').map((p) => p.value)).toEqual([
+      4105, 4090, 4080, 4070,
+    ]);
+    expect(screen.queryByTestId('snmp-chart-mcu_temp')).toBeNull();
+    expect(seriesPoints('neighbours', 'neighbour_count')).toHaveLength(5);
+    // Duplicates per minute; the drop across the reboot gives no point.
+    expect(seriesPoints('dups', 'flood_dups').map((p) => p.value)).toEqual([30, 30, 12]);
+    expect(screen.queryByTestId('snmp-chart-filter_drops')).toBeNull();
+    expect(screen.queryByTestId('snmp-chart-dc_gate_level')).toBeNull();
+    expect(screen.queryByTestId('snmp-group-filter')).toBeNull();
+    expect(screen.queryByTestId('snmp-group-duty_gate')).toBeNull();
+
+    const rows = within(screen.getByTestId('snmp-values'));
+    expect(rows.getByTestId('snmp-row-battery_mv')).toHaveTextContent('4.070 V');
+    expect(rows.getByTestId('snmp-row-mcu_temp_c')).toHaveTextContent('n/a');
+    expect(rows.getByTestId('snmp-row-ntp_synced')).toHaveTextContent('Yes');
+    expect(rows.getByTestId('snmp-row-error_flags')).toHaveTextContent(
+      'Packet pool full, Start-RX timeout'
+    );
+    expect(rows.getByTestId('snmp-row-neighbour_count')).toHaveTextContent('4');
+  });
+
+  it('charts filter drops per rule and starts again after clear stats', async () => {
+    // Uptime keeps going up, so the drop at the 4th poll is `clear stats`.
+    const drops = [0, 30, 60, 6, 18];
+    const history = HISTORY.map((row, i) => ({
+      ...row,
+      values: {
+        ...row.values,
+        uptime_secs: 1000 + i * 60,
+        filter_enabled: 1,
+        filter_dry_run: 0,
+        filter_rate_limit_drops: drops[i],
+        filter_hop_limit_drops: 0,
+        dc_gate_enabled: 1,
+        dc_gate_level: i % 2,
+      },
+    }));
+    await renderNode([node({ latest: history[history.length - 1] })], history);
+    await screen.findByTestId('snmp-chart-filter_drops');
+
+    expect(seriesPoints('filter_drops', 'filter_rate_limit_drops').map((p) => p.value)).toEqual([
+      30, 30, 12,
+    ]);
+    // A rule that never dropped anything is not drawn.
+    expect(
+      screen
+        .getByTestId('snmp-chart-filter_drops')
+        .querySelector('[data-series="filter_hop_limit_drops"]')
+    ).toBeNull();
+    expect(seriesPoints('dc_gate_level', 'dc_gate_level')).toHaveLength(5);
+    expect(screen.getByTestId('snmp-group-filter')).toBeInTheDocument();
+    expect(screen.getByTestId('snmp-row-filter_dry_run')).toHaveTextContent('No');
+    expect(screen.getByTestId('snmp-tile-reboots')).toHaveTextContent('0');
+  });
+
+  it('lists each reboot with the reset reason of the new boot', async () => {
+    const history = HISTORY.map((row, i) =>
+      i === 3
+        ? {
+            ...row,
+            values: { ...row.values, reset_reason: 'Brownout (low voltage)', reset_reason_code: 9 },
+          }
+        : row
+    );
+    // A second reboot without the text, only the code.
+    history.push({
+      timestamp: NOW + 60,
+      values: values({ uptime_secs: 5, reset_reason_code: 4 }),
+    });
+    await renderNode([node({ latest: history[history.length - 1] })], history);
+
+    const list = within(await screen.findByTestId('snmp-node-reboots'));
+    const items = list.getAllByRole('listitem');
+    expect(items).toHaveLength(2);
+    // Newest first.
+    expect(items[0]).toHaveTextContent('Panic (4)');
+    expect(items[1]).toHaveTextContent('Brownout (low voltage)');
+    expect(screen.getByTestId('snmp-tile-reboots')).toHaveTextContent('2');
+  });
+
+  it('says the reason was not reported on older firmware', async () => {
+    await renderNode();
+
+    const list = within(await screen.findByTestId('snmp-node-reboots'));
+    expect(list.getByRole('listitem')).toHaveTextContent('Reason not reported');
+  });
+
   it('loads another period when the range changes', async () => {
     await renderNode();
     await waitFor(() => expect(mocks.snmpHistoryRange).toHaveBeenCalledTimes(1));
