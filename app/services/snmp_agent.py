@@ -4,8 +4,9 @@ Off by default. When enabled it listens on UDP and answers SNMPv2c GET,
 GETNEXT and GETBULK with the 22 OIDs of the first observer firmware release
 (``mib.FIRST_RELEASE_ENTRIES``), so one monitoring template fits a firmware
 node and this host. The OIDs added later (battery, filter, duty gate, ...) are
-not served: they answer noSuchObject, which pollers treat as "not supported". It never touches the radio: every value comes from state the app
-already holds.
+not served: they answer noSuchObject, which pollers treat as "not supported".
+It never touches the radio: every value comes from state the app already
+holds.
 
 Where the host values come from, per group:
 - system: the radio's uptime, firmware version and name.
