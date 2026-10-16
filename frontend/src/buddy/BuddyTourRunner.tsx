@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '../components/ui/button';
 import type { SettingsSection } from '../components/settings/settingsConstants';
 import { useT } from '../i18n';
-import type { Channel, Conversation } from '../types';
+import type { Channel, Contact, Conversation } from '../types';
+import { getContactDisplayName } from '../utils/pubkey';
 import type { BuddyAgent } from './agents';
 import { findAnchorElement } from './buddyAnchors';
 import type { BuddyPage } from './buddyCatalog';
@@ -13,12 +14,16 @@ import {
   moveBuddyTour,
   pauseBuddyTour,
   useBuddyTour,
+  useBuddyTourFeatures,
 } from './buddyTour';
 import { placeBuddy, placePanel, type Box, type Size } from './buddyTourPlacement';
 import {
-  buddyTourSteps,
+  buddyTourStepsFor,
   buddyTourTextKey,
   buddyTourTitleKey,
+  pickBuddyTourContacts,
+  type BuddyTourContext,
+  type BuddyTourId,
   type BuddyTourStep,
 } from './buddyTourSteps';
 
@@ -37,10 +42,13 @@ const SAME_SPOT_PX = 4;
 const PANEL_SIZE_GUESS: Size = { width: 320, height: 190 };
 
 export interface BuddyTourRunnerProps {
+  /** The tour on screen. */
+  tour: BuddyTourId;
   agent: BuddyAgent;
   /** The buddy is only here for the tour and is removed when it stops. */
   summoned: boolean;
   channels: Channel[];
+  contacts: Contact[];
   activePage: BuddyPage | null;
   zIndex: string;
   onSelectConversation: (conversation: Conversation) => void;
@@ -119,18 +127,35 @@ function sameBox(a: Box | null, b: Box | null): boolean {
  * A stop only navigates; it never types, opens a composer or sends anything.
  */
 export function BuddyTourRunner({
+  tour,
   agent,
   summoned,
   channels,
+  contacts,
   activePage,
   zIndex,
   onSelectConversation,
   onOpenSettings,
 }: BuddyTourRunnerProps) {
   const t = useT();
-  const { stepId } = useBuddyTour();
+  const { stepId } = useBuddyTour(tour);
+  const features = useBuddyTourFeatures();
   const hasChannel = channels.length > 0;
-  const steps = useMemo(() => buddyTourSteps(hasChannel), [hasChannel]);
+  const picked = useMemo(() => pickBuddyTourContacts(contacts), [contacts]);
+  const { contactKey, sensorKey, meshcomodContactKey } = picked;
+  const context = useMemo<BuddyTourContext>(
+    () => ({
+      hasChannel,
+      cli: features.cli,
+      cad: features.cad,
+      filter: features.filter,
+      contactKey,
+      sensorKey,
+      meshcomodContactKey,
+    }),
+    [hasChannel, features, contactKey, sensorKey, meshcomodContactKey]
+  );
+  const steps = useMemo(() => buddyTourStepsFor(tour, context), [tour, context]);
   const index = buddyTourStepIndex(steps, stepId);
   const step = steps[index];
 
@@ -147,9 +172,25 @@ export function BuddyTourRunner({
   const panelRef = useRef<HTMLDivElement>(null);
   const nextRef = useRef<HTMLButtonElement>(null);
 
-  const live = useRef({ t, channels, activePage, onSelectConversation, onOpenSettings });
+  const live = useRef({
+    t,
+    channels,
+    contacts,
+    context,
+    activePage,
+    onSelectConversation,
+    onOpenSettings,
+  });
   useEffect(() => {
-    live.current = { t, channels, activePage, onSelectConversation, onOpenSettings };
+    live.current = {
+      t,
+      channels,
+      contacts,
+      context,
+      activePage,
+      onSelectConversation,
+      onOpenSettings,
+    };
   });
 
   // The buddy returns to where it stood. A summoned buddy is simply removed.
@@ -173,6 +214,16 @@ export function BuddyTourRunner({
   // Open the stop's page.
   useEffect(() => {
     const now = live.current;
+    // A chat or info page of one of the contacts the tour picked.
+    const openContact = (type: 'contact' | 'contact-info', key: string | null) => {
+      if (!key) return;
+      const contact = now.contacts.find((c) => c.public_key === key);
+      now.onSelectConversation({
+        type,
+        id: key,
+        name: getContactDisplayName(contact?.name ?? null, key, contact?.last_advert ?? null),
+      });
+    };
     switch (step.page) {
       case 'channel': {
         // A channel chat that is already open will do.
@@ -193,6 +244,21 @@ export function BuddyTourRunner({
         break;
       case 'settings':
         now.onOpenSettings('local');
+        break;
+      case 'radio-settings':
+        now.onOpenSettings('radio');
+        break;
+      case 'contact':
+        openContact('contact', now.context.contactKey);
+        break;
+      case 'contact-info':
+        openContact('contact-info', now.context.contactKey);
+        break;
+      case 'sensor':
+        openContact('contact', now.context.sensorKey);
+        break;
+      case 'meshcomod-contact':
+        openContact('contact', now.context.meshcomodContactKey);
         break;
     }
   }, [step]);

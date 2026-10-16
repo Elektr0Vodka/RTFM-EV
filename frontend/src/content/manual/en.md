@@ -77,6 +77,12 @@ New to the app? Open the **User Guide** and press **Start guided walkthrough**. 
 - In a browser that has not used the app before, a card offers the walkthrough once: **Start walkthrough**, **Not now** (it asks again on the next visit) or **Don't ask again**.
 - As long as you have no channel, the two chat steps are left out.
 
+Two shorter tours show what your radio's firmware adds. Their buttons appear in the User Guide and in the buddy menu once a radio with that firmware has been connected:
+
+- **MeshCore 1.18 tour** (companion firmware 1.18 or newer): the command line in **Settings > Radio** and on **My Node**, the command line of another companion in a chat and in its contact info, the **Remote CLI** permission, and the sensor dashboard. A stop for a contact or a sensor is left out when you have none; the tour opens the companion you heard from most recently, never the Meshcomod contact.
+- **meshcomod tour** (meshcomod firmware): the **Meshcomod (DMC-EV)** panel, the CAD button in a chat header, the built-in **Meshcomod** contact (what you send it runs on the radio and never goes out over LoRa), the command line, and the **Companion receive filter** with its counters and backup. Stops for features your build does not have are left out.
+- The first time a browser sees such a radio, a card offers that tour once, also when you have used the app before. One card shows at a time, and after **Not now** or **Don't ask again** no other card follows until the next visit.
+
 <!-- id: layout -->
 
 ## The layout

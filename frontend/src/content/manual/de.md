@@ -77,6 +77,12 @@ Neu in der App? Öffne das **Benutzerhandbuch** und klicke auf **Geführte Tour 
 - In einem Browser, der die App noch nie benutzt hat, bietet eine Karte die Tour einmal an: **Tour starten**, **Jetzt nicht** (beim nächsten Besuch fragt sie erneut) oder **Nicht mehr fragen**.
 - Solange du keinen Kanal hast, entfallen die beiden Chat-Schritte.
 
+Zwei kürzere Touren zeigen, was die Firmware deines Funkgeräts mitbringt. Ihre Schaltflächen erscheinen im Benutzerhandbuch und im Assistenten-Menü, sobald ein Funkgerät mit dieser Firmware verbunden war:
+
+- **Tour MeshCore 1.18** (Companion-Firmware 1.18 oder neuer): die Befehlszeile unter **Einstellungen > Radio** und unter **Mein Knoten**, die Befehlszeile eines anderen Companions im Chat und in seinen Kontaktinfos, die **Remote-CLI**-Erlaubnis und das Sensor-Dashboard. Ein Schritt für einen Kontakt oder Sensor entfällt, wenn du keinen hast; die Tour öffnet den Companion, den du zuletzt gehört hast, nie den Meshcomod-Kontakt.
+- **Tour meshcomod** (meshcomod-Firmware): der Bereich **Meshcomod (DMC-EV)**, der CAD-Knopf im Chat-Kopf, der eingebaute Kontakt **Meshcomod** (was du ihm schickst, läuft auf dem Funkgerät und geht nie über LoRa hinaus), die Befehlszeile und der **Companion-Empfangsfilter** mit Zählern und Sicherung. Schritte für Funktionen, die dein Build nicht hat, entfallen.
+- Wenn ein Browser so ein Funkgerät zum ersten Mal sieht, bietet eine Karte diese Tour einmal an, auch wenn du die App schon benutzt hast. Es ist immer nur eine Karte zu sehen, und nach **Jetzt nicht** oder **Nicht mehr fragen** folgt bis zum nächsten Besuch keine weitere.
+
 <!-- id: layout -->
 
 ## Der Aufbau

@@ -672,6 +672,7 @@ export function ChatHeader({
           onToggleCad && (
             <button
               type="button"
+              data-buddy-anchor={BUDDY_ANCHORS.chatCad}
               onClick={() => onToggleCad()}
               aria-pressed={
                 cadEnabled === null || cadEnabled === undefined ? undefined : cadEnabled
@@ -699,6 +700,7 @@ export function ChatHeader({
         {showCliToggle && (
           <button
             type="button"
+            data-buddy-anchor={BUDDY_ANCHORS.chatCli}
             onClick={() => onToggleCliConsole?.()}
             aria-pressed={!!cliConsoleOpen}
             aria-label={

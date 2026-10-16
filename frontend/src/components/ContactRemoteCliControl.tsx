@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { TerminalSquare } from 'lucide-react';
 
 import { api } from '../api';
+import { BUDDY_ANCHORS } from '../buddy/buddyAnchors';
 import { useT } from '../i18n';
 import type { Contact } from '../types';
 import { toast } from './ui/sonner';
@@ -42,7 +43,10 @@ export function ContactRemoteCliControl({ contact }: { contact: Contact }) {
   }, [contact.public_key, enabled, saving, t]);
 
   return (
-    <div className="px-5 py-3 border-b border-border space-y-1">
+    <div
+      data-buddy-anchor={BUDDY_ANCHORS.remoteCli}
+      className="px-5 py-3 border-b border-border space-y-1"
+    >
       <div className="flex items-center justify-between gap-2 text-sm">
         <span className="flex items-center gap-2 font-medium">
           <TerminalSquare className="h-6 w-6 text-muted-foreground" aria-hidden="true" />

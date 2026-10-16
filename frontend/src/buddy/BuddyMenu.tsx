@@ -4,7 +4,13 @@ import { formatDateTime } from '../utils/dateTimeFormat';
 import type { BuddyTarget } from './buddyCatalog';
 import { getBuddyHistory } from './buddyHistory';
 import { getBuddyMute, muteBuddyFor, muteBuddyUntilReload, unmuteBuddy } from './buddyPrefs';
-import { getBuddyTourState, resumeBuddyTour, startBuddyTour } from './buddyTour';
+import {
+  getBuddyTourState,
+  isBuddyTourAvailable,
+  resumeBuddyTour,
+  startBuddyTour,
+} from './buddyTour';
+import { BUDDY_TOUR_IDS } from './buddyTourSteps';
 
 export type BuddyMenuView = 'menu' | 'recap';
 
@@ -59,7 +65,13 @@ export function BuddyMenu({
   // Snapshots of the moment the menu opened: it closes as soon as the buddy speaks.
   const [entries] = useState(() => [...getBuddyHistory()].reverse());
   const [muted] = useState(() => getBuddyMute() !== null);
-  const [tourPaused] = useState(() => getBuddyTourState().phase === 'paused');
+  // The tours that can be given with this radio, and whether each is paused.
+  const [tours] = useState(() =>
+    BUDDY_TOUR_IDS.filter((tour) => isBuddyTourAvailable(tour)).map((tour) => ({
+      tour,
+      paused: getBuddyTourState(tour).phase === 'paused',
+    }))
+  );
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -119,14 +131,20 @@ export function BuddyMenu({
               {t('buddy_menu_help')}
             </button>
           )}
-          <button
-            type="button"
-            role="menuitem"
-            className={ITEM_CLASS}
-            onClick={run(tourPaused ? resumeBuddyTour : startBuddyTour)}
-          >
-            {t(tourPaused ? 'buddy_menu_tour_resume' : 'buddy_menu_tour')}
-          </button>
+          {tours.map(({ tour, paused }) => {
+            const key = tour === 'main' ? 'buddy_menu_tour' : `buddy_menu_tour_${tour}`;
+            return (
+              <button
+                key={tour}
+                type="button"
+                role="menuitem"
+                className={ITEM_CLASS}
+                onClick={run(() => (paused ? resumeBuddyTour(tour) : startBuddyTour(tour)))}
+              >
+                {t(paused ? `${key}_resume` : key)}
+              </button>
+            );
+          })}
           {muted ? (
             <button type="button" role="menuitem" className={ITEM_CLASS} onClick={run(unmuteBuddy)}>
               {t('buddy_menu_unmute')}

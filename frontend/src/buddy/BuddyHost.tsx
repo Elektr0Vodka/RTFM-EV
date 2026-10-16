@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../api';
 import { useT } from '../i18n';
+import { useMeshcomodConfig } from '../hooks/useMeshcomodConfig';
 import { useUpdateStatus } from '../hooks/useUpdateStatus';
 import { mvToPercent } from '../utils/batteryDisplay';
 import { requestManualSection } from '../utils/manualNavigation';
@@ -52,7 +53,14 @@ import {
 } from './buddyPrefs';
 import { HeldBack } from './buddyQuiet';
 import { BuddyTourRunner } from './BuddyTourRunner';
-import { isBuddyTourRunning, pauseBuddyTour, subscribeBuddyTour, useBuddyTour } from './buddyTour';
+import {
+  isBuddyTourRunning,
+  noteBuddyTourRadio,
+  pauseBuddyTour,
+  subscribeBuddyTour,
+  useBuddyTourOffer,
+  useRunningBuddyTour,
+} from './buddyTour';
 import { BuddyTourOffer } from './BuddyTourOffer';
 
 /** Speech waiting in the agent's queue beyond this many lines is dropped. */
@@ -163,24 +171,46 @@ export function BuddyHost(props: BuddyHostProps) {
   // polls nothing else, and it is gone again when the tour pauses or ends. The
   // preference is not touched. Starting a tour also brings back a buddy that
   // was right-click dismissed.
-  const tour = useBuddyTour();
-  const touring = tour.phase === 'running';
+  const touring = useRunningBuddyTour() !== null;
   useEffect(() => {
     if (touring) setDismissed(false);
   }, [touring]);
 
-  if (tour.phase === 'offer') return <BuddyTourOffer zIndex={BUDDY_Z_INDEX} />;
+  // The add-on tours follow what the connected radio has (buddyTour.ts keeps
+  // what it saw for the page load). The CAD state comes from the cache the
+  // chat header already fills; it does not read the radio again.
+  const info = props.health?.radio_device_info;
+  const isMeshcomod = info?.is_meshcomod === true;
+  const cliSupported = info?.cli_supported === true;
+  const filterSupported = info?.companion_filter_supported === true;
+  const { cadSupported } = useMeshcomodConfig(isMeshcomod);
+  useEffect(() => {
+    noteBuddyTourRadio({
+      cli: cliSupported,
+      meshcomod: isMeshcomod,
+      filter: filterSupported,
+      cad: cadSupported,
+    });
+  }, [cliSupported, isMeshcomod, filterSupported, cadSupported]);
+
+  const offer = useBuddyTourOffer();
+  // The walkthrough's card comes on a fresh install, before any buddy is shown.
+  if (offer === 'main') return <BuddyTourOffer tour="main" zIndex={BUDDY_Z_INDEX} />;
+  const card = offer && <BuddyTourOffer tour={offer} zIndex={BUDDY_Z_INDEX} />;
   const shownId = agentId ?? (touring ? DEFAULT_BUDDY_AGENT : null);
-  if (shownId === null || (dismissed && !touring)) return null;
+  if (shownId === null || (dismissed && !touring)) return card;
   return (
-    <ActiveBuddy
-      key={shownId}
-      agentId={shownId}
-      tourOnly={agentId === null}
-      touring={touring}
-      onDismiss={onDismiss}
-      {...props}
-    />
+    <>
+      {card}
+      <ActiveBuddy
+        key={shownId}
+        agentId={shownId}
+        tourOnly={agentId === null}
+        touring={touring}
+        onDismiss={onDismiss}
+        {...props}
+      />
+    </>
   );
 }
 
@@ -199,6 +229,7 @@ function ActiveBuddy({
   onDismiss: () => void;
 }) {
   const t = useT();
+  const runningTour = useRunningBuddyTour();
   const [threshold, setThreshold] = useState(getBuddyBatteryThreshold);
   const [agent, setAgent] = useState<BuddyAgent | null>(null);
   /** The agent for everything but the walkthrough; null for a summoned buddy. */
@@ -693,11 +724,14 @@ function ActiveBuddy({
 
   if (!agent || (!touring && !menu)) return null;
   return createPortal(
-    touring ? (
+    touring && runningTour ? (
       <BuddyTourRunner
+        key={runningTour}
+        tour={runningTour}
         agent={agent}
         summoned={tourOnly}
         channels={props.channels}
+        contacts={props.contacts}
         activePage={activePage}
         zIndex={BUDDY_Z_INDEX}
         onSelectConversation={props.onSelectConversation}

@@ -11,6 +11,32 @@ This changelog covers work done in the **RTFM-EV** fork
 Entries are grouped by area and reference the non-merge commit that introduced
 the change. Upstream development is on hold; the fork is the active repository.
 
+## Update 2026-10-16 (buddy add-on tours for MeshCore 1.18 and meshcomod, feat/buddy-feature-tours)
+
+Frontend only. No migration, no new dependency or environment variable. The
+meshcomod stops follow the firmware source of `Elektr0Vodka/meshcomod` `main`
+938352fa (the built-in Meshcomod command contact, the 1.18 command line extras,
+the receive filter).
+
+### Desktop buddy
+- **Two add-on tours.** Next to the guided walkthrough, the buddy has a
+  **MeshCore 1.18 tour** (the command line in Settings > Radio and on My Node,
+  another companion's command line in a chat and in its contact info, the
+  Remote CLI permission, the sensor dashboard) and a **meshcomod tour** (the
+  Meshcomod panel, the CAD button in a chat header, the built-in Meshcomod
+  contact whose commands run on the radio, the command line, and the companion
+  receive filter with its counters and backup). They start from the User Guide
+  and the buddy menu, each keeps its own paused stop, and they only navigate:
+  nothing is typed, run or sent.
+- **Only what the radio has.** A tour shows once this page load has seen a
+  radio with its firmware, and stops for a missing feature, contact or sensor
+  are left out. The 1.18 tour opens the companion heard most recently and never
+  the Meshcomod contact.
+- **Offered once.** The first time a browser sees such a radio, a card offers
+  that tour once, also to existing users. One card shows at a time (the
+  walkthrough first), and after "Not now" or "Don't ask again" no other card
+  follows on that page load.
+
 ## Update 2026-10-16 (SNMP for companions, feat/companion-snmp)
 
 No migration. Builds on feat/snmp-added-oids. Companion side: meshcomod's

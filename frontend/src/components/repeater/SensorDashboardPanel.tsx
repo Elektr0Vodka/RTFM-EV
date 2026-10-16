@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ChevronDown, ChevronUp, Lock } from 'lucide-react';
 
 import { useT } from '../../i18n';
+import { BUDDY_ANCHORS } from '../../buddy/buddyAnchors';
 import type { Contact, Conversation } from '../../types';
 import { SensorDashboardBody } from './SensorDashboardBody';
 
@@ -22,7 +23,7 @@ export function SensorDashboardPanel({
   const label = t('sensor_dashboard_login');
 
   return (
-    <div className="border-b border-border">
+    <div data-buddy-anchor={BUDDY_ANCHORS.sensorPanel} className="border-b border-border">
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}

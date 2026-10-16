@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 
 import { api } from '../api';
+import { BUDDY_ANCHORS } from '../buddy/buddyAnchors';
 import { useCliConsole } from '../hooks/useCliConsole';
 import { useT } from '../i18n';
 import { COMPANION_CLI_COMMANDS, isRiskyCompanionCommand } from '../utils/cliCommands';
@@ -44,10 +45,15 @@ function CompanionCliConsoleForTarget({
   );
   const title =
     target.kind === 'radio' ? t('companion_cli_title_radio') : t('companion_cli_title_contact');
+  // The buddy's MeshCore 1.18 and meshcomod tours point at the console of our own radio.
+  const anchor = target.kind === 'radio' ? BUDDY_ANCHORS.cliRadio : undefined;
 
   if (!cliSupported) {
     return (
-      <div className="rounded-lg border border-border p-3 text-sm text-muted-foreground">
+      <div
+        data-buddy-anchor={anchor}
+        className="rounded-lg border border-border p-3 text-sm text-muted-foreground"
+      >
         <span className="font-medium text-foreground">{title}: </span>
         {t('companion_cli_needs_firmware')}
       </div>
@@ -55,7 +61,7 @@ function CompanionCliConsoleForTarget({
   }
 
   return (
-    <div className="space-y-2">
+    <div data-buddy-anchor={anchor} className="space-y-2">
       {target.kind === 'contact' && (
         <p className="text-xs text-muted-foreground">{t('companion_cli_remote_hint')}</p>
       )}

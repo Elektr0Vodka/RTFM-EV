@@ -20,6 +20,22 @@ export const BUDDY_ANCHORS = {
   chatHeader: 'chat-header',
   composer: 'chat-composer',
   mapControls: 'map-controls',
+  // The add-on tours (MeshCore 1.18, meshcomod).
+  /** The command line console of the connected radio (Settings > Radio, My Node). */
+  cliRadio: 'cli-radio',
+  /** The command line toggle in a DM header. */
+  chatCli: 'chat-cli-toggle',
+  /** The meshcomod CAD toggle in a chat header. */
+  chatCad: 'chat-cad',
+  /** The Remote CLI permission switch in a contact's info. */
+  remoteCli: 'contact-remote-cli',
+  sensorPanel: 'sensor-panel',
+  /** The Meshcomod (DMC-EV) panel in Settings > Radio. */
+  meshcomod: 'settings-meshcomod',
+  /** The companion receive filter card and two of its parts. */
+  cfilter: 'cfilter',
+  cfilterCounters: 'cfilter-counters',
+  cfilterBackup: 'cfilter-backup',
 } as const;
 
 /** Anchor id of a sidebar conversation row. */
