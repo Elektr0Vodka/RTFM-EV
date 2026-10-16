@@ -334,6 +334,21 @@ class TestPersistence:
         await again.stop()
 
 
+class TestSpamNotOpinions:
+    @pytest.mark.asyncio
+    async def test_this_is_spam_on_a_known_name_is_refused(self, feed):
+        await protect(feed, known_min_msgs=1, dedupe_enabled=False)
+        await feed.say("Dave", "evening all")
+        feed.clock.now += 130
+        await feed.runtime.tick()
+        message_id = await feed.say("Dave", LONG)
+        with pytest.raises(ValueError, match="repeat guard"):
+            await feed.runtime.action(
+                "mark_spam", {"text": LONG, "channel": PUBLIC}, message_id=message_id
+            )
+        assert not feed.runtime.detector.blocks
+
+
 class TestFreshStartSeed:
     @staticmethod
     async def store(sender, at, *, channel=PUBLIC, outgoing=False, spam=False):

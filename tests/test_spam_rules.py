@@ -6,7 +6,7 @@ from app.services.host_repeater import HostRepeaterRuntime
 from app.services.host_repeater_policy import evaluate_layers
 from app.services.host_repeater_settings import PolicyConfig, PolicyRule
 from app.services.spam_backend_host import HostBackend
-from app.spam.detector import SpamDetector
+from app.spam.detector import SpamDetector, text_key
 from app.spam.rules import (
     HOST_PREFIX,
     OPENHOP_ID_BASE,
@@ -107,26 +107,15 @@ class TestHostDocuments:
         det, _ = make()
         key = det.action("block_text", text="cheap radios today", channel=PUBLIC)["key"]
         rules = render(det, "host")
-        assert rules.after == []
-        assert rules.before == [
-            {
-                "id": f"spam:{key}",
-                "name": f"spam:{key} (yours)",
-                "enabled": True,
-                "if": {
-                    "all": [
-                        GRP,
-                        ON_PUBLIC,
-                        {
-                            "field": "channel_message_body",
-                            "op": "contains",
-                            "value": "cheap radios today",
-                        },
-                    ]
-                },
-                "then": {"action": "drop"},
-            }
+        # Spam, not opinions: it sits after the rule that lets known people through.
+        assert rules.before == []
+        assert names(rules.after) == [f"spam:known-people:{PUBLIC}", f"spam:{key}:{PUBLIC} (yours)"]
+        assert rules.after[1]["if"]["all"] == [
+            GRP,
+            ON_PUBLIC,
+            {"field": "channel_message_body", "op": "contains", "value": "cheap radios today"},
         ]
+        assert rules.after[1]["then"] == {"action": "drop"}
 
     def test_duplicate_block_exempts_the_original_sender(self):
         det, clock = make()
@@ -285,13 +274,14 @@ class TestHostDocuments:
         clock.tick(1)
         det.action("block_hop", hop="27", match="contains")
         clock.tick(1)
-        det.action("block_text", text="manual text block", channel=PUBLIC)
+        det.action("block_hop", hop="44", match="contains")
         before = render(det, "host").before
-        assert [n.split(":")[1] for n in names(before)] == ["text", "hop", "text"]
-        assert before[0]["if"]["all"][-1]["value"] == "manual text block"
+        # The user's blocks first, newest first, then the duplicate block.
+        assert [n.split(":")[1] for n in names(before)] == ["hop", "hop", "text"]
+        assert names(before)[0].startswith("spam:hop:44")
 
         for i in range(25):
-            det.action("block_text", text=f"manual text number {i}", channel=PUBLIC)
+            det.action("block_hop", hop=f"{0x60 + i:02X}", match="contains")
         capped = render(det, "host")
         assert len(capped.before) == 20
         assert capped.truncated is True
@@ -320,7 +310,7 @@ class TestHostDocuments:
     def test_the_rule_cap_counts_the_rules_before_the_gated_ones(self):
         det, clock = make(overrides={"max_total_rules": 20})
         for n in range(18):
-            det.action("block_text", text=f"manual text number {n:02d}", channel=PUBLIC)
+            det.action("block_hop", hop=f"{0x60 + n:02X}", match="contains")
         clock.tick(1)
         det.action("block_hop", hop="27")
         clock.tick(1)
@@ -366,7 +356,7 @@ class TestOpenHopDocuments:
         ids = [r["id"] for r in rules.rules]
         assert all(isinstance(i, int) and i >= OPENHOP_ID_BASE for i in ids)
         assert len(set(ids)) == len(ids)
-        (text,) = rules.before
+        (text,) = [r for r in rules.after if ":text:" in r["name"]]
         assert text["if"]["all"][1] == {
             "field": "channel_hash",
             "op": "equals",
@@ -457,6 +447,7 @@ class TestRulesAgreeWithTheDetector:
     PROBES = [
         ("Stranger", SPAM, ("99",)),  # campaign text
         ("Stranger", "this has the forbidden phrase in it", ("99",)),  # manual text
+        ("Dave", "this has the forbidden phrase in it", ("99",)),  # manual text, known name
         ("Stranger", "look at http://example.org", ("99",)),  # link, unknown name
         ("Dave", "look at http://example.org", ("99",)),  # link, known name
         ("Sue", "look at www.example.org", ("99",)),  # link, trusted name
@@ -590,7 +581,7 @@ class TestRuleNamesSayWhereABlockCameFrom:
         det.action("lockdown", minutes=30)
         by_source = {b.source: b.key for b in det.blocks.values()}
         rendered = names(render(det, "openhop").rules)
-        assert f"{OPENHOP_PREFIX}{manual} (yours)" in rendered
+        assert f"{OPENHOP_PREFIX}{manual}:{PUBLIC} (yours)" in rendered
         assert f"{OPENHOP_PREFIX}{by_source['dedupe']} (duplicate)" in rendered
         assert f"{OPENHOP_PREFIX}{by_source['campaign']} (auto)" in rendered
         assert f"{OPENHOP_PREFIX}hop:27:{PUBLIC} (auto)" in rendered
@@ -607,7 +598,7 @@ class TestRuleNamesSayWhereABlockCameFrom:
         (node_before,) = render(det, "openhop").before
         assert host_before["id"] == f"spam:{key}"
         assert host_before["name"] == f"spam:{key} (duplicate)"
-        det.action("extend", key=key, permanent=True)  # the user keeps it: now theirs
+        det.action("extend", key=key, seconds=3600)  # the user keeps it longer: now theirs
         (host_after,) = render(det, "host").before
         (node_after,) = render(det, "openhop").before
         assert host_after["name"] == f"spam:{key} (yours)"
@@ -655,16 +646,17 @@ class TestChannelFilter:
     def test_no_filter_renders_every_channel(self):
         rules = render(self.blocked(), "openhop")
         assert OTHER.lower() in str(rules.rules).lower()
-        assert len(rules.before) == 3
+        assert len(rules.before) == 1  # the repeater block; the text blocks are gated
 
     def test_a_channel_left_out_appears_in_no_rule(self):
         rules = render(self.blocked(), "openhop", channels={PUBLIC})
         assert OTHER.lower() not in str(rules.rules).lower()
-        # The Public text block and the repeater block (no channel in it) stay.
-        assert len(rules.before) == 2
+        # The repeater block (no channel in it) stays, and so does the Public text block.
+        assert len(rules.before) == 1
         names = [r["name"] for r in rules.after]
         assert names == [
             f"{OPENHOP_PREFIX}known-people:{PUBLIC}",
+            f"{OPENHOP_PREFIX}{text_key('other spam text here')}:{PUBLIC} (yours)",
             f"{OPENHOP_PREFIX}lockdown:{PUBLIC} (yours)",
         ]
 
@@ -728,7 +720,7 @@ class TestBotLists:
 
     def test_one_rule_per_protected_channel_ahead_of_the_blocks(self):
         det, _ = self.two_channels()
-        det.action("block_text", text="cheap radios today", channel=PUBLIC)
+        det.action("block_hop", hop="27", match="contains")
         before = names(render(det, "host", bot_senders=BOTS).before)
         assert before[:2] == [f"spam:bots:{PUBLIC} (bot list)", f"spam:bots:{OTHER} (bot list)"]
         assert len(before) == 3 and before[2].endswith("(yours)")
@@ -785,7 +777,7 @@ class TestBotLists:
     def test_the_rule_cap_cuts_blocks_before_a_bot_rule(self):
         det, _ = make(overrides={"max_total_rules": 20})
         for n in range(20):
-            det.action("block_text", text=f"cheap radios today number {n:02d}", channel=PUBLIC)
+            det.action("block_hop", hop=f"{0x60 + n:02X}", match="contains")
         rules = render(det, "host", bot_senders=BOTS)
         assert len(rules.before) == 20
         assert names(rules.before)[0] == f"spam:bots:{PUBLIC} (bot list)"

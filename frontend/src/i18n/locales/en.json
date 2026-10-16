@@ -5546,7 +5546,7 @@
   "spam_manual_desc": "For spam it missed. Blocks are for spam content and spam repeaters, not for silencing a person.",
   "spam_manual_hop_label": "Repeater hash",
   "spam_manual_block_hop": "Block repeater",
-  "spam_manual_text_label": "Text (at least 5 characters)",
+  "spam_manual_text_label": "Text (at least 12 characters)",
   "spam_manual_channel_label": "Channel",
   "spam_manual_block_text": "Block text",
   "spam_messages_title": "Recent messages",

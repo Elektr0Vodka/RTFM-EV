@@ -5547,7 +5547,7 @@
   "spam_manual_desc": "Für Spam, der übersehen wurde. Sperren sind für Spaminhalte und Spamrepeater, nicht um eine Person zum Schweigen zu bringen.",
   "spam_manual_hop_label": "Repeater-Hash",
   "spam_manual_block_hop": "Repeater sperren",
-  "spam_manual_text_label": "Text (mindestens 5 Zeichen)",
+  "spam_manual_text_label": "Text (mindestens 12 Zeichen)",
   "spam_manual_channel_label": "Kanal",
   "spam_manual_block_text": "Text sperren",
   "spam_messages_title": "Letzte Nachrichten",

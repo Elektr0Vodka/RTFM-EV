@@ -486,6 +486,11 @@ class SpamGuardRuntime:
                 return await self._reset_settings(body)
             if op == "not_spam" and message_id is not None and not body.get("matched"):
                 body = {**body, "matched": self._block_behind(message_id)}
+            if op == "mark_spam" and message_id is not None and not body.get("sender"):
+                # Spam, not opinions: the detector refuses a name it knows.
+                message = await MessageRepository.get_by_id(message_id)
+                if message is not None and message.sender_name:
+                    body = {**body, "sender": message.sender_name}
             outcome = self.detector.action(op, **body)
             if op == "reset_learned":
                 await self._seed_known()
@@ -688,6 +693,7 @@ class SpamGuardRuntime:
         for block in det.ordered_blocks():
             entry = asdict(block)
             entry["gated"] = det.gated(block)
+            entry["week_at_most"] = det.week_at_most(block)
             entry["mode"] = det.hop_mode(block) if block.kind == "hop" else None
             if block.kind == "suffix":
                 entry["allowed_origins"] = sorted(det.allowed_origins(block))

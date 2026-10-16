@@ -43,6 +43,8 @@ MIN_DUPLICATE_CHARS = 5
 # spam on several channels. Settings stored before this cap was lowered are
 # brought down to it by ``clamp_overrides``.
 MAX_RULES = 500
+# A text block lasts at most a week (spam, not opinions). It was 60 days.
+MAX_SPAM_TEXT_DAYS = 7
 
 PRESETS: dict[str, dict[str, int]] = {
     "relaxed": {
@@ -153,7 +155,7 @@ class SpamTunables(BaseModel):
     long_window_seconds: int = Field(default=7200, ge=600, le=86400)
     block_ttl_seconds: int = Field(default=6 * 3600, ge=300, le=PERMANENT_SECONDS)
     hop_block_ttl_seconds: int = Field(default=2 * 3600, ge=600, le=PERMANENT_SECONDS)
-    spam_text_days: int = Field(default=7, ge=0, le=60)
+    spam_text_days: int = Field(default=7, ge=0, le=MAX_SPAM_TEXT_DAYS)
     max_total_rules: int = Field(default=300, ge=20, le=MAX_RULES)
     # Evidence log
     evidence_log: bool = False
@@ -261,7 +263,10 @@ def clamp_overrides(overrides: Any) -> Any:
     brought down to it, so older settings still load. Anything else as given."""
     if not isinstance(overrides, dict):
         return overrides
-    rules = overrides.get("max_total_rules")
-    if isinstance(rules, int) and not isinstance(rules, bool) and rules > MAX_RULES:
-        return {**overrides, "max_total_rules": MAX_RULES}
-    return overrides
+    lowered = {"max_total_rules": MAX_RULES, "spam_text_days": MAX_SPAM_TEXT_DAYS}
+    out = dict(overrides)
+    for key, bound in lowered.items():
+        value = out.get(key)
+        if isinstance(value, int) and not isinstance(value, bool) and value > bound:
+            out[key] = bound
+    return out if out != overrides else overrides

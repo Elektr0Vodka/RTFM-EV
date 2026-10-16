@@ -3396,6 +3396,8 @@ export interface SpamBlock {
   user_allowed: string[];
   /** Lets known people through. */
   gated: boolean;
+  /** Lasts at most a week and cannot be kept (spam, not opinions). */
+  week_at_most?: boolean;
   /** Hop blocks: the match mode in force. */
   mode: SpamGuardHopMatch | null;
   /** Suffix blocks: first hops let through. */

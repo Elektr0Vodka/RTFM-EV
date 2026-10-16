@@ -101,6 +101,14 @@ HOME_MESSAGES = 3
 # not yet known, perhaps, but no newcomer either.
 ESTABLISHED_SECONDS = 3600
 ESTABLISHED_MESSAGES = 5
+# Spam, not opinions: a block that also stops people Spam Guard knows (any text
+# block, a repeater block that does not let known people through) lasts at most
+# a week and cannot be kept for ever. A text you block yourself must be long
+# enough to be a spam message rather than a word or a name.
+MAX_PEOPLE_BLOCK_SECONDS = 7 * 86400
+MANUAL_TEXT_MIN_CHARS = 12
+# Text blocks the user made: they only stop names Spam Guard does not know.
+_USER_TEXT_REASONS = frozenset({"manual", "marked_spam"})
 # Shape of ``dump()``. 2: a name is known after ``known_min_msgs`` (3 by default,
 # was 1) genuine messages; older state keeps the people it already knew.
 STATE_VERSION = 2
@@ -321,6 +329,8 @@ class SpamDetector:
                 del self.blocks[key]
                 self._mark()
         self._patterns = [re.compile(p, re.IGNORECASE) for p in self.tunables.random_name_patterns]
+        for block in getattr(self, "blocks", {}).values():
+            self._cap(block)  # the repeater matching mode may have changed
         self.allow_hops: set[str] = set(config.allow_hops)
         self.allow_senders: set[str] = set(config.allow_senders)
         self.allow_texts: set[str] = set(config.allow_texts)
@@ -498,9 +508,22 @@ class SpamDetector:
         other blocks that hold people, and it keeps this matching identical to
         the rendered rules (see ``app/spam/rules.py``).
         """
+        if block.kind in ("text", "words"):
+            # Spam, not opinions: a text you block stops names it does not know,
+            # never what people it knows say.
+            return block.reason in _USER_TEXT_REASONS
         return block.kind in ("links", "lockdown", "suffix") or (
             block.kind == "hop" and self.hop_mode(block) == "contains_known"
         )
+
+    def week_at_most(self, block: Block) -> bool:
+        """Blocks that may last at most ``MAX_PEOPLE_BLOCK_SECONDS``: every text
+        block, and a repeater block that also stops known people."""
+        return block.kind in ("text", "words") or (block.kind == "hop" and not self.gated(block))
+
+    def _cap(self, block: Block) -> None:
+        if self.week_at_most(block):
+            block.expires = min(block.expires, self._clock() + MAX_PEOPLE_BLOCK_SECONDS)
 
     def known_origin(self, hop: str) -> bool:
         """A repeater with a genuine history: it relays, or has started genuine messages."""
@@ -723,12 +746,14 @@ class SpamDetector:
                 sender_only=sender_only,
                 match=match,
             )
+            self._cap(self.blocks[key])
             if source != "dedupe":  # routine, and there are many of them
                 self._note("block_started", key=key, kind=kind, value=value, reason=reason)
             self._mark(important=source != "dedupe")
             return True
         if expires >= block.expires:
             block.expires = expires
+            self._cap(block)
             if block.source != "manual":
                 block.reason = reason
                 block.detail = detail or {}
@@ -1532,6 +1557,8 @@ class SpamDetector:
                 continue
             if isinstance(block.expires, (int, float)) and block.expires > now:
                 self.blocks[str(key)] = block
+        for block in self.blocks.values():
+            self._cap(block)
         self.suppressed = {
             str(k): float(v)
             for k, v in section("suppressed").items()
@@ -1653,8 +1680,11 @@ class SpamDetector:
         return {"key": key}
 
     def _manual_text(self, text: str, channel: str, reason: str, ttl: int | None) -> dict[str, Any]:
-        if len(text) < 5:
-            raise ValueError("The text must be at least 5 characters")
+        if len(text) < MANUAL_TEXT_MIN_CHARS:
+            raise ValueError(
+                f"Use at least {MANUAL_TEXT_MIN_CHARS} characters of the spam message: "
+                "Spam Guard blocks spam messages, not single words or names"
+            )
         key = text_key(text)
         self.suppressed.pop(key, None)
         self.blocks.pop(key, None)
@@ -1667,9 +1697,18 @@ class SpamDetector:
         return self._manual_text(text.strip(), channel, "manual", ttl_seconds)
 
     def _do_mark_spam(
-        self, text: str, channel: str, ttl_seconds: int | None = None
+        self, text: str, channel: str, ttl_seconds: int | None = None, sender: str = ""
     ) -> dict[str, Any]:
-        return self._manual_text(self._rule_piece(text), channel, "marked_spam", ttl_seconds)
+        if sender and (sender in self.allow_senders or self.is_known(sender)):
+            raise ValueError(
+                f"{sender} is someone Spam Guard knows, so it does not block what they say. "
+                "If they keep repeating it, the repeat guard already slows that down"
+            )
+        length = max(self.tunables.text_rule_chars, MANUAL_TEXT_MIN_CHARS)
+        piece = middle_piece(text, length)
+        if len(piece) < MANUAL_TEXT_MIN_CHARS:
+            piece = middle_piece(text, length, whole_words=False)
+        return self._manual_text(piece, channel, "marked_spam", ttl_seconds)
 
     def _do_not_spam(self, sender: str = "", matched: str | None = None) -> dict[str, Any]:
         if sender:
@@ -1686,10 +1725,16 @@ class SpamDetector:
     def _do_extend(self, key: str, seconds: int = 3600, permanent: bool = False) -> dict[str, Any]:
         block = self._existing(key)
         now = self._clock()
+        if permanent and self.week_at_most(block):
+            raise ValueError(
+                "Blocks on message text, and repeater blocks that also stop people "
+                "Spam Guard knows, last at most 7 days"
+            )
         if permanent:
             block.expires = now + PERMANENT_SECONDS
         else:
             block.expires = max(block.expires, now) + seconds
+        self._cap(block)
         if block.source == "dedupe":
             block.source = "manual"
         return {"key": key, "expires": block.expires}
@@ -1702,6 +1747,7 @@ class SpamDetector:
         if match is not None and match not in _HOP_MODES:
             raise ValueError("Unknown matching mode")
         block.match = cast("HopMatch | None", match)
+        self._cap(block)
         self._learn_paths(self.events)
 
     def _do_forget_path(self, key: str, path: str) -> None:

@@ -632,9 +632,11 @@ describe('SpamGuardView protection', () => {
       expect(mocks.spamGuardAction).toHaveBeenCalledWith('block_hop', { hop: '5C' }, undefined)
     );
     const blockText = screen.getByRole('button', { name: 'Block text' });
-    fireEvent.change(screen.getByLabelText(/Text \(at least 5/), { target: { value: 'abc' } });
+    fireEvent.change(screen.getByLabelText(/Text \(at least 12/), {
+      target: { value: 'buy it now' },
+    });
     expect(blockText).toBeDisabled();
-    fireEvent.change(screen.getByLabelText(/Text \(at least 5/), {
+    fireEvent.change(screen.getByLabelText(/Text \(at least 12/), {
       target: { value: 'buy this now' },
     });
     fireEvent.click(blockText);

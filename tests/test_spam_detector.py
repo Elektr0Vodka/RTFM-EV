@@ -291,7 +291,8 @@ class TestShortDuplicates:
     def test_marking_a_message_as_spam_works_with_a_short_piece(self):
         det, _ = make(overrides={"text_rule_chars": 5})
         text = det.action("mark_spam", text="Dit is een test voor mij 1", channel=PUBLIC)["text"]
-        assert len(text) >= 5
+        # A block you make takes at least 12 characters, whatever the duplicate length.
+        assert len(text) >= 12
 
 
 class TestDuplicateScope:
@@ -1260,6 +1261,106 @@ class TestRotationAndRegulars:
             say(det, clock, name, "Amazing offer cheap radios now", path=(hop, "B1", "7E"))
         det.decide()
         assert "suffix:B1>7E" not in det.blocks
+
+
+class TestSpamNotOpinions:
+    WEEK = 7 * 86400
+
+    def known_dave(self):
+        det, clock = make(overrides={"known_min_msgs": 1, "dedupe_enabled": False})
+        say(det, clock, "Dave", "evening all")
+        settle(det, clock)
+        return det, clock
+
+    def test_a_text_you_block_stops_only_names_it_does_not_know(self):
+        det, clock = self.known_dave()
+        det.action("block_text", text="cheap radios today", channel=PUBLIC)
+        (block,) = det.blocks.values()
+        assert det.gated(block)
+        assert say(det, clock, "Dave", "cheap radios today, said Dave").matched is None
+        assert say(det, clock, "Stranger", "cheap radios today").matched == block.key
+
+    def test_this_is_spam_also_lets_known_people_through(self):
+        det, clock = self.known_dave()
+        det.action("mark_spam", text=LONG, channel=PUBLIC)
+        (block,) = det.blocks.values()
+        assert det.gated(block)
+        assert say(det, clock, "Dave", LONG).matched is None
+
+    def test_a_campaign_text_still_stops_everyone(self):
+        det, clock = self.known_dave()
+        for name in GENERATED:
+            say(det, clock, name, SPAM)
+        det.decide()
+        block = next(b for b in det.blocks.values() if b.source == "campaign")
+        assert not det.gated(block)
+        assert say(det, clock, "Dave", SPAM).matched == block.key
+
+    def test_block_text_needs_twelve_characters(self):
+        det, _ = make()
+        with pytest.raises(ValueError, match="12"):
+            det.action("block_text", text="cheap radio", channel=PUBLIC)
+        det.action("block_text", text="cheap radio!", channel=PUBLIC)
+
+    def test_this_is_spam_needs_twelve_characters(self):
+        det, _ = make()
+        with pytest.raises(ValueError, match="12"):
+            det.action("mark_spam", text="buy now ok", channel=PUBLIC)
+
+    @pytest.mark.parametrize("trusted", [False, True])
+    def test_this_is_spam_on_someone_it_knows_is_refused(self, trusted):
+        det, clock = self.known_dave()
+        if trusted:
+            det.action("allow_sender", sender="Sue")
+        name = "Sue" if trusted else "Dave"
+        with pytest.raises(ValueError, match="repeat guard"):
+            det.action("mark_spam", text=LONG, channel=PUBLIC, sender=name)
+        assert not det.blocks
+
+    def test_text_blocks_last_at_most_a_week(self):
+        det, clock = make(overrides={"spam_text_days": 7, "block_ttl_seconds": 30 * 86400})
+        for name in GENERATED:
+            say(det, clock, name, SPAM)
+        det.decide()
+        for block in det.blocks.values():
+            if block.kind in ("text", "words"):
+                assert block.expires <= clock.now + self.WEEK
+
+    def test_keep_is_refused_for_blocks_that_stop_known_people(self):
+        det, clock = make()
+        det.action("block_text", text="cheap radios today", channel=PUBLIC)
+        det.action("block_hop", hop="27", match="contains")
+        for key in ("hop:27", next(k for k in det.blocks if k.startswith("text:"))):
+            with pytest.raises(ValueError, match="7 days"):
+                det.action("extend", key=key, permanent=True)
+            det.action("extend", key=key, seconds=30 * 86400)
+            assert det.blocks[key].expires <= clock.now + self.WEEK
+
+    def test_a_repeater_block_that_lets_known_people_through_can_be_kept(self):
+        det, clock = make()
+        det.action("block_hop", hop="27")
+        det.action("extend", key="hop:27", permanent=True)
+        assert det.blocks["hop:27"].expires > clock.now + 365 * 86400
+
+    def test_switching_a_kept_repeater_block_to_stop_everyone_caps_it(self):
+        det, clock = make()
+        det.action("block_hop", hop="27")
+        det.action("extend", key="hop:27", permanent=True)
+        det.action("hop_mode", key="hop:27", match="contains")
+        assert det.blocks["hop:27"].expires <= clock.now + self.WEEK
+
+    def test_stored_permanent_blocks_are_capped_on_load(self):
+        det, clock = make()
+        det.action("block_hop", hop="27", match="contains")
+        det.action("block_hop", hop="44")
+        state = det.dump()
+        for block in state["blocks"].values():
+            block["expires"] = clock.now + 10 * 365 * 86400
+        other, _ = make()
+        other._clock = clock
+        other.load(state)
+        assert other.blocks["hop:27"].expires <= clock.now + self.WEEK
+        assert other.blocks["hop:44"].expires > clock.now + self.WEEK
 
 
 def test_spam_package_does_not_import_the_radio():
