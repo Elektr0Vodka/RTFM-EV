@@ -5862,6 +5862,7 @@
   "spam_reset_settings_help": "Zoals bij een nieuwe installatie: modus Meekijken, alleen het kanaal Public, gevoeligheid Gebalanceerd, geen gewijzigde instellingen en lege uitzonderingslijsten. Wat geleerd is blijft.",
   "spam_reset_settings_confirm": "Alle instellingen van Spam Guard terugzetten naar de standaard? Beschermde kanalen, gewijzigde instellingen en uitzonderingen gaan verloren. Dit kan niet ongedaan worden gemaakt.",
   "spam_activity_reset_learned": "Je hebt alles laten vergeten wat geleerd was",
+  "spam_activity_known_seeded": "{count} bekende mensen geleerd uit de chat van het afgelopen etmaal",
   "gateway_switch_radio": "Wissel van radio",
   "gateway_current_radio": "Huidige radio",
   "gateway_manage_radios": "Radio's beheren",

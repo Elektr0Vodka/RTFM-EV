@@ -106,6 +106,7 @@ const ACTIVITY_KEYS: Record<string, string> = {
   lockdown_ended: 'spam_activity_lockdown_ended',
   cleared_auto: 'spam_activity_cleared_auto',
   reset_learned: 'spam_activity_reset_learned',
+  known_seeded: 'spam_activity_known_seeded',
 };
 
 function str(value: unknown): string {
@@ -124,6 +125,7 @@ export function activityLabel(entry: SpamActivityEntry, t: TFn): string {
     hop: str(entry.hop),
     sender: str(entry.sender),
     hits: num(entry.hits),
+    count: num(entry.count),
   });
 }
 

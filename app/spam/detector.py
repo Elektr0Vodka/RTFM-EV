@@ -69,6 +69,8 @@ _REPEAT_SOURCES = frozenset({"dedupe", "repeat"})
 
 DIRECT = "DIRECT"
 LOCKDOWN_KEY = "lockdown"
+# What an OpenHop node calls the sender of channel text without a "Name: " prefix.
+UNKNOWN_SENDER = "Unknown"
 LINKS_KEY = "links:new"
 LINK_MARKERS = ["http", "www."]
 
@@ -339,6 +341,29 @@ class SpamDetector:
             return True
         entry = self.known.get(name)
         return entry is not None and entry[2] >= self.tunables.known_min_msgs
+
+    def seed_known(self, rows: Iterable[tuple[str, int, float, float]]) -> int:
+        """Learn known people from chat stored before Spam Guard started reading.
+
+        ``rows`` are ``(name, genuine messages, first seen, last seen)``. A fresh
+        start would otherwise treat every regular as new, and a few of them
+        saying the same thing ("good evening mesh") would look like a campaign.
+        Names that look made-up or disguised, and ones that are no name at all,
+        are left out; an existing entry is kept. Returns how many were added.
+        """
+        added = 0
+        for name, count, first, last in rows:
+            if not name or name in ("?", UNKNOWN_SENDER) or name in self.known:
+                continue
+            score = max(_name_score(name, self._patterns), tagged_name_score(name))
+            if score >= self.tunables.name_score_threshold or is_disguised(name, name=True):
+                continue
+            self.known[name] = [float(first), float(last), int(count)]
+            added += 1
+        if added:
+            self._note("known_seeded", count=added)
+            self._mark()
+        return added
 
     def _familiar(self, name: str) -> bool:
         """Trusted or known: a name the newer-flood signals leave alone."""

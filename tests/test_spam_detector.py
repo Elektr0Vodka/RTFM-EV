@@ -1142,6 +1142,32 @@ class TestNewerFloods:
         assert say(det, clock, "Jan-pd0abc", "evening all").random is False
 
 
+class TestSeedKnown:
+    def test_only_normal_names_are_learnt(self):
+        det, clock = make()
+        added = det.seed_known(
+            [
+                ("Dave", 4, clock.now - 3600, clock.now - 60),
+                ("UD6DWREK", 9, clock.now - 3600, clock.now - 60),
+                ("Marco-7fq2k", 5, clock.now - 3600, clock.now - 60),
+                ("?", 3, clock.now - 3600, clock.now - 60),
+                ("", 3, clock.now - 3600, clock.now - 60),
+                ("Unknown", 3, clock.now - 3600, clock.now - 60),
+                ("pаypal", 3, clock.now - 3600, clock.now - 60),
+            ]
+        )
+        assert added == 1
+        assert det.known == {"Dave": [clock.now - 3600, clock.now - 60, 4]}
+        assert det.is_known("Dave")
+        assert det.activity[-1]["event"] == "known_seeded"
+
+    def test_an_existing_entry_is_kept(self):
+        det, clock = make()
+        det.known["Dave"] = [1.0, 2.0, 7]
+        assert det.seed_known([("Dave", 3, clock.now - 60, clock.now)]) == 0
+        assert det.known["Dave"] == [1.0, 2.0, 7]
+
+
 def test_spam_package_does_not_import_the_radio():
     banned = ("app.radio", "app.services.radio", "app.services.host_repeater_tx", "meshcore")
     for path in pathlib.Path("app/spam").glob("*.py"):

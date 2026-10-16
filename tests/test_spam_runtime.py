@@ -334,6 +334,65 @@ class TestPersistence:
         await again.stop()
 
 
+class TestFreshStartSeed:
+    @staticmethod
+    async def store(sender, at, *, channel=PUBLIC, outgoing=False, spam=False):
+        message_id = await MessageRepository.create(
+            msg_type="CHAN",
+            text=f"chat from {sender} at {at}",
+            received_at=at,
+            conversation_key=channel,
+            sender_timestamp=at,
+            outgoing=outgoing,
+            sender_name=sender,
+        )
+        if spam:
+            await MessageRepository.set_spam([message_id])
+
+    @staticmethod
+    async def fresh_runtime(monkeypatch) -> SpamGuardRuntime:
+        runtime = SpamGuardRuntime(clock=Clock())
+        runtime.host = HostBackend(HostRepeaterRuntime())
+        monkeypatch.setattr(spam_guard_module, "broadcast_event", lambda *args, **kwargs: None)
+        await runtime.load()
+        return runtime
+
+    @pytest.mark.asyncio
+    async def test_first_load_learns_regulars_from_stored_messages(self, test_db, monkeypatch):
+        await ChannelRepository.upsert(key=PUBLIC, name="Public")
+        for offset in range(4):
+            await self.store("Dave", NOW - 3600 + offset)
+        await self.store("Sue", NOW - 1000, spam=True)
+        await self.store("Me", NOW - 900, outgoing=True)
+        await self.store("Olga", NOW - 800, channel=OTHER)
+        await self.store("Piet", NOW - 2 * 86400)
+        for offset in range(3):
+            await self.store("UD6DWREK", NOW - 500 + offset)
+        runtime = await self.fresh_runtime(monkeypatch)
+        assert runtime.detector.known == {"Dave": [NOW - 3600, NOW - 3597, 4]}
+        await runtime.stop()
+
+    @pytest.mark.asyncio
+    async def test_stored_state_is_not_seeded_again(self, test_db, monkeypatch):
+        await ChannelRepository.upsert(key=PUBLIC, name="Public")
+        await SpamGuardStateRepository.save({"version": 2})
+        for offset in range(4):
+            await self.store("Dave", NOW - 3600 + offset)
+        runtime = await self.fresh_runtime(monkeypatch)
+        assert runtime.detector.known == {}
+        await runtime.stop()
+
+    @pytest.mark.asyncio
+    async def test_reset_learned_seeds_again(self, test_db, monkeypatch):
+        await ChannelRepository.upsert(key=PUBLIC, name="Public")
+        runtime = await self.fresh_runtime(monkeypatch)
+        for offset in range(4):
+            await self.store("Dave", NOW - 3600 + offset)
+        await runtime.action("reset_learned", {})
+        assert runtime.detector.is_known("Dave")
+        await runtime.stop()
+
+
 class TestSettingsAndActions:
     @pytest.mark.asyncio
     async def test_save_config_is_versioned(self, feed):
