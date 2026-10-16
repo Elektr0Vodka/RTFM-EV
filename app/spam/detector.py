@@ -83,6 +83,10 @@ MAX_VARIANT_BLOCKS = 5
 HISTORY_HOURS = 8 * 24
 MAX_SOURCES = 15
 MAX_FLAGGED = 5000
+# Shape of ``dump()``. 2: a name is known after ``known_min_msgs`` (3 by default,
+# was 1) genuine messages; older state keeps the people it already knew.
+STATE_VERSION = 2
+KNOWN_BEFORE_VERSION_2 = 3
 
 # Blocks that hold people back rather than a spam text. A normal-looking name
 # caught by one of these is a likely mistake and goes on the held list.
@@ -1318,6 +1322,7 @@ class SpamDetector:
     def dump(self) -> dict[str, Any]:
         """Everything worth keeping across a restart, as plain JSON types."""
         return {
+            "version": STATE_VERSION,
             "blocks": {key: asdict(block) for key, block in self.blocks.items()},
             "suppressed": dict(self.suppressed),
             "known": {name: list(entry) for name, entry in self.known.items()},
@@ -1367,6 +1372,10 @@ class SpamDetector:
             if isinstance(v, (int, float)) and v > now
         }
         self.known = rows("known", 3)
+        version = state.get("version")
+        if not isinstance(version, int) or version < 2:
+            for entry in self.known.values():
+                entry[2] = max(entry[2], KNOWN_BEFORE_VERSION_2)
         self.routes = rows("routes", 4)
         self.relays = {
             str(k): float(v) for k, v in section("relays").items() if isinstance(v, (int, float))

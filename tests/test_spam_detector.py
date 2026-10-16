@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from app.spam.detector import SettledOutcome, SpamDetector
+from app.spam.detector import STATE_VERSION, SettledOutcome, SpamDetector
 from app.spam.settings import SpamConfig
 
 PUBLIC = "8B3387E9C5CDEA6AC9E5EDBAA115CD72"
@@ -507,7 +507,7 @@ class TestCampaigns:
 
 class TestKnownPeople:
     def test_genuine_sender_becomes_known_after_settling(self):
-        det, clock = make()
+        det, clock = make(overrides={"known_min_msgs": 1})
         say(det, clock, "Dave", "evening all")
         det.decide()
         assert not det.is_known("Dave")
@@ -558,7 +558,7 @@ class TestRepeaterBlocks:
         assert det.blocks["hop:27"].reason == "hop_random"
 
     def test_known_people_pass_a_default_repeater_block(self):
-        det, clock = make()
+        det, clock = make(overrides={"known_min_msgs": 1})
         say(det, clock, "Dave", "evening all", path=("44",))
         settle(det, clock)
         self.flood(det, clock)
@@ -575,7 +575,7 @@ class TestRepeaterBlocks:
         assert det.decide().flag == {7}
 
     def test_passing_through_a_blocked_repeater_still_counts_towards_known(self):
-        det, clock = make()
+        det, clock = make(overrides={"known_min_msgs": 1})
         self.flood(det, clock)
         say(det, clock, "Newcomer", "hello from a new person", path=("44", "27"))
         settle(det, clock)
@@ -657,7 +657,7 @@ class TestLinksAndLockdown:
         assert "links:new" not in det.blocks
 
     def test_lockdown_holds_strangers_and_ends(self):
-        det, clock = make()
+        det, clock = make(overrides={"known_min_msgs": 1})
         say(det, clock, "Dave", "evening all")
         settle(det, clock)
         det.action("lockdown", minutes=30)
@@ -990,12 +990,17 @@ class TestMetricsAndState:
         assert day["stopped"] == 0
 
     def test_dump_is_json_safe_and_round_trips(self):
-        det, clock = make()
+        det, clock = make(overrides={"known_min_msgs": 1})
         say(det, clock, "Dave", "evening all")
         settle(det, clock)
         det.action("block_hop", hop="27")
         state = json.loads(json.dumps(det.dump()))
-        other = SpamDetector(SpamConfig(channels=[{"key": PUBLIC, "name": "Public"}]), clock=clock)
+        other = SpamDetector(
+            SpamConfig(
+                channels=[{"key": PUBLIC, "name": "Public"}], overrides={"known_min_msgs": 1}
+            ),
+            clock=clock,
+        )
         other.load(state)
         assert other.is_known("Dave")
         assert "hop:27" in other.blocks
@@ -1014,6 +1019,26 @@ class TestMetricsAndState:
         assert not other.blocks
         other.load({"blocks": {"hop:27": {"kind": "hop"}}})
         assert not other.blocks
+
+    def test_state_written_before_known_after_three_keeps_known_people(self):
+        # Before STATE_VERSION 2 a name was known after one genuine message.
+        det, clock = make()
+        det.load({"known": {"Dave": [clock.now, clock.now, 1]}})
+        assert det.tunables.known_min_msgs == 3
+        assert det.is_known("Dave")
+        assert det.dump()["version"] == STATE_VERSION
+
+    def test_current_state_is_not_bumped(self):
+        det, clock = make()
+        det.load({"version": STATE_VERSION, "known": {"Dave": [clock.now, clock.now, 1]}})
+        assert not det.is_known("Dave")
+
+    def test_a_name_is_known_after_three_genuine_messages(self):
+        det, clock = make()
+        for count in range(1, 4):
+            say(det, clock, "Dave", f"evening all, message {count}")
+            settle(det, clock)
+            assert det.is_known("Dave") is (count == 3)
 
 
 def test_spam_package_does_not_import_the_radio():

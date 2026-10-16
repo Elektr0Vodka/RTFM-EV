@@ -126,7 +126,7 @@ class SpamTunables(BaseModel):
     dedupe_min_chars: int = Field(default=30, ge=MIN_DUPLICATE_CHARS, le=150)
     text_rule_chars: int = Field(default=40, ge=MIN_DUPLICATE_CHARS, le=150)
     # Known people
-    known_min_msgs: int = Field(default=1, ge=1, le=20)
+    known_min_msgs: int = Field(default=3, ge=1, le=20)
     known_days: int = Field(default=30, ge=1, le=365)
     hold_links: HoldLinks = "campaign"
     # Sender names
