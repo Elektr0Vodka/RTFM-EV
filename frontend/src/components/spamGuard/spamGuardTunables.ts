@@ -64,6 +64,10 @@ export const TUNABLE_GROUPS: TunableGroup[] = [
       { key: 'dedupe_seconds', type: 'int', min: 30, max: 86400, unit: 'seconds' },
       { key: 'dedupe_min_chars', type: 'int', min: 5, max: 150 },
       { key: 'text_rule_chars', type: 'int', min: 5, max: 150 },
+      { key: 'repeat_guard', type: 'bool' },
+      { key: 'repeat_max', type: 'int', min: 2, max: 20 },
+      { key: 'repeat_window_seconds', type: 'int', min: 60, max: 7200, unit: 'seconds' },
+      { key: 'repeat_block_seconds', type: 'int', min: 300, max: 86400, unit: 'seconds' },
     ],
   },
   {

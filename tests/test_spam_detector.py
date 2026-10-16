@@ -1041,6 +1041,79 @@ class TestMetricsAndState:
             assert det.is_known("Dave") is (count == 3)
 
 
+REPEAT = "anyone want my old radio"  # under dedupe_min_chars: duplicate suppression leaves it
+
+
+class TestRepeatGuard:
+    def repeat(self, det, clock, times, sender="Bobby", step=60.0):
+        return [say(det, clock, sender, REPEAT, step=step) for _ in range(times)]
+
+    def repeat_blocks(self, det):
+        return [b for b in det.blocks.values() if b.source == "repeat"]
+
+    def test_four_copies_stop_further_copies_from_that_name_only(self):
+        det, clock = make()
+        self.repeat(det, clock, 4)
+        det.decide()
+        (block,) = self.repeat_blocks(det)
+        assert block.key.startswith("repeat:")
+        assert block.sender == "Bobby" and block.sender_only
+        assert block.reason == "repeat" and block.detail == {"count": 4}
+        assert block.expires == clock.now + 3600
+        mine = say(det, clock, "Bobby", REPEAT)
+        assert mine.matched == block.key
+        assert mine.duplicate is True and mine.spam is False
+        theirs = say(det, clock, "Sue", REPEAT)
+        assert theirs.matched != block.key
+        other = say(det, clock, "Bobby", "something else entirely")
+        assert other.matched is None
+
+    def test_three_copies_are_fine(self):
+        det, clock = make()
+        self.repeat(det, clock, 3)
+        det.decide()
+        assert not self.repeat_blocks(det)
+
+    def test_copies_spread_over_more_than_the_window_are_fine(self):
+        det, clock = make()
+        self.repeat(det, clock, 6, step=300.0)
+        det.decide()
+        assert not self.repeat_blocks(det)
+
+    def test_trusted_names_and_allowed_texts_are_left_alone(self):
+        det, clock = make(allow_senders=["Bobby"], allow_texts=["my old radio"])
+        self.repeat(det, clock, 5)
+        self.repeat(det, clock, 5, sender="Carol")
+        det.decide()
+        assert not self.repeat_blocks(det)
+
+    def test_short_messages_are_left_alone(self):
+        det, clock = make()
+        for _ in range(6):
+            say(det, clock, "Bobby", "@[Sue] ok ok", step=60.0)
+        det.decide()
+        assert not self.repeat_blocks(det)
+
+    def test_can_be_switched_off(self):
+        det, clock = make(overrides={"repeat_guard": False})
+        self.repeat(det, clock, 6)
+        det.decide()
+        assert not self.repeat_blocks(det)
+
+    def test_removing_it_forgives_the_copies_without_a_hold_off(self):
+        det, clock = make()
+        self.repeat(det, clock, 4)
+        det.decide()
+        (block,) = self.repeat_blocks(det)
+        det.action("unblock", key=block.key)
+        assert block.key not in det.suppressed
+        det.decide()
+        assert not self.repeat_blocks(det)
+        self.repeat(det, clock, 4)
+        det.decide()
+        assert len(self.repeat_blocks(det)) == 1
+
+
 def test_spam_package_does_not_import_the_radio():
     banned = ("app.radio", "app.services.radio", "app.services.host_repeater_tx", "meshcore")
     for path in pathlib.Path("app/spam").glob("*.py"):

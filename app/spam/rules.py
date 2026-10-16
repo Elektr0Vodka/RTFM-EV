@@ -20,8 +20,8 @@ Monitor must not change forwarding. A block set to observe only is left out for
 the same reason.
 
 A rule name ends in where its block came from: ``(yours)`` for a block the user
-made or kept, ``(duplicate)`` for routine duplicate suppression, ``(auto)`` for
-the rest. On an OpenHop node the name is all there is to tell them apart. The
+made or kept, ``(duplicate)`` for routine duplicate suppression, ``(repeat)`` for
+the repeat guard, ``(auto)`` for the rest. On an OpenHop node the name is all there is to tell them apart. The
 rule id is made from the name without that ending, so it does not change when
 a block changes hands.
 
@@ -74,7 +74,7 @@ MAX_NAME = 128
 OPENHOP_ID_BASE = 700_000_000
 OPENHOP_ID_SPAN = 100_000_000
 # Where a block came from, as the ending of its rule names.
-_ORIGINS = {"manual": "yours", "lockdown": "yours", "dedupe": "duplicate"}
+_ORIGINS = {"manual": "yours", "lockdown": "yours", "dedupe": "duplicate", "repeat": "repeat"}
 
 
 @dataclass

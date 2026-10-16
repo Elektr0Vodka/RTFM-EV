@@ -3335,6 +3335,10 @@ export interface SpamGuardTunables {
   dedupe_seconds: number;
   dedupe_min_chars: number;
   text_rule_chars: number;
+  repeat_guard: boolean;
+  repeat_max: number;
+  repeat_window_seconds: number;
+  repeat_block_seconds: number;
   known_min_msgs: number;
   known_days: number;
   hold_links: SpamGuardHoldLinks;

@@ -57,6 +57,7 @@ const REASON_KEYS: Record<string, string> = {
   campaign_changed: 'spam_reason_campaign_changed',
   campaign_variant: 'spam_reason_campaign_variant',
   duplicate: 'spam_reason_duplicate',
+  repeat: 'spam_reason_repeat',
   resent_changed: 'spam_reason_resent_changed',
   hop_random: 'spam_reason_hop_random',
   hop_new: 'spam_reason_hop_new',

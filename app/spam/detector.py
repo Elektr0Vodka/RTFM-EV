@@ -59,7 +59,11 @@ from app.spam.text import (
 from app.spam.text import name_score as _name_score  # ``ingest`` has a parameter of that name
 
 BlockKind = Literal["text", "words", "hop", "suffix", "links", "lockdown"]
-BlockSource = Literal["manual", "hop", "campaign", "dedupe", "rotation", "links", "lockdown"]
+BlockSource = Literal[
+    "manual", "hop", "campaign", "dedupe", "repeat", "rotation", "links", "lockdown"
+]
+# Sources that only hold back repeats: a caught message is a duplicate, not spam.
+_REPEAT_SOURCES = frozenset({"dedupe", "repeat"})
 
 DIRECT = "DIRECT"
 LOCKDOWN_KEY = "lockdown"
@@ -79,6 +83,8 @@ MAX_ROUTES = 5000
 MAX_CAMPAIGN_EVENTS = 400
 SHARED_CACHE_SIZE = 64
 MIN_CAMPAIGN_CHARS = 8
+# The repeat guard leaves shorter messages ("ok", "73") alone.
+MIN_REPEAT_CHARS = 8
 MAX_VARIANT_BLOCKS = 5
 HISTORY_HOURS = 8 * 24
 MAX_SOURCES = 15
@@ -93,7 +99,7 @@ KNOWN_BEFORE_VERSION_2 = 3
 _PEOPLE_KINDS = frozenset({"hop", "suffix", "links", "lockdown"})
 # Evaluation order, mirrored by the rule renderer: manual first, and blocks that
 # let known people through after everything else.
-_RANK = {"manual": 0, "hop": 1, "campaign": 2, "dedupe": 3}
+_RANK = {"manual": 0, "hop": 1, "campaign": 2, "dedupe": 3, "repeat": 3}
 _GATED_RANK = 10
 _HOP_MODES = frozenset(get_args(HopMatch))
 
@@ -473,7 +479,7 @@ class SpamDetector:
             event.matched = block.key
             block.hits += 1
             block.last_hit = event.ts
-            event.duplicate = block.source == "dedupe"
+            event.duplicate = block.source in _REPEAT_SOURCES
             if block.kind in ("text", "words"):
                 event.spam = block.source in ("campaign", "manual")
             elif block.kind in ("hop", "suffix"):
@@ -929,6 +935,46 @@ class SpamDetector:
                 continue
             hold("text", piece, "duplicate", copies)
 
+    def _block_repeats(self, recent: list[Event]) -> None:
+        """One name sending the same message over and over (the repeat guard).
+
+        After ``repeat_max`` copies within the window, further copies of that
+        message from that name are held back for ``repeat_block_seconds``. Their
+        first copies and anything else they say still go out, and other people
+        quoting it are not affected. It also slows a known person's repeats: Spam
+        Guard never blocks what someone says, only that they keep saying it.
+        """
+        tun = self.tunables
+        copies: dict[tuple[str, str, str], list[tuple[Event, str]]] = {}
+        for event in recent:
+            if event.exempt or event.released or event.sender in self.allow_senders:
+                continue
+            if event.sender in ("", "?"):
+                continue
+            content = longest_piece(strip_mentions(event.text)).strip()
+            if len(content) < MIN_REPEAT_CHARS:
+                continue
+            copies.setdefault((event.sender, event.channel, normalise(content)), []).append(
+                (event, content)
+            )
+        for (sender, channel, _), seen in copies.items():
+            if len(seen) <= tun.repeat_max:
+                continue
+            piece = self._rule_piece(seen[-1][1])
+            self._want(
+                f"repeat:{_digest(f'{sender}|{piece}')}",
+                "text",
+                piece,
+                "repeat",
+                "repeat",
+                detail={"count": len(seen)},
+                channel=channel,
+                ttl=tun.repeat_block_seconds,
+                from_ts=seen[-1][0].ts,
+                sender=sender,
+                sender_only=True,
+            )
+
     def _block_repeaters(self, window: list[Event], long_window: list[Event], now: float) -> None:
         tun = self.tunables
         signals: dict[str, _HopSignals] = {}
@@ -1167,6 +1213,8 @@ class SpamDetector:
                 judged=rematch,
                 fresh_seconds=fresh_seconds,
             )
+        if tun.repeat_guard:
+            self._block_repeats([e for e in long_window if e.ts >= now - tun.repeat_window_seconds])
         if tun.enable_hop_rules:
             self._block_repeaters(window, long_window, now)
         self._learn_paths(long_window)
@@ -1423,7 +1471,7 @@ class SpamDetector:
         block = self.blocks.pop(key, None)
         if block is not None:
             self._note("block_removed", key=key, kind=block.kind)
-            if block.source == "dedupe":
+            if block.source in _REPEAT_SOURCES:
                 self._release(block)
                 return {"key": key}
         # Otherwise the same evidence would put it straight back.

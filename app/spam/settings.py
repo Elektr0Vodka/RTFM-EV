@@ -125,6 +125,13 @@ class SpamTunables(BaseModel):
     dedupe_seconds: int = Field(default=900, ge=30, le=86400)
     dedupe_min_chars: int = Field(default=30, ge=MIN_DUPLICATE_CHARS, le=150)
     text_rule_chars: int = Field(default=40, ge=MIN_DUPLICATE_CHARS, le=150)
+    # Repeat guard: one name sending the same message over and over. After
+    # ``repeat_max`` copies within the window, further copies from that name
+    # are held back; anyone else may still quote it.
+    repeat_guard: bool = True
+    repeat_max: int = Field(default=3, ge=2, le=20)
+    repeat_window_seconds: int = Field(default=600, ge=60, le=7200)
+    repeat_block_seconds: int = Field(default=3600, ge=300, le=86400)
     # Known people
     known_min_msgs: int = Field(default=3, ge=1, le=20)
     known_days: int = Field(default=30, ge=1, le=365)
