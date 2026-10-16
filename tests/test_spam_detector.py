@@ -1168,6 +1168,100 @@ class TestSeedKnown:
         assert det.known["Dave"] == [1.0, 2.0, 7]
 
 
+def regular(det, clock, name="Carol", hop="C9", onward=("B1",), times=6):
+    """Someone chatting for over an hour from the same repeater."""
+    for index in range(times):
+        say(
+            det,
+            clock,
+            name,
+            f"{name} chatting about topic {index}",
+            path=(hop, *onward),
+            step=700.0,
+        )
+    settle(det, clock)
+
+
+class TestRegulars:
+    def test_home_counts_uncaught_messages_and_is_kept(self):
+        det, clock = make()
+        for index in range(3):
+            say(det, clock, "Carol", f"chat {index} from home", path=("C9", "B1"))
+        det.action("lockdown", minutes=60)
+        say(det, clock, "Newbie", "hello there", path=("C9", "B1"))
+        settle(det, clock)
+        assert det.homes == {"Carol": {"C9": 3}}
+        other, _ = make()
+        other.load(json.loads(json.dumps(det.dump())))
+        assert other.homes == {"Carol": {"C9": 3}}
+
+    def test_established_is_known_or_an_hour_of_chat(self):
+        det, clock = make(overrides={"known_min_msgs": 20})
+        say(det, clock, "Dave", "first words")
+        assert not det.established("Dave")
+        regular(det, clock)
+        assert det.established("Carol") and not det.is_known("Carol")
+
+    @pytest.mark.parametrize("block", ["lockdown", "home_repeater"])
+    def test_a_regular_caught_at_home_keeps_learning(self, block):
+        det, clock = make(overrides={"known_min_msgs": 20})
+        regular(det, clock)
+        if block == "lockdown":
+            det.action("lockdown", minutes=60)
+        else:
+            det.action("block_hop", hop="C9")
+        before = det.known["Carol"][2]
+        caught = say(det, clock, "Carol", "still here at home", path=("C9", "B1"))
+        assert caught.matched is not None
+        settle(det, clock)
+        assert det.known["Carol"][2] == before + 1
+
+    def test_the_same_name_from_elsewhere_does_not(self):
+        det, clock = make(overrides={"known_min_msgs": 20})
+        regular(det, clock)
+        det.action("lockdown", minutes=60)
+        before = det.known["Carol"][2]
+        assert say(det, clock, "Carol", "it is me, honest", path=("D4", "B1")).matched
+        settle(det, clock)
+        assert det.known["Carol"][2] == before
+
+    def test_known_people_saying_the_same_greeting_is_no_campaign(self):
+        det, clock = make()
+        det.seed_known([(name, 5, clock.now - 7200, clock.now - 600) for name in "ABCDE"])
+        for name in "ABCDE":
+            say(det, clock, name, "good evening mesh, all well here?")
+        det.decide()
+        assert not any(b.source == "campaign" for b in det.blocks.values())
+        new, clock = make()
+        for name in ("Anna", "Bert", "Cees", "Dirk", "Eef"):
+            say(new, clock, name, "good evening mesh, all well here?")
+        new.decide()
+        assert any(b.source == "campaign" for b in new.blocks.values())
+
+    def test_an_established_tagged_name_is_not_made_up(self):
+        det, clock = make(overrides={"known_min_msgs": 20})
+        assert say(det, clock, "Marco-7fq2k", "hello all").random is True
+        regular(det, clock, name="Marco-7fq2k")
+        assert say(det, clock, "Marco-7fq2k", "hello again").random is False
+
+
+class TestRotationAndRegulars:
+    quiet = {"enable_hop_rules": False, "dedupe_enabled": False, "known_min_msgs": 20}
+
+    def test_an_established_person_from_a_new_hop_is_no_evidence(self):
+        det, clock = make(overrides=self.quiet)
+        for index in range(6):
+            for name in ("Carol", "Dave", "Erik"):
+                say(det, clock, name, f"{name} chatting about topic {index}", step=250.0)
+        settle(det, clock)
+        # Each turns up once from a never-seen first hop, the same onward route,
+        # in a suspect campaign: not one spammer changing identity.
+        for hop, name in [("A1", "Carol"), ("A2", "Dave"), ("A3", "Erik")]:
+            say(det, clock, name, "Amazing offer cheap radios now", path=(hop, "B1", "7E"))
+        det.decide()
+        assert "suffix:B1>7E" not in det.blocks
+
+
 def test_spam_package_does_not_import_the_radio():
     banned = ("app.radio", "app.services.radio", "app.services.host_repeater_tx", "meshcore")
     for path in pathlib.Path("app/spam").glob("*.py"):

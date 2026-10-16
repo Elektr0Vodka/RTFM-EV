@@ -8,7 +8,7 @@ from tests.spam_redteam import EXCLUDED_KINDS, generate, simulate
 # of regulars' messages held, on both engines.
 MIN_STOPPED = 90.0
 MAX_HELD = 3.0
-GATE = False
+GATE = True
 
 
 @pytest.fixture(scope="module")

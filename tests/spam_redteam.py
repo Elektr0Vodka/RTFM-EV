@@ -433,12 +433,27 @@ def _host(det: SpamDetector) -> tuple[list[PolicyRule], list[PolicyRule]]:
     )
 
 
-def simulate(seed: int = 7, **overrides) -> Result:
+def stored_chat(seed: int) -> list[tuple[str, int, float, float]]:
+    """What RTFM-EV stored of the day before: most regulars chatted, some did not."""
+    rng = random.Random(seed + 1)
+    rows = []
+    for name in REGULARS:
+        if rng.random() < 0.8:
+            first = START - rng.uniform(3600, 86400)
+            rows.append((name, rng.randrange(1, 30), first, rng.uniform(first, START)))
+    return rows
+
+
+def simulate(seed: int = 7, *, fresh_start: bool = True, **overrides) -> Result:
+    """Run the scenario. ``fresh_start`` learns from a day of stored chat first,
+    as Spam Guard does when it starts without saved state."""
     clock = _Clock()
     config = SpamConfig(
         mode="protect", channels=[{"key": PUBLIC, "name": "Public"}], overrides=overrides
     )
     det = SpamDetector(config, clock=clock)
+    if fresh_start:
+        det.seed_known(stored_chat(seed))
     scores = {"host": Score(), "openhop": Score()}
     node = _openhop(det)
     host = _host(det)
